@@ -1,0 +1,1 @@
+../../shared-cores/wordpress/index.php

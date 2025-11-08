@@ -1,0 +1,30 @@
+# Environment
+.env
+.env.local
+
+# Logs
+*.log
+logs/
+
+# Instance data
+instances/*/wp-content/uploads/*
+instances/*/wp-content/cache/*
+
+# Vendor
+vendor/
+node_modules/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary
+tmp/
+temp/
+*.tmp

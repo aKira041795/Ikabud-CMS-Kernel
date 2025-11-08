@@ -1,0 +1,582 @@
+<?php
+/**
+ * Ikabud Kernel - Core Microkernel
+ * 
+ * GNU/Linux-inspired CMS Operating System
+ * Boots first, supervises all CMS as userland processes
+ * 
+ * @version 1.0.0
+ * @author Ikabud Development Team
+ */
+
+namespace IkabudKernel\Core;
+
+use PDO;
+use Exception;
+
+class Kernel
+{
+    const VERSION = '1.0.0';
+    const BOOT_PHASES = 5;
+    
+    private static ?self $instance = null;
+    private static bool $booted = false;
+    private static string $bootId;
+    private static float $bootStartTime;
+    
+    private PDO $db;
+    private array $config = [];
+    private array $syscalls = [];
+    private array $processes = [];
+    private array $bootLog = [];
+    
+    /**
+     * Get singleton instance
+     */
+    public static function getInstance(): self
+    {
+        if (self::$instance === null) {
+            self::$instance = new self();
+        }
+        return self::$instance;
+    }
+    
+    /**
+     * Get database connection
+     */
+    public function getDatabase(): PDO
+    {
+        return $this->db;
+    }
+    
+    /**
+     * Boot the kernel with 5-phase sequence
+     */
+    public static function boot(): void
+    {
+        if (self::$booted) {
+            return;
+        }
+        
+        self::$bootStartTime = microtime(true);
+        self::$bootId = uniqid('boot_', true);
+        
+        $kernel = self::getInstance();
+        
+        try {
+            // Phase 1: Kernel-Level Dependencies
+            $kernel->bootPhase1_KernelDependencies();
+            
+            // Phase 2: Shared Core Loading
+            $kernel->bootPhase2_SharedCores();
+            
+            // Phase 3: Instance Configuration
+            $kernel->bootPhase3_InstanceConfig();
+            
+            // Phase 4: CMS Runtime Bootstrap
+            $kernel->bootPhase4_CMSRuntime();
+            
+            // Phase 5: Theme & Plugin Loading
+            $kernel->bootPhase5_Extensions();
+            
+            self::$booted = true;
+            
+            $kernel->logBoot('complete', 'Kernel boot completed successfully');
+            
+        } catch (Exception $e) {
+            $kernel->logBoot('failed', 'Kernel boot failed: ' . $e->getMessage());
+            throw new Exception("Kernel boot failed: " . $e->getMessage());
+        }
+    }
+    
+    /**
+     * Phase 1: Initialize kernel-level dependencies
+     */
+    private function bootPhase1_KernelDependencies(): void
+    {
+        $phaseStart = microtime(true);
+        
+        try {
+            // 1.1 Load environment configuration
+            $this->loadEnvironment();
+            
+            // 1.2 Initialize database connection
+            $this->initializeDatabase();
+            
+            // Now we can log to database
+            $this->logPhase(1, 'Kernel-Level Dependencies', 'started');
+            
+            // 1.3 Load kernel configuration
+            $this->loadKernelConfig();
+            
+            // 1.4 Register core syscalls
+            $this->registerCoreSyscalls();
+            
+            // 1.5 Initialize error handling
+            $this->initializeErrorHandling();
+            
+            // 1.6 Initialize security sandbox
+            $this->initializeSecuritySandbox();
+            
+            $duration = (microtime(true) - $phaseStart) * 1000;
+            $this->logPhase(1, 'Kernel-Level Dependencies', 'completed', $duration);
+            
+        } catch (Exception $e) {
+            if (isset($this->db)) {
+                $this->logPhase(1, 'Kernel-Level Dependencies', 'failed', 0, $e->getMessage());
+            }
+            throw $e;
+        }
+    }
+    
+    /**
+     * Phase 2: Load shared CMS cores (isolated)
+     */
+    private function bootPhase2_SharedCores(): void
+    {
+        $phaseStart = microtime(true);
+        $this->logPhase(2, 'Shared Core Loading', 'started');
+        
+        try {
+            // 2.1 Detect available CMS cores
+            $cores = $this->detectSharedCores();
+            
+            // 2.2 Prepare isolation environment
+            $this->prepareIsolationEnvironment();
+            
+            // 2.3 Load cores without initialization
+            foreach ($cores as $cmsType => $corePath) {
+                $this->loadSharedCore($cmsType, $corePath);
+            }
+            
+            $duration = (microtime(true) - $phaseStart) * 1000;
+            $this->logPhase(2, 'Shared Core Loading', 'completed', $duration);
+            
+        } catch (Exception $e) {
+            $this->logPhase(2, 'Shared Core Loading', 'failed', 0, $e->getMessage());
+            throw $e;
+        }
+    }
+    
+    /**
+     * Phase 3: Configure instances
+     */
+    private function bootPhase3_InstanceConfig(): void
+    {
+        $phaseStart = microtime(true);
+        $this->logPhase(3, 'Instance Configuration', 'started');
+        
+        try {
+            // 3.1 Load active instances from database
+            $instances = $this->loadActiveInstances();
+            
+            // 3.2 Configure routing for each instance
+            foreach ($instances as $instance) {
+                $this->configureInstanceRouting($instance);
+            }
+            
+            // 3.3 Set up isolated database connections
+            $this->setupInstanceDatabases($instances);
+            
+            $duration = (microtime(true) - $phaseStart) * 1000;
+            $this->logPhase(3, 'Instance Configuration', 'completed', $duration);
+            
+        } catch (Exception $e) {
+            $this->logPhase(3, 'Instance Configuration', 'failed', 0, $e->getMessage());
+            throw $e;
+        }
+    }
+    
+    /**
+     * Phase 4: Bootstrap CMS runtime
+     */
+    private function bootPhase4_CMSRuntime(): void
+    {
+        $phaseStart = microtime(true);
+        $this->logPhase(4, 'CMS Runtime Bootstrap', 'started');
+        
+        try {
+            // 4.1 Determine which CMS to boot based on request
+            $requestedCMS = $this->determineRequestedCMS();
+            
+            // 4.2 Boot CMS runtime (if needed)
+            if ($requestedCMS) {
+                $this->bootCMSRuntime($requestedCMS);
+            }
+            
+            $duration = (microtime(true) - $phaseStart) * 1000;
+            $this->logPhase(4, 'CMS Runtime Bootstrap', 'completed', $duration);
+            
+        } catch (Exception $e) {
+            $this->logPhase(4, 'CMS Runtime Bootstrap', 'failed', 0, $e->getMessage());
+            throw $e;
+        }
+    }
+    
+    /**
+     * Phase 5: Load themes and plugins
+     */
+    private function bootPhase5_Extensions(): void
+    {
+        $phaseStart = microtime(true);
+        $this->logPhase(5, 'Theme & Plugin Loading', 'started');
+        
+        try {
+            // 5.1 Load active theme
+            $this->loadActiveTheme();
+            
+            // 5.2 Load instance-specific plugins
+            $this->loadInstancePlugins();
+            
+            // 5.3 Initialize DSL system
+            $this->initializeDSL();
+            
+            $duration = (microtime(true) - $phaseStart) * 1000;
+            $this->logPhase(5, 'Theme & Plugin Loading', 'completed', $duration);
+            
+        } catch (Exception $e) {
+            $this->logPhase(5, 'Theme & Plugin Loading', 'failed', 0, $e->getMessage());
+            throw $e;
+        }
+    }
+    
+    /**
+     * Execute a syscall
+     */
+    public static function syscall(string $name, array $args = []): mixed
+    {
+        $kernel = self::getInstance();
+        
+        if (!isset($kernel->syscalls[$name])) {
+            throw new Exception("Syscall not found: {$name}");
+        }
+        
+        $startTime = microtime(true);
+        $memoryBefore = memory_get_usage();
+        
+        try {
+            $result = call_user_func($kernel->syscalls[$name], $args);
+            
+            $executionTime = (microtime(true) - $startTime) * 1000;
+            $memoryDelta = memory_get_usage() - $memoryBefore;
+            
+            // Log syscall if enabled
+            if ($kernel->config['syscall_logging'] ?? false) {
+                $kernel->logSyscall($name, $args, $result, $executionTime, $memoryDelta, 'success');
+            }
+            
+            return $result;
+            
+        } catch (Exception $e) {
+            $executionTime = (microtime(true) - $startTime) * 1000;
+            $kernel->logSyscall($name, $args, null, $executionTime, 0, 'error', $e->getMessage());
+            throw $e;
+        }
+    }
+    
+    /**
+     * Register a syscall handler
+     */
+    public static function registerSyscall(string $name, callable $handler): void
+    {
+        $kernel = self::getInstance();
+        $kernel->syscalls[$name] = $handler;
+    }
+    
+    /**
+     * Check if syscall exists
+     */
+    public static function hasSyscall(string $name): bool
+    {
+        $kernel = self::getInstance();
+        return isset($kernel->syscalls[$name]);
+    }
+    
+    /**
+     * Get kernel statistics
+     */
+    public static function getStats(): array
+    {
+        $kernel = self::getInstance();
+        
+        return [
+            'version' => self::VERSION,
+            'booted' => self::$booted,
+            'boot_id' => self::$bootId ?? null,
+            'uptime' => self::$booted ? microtime(true) - self::$bootStartTime : 0,
+            'syscalls_registered' => count($kernel->syscalls),
+            'processes_running' => count($kernel->processes),
+            'memory_usage' => memory_get_usage(),
+            'memory_peak' => memory_get_peak_usage(),
+        ];
+    }
+    
+    /**
+     * Register a process
+     */
+    public static function registerProcess(string $name, string $type, array $config = []): int
+    {
+        $kernel = self::getInstance();
+        
+        $stmt = $kernel->db->prepare("
+            INSERT INTO kernel_processes 
+            (instance_id, process_name, process_type, cms_type, status, memory_limit, started_at)
+            VALUES (?, ?, ?, ?, 'running', ?, NOW())
+        ");
+        
+        $stmt->execute([
+            $config['instance_id'] ?? 'default',
+            $name,
+            $type,
+            $config['cms_type'] ?? 'native',
+            $config['memory_limit'] ?? 256
+        ]);
+        
+        $pid = (int) $kernel->db->lastInsertId();
+        $kernel->processes[$pid] = $config;
+        
+        return $pid;
+    }
+    
+    // ========================================================================
+    // PRIVATE HELPER METHODS
+    // ========================================================================
+    
+    private function loadEnvironment(): void
+    {
+        $envFile = __DIR__ . '/../.env';
+        if (!file_exists($envFile)) {
+            throw new Exception('.env file not found');
+        }
+        
+        $lines = file($envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+        foreach ($lines as $line) {
+            if (strpos(trim($line), '#') === 0) continue;
+            
+            list($key, $value) = explode('=', $line, 2);
+            $key = trim($key);
+            $value = trim($value);
+            
+            // Remove quotes
+            $value = trim($value, '"\'');
+            
+            $_ENV[$key] = $value;
+            putenv("{$key}={$value}");
+        }
+    }
+    
+    private function initializeDatabase(): void
+    {
+        $dsn = sprintf(
+            'mysql:host=%s;port=%s;dbname=%s;charset=%s',
+            $_ENV['DB_HOST'],
+            $_ENV['DB_PORT'],
+            $_ENV['DB_DATABASE'],
+            $_ENV['DB_CHARSET'] ?? 'utf8mb4'
+        );
+        
+        $this->db = new PDO($dsn, $_ENV['DB_USERNAME'], $_ENV['DB_PASSWORD'], [
+            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+            PDO::ATTR_EMULATE_PREPARES => false,
+        ]);
+    }
+    
+    private function loadKernelConfig(): void
+    {
+        $stmt = $this->db->query("SELECT `key`, `value`, `type` FROM kernel_config");
+        $configs = $stmt->fetchAll();
+        
+        foreach ($configs as $config) {
+            $value = $config['value'];
+            
+            // Type casting
+            switch ($config['type']) {
+                case 'integer':
+                    $value = (int) $value;
+                    break;
+                case 'boolean':
+                    $value = filter_var($value, FILTER_VALIDATE_BOOLEAN);
+                    break;
+                case 'json':
+                case 'array':
+                    $value = json_decode($value, true);
+                    break;
+            }
+            
+            $this->config[$config['key']] = $value;
+        }
+    }
+    
+    private function registerCoreSyscalls(): void
+    {
+        // Content syscalls
+        self::registerSyscall('content.fetch', [$this, 'syscallContentFetch']);
+        self::registerSyscall('content.create', [$this, 'syscallContentCreate']);
+        self::registerSyscall('content.update', [$this, 'syscallContentUpdate']);
+        self::registerSyscall('content.delete', [$this, 'syscallContentDelete']);
+        
+        // Database syscalls
+        self::registerSyscall('db.query', [$this, 'syscallDbQuery']);
+        self::registerSyscall('db.insert', [$this, 'syscallDbInsert']);
+        
+        // HTTP syscalls
+        self::registerSyscall('http.get', [$this, 'syscallHttpGet']);
+        self::registerSyscall('http.post', [$this, 'syscallHttpPost']);
+        
+        // Asset syscalls
+        self::registerSyscall('asset.enqueue', [$this, 'syscallAssetEnqueue']);
+        
+        // Theme syscalls
+        self::registerSyscall('theme.render', [$this, 'syscallThemeRender']);
+    }
+    
+    private function initializeErrorHandling(): void
+    {
+        error_reporting(E_ALL);
+        ini_set('display_errors', $_ENV['APP_DEBUG'] === 'true' ? '1' : '0');
+        ini_set('log_errors', '1');
+        ini_set('error_log', __DIR__ . '/../storage/logs/kernel.log');
+    }
+    
+    private function initializeSecuritySandbox(): void
+    {
+        // Set security headers
+        header('X-Frame-Options: SAMEORIGIN');
+        header('X-Content-Type-Options: nosniff');
+        header('X-XSS-Protection: 1; mode=block');
+    }
+    
+    private function detectSharedCores(): array
+    {
+        $coresPath = __DIR__ . '/../shared-cores';
+        $cores = [];
+        
+        if (is_dir($coresPath)) {
+            $dirs = scandir($coresPath);
+            foreach ($dirs as $dir) {
+                if ($dir === '.' || $dir === '..') continue;
+                $cores[$dir] = $coresPath . '/' . $dir;
+            }
+        }
+        
+        return $cores;
+    }
+    
+    private function prepareIsolationEnvironment(): void
+    {
+        // Start output buffering for isolation
+        ob_start();
+    }
+    
+    private function loadSharedCore(string $cmsType, string $corePath): void
+    {
+        // Core loading logic will be implemented per CMS type
+        $this->bootLog[] = "Loaded shared core: {$cmsType}";
+    }
+    
+    private function loadActiveInstances(): array
+    {
+        $stmt = $this->db->query("SELECT * FROM instances WHERE status = 'active'");
+        return $stmt->fetchAll();
+    }
+    
+    private function configureInstanceRouting(array $instance): void
+    {
+        // Routing configuration logic
+    }
+    
+    private function setupInstanceDatabases(array $instances): void
+    {
+        // Database connection pooling logic
+    }
+    
+    private function determineRequestedCMS(): ?string
+    {
+        // Route matching logic
+        return null;
+    }
+    
+    private function bootCMSRuntime(?string $cmsType): void
+    {
+        // CMS runtime boot logic
+    }
+    
+    private function loadActiveTheme(): void
+    {
+        // Theme loading logic
+    }
+    
+    private function loadInstancePlugins(): void
+    {
+        // Plugin loading logic
+    }
+    
+    private function initializeDSL(): void
+    {
+        // DSL system initialization
+    }
+    
+    private function logPhase(int $phase, string $name, string $status, float $duration = 0, ?string $error = null): void
+    {
+        $stmt = $this->db->prepare("
+            INSERT INTO kernel_boot_log 
+            (boot_id, phase, phase_name, status, duration_ms, memory_before, memory_after, error_message)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ");
+        
+        $stmt->execute([
+            self::$bootId,
+            $phase,
+            $name,
+            $status,
+            $duration,
+            memory_get_usage(),
+            memory_get_usage(),
+            $error
+        ]);
+    }
+    
+    private function logBoot(string $status, string $message): void
+    {
+        $totalTime = (microtime(true) - self::$bootStartTime) * 1000;
+        error_log(sprintf(
+            "IKABUD KERNEL [%s]: %s (%.2fms)",
+            strtoupper($status),
+            $message,
+            $totalTime
+        ));
+    }
+    
+    private function logSyscall(string $name, array $args, $result, float $time, int $memory, string $status, ?string $error = null): void
+    {
+        $stmt = $this->db->prepare("
+            INSERT INTO kernel_syscalls 
+            (pid, syscall_name, syscall_args, syscall_result, execution_time, memory_delta, status, error_message)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ");
+        
+        $stmt->execute([
+            null, // PID will be determined from context
+            $name,
+            json_encode($args),
+            json_encode($result),
+            $time,
+            $memory,
+            $status,
+            $error
+        ]);
+    }
+    
+    // Placeholder syscall implementations
+    private function syscallContentFetch(array $args): array { return []; }
+    private function syscallContentCreate(array $args): int { return 0; }
+    private function syscallContentUpdate(array $args): bool { return true; }
+    private function syscallContentDelete(array $args): bool { return true; }
+    private function syscallDbQuery(array $args): array { return []; }
+    private function syscallDbInsert(array $args): int { return 0; }
+    private function syscallHttpGet(array $args): string { return ''; }
+    private function syscallHttpPost(array $args): string { return ''; }
+    private function syscallAssetEnqueue(array $args): void {}
+    private function syscallThemeRender(array $args): string { return ''; }
+}

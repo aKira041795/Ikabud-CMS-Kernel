@@ -1,0 +1,1 @@
+../../shared-cores/wordpress/wp-settings.php

@@ -1,0 +1,18 @@
+# BEGIN WordPress
+<IfModule mod_rewrite.c>
+RewriteEngine On
+RewriteBase /
+RewriteRule ^index\.php$ - [L]
+
+# Redirect wp-content requests to instance-specific wp-content
+# This allows each instance to have its own plugins, themes, and uploads
+RewriteCond %{REQUEST_URI} ^/wp-content/(.*)$
+RewriteCond %{DOCUMENT_ROOT}/../instances/%{ENV:REDIRECT_IKABUD_INSTANCE_ID}/wp-content/$1 -f [OR]
+RewriteCond %{DOCUMENT_ROOT}/../instances/%{ENV:REDIRECT_IKABUD_INSTANCE_ID}/wp-content/$1 -d
+RewriteRule ^wp-content/(.*)$ ../instances/%{ENV:REDIRECT_IKABUD_INSTANCE_ID}/wp-content/$1 [L]
+
+RewriteCond %{REQUEST_FILENAME} \!-f
+RewriteCond %{REQUEST_FILENAME} \!-d
+RewriteRule . /index.php [L]
+</IfModule>
+# END WordPress
