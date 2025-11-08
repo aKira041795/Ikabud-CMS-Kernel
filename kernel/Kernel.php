@@ -50,6 +50,73 @@ class Kernel
     }
     
     /**
+     * Check if kernel is booted
+     */
+    public static function isBooted(): bool
+    {
+        return self::$booted;
+    }
+    
+    /**
+     * Boot a CMS instance
+     */
+    public function bootInstance(string $instanceId, array $config): bool
+    {
+        $bootstrapper = new InstanceBootstrapper($this);
+        return $bootstrapper->bootInstance($instanceId, $config);
+    }
+    
+    /**
+     * Register a process in the kernel
+     * 
+     * @param string $name Process name
+     * @param string $type Process type (cms, service, daemon)
+     * @param array $metadata Process metadata
+     * @return int Process ID (PID)
+     */
+    public static function registerProcess(string $name, string $type, array $metadata = []): int
+    {
+        $kernel = self::getInstance();
+        
+        // Generate PID
+        $pid = count($kernel->processes) + 1000;
+        
+        // Store process
+        $kernel->processes[$name] = [
+            'pid' => $pid,
+            'name' => $name,
+            'type' => $type,
+            'metadata' => $metadata,
+            'status' => 'registered',
+            'registered_at' => time()
+        ];
+        
+        // Store in database if available
+        if (isset($kernel->db)) {
+            try {
+                $stmt = $kernel->db->prepare("
+                    INSERT INTO kernel_processes (pid, name, type, metadata, status, registered_at)
+                    VALUES (?, ?, ?, ?, 'registered', NOW())
+                    ON DUPLICATE KEY UPDATE
+                        status = 'registered',
+                        metadata = VALUES(metadata)
+                ");
+                $stmt->execute([
+                    $pid,
+                    $name,
+                    $type,
+                    json_encode($metadata)
+                ]);
+            } catch (Exception $e) {
+                // Table might not exist yet, that's OK
+                error_log("Kernel: Could not register process in database: " . $e->getMessage());
+            }
+        }
+        
+        return $pid;
+    }
+    
+    /**
      * Boot the kernel with 5-phase sequence
      */
     public static function boot(): void
@@ -309,33 +376,6 @@ class Kernel
             'memory_usage' => memory_get_usage(),
             'memory_peak' => memory_get_peak_usage(),
         ];
-    }
-    
-    /**
-     * Register a process
-     */
-    public static function registerProcess(string $name, string $type, array $config = []): int
-    {
-        $kernel = self::getInstance();
-        
-        $stmt = $kernel->db->prepare("
-            INSERT INTO kernel_processes 
-            (instance_id, process_name, process_type, cms_type, status, memory_limit, started_at)
-            VALUES (?, ?, ?, ?, 'running', ?, NOW())
-        ");
-        
-        $stmt->execute([
-            $config['instance_id'] ?? 'default',
-            $name,
-            $type,
-            $config['cms_type'] ?? 'native',
-            $config['memory_limit'] ?? 256
-        ]);
-        
-        $pid = (int) $kernel->db->lastInsertId();
-        $kernel->processes[$pid] = $config;
-        
-        return $pid;
     }
     
     // ========================================================================

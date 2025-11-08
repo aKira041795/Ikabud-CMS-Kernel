@@ -1,136 +1,183 @@
-import { useQuery } from '@tanstack/react-query'
-import { Activity, Server, Cpu, HardDrive } from 'lucide-react'
-import { api } from '../lib/api'
+import { useQuery } from '@tanstack/react-query';
+import { Link } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
+import { Server, Activity, XCircle, Database, Plus } from 'lucide-react';
 
 export default function Dashboard() {
-  const { data: kernelStatus } = useQuery({
-    queryKey: ['kernel-status'],
-    queryFn: () => api.get('/kernel/status'),
+  const { token } = useAuth();
+
+  const { data: instances, isLoading, error } = useQuery({
+    queryKey: ['instances'],
+    queryFn: async () => {
+      const response = await fetch('/api/instances/list.php', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await response.json();
+      if (!data.success) {
+        throw new Error(data.message || 'Failed to fetch instances');
+      }
+      return data;
+    },
     refetchInterval: 5000,
-  })
-  
-  const { data: processes } = useQuery({
-    queryKey: ['processes'],
-    queryFn: () => api.get('/kernel/processes'),
-    refetchInterval: 5000,
-  })
-  
-  const stats = [
-    {
-      name: 'Kernel Version',
-      value: kernelStatus?.version || '1.0.0',
-      icon: Activity,
-      color: 'text-blue-600',
-    },
-    {
-      name: 'Running Processes',
-      value: processes?.total || 0,
-      icon: Server,
-      color: 'text-green-600',
-    },
-    {
-      name: 'Memory Usage',
-      value: kernelStatus?.memory_usage 
-        ? `${(kernelStatus.memory_usage / 1024 / 1024).toFixed(2)} MB`
-        : '0 MB',
-      icon: Cpu,
-      color: 'text-purple-600',
-    },
-    {
-      name: 'Syscalls Registered',
-      value: kernelStatus?.syscalls_registered || 0,
-      icon: HardDrive,
-      color: 'text-orange-600',
-    },
-  ]
-  
+    retry: 1
+  });
+
+  if (isLoading) {
+    return <div className="flex items-center justify-center h-64">
+      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+    </div>;
+  }
+
+  if (error) {
+    return <div className="flex items-center justify-center h-64">
+      <div className="text-center">
+        <XCircle className="mx-auto h-12 w-12 text-red-400" />
+        <h3 className="mt-2 text-sm font-medium text-gray-900">Error loading instances</h3>
+        <p className="mt-1 text-sm text-gray-500">{(error as Error).message}</p>
+      </div>
+    </div>;
+  }
+
+  const stats = {
+    total: instances?.total || 0,
+    running: instances?.instances?.filter((i: any) => i.status === 'active').length || 0,
+    stopped: instances?.instances?.filter((i: any) => i.status === 'stopped').length || 0
+  };
+
   return (
-    <div>
-      <h1 className="text-3xl font-bold text-gray-900 mb-8">Kernel Dashboard</h1>
-      
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        {stats.map((stat) => {
-          const Icon = stat.icon
-          return (
-            <div key={stat.name} className="card">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-600">{stat.name}</p>
-                  <p className="text-2xl font-bold text-gray-900 mt-1">{stat.value}</p>
-                </div>
-                <Icon className={`w-8 h-8 ${stat.color}`} />
+    <div className="px-4 sm:px-6 lg:px-8">
+      {/* Header */}
+      <div className="sm:flex sm:items-center sm:justify-between mb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Instances</h1>
+          <p className="mt-1 text-sm text-gray-500">
+            Manage your CMS instances
+          </p>
+        </div>
+        <Link
+          to="/instances/create"
+          className="mt-4 sm:mt-0 inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700"
+        >
+          <Plus className="w-4 h-4 mr-2" />
+          Create Instance
+        </Link>
+      </div>
+
+      {/* Stats */}
+      <div className="grid grid-cols-1 gap-5 sm:grid-cols-3 mb-6">
+        <div className="bg-white overflow-hidden shadow rounded-lg">
+          <div className="p-5">
+            <div className="flex items-center">
+              <div className="flex-shrink-0">
+                <Server className="h-6 w-6 text-gray-400" />
+              </div>
+              <div className="ml-5 w-0 flex-1">
+                <dl>
+                  <dt className="text-sm font-medium text-gray-500 truncate">
+                    Total Instances
+                  </dt>
+                  <dd className="text-lg font-semibold text-gray-900">
+                    {stats.total}
+                  </dd>
+                </dl>
               </div>
             </div>
-          )
-        })}
-      </div>
-      
-      {/* Kernel Status */}
-      <div className="card mb-8">
-        <h2 className="text-xl font-bold text-gray-900 mb-4">Kernel Status</h2>
-        <div className="space-y-2">
-          <div className="flex justify-between">
-            <span className="text-gray-600">Boot Status:</span>
-            <span className={`font-medium ${kernelStatus?.booted ? 'text-green-600' : 'text-red-600'}`}>
-              {kernelStatus?.booted ? 'Booted' : 'Not Booted'}
-            </span>
           </div>
-          <div className="flex justify-between">
-            <span className="text-gray-600">Uptime:</span>
-            <span className="font-medium">{kernelStatus?.uptime?.toFixed(2) || 0}s</span>
+        </div>
+
+        <div className="bg-white overflow-hidden shadow rounded-lg">
+          <div className="p-5">
+            <div className="flex items-center">
+              <div className="flex-shrink-0">
+                <Activity className="h-6 w-6 text-green-400" />
+              </div>
+              <div className="ml-5 w-0 flex-1">
+                <dl>
+                  <dt className="text-sm font-medium text-gray-500 truncate">
+                    Running
+                  </dt>
+                  <dd className="text-lg font-semibold text-gray-900">
+                    {stats.running}
+                  </dd>
+                </dl>
+              </div>
+            </div>
           </div>
-          <div className="flex justify-between">
-            <span className="text-gray-600">Peak Memory:</span>
-            <span className="font-medium">
-              {kernelStatus?.memory_peak 
-                ? `${(kernelStatus.memory_peak / 1024 / 1024).toFixed(2)} MB`
-                : '0 MB'}
-            </span>
+        </div>
+
+        <div className="bg-white overflow-hidden shadow rounded-lg">
+          <div className="p-5">
+            <div className="flex items-center">
+              <div className="flex-shrink-0">
+                <XCircle className="h-6 w-6 text-red-400" />
+              </div>
+              <div className="ml-5 w-0 flex-1">
+                <dl>
+                  <dt className="text-sm font-medium text-gray-500 truncate">
+                    Stopped
+                  </dt>
+                  <dd className="text-lg font-semibold text-gray-900">
+                    {stats.stopped}
+                  </dd>
+                </dl>
+              </div>
+            </div>
           </div>
         </div>
       </div>
-      
-      {/* Recent Processes */}
-      <div className="card">
-        <h2 className="text-xl font-bold text-gray-900 mb-4">Recent Processes</h2>
-        {processes?.processes && processes.processes.length > 0 ? (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-gray-200">
-                  <th className="text-left py-2 px-4 text-sm font-medium text-gray-600">PID</th>
-                  <th className="text-left py-2 px-4 text-sm font-medium text-gray-600">Name</th>
-                  <th className="text-left py-2 px-4 text-sm font-medium text-gray-600">Type</th>
-                  <th className="text-left py-2 px-4 text-sm font-medium text-gray-600">Status</th>
-                  <th className="text-left py-2 px-4 text-sm font-medium text-gray-600">Boot Time</th>
-                </tr>
-              </thead>
-              <tbody>
-                {processes.processes.slice(0, 5).map((process: any) => (
-                  <tr key={process.pid} className="border-b border-gray-100">
-                    <td className="py-2 px-4 text-sm">{process.pid}</td>
-                    <td className="py-2 px-4 text-sm">{process.process_name}</td>
-                    <td className="py-2 px-4 text-sm">{process.cms_type}</td>
-                    <td className="py-2 px-4 text-sm">
-                      <span className={`px-2 py-1 rounded text-xs ${
-                        process.status === 'running' ? 'bg-green-100 text-green-800' :
-                        process.status === 'booting' ? 'bg-yellow-100 text-yellow-800' :
-                        'bg-gray-100 text-gray-800'
-                      }`}>
-                        {process.status}
-                      </span>
-                    </td>
-                    <td className="py-2 px-4 text-sm">{process.boot_time?.toFixed(2) || 0}ms</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+
+      {/* Instances Grid */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {instances?.instances?.length > 0 ? instances.instances.map((instance: any) => (
+          <Link
+            key={instance.instance_id}
+            to={`/instances/${instance.instance_id}`}
+            className="block bg-white rounded-lg shadow hover:shadow-lg transition-shadow p-6"
+          >
+            <div className="flex items-start justify-between mb-4">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">
+                  {instance.instance_name}
+                </h3>
+                <p className="text-sm text-gray-500">{instance.instance_id}</p>
+              </div>
+              <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                instance.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+              }`}>
+                {instance.status}
+              </span>
+            </div>
+
+            <div className="space-y-2 text-sm text-gray-600">
+              <div className="flex items-center">
+                <Database className="w-4 h-4 mr-2" />
+                {instance.domain}
+              </div>
+              {instance.process?.pid && (
+                <div className="flex items-center">
+                  <Activity className="w-4 h-4 mr-2" />
+                  PID: {instance.process.pid}
+                </div>
+              )}
+            </div>
+          </Link>
+        )) : (
+          <div className="col-span-full text-center py-12">
+            <Server className="mx-auto h-12 w-12 text-gray-400" />
+            <h3 className="mt-2 text-sm font-medium text-gray-900">No instances</h3>
+            <p className="mt-1 text-sm text-gray-500">Get started by creating a new instance.</p>
+            <div className="mt-6">
+              <Link
+                to="/instances/create"
+                className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Create Instance
+              </Link>
+            </div>
           </div>
-        ) : (
-          <p className="text-gray-500">No processes running</p>
         )}
       </div>
     </div>
-  )
+  );
 }

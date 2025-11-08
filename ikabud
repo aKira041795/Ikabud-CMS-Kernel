@@ -1,0 +1,328 @@
+#!/usr/bin/env php
+<?php
+/**
+ * Ikabud Kernel - CLI Management Tool
+ * 
+ * Manage CMS instances as OS-level processes
+ * 
+ * Usage:
+ *   ikabud start <instance-id>     - Start an instance process
+ *   ikabud stop <instance-id>      - Stop an instance process
+ *   ikabud restart <instance-id>   - Restart an instance process
+ *   ikabud status <instance-id>    - Show instance status
+ *   ikabud list                    - List all running instances
+ *   ikabud create <instance-id>    - Create a new instance process
+ *   ikabud remove <instance-id>    - Remove an instance process
+ *   ikabud kill <instance-id>      - Force kill an instance (SIGKILL)
+ *   ikabud health <instance-id>    - Check instance health
+ *   ikabud logs <instance-id>      - Show instance logs
+ */
+
+require_once __DIR__ . '/vendor/autoload.php';
+
+use IkabudKernel\Core\Kernel;
+use IkabudKernel\Core\ProcessManager;
+
+// Colors for terminal output
+class Colors {
+    const GREEN = "\033[0;32m";
+    const YELLOW = "\033[1;33m";
+    const RED = "\033[0;31m";
+    const BLUE = "\033[0;34m";
+    const CYAN = "\033[0;36m";
+    const NC = "\033[0m"; // No Color
+    
+    public static function success($msg) {
+        return self::GREEN . "✓ " . $msg . self::NC;
+    }
+    
+    public static function error($msg) {
+        return self::RED . "✗ " . $msg . self::NC;
+    }
+    
+    public static function warning($msg) {
+        return self::YELLOW . "⚠ " . $msg . self::NC;
+    }
+    
+    public static function info($msg) {
+        return self::CYAN . "ℹ " . $msg . self::NC;
+    }
+}
+
+// Parse command line arguments
+$command = $argv[1] ?? 'help';
+$instanceId = $argv[2] ?? null;
+
+try {
+    // Boot kernel
+    Kernel::boot();
+    $kernel = Kernel::getInstance();
+    $processManager = new ProcessManager($kernel);
+    
+    switch ($command) {
+        case 'start':
+            if (!$instanceId) {
+                echo Colors::error("Instance ID required") . "\n";
+                echo "Usage: ikabud start <instance-id>\n";
+                exit(1);
+            }
+            
+            echo "Starting instance: {$instanceId}...\n";
+            
+            // Load instance config from database
+            $db = $kernel->getDatabase();
+            $stmt = $db->prepare("SELECT * FROM instances WHERE instance_id = ?");
+            $stmt->execute([$instanceId]);
+            $config = $stmt->fetch(PDO::FETCH_ASSOC);
+            
+            if (!$config) {
+                echo Colors::error("Instance not found: {$instanceId}") . "\n";
+                exit(1);
+            }
+            
+            $processInfo = $processManager->createInstanceProcess($instanceId, $config);
+            
+            echo Colors::success("Instance started") . "\n";
+            echo "  PID: {$processInfo['pid']}\n";
+            echo "  User: {$processInfo['user']}\n";
+            echo "  Socket: {$processInfo['socket']}\n";
+            break;
+            
+        case 'stop':
+            if (!$instanceId) {
+                echo Colors::error("Instance ID required") . "\n";
+                echo "Usage: ikabud stop <instance-id>\n";
+                exit(1);
+            }
+            
+            echo "Stopping instance: {$instanceId}...\n";
+            
+            if ($processManager->stopInstanceProcess($instanceId)) {
+                echo Colors::success("Instance stopped") . "\n";
+            } else {
+                echo Colors::error("Failed to stop instance") . "\n";
+                exit(1);
+            }
+            break;
+            
+        case 'restart':
+            if (!$instanceId) {
+                echo Colors::error("Instance ID required") . "\n";
+                echo "Usage: ikabud restart <instance-id>\n";
+                exit(1);
+            }
+            
+            echo "Restarting instance: {$instanceId}...\n";
+            
+            if ($processManager->restartInstanceProcess($instanceId)) {
+                $pid = $processManager->getInstancePID($instanceId);
+                echo Colors::success("Instance restarted") . "\n";
+                echo "  New PID: {$pid}\n";
+            } else {
+                echo Colors::error("Failed to restart instance") . "\n";
+                exit(1);
+            }
+            break;
+            
+        case 'status':
+            if (!$instanceId) {
+                echo Colors::error("Instance ID required") . "\n";
+                echo "Usage: ikabud status <instance-id>\n";
+                exit(1);
+            }
+            
+            $status = $processManager->getInstanceStatus($instanceId);
+            
+            echo "\n";
+            echo "Instance: {$instanceId}\n";
+            echo str_repeat("=", 50) . "\n";
+            echo "Status: " . ($status['status'] === 'running' ? Colors::success($status['status']) : Colors::error($status['status'])) . "\n";
+            echo "PID: " . ($status['pid'] ?? 'N/A') . "\n";
+            echo "Socket: {$status['socket']}\n";
+            echo "Pool File: {$status['pool_file']}\n";
+            echo "Service File: {$status['service_file']}\n";
+            
+            if (!empty($status['process_info'])) {
+                echo "\nProcess Info:\n";
+                echo "  " . $status['process_info']['details'] . "\n";
+            }
+            echo "\n";
+            break;
+            
+        case 'list':
+            $processes = $processManager->listRunningProcesses();
+            
+            echo "\n";
+            echo "Running Instances\n";
+            echo str_repeat("=", 70) . "\n";
+            printf("%-20s %-10s %-10s %-30s\n", "INSTANCE", "STATUS", "PID", "SOCKET");
+            echo str_repeat("-", 70) . "\n";
+            
+            if (empty($processes)) {
+                echo "No running instances found.\n";
+            } else {
+                foreach ($processes as $instanceId => $info) {
+                    $statusColor = $info['status'] === 'running' ? Colors::GREEN : Colors::RED;
+                    printf(
+                        "%-20s %s%-10s%s %-10s %-30s\n",
+                        $instanceId,
+                        $statusColor,
+                        $info['status'],
+                        Colors::NC,
+                        $info['pid'] ?? 'N/A',
+                        basename($info['socket'])
+                    );
+                }
+            }
+            echo "\n";
+            break;
+            
+        case 'create':
+            if (!$instanceId) {
+                echo Colors::error("Instance ID required") . "\n";
+                echo "Usage: ikabud create <instance-id>\n";
+                exit(1);
+            }
+            
+            echo "Creating instance process: {$instanceId}...\n";
+            
+            // Load instance config
+            $db = $kernel->getDatabase();
+            $stmt = $db->prepare("SELECT * FROM instances WHERE instance_id = ?");
+            $stmt->execute([$instanceId]);
+            $config = $stmt->fetch(PDO::FETCH_ASSOC);
+            
+            if (!$config) {
+                echo Colors::error("Instance not found in database: {$instanceId}") . "\n";
+                exit(1);
+            }
+            
+            $processInfo = $processManager->createInstanceProcess($instanceId, $config);
+            
+            echo Colors::success("Instance process created") . "\n";
+            echo "  PID: {$processInfo['pid']}\n";
+            echo "  User: {$processInfo['user']}\n";
+            echo "  Socket: {$processInfo['socket']}\n";
+            echo "  Pool: {$processInfo['pool_file']}\n";
+            echo "  Service: {$processInfo['service_file']}\n";
+            break;
+            
+        case 'remove':
+            if (!$instanceId) {
+                echo Colors::error("Instance ID required") . "\n";
+                echo "Usage: ikabud remove <instance-id>\n";
+                exit(1);
+            }
+            
+            echo Colors::warning("This will remove the instance process completely.") . "\n";
+            echo "Are you sure? (yes/no): ";
+            $confirm = trim(fgets(STDIN));
+            
+            if ($confirm !== 'yes') {
+                echo "Cancelled.\n";
+                exit(0);
+            }
+            
+            echo "Removing instance process: {$instanceId}...\n";
+            
+            if ($processManager->removeInstanceProcess($instanceId)) {
+                echo Colors::success("Instance process removed") . "\n";
+            } else {
+                echo Colors::error("Failed to remove instance process") . "\n";
+                exit(1);
+            }
+            break;
+            
+        case 'kill':
+            if (!$instanceId) {
+                echo Colors::error("Instance ID required") . "\n";
+                echo "Usage: ikabud kill <instance-id>\n";
+                exit(1);
+            }
+            
+            $pid = $processManager->getInstancePID($instanceId);
+            if (!$pid) {
+                echo Colors::error("Instance not running: {$instanceId}") . "\n";
+                exit(1);
+            }
+            
+            echo Colors::warning("Force killing instance {$instanceId} (PID: {$pid})...") . "\n";
+            
+            if ($processManager->killInstanceProcess($instanceId, 9)) {
+                echo Colors::success("Instance killed") . "\n";
+            } else {
+                echo Colors::error("Failed to kill instance") . "\n";
+                exit(1);
+            }
+            break;
+            
+        case 'health':
+            if (!$instanceId) {
+                echo Colors::error("Instance ID required") . "\n";
+                echo "Usage: ikabud health <instance-id>\n";
+                exit(1);
+            }
+            
+            $health = $processManager->monitorInstanceHealth($instanceId);
+            
+            echo "\n";
+            echo "Health Check: {$instanceId}\n";
+            echo str_repeat("=", 50) . "\n";
+            echo "Healthy: " . ($health['healthy'] ? Colors::success('YES') : Colors::error('NO')) . "\n";
+            echo "Status: {$health['status']}\n";
+            echo "PID: " . ($health['pid'] ?? 'N/A') . "\n";
+            echo "Socket Exists: " . ($health['socket_exists'] ? 'Yes' : 'No') . "\n";
+            echo "Socket Writable: " . ($health['socket_writable'] ? 'Yes' : 'No') . "\n";
+            echo "Checked At: {$health['checked_at']}\n";
+            echo "\n";
+            break;
+            
+        case 'logs':
+            if (!$instanceId) {
+                echo Colors::error("Instance ID required") . "\n";
+                echo "Usage: ikabud logs <instance-id>\n";
+                exit(1);
+            }
+            
+            echo "Showing logs for: {$instanceId}\n";
+            echo str_repeat("=", 50) . "\n";
+            
+            // Show systemd logs
+            passthru("sudo journalctl -u ikabud-{$instanceId} -n 50 --no-pager");
+            break;
+            
+        case 'help':
+        default:
+            echo "\n";
+            echo "Ikabud Kernel - CLI Management Tool\n";
+            echo str_repeat("=", 50) . "\n";
+            echo "\n";
+            echo "Usage: ikabud <command> [options]\n";
+            echo "\n";
+            echo "Commands:\n";
+            echo "  start <instance-id>     Start an instance process\n";
+            echo "  stop <instance-id>      Stop an instance process\n";
+            echo "  restart <instance-id>   Restart an instance process\n";
+            echo "  status <instance-id>    Show instance status\n";
+            echo "  list                    List all running instances\n";
+            echo "  create <instance-id>    Create a new instance process\n";
+            echo "  remove <instance-id>    Remove an instance process\n";
+            echo "  kill <instance-id>      Force kill an instance (SIGKILL)\n";
+            echo "  health <instance-id>    Check instance health\n";
+            echo "  logs <instance-id>      Show instance logs\n";
+            echo "  help                    Show this help message\n";
+            echo "\n";
+            echo "Examples:\n";
+            echo "  ikabud create wp-test-001\n";
+            echo "  ikabud start wp-test-001\n";
+            echo "  ikabud status wp-test-001\n";
+            echo "  ikabud list\n";
+            echo "  ikabud stop wp-test-001\n";
+            echo "\n";
+            break;
+    }
+    
+} catch (Exception $e) {
+    echo Colors::error("Error: " . $e->getMessage()) . "\n";
+    exit(1);
+}

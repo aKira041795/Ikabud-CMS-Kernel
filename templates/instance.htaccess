@@ -1,0 +1,54 @@
+# Ikabud Kernel - Instance .htaccess Template
+# This file is copied to new instances and works in shared hosting
+
+# Enable rewrite engine
+<IfModule mod_rewrite.c>
+RewriteEngine On
+RewriteBase /
+</IfModule>
+
+# Force correct MIME types for static assets
+# Works in shared hosting without VirtualHost access
+<IfModule mod_mime.c>
+    # CSS
+    AddType text/css .css
+    
+    # JavaScript
+    AddType application/javascript .js
+    AddType application/javascript .mjs
+    
+    # Fonts
+    AddType font/woff .woff
+    AddType font/woff2 .woff2
+    AddType font/ttf .ttf
+    AddType font/otf .otf
+    AddType application/vnd.ms-fontobject .eot
+    
+    # Images
+    AddType image/svg+xml .svg
+    AddType image/webp .webp
+    
+    # Other
+    AddType application/json .json
+    AddType application/xml .xml
+</IfModule>
+
+# Security headers (shared hosting compatible)
+<IfModule mod_headers.c>
+    # Prevent MIME type sniffing
+    Header set X-Content-Type-Options "nosniff"
+    
+    # Clickjacking protection
+    Header set X-Frame-Options "SAMEORIGIN"
+    
+    # XSS protection
+    Header set X-XSS-Protection "1; mode=block"
+    
+    # Enable CORS for fonts (if needed)
+    <FilesMatch "\.(woff|woff2|ttf|otf|eot)$">
+        Header set Access-Control-Allow-Origin "*"
+    </FilesMatch>
+</IfModule>
+
+# CMS-specific rewrite rules will be added here by InstanceBootstrapper
+# WordPress, Joomla, Drupal each have their own rules

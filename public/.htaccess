@@ -3,6 +3,10 @@
 <IfModule mod_rewrite.c>
     RewriteEngine On
     
+    # Allow direct access to API files
+    RewriteCond %{REQUEST_URI} ^/api/
+    RewriteRule ^ - [L]
+    
     # Redirect to index.php
     RewriteCond %{REQUEST_FILENAME} !-f
     RewriteCond %{REQUEST_FILENAME} !-d

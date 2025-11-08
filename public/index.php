@@ -84,12 +84,146 @@ require __DIR__ . '/../api/routes/dsl.php';
 
 // Catch-all route for CMS routing
 $app->any('/{path:.*}', function (Request $request, Response $response, array $args) {
-    // This will be handled by the CMS router
-    $path = '/' . ($args['path'] ?? '');
+    // Get instance from subdomain
+    $host = $request->getUri()->getHost();
+    $parts = explode('.', $host);
+    $subdomain = $parts[0];
     
-    // TODO: Route to appropriate CMS instance
-    $response->getBody()->write("CMS Routing: {$path}");
-    return $response;
+    // Map subdomain to instance
+    $instanceMap = [
+        'wp-test' => 'wp-test-001'
+    ];
+    
+    $instanceId = $instanceMap[$subdomain] ?? null;
+    
+    if (!$instanceId) {
+        $response->getBody()->write("Instance not found for subdomain: {$subdomain}");
+        return $response->withStatus(404);
+    }
+    
+    // Check instance status
+    $kernel = \IkabudKernel\Core\Kernel::getInstance();
+    $db = $kernel->getDatabase();
+    
+    $stmt = $db->prepare("SELECT * FROM instances WHERE instance_id = ? LIMIT 1");
+    $stmt->execute([$instanceId]);
+    $instance = $stmt->fetch(PDO::FETCH_ASSOC);
+    
+    if (!$instance || $instance['status'] !== 'active') {
+        $response->getBody()->write("Instance is not active: {$instanceId}");
+        return $response->withStatus(503);
+    }
+    
+    // Instance is active - proceed with caching layer
+    $instanceDir = __DIR__ . '/../instances/' . $instanceId;
+    $requestUri = $request->getUri()->getPath();
+    if ($query = $request->getUri()->getQuery()) {
+        $requestUri .= '?' . $query;
+    }
+    
+    // Initialize cache
+    $cache = new \IkabudKernel\Core\Cache();
+    
+    // Check if this request should be cached
+    if ($cache->shouldCache($requestUri)) {
+        // Try to serve from cache
+        if ($cached = $cache->get($instanceId, $requestUri)) {
+            // Cache HIT - serve without loading WordPress ⚡
+            foreach ($cached['headers'] as $header) {
+                if (preg_match('/^([^:]+):\s*(.*)$/', $header, $matches)) {
+                    $response = $response->withHeader($matches[1], $matches[2]);
+                }
+            }
+            $response->getBody()->write($cached['body']);
+            return $response;
+        }
+    }
+    
+    // Cache MISS or uncacheable - load WordPress
+    chdir($instanceDir);
+    $_SERVER['DOCUMENT_ROOT'] = $instanceDir;
+    $_SERVER['IKABUD_INSTANCE_ID'] = $instanceId;
+    
+    $requestPath = parse_url($requestUri, PHP_URL_PATH);
+    $requestedFile = $instanceDir . $requestPath;
+    
+    // Start output buffering if we should cache
+    $shouldCacheResponse = $cache->shouldCache($requestUri);
+    if ($shouldCacheResponse) {
+        ob_start();
+    }
+    
+    // Serve file if it exists
+    if (is_file($requestedFile)) {
+        $ext = strtolower(pathinfo($requestedFile, PATHINFO_EXTENSION));
+        
+        if ($ext === 'php') {
+            // PHP files need WordPress loaded first
+            if (!defined('ABSPATH')) {
+                require_once $instanceDir . '/wp-load.php';
+            }
+            $_SERVER['SCRIPT_FILENAME'] = $requestedFile;
+            require $requestedFile;
+        } else {
+            // Static file - use proper MIME type map
+            $mimeTypes = [
+                'css' => 'text/css',
+                'js' => 'application/javascript',
+                'json' => 'application/json',
+                'png' => 'image/png',
+                'jpg' => 'image/jpeg',
+                'jpeg' => 'image/jpeg',
+                'gif' => 'image/gif',
+                'svg' => 'image/svg+xml',
+                'woff' => 'font/woff',
+                'woff2' => 'font/woff2',
+                'ttf' => 'font/ttf',
+                'eot' => 'application/vnd.ms-fontobject',
+                'ico' => 'image/x-icon',
+                'webp' => 'image/webp',
+                'xml' => 'application/xml',
+                'txt' => 'text/plain'
+            ];
+            
+            $mimeType = $mimeTypes[$ext] ?? 'application/octet-stream';
+            
+            header('Content-Type: ' . $mimeType);
+            readfile($requestedFile);
+        }
+    } elseif (is_dir($requestedFile) && is_file($requestedFile . '/index.php')) {
+        // Load WordPress first
+        if (!defined('ABSPATH')) {
+            require_once $instanceDir . '/wp-load.php';
+        }
+        $_SERVER['SCRIPT_FILENAME'] = $requestedFile . '/index.php';
+        require $requestedFile . '/index.php';
+    } else {
+        // Use WordPress index.php for pretty URLs
+        // This will load wp-load.php itself via wp-blog-header.php
+        $_SERVER['SCRIPT_FILENAME'] = $instanceDir . '/index.php';
+        require $instanceDir . '/index.php';
+    }
+    
+    // Capture and cache if needed
+    if ($shouldCacheResponse) {
+        $body = ob_get_contents();
+        ob_end_clean();
+        
+        // Only cache if there were no errors (check for PHP warnings/errors in output)
+        if (!preg_match('/<b>(Warning|Error|Notice|Fatal error)<\/b>/', $body)) {
+            // Store in cache
+            $headers = headers_list();
+            $cache->set($instanceId, $requestUri, [
+                'headers' => $headers,
+                'body' => $body
+            ]);
+        }
+        
+        // Output the captured content
+        echo $body;
+    }
+    
+    exit;
 });
 
 // Run application
