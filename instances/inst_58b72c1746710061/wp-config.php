@@ -71,13 +71,16 @@ if (!$is_backend && !$wp_installed && !defined('WP_INSTALLING')) {
 
 if ($is_backend) {
     // Backend subdomain - WordPress admin/API access
-    // During installation and admin access, both URLs point to backend
+    // WP_SITEURL: Where WordPress is installed (backend subdomain)
+    // WP_HOME: Where the site is displayed (frontend domain)
+    $frontend_domain = preg_replace('/^(backend|admin|dashboard)\./', '', $current_host);
     define('WP_SITEURL', 'http://' . $current_host);
-    define('WP_HOME', 'http://' . $current_host);
+    define('WP_HOME', 'http://' . $frontend_domain);
 } else {
     // Frontend domain - public site access
-    // Both point to frontend domain to prevent redirects
-    define('WP_SITEURL', 'http://' . $current_host);
+    // WP_SITEURL: Where WordPress is installed (backend subdomain)
+    // WP_HOME: Where the site is displayed (frontend domain - current)
+    define('WP_SITEURL', 'http://backend.' . $current_host);
     define('WP_HOME', 'http://' . $current_host);
 }
 
