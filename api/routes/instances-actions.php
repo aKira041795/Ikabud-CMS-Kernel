@@ -254,9 +254,14 @@ $app->post('/api/instances/create', function (Request $request, Response $respon
     $instanceName = escapeshellarg($body['instance_name']);
     $dbName = escapeshellarg($body['database_name']);
     $domain = escapeshellarg($body['domain'] ?? 'localhost');
+    $cmsType = escapeshellarg($body['cms_type'] ?? 'wordpress');
+    $dbUser = escapeshellarg($body['database_user'] ?? '');
+    $dbPass = escapeshellarg($body['database_password'] ?? '');
+    $dbHost = escapeshellarg($body['database_host'] ?? 'localhost');
+    $dbPrefix = escapeshellarg($body['database_prefix'] ?? 'wp_');
     
     // Change to root directory before executing script
-    $command = "cd $rootPath && $scriptPath $instanceId $instanceName $dbName $domain 2>&1";
+    $command = "cd $rootPath && $scriptPath $instanceId $instanceName $dbName $domain $cmsType $dbUser $dbPass $dbHost $dbPrefix 2>&1";
     exec($command, $output, $returnCode);
     
     // Check if instance directory was created (even if script had minor errors)

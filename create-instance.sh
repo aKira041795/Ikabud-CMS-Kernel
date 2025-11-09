@@ -14,8 +14,8 @@ RED='\033[0;31m'
 NC='\033[0m'
 
 if [ "$#" -lt 4 ]; then
-    echo -e "${RED}Usage: $0 <instance_id> <instance_name> <database_name> <domain>${NC}"
-    echo "Example: $0 wp-shop-001 'My Shop' ikabud_shop shop.example.com"
+    echo -e "${RED}Usage: $0 <instance_id> <instance_name> <database_name> <domain> [cms_type] [db_user] [db_pass] [db_host] [db_prefix]${NC}"
+    echo "Example: $0 wp-shop-001 'My Shop' ikabud_shop shop.example.com wordpress root password localhost wp_"
     exit 1
 fi
 
@@ -23,6 +23,11 @@ INSTANCE_ID=$1
 INSTANCE_NAME=$2
 DB_NAME=$3
 DOMAIN=$4
+CMS_TYPE=${5:-wordpress}
+DB_USER_PARAM=${6:-}
+DB_PASS_PARAM=${7:-}
+DB_HOST=${8:-localhost}
+DB_PREFIX=${9:-wp_}
 INSTANCE_PATH="instances/$INSTANCE_ID"
 
 echo "========================================="
@@ -32,8 +37,11 @@ echo "========================================="
 echo ""
 echo "Instance ID:   $INSTANCE_ID"
 echo "Instance Name: $INSTANCE_NAME"
+echo "CMS Type:      $CMS_TYPE"
 echo "Database:      $DB_NAME"
 echo "Domain:        $DOMAIN"
+echo "DB Host:       $DB_HOST"
+echo "DB Prefix:     $DB_PREFIX"
 echo ""
 
 if [ -d "$INSTANCE_PATH" ]; then
@@ -41,9 +49,41 @@ if [ -d "$INSTANCE_PATH" ]; then
     exit 1
 fi
 
-DB_USER=$(grep "^DB_USERNAME=" .env | cut -d '=' -f2)
-DB_PASS=$(grep "^DB_PASSWORD=" .env | cut -d '=' -f2)
+# Use provided credentials or fall back to .env
+if [ -z "$DB_USER_PARAM" ]; then
+    DB_USER=$(grep "^DB_USERNAME=" .env | cut -d '=' -f2)
+else
+    DB_USER=$DB_USER_PARAM
+fi
+
+if [ -z "$DB_PASS_PARAM" ]; then
+    DB_PASS=$(grep "^DB_PASSWORD=" .env | cut -d '=' -f2)
+else
+    DB_PASS=$DB_PASS_PARAM
+fi
+
 KERNEL_DB=$(grep "^DB_DATABASE=" .env | cut -d '=' -f2)
+
+# Determine shared core path based on CMS type
+case $CMS_TYPE in
+    wordpress)
+        SHARED_CORE="wordpress"
+        ;;
+    joomla)
+        SHARED_CORE="joomla"
+        ;;
+    drupal)
+        SHARED_CORE="drupal"
+        ;;
+    *)
+        echo -e "${RED}✗ Unsupported CMS type: $CMS_TYPE${NC}"
+        echo "Supported types: wordpress, joomla, drupal"
+        exit 1
+        ;;
+esac
+
+echo "Shared Core:   shared-cores/$SHARED_CORE"
+echo ""
 
 # Step 1: Create instance directory structure
 echo -e "${YELLOW}[1/7]${NC} Creating instance directory..."
@@ -89,7 +129,7 @@ cat > "$INSTANCE_PATH/wp-config.php" << WPCONFIG
 define('DB_NAME', '$DB_NAME');
 define('DB_USER', '$DB_USER');
 define('DB_PASSWORD', '$DB_PASS');
-define('DB_HOST', 'localhost');
+define('DB_HOST', '$DB_HOST');
 define('DB_CHARSET', 'utf8mb4');
 define('DB_COLLATE', '');
 
@@ -97,7 +137,7 @@ define('DB_COLLATE', '');
 $SALT_KEYS
 
 // WordPress Database Table prefix
-\$table_prefix = 'wp_';
+\$table_prefix = '$DB_PREFIX';
 
 // WordPress Debugging
 define('WP_DEBUG', true);
@@ -124,13 +164,13 @@ define('FS_METHOD', 'direct');
 \$db_home = null;
 
 try {
-    \$check_pdo = new PDO("mysql:host=localhost;dbname=$DB_NAME", '$DB_USER', '$DB_PASS');
-    \$check_result = \$check_pdo->query("SHOW TABLES LIKE 'wp_options'");
+    \$check_pdo = new PDO("mysql:host=$DB_HOST;dbname=$DB_NAME", '$DB_USER', '$DB_PASS');
+    \$check_result = \$check_pdo->query("SHOW TABLES LIKE '{$DB_PREFIX}options'");
     \$wp_installed = (\$check_result && \$check_result->rowCount() > 0);
     
     // If installed, get URLs from database
     if (\$wp_installed) {
-        \$url_query = \$check_pdo->query("SELECT option_name, option_value FROM wp_options WHERE option_name IN ('siteurl', 'home')");
+        \$url_query = \$check_pdo->query("SELECT option_name, option_value FROM {$DB_PREFIX}options WHERE option_name IN ('siteurl', 'home')");
         while (\$row = \$url_query->fetch(PDO::FETCH_ASSOC)) {
             if (\$row['option_name'] === 'siteurl') {
                 \$db_siteurl = \$row['option_value'];
@@ -192,7 +232,7 @@ define('IKABUD_KERNEL_PATH', dirname(dirname(__DIR__)) . '/kernel');
 
 // Absolute path to WordPress directory (shared core)
 if (!defined('ABSPATH')) {
-    define('ABSPATH', dirname(dirname(__DIR__)) . '/shared-cores/wordpress/');
+    define('ABSPATH', dirname(dirname(__DIR__)) . '/shared-cores/$SHARED_CORE/');
 }
 
 // Sets up WordPress vars and included files
@@ -212,16 +252,17 @@ echo -e "${GREEN}✓${NC} Copied .htaccess with CORS configuration"
 cp templates/ikabud-cors.php "$INSTANCE_PATH/wp-content/mu-plugins/ikabud-cors.php"
 echo -e "${GREEN}✓${NC} Installed CORS handler plugin (mu-plugins)"
 
-# Step 4: Create symlinks from instance to shared WordPress core
-echo -e "${YELLOW}[4/7]${NC} Creating symlinks to shared WordPress core..."
+# Step 4: Create symlinks from instance to shared CMS core
+echo -e "${YELLOW}[4/7]${NC} Creating symlinks to shared $CMS_TYPE core..."
 cd "$INSTANCE_PATH"
 
-# Symlink all WordPress core files except wp-config.php, wp-content, and index.php
-for file in ../../shared-cores/wordpress/*; do
+# Symlink all CMS core files except config files, content directory, and index.php
+for file in ../../shared-cores/$SHARED_CORE/*; do
     filename=$(basename "$file")
-    # Skip wp-config files, wp-content, and index.php (instance-specific)
-    if [[ "$filename" != "wp-config"* ]] && [[ "$filename" != "wp-content" ]] && [[ "$filename" != "index.php" ]]; then
-        ln -sf "../../shared-cores/wordpress/$filename" "$filename"
+    # Skip config files, content directory, and index.php (instance-specific)
+    if [[ "$filename" != "wp-config"* ]] && [[ "$filename" != "wp-content" ]] && [[ "$filename" != "index.php" ]] && \
+       [[ "$filename" != "configuration.php" ]] && [[ "$filename" != "settings.php" ]]; then
+        ln -sf "../../shared-cores/$SHARED_CORE/$filename" "$filename"
     fi
 done
 
@@ -252,7 +293,7 @@ require __DIR__ . '/wp-blog-header.php';
 INDEXPHP
 
 cd - > /dev/null
-echo -e "${GREEN}✓${NC} Symlinks created: instance → shared WordPress core"
+echo -e "${GREEN}✓${NC} Symlinks created: instance → shared $CMS_TYPE core"
 
 # Step 5: Create database
 echo -e "${YELLOW}[5/7]${NC} Creating database..."
