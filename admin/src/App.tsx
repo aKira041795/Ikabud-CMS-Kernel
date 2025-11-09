@@ -11,6 +11,7 @@ import ProcessMonitor from './pages/ProcessMonitor'
 import Settings from './pages/Settings'
 import CreateInstance from './pages/CreateInstance'
 import InstanceMonitor from './pages/InstanceMonitor'
+import ConditionalLoading from './pages/ConditionalLoading'
 
 function App() {
   return (
@@ -63,6 +64,13 @@ function App() {
           <ProtectedRoute>
             <Layout>
               <ProcessMonitor />
+            </Layout>
+          </ProtectedRoute>
+        } />
+        <Route path="/conditional-loading" element={
+          <ProtectedRoute>
+            <Layout>
+              <ConditionalLoading />
             </Layout>
           </ProtectedRoute>
         } />

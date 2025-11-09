@@ -202,7 +202,7 @@ class InstanceBootstrapper
     
     /**
      * PHASE 5: Load Theme & Plugin Dependencies
-     * Load instance-specific extensions
+     * Load instance-specific extensions with conditional loading
      */
     private function phase5_Extensions(): void
     {
@@ -214,13 +214,56 @@ class InstanceBootstrapper
         // 5.2 Register instance themes
         $this->registerInstanceThemes();
         
-        // 5.3 Load active plugins (selective loading)
-        $this->loadInstancePlugins();
+        // 5.3 Load extensions conditionally (CMS-intelligent)
+        $this->loadInstanceExtensionsConditionally();
         
         // 5.4 Initialize DSL for this instance
         $this->initializeDSL();
         
         $this->logStage('phase5_complete', 'Extensions loaded');
+    }
+    
+    /**
+     * Load instance extensions conditionally based on CMS type and request context
+     */
+    private function loadInstanceExtensionsConditionally(): void
+    {
+        $instanceDir = $this->config['instance_path'] ?? '';
+        $cmsType = $this->config['cms_type'] ?? 'wordpress';
+        $requestUri = $_SERVER['REQUEST_URI'] ?? '/';
+        
+        // Create CMS-specific conditional loader
+        $loader = ConditionalLoaderFactory::create($instanceDir, $cmsType);
+        
+        if (!$loader || !$loader->isEnabled()) {
+            // Fallback to traditional loading if conditional loading not available/enabled
+            $this->loadInstancePlugins();
+            return;
+        }
+        
+        // Get request context
+        $context = [
+            'request_uri' => $requestUri,
+            'request_method' => $_SERVER['REQUEST_METHOD'] ?? 'GET',
+            'cms_type' => $cmsType
+        ];
+        
+        // Determine which extensions to load
+        $extensionsToLoad = $loader->determineExtensions($requestUri, $context);
+        
+        // Log conditional loading stats
+        $this->logStage('conditional_loading', sprintf(
+            'Conditional loading: %d/%d extensions for %s',
+            count($extensionsToLoad),
+            count($loader->getManifest()['plugins'] ?? $loader->getManifest()['extensions'] ?? []),
+            $cmsType
+        ));
+        
+        // Load the determined extensions
+        $loader->loadExtensions($extensionsToLoad);
+        
+        // Store loader for later access
+        $this->data['conditional_loader'] = $loader;
     }
     
     /**

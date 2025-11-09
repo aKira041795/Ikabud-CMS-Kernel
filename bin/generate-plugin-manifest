@@ -1,0 +1,198 @@
+#!/usr/bin/env php
+<?php
+/**
+ * Generate plugin manifest from active WordPress plugins
+ * 
+ * Usage: php bin/generate-plugin-manifest <instance-id>
+ */
+
+require __DIR__ . '/../vendor/autoload.php';
+
+// Get instance ID from command line
+$instanceId = $argv[1] ?? null;
+if (!$instanceId) {
+    echo "Usage: generate-plugin-manifest <instance-id>\n";
+    echo "Example: generate-plugin-manifest wp-test-001\n";
+    exit(1);
+}
+
+$instanceDir = __DIR__ . "/../instances/$instanceId";
+if (!is_dir($instanceDir)) {
+    echo "❌ Instance not found: $instanceId\n";
+    echo "   Path: $instanceDir\n";
+    exit(1);
+}
+
+echo "🔍 Analyzing instance: $instanceId\n";
+echo "   Path: $instanceDir\n\n";
+
+// Check if WordPress is installed
+if (!file_exists($instanceDir . '/wp-load.php')) {
+    echo "❌ WordPress not found in instance directory\n";
+    exit(1);
+}
+
+// Load WordPress
+define('ABSPATH', $instanceDir . '/');
+$_SERVER['HTTP_HOST'] = 'localhost';
+$_SERVER['REQUEST_URI'] = '/';
+
+try {
+    require_once $instanceDir . '/wp-load.php';
+} catch (Exception $e) {
+    echo "❌ Failed to load WordPress: " . $e->getMessage() . "\n";
+    exit(1);
+}
+
+// Get active plugins
+$activePlugins = get_option('active_plugins', []);
+
+if (empty($activePlugins)) {
+    echo "⚠️  No active plugins found\n";
+    $activePlugins = [];
+}
+
+echo "📦 Found " . count($activePlugins) . " active plugin(s)\n\n";
+
+$manifest = [
+    'plugins' => [],
+    'themes' => [],
+    '_meta' => [
+        'version' => '1.0',
+        'generated_at' => date('c'),
+        'instance_id' => $instanceId,
+        'description' => 'Auto-generated plugin manifest. Edit load_on rules to optimize loading.'
+    ]
+];
+
+// Analyze each plugin
+foreach ($activePlugins as $plugin) {
+    $pluginPath = $instanceDir . '/wp-content/plugins/' . $plugin;
+    
+    if (!file_exists($pluginPath)) {
+        echo "⚠️  Plugin file not found: $plugin\n";
+        continue;
+    }
+    
+    // Get plugin data
+    if (function_exists('get_plugin_data')) {
+        $pluginData = get_plugin_data($pluginPath, false, false);
+    } else {
+        $pluginData = ['Name' => basename($plugin, '.php'), 'Version' => 'unknown'];
+    }
+    
+    // Analyze plugin to determine loading rules
+    $loadOn = analyzePlugin($plugin, $pluginData);
+    
+    $manifest['plugins'][$plugin] = [
+        'name' => $pluginData['Name'] ?? basename($plugin, '.php'),
+        'version' => $pluginData['Version'] ?? 'unknown',
+        'enabled' => true,
+        'load_on' => $loadOn,
+        'priority' => $loadOn['priority'] ?? 10,
+        'dependencies' => []
+    ];
+    
+    echo "✅ {$pluginData['Name']}\n";
+    echo "   Routes: " . implode(', ', $loadOn['routes']) . "\n";
+    if (!empty($loadOn['post_types'])) {
+        echo "   Post Types: " . implode(', ', $loadOn['post_types']) . "\n";
+    }
+    echo "\n";
+}
+
+// Get active theme
+$currentTheme = wp_get_theme();
+if ($currentTheme->exists()) {
+    $manifest['themes'][$currentTheme->get_stylesheet()] = [
+        'name' => $currentTheme->get('Name'),
+        'version' => $currentTheme->get('Version'),
+        'load_on' => [
+            'routes' => ['*']
+        ]
+    ];
+    echo "🎨 Theme: {$currentTheme->get('Name')}\n\n";
+}
+
+// Save manifest
+$manifestFile = $instanceDir . '/plugin-manifest.json';
+$json = json_encode($manifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+file_put_contents($manifestFile, $json);
+
+echo "✅ Plugin manifest generated: $manifestFile\n";
+echo "📦 Plugins: " . count($manifest['plugins']) . "\n";
+echo "🎨 Themes: " . count($manifest['themes']) . "\n\n";
+
+echo "📝 Next steps:\n";
+echo "   1. Review the manifest file and adjust load_on rules\n";
+echo "   2. Copy templates/ikabud-conditional-loader.php to wp-content/mu-plugins/\n";
+echo "   3. Test your site to ensure plugins load correctly\n";
+
+/**
+ * Analyze plugin to determine loading rules
+ */
+function analyzePlugin(string $pluginFile, array $pluginData): array
+{
+    $loadOn = ['routes' => [], 'admin' => true, 'priority' => 10];
+    
+    // Heuristics based on plugin name/description
+    $name = strtolower($pluginData['Name'] ?? '');
+    $desc = strtolower($pluginData['Description'] ?? '');
+    $combined = $name . ' ' . $desc;
+    
+    // E-commerce plugins
+    if (preg_match('/woocommerce|shop|cart|checkout|payment|store/i', $combined)) {
+        $loadOn['routes'] = ['/shop', '/cart', '/checkout', '/my-account', '/product'];
+        $loadOn['post_types'] = ['product'];
+        $loadOn['priority'] = 10;
+    }
+    // Contact/Form plugins
+    elseif (preg_match('/contact|form|gravity|wpforms|ninja/i', $combined)) {
+        $loadOn['routes'] = ['/contact'];
+        $loadOn['shortcodes'] = ['contact-form-7', 'wpforms', 'gravityform'];
+        $loadOn['priority'] = 20;
+    }
+    // SEO plugins (load everywhere)
+    elseif (preg_match('/seo|yoast|rank|sitemap/i', $combined)) {
+        $loadOn['routes'] = ['*'];
+        $loadOn['priority'] = 5;
+    }
+    // Page builders (load only when needed)
+    elseif (preg_match('/elementor|beaver|divi|visual composer/i', $combined)) {
+        $loadOn['routes'] = [];
+        $loadOn['post_meta'] = ['_elementor_edit_mode', '_fl_builder_enabled'];
+        $loadOn['priority'] = 15;
+    }
+    // Security plugins (load everywhere)
+    elseif (preg_match('/security|wordfence|sucuri|firewall/i', $combined)) {
+        $loadOn['routes'] = ['*'];
+        $loadOn['priority'] = 1;
+    }
+    // Caching plugins (load everywhere)
+    elseif (preg_match('/cache|speed|optimize|performance/i', $combined)) {
+        $loadOn['routes'] = ['*'];
+        $loadOn['priority'] = 2;
+    }
+    // Backup plugins (admin only)
+    elseif (preg_match('/backup|migrate|duplicate/i', $combined)) {
+        $loadOn['routes'] = [];
+        $loadOn['priority'] = 50;
+    }
+    // Analytics/tracking (load everywhere)
+    elseif (preg_match('/analytics|tracking|stats|google/i', $combined)) {
+        $loadOn['routes'] = ['*'];
+        $loadOn['priority'] = 30;
+    }
+    // Social media plugins
+    elseif (preg_match('/social|share|facebook|twitter/i', $combined)) {
+        $loadOn['routes'] = ['*'];
+        $loadOn['priority'] = 25;
+    }
+    // Default: load everywhere (can be refined later)
+    else {
+        $loadOn['routes'] = ['*'];
+        $loadOn['priority'] = 10;
+    }
+    
+    return $loadOn;
+}

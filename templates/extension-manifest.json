@@ -1,0 +1,54 @@
+{
+  "cms_type": "joomla",
+  "extensions": {
+    "content": {
+      "name": "Content Plugin",
+      "type": "plugin",
+      "group": "content",
+      "enabled": true,
+      "load_on": {
+        "routes": ["*"],
+        "components": ["com_content"],
+        "admin": true
+      },
+      "priority": 10
+    },
+    "system": {
+      "name": "System Plugin",
+      "type": "plugin",
+      "group": "system",
+      "enabled": true,
+      "load_on": {
+        "routes": ["*"],
+        "admin": true
+      },
+      "priority": 5
+    },
+    "mod_menu": {
+      "name": "Menu Module",
+      "type": "module",
+      "enabled": true,
+      "load_on": {
+        "routes": ["*"],
+        "admin": false
+      },
+      "priority": 10
+    },
+    "com_contact": {
+      "name": "Contact Component",
+      "type": "component",
+      "enabled": true,
+      "load_on": {
+        "routes": ["/contact"],
+        "components": ["com_contact"],
+        "admin": true
+      },
+      "priority": 15
+    }
+  },
+  "_meta": {
+    "version": "1.0",
+    "generated_at": "2025-11-09T09:00:00Z",
+    "description": "Extension manifest for Joomla conditional loading. Edit load_on rules to control when extensions load."
+  }
+}

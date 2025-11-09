@@ -1,0 +1,36 @@
+{
+  "plugins": {
+    "akismet/akismet.php": {
+      "name": "Akismet Anti-Spam",
+      "enabled": true,
+      "load_on": {
+        "routes": ["*"],
+        "admin": true
+      },
+      "priority": 5,
+      "dependencies": []
+    },
+    "hello.php": {
+      "name": "Hello Dolly",
+      "enabled": false,
+      "load_on": {
+        "routes": [],
+        "admin": true
+      },
+      "priority": 99,
+      "dependencies": []
+    }
+  },
+  "themes": {
+    "twentytwentyfour": {
+      "load_on": {
+        "routes": ["*"]
+      }
+    }
+  },
+  "_meta": {
+    "version": "1.0",
+    "generated_at": "2025-11-09T09:00:00Z",
+    "description": "Plugin manifest for conditional loading. Edit load_on rules to control when plugins load."
+  }
+}

@@ -73,10 +73,12 @@ $app->get('/api/health', function (Request $request, Response $response) {
 });
 
 // Load API routes
+require __DIR__ . '/../api/routes/auth.php';
 require __DIR__ . '/../api/routes/kernel.php';
 require __DIR__ . '/../api/routes/instances.php';
 require __DIR__ . '/../api/routes/themes.php';
 require __DIR__ . '/../api/routes/dsl.php';
+require __DIR__ . '/../api/routes/conditional-loading.php';
 
 // ============================================================================
 // FRONTEND ROUTES (CMS Routing)
@@ -139,13 +141,33 @@ $app->any('/{path:.*}', function (Request $request, Response $response, array $a
         }
     }
     
-    // Cache MISS or uncacheable - load WordPress
+    // Cache MISS or uncacheable - load CMS instance
     chdir($instanceDir);
     $_SERVER['DOCUMENT_ROOT'] = $instanceDir;
     $_SERVER['IKABUD_INSTANCE_ID'] = $instanceId;
     
     $requestPath = parse_url($requestUri, PHP_URL_PATH);
     $requestedFile = $instanceDir . $requestPath;
+    
+    // Detect CMS type for this instance
+    $cmsType = \IkabudKernel\Core\ConditionalLoaderFactory::detectCMSType($instanceDir);
+    if (!$cmsType) {
+        $cmsType = $instance['cms_type'] ?? 'wordpress'; // Fallback to instance config
+    }
+    
+    // Initialize CMS-specific conditional loader
+    $conditionalLoader = \IkabudKernel\Core\ConditionalLoaderFactory::create($instanceDir, $cmsType);
+    
+    // Determine which extensions to load based on request (if conditional loading enabled)
+    $extensionsToLoad = [];
+    if ($conditionalLoader && $conditionalLoader->isEnabled()) {
+        $context = [
+            'request_uri' => $requestUri,
+            'request_method' => $_SERVER['REQUEST_METHOD'] ?? 'GET',
+            'cms_type' => $cmsType
+        ];
+        $extensionsToLoad = $conditionalLoader->determineExtensions($requestUri, $context);
+    }
     
     // Start output buffering if we should cache
     $shouldCacheResponse = $cache->shouldCache($requestUri);
@@ -158,9 +180,26 @@ $app->any('/{path:.*}', function (Request $request, Response $response, array $a
         $ext = strtolower(pathinfo($requestedFile, PATHINFO_EXTENSION));
         
         if ($ext === 'php') {
-            // PHP files need WordPress loaded first
-            if (!defined('ABSPATH')) {
-                require_once $instanceDir . '/wp-load.php';
+            // PHP files need CMS loaded first
+            if (!defined('ABSPATH') && !defined('_JEXEC')) {
+                // Set flag for conditional loading
+                if ($conditionalLoader) {
+                    define('IKABUD_CONDITIONAL_LOADING', $conditionalLoader->isEnabled());
+                }
+                
+                // Load CMS core based on type
+                if ($cmsType === 'wordpress') {
+                    require_once $instanceDir . '/wp-load.php';
+                } elseif ($cmsType === 'joomla') {
+                    define('_JEXEC', 1);
+                    require_once $instanceDir . '/includes/defines.php';
+                    require_once $instanceDir . '/includes/framework.php';
+                }
+                
+                // Load determined extensions after CMS core
+                if ($conditionalLoader && !empty($extensionsToLoad)) {
+                    $conditionalLoader->loadExtensions($extensionsToLoad);
+                }
             }
             $_SERVER['SCRIPT_FILENAME'] = $requestedFile;
             require $requestedFile;
@@ -191,15 +230,41 @@ $app->any('/{path:.*}', function (Request $request, Response $response, array $a
             readfile($requestedFile);
         }
     } elseif (is_dir($requestedFile) && is_file($requestedFile . '/index.php')) {
-        // Load WordPress first
-        if (!defined('ABSPATH')) {
-            require_once $instanceDir . '/wp-load.php';
+        // Load CMS first
+        if (!defined('ABSPATH') && !defined('_JEXEC')) {
+            if ($conditionalLoader) {
+                define('IKABUD_CONDITIONAL_LOADING', $conditionalLoader->isEnabled());
+            }
+            
+            // Load CMS core
+            if ($cmsType === 'wordpress') {
+                require_once $instanceDir . '/wp-load.php';
+            } elseif ($cmsType === 'joomla') {
+                define('_JEXEC', 1);
+                require_once $instanceDir . '/includes/defines.php';
+                require_once $instanceDir . '/includes/framework.php';
+            }
+            
+            // Load determined extensions after CMS core
+            if ($conditionalLoader && !empty($extensionsToLoad)) {
+                $conditionalLoader->loadExtensions($extensionsToLoad);
+            }
         }
         $_SERVER['SCRIPT_FILENAME'] = $requestedFile . '/index.php';
         require $requestedFile . '/index.php';
     } else {
-        // Use WordPress index.php for pretty URLs
-        // This will load wp-load.php itself via wp-blog-header.php
+        // Use CMS index.php for pretty URLs
+        // Set flag before CMS loads itself
+        if (!defined('IKABUD_CONDITIONAL_LOADING') && $conditionalLoader) {
+            define('IKABUD_CONDITIONAL_LOADING', $conditionalLoader->isEnabled());
+        }
+        
+        // Store extensions to load in global for CMS hook
+        if ($conditionalLoader && $conditionalLoader->isEnabled() && !empty($extensionsToLoad)) {
+            $GLOBALS['ikabud_extensions_to_load'] = $extensionsToLoad;
+            $GLOBALS['ikabud_conditional_loader'] = $conditionalLoader;
+        }
+        
         $_SERVER['SCRIPT_FILENAME'] = $instanceDir . '/index.php';
         require $instanceDir . '/index.php';
     }
@@ -211,12 +276,22 @@ $app->any('/{path:.*}', function (Request $request, Response $response, array $a
         
         // Only cache if there were no errors (check for PHP warnings/errors in output)
         if (!preg_match('/<b>(Warning|Error|Notice|Fatal error)<\/b>/', $body)) {
-            // Store in cache
+            // Store in cache with plugin metadata
             $headers = headers_list();
-            $cache->set($instanceId, $requestUri, [
+            $cacheData = [
                 'headers' => $headers,
-                'body' => $body
-            ]);
+                'body' => $body,
+                'timestamp' => time()
+            ];
+            
+            // Add extension loading stats if available
+            if (isset($conditionalLoader)) {
+                $cacheData['extensions_loaded'] = $conditionalLoader->getLoadedExtensions();
+                $cacheData['extension_count'] = count($conditionalLoader->getLoadedExtensions());
+                $cacheData['cms_type'] = $conditionalLoader->getCMSType();
+            }
+            
+            $cache->set($instanceId, $requestUri, $cacheData);
         }
         
         // Output the captured content

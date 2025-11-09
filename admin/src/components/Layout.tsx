@@ -9,7 +9,8 @@ import {
   Settings,
   LogOut,
   User,
-  Cpu
+  Cpu,
+  Zap
 } from 'lucide-react'
 
 interface LayoutProps {
@@ -31,6 +32,7 @@ export default function Layout({ children }: LayoutProps) {
     { name: 'Instances', href: '/instances', icon: Server },
     { name: 'Themes', href: '/themes', icon: Palette },
     { name: 'DSL Builder', href: '/dsl', icon: Code2 },
+    { name: 'Conditional Loading', href: '/conditional-loading', icon: Zap },
     { name: 'Processes', href: '/processes', icon: Activity },
     { name: 'Settings', href: '/settings', icon: Settings },
   ]

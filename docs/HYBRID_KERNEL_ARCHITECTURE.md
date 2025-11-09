@@ -13,9 +13,10 @@ Building a CMS kernel presented a fundamental paradox:
 
 ### The Solution: Hybrid Architecture
 
-We resolved this by **splitting the traffic**:
-- **Frontend requests** → Kernel (caching layer) ⚡
-- **Admin requests** → Direct to instance (native WordPress) ✅
+We resolved this by **intelligent routing at the PHP layer**:
+- **Frontend requests** → Kernel caching layer (25x faster) ⚡
+- **Admin/login requests** → Direct WordPress load (bypasses cache) ✅
+- **Single entry point** → Works on shared hosting (no VirtualHost needed) 🌐
 
 ---
 
@@ -30,139 +31,220 @@ We resolved this by **splitting the traffic**:
                        │
                        ▼
               ┌────────────────┐
-              │  Apache VHost  │
+              │ Apache/.htaccess│
+              │ (Shared Hosting)│
               └────────┬───────┘
                        │
-         ┌─────────────┴─────────────┐
-         │                           │
-         ▼                           ▼
-┌─────────────────┐         ┌─────────────────┐
-│ Frontend Path   │         │  Admin Path     │
-│ (/, /blog, etc) │         │  (/wp-admin/*,  │
-│                 │         │   /wp-login.php)│
-└────────┬────────┘         └────────┬────────┘
-         │                           │
-         ▼                           ▼
-┌─────────────────┐         ┌─────────────────┐
-│  KERNEL LAYER   │         │ DIRECT SERVING  │
-│  (Slim + Cache) │         │  (Apache only)  │
-└────────┬────────┘         └────────┬────────┘
-         │                           │
-         ▼                           │
-┌─────────────────┐                  │
-│  Cache Check    │                  │
-└────────┬────────┘                  │
-         │                           │
-    ┌────┴────┐                      │
-    │         │                      │
-    ▼         ▼                      │
-  HIT       MISS                     │
-   │         │                       │
-   │         ▼                       │
-   │  ┌─────────────┐                │
-   │  │Load WordPress│               │
-   │  │Cache Result │                │
-   │  └──────┬──────┘                │
-   │         │                       │
-   └─────────┴───────────────────────┘
-             │
-             ▼
-    ┌─────────────────┐
-    │  WordPress Core │
-    │  (Shared)       │
-    └────────┬────────┘
-             │
-             ▼
-    ┌─────────────────┐
-    │  Instance       │
-    │  wp-content/    │
-    └─────────────────┘
+                       ▼
+              ┌────────────────┐
+              │ public/index.php│
+              │  (Single Entry) │
+              └────────┬───────┘
+                       │
+                       ▼
+              ┌────────────────┐
+              │  Slim Router   │
+              │  (Kernel Layer)│
+              └────────┬───────┘
+                       │
+                       ▼
+              ┌────────────────┐
+              │ shouldCache()? │
+              │ Check URI Path │
+              └────┬───────────┘
+                   │
+      ┌────────────┴────────────┐
+      │                         │
+      ▼                         ▼
+┌──────────┐            ┌──────────────┐
+│ /wp-admin│            │   Frontend   │
+│/wp-login │            │  (/, /blog)  │
+│  POST    │            │  GET + No    │
+│ Logged In│            │  Auth Cookie │
+└─────┬────┘            └──────┬───────┘
+      │                        │
+      │                        ▼
+      │               ┌─────────────────┐
+      │               │  Cache Check    │
+      │               └────────┬────────┘
+      │                        │
+      │                   ┌────┴────┐
+      │                   │         │
+      │                   ▼         ▼
+      │                 HIT       MISS
+      │                  │         │
+      │                  │         ▼
+      │                  │  ┌─────────────┐
+      │                  │  │Load WordPress│
+      │                  │  │+ Extensions  │
+      │                  │  │Cache Result │
+      │                  │  └──────┬──────┘
+      │                  │         │
+      │                  │         ▼
+      │                  │ ┌─────────────────┐
+      │                  │ │  WordPress Core │
+      │                  │ │  (Shared)       │
+      │                  │ └────────┬────────┘
+      │                  │          │
+      │                  │          ▼
+      │                  │ ┌─────────────────┐
+      │                  │ │  Instance       │
+      │                  │ │  wp-content/    │
+      │                  │ └────────┬────────┘
+      │                  │          │
+      └──────────────────┘          │
+                         │          │
+                         ▼          ▼
+                ┌──────────────────────────┐
+                │   Serve Response         │
+                │   (60ms HIT / 800ms MISS)│
+                └──────────────────────────┘
 ```
 
 ---
 
 ## Implementation Details
 
-### 1. Apache VirtualHost Configuration
+### 1. Server Configuration (Shared Hosting Compatible)
 
-**Two VirtualHosts for same domain**:
+**Single VirtualHost** (or shared hosting account):
 
 ```apache
-# VirtualHost 1: Frontend (through Kernel)
+# VirtualHost (or main domain on shared hosting)
 <VirtualHost *:80>
     ServerName wp-test.ikabud-kernel.test
     DocumentRoot /var/www/html/ikabud-kernel/public
     
     # All requests go through Kernel's index.php
-    RewriteEngine On
-    RewriteCond %{REQUEST_FILENAME} !-f
-    RewriteCond %{REQUEST_FILENAME} !-d
-    RewriteRule ^ index.php [QSA,L]
-</VirtualHost>
-
-# VirtualHost 2: Admin (direct to instance)
-<VirtualHost *:80>
-    ServerName wp-test.ikabud-kernel.test
-    DocumentRoot /var/www/html/ikabud-kernel/instances/wp-test-001
-    
-    # WordPress's own .htaccess handles routing
-    AllowOverride All
+    # Admin detection happens in PHP, not Apache
+    <Directory /var/www/html/ikabud-kernel/public>
+        AllowOverride All
+        Require all granted
+    </Directory>
 </VirtualHost>
 ```
 
-**Apache Priority**: The second VirtualHost takes precedence for admin paths due to more specific DocumentRoot matching.
+**Shared Hosting Setup** (no VirtualHost access):
+
+```apache
+# .htaccess in public/ directory
+RewriteEngine On
+
+# Send all requests to index.php
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^ index.php [QSA,L]
+```
+
+**Key Advantage**: Works on Bluehost, HostGator, etc. - no root access needed!
 
 ### 2. Kernel Routing (public/index.php)
+
+**Actual Implementation**:
 
 ```php
 // Slim framework catches all requests
 $app->any('/{path:.*}', function (Request $request, Response $response) {
     // 1. Identify instance from subdomain
-    $instanceId = getInstanceFromSubdomain($request);
+    $host = $request->getUri()->getHost();
+    $parts = explode('.', $host);
+    $subdomain = $parts[0];
     
-    // 2. Check instance status
-    if (!isInstanceActive($instanceId)) {
+    $instanceMap = ['wp-test' => 'wp-test-001'];
+    $instanceId = $instanceMap[$subdomain] ?? null;
+    
+    if (!$instanceId) {
+        return $response->withStatus(404);
+    }
+    
+    // 2. Check instance status (from database)
+    $kernel = Kernel::getInstance();
+    $db = $kernel->getDatabase();
+    $stmt = $db->prepare("SELECT * FROM instances WHERE instance_id = ? LIMIT 1");
+    $stmt->execute([$instanceId]);
+    $instance = $stmt->fetch(PDO::FETCH_ASSOC);
+    
+    if (!$instance || $instance['status'] !== 'active') {
         return $response->withStatus(503);
     }
     
-    // 3. Initialize cache
+    // 3. Build request URI
+    $instanceDir = __DIR__ . '/../instances/' . $instanceId;
+    $requestUri = $request->getUri()->getPath();
+    if ($query = $request->getUri()->getQuery()) {
+        $requestUri .= '?' . $query;
+    }
+    
+    // 4. Initialize cache
     $cache = new Cache();
     
-    // 4. Check cache (only for GET requests, not logged in)
+    // 5. Check if cacheable (THIS IS WHERE ADMIN IS DETECTED)
     if ($cache->shouldCache($requestUri)) {
+        // Try cache first
         if ($cached = $cache->get($instanceId, $requestUri)) {
             // CACHE HIT - Serve without loading WordPress ⚡
-            return serveFromCache($cached);
+            foreach ($cached['headers'] as $header) {
+                if (preg_match('/^([^:]+):\s*(.*)$/', $header, $matches)) {
+                    $response = $response->withHeader($matches[1], $matches[2]);
+                }
+            }
+            $response->getBody()->write($cached['body']);
+            return $response;
         }
     }
     
-    // 5. CACHE MISS - Load WordPress
-    ob_start();
+    // 6. CACHE MISS or UNCACHEABLE (admin/login) - Load WordPress
+    chdir($instanceDir);
+    $_SERVER['DOCUMENT_ROOT'] = $instanceDir;
+    $_SERVER['IKABUD_INSTANCE_ID'] = $instanceId;
     
-    // Load WordPress
-    if (!defined('ABSPATH')) {
-        require_once $instanceDir . '/wp-load.php';
+    $requestPath = parse_url($requestUri, PHP_URL_PATH);
+    $requestedFile = $instanceDir . $requestPath;
+    
+    // Start output buffering if cacheable
+    $shouldCacheResponse = $cache->shouldCache($requestUri);
+    if ($shouldCacheResponse) {
+        ob_start();
     }
     
-    // Serve the request
-    require $requestedFile;
-    
-    // 6. Capture and cache
-    $body = ob_get_contents();
-    ob_end_clean();
-    
-    if ($cache->shouldCache($requestUri)) {
-        $cache->set($instanceId, $requestUri, [
-            'headers' => headers_list(),
-            'body' => $body
-        ]);
+    // Load and execute WordPress
+    if (is_file($requestedFile)) {
+        if (pathinfo($requestedFile, PATHINFO_EXTENSION) === 'php') {
+            if (!defined('ABSPATH')) {
+                require_once $instanceDir . '/wp-load.php';
+            }
+            require $requestedFile;
+        } else {
+            // Static file - serve with proper MIME type
+            readfile($requestedFile);
+        }
+    } else {
+        // WordPress routing (pretty URLs)
+        require $instanceDir . '/index.php';
     }
     
-    echo $body;
+    // 7. Capture and cache if applicable
+    if ($shouldCacheResponse) {
+        $body = ob_get_contents();
+        ob_end_clean();
+        
+        // Only cache if no errors
+        if (!preg_match('/<b>(Warning|Error|Notice|Fatal error)<\/b>/', $body)) {
+            $cache->set($instanceId, $requestUri, [
+                'headers' => headers_list(),
+                'body' => $body
+            ]);
+        }
+        echo $body;
+    }
+    
+    exit;
 });
 ```
 
 ### 3. Cache Layer (kernel/Cache.php)
+
+**This is the key to admin/frontend separation**:
 
 ```php
 class Cache
@@ -170,27 +252,40 @@ class Cache
     private string $cacheDir;
     private int $ttl = 3600; // 1 hour
     
+    /**
+     * Determines if request should be cached
+     * THIS IS WHERE ADMIN DETECTION HAPPENS!
+     */
     public function shouldCache(string $uri): bool
     {
-        // Don't cache:
-        // - Admin pages (/wp-admin/*)
-        // - Login pages (/wp-login.php)
-        // - POST requests
-        // - Logged-in users (check cookies)
-        
-        if (str_contains($uri, '/wp-admin') ||
-            str_contains($uri, '/wp-login') ||
-            $_SERVER['REQUEST_METHOD'] !== 'GET') {
-            return false;
+        // ❌ Don't cache admin pages
+        if (str_contains($uri, '/wp-admin')) {
+            return false; // Admin loads WordPress directly
         }
         
-        // Check for WordPress login cookies
+        // ❌ Don't cache login pages
+        if (str_contains($uri, '/wp-login')) {
+            return false; // Login loads WordPress directly
+        }
+        
+        // ❌ Don't cache preview pages
+        if (str_contains($uri, 'preview=')) {
+            return false; // Previews need fresh data
+        }
+        
+        // ❌ Don't cache POST requests
+        if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
+            return false; // Forms/AJAX load WordPress directly
+        }
+        
+        // ❌ Don't cache for logged-in users
         foreach ($_COOKIE as $name => $value) {
             if (str_starts_with($name, 'wordpress_logged_in_')) {
-                return false;
+                return false; // Logged-in users see fresh content
             }
         }
         
+        // ✅ Cache everything else (frontend for anonymous users)
         return true;
     }
     
@@ -200,15 +295,16 @@ class Cache
         $file = $this->cacheDir . '/' . $key . '.cache';
         
         if (!file_exists($file)) {
-            return null;
+            return null; // Cache MISS
         }
         
-        // Check TTL
+        // Check TTL (time-to-live)
         if (time() - filemtime($file) > $this->ttl) {
-            unlink($file);
+            unlink($file); // Expired - delete
             return null;
         }
         
+        // Cache HIT - return stored response
         return unserialize(file_get_contents($file));
     }
     
@@ -217,10 +313,24 @@ class Cache
         $key = $this->getCacheKey($instanceId, $uri);
         $file = $this->cacheDir . '/' . $key . '.cache';
         
+        // Store serialized response (headers + body)
         file_put_contents($file, serialize($data), LOCK_EX);
+    }
+    
+    private function getCacheKey(string $instanceId, string $uri): string
+    {
+        // Unique key per instance + URI
+        return $instanceId . '_' . md5($uri);
     }
 }
 ```
+
+**How Admin Bypass Works**:
+
+1. **Request to `/wp-admin/`** → `shouldCache()` returns `false` → WordPress loads directly
+2. **Request to `/blog/`** → `shouldCache()` returns `true` → Check cache → Serve cached or load & cache
+3. **Logged-in user** → Cookie detected → `shouldCache()` returns `false` → Fresh WordPress load
+4. **Anonymous visitor** → No cookie → `shouldCache()` returns `true` → Cached response (fast!)
 
 ---
 
@@ -297,24 +407,28 @@ Time: 0.059946s
 - ✅ Caching layer (25x faster)
 - ✅ Centralized management
 - ✅ Lower resource usage
+- ✅ **Works on same shared hosting plans**
 
 ### vs WordPress Multisite
 - ✅ True isolation (separate databases)
 - ✅ No plugin conflicts
 - ✅ Better performance (caching)
 - ✅ Different CMS types supported
+- ✅ **Shared hosting compatible**
 
 ### vs Docker/Containers
 - ✅ Lighter weight (shared core)
-- ✅ Shared hosting compatible
+- ✅ **Shared hosting compatible** (no VPS needed)
 - ✅ Simpler for non-technical users
 - ✅ Lower resource overhead
+- ✅ **No root access required**
 
 ### vs Managed WordPress (WP Engine, Kinsta)
 - ✅ Self-hosted (no monthly fees)
 - ✅ Full control
 - ✅ Multi-CMS support
 - ✅ Open source
+- ✅ **Deploy on $5/month shared hosting**
 
 ---
 
@@ -335,24 +449,39 @@ $cache->setTTL($seconds);        // Set cache lifetime
 - [ ] Redis/Memcached support
 - [ ] CDN integration
 - [ ] Cache warming (pre-generate popular pages)
+- [x] **Conditional extension loading** (see CONDITIONAL_LOADING_CMS_AGNOSTIC.md) - ✅ Implemented!
 
 ---
 
 ## Deployment Guide
 
-### For New Instances
+### On VPS/Dedicated Server
 
 1. **Create instance** (via admin UI or CLI)
-2. **Configure VirtualHost** (both Kernel and direct)
+2. **Configure VirtualHost** pointing to `public/` directory
 3. **WordPress auto-configured** (shared core + instance wp-content)
 4. **Cache enabled automatically**
+
+### On Shared Hosting (Bluehost, HostGator, etc.)
+
+1. **Upload kernel** to `public_html/` or subdomain folder
+2. **Point domain** to `public/` directory (via cPanel)
+3. **Create .htaccess** in `public/` (if not exists):
+   ```apache
+   RewriteEngine On
+   RewriteCond %{REQUEST_FILENAME} !-f
+   RewriteCond %{REQUEST_FILENAME} !-d
+   RewriteRule ^ index.php [QSA,L]
+   ```
+4. **Create instance** via admin UI
+5. **Cache works automatically** (no VirtualHost needed!)
 
 ### For Existing WordPress Sites
 
 1. **Move WordPress core** to `shared-cores/wordpress/`
 2. **Keep wp-content** in instance directory
 3. **Update wp-config.php** to point ABSPATH to shared core
-4. **Configure VirtualHosts**
+4. **No VirtualHost changes needed** (single entry point handles all)
 5. **Cache works immediately**
 
 ---
@@ -396,14 +525,29 @@ $mimeTypes = [
 
 The **Hybrid Kernel Architecture** successfully resolves the paradox:
 
-✅ **WordPress works perfectly** (native serving for admin)
+✅ **WordPress works perfectly** (admin/login bypass cache, load directly)
 ✅ **Performance gains delivered** (25x faster with caching)
 ✅ **Kernel provides unique value** (not just a manager)
+✅ **Shared hosting compatible** (works on Bluehost, HostGator, etc.)
 
 This architecture is:
 - **Production-ready** for real-world use
 - **Scalable** to hundreds of instances
 - **Maintainable** with clear separation of concerns
 - **Innovative** with genuine competitive advantages
+- **Accessible** - no VPS or root access required
+- **Cost-effective** - deploy on $5/month shared hosting
 
-**The paradox is solved. The kernel delivers real value.** 🚀
+### Key Innovation: PHP-Level Routing
+
+Instead of complex Apache VirtualHost configurations (which don't work on shared hosting), we use **intelligent PHP-level routing**:
+
+1. **Single entry point** (`public/index.php`)
+2. **Cache detection** via `shouldCache()` method
+3. **Admin paths** (`/wp-admin`, `/wp-login`) automatically bypass cache
+4. **Logged-in users** detected via cookies, get fresh content
+5. **Anonymous visitors** get cached responses (25x faster)
+
+This approach works **everywhere** - from shared hosting to enterprise VPS.
+
+**The paradox is solved. The kernel delivers real value. On any hosting platform.** 🚀
