@@ -38,9 +38,8 @@ $listInstancesHandler = function (Request $request, Response $response) {
     return $response->withHeader('Content-Type', 'application/json');
 };
 
-// Register both old and new paths with JWT middleware
+// List all instances
 $app->get('/api/v1/instances', $listInstancesHandler)->add(new JWTMiddleware());
-$app->get('/api/instances/list.php', $listInstancesHandler)->add(new JWTMiddleware()); // Backward compatibility
 
 // Get single instance
 $app->get('/api/v1/instances/{id}', function (Request $request, Response $response, array $args) {

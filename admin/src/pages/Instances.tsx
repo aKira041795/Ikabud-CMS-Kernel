@@ -9,7 +9,7 @@ export default function Instances() {
   const { data: instances, isLoading, error } = useQuery({
     queryKey: ['instances'],
     queryFn: async () => {
-      const response = await fetch('/api/instances/list.php', {
+      const response = await fetch('/api/v1/instances', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       

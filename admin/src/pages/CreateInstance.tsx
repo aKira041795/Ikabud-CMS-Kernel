@@ -29,7 +29,7 @@ export default function CreateInstance() {
     setLoading(true);
 
     try {
-      const response = await fetch('/api/instances/create.php', {
+      const response = await fetch('/api/instances/create', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

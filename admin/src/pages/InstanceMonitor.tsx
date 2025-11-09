@@ -15,7 +15,7 @@ export default function InstanceMonitor() {
   const { data: monitoring, isLoading, error } = useQuery({
     queryKey: ['instance-monitor', instanceId],
     queryFn: async () => {
-      const response = await fetch(`/api/instances/monitor.php?instance_id=${instanceId}`, {
+      const response = await fetch(`/api/instances/monitor?instance_id=${instanceId}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       
@@ -68,7 +68,7 @@ export default function InstanceMonitor() {
   const handleAction = async (action: string) => {
     setActionLoading(action);
     try {
-      const response = await fetch(`/api/instances/${action}.php`, {
+      const response = await fetch(`/api/instances/${action}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

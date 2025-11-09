@@ -105,6 +105,7 @@ $app->get('/api/health', function (Request $request, Response $response) {
 
 // Load API routes
 require __DIR__ . '/../api/routes/auth.php';
+require __DIR__ . '/../api/routes/users.php';
 require __DIR__ . '/../api/routes/kernel.php';
 require __DIR__ . '/../api/routes/instances.php';
 require __DIR__ . '/../api/routes/instances-actions.php';

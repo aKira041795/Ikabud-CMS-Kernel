@@ -113,15 +113,9 @@ export default function Login() {
           </form>
 
           <div className="mt-6">
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-300" />
-              </div>
-              <div className="relative flex justify-center text-sm">
-                <span className="px-2 bg-white text-gray-500">
-                  Default credentials: admin / password
-                </span>
-              </div>
+            <div className="text-center text-xs text-gray-500">
+              <p>Secure access to Ikabud Kernel</p>
+              <p className="mt-1">Contact your administrator for credentials</p>
             </div>
           </div>
         </div>

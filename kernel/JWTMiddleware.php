@@ -35,7 +35,7 @@ class JWTMiddleware
                 ->withHeader('Content-Type', 'application/json');
         }
         
-        // Verify token
+        // Verify token signature
         $jwt = new JWT();
         $payload = $jwt->verify($token);
         
@@ -48,6 +48,43 @@ class JWTMiddleware
             ]));
             return $response
                 ->withStatus(401)
+                ->withHeader('Content-Type', 'application/json');
+        }
+        
+        // Verify token exists in database and hasn't been revoked
+        try {
+            $kernel = Kernel::getInstance();
+            $db = $kernel->getDatabase();
+            
+            $stmt = $db->prepare("
+                SELECT s.*, u.status 
+                FROM admin_sessions s
+                JOIN admin_users u ON s.user_id = u.id
+                WHERE s.token = ? AND s.expires_at > NOW() AND u.status = 'active'
+            ");
+            $stmt->execute([$token]);
+            $session = $stmt->fetch(\PDO::FETCH_ASSOC);
+            
+            if (!$session) {
+                error_log('JWT Middleware: Token not found in database or expired');
+                $response = new \Slim\Psr7\Response();
+                $response->getBody()->write(json_encode([
+                    'success' => false,
+                    'error' => 'Invalid or expired token'
+                ]));
+                return $response
+                    ->withStatus(401)
+                    ->withHeader('Content-Type', 'application/json');
+            }
+        } catch (\Exception $e) {
+            error_log('JWT Middleware: Database error: ' . $e->getMessage());
+            $response = new \Slim\Psr7\Response();
+            $response->getBody()->write(json_encode([
+                'success' => false,
+                'error' => 'Authentication error'
+            ]));
+            return $response
+                ->withStatus(500)
                 ->withHeader('Content-Type', 'application/json');
         }
         

@@ -32,7 +32,7 @@ export default function Settings() {
   const { data: users, isLoading } = useQuery({
     queryKey: ['users'],
     queryFn: async () => {
-      const response = await fetch('/api/users/list.php', {
+      const response = await fetch('/api/users', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (!response.ok) throw new Error('Failed to fetch users');
@@ -45,11 +45,11 @@ export default function Settings() {
   const saveMutation = useMutation({
     mutationFn: async (data: typeof formData) => {
       const url = editingUser 
-        ? `/api/users/update.php?id=${editingUser.id}`
-        : '/api/users/create.php';
+        ? `/api/users/${editingUser.id}`
+        : '/api/users';
       
       const response = await fetch(url, {
-        method: 'POST',
+        method: editingUser ? 'PUT' : 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
@@ -77,7 +77,7 @@ export default function Settings() {
   // Delete user mutation
   const deleteMutation = useMutation({
     mutationFn: async (userId: number) => {
-      const response = await fetch(`/api/users/delete.php?id=${userId}`, {
+      const response = await fetch(`/api/users/${userId}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }
       });

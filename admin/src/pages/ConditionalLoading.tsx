@@ -31,7 +31,7 @@ export default function ConditionalLoading() {
 
   const loadInstances = async () => {
     try {
-      const data = await api.get('/instances/list.php')
+      const data = await api.get('/v1/instances')
       setInstances(data.instances || [])
       if (data.instances?.length > 0) {
         setSelectedInstance(data.instances[0].instance_id)

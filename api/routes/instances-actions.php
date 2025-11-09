@@ -71,10 +71,10 @@ $monitorHandler = function (Request $request, Response $response) {
     }
 };
 
-$app->get('/api/instances/monitor.php', $monitorHandler)->add(new JWTMiddleware());
+$app->get('/api/instances/monitor', $monitorHandler)->add(new JWTMiddleware());
 
 // Start instance
-$app->post('/api/instances/start.php', function (Request $request, Response $response) {
+$app->post('/api/instances/start', function (Request $request, Response $response) {
     try {
         $kernel = Kernel::getInstance();
         $db = $kernel->getDatabase();
@@ -120,7 +120,7 @@ $app->post('/api/instances/start.php', function (Request $request, Response $res
 })->add(new JWTMiddleware());
 
 // Stop instance
-$app->post('/api/instances/stop.php', function (Request $request, Response $response) {
+$app->post('/api/instances/stop', function (Request $request, Response $response) {
     try {
         $kernel = Kernel::getInstance();
         $db = $kernel->getDatabase();
@@ -173,7 +173,7 @@ $app->post('/api/instances/stop.php', function (Request $request, Response $resp
 })->add(new JWTMiddleware());
 
 // Restart instance
-$app->post('/api/instances/restart.php', function (Request $request, Response $response) {
+$app->post('/api/instances/restart', function (Request $request, Response $response) {
     try {
         $kernel = Kernel::getInstance();
         $db = $kernel->getDatabase();
@@ -205,8 +205,8 @@ $app->post('/api/instances/restart.php', function (Request $request, Response $r
     }
 })->add(new JWTMiddleware());
 
-// Create instance (backward compatibility)
-$app->post('/api/instances/create.php', function (Request $request, Response $response) {
+// Create instance
+$app->post('/api/instances/create', function (Request $request, Response $response) {
     $kernel = Kernel::getInstance();
     $db = $kernel->getDatabase();
     
