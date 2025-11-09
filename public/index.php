@@ -14,8 +14,11 @@ $host = $_SERVER['HTTP_HOST'] ?? '';
 $subdomain = explode('.', $host)[0];
 $requestUri = $_SERVER['REQUEST_URI'] ?? '/';
 
-// Map subdomain to instance
-$instanceMap = ['wp-test' => 'wp-test-001'];
+// Map domain/subdomain to instance
+$instanceMap = [
+    'wp-test' => 'wp-test-001',
+    'thejake' => 'wp-test-001'  // Main domain for wp-test-001
+];
 $instanceId = $instanceMap[$subdomain] ?? null;
 
 if ($instanceId) {
@@ -151,9 +154,10 @@ $app->any('/{path:.*}', function (Request $request, Response $response, array $a
     $parts = explode('.', $host);
     $subdomain = $parts[0];
     
-    // Map subdomain to instance
+    // Map domain/subdomain to instance
     $instanceMap = [
-        'wp-test' => 'wp-test-001'
+        'wp-test' => 'wp-test-001',
+        'thejake' => 'wp-test-001'  // Main domain for wp-test-001
     ];
     
     $instanceId = $instanceMap[$subdomain] ?? null;

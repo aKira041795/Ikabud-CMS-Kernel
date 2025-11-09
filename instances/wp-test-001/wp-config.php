@@ -35,22 +35,22 @@ define('FS_METHOD', 'direct');
 
 // ** CRITICAL: WordPress URLs **
 // Define these to prevent redirect loops when loaded through Kernel
-define('WP_SITEURL', 'http://wp-test.ikabud-kernel.test');
-define('WP_HOME', 'http://wp-test.ikabud-kernel.test');
+define('WP_SITEURL', 'http://thejake.test');
+define('WP_HOME', 'http://thejake.test');
 
 // Define admin cookie path
 define('ADMIN_COOKIE_PATH', '/wp-admin');
 
 // ** CRITICAL: Cookie Configuration **
 // Ensure cookies work correctly when served through Kernel
-define('COOKIE_DOMAIN', 'wp-test.ikabud-kernel.test');
+define('COOKIE_DOMAIN', 'thejake.test');
 define('COOKIEPATH', '/');
 define('SITECOOKIEPATH', '/');
 
 // ** CRITICAL: Instance-specific wp-content paths **
 // This ensures themes, plugins, and uploads are stored in the instance folder
 define('WP_CONTENT_DIR', __DIR__ . '/wp-content');
-define('WP_CONTENT_URL', 'http://wp-test.ikabud-kernel.test/wp-content');
+define('WP_CONTENT_URL', 'http://thejake.test/wp-content');
 
 // Ikabud Kernel Integration
 define('IKABUD_INSTANCE_ID', 'wp-test-001');
