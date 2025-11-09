@@ -3,11 +3,6 @@
 <IfModule mod_rewrite.c>
     RewriteEngine On
     
-    # Allow direct access to standalone API files (auth, users, instances)
-    RewriteCond %{REQUEST_FILENAME} !-f
-    RewriteCond %{DOCUMENT_ROOT}/../api/$1 -f
-    RewriteRule ^api/(.*)$ ../api/$1 [L]
-    
     # CMS admin files (wp-admin, wp-login.php, joomla/administrator, etc.)
     # are served directly by index.php without symlinks
     # This keeps /public clean and supports multiple CMS instances
