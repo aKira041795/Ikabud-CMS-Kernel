@@ -6,9 +6,9 @@
     # Force API routes through index.php (Slim routing)
     RewriteRule ^api/ index.php [QSA,L]
     
-    # WordPress admin files are accessible via symlinks
-    # (wp-admin, wp-login.php, wp-content, wp-includes)
-    # These are symlinked to the instance directory
+    # CMS admin files (wp-admin, wp-login.php, joomla/administrator, etc.)
+    # are served directly by index.php without symlinks
+    # This keeps /public clean and supports multiple CMS instances
     
     # Redirect everything else to index.php if not a physical file
     RewriteCond %{REQUEST_FILENAME} !-f

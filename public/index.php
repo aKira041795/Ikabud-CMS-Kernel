@@ -8,25 +8,84 @@
 
 declare(strict_types=1);
 
-// EARLY MAINTENANCE MODE CHECK (before any autoloading)
+// EARLY CHECKS (before any autoloading)
 // This must run FIRST to catch requests before Slim routing
 $host = $_SERVER['HTTP_HOST'] ?? '';
 $subdomain = explode('.', $host)[0];
+$requestUri = $_SERVER['REQUEST_URI'] ?? '/';
 
 // Map subdomain to instance
 $instanceMap = ['wp-test' => 'wp-test-001'];
 $instanceId = $instanceMap[$subdomain] ?? null;
 
 if ($instanceId) {
-    $maintenanceFile = __DIR__ . '/../instances/' . $instanceId . '/.maintenance';
-    error_log("MAINTENANCE CHECK: instanceId=$instanceId, file=$maintenanceFile, exists=" . (file_exists($maintenanceFile) ? 'YES' : 'NO'));
+    $instanceDir = __DIR__ . '/../instances/' . $instanceId;
+    
+    // Check for maintenance mode
+    $maintenanceFile = $instanceDir . '/.maintenance';
     if (file_exists($maintenanceFile)) {
-        error_log("MAINTENANCE MODE ACTIVATED - Showing maintenance page");
         http_response_code(503);
         header('Content-Type: text/html; charset=utf-8');
         header('Retry-After: 300');
         readfile(__DIR__ . '/../templates/maintenance.html');
         exit;
+    }
+    
+    // Serve CMS admin files directly (wp-admin, wp-login, wp-content, wp-includes)
+    // This avoids cluttering /public with symlinks
+    if (preg_match('#^/(wp-admin|wp-login\.php|wp-content|wp-includes)(/|$)#', $requestUri, $matches)) {
+        $relativePath = ltrim($requestUri, '/');
+        $filePath = $instanceDir . '/' . $relativePath;
+        
+        // Security: Prevent directory traversal
+        $realPath = realpath($filePath);
+        $realInstanceDir = realpath($instanceDir);
+        
+        if ($realPath && strpos($realPath, $realInstanceDir) === 0) {
+            if (is_file($realPath)) {
+                // Serve the file with correct MIME type
+                $ext = pathinfo($realPath, PATHINFO_EXTENSION);
+                $mimeTypes = [
+                    'css' => 'text/css',
+                    'js' => 'application/javascript',
+                    'png' => 'image/png',
+                    'jpg' => 'image/jpeg',
+                    'jpeg' => 'image/jpeg',
+                    'gif' => 'image/gif',
+                    'svg' => 'image/svg+xml',
+                    'woff' => 'font/woff',
+                    'woff2' => 'font/woff2',
+                    'ttf' => 'font/ttf',
+                    'php' => 'text/html'
+                ];
+                
+                $mimeType = $mimeTypes[$ext] ?? 'application/octet-stream';
+                
+                if ($ext === 'php') {
+                    // Execute PHP files (wp-login.php, wp-admin/*.php)
+                    chdir($instanceDir);
+                    $_SERVER['SCRIPT_FILENAME'] = $realPath;
+                    $_SERVER['SCRIPT_NAME'] = '/' . $relativePath;
+                    require $realPath;
+                    exit;
+                } else {
+                    // Serve static files
+                    header('Content-Type: ' . $mimeType);
+                    readfile($realPath);
+                    exit;
+                }
+            } elseif (is_dir($realPath)) {
+                // Redirect directories to index.php
+                $indexPath = $realPath . '/index.php';
+                if (file_exists($indexPath)) {
+                    chdir($instanceDir);
+                    $_SERVER['SCRIPT_FILENAME'] = $indexPath;
+                    $_SERVER['SCRIPT_NAME'] = '/' . $relativePath . '/index.php';
+                    require $indexPath;
+                    exit;
+                }
+            }
+        }
     }
 }
 
