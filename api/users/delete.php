@@ -57,6 +57,7 @@ if ($userId == $currentUserId) {
 }
 
 try {
+    Kernel::boot();
     $kernel = Kernel::getInstance();
     $db = $kernel->getDatabase();
     

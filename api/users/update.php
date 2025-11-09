@@ -80,6 +80,7 @@ if (!in_array($status, ['active', 'inactive'])) {
 }
 
 try {
+    Kernel::boot();
     $kernel = Kernel::getInstance();
     $db = $kernel->getDatabase();
     

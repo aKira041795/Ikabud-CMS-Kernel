@@ -39,6 +39,7 @@ if ($role !== 'admin' && $role !== 'administrator') {
 }
 
 try {
+    Kernel::boot();
     $kernel = Kernel::getInstance();
     $db = $kernel->getDatabase();
     
