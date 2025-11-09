@@ -248,10 +248,39 @@ $app->post('/api/instances/create', function (Request $request, Response $respon
         $resources
     ]);
     
+    // Execute instance creation script
+    $rootPath = dirname(__DIR__, 2);
+    $scriptPath = $rootPath . '/create-instance.sh';
+    $instanceName = escapeshellarg($body['instance_name']);
+    $dbName = escapeshellarg($body['database_name']);
+    $domain = escapeshellarg($body['domain'] ?? 'localhost');
+    
+    // Change to root directory before executing script
+    $command = "cd $rootPath && $scriptPath $instanceId $instanceName $dbName $domain 2>&1";
+    exec($command, $output, $returnCode);
+    
+    // Check if instance directory was created (even if script had minor errors)
+    $instancePath = $rootPath . '/instances/' . $instanceId;
+    $instanceCreated = file_exists($instancePath . '/wp-config.php');
+    
+    if ($returnCode !== 0 && !$instanceCreated) {
+        // Rollback database entry
+        $stmt = $db->prepare("DELETE FROM instances WHERE instance_id = ?");
+        $stmt->execute([$instanceId]);
+        
+        $response->getBody()->write(json_encode([
+            'success' => false,
+            'error' => 'Failed to create instance files',
+            'details' => implode("\n", $output)
+        ]));
+        return $response->withStatus(500)->withHeader('Content-Type', 'application/json');
+    }
+    
     $response->getBody()->write(json_encode([
         'success' => true,
         'instance_id' => $instanceId,
-        'message' => 'Instance created successfully'
+        'message' => 'Instance created successfully',
+        'details' => implode("\n", $output)
     ]));
     
     return $response->withStatus(201)->withHeader('Content-Type', 'application/json');

@@ -1,1 +1,0 @@
-../../instances/wp-test-001/wp-config.php

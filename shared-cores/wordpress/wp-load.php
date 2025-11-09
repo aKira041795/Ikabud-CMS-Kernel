@@ -47,7 +47,10 @@ if ( function_exists( 'error_reporting' ) ) {
 if ( file_exists( ABSPATH . 'wp-config.php' ) ) {
 
 	/** The config file resides in ABSPATH */
+	$includedFiles = get_included_files();
+	file_put_contents('/tmp/ikabud-wp-load-debug.txt', date('Y-m-d H:i:s') . ' - Loading wp-config.php from ABSPATH: ' . ABSPATH . 'wp-config.php' . PHP_EOL . 'Already included files: ' . print_r($includedFiles, true) . PHP_EOL, FILE_APPEND);
 	require_once ABSPATH . 'wp-config.php';
+	file_put_contents('/tmp/ikabud-wp-load-AFTER.txt', date('Y-m-d H:i:s') . ' - AFTER require_once wp-config.php' . PHP_EOL, FILE_APPEND);
 
 } elseif ( @file_exists( dirname( ABSPATH ) . '/wp-config.php' ) && ! @file_exists( dirname( ABSPATH ) . '/wp-settings.php' ) ) {
 

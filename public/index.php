@@ -11,15 +11,38 @@ declare(strict_types=1);
 // EARLY CHECKS (before any autoloading)
 // This must run FIRST to catch requests before Slim routing
 $host = $_SERVER['HTTP_HOST'] ?? '';
-$subdomain = explode('.', $host)[0];
 $requestUri = $_SERVER['REQUEST_URI'] ?? '/';
 
-// Map domain/subdomain to instance
-$instanceMap = [
-    'wp-test' => 'wp-test-001',
-    'thejake' => 'wp-test-001'  // Main domain for wp-test-001
-];
-$instanceId = $instanceMap[$subdomain] ?? null;
+// Dynamic domain lookup from database
+$instanceId = null;
+$envFile = __DIR__ . '/../.env';
+if (file_exists($envFile)) {
+    $envVars = [];
+    $lines = file($envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+    foreach ($lines as $line) {
+        if (strpos(trim($line), '#') === 0) continue;
+        if (strpos($line, '=') !== false) {
+            list($key, $value) = explode('=', $line, 2);
+            $envVars[trim($key)] = trim($value);
+        }
+    }
+    
+    $dbHost = $envVars['DB_HOST'] ?? 'localhost';
+    $dbName = $envVars['DB_DATABASE'] ?? 'ikabud-kernel';
+    $dbUser = $envVars['DB_USERNAME'] ?? 'root';
+    $dbPass = $envVars['DB_PASSWORD'] ?? '';
+    
+    try {
+        $pdo = new PDO("mysql:host=$dbHost;dbname=$dbName", $dbUser, $dbPass);
+        $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+        $stmt = $pdo->prepare("SELECT instance_id FROM instances WHERE domain = ? LIMIT 1");
+        $stmt->execute([$host]);
+        $instance = $stmt->fetch(PDO::FETCH_ASSOC);
+        $instanceId = $instance['instance_id'] ?? null;
+    } catch (PDOException $e) {
+        error_log("Database connection failed: " . $e->getMessage());
+    }
+}
 
 if ($instanceId) {
     $instanceDir = __DIR__ . '/../instances/' . $instanceId;
@@ -150,27 +173,26 @@ $app->get('/login', function (Request $request, Response $response) {
 
 // Catch-all route for CMS routing
 $app->any('/{path:.*}', function (Request $request, Response $response, array $args) {
-    // Get instance from subdomain
+    // Get instance from domain using database lookup
     $host = $request->getUri()->getHost();
-    $parts = explode('.', $host);
-    $subdomain = $parts[0];
     
-    // Map domain/subdomain to instance
-    $instanceMap = [
-        'wp-test' => 'wp-test-001',
-        'thejake' => 'wp-test-001'  // Main domain for wp-test-001
-    ];
+    // Get kernel and database
+    $kernel = \IkabudKernel\Core\Kernel::getInstance();
+    $db = $kernel->getDatabase();
     
-    $instanceId = $instanceMap[$subdomain] ?? null;
+    // Look up instance by domain
+    $stmt = $db->prepare("SELECT instance_id FROM instances WHERE domain = ? LIMIT 1");
+    $stmt->execute([$host]);
+    $result = $stmt->fetch(PDO::FETCH_ASSOC);
+    $instanceId = $result['instance_id'] ?? null;
     
     if (!$instanceId) {
-        $response->getBody()->write("Instance not found for subdomain: {$subdomain}");
+        $response->getBody()->write("Instance not found for domain: {$host}");
         return $response->withStatus(404);
     }
     
-    // Check instance status
-    $kernel = \IkabudKernel\Core\Kernel::getInstance();
-    $db = $kernel->getDatabase();
+    // DEBUG: Log which instance is being loaded
+    error_log("IKABUD_ROUTING: domain={$host} -> instance_id={$instanceId}");
     
     $stmt = $db->prepare("SELECT * FROM instances WHERE instance_id = ? LIMIT 1");
     $stmt->execute([$instanceId]);
@@ -220,6 +242,9 @@ $app->any('/{path:.*}', function (Request $request, Response $response, array $a
     chdir($instanceDir);
     $_SERVER['DOCUMENT_ROOT'] = $instanceDir;
     $_SERVER['IKABUD_INSTANCE_ID'] = $instanceId;
+    
+    // DEBUG: Verify directory change
+    error_log("IKABUD_CHDIR: Changed to {$instanceDir}, getcwd()=" . getcwd() . ", instance_id={$instanceId}");
     
     $requestPath = parse_url($requestUri, PHP_URL_PATH);
     $requestedFile = $instanceDir . $requestPath;
@@ -305,36 +330,25 @@ $app->any('/{path:.*}', function (Request $request, Response $response, array $a
             readfile($requestedFile);
         }
     } elseif (is_dir($requestedFile) && is_file($requestedFile . '/index.php')) {
-        // Load CMS first
-        if (!defined('ABSPATH') && !defined('_JEXEC')) {
-            if ($conditionalLoader) {
-                define('IKABUD_CONDITIONAL_LOADING', $conditionalLoader->isEnabled());
-            }
-            
-            // Load CMS core
-            if ($cmsType === 'wordpress') {
-                require_once $instanceDir . '/wp-load.php';
-            } elseif ($cmsType === 'joomla') {
-                define('_JEXEC', 1);
-                require_once $instanceDir . '/includes/defines.php';
-                require_once $instanceDir . '/includes/framework.php';
-            }
-            
-            // Load determined extensions after CMS core
-            if ($conditionalLoader && !empty($extensionsToLoad)) {
-                $conditionalLoader->loadExtensions($extensionsToLoad);
-            }
+        // Set conditional loading flag if enabled
+        if ($conditionalLoader && !defined('IKABUD_CONDITIONAL_LOADING')) {
+            define('IKABUD_CONDITIONAL_LOADING', $conditionalLoader->isEnabled());
         }
+        
+        // Store extensions to load for CMS hooks
+        if ($conditionalLoader && $conditionalLoader->isEnabled() && !empty($extensionsToLoad)) {
+            $GLOBALS['ikabud_extensions_to_load'] = $extensionsToLoad;
+            $GLOBALS['ikabud_conditional_loader'] = $conditionalLoader;
+        }
+        
         $_SERVER['SCRIPT_FILENAME'] = $requestedFile . '/index.php';
         require $requestedFile . '/index.php';
     } else {
         // Use CMS index.php for pretty URLs
-        // Set flag before CMS loads itself
         if (!defined('IKABUD_CONDITIONAL_LOADING') && $conditionalLoader) {
             define('IKABUD_CONDITIONAL_LOADING', $conditionalLoader->isEnabled());
         }
         
-        // Store extensions to load in global for CMS hook
         if ($conditionalLoader && $conditionalLoader->isEnabled() && !empty($extensionsToLoad)) {
             $GLOBALS['ikabud_extensions_to_load'] = $extensionsToLoad;
             $GLOBALS['ikabud_conditional_loader'] = $conditionalLoader;

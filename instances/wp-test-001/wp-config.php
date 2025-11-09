@@ -34,9 +34,8 @@ define('WP_DEBUG_DISPLAY', false);
 define('FS_METHOD', 'direct');
 
 // ** CRITICAL: WordPress URLs **
-// Define these to prevent redirect loops when loaded through Kernel
-define('WP_SITEURL', 'http://admin.thejake.test');  // Admin subdomain for direct access
-define('WP_HOME', 'http://thejake.test');           // Frontend through kernel
+define('WP_SITEURL', 'http://admin.thejake.test');
+define('WP_HOME', 'http://thejake.test');
 
 // Define admin cookie path
 define('ADMIN_COOKIE_PATH', '/wp-admin');

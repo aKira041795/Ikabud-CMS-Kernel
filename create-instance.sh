@@ -51,6 +51,31 @@ echo -e "${GREEN}✓${NC} Created: $INSTANCE_PATH"
 
 # Step 2: Create wp-config.php with instance-specific wp-content paths
 echo -e "${YELLOW}[2/6]${NC} Creating wp-config.php..."
+
+# Generate unique WordPress security keys
+SALT_KEYS=$(curl -s https://api.wordpress.org/secret-key/1.1/salt/ 2>/dev/null || echo "")
+
+# If API call fails, generate random keys
+if [ -z "$SALT_KEYS" ]; then
+    AUTH_KEY=$(openssl rand -base64 64 | tr -d '\n')
+    SECURE_AUTH_KEY=$(openssl rand -base64 64 | tr -d '\n')
+    LOGGED_IN_KEY=$(openssl rand -base64 64 | tr -d '\n')
+    NONCE_KEY=$(openssl rand -base64 64 | tr -d '\n')
+    AUTH_SALT=$(openssl rand -base64 64 | tr -d '\n')
+    SECURE_AUTH_SALT=$(openssl rand -base64 64 | tr -d '\n')
+    LOGGED_IN_SALT=$(openssl rand -base64 64 | tr -d '\n')
+    NONCE_SALT=$(openssl rand -base64 64 | tr -d '\n')
+    
+    SALT_KEYS="define('AUTH_KEY',         '$AUTH_KEY');
+define('SECURE_AUTH_KEY',  '$SECURE_AUTH_KEY');
+define('LOGGED_IN_KEY',    '$LOGGED_IN_KEY');
+define('NONCE_KEY',        '$NONCE_KEY');
+define('AUTH_SALT',        '$AUTH_SALT');
+define('SECURE_AUTH_SALT', '$SECURE_AUTH_SALT');
+define('LOGGED_IN_SALT',   '$LOGGED_IN_SALT');
+define('NONCE_SALT',       '$NONCE_SALT');"
+fi
+
 cat > "$INSTANCE_PATH/wp-config.php" << WPCONFIG
 <?php
 /**
@@ -68,29 +93,45 @@ define('DB_CHARSET', 'utf8mb4');
 define('DB_COLLATE', '');
 
 // Authentication Keys and Salts
-// TODO: Generate unique keys from https://api.wordpress.org/secret-key/1.1/salt/
-define('AUTH_KEY',         'put your unique phrase here');
-define('SECURE_AUTH_KEY',  'put your unique phrase here');
-define('LOGGED_IN_KEY',    'put your unique phrase here');
-define('NONCE_KEY',        'put your unique phrase here');
-define('AUTH_SALT',        'put your unique phrase here');
-define('SECURE_AUTH_SALT', 'put your unique phrase here');
-define('LOGGED_IN_SALT',   'put your unique phrase here');
-define('NONCE_SALT',       'put your unique phrase here');
+$SALT_KEYS
 
 // WordPress Database Table prefix
 \$table_prefix = 'wp_';
 
 // WordPress Debugging
-define('WP_DEBUG', false);
+define('WP_DEBUG', true);
+define('WP_DEBUG_LOG', true);
+define('WP_DEBUG_DISPLAY', false);
 
 // Force direct filesystem method (no FTP needed)
 define('FS_METHOD', 'direct');
 
+// ** CRITICAL: WordPress URLs **
+// Dynamic URLs based on current host to prevent redirects
+\$current_host = \$_SERVER['HTTP_HOST'] ?? '$DOMAIN';
+if (strpos(\$current_host, 'dashboard.') === 0) {
+    // Admin subdomain - use it for both
+    define('WP_SITEURL', 'http://' . \$current_host);
+    define('WP_HOME', 'http://' . str_replace('dashboard.', '', \$current_host));
+} else {
+    // Frontend domain - use it for both to prevent redirect
+    define('WP_SITEURL', 'http://' . \$current_host);
+    define('WP_HOME', 'http://' . \$current_host);
+}
+
+// Define admin cookie path
+define('ADMIN_COOKIE_PATH', '/wp-admin');
+
+// ** CRITICAL: Cookie Configuration **
+// Ensure cookies work correctly when served through Kernel
+define('COOKIE_DOMAIN', '$DOMAIN');
+define('COOKIEPATH', '/');
+define('SITECOOKIEPATH', '/');
+
 // ** CRITICAL: Instance-specific wp-content paths **
-// This ensures themes, plugins, and uploads are stored in the instance folder, not shared core
+// This ensures themes, plugins, and uploads are stored in the instance folder
 define('WP_CONTENT_DIR', __DIR__ . '/wp-content');
-define('WP_CONTENT_URL', 'http://$DOMAIN/wp-content');
+define('WP_CONTENT_URL', 'http://dashboard.$DOMAIN/wp-content');
 
 // Ikabud Kernel Integration
 define('IKABUD_INSTANCE_ID', '$INSTANCE_ID');
@@ -107,10 +148,47 @@ WPCONFIG
 
 echo -e "${GREEN}✓${NC} wp-config.php created with instance-specific wp-content"
 
-# Step 3: Create symlink from shared core to instance config
-echo -e "${YELLOW}[3/6]${NC} Creating symlink..."
-ln -sf ../../$INSTANCE_PATH/wp-config.php shared-cores/wordpress/wp-config.php
-echo -e "${GREEN}✓${NC} Symlink: shared-cores/wordpress/wp-config.php → $INSTANCE_PATH/wp-config.php"
+# Step 3: Create symlinks from instance to shared WordPress core
+echo -e "${YELLOW}[3/6]${NC} Creating symlinks to shared WordPress core..."
+cd "$INSTANCE_PATH"
+
+# Symlink all WordPress core files except wp-config.php, wp-content, and index.php
+for file in ../../shared-cores/wordpress/*; do
+    filename=$(basename "$file")
+    # Skip wp-config files, wp-content, and index.php (instance-specific)
+    if [[ "$filename" != "wp-config"* ]] && [[ "$filename" != "wp-content" ]] && [[ "$filename" != "index.php" ]]; then
+        ln -sf "../../shared-cores/wordpress/$filename" "$filename"
+    fi
+done
+
+# Create instance-specific index.php that ensures correct wp-config is loaded
+cat > "$INSTANCE_PATH/index.php" << 'INDEXPHP'
+<?php
+/**
+ * Front to the WordPress application. This file does not do anything, but loads
+ * wp-blog-header.php which does and tells WordPress to load the theme.
+ *
+ * @package WordPress
+ */
+
+/**
+ * Tells WordPress to load the WordPress theme and output it.
+ *
+ * @var bool
+ */
+define( 'WP_USE_THEMES', true );
+
+// Ensure we load the instance-specific wp-config.php
+if ( ! file_exists( __DIR__ . '/wp-config.php' ) ) {
+    die( 'wp-config.php not found in instance directory' );
+}
+
+/** Loads the WordPress Environment and Template */
+require __DIR__ . '/wp-blog-header.php';
+INDEXPHP
+
+cd - > /dev/null
+echo -e "${GREEN}✓${NC} Symlinks created: instance → shared WordPress core"
 
 # Step 4: Create database
 echo -e "${YELLOW}[4/6]${NC} Creating database..."
