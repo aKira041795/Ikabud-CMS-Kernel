@@ -173,12 +173,12 @@ define('FS_METHOD', 'direct');
 
 try {
     \$check_pdo = new PDO("mysql:host=$DB_HOST;dbname=$DB_NAME", '$DB_USER', '$DB_PASS');
-    \$check_result = \$check_pdo->query("SHOW TABLES LIKE '{$DB_PREFIX}options'");
+    \$check_result = \$check_pdo->query("SHOW TABLES LIKE '${DB_PREFIX}options'");
     \$wp_installed = (\$check_result && \$check_result->rowCount() > 0);
     
     // If installed, get URLs from database
     if (\$wp_installed) {
-        \$url_query = \$check_pdo->query("SELECT option_name, option_value FROM {$DB_PREFIX}options WHERE option_name IN ('siteurl', 'home')");
+        \$url_query = \$check_pdo->query("SELECT option_name, option_value FROM ${DB_PREFIX}options WHERE option_name IN ('siteurl', 'home')");
         while (\$row = \$url_query->fetch(PDO::FETCH_ASSOC)) {
             if (\$row['option_name'] === 'siteurl') {
                 \$db_siteurl = \$row['option_value'];
