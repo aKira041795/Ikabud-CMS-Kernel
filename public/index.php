@@ -13,48 +13,54 @@ declare(strict_types=1);
 $host = $_SERVER['HTTP_HOST'] ?? '';
 $requestUri = $_SERVER['REQUEST_URI'] ?? '/';
 
-// Dynamic domain lookup from database
-$instanceId = null;
-$envFile = __DIR__ . '/../.env';
-if (file_exists($envFile)) {
-    $envVars = [];
-    $lines = file($envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
-    foreach ($lines as $line) {
-        if (strpos(trim($line), '#') === 0) continue;
-        if (strpos($line, '=') !== false) {
-            list($key, $value) = explode('=', $line, 2);
-            $envVars[trim($key)] = trim($value);
+// Skip early checks for admin/API routes
+if (strpos($requestUri, '/admin') !== 0 && 
+    strpos($requestUri, '/api/') !== 0 && 
+    strpos($requestUri, '/login') !== 0) {
+    
+    // Dynamic domain lookup from database
+    $instanceId = null;
+    $envFile = __DIR__ . '/../.env';
+    if (file_exists($envFile)) {
+        $envVars = [];
+        $lines = file($envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+        foreach ($lines as $line) {
+            if (strpos(trim($line), '#') === 0) continue;
+            if (strpos($line, '=') !== false) {
+                list($key, $value) = explode('=', $line, 2);
+                $envVars[trim($key)] = trim($value);
+            }
+        }
+        
+        $dbHost = $envVars['DB_HOST'] ?? 'localhost';
+        $dbName = $envVars['DB_DATABASE'] ?? 'ikabud-kernel';
+        $dbUser = $envVars['DB_USERNAME'] ?? 'root';
+        $dbPass = $envVars['DB_PASSWORD'] ?? '';
+        
+        try {
+            $pdo = new PDO("mysql:host=$dbHost;dbname=$dbName", $dbUser, $dbPass);
+            $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+            $stmt = $pdo->prepare("SELECT instance_id FROM instances WHERE domain = ? LIMIT 1");
+            $stmt->execute([$host]);
+            $instance = $stmt->fetch(PDO::FETCH_ASSOC);
+            $instanceId = $instance['instance_id'] ?? null;
+        } catch (PDOException $e) {
+            error_log("Database connection failed: " . $e->getMessage());
         }
     }
-    
-    $dbHost = $envVars['DB_HOST'] ?? 'localhost';
-    $dbName = $envVars['DB_DATABASE'] ?? 'ikabud-kernel';
-    $dbUser = $envVars['DB_USERNAME'] ?? 'root';
-    $dbPass = $envVars['DB_PASSWORD'] ?? '';
-    
-    try {
-        $pdo = new PDO("mysql:host=$dbHost;dbname=$dbName", $dbUser, $dbPass);
-        $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-        $stmt = $pdo->prepare("SELECT instance_id FROM instances WHERE domain = ? LIMIT 1");
-        $stmt->execute([$host]);
-        $instance = $stmt->fetch(PDO::FETCH_ASSOC);
-        $instanceId = $instance['instance_id'] ?? null;
-    } catch (PDOException $e) {
-        error_log("Database connection failed: " . $e->getMessage());
-    }
-}
 
-if ($instanceId) {
-    $instanceDir = __DIR__ . '/../instances/' . $instanceId;
-    
-    // Check for maintenance mode
-    $maintenanceFile = $instanceDir . '/.maintenance';
-    if (file_exists($maintenanceFile)) {
-        http_response_code(503);
-        header('Content-Type: text/html; charset=utf-8');
-        header('Retry-After: 300');
-        readfile(__DIR__ . '/../templates/maintenance.html');
-        exit;
+    if ($instanceId) {
+        $instanceDir = __DIR__ . '/../instances/' . $instanceId;
+        
+        // Check for maintenance mode
+        $maintenanceFile = $instanceDir . '/.maintenance';
+        if (file_exists($maintenanceFile)) {
+            http_response_code(503);
+            header('Content-Type: text/html; charset=utf-8');
+            header('Retry-After: 300');
+            readfile(__DIR__ . '/../templates/maintenance.html');
+            exit;
+        }
     }
 }
 
@@ -173,6 +179,12 @@ $app->get('/login', function (Request $request, Response $response) {
 
 // Catch-all route for CMS routing
 $app->any('/{path:.*}', function (Request $request, Response $response, array $args) {
+    // Skip instance routing for admin paths (already handled above)
+    $requestPath = $request->getUri()->getPath();
+    if (strpos($requestPath, '/admin') === 0 || $requestPath === '/login') {
+        return $response->withStatus(404);
+    }
+    
     // Get instance from domain using database lookup
     $host = $request->getUri()->getHost();
     
