@@ -99,7 +99,7 @@ export default function CreateInstance() {
               type="text"
               value={formData.instance_id}
               onChange={(e) => setFormData({...formData, instance_id: e.target.value})}
-              pattern="[a-z0-9-]+"
+              pattern="[a-z0-9\-]+"
               required
               className="block w-full px-4 py-2.5 rounded border border-gray-300 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-colors"
               placeholder="wp-client-001"
