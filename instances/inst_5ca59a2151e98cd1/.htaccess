@@ -1,5 +1,5 @@
-# Ikabud Kernel - Instance .htaccess
-# This file works in shared hosting environments
+# Ikabud Kernel - Instance .htaccess Template
+# This file is copied to new instances and works in shared hosting
 
 # Enable rewrite engine
 <IfModule mod_rewrite.c>
@@ -8,7 +8,7 @@ RewriteBase /
 </IfModule>
 
 # Force correct MIME types for static assets
-# This works in shared hosting without VirtualHost access
+# Works in shared hosting without VirtualHost access
 <IfModule mod_mime.c>
     # CSS
     AddType text/css .css
@@ -54,7 +54,7 @@ RewriteBase /
     Header always set Access-Control-Allow-Credentials "true" env=ORIGIN_ALLOWED
     
     # Allow framing from same base domain (for WordPress Customizer)
-    Header always set Content-Security-Policy "frame-ancestors 'self' http://admin.thejake.test https://admin.thejake.test"
+    Header always set Content-Security-Policy "frame-ancestors 'self' http://admin.akira.test https://admin.akira.test"
     
     # Handle OPTIONS preflight requests
     RewriteEngine On
@@ -62,7 +62,9 @@ RewriteBase /
     RewriteRule ^(.*)$ $1 [R=200,L]
 </IfModule>
 
-# WordPress standard rewrite rules
+# CMS-specific rewrite rules will be added here by InstanceBootstrapper
+# WordPress, Joomla, Drupal each have their own rules
+
 <IfModule mod_rewrite.c>
 RewriteEngine On
 RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]

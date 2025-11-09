@@ -53,6 +53,9 @@ RewriteBase /
     Header always set Access-Control-Allow-Headers "Origin, X-Requested-With, X-WP-Nonce, Content-Type, Accept, Authorization, X-HTTP-Method-Override" env=ORIGIN_ALLOWED
     Header always set Access-Control-Allow-Credentials "true" env=ORIGIN_ALLOWED
     
+    # Allow framing from same base domain (for WordPress Customizer)
+    Header always set Content-Security-Policy "frame-ancestors 'self' http://admin.magic.test https://admin.magic.test"
+    
     # Handle OPTIONS preflight requests
     RewriteEngine On
     RewriteCond %{REQUEST_METHOD} OPTIONS

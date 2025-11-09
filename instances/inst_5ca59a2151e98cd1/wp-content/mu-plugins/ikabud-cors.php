@@ -6,9 +6,19 @@
  * Author: Ikabud Kernel
  */
 
-// Handle CORS - must run VERY early, at send_headers
+// Handle CORS and CSP - must run VERY early, at send_headers
 add_action('send_headers', 'ikabud_handle_cors', 1);
 function ikabud_handle_cors() {
+    // Load instance manifest for CSP configuration
+    $manifest_file = dirname(dirname(__DIR__)) . '/instance.json';
+    $manifest = file_exists($manifest_file) ? json_decode(file_get_contents($manifest_file), true) : null;
+    
+    // Always set CSP header to allow framing from admin subdomain
+    if ($manifest && isset($manifest['admin_subdomain'])) {
+        $admin_subdomain = $manifest['admin_subdomain'];
+        header('Content-Security-Policy: frame-ancestors \'self\' http://' . $admin_subdomain . ' https://' . $admin_subdomain);
+    }
+    
     $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
     
     if (!$origin) {
@@ -33,9 +43,6 @@ function ikabud_handle_cors() {
         header('Access-Control-Allow-Methods: POST, GET, OPTIONS, PUT, DELETE');
         header('Access-Control-Allow-Credentials: true');
         header('Access-Control-Allow-Headers: Origin, X-Requested-With, X-WP-Nonce, Content-Type, Accept, Authorization, X-HTTP-Method-Override');
-        
-        // Allow framing from same base domain (for WordPress Customizer)
-        header('Content-Security-Policy: frame-ancestors \'self\' ' . $origin);
         
         // Handle OPTIONS preflight request
         if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
