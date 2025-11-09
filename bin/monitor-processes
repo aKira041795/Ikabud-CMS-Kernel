@@ -1,0 +1,55 @@
+#!/usr/bin/env php
+<?php
+/**
+ * Process Monitor - Background Service
+ * 
+ * Continuously monitors and updates process metrics for all running instances
+ * Run this as a background service or cron job
+ */
+
+declare(strict_types=1);
+
+require __DIR__ . '/../vendor/autoload.php';
+
+use IkabudKernel\Core\Kernel;
+use IkabudKernel\Core\VirtualProcessManager;
+use IkabudKernel\Core\Config;
+
+// Initialize Config
+Config::getInstance();
+
+// Boot kernel
+try {
+    Kernel::boot();
+    $kernel = Kernel::getInstance();
+    $processManager = new VirtualProcessManager($kernel);
+    
+    echo "Process Monitor started...\n";
+    echo "Mode: " . $processManager->getMode() . "\n";
+    echo "Press Ctrl+C to stop\n\n";
+    
+    // Monitor loop
+    $iteration = 0;
+    while (true) {
+        $iteration++;
+        $startTime = microtime(true);
+        
+        try {
+            // Update all process metrics
+            $processManager->updateAllProcessMetrics();
+            
+            $elapsed = round((microtime(true) - $startTime) * 1000, 2);
+            echo "[" . date('Y-m-d H:i:s') . "] Iteration #{$iteration} - Updated metrics ({$elapsed}ms)\n";
+            
+        } catch (Exception $e) {
+            echo "[ERROR] " . $e->getMessage() . "\n";
+        }
+        
+        // Sleep for 5 seconds before next update
+        sleep(5);
+    }
+    
+} catch (Exception $e) {
+    echo "Fatal error: " . $e->getMessage() . "\n";
+    exit(1);
+}

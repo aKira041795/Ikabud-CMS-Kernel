@@ -10,51 +10,59 @@ use IkabudKernel\Core\Config;
 
 // Login endpoint
 $app->post('/api/auth/login', function (Request $request, Response $response) {
-    $body = json_decode($request->getBody()->getContents(), true);
-    
-    $username = $body['username'] ?? '';
-    $password = $body['password'] ?? '';
-    
-    // Validate input
-    if (empty($username) || empty($password)) {
-        $response->getBody()->write(json_encode([
-            'success' => false,
-            'error' => 'Username and password are required'
-        ]));
-        return $response->withStatus(400)->withHeader('Content-Type', 'application/json');
-    }
-    
-    // Check credentials (in production, check against database)
-    $adminUsername = Config::get('ADMIN_USERNAME', 'admin');
-    $adminPassword = Config::get('ADMIN_PASSWORD', 'password');
-    
-    if ($username === $adminUsername && $password === $adminPassword) {
-        // Generate JWT token
-        $jwt = new JWT();
-        $token = $jwt->generate([
-            'username' => $username,
-            'role' => 'administrator',
-            'permissions' => ['*']
-        ]);
+    try {
+        $body = json_decode($request->getBody()->getContents(), true);
         
-        $response->getBody()->write(json_encode([
-            'success' => true,
-            'token' => $token,
-            'user' => [
+        $username = $body['username'] ?? '';
+        $password = $body['password'] ?? '';
+        
+        // Validate input
+        if (empty($username) || empty($password)) {
+            $response->getBody()->write(json_encode([
+                'success' => false,
+                'error' => 'Username and password are required'
+            ]));
+            return $response->withStatus(400)->withHeader('Content-Type', 'application/json');
+        }
+        
+        // Check credentials (in production, check against database)
+        $adminUsername = Config::get('ADMIN_USERNAME', 'admin');
+        $adminPassword = Config::get('ADMIN_PASSWORD', 'password');
+        
+        if ($username === $adminUsername && $password === $adminPassword) {
+            // Generate JWT token
+            $jwt = new JWT();
+            $token = $jwt->generate([
                 'username' => $username,
                 'role' => 'administrator',
-                'email' => Config::get('ADMIN_EMAIL', 'admin@ikabud.local')
-            ]
+                'permissions' => ['*']
+            ]);
+            
+            $response->getBody()->write(json_encode([
+                'success' => true,
+                'token' => $token,
+                'user' => [
+                    'username' => $username,
+                    'role' => 'administrator',
+                    'email' => Config::get('ADMIN_EMAIL', 'admin@ikabud.local')
+                ]
+            ]));
+            return $response->withHeader('Content-Type', 'application/json');
+        }
+        
+        // Invalid credentials
+        $response->getBody()->write(json_encode([
+            'success' => false,
+            'error' => 'Invalid username or password'
         ]));
-        return $response->withHeader('Content-Type', 'application/json');
+        return $response->withStatus(401)->withHeader('Content-Type', 'application/json');
+    } catch (Exception $e) {
+        $response->getBody()->write(json_encode([
+            'success' => false,
+            'error' => 'Server error: ' . $e->getMessage()
+        ]));
+        return $response->withStatus(500)->withHeader('Content-Type', 'application/json');
     }
-    
-    // Invalid credentials
-    $response->getBody()->write(json_encode([
-        'success' => false,
-        'error' => 'Invalid username or password'
-    ]));
-    return $response->withStatus(401)->withHeader('Content-Type', 'application/json');
 });
 
 // Verify token endpoint

@@ -6,9 +6,10 @@
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use IkabudKernel\Core\Kernel;
+use IkabudKernel\Core\JWTMiddleware;
 
 // List all instances
-$app->get('/api/v1/instances', function (Request $request, Response $response) {
+$listInstancesHandler = function (Request $request, Response $response) {
     $kernel = Kernel::getInstance();
     $db = $kernel->getDatabase();
     
@@ -35,7 +36,11 @@ $app->get('/api/v1/instances', function (Request $request, Response $response) {
     ]));
     
     return $response->withHeader('Content-Type', 'application/json');
-});
+};
+
+// Register both old and new paths with JWT middleware
+$app->get('/api/v1/instances', $listInstancesHandler)->add(new JWTMiddleware());
+$app->get('/api/instances/list.php', $listInstancesHandler)->add(new JWTMiddleware()); // Backward compatibility
 
 // Get single instance
 $app->get('/api/v1/instances/{id}', function (Request $request, Response $response, array $args) {

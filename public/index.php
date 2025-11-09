@@ -8,6 +8,28 @@
 
 declare(strict_types=1);
 
+// EARLY MAINTENANCE MODE CHECK (before any autoloading)
+// This must run FIRST to catch requests before Slim routing
+$host = $_SERVER['HTTP_HOST'] ?? '';
+$subdomain = explode('.', $host)[0];
+
+// Map subdomain to instance
+$instanceMap = ['wp-test' => 'wp-test-001'];
+$instanceId = $instanceMap[$subdomain] ?? null;
+
+if ($instanceId) {
+    $maintenanceFile = __DIR__ . '/../instances/' . $instanceId . '/.maintenance';
+    error_log("MAINTENANCE CHECK: instanceId=$instanceId, file=$maintenanceFile, exists=" . (file_exists($maintenanceFile) ? 'YES' : 'NO'));
+    if (file_exists($maintenanceFile)) {
+        error_log("MAINTENANCE MODE ACTIVATED - Showing maintenance page");
+        http_response_code(503);
+        header('Content-Type: text/html; charset=utf-8');
+        header('Retry-After: 300');
+        readfile(__DIR__ . '/../templates/maintenance.html');
+        exit;
+    }
+}
+
 use IkabudKernel\Core\Kernel;
 use Slim\Factory\AppFactory;
 use Psr\Http\Message\ResponseInterface as Response;
@@ -15,6 +37,10 @@ use Psr\Http\Message\ServerRequestInterface as Request;
 
 // Load Composer autoloader
 require __DIR__ . '/../vendor/autoload.php';
+
+// Initialize Config (loads .env file)
+use IkabudKernel\Core\Config;
+Config::getInstance();
 
 // Boot the kernel FIRST (before anything else)
 try {
@@ -76,9 +102,41 @@ $app->get('/api/health', function (Request $request, Response $response) {
 require __DIR__ . '/../api/routes/auth.php';
 require __DIR__ . '/../api/routes/kernel.php';
 require __DIR__ . '/../api/routes/instances.php';
+require __DIR__ . '/../api/routes/instances-actions.php';
 require __DIR__ . '/../api/routes/themes.php';
 require __DIR__ . '/../api/routes/dsl.php';
 require __DIR__ . '/../api/routes/conditional-loading.php';
+
+// ============================================================================
+// ADMIN ROUTES (React SPA)
+// ============================================================================
+
+// Serve admin React app for all /admin/* routes and /login
+$app->get('/admin[/{path:.*}]', function (Request $request, Response $response) {
+    $indexPath = __DIR__ . '/admin/index.html';
+    
+    if (!file_exists($indexPath)) {
+        $response->getBody()->write('Admin interface not found. Run: cd admin && npm run build');
+        return $response->withStatus(404);
+    }
+    
+    $html = file_get_contents($indexPath);
+    $response->getBody()->write($html);
+    return $response->withHeader('Content-Type', 'text/html');
+});
+
+$app->get('/login', function (Request $request, Response $response) {
+    $indexPath = __DIR__ . '/admin/index.html';
+    
+    if (!file_exists($indexPath)) {
+        $response->getBody()->write('Admin interface not found. Run: cd admin && npm run build');
+        return $response->withStatus(404);
+    }
+    
+    $html = file_get_contents($indexPath);
+    $response->getBody()->write($html);
+    return $response->withHeader('Content-Type', 'text/html');
+});
 
 // ============================================================================
 // FRONTEND ROUTES (CMS Routing)
@@ -111,13 +169,23 @@ $app->any('/{path:.*}', function (Request $request, Response $response, array $a
     $stmt->execute([$instanceId]);
     $instance = $stmt->fetch(PDO::FETCH_ASSOC);
     
+    // Check for maintenance mode
+    $instanceDir = __DIR__ . '/../instances/' . $instanceId;
+    $maintenanceFile = $instanceDir . '/.maintenance';
+    
+    if (file_exists($maintenanceFile)) {
+        // Show maintenance page
+        $maintenanceHtml = file_get_contents(__DIR__ . '/../templates/maintenance.html');
+        $response->getBody()->write($maintenanceHtml);
+        return $response->withStatus(503)->withHeader('Content-Type', 'text/html');
+    }
+    
     if (!$instance || $instance['status'] !== 'active') {
         $response->getBody()->write("Instance is not active: {$instanceId}");
         return $response->withStatus(503);
     }
     
     // Instance is active - proceed with caching layer
-    $instanceDir = __DIR__ . '/../instances/' . $instanceId;
     $requestUri = $request->getUri()->getPath();
     if ($query = $request->getUri()->getQuery()) {
         $requestUri .= '?' . $query;

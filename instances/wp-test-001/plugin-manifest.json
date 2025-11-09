@@ -1,0 +1,54 @@
+{
+    "plugins": {
+        "akismet/akismet.php": {
+            "name": "Akismet Anti-spam: Spam Protection",
+            "version": "5.5",
+            "enabled": true,
+            "load_on": {
+                "routes": [
+                    "*"
+                ],
+                "admin": true,
+                "priority": 10
+            },
+            "priority": 10,
+            "dependencies": []
+        },
+        "wpforms-lite/wpforms.php": {
+            "name": "WPForms Lite",
+            "version": "1.9.8.4",
+            "enabled": true,
+            "load_on": {
+                "routes": [
+                    "/contact"
+                ],
+                "admin": true,
+                "priority": 20,
+                "shortcodes": [
+                    "contact-form-7",
+                    "wpforms",
+                    "gravityform"
+                ]
+            },
+            "priority": 20,
+            "dependencies": []
+        }
+    },
+    "themes": {
+        "generatepress": {
+            "name": "GeneratePress",
+            "version": "3.6.0",
+            "load_on": {
+                "routes": [
+                    "*"
+                ]
+            }
+        }
+    },
+    "_meta": {
+        "version": "1.0",
+        "generated_at": "2025-11-09T03:33:10+00:00",
+        "instance_id": "wp-test-001",
+        "description": "Auto-generated plugin manifest. Edit load_on rules to optimize loading."
+    }
+}

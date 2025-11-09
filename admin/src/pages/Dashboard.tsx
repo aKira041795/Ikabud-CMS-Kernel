@@ -12,10 +12,13 @@ export default function Dashboard() {
       const response = await fetch('/api/instances/list.php', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
-      const data = await response.json();
-      if (!data.success) {
-        throw new Error(data.message || 'Failed to fetch instances');
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to fetch instances');
       }
+      
+      const data = await response.json();
       return data;
     },
     refetchInterval: 5000,
@@ -41,7 +44,7 @@ export default function Dashboard() {
   const stats = {
     total: instances?.total || 0,
     running: instances?.instances?.filter((i: any) => i.status === 'active').length || 0,
-    stopped: instances?.instances?.filter((i: any) => i.status === 'stopped').length || 0
+    stopped: instances?.instances?.filter((i: any) => i.status === 'inactive').length || 0
   };
 
   return (

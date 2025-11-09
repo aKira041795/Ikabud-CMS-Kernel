@@ -31,14 +31,15 @@ export default function ConditionalLoading() {
 
   const loadInstances = async () => {
     try {
-      const data = await api.get('/instances')
+      const data = await api.get('/instances/list.php')
       setInstances(data.instances || [])
       if (data.instances?.length > 0) {
-        setSelectedInstance(data.instances[0].id)
-        loadStats(data.instances[0].id)
+        setSelectedInstance(data.instances[0].instance_id)
+        loadStats(data.instances[0].instance_id)
       }
     } catch (error) {
       toast.error('Failed to load instances')
+      console.error('Load instances error:', error)
     }
   }
 
@@ -108,8 +109,8 @@ export default function ConditionalLoading() {
           className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
         >
           {instances.map((instance) => (
-            <option key={instance.id} value={instance.id}>
-              {instance.id} ({instance.cms_type || 'wordpress'})
+            <option key={instance.instance_id} value={instance.instance_id}>
+              {instance.instance_name || instance.instance_id} ({instance.cms_type || 'wordpress'})
             </option>
           ))}
         </select>

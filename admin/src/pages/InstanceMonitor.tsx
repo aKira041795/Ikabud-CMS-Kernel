@@ -12,21 +12,49 @@ export default function InstanceMonitor() {
   const queryClient = useQueryClient();
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
-  const { data: monitoring, isLoading } = useQuery({
+  const { data: monitoring, isLoading, error } = useQuery({
     queryKey: ['instance-monitor', instanceId],
     queryFn: async () => {
       const response = await fetch(`/api/instances/monitor.php?instance_id=${instanceId}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to fetch instance data');
+      }
+      
       return response.json();
     },
-    refetchInterval: 2000
+    refetchInterval: 2000,
+    retry: 1
   });
 
   if (isLoading) {
     return <div className="flex items-center justify-center h-64">
       <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
     </div>;
+  }
+
+  if (error) {
+    return (
+      <div className="px-4 sm:px-6 lg:px-8">
+        <button
+          onClick={() => navigate('/instances')}
+          className="mb-4 inline-flex items-center text-sm text-gray-600 hover:text-gray-900"
+        >
+          <ArrowLeft className="w-4 h-4 mr-1" />
+          Back to Instances
+        </button>
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center">
+            <Activity className="mx-auto h-12 w-12 text-red-400" />
+            <h3 className="mt-2 text-sm font-medium text-gray-900">Error loading instance</h3>
+            <p className="mt-1 text-sm text-gray-500">{(error as Error).message}</p>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   const formatBytes = (bytes: number) => {

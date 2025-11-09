@@ -15,26 +15,38 @@ $app->get('/api/v1/kernel/status', function (Request $request, Response $respons
 });
 
 // Get process table
-$app->get('/api/v1/kernel/processes', function (Request $request, Response $response) {
-    $kernel = Kernel::getInstance();
-    $db = $kernel->getDatabase();
-    
-    $stmt = $db->query("
-        SELECT pid, instance_id, process_name, process_type, cms_type, status, 
-               memory_usage, cpu_time, boot_time, started_at
-        FROM kernel_processes
-        ORDER BY started_at DESC
-    ");
-    
-    $processes = $stmt->fetchAll();
-    
-    $response->getBody()->write(json_encode([
-        'total' => count($processes),
-        'processes' => $processes
-    ]));
-    
-    return $response->withHeader('Content-Type', 'application/json');
-});
+$processesHandler = function (Request $request, Response $response) {
+    try {
+        $kernel = Kernel::getInstance();
+        $db = $kernel->getDatabase();
+        
+        $stmt = $db->query("
+            SELECT pid, instance_id, process_name, process_type, cms_type, status, 
+                   memory_usage, cpu_time, boot_time, started_at
+            FROM kernel_processes
+            ORDER BY started_at DESC
+        ");
+        
+        $processes = $stmt->fetchAll();
+        
+        $response->getBody()->write(json_encode([
+            'total' => count($processes),
+            'processes' => $processes
+        ]));
+        
+        return $response->withHeader('Content-Type', 'application/json');
+    } catch (Exception $e) {
+        $response->getBody()->write(json_encode([
+            'total' => 0,
+            'processes' => [],
+            'error' => $e->getMessage()
+        ]));
+        return $response->withHeader('Content-Type', 'application/json');
+    }
+};
+
+$app->get('/api/v1/kernel/processes', $processesHandler);
+$app->get('/api/kernel/processes', $processesHandler); // Backward compatibility
 
 // Get syscall logs
 $app->get('/api/v1/kernel/syscalls', function (Request $request, Response $response) {

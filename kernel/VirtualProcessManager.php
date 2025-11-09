@@ -394,4 +394,89 @@ class VirtualProcessManager
     {
         return $this->mode === 'real';
     }
+    
+    /**
+     * Update process metrics for all active instances
+     */
+    public function updateAllProcessMetrics(): void
+    {
+        $stmt = $this->db->query("
+            SELECT pid, instance_id FROM kernel_processes 
+            WHERE status = 'running'
+        ");
+        
+        $processes = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        
+        foreach ($processes as $process) {
+            $this->updateProcessMetrics($process['pid'], $process['instance_id']);
+        }
+    }
+    
+    /**
+     * Update metrics for a specific process
+     */
+    public function updateProcessMetrics(int $pid, string $instanceId): void
+    {
+        try {
+            // Get current PHP memory usage as baseline
+            $memoryUsage = memory_get_usage(true);
+            
+            // Get CPU time from system
+            $rusage = getrusage();
+            $cpuTime = $rusage['ru_utime.tv_sec'] + ($rusage['ru_utime.tv_usec'] / 1000000);
+            
+            // Try to get instance-specific memory if WordPress is loaded
+            $instanceMemory = $this->getInstanceMemory($instanceId);
+            if ($instanceMemory > 0) {
+                $memoryUsage = $instanceMemory;
+            }
+            
+            // Update kernel_processes table
+            $stmt = $this->db->prepare("
+                UPDATE kernel_processes 
+                SET memory_usage = ?,
+                    cpu_time = ?,
+                    updated_at = NOW()
+                WHERE pid = ?
+            ");
+            
+            $stmt->execute([$memoryUsage, $cpuTime, $pid]);
+            
+        } catch (Exception $e) {
+            error_log("Failed to update process metrics for PID {$pid}: " . $e->getMessage());
+        }
+    }
+    
+    /**
+     * Get memory usage for a specific instance
+     */
+    private function getInstanceMemory(string $instanceId): int
+    {
+        // Check if instance directory exists
+        $instancePath = dirname(__DIR__) . '/instances/' . $instanceId;
+        
+        if (!is_dir($instancePath)) {
+            return 0;
+        }
+        
+        // Estimate memory based on instance size and activity
+        // This is a simplified calculation for virtual mode
+        $baseMemory = 50 * 1024 * 1024; // 50MB base
+        
+        // Add memory for each active plugin/theme
+        $wpPath = $instancePath . '/wp-content';
+        if (is_dir($wpPath)) {
+            $pluginCount = 0;
+            $pluginsDir = $wpPath . '/plugins';
+            if (is_dir($pluginsDir)) {
+                $pluginCount = count(glob($pluginsDir . '/*', GLOB_ONLYDIR));
+            }
+            
+            // ~5MB per plugin
+            $baseMemory += ($pluginCount * 5 * 1024 * 1024);
+        }
+        
+        return $baseMemory;
+    }
+    
 }
