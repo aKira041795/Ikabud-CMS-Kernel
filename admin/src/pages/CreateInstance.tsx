@@ -24,6 +24,29 @@ export default function CreateInstance() {
     max_children: 5
   });
 
+  // Get CMS-specific settings
+  const getCMSDefaults = (cmsType: string) => {
+    switch (cmsType) {
+      case 'wordpress':
+        return { prefix: 'wp_', contentDir: 'wp-content' };
+      case 'joomla':
+        return { prefix: 'jos_', contentDir: 'administrator' };
+      case 'drupal':
+        return { prefix: 'drupal_', contentDir: 'sites' };
+      default:
+        return { prefix: 'wp_', contentDir: 'wp-content' };
+    }
+  };
+
+  const handleCMSTypeChange = (newCmsType: string) => {
+    const defaults = getCMSDefaults(newCmsType);
+    setFormData({
+      ...formData,
+      cms_type: newCmsType,
+      database_prefix: defaults.prefix
+    });
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -108,13 +131,18 @@ export default function CreateInstance() {
             </label>
             <select
               value={formData.cms_type}
-              onChange={(e) => setFormData({...formData, cms_type: e.target.value})}
+              onChange={(e) => handleCMSTypeChange(e.target.value)}
               className="block w-full px-4 py-2.5 rounded border border-gray-300 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-colors"
             >
               <option value="wordpress">WordPress</option>
               <option value="joomla">Joomla</option>
               <option value="drupal">Drupal</option>
             </select>
+            <p className="mt-1 text-xs text-gray-500">
+              {formData.cms_type === 'wordpress' && 'Uses shared WordPress core from shared-cores/wordpress/'}
+              {formData.cms_type === 'joomla' && 'Uses shared Joomla core from shared-cores/joomla/'}
+              {formData.cms_type === 'drupal' && 'Uses shared Drupal core from shared-cores/drupal/'}
+            </p>
           </div>
 
           {/* Domain Configuration */}
@@ -132,7 +160,7 @@ export default function CreateInstance() {
                 placeholder="mysite.com"
               />
               <p className="mt-1 text-xs text-gray-500">
-                Main domain for your website (cached through kernel)
+                Main domain for your {formData.cms_type === 'wordpress' ? 'WordPress' : formData.cms_type === 'joomla' ? 'Joomla' : 'Drupal'} site (cached through kernel)
               </p>
             </div>
 
@@ -149,7 +177,9 @@ export default function CreateInstance() {
                 placeholder="admin.mysite.com"
               />
               <p className="mt-1 text-xs text-gray-500">
-                Subdomain for admin access (direct to WordPress)
+                {formData.cms_type === 'wordpress' && 'Subdomain for admin access (direct to WordPress)'}
+                {formData.cms_type === 'joomla' && 'Subdomain for admin access (direct to Joomla administrator)'}
+                {formData.cms_type === 'drupal' && 'Subdomain for admin access (direct to Drupal admin)'}
               </p>
             </div>
           </div>
@@ -229,10 +259,16 @@ export default function CreateInstance() {
                 value={formData.database_prefix}
                 onChange={(e) => setFormData({...formData, database_prefix: e.target.value})}
                 className="block w-full px-4 py-2.5 rounded border border-gray-300 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-colors"
-                placeholder="wp_"
+                placeholder={
+                  formData.cms_type === 'wordpress' ? 'wp_' :
+                  formData.cms_type === 'joomla' ? 'jos_' :
+                  formData.cms_type === 'drupal' ? 'drupal_' : 'wp_'
+                }
               />
               <p className="mt-1 text-xs text-gray-500">
-                Default: wp_
+                {formData.cms_type === 'wordpress' && 'Default: wp_ (WordPress tables)'}
+                {formData.cms_type === 'joomla' && 'Default: jos_ (Joomla tables)'}
+                {formData.cms_type === 'drupal' && 'Default: drupal_ (Drupal tables)'}
               </p>
             </div>
           </div>
