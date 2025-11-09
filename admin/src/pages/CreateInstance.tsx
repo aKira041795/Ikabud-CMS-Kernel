@@ -15,6 +15,9 @@ export default function CreateInstance() {
     domain: '',
     admin_subdomain: '',
     database_name: '',
+    database_user: 'root',
+    database_password: '',
+    database_host: 'localhost',
     database_prefix: 'wp_',
     memory_limit: '256M',
     max_execution_time: 60,
@@ -151,19 +154,87 @@ export default function CreateInstance() {
             </div>
           </div>
 
-          {/* Database Name */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Database Name *
-            </label>
-            <input
-              type="text"
-              value={formData.database_name}
-              onChange={(e) => setFormData({...formData, database_name: e.target.value})}
-              required
-              className="block w-full px-4 py-2.5 rounded border border-gray-300 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-colors"
-              placeholder="ikabud_wp_client"
-            />
+          {/* Database Configuration */}
+          <div className="space-y-4 border-t pt-6">
+            <h3 className="text-lg font-medium text-gray-900">Database Configuration</h3>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Database Name *
+                </label>
+                <input
+                  type="text"
+                  value={formData.database_name}
+                  onChange={(e) => setFormData({...formData, database_name: e.target.value})}
+                  required
+                  className="block w-full px-4 py-2.5 rounded border border-gray-300 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-colors"
+                  placeholder="ikabud_wp_client"
+                />
+                <p className="mt-1 text-xs text-gray-500">
+                  Database must already exist
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Database User *
+                </label>
+                <input
+                  type="text"
+                  value={formData.database_user}
+                  onChange={(e) => setFormData({...formData, database_user: e.target.value})}
+                  required
+                  className="block w-full px-4 py-2.5 rounded border border-gray-300 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-colors"
+                  placeholder="root"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Database Password *
+                </label>
+                <input
+                  type="password"
+                  value={formData.database_password}
+                  onChange={(e) => setFormData({...formData, database_password: e.target.value})}
+                  required
+                  className="block w-full px-4 py-2.5 rounded border border-gray-300 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-colors"
+                  placeholder="••••••••"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Database Host
+                </label>
+                <input
+                  type="text"
+                  value={formData.database_host}
+                  onChange={(e) => setFormData({...formData, database_host: e.target.value})}
+                  className="block w-full px-4 py-2.5 rounded border border-gray-300 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-colors"
+                  placeholder="localhost"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Table Prefix
+              </label>
+              <input
+                type="text"
+                value={formData.database_prefix}
+                onChange={(e) => setFormData({...formData, database_prefix: e.target.value})}
+                className="block w-full px-4 py-2.5 rounded border border-gray-300 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-colors"
+                placeholder="wp_"
+              />
+              <p className="mt-1 text-xs text-gray-500">
+                Default: wp_
+              </p>
+            </div>
           </div>
 
           {/* Advanced Settings */}

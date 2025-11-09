@@ -34,7 +34,7 @@ try {
 $input = json_decode(file_get_contents('php://input'), true);
 
 // Validate required fields
-$required = ['instance_id', 'instance_name', 'cms_type', 'domain', 'admin_subdomain', 'database_name'];
+$required = ['instance_id', 'instance_name', 'cms_type', 'domain', 'admin_subdomain', 'database_name', 'database_user', 'database_password'];
 foreach ($required as $field) {
     if (empty($input[$field])) {
         http_response_code(400);
@@ -50,6 +50,9 @@ $cmsType = $input['cms_type'];
 $domain = $input['domain'];
 $adminSubdomain = $input['admin_subdomain'];
 $databaseName = $input['database_name'];
+$databaseUser = $input['database_user'];
+$databasePassword = $input['database_password'];
+$databaseHost = $input['database_host'] ?? 'localhost';
 $databasePrefix = $input['database_prefix'] ?? 'wp_';
 $memoryLimit = $input['memory_limit'] ?? '256M';
 $maxExecutionTime = $input['max_execution_time'] ?? 60;
@@ -121,12 +124,6 @@ try {
         'NONCE_SALT' => bin2hex(random_bytes(32))
     ];
     
-    // Get database credentials from kernel config
-    $config = $kernel->getConfig();
-    $dbUser = $config['database']['username'] ?? 'root';
-    $dbPassword = $config['database']['password'] ?? '';
-    $dbHost = $config['database']['host'] ?? 'localhost';
-    
     // Generate wp-config.php
     $wpConfig = <<<PHP
 <?php
@@ -138,9 +135,9 @@ try {
 
 // Database Configuration
 define('DB_NAME', '{$databaseName}');
-define('DB_USER', '{$dbUser}');
-define('DB_PASSWORD', '{$dbPassword}');
-define('DB_HOST', '{$dbHost}');
+define('DB_USER', '{$databaseUser}');
+define('DB_PASSWORD', '{$databasePassword}');
+define('DB_HOST', '{$databaseHost}');
 define('DB_CHARSET', 'utf8mb4');
 define('DB_COLLATE', '');
 
