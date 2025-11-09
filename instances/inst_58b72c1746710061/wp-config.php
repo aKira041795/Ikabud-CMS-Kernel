@@ -42,23 +42,61 @@ define('WP_DEBUG_DISPLAY', false);
 define('FS_METHOD', 'direct');
 
 // ** CRITICAL: WordPress URLs **
-// Define these to prevent redirect loops when loaded through Kernel
-define('WP_SITEURL', 'http://dashboard.magic.test');  // Admin subdomain for direct access
-define('WP_HOME', 'http://magic.test');               // Frontend through kernel
+// Dynamic URLs based on current host to prevent redirects
+$current_host = $_SERVER['HTTP_HOST'] ?? 'magic.test';
+
+// Determine if this is a backend/admin subdomain
+$is_backend = (
+    strpos($current_host, 'backend.') === 0 || 
+    strpos($current_host, 'admin.') === 0 || 
+    strpos($current_host, 'dashboard.') === 0
+);
+
+// Check if WordPress is installed by checking if options table exists
+$wp_installed = false;
+try {
+    $check_pdo = new PDO("mysql:host=localhost;dbname=ikabud_magic_test", 'root', 'Nds90@NXIOVRH*iy');
+    $check_result = $check_pdo->query("SHOW TABLES LIKE 'wp_options'");
+    $wp_installed = ($check_result && $check_result->rowCount() > 0);
+} catch (Exception $e) {
+    $wp_installed = false;
+}
+
+// If accessing frontend and WP not installed, redirect to backend installation
+if (!$is_backend && !$wp_installed && !defined('WP_INSTALLING')) {
+    $backend_domain = 'backend.' . $current_host;
+    header('Location: http://' . $backend_domain . '/wp-admin/install.php');
+    exit;
+}
+
+if ($is_backend) {
+    // Backend subdomain - WordPress admin/API access
+    // During installation and admin access, both URLs point to backend
+    define('WP_SITEURL', 'http://' . $current_host);
+    define('WP_HOME', 'http://' . $current_host);
+} else {
+    // Frontend domain - public site access
+    // Both point to frontend domain to prevent redirects
+    define('WP_SITEURL', 'http://' . $current_host);
+    define('WP_HOME', 'http://' . $current_host);
+}
 
 // Define admin cookie path
 define('ADMIN_COOKIE_PATH', '/wp-admin');
 
 // ** CRITICAL: Cookie Configuration **
 // Ensure cookies work correctly when served through Kernel
-define('COOKIE_DOMAIN', 'magic.test');
+// Use base domain for cookie sharing across subdomains
+$base_domain = preg_replace('/^(backend|admin|dashboard)\./', '', $current_host);
+define('COOKIE_DOMAIN', '.' . $base_domain);
 define('COOKIEPATH', '/');
 define('SITECOOKIEPATH', '/');
 
 // ** CRITICAL: Instance-specific wp-content paths **
 // This ensures themes, plugins, and uploads are stored in the instance folder
 define('WP_CONTENT_DIR', __DIR__ . '/wp-content');
-define('WP_CONTENT_URL', 'http://dashboard.magic.test/wp-content');
+// Use current host for wp-content URL to avoid cross-domain issues
+define('WP_CONTENT_URL', 'http://' . $current_host . '/wp-content');
 
 // Ikabud Kernel Integration
 define('IKABUD_INSTANCE_ID', 'inst_58b72c1746710061');

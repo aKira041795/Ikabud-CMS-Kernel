@@ -45,12 +45,28 @@ $is_backend = (
     strpos($current_host, 'dashboard.') === 0
 );
 
+// Check if WordPress is installed by checking if options table exists
+$wp_installed = false;
+try {
+    $check_pdo = new PDO("mysql:host=localhost;dbname=ikabud_test_cors", 'root', 'Nds90@NXIOVRH*iy');
+    $check_result = $check_pdo->query("SHOW TABLES LIKE 'wp_options'");
+    $wp_installed = ($check_result && $check_result->rowCount() > 0);
+} catch (Exception $e) {
+    $wp_installed = false;
+}
+
+// If accessing frontend and WP not installed, redirect to backend installation
+if (!$is_backend && !$wp_installed && !defined('WP_INSTALLING')) {
+    $backend_domain = 'backend.' . $current_host;
+    header('Location: http://' . $backend_domain . '/wp-admin/install.php');
+    exit;
+}
+
 if ($is_backend) {
     // Backend subdomain - WordPress admin/API access
-    // WP_SITEURL: Where WordPress core files are (backend subdomain)
-    // WP_HOME: Where the site is displayed (frontend domain)
+    // During installation and admin access, both URLs point to backend
     define('WP_SITEURL', 'http://' . $current_host);
-    define('WP_HOME', 'http://' . preg_replace('/^(backend|admin|dashboard)\./', '', $current_host));
+    define('WP_HOME', 'http://' . $current_host);
 } else {
     // Frontend domain - public site access
     // Both point to frontend domain to prevent redirects
