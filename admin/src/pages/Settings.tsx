@@ -167,6 +167,18 @@ export default function Settings() {
       <div className="px-4 sm:px-6 lg:px-8">
         <div className="bg-yellow-50 border border-yellow-200 rounded-md p-4">
           <p className="text-yellow-800">You don't have permission to access settings.</p>
+          <p className="text-xs text-yellow-600 mt-2">
+            Current user: {currentUser?.username || 'Unknown'} | Role: {currentUser?.role || 'None'}
+          </p>
+          <button
+            onClick={() => {
+              console.log('Current user:', currentUser);
+              console.log('Token:', token);
+            }}
+            className="mt-2 text-xs text-yellow-700 underline"
+          >
+            Debug: Log user info to console
+          </button>
         </div>
       </div>
     );
