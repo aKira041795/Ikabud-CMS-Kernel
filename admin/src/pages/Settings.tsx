@@ -159,8 +159,8 @@ export default function Settings() {
       : 'bg-gray-100 text-gray-800';
   };
 
-  // Check if current user is admin
-  const isAdmin = currentUser?.role === 'admin';
+  // Check if current user is admin (support both 'admin' and 'administrator')
+  const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'administrator';
 
   if (!isAdmin) {
     return (

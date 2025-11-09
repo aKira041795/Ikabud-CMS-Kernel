@@ -25,8 +25,8 @@ $jwt = new JWTMiddleware();
 try {
     $decoded = $jwt->validateToken($token);
     
-    // Check if user is admin
-    if ($decoded->role !== 'admin') {
+    // Check if user is admin (support both 'admin' and 'administrator')
+    if ($decoded->role !== 'admin' && $decoded->role !== 'administrator') {
         http_response_code(403);
         echo json_encode(['error' => 'Forbidden - Admin access required']);
         exit;
