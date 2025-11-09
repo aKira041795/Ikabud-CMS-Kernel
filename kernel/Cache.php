@@ -177,10 +177,12 @@ class Cache
      */
     public function shouldCache(string $uri): bool
     {
-        // Don't cache admin, login, or POST requests
+        // Don't cache admin, login, installation, or POST requests
         if (
             str_contains($uri, '/wp-admin') ||
             str_contains($uri, '/wp-login') ||
+            str_contains($uri, '/administrator') ||  // Joomla admin
+            str_contains($uri, '/installation') ||   // Joomla/Drupal installation
             str_contains($uri, 'preview=') ||
             $_SERVER['REQUEST_METHOD'] !== 'GET'
         ) {
@@ -188,9 +190,12 @@ class Cache
             return false;
         }
         
-        // Don't cache if user is logged in (check WordPress cookies)
+        // Don't cache if user is logged in (check CMS cookies)
         foreach ($_COOKIE as $name => $value) {
-            if (str_starts_with($name, 'wordpress_logged_in_')) {
+            if (str_starts_with($name, 'wordpress_logged_in_') ||  // WordPress
+                str_starts_with($name, 'joomla_') ||                // Joomla
+                $name === 'SESS' ||                                  // Drupal
+                str_starts_with($name, 'PHPSESSID')) {              // Generic PHP session
                 $this->stats['bypasses']++;
                 return false;
             }
