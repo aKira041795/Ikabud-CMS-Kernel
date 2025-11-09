@@ -43,45 +43,81 @@ if ($instanceId) {
         
         if ($realPath && strpos($realPath, $realInstanceDir) === 0) {
             if (is_file($realPath)) {
-                // Serve the file with correct MIME type
                 $ext = pathinfo($realPath, PATHINFO_EXTENSION);
-                $mimeTypes = [
-                    'css' => 'text/css',
-                    'js' => 'application/javascript',
-                    'png' => 'image/png',
-                    'jpg' => 'image/jpeg',
-                    'jpeg' => 'image/jpeg',
-                    'gif' => 'image/gif',
-                    'svg' => 'image/svg+xml',
-                    'woff' => 'font/woff',
-                    'woff2' => 'font/woff2',
-                    'ttf' => 'font/ttf',
-                    'php' => 'text/html'
-                ];
-                
-                $mimeType = $mimeTypes[$ext] ?? 'application/octet-stream';
                 
                 if ($ext === 'php') {
-                    // Execute PHP files (wp-login.php, wp-admin/*.php)
+                    // HANDOFF to WordPress - Let WordPress handle everything
+                    // Set working directory to instance
                     chdir($instanceDir);
+                    
+                    // Define ABSPATH if not already defined (WordPress needs this)
+                    if (!defined('ABSPATH')) {
+                        define('ABSPATH', $instanceDir . '/');
+                    }
+                    
+                    // Update $_SERVER to match the actual file being executed
                     $_SERVER['SCRIPT_FILENAME'] = $realPath;
                     $_SERVER['SCRIPT_NAME'] = '/' . $relativePath;
-                    require $realPath;
+                    $_SERVER['PHP_SELF'] = '/' . $relativePath;
+                    $_SERVER['DOCUMENT_ROOT'] = $instanceDir;
+                    
+                    // Clear output buffer to prevent any kernel output
+                    if (ob_get_level()) {
+                        ob_end_clean();
+                    }
+                    
+                    // Start fresh output buffer for WordPress
+                    ob_start();
+                    
+                    // Include WordPress - it will handle everything from here
+                    include $realPath;
+                    
+                    // Flush and exit
+                    ob_end_flush();
                     exit;
                 } else {
-                    // Serve static files
+                    // Serve static files (CSS, JS, images, fonts)
+                    $mimeTypes = [
+                        'css' => 'text/css',
+                        'js' => 'application/javascript',
+                        'png' => 'image/png',
+                        'jpg' => 'image/jpeg',
+                        'jpeg' => 'image/jpeg',
+                        'gif' => 'image/gif',
+                        'svg' => 'image/svg+xml',
+                        'woff' => 'font/woff',
+                        'woff2' => 'font/woff2',
+                        'ttf' => 'font/ttf'
+                    ];
+                    
+                    $mimeType = $mimeTypes[$ext] ?? 'application/octet-stream';
                     header('Content-Type: ' . $mimeType);
                     readfile($realPath);
                     exit;
                 }
             } elseif (is_dir($realPath)) {
-                // Redirect directories to index.php
+                // Handle directory requests (e.g., /wp-admin/)
                 $indexPath = $realPath . '/index.php';
                 if (file_exists($indexPath)) {
                     chdir($instanceDir);
+                    
+                    if (!defined('ABSPATH')) {
+                        define('ABSPATH', $instanceDir . '/');
+                    }
+                    
                     $_SERVER['SCRIPT_FILENAME'] = $indexPath;
                     $_SERVER['SCRIPT_NAME'] = '/' . $relativePath . '/index.php';
-                    require $indexPath;
+                    $_SERVER['PHP_SELF'] = '/' . $relativePath . '/index.php';
+                    $_SERVER['DOCUMENT_ROOT'] = $instanceDir;
+                    
+                    if (ob_get_level()) {
+                        ob_end_clean();
+                    }
+                    ob_start();
+                    
+                    include $indexPath;
+                    
+                    ob_end_flush();
                     exit;
                 }
             }
