@@ -43,14 +43,15 @@ fi
 
 DB_USER=$(grep "^DB_USERNAME=" .env | cut -d '=' -f2)
 DB_PASS=$(grep "^DB_PASSWORD=" .env | cut -d '=' -f2)
+KERNEL_DB=$(grep "^DB_DATABASE=" .env | cut -d '=' -f2)
 
 # Step 1: Create instance directory structure
-echo -e "${YELLOW}[1/6]${NC} Creating instance directory..."
-mkdir -p "$INSTANCE_PATH/wp-content"/{plugins,themes,uploads}
+echo -e "${YELLOW}[1/7]${NC} Creating instance directory..."
+mkdir -p "$INSTANCE_PATH/wp-content"/{plugins,themes,uploads,mu-plugins}
 echo -e "${GREEN}✓${NC} Created: $INSTANCE_PATH"
 
 # Step 2: Create wp-config.php with instance-specific wp-content paths
-echo -e "${YELLOW}[2/6]${NC} Creating wp-config.php..."
+echo -e "${YELLOW}[2/7]${NC} Creating wp-config.php..."
 
 # Generate unique WordPress security keys
 SALT_KEYS=$(curl -s https://api.wordpress.org/secret-key/1.1/salt/ 2>/dev/null || echo "")
@@ -124,7 +125,9 @@ define('ADMIN_COOKIE_PATH', '/wp-admin');
 
 // ** CRITICAL: Cookie Configuration **
 // Ensure cookies work correctly when served through Kernel
-define('COOKIE_DOMAIN', '$DOMAIN');
+// Use base domain for cookie sharing across subdomains
+\$base_domain = preg_replace('/^(admin|dashboard)\./', '', \$current_host);
+define('COOKIE_DOMAIN', '.' . \$base_domain);
 define('COOKIEPATH', '/');
 define('SITECOOKIEPATH', '/');
 
@@ -148,8 +151,19 @@ WPCONFIG
 
 echo -e "${GREEN}✓${NC} wp-config.php created with instance-specific wp-content"
 
-# Step 3: Create symlinks from instance to shared WordPress core
-echo -e "${YELLOW}[3/6]${NC} Creating symlinks to shared WordPress core..."
+# Step 3: Copy CORS configuration files
+echo -e "${YELLOW}[3/7]${NC} Setting up CORS configuration..."
+
+# Copy .htaccess template
+cp templates/instance.htaccess "$INSTANCE_PATH/.htaccess"
+echo -e "${GREEN}✓${NC} Copied .htaccess with CORS configuration"
+
+# Copy WordPress CORS plugin to mu-plugins
+cp templates/ikabud-cors.php "$INSTANCE_PATH/wp-content/mu-plugins/ikabud-cors.php"
+echo -e "${GREEN}✓${NC} Installed CORS handler plugin (mu-plugins)"
+
+# Step 4: Create symlinks from instance to shared WordPress core
+echo -e "${YELLOW}[4/7]${NC} Creating symlinks to shared WordPress core..."
 cd "$INSTANCE_PATH"
 
 # Symlink all WordPress core files except wp-config.php, wp-content, and index.php
@@ -162,7 +176,7 @@ for file in ../../shared-cores/wordpress/*; do
 done
 
 # Create instance-specific index.php that ensures correct wp-config is loaded
-cat > "$INSTANCE_PATH/index.php" << 'INDEXPHP'
+cat > "index.php" << 'INDEXPHP'
 <?php
 /**
  * Front to the WordPress application. This file does not do anything, but loads
@@ -190,14 +204,14 @@ INDEXPHP
 cd - > /dev/null
 echo -e "${GREEN}✓${NC} Symlinks created: instance → shared WordPress core"
 
-# Step 4: Create database
-echo -e "${YELLOW}[4/6]${NC} Creating database..."
+# Step 5: Create database
+echo -e "${YELLOW}[5/7]${NC} Creating database..."
 mysql -u "$DB_USER" -p"$DB_PASS" -e "CREATE DATABASE IF NOT EXISTS \`$DB_NAME\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci" 2>/dev/null
 echo -e "${GREEN}✓${NC} Database: $DB_NAME"
 
-# Step 5: Register in kernel
-echo -e "${YELLOW}[5/6]${NC} Registering in kernel..."
-mysql -u "$DB_USER" -p"$DB_PASS" ikabud_kernel << SQLEOF 2>/dev/null
+# Step 6: Register in kernel
+echo -e "${YELLOW}[6/7]${NC} Registering in kernel..."
+mysql -u "$DB_USER" -p"$DB_PASS" "$KERNEL_DB" << SQLEOF 2>/dev/null
 INSERT INTO instances (
     instance_id, instance_name, cms_type, domain, 
     path_prefix, database_name, database_prefix, status
@@ -212,8 +226,8 @@ SQLEOF
 
 echo -e "${GREEN}✓${NC} Registered in kernel"
 
-# Step 6: Set permissions
-echo -e "${YELLOW}[6/6]${NC} Setting permissions..."
+# Step 7: Set permissions
+echo -e "${YELLOW}[7/7]${NC} Setting permissions..."
 chown -R www-data:www-data "$INSTANCE_PATH/wp-content"
 chmod -R 755 "$INSTANCE_PATH"
 chmod 644 "$INSTANCE_PATH/wp-config.php"
@@ -237,6 +251,7 @@ echo "Architecture:"
 echo "  ✓ Shared WordPress core: shared-cores/wordpress/ (81MB)"
 echo "  ✓ Instance config: $INSTANCE_PATH/wp-config.php"
 echo "  ✓ Instance content: $INSTANCE_PATH/wp-content/ (themes, plugins, uploads)"
+echo "  ✓ CORS configuration: $INSTANCE_PATH/.htaccess + mu-plugins/ikabud-cors.php"
 echo "  ✓ Symlink: shared-cores/wordpress/wp-config.php → $INSTANCE_PATH/wp-config.php"
 echo ""
 echo "Next Steps:"
