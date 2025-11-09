@@ -14,7 +14,8 @@ if (!$instance_id) {
 }
 
 // Initialize cache
-require_once dirname(dirname(dirname(__FILE__))) . '/kernel/Cache.php';
+$kernel_path = defined('IKABUD_KERNEL_PATH') ? IKABUD_KERNEL_PATH : dirname(dirname(dirname(dirname(__FILE__)))) . '/kernel';
+require_once $kernel_path . '/Cache.php';
 $ikabud_cache = new \IkabudKernel\Core\Cache();
 
 /**
