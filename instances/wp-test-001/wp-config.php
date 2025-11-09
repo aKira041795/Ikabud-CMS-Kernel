@@ -44,12 +44,27 @@ $is_backend = (
     strpos($current_host, 'dashboard.') === 0
 );
 
-// Check if WordPress is installed by checking if options table exists
+// Check if WordPress is installed and get URLs from database
 $wp_installed = false;
+$db_siteurl = null;
+$db_home = null;
+
 try {
     $check_pdo = new PDO("mysql:host=localhost;dbname=ikabud_wp_test", 'root', 'Nds90@NXIOVRH*iy');
     $check_result = $check_pdo->query("SHOW TABLES LIKE 'wp_options'");
     $wp_installed = ($check_result && $check_result->rowCount() > 0);
+    
+    // If installed, get URLs from database
+    if ($wp_installed) {
+        $url_query = $check_pdo->query("SELECT option_name, option_value FROM wp_options WHERE option_name IN ('siteurl', 'home')");
+        while ($row = $url_query->fetch(PDO::FETCH_ASSOC)) {
+            if ($row['option_name'] === 'siteurl') {
+                $db_siteurl = $row['option_value'];
+            } elseif ($row['option_name'] === 'home') {
+                $db_home = $row['option_value'];
+            }
+        }
+    }
 } catch (Exception $e) {
     $wp_installed = false;
 }
@@ -61,19 +76,23 @@ if (!$is_backend && !$wp_installed && !defined('WP_INSTALLING')) {
     exit;
 }
 
-if ($is_backend) {
-    // Backend subdomain - WordPress admin/API access
-    // WP_SITEURL: Where WordPress is installed (backend subdomain)
-    // WP_HOME: Where the site is displayed (frontend domain)
-    $frontend_domain = preg_replace('/^(backend|admin|dashboard)\./', '', $current_host);
-    define('WP_SITEURL', 'http://' . $current_host);
-    define('WP_HOME', 'http://' . $frontend_domain);
+// Set WP_SITEURL and WP_HOME
+if ($db_siteurl && $db_home) {
+    // WordPress is installed - use URLs from database
+    define('WP_SITEURL', $db_siteurl);
+    define('WP_HOME', $db_home);
 } else {
-    // Frontend domain - public site access
-    // WP_SITEURL: Where WordPress is installed (backend subdomain)
-    // WP_HOME: Where the site is displayed (frontend domain - current)
-    define('WP_SITEURL', 'http://backend.' . $current_host);
-    define('WP_HOME', 'http://' . $current_host);
+    // WordPress not installed yet - use dynamic URLs for installation
+    if ($is_backend) {
+        // Backend subdomain - WordPress admin/API access
+        $frontend_domain = preg_replace('/^(backend|admin|dashboard)\./', '', $current_host);
+        define('WP_SITEURL', 'http://' . $current_host);
+        define('WP_HOME', 'http://' . $frontend_domain);
+    } else {
+        // Frontend domain - public site access
+        define('WP_SITEURL', 'http://backend.' . $current_host);
+        define('WP_HOME', 'http://' . $current_host);
+    }
 }
 
 // Define admin cookie path
