@@ -1,0 +1,70 @@
+.newsx-theme-review-notice {
+    position: relative;
+    padding: 30px;
+}
+.newsx-theme-review-notice .newsx-message-review__text {
+    width: 50%;
+}
+
+.newsx-theme-review-notice h3 {
+    color: #1e293b;
+    font-size: 30px;
+    font-weight: 600;
+    line-height: 1;
+    letter-spacing: -0.2px;
+    margin-top: 0;
+    margin-bottom: 20px;
+    padding: 0;
+}
+
+.newsx-theme-review-notice p {
+    color: #475569;
+    font-size: 16px;
+    line-height: 24px;
+    margin-top: 0px;
+    margin-bottom: 25px;
+    padding: 0;
+}
+
+.newsx-theme-review-notice .newsx-review-buttons {
+    display: flex;
+    gap: 10px;
+}
+
+.newsx-theme-review-notice .newsx-review-buttons a.btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 5px 20px;
+    color: #555;
+    border-color: #cfcfcf;
+    background: #fff;
+}
+
+.newsx-theme-review-notice .newsx-review-buttons a.btn:hover {
+    background: #fff;
+    color: #116acc;
+    border-color: #116acc;
+}
+
+.newsx-theme-review-notice .newsx-review-buttons a.btn .dashicons {
+    font-size: 16px;
+    width: auto;
+    height: auto;
+}
+
+.newsx-theme-review-notice .newsx-review-buttons a.button-primary {
+    background: #116acc;
+    border-color: #116acc;
+    color: #fff;
+}
+
+.newsx-theme-review-notice .newsx-review-buttons a.button-primary:hover {
+    background: #0e5aad;
+    border-color: #0e5aad;
+    color: #fff;
+}
+
+.newsx-theme-review-notice .notice-dismiss {
+    text-decoration: none;
+}

@@ -1,0 +1,208 @@
+/* Customizer Preview Styles */
+.site-main,
+.newsx-builder-grid-row > div > div:not(.newsx-menu-wrapper),
+.newsx-builder-grid-row > div > nav,
+.newsx-builder-grid-row > div > aside,
+.newsx-row-inner .newsx-main-content,
+.newsx-row-inner .newsx-main-content > section,
+.newsx-row-inner .newsx-sidebar,
+.newsx-row-inner .newsx-sidebar > div {
+  position: relative;
+}
+
+.customize-partial-edit-shortcut {
+  top: -15px;
+  left: 15px;
+}
+
+@media (max-width: 480px) {
+  .customize-partial-edit-shortcut {
+    top: -15px;
+    left: 20px;
+  }
+}
+
+.newsx-news-ticker > .customize-partial-edit-shortcut {
+  top: -4px !important;
+  left: 33px;
+}
+
+.site-main > .customize-partial-edit-shortcut,
+.newsx-section-wrap > .customize-partial-edit-shortcut {
+  top: 2px;
+  left: 34px;
+}
+
+.customize-partial-edit-shortcut {
+  display: none;
+  z-index: 99999999999999;
+}
+
+.customize-partial-edit-shortcuts-shown .newsx-offcanvas-wrap {
+  z-index: 999999999999999; /* higher than partial shortcuts */
+}
+
+.newsx-builder-grid-row .site-logo .customize-partial-edit-shortcut,
+.newsx-builder-grid-row
+  nav
+  .customize-partial-edit-shortcut:not(.newsx-customize-edit) {
+  display: none !important;
+}
+
+.site-main:hover > .customize-partial-edit-shortcut,
+.newsx-section-wrap:hover > .customize-partial-edit-shortcut,
+.newsx-builder-grid-row > div > div:hover .customize-partial-edit-shortcut,
+.newsx-builder-grid-row > div > nav:hover .customize-partial-edit-shortcut,
+.newsx-builder-grid-row > div > aside:hover .customize-partial-edit-shortcut,
+.newsx-menu-wrapper:hover .customize-partial-edit-shortcut,
+.newsx-row .newsx-main-content:hover .customize-partial-edit-shortcut,
+.newsx-row .newsx-sidebar:hover .customize-partial-edit-shortcut,
+.newsx-content-rsidebar section:hover .customize-partial-edit-shortcut,
+.newsx-posts-feed:hover .customize-partial-edit-shortcut,
+.newsx-general-sidebar:hover .customize-partial-edit-shortcut,
+.newsx-general-sidebar section:hover .customize-partial-edit-shortcut,
+.newsx-slider-wrap:hover .customize-partial-edit-shortcut,
+.newsx-single-post-header:hover .customize-partial-edit-shortcut,
+.newsx-table-of-contents:hover .customize-partial-edit-shortcut,
+.newsx-post-content:hover .customize-partial-edit-shortcut,
+.newsx-post-sharing:hover .customize-partial-edit-shortcut,
+.newsx-post-navigation:hover .customize-partial-edit-shortcut,
+.newsx-post-author-box:hover .customize-partial-edit-shortcut,
+.newsx-related-posts-wrap:hover .customize-partial-edit-shortcut,
+.newsx-newsletter-wrap:hover .customize-partial-edit-shortcut,
+#newsx-back-to-top:hover .customize-partial-edit-shortcut {
+  display: block;
+}
+
+.newsx-section-wrap .customize-partial-edit-shortcut svg {
+  display: block !important;
+}
+
+.newsx-content-rsidebar section,
+.newsx-offcanvas-widgets-area section,
+.newsx-general-sidebar section,
+.newsx-posts-feed,
+.newsx-general,
+.newsx-single-post-header,
+.newsx-table-of-contents,
+.newsx-post-content,
+.newsx-post-sharing,
+.newsx-post-navigation,
+.newsx-post-author-box,
+.newsx-related-posts-wrap,
+.newsx-newsletter-wrap {
+  position: relative;
+}
+
+.newsx-section-wrap:hover,
+.home .site-main:hover {
+  box-shadow: inset 0 0 0 1px #3582c4;
+}
+
+.newsx-section-wrap:hover .customize-partial-edit-shortcut,
+.home .site-main .customize-partial-edit-shortcut {
+  top: -16px;
+  left: 32px;
+}
+
+.newsx-posts-feed:hover:after,
+.newsx-slider-wrap:hover:after,
+.newsx-single-post-header:hover:after,
+.newsx-table-of-contents:hover:after,
+.newsx-post-content:hover:after,
+.newsx-post-sharing:hover:after,
+.newsx-post-navigation:hover:after,
+.newsx-post-author-box:hover:after,
+.newsx-related-posts-wrap:hover:after,
+.newsx-newsletter-wrap:hover:after {
+  content: " ";
+  display: block;
+  position: absolute;
+  top: -10px;
+  left: -10px;
+  width: calc(100% + 20px);
+  height: calc(100% + 20px);
+  border: 1px #3582c4 solid;
+  pointer-events: none;
+}
+
+.newsx-single-post-header .newsx-post-sharing:hover:after {
+  top: -5px;
+  left: -5px;
+  width: calc(100% + 10px);
+  height: calc(100% + 10px);
+}
+
+.customize-partial-edit-shortcut svg,
+.customize-partial-edit-shortcut svg path {
+  fill: #ffffff !important;
+}
+
+.newsx-offcanvas-widgets-area > .customize-partial-edit-shortcut {
+  top: 0;
+  left: 33px;
+}
+
+/* Nav Menu Relative fix */
+.newsx-header-menu-primary-wrapper .newsx-desktop-menu-container,
+.newsx-header-menu-primary-wrapper .newsx-mobile-menu-toggle,
+.newsx-header-menu-secondary-wrapper {
+  position: relative;
+}
+
+.newsx-customize-edit[data-section="newsx_section_front_page"]:hover + .newsx-row .newsx-customize-edit {
+  display: none !important;
+}
+
+/* Add Widgets Button */
+.newsx-add-widgets-text {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 12px;
+  margin-top: 5px;
+  margin-bottom: 5px;
+  color: #777;
+  font-size: 13px;
+  border: 2px dashed #e9e9e9;
+}
+
+.newsx-main-content .newsx-no-widget-row:first-child .newsx-add-widgets-text {
+  margin: 50px;
+}
+
+.header-widgets-area .newsx-add-widgets-text,
+.footer-widgets-area .newsx-add-widgets-text {
+  padding: 7px 10px;
+}
+
+.newsx-no-widget-row:hover .newsx-add-widgets-text {
+  border: 2px dashed #d5d5d5;
+}
+
+.newsx-add-widgets-text .dashicons {
+  font-size: 13px;
+  width: auto;
+  height: auto;
+  line-height: 1;
+  margin-top: 2px;
+  margin-left: 5px;
+}
+
+.newsx-no-widget-row .newsx-customize-edit {
+  display: block;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  opacity: 0 !important;
+}
+
+.newsx-no-widget-row .newsx-customize-edit button {
+  width: 100%;
+  height: 100%;
+  border-radius: 0;
+  left: 0;
+ }

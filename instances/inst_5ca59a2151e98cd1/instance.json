@@ -1,0 +1,15 @@
+{
+  "instance_id": "inst_5ca59a2151e98cd1",
+  "instance_name": "Akira Web",
+  "cms_type": "wordpress",
+  "domain": "akira.test",
+  "admin_subdomain": "admin.akira.test",
+  "database": {
+    "name": "ikabud_akira",
+    "user": "root",
+    "host": "localhost",
+    "prefix": "aki_"
+  },
+  "created_at": "2025-11-09T20:38:18+08:00",
+  "version": "1.0"
+}

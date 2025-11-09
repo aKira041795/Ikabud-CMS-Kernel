@@ -1,0 +1,37 @@
+{
+    "version": 2,
+    "settings": {
+      "layout": {
+        "contentSize": "800px",
+        "wideSize": "1200px"
+      },
+      "spacing": {
+        "blockGap": "1.5rem"
+      },
+      "typography": {
+        "fontSizes": [
+          {
+            "slug": "small",
+            "size": "12px",
+            "name": "Small"
+          },
+          {
+            "slug": "medium",
+            "size": "16px",
+            "name": "Medium"
+          },
+          {
+            "slug": "large",
+            "size": "24px",
+            "name": "Large"
+          },
+          {
+            "slug": "x-large",
+            "size": "32px",
+            "name": "Extra Large"
+          }
+        ]
+      }
+    }
+  }
+  

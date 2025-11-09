@@ -141,6 +141,7 @@ require __DIR__ . '/../api/routes/instances-actions.php';
 require __DIR__ . '/../api/routes/themes.php';
 require __DIR__ . '/../api/routes/dsl.php';
 require __DIR__ . '/../api/routes/conditional-loading.php';
+require __DIR__ . '/../api/routes/cache.php';
 
 // ============================================================================
 // ADMIN ROUTES (React SPA)
@@ -263,6 +264,13 @@ $app->any('/{path:.*}', function (Request $request, Response $response, array $a
                     $response = $response->withHeader($matches[1], $matches[2]);
                 }
             }
+            
+            // Add cache status headers
+            $response = $response->withHeader('X-Cache', 'HIT')
+                                 ->withHeader('X-Cache-Instance', $instanceId)
+                                 ->withHeader('Cache-Control', 'public, max-age=3600')
+                                 ->withHeader('X-Powered-By', 'Ikabud-Kernel');
+            
             $response->getBody()->write($cached['body']);
             return $response;
         }
@@ -392,6 +400,11 @@ $app->any('/{path:.*}', function (Request $request, Response $response, array $a
     if ($shouldCacheResponse) {
         $body = ob_get_contents();
         ob_end_clean();
+        
+        // Add X-Cache: MISS header for first request
+        header('X-Cache: MISS');
+        header('X-Cache-Instance: ' . $instanceId);
+        header('X-Powered-By: Ikabud-Kernel');
         
         // Only cache if there were no errors (check for PHP warnings/errors in output)
         if (!preg_match('/<b>(Warning|Error|Notice|Fatal error)<\/b>/', $body)) {

@@ -1,0 +1,300 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+.appearance_page_zakra #wpbody-content {
+	background: #FAFAFC;
+}
+
+.zak-quick-settings-item-icon {
+	svg {
+		fill: #2563EB;
+	}
+}
+
+.zak-feature-icon {
+	svg {
+		fill: #7A7A7A;
+	}
+}
+
+.zak-learn-more {
+	position: relative;
+	&:before {
+		content: "";
+		position: absolute;
+		top: 2px;
+		right: -6px;
+		width: 1px;
+		height: 100%;
+		background: #000;
+		opacity: 0.1;
+	}
+}
+
+.zak-setting-tab {
+	display: flex;
+	gap: 24px;
+	background: #fff;
+
+	.components-tab-panel__tabs {
+		display: flex;
+		flex-direction: column;
+		flex-basis: 30%;
+		background: #FAFAFC;
+		border-right: 1px solid #E1E1E1;
+
+		button {
+			border-bottom: 1px solid #E1E1E1;
+
+			&.is-active {
+				border-right: 0;
+				background: #FFFFFF;
+
+				&:after {
+					height: 100%;
+					width: 2px;
+				}
+
+				&:before {
+					height: 100%;
+					width: 1px;
+					right: -1px;
+					background: #FFFFFF;
+					top: 0;
+					left: unset;
+				}
+			}
+
+		}
+	}
+
+	.components-tab-panel__tab-content {
+		width: 100%;
+	}
+}
+
+.zak-setting-learn-more {
+	position: relative;
+	&:before {
+		content: "";
+		position: absolute;
+		top: 2px;
+		right: -6px;
+		width: 1px;
+		height: 100%;
+		background: #000;
+		opacity: 0.1;
+	}
+}
+
+#render_dashboard_page {
+	a {
+		outline: 0;
+		box-shadow: none;
+	}
+}
+
+.zak-setting-label {
+	margin-bottom: 16px;
+
+	label {
+		font-size: 18px;
+		font-weight: 600;
+	}
+}
+
+.header__menu {
+	li{
+		&.active {
+			a {
+				position: relative;
+				color: #3858e9;
+
+
+				&:after {
+					content: "";
+					position: absolute;
+					bottom: -1px;
+					right: 0;
+					width: 100%;
+					height: 2px;
+					background: #3858e9;
+				}
+			}
+		}
+
+		a {
+			padding: 25px 8px;
+
+			&:hover {
+				color: #3858e9;
+			}
+		}
+	}
+}
+
+.drawer {
+	position: fixed;
+	top: 0;
+	right: -100%;
+	width: 386px;
+	height: 100%;
+	background: white;
+	box-shadow: -2px 0 5px rgba(0, 0, 0, 0.1);
+	transition: right 0.3s ease-in-out;
+	z-index: 1000;
+}
+
+.drawer.open {
+	right: 0;
+}
+
+.drawer-close {
+	position: absolute;
+	top: 35px;
+	right: 10px;
+	background: none;
+	border: none;
+	font-size: 24px;
+	cursor: pointer;
+}
+
+.drawer-overlay {
+	position: fixed;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
+	background: rgba(0, 0, 0, 0.5);
+	z-index: 9; /* Ensure it is below the drawer but above other content */
+}
+
+.skeleton {
+	background-color: #e0e0e0;
+	border-radius: 4px;
+}
+
+.wp-admin #render_dashboard_page {
+	margin-inline-start: -20px;
+}
+
+.themegrill-demo-importer-BlankState {
+	position: relative;
+	padding-top: 200px;
+	padding-bottom: 400px;
+	text-align: center;
+	background: url("../../../inc/admin/images/starter-templates-background.jpg");
+	background-size: cover;
+	background-repeat: no-repeat;
+
+	.themegrill-demo-importer-BlankState-icon {
+		fill: #ddd;
+		width: 128px;
+		height: 128px;
+		margin: 0 0 .875em;
+	}
+
+	.themegrill-demo-importer-BlankState-info {
+		position: relative;
+		margin: 20px 10px;
+		background: #fff;
+		max-width: 100%;
+		border-radius: 9px;
+		z-index: 99;
+	}
+
+	.starter-template-overlay {
+		position: absolute;
+		inset: 0;
+		background: rgba(240, 240, 241, 0.20);
+		backdrop-filter: blur(3px);
+	}
+
+	h2.themegrill-demo-importer-BlankState-message {
+		color: #383838;
+		text-align: center;
+		font-size: 16px;
+		font-style: normal;
+		font-weight: 400;
+		line-height: 1.6;
+	}
+
+	span {
+		color: #fff;
+		display: flex;
+		padding: 10px;
+		font-size: 16px;
+		justify-content: center;
+		align-items: center;
+		gap: 8px;
+		align-self: stretch;
+		border-radius: 4px;
+		background: #2563EB;
+	}
+}
+
+@layer base {
+  :root {
+		--background: 0 0% 100%;
+		--foreground: 0 0% 3.9%;
+		--card: 0 0% 100%;
+		--card-foreground: 0 0% 3.9%;
+		--popover: 0 0% 100%;
+		--popover-foreground: 0 0% 3.9%;
+		--primary: 0 0% 9%;
+		--primary-foreground: 0 0% 98%;
+		--secondary: 0 0% 96.1%;
+		--secondary-foreground: 0 0% 9%;
+		--muted: 0 0% 96.1%;
+		--muted-foreground: 0 0% 45.1%;
+		--accent: 0 0% 96.1%;
+		--accent-foreground: 0 0% 9%;
+		--destructive: 0 84.2% 60.2%;
+		--destructive-foreground: 0 0% 98%;
+		--border: 0 0% 89.8%;
+		--input: 0 0% 89.8%;
+		--ring: 0 0% 3.9%;
+		--chart-1: 12 76% 61%;
+		--chart-2: 173 58% 39%;
+		--chart-3: 197 37% 24%;
+		--chart-4: 43 74% 66%;
+		--chart-5: 27 87% 67%;
+		--radius: 0.5rem;
+	}
+  .dark {
+		--background: 0 0% 3.9%;
+		--foreground: 0 0% 98%;
+		--card: 0 0% 3.9%;
+		--card-foreground: 0 0% 98%;
+		--popover: 0 0% 3.9%;
+		--popover-foreground: 0 0% 98%;
+		--primary: 0 0% 98%;
+		--primary-foreground: 0 0% 9%;
+		--secondary: 0 0% 14.9%;
+		--secondary-foreground: 0 0% 98%;
+		--muted: 0 0% 14.9%;
+		--muted-foreground: 0 0% 63.9%;
+		--accent: 0 0% 14.9%;
+		--accent-foreground: 0 0% 98%;
+		--destructive: 0 62.8% 30.6%;
+		--destructive-foreground: 0 0% 98%;
+		--border: 0 0% 14.9%;
+		--input: 0 0% 14.9%;
+		--ring: 0 0% 83.1%;
+		--chart-1: 220 70% 50%;
+		--chart-2: 160 60% 45%;
+		--chart-3: 30 80% 55%;
+		--chart-4: 280 65% 60%;
+		--chart-5: 340 75% 55%;
+	}
+}
+
+@layer base {
+  * {
+    @apply border-border;
+	}
+  body {
+    @apply bg-background text-foreground;
+	}
+}

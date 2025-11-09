@@ -1,0 +1,344 @@
+/*****************************************/
+/* Customizer control widget style
+/*****************************************/
+/**
+ * Import configuration file with variables.
+ */
+.bloghash-add-widget-wrap {
+  -js-display: flex;
+  display: -webkit-box;
+  display: -ms-flexbox;
+  display: flex;
+  -webkit-box-pack: end;
+      -ms-flex-pack: end;
+          justify-content: flex-end;
+}
+
+.bloghash-control-wrapper.bloghash-widget-wrapper .customize-control-description {
+  margin-bottom: 12px !important;
+}
+
+.bloghash-customizer-widget-form,
+.bloghash-widget-tmpls {
+  display: none;
+}
+
+.bloghash-add-widget::before {
+  content: "\f132";
+  display: inline-block;
+  position: relative;
+  left: -4px;
+  font: normal 16px/1 dashicons;
+  vertical-align: middle;
+  -webkit-transition: all 0.1s;
+  transition: all 0.1s;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body.bloghash-adding-widget #customize-preview {
+  opacity: 0.4;
+}
+
+body.bloghash-adding-widget #bloghash-available-widgets {
+  -webkit-transform: translate3d(0, 0, 0);
+          transform: translate3d(0, 0, 0);
+  visibility: visible;
+}
+
+body.bloghash-adding-widget .bloghash-add-widget {
+  background: #eee;
+  border-color: #929793;
+  color: #32373c;
+  -webkit-box-shadow: inset 0 2px 5px -3px rgba(0, 0, 0, 0.5);
+          box-shadow: inset 0 2px 5px -3px rgba(0, 0, 0, 0.5);
+}
+
+body.bloghash-adding-widget .bloghash-add-widget:before {
+  -webkit-transform: rotate(45deg);
+      -ms-transform: rotate(45deg);
+          transform: rotate(45deg);
+}
+
+.bloghash-widget-caption {
+  padding: 0 0 0 25px;
+  -js-display: flex;
+  display: -webkit-box;
+  display: -ms-flexbox;
+  display: flex;
+  -webkit-box-align: center;
+      -ms-flex-align: center;
+          align-items: center;
+  -ms-flex-wrap: wrap;
+      flex-wrap: wrap;
+  -webkit-box-flex: 1;
+      -ms-flex: 1;
+          flex: 1;
+  border-bottom: 1px solid #ddd;
+}
+
+.bloghash-widget-caption h3 {
+  font-size: 14px;
+  display: block;
+  font-weight: 200;
+  margin: 0 auto 0 0;
+  padding: 0;
+  line-height: 1;
+}
+
+.bloghash-widget-caption a {
+  margin-left: auto;
+  -js-display: flex;
+  display: -webkit-box;
+  display: -ms-flexbox;
+  display: flex;
+  -webkit-box-align: center;
+      -ms-flex-align: center;
+          align-items: center;
+  -webkit-box-pack: center;
+      -ms-flex-pack: center;
+          justify-content: center;
+  width: 45px;
+  height: 45px;
+  padding: 0 2px 0 0;
+  background: #eee;
+  border-right: 1px solid #ddd;
+  border-left: 1px solid #ddd;
+  color: #444;
+  text-align: start;
+  cursor: pointer;
+  -webkit-transition: color .15s ease-in-out, border-color .15s ease-in-out, background .15s ease-in-out;
+  transition: color .15s ease-in-out, border-color .15s ease-in-out, background .15s ease-in-out;
+  -webkit-box-sizing: content-box;
+          box-sizing: content-box;
+  text-decoration: none;
+}
+
+.bloghash-widget-caption a:before {
+  font: normal 18px/1 dashicons;
+  content: "\f335";
+}
+
+.bloghash-widget-caption a:hover, .bloghash-widget-caption a:focus {
+  background-color: #f3f3f5;
+  -webkit-box-shadow: none;
+          box-shadow: none;
+  outline: none;
+}
+
+#bloghash-available-widgets-list .bloghash-widget {
+  position: relative;
+  padding: 15px 15px 15px 60px;
+  background-color: #fff;
+  border-bottom: 1px solid #ddd;
+  border-left: 4px solid #fff;
+  -webkit-transition: .15s color ease-in-out, .15s background-color ease-in-out, .15s border-color ease-in-out;
+  transition: .15s color ease-in-out, .15s background-color ease-in-out, .15s border-color ease-in-out;
+  cursor: pointer;
+}
+
+#bloghash-available-widgets-list .bloghash-widget.disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+#bloghash-available-widgets-list .bloghash-widget .widget {
+  margin: 0;
+}
+
+#bloghash-available-widgets-list .bloghash-widget .widget-top {
+  border: none;
+  background: inherit;
+  -webkit-box-shadow: none !important;
+          box-shadow: none !important;
+}
+
+#bloghash-available-widgets-list .bloghash-widget .widget-title {
+  position: relative;
+}
+
+#bloghash-available-widgets-list .bloghash-widget .widget-title h3 {
+  padding: 0 0 5px;
+  font-size: 14px;
+}
+
+#bloghash-available-widgets-list .bloghash-widget .widget-title i {
+  position: absolute;
+  top: -3px;
+  right: 100%;
+  margin-right: 20px;
+  width: 20px;
+  height: 20px;
+  color: #32373c;
+  font: normal 20px/1 dashicons;
+  text-align: center;
+  -webkit-box-sizing: border-box;
+          box-sizing: border-box;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#bloghash-available-widgets-list .bloghash-widget .widget-description {
+  padding: 0;
+  color: #72777c;
+  display: block;
+  font-size: 12px;
+  overflow-wrap: break-word;
+  word-wrap: break-word;
+  -webkit-hyphens: auto;
+      -ms-hyphens: auto;
+          hyphens: auto;
+}
+
+#bloghash-available-widgets-list .bloghash-widget .widget-title-action button {
+  display: none;
+}
+
+#bloghash-available-widgets-list .bloghash-widget:hover, #bloghash-available-widgets-list .bloghash-widget.selected, #bloghash-available-widgets-list .bloghash-widget:focus {
+  background-color: #f3f3f5;
+  border-bottom-color: #ccc;
+  color: #0073aa;
+  border-left: 4px solid #0073aa;
+}
+
+.bloghash-widget-container .widget {
+  margin-bottom: 5px;
+}
+
+.bloghash-widget-container .widget:last-child {
+  margin-bottom: 12px;
+}
+
+.bloghash-widget-container .widget .widget-content p {
+  margin: 0 0 20px 0;
+}
+
+.bloghash-widget-container .widget .widget-content label:not(.switch-label) {
+  color: #111827;
+  font-weight: 500;
+  display: block;
+}
+
+.bloghash-widget-container .widget .widget-content button {
+  display: inline-block;
+  margin-top: 6px;
+}
+
+.bloghash-widget-container .widget .widget-content .description {
+  font-size: 11px;
+}
+
+.bloghash-widget-container .widget:first-child .widget-top {
+  border-top-left-radius: 3px;
+  border-top-right-radius: 3px;
+}
+
+.bloghash-widget-container .widget:last-child .widget-top {
+  border-bottom-left-radius: 3px;
+  border-bottom-right-radius: 3px;
+}
+
+.bloghash-widget-container .widget .widget-top {
+  border: 1px solid #ddd !important;
+  -webkit-box-shadow: none !important;
+          box-shadow: none !important;
+}
+
+.bloghash-widget-container .widget .widget-top .widget-title i {
+  display: none;
+}
+
+.bloghash-widget-container .widget .widget-inside {
+  padding: 20px;
+  border-radius: 0 0 3px 3px;
+}
+
+.bloghash-widget-container .widget.bloghash-expanded .widget-top {
+  background-color: #FFF;
+  border-radius: 3px 3px 0 0 !important;
+}
+
+.bloghash-widget-container .widget.bloghash-expanded .toggle-indicator {
+  -webkit-transform: rotate(180deg);
+      -ms-transform: rotate(180deg);
+          transform: rotate(180deg);
+}
+
+.bloghash-widget-container .widget .widget-control-actions {
+  margin-top: 15px;
+  -js-display: flex;
+  display: -webkit-box;
+  display: -ms-flexbox;
+  display: flex;
+  -webkit-box-align: center;
+      -ms-flex-align: center;
+          align-items: center;
+}
+
+.bloghash-widget-container .widget .widget-control-actions .spinner {
+  margin-left: auto;
+  margin-right: 0;
+  visibility: visible;
+}
+
+.bloghash-widget-container .widget .widget-control-actions .widget-control-separator {
+  display: inline-block;
+  margin: 0 2px;
+}
+
+.bloghash-widget-container .bloghash-widget-nav-selected {
+  display: none;
+}
+
+.bloghash-widget-container .bloghash-widget-nav-has-menu .bloghash-widget-nav-empty {
+  display: none;
+}
+
+.bloghash-widget-container .bloghash-widget-nav-has-menu .bloghash-widget-nav-selected {
+  display: block;
+}
+
+/* Advertisement */
+
+.banner-wrapper {
+  position: relative;
+  z-index: 0;
+}
+.banner-wrapper .widget-media-upload {
+  background: #f0f0f1;
+  color: #2c3338;
+  border: 1px dashed #c3c4c7;
+  width: 100%;
+  padding: 4px;
+}
+.bloghash-widget-container .banner-wrapper .widget-media-upload:hover {
+  background-color: #fff;
+  color: #2c3338;
+  border-color: #c3c4c7;
+}
+.banner-wrapper .widget-media-upload.hide {
+  display: none !important;
+}
+.banner-wrapper .banner-preview img{
+  width: 100%;
+  height: auto;
+}
+.banner-wrapper .remove-image {
+  position: absolute;
+  top: 5px;
+  right: 10px;
+  background: #fff;
+  border-radius: 50%;
+  min-height: 26px;
+  padding: 0 7px;
+  min-width: 26px;
+  line-height: 24px;
+}
+
+.banner-wrapper .remove-image.hide {
+  display: none !important;
+}
+
+.bloghash-widget-container .bloghash-checkbox {
+  display: flex !important;
+}

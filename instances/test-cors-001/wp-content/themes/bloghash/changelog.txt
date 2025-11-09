@@ -1,0 +1,100 @@
+= 1.0.25 =
+* WooCommerce 10.1 templates updated.
+* Fixed custom meta checkbox style issue.
+
+= 1.0.24 =
+* Critial error fixed when usinng customizer.
+* Footer widget style issue fixed.
+
+= 1.0.23 =
+* No code changes. Re-uploaded due to deployment error with version 1.0.22 (gateway timeout).
+
+= 1.0.22 =
+* WooCommerce 10.0.0 templates updated.
+
+= 1.0.21 =
+* WooCommerce 9.7.0 templates updated.
+
+= 1.0.20 =
+* WooCommerce 9.6.0 templates updated.
+* New social media icons for header added: BlueSky, GemSpace, LifeGroupChat
+
+= 1.0.19 =
+* Show site Title and tagline markup on webpage for search engines.
+
+= 1.0.18 =
+* Sidebar 3 bottom border color change.
+* WooCommerce 9.4.1 templates updated.
+
+= 1.0.17 =
+* Optimized CSS code.
+* Fixed style issues.
+* Improve customizer color settings.
+
+= 1.0.16 =
+* Added svg icons.
+* Fixed hero image placeholder.
+* Fixed custom meta checkbox style issue.
+* Improve time script.
+
+= 1.0.15 =
+* Hero slider title tag changed.
+* Allowed time tag in wp_kses.
+
+= 1.0.14 =
+* Fixed Responsive post grid style.
+* Fixed 'screen-reader-text' style.
+
+= 1.0.13 =
+* List style issue fixed.
+* classic editor embed video style issue fixed.
+* RTL issue fixed for small screen.
+
+= 1.0.12 =
+* Fixed style issues.
+* Added social icon.
+
+= 1.0.11 =
+* Fixed pagination nav style issues.
+* Customizer dark mode toggle control transport type set to 'postMessage' for better live preview.
+* Quote format type post: dark mode issue fixed. 
+
+= 1.0.10 =
+* Fixed some block editor style issues.
+* FIxed PYML issue on custom homepage.
+
+= 1.0.9 =
+* Ads Banner align set.
+* Optimized CSS code.
+* Header Subscribe button color change according to accent color.
+
+= 1.0.8 =
+* Dark mode issues fixed.
+
+= 1.0.7 =
+* Hero left-right spacing issues fixed.
+* Widget tag style issues fixed.
+
+= 1.0.6 =
+* Style issues fixed.
+* Improved some elements.
+* Improved featured link section.
+* Swiper JS updated.
+
+= 1.0.5 =
+* Added WeChat, QQ, Bilibili and Threads social icons.
+
+= 1.0.4 =
+* RTL & various issue fixed.
+
+= 1.0.3 =
+* Header widget issue fixed.
+
+= 1.0.2 =
+* Search from issue fixed.
+
+= 1.0.1 =
+* Minor issues fixed.
+
+= 1.0.0 =
+* Initial release 🚀

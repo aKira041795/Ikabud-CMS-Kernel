@@ -1,4 +1,4 @@
-a:6:{s:7:"headers";a:7:{i:0;s:27:"X-Frame-Options: SAMEORIGIN";i:1;s:31:"X-Content-Type-Options: nosniff";i:2;s:31:"X-XSS-Protection: 1; mode=block";i:3;s:38:"Content-Type: text/html; charset=UTF-8";i:4;s:24:"X-UA-Compatible: IE=edge";i:5;s:60:"Link: <http://magic.test/wp-json/>; rel="https://api.w.org/"";i:6;s:108:"Link: <http://magic.test/wp-json/wp/v2/categories/1>; rel="alternate"; title="JSON"; type="application/json"";}s:4:"body";s:38375:"<!DOCTYPE html>
+a:6:{s:7:"headers";a:8:{i:0;s:27:"X-Frame-Options: SAMEORIGIN";i:1;s:31:"X-Content-Type-Options: nosniff";i:2;s:31:"X-XSS-Protection: 1; mode=block";i:3;s:38:"Content-Type: text/html; charset=UTF-8";i:4;s:24:"X-UA-Compatible: IE=edge";i:5;s:362:"Permissions-Policy: private-state-token-redemption=(self "https://www.google.com" "https://www.gstatic.com" "https://recaptcha.net" "https://challenges.cloudflare.com" "https://hcaptcha.com"), private-state-token-issuance=(self "https://www.google.com" "https://www.gstatic.com" "https://recaptcha.net" "https://challenges.cloudflare.com" "https://hcaptcha.com")";i:6;s:60:"Link: <http://magic.test/wp-json/>; rel="https://api.w.org/"";i:7;s:108:"Link: <http://magic.test/wp-json/wp/v2/categories/1>; rel="alternate"; title="JSON"; type="application/json"";}s:4:"body";s:39387:"<!DOCTYPE html>
 <html class="html" lang="en-US">
 <head>
 	<meta charset="UTF-8">
@@ -7,8 +7,7 @@ a:6:{s:7:"headers";a:7:{i:0;s:27:"X-Frame-Options: SAMEORIGIN";i:1;s:31:"X-Conte
 	<title>Uncategorized &#8211; Ikabud CMS OS</title>
 <meta name='robots' content='max-image-preview:large' />
 	<style>img:is([sizes="auto" i], [sizes^="auto," i]) { contain-intrinsic-size: 3000px 1500px }</style>
-	<meta name="viewport" content="width=device-width, initial-scale=1"><link rel='dns-prefetch' href='//dashboard.magic.test' />
-<link rel="alternate" type="application/rss+xml" title="Ikabud CMS OS &raquo; Feed" href="http://magic.test/feed/" />
+	<meta name="viewport" content="width=device-width, initial-scale=1"><link rel="alternate" type="application/rss+xml" title="Ikabud CMS OS &raquo; Feed" href="http://magic.test/feed/" />
 <link rel="alternate" type="application/rss+xml" title="Ikabud CMS OS &raquo; Comments Feed" href="http://magic.test/comments/feed/" />
 <link rel="alternate" type="application/rss+xml" title="Ikabud CMS OS &raquo; Uncategorized Category Feed" href="http://magic.test/category/uncategorized/feed/" />
 <script>
@@ -44,9 +43,25 @@ window._wpemojiSettings = {"baseUrl":"https:\/\/s.w.org\/images\/core\/emoji\/16
 :where(.wp-block-columns.is-layout-flex){gap: 2em;}:where(.wp-block-columns.is-layout-grid){gap: 2em;}
 :root :where(.wp-block-pullquote){font-size: 1.5em;line-height: 1.6;}
 </style>
-<link rel='stylesheet' id='font-awesome-css' href='http://dashboard.magic.test/wp-content/themes/oceanwp/assets/fonts/fontawesome/css/all.min.css?ver=6.7.2' media='all' />
-<link rel='stylesheet' id='simple-line-icons-css' href='http://dashboard.magic.test/wp-content/themes/oceanwp/assets/css/third/simple-line-icons.min.css?ver=2.4.0' media='all' />
-<link rel='stylesheet' id='oceanwp-style-css' href='http://dashboard.magic.test/wp-content/themes/oceanwp/assets/css/style.min.css?ver=4.1.3' media='all' />
+<link rel='stylesheet' id='font-awesome-css' href='http://magic.test/wp-content/themes/oceanwp/assets/fonts/fontawesome/css/all.min.css?ver=6.7.2' media='all' />
+<link rel='stylesheet' id='simple-line-icons-css' href='http://magic.test/wp-content/themes/oceanwp/assets/css/third/simple-line-icons.min.css?ver=2.4.0' media='all' />
+<link rel='stylesheet' id='oceanwp-style-css' href='http://magic.test/wp-content/themes/oceanwp/assets/css/style.min.css?ver=4.1.3' media='all' />
+<style id='oceanwp-style-inline-css'>
+body div.wpforms-container-full .wpforms-form input[type=submit]:hover,
+			body div.wpforms-container-full .wpforms-form input[type=submit]:active,
+			body div.wpforms-container-full .wpforms-form button[type=submit]:hover,
+			body div.wpforms-container-full .wpforms-form button[type=submit]:active,
+			body div.wpforms-container-full .wpforms-form .wpforms-page-button:hover,
+			body div.wpforms-container-full .wpforms-form .wpforms-page-button:active,
+			body .wp-core-ui div.wpforms-container-full .wpforms-form input[type=submit]:hover,
+			body .wp-core-ui div.wpforms-container-full .wpforms-form input[type=submit]:active,
+			body .wp-core-ui div.wpforms-container-full .wpforms-form button[type=submit]:hover,
+			body .wp-core-ui div.wpforms-container-full .wpforms-form button[type=submit]:active,
+			body .wp-core-ui div.wpforms-container-full .wpforms-form .wpforms-page-button:hover,
+			body .wp-core-ui div.wpforms-container-full .wpforms-form .wpforms-page-button:active {
+					background: linear-gradient(0deg, rgba(0, 0, 0, 0.2), rgba(0, 0, 0, 0.2)), var(--wpforms-button-background-color-alt, var(--wpforms-button-background-color)) !important;
+			}
+</style>
 <script src="http://dashboard.magic.test/wp-includes/js/jquery/jquery.min.js?ver=3.7.1" id="jquery-core-js"></script>
 <script src="http://dashboard.magic.test/wp-includes/js/jquery/jquery-migrate.min.js?ver=3.4.1" id="jquery-migrate-js"></script>
 <link rel="https://api.w.org/" href="http://magic.test/wp-json/" /><link rel="alternate" title="JSON" type="application/json" href="http://magic.test/wp-json/wp/v2/categories/1" /><link rel="EditURI" type="application/rsd+xml" title="RSD" href="http://dashboard.magic.test/xmlrpc.php?rsd" />
@@ -185,7 +200,7 @@ window._wpemojiSettings = {"baseUrl":"https:\/\/s.w.org\/images\/core\/emoji\/16
 
 <header class="blog-entry-header clr">
 	<h2 class="blog-entry-title entry-title">
-		<a href="http://magic.test/2025/11/09/hello-world/"  rel="bookmark">Hello world!</a>
+		<a href="http://magic.test/2025/11/hello-world/"  rel="bookmark">Hello world!</a>
 	</h2><!-- .blog-entry-title -->
 </header><!-- .blog-entry-header -->
 
@@ -222,7 +237,7 @@ window._wpemojiSettings = {"baseUrl":"https:\/\/s.w.org\/images\/core\/emoji\/16
 		
 		
 		
-					<li class="meta-comments"><span class="screen-reader-text">Post comments:</span><i class=" icon-bubble" aria-hidden="true" role="img"></i><a href="http://magic.test/2025/11/09/hello-world/#comments" class="comments-link" >1 Comment</a></li>
+					<li class="meta-comments"><span class="screen-reader-text">Post comments:</span><i class=" icon-bubble" aria-hidden="true" role="img"></i><a href="http://magic.test/2025/11/hello-world/#comments" class="comments-link" >1 Comment</a></li>
 		
 	
 </ul>
@@ -242,7 +257,7 @@ window._wpemojiSettings = {"baseUrl":"https:\/\/s.w.org\/images\/core\/emoji\/16
 
 <div class="blog-entry-readmore clr">
 	
-<a href="http://magic.test/2025/11/09/hello-world/" 
+<a href="http://magic.test/2025/11/hello-world/" 
 	>
 	Continue Reading<span class="screen-reader-text">Hello world!</span><i class=" fa fa-angle-right" aria-hidden="true" role="img"></i></a>
 
@@ -274,8 +289,8 @@ window._wpemojiSettings = {"baseUrl":"https:\/\/s.w.org\/images\/core\/emoji\/16
 	
 	<div id="right-sidebar-inner" class="clr">
 
-		<div id="block-2" class="sidebar-box widget_block widget_search clr"><form role="search" method="get" action="http://magic.test/" class="wp-block-search__button-outside wp-block-search__text-button wp-block-search"    ><label class="wp-block-search__label" for="wp-block-search__input-2" >Search</label><div class="wp-block-search__inside-wrapper " ><input class="wp-block-search__input" id="wp-block-search__input-2" placeholder="" value="" type="search" name="s" required /><button aria-label="Search" class="wp-block-search__button wp-element-button" type="submit" >Search</button></div></form></div><div id="block-3" class="sidebar-box widget_block clr"><div class="wp-block-group"><div class="wp-block-group__inner-container is-layout-flow wp-block-group-is-layout-flow"><h2 class="wp-block-heading">Recent Posts</h2><ul class="wp-block-latest-posts__list wp-block-latest-posts"><li><a class="wp-block-latest-posts__post-title" href="http://magic.test/2025/11/09/hello-world/">Hello world!</a></li>
-</ul></div></div></div><div id="block-4" class="sidebar-box widget_block clr"><div class="wp-block-group"><div class="wp-block-group__inner-container is-layout-flow wp-block-group-is-layout-flow"><h2 class="wp-block-heading">Recent Comments</h2><ol class="wp-block-latest-comments"><li class="wp-block-latest-comments__comment"><article><footer class="wp-block-latest-comments__comment-meta"><a class="wp-block-latest-comments__comment-author" href="https://wordpress.org/">A WordPress Commenter</a> on <a class="wp-block-latest-comments__comment-link" href="http://magic.test/2025/11/09/hello-world/#comment-1">Hello world!</a></footer></article></li></ol></div></div></div>
+		<div id="block-2" class="sidebar-box widget_block widget_search clr"><form role="search" method="get" action="http://magic.test/" class="wp-block-search__button-outside wp-block-search__text-button wp-block-search"    ><label class="wp-block-search__label" for="wp-block-search__input-2" >Search</label><div class="wp-block-search__inside-wrapper " ><input class="wp-block-search__input" id="wp-block-search__input-2" placeholder="" value="" type="search" name="s" required /><button aria-label="Search" class="wp-block-search__button wp-element-button" type="submit" >Search</button></div></form></div><div id="block-3" class="sidebar-box widget_block clr"><div class="wp-block-group"><div class="wp-block-group__inner-container is-layout-flow wp-block-group-is-layout-flow"><h2 class="wp-block-heading">Recent Posts</h2><ul class="wp-block-latest-posts__list wp-block-latest-posts"><li><a class="wp-block-latest-posts__post-title" href="http://magic.test/2025/11/hello-world/">Hello world!</a></li>
+</ul></div></div></div><div id="block-4" class="sidebar-box widget_block clr"><div class="wp-block-group"><div class="wp-block-group__inner-container is-layout-flow wp-block-group-is-layout-flow"><h2 class="wp-block-heading">Recent Comments</h2><ol class="wp-block-latest-comments"><li class="wp-block-latest-comments__comment"><article><footer class="wp-block-latest-comments__comment-meta"><a class="wp-block-latest-comments__comment-author" href="https://wordpress.org/">A WordPress Commenter</a> on <a class="wp-block-latest-comments__comment-link" href="http://magic.test/2025/11/hello-world/#comment-1">Hello world!</a></footer></article></li></ol></div></div></div>
 	</div><!-- #sidebar-inner -->
 
 	
@@ -367,16 +382,16 @@ window._wpemojiSettings = {"baseUrl":"https:\/\/s.w.org\/images\/core\/emoji\/16
 <script id="oceanwp-main-js-extra">
 var oceanwpLocalize = {"nonce":"c3e5b834a7","isRTL":"","menuSearchStyle":"drop_down","mobileMenuSearchStyle":"disabled","sidrSource":null,"sidrDisplace":"1","sidrSide":"left","sidrDropdownTarget":"link","verticalHeaderTarget":"link","customScrollOffset":"0","customSelects":".woocommerce-ordering .orderby, #dropdown_product_cat, .widget_categories select, .widget_archive select, .single-product .variations_form .variations select","loadMoreLoadingText":"Loading..."};
 </script>
-<script src="http://dashboard.magic.test/wp-content/themes/oceanwp/assets/js/theme.min.js?ver=4.1.3" id="oceanwp-main-js"></script>
-<script src="http://dashboard.magic.test/wp-content/themes/oceanwp/assets/js/drop-down-mobile-menu.min.js?ver=4.1.3" id="oceanwp-drop-down-mobile-menu-js"></script>
-<script src="http://dashboard.magic.test/wp-content/themes/oceanwp/assets/js/drop-down-search.min.js?ver=4.1.3" id="oceanwp-drop-down-search-js"></script>
-<script src="http://dashboard.magic.test/wp-content/themes/oceanwp/assets/js/vendors/magnific-popup.min.js?ver=4.1.3" id="ow-magnific-popup-js"></script>
-<script src="http://dashboard.magic.test/wp-content/themes/oceanwp/assets/js/ow-lightbox.min.js?ver=4.1.3" id="oceanwp-lightbox-js"></script>
-<script src="http://dashboard.magic.test/wp-content/themes/oceanwp/assets/js/vendors/flickity.pkgd.min.js?ver=4.1.3" id="ow-flickity-js"></script>
-<script src="http://dashboard.magic.test/wp-content/themes/oceanwp/assets/js/ow-slider.min.js?ver=4.1.3" id="oceanwp-slider-js"></script>
-<script src="http://dashboard.magic.test/wp-content/themes/oceanwp/assets/js/scroll-effect.min.js?ver=4.1.3" id="oceanwp-scroll-effect-js"></script>
-<script src="http://dashboard.magic.test/wp-content/themes/oceanwp/assets/js/scroll-top.min.js?ver=4.1.3" id="oceanwp-scroll-top-js"></script>
-<script src="http://dashboard.magic.test/wp-content/themes/oceanwp/assets/js/select.min.js?ver=4.1.3" id="oceanwp-select-js"></script>
+<script src="http://magic.test/wp-content/themes/oceanwp/assets/js/theme.min.js?ver=4.1.3" id="oceanwp-main-js"></script>
+<script src="http://magic.test/wp-content/themes/oceanwp/assets/js/drop-down-mobile-menu.min.js?ver=4.1.3" id="oceanwp-drop-down-mobile-menu-js"></script>
+<script src="http://magic.test/wp-content/themes/oceanwp/assets/js/drop-down-search.min.js?ver=4.1.3" id="oceanwp-drop-down-search-js"></script>
+<script src="http://magic.test/wp-content/themes/oceanwp/assets/js/vendors/magnific-popup.min.js?ver=4.1.3" id="ow-magnific-popup-js"></script>
+<script src="http://magic.test/wp-content/themes/oceanwp/assets/js/ow-lightbox.min.js?ver=4.1.3" id="oceanwp-lightbox-js"></script>
+<script src="http://magic.test/wp-content/themes/oceanwp/assets/js/vendors/flickity.pkgd.min.js?ver=4.1.3" id="ow-flickity-js"></script>
+<script src="http://magic.test/wp-content/themes/oceanwp/assets/js/ow-slider.min.js?ver=4.1.3" id="oceanwp-slider-js"></script>
+<script src="http://magic.test/wp-content/themes/oceanwp/assets/js/scroll-effect.min.js?ver=4.1.3" id="oceanwp-scroll-effect-js"></script>
+<script src="http://magic.test/wp-content/themes/oceanwp/assets/js/scroll-top.min.js?ver=4.1.3" id="oceanwp-scroll-top-js"></script>
+<script src="http://magic.test/wp-content/themes/oceanwp/assets/js/select.min.js?ver=4.1.3" id="oceanwp-select-js"></script>
 </body>
 </html>
-";s:9:"timestamp";i:1762681529;s:17:"extensions_loaded";a:0:{}s:15:"extension_count";i:0;s:8:"cms_type";s:9:"wordpress";}
+";s:9:"timestamp";i:1762686341;s:17:"extensions_loaded";a:0:{}s:15:"extension_count";i:0;s:8:"cms_type";s:9:"wordpress";}

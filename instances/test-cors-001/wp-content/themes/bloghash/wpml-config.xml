@@ -1,0 +1,27 @@
+<wpml-config>
+    <admin-texts>
+        <key name="theme_mods_bloghash">
+            <key name="bloghash_hero_slider_read_more" />
+            <key name="bloghash_ticker_title" />
+            <key name="bloghash_featured_links_title" />
+            <key name="bloghash_featured_links">
+                <key name="*" />
+            </key>
+            <key name="bloghash_pyml_title" />
+            <key name="bloghash_main_nav_mobile_label" />
+            <key name="bloghash_blog_heading" />
+            <key name="bloghash_excerpt_more" />
+            <key name="bloghash_blog_read_more" />
+            <key name="bloghash_related_posts_heading" />
+            <key name="bloghash_header_widgets">
+                <key name="*" />
+            </key>
+            <key name="bloghash_copyright_widgets" >
+                <key name="*" />
+            </key>
+            <key name='custom_logo' />
+            <key name='bloghash_logo_default_retina' />
+            <key name='blogname' />
+        </key>
+    </admin-texts>   
+</wpml-config>

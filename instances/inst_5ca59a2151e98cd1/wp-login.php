@@ -1,0 +1,1 @@
+../../shared-cores/wordpress/wp-login.php

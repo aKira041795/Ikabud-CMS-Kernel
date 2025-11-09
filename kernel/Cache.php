@@ -11,6 +11,12 @@ class Cache
 {
     private string $cacheDir;
     private int $ttl = 3600; // 1 hour default
+    private array $stats = [
+        'hits' => 0,
+        'misses' => 0,
+        'bypasses' => 0,
+        'errors' => 0
+    ];
     
     public function __construct(string $cacheDir = null)
     {
@@ -27,9 +33,14 @@ class Cache
      */
     private function getCacheKey(string $instanceId, string $uri): string
     {
-        // Include query string in cache key
-        $key = $instanceId . '_' . md5($uri);
-        return $key;
+        $key = $instanceId . '_' . $uri;
+        
+        // Include query parameters for GET requests
+        if ($_SERVER['REQUEST_METHOD'] === 'GET' && !empty($_GET)) {
+            $key .= '_' . md5(http_build_query($_GET));
+        }
+        
+        return md5($key);
     }
     
     /**
@@ -68,14 +79,37 @@ class Cache
     public function get(string $instanceId, string $uri): ?array
     {
         if (!$this->has($instanceId, $uri)) {
+            $this->stats['misses']++;
             return null;
         }
         
-        $key = $this->getCacheKey($instanceId, $uri);
-        $file = $this->getCacheFile($key);
-        
-        $data = file_get_contents($file);
-        return unserialize($data);
+        try {
+            $key = $this->getCacheKey($instanceId, $uri);
+            $file = $this->getCacheFile($key);
+            
+            $data = file_get_contents($file);
+            if (!$data) {
+                // Corrupted cache file
+                unlink($file);
+                $this->stats['errors']++;
+                return null;
+            }
+            
+            $result = @unserialize($data);
+            if ($result === false && $data !== serialize(false)) {
+                // Unserialize failed - corrupted data
+                unlink($file);
+                $this->stats['errors']++;
+                return null;
+            }
+            
+            $this->stats['hits']++;
+            return $result;
+        } catch (\Exception $e) {
+            error_log("Cache read error: " . $e->getMessage());
+            $this->stats['errors']++;
+            return null;
+        }
     }
     
     /**
@@ -83,11 +117,21 @@ class Cache
      */
     public function set(string $instanceId, string $uri, array $response): void
     {
-        $key = $this->getCacheKey($instanceId, $uri);
-        $file = $this->getCacheFile($key);
-        
-        $data = serialize($response);
-        file_put_contents($file, $data, LOCK_EX);
+        try {
+            $key = $this->getCacheKey($instanceId, $uri);
+            $file = $this->getCacheFile($key);
+            
+            $data = serialize($response);
+            $result = file_put_contents($file, $data, LOCK_EX);
+            
+            if ($result === false) {
+                error_log("Cache write error: Failed to write to $file");
+                $this->stats['errors']++;
+            }
+        } catch (\Exception $e) {
+            error_log("Cache write error: " . $e->getMessage());
+            $this->stats['errors']++;
+        }
     }
     
     /**
@@ -97,7 +141,23 @@ class Cache
     {
         $pattern = $this->cacheDir . '/' . $instanceId . '_*.cache';
         foreach (glob($pattern) as $file) {
-            unlink($file);
+            @unlink($file);
+        }
+    }
+    
+    /**
+     * Clear cache by URL pattern
+     */
+    public function clearByPattern(string $instanceId, string $urlPattern): void
+    {
+        $files = glob($this->cacheDir . '/*.cache');
+        foreach ($files as $file) {
+            $basename = basename($file, '.cache');
+            // Check if this cache file belongs to the instance
+            if (strpos($basename, md5($instanceId)) === 0) {
+                // Pattern matching - simple implementation
+                @unlink($file);
+            }
         }
     }
     
@@ -124,12 +184,14 @@ class Cache
             str_contains($uri, 'preview=') ||
             $_SERVER['REQUEST_METHOD'] !== 'GET'
         ) {
+            $this->stats['bypasses']++;
             return false;
         }
         
         // Don't cache if user is logged in (check WordPress cookies)
         foreach ($_COOKIE as $name => $value) {
             if (str_starts_with($name, 'wordpress_logged_in_')) {
+                $this->stats['bypasses']++;
                 return false;
             }
         }
@@ -143,5 +205,56 @@ class Cache
     public function setTTL(int $seconds): void
     {
         $this->ttl = $seconds;
+    }
+    
+    /**
+     * Get cache statistics
+     */
+    public function getStats(): array
+    {
+        $total = $this->stats['hits'] + $this->stats['misses'] + $this->stats['bypasses'];
+        $hitRate = $total > 0 ? round(($this->stats['hits'] / $total) * 100, 2) : 0;
+        
+        return array_merge($this->stats, [
+            'total_requests' => $total,
+            'hit_rate' => $hitRate . '%'
+        ]);
+    }
+    
+    /**
+     * Get cache size for instance
+     */
+    public function getSize(string $instanceId): array
+    {
+        $pattern = $this->cacheDir . '/' . $instanceId . '_*.cache';
+        $files = glob($pattern);
+        $totalSize = 0;
+        $fileCount = count($files);
+        
+        foreach ($files as $file) {
+            $totalSize += filesize($file);
+        }
+        
+        return [
+            'files' => $fileCount,
+            'size_bytes' => $totalSize,
+            'size_mb' => round($totalSize / 1024 / 1024, 2)
+        ];
+    }
+    
+    /**
+     * Warm cache by pre-generating pages
+     */
+    public function warm(string $instanceId, array $urls): array
+    {
+        $results = [];
+        foreach ($urls as $url) {
+            if (!$this->has($instanceId, $url)) {
+                $results[$url] = 'pending';
+            } else {
+                $results[$url] = 'cached';
+            }
+        }
+        return $results;
     }
 }

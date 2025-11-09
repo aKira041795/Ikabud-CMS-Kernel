@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 120 100">
+  <rect width="120" height="100" fill="#E4E4E7" rx="4"/>
+  <rect width="119" height="75" x=".5" y="12.5" fill="#FAFAFA" rx="3.5"/>
+  <path fill="#71717A" d="M6.5 20h28v60h-28z"/>
+  <rect width="24" height="3" x="40.5" y="20" fill="#A1A1AA" rx="1.5"/>
+  <rect width="39" height="3" x="40.5" y="28" fill="#E4E4E7" rx="1.5"/>
+  <rect width="39" height="3" x="40.5" y="34" fill="#E4E4E7" rx="1.5"/>
+  <rect width="39" height="3" x="40.5" y="40" fill="#E4E4E7" rx="1.5"/>
+  <rect width="39" height="3" x="40.5" y="46" fill="#E4E4E7" rx="1.5"/>
+  <rect width="39" height="3" x="40.5" y="55" fill="#E4E4E7" rx="1.5"/>
+  <rect width="39" height="3" x="40.5" y="61" fill="#E4E4E7" rx="1.5"/>
+  <rect width="39" height="3" x="40.5" y="67" fill="#E4E4E7" rx="1.5"/>
+  <rect width="39" height="3" x="40.5" y="73" fill="#E4E4E7" rx="1.5"/>
+  <path fill="#71717A" d="M85.5 20h28v60h-28z"/>
+  <rect width="119" height="75" x=".5" y="12.5" stroke="#71717A" rx="3.5"/>
+</svg>

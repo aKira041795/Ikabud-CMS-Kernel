@@ -1,0 +1,40 @@
+{
+    "plugins": {
+        "wpforms-lite/wpforms.php": {
+            "name": "WPForms Lite",
+            "version": "1.9.8.4",
+            "enabled": true,
+            "load_on": {
+                "routes": [
+                    "/contact"
+                ],
+                "admin": true,
+                "priority": 20,
+                "shortcodes": [
+                    "contact-form-7",
+                    "wpforms",
+                    "gravityform"
+                ]
+            },
+            "priority": 20,
+            "dependencies": []
+        }
+    },
+    "themes": {
+        "oceanwp": {
+            "name": "OceanWP",
+            "version": "4.1.3",
+            "load_on": {
+                "routes": [
+                    "*"
+                ]
+            }
+        }
+    },
+    "_meta": {
+        "version": "1.0",
+        "generated_at": "2025-11-09T10:32:04+00:00",
+        "instance_id": "inst_58b72c1746710061",
+        "description": "Auto-generated plugin manifest. Edit load_on rules to optimize loading."
+    }
+}

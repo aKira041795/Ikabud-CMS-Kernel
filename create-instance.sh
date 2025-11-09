@@ -282,6 +282,10 @@ echo -e "${GREEN}✓${NC} Copied .htaccess with CORS configuration"
 cp templates/ikabud-cors.php "$INSTANCE_PATH/wp-content/mu-plugins/ikabud-cors.php"
 echo -e "${GREEN}✓${NC} Installed CORS handler plugin (mu-plugins)"
 
+# Copy cache invalidation plugin to mu-plugins
+cp templates/ikabud-cache-invalidation.php "$INSTANCE_PATH/wp-content/mu-plugins/ikabud-cache-invalidation.php"
+echo -e "${GREEN}✓${NC} Installed cache invalidation plugin (mu-plugins)"
+
 # Step 4: Create symlinks from instance to shared CMS core
 echo -e "${YELLOW}[4/7]${NC} Creating symlinks to shared $CMS_TYPE core..."
 cd "$INSTANCE_PATH"

@@ -1,0 +1,161 @@
+.newsx-notice {
+    position: relative;
+    padding: 30px;
+}
+
+.newsx-welcome-notice .newsx-message__content {
+    display: flex;
+    justify-content: space-between;
+}
+
+.newsx-message__text {
+    max-width: 630px;
+}
+
+p.newsx-message__subheading {
+    color: #646970;
+    font-size: 14px;
+    line-height: 1;
+    margin: 0;
+    padding: 0;
+}
+
+h2.newsx-message__heading {
+    color: #1e293b;
+    font-size: 30px;
+    font-weight: 600;
+    line-height: 40px;
+    letter-spacing: -0.2px;
+    margin-top: 12px;
+    margin-bottom: 12px;
+    padding: 0;
+}
+
+p.newsx-message__description {
+    color: #475569;
+    font-size: 16px;
+    line-height: 24px;
+    margin-top: 0px;
+    margin-bottom: 20px;
+    padding: 0;
+}
+
+.newsx-message__cta .newsx-btn-get-started.button-hero,
+.newsx-message__cta .newsx-btn-demo-preview.button-hero {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 3px;
+    padding: 12px 24px;
+    background: #046bd2;
+    color: white;
+    box-shadow: none;
+    border: none;
+    font-size: 16px;
+    font-weight: 500;
+    line-height: 24px;
+}
+
+.newsx-message__cta .newsx-btn-demo-preview.button-hero .dashicons {
+    margin-left: 4px;
+    font-size: 16px;
+    width: 16px;
+    height: 16px;
+}
+
+.newsx-message-start-from-scratch a {
+    display: block;
+    margin-top: 16px;
+    color: #475569;
+    font-size: 13px;
+    line-height: 20px;
+    text-decoration: underline;
+    cursor: pointer;
+}
+
+.newsx-message-close {
+    text-decoration: none;
+}
+
+.newsx-message__image {
+    max-width: 400px;
+}
+
+.newsx-message__image img {
+    width: 100%;
+    max-width: 100%;
+}
+
+/* Dot Flashing */
+.dot-flashing {
+    display: inline-block;
+    margin-left: 10px;
+    margin-bottom: -1px;
+    position: relative;
+    width: 3px;
+    height: 3px;
+    border-radius: 10px;
+    background-color: #3c434a;
+    color: #3c434a;
+    -webkit-animation: dotFlashing 1s infinite linear alternate;
+            animation: dotFlashing 1s infinite linear alternate;
+    -webkit-animation-delay: .5s;
+            animation-delay: .5s;
+ }
+ 
+ .dot-flashing::before, .dot-flashing::after {
+    content: '';
+    display: inline-block;
+    position: absolute;
+    top: 0;
+ }
+ 
+ .dot-flashing::before {
+    left: -6px;
+    width: 3px;
+    height: 3px;
+    border-radius: 10px;
+    background-color: #3c434a;
+    color: #3c434a;
+    -webkit-animation: dotFlashing 1s infinite alternate;
+            animation: dotFlashing 1s infinite alternate;
+    -webkit-animation-delay: 0s;
+            animation-delay: 0s;
+ }
+ 
+ .dot-flashing::after {
+    left: 6px;
+    width: 3px;
+    height: 3px;
+    border-radius: 10px;
+    background-color: #3c434a;
+    color: #3c434a;
+    -webkit-animation: dotFlashing 1s infinite alternate;
+            animation: dotFlashing 1s infinite alternate;
+    -webkit-animation-delay: 1s;
+            animation-delay: 1s;
+ }
+ 
+ @-webkit-keyframes dotFlashing {
+    0% {
+        background-color: #3c434a;
+    }
+    50%,
+    100% {
+        background-color: #ebe6ff;
+    }
+ }
+ 
+ @keyframes dotFlashing {
+    0% {
+        background-color: #3c434a;
+    }
+    50%,
+    100% {
+        background-color: #ebe6ff;
+    }
+ }
+
+ /* Hide Royal Elementor Addons Welcome Notice */
+ .wpr-plugin-update-notice {
+    display: none !important;
+ }
