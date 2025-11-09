@@ -68,19 +68,26 @@ try {
         exit;
     }
     
-    // Generate session token
-    $token = bin2hex(random_bytes(32));
+    // Parse permissions
+    $permissions = json_decode($user['permissions'] ?? '[]', true);
+    
+    // Generate JWT token
+    $jwt = new \IkabudKernel\Core\JWT();
+    $token = $jwt->generate([
+        'id' => $user['id'],
+        'username' => $user['username'],
+        'role' => $user['role'],
+        'permissions' => $permissions
+    ]);
+    
     $expiresAt = date('Y-m-d H:i:s', strtotime('+24 hours'));
     
-    // Store session
+    // Store session with JWT token
     $stmt = $db->prepare("
         INSERT INTO admin_sessions (user_id, token, expires_at, created_at)
         VALUES (?, ?, ?, NOW())
     ");
     $stmt->execute([$user['id'], $token, $expiresAt]);
-    
-    // Parse permissions
-    $permissions = json_decode($user['permissions'] ?? '[]', true);
     
     // Return success
     echo json_encode([

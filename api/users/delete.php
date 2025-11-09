@@ -21,24 +21,25 @@ if (!preg_match('/Bearer\s+(.*)$/i', $authHeader, $matches)) {
 }
 
 $token = $matches[1];
-$jwt = new JWTMiddleware();
+$jwt = new \IkabudKernel\Core\JWT();
 
-try {
-    $decoded = $jwt->validateToken($token);
-    
-    // Check if user is admin (support both 'admin' and 'administrator')
-    if ($decoded->role !== 'admin' && $decoded->role !== 'administrator') {
-        http_response_code(403);
-        echo json_encode(['success' => false, 'message' => 'Forbidden - Admin access required']);
-        exit;
-    }
-    
-    $currentUserId = $decoded->id;
-} catch (Exception $e) {
+$decoded = $jwt->verify($token);
+
+if (!$decoded) {
     http_response_code(401);
-    echo json_encode(['success' => false, 'message' => 'Invalid token']);
+    echo json_encode(['success' => false, 'message' => 'Invalid or expired token']);
     exit;
 }
+
+// Check if user is admin (support both 'admin' and 'administrator')
+$role = $decoded['role'] ?? '';
+if ($role !== 'admin' && $role !== 'administrator') {
+    http_response_code(403);
+    echo json_encode(['success' => false, 'message' => 'Forbidden - Admin access required']);
+    exit;
+}
+
+$currentUserId = $decoded['id'] ?? null;
 
 // Get user ID from query string
 $userId = $_GET['id'] ?? null;
