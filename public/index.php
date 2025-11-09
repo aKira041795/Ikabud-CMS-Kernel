@@ -88,18 +88,18 @@ $errorMiddleware = $app->addErrorMiddleware(
     true
 );
 
-// CORS Middleware
+// CORS Middleware - Allow cross-subdomain requests for .test domains
 $app->add(function (Request $request, $handler) {
     $response = $handler->handle($request);
     
-    $origins = explode(',', $_ENV['CORS_ORIGIN'] ?? '*');
     $origin = $request->getHeaderLine('Origin');
     
-    if (in_array($origin, $origins) || in_array('*', $origins)) {
+    // Allow any subdomain of .test domains (e.g., admin.thejake.test, dashboard.magic.test)
+    if ($origin && preg_match('/^https?:\/\/(.+\.)?[^.]+\.test$/', $origin)) {
         $response = $response
             ->withHeader('Access-Control-Allow-Origin', $origin)
-            ->withHeader('Access-Control-Allow-Methods', $_ENV['CORS_METHODS'] ?? 'GET,POST,PUT,DELETE,OPTIONS')
-            ->withHeader('Access-Control-Allow-Headers', $_ENV['CORS_HEADERS'] ?? 'Content-Type,Authorization')
+            ->withHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS')
+            ->withHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization,X-WP-Nonce,X-Requested-With,X-HTTP-Method-Override,Origin,Accept')
             ->withHeader('Access-Control-Allow-Credentials', 'true');
     }
     
@@ -175,6 +175,24 @@ $app->get('/login', function (Request $request, Response $response) {
 $app->any('/{path:.*}', function (Request $request, Response $response, array $args) {
     // Get instance from domain using database lookup
     $host = $request->getUri()->getHost();
+    
+    // Add CORS headers for cross-subdomain API requests
+    // This allows any subdomain (admin.*, dashboard.*, etc.) to make API calls
+    $origin = $request->getHeaderLine('Origin');
+    if ($origin && preg_match('/^https?:\/\/(.+\.)?[^.]+\.test$/', $origin)) {
+        // Set headers using native PHP header() function
+        // This ensures they're sent before WordPress processes the request
+        header('Access-Control-Allow-Origin: ' . $origin);
+        header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
+        header('Access-Control-Allow-Headers: Authorization, Content-Type, X-WP-Nonce, X-Requested-With, Origin, Accept, X-HTTP-Method-Override');
+        header('Access-Control-Allow-Credentials: true');
+        
+        // Handle OPTIONS preflight request
+        if ($request->getMethod() === 'OPTIONS') {
+            http_response_code(200);
+            exit;
+        }
+    }
     
     // Get kernel and database
     $kernel = \IkabudKernel\Core\Kernel::getInstance();
