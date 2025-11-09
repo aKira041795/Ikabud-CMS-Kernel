@@ -148,8 +148,16 @@ define('WP_DEBUG_DISPLAY', false);
 define('FS_METHOD', 'direct');
 
 // ** CRITICAL: WordPress URLs **
+// Load instance manifest for configuration
+\$manifest_file = __DIR__ . '/instance.json';
+\$manifest = file_exists(\$manifest_file) ? json_decode(file_get_contents(\$manifest_file), true) : null;
+
 // Dynamic URLs based on current host to prevent redirects
 \$current_host = \$_SERVER['HTTP_HOST'] ?? '$DOMAIN';
+
+// Get admin subdomain from manifest or detect from current host
+\$admin_subdomain = \$manifest['admin_subdomain'] ?? 'admin.$DOMAIN';
+\$frontend_domain = \$manifest['domain'] ?? '$DOMAIN';
 
 // Determine if this is a backend/admin subdomain
 \$is_backend = (
@@ -183,10 +191,10 @@ try {
     \$wp_installed = false;
 }
 
-// If accessing frontend and WP not installed, redirect to backend installation
+// If accessing frontend and WP not installed, redirect to admin installation
 if (!\$is_backend && !\$wp_installed && !defined('WP_INSTALLING')) {
-    \$backend_domain = 'backend.' . \$current_host;
-    header('Location: http://' . \$backend_domain . '/wp-admin/install.php');
+    // Use admin subdomain from manifest
+    header('Location: http://' . \$admin_subdomain . '/wp-admin/install.php');
     exit;
 }
 
@@ -196,15 +204,14 @@ if (\$db_siteurl && \$db_home) {
     define('WP_SITEURL', \$db_siteurl);
     define('WP_HOME', \$db_home);
 } else {
-    // WordPress not installed yet - use dynamic URLs for installation
+    // WordPress not installed yet - use URLs from manifest
     if (\$is_backend) {
         // Backend subdomain - WordPress admin/API access
-        \$frontend_domain = preg_replace('/^(backend|admin|dashboard)\./', '', \$current_host);
         define('WP_SITEURL', 'http://' . \$current_host);
         define('WP_HOME', 'http://' . \$frontend_domain);
     } else {
         // Frontend domain - public site access
-        define('WP_SITEURL', 'http://backend.' . \$current_host);
+        define('WP_SITEURL', 'http://' . \$admin_subdomain);
         define('WP_HOME', 'http://' . \$current_host);
     }
 }
@@ -240,6 +247,29 @@ require_once ABSPATH . 'wp-settings.php';
 WPCONFIG
 
 echo -e "${GREEN}✓${NC} wp-config.php created with instance-specific wp-content"
+
+# Step 2b: Create instance manifest
+echo -e "${YELLOW}[2b/7]${NC} Creating instance manifest..."
+
+cat > "$INSTANCE_PATH/instance.json" << MANIFEST
+{
+  "instance_id": "$INSTANCE_ID",
+  "instance_name": "$INSTANCE_NAME",
+  "cms_type": "$CMS_TYPE",
+  "domain": "$DOMAIN",
+  "admin_subdomain": "admin.$DOMAIN",
+  "database": {
+    "name": "$DB_NAME",
+    "user": "$DB_USER",
+    "host": "$DB_HOST",
+    "prefix": "$DB_PREFIX"
+  },
+  "created_at": "$(date -Iseconds)",
+  "version": "1.0"
+}
+MANIFEST
+
+echo -e "${GREEN}✓${NC} Instance manifest created"
 
 # Step 3: Copy CORS configuration files
 echo -e "${YELLOW}[3/7]${NC} Setting up CORS configuration..."
