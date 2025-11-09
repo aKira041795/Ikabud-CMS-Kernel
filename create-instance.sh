@@ -110,12 +110,23 @@ define('FS_METHOD', 'direct');
 // ** CRITICAL: WordPress URLs **
 // Dynamic URLs based on current host to prevent redirects
 \$current_host = \$_SERVER['HTTP_HOST'] ?? '$DOMAIN';
-if (strpos(\$current_host, 'dashboard.') === 0) {
-    // Admin subdomain - use it for both
+
+// Determine if this is a backend/admin subdomain
+\$is_backend = (
+    strpos(\$current_host, 'backend.') === 0 || 
+    strpos(\$current_host, 'admin.') === 0 || 
+    strpos(\$current_host, 'dashboard.') === 0
+);
+
+if (\$is_backend) {
+    // Backend subdomain - WordPress admin/API access
+    // WP_SITEURL: Where WordPress core files are (backend subdomain)
+    // WP_HOME: Where the site is displayed (frontend domain)
     define('WP_SITEURL', 'http://' . \$current_host);
-    define('WP_HOME', 'http://' . str_replace('dashboard.', '', \$current_host));
+    define('WP_HOME', 'http://' . preg_replace('/^(backend|admin|dashboard)\./', '', \$current_host));
 } else {
-    // Frontend domain - use it for both to prevent redirect
+    // Frontend domain - public site access
+    // Both point to frontend domain to prevent redirects
     define('WP_SITEURL', 'http://' . \$current_host);
     define('WP_HOME', 'http://' . \$current_host);
 }
@@ -126,7 +137,7 @@ define('ADMIN_COOKIE_PATH', '/wp-admin');
 // ** CRITICAL: Cookie Configuration **
 // Ensure cookies work correctly when served through Kernel
 // Use base domain for cookie sharing across subdomains
-\$base_domain = preg_replace('/^(admin|dashboard)\./', '', \$current_host);
+\$base_domain = preg_replace('/^(backend|admin|dashboard)\./', '', \$current_host);
 define('COOKIE_DOMAIN', '.' . \$base_domain);
 define('COOKIEPATH', '/');
 define('SITECOOKIEPATH', '/');
@@ -134,7 +145,8 @@ define('SITECOOKIEPATH', '/');
 // ** CRITICAL: Instance-specific wp-content paths **
 // This ensures themes, plugins, and uploads are stored in the instance folder
 define('WP_CONTENT_DIR', __DIR__ . '/wp-content');
-define('WP_CONTENT_URL', 'http://dashboard.$DOMAIN/wp-content');
+// Use current host for wp-content URL to avoid cross-domain issues
+define('WP_CONTENT_URL', 'http://' . \$current_host . '/wp-content');
 
 // Ikabud Kernel Integration
 define('IKABUD_INSTANCE_ID', '$INSTANCE_ID');
