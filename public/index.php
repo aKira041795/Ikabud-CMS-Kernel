@@ -397,7 +397,7 @@ $app->any('/{path:.*}', function (Request $request, Response $response, array $a
     }
     
     // Capture and cache if needed
-    if ($shouldCacheResponse) {
+    if ($shouldCacheResponse && ob_get_level() > 0) {
         $body = ob_get_contents();
         ob_end_clean();
         
@@ -407,7 +407,7 @@ $app->any('/{path:.*}', function (Request $request, Response $response, array $a
         header('X-Powered-By: Ikabud-Kernel');
         
         // Only cache if there were no errors (check for PHP warnings/errors in output)
-        if (!preg_match('/<b>(Warning|Error|Notice|Fatal error)<\/b>/', $body)) {
+        if ($body !== false && is_string($body) && !preg_match('/<b>(Warning|Error|Notice|Fatal error)<\/b>/', $body)) {
             // Store in cache with plugin metadata
             $headers = headers_list();
             $cacheData = [
