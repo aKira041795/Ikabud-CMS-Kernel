@@ -43,7 +43,7 @@ export default function CreateInstance() {
       case 'joomla':
         return { prefix: 'jml_', contentDir: 'administrator', script: 'bin/create-joomla-instance', idPrefix: 'jml' };
       case 'drupal':
-        return { prefix: 'drupal_', contentDir: 'sites', script: 'bin/create-drupal-instance', idPrefix: 'dpl' };
+        return { prefix: '', contentDir: 'sites', script: 'bin/create-drupal-instance', idPrefix: 'dpl' }; // Drush doesn't use prefix
       default:
         return { prefix: '', contentDir: '', script: '', idPrefix: 'inst' };
     }
@@ -85,9 +85,13 @@ export default function CreateInstance() {
     
     // WordPress: <instance_id> <instance_name> <db_name> <domain> <cms_type> <db_user> <db_pass> <db_host> <db_prefix>
     // Joomla: <instance_id> <instance_name> <domain> <db_name> <db_user> <db_pass> <db_prefix>
+    // Drupal: <instance_id> <instance_name> <domain> <db_name> <db_user> <db_pass> <db_prefix>
     if (formData.cms_type === 'wordpress') {
       return `./${defaults.script} ${formData.instance_id} "${formData.instance_name}" ${formData.database_name} ${formData.domain} ${formData.cms_type} ${formData.database_user} ${formData.database_password} ${formData.database_host} ${prefix}`;
     } else if (formData.cms_type === 'joomla') {
+      return `./${defaults.script} ${formData.instance_id} "${formData.instance_name}" ${formData.domain} ${formData.database_name} ${formData.database_user} ${formData.database_password} ${prefix}`;
+    } else if (formData.cms_type === 'drupal') {
+      // Drupal script signature: <instance_id> <instance_name> <domain> <db_name> <db_user> <db_pass> <db_prefix>
       return `./${defaults.script} ${formData.instance_id} "${formData.instance_name}" ${formData.domain} ${formData.database_name} ${formData.database_user} ${formData.database_password} ${prefix}`;
     } else {
       return `./${defaults.script} ${formData.instance_id} "${formData.instance_name}" ${formData.domain} ${formData.database_name} ${formData.database_user} ${formData.database_password} ${prefix}`;
@@ -331,7 +335,9 @@ export default function CreateInstance() {
                   placeholder="ikabud_wp_client"
                 />
                 <p className="mt-1 text-xs text-gray-500">
-                  Database must already exist
+                  {formData.cms_type === 'drupal' 
+                    ? 'Will be auto-created by the script' 
+                    : 'Database must already exist'}
                 </p>
               </div>
 
@@ -391,13 +397,13 @@ export default function CreateInstance() {
                 placeholder={
                   formData.cms_type === 'wordpress' ? 'wp_' :
                   formData.cms_type === 'joomla' ? 'jos_' :
-                  formData.cms_type === 'drupal' ? 'drupal_' : 'wp_'
+                  formData.cms_type === 'drupal' ? '(empty - no prefix)' : 'wp_'
                 }
               />
               <p className="mt-1 text-xs text-gray-500">
                 {formData.cms_type === 'wordpress' && 'Default: wp_ (WordPress tables)'}
                 {formData.cms_type === 'joomla' && 'Default: jos_ (Joomla tables)'}
-                {formData.cms_type === 'drupal' && 'Default: drupal_ (Drupal tables)'}
+                {formData.cms_type === 'drupal' && 'Leave empty - Drush installs without prefix (recommended)'}
               </p>
             </div>
           </div>
