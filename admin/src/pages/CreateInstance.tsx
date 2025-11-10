@@ -39,11 +39,11 @@ export default function CreateInstance() {
   const getCMSDefaults = (cmsType: string) => {
     switch (cmsType) {
       case 'wordpress':
-        return { prefix: 'wp_', contentDir: 'wp-content', script: 'create-instance.sh', idPrefix: 'wp' };
+        return { prefix: 'wp_', contentDir: 'wp-content', script: 'bin/create-wordpress-instance', idPrefix: 'wp' };
       case 'joomla':
-        return { prefix: 'jml_', contentDir: 'administrator', script: 'create-joomla-instance.sh', idPrefix: 'jml' };
+        return { prefix: 'jml_', contentDir: 'administrator', script: 'bin/create-joomla-instance', idPrefix: 'jml' };
       case 'drupal':
-        return { prefix: 'drupal_', contentDir: 'sites', script: 'create-drupal-instance.sh', idPrefix: 'dpl' };
+        return { prefix: 'drupal_', contentDir: 'sites', script: 'bin/create-drupal-instance', idPrefix: 'dpl' };
       default:
         return { prefix: '', contentDir: '', script: '', idPrefix: 'inst' };
     }
