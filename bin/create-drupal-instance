@@ -54,9 +54,10 @@ if (!is_dir($sharedCore)) {
 }
 
 // Step 1: Create instance directory structure
-echo YELLOW . "[1/8]" . NC . " Creating instance directory structure...\n";
+echo YELLOW . "[1/9]" . NC . " Creating instance directory structure...\n";
 $directories = [
     '',
+    '/sites',
     '/sites/default',
     '/sites/default/files',
     '/sites/default/files/translations',
@@ -68,16 +69,14 @@ foreach ($directories as $dir) {
 }
 echo GREEN . "✓" . NC . " Directory structure created\n";
 
-// Step 2: Create symlinks to shared core
-echo YELLOW . "[2/8]" . NC . " Creating symlinks to shared Drupal core...\n";
+// Step 2: Create symlinks to shared core (excluding 'core' directory)
+echo YELLOW . "[2/9]" . NC . " Creating symlinks to shared Drupal core...\n";
 
-// Symlink core directories and files
+// Symlink core directories and files (excluding 'core' and 'index.php')
 $coreSymlinks = [
     'autoload.php',
     'composer.json',
     'composer.lock',
-    'core',
-    'index.php',
     'modules',
     'profiles',
     'robots.txt',
@@ -92,13 +91,107 @@ $coreSymlinks = [
 ];
 
 foreach ($coreSymlinks as $item) {
-    @symlink("../../$sharedCore/$item", "$instancePath/$item");
+    $relativeTarget = "../../shared-cores/drupal/$item";
+    @symlink($relativeTarget, "$instancePath/$item");
 }
 
-echo GREEN . "✓" . NC . " Symlinks created\n";
+// Create real 'core' directory with wrapper install.php
+mkdir("$instancePath/core", 0755);
+
+// Create wrapper install.php that sets correct root before loading shared core installer
+$coreInstallContent = <<<'COREINSTALL'
+<?php
+/**
+ * Drupal installer wrapper for Ikabud Kernel instance
+ * Sets the correct application root before loading the shared core installer
+ */
+
+// The shared core installer does chdir('..') to go from /core to root
+// So we need to be IN the /core directory when we call it
+// That way chdir('..') brings us to the instance root
+
+// We're already in /core, so the shared installer's chdir('..') will work correctly
+// It will change to the instance root (parent of this /core directory)
+
+// Now include the actual Drupal installer from shared core
+// It will do chdir('..') which takes us from /core to instance root
+require_once __DIR__ . '/../../../shared-cores/drupal/core/install.php';
+
+COREINSTALL;
+
+file_put_contents("$instancePath/core/install.php", $coreInstallContent);
+chmod("$instancePath/core/install.php", 0644);
+
+// Symlink all contents of shared core's /core directory (except install.php which we created above)
+$sharedCoreDir = "$sharedCore/core";
+$coreItems = scandir($sharedCoreDir);
+foreach ($coreItems as $item) {
+    if ($item === '.' || $item === '..' || $item === 'install.php') {
+        continue;
+    }
+    $target = "../../../shared-cores/drupal/core/$item";
+    @symlink($target, "$instancePath/core/$item");
+}
+
+// Create custom index.php that sets the correct document root
+$indexContent = <<<'INDEX'
+<?php
+
+/**
+ * @file
+ * The PHP page that serves all page requests on a Drupal installation.
+ * 
+ * Custom index.php for Ikabud Kernel instance
+ * This ensures Drupal uses the instance's sites directory, not the shared core's
+ */
+
+use Drupal\Core\DrupalKernel;
+use Symfony\Component\HttpFoundation\Request;
+
+// Set the application root to this instance directory
+$app_root = __DIR__;
+chdir($app_root);
+
+$autoloader = require_once 'autoload.php';
+
+// Pass the app_root to DrupalKernel so it uses this instance's sites directory
+$kernel = new DrupalKernel('prod', $autoloader, FALSE, $app_root);
+
+$request = Request::createFromGlobals();
+$response = $kernel->handle($request);
+$response->send();
+
+$kernel->terminate($request, $response);
+
+INDEX;
+
+file_put_contents("$instancePath/index.php", $indexContent);
+chmod("$instancePath/index.php", 0644);
+
+// Create sites/sites.php for multi-site configuration
+$sitesPhpContent = <<<SITESPHP
+<?php
+
+/**
+ * @file
+ * Site directory mapping for Ikabud Kernel Drupal instance
+ */
+
+// Map all domains to use this instance's sites/default directory
+\$sites = [
+  'admin.$domain' => 'default',
+  '$domain' => 'default',
+];
+
+SITESPHP;
+
+file_put_contents("$instancePath/sites/sites.php", $sitesPhpContent);
+chmod("$instancePath/sites/sites.php", 0644);
+
+echo GREEN . "✓" . NC . " Symlinks, custom index.php, core wrapper, and sites.php created\n";
 
 // Step 3: Create database
-echo YELLOW . "[3/8]" . NC . " Creating database...\n";
+echo YELLOW . "[3/9]" . NC . " Creating database...\n";
 try {
     $pdo = new PDO("mysql:host=localhost", $dbUser, $dbPass);
     $pdo->exec("CREATE DATABASE IF NOT EXISTS `$dbName` CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci");
@@ -108,7 +201,7 @@ try {
 }
 
 // Step 4: Create settings.php
-echo YELLOW . "[4/8]" . NC . " Creating settings.php...\n";
+echo YELLOW . "[4/9]" . NC . " Creating settings.php...\n";
 
 $settingsContent = <<<SETTINGS
 <?php
@@ -127,7 +220,7 @@ $settingsContent = <<<SETTINGS
   'host' => 'localhost',
   'port' => '3306',
   'driver' => 'mysql',
-  'prefix' => '$dbPrefix',
+  'prefix' => '',
   'collation' => 'utf8mb4_general_ci',
 ];
 
@@ -181,14 +274,19 @@ file_put_contents("$instancePath/sites/default/settings.php", $settingsContent);
 chmod("$instancePath/sites/default/settings.php", 0644);
 echo GREEN . "✓" . NC . " settings.php created\n";
 
-// Step 5: Create services.yml
-echo YELLOW . "[5/8]" . NC . " Creating services.yml...\n";
+// Step 5: Create services.yml and symlink default.settings.php
+echo YELLOW . "[5/9]" . NC . " Creating services.yml and default.settings.php...\n";
 copy("$sharedCore/sites/default/default.services.yml", "$instancePath/sites/default/services.yml");
 chmod("$instancePath/sites/default/services.yml", 0644);
-echo GREEN . "✓" . NC . " services.yml created\n";
+
+// Symlink default.settings.php from shared core (required by Drupal installer)
+// Path from sites/default/ needs to go up 4 levels: default -> sites -> instance -> instances -> kernel root
+@symlink("../../../../shared-cores/drupal/sites/default/default.settings.php", "$instancePath/sites/default/default.settings.php");
+
+echo GREEN . "✓" . NC . " services.yml and default.settings.php created\n";
 
 // Step 6: Create instance manifest
-echo YELLOW . "[6/8]" . NC . " Creating instance manifest...\n";
+echo YELLOW . "[6/9]" . NC . " Creating instance manifest...\n";
 $manifest = [
     'instance_id' => $instanceId,
     'instance_name' => $instanceName,
@@ -208,18 +306,76 @@ file_put_contents("$instancePath/instance.json", json_encode($manifest, JSON_PRE
 echo GREEN . "✓" . NC . " Instance manifest created\n";
 
 // Step 7: Set permissions
-echo YELLOW . "[7/8]" . NC . " Setting permissions...\n";
-chmod("$instancePath/sites/default", 0755);
+echo YELLOW . "[7/9]" . NC . " Setting permissions...\n";
+
+// Set directory permissions
+chmod("$instancePath/sites/default", 0775);
 chmod("$instancePath/sites/default/files", 0775);
 chmod("$instancePath/sites/default/private", 0775);
-echo GREEN . "✓" . NC . " Permissions set\n";
 
-// Step 8: Register as process
-echo YELLOW . "[8/8]" . NC . " Registering instance as process...\n";
-if (file_exists("$rootPath/bin/register-instance-process")) {
-    passthru("$rootPath/bin/register-instance-process '$instanceId' '$instanceName' 'drupal'");
+// Set file permissions (writable for installer)
+chmod("$instancePath/sites/default/settings.php", 0666);
+chmod("$instancePath/sites/default/services.yml", 0666);
+
+// Change ownership to www-data for web server access (requires sudo)
+exec("sudo chown -R www-data:www-data '$instancePath/sites/default/files' 2>&1", $output, $returnCode);
+if ($returnCode === 0) {
+    exec("sudo chown www-data:www-data '$instancePath/sites/default/settings.php' 2>&1");
+    exec("sudo chown www-data:www-data '$instancePath/sites/default/services.yml' 2>&1");
+    echo GREEN . "✓" . NC . " Permissions and ownership set\n";
 } else {
-    echo YELLOW . "⚠" . NC . " Process registration script not found (skipping)\n";
+    echo YELLOW . "⚠" . NC . " Permissions set (ownership change requires sudo)\n";
+    echo YELLOW . "  Run: sudo chown -R www-data:www-data $instancePath/sites/default/files" . NC . "\n";
+}
+
+// Step 8: Register instance in database
+echo YELLOW . "[8/9]" . NC . " Registering instance in database...\n";
+try {
+    $pdo = new PDO("mysql:host=localhost;dbname=$dbName", $dbUser, $dbPass);
+    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+    
+    // Register in instances table
+    $stmt = $pdo->prepare("
+        INSERT INTO `ikabud-kernel`.instances 
+        (instance_id, instance_name, cms_type, domain, path_prefix, database_name, database_prefix, status, config, resources, created_at, updated_at)
+        VALUES (?, ?, 'drupal', ?, '/', ?, ?, 'active', '[]', '{\"cpu_limit\": 1, \"memory_limit\": 256}', NOW(), NOW())
+    ");
+    $stmt->execute([$instanceId, $instanceName, $domain, $dbName, $dbPrefix]);
+    
+    echo GREEN . "✓" . NC . " Instance registered in database\n";
+    
+    // Register as process
+    if (file_exists("$rootPath/bin/register-instance-process")) {
+        passthru("$rootPath/bin/register-instance-process '$instanceId' '$instanceName' 'drupal'");
+    }
+} catch (PDOException $e) {
+    echo YELLOW . "⚠" . NC . " Database registration failed: " . $e->getMessage() . "\n";
+}
+
+// Step 9: Install Drupal using Drush
+echo YELLOW . "[9/9]" . NC . " Installing Drupal via Drush...\n";
+$drushPath = "$sharedCore/vendor/bin/drush";
+if (file_exists($drushPath)) {
+    $dbUrl = "mysql://$dbUser:$dbPass@localhost/$dbName";
+    $installCmd = "cd '$instancePath' && '$drushPath' site:install standard " .
+                  "--db-url='$dbUrl' " .
+                  "--site-name='$instanceName' " .
+                  "--account-name=admin " .
+                  "--account-pass=admin123 " .
+                  "--account-mail=admin@$domain " .
+                  "--yes 2>&1";
+    
+    echo "   Installing Drupal (this may take 2-3 minutes)...\n";
+    exec($installCmd, $installOutput, $installReturn);
+    
+    if ($installReturn === 0) {
+        echo GREEN . "✓" . NC . " Drupal installed successfully\n";
+    } else {
+        echo YELLOW . "⚠" . NC . " Drupal installation completed with warnings\n";
+        echo "   You can complete installation manually at: http://admin.$domain/core/install.php\n";
+    }
+} else {
+    echo YELLOW . "⚠" . NC . " Drush not found. Install manually at: http://admin.$domain/core/install.php\n";
 }
 
 // Summary
@@ -233,9 +389,10 @@ echo "Domain: " . YELLOW . $domain . NC . "\n";
 echo "Admin URL: " . YELLOW . "admin.$domain" . NC . "\n";
 echo "Database: " . YELLOW . $dbName . NC . "\n";
 echo "\n";
-echo YELLOW . "Next Steps:" . NC . "\n";
-echo "1. Configure virtual hosts for $domain\n";
-echo "2. Install Drupal:\n";
-echo "   " . GREEN . "http://admin.$domain/core/install.php" . NC . "\n";
+echo YELLOW . "Access Information:" . NC . "\n";
+echo "Frontend URL: " . GREEN . "http://$domain" . NC . "\n";
+echo "Admin URL:    " . GREEN . "http://admin.$domain" . NC . "\n";
+echo "Username:     " . GREEN . "admin" . NC . "\n";
+echo "Password:     " . GREEN . "admin123" . NC . "\n";
 echo "\n";
 echo "=========================================" . NC . "\n";
