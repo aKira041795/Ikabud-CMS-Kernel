@@ -282,14 +282,14 @@ $app->post('/api/instances/create', function (Request $request, Response $respon
     // Execute instance creation script based on CMS type
     $cmsType = $body['cms_type'] ?? 'wordpress';
     
-    // Determine which script to use based on CMS type
+    // Determine which script to use based on CMS type (PHP CLI for shared hosting compatibility)
     $scriptMap = [
-        'wordpress' => 'create-instance.sh',
-        'joomla' => 'create-joomla-instance.sh',
-        'drupal' => 'create-drupal-instance.sh'
+        'wordpress' => 'bin/create-wordpress-instance',
+        'joomla' => 'bin/create-joomla-instance',
+        'drupal' => 'bin/create-drupal-instance'
     ];
     
-    $scriptName = $scriptMap[$cmsType] ?? 'create-instance.sh';
+    $scriptName = $scriptMap[$cmsType] ?? 'bin/create-wordpress-instance';
     $scriptPath = $rootPath . '/' . $scriptName;
     
     // Check if script exists

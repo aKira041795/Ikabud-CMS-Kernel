@@ -178,12 +178,12 @@ export default function ProcessMonitor() {
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                      <span className={`px-3 py-1.5 text-xs font-semibold rounded-md uppercase ${
                         process.status === 'running' 
-                          ? 'bg-success-100 text-success-800'
+                          ? 'bg-green-600 text-white'
                           : process.status === 'crashed'
-                          ? 'bg-danger-100 text-danger-800'
-                          : 'bg-gray-100 text-gray-800'
+                          ? 'bg-red-600 text-white'
+                          : 'bg-gray-600 text-white'
                       }`}>
                         {process.status}
                       </span>

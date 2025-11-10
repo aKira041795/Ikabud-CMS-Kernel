@@ -406,3 +406,12 @@ echo "4. Install WordPress:"
 echo "   http://$DOMAIN/wp-admin/install.php"
 echo ""
 echo "========================================="
+
+# Register instance as a process
+echo ""
+echo "Registering instance as process..."
+if [ -f "bin/register-instance-process" ]; then
+    ./bin/register-instance-process "$INSTANCE_ID" "$INSTANCE_NAME" "wordpress"
+else
+    echo "⚠ Process registration script not found (skipping)"
+fi

@@ -53,7 +53,7 @@ echo -e "Domain: $DOMAIN"
 echo -e "Database: $DB_NAME"
 
 # Step 1: Create instance directory structure
-echo -e "${YELLOW}[1/8]${NC} Creating instance directory structure..."
+echo -e "${YELLOW}[1/9]${NC} Creating instance directory structure..."
 mkdir -p "$INSTANCE_PATH"
 mkdir -p "$INSTANCE_PATH/administrator/cache"
 mkdir -p "$INSTANCE_PATH/administrator/logs"
@@ -66,7 +66,7 @@ mkdir -p "$INSTANCE_PATH/tmp"
 echo -e "${GREEN}✓${NC} Directory structure created"
 
 # Step 2: Copy template files
-echo -e "${YELLOW}[2/8]${NC} Copying template files..."
+echo -e "${YELLOW}[2/9]${NC} Copying template files..."
 
 # Copy defines.php
 cp templates/joomla-defines.php "$INSTANCE_PATH/defines.php"
@@ -80,7 +80,7 @@ cp templates/instance.htaccess "$INSTANCE_PATH/.htaccess"
 echo -e "${GREEN}✓${NC} Template files copied"
 
 # Step 3: Create administrator directory with custom index.php
-echo -e "${YELLOW}[3/8]${NC} Setting up administrator directory..."
+echo -e "${YELLOW}[3/9]${NC} Setting up administrator directory..."
 
 mkdir -p "$INSTANCE_PATH/administrator"
 cp templates/joomla-admin-index.php "$INSTANCE_PATH/administrator/index.php"
@@ -88,7 +88,7 @@ cp templates/joomla-admin-index.php "$INSTANCE_PATH/administrator/index.php"
 echo -e "${GREEN}✓${NC} Administrator setup complete"
 
 # Step 4: Create symlinks to shared core
-echo -e "${YELLOW}[4/8]${NC} Creating symlinks to shared core..."
+echo -e "${YELLOW}[4/9]${NC} Creating symlinks to shared Joomla core..."
 
 # Symlink administrator directories (use ../../../ - three levels up from administrator/)
 ln -sf "../../../$SHARED_CORE/administrator/components" "$INSTANCE_PATH/administrator/components"
@@ -137,7 +137,7 @@ ln -sf "../../$SHARED_CORE/web.config.txt" "$INSTANCE_PATH/web.config.txt"
 echo -e "${GREEN}✓${NC} Symlinks created"
 
 # Step 5: Create database
-echo -e "${YELLOW}[5/8]${NC} Creating database..."
+echo -e "${YELLOW}[5/9]${NC} Creating database..."
 
 if mysql -u "$DB_USER" -p"$DB_PASS" -e "CREATE DATABASE IF NOT EXISTS \`$DB_NAME\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;" 2>/dev/null; then
     echo -e "${GREEN}✓${NC} Database created: $DB_NAME"
@@ -146,7 +146,7 @@ else
 fi
 
 # Step 6: Create instance manifest
-echo -e "${YELLOW}[6/8]${NC} Creating instance manifest..."
+echo -e "${YELLOW}[6/9]${NC} Creating instance manifest..."
 
 cat > "$INSTANCE_PATH/instance.json" << MANIFEST
 {
@@ -169,7 +169,7 @@ MANIFEST
 echo -e "${GREEN}✓${NC} Instance manifest created"
 
 # Step 7: Create initial configuration.php
-echo -e "${YELLOW}[7/8]${NC} Creating initial configuration.php..."
+echo -e "${YELLOW}[7/9]${NC} Creating initial configuration.php..."
 
 cat > "$INSTANCE_PATH/configuration.php" << CONFIG
 <?php
@@ -265,7 +265,7 @@ CONFIG
 echo -e "${GREEN}✓${NC} Configuration file created"
 
 # Step 8: Set permissions
-echo -e "${YELLOW}[8/8]${NC} Setting permissions..."
+echo -e "${YELLOW}[8/9]${NC} Setting permissions..."
 
 chmod -R 755 "$INSTANCE_PATH"
 chmod 644 "$INSTANCE_PATH/configuration.php"
@@ -284,6 +284,15 @@ chown -R www-data:www-data "$INSTANCE_PATH/tmp" 2>/dev/null || true
 chown -R www-data:www-data "$INSTANCE_PATH/media" 2>/dev/null || true
 
 echo -e "${GREEN}✓${NC} Permissions set"
+
+# Step 9: Register instance as a process
+echo -e "${YELLOW}[9/9]${NC} Registering instance as process..."
+
+if [ -f "bin/register-instance-process" ]; then
+    ./bin/register-instance-process "$INSTANCE_ID" "$INSTANCE_NAME" "joomla" 2>&1 | sed 's/^/  /'
+else
+    echo -e "${YELLOW}⚠${NC} Process registration script not found (skipping)"
+fi
 
 # Summary
 echo ""

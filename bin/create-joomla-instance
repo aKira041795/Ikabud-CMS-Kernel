@@ -1,0 +1,272 @@
+#!/usr/bin/env php
+<?php
+/**
+ * Joomla Instance Creator (PHP CLI)
+ * 
+ * Creates a Joomla instance with symlinks to shared core
+ * Compatible with shared hosting environments
+ * 
+ * Usage: ./create-joomla-instance <instance_id> <instance_name> <domain> <db_name> <db_user> <db_pass> [db_prefix]
+ */
+
+declare(strict_types=1);
+
+// Colors for output
+define('GREEN', "\033[0;32m");
+define('YELLOW', "\033[1;33m");
+define('RED', "\033[0;31m");
+define('NC', "\033[0m"); // No Color
+
+if ($argc < 7) {
+    echo RED . "Usage: $argv[0] <instance_id> <instance_name> <domain> <db_name> <db_user> <db_pass> [db_prefix]" . NC . "\n";
+    echo "Example: $argv[0] jml-shop-001 'My Joomla Shop' shop.example.com ikabud_joomla root password jml_\n";
+    exit(1);
+}
+
+$instanceId = $argv[1];
+$instanceName = $argv[2];
+$domain = $argv[3];
+$dbName = $argv[4];
+$dbUser = $argv[5];
+$dbPass = $argv[6];
+$dbPrefix = $argv[7] ?? 'jml_';
+
+$rootPath = dirname(__DIR__);
+$instancePath = "$rootPath/instances/$instanceId";
+$sharedCore = "$rootPath/shared-cores/joomla";
+$secretKey = "ikabud_{$instanceId}_secret_" . bin2hex(random_bytes(16));
+
+echo YELLOW . "Creating Joomla instance: $instanceId" . NC . "\n";
+echo "Instance Name: $instanceName\n";
+echo "Domain: $domain\n";
+echo "Database: $dbName\n\n";
+
+// Validate instance doesn't exist
+if (is_dir($instancePath)) {
+    echo RED . "Error: Instance directory already exists: $instancePath" . NC . "\n";
+    exit(1);
+}
+
+// Validate shared core exists
+if (!is_dir($sharedCore)) {
+    echo RED . "Error: Shared Joomla core not found: $sharedCore" . NC . "\n";
+    exit(1);
+}
+
+// Step 1: Create instance directory structure
+echo YELLOW . "[1/9]" . NC . " Creating instance directory structure...\n";
+$directories = [
+    '',
+    '/administrator',
+    '/administrator/cache',
+    '/administrator/logs',
+    '/administrator/manifests',
+    '/images/banners',
+    '/images/headers',
+    '/images/sampledata',
+    '/tmp',
+];
+
+foreach ($directories as $dir) {
+    @mkdir($instancePath . $dir, 0755, true);
+}
+echo GREEN . "✓" . NC . " Directory structure created\n";
+
+// Step 2: Copy template files
+echo YELLOW . "[2/9]" . NC . " Copying template files...\n";
+copy("$rootPath/templates/joomla-defines.php", "$instancePath/defines.php");
+copy("$rootPath/templates/joomla-site-index.php", "$instancePath/index.php");
+copy("$rootPath/templates/instance.htaccess", "$instancePath/.htaccess");
+echo GREEN . "✓" . NC . " Template files copied\n";
+
+// Step 3: Setup administrator directory
+echo YELLOW . "[3/9]" . NC . " Setting up administrator directory...\n";
+copy("$rootPath/templates/joomla-admin-index.php", "$instancePath/administrator/index.php");
+echo GREEN . "✓" . NC . " Administrator setup complete\n";
+
+// Step 4: Create symlinks to shared core
+echo YELLOW . "[4/9]" . NC . " Creating symlinks to shared Joomla core...\n";
+
+// Administrator symlinks (../../../ - three levels up)
+$adminSymlinks = [
+    'components', 'help', 'includes', 'language', 'modules', 'templates'
+];
+foreach ($adminSymlinks as $item) {
+    symlink("../../../$sharedCore/administrator/$item", "$instancePath/administrator/$item");
+}
+
+// Root level symlinks (../../ - two levels up)
+$rootSymlinks = [
+    'api', 'cache', 'cli', 'components', 'includes', 'language',
+    'layouts', 'libraries', 'modules', 'plugins', 'installation',
+    'htaccess.txt', 'LICENSE.txt', 'README.txt', 'robots.txt.dist', 'web.config.txt'
+];
+foreach ($rootSymlinks as $item) {
+    @symlink("../../$sharedCore/$item", "$instancePath/$item");
+}
+
+// Copy media and templates (instance-specific)
+function recursiveCopy($src, $dst) {
+    $dir = opendir($src);
+    @mkdir($dst, 0755, true);
+    while (($file = readdir($dir)) !== false) {
+        if ($file != '.' && $file != '..') {
+            if (is_dir("$src/$file")) {
+                recursiveCopy("$src/$file", "$dst/$file");
+            } else {
+                copy("$src/$file", "$dst/$file");
+            }
+        }
+    }
+    closedir($dir);
+}
+
+recursiveCopy("$sharedCore/media", "$instancePath/media");
+recursiveCopy("$sharedCore/templates", "$instancePath/templates");
+
+echo GREEN . "✓" . NC . " Symlinks created\n";
+
+// Step 5: Create database
+echo YELLOW . "[5/9]" . NC . " Creating database...\n";
+try {
+    $pdo = new PDO("mysql:host=localhost", $dbUser, $dbPass);
+    $pdo->exec("CREATE DATABASE IF NOT EXISTS `$dbName` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+    echo GREEN . "✓" . NC . " Database created: $dbName\n";
+} catch (PDOException $e) {
+    echo YELLOW . "⚠" . NC . " Database creation failed or already exists\n";
+}
+
+// Step 6: Create instance manifest
+echo YELLOW . "[6/9]" . NC . " Creating instance manifest...\n";
+$manifest = [
+    'instance_id' => $instanceId,
+    'instance_name' => $instanceName,
+    'cms_type' => 'joomla',
+    'domain' => $domain,
+    'admin_subdomain' => "admin.$domain",
+    'database' => [
+        'name' => $dbName,
+        'user' => $dbUser,
+        'host' => 'localhost',
+        'prefix' => $dbPrefix,
+    ],
+    'created_at' => date('c'),
+    'version' => '1.0',
+];
+file_put_contents("$instancePath/instance.json", json_encode($manifest, JSON_PRETTY_PRINT));
+echo GREEN . "✓" . NC . " Instance manifest created\n";
+
+// Step 7: Create configuration.php
+echo YELLOW . "[7/9]" . NC . " Creating initial configuration.php...\n";
+$config = <<<CONFIG
+<?php
+class JConfig
+{
+	public \$offline = false;
+	public \$offline_message = 'This site is down for maintenance.<br>Please check back again soon.';
+	public \$display_offline_message = 1;
+	public \$offline_image = '';
+	public \$sitename = 'Joomla Site - $instanceId';
+	public \$editor = 'tinymce';
+	public \$captcha = '0';
+	public \$list_limit = 20;
+	public \$access = 1;
+	public \$debug = false;
+	public \$debug_lang = false;
+	public \$debug_lang_const = true;
+	public \$dbtype = 'mysqli';
+	public \$host = 'localhost';
+	public \$user = '$dbUser';
+	public \$password = '$dbPass';
+	public \$db = '$dbName';
+	public \$dbprefix = '$dbPrefix';
+	public \$dbencryption = 0;
+	public \$dbsslverifyservercert = false;
+	public \$dbsslkey = '';
+	public \$dbsslcert = '';
+	public \$dbsslca = '';
+	public \$dbsslcipher = '';
+	public \$force_ssl = 0;
+	public \$live_site = '';
+	public \$secret = '$secretKey';
+	public \$gzip = false;
+	public \$error_reporting = 'default';
+	public \$helpurl = 'https://help.joomla.org/proxy?keyref=Help{major}{minor}:{keyref}&lang={langcode}';
+	public \$tmp_path = '$instancePath/tmp';
+	public \$log_path = '$instancePath/administrator/logs';
+	public \$offset = 'UTC';
+	public \$mailonline = true;
+	public \$mailer = 'mail';
+	public \$mailfrom = 'admin@$domain';
+	public \$fromname = 'Joomla Site - $instanceId';
+	public \$sendmail = '/usr/sbin/sendmail';
+	public \$smtpauth = false;
+	public \$smtpuser = '';
+	public \$smtppass = '';
+	public \$smtphost = 'localhost';
+	public \$smtpsecure = 'none';
+	public \$smtpport = 25;
+	public \$caching = 0;
+	public \$cache_handler = 'file';
+	public \$cachetime = 15;
+	public \$cache_platformprefix = false;
+	public \$MetaDesc = '';
+	public \$MetaAuthor = true;
+	public \$MetaVersion = false;
+	public \$robots = '';
+	public \$sef = true;
+	public \$sef_rewrite = false;
+	public \$sef_suffix = false;
+	public \$unicodeslugs = false;
+	public \$feed_limit = 10;
+	public \$feed_email = 'none';
+	public \$log_path = '$instancePath/administrator/logs';
+	public \$tmp_path = '$instancePath/tmp';
+	public \$lifetime = 15;
+	public \$session_handler = 'database';
+	public \$shared_session = false;
+	public \$session_metadata = true;
+	public \$sitename_pagetitles = 0;
+	public \$cookie_domain = '';
+	public \$cookie_path = '';
+	public \$asset_id = 1;
+}
+CONFIG;
+
+file_put_contents("$instancePath/configuration.php", $config);
+echo GREEN . "✓" . NC . " Configuration file created\n";
+
+// Step 8: Set permissions
+echo YELLOW . "[8/9]" . NC . " Setting permissions...\n";
+chmod("$instancePath/configuration.php", 0644);
+chmod("$instancePath/administrator/cache", 0775);
+chmod("$instancePath/administrator/logs", 0775);
+chmod("$instancePath/images", 0775);
+chmod("$instancePath/tmp", 0775);
+chmod("$instancePath/media", 0775);
+echo GREEN . "✓" . NC . " Permissions set\n";
+
+// Step 9: Register as process
+echo YELLOW . "[9/9]" . NC . " Registering instance as process...\n";
+if (file_exists("$rootPath/bin/register-instance-process")) {
+    passthru("$rootPath/bin/register-instance-process '$instanceId' '$instanceName' 'joomla'");
+} else {
+    echo YELLOW . "⚠" . NC . " Process registration script not found (skipping)\n";
+}
+
+// Summary
+echo "\n";
+echo GREEN . "=========================================" . NC . "\n";
+echo GREEN . "Joomla Instance Created Successfully!" . NC . "\n";
+echo GREEN . "=========================================" . NC . "\n";
+echo "\n";
+echo "Instance ID: " . YELLOW . $instanceId . NC . "\n";
+echo "Domain: " . YELLOW . $domain . NC . "\n";
+echo "Admin URL: " . YELLOW . "admin.$domain" . NC . "\n";
+echo "Database: " . YELLOW . $dbName . NC . "\n";
+echo "\n";
+echo YELLOW . "Next Steps:" . NC . "\n";
+echo "1. Configure virtual hosts for $domain\n";
+echo "2. Complete Joomla installation:\n";
+echo "   " . GREEN . "http://admin.$domain/installation/setup" . NC . "\n";
+echo "\n";

@@ -1,0 +1,74 @@
+#!/usr/bin/env php
+<?php
+/**
+ * Register Instance as Process
+ * 
+ * Registers a single instance as a process in kernel_processes table
+ * Usage: ./register-instance-process <instance_id> <instance_name> <cms_type>
+ */
+
+declare(strict_types=1);
+
+if ($argc < 4) {
+    echo "Usage: $argv[0] <instance_id> <instance_name> <cms_type>\n";
+    exit(1);
+}
+
+$instanceId = $argv[1];
+$instanceName = $argv[2];
+$cmsType = $argv[3];
+
+require __DIR__ . '/../vendor/autoload.php';
+
+use IkabudKernel\Core\Kernel;
+use IkabudKernel\Core\Config;
+
+try {
+    // Initialize Config
+    Config::getInstance();
+    
+    // Boot kernel
+    Kernel::boot();
+    $kernel = Kernel::getInstance();
+    $db = $kernel->getDatabase();
+    
+    // Check if process already exists
+    $checkStmt = $db->prepare("
+        SELECT COUNT(*) FROM kernel_processes 
+        WHERE instance_id = ? AND process_type = 'cms'
+    ");
+    $checkStmt->execute([$instanceId]);
+    
+    if ($checkStmt->fetchColumn() > 0) {
+        echo "Process already registered for instance: {$instanceId}\n";
+        exit(0);
+    }
+    
+    // Get next PID
+    $pidStmt = $db->query("SELECT COALESCE(MAX(pid), 0) + 1 as next_pid FROM kernel_processes");
+    $nextPid = $pidStmt->fetch(PDO::FETCH_ASSOC)['next_pid'];
+    
+    // Register as process (boot_time is boot duration in ms, not timestamp)
+    $bootTime = 0.0; // Instant boot for new instances
+    
+    $insertStmt = $db->prepare("
+        INSERT INTO kernel_processes 
+        (pid, instance_id, process_name, process_type, cms_type, status, memory_usage, cpu_time, boot_time, started_at)
+        VALUES (?, ?, ?, 'cms', ?, 'running', 0, 0, ?, NOW())
+    ");
+    
+    $insertStmt->execute([
+        $nextPid,
+        $instanceId,
+        $instanceName,
+        $cmsType,
+        $bootTime
+    ]);
+    
+    echo "✓ Registered process: {$instanceId} (PID: {$nextPid}, CMS: {$cmsType})\n";
+    exit(0);
+    
+} catch (Exception $e) {
+    echo "Error: " . $e->getMessage() . "\n";
+    exit(1);
+}
