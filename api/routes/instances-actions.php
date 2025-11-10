@@ -248,25 +248,50 @@ $app->post('/api/instances/create', function (Request $request, Response $respon
         $resources
     ]);
     
-    // Execute instance creation script
+    // Execute instance creation script based on CMS type
     $rootPath = dirname(__DIR__, 2);
-    $scriptPath = $rootPath . '/create-instance.sh';
-    $instanceName = escapeshellarg($body['instance_name']);
-    $dbName = escapeshellarg($body['database_name']);
+    $cmsType = $body['cms_type'] ?? 'wordpress';
+    
+    // Determine which script to use based on CMS type
+    $scriptMap = [
+        'wordpress' => 'create-instance.sh',
+        'joomla' => 'create-joomla-instance.sh',
+        'drupal' => 'create-drupal-instance.sh'
+    ];
+    
+    $scriptName = $scriptMap[$cmsType] ?? 'create-instance.sh';
+    $scriptPath = $rootPath . '/' . $scriptName;
+    
+    // Check if script exists
+    if (!file_exists($scriptPath)) {
+        $response->getBody()->write(json_encode([
+            'success' => false,
+            'error' => "Creation script not found: $scriptName"
+        ]));
+        return $response->withStatus(500)->withHeader('Content-Type', 'application/json');
+    }
+    
     $domain = escapeshellarg($body['domain'] ?? 'localhost');
-    $cmsType = escapeshellarg($body['cms_type'] ?? 'wordpress');
-    $dbUser = escapeshellarg($body['database_user'] ?? '');
+    $dbName = escapeshellarg($body['database_name']);
+    $dbUser = escapeshellarg($body['database_user'] ?? 'root');
     $dbPass = escapeshellarg($body['database_password'] ?? '');
-    $dbHost = escapeshellarg($body['database_host'] ?? 'localhost');
     $dbPrefix = escapeshellarg($body['database_prefix'] ?? 'wp_');
     
-    // Change to root directory before executing script
-    $command = "cd $rootPath && $scriptPath $instanceId $instanceName $dbName $domain $cmsType $dbUser $dbPass $dbHost $dbPrefix 2>&1";
+    // Build command based on CMS type
+    // Format: ./script.sh <instance_id> <domain> <db_name> <db_user> <db_pass> [db_prefix]
+    $command = "cd $rootPath && $scriptPath $instanceId $domain $dbName $dbUser $dbPass $dbPrefix 2>&1";
     exec($command, $output, $returnCode);
     
-    // Check if instance directory was created (even if script had minor errors)
+    // Check if instance directory was created (check for CMS-specific config file)
     $instancePath = $rootPath . '/instances/' . $instanceId;
-    $instanceCreated = file_exists($instancePath . '/wp-config.php');
+    $configFiles = [
+        'wordpress' => 'wp-config.php',
+        'joomla' => 'configuration.php',
+        'drupal' => 'sites/default/settings.php'
+    ];
+    
+    $configFile = $configFiles[$cmsType] ?? 'wp-config.php';
+    $instanceCreated = file_exists($instancePath . '/' . $configFile) || is_dir($instancePath);
     
     if ($returnCode !== 0 && !$instanceCreated) {
         // Rollback database entry
