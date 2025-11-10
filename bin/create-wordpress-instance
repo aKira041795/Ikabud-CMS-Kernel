@@ -99,26 +99,39 @@ echo GREEN . "✓" . NC . " Symlinks created\n";
 // Step 3: Generate wp-config.php
 echo YELLOW . "[3/6]" . NC . " Generating wp-config.php...\n";
 
-// Generate security keys
+// Generate security keys (WordPress-style random strings)
+function generateWPKey($length = 64) {
+    $chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()-_[]{}<>~`+=,.;:/?|';
+    $key = '';
+    $charsLength = strlen($chars);
+    for ($i = 0; $i < $length; $i++) {
+        $key .= $chars[random_int(0, $charsLength - 1)];
+    }
+    return $key;
+}
+
 $keys = [
-    'AUTH_KEY' => bin2hex(random_bytes(32)),
-    'SECURE_AUTH_KEY' => bin2hex(random_bytes(32)),
-    'LOGGED_IN_KEY' => bin2hex(random_bytes(32)),
-    'NONCE_KEY' => bin2hex(random_bytes(32)),
-    'AUTH_SALT' => bin2hex(random_bytes(32)),
-    'SECURE_AUTH_SALT' => bin2hex(random_bytes(32)),
-    'LOGGED_IN_SALT' => bin2hex(random_bytes(32)),
-    'NONCE_SALT' => bin2hex(random_bytes(32)),
+    'AUTH_KEY' => generateWPKey(),
+    'SECURE_AUTH_KEY' => generateWPKey(),
+    'LOGGED_IN_KEY' => generateWPKey(),
+    'NONCE_KEY' => generateWPKey(),
+    'AUTH_SALT' => generateWPKey(),
+    'SECURE_AUTH_SALT' => generateWPKey(),
+    'LOGGED_IN_SALT' => generateWPKey(),
+    'NONCE_SALT' => generateWPKey(),
 ];
+
+$generatedDate = date('D M j H:i:s T Y');
 
 $wpConfig = <<<CONFIG
 <?php
 /**
- * WordPress Configuration - Instance: $instanceId
- * Generated: {date('Y-m-d H:i:s')}
+ * WordPress Configuration
+ * Ikabud Kernel Instance: $instanceId
+ * Generated: $generatedDate
  */
 
-// Database settings
+// Database Configuration
 define('DB_NAME', '$dbName');
 define('DB_USER', '$dbUser');
 define('DB_PASSWORD', '$dbPass');
@@ -126,10 +139,7 @@ define('DB_HOST', '$dbHost');
 define('DB_CHARSET', 'utf8mb4');
 define('DB_COLLATE', '');
 
-// Table prefix
-\$table_prefix = '$dbPrefix';
-
-// Security keys
+// Authentication Keys and Salts
 define('AUTH_KEY',         '{$keys['AUTH_KEY']}');
 define('SECURE_AUTH_KEY',  '{$keys['SECURE_AUTH_KEY']}');
 define('LOGGED_IN_KEY',    '{$keys['LOGGED_IN_KEY']}');
@@ -139,18 +149,108 @@ define('SECURE_AUTH_SALT', '{$keys['SECURE_AUTH_SALT']}');
 define('LOGGED_IN_SALT',   '{$keys['LOGGED_IN_SALT']}');
 define('NONCE_SALT',       '{$keys['NONCE_SALT']}');
 
-// WordPress debugging
+// WordPress Database Table prefix
+\$table_prefix = '$dbPrefix';
+
+// WordPress Debugging
 define('WP_DEBUG', false);
 define('WP_DEBUG_LOG', false);
 define('WP_DEBUG_DISPLAY', false);
 
-// Absolute path to WordPress directory
+// Force direct filesystem method (no FTP needed)
+define('FS_METHOD', 'direct');
+
+// ** CRITICAL: WordPress URLs **
+// Dynamic URLs based on current host to prevent redirects
+\$current_host = \$_SERVER['HTTP_HOST'] ?? '$domain';
+
+// Determine if this is a backend/admin subdomain
+\$is_backend = (
+    strpos(\$current_host, 'backend.') === 0 || 
+    strpos(\$current_host, 'admin.') === 0 || 
+    strpos(\$current_host, 'dashboard.') === 0
+);
+
+// Check if WordPress is installed and get URLs from database
+\$wp_installed = false;
+\$db_siteurl = null;
+\$db_home = null;
+
+try {
+    \$check_pdo = new PDO("mysql:host=$dbHost;dbname=$dbName", '$dbUser', '$dbPass');
+    \$check_result = \$check_pdo->query("SHOW TABLES LIKE '{$dbPrefix}options'");
+    \$wp_installed = (\$check_result && \$check_result->rowCount() > 0);
+    
+    // If installed, get URLs from database
+    if (\$wp_installed) {
+        \$url_query = \$check_pdo->query("SELECT option_name, option_value FROM {$dbPrefix}options WHERE option_name IN ('siteurl', 'home')");
+        while (\$row = \$url_query->fetch(PDO::FETCH_ASSOC)) {
+            if (\$row['option_name'] === 'siteurl') {
+                \$db_siteurl = \$row['option_value'];
+            } elseif (\$row['option_name'] === 'home') {
+                \$db_home = \$row['option_value'];
+            }
+        }
+    }
+} catch (Exception \$e) {
+    \$wp_installed = false;
+}
+
+// If accessing frontend and WP not installed, redirect to backend installation
+if (!\$is_backend && !\$wp_installed && !defined('WP_INSTALLING')) {
+    \$backend_domain = 'admin.' . \$current_host;
+    header('Location: http://' . \$backend_domain . '/wp-admin/install.php');
+    exit;
+}
+
+// Set WP_SITEURL and WP_HOME
+if (\$db_siteurl && \$db_home) {
+    // WordPress is installed - use URLs from database
+    define('WP_SITEURL', \$db_siteurl);
+    define('WP_HOME', \$db_home);
+} else {
+    // WordPress not installed yet - use dynamic URLs for installation
+    if (\$is_backend) {
+        // Backend subdomain - WordPress admin/API access
+        \$frontend_domain = preg_replace('/^(backend|admin|dashboard)\./', '', \$current_host);
+        define('WP_SITEURL', 'http://' . \$current_host);
+        define('WP_HOME', 'http://' . \$frontend_domain);
+    } else {
+        // Frontend domain - public site access
+        define('WP_SITEURL', 'http://admin.' . \$current_host);
+        define('WP_HOME', 'http://' . \$current_host);
+    }
+}
+
+// Define admin cookie path
+define('ADMIN_COOKIE_PATH', '/wp-admin');
+
+// ** CRITICAL: Cookie Configuration **
+// Ensure cookies work correctly when served through Kernel
+// Use base domain for cookie sharing across subdomains
+\$base_domain = preg_replace('/^(backend|admin|dashboard)\./', '', \$current_host);
+define('COOKIE_DOMAIN', '.' . \$base_domain);
+define('COOKIEPATH', '/');
+define('SITECOOKIEPATH', '/');
+
+// ** CRITICAL: Instance-specific wp-content paths **
+// This ensures themes, plugins, and uploads are stored in the instance folder
+define('WP_CONTENT_DIR', __DIR__ . '/wp-content');
+// Use current host for wp-content URL to avoid cross-domain issues
+define('WP_CONTENT_URL', 'http://' . \$current_host . '/wp-content');
+
+// Ikabud Kernel Integration
+define('IKABUD_INSTANCE_ID', '$instanceId');
+define('IKABUD_KERNEL_PATH', dirname(dirname(__DIR__)) . '/kernel');
+
+// Absolute path to WordPress directory (shared core)
 if (!defined('ABSPATH')) {
-    define('ABSPATH', __DIR__ . '/');
+    define('ABSPATH', dirname(dirname(__DIR__)) . '/shared-cores/wordpress/');
 }
 
 // Sets up WordPress vars and included files
 require_once ABSPATH . 'wp-settings.php';
+
 CONFIG;
 
 file_put_contents("$instancePath/wp-config.php", $wpConfig);
