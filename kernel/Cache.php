@@ -135,6 +135,90 @@ class Cache
     }
     
     /**
+     * Store response in cache with tags for granular invalidation
+     */
+    public function setWithTags(string $instanceId, string $uri, array $response, array $tags = []): void
+    {
+        // Add tags to response metadata
+        $response['cache_tags'] = $tags;
+        $response['cache_uri'] = $uri;
+        
+        // Store the cache file
+        $this->set($instanceId, $uri, $response);
+        
+        // Create tag index files for quick lookup
+        foreach ($tags as $tag) {
+            $this->addToTagIndex($instanceId, $tag, $uri);
+        }
+    }
+    
+    /**
+     * Add URI to tag index for fast tag-based invalidation
+     */
+    private function addToTagIndex(string $instanceId, string $tag, string $uri): void
+    {
+        $tagFile = $this->cacheDir . '/.tags_' . md5($instanceId . '_' . $tag) . '.idx';
+        
+        // Read existing URIs for this tag
+        $uris = [];
+        if (file_exists($tagFile)) {
+            $content = file_get_contents($tagFile);
+            $uris = $content ? unserialize($content) : [];
+        }
+        
+        // Add new URI if not already present
+        if (!in_array($uri, $uris)) {
+            $uris[] = $uri;
+            file_put_contents($tagFile, serialize($uris), LOCK_EX);
+        }
+    }
+    
+    /**
+     * Clear cache by tag (e.g., 'post-123', 'category-5')
+     */
+    public function clearByTag(string $instanceId, string $tag): int
+    {
+        $cleared = 0;
+        $tagFile = $this->cacheDir . '/.tags_' . md5($instanceId . '_' . $tag) . '.idx';
+        
+        if (!file_exists($tagFile)) {
+            return 0;
+        }
+        
+        // Read URIs associated with this tag
+        $content = file_get_contents($tagFile);
+        $uris = $content ? unserialize($content) : [];
+        
+        // Clear each cached URI
+        foreach ($uris as $uri) {
+            $key = $this->getCacheKey($instanceId, $uri);
+            $file = $this->getCacheFile($key);
+            if (file_exists($file)) {
+                @unlink($file);
+                $cleared++;
+            }
+        }
+        
+        // Remove tag index file
+        @unlink($tagFile);
+        
+        error_log("Ikabud Cache: Cleared $cleared files for tag '$tag' in instance $instanceId");
+        return $cleared;
+    }
+    
+    /**
+     * Clear cache by multiple tags
+     */
+    public function clearByTags(string $instanceId, array $tags): int
+    {
+        $totalCleared = 0;
+        foreach ($tags as $tag) {
+            $totalCleared += $this->clearByTag($instanceId, $tag);
+        }
+        return $totalCleared;
+    }
+    
+    /**
      * Clear cache for instance
      */
     public function clear(string $instanceId): void
@@ -146,19 +230,73 @@ class Cache
     }
     
     /**
-     * Clear cache by URL pattern
+     * Clear cache by URL pattern (e.g., '/blog/*', '/category/*')
      */
-    public function clearByPattern(string $instanceId, string $urlPattern): void
+    public function clearByUrlPattern(string $instanceId, string $urlPattern): int
     {
+        $cleared = 0;
         $files = glob($this->cacheDir . '/*.cache');
+        
+        // Convert pattern to regex
+        $regex = $this->patternToRegex($urlPattern);
+        
         foreach ($files as $file) {
-            $basename = basename($file, '.cache');
-            // Check if this cache file belongs to the instance
-            if (strpos($basename, md5($instanceId)) === 0) {
-                // Pattern matching - simple implementation
+            // Read cache file to get URI
+            $data = @file_get_contents($file);
+            if (!$data) continue;
+            
+            $cached = @unserialize($data);
+            if (!$cached || !isset($cached['cache_uri'])) continue;
+            
+            // Check if URI matches pattern
+            if (preg_match($regex, $cached['cache_uri'])) {
                 @unlink($file);
+                $cleared++;
             }
         }
+        
+        error_log("Ikabud Cache: Cleared $cleared files matching pattern '$urlPattern' in instance $instanceId");
+        return $cleared;
+    }
+    
+    /**
+     * Convert URL pattern to regex
+     */
+    private function patternToRegex(string $pattern): string
+    {
+        // Escape special regex characters except *
+        $pattern = preg_quote($pattern, '/');
+        // Convert * to .*
+        $pattern = str_replace('\*', '.*', $pattern);
+        return '/^' . $pattern . '$/';
+    }
+    
+    /**
+     * Clear cache with dependencies (e.g., clear homepage when post updates)
+     */
+    public function clearWithDependencies(string $instanceId, string $uri, array $dependencies = []): int
+    {
+        $cleared = 0;
+        
+        // Clear the main URI
+        $key = $this->getCacheKey($instanceId, $uri);
+        $file = $this->getCacheFile($key);
+        if (file_exists($file)) {
+            @unlink($file);
+            $cleared++;
+        }
+        
+        // Clear dependent URIs
+        foreach ($dependencies as $depUri) {
+            $depKey = $this->getCacheKey($instanceId, $depUri);
+            $depFile = $this->getCacheFile($depKey);
+            if (file_exists($depFile)) {
+                @unlink($depFile);
+                $cleared++;
+            }
+        }
+        
+        return $cleared;
     }
     
     /**

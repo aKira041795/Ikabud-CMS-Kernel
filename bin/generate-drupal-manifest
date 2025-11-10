@@ -1,0 +1,133 @@
+#!/usr/bin/env php
+<?php
+/**
+ * Generate Drupal Module Manifest
+ * 
+ * Scans a Drupal instance and generates a conditional loading manifest
+ * based on installed modules and their dependencies.
+ * 
+ * Usage: ./bin/generate-drupal-manifest <instance-id>
+ */
+
+if ($argc < 2) {
+    echo "Usage: {$argv[0]} <instance-id>\n";
+    echo "Example: {$argv[0]} dpl-test-001\n";
+    exit(1);
+}
+
+$instanceId = $argv[1];
+$instanceDir = __DIR__ . '/../instances/' . $instanceId;
+
+if (!is_dir($instanceDir)) {
+    echo "Error: Instance directory not found: $instanceDir\n";
+    exit(1);
+}
+
+// Check if it's a Drupal instance
+if (!file_exists($instanceDir . '/sites/default/settings.php')) {
+    echo "Error: Not a Drupal instance (settings.php not found)\n";
+    exit(1);
+}
+
+echo "Scanning Drupal instance: $instanceId\n";
+
+// Load Drupal
+define('DRUPAL_ROOT', __DIR__ . '/../shared-cores/drupal');
+$autoloader = require_once DRUPAL_ROOT . '/autoload.php';
+
+// Set sites directory to instance
+$_SERVER['HTTP_HOST'] = 'localhost';
+$_SERVER['SCRIPT_NAME'] = '/index.php';
+
+// Create request
+$request = \Symfony\Component\HttpFoundation\Request::createFromGlobals();
+
+// Boot Drupal
+$kernel = \Drupal\Core\DrupalKernel::createFromRequest($request, $autoloader, 'prod');
+$kernel->boot();
+
+// Get module handler
+$moduleHandler = \Drupal::service('module_handler');
+$moduleList = $moduleHandler->getModuleList();
+
+echo "Found " . count($moduleList) . " installed modules\n";
+
+// Build manifest
+$manifest = [
+    'version' => '1.0.0',
+    'generated' => date('Y-m-d H:i:s'),
+    'instance_id' => $instanceId,
+    'modules' => []
+];
+
+// Categorize modules
+$coreModules = ['system', 'user', 'node', 'field', 'text', 'filter', 'path'];
+$adminModules = ['toolbar', 'admin_toolbar', 'contextual', 'help', 'update'];
+$editorModules = ['ckeditor', 'ckeditor5', 'editor'];
+$mediaModules = ['media', 'image', 'file'];
+$performanceModules = ['big_pipe', 'dynamic_page_cache', 'page_cache'];
+
+foreach ($moduleList as $moduleName => $module) {
+    $config = [
+        'priority' => 10
+    ];
+    
+    // Core modules - always load
+    if (in_array($moduleName, $coreModules)) {
+        $config['required'] = true;
+        $config['priority'] = 1;
+    }
+    // Admin modules - load only in admin
+    elseif (in_array($moduleName, $adminModules)) {
+        $config['load_on'] = [
+            'admin_only' => true
+        ];
+        $config['priority'] = 5;
+    }
+    // Editor modules - load on content edit pages
+    elseif (in_array($moduleName, $editorModules)) {
+        $config['load_on'] = [
+            'routes' => ['/node/add/*', '/node/*/edit'],
+            'admin_only' => true
+        ];
+        $config['priority'] = 10;
+    }
+    // Media modules - load when needed
+    elseif (in_array($moduleName, $mediaModules)) {
+        $config['load_on'] = [
+            'field_types' => ['image', 'media']
+        ];
+        $config['priority'] = 15;
+    }
+    // Performance modules - load everywhere
+    elseif (in_array($moduleName, $performanceModules)) {
+        $config['load_on'] = [
+            'routes' => ['*']
+        ];
+        $config['priority'] = 50;
+    }
+    // Default: load everywhere
+    else {
+        $config['load_on'] = [
+            'routes' => ['*']
+        ];
+    }
+    
+    $manifest['modules'][$moduleName] = $config;
+}
+
+// Write manifest
+$manifestFile = $instanceDir . '/ikabud-modules-manifest.json';
+$json = json_encode($manifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+
+if (file_put_contents($manifestFile, $json)) {
+    echo "✅ Manifest generated: $manifestFile\n";
+    echo "\nModule Loading Summary:\n";
+    echo "  - Core modules (always load): " . count(array_filter($manifest['modules'], fn($m) => $m['required'] ?? false)) . "\n";
+    echo "  - Admin-only modules: " . count(array_filter($manifest['modules'], fn($m) => isset($m['load_on']['admin_only']))) . "\n";
+    echo "  - Conditional modules: " . count(array_filter($manifest['modules'], fn($m) => !($m['required'] ?? false))) . "\n";
+    echo "\nYou can now edit $manifestFile to customize module loading rules.\n";
+} else {
+    echo "❌ Error: Failed to write manifest file\n";
+    exit(1);
+}

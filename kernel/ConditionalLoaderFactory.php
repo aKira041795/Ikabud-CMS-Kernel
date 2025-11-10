@@ -27,8 +27,7 @@ class ConditionalLoaderFactory
                 return new JoomlaConditionalLoader($instanceDir);
                 
             case 'drupal':
-                // Future implementation
-                return null;
+                return new ConditionalModuleLoader($instanceDir);
                 
             default:
                 error_log("Unknown CMS type for conditional loading: $cmsType");
@@ -73,6 +72,6 @@ class ConditionalLoaderFactory
     public static function isSupported(string $cmsType): bool
     {
         $cmsType = strtolower($cmsType);
-        return in_array($cmsType, ['wordpress', 'joomla']);
+        return in_array($cmsType, ['wordpress', 'joomla', 'drupal']);
     }
 }

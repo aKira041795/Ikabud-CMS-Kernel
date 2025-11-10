@@ -1,0 +1,321 @@
+#!/usr/bin/env php
+<?php
+/**
+ * Tenant Manager CLI
+ * 
+ * Command-line tool for managing multi-tenant resources
+ * 
+ * Usage:
+ *   ./bin/tenant-manager list
+ *   ./bin/tenant-manager show <instance-id>
+ *   ./bin/tenant-manager set-limit <instance-id> --memory=256 --storage=1024
+ *   ./bin/tenant-manager enforce <instance-id>
+ *   ./bin/tenant-manager stats
+ */
+
+require_once __DIR__ . '/../vendor/autoload.php';
+
+use IkabudKernel\Core\ResourceManager;
+
+// Parse command
+$command = $argv[1] ?? 'help';
+$instanceId = $argv[2] ?? null;
+
+$resourceManager = new ResourceManager();
+
+switch ($command) {
+    case 'list':
+        listTenants($resourceManager);
+        break;
+        
+    case 'show':
+        if (!$instanceId) {
+            echo "Error: Instance ID required\n";
+            echo "Usage: {$argv[0]} show <instance-id>\n";
+            exit(1);
+        }
+        showTenant($resourceManager, $instanceId);
+        break;
+        
+    case 'set-limit':
+        if (!$instanceId) {
+            echo "Error: Instance ID required\n";
+            exit(1);
+        }
+        setLimits($resourceManager, $instanceId, array_slice($argv, 3));
+        break;
+        
+    case 'enforce':
+        if (!$instanceId) {
+            echo "Error: Instance ID required\n";
+            exit(1);
+        }
+        enforceQuotas($resourceManager, $instanceId);
+        break;
+        
+    case 'stats':
+        showStats($resourceManager);
+        break;
+        
+    case 'reset':
+        if (!$instanceId) {
+            echo "Error: Instance ID required\n";
+            exit(1);
+        }
+        resetUsage($resourceManager, $instanceId);
+        break;
+        
+    case 'remove':
+        if (!$instanceId) {
+            echo "Error: Instance ID required\n";
+            exit(1);
+        }
+        removeLimits($resourceManager, $instanceId);
+        break;
+        
+    case 'help':
+    default:
+        showHelp();
+        break;
+}
+
+// ============================================================================
+// COMMAND FUNCTIONS
+// ============================================================================
+
+function listTenants(ResourceManager $rm): void
+{
+    echo "=== Multi-Tenant Resource Usage ===\n\n";
+    
+    $allUsage = $rm->getAllUsage();
+    
+    if (empty($allUsage)) {
+        echo "No tenants found.\n";
+        return;
+    }
+    
+    foreach ($allUsage as $instanceId => $usage) {
+        $status = $rm->checkLimits($instanceId);
+        $statusIcon = $status['within_limits'] ? '✓' : '⚠';
+        
+        echo "{$statusIcon} {$instanceId}\n";
+        echo "   Memory: " . formatUsage(
+            $usage['usage']['memory_peak_mb'],
+            $usage['usage']['memory_limit_mb'],
+            'MB'
+        ) . "\n";
+        echo "   Storage: " . formatUsage(
+            $usage['usage']['storage_mb'],
+            $usage['usage']['storage_limit_mb'],
+            'MB'
+        ) . "\n";
+        echo "   Cache: " . formatUsage(
+            $usage['usage']['cache_mb'],
+            $usage['usage']['cache_limit_mb'],
+            'MB'
+        ) . "\n";
+        echo "   Requests: " . number_format($usage['usage']['requests_count']) . "\n";
+        
+        if (!$status['within_limits']) {
+            echo "   Violations:\n";
+            foreach ($status['violations'] as $v) {
+                echo "     - {$v['type']}: {$v['usage']} / {$v['limit']} (exceeded by {$v['exceeded_by']})\n";
+            }
+        }
+        echo "\n";
+    }
+}
+
+function showTenant(ResourceManager $rm, string $instanceId): void
+{
+    echo "=== Tenant Details: {$instanceId} ===\n\n";
+    
+    $usage = $rm->getUsage($instanceId);
+    $status = $rm->checkLimits($instanceId);
+    
+    echo "Limits:\n";
+    echo "  Memory: " . ($usage['limits']['memory_mb'] ?? 'unlimited') . " MB\n";
+    echo "  CPU: " . ($usage['limits']['cpu_percent'] ?? 'unlimited') . " %\n";
+    echo "  Storage: " . ($usage['limits']['storage_mb'] ?? 'unlimited') . " MB\n";
+    echo "  Cache: " . ($usage['limits']['cache_mb'] ?? 'unlimited') . " MB\n";
+    echo "  Rate: " . ($usage['limits']['requests_per_minute'] ?? 'unlimited') . " req/min\n";
+    echo "\n";
+    
+    echo "Usage:\n";
+    echo "  Memory: {$usage['usage']['memory_peak_mb']} MB";
+    if ($usage['usage']['memory_percent']) {
+        echo " ({$usage['usage']['memory_percent']}%)";
+    }
+    echo "\n";
+    
+    echo "  Storage: {$usage['usage']['storage_mb']} MB";
+    if ($usage['usage']['storage_percent']) {
+        echo " ({$usage['usage']['storage_percent']}%)";
+    }
+    echo "\n";
+    
+    echo "  Cache: {$usage['usage']['cache_mb']} MB";
+    if ($usage['usage']['cache_percent']) {
+        echo " ({$usage['usage']['cache_percent']}%)";
+    }
+    echo "\n";
+    
+    echo "  Requests: " . number_format($usage['usage']['requests_count']) . "\n";
+    echo "  CPU Time: {$usage['usage']['cpu_time_ms']} ms\n";
+    echo "\n";
+    
+    echo "Status: " . ($status['within_limits'] ? '✓ Within limits' : '⚠ Limits exceeded') . "\n";
+    
+    if (!$status['within_limits']) {
+        echo "\nViolations:\n";
+        foreach ($status['violations'] as $v) {
+            echo "  - {$v['type']}: {$v['usage']} / {$v['limit']} (exceeded by {$v['exceeded_by']})\n";
+        }
+    }
+}
+
+function setLimits(ResourceManager $rm, string $instanceId, array $args): void
+{
+    echo "Setting limits for {$instanceId}...\n";
+    
+    $updated = false;
+    
+    foreach ($args as $arg) {
+        if (strpos($arg, '--') !== 0) continue;
+        
+        list($key, $value) = explode('=', substr($arg, 2), 2);
+        $value = (int)$value;
+        
+        switch ($key) {
+            case 'memory':
+                $rm->setMemoryLimit($instanceId, $value);
+                echo "  ✓ Memory limit: {$value} MB\n";
+                $updated = true;
+                break;
+                
+            case 'cpu':
+                $rm->setCpuLimit($instanceId, $value);
+                echo "  ✓ CPU limit: {$value}%\n";
+                $updated = true;
+                break;
+                
+            case 'storage':
+                $rm->setStorageQuota($instanceId, $value);
+                echo "  ✓ Storage quota: {$value} MB\n";
+                $updated = true;
+                break;
+                
+            case 'cache':
+                $rm->setCacheQuota($instanceId, $value);
+                echo "  ✓ Cache quota: {$value} MB\n";
+                $updated = true;
+                break;
+                
+            case 'rate':
+                $rm->setRateLimit($instanceId, $value);
+                echo "  ✓ Rate limit: {$value} req/min\n";
+                $updated = true;
+                break;
+                
+            default:
+                echo "  ✗ Unknown limit: {$key}\n";
+        }
+    }
+    
+    if (!$updated) {
+        echo "\nNo limits updated. Available options:\n";
+        echo "  --memory=<MB>    Memory limit in megabytes\n";
+        echo "  --cpu=<%>        CPU percentage (0-100)\n";
+        echo "  --storage=<MB>   Storage quota in megabytes\n";
+        echo "  --cache=<MB>     Cache quota in megabytes\n";
+        echo "  --rate=<N>       Requests per minute\n";
+    }
+}
+
+function enforceQuotas(ResourceManager $rm, string $instanceId): void
+{
+    echo "Enforcing quotas for {$instanceId}...\n";
+    
+    $actions = $rm->enforceQuotas($instanceId);
+    
+    if (empty($actions)) {
+        echo "✓ No enforcement needed - within limits\n";
+    } else {
+        echo "Actions taken:\n";
+        foreach ($actions as $action) {
+            echo "  - {$action}\n";
+        }
+    }
+}
+
+function showStats(ResourceManager $rm): void
+{
+    echo "=== Global Resource Statistics ===\n\n";
+    
+    $stats = $rm->getStats();
+    
+    echo "Instances: {$stats['total_instances']}\n";
+    echo "Total Requests: " . number_format($stats['total_requests']) . "\n";
+    echo "\n";
+    
+    echo "Memory:\n";
+    echo "  Limit: {$stats['total_memory_limit_mb']} MB\n";
+    echo "  Usage: {$stats['total_memory_usage_mb']} MB\n";
+    echo "  Utilization: " . ($stats['memory_utilization'] ?? 'N/A') . "%\n";
+    echo "\n";
+    
+    echo "Storage:\n";
+    echo "  Limit: {$stats['total_storage_limit_mb']} MB\n";
+    echo "  Usage: {$stats['total_storage_usage_mb']} MB\n";
+    echo "  Utilization: " . ($stats['storage_utilization'] ?? 'N/A') . "%\n";
+}
+
+function resetUsage(ResourceManager $rm, string $instanceId): void
+{
+    $rm->resetUsage($instanceId);
+    echo "✓ Usage statistics reset for {$instanceId}\n";
+}
+
+function removeLimits(ResourceManager $rm, string $instanceId): void
+{
+    $rm->removeLimits($instanceId);
+    echo "✓ Limits removed for {$instanceId}\n";
+}
+
+function showHelp(): void
+{
+    echo "Tenant Manager CLI\n\n";
+    echo "Usage:\n";
+    echo "  tenant-manager <command> [arguments]\n\n";
+    echo "Commands:\n";
+    echo "  list                          List all tenants with usage\n";
+    echo "  show <instance-id>            Show detailed tenant information\n";
+    echo "  set-limit <instance-id>       Set resource limits\n";
+    echo "    --memory=<MB>               Memory limit in megabytes\n";
+    echo "    --cpu=<%>                   CPU percentage (0-100)\n";
+    echo "    --storage=<MB>              Storage quota in megabytes\n";
+    echo "    --cache=<MB>                Cache quota in megabytes\n";
+    echo "    --rate=<N>                  Requests per minute\n";
+    echo "  enforce <instance-id>         Enforce quotas (cleanup if exceeded)\n";
+    echo "  reset <instance-id>           Reset usage statistics\n";
+    echo "  remove <instance-id>          Remove all limits\n";
+    echo "  stats                         Show global statistics\n";
+    echo "  help                          Show this help message\n";
+    echo "\n";
+    echo "Examples:\n";
+    echo "  tenant-manager list\n";
+    echo "  tenant-manager show wp-test-001\n";
+    echo "  tenant-manager set-limit wp-test-001 --memory=256 --storage=1024\n";
+    echo "  tenant-manager enforce wp-test-001\n";
+    echo "  tenant-manager stats\n";
+}
+
+function formatUsage(?float $usage, ?float $limit, string $unit): string
+{
+    if ($limit === null) {
+        return "{$usage} {$unit} (unlimited)";
+    }
+    
+    $percent = round(($usage / $limit) * 100, 1);
+    return "{$usage} / {$limit} {$unit} ({$percent}%)";
+}

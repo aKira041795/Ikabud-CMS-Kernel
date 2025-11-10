@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<extension type="plugin" group="system" method="upgrade">
+    <name>System - Ikabud Cache</name>
+    <author>Ikabud Kernel</author>
+    <creationDate>November 2025</creationDate>
+    <copyright>Copyright (C) 2025. All rights reserved.</copyright>
+    <license>GNU General Public License version 2 or later</license>
+    <authorEmail>info@ikabud.com</authorEmail>
+    <authorUrl>https://ikabud.com</authorUrl>
+    <version>2.0.0</version>
+    <description>Smart cache invalidation for Ikabud Kernel with tag-based granular clearing</description>
+    
+    <files>
+        <filename plugin="ikabudcache">ikabudcache.php</filename>
+    </files>
+    
+    <config>
+        <fields name="params">
+            <fieldset name="basic">
+                <field
+                    name="enabled"
+                    type="radio"
+                    label="Enable Cache Invalidation"
+                    description="Enable automatic cache clearing on content updates"
+                    default="1"
+                    class="btn-group btn-group-yesno"
+                >
+                    <option value="1">JYES</option>
+                    <option value="0">JNO</option>
+                </field>
+            </fieldset>
+        </fields>
+    </config>
+</extension>

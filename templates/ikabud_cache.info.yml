@@ -1,0 +1,8 @@
+name: 'Ikabud Cache'
+type: module
+description: 'Smart cache invalidation for Ikabud Kernel'
+core_version_requirement: ^9 || ^10 || ^11
+package: 'Performance'
+dependencies:
+  - drupal:node
+  - drupal:taxonomy
