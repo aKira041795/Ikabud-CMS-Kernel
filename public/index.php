@@ -178,8 +178,9 @@ $app->get('/login', function (Request $request, Response $response) {
 // FRONTEND ROUTES (CMS Routing)
 // ============================================================================
 
-// Catch-all route for CMS routing
-$app->any('/{path:.*}', function (Request $request, Response $response, array $args) {
+// Catch-all route for CMS routing (matches all paths including root)
+// Using empty string default to match root path
+$app->any('[/{path:.*}]', function (Request $request, Response $response, array $args = ['path' => '']) {
     // Skip instance routing for admin paths (already handled above)
     $requestPath = $request->getUri()->getPath();
     if (strpos($requestPath, '/admin') === 0 || $requestPath === '/login') {
@@ -384,6 +385,11 @@ $app->any('/{path:.*}', function (Request $request, Response $response, array $a
             $GLOBALS['ikabud_conditional_loader'] = $conditionalLoader;
         }
         
+        // Set flag for Drupal to know it's running through the kernel
+        if ($cmsType === 'drupal' && !defined('IKABUD_DRUPAL_KERNEL')) {
+            define('IKABUD_DRUPAL_KERNEL', true);
+        }
+        
         $_SERVER['SCRIPT_FILENAME'] = $requestedFile . '/index.php';
         require $requestedFile . '/index.php';
     } else {
@@ -397,14 +403,22 @@ $app->any('/{path:.*}', function (Request $request, Response $response, array $a
             $GLOBALS['ikabud_conditional_loader'] = $conditionalLoader;
         }
         
+        // Set flag for Drupal to know it's running through the kernel
+        if ($cmsType === 'drupal' && !defined('IKABUD_DRUPAL_KERNEL')) {
+            define('IKABUD_DRUPAL_KERNEL', true);
+            error_log("IKABUD_DRUPAL: Defined IKABUD_DRUPAL_KERNEL constant for instance_id={$instanceId}");
+        }
+        
         $_SERVER['SCRIPT_FILENAME'] = $instanceDir . '/index.php';
         require $instanceDir . '/index.php';
     }
     
     // Capture and cache if needed
     if ($shouldCacheResponse) {
+        error_log("IKABUD_CACHE: shouldCacheResponse=true, checking for Drupal response, instance_id={$instanceId}");
         // Check if Drupal response object is available
         if (isset($GLOBALS['ikabud_drupal_response'])) {
+            error_log("IKABUD_CACHE: Drupal response found in GLOBALS, instance_id={$instanceId}");
             // Handle Drupal's Symfony Response object
             $drupalResponse = $GLOBALS['ikabud_drupal_response'];
             $body = $drupalResponse->getContent();
@@ -416,6 +430,8 @@ $app->any('/{path:.*}', function (Request $request, Response $response, array $a
             $drupalResponse->headers->set('Cache-Control', 'public, max-age=3600');
             $drupalResponse->headers->remove('Pragma');
             $drupalResponse->headers->remove('Expires');
+            
+            error_log("IKABUD_CACHE: Headers set on Drupal response: X-Cache=MISS, X-Powered-By=Ikabud-Kernel");
             
             // Cache the response
             if ($body !== false && is_string($body) && !empty($body)) {

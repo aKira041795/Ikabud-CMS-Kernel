@@ -28,9 +28,12 @@ if (defined('IKABUD_DRUPAL_KERNEL')) {
     // Don't send response yet - let kernel cache it
     // Store response in global for kernel to access
     $GLOBALS['ikabud_drupal_response'] = $response;
+    error_log("IKABUD_DRUPAL: Response stored in GLOBALS, NOT sending");
+    // Don't call terminate - let kernel handle it
+    // Don't call send() - kernel will handle the response
+    return; // Exit early to prevent any further processing
 } else {
     // Direct access - send response normally
     $response->send();
+    $kernel->terminate($request, $response);
 }
-
-$kernel->terminate($request, $response);
