@@ -11,14 +11,14 @@ export default function CreateInstance() {
   const [formData, setFormData] = useState({
     instance_id: '',
     instance_name: '',
-    cms_type: 'wordpress',
+    cms_type: '',
     domain: '',
     admin_subdomain: '',
     database_name: '',
     database_user: 'root',
     database_password: '',
     database_host: 'localhost',
-    database_prefix: 'wp_',
+    database_prefix: '',
     memory_limit: '256M',
     max_execution_time: 60,
     max_children: 5
@@ -28,14 +28,24 @@ export default function CreateInstance() {
   const getCMSDefaults = (cmsType: string) => {
     switch (cmsType) {
       case 'wordpress':
-        return { prefix: 'wp_', contentDir: 'wp-content' };
+        return { prefix: 'wp_', contentDir: 'wp-content', script: 'create-instance.sh' };
       case 'joomla':
-        return { prefix: 'jos_', contentDir: 'administrator' };
+        return { prefix: 'jml_', contentDir: 'administrator', script: 'create-joomla-instance.sh' };
       case 'drupal':
-        return { prefix: 'drupal_', contentDir: 'sites' };
+        return { prefix: 'drupal_', contentDir: 'sites', script: 'create-drupal-instance.sh' };
       default:
-        return { prefix: 'wp_', contentDir: 'wp-content' };
+        return { prefix: '', contentDir: '', script: '' };
     }
+  };
+
+  // Get create command for selected CMS
+  const getCreateCommand = () => {
+    if (!formData.cms_type) return '';
+    
+    const defaults = getCMSDefaults(formData.cms_type);
+    const prefix = formData.database_prefix || defaults.prefix;
+    
+    return `./${defaults.script} ${formData.instance_id} ${formData.domain} ${formData.database_name} ${formData.database_user} ${formData.database_password} ${prefix}`;
   };
 
   const handleCMSTypeChange = (newCmsType: string) => {
@@ -132,19 +142,31 @@ export default function CreateInstance() {
             <select
               value={formData.cms_type}
               onChange={(e) => handleCMSTypeChange(e.target.value)}
+              required
               className="block w-full px-4 py-2.5 rounded border border-gray-300 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-colors"
             >
+              <option value="">Select CMS</option>
               <option value="wordpress">WordPress</option>
               <option value="joomla">Joomla</option>
               <option value="drupal">Drupal</option>
             </select>
-            <p className="mt-1 text-xs text-gray-500">
-              {formData.cms_type === 'wordpress' && 'Uses shared WordPress core from shared-cores/wordpress/'}
-              {formData.cms_type === 'joomla' && 'Uses shared Joomla core from shared-cores/joomla/'}
-              {formData.cms_type === 'drupal' && 'Uses shared Drupal core from shared-cores/drupal/'}
-            </p>
+            {formData.cms_type && (
+              <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded">
+                <p className="text-xs text-blue-800 font-medium mb-1">
+                  {formData.cms_type === 'wordpress' && '📦 WordPress - Shared core from shared-cores/wordpress/'}
+                  {formData.cms_type === 'joomla' && '📦 Joomla - Shared core from shared-cores/joomla/'}
+                  {formData.cms_type === 'drupal' && '📦 Drupal - Shared core from shared-cores/drupal/'}
+                </p>
+                <p className="text-xs text-blue-700">
+                  Script: <code className="bg-blue-100 px-1 py-0.5 rounded">{getCMSDefaults(formData.cms_type).script}</code>
+                </p>
+              </div>
+            )}
           </div>
 
+          {/* Show remaining fields only when CMS is selected */}
+          {formData.cms_type && (
+            <>
           {/* Domain Configuration */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
@@ -322,6 +344,19 @@ export default function CreateInstance() {
             </div>
           </details>
 
+          {/* Create Command Preview */}
+          {formData.cms_type && formData.instance_id && formData.domain && (
+            <div className="border-t pt-6">
+              <h3 className="text-sm font-medium text-gray-900 mb-2">CLI Command Preview</h3>
+              <div className="bg-gray-900 text-green-400 p-4 rounded font-mono text-sm overflow-x-auto">
+                <code>{getCreateCommand()}</code>
+              </div>
+              <p className="mt-2 text-xs text-gray-500">
+                This command will be executed to create your {formData.cms_type} instance
+              </p>
+            </div>
+          )}
+
           {/* Submit Button */}
           <div className="flex gap-4 pt-4">
             <button
@@ -333,12 +368,14 @@ export default function CreateInstance() {
             </button>
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || !formData.cms_type}
               className="flex-1 px-6 py-3 border border-transparent rounded text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
-              {loading ? 'Creating Instance...' : 'Create Instance'}
+              {loading ? 'Creating Instance...' : !formData.cms_type ? 'Select CMS to Continue' : 'Create Instance'}
             </button>
           </div>
+            </>
+          )}
         </form>
       </div>
     </div>
