@@ -27,6 +27,9 @@ if (!file_exists(JPATH_LIBRARIES . '/vendor/autoload.php')) {
     die('Joomla vendor dependencies not found. Please check shared core installation.');
 }
 
+// Load Joomla's defines.php to set JPATH_THEMES and other constants
+require_once JPATH_LIBRARIES . '/../includes/defines.php';
+
 // Load framework from shared core
 require_once JPATH_LIBRARIES . '/../includes/framework.php';
 
