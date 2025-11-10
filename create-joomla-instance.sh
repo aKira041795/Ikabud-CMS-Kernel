@@ -83,6 +83,17 @@ ln -sf "../$SHARED_CORE/modules" "$INSTANCE_PATH/modules"
 ln -sf "../$SHARED_CORE/plugins" "$INSTANCE_PATH/plugins"
 ln -sf "../$SHARED_CORE/templates" "$INSTANCE_PATH/templates"
 
+# Symlink additional Joomla files and directories
+ln -sf "../$SHARED_CORE/api" "$INSTANCE_PATH/api"
+ln -sf "../$SHARED_CORE/cli" "$INSTANCE_PATH/cli"
+ln -sf "../$SHARED_CORE/includes" "$INSTANCE_PATH/includes"
+ln -sf "../$SHARED_CORE/libraries" "$INSTANCE_PATH/libraries"
+ln -sf "../$SHARED_CORE/htaccess.txt" "$INSTANCE_PATH/htaccess.txt"
+ln -sf "../$SHARED_CORE/LICENSE.txt" "$INSTANCE_PATH/LICENSE.txt"
+ln -sf "../$SHARED_CORE/README.txt" "$INSTANCE_PATH/README.txt"
+ln -sf "../$SHARED_CORE/robots.txt.dist" "$INSTANCE_PATH/robots.txt.dist"
+ln -sf "../$SHARED_CORE/web.config.txt" "$INSTANCE_PATH/web.config.txt"
+
 # Create symlink for autoload_psr4.php in shared core
 mkdir -p "$SHARED_CORE/administrator/cache"
 ln -sf ../../../../instances/$INSTANCE_ID/administrator/cache/autoload_psr4.php "$SHARED_CORE/administrator/cache/autoload_psr4.php"
