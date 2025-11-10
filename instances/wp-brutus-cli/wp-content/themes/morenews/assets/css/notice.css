@@ -1,0 +1,109 @@
+/* Overall notice container */
+div.theme-review-notice p,
+div.morenews-notice p {
+  font-size: 14px; /* Set the base font size */
+}
+
+div.theme-review-notice,
+div.morenews-notice {
+  position: relative;
+  padding: 10px 50px 10px 10px;
+  font-size: 14px; /* Set the base font size */
+  line-height: 1.6; /* Set the base line height */
+  font-family: 'Arial', sans-serif; /* Clean, readable font */
+  color: #333333; /* Standard text color */
+}
+
+/* Links and text styles within the notice */
+.morenews-notice .links,
+.theme-review-notice .links {
+  padding-bottom: 10px;
+  margin: 10px 0;
+}
+
+/* Links specifically */
+.theme-review-notice .links a,
+.morenews-notice .links a {
+  font-size: 14px; /* Set consistent font size for links */
+  margin-left: 10px;
+  color: #4343f0; /* Link color */
+  text-decoration: none; /* Remove underline from links */
+}
+
+/* Specific button styles */
+.theme-review-notice .links a.button,
+.morenews-notice .links a.button {
+  font-size: 14px; /* Set font size for button text */
+  line-height: 1.6; /* Align text and icons within buttons */
+  padding: 10px 20px; /* Set padding for buttons */
+  display: inline-flex;
+  align-items: center; /* Align button text and icon */
+  border-radius: 4px;
+  border: 1px solid #4343f0; /* Default button border */
+  color: #4343f0; /* Button text color */
+  background-color: transparent; /* Transparent background by default */
+  text-decoration: none; /* Remove default button underline */
+}
+
+/* Primary button styles */
+.morenews-notice a.button-primary,
+.theme-review-notice a.button-primary {
+  background-color: #4343f0;
+  color: #ffffff;
+  border-color: #4343f0;
+  text-decoration: none; /* No underline for primary buttons */
+}
+
+/* Hover effect for primary and secondary buttons */
+.theme-review-notice a.button-primary:hover,
+.morenews-notice a.button-primary:hover,
+.theme-review-notice a.button:hover,
+.morenews-notice a.button:hover {
+  background-color: #2323a0; /* Darker background on hover */
+  border-color: #2323a0; /* Darken border on hover */
+  color: #ffffff; /* Text color change on hover */
+}
+
+/* Dashicons and other icons within the buttons */
+.theme-review-notice .links a .dashicons,
+.morenews-notice .links a .dashicons {
+  font-size: 18px; /* Slightly larger icon size */
+  margin-right: 8px; /* Add space between icon and text */
+  line-height: 1.6; /* Align icon vertically with text */
+}
+
+/* Button alignment and consistency */
+div.theme-review-notice .links a.button,
+div.morenews-notice .links a.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  vertical-align: middle;
+  text-align: center;
+  padding: 8px 16px; /* Consistent padding for buttons */
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+/* Secondary button fix */
+.morenews-notice a.button-normal,
+.theme-review-notice a.button-normal {
+  border: none;
+  background-color: transparent;
+  color: #4343f0;
+}
+
+/* Dismiss link styling */
+.morenews-notice-dismiss,
+.theme-review-notice-dismiss {
+  font-size: 13px; /* Slightly smaller size for dismiss link */
+  line-height: 1.6;
+  color: #999999; /* Muted color for dismiss link */
+  text-decoration: none;
+}
+
+
+#aft-upgrade-menu-item{
+  color:#71d609;
+}
+

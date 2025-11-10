@@ -1,0 +1,206 @@
+/*
+Theme Name: CorpNews
+Theme URI:  https://afthemes.com/products/corpnews/
+Author:     AF themes
+Author URI: https://afthemes.com/
+Description: CorpNews is a professional, enterprise-style dark WordPress child theme built on MoreNews for online newspapers, editorial organizations, magazines and high-traffic publishing platforms; it bundles pre-built starter templates and 1-click demo import, flexible header/footer builder options, block patterns and template kits, multiple banner layouts, and deep page-builder support (Gutenberg, Elementor, Beaver Builder, Divi, Brizy) so editorial teams can deploy complex sections, category hubs and custom homepages without code; CorpNews is responsive, AMP-ready, SEO and Core Web Vitals optimized for speed and ranking, integrates with WooCommerce for paywalls or stores and supports Jetpack, Contact Form 7 and Yoast SEO, plus multilingual and RTL demos (English, Spanish, French, Japanese, Arabic) — choose CorpNews for newspaper-grade layouts, template kit flexibility, and professional publishing workflows. https://afthemes.com/products/corpnews/
+Template: morenews
+Version: 1.0.5
+Requires at least: 5.0
+Requires PHP: 5.0
+Tested up to: 6.8
+License: GNU General Public License v2 or later
+License URI: http://www.gnu.org/licenses/gpl-2.0.html
+Text Domain: corpnews
+Tags: news, blog, entertainment, one-column, two-columns, three-columns, four-columns, grid-layout, block-patterns, block-styles, left-sidebar, right-sidebar, custom-header, flexible-header, custom-background, custom-logo, custom-menu, custom-colors, featured-images, full-width-template, post-formats, rtl-language-support, footer-widgets, translation-ready, theme-options, threaded-comments, wide-blocks
+
+This theme, like WordPress, is licensed under the GPL.
+Use it to make something cool, have fun, and share what you've learned with others.
+
+CorpNews WordPress Theme, Copyright 2025 AF themes
+CorpNews is distributed under the terms of the GNU GPL v2 or later.
+*/
+
+body,
+button,
+input,
+select,
+optgroup,
+textarea {
+    line-height: 1.7;
+}
+
+
+div#main-navigation-bar {
+    background: #F04901;
+}
+
+.exclusive-posts .exclusive-now {
+    background-color: #E44233;
+}
+
+.main-navigation .menu-description {
+    background-color: #E44233;
+}
+
+.main-navigation .menu-description:after {
+    border-top: 5px solid #E44233;
+}
+
+.morenews-header div.custom-menu-link>a {
+    background: #E44233;
+}
+
+.read-img .trending-no,
+.trending-posts-vertical .trending-no {
+    background-color: #E44233;
+}
+
+.aft-default-mode .entry-content>.wp-block-heading a:not(.has-link-color) {
+    border-color: #F04901;
+}
+
+.entry-content > p:not(.has-link-color) a, .entry-content > p:not(.has-link-color) a:visited{
+    color: #F04901;
+}
+
+.af-cat-widget-carousel a.morenews-categories.category-color-1 {
+    background-color: #E44233;
+
+}
+
+a.morenews-categories.category-color-1 {
+    color: #E44233;
+}
+
+.af-cat-widget-carousel a.morenews-categories.category-color-2 {
+    background-color: #FF7903;
+
+}
+
+a.morenews-categories.category-color-2 {
+    color: #FF7903;
+}
+
+.af-cat-widget-carousel a.morenews-categories.category-color-3 {
+    background-color: #F04901;
+
+}
+
+a.morenews-categories.category-color-3 {
+    color: #F04901;
+}
+
+input {
+    vertical-align: middle;
+}
+
+textarea {
+    width: 100%;
+}
+
+
+
+body.single-post .aft-image-caption {
+    background: rgb(0 0 0 / 75%);
+}
+
+.aft-image-caption p {
+    opacity: 1;
+    font-size: 14px;
+}
+
+body .reply a,
+div#respond input[type="submit"],
+.btn-style1 a:visited,
+.btn-style1 a,
+button,
+input[type="button"],
+input[type="reset"],
+input[type="submit"] {
+    padding: 5px 10px;
+    font-size: 14px;
+    text-transform: uppercase;
+    font-weight: 700;
+}
+
+.gt_float_switcher .gt_options a {
+    background-color: #ffffff !important;
+    color: #444 !important;
+}
+
+footer.site-footer {
+    background-color: #101010;
+}
+
+.aft-dark-mode .aft-main-banner-wrapper .af-slick-navcontrols,
+.aft-dark-mode .morenews-widget .af-slick-navcontrols,
+.aft-dark-mode .morenews-customizer .section-wrapper .af-slick-navcontrols,
+
+body.aft-dark-mode.single-post-title-full .entry-header-details,
+body.aft-dark-mode .main-navigation .menu .menu-mobile,
+body.aft-dark-mode .main-navigation .menu>ul>li>ul,
+body.aft-dark-mode .main-navigation .menu>ul ul,
+body.aft-dark-mode .af-search-form,
+body.aft-dark-mode .aft-popular-taxonomies-lists,
+body.aft-dark-mode .exclusive-slides::before,
+body.aft-dark-mode .exclusive-slides::after,
+body.aft-dark-mode .banner-exclusive-posts-wrapper .exclusive-posts:before,
+
+body.aft-dark-mode.woocommerce div.product,
+body.aft-dark-mode.home.blog main.site-main,
+body.aft-dark-mode main.site-main,
+body.aft-dark-mode.single main.site-main .entry-content-wrap,
+body.aft-dark-mode .af-main-banner-latest-posts.grid-layout.morenews-customizer .container-wrapper,
+body.aft-dark-mode .af-middle-header,
+body.aft-dark-mode .mid-header-wrapper,
+body.aft-dark-mode .comments-area,
+body.aft-dark-mode .af-breadcrumbs,
+.aft-dark-mode .morenews-customizer,
+body.aft-dark-mode .morenews-widget {
+    background-color: #222222;
+}
+
+.aft-dark-mode .post-page-numbers,
+.aft-dark-mode .morenews-pagination .nav-links .page-numbers{
+    color: #ffffff;
+    border-color: rgba(255, 255, 255, 0.3);
+}
+
+span.post-page-numbers.current,
+.morenews-pagination .nav-links .page-numbers.current{
+    color: #fff;
+    background: #212121;
+}
+
+.post-page-numbers,
+.morenews-pagination .nav-links .page-numbers.current,
+.morenews-pagination .nav-links .page-numbers{
+    min-width: 30px;
+}
+
+@media only screen and (min-width: 993px) {
+
+    body.aft-dark-mode .main-navigation .menu ul ul ul,
+    body.aft-dark-mode .main-navigation .menu>ul>li>ul {
+        background-color: #222222;
+    }
+}
+
+@media screen and (max-width: 768px) {
+    .entry-header .read-details .entry-meta .posts-author {
+        display: block;
+        margin-top: 20px;
+    }
+
+    .entry-header .read-details .entry-meta .posts-date {
+        display: block;
+        padding: 5px 0;
+    }
+}
+
+@media only screen and (max-width: 375px) {
+    body .site-branding .site-title {
+        font-size: 2.75rem;
+    }
+}

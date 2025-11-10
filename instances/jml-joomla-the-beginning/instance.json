@@ -1,0 +1,15 @@
+{
+  "instance_id": "jml-joomla-the-beginning",
+  "instance_name": "Joomla The Beginning",
+  "cms_type": "joomla",
+  "domain": "phoenix.test",
+  "admin_subdomain": "admin.phoenix.test",
+  "database": {
+    "name": "ikabud_phoenix",
+    "user": "root",
+    "host": "localhost",
+    "prefix": "pho_"
+  },
+  "created_at": "2025-11-10T12:55:39+08:00",
+  "version": "1.0"
+}

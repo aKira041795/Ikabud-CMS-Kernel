@@ -1,0 +1,41 @@
+a:6:{s:7:"headers";a:7:{i:0;s:27:"X-Frame-Options: SAMEORIGIN";i:1;s:31:"X-Content-Type-Options: nosniff";i:2;s:31:"X-XSS-Protection: 1; mode=block";i:3;s:36:"Content-Type: application/javascript";i:4;s:13:"X-Cache: MISS";i:5;s:31:"X-Cache-Instance: wp-brutus-cli";i:6;s:27:"X-Powered-By: Ikabud-Kernel";}s:4:"body";s:1245:"(function ($) {
+    "use strict";
+    var AFTHRAMPES_JS = window.AFTHRAMPES_JS || {};
+
+    // Function to preload and apply background images
+    AFTHRAMPES_JS.DataBackground = function () {
+        $(".data-bg").each(function () {
+            var $this = $(this);
+            var background = $this.data("background");
+
+            if (background) {
+                // Preload the background image first
+                var img = new Image();
+                img.src = background;
+                
+                // When the image is loaded, apply it as the background
+                img.onload = function () {
+                    $this.css("background-image", "url(" + background + ")");
+                    $this.addClass("data-bg-loaded");
+                };
+            }
+        });
+    };
+
+    // Preloader function to hide preloader after page load
+    AFTHRAMPES_JS.Preloader = function () {
+        $(window).on('load', function () {
+            $('#af-preloader').fadeOut('slow', function () {
+                $('#loader-wrapper').fadeOut();
+            });
+        });
+    };
+
+    // Document ready
+    $(document).ready(function () {
+        AFTHRAMPES_JS.DataBackground();
+        AFTHRAMPES_JS.Preloader();
+    });
+
+})(jQuery);
+";s:9:"timestamp";i:1762760714;s:17:"extensions_loaded";a:0:{}s:15:"extension_count";i:0;s:8:"cms_type";s:9:"wordpress";}

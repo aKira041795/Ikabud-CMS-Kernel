@@ -1,0 +1,123 @@
+<?php
+
+/**
+ * Drupal Configuration
+ * Ikabud Kernel Instance: dpl-test-001
+ * Generated: {date('D M j H:i:s T Y')}
+ */
+
+// Database settings
+$databases['default']['default'] = [
+  'database' => 'ikabud_drupal',
+  'username' => 'root',
+  'password' => 'Nds90@NXIOVRH*iy',
+  'host' => 'localhost',
+  'port' => '3306',
+  'driver' => 'mysql',
+  'prefix' => '',
+  'collation' => 'utf8mb4_general_ci',
+];
+
+// Salt for one-time login links, cancel links, form tokens, etc.
+$settings['hash_salt'] = 'ATji89FqW4z_vu0nXjIeEVYwZecDg8EuRLgREcek5fRcsplM03ysMgaZt1DuOmCQHFyFjJegDA';
+
+// Location of the site configuration files
+$settings['config_sync_directory'] = 'sites/default/files/config_6L1BGR1gWzJRXfbTjxBFwQpb7-nh79-P-F6hrcjfQQxc-heAUJvGWYbfF5TddrkFygrnbLbKJQ/sync';
+
+// Private file path
+$settings['file_private_path'] = '/var/www/html/ikabud-kernel/instances/dpl-test-001/sites/default/private';
+
+// Temporary directory
+$settings['file_temp_path'] = '/tmp';
+
+// Trusted host patterns
+$settings['trusted_host_patterns'] = [
+  '^' . preg_quote('drupal.test') . '$',
+  '^admin\.' . preg_quote('drupal.test') . '$',
+  '^backend\.' . preg_quote('drupal.test') . '$',
+];
+
+// Reverse proxy configuration (for Ikabud Kernel)
+$settings['reverse_proxy'] = FALSE;
+
+// File system settings
+$settings['file_public_path'] = 'sites/default/files';
+$settings['file_public_base_url'] = '';
+
+// Update free access (set to FALSE after installation)
+$settings['update_free_access'] = FALSE;
+
+// Skip file system permissions hardening
+$settings['skip_permissions_hardening'] = TRUE;
+
+// Ikabud Kernel Integration
+$settings['ikabud_instance_id'] = 'dpl-test-001';
+$settings['ikabud_kernel_path'] = dirname(dirname(__DIR__)) . '/kernel';
+
+// Base URL (dynamic based on current host)
+$base_url = 'http://' . ($_SERVER['HTTP_HOST'] ?? 'drupal.test');
+
+// Development settings (disable in production)
+// $config['system.logging']['error_level'] = 'verbose';
+// $config['system.performance']['css']['preprocess'] = FALSE;
+// $config['system.performance']['js']['preprocess'] = FALSE;
+$databases['default']['default'] = array (
+  'database' => 'ikabud_drupal',
+  'username' => 'root',
+  'password' => 'Nds90@NXIOVRH*iy',
+  'prefix' => '',
+  'host' => 'localhost',
+  'port' => '3306',
+  'isolation_level' => 'READ COMMITTED',
+  'driver' => 'mysql',
+  'namespace' => 'Drupal\\mysql\\Driver\\Database\\mysql',
+  'autoload' => 'core/modules/mysql/src/Driver/Database/mysql/',
+);
+$databases['default']['default'] = array (
+  'database' => 'ikabud_drupal',
+  'username' => 'root',
+  'password' => 'Nds90@NXIOVRH*iy',
+  'prefix' => 'dpl_',
+  'host' => 'localhost',
+  'port' => '3306',
+  'isolation_level' => 'READ COMMITTED',
+  'driver' => 'mysql',
+  'namespace' => 'Drupal\\mysql\\Driver\\Database\\mysql',
+  'autoload' => 'core/modules/mysql/src/Driver/Database/mysql/',
+);
+$databases['default']['default'] = array (
+  'database' => 'ikabud_drupal',
+  'username' => 'root',
+  'password' => 'Nds90@NXIOVRH*iy',
+  'prefix' => 'dpl_',
+  'host' => 'localhost',
+  'port' => '3306',
+  'isolation_level' => '',
+  'driver' => 'mysql',
+  'namespace' => 'Drupal\\mysql\\Driver\\Database\\mysql',
+  'autoload' => 'core/modules/mysql/src/Driver/Database/mysql/',
+);
+$databases['default']['default'] = array (
+  'database' => 'ikabud_drupal',
+  'username' => 'root',
+  'password' => 'Nds90@NXIOVRH*iy',
+  'prefix' => 'dpl_',
+  'host' => 'localhost',
+  'port' => '3306',
+  'isolation_level' => 'READ COMMITTED',
+  'driver' => 'mysql',
+  'namespace' => 'Drupal\\mysql\\Driver\\Database\\mysql',
+  'autoload' => 'core/modules/mysql/src/Driver/Database/mysql/',
+);
+$databases['default']['default'] = array (
+  'database' => 'ikabud_drupal',
+  'username' => 'root',
+  'password' => 'Nds90@NXIOVRH*iy',
+  'prefix' => 'dpl_',
+  'host' => 'localhost',
+  'port' => '3306',
+  'isolation_level' => 'READ COMMITTED',
+  'driver' => 'mysql',
+  'namespace' => 'Drupal\\mysql\\Driver\\Database\\mysql',
+  'autoload' => 'core/modules/mysql/src/Driver/Database/mysql/',
+);

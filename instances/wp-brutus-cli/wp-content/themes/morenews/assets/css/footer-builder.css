@@ -1,0 +1,70 @@
+/* ===== Footer Builder CSS HERE ===== */
+.athfb-copyright,
+.athfb-copyright a{
+    color: #ffffff;
+}
+.footer-nav-wrapper .aft-small-social-menu .menu li,
+.footer-main-right .footer-nav-wrapper .menu li:last-child {
+    margin-right: 0;
+}
+[class*="footer-bottom-"],
+[class*="footer-main-"]{
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 15px;
+}
+.footer-bottom-left,
+.footer-main-left{justify-content: flex-start;}
+
+.footer-bottom-center,
+.footer-main-center{justify-content: center;text-align: center;}
+
+.footer-bottom-right,
+.footer-main-right{
+    text-align: right;
+    justify-content: flex-end;
+}
+.site-info .af-flex-container ,
+.secondary-footer .af-flex-container {
+    justify-content: space-between;
+    gap: 15px;
+}
+.aft-small-social-menu ul {
+    white-space: nowrap;
+}
+.aft-small-social-menu ul li {
+    margin-top: 2px;
+    margin-bottom: 2px;
+}
+.aft-header-custom-html .livecoinwatch-widget-5 {
+    width: 80vw !important;
+    max-width: 1320px !important;
+}
+
+footer figure.wp-block-image {
+    margin-bottom: 0;
+}
+
+body .wp-block-embed.wp-block-embed-youtube {
+    width: clamp(260px, 27vw, 400px);
+}
+
+body.aft-default-mode footer .morenews-widget {
+    background: rgba(255,255,255,.1);
+}
+body.aft-dark-mode footer .morenews-widget {
+    background: rgba(0,0,0,.1);
+}
+@media screen and (max-width: 480px) {
+    .secondary-footer .af-flex-container {
+        justify-content: center;
+    }
+    .site-info .af-container-row {
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+    .aft-small-social-menu ul {
+        white-space: wrap;
+    }
+}

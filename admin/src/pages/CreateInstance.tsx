@@ -336,7 +336,7 @@ export default function CreateInstance() {
                 />
                 <p className="mt-1 text-xs text-gray-500">
                   {formData.cms_type === 'drupal' 
-                    ? 'Will be auto-created by the script' 
+                    ? 'Will be auto-created if it doesn\'t exist (or use existing on shared hosting)' 
                     : 'Database must already exist'}
                 </p>
               </div>

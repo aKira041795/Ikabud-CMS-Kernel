@@ -1,0 +1,5099 @@
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: Colab Free\n"
+"POT-Creation-Date: 2025-08-11 10:32:56+0000\n"
+"PO-Revision-Date: 2025-08-11 10:32:56+0000\n"
+"Language: ar\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"X-Generator: Colab Tool\n"
+
+#. Theme Name of the theme
+#: admin-dashboard/admin_dashboard.php:93
+#: admin-dashboard/admin_dashboard.php:94
+msgid "MoreNews Pro"
+msgstr "Morenews Pro"
+
+#. Theme URI of the theme
+msgid "https://afthemes.com/products/morenews-pro/"
+msgstr "https://afthemes.com/products/morenews-pro/"
+
+#. Description of the theme
+msgid ""
+"MoreNews Pro is a professional WordPress theme for news, blog, and magazine "
+"websites. The theme comes with a number of free demo sites that can be "
+"imported with a simple click to create a fantastic news hub. The theme is "
+"fully widgetized, allowing users to control site content with 16+ custom "
+"widgets and widget sections. It also offers a light and dark color option "
+"for reading articles and blog posts in a fashionable manner.It also includes"
+" a variety of useful customizer choices for creating an aesthetically "
+"pleasing news site. You may set it up as you want and see how it looks "
+"before publishing any changes with the live customizer. It works with "
+"Gutenberg blocks and RTL, as well as the WooCommerce plugin, allowing you to"
+" mix and match an online store with our newspaper theme. The theme is "
+"appropriate for a news, journal, magazine, publishing, or review website, as"
+" well as blogging. It's well-designed to help the website rank higher in "
+"search engines, and users will receive excellent support from the staff if "
+"they run into any issues while using it."
+msgstr ""
+"Morenews Pro هو موضوع محترف WordPress للأخبار والمدونة والمجلات. يأتي السمة "
+"مع عدد من المواقع التجريبية المجانية التي يمكن استيرادها بنقرة بسيطة لإنشاء "
+"مركز أخبار رائع. يتم تعديل السمة بالكامل ، مما يسمح للمستخدمين بالتحكم في "
+"محتوى الموقع مع أكثر من 16 أجهزة واجهة مستخدم مخصصة وأقسم واجهة مستخدم. كما "
+"أنه يوفر خيارًا خفيفًا وداكنًا لقراءة المقالات ومشاركات المدونة بطريقة "
+"عصرية. كما يتضمن مجموعة متنوعة من خيارات المخصصات المفيدة لإنشاء موقع إخباري"
+" جمالي. يمكنك إعداده كما تريد وترى كيف يبدو قبل نشر أي تغييرات مع Live "
+"Customizer. إنه يعمل مع Gutenberg Blocks و RTL ، بالإضافة إلى المكون الإضافي"
+" WooCommerce ، مما يتيح لك خلط ومطابقة متجر عبر الإنترنت مع موضوع الصحف "
+"لدينا. الموضوع مناسب للأخبار أو المجلة أو المجلة أو النشر أو المراجعة ، "
+"بالإضافة إلى التدوين. تم تصميمه جيدًا لمساعدة موقع الويب على ترتيب أعلى في "
+"محركات البحث ، وسيحصل المستخدمون على دعم ممتاز من الموظفين إذا واجهوا أي "
+"مشكلات أثناء استخدامه."
+
+#. Author of the theme
+msgid "AF themes"
+msgstr "مواضيع AF"
+
+#. Author URI of the theme
+msgid "https://www.afthemes.com/"
+msgstr "https://www.afthemes.com/"
+
+#: 404.php:19
+msgid "Oops! That page can&rsquo;t be found."
+msgstr "أُووبس! يمكن العثور على تلك الصفحة."
+
+#: 404.php:23
+msgid ""
+"It looks like nothing was found at this location. Maybe try one of the links"
+" below or a search?"
+msgstr ""
+"يبدو أنه لم يتم العثور على أي شيء في هذا الموقع. ربما جرب أحد الروابط أدناه "
+"أو البحث؟"
+
+#: admin-dashboard/admin_dashboard.php:106
+#: admin-dashboard/admin_dashboard.php:107
+msgid "Dashboard"
+msgstr "لوحة القيادة"
+
+#: admin-dashboard/admin_dashboard.php:117
+#: admin-dashboard/admin_dashboard.php:118 lib/info/info.php:74
+msgid "Customize"
+msgstr "تخصيص"
+
+#: admin-dashboard/admin_dashboard.php:127
+#: admin-dashboard/admin_dashboard.php:128
+#: admin-dashboard/admin_dashboard.php:292
+msgid "Ads Settings"
+msgstr "إعدادات الإعلانات"
+
+#: admin-dashboard/admin_dashboard.php:137
+#: admin-dashboard/admin_dashboard.php:138
+msgid "Starter Sites"
+msgstr "مواقع بداية"
+
+#: admin-dashboard/admin_dashboard.php:147
+#: admin-dashboard/admin_dashboard.php:148
+msgid "Block Patterns"
+msgstr "كتلة أنماط"
+
+#: admin-dashboard/admin_dashboard.php:157
+#: admin-dashboard/admin_dashboard.php:158
+msgid "Elementor Kits"
+msgstr "مجموعات Elementor"
+
+#: admin-dashboard/admin_dashboard.php:169
+#: admin-dashboard/admin_dashboard.php:170 lib/info/info.php:25
+#: admin-dashboard/src/components/json/sidebar-content.js:10
+#: admin-dashboard/src/components/json/sidebar-content.js:11
+msgid "Support"
+msgstr "يدعم"
+
+#: admin-dashboard/admin_dashboard.php:179
+#: admin-dashboard/admin_dashboard.php:180
+msgid "Master Bundle Plan"
+msgstr "خطة حزمة رئيسية"
+
+#: admin-dashboard/admin_dashboard.php:191
+msgid "Security check failed"
+msgstr "فشل فحص الأمن"
+
+#: admin-dashboard/admin_dashboard.php:213
+msgid "Ads settings saved."
+msgstr "إعدادات الإعلانات المحفوظة."
+
+#: admin-dashboard/admin_dashboard.php:299
+msgid "Global Ads Placement"
+msgstr "وضع الإعلانات العالمية"
+
+#: admin-dashboard/admin_dashboard.php:302
+msgid ""
+"💡 Tip: You can rotate multiple ads by separating them with <!--next-->. One "
+"ad will be shown randomly per page load. Works with HTML, JavaScript, and "
+"shortcodes."
+msgstr ""
+"💡 نصيحة: يمكنك تدوير إعلانات متعددة عن طريق فصلها بـ <!-التالي->. سيتم عرض "
+"إعلان واحد بشكل عشوائي لكل تحميل صفحة. يعمل مع HTML ، JavaScript ، و "
+"sportcodes."
+
+#: admin-dashboard/admin_dashboard.php:306
+msgid "Header Ad"
+msgstr "إعلان الرأس"
+
+#: admin-dashboard/admin_dashboard.php:309
+msgid ""
+"Add your HTML, JavaScript, or shortcode to display an ad at the very top of "
+"your site (header area)."
+msgstr ""
+"أضف HTML أو JavaScript أو الرمز القصير لعرض إعلان في الجزء العلوي من موقعك "
+"(منطقة الرأس)."
+
+#: admin-dashboard/admin_dashboard.php:314
+#: inc/customizer/theme-options.php:1718
+msgid "Before Content"
+msgstr "قبل المحتوى"
+
+#: admin-dashboard/admin_dashboard.php:317
+msgid ""
+"Ad before post content. Supports rotating multiple ads using <!--next-->."
+msgstr "م قبل نشر المحتوى. يدعم تدوير إعلانات متعددة باستخدام <!-التالي->."
+
+#: admin-dashboard/admin_dashboard.php:322
+#: inc/customizer/theme-options.php:1719
+msgid "After Content"
+msgstr "بعد المحتوى"
+
+#: admin-dashboard/admin_dashboard.php:325
+msgid ""
+"Ad after post content. You can rotate multiple ads with <!--next--> "
+"separator."
+msgstr "م بعد النشر محتوى. يمكنك تدوير إعلانات متعددة مع <!-التالي-> فاصل."
+
+#: admin-dashboard/admin_dashboard.php:330
+msgid "Before First Paragraph"
+msgstr "قبل الفقرة الأولى"
+
+#: admin-dashboard/admin_dashboard.php:333
+msgid ""
+"This ad appears after the first paragraph of single post content. Rotation "
+"supported via <!--next-->."
+msgstr ""
+"يظهر هذا الإعلان بعد الفقرة الأولى من محتوى منشور واحد. الدوران مدعوم عبر "
+"<!-التالي->."
+
+#: admin-dashboard/admin_dashboard.php:338
+msgid "After Third Paragraph"
+msgstr "بعد الفقرة الثالثة"
+
+#: admin-dashboard/admin_dashboard.php:341
+msgid ""
+"Shown after the third paragraph in single post content. Supports rotating "
+"ads with <!--next-->."
+msgstr ""
+"يظهر بعد الفقرة الثالثة في محتوى منشور واحد. يدعم الإعلانات الدوارة مع "
+"<!-التالي->."
+
+#: admin-dashboard/admin_dashboard.php:346
+msgid "After Post Content"
+msgstr "بعد محتوى النشر"
+
+#: admin-dashboard/admin_dashboard.php:349
+msgid ""
+"Displayed below post content, before comments or related posts. Rotation via"
+" <!--next--> supported."
+msgstr ""
+"معروضة أدناه محتوى النشر ، قبل التعليقات أو المنشورات ذات الصلة. الدوران عبر"
+" <!-التالي-> مدعوم."
+
+#: admin-dashboard/admin_dashboard.php:354
+msgid "Sidebar Ad"
+msgstr "إعلان الشريط الجانبي"
+
+#: admin-dashboard/admin_dashboard.php:357
+msgid ""
+"Shown in sidebar globally. You may use widgets for better control. Supports "
+"<!--next--> for rotating ads."
+msgstr ""
+"يظهر في الشريط الجانبي على مستوى العالم. يمكنك استخدام المصغّرة لتحكم أفضل. "
+"يدعم <!-التالي-> لتناوب الإعلانات."
+
+#: admin-dashboard/admin_dashboard.php:362
+msgid "Footer Ad"
+msgstr "إعلان تذييل"
+
+#: admin-dashboard/admin_dashboard.php:365
+msgid ""
+"Displayed at the bottom of the site above footer widgets. Rotating ads "
+"supported using <!--next-->."
+msgstr ""
+"معروضة في أسفل الموقع فوق واجهة مستخدم تذييل. الإعلانات الدوارة المدعومة "
+"باستخدام <!-التالي->."
+
+#: admin-dashboard/admin_dashboard.php:370
+msgid "Archive / Blog Ads"
+msgstr "إعلانات الأرشيف / المدونة"
+
+#: admin-dashboard/admin_dashboard.php:373
+msgid "Before Post List"
+msgstr "قبل قائمة النشر"
+
+#: admin-dashboard/admin_dashboard.php:376
+msgid ""
+"Shown before posts in blog or archive pages. Use <!--next--> to rotate "
+"multiple ads."
+msgstr ""
+"يظهر قبل المشاركات في مدونة أو صفحات الأرشيف. استخدم <!-التالي-> لتدوير "
+"إعلانات متعددة."
+
+#: admin-dashboard/admin_dashboard.php:381
+msgid "After Post List"
+msgstr "بعد قائمة النشر"
+
+#: admin-dashboard/admin_dashboard.php:384
+msgid ""
+"Shown after posts in archive or blog listings. Supports ad rotation using <!"
+"--next--> tag."
+msgstr ""
+"يظهر بعد المنشورات في قوائم الأرشيف أو المدونة. يدعم دوران الإعلان باستخدام "
+"<!-التالي-> العلامة."
+
+#: admin-dashboard/admin_dashboard.php:389
+msgid "Between Posts"
+msgstr "بين الوظائف"
+
+#: admin-dashboard/admin_dashboard.php:392
+msgid ""
+"Manually inserted between posts in archive loop using hooks/snippets. Rotate"
+" with <!--next--> if needed."
+msgstr ""
+"تم إدخاله يدويًا بين المنشورات في حلقة الأرشيف باستخدام السنانير/المقتطفات. "
+"تدوير مع <!-التالي-> إذا لزم الأمر."
+
+#: admin-dashboard/admin_dashboard.php:397
+msgid "Save Ads Settings"
+msgstr "حفظ إعدادات الإعلانات"
+
+#: admin-dashboard/admin_dashboard.php:402
+msgid "Helpful YouTube Videos"
+msgstr "مقاطع فيديو على YouTube مفيدة"
+
+#: admin-dashboard/admin_dashboard.php:407
+msgid "Launch Your News Website Quickly"
+msgstr "قم بتشغيل موقع الويب الخاص بك بسرعة"
+
+#: admin-dashboard/admin_dashboard.php:408
+msgid "Use our free accessible theme to build a news site without coding."
+msgstr ""
+"استخدم موضوعنا المجاني الذي يمكن الوصول إليه لإنشاء موقع إخباري دون الترميز."
+
+#: admin-dashboard/admin_dashboard.php:415
+msgid "Multi-Author Collaboration"
+msgstr "تعاون متعدد المؤلفين"
+
+#: admin-dashboard/admin_dashboard.php:416
+msgid "Learn how to manage multiple authors smoothly with our plugin."
+msgstr ""
+"تعلم كيفية إدارة مؤلفين متعددين بسلاسة باستخدام البرنامج المساعد الخاص بنا."
+
+#: admin-dashboard/admin_dashboard.php:423
+msgid "Import Gutenberg Patterns"
+msgstr "استيراد أنماط غوتنبرغ"
+
+#: admin-dashboard/admin_dashboard.php:424
+msgid "Easily import templates and patterns for consistent layouts."
+msgstr "استيراد قوالب وأنماط بسهولة للتخطيطات المتسقة."
+
+#: admin-dashboard/admin_dashboard.php:431
+msgid "Elementor Tutorial for Beginners"
+msgstr "تعليمي Elementor للمبتدئين"
+
+#: admin-dashboard/admin_dashboard.php:432
+msgid "Build a professional news site fast with no coding needed."
+msgstr "بناء موقع إخباري مهني سريع مع عدم وجود ترميز."
+
+#: admin-dashboard/admin_dashboard.php:439
+msgid "Multilingual Translation Guide"
+msgstr "دليل الترجمة متعدد اللغات"
+
+#: admin-dashboard/admin_dashboard.php:440
+msgid "Step-by-step guide to translate your site into multiple languages."
+msgstr "دليل خطوة بخطوة لترجمة موقعك إلى لغات متعددة."
+
+#: admin-dashboard/admin_dashboard.php:496
+msgid "The Templatespare plugin should be updated to the latest version"
+msgstr "يجب تحديث المكون الإضافي templatespare إلى أحدث إصدار"
+
+#: admin-dashboard/admin_dashboard.php:499
+msgid "Import a Starter Site, Personalize, and Live it in 3 Easy Steps!"
+msgstr "استيراد موقع بداية ، وتخصيصه ، والعيش في 3 خطوات سهلة!"
+
+#: admin-dashboard/admin_dashboard.php:565
+msgid "Blockspare plugin version should be more than %s."
+msgstr "يجب أن يكون إصدار المكون الإضافي blockspare أكثر من %s."
+
+#: admin-dashboard/admin_dashboard.php:570
+#: admin-dashboard/admin_dashboard.php:640
+msgid "One-click Import, No Coding Hassle!"
+msgstr "انقر بزر المادة واحدة ، لا متاعب ترميز!"
+
+#: admin-dashboard/admin_dashboard.php:639
+msgid "Elespare plugin version should be more than %s."
+msgstr "يجب أن يكون إصدار Elespare Plugin أكثر من %s."
+
+#: admin-dashboard/admin_dashboard.php:715
+msgid "Are you sure you want to install this plugin?"
+msgstr "هل أنت متأكد من أنك تريد تثبيت هذا البرنامج المساعد؟"
+
+#: admin-dashboard/admin_dashboard.php:716
+#: admin-dashboard/rest-api/api-request.php:26
+msgid "Install Now"
+msgstr "تثبيت الآن"
+
+#: admin-dashboard/admin_dashboard.php:717
+#: admin-dashboard/rest-api/api-request.php:70
+#: lib/tgm/class-tgm-plugin-activation.php:2736
+msgid "Activate"
+msgstr "فعل"
+
+#: admin-dashboard/admin_dashboard.php:718
+#: admin-dashboard/rest-api/api-request.php:66
+msgid "Activated"
+msgstr "المنشط"
+
+#: admin-dashboard/admin_dashboard.php:813
+#: admin-dashboard/rest-api/api-request.php:104
+#: admin-dashboard/rest-api/class-admin-notice.php:106
+msgid "Get Starter Sites"
+msgstr "احصل على مواقع بداية"
+
+#: admin-dashboard/admin_dashboard.php:818
+#: admin-dashboard/rest-api/class-admin-notice.php:110
+#: admin-dashboard/src/components/blockspare.demo.js:27
+#: admin-dashboard/src/components/elespare-demo.js:29
+#: admin-dashboard/src/components/templatespare-demo.js:56
+msgid "Get Started"
+msgstr "ابدأ"
+
+#: admin-dashboard/admin_dashboard.php:819
+msgid ""
+"The \"Get Started\" action will install/activate the Templatespare and "
+"Blockspare plugins for Starter Sites and Templates."
+msgstr ""
+"سيتم تثبيت/تنشيط إجراء \"Get Sential\"/تنشيط مكونات TemplatesPare و "
+"Blockspare لمواقع بداية وقوالب."
+
+#: admin-dashboard/rest-api/api-request.php:99
+msgid "By"
+msgstr "بواسطة"
+
+#: admin-dashboard/rest-api/api-request.php:114
+msgid "More Details"
+msgstr "مزيد من التفاصيل"
+
+#: admin-dashboard/rest-api/class-admin-notice.php:111
+msgid ""
+"The \"Get Started\" action will install/activate the Templatespare  plugin "
+"for Starter Sites and Templates."
+msgstr ""
+"سيتم تثبيت/تنشيط إجراء \"Get Seghtens\"/تنشيط البرنامج المساعد TemplatesPare"
+" لمواقع بداية وقوالب."
+
+#: admin-dashboard/rest-api/class-admin-notice.php:125
+msgid "Howdy!"
+msgstr "مرحبا!"
+
+#: admin-dashboard/rest-api/class-admin-notice.php:127
+msgid ""
+"%s is now installed and ready to use. We've assembled some links to get you "
+"started."
+msgstr "تم تثبيت %s الآن وجاهز للاستخدام. لقد قمنا بتجميع بعض الروابط لتبدأ."
+
+#: admin-dashboard/rest-api/class-admin-notice.php:161
+msgid "Explore Our Pre-Built Starter Websites!"
+msgstr "استكشاف مواقع المبتدئين المُصنعة مسبقًا!"
+
+#: admin-dashboard/rest-api/class-admin-notice.php:162
+msgid ""
+"Let your imagination soar! Designed with User-Friendly features, "
+"incorporating the Latest Trends and SEO-Friendly Markups. We genuinely "
+"appreciate you choosing our theme!"
+msgstr ""
+"دع خيالك يرتفع! تم تصميمه بميزات سهلة الاستخدام ، حيث تضم أحدث الاتجاهات "
+"وعلامات SEO صديقة لكبار المسئولين الاقتصاديين. نحن نقدر لك حقًا اختيار "
+"موضوعنا!"
+
+#: admin-dashboard/rest-api/class-admin-notice.php:166
+msgid "Demos/product"
+msgstr "العروض التوضيحية/المنتج"
+
+#: admin-dashboard/rest-api/class-admin-notice.php:168
+msgid "Theme dashboard"
+msgstr "لوحة القيادة"
+
+#: admin-dashboard/rest-api/class-admin-notice.php:192
+#: admin-dashboard/src/components/json/dashboard-content.js:14
+#: admin-dashboard/src/components/json/sidebar-content.js:4
+msgid "Documentation"
+msgstr "الوثائق"
+
+#: admin-dashboard/rest-api/class-admin-notice.php:193 lib/info/info.php:56
+#: lib/info/info.php:119
+#: admin-dashboard/src/components/json/sidebar-content.js:7
+msgid ""
+"Please check our full documentation for detailed information on how to setup"
+" and customize the theme."
+msgstr ""
+"يرجى التحقق من الوثائق الكاملة للحصول على معلومات مفصلة حول كيفية إعداد "
+"وتخصيص السمة."
+
+#: admin-dashboard/rest-api/class-admin-notice.php:194
+msgid "Docs"
+msgstr "مستندات"
+
+#: admin-dashboard/rest-api/class-admin-notice.php:195
+msgid "Videos"
+msgstr "مقاطع الفيديو"
+
+#: admin-dashboard/rest-api/class-admin-notice.php:196
+msgid "Blog"
+msgstr "مدونة"
+
+#: admin-dashboard/rest-api/class-admin-notice.php:197 lib/info/info.php:46
+#: admin-dashboard/src/components/json/dashboard-content.js:18
+msgid "Rate This Theme"
+msgstr "قيم هذا الموضوع"
+
+#: admin-dashboard/rest-api/class-ajaxcall.php:9
+#: admin-dashboard/rest-api/class-ajaxcall.php:136
+msgid "Sorry, you are not allowed to install plugins on this site."
+msgstr "آسف ، لا يُسمح لك بتثبيت الإضافات على هذا الموقع."
+
+#: admin-dashboard/rest-api/class-ajaxcall.php:16
+#: admin-dashboard/rest-api/class-ajaxcall.php:76
+#: admin-dashboard/rest-api/class-ajaxcall.php:143
+msgid "Error - unable to verify nonce, please try again."
+msgstr "خطأ - غير قادر على التحقق من nonce ، يرجى المحاولة مرة أخرى."
+
+#: admin-dashboard/rest-api/class-ajaxcall.php:69
+msgid "Sorry, you are not allowed to activate plugins on this site."
+msgstr "آسف ، لا يُسمح لك بتنشيط الإضافات على هذا الموقع."
+
+#. translators: 1: title.
+#: comments.php:34
+msgid "One thought on &ldquo;%1$s&rdquo;"
+msgstr "فكرة واحدة على &ldquo;%1$s&rdquo;"
+
+#. translators: 1: number of comments, 2: post title
+#: comments.php:41
+msgctxt "comments title"
+msgid "%1$s thought on &ldquo;%2$s&rdquo;"
+msgstr "الفكر %1$s على &ldquo;%2$s&rdquo;"
+
+#: comments.php:64
+msgid "Comments are closed."
+msgstr "التعليقات مغلقة."
+
+#. translators: 1: Theme name, 2: Theme author.
+#: footer.php:176 inc/customizer/builder/builder-structure.php:410
+msgid "%1$s by %2$s."
+msgstr "%1$s بواسطة %2$s."
+
+#: functions.php:153 inc/class-amp-compatible.php:147
+#: inc/customizer/builder/builder-structure.php:249
+#: inc/hooks/hook-header-section.php:146
+msgid "Primary Menu"
+msgstr "القائمة الأولية"
+
+#: functions.php:154
+msgid "Top Menu"
+msgstr "قائمة أعلى"
+
+#: functions.php:155 inc/customizer/builder/options.php:243
+#: inc/customizer/builder/options.php:247
+#: inc/customizer/builder/options.php:375
+#: inc/customizer/builder/options.php:379
+msgid "Social Menu"
+msgstr "القائمة الاجتماعية"
+
+#: functions.php:156
+msgid "Footer Menu"
+msgstr "قائمة تذييل"
+
+#: functions.php:477
+msgid "You already reacted."
+msgstr "لقد تفاعلت بالفعل."
+
+#: functions.php:478
+msgid "Thanks for reacting!"
+msgstr "شكرا للرد!"
+
+#: functions.php:479
+msgid "Error occurred."
+msgstr "حدث خطأ."
+
+#: header.php:55
+msgid "Skip to content"
+msgstr "تخطي إلى المحتوى"
+
+#: inc/ajax-loadmore-functions.php:21
+msgid "Load More"
+msgstr "تحميل أكثر"
+
+#: inc/class-amp-compatible.php:185 inc/class-amp-compatible.php:189
+#: inc/hooks/hook-header-section.php:179
+msgid "Open search form"
+msgstr "نموذج البحث المفتوح"
+
+#: inc/customizer/builder/class-block-toggle.php:12
+msgid ""
+"Click the setting <span class=\"dashicons dashicons-admin-generic\"></span> "
+"on each element to customize its settings."
+msgstr ""
+"انقر فوق الإعداد <span class = \"dashicons-dashicons-admin-generic\"> "
+"</span> على كل عنصر لتخصيص إعداداته."
+
+#: inc/customizer/builder/class-header-footer-builder-control.php:34
+#: inc/customizer/builder/class-header-footer-builder.php:325
+msgid "Desktop"
+msgstr "سطح المكتب"
+
+#: inc/customizer/builder/class-header-footer-builder-control.php:34
+msgid "Tablet/Mobile"
+msgstr "قرص/جوال"
+
+#: inc/customizer/builder/class-header-footer-builder-control.php:34
+msgid "Mobile"
+msgstr "متحرك"
+
+#: inc/customizer/builder/class-header-footer-builder-control.php:41
+msgid "Choose an Element"
+msgstr "اختر عنصرًا"
+
+#: inc/customizer/builder/class-header-footer-builder-control.php:58
+#: inc/customizer/builder/class-header-footer-builder.php:326
+msgid "Element Settings"
+msgstr "إعدادات العناصر"
+
+#: inc/customizer/builder/class-header-footer-builder-control.php:61
+msgid "Save"
+msgstr "يحفظ"
+
+#: inc/customizer/builder/class-header-footer-builder-control.php:61
+msgid "Cancel"
+msgstr "يلغي"
+
+#: inc/customizer/builder/class-header-footer-builder.php:35
+msgid "Header Builder"
+msgstr "منشئ الرأس"
+
+#: inc/customizer/builder/class-header-footer-builder.php:42
+msgid "Footer Builder"
+msgstr "باني تذييل"
+
+#: inc/customizer/builder/class-header-footer-builder.php:78
+msgid "Footer Layout"
+msgstr "تخطيط تذييل"
+
+#: inc/customizer/builder/class-header-footer-builder.php:91
+msgid "Create dynamic header effortlessly with drag-and-drop builder."
+msgstr "قم بإنشاء رأس ديناميكي دون عناء مع منشئ السحب والإفلات."
+
+#: inc/customizer/builder/class-header-footer-builder.php:96
+msgid "Create dynamic footer effortlessly with drag-and-drop builder."
+msgstr "قم بإنشاء تذييل ديناميكي دون عناء مع منشئ السحب والإفلات."
+
+#: inc/customizer/builder/class-header-footer-builder.php:322
+msgid "Add Element"
+msgstr "إضافة عنصر"
+
+#: inc/customizer/builder/class-header-footer-builder.php:323
+msgid "Remove Element"
+msgstr "إزالة العنصر"
+
+#: inc/customizer/builder/class-header-footer-builder.php:324
+msgid "Configure Element"
+msgstr "تكوين العنصر"
+
+#: inc/customizer/builder/header-builder-structure.php:190
+#: inc/hooks/blocks/block-header-layout-default-2.php:100
+#: inc/hooks/blocks/block-header-layout-default-3.php:99
+#: inc/hooks/blocks/block-header-layout-default-4.php:92
+#: inc/hooks/blocks/block-header-layout-default.php:89
+#: inc/hooks/hook-header-section.php:106
+msgid "close Off-Canvas Navigation"
+msgstr "إغلاق الملاحة خارج canvas"
+
+#: inc/customizer/builder/options.php:89
+msgid "Site & Logo"
+msgstr "الموقع والشعار"
+
+#: inc/customizer/builder/options.php:94
+msgid "Site Identity"
+msgstr "هوية الموقع"
+
+#: inc/customizer/builder/options.php:97
+msgid ""
+"You can change Site Identity from . <a href=\"#\" class=\"athfb-widget-"
+"panel-link\" data-panel=\"title_tagline\">Site Identity</a>"
+msgstr ""
+"يمكنك تغيير هوية الموقع من. <a href = \"#\" class = \"athfb-widget-panel-"
+"link\" panel = \"title_tagline\"> هوية الموقع </a>"
+
+#: inc/customizer/builder/options.php:107
+#: inc/customizer/builder/options.php:111
+msgid "Promotion"
+msgstr "ترقية"
+
+#: inc/customizer/builder/options.php:126
+#: inc/widgets/widgets-register-sidebars.php:82
+msgid "Off Canvas"
+msgstr "قبالة قماش"
+
+#: inc/customizer/builder/options.php:130
+msgid "Off Canvas Widget Area"
+msgstr "قبالة منطقة عنصر واجهة المستخدم"
+
+#: inc/customizer/builder/options.php:134
+msgid ""
+"This widget area is used in the mobile off-canvas panel. <a href=\"#\" "
+"class=\"athfb-widget-panel-link\" data-panel=\"sidebar-widgets-express-off-"
+"canvas-panel\">Manage widgets</a>"
+msgstr ""
+"تستخدم منطقة القطعة هذه في لوحة Mobile Off-Canvas. <a href = \"#\" class = "
+"\"athfb-widget-panel-link\" panel = \"sidebar-widgets-express-off-canvas-"
+"panel\"> إدارة الأدوات </a>"
+
+#: inc/customizer/builder/options.php:144
+msgid "Primary menu"
+msgstr "القائمة الأولية"
+
+#: inc/customizer/builder/options.php:148
+#: inc/customizer/builder/options.php:178
+#: inc/customizer/builder/options.php:311
+#: inc/customizer/builder/options.php:442
+msgid "Select Menu"
+msgstr "حدد القائمة"
+
+#: inc/customizer/builder/options.php:153
+#: inc/customizer/builder/options.php:183
+#: inc/customizer/builder/options.php:252
+msgid ""
+"You can change Menu from menu panel.<a href=\"#\" class=\"athfb-menu-panel-"
+"link\" data-panel=\"nav_menus\">Manage menu </a>"
+msgstr ""
+"يمكنك تغيير القائمة من لوحة القائمة. <a href = \"#\" class = \"ATHFB-Menu-"
+"Panel-Link\" panel = \"nav_menus\"> إدارة القائمة </a>"
+
+#: inc/customizer/builder/options.php:161
+#: inc/customizer/builder/options.php:320
+msgid "Date"
+msgstr "تاريخ"
+
+#: inc/customizer/builder/options.php:165
+#: inc/customizer/builder/options.php:324
+msgid "Choose date format"
+msgstr "اختر تنسيق التاريخ"
+
+#: inc/customizer/builder/options.php:174
+msgid "Top Navigation"
+msgstr "أعلى الملاحة"
+
+#: inc/customizer/builder/options.php:191
+#: inc/customizer/builder/options.php:195
+msgid "Site Mode"
+msgstr "وضع الموقع"
+
+#: inc/customizer/builder/options.php:204
+#: inc/customizer/builder/options.php:334
+msgid "Custom HTML"
+msgstr "HTML مخصص"
+
+#: inc/customizer/builder/options.php:208
+#: inc/customizer/builder/options.php:338
+msgid "HTML Content"
+msgstr "HTML المحتوى"
+
+#: inc/customizer/builder/options.php:216
+#: inc/customizer/builder/options.php:346
+msgid "Search"
+msgstr "يبحث"
+
+#: inc/customizer/builder/options.php:220
+#: inc/customizer/builder/options.php:350
+msgid "Searc Form"
+msgstr "استمارة"
+
+#: inc/customizer/builder/options.php:229
+msgid "Custom Link"
+msgstr "رابط مخصص"
+
+#: inc/customizer/builder/options.php:233
+msgid "Custom link"
+msgstr "رابط مخصص"
+
+#: inc/customizer/builder/options.php:236
+msgid "live"
+msgstr "يعيش"
+
+#: inc/customizer/builder/options.php:260
+#: inc/customizer/builder/options.php:394
+msgid "Widget 1"
+msgstr "أداة 1"
+
+#: inc/customizer/builder/options.php:264
+#: inc/customizer/builder/options.php:277
+#: inc/customizer/builder/options.php:290
+#: inc/customizer/builder/options.php:398
+#: inc/customizer/builder/options.php:411
+#: inc/customizer/builder/options.php:424
+msgid "Select Widget"
+msgstr "حدد القطعة"
+
+#: inc/customizer/builder/options.php:273
+#: inc/customizer/builder/options.php:407
+msgid "Widget 2"
+msgstr "أداة 2"
+
+#: inc/customizer/builder/options.php:286
+#: inc/customizer/builder/options.php:420
+msgid "Widget 3"
+msgstr "القطعة 3"
+
+#: inc/customizer/builder/options.php:307
+msgid "Navigation"
+msgstr "ملاحة"
+
+#: inc/customizer/builder/options.php:353
+msgid ""
+"Yoc can manage header site mode,search and live text from here. <a "
+"href=\"#\" class=\"athfb-widget-panel-link\" data-"
+"panel=\"header_options_settings\">Manage Header</a>"
+msgstr ""
+"يمكن لـ YOC إدارة وضع موقع الرأس والبحث والنص المباشر من هنا. <a href = "
+"\"#\" class = \"athfb-widget-panel-link\" panel = "
+"\"header_options_settings\"> إدارة الرأس </a>"
+
+#: inc/customizer/builder/options.php:363
+msgid "Copyright"
+msgstr "حقوق الطبع والنشر"
+
+#: inc/customizer/builder/options.php:384
+msgid "You can change Menu from menu panel"
+msgstr "يمكنك تغيير القائمة من لوحة القائمة"
+
+#: inc/customizer/builder/options.php:447
+msgid "No menu assigned"
+msgstr "لم يتم تعيين قائمة"
+
+#: inc/customizer/customizer-control.php:192
+msgid "-- Select --"
+msgstr "-- يختار --"
+
+#: inc/customizer/customizer-default.php:50
+msgid "Live"
+msgstr "يعيش"
+
+#: inc/customizer/customizer-default.php:65
+#: inc/customizer/frontpage-options.php:2047
+msgid "Popular Tags"
+msgstr "العلامات الشعبية"
+
+#: inc/customizer/customizer-default.php:72
+msgid "Exclusive"
+msgstr "حصري"
+
+#: inc/customizer/customizer-default.php:77
+#: inc/customizer/customizer-default.php:82
+msgid "Prime News"
+msgstr "أخبار رئيسية"
+
+#: inc/customizer/customizer-default.php:83
+#: inc/customizer/customizer-default.php:366
+msgid "Related Stories"
+msgstr "قصص ذات صلة"
+
+#: inc/customizer/customizer-default.php:90
+msgid "Youtube video Section"
+msgstr "قسم فيديو YouTube"
+
+#: inc/customizer/customizer-default.php:92
+msgid "Featured Videos"
+msgstr "مقاطع فيديو مميزة"
+
+#: inc/customizer/customizer-default.php:99
+msgid "Express Posts Section"
+msgstr "قسم المشاركات السريعة"
+
+#: inc/customizer/customizer-default.php:101
+msgid "Express Posts 1"
+msgstr "التعبير عن المشاركات 1"
+
+#: inc/customizer/customizer-default.php:102
+msgid "Express Posts 2"
+msgstr "التعبير عن المشاركات 2"
+
+#: inc/customizer/customizer-default.php:108
+msgid "Posts List Section"
+msgstr "قسم قائمة المشاركات"
+
+#: inc/customizer/customizer-default.php:112
+msgid "Post list %d"
+msgstr "POST LIST %d"
+
+#: inc/customizer/customizer-default.php:118
+#: inc/customizer/frontpage-options.php:2747
+msgid "Posts Carousel"
+msgstr "منشورات كاروسيل"
+
+#: inc/customizer/customizer-default.php:134
+msgid "Main News"
+msgstr "الأخبار الرئيسية"
+
+#: inc/customizer/customizer-default.php:139
+#: inc/customizer/customizer-default.php:166 inc/template-functions.php:1927
+#: inc/widgets/widget-posts-tabs.php:45 inc/widgets/widget-posts-tabs.php:112
+#: inc/widgets/widget-posts-tabs.php:113
+msgid "Latest"
+msgstr "أحدث"
+
+#: inc/customizer/customizer-default.php:140
+#: inc/customizer/customizer-default.php:156 inc/template-functions.php:1867
+#: inc/template-functions.php:1926 inc/widgets/widget-posts-tabs.php:48
+#: inc/widgets/widget-posts-tabs.php:116 inc/widgets/widget-posts-tabs.php:117
+#: inc/widgets/widgets-common-functions.php:102
+msgid "Popular"
+msgstr "شائع"
+
+#: inc/customizer/customizer-default.php:141 inc/template-functions.php:1928
+msgid "Trending"
+msgstr "تتجه"
+
+#: inc/customizer/customizer-default.php:144
+#: inc/customizer/customizer-default.php:207
+#: inc/customizer/customizer-default.php:336 inc/template-functions.php:1755
+msgid "Trending Now"
+msgstr "تتجه الآن"
+
+#: inc/customizer/customizer-default.php:150
+msgid "Popular Now"
+msgstr "شعبية الآن"
+
+#: inc/customizer/customizer-default.php:161 inc/template-functions.php:1650
+#: inc/template-functions.php:1946
+#: admin-dashboard/src/components/json/sidebar-content.js:17
+msgid "Video"
+msgstr "فيديو"
+
+#: inc/customizer/customizer-default.php:171
+#: inc/customizer/theme-options.php:2842
+msgid "Top"
+msgstr "قمة"
+
+#: inc/customizer/customizer-default.php:176 inc/template-functions.php:1657
+#: inc/template-functions.php:1717 inc/widgets/widget-posts-tabs.php:51
+#: inc/widgets/widget-posts-tabs.php:120 inc/widgets/widget-posts-tabs.php:121
+#: inc/widgets/widgets-common-functions.php:115
+#: lib/tgm/class-tgm-plugin-activation.php:2733
+msgid "Update"
+msgstr "تحديث"
+
+#: inc/customizer/customizer-default.php:181 inc/template-functions.php:1658
+#: inc/template-functions.php:1718 inc/template-functions.php:1873
+msgid "More"
+msgstr "أكثر"
+
+#: inc/customizer/customizer-default.php:202
+#: inc/customizer/customizer-default.php:220 inc/template-functions.php:1754
+msgid "Editor's Picks"
+msgstr "اختيارات المحرر"
+
+#: inc/customizer/customizer-default.php:223
+msgid "Trending Story"
+msgstr "قصة تتجه"
+
+#: inc/customizer/customizer-default.php:228
+#: inc/customizer/frontpage-options.php:2243
+msgid "Featured Posts"
+msgstr "وظائف مميزة"
+
+#: inc/customizer/customizer-default.php:235
+msgid "Featured Categories"
+msgstr "فئات مميزة"
+
+#: inc/customizer/customizer-default.php:236
+msgid "Featured Pages"
+msgstr "صفحات مميزة"
+
+#: inc/customizer/customizer-default.php:237
+msgid "Custom Options"
+msgstr "خيارات مخصصة"
+
+#: inc/customizer/customizer-default.php:240
+msgid "Post list Section Title %d"
+msgstr "قائمة القائمة العنوان %d"
+
+#: inc/customizer/customizer-default.php:246
+msgid "View More"
+msgstr "عرض المزيد"
+
+#: inc/customizer/customizer-default.php:269
+msgid "Read More"
+msgstr "اقرأ المزيد"
+
+#: inc/customizer/customizer-default.php:331
+msgid "What do you feel about this?"
+msgstr "ما هو شعورك حيال هذا؟"
+
+#: inc/customizer/customizer-default.php:346
+#: inc/widgets/widget-social-contacts.php:41
+msgid "Connect with Us"
+msgstr "تواصل معنا"
+
+#: inc/customizer/customizer-default.php:352
+#: inc/widgets/widget-author-info.php:170
+msgid "Instagram"
+msgstr "Instagram"
+
+#: inc/customizer/customizer-default.php:358 inc/template-functions.php:1679
+#: inc/template-functions.php:1844 inc/template-functions.php:1890
+msgid "Popular News"
+msgstr "أخبار شعبية"
+
+#: inc/customizer/customizer-default.php:375
+msgid "Subscribe To  Our Newsletter"
+msgstr "اشترك في النشرة الإخبارية لدينا"
+
+#: inc/customizer/customizer-default.php:384
+msgid "You may have missed"
+msgstr "ربما فاتتك"
+
+#: inc/customizer/customizer-default.php:388
+msgid "Copyright &copy; {year} All rights reserved."
+msgstr "حقوق الطبع والنشر ونسخ ؛ {السنة} جميع الحقوق محفوظة."
+
+#: inc/customizer/customizer.php:68
+msgid "Body Background Color"
+msgstr "لون خلفية الجسم"
+
+#: inc/customizer/customizer.php:96
+msgid "Site Title Size"
+msgstr "حجم عنوان الموقع"
+
+#: inc/customizer/customizer.php:116
+msgid "Uppercase Site Title and Tagline"
+msgstr "عنوان موقع الأحرف الكبيرة وشعار الوصف"
+
+#: inc/customizer/customizer.php:127
+msgid "Site Title/Tagline Color"
+msgstr "عنوان الموقع/لون الشعار"
+
+#: inc/customizer/customizer.php:154
+msgid "Header Image"
+msgstr "صورة رأس"
+
+#: inc/customizer/customizer.php:175
+msgid "Header Image Mode"
+msgstr "وضع صورة الرأس"
+
+#: inc/customizer/customizer.php:176
+msgid "Image visibility may vary as per the mode"
+msgstr "قد تختلف رؤية الصورة حسب الوضع"
+
+#: inc/customizer/customizer.php:180
+msgid "Above Site Title"
+msgstr "فوق عنوان الموقع"
+
+#: inc/customizer/customizer.php:181
+msgid "Set as Background"
+msgstr "تعيين كخلفية"
+
+#: inc/customizer/customizer.php:182
+msgid "Show Full Image (Background)"
+msgstr "عرض الصورة الكاملة (الخلفية)"
+
+#: inc/customizer/customizer.php:201
+msgid "Disable Image Tint/Overlay"
+msgstr "تعطيل صبغة الصورة/تراكب"
+
+#: inc/customizer/font-color-options.php:25
+msgid "Site Title/Tagline Color (Dark Mode)"
+msgstr "عنوان الموقع/لون الشعار (الوضع المظلم)"
+
+#: inc/customizer/font-color-options.php:47
+msgid "Site Color Mode"
+msgstr "وضع لون الموقع"
+
+#: inc/customizer/font-color-options.php:48
+msgid "If the mode switch is in the menu, please test it using the toggle."
+msgstr "إذا كان مفتاح الوضع في القائمة ، فيرجى اختباره باستخدام Toggle."
+
+#: inc/customizer/font-color-options.php:52
+msgid "Light"
+msgstr "ضوء"
+
+#: inc/customizer/font-color-options.php:53
+msgid "Dark"
+msgstr "مظلم"
+
+#: inc/customizer/font-color-options.php:72
+msgid "Primary Color Section "
+msgstr "قسم اللون الأساسي"
+
+#: inc/customizer/font-color-options.php:94
+msgid "Body Background Color (Dark Mode) will be applied for this mode."
+msgstr "سيتم تطبيق لون خلفية الجسم (الوضع المظلم) لهذا الوضع."
+
+#: inc/customizer/font-color-options.php:118
+msgid "Body Background Color (Dark Mode)"
+msgstr "لون خلفية الجسم (الوضع المظلم)"
+
+#: inc/customizer/font-color-options.php:142
+#: inc/customizer/font-color-options.php:169
+msgid "Box Background Color"
+msgstr "لون خلفية المربع"
+
+#: inc/customizer/font-color-options.php:198
+#: inc/customizer/font-color-options.php:222
+msgid "Primary Color"
+msgstr "اللون الأساسي"
+
+#: inc/customizer/font-color-options.php:244
+msgid "Secondary Color Section "
+msgstr "قسم الألوان الثانوية"
+
+#: inc/customizer/font-color-options.php:269
+msgid "Secondary Color"
+msgstr "لون ثانوي"
+
+#: inc/customizer/font-color-options.php:294
+msgid "Texts over Secondary Color"
+msgstr "نصوص على اللون الثانوي"
+
+#: inc/customizer/font-color-options.php:317
+msgid "Top Header Section "
+msgstr "أعلى قسم الرأس"
+
+#: inc/customizer/font-color-options.php:341
+#: inc/customizer/font-color-options.php:414
+#: inc/customizer/font-color-options.php:1219
+#: inc/customizer/font-color-options.php:1300
+msgid "Background Color"
+msgstr "لون الخلفية"
+
+#: inc/customizer/font-color-options.php:365
+#: inc/customizer/font-color-options.php:1247
+#: inc/customizer/font-color-options.php:1324
+msgid "Texts Color"
+msgstr "نصوص اللون"
+
+#: inc/customizer/font-color-options.php:390
+msgid "Primary Navigation Section "
+msgstr "قسم التنقل الأساسي"
+
+#: inc/customizer/font-color-options.php:438
+msgid "Menu Item Color"
+msgstr "لون سلاح القائمة"
+
+#: inc/customizer/font-color-options.php:462
+msgid "Badge Background"
+msgstr "خلفية شارة"
+
+#: inc/customizer/font-color-options.php:486
+msgid "Badge Text Color"
+msgstr "لون نص شارة"
+
+#: inc/customizer/font-color-options.php:511
+msgid "Watch Online Background"
+msgstr "مشاهدة خلفية على الانترنت"
+
+#: inc/customizer/font-color-options.php:536
+msgid "Breaking News Background"
+msgstr "خلفية الأخبار العاجلة"
+
+#: inc/customizer/font-color-options.php:559
+msgid "Archive/Widgets Section "
+msgstr "قسم الأرشيف/الحاجيات"
+
+#: inc/customizer/font-color-options.php:582
+#: inc/customizer/font-color-options.php:606
+msgid "Post Title"
+msgstr "ما بعد العنوان"
+
+#: inc/customizer/font-color-options.php:630
+msgid "Post Title Over Image"
+msgstr "عنوان النشر على الصورة"
+
+#: inc/customizer/font-color-options.php:656
+msgid "Category Color Section "
+msgstr "قسم ألوان الفئة"
+
+#: inc/customizer/font-color-options.php:668
+msgid "Category Colors"
+msgstr "ألوان الفئة"
+
+#: inc/customizer/font-color-options.php:692
+msgid "Category %d Background"
+msgstr "الفئة %d الخلفية"
+
+#: inc/customizer/font-color-options.php:715
+msgid "Category %d Texts Color"
+msgstr "فئة %dT COLL"
+
+#: inc/customizer/font-color-options.php:730
+msgid "Fonts & Typography"
+msgstr "الخطوط والطباعة"
+
+#: inc/customizer/font-color-options.php:753
+msgid "Font Family Section"
+msgstr "قسم عائلة الخط"
+
+#: inc/customizer/font-color-options.php:776
+msgid "Global Fonts Family"
+msgstr "عائلة الخطوط العالمية"
+
+#: inc/customizer/font-color-options.php:780
+msgid "Google Fonts"
+msgstr "خطوط جوجل"
+
+#: inc/customizer/font-color-options.php:781
+msgid "System Fonts"
+msgstr "خطوط النظام"
+
+#: inc/customizer/font-color-options.php:801
+msgid "Site Title Font"
+msgstr "خط عنوان الموقع"
+
+#: inc/customizer/font-color-options.php:823
+msgid "Primary Font"
+msgstr "الخط الأساسي"
+
+#: inc/customizer/font-color-options.php:845
+msgid "Secondary Font"
+msgstr "الخط الثانوي"
+
+#: inc/customizer/font-color-options.php:869
+msgid "Texts Formatting Section"
+msgstr "قسم تنسيق النصوص"
+
+#: inc/customizer/font-color-options.php:891
+msgid "Title Font Weight"
+msgstr "عنوان الخطق"
+
+#: inc/customizer/font-color-options.php:892
+#: inc/customizer/font-color-options.php:923
+#: inc/customizer/font-color-options.php:1005
+#: inc/customizer/font-color-options.php:1026
+#: inc/customizer/font-color-options.php:1047
+#: inc/customizer/font-color-options.php:1067
+#: inc/customizer/font-color-options.php:1088
+#: inc/customizer/font-color-options.php:1109
+#: inc/customizer/font-color-options.php:1129
+#: inc/customizer/font-color-options.php:1152
+#: inc/customizer/font-color-options.php:1173
+msgid "Default Value: %d"
+msgstr "القيمة الافتراضية: %d"
+
+#: inc/customizer/font-color-options.php:896
+msgid "100"
+msgstr "100"
+
+#: inc/customizer/font-color-options.php:897
+msgid "200"
+msgstr "200"
+
+#: inc/customizer/font-color-options.php:898
+msgid "300"
+msgstr "300"
+
+#: inc/customizer/font-color-options.php:899
+msgid "400"
+msgstr "400"
+
+#: inc/customizer/font-color-options.php:900
+msgid "500"
+msgstr "500"
+
+#: inc/customizer/font-color-options.php:901
+msgid "600"
+msgstr "600"
+
+#: inc/customizer/font-color-options.php:902
+msgid "700"
+msgstr "700"
+
+#: inc/customizer/font-color-options.php:903
+msgid "800"
+msgstr "800"
+
+#: inc/customizer/font-color-options.php:904
+msgid "900"
+msgstr "900"
+
+#: inc/customizer/font-color-options.php:922
+msgid "Global Letter Spacing"
+msgstr "تباعد الحروف العالمية"
+
+#: inc/customizer/font-color-options.php:942
+msgid "Title Line height"
+msgstr "ارتفاع خط العنوان"
+
+#: inc/customizer/font-color-options.php:943
+#: inc/customizer/font-color-options.php:963
+msgid "Default Value: %g"
+msgstr "القيمة الافتراضية: %g"
+
+#: inc/customizer/font-color-options.php:962
+msgid "Global Line height"
+msgstr "ارتفاع الخط العالمي"
+
+#: inc/customizer/font-color-options.php:984
+msgid "Font Size Section"
+msgstr "قسم حجم الخط"
+
+#: inc/customizer/font-color-options.php:1004
+msgid "General Font Size"
+msgstr "حجم الخط العام"
+
+#: inc/customizer/font-color-options.php:1025
+msgid "Global Section Title Size"
+msgstr "حجم عنوان القسم العالمي"
+
+#: inc/customizer/font-color-options.php:1046
+msgid "Big Spotlight Post Title Size"
+msgstr "حجم العنوان الكبير للأضواء"
+
+#: inc/customizer/font-color-options.php:1066
+msgid "Medium Spotlight Post Title Size"
+msgstr "حجم العنوان المتوسط للأضواء"
+
+#: inc/customizer/font-color-options.php:1087
+msgid "General Post Title Size (Grid)"
+msgstr "حجم العنوان العام (الشبكة)"
+
+#: inc/customizer/font-color-options.php:1108
+msgid "General Post Title Size (List)"
+msgstr "حجم العنوان العام (قائمة)"
+
+#: inc/customizer/font-color-options.php:1128
+msgid "General Grid Post Title Size"
+msgstr "حجم عنوان الشبكة العامة"
+
+#: inc/customizer/font-color-options.php:1151
+msgid "Single Page/Posts Title Size"
+msgstr "صفحة واحدة/منشورات حجم العنوان"
+
+#: inc/customizer/font-color-options.php:1172
+msgid "Single Page/Posts Paragraph Size"
+msgstr "صفحة واحدة/منشورات حجم الفقرة"
+
+#: inc/customizer/font-color-options.php:1193
+msgid "MailChimp Section"
+msgstr "قسم MailChimp"
+
+#: inc/customizer/font-color-options.php:1277
+msgid "Footer Section"
+msgstr "قسم تذييل"
+
+#: inc/customizer/font-color-options.php:1348
+msgid "Credits Background Color"
+msgstr "أرصدة لون الخلفية"
+
+#: inc/customizer/font-color-options.php:1371
+msgid "Credits Texts Color"
+msgstr "اعتمادات النصوص لون"
+
+#: inc/customizer/frontpage-options.php:23
+#: admin-dashboard/src/components/json/home-content.js:35
+msgid "Main Banner Options"
+msgstr "خيارات اللافتة الرئيسية"
+
+#: inc/customizer/frontpage-options.php:38
+msgid "Main Banner"
+msgstr "لافتة رئيسية"
+
+#: inc/customizer/frontpage-options.php:59
+msgid "Enable Main Banner Section"
+msgstr "تمكين قسم اللافتات الرئيسية"
+
+#: inc/customizer/frontpage-options.php:84
+msgid "Main Banner Background Image"
+msgstr "صورة خلفية اللافتة الرئيسية"
+
+#: inc/customizer/frontpage-options.php:85
+#: inc/customizer/theme-options.php:323 inc/customizer/theme-options.php:3076
+msgid "Recommended Size %1$s px X %2$s px"
+msgstr "الحجم الموصى به %1$s px x %2$s px"
+
+#: inc/customizer/frontpage-options.php:111
+msgid "Select Main Banner Layout"
+msgstr "حدد تخطيط اللافتة الرئيسي"
+
+#: inc/customizer/frontpage-options.php:115
+msgid "Slider, Trending and Tabs"
+msgstr "شريط التمرير والتجاري وعلامات التبويب"
+
+#: inc/customizer/frontpage-options.php:116
+msgid "Slider, Tiles and Tabs"
+msgstr "شريط التمرير والبلاط وعلامات التبويب"
+
+#: inc/customizer/frontpage-options.php:117
+msgid "Slider, Tiles and Trending"
+msgstr "شريط التمرير والبلاط والتجاري"
+
+#: inc/customizer/frontpage-options.php:118
+msgid "Slider and Double Tiles"
+msgstr "شريط التمرير والبلاط المزدوج"
+
+#: inc/customizer/frontpage-options.php:119
+msgid "Slider and Tiles"
+msgstr "شريط التمرير والبلاط"
+
+#: inc/customizer/frontpage-options.php:120
+msgid "Slider and Double Tabs"
+msgstr "شريط التمرير وعلامات التبويب المزدوجة"
+
+#: inc/customizer/frontpage-options.php:121
+msgid "Slider and Single Tabs"
+msgstr "شريط التمرير وعلامات التبويب الفردية"
+
+#: inc/customizer/frontpage-options.php:122
+msgid "Slider and Double Trending"
+msgstr "شريط التمرير والتجاري المزدوج"
+
+#: inc/customizer/frontpage-options.php:123
+msgid "Slider and Single Trending"
+msgstr "شريط التمرير والتجاري الفردي"
+
+#: inc/customizer/frontpage-options.php:124
+msgid "2 Columns Carousel"
+msgstr "2 أعمدة كاروسيل"
+
+#: inc/customizer/frontpage-options.php:125
+msgid "3 Columns Carousel"
+msgstr "3 أعمدة كاروسيل"
+
+#: inc/customizer/frontpage-options.php:126
+msgid "4 Columns Carousel"
+msgstr "4 أعمدة كاروسيل"
+
+#: inc/customizer/frontpage-options.php:127
+msgid "Single Slider"
+msgstr "منزلق واحد"
+
+#: inc/customizer/frontpage-options.php:148
+#: inc/customizer/frontpage-options.php:179
+#: inc/customizer/frontpage-options.php:205
+msgid "Select Main Banner Order"
+msgstr "حدد أمر الشعار الرئيسي"
+
+#: inc/customizer/frontpage-options.php:152
+#: inc/customizer/frontpage-options.php:183
+#: inc/customizer/frontpage-options.php:209
+msgid "Order 1"
+msgstr "أمر 1"
+
+#: inc/customizer/frontpage-options.php:153
+#: inc/customizer/frontpage-options.php:184
+#: inc/customizer/frontpage-options.php:210
+msgid "Order 2"
+msgstr "أمر 2"
+
+#: inc/customizer/frontpage-options.php:154
+#: inc/customizer/frontpage-options.php:211
+msgid "Order 3"
+msgstr "أمر 3"
+
+#: inc/customizer/frontpage-options.php:155
+#: inc/customizer/frontpage-options.php:212
+msgid "Order 4"
+msgstr "الأمر 4"
+
+#: inc/customizer/frontpage-options.php:156
+msgid "Order 5"
+msgstr "أمر 5"
+
+#: inc/customizer/frontpage-options.php:157
+msgid "Order 6"
+msgstr "أمر 6"
+
+#: inc/customizer/frontpage-options.php:238
+msgid "Main News Section "
+msgstr "قسم الأخبار الرئيسي"
+
+#: inc/customizer/frontpage-options.php:257
+#: inc/customizer/frontpage-options.php:430
+#: inc/customizer/frontpage-options.php:593
+#: inc/customizer/frontpage-options.php:755
+#: inc/customizer/frontpage-options.php:921
+#: inc/customizer/frontpage-options.php:1090
+#: inc/customizer/frontpage-options.php:1255
+#: inc/customizer/frontpage-options.php:1420
+#: inc/customizer/frontpage-options.php:1587
+#: inc/customizer/frontpage-options.php:1752
+#: inc/customizer/frontpage-options.php:1917
+#: inc/customizer/frontpage-options.php:2095
+#: inc/customizer/frontpage-options.php:2159
+#: inc/customizer/frontpage-options.php:2286
+#: inc/customizer/frontpage-options.php:2399
+#: inc/customizer/frontpage-options.php:2519
+#: inc/customizer/frontpage-options.php:2787
+msgid "Section Title "
+msgstr "عنوان القسم"
+
+#: inc/customizer/frontpage-options.php:283
+#: inc/customizer/frontpage-options.php:460
+#: inc/customizer/frontpage-options.php:623
+#: inc/customizer/frontpage-options.php:786
+#: inc/customizer/frontpage-options.php:952
+#: inc/customizer/frontpage-options.php:1120
+#: inc/customizer/frontpage-options.php:1284
+#: inc/customizer/frontpage-options.php:1449
+#: inc/customizer/frontpage-options.php:1617
+#: inc/customizer/frontpage-options.php:1781
+#: inc/customizer/frontpage-options.php:1946
+#: inc/widgets/widget-popular-posts.php:117
+msgid "Filter Posts By"
+msgstr "تصفية المنشورات بواسطة"
+
+#: inc/customizer/frontpage-options.php:287
+#: inc/customizer/frontpage-options.php:464
+#: inc/customizer/frontpage-options.php:627
+#: inc/customizer/frontpage-options.php:790
+#: inc/customizer/frontpage-options.php:956
+#: inc/customizer/frontpage-options.php:1124
+#: inc/customizer/frontpage-options.php:1288
+#: inc/customizer/frontpage-options.php:1453
+#: inc/customizer/frontpage-options.php:1621
+#: inc/customizer/frontpage-options.php:1785
+#: inc/customizer/frontpage-options.php:1950
+#: inc/customizer/frontpage-options.php:2546
+#: inc/customizer/frontpage-options.php:2615
+#: inc/customizer/frontpage-options.php:2727
+msgid "Category"
+msgstr "فئة"
+
+#: inc/customizer/frontpage-options.php:288
+#: inc/customizer/frontpage-options.php:465
+#: inc/customizer/frontpage-options.php:628
+#: inc/customizer/frontpage-options.php:791
+#: inc/customizer/frontpage-options.php:957
+#: inc/customizer/frontpage-options.php:1125
+#: inc/customizer/frontpage-options.php:1289
+#: inc/customizer/frontpage-options.php:1454
+#: inc/customizer/frontpage-options.php:1622
+#: inc/customizer/frontpage-options.php:1786
+#: inc/customizer/frontpage-options.php:1951
+msgid "Tag"
+msgstr "علامة"
+
+#: inc/customizer/frontpage-options.php:289
+#: inc/customizer/frontpage-options.php:466
+#: inc/customizer/frontpage-options.php:629
+#: inc/customizer/frontpage-options.php:792
+#: inc/customizer/frontpage-options.php:958
+#: inc/customizer/frontpage-options.php:1126
+#: inc/customizer/frontpage-options.php:1290
+#: inc/customizer/frontpage-options.php:1455
+#: inc/customizer/frontpage-options.php:1623
+#: inc/customizer/frontpage-options.php:1787
+#: inc/customizer/frontpage-options.php:1952
+#: inc/customizer/theme-options.php:906
+msgid "Comment Count"
+msgstr "عدد التعليقات"
+
+#: inc/customizer/frontpage-options.php:290
+#: inc/customizer/frontpage-options.php:467
+#: inc/customizer/frontpage-options.php:630
+#: inc/customizer/frontpage-options.php:793
+#: inc/customizer/frontpage-options.php:959
+#: inc/customizer/frontpage-options.php:1127
+#: inc/customizer/frontpage-options.php:1291
+#: inc/customizer/frontpage-options.php:1456
+#: inc/customizer/frontpage-options.php:1624
+#: inc/customizer/frontpage-options.php:1788
+#: inc/customizer/frontpage-options.php:1953
+#: inc/customizer/theme-options.php:943
+msgid "View Count"
+msgstr "عرض العد"
+
+#: inc/customizer/frontpage-options.php:313
+#: inc/widgets/widget-express-posts-list.php:137
+#: inc/widgets/widget-posts-grid.php:115 inc/widgets/widget-posts-list.php:118
+#: inc/widgets/widget-posts-single-column.php:118
+#: inc/widgets/widget-trending-posts.php:140
+msgid "Select Category"
+msgstr "حدد الفئة"
+
+#: inc/customizer/frontpage-options.php:314
+msgid "Select category to be shown on main slider section"
+msgstr "حدد الفئة المراد عرضها في قسم التمرير الرئيسي"
+
+#: inc/customizer/frontpage-options.php:346
+#: inc/customizer/frontpage-options.php:530
+#: inc/customizer/frontpage-options.php:693
+#: inc/customizer/frontpage-options.php:858
+#: inc/customizer/frontpage-options.php:1024
+#: inc/customizer/frontpage-options.php:1191
+#: inc/customizer/frontpage-options.php:1356
+#: inc/customizer/frontpage-options.php:1521
+#: inc/customizer/frontpage-options.php:1688
+#: inc/customizer/frontpage-options.php:1853
+#: inc/customizer/frontpage-options.php:2018
+#: inc/widgets/widget-trending-posts-by-tag.php:121
+msgid "Select Tag"
+msgstr "حدد العلامة"
+
+#: inc/customizer/frontpage-options.php:347
+msgid "Select tag to be shown on main slider section"
+msgstr "حدد العلامة المراد عرضها في قسم التمرير الرئيسي"
+
+#: inc/customizer/frontpage-options.php:375
+#: inc/customizer/frontpage-options.php:2337
+#: inc/customizer/frontpage-options.php:2837
+#: inc/customizer/theme-options.php:2918
+msgid "Number of Posts"
+msgstr "عدد المشاركات"
+
+#: inc/customizer/frontpage-options.php:376
+msgid "Accepts any postive number."
+msgstr "يقبل أي رقم مدخل."
+
+#: inc/customizer/frontpage-options.php:404
+msgid "Editor's Picks Section"
+msgstr "قسم اختيارات المحرر"
+
+#: inc/customizer/frontpage-options.php:496
+#: inc/customizer/frontpage-options.php:659
+#: inc/customizer/frontpage-options.php:823
+#: inc/customizer/frontpage-options.php:989
+#: inc/customizer/frontpage-options.php:1157
+#: inc/customizer/frontpage-options.php:1322
+#: inc/customizer/frontpage-options.php:1487
+#: inc/customizer/frontpage-options.php:1654
+#: inc/customizer/frontpage-options.php:1819
+#: inc/customizer/frontpage-options.php:1984
+#: inc/widgets/widget-express-posts-grid.php:127
+#: inc/widgets/widgets-common-functions.php:25
+msgid "Select"
+msgstr "يختار"
+
+#: inc/customizer/frontpage-options.php:567
+#: inc/customizer/frontpage-options.php:729
+msgid "Trending Section"
+msgstr "قسم التوجه"
+
+#: inc/customizer/frontpage-options.php:895
+msgid "Trending Section 2"
+msgstr "القسم 2"
+
+#: inc/customizer/frontpage-options.php:1063
+msgid "Latest Section"
+msgstr "أحدث قسم"
+
+#: inc/customizer/frontpage-options.php:1228
+msgid "Popular Section"
+msgstr "قسم شعبي"
+
+#: inc/customizer/frontpage-options.php:1393
+msgid "Updates Section"
+msgstr "قسم التحديثات"
+
+#: inc/customizer/frontpage-options.php:1560
+msgid "Tab 2: Latest Section"
+msgstr "علامة التبويب 2: أحدث قسم"
+
+#: inc/customizer/frontpage-options.php:1725
+msgid "Tab 2: Popular Section"
+msgstr "علامة التبويب 2: القسم الشعبي"
+
+#: inc/customizer/frontpage-options.php:1890
+msgid "Tabs 2: Updates Section"
+msgstr "علامات التبويب 2: قسم التحديثات"
+
+#: inc/customizer/frontpage-options.php:2076
+msgid "Enable Trending Tags"
+msgstr "تمكين علامات التوجه"
+
+#: inc/customizer/frontpage-options.php:2111 inc/template-functions.php:1677
+#: inc/template-functions.php:1706 inc/template-functions.php:1750
+#: inc/template-functions.php:1771 inc/template-functions.php:1795
+#: inc/template-functions.php:1818 inc/template-functions.php:1836
+#: inc/template-functions.php:1857 inc/template-functions.php:1901
+#: inc/template-functions.php:1925
+msgid "Breaking News"
+msgstr "الأخبار العاجلة"
+
+#: inc/customizer/frontpage-options.php:2140
+msgid "Enable Flash News"
+msgstr "تمكين أخبار الفلاش"
+
+#: inc/customizer/frontpage-options.php:2184
+msgid "Flash Posts Category"
+msgstr "فلاش فئة مشاركات"
+
+#: inc/customizer/frontpage-options.php:2185
+msgid "Select category to be shown on trending posts "
+msgstr "حدد الفئة المراد عرضها على المشاركات المتجهة"
+
+#: inc/customizer/frontpage-options.php:2209
+msgid "Number of Flash Posts "
+msgstr "عدد منشورات الفلاش"
+
+#: inc/customizer/frontpage-options.php:2228
+msgid "Front-page Options"
+msgstr "خيارات الصفحة الأمامية"
+
+#: inc/customizer/frontpage-options.php:2266
+msgid "Enable Featured Post Section"
+msgstr "تمكين قسم البريد المميز"
+
+#: inc/customizer/frontpage-options.php:2312
+#: inc/customizer/frontpage-options.php:2812
+msgid "Select "
+msgstr "يختار"
+
+#: inc/customizer/frontpage-options.php:2313
+#: inc/customizer/frontpage-options.php:2728
+#: inc/customizer/frontpage-options.php:2813
+msgid "Select category to be shown on featured section "
+msgstr "حدد فئة ليتم عرضها في القسم المميز"
+
+#: inc/customizer/frontpage-options.php:2352
+msgid "Youtube Videos"
+msgstr "مقاطع فيديو يوتيوب"
+
+#: inc/customizer/frontpage-options.php:2381
+msgid "Show Youtube Video"
+msgstr "عرض فيديو يوتيوب"
+
+#: inc/customizer/frontpage-options.php:2425
+msgid "YouTube Video URL %d"
+msgstr "youtube video url %d"
+
+#: inc/customizer/frontpage-options.php:2426
+msgid "Add youtube video"
+msgstr "إضافة فيديو يوتيوب"
+
+#: inc/customizer/frontpage-options.php:2449
+msgid "Express Posts"
+msgstr "التعبير عن المشاركات"
+
+#: inc/customizer/frontpage-options.php:2478
+msgid "Show Express Post Section"
+msgstr "عرض القسم السريع للنشر"
+
+#: inc/customizer/frontpage-options.php:2500
+msgid "Section 1"
+msgstr "القسم 1"
+
+#: inc/customizer/frontpage-options.php:2547
+#: inc/customizer/frontpage-options.php:2616
+msgid "Select category to be shown on express post section "
+msgstr "حدد الفئة المراد عرضها في قسم النشر السريع"
+
+#: inc/customizer/frontpage-options.php:2570
+msgid "Section 2"
+msgstr "القسم 2"
+
+#: inc/customizer/frontpage-options.php:2592
+#: inc/customizer/frontpage-options.php:2702
+msgid "Section Title"
+msgstr "عنوان القسم"
+
+#: inc/customizer/frontpage-options.php:2637
+msgid "Posts List"
+msgstr "قائمة المشاركات"
+
+#: inc/customizer/frontpage-options.php:2657
+msgid "Enable Post List Section"
+msgstr "تمكين قسم قائمة البريد"
+
+#: inc/customizer/frontpage-options.php:2681
+msgid "Section %d"
+msgstr "القسم %d"
+
+#: inc/customizer/frontpage-options.php:2767
+msgid "Enable Posts Carousel Section"
+msgstr "تمكين قسم الوظائف الكاروسيل"
+
+#: inc/customizer/frontpage-options.php:2851
+msgid "Front-page Layout Settings"
+msgstr "إعدادات تخطيط الصفحة الأمامية"
+
+#: inc/customizer/frontpage-options.php:2873
+msgid "Front-page Content Display"
+msgstr "عرض محتوى الصفحة الأمامية"
+
+#: inc/customizer/frontpage-options.php:2874
+msgid "Select frontpage content display"
+msgstr "حدد عرض محتوى Prontpage"
+
+#: inc/customizer/frontpage-options.php:2878
+msgid "Front-page Widgets"
+msgstr "واجهة واجهة المستخدم في الصفحة الأمامية"
+
+#: inc/customizer/frontpage-options.php:2879
+msgid "Page Contents & Front-page Widgets"
+msgstr "محتويات الصفحة والأدوات الحاجيات في الصفحات الأمامية"
+
+#: inc/customizer/frontpage-options.php:2899
+msgid "Front-page Content Alignment"
+msgstr "محاذاة المحتوى في الصفحة الأمامية"
+
+#: inc/customizer/frontpage-options.php:2900
+msgid "Select frontpage content alignment"
+msgstr "حدد محاذاة محتوى Prontpage"
+
+#: inc/customizer/frontpage-options.php:2904
+msgid "Home Content - Home Sidebar"
+msgstr "محتوى المنزل - الشريط الجانبي المنزلي"
+
+#: inc/customizer/frontpage-options.php:2905
+msgid "Home Sidebar - Home Content"
+msgstr "الشريط الجانبي الرئيسي - محتوى المنزل"
+
+#: inc/customizer/frontpage-options.php:2906
+msgid "Only Home Content"
+msgstr "محتوى المنزل فقط"
+
+#: inc/customizer/theme-options.php:31
+#: admin-dashboard/src/components/json/home-content.js:5
+msgid "Header Options"
+msgstr "خيارات الرأس"
+
+#: inc/customizer/theme-options.php:47
+msgid "Header Settings"
+msgstr "إعدادات الرأس"
+
+#: inc/customizer/theme-options.php:68
+msgid "Theme Header Layout"
+msgstr "تصميم رأس الموضوع"
+
+#: inc/customizer/theme-options.php:69
+msgid "Select built-in header layout from theme"
+msgstr "حدد تخطيط رأس مدمج من السمة"
+
+#: inc/customizer/theme-options.php:73
+msgid "Side"
+msgstr "جانب"
+
+#: inc/customizer/theme-options.php:74
+msgid "Side 2"
+msgstr "الجانب 2"
+
+#: inc/customizer/theme-options.php:75
+msgid "Side 3"
+msgstr "الجانب 3"
+
+#: inc/customizer/theme-options.php:76
+msgid "Side 4"
+msgstr "الجانب 4"
+
+#: inc/customizer/theme-options.php:77
+msgid "Centered"
+msgstr "تركزت"
+
+#: inc/customizer/theme-options.php:78
+msgid "Centered 2"
+msgstr "مركز 2"
+
+#: inc/customizer/theme-options.php:79
+msgid "Centered 3"
+msgstr "مركز 3"
+
+#: inc/customizer/theme-options.php:80
+msgid "Centered 4"
+msgstr "تركز 4"
+
+#: inc/customizer/theme-options.php:81
+msgid "Compressed"
+msgstr "مضغوط"
+
+#: inc/customizer/theme-options.php:82
+msgid "Compressed 2"
+msgstr "مضغوط 2"
+
+#: inc/customizer/theme-options.php:83
+msgid "Compressed 3"
+msgstr "مضغوط 3"
+
+#: inc/customizer/theme-options.php:84
+msgid "Compressed 4"
+msgstr "مضغوط 4"
+
+#: inc/customizer/theme-options.php:105
+msgid "Site Mode Switch"
+msgstr "مفتاح وضع الموقع"
+
+#: inc/customizer/theme-options.php:109
+msgid "Enable"
+msgstr "يُمكَِن"
+
+#: inc/customizer/theme-options.php:110 inc/customizer/theme-options.php:687
+#: inc/customizer/theme-options.php:715 inc/customizer/theme-options.php:742
+msgid "Disable"
+msgstr "إبطال"
+
+#: inc/customizer/theme-options.php:129
+msgid "Disable Sticky Header"
+msgstr "تعطيل رأس لاصق"
+
+#: inc/customizer/theme-options.php:151
+msgid "Top Header Section"
+msgstr "أعلى قسم الرأس"
+
+#: inc/customizer/theme-options.php:173
+msgid "Show Top Header"
+msgstr "عرض رأس أعلى"
+
+#: inc/customizer/theme-options.php:199
+msgid "Show Social Menu"
+msgstr "إظهار القائمة الاجتماعية"
+
+#: inc/customizer/theme-options.php:220
+msgid "Show Date"
+msgstr "تاريخ العرض"
+
+#: inc/customizer/theme-options.php:242
+msgid "Menu Border"
+msgstr "الحدود القائمة"
+
+#: inc/customizer/theme-options.php:246 inc/customizer/theme-options.php:835
+#: inc/customizer/theme-options.php:910 inc/customizer/theme-options.php:947
+#: inc/customizer/theme-options.php:1217 inc/customizer/theme-options.php:1242
+msgid "Show"
+msgstr "يعرض"
+
+#: inc/customizer/theme-options.php:247 inc/customizer/theme-options.php:836
+#: inc/customizer/theme-options.php:911 inc/customizer/theme-options.php:948
+#: inc/customizer/theme-options.php:1218 inc/customizer/theme-options.php:1243
+msgid "Hide"
+msgstr "يخفي"
+
+#: inc/customizer/theme-options.php:261 inc/customizer/theme-options.php:282
+msgid "Header Advertisement"
+msgstr "إعلان الرأس"
+
+#: inc/customizer/theme-options.php:322
+msgid "Header Section Advertisement"
+msgstr "إعلان قسم الرأس"
+
+#: inc/customizer/theme-options.php:348
+msgid "URL Link"
+msgstr "رابط URL"
+
+#: inc/customizer/theme-options.php:367
+msgid "Open In New Tab"
+msgstr "افتح في علامة تبويب جديدة"
+
+#: inc/customizer/theme-options.php:388
+msgid "Show Header Advertisement On"
+msgstr "عرض إعلان رأسه على"
+
+#: inc/customizer/theme-options.php:389
+msgid "Select scope to display on header advertisement section"
+msgstr "حدد نطاقًا لعرضه على قسم إعلانات الرأس"
+
+#: inc/customizer/theme-options.php:393
+msgid "Show Site-wide"
+msgstr "عرض على مستوى الموقع"
+
+#: inc/customizer/theme-options.php:394
+msgid "Show on Homepage only"
+msgstr "عرض على الصفحة الرئيسية فقط"
+
+#: inc/customizer/theme-options.php:406 lib/info/info.php:71
+msgid "Theme Options"
+msgstr "خيارات الموضوع"
+
+#: inc/customizer/theme-options.php:424
+msgid "Site Layout Mode"
+msgstr "وضع تخطيط الموقع"
+
+#: inc/customizer/theme-options.php:446
+msgid "Theme Tone"
+msgstr "نغمة الموضوع"
+
+#: inc/customizer/theme-options.php:447
+msgid "Publish and reload to preview changes"
+msgstr "نشر وإعادة التحميل لمعاينة التغييرات"
+
+#: inc/customizer/theme-options.php:451 inc/customizer/theme-options.php:570
+#: inc/customizer/theme-options.php:1597 inc/customizer/theme-options.php:2641
+#: inc/customizer/theme-options.php:2780 inc/hooks/hook-meta.php:80
+#: inc/hooks/hook-meta.php:297 inc/hooks/hook-meta.php:486
+msgid "Default"
+msgstr "تقصير"
+
+#: inc/customizer/theme-options.php:452
+msgid "BlackNews"
+msgstr "Blacknews"
+
+#: inc/customizer/theme-options.php:453
+msgid "CelebNews"
+msgstr "Celebnews"
+
+#: inc/customizer/theme-options.php:454
+msgid "CentralNews"
+msgstr "Centralnews"
+
+#: inc/customizer/theme-options.php:455
+msgid "GamerNews"
+msgstr "Gamernews"
+
+#: inc/customizer/theme-options.php:456 inc/template-functions.php:1687
+#: inc/template-functions.php:1781 inc/template-functions.php:1805
+#: inc/template-functions.php:1845 inc/template-functions.php:1891
+#: inc/template-functions.php:1911 inc/template-functions.php:1934
+#: inc/template-functions.php:1953
+msgid "General News"
+msgstr "أخبار عامة"
+
+#: inc/customizer/theme-options.php:457
+msgid "GlobalNews"
+msgstr "GlobalNews"
+
+#: inc/customizer/theme-options.php:458
+msgid "MoreMag"
+msgstr "موريماغ"
+
+#: inc/customizer/theme-options.php:459
+msgid "NewsCorp"
+msgstr "Newscorp"
+
+#: inc/customizer/theme-options.php:460
+msgid "NewsDay"
+msgstr "يوم newsday"
+
+#: inc/customizer/theme-options.php:461
+msgid "Newsical"
+msgstr "إخباري"
+
+#: inc/customizer/theme-options.php:462
+msgid "NewsLight"
+msgstr "نصي"
+
+#: inc/customizer/theme-options.php:463 inc/customizer/theme-options.php:464
+msgid "NewsMore"
+msgstr "Newsomore"
+
+#: inc/customizer/theme-options.php:465
+msgid "SideNews"
+msgstr "sidesws"
+
+#: inc/customizer/theme-options.php:485
+msgid "Layout Option"
+msgstr "خيار التصميم"
+
+#: inc/customizer/theme-options.php:489
+msgid "Boxed"
+msgstr "محاصر"
+
+#: inc/customizer/theme-options.php:490
+msgid "Wide"
+msgstr "واسع"
+
+#: inc/customizer/theme-options.php:509
+msgid "Enable Box's Top/Bottom Gaps"
+msgstr "تمكين الفجوات العلوية/السفلية في Box"
+
+#: inc/customizer/theme-options.php:524
+msgid "Breadcrumb Options"
+msgstr "خيارات الخبز"
+
+#: inc/customizer/theme-options.php:545
+msgid "Show breadcrumbs"
+msgstr "عرض فتات الخبز"
+
+#: inc/customizer/theme-options.php:565
+msgid "Select Breadcrumbs"
+msgstr "حدد فتات الخبز"
+
+#: inc/customizer/theme-options.php:566
+msgid ""
+"Please ensure that you have enabled the plugin's breadcrumbs before choosing"
+" other than Default"
+msgstr ""
+"يرجى التأكد من أنك قمت بتمكين فتات الخبز المكون الإضافي قبل الاختيار غير "
+"الافتراضي"
+
+#: inc/customizer/theme-options.php:571
+msgid "Yoast SEO"
+msgstr "Yoast SEO"
+
+#: inc/customizer/theme-options.php:572
+msgid "Rank Math"
+msgstr "رتبة الرياضيات"
+
+#: inc/customizer/theme-options.php:573
+msgid "NavXT"
+msgstr "نافس"
+
+#: inc/customizer/theme-options.php:592
+msgid "Global Settings"
+msgstr "الإعدادات العالمية"
+
+#: inc/customizer/theme-options.php:613
+msgid "Enable Preloader"
+msgstr "تمكين التحميل المسبق"
+
+#: inc/customizer/theme-options.php:633
+msgid "Disable Emoji Script"
+msgstr "تعطيل نص الرموز التعبيرية"
+
+#: inc/customizer/theme-options.php:634
+msgid "GDPR friendly & better performance"
+msgstr "أداء إجمالي الناتج المحلي الإجمالي وأداء أفضل"
+
+#: inc/customizer/theme-options.php:656
+msgid "Global Content Alignment"
+msgstr "محاذاة المحتوى العالمي"
+
+#: inc/customizer/theme-options.php:660
+msgid "Content - Primary sidebar"
+msgstr "المحتوى - الشريط الجانبي الأساسي"
+
+#: inc/customizer/theme-options.php:661
+msgid "Primary sidebar - Content"
+msgstr "الشريط الجانبي الأساسي - المحتوى"
+
+#: inc/customizer/theme-options.php:662
+msgid "Full width content"
+msgstr "محتوى العرض الكامل"
+
+#: inc/customizer/theme-options.php:681
+msgid "Also Show Content Image in Archive"
+msgstr "إظهار صورة المحتوى أيضًا في الأرشيف"
+
+#: inc/customizer/theme-options.php:682
+msgid "If there is no Post Featured image set"
+msgstr "إذا لم يكن هناك مجموعة صور مميزة"
+
+#: inc/customizer/theme-options.php:686 inc/customizer/theme-options.php:714
+#: inc/customizer/theme-options.php:741
+msgid "Enable "
+msgstr "يُمكَِن"
+
+#: inc/customizer/theme-options.php:709
+msgid "Image Lazy Loading"
+msgstr "صورة التحميل كسول"
+
+#: inc/customizer/theme-options.php:710
+msgid "Set for better performance"
+msgstr "تعيين لأداء أفضل"
+
+#: inc/customizer/theme-options.php:736
+msgid "Image Async Decoding"
+msgstr "صورة decoding Async"
+
+#: inc/customizer/theme-options.php:737
+msgid "Set to enhance rendering speed"
+msgstr "تم تعيينه لتعزيز سرعة التقديم"
+
+#: inc/customizer/theme-options.php:764
+msgid "Widget Title Style"
+msgstr "نمط عنوان عنصر واجهة المستخدم"
+
+#: inc/customizer/theme-options.php:768
+msgid "Border Bottom"
+msgstr "أسفل الحدود"
+
+#: inc/customizer/theme-options.php:769
+msgid "Border Center"
+msgstr "مركز الحدود"
+
+#: inc/customizer/theme-options.php:770
+msgid "Fill and Border"
+msgstr "ملء والحدود"
+
+#: inc/customizer/theme-options.php:771
+msgid "Fill"
+msgstr "يملأ"
+
+#: inc/customizer/theme-options.php:772 inc/customizer/theme-options.php:799
+#: inc/customizer/theme-options.php:1092 inc/customizer/theme-options.php:1696
+#: inc/customizer/theme-options.php:2755
+msgid "None"
+msgstr "لا أحد"
+
+#: inc/customizer/theme-options.php:793
+msgid "Scroll to Top Position"
+msgstr "انتقل إلى المركز العلوي"
+
+#: inc/customizer/theme-options.php:797 inc/customizer/theme-options.php:2614
+#: inc/hooks/hook-meta.php:292 inc/hooks/hook-meta.php:481
+msgid "Right"
+msgstr "يمين"
+
+#: inc/customizer/theme-options.php:798 inc/customizer/theme-options.php:2613
+#: inc/hooks/hook-meta.php:291 inc/hooks/hook-meta.php:480
+msgid "Left"
+msgstr "غادر"
+
+#: inc/customizer/theme-options.php:811
+msgid "Categories Settings"
+msgstr "إعدادات الفئات"
+
+#: inc/customizer/theme-options.php:831
+msgid "Post Categories"
+msgstr "فئات البريد"
+
+#: inc/customizer/theme-options.php:857
+msgid "Categories to be displayed"
+msgstr "الفئات التي سيتم عرضها"
+
+#: inc/customizer/theme-options.php:861
+msgid "Show All"
+msgstr "أظهر كل شيء"
+
+#: inc/customizer/theme-options.php:862
+msgid "Top One Category"
+msgstr "أعلى فئة واحدة"
+
+#: inc/customizer/theme-options.php:863
+msgid "Custom"
+msgstr "مخصص"
+
+#: inc/customizer/theme-options.php:884
+msgid "Number of Categories"
+msgstr "عدد الفئات"
+
+#: inc/customizer/theme-options.php:922
+msgid "View Count Settings"
+msgstr "عرض إعدادات العد"
+
+#: inc/customizer/theme-options.php:968
+msgid "View Count Option"
+msgstr "عرض خيار العد"
+
+#: inc/customizer/theme-options.php:969
+msgid "Select post view count for single post"
+msgstr "حدد عدد عرض المنشور للمنشور المفرد"
+
+#: inc/customizer/theme-options.php:973
+msgid "Default - Each View"
+msgstr "الافتراضي - كل طريقة عرض"
+
+#: inc/customizer/theme-options.php:974
+msgid "Count On Content Scroll"
+msgstr "الاعتماد على تمرير المحتوى"
+
+#: inc/customizer/theme-options.php:986
+msgid "Author and Date Settings"
+msgstr "إعدادات المؤلف ومواعيد التاريخ"
+
+#: inc/customizer/theme-options.php:1007
+msgid "For Spotlight Posts"
+msgstr "لمشاركات الأضواء"
+
+#: inc/customizer/theme-options.php:1011 inc/customizer/theme-options.php:1038
+#: inc/customizer/theme-options.php:1064
+msgid "Show Date and Author"
+msgstr "تاريخ العرض والمؤلف"
+
+#: inc/customizer/theme-options.php:1012 inc/customizer/theme-options.php:1039
+#: inc/customizer/theme-options.php:1065
+msgid "Show Date Only"
+msgstr "تاريخ العرض فقط"
+
+#: inc/customizer/theme-options.php:1013 inc/customizer/theme-options.php:1040
+#: inc/customizer/theme-options.php:1066
+msgid "Show Author Only"
+msgstr "عرض المؤلف فقط"
+
+#: inc/customizer/theme-options.php:1014 inc/customizer/theme-options.php:1041
+#: inc/customizer/theme-options.php:1067
+msgid "Hide All"
+msgstr "إخفاء كل شيء"
+
+#: inc/customizer/theme-options.php:1034
+msgid "For Small Grid"
+msgstr "لشبكة صغيرة"
+
+#: inc/customizer/theme-options.php:1060
+msgid "For List"
+msgstr "للقائمة"
+
+#: inc/customizer/theme-options.php:1086
+msgid "Author Icon/Gravatar"
+msgstr "أيقونة المؤلف/Gravatar"
+
+#: inc/customizer/theme-options.php:1090
+msgid "Show Gravatar"
+msgstr "عرض جرافة"
+
+#: inc/customizer/theme-options.php:1091
+msgid "Show Icon"
+msgstr "عرض أيقونة"
+
+#: inc/customizer/theme-options.php:1113
+msgid "Single Post Date Type"
+msgstr "نوع تاريخ النشر المفرد"
+
+#: inc/customizer/theme-options.php:1117 inc/customizer/theme-options.php:1143
+msgid "Published"
+msgstr "المنشورة"
+
+#: inc/customizer/theme-options.php:1118 inc/customizer/theme-options.php:1144
+msgid "Modified"
+msgstr "معدل"
+
+#: inc/customizer/theme-options.php:1119 inc/customizer/theme-options.php:1145
+msgid "Both"
+msgstr "كلاهما"
+
+#: inc/customizer/theme-options.php:1139
+msgid "Archive Post Date Type"
+msgstr "نوع تاريخ نشر الأرشيف"
+
+#: inc/customizer/theme-options.php:1164
+msgid "Date Format"
+msgstr "تنسيق التاريخ"
+
+#: inc/customizer/theme-options.php:1168
+msgid "WordPress Default Date Format"
+msgstr "WordPress تنسيق التاريخ الافتراضي"
+
+#: inc/customizer/theme-options.php:1169
+msgid "Ago Date Format"
+msgstr "قبل تنسيق التاريخ"
+
+#: inc/customizer/theme-options.php:1170
+msgid "Year and Month Format"
+msgstr "تنسيق سنة وشهر"
+
+#: inc/customizer/theme-options.php:1171
+msgid "Month and Day Format"
+msgstr "تنسيق الشهر واليوم"
+
+#: inc/customizer/theme-options.php:1172
+msgid "Year Format"
+msgstr "تنسيق السنة"
+
+#: inc/customizer/theme-options.php:1173
+msgid "Month Format"
+msgstr "تنسيق الشهر"
+
+#: inc/customizer/theme-options.php:1174
+msgid "Day Format"
+msgstr "تنسيق اليوم"
+
+#: inc/customizer/theme-options.php:1175
+msgid "24 Hours Format"
+msgstr "تنسيق 24 ساعة"
+
+#: inc/customizer/theme-options.php:1176
+msgid "12 Hours Format"
+msgstr "تنسيق 12 ساعة"
+
+#: inc/customizer/theme-options.php:1192
+msgid "Minutes Read Count"
+msgstr "دقائق قراءة العد"
+
+#: inc/customizer/theme-options.php:1213
+msgid "Single Post Minutes Read Count"
+msgstr "قراءة دقائق واحدة قراءة العد"
+
+#: inc/customizer/theme-options.php:1238
+msgid "Archive Posts Minutes Read Count"
+msgstr "أرشيف مشاركات محضر قراءة العد"
+
+#: inc/customizer/theme-options.php:1264
+msgid "Number of Words per Minute Read"
+msgstr "قراءة عدد الكلمات في الدقيقة"
+
+#: inc/customizer/theme-options.php:1277
+msgid "Excerpt Settings"
+msgstr "إعدادات مقتطفات"
+
+#: inc/customizer/theme-options.php:1298
+msgid "Global Excerpt Length"
+msgstr "طول المقتطف العالمي"
+
+#: inc/customizer/theme-options.php:1319
+msgid "Global Excerpt Read More"
+msgstr "مقتطفات عالمية اقرأ المزيد"
+
+#: inc/customizer/theme-options.php:1342
+msgid "Custom Menu Section"
+msgstr "قسم القائمة المخصص"
+
+#: inc/customizer/theme-options.php:1362
+msgid "Enable Custom Menu Section"
+msgstr "تمكين قسم القائمة المخصصة"
+
+#: inc/customizer/theme-options.php:1383
+msgid "Icon Mode"
+msgstr "وضع أيقونة"
+
+#: inc/customizer/theme-options.php:1387
+msgid "Ripple"
+msgstr "تموج"
+
+#: inc/customizer/theme-options.php:1388
+msgid "FontAwesome Icon"
+msgstr "أيقونة صامتة"
+
+#: inc/customizer/theme-options.php:1409
+msgid "Icon"
+msgstr "رمز"
+
+#: inc/customizer/theme-options.php:1436 inc/customizer/theme-options.php:2475
+#: inc/customizer/theme-options.php:2973
+#: inc/widgets/widget-author-info.php:164
+#: inc/widgets/widget-express-posts-grid.php:126
+#: inc/widgets/widget-express-posts-list.php:136
+#: inc/widgets/widget-popular-posts.php:116
+#: inc/widgets/widget-posts-double-column.php:141
+#: inc/widgets/widget-posts-double-column.php:142
+#: inc/widgets/widget-posts-grid.php:114 inc/widgets/widget-posts-list.php:117
+#: inc/widgets/widget-posts-single-column.php:117
+#: inc/widgets/widget-posts-slider.php:111
+#: inc/widgets/widget-posts-tabs.php:113 inc/widgets/widget-posts-tabs.php:117
+#: inc/widgets/widget-posts-tabs.php:121
+#: inc/widgets/widget-trending-posts-by-tag.php:120
+#: inc/widgets/widget-trending-posts-by-view.php:116
+#: inc/widgets/widget-trending-posts.php:138
+msgid "Title"
+msgstr "عنوان"
+
+#: inc/customizer/theme-options.php:1457
+msgid "Link"
+msgstr "وصلة"
+
+#: inc/customizer/theme-options.php:1472
+msgid "Single Post"
+msgstr "وظيفة واحدة"
+
+#: inc/customizer/theme-options.php:1492
+msgid "Show Featured Image"
+msgstr "عرض صورة مميزة"
+
+#: inc/customizer/theme-options.php:1513
+msgid "Featured Image Size"
+msgstr "حجم الصورة المميز"
+
+#: inc/customizer/theme-options.php:1517 inc/customizer/theme-options.php:1573
+#: inc/customizer/theme-options.php:2566 inc/hooks/hook-meta.php:286
+#: inc/hooks/hook-meta.php:474
+msgid "Full"
+msgstr "ممتلىء"
+
+#: inc/customizer/theme-options.php:1518
+msgid "Large"
+msgstr "كبير"
+
+#: inc/customizer/theme-options.php:1519
+msgid "Medium"
+msgstr "واسطة"
+
+#: inc/customizer/theme-options.php:1520
+msgid "Thumbnail"
+msgstr "الصورة المصغرة"
+
+#: inc/customizer/theme-options.php:1540
+msgid "Featured Image Width"
+msgstr "عرض صورة مميز"
+
+#: inc/customizer/theme-options.php:1544
+msgid "Full - Default"
+msgstr "كامل - الافتراضي"
+
+#: inc/customizer/theme-options.php:1545
+msgid "Original"
+msgstr "إبداعي"
+
+#: inc/customizer/theme-options.php:1568
+msgid "Post Title Option"
+msgstr "خيار العنوان بعد"
+
+#: inc/customizer/theme-options.php:1572
+msgid "Boxed - Default"
+msgstr "محاصر - الافتراضي"
+
+#: inc/customizer/theme-options.php:1593
+msgid "Single Content Mode"
+msgstr "وضع محتوى واحد"
+
+#: inc/customizer/theme-options.php:1598 inc/hooks/hook-meta.php:83
+msgid "Spacious"
+msgstr "واسع"
+
+#: inc/customizer/theme-options.php:1617
+msgid "Enable Reading Progress Bar"
+msgstr "تمكين شريط التقدم في القراءة"
+
+#: inc/customizer/theme-options.php:1670
+msgid "Social Share Options"
+msgstr "خيارات المشاركة الاجتماعية"
+
+#: inc/customizer/theme-options.php:1690
+msgid "Defined Links"
+msgstr "روابط محددة"
+
+#: inc/customizer/theme-options.php:1694
+msgid "Theme"
+msgstr "سمة"
+
+#: inc/customizer/theme-options.php:1695
+msgid "JetPack"
+msgstr "Jetpack"
+
+#: inc/customizer/theme-options.php:1713
+msgid "Position"
+msgstr "موضع"
+
+#: inc/customizer/theme-options.php:1717
+msgid "Before and After Content"
+msgstr "قبل وبعد المحتوى"
+
+#: inc/customizer/theme-options.php:1741
+#: inc/widgets/widget-author-info.php:169
+msgid "Facebook"
+msgstr "فيسبوك"
+
+#: inc/customizer/theme-options.php:1769
+msgid "X (Twitter)"
+msgstr "X (Twitter)"
+
+#: inc/customizer/theme-options.php:1796
+msgid "LinkedIn"
+msgstr "LinkedIn"
+
+#: inc/customizer/theme-options.php:1823
+msgid "Telegram"
+msgstr "برقية"
+
+#: inc/customizer/theme-options.php:1850
+msgid "Pinterest"
+msgstr "بينتيريست"
+
+#: inc/customizer/theme-options.php:1877
+msgid "Buffer App"
+msgstr "التطبيق العازلة"
+
+#: inc/customizer/theme-options.php:1905
+msgid "WhatsApp"
+msgstr "Whatsapp"
+
+#: inc/customizer/theme-options.php:1932
+msgid "Reddit"
+msgstr "رديت"
+
+#: inc/customizer/theme-options.php:1959
+msgid "Line"
+msgstr "خط"
+
+#: inc/customizer/theme-options.php:1986
+msgid "Email"
+msgstr "بريد إلكتروني"
+
+#: inc/customizer/theme-options.php:2016
+msgid "Essential Posts Settings"
+msgstr "إعدادات المشاركات الأساسية"
+
+#: inc/customizer/theme-options.php:2037
+msgid "Show Copy Post Link"
+msgstr "إظهار رابط منشور النسخ"
+
+#: inc/customizer/theme-options.php:2065
+msgid "Show Post Bookmark Option"
+msgstr "عرض خيار مرجعية بعد"
+
+#: inc/customizer/theme-options.php:2094
+msgid "Show Post Print Option"
+msgstr "عرض خيار الطباعة بعد"
+
+#: inc/customizer/theme-options.php:2121
+msgid "Show Post Badge"
+msgstr "عرض شارة ما بعد"
+
+#: inc/customizer/theme-options.php:2141
+msgid "Show Post Subtitles"
+msgstr "عرض ترجمات ما بعد"
+
+#: inc/customizer/theme-options.php:2161
+msgid "Show Post Featured Video"
+msgstr "عرض فيديو مميز"
+
+#: inc/customizer/theme-options.php:2181
+msgid "Show Post Source Attribution"
+msgstr "إظهار إسناد مصدر بعد"
+
+#: inc/customizer/theme-options.php:2201
+msgid "Show Post Sponsor"
+msgstr "عرض الراعي"
+
+#: inc/customizer/theme-options.php:2223
+msgid "Below Posts Settings"
+msgstr "أدناه إعدادات المشاركات"
+
+#: inc/customizer/theme-options.php:2244
+msgid "Show Reactions under Content"
+msgstr "إظهار ردود الفعل تحت المحتوى"
+
+#: inc/customizer/theme-options.php:2266
+msgid "Reactions Section Title"
+msgstr "عنوان قسم التفاعلات"
+
+#: inc/customizer/theme-options.php:2288
+msgid "Show Author Bio under Content"
+msgstr "عرض المؤلف السيرة الذاتية تحت المحتوى"
+
+#: inc/customizer/theme-options.php:2309
+msgid "Show Tags under Content"
+msgstr "إظهار العلامات تحت المحتوى"
+
+#: inc/customizer/theme-options.php:2330
+msgid "Show Category under Content"
+msgstr "إظهار فئة تحت المحتوى"
+
+#: inc/customizer/theme-options.php:2353
+msgid "Show MailChimp Subscription Box"
+msgstr "إظهار مربع الاشتراك في MailChimp"
+
+#: inc/customizer/theme-options.php:2373
+msgid "Show Author's Posts"
+msgstr "عرض منشورات المؤلف"
+
+#: inc/customizer/theme-options.php:2392
+msgid "Show Bookmarked (Saved) Posts"
+msgstr "إظهار المرجعية (المحفوظة) المشاركات"
+
+#: inc/customizer/theme-options.php:2412
+msgid "Show Trending Posts List"
+msgstr "إظهار قائمة المشاركات المتجهة"
+
+#: inc/customizer/theme-options.php:2434
+msgid "Related Posts Settings"
+msgstr "إعدادات المشاركات ذات الصلة"
+
+#: inc/customizer/theme-options.php:2455
+msgid "Enable Related Posts"
+msgstr "تمكين الوظائف ذات الصلة"
+
+#: inc/customizer/theme-options.php:2497
+msgid "Maximum Number of Related Posts"
+msgstr "الحد الأقصى لعدد الوظائف ذات الصلة"
+
+#: inc/customizer/theme-options.php:2517
+msgid "Archive Settings"
+msgstr "إعدادات الأرشيف"
+
+#: inc/customizer/theme-options.php:2538
+msgid "Disable Main Banner on Blog"
+msgstr "تعطيل لافتة رئيسية على المدونة"
+
+#: inc/customizer/theme-options.php:2559 inc/hooks/hook-meta.php:330
+#: inc/hooks/hook-meta.php:468
+msgid "Archive layout"
+msgstr "تخطيط الأرشيف"
+
+#: inc/customizer/theme-options.php:2560 inc/hooks/hook-meta.php:336
+#: inc/hooks/hook-meta.php:517
+msgid "Select layout for archive"
+msgstr "حدد تخطيط للأرشيف"
+
+#: inc/customizer/theme-options.php:2564 inc/hooks/hook-meta.php:285
+#: inc/hooks/hook-meta.php:473
+msgid "Grid"
+msgstr "شبكة"
+
+#: inc/customizer/theme-options.php:2565
+msgid "List"
+msgstr "قائمة"
+
+#: inc/customizer/theme-options.php:2567 inc/hooks/hook-meta.php:287
+#: inc/hooks/hook-meta.php:475
+msgid "Masonry"
+msgstr "البناء"
+
+#: inc/customizer/theme-options.php:2586
+msgid "Make First Post Full"
+msgstr "اجعل أول وظيفة ممتلئة"
+
+#: inc/customizer/theme-options.php:2608 inc/customizer/theme-options.php:2636
+msgid "Image Alignment"
+msgstr "محاذاة الصورة"
+
+#: inc/customizer/theme-options.php:2609 inc/customizer/theme-options.php:2637
+msgid "Select image alignment for archive"
+msgstr "حدد محاذاة الصورة للأرشيف"
+
+#: inc/customizer/theme-options.php:2615 inc/customizer/theme-options.php:2642
+#: inc/hooks/hook-meta.php:293 inc/hooks/hook-meta.php:298
+#: inc/hooks/hook-meta.php:482 inc/hooks/hook-meta.php:487
+msgid "Alternate"
+msgstr "البديل"
+
+#: inc/customizer/theme-options.php:2643 inc/hooks/hook-meta.php:299
+#: inc/hooks/hook-meta.php:488
+msgid "Tile"
+msgstr "بلاط"
+
+#: inc/customizer/theme-options.php:2644
+msgid "Default With List"
+msgstr "الافتراضي مع القائمة"
+
+#: inc/customizer/theme-options.php:2665
+msgid "Grid Column Layout"
+msgstr "تخطيط عمود الشبكة"
+
+#: inc/customizer/theme-options.php:2666
+msgid "Select column for archive grid"
+msgstr "حدد عمودًا لشبكة الأرشيف"
+
+#: inc/customizer/theme-options.php:2670 inc/customizer/theme-options.php:2698
+msgid "Two Column"
+msgstr "عمود اثنين"
+
+#: inc/customizer/theme-options.php:2671 inc/customizer/theme-options.php:2699
+msgid "Three Column"
+msgstr "ثلاثة عمود"
+
+#: inc/customizer/theme-options.php:2672 inc/customizer/theme-options.php:2700
+msgid "Four Column"
+msgstr "أربعة عمود"
+
+#: inc/customizer/theme-options.php:2693
+msgid "Select Masonry Layout"
+msgstr "حدد تصميم البناء"
+
+#: inc/customizer/theme-options.php:2694
+msgid "Select masonry layout for archive"
+msgstr "حدد تصميم البناء للأرشيف"
+
+#: inc/customizer/theme-options.php:2720
+msgid "Select Title Position"
+msgstr "حدد موقف العنوان"
+
+#: inc/customizer/theme-options.php:2721
+msgid "Select full layout for archive"
+msgstr "حدد التصميم الكامل للأرشيف"
+
+#: inc/customizer/theme-options.php:2725
+msgid "After Image"
+msgstr "بعد الصورة"
+
+#: inc/customizer/theme-options.php:2726
+msgid "Before Image"
+msgstr "قبل الصورة"
+
+#: inc/customizer/theme-options.php:2727
+msgid "Over Image"
+msgstr "على الصورة"
+
+#: inc/customizer/theme-options.php:2748
+msgid "Content View"
+msgstr "عرض المحتوى"
+
+#: inc/customizer/theme-options.php:2749
+msgid "Select content view for archive"
+msgstr "حدد عرض المحتوى للأرشيف"
+
+#: inc/customizer/theme-options.php:2753
+msgid "Post Excerpt"
+msgstr "مقتطفات ما بعد"
+
+#: inc/customizer/theme-options.php:2754
+msgid "Full Content"
+msgstr "المحتوى الكامل"
+
+#: inc/customizer/theme-options.php:2775
+msgid "Pagination"
+msgstr "ترقيم الصفحات"
+
+#: inc/customizer/theme-options.php:2776
+msgid "Select pagination view for archive"
+msgstr "حدد عرض ترقيم الصفحات للأرشيف"
+
+#: inc/customizer/theme-options.php:2781
+msgid "Ajax Load More"
+msgstr "Ajax تحميل أكثر"
+
+#: inc/customizer/theme-options.php:2782
+msgid "Infinite Scroll"
+msgstr "التمرير اللانهائي"
+
+#: inc/customizer/theme-options.php:2796
+msgid "Sidebar Settings"
+msgstr "إعدادات الشريط الجانبي"
+
+#: inc/customizer/theme-options.php:2817
+msgid "Make Sidebar Sticky"
+msgstr "جعل الشريط الجانبي لزجة"
+
+#: inc/customizer/theme-options.php:2838
+msgid "Sidebar Sticky Position"
+msgstr "الشريط الجانبي الموقف اللزج"
+
+#: inc/customizer/theme-options.php:2843
+msgid "Bottom"
+msgstr "قاع"
+
+#: inc/customizer/theme-options.php:2856
+msgid "You May Have Missed"
+msgstr "ربما تكون قد فاتتك"
+
+#: inc/customizer/theme-options.php:2875 inc/customizer/theme-options.php:2953
+msgid "Show Above Footer"
+msgstr "تظهر فوق تذييل"
+
+#: inc/customizer/theme-options.php:2895
+msgid "Posts Section Title"
+msgstr "عنوان القسم المشاركات"
+
+#: inc/customizer/theme-options.php:2933
+msgid "Mailchimp Subscriptions"
+msgstr "اشتراكات MailChimp"
+
+#: inc/customizer/theme-options.php:2995
+msgid "Shortcode"
+msgstr "الرمز القصير"
+
+#: inc/customizer/theme-options.php:3018
+msgid "Visible In:"
+msgstr "مرئي في:"
+
+#: inc/customizer/theme-options.php:3023
+msgid "Front page only"
+msgstr "الصفحة الأولى فقط"
+
+#: inc/customizer/theme-options.php:3024
+msgid "All pages"
+msgstr "جميع الصفحات"
+
+#: inc/customizer/theme-options.php:3037
+msgid "Footer"
+msgstr "تذييل"
+
+#: inc/customizer/theme-options.php:3075
+msgid "Footer Background Image"
+msgstr "صورة خلفية تذييل"
+
+#: inc/customizer/theme-options.php:3102
+msgid "Copyright Text"
+msgstr "نص حقوق الطبع والنشر"
+
+#: inc/customizer/theme-options.php:3103
+msgid "The {year} is used for current year"
+msgstr "يستخدم {year} للعام الحالي"
+
+#: inc/customizer/theme-options.php:3124
+msgid "Hide footer Menu Section"
+msgstr "إخفاء قسم قائمة التذييل"
+
+#: inc/customizer/theme-options.php:3145
+msgid "Hide Theme Credits"
+msgstr "إخفاء اعتمادات الموضوع"
+
+#: inc/hooks/blocks/block-archive-grid.php:43
+#: inc/hooks/blocks/block-archive-list.php:20
+#: inc/hooks/blocks/block-archive-masonry.php:21
+#: template-parts/content-page.php:27 template-parts/content.php:69
+msgid "Pages:"
+msgstr "الصفحات:"
+
+#: inc/hooks/blocks/block-header-layout-centered-2.php:112
+#: inc/hooks/blocks/block-header-layout-centered-3.php:112
+#: inc/hooks/blocks/block-header-layout-centered-4.php:114
+#: inc/hooks/blocks/block-header-layout-centered.php:95
+msgid "Close Off Canvas Navigation"
+msgstr "أغلق الملاحة القماشية"
+
+#: inc/hooks/blocks/block-header-layout-compressed-2.php:48
+#: inc/hooks/blocks/block-header-layout-compressed-3.php:49
+#: inc/hooks/blocks/block-header-layout-compressed-4.php:49
+#: inc/hooks/blocks/block-header-layout-compressed.php:49
+msgid "Open Off-Canvas Navigation"
+msgstr "فتح الملاحة خارج Canvas"
+
+#: inc/hooks/blocks/block-post-author.php:14
+msgid "Author's Other Posts"
+msgstr "المشاركات الأخرى للمؤلف"
+
+#: inc/hooks/blocks/block-post-bookmarked.php:21
+msgid "Your Saved Posts"
+msgstr "مشاركاتك المحفوظة"
+
+#: inc/hooks/hook-header-section.php:246
+msgid "Light/Dark Button"
+msgstr "زر الضوء/الظلام"
+
+#: inc/hooks/hook-meta-analytics.php:8
+msgid "Post Analytics"
+msgstr "بعد التحليلات"
+
+#: inc/hooks/hook-meta-analytics.php:55
+msgid "Reactions Overview"
+msgstr "نظرة عامة على ردود الفعل"
+
+#: inc/hooks/hook-meta-analytics.php:65
+msgid "Reaction Settings"
+msgstr "إعدادات رد الفعل"
+
+#: inc/hooks/hook-meta-analytics.php:69
+msgid "Engagement Metrics"
+msgstr "مقاييس المشاركة"
+
+#: inc/hooks/hook-meta-analytics.php:70
+msgid "Views:"
+msgstr "وجهات النظر:"
+
+#: inc/hooks/hook-meta-analytics.php:71
+msgid "Comments:"
+msgstr "تعليقات:"
+
+#: inc/hooks/hook-meta-analytics.php:75
+msgid "Content Stats"
+msgstr "احصائيات المحتوى"
+
+#: inc/hooks/hook-meta-analytics.php:76
+msgid "Word Count:"
+msgstr "عدد الكلمات:"
+
+#: inc/hooks/hook-meta-analytics.php:76 inc/hooks/hook-meta-analytics.php:77
+msgid "estimated"
+msgstr "مُقدَّر"
+
+#: inc/hooks/hook-meta-analytics.php:77
+msgid "Read Time:"
+msgstr "قراءة الوقت:"
+
+#: inc/hooks/hook-meta-analytics.php:77
+msgid "min"
+msgstr "دقيقة"
+
+#: inc/hooks/hook-meta-analytics.php:81
+msgid "Links in This Post"
+msgstr "روابط في هذا المنشور"
+
+#: inc/hooks/hook-meta-analytics.php:87 inc/hooks/hook-meta-analytics.php:88
+#: inc/hooks/hook-meta-analytics.php:89 inc/hooks/hook-meta-analytics.php:91
+#: inc/hooks/hook-meta-analytics.php:92 inc/hooks/hook-meta-analytics.php:93
+msgid "link"
+msgstr "وصلة"
+
+#: inc/hooks/hook-meta-analytics.php:87
+msgid "total links found"
+msgstr "إجمالي الروابط الموجودة"
+
+#: inc/hooks/hook-meta-analytics.php:88
+msgid "to your own site"
+msgstr "إلى موقعك الخاص"
+
+#: inc/hooks/hook-meta-analytics.php:89
+msgid "to other websites"
+msgstr "إلى مواقع الويب الأخرى"
+
+#: inc/hooks/hook-meta-analytics.php:90
+msgid "site"
+msgstr "موقع"
+
+#: inc/hooks/hook-meta-analytics.php:90
+msgid "external domains linked"
+msgstr "المجالات الخارجية مرتبطة"
+
+#: inc/hooks/hook-meta-analytics.php:91
+msgid "marked nofollow"
+msgstr "ملحوظ nofollow"
+
+#: inc/hooks/hook-meta-analytics.php:92
+msgid "that open in new tab"
+msgstr "المفتوحة في علامة تبويب جديدة"
+
+#: inc/hooks/hook-meta-analytics.php:93
+msgid "without visible text"
+msgstr "بدون نص واضح"
+
+#: inc/hooks/hook-meta-analytics.php:98
+msgid "%d %s %s"
+msgstr "%d %s ٪ s"
+
+#: inc/hooks/hook-meta-analytics.php:108
+msgid "Most Linked External Sites:"
+msgstr "معظم المواقع الخارجية المرتبطة:"
+
+#: inc/hooks/hook-meta-analytics.php:117
+msgid "Examples Without Anchor Text:"
+msgstr "أمثلة بدون نص مرساة:"
+
+#: inc/hooks/hook-meta-analytics.php:125
+msgid "Shortest Link Text:"
+msgstr "أقصر نص رابط:"
+
+#: inc/hooks/hook-meta-analytics.php:126
+msgid "Longest Link Text:"
+msgstr "أطول نص رابط:"
+
+#: inc/hooks/hook-meta-analytics.php:130
+msgid "No links were found in this post."
+msgstr "لم يتم العثور على روابط في هذا المنشور."
+
+#: inc/hooks/hook-meta-analytics.php:135
+msgid "Explore Shortcuts"
+msgstr "استكشاف اختصارات"
+
+#: inc/hooks/hook-meta-analytics.php:136
+msgid "View Author Archive"
+msgstr "عرض أرشيف المؤلف"
+
+#: inc/hooks/hook-meta-analytics.php:137
+msgid "View Publish Day Archive"
+msgstr "عرض Archive Day Archive"
+
+#: inc/hooks/hook-meta-extra.php:15
+msgctxt "taxonomy general name"
+msgid "Post Badges"
+msgstr "شارات ما بعد"
+
+#: inc/hooks/hook-meta-extra.php:16
+msgctxt "taxonomy singular name"
+msgid "Post Badge"
+msgstr "شارة ما بعد"
+
+#: inc/hooks/hook-meta-extra.php:17
+msgid "Search Badges"
+msgstr "شارات البحث"
+
+#: inc/hooks/hook-meta-extra.php:18
+msgid "All Badges"
+msgstr "كل الشارات"
+
+#: inc/hooks/hook-meta-extra.php:19
+msgid "Parent Badge"
+msgstr "شارة الوالدين"
+
+#: inc/hooks/hook-meta-extra.php:20
+msgid "Parent Badge:"
+msgstr "شارة الوالدين:"
+
+#: inc/hooks/hook-meta-extra.php:21
+msgid "Edit Badge"
+msgstr "تحرير شارة"
+
+#: inc/hooks/hook-meta-extra.php:22
+msgid "Update Badge"
+msgstr "تحديث شارة"
+
+#: inc/hooks/hook-meta-extra.php:23
+msgid "Add New Badge"
+msgstr "أضف شارة جديدة"
+
+#: inc/hooks/hook-meta-extra.php:24
+msgid "New Badge Name"
+msgstr "اسم شارة جديد"
+
+#: inc/hooks/hook-meta-extra.php:25
+msgid "Badges"
+msgstr "شارات"
+
+#: inc/hooks/hook-meta-extra.php:65 inc/hooks/hook-meta-extra.php:75
+msgid "Post Subtitle"
+msgstr "بعد الترجمة"
+
+#: inc/hooks/hook-meta-extra.php:66
+msgid "Featured Video"
+msgstr "فيديو مميز"
+
+#: inc/hooks/hook-meta-extra.php:67
+msgid "Source Attribution"
+msgstr "إسناد المصدر"
+
+#: inc/hooks/hook-meta-extra.php:68
+msgid "Sponsorship Settings"
+msgstr "إعدادات الرعاية"
+
+#: inc/hooks/hook-meta-extra.php:77
+msgid "Displayed below the post title."
+msgstr "معروضة أدناه عنوان المنشور."
+
+#: inc/hooks/hook-meta-extra.php:83
+msgid "Featured Video URL"
+msgstr "عنوان URL فيديو مميز"
+
+#: inc/hooks/hook-meta-extra.php:85
+msgid "Paste YouTube, Vimeo, or Facebook link."
+msgstr "لصق يوتيوب أو Vimeo أو Facebook."
+
+#: inc/hooks/hook-meta-extra.php:92
+msgid "Source Name"
+msgstr "اسم المصدر"
+
+#: inc/hooks/hook-meta-extra.php:94
+msgid "Source URL"
+msgstr "مصدر عنوان URL"
+
+#: inc/hooks/hook-meta-extra.php:104
+msgid "Mark as Sponsored"
+msgstr "مارك كما برعاية"
+
+#: inc/hooks/hook-meta-extra.php:105
+msgid "Sponsor Name"
+msgstr "اسم الراعي"
+
+#: inc/hooks/hook-meta-extra.php:107
+msgid "Sponsor URL"
+msgstr "راعي عنوان URL"
+
+#: inc/hooks/hook-meta-extra.php:158
+msgid "View posts with badge: %s"
+msgstr "عرض المنشورات مع الشارة: %s"
+
+#: inc/hooks/hook-meta-extra.php:178
+msgid "Source:"
+msgstr "مصدر:"
+
+#: inc/hooks/hook-meta-extra.php:180
+msgid "Visit source: %s"
+msgstr "زيارة المصدر: %s"
+
+#: inc/hooks/hook-meta-extra.php:203
+msgid "Sponsored by:"
+msgstr "برعاية:"
+
+#: inc/hooks/hook-meta-extra.php:205
+msgid "Visit sponsor: %s"
+msgstr "تفضل بزيارة الراعي: %s"
+
+#: inc/hooks/hook-meta-extra.php:362
+msgid "Author Support & Donation"
+msgstr "دعم المؤلف والتبرع"
+
+#: inc/hooks/hook-meta-extra.php:365
+msgid "Donation Link"
+msgstr "رابط التبرع"
+
+#: inc/hooks/hook-meta-extra.php:368
+msgid ""
+"Enter your donation or support URL (e.g., PayPal.me, BuyMeACoffee, Ko-fi)."
+msgstr ""
+"أدخل تبرعك أو عنوان URL لدعم (على سبيل المثال ، paypal.me ، buymeacoffee ، "
+"ko-fi)."
+
+#: inc/hooks/hook-meta-extra.php:372
+msgid "Donation Button Text"
+msgstr "نص زر التبرع"
+
+#: inc/hooks/hook-meta-extra.php:375
+msgid ""
+"Custom text for the donation button (e.g., \"Buy me a coffee\", \"Support "
+"Author\")."
+msgstr "نص مخصص لزر التبرع (على سبيل المثال ، \"اشتر لي قهوة\" ، \"مؤلف دعم\")."
+
+#: inc/hooks/hook-meta.php:23
+msgid "Layout Options"
+msgstr "خيارات التخطيط"
+
+#: inc/hooks/hook-meta.php:72
+msgid "Content Options"
+msgstr "خيارات المحتوى"
+
+#: inc/hooks/hook-meta.php:77 inc/hooks/hook-meta.php:98
+msgid "Set as global layout"
+msgstr "تم تعيينه كخطط عالمي"
+
+#: inc/hooks/hook-meta.php:88
+msgid "Please go to Customize>Themes Options for Single Post/Page."
+msgstr "يرجى الانتقال إلى تخصيص> خيارات الموضوعات لنشر/صفحة واحدة."
+
+#: inc/hooks/hook-meta.php:93
+msgid "Sidebar Options"
+msgstr "خيارات الشريط الجانبي"
+
+#: inc/hooks/hook-meta.php:101
+msgid "Content - Primary Sidebar"
+msgstr "المحتوى - الشريط الجانبي الأساسي"
+
+#: inc/hooks/hook-meta.php:104
+msgid "Primary Sidebar - Content"
+msgstr "الشريط الجانبي الأساسي - المحتوى"
+
+#: inc/hooks/hook-meta.php:107
+msgid "No Sidebar"
+msgstr "لا يوجد شريط جانبي"
+
+#: inc/hooks/hook-meta.php:111
+msgid "Please go to Customize>Front-page Options for Homepage."
+msgstr "يرجى الانتقال إلى تخصيص> خيارات الصفحة الأمامية للصفحة الرئيسية."
+
+#: inc/hooks/hook-meta.php:184 inc/hooks/hook-meta.php:227
+msgid "Category Color 1"
+msgstr "لون الفئة 1"
+
+#: inc/hooks/hook-meta.php:185 inc/hooks/hook-meta.php:228
+msgid "Category Color 2"
+msgstr "لون الفئة 2"
+
+#: inc/hooks/hook-meta.php:186 inc/hooks/hook-meta.php:229
+msgid "Category Color 3"
+msgstr "لون الفئة 3"
+
+#: inc/hooks/hook-meta.php:187 inc/hooks/hook-meta.php:230
+msgid "Category Color 4"
+msgstr "لون الفئة 4"
+
+#: inc/hooks/hook-meta.php:188 inc/hooks/hook-meta.php:231
+msgid "Category Color 5"
+msgstr "لون الفئة 5"
+
+#: inc/hooks/hook-meta.php:189 inc/hooks/hook-meta.php:232
+msgid "Category Color 6"
+msgstr "لون الفئة 6"
+
+#: inc/hooks/hook-meta.php:190 inc/hooks/hook-meta.php:233
+msgid "Category Color 7"
+msgstr "لون الفئة 7"
+
+#: inc/hooks/hook-meta.php:195 inc/hooks/hook-meta.php:223
+msgid "Color Class"
+msgstr "فئة اللون"
+
+#: inc/hooks/hook-meta.php:201 inc/hooks/hook-meta.php:242
+msgid ""
+"Select category color class. You can set appropriate categories color on "
+"\"Categories\" section of the theme customizer."
+msgstr ""
+"حدد فئة الألوان الفئة. يمكنك تعيين لون الفئات المناسبة على قسم \"الفئات\" من"
+" مخصص السمة."
+
+#: inc/hooks/hook-meta.php:284 inc/hooks/hook-meta.php:472
+msgid "list"
+msgstr "قائمة"
+
+#: inc/hooks/hook-meta.php:300 inc/hooks/hook-meta.php:489
+msgid "Default with list"
+msgstr "الافتراضي مع القائمة"
+
+#: inc/hooks/hook-meta.php:304 inc/hooks/hook-meta.php:311
+#: inc/hooks/hook-meta.php:493 inc/hooks/hook-meta.php:500
+msgid "Two column"
+msgstr "عمود اثنين"
+
+#: inc/hooks/hook-meta.php:305 inc/hooks/hook-meta.php:310
+#: inc/hooks/hook-meta.php:494 inc/hooks/hook-meta.php:499
+msgid "Three column"
+msgstr "ثلاثة عمود"
+
+#: inc/hooks/hook-meta.php:306 inc/hooks/hook-meta.php:312
+#: inc/hooks/hook-meta.php:495 inc/hooks/hook-meta.php:501
+msgid "Four column"
+msgstr "أربعة عمود"
+
+#: inc/hooks/hook-meta.php:316 inc/hooks/hook-meta.php:505
+msgid "Title before image"
+msgstr "العنوان قبل الصورة"
+
+#: inc/hooks/hook-meta.php:317 inc/hooks/hook-meta.php:506
+msgid "Image before title"
+msgstr "الصورة قبل العنوان"
+
+#: inc/hooks/hook-meta.php:318 inc/hooks/hook-meta.php:507
+msgid "Title over Image"
+msgstr "العنوان على الصورة"
+
+#: inc/hooks/hook-meta.php:341 inc/hooks/hook-meta.php:353
+#: inc/hooks/hook-meta.php:523 inc/hooks/hook-meta.php:537
+msgid "Archive Alignment"
+msgstr "محاذاة الأرشيف"
+
+#: inc/hooks/hook-meta.php:347 inc/hooks/hook-meta.php:530
+msgid "Select alignment for list archive layout"
+msgstr "حدد محاذاة لتخطيط أرشيف قائمة"
+
+#: inc/hooks/hook-meta.php:359 inc/hooks/hook-meta.php:544
+msgid "Select alignment for grid archive layout"
+msgstr "حدد محاذاة لتخطيط أرشيف الشبكة"
+
+#: inc/hooks/hook-meta.php:365
+msgid "Select grid column"
+msgstr "حدد عمود الشبكة"
+
+#: inc/hooks/hook-meta.php:371 inc/hooks/hook-meta.php:558
+msgid "Select column layout for grid archive layout"
+msgstr "حدد تخطيط العمود لتخطيط أرشيف الشبكة"
+
+#: inc/hooks/hook-meta.php:377 inc/hooks/hook-meta.php:564
+msgid "Select masonry layout"
+msgstr "حدد تصميم البناء"
+
+#: inc/hooks/hook-meta.php:383 inc/hooks/hook-meta.php:572
+msgid "Select layout for masonry archive layout"
+msgstr "حدد تخطيطًا لتخطيط أرشيف البناء"
+
+#: inc/hooks/hook-meta.php:389 inc/hooks/hook-meta.php:578
+msgid "Select full layout"
+msgstr "حدد التصميم الكامل"
+
+#: inc/hooks/hook-meta.php:395 inc/hooks/hook-meta.php:586
+msgid "Select layout for full archive layout"
+msgstr "حدد تخطيطًا لتخطيط الأرشيف الكامل"
+
+#: inc/hooks/hook-meta.php:550
+msgid "Select grid layout"
+msgstr "حدد تخطيط الشبكة"
+
+#: inc/hooks/hook-tgm.php:19 lib/info/info.php:143
+msgid "AF Companion"
+msgstr "بواسطة رفيق"
+
+#: inc/hooks/hook-tgm.php:24
+msgid "Elespare"
+msgstr "رفع"
+
+#: inc/hooks/hook-tgm.php:29
+msgid "Blockspare"
+msgstr "blockspare"
+
+#: inc/hooks/hook-tgm.php:34
+msgid "Templatespare"
+msgstr "TEMPLATESPARE"
+
+#: inc/hooks/hook-tgm.php:39
+msgid "Latest Posts Block"
+msgstr "أحدث مشاركات كتلة"
+
+#: inc/hooks/hook-tgm.php:44
+msgid "Magic Content Box"
+msgstr "مربع المحتوى السحري"
+
+#: inc/hooks/hook-tgm.php:49
+msgid "WP Post Author"
+msgstr "مؤلف بوست WP"
+
+#: inc/hooks/hook-tgm.php:54
+msgid "MailChimp for WordPress"
+msgstr "MailChimp لـ WordPress"
+
+#: inc/hooks/hook-tgm.php:59
+msgid "Free Live Chat using 3CX"
+msgstr "دردشة مباشرة مجانية باستخدام 3CX"
+
+#: inc/template-functions.php:565 inc/template-functions.php:567
+msgid "Read more about %s"
+msgstr "اقرأ المزيد عن %s"
+
+#: inc/template-functions.php:602
+msgid "Previous"
+msgstr "سابق"
+
+#: inc/template-functions.php:603
+msgid "Next"
+msgstr "التالي"
+
+#: inc/template-functions.php:728
+msgid "%s min read"
+msgstr "قراءة في %s دقيقة"
+
+#: inc/template-functions.php:1010 inc/template-functions.php:1148
+msgid "Copy link to clipboard"
+msgstr "نسخ الرابط إلى الحافظة"
+
+#: inc/template-functions.php:1010 inc/template-functions.php:1148
+msgid "Link copied to clipboard!"
+msgstr "رابط نسخ إلى الحافظة!"
+
+#: inc/template-functions.php:1013 inc/template-functions.php:1150
+msgid "Save this post"
+msgstr "احفظ هذا المنشور"
+
+#: inc/template-functions.php:1013 inc/template-functions.php:1150
+msgid "Please log in to bookmark this post."
+msgstr "يرجى تسجيل الدخول إلى إشارة مرجعية على هذا المنشور."
+
+#: inc/template-functions.php:1016 inc/template-functions.php:1151
+msgid "Print this page"
+msgstr "اطبع هذه الصفحة"
+
+#: inc/template-functions.php:1220
+msgid "%s views"
+msgstr "وجهات نظر %s"
+
+#: inc/template-functions.php:1324
+msgid "Love"
+msgstr "حب"
+
+#: inc/template-functions.php:1325
+msgid "Funny"
+msgstr "مضحك"
+
+#: inc/template-functions.php:1326
+msgid "Wow"
+msgstr "رائع"
+
+#: inc/template-functions.php:1327
+msgid "Sad"
+msgstr "حزين"
+
+#: inc/template-functions.php:1328
+msgid "Angry"
+msgstr "غاضب"
+
+#: inc/template-functions.php:1339
+msgid "Post Reactions"
+msgstr "ردود الفعل ما بعد"
+
+#: inc/template-functions.php:1543
+msgid "Support Author"
+msgstr "مؤلف الدعم"
+
+#: inc/template-functions.php:1559
+msgid "About the Author"
+msgstr "عن المؤلف"
+
+#: inc/template-functions.php:1594
+msgid "Visit Website"
+msgstr "تفضل بزيارة الموقع"
+
+#: inc/template-functions.php:1600
+msgid "View All Posts"
+msgstr "عرض جميع المنشورات"
+
+#: inc/template-functions.php:1654 inc/template-functions.php:1714
+msgid "Featured"
+msgstr "ظهرت"
+
+#: inc/template-functions.php:1656 inc/template-functions.php:1716
+#: inc/template-functions.php:1871
+msgid "General"
+msgstr "عام"
+
+#: inc/template-functions.php:1678 inc/template-functions.php:1819
+#: inc/template-functions.php:1881 inc/template-functions.php:1923
+msgid "Watch Video"
+msgstr "مشاهدة الفيديو"
+
+#: inc/template-functions.php:1680
+msgid "Latest News"
+msgstr "آخر الأخبار"
+
+#: inc/template-functions.php:1685 inc/template-functions.php:1779
+#: inc/template-functions.php:1803 inc/template-functions.php:1824
+#: inc/template-functions.php:1842 inc/template-functions.php:1869
+#: inc/template-functions.php:1888 inc/template-functions.php:1909
+#: inc/template-functions.php:1932 inc/template-functions.php:1951
+msgid "Featured News"
+msgstr "أخبار مميزة"
+
+#: inc/template-functions.php:1688
+msgid "Central News"
+msgstr "الأخبار المركزية"
+
+#: inc/template-functions.php:1689 inc/template-functions.php:1783
+#: inc/template-functions.php:1807 inc/template-functions.php:1846
+#: inc/template-functions.php:1892 inc/template-functions.php:1913
+#: inc/template-functions.php:1936 inc/template-functions.php:1955
+msgid "More News"
+msgstr "المزيد من الأخبار"
+
+#: inc/template-functions.php:1707 inc/template-functions.php:1858
+#: inc/template-functions.php:1904
+msgid "Watch"
+msgstr "يشاهد"
+
+#: inc/template-functions.php:1737
+msgid "Watch Videos"
+msgstr "مشاهدة مقاطع الفيديو"
+
+#: inc/template-functions.php:1753 inc/template-functions.php:1796
+#: inc/template-functions.php:1835
+msgid "Subscribe"
+msgstr "يشترك"
+
+#: inc/template-functions.php:1772
+msgid "Watch Online"
+msgstr "شاهد عبر الإنترنت"
+
+#: inc/template-functions.php:1782 inc/template-functions.php:1806
+#: inc/template-functions.php:1912
+msgid "Global News"
+msgstr "أخبار عالمية"
+
+#: inc/template-functions.php:1825 inc/template-functions.php:1847
+msgid "Related News"
+msgstr "الأخبار ذات الصلة"
+
+#: inc/template-functions.php:1866
+#: lib/tgm/class-tgm-plugin-activation.php:2286
+msgid "Recommended"
+msgstr "مُستَحسَن"
+
+#: inc/template-functions.php:1868
+msgid "Archive"
+msgstr "أرشيف"
+
+#: inc/template-functions.php:1872
+msgid "Opinion"
+msgstr "رأي"
+
+#: inc/template-functions.php:1935
+msgid "Top News"
+msgstr "أفضل الأخبار"
+
+#: inc/template-functions.php:1954
+msgid "Hot News"
+msgstr "أخبار ساخنة"
+
+#: inc/template-tags.php:144 inc/template-tags.php:226
+msgid "Published: "
+msgstr "تم النشر:"
+
+#: inc/template-tags.php:146 inc/template-tags.php:228
+msgid "Updated: "
+msgstr "تحديث:"
+
+#: inc/template-tags.php:265
+msgid "ago"
+msgstr "منذ"
+
+#. translators: %s: Name of current post. Only visible to screen readers
+#: inc/template-tags.php:291 template-parts/content-page.php:41
+msgid "Edit <span class=\"screen-reader-text\">%s</span>"
+msgstr "تحرير <span class = \"screen-reger-text\"> %s </span>"
+
+#: inc/updater/theme-updater.php:29
+msgid "Theme License"
+msgstr "ترخيص الموضوع"
+
+#: inc/updater/theme-updater.php:30
+msgid "Enter your theme license key."
+msgstr "أدخل مفتاح ترخيص الموضوع الخاص بك."
+
+#: inc/updater/theme-updater.php:31
+msgid "License Key"
+msgstr "مفتاح الترخيص"
+
+#: inc/updater/theme-updater.php:32
+msgid "License Action"
+msgstr "إجراء ترخيص"
+
+#: inc/updater/theme-updater.php:33
+msgid "Deactivate License"
+msgstr "إلغاء تنشيط الترخيص"
+
+#: inc/updater/theme-updater.php:34
+msgid "Activate License"
+msgstr "تنشيط الترخيص"
+
+#: inc/updater/theme-updater.php:35 inc/updater/theme-updater.php:47
+msgid "License status is unknown."
+msgstr "حالة الترخيص غير معروفة."
+
+#: inc/updater/theme-updater.php:36
+msgid "Renew?"
+msgstr "تجديد؟"
+
+#: inc/updater/theme-updater.php:37
+msgid "unlimited"
+msgstr "غير محدود"
+
+#: inc/updater/theme-updater.php:38
+msgid "License key is active."
+msgstr "مفتاح الترخيص نشط."
+
+#: inc/updater/theme-updater.php:39
+msgid "Expires %s."
+msgstr "تنتهي صلاحية %s."
+
+#: inc/updater/theme-updater.php:40
+msgid "You have %1$s / %2$s sites activated."
+msgstr "لديك مواقع %1$s / %2$s."
+
+#: inc/updater/theme-updater.php:41
+msgid "License key expired %s."
+msgstr "مفتاح الترخيص منتهية الصلاحية %s."
+
+#: inc/updater/theme-updater.php:42
+msgid "License key has expired."
+msgstr "انتهت صلاحية مفتاح الترخيص."
+
+#: inc/updater/theme-updater.php:43
+msgid "License keys do not match."
+msgstr "مفاتيح الترخيص لا تتطابق."
+
+#: inc/updater/theme-updater.php:44
+msgid "License is inactive."
+msgstr "الترخيص غير نشط."
+
+#: inc/updater/theme-updater.php:45
+msgid "License key is disabled."
+msgstr "مفتاح الترخيص معاق."
+
+#: inc/updater/theme-updater.php:46
+msgid "Site is inactive."
+msgstr "الموقع غير نشط."
+
+#: inc/updater/theme-updater.php:48
+msgid ""
+"Updating this theme will lose any customizations you have made. 'Cancel' to "
+"stop, 'OK' to update."
+msgstr ""
+"سيفقد تحديث هذا الموضوع أي تخصيصات قمت بها. \"إلغاء\" للتوقف ، \"موافق\" "
+"للتحديث."
+
+#: inc/updater/theme-updater.php:49
+msgid ""
+"<strong>%1$s %2$s</strong> is available. <a href=\"%3$s\" class=\"thickbox\""
+" title=\"%4s\">Check out what's new</a> or <a href=\"%5$s\"%6$s>update "
+"now</a>."
+msgstr ""
+"<strong> %1$s %2$s </strong> متاح. <a href = \"%3$s\" class = \"shichbox\" "
+"title = \"٪ 4S\"> تحقق من الجديد </a> أو <a href = \"%5$s\" %6$s> تحديث الآن"
+" </a>."
+
+#: inc/widgets/widget-author-info.php:20
+msgid "Displays author info."
+msgstr "يعرض معلومات المؤلف."
+
+#: inc/widgets/widget-author-info.php:24
+msgid "AFTMN Author Info"
+msgstr "AFTMN معلومات المؤلف"
+
+#: inc/widgets/widget-author-info.php:164
+msgid "About Author"
+msgstr "حول المؤلف"
+
+#: inc/widgets/widget-author-info.php:166
+msgid "Profile image"
+msgstr "صورة الملف الشخصي"
+
+#: inc/widgets/widget-author-info.php:167
+msgid "Name"
+msgstr "اسم"
+
+#: inc/widgets/widget-author-info.php:168
+msgid "Descriptions"
+msgstr "الأوصاف"
+
+#: inc/widgets/widget-author-info.php:171
+msgid "Twitter"
+msgstr "تغريد"
+
+#: inc/widgets/widget-author-info.php:172
+msgid "TikTok"
+msgstr "تيخوك"
+
+#: inc/widgets/widget-author-info.php:173
+msgid "YouTube"
+msgstr "يوتيوب"
+
+#: inc/widgets/widget-author-info.php:174
+msgid "Linkedin"
+msgstr "LinkedIn"
+
+#: inc/widgets/widget-author-info.php:175
+msgid "VK"
+msgstr "VK"
+
+#: inc/widgets/widget-express-posts-grid.php:25
+#: inc/widgets/widget-express-posts-list.php:28
+msgid "Displays Express Posts from selected categories."
+msgstr "يعرض منشورات صريحة من فئات محددة."
+
+#: inc/widgets/widget-express-posts-grid.php:29
+msgid "AFTMN Express Posts Grid"
+msgstr "Aftmn Express Posts Grid"
+
+#: inc/widgets/widget-express-posts-grid.php:128
+#: inc/widgets/widget-express-posts-list.php:138
+#: inc/widgets/widget-popular-posts.php:118
+#: inc/widgets/widget-posts-carousel.php:110
+#: inc/widgets/widget-posts-double-column.php:145
+#: inc/widgets/widget-posts-grid.php:116 inc/widgets/widget-posts-list.php:119
+#: inc/widgets/widget-posts-single-column.php:119
+#: inc/widgets/widget-posts-slider.php:114
+#: inc/widgets/widget-trending-posts-by-tag.php:122
+#: inc/widgets/widget-trending-posts-by-view.php:117
+#: inc/widgets/widget-trending-posts.php:141
+msgid "Number of posts"
+msgstr "عدد المشاركات"
+
+#: inc/widgets/widget-express-posts-list.php:32
+msgid "AFTMN Express Posts List"
+msgstr "قائمة مشاركات AFTMN Express"
+
+#: inc/widgets/widget-popular-posts.php:30
+#: inc/widgets/widget-posts-double-column.php:30
+#: inc/widgets/widget-posts-grid.php:28 inc/widgets/widget-posts-list.php:28
+#: inc/widgets/widget-trending-posts-by-tag.php:30
+#: inc/widgets/widget-trending-posts-by-view.php:30
+#: inc/widgets/widget-trending-posts.php:30
+msgid "Displays grid from selected categories."
+msgstr "يعرض الشبكة من فئات محددة."
+
+#: inc/widgets/widget-popular-posts.php:34
+msgid "AFTMN Popular News"
+msgstr "أخبار شعبية AFTMN"
+
+#: inc/widgets/widget-posts-carousel.php:20
+msgid "Displays posts carousel from selected category."
+msgstr "يعرض المنشورات الكاروسيل من فئة محددة."
+
+#: inc/widgets/widget-posts-carousel.php:24
+msgid "AFTMN Posts Carousel"
+msgstr "AFTMN POSTS CAROUSEL"
+
+#: inc/widgets/widget-posts-carousel.php:109
+#: inc/widgets/widget-posts-slider.php:113
+#: inc/widgets/widget-posts-tabs.php:114 inc/widgets/widget-posts-tabs.php:118
+#: inc/widgets/widget-posts-tabs.php:122
+msgid "Select category"
+msgstr "حدد الفئة"
+
+#: inc/widgets/widget-posts-double-column.php:34
+msgid "AFTMN Post Double Columns"
+msgstr "Aftmn Post Post Double Columns"
+
+#: inc/widgets/widget-posts-double-column.php:143
+msgid "Select Category 1"
+msgstr "حدد الفئة 1"
+
+#: inc/widgets/widget-posts-double-column.php:144
+msgid "Select Category 2"
+msgstr "حدد الفئة 2"
+
+#: inc/widgets/widget-posts-grid.php:32
+msgid "AFTMN Post Grid"
+msgstr "AFTMN شبكة ما بعد"
+
+#: inc/widgets/widget-posts-list.php:32
+msgid "AFTMN Post List"
+msgstr "قائمة بعد AFTMN"
+
+#: inc/widgets/widget-posts-single-column.php:28
+msgid "Displays posts single column from selected categories."
+msgstr "يعرض المنشورات عمودًا واحدًا من فئات محددة."
+
+#: inc/widgets/widget-posts-single-column.php:32
+msgid "AFTMN Post Single Column"
+msgstr "AFTMN Post Post One Comple"
+
+#: inc/widgets/widget-posts-slider.php:20
+msgid "Displays posts slider from selected category."
+msgstr "يعرض المنشورات المنزلق من فئة محددة."
+
+#: inc/widgets/widget-posts-slider.php:24
+msgid "AFTMN Posts Slider"
+msgstr "منشورات AFTMN"
+
+#: inc/widgets/widget-posts-tabs.php:21
+msgid "Displays tabbed posts lists from selected settings."
+msgstr "يعرض قوائم المشاركات من الإعدادات المحددة."
+
+#: inc/widgets/widget-posts-tabs.php:26
+msgid "AFTMN Posts Tabs"
+msgstr "علامات تبويب منشورات AFTMN"
+
+#: inc/widgets/widget-posts-tabs.php:97 inc/widgets/widget-posts-tabs.php:103
+msgid "Yes"
+msgstr "نعم"
+
+#: inc/widgets/widget-posts-tabs.php:98 inc/widgets/widget-posts-tabs.php:104
+msgid "No"
+msgstr "لا"
+
+#: inc/widgets/widget-posts-tabs.php:124
+msgid "Settings for all tabs"
+msgstr "إعدادات لجميع علامات التبويب"
+
+#: inc/widgets/widget-posts-tabs.php:126
+msgid "Number of posts per tab"
+msgstr "عدد المنشورات لكل علامة تبويب"
+
+#: inc/widgets/widget-social-contacts.php:20
+msgid "Displays social contacts lists from selected settings."
+msgstr "يعرض قوائم جهات الاتصال الاجتماعية من الإعدادات المحددة."
+
+#: inc/widgets/widget-social-contacts.php:24
+msgid "AFTMN Social Contacts"
+msgstr "AFTMN الاتصالات الاجتماعية"
+
+#: inc/widgets/widget-social-contacts.php:67
+msgid ""
+"Social menu is not set. You need to create menu and assign it to Social Menu"
+" on Menu Settings."
+msgstr ""
+"لا يتم تعيين القائمة الاجتماعية. تحتاج إلى إنشاء قائمة وتعيينها إلى القائمة "
+"الاجتماعية في إعدادات القائمة."
+
+#: inc/widgets/widget-trending-posts-by-tag.php:34
+msgid "AFTMN Trending News (By Tag)"
+msgstr "أخبار AFTMN Trending (بالعلامة)"
+
+#: inc/widgets/widget-trending-posts-by-view.php:34
+msgid "AFTMN Trending News (By View)"
+msgstr "أخبار AFTMN Trending (عن طريق العرض)"
+
+#: inc/widgets/widget-trending-posts.php:34
+msgid "AFTMN Trending News"
+msgstr "أخبار AFTMN Trending"
+
+#: inc/widgets/widget-youtube-video.php:21
+msgid "Displays youtube video slider."
+msgstr "يعرض شريط فيديو YouTube."
+
+#: inc/widgets/widget-youtube-video.php:25
+msgid "AFTMN YouTube Video"
+msgstr "Aftmn youtube الفيديو"
+
+#: inc/widgets/widget-youtube-video.php:173
+msgid "YouTube Videos:"
+msgstr "فيديوهات يوتيوب:"
+
+#: inc/widgets/widgets-base.php:222
+msgid "Upload"
+msgstr "رفع"
+
+#: inc/widgets/widgets-base.php:223
+msgid "Select Image"
+msgstr "حدد الصورة"
+
+#: inc/widgets/widgets-base.php:224
+msgid "Choose Image"
+msgstr "اختر الصورة"
+
+#: inc/widgets/widgets-base.php:235
+msgctxt "Remove"
+msgid "X"
+msgstr "x"
+
+#: inc/widgets/widgets-common-functions.php:89
+msgid "Recent"
+msgstr "مؤخرًا"
+
+#: inc/widgets/widgets-register-sidebars.php:13
+msgid "Main Sidebar"
+msgstr "الشريط الجانبي الرئيسي"
+
+#: inc/widgets/widgets-register-sidebars.php:15
+msgid "Add widgets for main sidebar."
+msgstr "أضف الحاجيات للشريط الجانبي الرئيسي."
+
+#: inc/widgets/widgets-register-sidebars.php:23
+msgid "Header 1"
+msgstr "رأس 1"
+
+#: inc/widgets/widgets-register-sidebars.php:25
+#: inc/widgets/widgets-register-sidebars.php:34
+#: inc/widgets/widgets-register-sidebars.php:42
+msgid "Add widgets for header section."
+msgstr "أضف أجهزة توجيهي لقسم الرأس."
+
+#: inc/widgets/widgets-register-sidebars.php:32
+msgid "Header 2"
+msgstr "رأس 2"
+
+#: inc/widgets/widgets-register-sidebars.php:40
+msgid "Header 3"
+msgstr "رأس 3"
+
+#: inc/widgets/widgets-register-sidebars.php:51
+msgid "Front-page Content Section"
+msgstr "قسم محتوى الصفحة الأمامية"
+
+#: inc/widgets/widgets-register-sidebars.php:53
+msgid "Add widgets to front-page contents section."
+msgstr "أضف الأدوات إلى قسم محتويات الصفحة الأمامية."
+
+#: inc/widgets/widgets-register-sidebars.php:61
+msgid "Front-page Sidebar Section"
+msgstr "قسم الشريط الجانبي في الصفحة الأمامية"
+
+#: inc/widgets/widgets-register-sidebars.php:63
+msgid "Add widgets to front-page sidebar section."
+msgstr "أضف المصغّبات إلى قسم الشريط الجانبي للصفحة الأمامية."
+
+#: inc/widgets/widgets-register-sidebars.php:71
+msgid "Banner Ad Section"
+msgstr "قسم إعلان شعار"
+
+#: inc/widgets/widgets-register-sidebars.php:73
+msgid "Add widgets for frontpage banner section advertisement."
+msgstr "أضف أجهزة توجيهي للإعلان عن قسم لافتة الصفحات الأمامية."
+
+#: inc/widgets/widgets-register-sidebars.php:84
+msgid "Add widgets for off-canvas section."
+msgstr "أضف أجهزة واجهة المستخدم لقسم Off-Canvas."
+
+#: inc/widgets/widgets-register-sidebars.php:92
+msgid "Above Site Header Section"
+msgstr "قسم رأس الموقع أعلاه"
+
+#: inc/widgets/widgets-register-sidebars.php:94
+msgid "Add widgets for above site header section."
+msgstr "أضف أجهزة توجيهي لقسم رأس الموقع أعلاه."
+
+#: inc/widgets/widgets-register-sidebars.php:102
+msgid "Below Site Header Section"
+msgstr "قسم رأس الموقع أدناه"
+
+#: inc/widgets/widgets-register-sidebars.php:104
+msgid "Add widgets for below site header section."
+msgstr "أضف أجهزة توجيهي لقسم رأس الموقع أدناه."
+
+#: inc/widgets/widgets-register-sidebars.php:112
+msgid "Above Main Banner Section"
+msgstr "أعلاه قسم الراية الرئيسي"
+
+#: inc/widgets/widgets-register-sidebars.php:114
+msgid "Add widgets for above main banner section."
+msgstr "أضف أجهزة واجهة المستخدم لقسم الشعار الرئيسي أعلاه."
+
+#: inc/widgets/widgets-register-sidebars.php:122
+msgid "Below Main Banner Section"
+msgstr "أدناه قسم الراية الرئيسي"
+
+#: inc/widgets/widgets-register-sidebars.php:124
+msgid "Add widgets for below main banner section."
+msgstr "أضف عناصر واجهة المستخدم لقسم اللافتات الرئيسي أدناه."
+
+#: inc/widgets/widgets-register-sidebars.php:132
+msgid "Below Featured Section"
+msgstr "أدناه قسم مميز"
+
+#: inc/widgets/widgets-register-sidebars.php:134
+msgid "Add widgets for below featured section."
+msgstr "أضف أجهزة توجيهي للقسم المميز أدناه."
+
+#: inc/widgets/widgets-register-sidebars.php:142
+msgid "Above Site Footer Section"
+msgstr "فوق قسم تذييل الموقع"
+
+#: inc/widgets/widgets-register-sidebars.php:144
+msgid "Add widgets for above site footer section."
+msgstr "أضف أجهزة واجهة المستخدم لقسم تذييل الموقع أعلاه."
+
+#: inc/widgets/widgets-register-sidebars.php:153
+msgid "Footer First Section"
+msgstr "تذييل القسم الأول"
+
+#: inc/widgets/widgets-register-sidebars.php:155
+msgid "Displays items on footer first column."
+msgstr "يعرض العناصر على العمود الأول تذييل."
+
+#: inc/widgets/widgets-register-sidebars.php:164
+msgid "Footer Second Section"
+msgstr "تذييل القسم الثاني"
+
+#: inc/widgets/widgets-register-sidebars.php:166
+msgid "Displays items on footer second column."
+msgstr "يعرض العناصر على العمود الثاني تذييل."
+
+#: inc/widgets/widgets-register-sidebars.php:174
+msgid "Footer Third Section"
+msgstr "القسم الثالث تذييل"
+
+#: inc/widgets/widgets-register-sidebars.php:176
+msgid "Displays items on footer third column."
+msgstr "يعرض العناصر على عمود تذييل الثالث."
+
+#: inc/widgets/widgets-register-sidebars.php:184
+msgid "Below Site Footer Section"
+msgstr "أسفل قسم تذييل الموقع"
+
+#: inc/widgets/widgets-register-sidebars.php:186
+msgid "Add widgets for below site footer section."
+msgstr "أضف أجهزة واجهة المستخدم لقسم تذييل الموقع أدناه."
+
+#: inc/widgets/widgets-register-sidebars.php:195
+msgid "Above Single Post Title Section"
+msgstr "فوق قسم العنوان الواحد"
+
+#: inc/widgets/widgets-register-sidebars.php:197
+msgid "Add widgets for single above post title."
+msgstr "أضف عناصر واجهة مستخدم واحد أعلاه عنوان ما بعد."
+
+#: inc/widgets/widgets-register-sidebars.php:205
+msgid "Below Single Post Title Section"
+msgstr "أسفل قسم عنوان المنشور الفردي"
+
+#: inc/widgets/widgets-register-sidebars.php:207
+msgid "Add widgets for single below single post title ."
+msgstr "أضف عناصر واجهة مستخدم واحد أدناه عنوان منشور واحد."
+
+#: inc/widgets/widgets-register-sidebars.php:215
+msgid "Above Single Featured Image Section"
+msgstr "فوق قسم الصور المميز الفردي"
+
+#: inc/widgets/widgets-register-sidebars.php:217
+msgid "Add widgets for above featured image."
+msgstr "أضف المصغّرة للصورة المميزة أعلاه."
+
+#: inc/widgets/widgets-register-sidebars.php:225
+msgid "Below Single Featured Image Section"
+msgstr "أسفل قسم الصور المميز الفردي"
+
+#: inc/widgets/widgets-register-sidebars.php:227
+msgid "Add widgets for below featured image ."
+msgstr "أضف المصغّرة للأسفال المميزة أدناه."
+
+#: inc/widgets/widgets-register-sidebars.php:235
+msgid "Above Single Post Content Section"
+msgstr "فوق قسم محتوى النشر المفرد"
+
+#: inc/widgets/widgets-register-sidebars.php:237
+msgid "Add widgets for single posts= content."
+msgstr "أضف أجهزة توجيهي للمنشورات الفردية = المحتوى."
+
+#: inc/widgets/widgets-register-sidebars.php:245
+msgid "Below Single Post Content Section"
+msgstr "أدناه قسم محتوى منشور واحد"
+
+#: inc/widgets/widgets-register-sidebars.php:247
+msgid "Add widgets for single post content."
+msgstr "أضف أجهزة توجيهي لمحتوى منشور واحد."
+
+#: inc/woocommerce.php:254
+msgid "View your shopping cart"
+msgstr "عرض عربة التسوق الخاصة بك"
+
+#. translators: number of items in the mini cart.
+#: inc/woocommerce.php:258
+msgid "%d item"
+msgstr "%d عنصر"
+
+#: lib/breadcrumb-trail/inc/breadcrumbs.php:304
+msgid "Browse:"
+msgstr "تصفح:"
+
+#: lib/breadcrumb-trail/inc/breadcrumbs.php:305
+msgctxt "breadcrumbs aria label"
+msgid "Breadcrumbs"
+msgstr "فتات الخبز"
+
+#: lib/breadcrumb-trail/inc/breadcrumbs.php:306
+msgid "Home"
+msgstr "بيت"
+
+#: lib/breadcrumb-trail/inc/breadcrumbs.php:307
+msgid "404 Not Found"
+msgstr "404 لم يتم العثور عليها"
+
+#: lib/breadcrumb-trail/inc/breadcrumbs.php:308
+msgid "Archives"
+msgstr "أرشيف"
+
+#. Translators: %s is the search query.
+#: lib/breadcrumb-trail/inc/breadcrumbs.php:310
+msgid "Search results for: %s"
+msgstr "نتائج البحث عن: %s"
+
+#. Translators: %s is the page number.
+#: lib/breadcrumb-trail/inc/breadcrumbs.php:312
+msgid "Page %s"
+msgstr "الصفحة %s"
+
+#. Translators: %s is the page number.
+#: lib/breadcrumb-trail/inc/breadcrumbs.php:314
+msgid "Comment Page %s"
+msgstr "تعليق صفحة %s"
+
+#. Translators: Minute archive title. %s is the minute time format.
+#: lib/breadcrumb-trail/inc/breadcrumbs.php:316
+msgid "Minute %s"
+msgstr "دقيقة %s"
+
+#. Translators: Weekly archive title. %s is the week date format.
+#: lib/breadcrumb-trail/inc/breadcrumbs.php:318
+msgid "Week %s"
+msgstr "الأسبوع %s"
+
+#: lib/breadcrumb-trail/inc/breadcrumbs.php:791
+msgctxt "minute and hour archives time format"
+msgid "g:i a"
+msgstr "G: أنا أ"
+
+#: lib/breadcrumb-trail/inc/breadcrumbs.php:809
+msgctxt "minute archives time format"
+msgid "i"
+msgstr "أنا"
+
+#: lib/breadcrumb-trail/inc/breadcrumbs.php:827
+msgctxt "hour archives time format"
+msgid "g a"
+msgstr "ز أ"
+
+#: lib/breadcrumb-trail/inc/breadcrumbs.php:844
+#: lib/breadcrumb-trail/inc/breadcrumbs.php:874
+#: lib/breadcrumb-trail/inc/breadcrumbs.php:902
+#: lib/breadcrumb-trail/inc/breadcrumbs.php:930
+#: lib/breadcrumb-trail/inc/breadcrumbs.php:1285
+msgctxt "yearly archives date format"
+msgid "Y"
+msgstr "ذ"
+
+#: lib/breadcrumb-trail/inc/breadcrumbs.php:845
+#: lib/breadcrumb-trail/inc/breadcrumbs.php:903
+#: lib/breadcrumb-trail/inc/breadcrumbs.php:1289
+msgctxt "monthly archives date format"
+msgid "F"
+msgstr "و"
+
+#: lib/breadcrumb-trail/inc/breadcrumbs.php:846
+#: lib/breadcrumb-trail/inc/breadcrumbs.php:1293
+msgctxt "daily archives date format"
+msgid "j"
+msgstr "ي"
+
+#: lib/breadcrumb-trail/inc/breadcrumbs.php:875
+msgctxt "weekly archives date format"
+msgid "W"
+msgstr "ث"
+
+#: lib/info/class.info.php:126
+msgid ""
+"Welcome! Thank you for choosing %1$s. To fully take advantage of the best "
+"our theme can offer please make sure you visit theme details page."
+msgstr ""
+"مرحباً! شكرا لك لاختيار %1$s. للاستفادة الكاملة من أفضل ما يمكن أن تقدمه "
+"موضوعنا ، يرجى التأكد من زيارة صفحة تفاصيل السمة."
+
+#: lib/info/class.info.php:126
+msgid "Get started with %1$s"
+msgstr "ابدأ مع %1$s"
+
+#: lib/info/class.info.php:126 lib/tgm/class-tgm-plugin-activation.php:395
+msgid "Dismiss this notice"
+msgstr "رفض هذا الإشعار"
+
+#: lib/info/class.info.php:232
+msgid "%s() method does not exist."
+msgstr "طريقة %s () غير موجودة."
+
+#: lib/info/class.info.php:341 lib/info/class.info.php:382
+msgid "Manage Plugins"
+msgstr "إدارة الإضافات"
+
+#: lib/info/class.info.php:410
+msgid "Product Features"
+msgstr "ميزات المنتج"
+
+#: lib/info/class.info.php:411
+msgid "Free"
+msgstr "حر"
+
+#: lib/info/class.info.php:412
+msgid "Premium"
+msgstr "غالي"
+
+#: lib/info/info.php:20
+msgid ""
+"Howdy %1$s, we would like to thank you for installing and activating %2$s "
+"theme for your precious site. All of the features provided by the theme are "
+"now ready to use; Here, we have gathered all of the essential details and "
+"helpful links for you and your better experience with %2$s. Once again, "
+"Thanks for using our theme!"
+msgstr ""
+"Howdy %1$s ، نود أن نشكرك على تثبيت وتفعيل سمة %2$s لموقعك الثمين. جميع "
+"الميزات التي يوفرها السمة جاهزة الآن للاستخدام ؛ هنا ، جمعنا جميع التفاصيل "
+"الأساسية والروابط المفيدة لك وتجربتك الأفضل مع ٪ 2 $ s. مرة أخرى ، شكرا "
+"لاستخدام موضوعنا!"
+
+#: lib/info/info.php:24
+msgid "Getting Started"
+msgstr "ابدء"
+
+#: lib/info/info.php:26 admin-dashboard/src/components/main.js:62
+msgid "Useful Plugins"
+msgstr "الإضافات المفيدة"
+
+#: lib/info/info.php:27 lib/info/info.php:87 lib/info/info.php:90
+msgid "Demo Content"
+msgstr "المحتوى التجريبي"
+
+#: lib/info/info.php:34
+#: admin-dashboard/src/components/json/dashboard-content.js:6
+msgid "Theme Details"
+msgstr "تفاصيل الموضوع"
+
+#: lib/info/info.php:38 lib/info/info.php:98
+msgid "View Demo"
+msgstr "عرض العرض التوضيحي"
+
+#: lib/info/info.php:42 lib/info/info.php:57 lib/info/info.php:120
+msgid "View Documentation"
+msgstr "عرض الوثائق"
+
+#: lib/info/info.php:54 lib/info/info.php:117
+msgid "Theme Documentation"
+msgstr "وثائق الموضوع"
+
+#: lib/info/info.php:63 lib/info/info.php:66
+#: admin-dashboard/src/components/json/home-content.js:55
+msgid "Static Front Page"
+msgstr "الصفحة الأولى ثابتة"
+
+#: lib/info/info.php:65
+msgid ""
+"To achieve custom home page other than blog listing, you need to create and "
+"set static front page."
+msgstr ""
+"لتحقيق صفحة رئيسية مخصصة بخلاف قائمة المدونة ، تحتاج إلى إنشاء صفحة أمامية "
+"ثابتة وتعيينها."
+
+#: lib/info/info.php:73
+msgid ""
+"Theme uses Customizer API for theme options. Using the Customizer you can "
+"easily customize different aspects of the theme."
+msgstr ""
+"يستخدم السمة API Customizer لخيارات السمة. باستخدام Customizer ، يمكنك "
+"بسهولة تخصيص جوانب مختلفة من السمة."
+
+#: lib/info/info.php:79 lib/info/info.php:82
+msgid "Widgets"
+msgstr "الحاجيات"
+
+#: lib/info/info.php:81
+msgid ""
+"Theme uses Wedgets API for widget options. Using the Widgets you can easily "
+"customize different aspects of the theme."
+msgstr ""
+"يستخدم السمة واجهة برمجة تطبيقات Wedgets لخيارات واجهة المستخدم. باستخدام "
+"الأدوات المصغّرة ، يمكنك بسهولة تخصيص جوانب مختلفة من السمة."
+
+#: lib/info/info.php:89
+msgid ""
+"To import sample demo content, %1$s plugin should be installed and "
+"activated. After plugin is activated, visit AF Companion Dashboard from "
+"admin menu."
+msgstr ""
+"لاستيراد محتوى العينة التجريبية ، يجب تثبيت وتنشيط البرنامج المساعد %1$s. "
+"بعد تنشيط البرنامج المساعد ، تفضل بزيارة لوحة معلومات AF Companion من قائمة "
+"المشرف."
+
+#: lib/info/info.php:95
+msgid "Theme Preview"
+msgstr "معاينة الموضوع"
+
+#: lib/info/info.php:97
+msgid ""
+"You can check out the theme demos for reference to find out what you can "
+"achieve using the theme and how it can be customized."
+msgstr ""
+"يمكنك التحقق من العروض التوضيحية للموضوع للرجوع إليها لمعرفة ما يمكنك تحقيقه"
+" باستخدام السمة وكيف يمكن تخصيصه."
+
+#: lib/info/info.php:108 lib/info/info.php:111
+msgid "Contact Support"
+msgstr "الاتصال الدعم"
+
+#: lib/info/info.php:110
+msgid ""
+"Got theme support question or found bug or got some feedbacks? Best place to"
+" ask your query is the dedicated Support forum for the theme."
+msgstr ""
+"حصلت على سؤال دعم السمة أو عثر على علة أو حصلت على بعض التعليقات؟ أفضل مكان "
+"لطلب استفسارك هو منتدى الدعم المخصص للموضوع."
+
+#: lib/info/info.php:126
+msgid "Child Theme"
+msgstr "موضوع الطفل"
+
+#: lib/info/info.php:128
+msgid ""
+"For advanced theme customization, it is recommended to use child theme "
+"rather than modifying the theme file itself. Using this approach, you wont "
+"lose the customization after theme update."
+msgstr ""
+"لتخصيص السمة المتقدمة ، يوصى باستخدام موضوع الطفل بدلاً من تعديل ملف السمة "
+"نفسه. باستخدام هذا النهج ، لن تفقد التخصيص بعد تحديث السمة."
+
+#: lib/info/info.php:129
+msgid "Learn More"
+msgstr "يتعلم أكثر"
+
+#: lib/info/info.php:138
+msgid ""
+"Theme supports some helpful WordPress plugins to enhance your site. But, "
+"please enable only those plugins which you need in your site. For example, "
+"enable WooCommerce only if you are using e-commerce."
+msgstr ""
+"يدعم السمة بعض الإضافات المفيدة لـ WordPress لتعزيز موقعك. ولكن ، يرجى تمكين"
+" فقط تلك الإضافات التي تحتاجها في موقعك. على سبيل المثال ، تمكين WooCommerce"
+" فقط إذا كنت تستخدم التجارة الإلكترونية."
+
+#: lib/info/info.php:143
+msgid ""
+"To import demo content for this theme, %1$s plugin is needed. Please make "
+"sure plugin is installed and activated. After plugin is activated, you will "
+"see AF Companion Dashboard from admin menu."
+msgstr ""
+"لاستيراد المحتوى التجريبي لهذا الموضوع ، هناك حاجة إلى مكون إضافي %1$s. يرجى"
+" التأكد من تثبيت البرنامج المساعد وتفعيله. بعد تنشيط البرنامج المساعد ، سترى"
+" AF Companion Dashboard من قائمة المشرف."
+
+#: lib/info/info.php:191
+msgid ""
+"If you want more advanced features then you can upgrade to the premium "
+"version of the theme."
+msgstr ""
+"إذا كنت تريد المزيد من الميزات المتقدمة ، فيمكنك الترقية إلى الإصدار الممتاز"
+" للموضوع."
+
+#: lib/info/info.php:192
+msgid "Upgrade Now"
+msgstr "الترقية الآن"
+
+#: lib/tgm/class-tgm-plugin-activation.php:327
+msgid "Install Required Plugins"
+msgstr "تثبيت الإضافات المطلوبة"
+
+#: lib/tgm/class-tgm-plugin-activation.php:328
+msgid "Install Plugins"
+msgstr "تثبيت المكونات الإضافية"
+
+#. translators: %s: plugin name.
+#: lib/tgm/class-tgm-plugin-activation.php:330
+msgid "Installing Plugin: %s"
+msgstr "تثبيت البرنامج المساعد: %s"
+
+#. translators: %s: plugin name.
+#: lib/tgm/class-tgm-plugin-activation.php:332
+msgid "Updating Plugin: %s"
+msgstr "تحديث البرنامج المساعد: %s"
+
+#: lib/tgm/class-tgm-plugin-activation.php:333
+msgid "Something went wrong with the plugin API."
+msgstr "حدث خطأ ما في API المكون الإضافي."
+
+#. translators: 1: plugin name(s).
+#: lib/tgm/class-tgm-plugin-activation.php:334
+msgid "This theme requires the following plugin: %1$s."
+msgstr "يتطلب هذا السمة المكون الإضافي التالي: %1$s."
+
+#. translators: 1: plugin name(s).
+#: lib/tgm/class-tgm-plugin-activation.php:340
+msgid "This theme recommends the following plugin: %1$s."
+msgstr "يوصي هذا الموضوع بالمكون الإضافي التالي: %1$s."
+
+#. translators: 1: plugin name(s).
+#: lib/tgm/class-tgm-plugin-activation.php:346
+msgid ""
+"The following plugin needs to be updated to its latest version to ensure "
+"maximum compatibility with this theme: %1$s."
+msgstr ""
+"يجب تحديث المكون الإضافي التالي إلى أحدث إصدار له لضمان أقصى قدر من التوافق "
+"مع هذا الموضوع: %1$s."
+
+#. translators: 1: plugin name(s).
+#: lib/tgm/class-tgm-plugin-activation.php:352
+msgid "There is an update available for: %1$s."
+msgstr "هناك تحديث متاح لـ: %1$s."
+
+#. translators: 1: plugin name(s).
+#: lib/tgm/class-tgm-plugin-activation.php:358
+msgid "The following required plugin is currently inactive: %1$s."
+msgstr "المكون الإضافي المطلوب التالي غير نشط حاليًا: %1$s."
+
+#. translators: 1: plugin name(s).
+#: lib/tgm/class-tgm-plugin-activation.php:364
+msgid "The following recommended plugin is currently inactive: %1$s."
+msgstr "المكون الإضافي الموصى به التالي غير نشط حاليًا: %1$s."
+
+#: lib/tgm/class-tgm-plugin-activation.php:370
+msgid "Begin installing plugin"
+msgstr "ابدأ في تثبيت البرنامج المساعد"
+
+#: lib/tgm/class-tgm-plugin-activation.php:375
+msgid "Begin updating plugin"
+msgstr "ابدأ في تحديث البرنامج المساعد"
+
+#: lib/tgm/class-tgm-plugin-activation.php:380
+msgid "Begin activating plugin"
+msgstr "ابدأ تنشيط البرنامج المساعد"
+
+#: lib/tgm/class-tgm-plugin-activation.php:385
+msgid "Return to Required Plugins Installer"
+msgstr "العودة إلى مثبت الإضافات المطلوبة"
+
+#: lib/tgm/class-tgm-plugin-activation.php:386
+#: lib/tgm/class-tgm-plugin-activation.php:830
+#: lib/tgm/class-tgm-plugin-activation.php:2543
+#: lib/tgm/class-tgm-plugin-activation.php:3590
+msgid "Return to the Dashboard"
+msgstr "العودة إلى لوحة القيادة"
+
+#: lib/tgm/class-tgm-plugin-activation.php:387
+#: lib/tgm/class-tgm-plugin-activation.php:3169
+msgid "Plugin activated successfully."
+msgstr "البرنامج المساعد تنشيط بنجاح."
+
+#: lib/tgm/class-tgm-plugin-activation.php:388
+#: lib/tgm/class-tgm-plugin-activation.php:2962
+msgid "The following plugin was activated successfully:"
+msgstr "تم تنشيط البرنامج المساعد التالي بنجاح:"
+
+#. translators: 1: plugin name.
+#: lib/tgm/class-tgm-plugin-activation.php:390
+msgid "No action taken. Plugin %1$s was already active."
+msgstr "لا يوجد إجراء. المكون الإضافي %1$s كان نشطًا بالفعل."
+
+#. translators: 1: plugin name.
+#: lib/tgm/class-tgm-plugin-activation.php:392
+msgid ""
+"Plugin not activated. A higher version of %s is needed for this theme. "
+"Please update the plugin."
+msgstr ""
+"البرنامج المساعد غير المنشط. هناك حاجة إلى إصدار أعلى من %s لهذا الموضوع. "
+"يرجى تحديث البرنامج المساعد."
+
+#. translators: 1: dashboard link.
+#: lib/tgm/class-tgm-plugin-activation.php:394
+msgid "All plugins installed and activated successfully. %1$s"
+msgstr "جميع الإضافات المثبتة وتفعيلها بنجاح. %1$s"
+
+#: lib/tgm/class-tgm-plugin-activation.php:396
+msgid ""
+"There are one or more required or recommended plugins to install, update or "
+"activate."
+msgstr ""
+"هناك مكونات إضافية أو أكثر مطلوبة أو موصى بها لتثبيت أو تحديث أو تنشيط."
+
+#: lib/tgm/class-tgm-plugin-activation.php:397
+msgid "Please contact the administrator of this site for help."
+msgstr "يرجى الاتصال بمسؤول هذا الموقع للحصول على المساعدة."
+
+#: lib/tgm/class-tgm-plugin-activation.php:522
+msgid "This plugin needs to be updated to be compatible with your theme."
+msgstr "يجب تحديث هذا البرنامج المساعد ليكون متوافقًا مع موضوعك."
+
+#: lib/tgm/class-tgm-plugin-activation.php:523
+msgid "Update Required"
+msgstr "التحديث المطلوب"
+
+#: lib/tgm/class-tgm-plugin-activation.php:939
+msgid ""
+"The remote plugin package does not contain a folder with the desired slug "
+"and renaming did not work."
+msgstr ""
+"لا تحتوي حزمة المكون الإضافي عن بُعد على مجلد مع Slug المطلوبة ولم تنجح "
+"إعادة تسمية."
+
+#: lib/tgm/class-tgm-plugin-activation.php:939
+#: lib/tgm/class-tgm-plugin-activation.php:942
+msgid ""
+"Please contact the plugin provider and ask them to package their plugin "
+"according to the WordPress guidelines."
+msgstr ""
+"يرجى الاتصال بمزود البرنامج المساعد واطلب منهم حزم البرنامج المساعد الخاص "
+"بهم وفقًا لإرشادات WordPress."
+
+#: lib/tgm/class-tgm-plugin-activation.php:942
+msgid ""
+"The remote plugin package consists of more than one file, but the files are "
+"not packaged in a folder."
+msgstr ""
+"تتكون حزمة المكون الإضافي عن بُعد من أكثر من ملف واحد ، ولكن لا يتم تعبئة "
+"الملفات في مجلد."
+
+#: lib/tgm/class-tgm-plugin-activation.php:1131
+#: lib/tgm/class-tgm-plugin-activation.php:2958
+msgctxt "plugin A *and* plugin B"
+msgid "and"
+msgstr "و"
+
+#. translators: %s: version number
+#: lib/tgm/class-tgm-plugin-activation.php:1992
+msgid "TGMPA v%s"
+msgstr "TGMPA v%s"
+
+#: lib/tgm/class-tgm-plugin-activation.php:2283
+msgid "Required"
+msgstr "مطلوب"
+
+#: lib/tgm/class-tgm-plugin-activation.php:2302
+msgid "WordPress Repository"
+msgstr "مستودع WordPress"
+
+#: lib/tgm/class-tgm-plugin-activation.php:2305
+msgid "External Source"
+msgstr "المصدر الخارجي"
+
+#: lib/tgm/class-tgm-plugin-activation.php:2308
+msgid "Pre-Packaged"
+msgstr "معبأة مسبقا"
+
+#: lib/tgm/class-tgm-plugin-activation.php:2325
+msgid "Not Installed"
+msgstr "غير مثبت"
+
+#: lib/tgm/class-tgm-plugin-activation.php:2329
+msgid "Installed But Not Activated"
+msgstr "مثبت ولكن لم يتم تنشيطه"
+
+#: lib/tgm/class-tgm-plugin-activation.php:2331
+msgid "Active"
+msgstr "نشيط"
+
+#: lib/tgm/class-tgm-plugin-activation.php:2337
+msgid "Required Update not Available"
+msgstr "التحديث المطلوب غير متوفر"
+
+#: lib/tgm/class-tgm-plugin-activation.php:2340
+msgid "Requires Update"
+msgstr "يتطلب التحديث"
+
+#: lib/tgm/class-tgm-plugin-activation.php:2343
+msgid "Update recommended"
+msgstr "تحديث موصى به"
+
+#. translators: 1: install status, 2: update status
+#: lib/tgm/class-tgm-plugin-activation.php:2352
+msgctxt "Install/Update Status"
+msgid "%1$s, %2$s"
+msgstr "%1$s ، %2$s"
+
+#. translators: 1: number of plugins.
+#: lib/tgm/class-tgm-plugin-activation.php:2398
+msgctxt "plugins"
+msgid "All <span class=\"count\">(%s)</span>"
+msgstr "All <Span Class = \"Count\"> (%s) </span>"
+
+#. translators: 1: number of plugins.
+#: lib/tgm/class-tgm-plugin-activation.php:2402
+msgid "To Install <span class=\"count\">(%s)</span>"
+msgstr "لتثبيت <span class = \"count\"> (%s) </span>"
+
+#. translators: 1: number of plugins.
+#: lib/tgm/class-tgm-plugin-activation.php:2406
+msgid "Update Available <span class=\"count\">(%s)</span>"
+msgstr "التحديث المتاح <span class = \"count\"> (%s) </span>"
+
+#. translators: 1: number of plugins.
+#: lib/tgm/class-tgm-plugin-activation.php:2410
+msgid "To Activate <span class=\"count\">(%s)</span>"
+msgstr "لتفعيل <span class = \"count\"> (%s) </span>"
+
+#: lib/tgm/class-tgm-plugin-activation.php:2492
+msgctxt "as in: \"version nr unknown\""
+msgid "unknown"
+msgstr "مجهول"
+
+#: lib/tgm/class-tgm-plugin-activation.php:2500
+msgid "Installed version:"
+msgstr "النسخة المثبتة:"
+
+#: lib/tgm/class-tgm-plugin-activation.php:2508
+msgid "Minimum required version:"
+msgstr "الحد الأدنى للنسخة المطلوبة:"
+
+#: lib/tgm/class-tgm-plugin-activation.php:2520
+msgid "Available version:"
+msgstr "الإصدار المتاح:"
+
+#: lib/tgm/class-tgm-plugin-activation.php:2543
+msgid "No plugins to install, update or activate."
+msgstr "لا توجد ملحقات مكونات من ملحقات لتثبيت أو تحديث أو تنشيط."
+
+#: lib/tgm/class-tgm-plugin-activation.php:2557
+msgid "Plugin"
+msgstr "البرنامج المساعد"
+
+#: lib/tgm/class-tgm-plugin-activation.php:2558
+msgid "Source"
+msgstr "مصدر"
+
+#: lib/tgm/class-tgm-plugin-activation.php:2559
+msgid "Type"
+msgstr "يكتب"
+
+#: lib/tgm/class-tgm-plugin-activation.php:2563
+msgid "Version"
+msgstr "إصدار"
+
+#: lib/tgm/class-tgm-plugin-activation.php:2564
+msgid "Status"
+msgstr "حالة"
+
+#. translators: %2$s: plugin name in screen reader markup
+#: lib/tgm/class-tgm-plugin-activation.php:2613
+msgid "Install %2$s"
+msgstr "تثبيت %2$s"
+
+#. translators: %2$s: plugin name in screen reader markup
+#: lib/tgm/class-tgm-plugin-activation.php:2618
+msgid "Update %2$s"
+msgstr "تحديث %2$s"
+
+#. translators: %2$s: plugin name in screen reader markup
+#: lib/tgm/class-tgm-plugin-activation.php:2624
+msgid "Activate %2$s"
+msgstr "تنشيط %2$s"
+
+#: lib/tgm/class-tgm-plugin-activation.php:2694
+msgid "Upgrade message from the plugin author:"
+msgstr "ترقية رسالة من مؤلف البرنامج المساعد:"
+
+#: lib/tgm/class-tgm-plugin-activation.php:2727
+msgid "Install"
+msgstr "ثَبَّتَ"
+
+#: lib/tgm/class-tgm-plugin-activation.php:2767
+msgid "No plugins were selected to be installed. No action taken."
+msgstr "لم يتم اختيار مكونات إضافية ليتم تثبيتها. لا يوجد إجراء."
+
+#: lib/tgm/class-tgm-plugin-activation.php:2769
+msgid "No plugins were selected to be updated. No action taken."
+msgstr "لم يتم اختيار مكونات إضافية ليتم تحديثها. لا يوجد إجراء."
+
+#: lib/tgm/class-tgm-plugin-activation.php:2810
+msgid "No plugins are available to be installed at this time."
+msgstr "لا تتوفر مكونات إضافية لتثبيتها في هذا الوقت."
+
+#: lib/tgm/class-tgm-plugin-activation.php:2812
+msgid "No plugins are available to be updated at this time."
+msgstr "لا تتوفر مكونات إضافية ليتم تحديثها في هذا الوقت."
+
+#: lib/tgm/class-tgm-plugin-activation.php:2918
+msgid "No plugins were selected to be activated. No action taken."
+msgstr "لم يتم اختيار مكونات إضافية لتفعيلها. لا يوجد إجراء."
+
+#: lib/tgm/class-tgm-plugin-activation.php:2944
+msgid "No plugins are available to be activated at this time."
+msgstr "لا تتوفر مكونات إضافية لتفعيلها في هذا الوقت."
+
+#: lib/tgm/class-tgm-plugin-activation.php:3168
+msgid "Plugin activation failed."
+msgstr "فشل تنشيط البرنامج المساعد."
+
+#. translators: 1: plugin name, 2: action number 3: total number of actions.
+#: lib/tgm/class-tgm-plugin-activation.php:3508
+msgid "Updating Plugin %1$s (%2$d/%3$d)"
+msgstr "تحديث البرنامج المساعد %1$s (%2$d/%3$d)"
+
+#. translators: 1: plugin name, 2: error message.
+#: lib/tgm/class-tgm-plugin-activation.php:3511
+msgid "An error occurred while installing %1$s: <strong>%2$s</strong>."
+msgstr "حدث خطأ أثناء تثبيت %1$s: <strong> %2$s </strong>."
+
+#. translators: 1: plugin name.
+#: lib/tgm/class-tgm-plugin-activation.php:3513
+msgid "The installation of %1$s failed."
+msgstr "فشل تثبيت %1$s."
+
+#: lib/tgm/class-tgm-plugin-activation.php:3517
+msgid ""
+"The installation and activation process is starting. This process may take a"
+" while on some hosts, so please be patient."
+msgstr ""
+"بدأت عملية التثبيت والتنشيط. قد تستغرق هذه العملية بعض الوقت على بعض "
+"المضيفين ، لذا يرجى التحلي بالصبر."
+
+#. translators: 1: plugin name.
+#: lib/tgm/class-tgm-plugin-activation.php:3519
+#: lib/tgm/class-tgm-plugin-activation.php:3527
+msgid "%1$s done."
+msgstr "%1$s القيام به."
+
+#: lib/tgm/class-tgm-plugin-activation.php:3520
+msgid "All installations and activations have been completed."
+msgstr "تم الانتهاء من جميع المنشآت والتنشيط."
+
+#. translators: 1: plugin name, 2: action number 3: total number of actions.
+#: lib/tgm/class-tgm-plugin-activation.php:3522
+msgid "Installing and Activating Plugin %1$s (%2$d/%3$d)"
+msgstr "تثبيت وتفعيل البرنامج المساعد %1$s (%2$d/%3$d)"
+
+#: lib/tgm/class-tgm-plugin-activation.php:3525
+msgid ""
+"The installation process is starting. This process may take a while on some "
+"hosts, so please be patient."
+msgstr ""
+"تبدأ عملية التثبيت. قد تستغرق هذه العملية بعض الوقت على بعض المضيفين ، لذا "
+"يرجى التحلي بالصبر."
+
+#: lib/tgm/class-tgm-plugin-activation.php:3528
+msgid "All installations have been completed."
+msgstr "تم الانتهاء من جميع التركيبات."
+
+#. translators: 1: plugin name, 2: action number 3: total number of actions.
+#: lib/tgm/class-tgm-plugin-activation.php:3530
+msgid "Installing Plugin %1$s (%2$d/%3$d)"
+msgstr "تثبيت البرنامج المساعد %1$s (%2$d/%3$d)"
+
+#. Template Name of the theme
+msgid "Blank Canvas"
+msgstr "قماش فارغ"
+
+#. Template Name of the theme
+msgid "Page Builder Full Width"
+msgstr "باني الصفحة عرض كامل"
+
+#. translators: %s: search query.
+#: search.php:21
+msgid "Search Results for: %s"
+msgstr "نتائج البحث عن: %s"
+
+#: single.php:65
+msgid "Embedded video content"
+msgstr "محتوى الفيديو المضمن"
+
+#: template-parts/content-none.php:14
+msgid "Nothing Found"
+msgstr "لم يتم العثور على شيء"
+
+#. translators: 1: link to WP admin new post page.
+#: template-parts/content-none.php:25
+msgid "Ready to publish your first post? <a href=\"%1$s\">Get started here</a>."
+msgstr "هل أنت مستعد لنشر مشاركتك الأولى؟ <a href = \"%1$s\"> ابدأ هنا </a>."
+
+#: template-parts/content-none.php:38
+msgid ""
+"Sorry, but nothing matched your search terms. Please try again with some "
+"different keywords."
+msgstr ""
+"آسف ، ولكن لا شيء يتطابق مع مصطلحات البحث الخاصة بك. يرجى المحاولة مرة أخرى "
+"مع بعض الكلمات الرئيسية المختلفة."
+
+#: template-parts/content-none.php:44
+msgid ""
+"It seems we can&rsquo;t find what you&rsquo;re looking for. Perhaps "
+"searching can help."
+msgstr "يبدو أننا لا نستطيع أن نجد ما تبحث عنه. ربما يمكن أن يساعد البحث."
+
+#. translators: %s: Name of current post. Only visible to screen readers
+#: template-parts/content.php:21
+msgid "Continue reading<span class=\"screen-reader-text\"> \"%s\"</span>"
+msgstr "متابعة القراءة <span class = \"screen-reader-text\"> \"%s\" </span>"
+
+#: template-parts/content.php:61
+msgid "<span class=\"em-post-navigation\">Previous:</span> %title"
+msgstr "<span class = \"em-post-navigation\"> السابق: </span> %title"
+
+#: template-parts/content.php:62
+msgid "<span class=\"em-post-navigation\">Next:</span> %title"
+msgstr "<span class = \"em-post-navigation\"> التالي: </span> %title"
+
+#: template-parts/content.php:65
+msgid "Continue Reading"
+msgstr "مواصلة القراءة"
+
+#: admin-dashboard/src/components/blockspare.demo.js:32
+msgid "Update Blockspare Pro"
+msgstr "تحديث blockspare pro"
+
+#: admin-dashboard/src/components/blockspare.demo.js:34
+msgid "Update Blockspare"
+msgstr "تحديث blockspare"
+
+#: admin-dashboard/src/components/blockspare.demo.js:48
+msgid "Page Builder Gutenberg Blocks & Patterns"
+msgstr "صفحات باني غوتنبرغ كتل وأنماط"
+
+#: admin-dashboard/src/components/blockspare.demo.js:51
+msgid ""
+"Add pages effortlessly with expertly crafted Gutenberg patterns and blocks "
+"for blogs, magazines, newspapers, and agency sites using the Blockspare "
+"plugin!"
+msgstr ""
+"أضف صفحات دون عناء مع أنماط وكتل Gutenberg المصنوعة بخبرة للمدونات والمجلات "
+"والصحف ومواقع الوكالات باستخدام المكون الإضافي blockspare!"
+
+#: admin-dashboard/src/components/dashboard-content.js:42
+msgid "Hello "
+msgstr "مرحبًا"
+
+#: admin-dashboard/src/components/dashboard-content.js:45
+msgid "Welcome to "
+msgstr "مرحبا بكم في"
+
+#: admin-dashboard/src/components/elespare-demo.js:34
+msgid "Update Elespare Pro"
+msgstr "تحديث Elespare Pro"
+
+#: admin-dashboard/src/components/elespare-demo.js:36
+msgid "Update Elespare"
+msgstr "تحديث Elespare"
+
+#: admin-dashboard/src/components/elespare-demo.js:50
+msgid "Page Builder Elementor Widgets"
+msgstr "أجهزة توجيهي لشراء باني الصفحة"
+
+#: admin-dashboard/src/components/elespare-demo.js:53
+msgid ""
+"Add pages effortlessly with expertly crafted Elementor widgets for blogs, "
+"magazines, newspapers, and agency sites using the Elespare plugin!"
+msgstr ""
+"أضف صفحات دون عناء مع عناصر واجهة المستخدم Elementor المصممة بخبرة للمدونات "
+"والمجلات والصحف ومواقع الوكالات باستخدام Elespare Plugin!"
+
+#: admin-dashboard/src/components/json/dashboard-content.js:2
+msgid ""
+"we would like to thank you for installing and activating [theme] theme for "
+"your precious site. All of the features provided by the theme are now ready "
+"to use; Here, we have gathered all of the essential details and helpful "
+"links for you and your better experience with [theme]. Once again, Thanks "
+"for using our theme!"
+msgstr ""
+"نود أن نشكرك على تثبيت وتفعيل السمة [السمة] لموقعك الثمين. جميع الميزات التي"
+" يوفرها السمة جاهزة الآن للاستخدام ؛ هنا ، جمعنا جميع التفاصيل الأساسية "
+"والروابط المفيدة لك وتجربتك الأفضل مع [السمة]. مرة أخرى ، شكرا لاستخدام "
+"موضوعنا!"
+
+#: admin-dashboard/src/components/json/dashboard-content.js:10
+msgid "View Demos"
+msgstr "عرض العروض التوضيحية"
+
+#: admin-dashboard/src/components/json/dashboard-content.js:23
+msgid "Need Help?"
+msgstr "هل تحتاج إلى مساعدة؟"
+
+#: admin-dashboard/src/components/json/dashboard-content.js:25
+msgid "Demo Sites"
+msgstr "المواقع التجريبية"
+
+#: admin-dashboard/src/components/json/home-content.js:6
+msgid ""
+"Set the theme header type, set the colors, spacing, alignment and more."
+msgstr "اضبط نوع رأس المظهر ، وضبط الألوان ، والتباعد ، والمحاذاة والمزيد."
+
+#: admin-dashboard/src/components/json/home-content.js:15
+msgid "Banner Advertisement"
+msgstr "إعلان شعار"
+
+#: admin-dashboard/src/components/json/home-content.js:16
+msgid ""
+"You can easily place your promotional banners within your header section."
+msgstr "يمكنك بسهولة وضع لافتات الترويجية الخاصة بك داخل قسم رأسك."
+
+#: admin-dashboard/src/components/json/home-content.js:25
+msgid "Color Options"
+msgstr "خيارات الألوان"
+
+#: admin-dashboard/src/components/json/home-content.js:26
+msgid "Change the color setting provide with the Theme."
+msgstr "قم بتغيير إعداد الألوان توفير السمة."
+
+#: admin-dashboard/src/components/json/home-content.js:36
+msgid "Selecting different categories can be done for different section."
+msgstr "يمكن إجراء اختيار فئات مختلفة لقسم مختلف."
+
+#: admin-dashboard/src/components/json/home-content.js:45
+msgid "Front-page Option"
+msgstr "خيار الصفحة الأمامية"
+
+#: admin-dashboard/src/components/json/home-content.js:46
+msgid ""
+"Front-page layout with Popular Tag, Breaking News, Feature News can be set."
+msgstr ""
+"تخطيط الصفحة الأمامية مع العلامة الشائعة ، والأخبار العاجلة ، يمكن تعيين "
+"أخبار الميزة."
+
+#: admin-dashboard/src/components/json/home-content.js:56
+msgid ""
+"Set the Homepage as a static page to create own homepage using widgets."
+msgstr ""
+"اضبط الصفحة الرئيسية كصفحة ثابتة لإنشاء صفحة منزلية خاصة باستخدام أجهزة "
+"التحكم."
+
+#: admin-dashboard/src/components/json/home-content.js:65
+msgid "Widgets Area"
+msgstr "منطقة الأدوات"
+
+#: admin-dashboard/src/components/json/home-content.js:66
+msgid "Widgets can be added on all the section provide by the Theme."
+msgstr "يمكن إضافة الأدوات المصغّرة على جميع القسم الذي يقدمه الموضوع."
+
+#: admin-dashboard/src/components/json/home-content.js:75
+msgid "Archive Options"
+msgstr "خيارات الأرشيف"
+
+#: admin-dashboard/src/components/json/home-content.js:76
+msgid "Customize the blog layout desgin."
+msgstr "تخصيص تخطيط المدونة desgin."
+
+#: admin-dashboard/src/components/json/home-content.js:82
+msgid "Theme Option"
+msgstr "خيار الموضوع"
+
+#: admin-dashboard/src/components/json/home-content.js:83
+msgid ""
+"Set the Global Layout, Breadcrumb, Sidebar, Single Post, You may have missed"
+" and more."
+msgstr ""
+"قم بتعيين التصميم العالمي ، الخبز ، الشريط الجانبي ، وظيفة واحدة ، ربما تكون"
+" قد فاتتك وأكثر من ذلك."
+
+#: admin-dashboard/src/components/json/home-content.js:92
+msgid "Footer Options"
+msgstr "خيارات تذييل"
+
+#: admin-dashboard/src/components/json/home-content.js:93
+msgid "Set the footer type, number of columns, spacing and colors."
+msgstr "اضبط نوع التذييل وعدد الأعمدة والتباعد والألوان."
+
+#: admin-dashboard/src/components/json/premium-plugins-content.js:4
+msgid "Elespare (Elementor)"
+msgstr "Elespare (Elementor)"
+
+#: admin-dashboard/src/components/json/premium-plugins-content.js:6
+msgid ""
+"A stunning assortment of WordPress post widgets. It allows you to display "
+"your posts in many formats such as grid, list, tile, full, express, and so "
+"on."
+msgstr ""
+"مجموعة مذهلة من WordPress Post Widgets. يتيح لك عرض مشاركاتك في العديد من "
+"التنسيقات مثل الشبكة ، القائمة ، البلاط ، الكامل ، السريع ، وما إلى ذلك."
+
+#: admin-dashboard/src/components/json/premium-plugins-content.js:10
+msgid "Blockspare Pro"
+msgstr "Blockspare Pro"
+
+#: admin-dashboard/src/components/json/premium-plugins-content.js:12
+msgid "Beautiful Page Building Gutenberg Blocks for WordPress"
+msgstr "صفحة جميلة بناء كتل غوتنبرغ لوردبريس"
+
+#: admin-dashboard/src/components/json/premium-plugins-content.js:16
+msgid "Magic Content Box Block"
+msgstr "كتلة مربع المحتوى السحري"
+
+#: admin-dashboard/src/components/json/premium-plugins-content.js:18
+msgid ""
+"We build a beautiful series of page section Gutenberg blocks for WordPress "
+"content to help you quickly create the website you have always desired.."
+msgstr ""
+"نقوم ببناء سلسلة جميلة من قسم الصفحة Gutenberg لمحتوى WordPress لمساعدتك "
+"بسرعة على إنشاء موقع الويب الذي تريده دائمًا.."
+
+#: admin-dashboard/src/components/json/premium-plugins-content.js:22
+msgid "Latest Posts Block for WordPress (Gutenberg)"
+msgstr "أحدث مشاركات كتلة WordPress (Gutenberg)"
+
+#: admin-dashboard/src/components/json/premium-plugins-content.js:24
+msgid ""
+"A beautiful collection of latest posts Gutenberg blocks for WordPress, which"
+" helps you to design posts grid, posts list, full posts layout, advanced "
+"express posts design, and tile layouts of your posts."
+msgstr ""
+"مجموعة جميلة من أحدث المشاركات Gutenberg Colls لـ WordPress ، والتي تساعدك "
+"على تصميم شبكة المشاركات ، وقائمة المشاركات ، وتخطيط المنشورات الكاملة ، "
+"وتصميم مشاركات Express المتقدمة ، وتخطيطات البلاط لمشاركاتك."
+
+#: admin-dashboard/src/components/json/premium-plugins-content.js:28
+msgid "Team and Testimonial Block for WordPress (Gutenberg)"
+msgstr "فريق وشهادة كتلة WordPress (غوتنبرغ)"
+
+#: admin-dashboard/src/components/json/premium-plugins-content.js:30
+msgid ""
+"With the Team and Testimonial Block for Gutenberg, you can quickly create a "
+"beautiful, responsive, and high-converting team, members, review, rating, "
+"etc, sections. There is no need to code anything."
+msgstr ""
+"مع الفريق والشهادة لجوتنبرغ ، يمكنك إنشاء فريق جميل وسريع الاستجابة وعالي "
+"التحويل ، والأعضاء ، والمراجعة ، والتصنيف ، وما إلى ذلك ، أقسام. ليست هناك "
+"حاجة لترميز أي شيء."
+
+#: admin-dashboard/src/components/json/premium-plugins-content.js:34
+msgid "Pricing Table Block for WordPress (Gutenberg)"
+msgstr "كتلة جدول التسعير لـ WordPress (Gutenberg)"
+
+#: admin-dashboard/src/components/json/premium-plugins-content.js:36
+msgid ""
+"With the Pricing Table Block for Gutenberg, you can quickly create a "
+"beautiful, responsive, and high-converting pricing table. There is no need "
+"to code anything."
+msgstr ""
+"مع كتلة جدول التسعير لجوتنبرغ ، يمكنك إنشاء طاولة تسعير جميلة وسريعة "
+"الاستجابة وعالية التحويل. ليست هناك حاجة لترميز أي شيء."
+
+#: admin-dashboard/src/components/json/sidebar-content.js:5
+msgid "View"
+msgstr "منظر"
+
+#: admin-dashboard/src/components/json/sidebar-content.js:13
+msgid ""
+"Got theme support question or found bug or got some feedbacks? Best place to"
+" ask your query is the dedicated Support forum for the theme.."
+msgstr ""
+"حصلت على سؤال دعم السمة أو عثر على علة أو حصلت على بعض التعليقات؟ أفضل مكان "
+"لطلب استفسارك هو منتدى الدعم المخصص للموضوع.."
+
+#: admin-dashboard/src/components/json/sidebar-content.js:16
+msgid "Video  Tutorials"
+msgstr "دروس الفيديو"
+
+#: admin-dashboard/src/components/json/sidebar-content.js:19
+msgid "Watch out the videos for an easy learning on Customizing the Theme ."
+msgstr "احترس من مقاطع الفيديو للحصول على تعلم سهل على تخصيص السمة."
+
+#: admin-dashboard/src/components/json/sidebar-content.js:22
+msgid "3CX Free Live Chat"
+msgstr "3CX دردشة حية مجانية"
+
+#: admin-dashboard/src/components/json/sidebar-content.js:24
+msgid "Visit"
+msgstr "يزور"
+
+#: admin-dashboard/src/components/json/sidebar-content.js:26
+msgid ""
+"We have built a new live chat solution called 3cx startup! this will give "
+"you completely free live chat, voice capability plus a team communication "
+"system!"
+msgstr ""
+"لقد قمنا ببناء حل دردشة مباشر جديد يسمى 3CX Startup! سيمنحك هذا الدردشة "
+"المباشرة المجانية تمامًا ، القدرة الصوتية بالإضافة إلى نظام اتصال الفريق!"
+
+#: admin-dashboard/src/components/json/useful-plugins-content.js:5
+msgid ""
+"Use AF Companion to import live demo content, widgets, and settings swiftly."
+" This plugin gives fundamental layout to build your website and accelerate "
+"the development process."
+msgstr ""
+"استخدم AF Companion لاستيراد المحتوى التجريبي المباشر ، والضرب ، والإعدادات "
+"بسرعة. يعطي هذا البرنامج المساعد تخطيطًا أساسيًا لإنشاء موقع الويب الخاص بك "
+"وتسريع عملية التطوير."
+
+#: admin-dashboard/src/components/json/useful-plugins-content.js:9
+msgid ""
+"You may design complicated layouts for your website in just a few minutes "
+"with our adaptable and inventive blocks."
+msgstr ""
+"يمكنك تصميم تخطيطات معقدة لموقع الويب الخاص بك في غضون بضع دقائق فقط مع "
+"كتلنا القابلة للتكيف والمبتكرة."
+
+#: admin-dashboard/src/components/json/useful-plugins-content.js:13
+msgid ""
+"Get ready-to-use Starter Sites instantly and build modern websites in "
+"minutes."
+msgstr ""
+"احصل على مواقع بداية للاستخدام على الفور وبناء مواقع الويب الحديثة في دقائق."
+
+#: admin-dashboard/src/components/json/useful-plugins-content.js:17
+msgid ""
+"DESIGN PERFECT BLOG, NEWS, OR MAGAZINE WEBSITES Elespare is a simple yet "
+"effective WordPress plugin that lets you use Elementor to create fantastic "
+"Header, Footer and Contents of websites with highly customization options "
+"for FREE. "
+msgstr ""
+"تصميم مدونة مثالية أو أخبار أو مواقع الويب المجلات Elspare هو مكون إضافي "
+"بسيط ولكنه فعال يتيح لك استخدام Elementor لإنشاء رأس رائع وتذييل ومحتويات "
+"مواقع الويب مع خيارات التخصيص للغاية مجانًا."
+
+#: admin-dashboard/src/components/json/useful-plugins-content.js:21
+msgid ""
+"A beautiful collection of latest posts Gutenberg blocks for WordPress, which"
+" helps you to design posts grid, posts list, full posts layout, advanced "
+"express posts design and tile layouts of your posts."
+msgstr ""
+"مجموعة جميلة من أحدث المشاركات الكتل Gutenberg لـ WordPress ، والتي تساعدك "
+"على تصميم شبكة المشاركات ، وقائمة المشاركات ، وتخطيط المنشورات الكاملة ، "
+"وتصميم المشاركات السريعة المتقدمة وتخطيطات البلاط الخاصة بك."
+
+#: admin-dashboard/src/components/json/useful-plugins-content.js:25
+msgid ""
+"We build a beautiful series of page section Gutenberg blocks for WordPress "
+"content to help you quickly create the website you've always desired."
+msgstr ""
+"نقوم ببناء سلسلة جميلة من قسم الصفحة Gutenberg لمحتوى WordPress لمساعدتك "
+"بسرعة على إنشاء موقع الويب الذي تريده دائمًا."
+
+#: admin-dashboard/src/components/json/useful-plugins-content.js:29
+msgid ""
+"It has 3 different widgets for post's author, selective author by id and "
+"custom author. It also provides shortcodes for the author profile."
+msgstr ""
+"لديها 3 أجهزة تعامل مختلفة لمؤلف بوست ، المؤلف الانتقائي حسب ID و Custom "
+"Custom. كما يوفر الرموز المختصرة لملف تعريف المؤلف."
+
+#: admin-dashboard/src/components/json/useful-plugins-content.js:33
+msgid ""
+"This free plugin offers a free live chat solution for your website visitors "
+"to contact you via live chat or a live call - all for free! Engage with your"
+" customers and increase sales."
+msgstr ""
+"يوفر هذا المكون الإضافي المجاني حلًا مجانيًا للدردشة المباشرة لزوار موقع "
+"الويب الخاص بك للاتصال بك عبر الدردشة المباشرة أو مكالمة حية - كل ذلك "
+"مجانًا! التواصل مع عملائك وزيادة المبيعات."
+
+#: admin-dashboard/src/components/json/useful-plugins-content.js:37
+msgid ""
+"A free WordPress Plugin which facilitates with the functionality to submit "
+"Posts from frontend with or without logging in with various configurable "
+"options."
+msgstr ""
+"مكون إضافي مجاني WordPress الذي يسهل الوظائف لإرسال المنشورات من الواجهة "
+"الأمامية مع أو بدون تسجيل الدخول باستخدام خيارات مختلفة قابلة للتكوين."
+
+#: admin-dashboard/src/components/json/useful-plugins-content.js:41
+msgid ""
+"This plugin helps you grow your Mailchimp lists and write better newsletters"
+" through various methods. You can create good looking opt-in forms or "
+"integrate with any existing form on your site, like your comment, contact or"
+" checkout form."
+msgstr ""
+"يساعدك هذا البرنامج المساعد على تنمية قوائم MailChimp الخاصة بك وكتابة رسائل"
+" إخبارية أفضل من خلال طرق مختلفة. يمكنك إنشاء نماذج التقيد الجيدة أو "
+"الاندماج مع أي نموذج موجود على موقعك ، مثل تعليقك أو الاتصال أو الاستيلاء "
+"على نموذج الخروج."
+
+#: admin-dashboard/src/components/json/useful-plugins-content.js:48
+#: admin-dashboard/src/components/json/useful-plugins-content.js:53
+msgid "Get Started with Beautiful Starter Templates."
+msgstr "ابدأ بقوالب بداية جميلة."
+
+#: admin-dashboard/src/components/json/useful-plugins-content.js:49
+msgid ""
+"Use templatespare to import live demo content, widgets, and settings "
+"swiftly. This plugin gives fundamental layout to build your website and "
+"accelerate the development process."
+msgstr ""
+"استخدم TEMPLATESPARE لاستيراد محتوى العرض التجريبي المباشر والعناصر واجهة "
+"المستخدم والإعدادات بسرعة. يعطي هذا البرنامج المساعد تخطيطًا أساسيًا لإنشاء "
+"موقع الويب الخاص بك وتسريع عملية التطوير."
+
+#: admin-dashboard/src/components/json/useful-plugins-content.js:54
+msgid ""
+"Use blockspare to import live demo content, widgets, and settings swiftly. "
+"This plugin gives fundamental layout to build your website and accelerate "
+"the development process."
+msgstr ""
+"استخدم blockspare لاستيراد المحتوى التجريبي المباشر ، والضرب ، والإعدادات "
+"بسرعة. يعطي هذا البرنامج المساعد تخطيطًا أساسيًا لإنشاء موقع الويب الخاص بك "
+"وتسريع عملية التطوير."
+
+#: admin-dashboard/src/components/main.js:54
+msgid "Get started"
+msgstr "ابدأ"
+
+#: admin-dashboard/src/components/main.js:69
+msgid "Premium Plugins"
+msgstr "الإضافات الممتازة"
+
+#: admin-dashboard/src/components/main.js:77
+msgid "Change Log"
+msgstr "تغيير السجل"
+
+#: admin-dashboard/src/components/nav-content/home.js:26
+msgid "Go to option"
+msgstr "انتقل إلى الخيار"
+
+#: admin-dashboard/src/components/nav-content/premium-plugins.js:24
+msgid "Buy Now"
+msgstr "اشتري الآن"
+
+#: admin-dashboard/src/components/templatespare-demo.js:60
+msgid "Update Templatespare"
+msgstr "تحديث templatespare"
+
+#: admin-dashboard/src/components/templatespare-demo.js:75
+msgid "Create Your Dream Website in Minutes!"
+msgstr "إنشاء موقع أحلامك في دقائق!"
+
+#: admin-dashboard/src/components/templatespare-demo.js:79
+msgid ""
+"No coding needed. One-click import of expert-made starter sites with "
+"customizer, widgets, Elementor Template Kits, and Gutenberg Patterns. Start "
+"now with Templatespare Plugin!"
+msgstr ""
+"لا حاجة للترميز. بنقرة واحدة استيراد مواقع بداية الخبراء مع Customizer و "
+"Adtergets و Elementor Template Kits وأنماط Gutenberg. ابدأ الآن مع البرنامج "
+"المساعد TemplatesPare!"
+
+#: admin-dashboard/src/components/templatespare-demo.js:225
+msgid "Preview"
+msgstr "معاينة"
+
+#: admin-dashboard/src/components/templatespare-demo.js:232
+msgid "All Themes Plan"
+msgstr "جميع الموضوعات تخطط"

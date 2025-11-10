@@ -1,0 +1,80 @@
+.clearfix::after {
+  clear: both;
+  content: "";
+  display: block;
+}
+
+
+.main-navigation ul li.page_item_has_children > a:after, 
+.main-navigation ul li.menu-item-has-children > a:after {
+  font-family: 'aft-icons';
+  content: "\f107";
+  color: inherit;
+  font-size: inherit;
+  display: inline-block;
+  position: absolute;
+  right: 20px;
+}
+
+.main-navigation ul .sub-menu li.menu-item-has-children > a:before {
+  content: "\f105";
+  font-family: 'aft-icons';
+  padding-right: 5px;
+  float: right;
+}
+.main-navigation .menu .menu-mobile li .sub-menu.active{
+  display: block;
+}
+
+@media screen and (max-width: 992px) {
+  .main-navigation span.toggle-menu {
+    display: inline-block;
+  }
+  .toggle-menu{
+    display: inline-block;
+  }
+  .main-navigation .amp-mobile-menu.active .menu > .menu {
+    display: block;
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+  
+  .main-navigation .amp-mobile-menu .menu .menu-mobile li button {
+          position: absolute;
+          top: 0;
+          right: 10px;
+          width: 30px;
+          z-index: 1;
+          background-color: transparent;
+          border: none;
+          top: 0%;
+          outline: none;
+  }
+  .main-navigation ul .sub-menu li.menu-item-has-children > a:before{
+    padding-right: 0;
+  }
+  .main-navigation ul li.page_item_has_children > a.active:after, 
+  .main-navigation ul li.menu-item-has-children > a.active:after{
+    transition: all ease-in .3s;
+  }
+  .main-navigation ul .sub-menu li.page-item-has-children > a:before,
+  .main-navigation ul .sub-menu li.menu-item-has-children > a:before {
+    font-family: 'aft-icons';
+    content: "\f107";
+    color: inherit;
+    font-size: inherit;
+    display: inline-block;
+    position: absolute;
+    right: 20px;
+    transform-origin: center;
+    transition: all ease-in .3s;
+  }
+  .main-navigation ul li.page_item_has_children > a.active:after, 
+  .main-navigation ul li.menu-item-has-children > a.active:after,
+  .main-navigation ul .sub-menu li.page-item-has-children > a.active:before,
+  .main-navigation ul .sub-menu li.menu-item-has-children > a.active:before {
+    transform: rotate(180deg);
+  }
+  
+}

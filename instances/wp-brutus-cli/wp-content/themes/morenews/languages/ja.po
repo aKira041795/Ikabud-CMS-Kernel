@@ -1,0 +1,4975 @@
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: Colab Free\n"
+"POT-Creation-Date: 2025-08-11 09:50:47+0000\n"
+"PO-Revision-Date: 2025-08-11 09:50:47+0000\n"
+"Language: ja\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"X-Generator: Colab Tool\n"
+
+#. Theme Name of the theme
+#: admin-dashboard/admin_dashboard.php:93
+#: admin-dashboard/admin_dashboard.php:94
+msgid "MoreNews Pro"
+msgstr "Morenews Pro"
+
+#. Theme URI of the theme
+msgid "https://afthemes.com/products/morenews-pro/"
+msgstr "https://afthemes.com/products/morenews-pro/"
+
+#. Description of the theme
+msgid ""
+"MoreNews Pro is a professional WordPress theme for news, blog, and magazine "
+"websites. The theme comes with a number of free demo sites that can be "
+"imported with a simple click to create a fantastic news hub. The theme is "
+"fully widgetized, allowing users to control site content with 16+ custom "
+"widgets and widget sections. It also offers a light and dark color option "
+"for reading articles and blog posts in a fashionable manner.It also includes"
+" a variety of useful customizer choices for creating an aesthetically "
+"pleasing news site. You may set it up as you want and see how it looks "
+"before publishing any changes with the live customizer. It works with "
+"Gutenberg blocks and RTL, as well as the WooCommerce plugin, allowing you to"
+" mix and match an online store with our newspaper theme. The theme is "
+"appropriate for a news, journal, magazine, publishing, or review website, as"
+" well as blogging. It's well-designed to help the website rank higher in "
+"search engines, and users will receive excellent support from the staff if "
+"they run into any issues while using it."
+msgstr ""
+"Morenews "
+"Proは、ニュース、ブログ、雑誌のWebサイトのプロのWordPressテーマです。このテーマには、簡単なクリックでインポートできる無料のデモサイトがいくつかあり、素晴らしいニュースハブを作成できます。テーマは完全にウィジェットされているため、ユーザーは16以上のカスタムウィジェットとウィジェットセクションでサイトコンテンツを制御できます。また、ファッショナブルな方法で記事やブログ投稿を読むための明るい暗い色のオプションも提供しています。また、審美的に心地よいニュースサイトを作成するためのさまざまな便利なカスタマイザーの選択肢も含まれています。ライブカスタマイザーで変更を公開する前に、必要に応じてセットアップして、どのように見えるかを確認できます。"
+" Gutenberg "
+"BlocksとRTL、およびWooCommerceプラグインで動作し、オンラインストアと新聞のテーマを混ぜて一致させることができます。このテーマは、ニュース、ジャーナル、雑誌、出版、またはレビューWebサイト、およびブログに適しています。ウェブサイトが検索エンジンでより高いランク付けを支援することは十分に設計されており、ユーザーは、使用中に問題が発生した場合、スタッフから優れたサポートを受けます。"
+
+#. Author of the theme
+msgid "AF themes"
+msgstr "AFテーマ"
+
+#. Author URI of the theme
+msgid "https://www.afthemes.com/"
+msgstr "https://www.afthemes.com/"
+
+#: 404.php:19
+msgid "Oops! That page can&rsquo;t be found."
+msgstr "おっと！そのページは見つかります。"
+
+#: 404.php:23
+msgid ""
+"It looks like nothing was found at this location. Maybe try one of the links"
+" below or a search?"
+msgstr "この場所では何も見つからなかったようです。下のリンクの1つまたは検索を試してみてください。"
+
+#: admin-dashboard/admin_dashboard.php:106
+#: admin-dashboard/admin_dashboard.php:107
+msgid "Dashboard"
+msgstr "ダッシュボード"
+
+#: admin-dashboard/admin_dashboard.php:117
+#: admin-dashboard/admin_dashboard.php:118 lib/info/info.php:74
+msgid "Customize"
+msgstr "カスタマイズ"
+
+#: admin-dashboard/admin_dashboard.php:127
+#: admin-dashboard/admin_dashboard.php:128
+#: admin-dashboard/admin_dashboard.php:292
+msgid "Ads Settings"
+msgstr "広告設定"
+
+#: admin-dashboard/admin_dashboard.php:137
+#: admin-dashboard/admin_dashboard.php:138
+msgid "Starter Sites"
+msgstr "スターターサイト"
+
+#: admin-dashboard/admin_dashboard.php:147
+#: admin-dashboard/admin_dashboard.php:148
+msgid "Block Patterns"
+msgstr "ブロックパターン"
+
+#: admin-dashboard/admin_dashboard.php:157
+#: admin-dashboard/admin_dashboard.php:158
+msgid "Elementor Kits"
+msgstr "Elementorキット"
+
+#: admin-dashboard/admin_dashboard.php:169
+#: admin-dashboard/admin_dashboard.php:170 lib/info/info.php:25
+#: admin-dashboard/src/components/json/sidebar-content.js:10
+#: admin-dashboard/src/components/json/sidebar-content.js:11
+msgid "Support"
+msgstr "サポート"
+
+#: admin-dashboard/admin_dashboard.php:179
+#: admin-dashboard/admin_dashboard.php:180
+msgid "Master Bundle Plan"
+msgstr "マスターバンドルプラン"
+
+#: admin-dashboard/admin_dashboard.php:191
+msgid "Security check failed"
+msgstr "セキュリティチェックに失敗しました"
+
+#: admin-dashboard/admin_dashboard.php:213
+msgid "Ads settings saved."
+msgstr "広告設定が保存されました。"
+
+#: admin-dashboard/admin_dashboard.php:299
+msgid "Global Ads Placement"
+msgstr "グローバル広告の配置"
+
+#: admin-dashboard/admin_dashboard.php:302
+msgid ""
+"💡 Tip: You can rotate multiple ads by separating them with <!--next-->. One "
+"ad will be shown randomly per page load. Works with HTML, JavaScript, and "
+"shortcodes."
+msgstr ""
+"💡 Tip: You can rotate multiple ads by separating them with <!--next-->. One "
+"ad will be shown randomly per page load. Works with HTML, JavaScript, and "
+"shortcodes."
+
+#: admin-dashboard/admin_dashboard.php:306
+msgid "Header Ad"
+msgstr "Header Ad"
+
+#: admin-dashboard/admin_dashboard.php:309
+msgid ""
+"Add your HTML, JavaScript, or shortcode to display an ad at the very top of "
+"your site (header area)."
+msgstr ""
+"Add your HTML, JavaScript, or shortcode to display an ad at the very top of "
+"your site (header area)."
+
+#: admin-dashboard/admin_dashboard.php:314
+#: inc/customizer/theme-options.php:1718
+msgid "Before Content"
+msgstr "Before Content"
+
+#: admin-dashboard/admin_dashboard.php:317
+msgid ""
+"Ad before post content. Supports rotating multiple ads using <!--next-->."
+msgstr "Ad before post content. <！ -  next->を使用して複数の広告の回転をサポートします。"
+
+#: admin-dashboard/admin_dashboard.php:322
+#: inc/customizer/theme-options.php:1719
+msgid "After Content"
+msgstr "コンテンツの後"
+
+#: admin-dashboard/admin_dashboard.php:325
+msgid ""
+"Ad after post content. You can rotate multiple ads with <!--next--> "
+"separator."
+msgstr "投稿コンテンツ後の広告。 <！ -  next->セパレーターで複数の広告を回転できます。"
+
+#: admin-dashboard/admin_dashboard.php:330
+msgid "Before First Paragraph"
+msgstr "最初の段落の前"
+
+#: admin-dashboard/admin_dashboard.php:333
+msgid ""
+"This ad appears after the first paragraph of single post content. Rotation "
+"supported via <!--next-->."
+msgstr "この広告は、単一の投稿コンテンツの最初の段落の後に表示されます。 <！ -  next->経由でサポートされている回転。"
+
+#: admin-dashboard/admin_dashboard.php:338
+msgid "After Third Paragraph"
+msgstr "3番目の段落の後"
+
+#: admin-dashboard/admin_dashboard.php:341
+msgid ""
+"Shown after the third paragraph in single post content. Supports rotating "
+"ads with <!--next-->."
+msgstr "単一の投稿コンテンツの3番目の段落の後に表示されます。 <！ -  next->で広告の回転をサポートします。"
+
+#: admin-dashboard/admin_dashboard.php:346
+msgid "After Post Content"
+msgstr "ポストコンテンツの後"
+
+#: admin-dashboard/admin_dashboard.php:349
+msgid ""
+"Displayed below post content, before comments or related posts. Rotation via"
+" <!--next--> supported."
+msgstr "コメントまたは関連する投稿の前に、以下に投稿コンテンツの以下に表示されます。 <！ -  next->を介した回転。"
+
+#: admin-dashboard/admin_dashboard.php:354
+msgid "Sidebar Ad"
+msgstr "サイドバー広告"
+
+#: admin-dashboard/admin_dashboard.php:357
+msgid ""
+"Shown in sidebar globally. You may use widgets for better control. Supports "
+"<!--next--> for rotating ads."
+msgstr "グローバルにサイドバーに表示されます。より良い制御のためにウィジェットを使用できます。サポート<！ -  next->回転する広告の場合。"
+
+#: admin-dashboard/admin_dashboard.php:362
+msgid "Footer Ad"
+msgstr "フッター広告"
+
+#: admin-dashboard/admin_dashboard.php:365
+msgid ""
+"Displayed at the bottom of the site above footer widgets. Rotating ads "
+"supported using <!--next-->."
+msgstr "フッターウィジェットの上のサイトの下部に表示されます。 <！ -  next->を使用してサポートされている回転広告。"
+
+#: admin-dashboard/admin_dashboard.php:370
+msgid "Archive / Blog Ads"
+msgstr "アーカイブ /ブログ広告"
+
+#: admin-dashboard/admin_dashboard.php:373
+msgid "Before Post List"
+msgstr "投稿リストの前"
+
+#: admin-dashboard/admin_dashboard.php:376
+msgid ""
+"Shown before posts in blog or archive pages. Use <!--next--> to rotate "
+"multiple ads."
+msgstr "ブログまたはアーカイブページに投稿する前に表示されます。 <！ -  next->を使用して、複数の広告を回転させます。"
+
+#: admin-dashboard/admin_dashboard.php:381
+msgid "After Post List"
+msgstr "投稿リストの後"
+
+#: admin-dashboard/admin_dashboard.php:384
+msgid ""
+"Shown after posts in archive or blog listings. Supports ad rotation using <!"
+"--next--> tag."
+msgstr "アーカイブまたはブログのリストに投稿した後に表示されます。 <！ -  next->タグを使用して広告ローテーションをサポートします。"
+
+#: admin-dashboard/admin_dashboard.php:389
+msgid "Between Posts"
+msgstr "投稿間"
+
+#: admin-dashboard/admin_dashboard.php:392
+msgid ""
+"Manually inserted between posts in archive loop using hooks/snippets. Rotate"
+" with <!--next--> if needed."
+msgstr "フック/スニペットを使用して、アーカイブループの投稿間で手動で挿入されます。必要に応じて<！ -  next->で回転します。"
+
+#: admin-dashboard/admin_dashboard.php:397
+msgid "Save Ads Settings"
+msgstr "広告設定を保存します"
+
+#: admin-dashboard/admin_dashboard.php:402
+msgid "Helpful YouTube Videos"
+msgstr "役立つYouTubeビデオ"
+
+#: admin-dashboard/admin_dashboard.php:407
+msgid "Launch Your News Website Quickly"
+msgstr "ニュースWebサイトをすばやく立ち上げてください"
+
+#: admin-dashboard/admin_dashboard.php:408
+msgid "Use our free accessible theme to build a news site without coding."
+msgstr "無料のアクセス可能なテーマを使用して、コーディングせずにニュースサイトを構築します。"
+
+#: admin-dashboard/admin_dashboard.php:415
+msgid "Multi-Author Collaboration"
+msgstr "マルチオーソルコラボレーション"
+
+#: admin-dashboard/admin_dashboard.php:416
+msgid "Learn how to manage multiple authors smoothly with our plugin."
+msgstr "プラグインを使用して複数の著者をスムーズに管理する方法を学びます。"
+
+#: admin-dashboard/admin_dashboard.php:423
+msgid "Import Gutenberg Patterns"
+msgstr "Gutenbergパターンをインポートします"
+
+#: admin-dashboard/admin_dashboard.php:424
+msgid "Easily import templates and patterns for consistent layouts."
+msgstr "一貫したレイアウトのためにテンプレートとパターンを簡単にインポートできます。"
+
+#: admin-dashboard/admin_dashboard.php:431
+msgid "Elementor Tutorial for Beginners"
+msgstr "初心者向けのElementorチュートリアル"
+
+#: admin-dashboard/admin_dashboard.php:432
+msgid "Build a professional news site fast with no coding needed."
+msgstr "コーディングが必要なく、プロのニュースサイトを迅速に構築します。"
+
+#: admin-dashboard/admin_dashboard.php:439
+msgid "Multilingual Translation Guide"
+msgstr "多言語翻訳ガイド"
+
+#: admin-dashboard/admin_dashboard.php:440
+msgid "Step-by-step guide to translate your site into multiple languages."
+msgstr "サイトを複数の言語に翻訳するための段階的なガイド。"
+
+#: admin-dashboard/admin_dashboard.php:496
+msgid "The Templatespare plugin should be updated to the latest version"
+msgstr "TemplatesPareプラグインは最新バージョンに更新する必要があります"
+
+#: admin-dashboard/admin_dashboard.php:499
+msgid "Import a Starter Site, Personalize, and Live it in 3 Easy Steps!"
+msgstr "スターターサイトをインポートし、パーソナライズし、3つの簡単なステップでライブ！"
+
+#: admin-dashboard/admin_dashboard.php:565
+msgid "Blockspare plugin version should be more than %s."
+msgstr "BlockSpareプラグインバージョンは、%sを超える必要があります。"
+
+#: admin-dashboard/admin_dashboard.php:570
+#: admin-dashboard/admin_dashboard.php:640
+msgid "One-click Import, No Coding Hassle!"
+msgstr "ワンクリックインポート、コーディングハスルなし！"
+
+#: admin-dashboard/admin_dashboard.php:639
+msgid "Elespare plugin version should be more than %s."
+msgstr "Elespareプラグインバージョンは、%sを超える必要があります。"
+
+#: admin-dashboard/admin_dashboard.php:715
+msgid "Are you sure you want to install this plugin?"
+msgstr "このプラグインをインストールしたいですか？"
+
+#: admin-dashboard/admin_dashboard.php:716
+#: admin-dashboard/rest-api/api-request.php:26
+msgid "Install Now"
+msgstr "今すぐインストールしてください"
+
+#: admin-dashboard/admin_dashboard.php:717
+#: admin-dashboard/rest-api/api-request.php:70
+#: lib/tgm/class-tgm-plugin-activation.php:2736
+msgid "Activate"
+msgstr "活性化"
+
+#: admin-dashboard/admin_dashboard.php:718
+#: admin-dashboard/rest-api/api-request.php:66
+msgid "Activated"
+msgstr "アクティブ化"
+
+#: admin-dashboard/admin_dashboard.php:813
+#: admin-dashboard/rest-api/api-request.php:104
+#: admin-dashboard/rest-api/class-admin-notice.php:106
+msgid "Get Starter Sites"
+msgstr "スターターサイトを入手してください"
+
+#: admin-dashboard/admin_dashboard.php:818
+#: admin-dashboard/rest-api/class-admin-notice.php:110
+#: admin-dashboard/src/components/blockspare.demo.js:27
+#: admin-dashboard/src/components/elespare-demo.js:29
+#: admin-dashboard/src/components/templatespare-demo.js:56
+msgid "Get Started"
+msgstr "始めましょう"
+
+#: admin-dashboard/admin_dashboard.php:819
+msgid ""
+"The \"Get Started\" action will install/activate the Templatespare and "
+"Blockspare plugins for Starter Sites and Templates."
+msgstr ""
+"「Get "
+"start」アクションは、スターターサイトとテンプレートのテンプレートスパアプラグインとブロックスパアプラグインをインストール/アクティブにします。"
+
+#: admin-dashboard/rest-api/api-request.php:99
+msgid "By"
+msgstr "による"
+
+#: admin-dashboard/rest-api/api-request.php:114
+msgid "More Details"
+msgstr "詳細"
+
+#: admin-dashboard/rest-api/class-admin-notice.php:111
+msgid ""
+"The \"Get Started\" action will install/activate the Templatespare  plugin "
+"for Starter Sites and Templates."
+msgstr ""
+"「Get start」アクションは、スターターサイトとテンプレート用のTemplatesPareプラグインをインストール/アクティブにします。"
+
+#: admin-dashboard/rest-api/class-admin-notice.php:125
+msgid "Howdy!"
+msgstr "ハウディ！"
+
+#: admin-dashboard/rest-api/class-admin-notice.php:127
+msgid ""
+"%s is now installed and ready to use. We've assembled some links to get you "
+"started."
+msgstr "%sがインストールされ、使用可能になりました。私たちはあなたを始めるためにいくつかのリンクを組み立てました。"
+
+#: admin-dashboard/rest-api/class-admin-notice.php:161
+msgid "Explore Our Pre-Built Starter Websites!"
+msgstr "事前に構築されたスターターWebサイトをご覧ください！"
+
+#: admin-dashboard/rest-api/class-admin-notice.php:162
+msgid ""
+"Let your imagination soar! Designed with User-Friendly features, "
+"incorporating the Latest Trends and SEO-Friendly Markups. We genuinely "
+"appreciate you choosing our theme!"
+msgstr ""
+"あなたの想像力が舞い上がりましょう！最新のトレンドとSEOに優しいマークアップを組み込んだユーザーフレンドリーな機能を使用して設計されています。私たちのテーマを選択してくれて本当に感謝しています！"
+
+#: admin-dashboard/rest-api/class-admin-notice.php:166
+msgid "Demos/product"
+msgstr "デモ/製品"
+
+#: admin-dashboard/rest-api/class-admin-notice.php:168
+msgid "Theme dashboard"
+msgstr "テーマダッシュボード"
+
+#: admin-dashboard/rest-api/class-admin-notice.php:192
+#: admin-dashboard/src/components/json/dashboard-content.js:14
+#: admin-dashboard/src/components/json/sidebar-content.js:4
+msgid "Documentation"
+msgstr "ドキュメント"
+
+#: admin-dashboard/rest-api/class-admin-notice.php:193 lib/info/info.php:56
+#: lib/info/info.php:119
+#: admin-dashboard/src/components/json/sidebar-content.js:7
+msgid ""
+"Please check our full documentation for detailed information on how to setup"
+" and customize the theme."
+msgstr "テーマのセットアップとカスタマイズ方法の詳細については、ドキュメント全体を確認してください。"
+
+#: admin-dashboard/rest-api/class-admin-notice.php:194
+msgid "Docs"
+msgstr "ドキュメント"
+
+#: admin-dashboard/rest-api/class-admin-notice.php:195
+msgid "Videos"
+msgstr "ビデオ"
+
+#: admin-dashboard/rest-api/class-admin-notice.php:196
+msgid "Blog"
+msgstr "ブログ"
+
+#: admin-dashboard/rest-api/class-admin-notice.php:197 lib/info/info.php:46
+#: admin-dashboard/src/components/json/dashboard-content.js:18
+msgid "Rate This Theme"
+msgstr "このテーマを評価します"
+
+#: admin-dashboard/rest-api/class-ajaxcall.php:9
+#: admin-dashboard/rest-api/class-ajaxcall.php:136
+msgid "Sorry, you are not allowed to install plugins on this site."
+msgstr "申し訳ありませんが、このサイトにプラグインをインストールすることはできません。"
+
+#: admin-dashboard/rest-api/class-ajaxcall.php:16
+#: admin-dashboard/rest-api/class-ajaxcall.php:76
+#: admin-dashboard/rest-api/class-ajaxcall.php:143
+msgid "Error - unable to verify nonce, please try again."
+msgstr "エラー - ノンセを確認できません。もう一度やり直してください。"
+
+#: admin-dashboard/rest-api/class-ajaxcall.php:69
+msgid "Sorry, you are not allowed to activate plugins on this site."
+msgstr "申し訳ありませんが、このサイトでプラグインをアクティブにすることは許可されていません。"
+
+#. translators: 1: title.
+#: comments.php:34
+msgid "One thought on &ldquo;%1$s&rdquo;"
+msgstr "&ldquo;%1$s&rdquo;について考えました"
+
+#. translators: 1: number of comments, 2: post title
+#: comments.php:41
+msgctxt "comments title"
+msgid "%1$s thought on &ldquo;%2$s&rdquo;"
+msgstr "%1$s &ldquo;%2$s&rdquo;で考えました"
+
+#: comments.php:64
+msgid "Comments are closed."
+msgstr "コメントは閉じられています。"
+
+#. translators: 1: Theme name, 2: Theme author.
+#: footer.php:176 inc/customizer/builder/builder-structure.php:410
+msgid "%1$s by %2$s."
+msgstr "%2$sによる%1$s。"
+
+#: functions.php:153 inc/class-amp-compatible.php:147
+#: inc/customizer/builder/builder-structure.php:249
+#: inc/hooks/hook-header-section.php:146
+msgid "Primary Menu"
+msgstr "プライマリメニュー"
+
+#: functions.php:154
+msgid "Top Menu"
+msgstr "トップメニュー"
+
+#: functions.php:155 inc/customizer/builder/options.php:243
+#: inc/customizer/builder/options.php:247
+#: inc/customizer/builder/options.php:375
+#: inc/customizer/builder/options.php:379
+msgid "Social Menu"
+msgstr "ソーシャルメニュー"
+
+#: functions.php:156
+msgid "Footer Menu"
+msgstr "フッターメニュー"
+
+#: functions.php:477
+msgid "You already reacted."
+msgstr "あなたはすでに反応しました。"
+
+#: functions.php:478
+msgid "Thanks for reacting!"
+msgstr "反応してくれてありがとう！"
+
+#: functions.php:479
+msgid "Error occurred."
+msgstr "エラーが発生しました。"
+
+#: header.php:55
+msgid "Skip to content"
+msgstr "コンテンツにスキップします"
+
+#: inc/ajax-loadmore-functions.php:21
+msgid "Load More"
+msgstr "もっとロードします"
+
+#: inc/class-amp-compatible.php:185 inc/class-amp-compatible.php:189
+#: inc/hooks/hook-header-section.php:179
+msgid "Open search form"
+msgstr "検索フォームを開きます"
+
+#: inc/customizer/builder/class-block-toggle.php:12
+msgid ""
+"Click the setting <span class=\"dashicons dashicons-admin-generic\"></span> "
+"on each element to customize its settings."
+msgstr ""
+"[各要素]の設定<span class = \"dashicons-dashicons-admin-generic\"> "
+"</span>をクリックして、設定をカスタマイズします。"
+
+#: inc/customizer/builder/class-header-footer-builder-control.php:34
+#: inc/customizer/builder/class-header-footer-builder.php:325
+msgid "Desktop"
+msgstr "デスクトップ"
+
+#: inc/customizer/builder/class-header-footer-builder-control.php:34
+msgid "Tablet/Mobile"
+msgstr "タブレット/モバイル"
+
+#: inc/customizer/builder/class-header-footer-builder-control.php:34
+msgid "Mobile"
+msgstr "携帯"
+
+#: inc/customizer/builder/class-header-footer-builder-control.php:41
+msgid "Choose an Element"
+msgstr "要素を選択します"
+
+#: inc/customizer/builder/class-header-footer-builder-control.php:58
+#: inc/customizer/builder/class-header-footer-builder.php:326
+msgid "Element Settings"
+msgstr "要素設定"
+
+#: inc/customizer/builder/class-header-footer-builder-control.php:61
+msgid "Save"
+msgstr "保存"
+
+#: inc/customizer/builder/class-header-footer-builder-control.php:61
+msgid "Cancel"
+msgstr "キャンセル"
+
+#: inc/customizer/builder/class-header-footer-builder.php:35
+msgid "Header Builder"
+msgstr "ヘッダービルダー"
+
+#: inc/customizer/builder/class-header-footer-builder.php:42
+msgid "Footer Builder"
+msgstr "フッタービルダー"
+
+#: inc/customizer/builder/class-header-footer-builder.php:78
+msgid "Footer Layout"
+msgstr "フッターレイアウト"
+
+#: inc/customizer/builder/class-header-footer-builder.php:91
+msgid "Create dynamic header effortlessly with drag-and-drop builder."
+msgstr "ドラッグアンドドロップビルダーで動的ヘッダーを簡単に作成します。"
+
+#: inc/customizer/builder/class-header-footer-builder.php:96
+msgid "Create dynamic footer effortlessly with drag-and-drop builder."
+msgstr "ドラッグアンドドロップビルダーで動的フッターを簡単に作成します。"
+
+#: inc/customizer/builder/class-header-footer-builder.php:322
+msgid "Add Element"
+msgstr "要素を追加します"
+
+#: inc/customizer/builder/class-header-footer-builder.php:323
+msgid "Remove Element"
+msgstr "要素を削除します"
+
+#: inc/customizer/builder/class-header-footer-builder.php:324
+msgid "Configure Element"
+msgstr "要素を構成します"
+
+#: inc/customizer/builder/header-builder-structure.php:190
+#: inc/hooks/blocks/block-header-layout-default-2.php:100
+#: inc/hooks/blocks/block-header-layout-default-3.php:99
+#: inc/hooks/blocks/block-header-layout-default-4.php:92
+#: inc/hooks/blocks/block-header-layout-default.php:89
+#: inc/hooks/hook-header-section.php:106
+msgid "close Off-Canvas Navigation"
+msgstr "オフキャンバスナビゲーションを閉じます"
+
+#: inc/customizer/builder/options.php:89
+msgid "Site & Logo"
+msgstr "サイトとロゴ"
+
+#: inc/customizer/builder/options.php:94
+msgid "Site Identity"
+msgstr "サイトID"
+
+#: inc/customizer/builder/options.php:97
+msgid ""
+"You can change Site Identity from . <a href=\"#\" class=\"athfb-widget-"
+"panel-link\" data-panel=\"title_tagline\">Site Identity</a>"
+msgstr ""
+"サイトのIDを変更できます。 <a href = \"＃\" class = \"athfb-widget-panel-link\" data-"
+"panel = \"title_tagline\">サイトID </a>"
+
+#: inc/customizer/builder/options.php:107
+#: inc/customizer/builder/options.php:111
+msgid "Promotion"
+msgstr "プロモーション"
+
+#: inc/customizer/builder/options.php:126
+#: inc/widgets/widgets-register-sidebars.php:82
+msgid "Off Canvas"
+msgstr "オフキャンバス"
+
+#: inc/customizer/builder/options.php:130
+msgid "Off Canvas Widget Area"
+msgstr "オフキャンバスウィジェットエリア"
+
+#: inc/customizer/builder/options.php:134
+msgid ""
+"This widget area is used in the mobile off-canvas panel. <a href=\"#\" "
+"class=\"athfb-widget-panel-link\" data-panel=\"sidebar-widgets-express-off-"
+"canvas-panel\">Manage widgets</a>"
+msgstr ""
+"このウィジェット領域は、モバイルオフキャンバスパネルで使用されています。 <a href = \"＃\" class = \"athfb-widget-"
+"panel-link\" data-panel = \"sidebar-widgets-express-off-canvas-"
+"panel\">ウィジェットの管理</a>"
+
+#: inc/customizer/builder/options.php:144
+msgid "Primary menu"
+msgstr "プライマリメニュー"
+
+#: inc/customizer/builder/options.php:148
+#: inc/customizer/builder/options.php:178
+#: inc/customizer/builder/options.php:311
+#: inc/customizer/builder/options.php:442
+msgid "Select Menu"
+msgstr "[メニュー]を選択します"
+
+#: inc/customizer/builder/options.php:153
+#: inc/customizer/builder/options.php:183
+#: inc/customizer/builder/options.php:252
+msgid ""
+"You can change Menu from menu panel.<a href=\"#\" class=\"athfb-menu-panel-"
+"link\" data-panel=\"nav_menus\">Manage menu </a>"
+msgstr "メニューをメニューパネルから変更できます。"
+
+#: inc/customizer/builder/options.php:161
+#: inc/customizer/builder/options.php:320
+msgid "Date"
+msgstr "日付"
+
+#: inc/customizer/builder/options.php:165
+#: inc/customizer/builder/options.php:324
+msgid "Choose date format"
+msgstr "日付形式を選択します"
+
+#: inc/customizer/builder/options.php:174
+msgid "Top Navigation"
+msgstr "トップナビゲーション"
+
+#: inc/customizer/builder/options.php:191
+#: inc/customizer/builder/options.php:195
+msgid "Site Mode"
+msgstr "サイトモード"
+
+#: inc/customizer/builder/options.php:204
+#: inc/customizer/builder/options.php:334
+msgid "Custom HTML"
+msgstr "カスタムHTML"
+
+#: inc/customizer/builder/options.php:208
+#: inc/customizer/builder/options.php:338
+msgid "HTML Content"
+msgstr "HTMLコンテンツ"
+
+#: inc/customizer/builder/options.php:216
+#: inc/customizer/builder/options.php:346
+msgid "Search"
+msgstr "検索"
+
+#: inc/customizer/builder/options.php:220
+#: inc/customizer/builder/options.php:350
+msgid "Searc Form"
+msgstr "形状"
+
+#: inc/customizer/builder/options.php:229
+msgid "Custom Link"
+msgstr "カスタムリンク"
+
+#: inc/customizer/builder/options.php:233
+msgid "Custom link"
+msgstr "カスタムリンク"
+
+#: inc/customizer/builder/options.php:236
+msgid "live"
+msgstr "ライブ"
+
+#: inc/customizer/builder/options.php:260
+#: inc/customizer/builder/options.php:394
+msgid "Widget 1"
+msgstr "ウィジェット1"
+
+#: inc/customizer/builder/options.php:264
+#: inc/customizer/builder/options.php:277
+#: inc/customizer/builder/options.php:290
+#: inc/customizer/builder/options.php:398
+#: inc/customizer/builder/options.php:411
+#: inc/customizer/builder/options.php:424
+msgid "Select Widget"
+msgstr "ウィジェットを選択します"
+
+#: inc/customizer/builder/options.php:273
+#: inc/customizer/builder/options.php:407
+msgid "Widget 2"
+msgstr "ウィジェット2"
+
+#: inc/customizer/builder/options.php:286
+#: inc/customizer/builder/options.php:420
+msgid "Widget 3"
+msgstr "ウィジェット3"
+
+#: inc/customizer/builder/options.php:307
+msgid "Navigation"
+msgstr "ナビゲーション"
+
+#: inc/customizer/builder/options.php:353
+msgid ""
+"Yoc can manage header site mode,search and live text from here. <a "
+"href=\"#\" class=\"athfb-widget-panel-link\" data-"
+"panel=\"header_options_settings\">Manage Header</a>"
+msgstr ""
+"YOCは、ここからヘッダーサイトモード、検索、ライブテキストを管理できます。 <a href = \"＃\" class = \"athfb-"
+"widget-panel-link\" data-panel = \"header_options_settings\"> Headerの管理</a>"
+
+#: inc/customizer/builder/options.php:363
+msgid "Copyright"
+msgstr "著作権"
+
+#: inc/customizer/builder/options.php:384
+msgid "You can change Menu from menu panel"
+msgstr "メニューパネルからメニューを変更できます"
+
+#: inc/customizer/builder/options.php:447
+msgid "No menu assigned"
+msgstr "メニューは割り当てられていません"
+
+#: inc/customizer/customizer-control.php:192
+msgid "-- Select --"
+msgstr "-  select-"
+
+#: inc/customizer/customizer-default.php:50
+msgid "Live"
+msgstr "ライブ"
+
+#: inc/customizer/customizer-default.php:65
+#: inc/customizer/frontpage-options.php:2047
+msgid "Popular Tags"
+msgstr "人気のタグ"
+
+#: inc/customizer/customizer-default.php:72
+msgid "Exclusive"
+msgstr "エクスクルーシブ"
+
+#: inc/customizer/customizer-default.php:77
+#: inc/customizer/customizer-default.php:82
+msgid "Prime News"
+msgstr "プライムニュース"
+
+#: inc/customizer/customizer-default.php:83
+#: inc/customizer/customizer-default.php:366
+msgid "Related Stories"
+msgstr "関連するストーリー"
+
+#: inc/customizer/customizer-default.php:90
+msgid "Youtube video Section"
+msgstr "YouTubeビデオセクション"
+
+#: inc/customizer/customizer-default.php:92
+msgid "Featured Videos"
+msgstr "注目のビデオ"
+
+#: inc/customizer/customizer-default.php:99
+msgid "Express Posts Section"
+msgstr "Express投稿セクション"
+
+#: inc/customizer/customizer-default.php:101
+msgid "Express Posts 1"
+msgstr "エクスプレス投稿1"
+
+#: inc/customizer/customizer-default.php:102
+msgid "Express Posts 2"
+msgstr "エクスプレス投稿2"
+
+#: inc/customizer/customizer-default.php:108
+msgid "Posts List Section"
+msgstr "投稿リストセクション"
+
+#: inc/customizer/customizer-default.php:112
+msgid "Post list %d"
+msgstr "リストリスト%d"
+
+#: inc/customizer/customizer-default.php:118
+#: inc/customizer/frontpage-options.php:2747
+msgid "Posts Carousel"
+msgstr "カルーセルを投稿します"
+
+#: inc/customizer/customizer-default.php:134
+msgid "Main News"
+msgstr "メインニュース"
+
+#: inc/customizer/customizer-default.php:139
+#: inc/customizer/customizer-default.php:166 inc/template-functions.php:1927
+#: inc/widgets/widget-posts-tabs.php:45 inc/widgets/widget-posts-tabs.php:112
+#: inc/widgets/widget-posts-tabs.php:113
+msgid "Latest"
+msgstr "最新"
+
+#: inc/customizer/customizer-default.php:140
+#: inc/customizer/customizer-default.php:156 inc/template-functions.php:1867
+#: inc/template-functions.php:1926 inc/widgets/widget-posts-tabs.php:48
+#: inc/widgets/widget-posts-tabs.php:116 inc/widgets/widget-posts-tabs.php:117
+#: inc/widgets/widgets-common-functions.php:102
+msgid "Popular"
+msgstr "人気のある"
+
+#: inc/customizer/customizer-default.php:141 inc/template-functions.php:1928
+msgid "Trending"
+msgstr "トレンド"
+
+#: inc/customizer/customizer-default.php:144
+#: inc/customizer/customizer-default.php:207
+#: inc/customizer/customizer-default.php:336 inc/template-functions.php:1755
+msgid "Trending Now"
+msgstr "今トレンド"
+
+#: inc/customizer/customizer-default.php:150
+msgid "Popular Now"
+msgstr "今人気があります"
+
+#: inc/customizer/customizer-default.php:161 inc/template-functions.php:1650
+#: inc/template-functions.php:1946
+#: admin-dashboard/src/components/json/sidebar-content.js:17
+msgid "Video"
+msgstr "ビデオ"
+
+#: inc/customizer/customizer-default.php:171
+#: inc/customizer/theme-options.php:2842
+msgid "Top"
+msgstr "トップ"
+
+#: inc/customizer/customizer-default.php:176 inc/template-functions.php:1657
+#: inc/template-functions.php:1717 inc/widgets/widget-posts-tabs.php:51
+#: inc/widgets/widget-posts-tabs.php:120 inc/widgets/widget-posts-tabs.php:121
+#: inc/widgets/widgets-common-functions.php:115
+#: lib/tgm/class-tgm-plugin-activation.php:2733
+msgid "Update"
+msgstr "アップデート"
+
+#: inc/customizer/customizer-default.php:181 inc/template-functions.php:1658
+#: inc/template-functions.php:1718 inc/template-functions.php:1873
+msgid "More"
+msgstr "もっと"
+
+#: inc/customizer/customizer-default.php:202
+#: inc/customizer/customizer-default.php:220 inc/template-functions.php:1754
+msgid "Editor's Picks"
+msgstr "編集者のピック"
+
+#: inc/customizer/customizer-default.php:223
+msgid "Trending Story"
+msgstr "トレンドストーリー"
+
+#: inc/customizer/customizer-default.php:228
+#: inc/customizer/frontpage-options.php:2243
+msgid "Featured Posts"
+msgstr "注目の投稿"
+
+#: inc/customizer/customizer-default.php:235
+msgid "Featured Categories"
+msgstr "注目のカテゴリ"
+
+#: inc/customizer/customizer-default.php:236
+msgid "Featured Pages"
+msgstr "注目のページ"
+
+#: inc/customizer/customizer-default.php:237
+msgid "Custom Options"
+msgstr "カスタムオプション"
+
+#: inc/customizer/customizer-default.php:240
+msgid "Post list Section Title %d"
+msgstr "投稿リストセクションタイトル%d"
+
+#: inc/customizer/customizer-default.php:246
+msgid "View More"
+msgstr "詳細をご覧ください"
+
+#: inc/customizer/customizer-default.php:269
+msgid "Read More"
+msgstr "続きを読む"
+
+#: inc/customizer/customizer-default.php:331
+msgid "What do you feel about this?"
+msgstr "これについてどう思いますか？"
+
+#: inc/customizer/customizer-default.php:346
+#: inc/widgets/widget-social-contacts.php:41
+msgid "Connect with Us"
+msgstr "私たちとつながります"
+
+#: inc/customizer/customizer-default.php:352
+#: inc/widgets/widget-author-info.php:170
+msgid "Instagram"
+msgstr "Instagram"
+
+#: inc/customizer/customizer-default.php:358 inc/template-functions.php:1679
+#: inc/template-functions.php:1844 inc/template-functions.php:1890
+msgid "Popular News"
+msgstr "人気ニュース"
+
+#: inc/customizer/customizer-default.php:375
+msgid "Subscribe To  Our Newsletter"
+msgstr "ニュースレターを購読してください"
+
+#: inc/customizer/customizer-default.php:384
+msgid "You may have missed"
+msgstr "あなたは逃したかもしれません"
+
+#: inc/customizer/customizer-default.php:388
+msgid "Copyright &copy; {year} All rights reserved."
+msgstr "著作権＆コピー; {year}すべての権利を予約します。"
+
+#: inc/customizer/customizer.php:68
+msgid "Body Background Color"
+msgstr "身体の背景色"
+
+#: inc/customizer/customizer.php:96
+msgid "Site Title Size"
+msgstr "サイトのタイトルサイズ"
+
+#: inc/customizer/customizer.php:116
+msgid "Uppercase Site Title and Tagline"
+msgstr "大文字のサイトのタイトルとキャッチフレーズ"
+
+#: inc/customizer/customizer.php:127
+msgid "Site Title/Tagline Color"
+msgstr "サイトタイトル/キャッチフレーズの色"
+
+#: inc/customizer/customizer.php:154
+msgid "Header Image"
+msgstr "ヘッダー画像"
+
+#: inc/customizer/customizer.php:175
+msgid "Header Image Mode"
+msgstr "ヘッダー画像モード"
+
+#: inc/customizer/customizer.php:176
+msgid "Image visibility may vary as per the mode"
+msgstr "画像の可視性は、モードごとに異なる場合があります"
+
+#: inc/customizer/customizer.php:180
+msgid "Above Site Title"
+msgstr "上記のサイトタイトル"
+
+#: inc/customizer/customizer.php:181
+msgid "Set as Background"
+msgstr "背景として設定します"
+
+#: inc/customizer/customizer.php:182
+msgid "Show Full Image (Background)"
+msgstr "完全な画像（背景）を表示する"
+
+#: inc/customizer/customizer.php:201
+msgid "Disable Image Tint/Overlay"
+msgstr "画像の色合い/オーバーレイを無効にします"
+
+#: inc/customizer/font-color-options.php:25
+msgid "Site Title/Tagline Color (Dark Mode)"
+msgstr "サイトタイトル/キャッチフレーズカラー（ダークモード）"
+
+#: inc/customizer/font-color-options.php:47
+msgid "Site Color Mode"
+msgstr "サイトカラーモード"
+
+#: inc/customizer/font-color-options.php:48
+msgid "If the mode switch is in the menu, please test it using the toggle."
+msgstr "モードスイッチがメニューにある場合は、トグルを使用してテストしてください。"
+
+#: inc/customizer/font-color-options.php:52
+msgid "Light"
+msgstr "ライト"
+
+#: inc/customizer/font-color-options.php:53
+msgid "Dark"
+msgstr "暗い"
+
+#: inc/customizer/font-color-options.php:72
+msgid "Primary Color Section "
+msgstr "プライマリカラーセクション"
+
+#: inc/customizer/font-color-options.php:94
+msgid "Body Background Color (Dark Mode) will be applied for this mode."
+msgstr "このモードには、ボディバックグラウンドカラー（ダークモード）が適用されます。"
+
+#: inc/customizer/font-color-options.php:118
+msgid "Body Background Color (Dark Mode)"
+msgstr "ボディバックグラウンドカラー（ダークモード）"
+
+#: inc/customizer/font-color-options.php:142
+#: inc/customizer/font-color-options.php:169
+msgid "Box Background Color"
+msgstr "ボックスの背景色"
+
+#: inc/customizer/font-color-options.php:198
+#: inc/customizer/font-color-options.php:222
+msgid "Primary Color"
+msgstr "原色"
+
+#: inc/customizer/font-color-options.php:244
+msgid "Secondary Color Section "
+msgstr "二次色セクション"
+
+#: inc/customizer/font-color-options.php:269
+msgid "Secondary Color"
+msgstr "二次色"
+
+#: inc/customizer/font-color-options.php:294
+msgid "Texts over Secondary Color"
+msgstr "二次色のテキスト"
+
+#: inc/customizer/font-color-options.php:317
+msgid "Top Header Section "
+msgstr "トップヘッダーセクション"
+
+#: inc/customizer/font-color-options.php:341
+#: inc/customizer/font-color-options.php:414
+#: inc/customizer/font-color-options.php:1219
+#: inc/customizer/font-color-options.php:1300
+msgid "Background Color"
+msgstr "背景色"
+
+#: inc/customizer/font-color-options.php:365
+#: inc/customizer/font-color-options.php:1247
+#: inc/customizer/font-color-options.php:1324
+msgid "Texts Color"
+msgstr "テキストの色"
+
+#: inc/customizer/font-color-options.php:390
+msgid "Primary Navigation Section "
+msgstr "プライマリナビゲーションセクション"
+
+#: inc/customizer/font-color-options.php:438
+msgid "Menu Item Color"
+msgstr "メニュー項目の色"
+
+#: inc/customizer/font-color-options.php:462
+msgid "Badge Background"
+msgstr "バッジの背景"
+
+#: inc/customizer/font-color-options.php:486
+msgid "Badge Text Color"
+msgstr "バッジのテキストカラー"
+
+#: inc/customizer/font-color-options.php:511
+msgid "Watch Online Background"
+msgstr "オンラインの背景をご覧ください"
+
+#: inc/customizer/font-color-options.php:536
+msgid "Breaking News Background"
+msgstr "ニュースバックグラウンドを破る"
+
+#: inc/customizer/font-color-options.php:559
+msgid "Archive/Widgets Section "
+msgstr "アーカイブ/ウィジェットセクション"
+
+#: inc/customizer/font-color-options.php:582
+#: inc/customizer/font-color-options.php:606
+msgid "Post Title"
+msgstr "投稿タイトル"
+
+#: inc/customizer/font-color-options.php:630
+msgid "Post Title Over Image"
+msgstr "画像上のタイトルを投稿します"
+
+#: inc/customizer/font-color-options.php:656
+msgid "Category Color Section "
+msgstr "カテゴリカラーセクション"
+
+#: inc/customizer/font-color-options.php:668
+msgid "Category Colors"
+msgstr "カテゴリの色"
+
+#: inc/customizer/font-color-options.php:692
+msgid "Category %d Background"
+msgstr "カテゴリ%dバックグラウンド"
+
+#: inc/customizer/font-color-options.php:715
+msgid "Category %d Texts Color"
+msgstr "カテゴリ%d TEXTS COLOR"
+
+#: inc/customizer/font-color-options.php:730
+msgid "Fonts & Typography"
+msgstr "フォントとタイポグラフィ"
+
+#: inc/customizer/font-color-options.php:753
+msgid "Font Family Section"
+msgstr "フォントファミリセクション"
+
+#: inc/customizer/font-color-options.php:776
+msgid "Global Fonts Family"
+msgstr "グローバルフォントファミリー"
+
+#: inc/customizer/font-color-options.php:780
+msgid "Google Fonts"
+msgstr "Googleフォント"
+
+#: inc/customizer/font-color-options.php:781
+msgid "System Fonts"
+msgstr "システムフォント"
+
+#: inc/customizer/font-color-options.php:801
+msgid "Site Title Font"
+msgstr "サイトタイトルフォント"
+
+#: inc/customizer/font-color-options.php:823
+msgid "Primary Font"
+msgstr "プライマリフォント"
+
+#: inc/customizer/font-color-options.php:845
+msgid "Secondary Font"
+msgstr "セカンダリフォント"
+
+#: inc/customizer/font-color-options.php:869
+msgid "Texts Formatting Section"
+msgstr "テキストのフォーマットセクション"
+
+#: inc/customizer/font-color-options.php:891
+msgid "Title Font Weight"
+msgstr "タイトルフォント重量"
+
+#: inc/customizer/font-color-options.php:892
+#: inc/customizer/font-color-options.php:923
+#: inc/customizer/font-color-options.php:1005
+#: inc/customizer/font-color-options.php:1026
+#: inc/customizer/font-color-options.php:1047
+#: inc/customizer/font-color-options.php:1067
+#: inc/customizer/font-color-options.php:1088
+#: inc/customizer/font-color-options.php:1109
+#: inc/customizer/font-color-options.php:1129
+#: inc/customizer/font-color-options.php:1152
+#: inc/customizer/font-color-options.php:1173
+msgid "Default Value: %d"
+msgstr "デフォルト値：%d"
+
+#: inc/customizer/font-color-options.php:896
+msgid "100"
+msgstr "100"
+
+#: inc/customizer/font-color-options.php:897
+msgid "200"
+msgstr "200"
+
+#: inc/customizer/font-color-options.php:898
+msgid "300"
+msgstr "300"
+
+#: inc/customizer/font-color-options.php:899
+msgid "400"
+msgstr "400"
+
+#: inc/customizer/font-color-options.php:900
+msgid "500"
+msgstr "500"
+
+#: inc/customizer/font-color-options.php:901
+msgid "600"
+msgstr "600"
+
+#: inc/customizer/font-color-options.php:902
+msgid "700"
+msgstr "700"
+
+#: inc/customizer/font-color-options.php:903
+msgid "800"
+msgstr "800"
+
+#: inc/customizer/font-color-options.php:904
+msgid "900"
+msgstr "900"
+
+#: inc/customizer/font-color-options.php:922
+msgid "Global Letter Spacing"
+msgstr "グローバルレター間隔"
+
+#: inc/customizer/font-color-options.php:942
+msgid "Title Line height"
+msgstr "タイトルラインの高さ"
+
+#: inc/customizer/font-color-options.php:943
+#: inc/customizer/font-color-options.php:963
+msgid "Default Value: %g"
+msgstr "デフォルト値：%g"
+
+#: inc/customizer/font-color-options.php:962
+msgid "Global Line height"
+msgstr "グローバルラインの高さ"
+
+#: inc/customizer/font-color-options.php:984
+msgid "Font Size Section"
+msgstr "フォントサイズセクション"
+
+#: inc/customizer/font-color-options.php:1004
+msgid "General Font Size"
+msgstr "一般的なフォントサイズ"
+
+#: inc/customizer/font-color-options.php:1025
+msgid "Global Section Title Size"
+msgstr "グローバルセクションのタイトルサイズ"
+
+#: inc/customizer/font-color-options.php:1046
+msgid "Big Spotlight Post Title Size"
+msgstr "ビッグスポットライト投稿タイトルサイズ"
+
+#: inc/customizer/font-color-options.php:1066
+msgid "Medium Spotlight Post Title Size"
+msgstr "中程度のスポットライト投稿タイトルサイズ"
+
+#: inc/customizer/font-color-options.php:1087
+msgid "General Post Title Size (Grid)"
+msgstr "一般的な投稿タイトルサイズ（グリッド）"
+
+#: inc/customizer/font-color-options.php:1108
+msgid "General Post Title Size (List)"
+msgstr "一般的な投稿タイトルサイズ（リスト）"
+
+#: inc/customizer/font-color-options.php:1128
+msgid "General Grid Post Title Size"
+msgstr "一般的なグリッドポストタイトルサイズ"
+
+#: inc/customizer/font-color-options.php:1151
+msgid "Single Page/Posts Title Size"
+msgstr "シングルページ/タイトルサイズを投稿します"
+
+#: inc/customizer/font-color-options.php:1172
+msgid "Single Page/Posts Paragraph Size"
+msgstr "シングルページ/段落サイズを投稿します"
+
+#: inc/customizer/font-color-options.php:1193
+msgid "MailChimp Section"
+msgstr "MailChimpセクション"
+
+#: inc/customizer/font-color-options.php:1277
+msgid "Footer Section"
+msgstr "フッターセクション"
+
+#: inc/customizer/font-color-options.php:1348
+msgid "Credits Background Color"
+msgstr "クレジットの背景色"
+
+#: inc/customizer/font-color-options.php:1371
+msgid "Credits Texts Color"
+msgstr "クレジットテキストの色"
+
+#: inc/customizer/frontpage-options.php:23
+#: admin-dashboard/src/components/json/home-content.js:35
+msgid "Main Banner Options"
+msgstr "メインバナーオプション"
+
+#: inc/customizer/frontpage-options.php:38
+msgid "Main Banner"
+msgstr "メインバナー"
+
+#: inc/customizer/frontpage-options.php:59
+msgid "Enable Main Banner Section"
+msgstr "メインバナーセクションを有効にします"
+
+#: inc/customizer/frontpage-options.php:84
+msgid "Main Banner Background Image"
+msgstr "メインバナーの背景画像"
+
+#: inc/customizer/frontpage-options.php:85
+#: inc/customizer/theme-options.php:323 inc/customizer/theme-options.php:3076
+msgid "Recommended Size %1$s px X %2$s px"
+msgstr "推奨サイズ%1$s PX X %2$s PX"
+
+#: inc/customizer/frontpage-options.php:111
+msgid "Select Main Banner Layout"
+msgstr "メインバナーレイアウトを選択します"
+
+#: inc/customizer/frontpage-options.php:115
+msgid "Slider, Trending and Tabs"
+msgstr "スライダー、トレンド、タブ"
+
+#: inc/customizer/frontpage-options.php:116
+msgid "Slider, Tiles and Tabs"
+msgstr "スライダー、タイル、タブ"
+
+#: inc/customizer/frontpage-options.php:117
+msgid "Slider, Tiles and Trending"
+msgstr "スライダー、タイル、トレンド"
+
+#: inc/customizer/frontpage-options.php:118
+msgid "Slider and Double Tiles"
+msgstr "スライダーとダブルタイル"
+
+#: inc/customizer/frontpage-options.php:119
+msgid "Slider and Tiles"
+msgstr "スライダーとタイル"
+
+#: inc/customizer/frontpage-options.php:120
+msgid "Slider and Double Tabs"
+msgstr "スライダーとダブルタブ"
+
+#: inc/customizer/frontpage-options.php:121
+msgid "Slider and Single Tabs"
+msgstr "スライダーと単一のタブ"
+
+#: inc/customizer/frontpage-options.php:122
+msgid "Slider and Double Trending"
+msgstr "スライダーとダブルトレンド"
+
+#: inc/customizer/frontpage-options.php:123
+msgid "Slider and Single Trending"
+msgstr "スライダーとシングルトレンド"
+
+#: inc/customizer/frontpage-options.php:124
+msgid "2 Columns Carousel"
+msgstr "2列のカルーセル"
+
+#: inc/customizer/frontpage-options.php:125
+msgid "3 Columns Carousel"
+msgstr "3列のカルーセル"
+
+#: inc/customizer/frontpage-options.php:126
+msgid "4 Columns Carousel"
+msgstr "4列のカルーセル"
+
+#: inc/customizer/frontpage-options.php:127
+msgid "Single Slider"
+msgstr "シングルスライダー"
+
+#: inc/customizer/frontpage-options.php:148
+#: inc/customizer/frontpage-options.php:179
+#: inc/customizer/frontpage-options.php:205
+msgid "Select Main Banner Order"
+msgstr "メインバナーの注文を選択します"
+
+#: inc/customizer/frontpage-options.php:152
+#: inc/customizer/frontpage-options.php:183
+#: inc/customizer/frontpage-options.php:209
+msgid "Order 1"
+msgstr "注文1"
+
+#: inc/customizer/frontpage-options.php:153
+#: inc/customizer/frontpage-options.php:184
+#: inc/customizer/frontpage-options.php:210
+msgid "Order 2"
+msgstr "注文2"
+
+#: inc/customizer/frontpage-options.php:154
+#: inc/customizer/frontpage-options.php:211
+msgid "Order 3"
+msgstr "注文3"
+
+#: inc/customizer/frontpage-options.php:155
+#: inc/customizer/frontpage-options.php:212
+msgid "Order 4"
+msgstr "注文4"
+
+#: inc/customizer/frontpage-options.php:156
+msgid "Order 5"
+msgstr "注文5"
+
+#: inc/customizer/frontpage-options.php:157
+msgid "Order 6"
+msgstr "注文6"
+
+#: inc/customizer/frontpage-options.php:238
+msgid "Main News Section "
+msgstr "メインニュースセクション"
+
+#: inc/customizer/frontpage-options.php:257
+#: inc/customizer/frontpage-options.php:430
+#: inc/customizer/frontpage-options.php:593
+#: inc/customizer/frontpage-options.php:755
+#: inc/customizer/frontpage-options.php:921
+#: inc/customizer/frontpage-options.php:1090
+#: inc/customizer/frontpage-options.php:1255
+#: inc/customizer/frontpage-options.php:1420
+#: inc/customizer/frontpage-options.php:1587
+#: inc/customizer/frontpage-options.php:1752
+#: inc/customizer/frontpage-options.php:1917
+#: inc/customizer/frontpage-options.php:2095
+#: inc/customizer/frontpage-options.php:2159
+#: inc/customizer/frontpage-options.php:2286
+#: inc/customizer/frontpage-options.php:2399
+#: inc/customizer/frontpage-options.php:2519
+#: inc/customizer/frontpage-options.php:2787
+msgid "Section Title "
+msgstr "セクションタイトル"
+
+#: inc/customizer/frontpage-options.php:283
+#: inc/customizer/frontpage-options.php:460
+#: inc/customizer/frontpage-options.php:623
+#: inc/customizer/frontpage-options.php:786
+#: inc/customizer/frontpage-options.php:952
+#: inc/customizer/frontpage-options.php:1120
+#: inc/customizer/frontpage-options.php:1284
+#: inc/customizer/frontpage-options.php:1449
+#: inc/customizer/frontpage-options.php:1617
+#: inc/customizer/frontpage-options.php:1781
+#: inc/customizer/frontpage-options.php:1946
+#: inc/widgets/widget-popular-posts.php:117
+msgid "Filter Posts By"
+msgstr "投稿をフィルターします"
+
+#: inc/customizer/frontpage-options.php:287
+#: inc/customizer/frontpage-options.php:464
+#: inc/customizer/frontpage-options.php:627
+#: inc/customizer/frontpage-options.php:790
+#: inc/customizer/frontpage-options.php:956
+#: inc/customizer/frontpage-options.php:1124
+#: inc/customizer/frontpage-options.php:1288
+#: inc/customizer/frontpage-options.php:1453
+#: inc/customizer/frontpage-options.php:1621
+#: inc/customizer/frontpage-options.php:1785
+#: inc/customizer/frontpage-options.php:1950
+#: inc/customizer/frontpage-options.php:2546
+#: inc/customizer/frontpage-options.php:2615
+#: inc/customizer/frontpage-options.php:2727
+msgid "Category"
+msgstr "カテゴリ"
+
+#: inc/customizer/frontpage-options.php:288
+#: inc/customizer/frontpage-options.php:465
+#: inc/customizer/frontpage-options.php:628
+#: inc/customizer/frontpage-options.php:791
+#: inc/customizer/frontpage-options.php:957
+#: inc/customizer/frontpage-options.php:1125
+#: inc/customizer/frontpage-options.php:1289
+#: inc/customizer/frontpage-options.php:1454
+#: inc/customizer/frontpage-options.php:1622
+#: inc/customizer/frontpage-options.php:1786
+#: inc/customizer/frontpage-options.php:1951
+msgid "Tag"
+msgstr "タグ"
+
+#: inc/customizer/frontpage-options.php:289
+#: inc/customizer/frontpage-options.php:466
+#: inc/customizer/frontpage-options.php:629
+#: inc/customizer/frontpage-options.php:792
+#: inc/customizer/frontpage-options.php:958
+#: inc/customizer/frontpage-options.php:1126
+#: inc/customizer/frontpage-options.php:1290
+#: inc/customizer/frontpage-options.php:1455
+#: inc/customizer/frontpage-options.php:1623
+#: inc/customizer/frontpage-options.php:1787
+#: inc/customizer/frontpage-options.php:1952
+#: inc/customizer/theme-options.php:906
+msgid "Comment Count"
+msgstr "コメントカウント"
+
+#: inc/customizer/frontpage-options.php:290
+#: inc/customizer/frontpage-options.php:467
+#: inc/customizer/frontpage-options.php:630
+#: inc/customizer/frontpage-options.php:793
+#: inc/customizer/frontpage-options.php:959
+#: inc/customizer/frontpage-options.php:1127
+#: inc/customizer/frontpage-options.php:1291
+#: inc/customizer/frontpage-options.php:1456
+#: inc/customizer/frontpage-options.php:1624
+#: inc/customizer/frontpage-options.php:1788
+#: inc/customizer/frontpage-options.php:1953
+#: inc/customizer/theme-options.php:943
+msgid "View Count"
+msgstr "カウントを表示します"
+
+#: inc/customizer/frontpage-options.php:313
+#: inc/widgets/widget-express-posts-list.php:137
+#: inc/widgets/widget-posts-grid.php:115 inc/widgets/widget-posts-list.php:118
+#: inc/widgets/widget-posts-single-column.php:118
+#: inc/widgets/widget-trending-posts.php:140
+msgid "Select Category"
+msgstr "カテゴリを選択します"
+
+#: inc/customizer/frontpage-options.php:314
+msgid "Select category to be shown on main slider section"
+msgstr "メインスライダーセクションに表示するカテゴリを選択します"
+
+#: inc/customizer/frontpage-options.php:346
+#: inc/customizer/frontpage-options.php:530
+#: inc/customizer/frontpage-options.php:693
+#: inc/customizer/frontpage-options.php:858
+#: inc/customizer/frontpage-options.php:1024
+#: inc/customizer/frontpage-options.php:1191
+#: inc/customizer/frontpage-options.php:1356
+#: inc/customizer/frontpage-options.php:1521
+#: inc/customizer/frontpage-options.php:1688
+#: inc/customizer/frontpage-options.php:1853
+#: inc/customizer/frontpage-options.php:2018
+#: inc/widgets/widget-trending-posts-by-tag.php:121
+msgid "Select Tag"
+msgstr "タグを選択します"
+
+#: inc/customizer/frontpage-options.php:347
+msgid "Select tag to be shown on main slider section"
+msgstr "メインスライダーセクションに表示されるタグを選択します"
+
+#: inc/customizer/frontpage-options.php:375
+#: inc/customizer/frontpage-options.php:2337
+#: inc/customizer/frontpage-options.php:2837
+#: inc/customizer/theme-options.php:2918
+msgid "Number of Posts"
+msgstr "投稿数"
+
+#: inc/customizer/frontpage-options.php:376
+msgid "Accepts any postive number."
+msgstr "郵便番号を受け入れます。"
+
+#: inc/customizer/frontpage-options.php:404
+msgid "Editor's Picks Section"
+msgstr "編集者のピックセクション"
+
+#: inc/customizer/frontpage-options.php:496
+#: inc/customizer/frontpage-options.php:659
+#: inc/customizer/frontpage-options.php:823
+#: inc/customizer/frontpage-options.php:989
+#: inc/customizer/frontpage-options.php:1157
+#: inc/customizer/frontpage-options.php:1322
+#: inc/customizer/frontpage-options.php:1487
+#: inc/customizer/frontpage-options.php:1654
+#: inc/customizer/frontpage-options.php:1819
+#: inc/customizer/frontpage-options.php:1984
+#: inc/widgets/widget-express-posts-grid.php:127
+#: inc/widgets/widgets-common-functions.php:25
+msgid "Select"
+msgstr "選択します"
+
+#: inc/customizer/frontpage-options.php:567
+#: inc/customizer/frontpage-options.php:729
+msgid "Trending Section"
+msgstr "トレンドセクション"
+
+#: inc/customizer/frontpage-options.php:895
+msgid "Trending Section 2"
+msgstr "トレンドセクション2"
+
+#: inc/customizer/frontpage-options.php:1063
+msgid "Latest Section"
+msgstr "最新のセクション"
+
+#: inc/customizer/frontpage-options.php:1228
+msgid "Popular Section"
+msgstr "人気セクション"
+
+#: inc/customizer/frontpage-options.php:1393
+msgid "Updates Section"
+msgstr "セクションを更新します"
+
+#: inc/customizer/frontpage-options.php:1560
+msgid "Tab 2: Latest Section"
+msgstr "タブ2：最新のセクション"
+
+#: inc/customizer/frontpage-options.php:1725
+msgid "Tab 2: Popular Section"
+msgstr "タブ2：人気セクション"
+
+#: inc/customizer/frontpage-options.php:1890
+msgid "Tabs 2: Updates Section"
+msgstr "タブ2：セクションを更新します"
+
+#: inc/customizer/frontpage-options.php:2076
+msgid "Enable Trending Tags"
+msgstr "トレンドタグを有効にします"
+
+#: inc/customizer/frontpage-options.php:2111 inc/template-functions.php:1677
+#: inc/template-functions.php:1706 inc/template-functions.php:1750
+#: inc/template-functions.php:1771 inc/template-functions.php:1795
+#: inc/template-functions.php:1818 inc/template-functions.php:1836
+#: inc/template-functions.php:1857 inc/template-functions.php:1901
+#: inc/template-functions.php:1925
+msgid "Breaking News"
+msgstr "ニュース速報"
+
+#: inc/customizer/frontpage-options.php:2140
+msgid "Enable Flash News"
+msgstr "フラッシュニュースを有効にします"
+
+#: inc/customizer/frontpage-options.php:2184
+msgid "Flash Posts Category"
+msgstr "フラッシュ投稿カテゴリ"
+
+#: inc/customizer/frontpage-options.php:2185
+msgid "Select category to be shown on trending posts "
+msgstr "トレンド投稿に表示されるカテゴリを選択します"
+
+#: inc/customizer/frontpage-options.php:2209
+msgid "Number of Flash Posts "
+msgstr "フラッシュ投稿の数"
+
+#: inc/customizer/frontpage-options.php:2228
+msgid "Front-page Options"
+msgstr "フロントページオプション"
+
+#: inc/customizer/frontpage-options.php:2266
+msgid "Enable Featured Post Section"
+msgstr "注目の投稿セクションを有効にします"
+
+#: inc/customizer/frontpage-options.php:2312
+#: inc/customizer/frontpage-options.php:2812
+msgid "Select "
+msgstr "選択します"
+
+#: inc/customizer/frontpage-options.php:2313
+#: inc/customizer/frontpage-options.php:2728
+#: inc/customizer/frontpage-options.php:2813
+msgid "Select category to be shown on featured section "
+msgstr "注目セクションに表示されるカテゴリを選択します"
+
+#: inc/customizer/frontpage-options.php:2352
+msgid "Youtube Videos"
+msgstr "YouTubeビデオ"
+
+#: inc/customizer/frontpage-options.php:2381
+msgid "Show Youtube Video"
+msgstr "YouTubeビデオを表示します"
+
+#: inc/customizer/frontpage-options.php:2425
+msgid "YouTube Video URL %d"
+msgstr "YouTubeビデオURL %d"
+
+#: inc/customizer/frontpage-options.php:2426
+msgid "Add youtube video"
+msgstr "YouTubeビデオを追加します"
+
+#: inc/customizer/frontpage-options.php:2449
+msgid "Express Posts"
+msgstr "エクスプレス投稿"
+
+#: inc/customizer/frontpage-options.php:2478
+msgid "Show Express Post Section"
+msgstr "Express Postセクションを表示します"
+
+#: inc/customizer/frontpage-options.php:2500
+msgid "Section 1"
+msgstr "セクション1"
+
+#: inc/customizer/frontpage-options.php:2547
+#: inc/customizer/frontpage-options.php:2616
+msgid "Select category to be shown on express post section "
+msgstr "Express Postセクションに表示されるカテゴリを選択します"
+
+#: inc/customizer/frontpage-options.php:2570
+msgid "Section 2"
+msgstr "セクション2"
+
+#: inc/customizer/frontpage-options.php:2592
+#: inc/customizer/frontpage-options.php:2702
+msgid "Section Title"
+msgstr "セクションタイトル"
+
+#: inc/customizer/frontpage-options.php:2637
+msgid "Posts List"
+msgstr "投稿リスト"
+
+#: inc/customizer/frontpage-options.php:2657
+msgid "Enable Post List Section"
+msgstr "投稿リストセクションを有効にします"
+
+#: inc/customizer/frontpage-options.php:2681
+msgid "Section %d"
+msgstr "セクション%d"
+
+#: inc/customizer/frontpage-options.php:2767
+msgid "Enable Posts Carousel Section"
+msgstr "投稿を有効にしますCarouselセクション"
+
+#: inc/customizer/frontpage-options.php:2851
+msgid "Front-page Layout Settings"
+msgstr "フロントページのレイアウト設定"
+
+#: inc/customizer/frontpage-options.php:2873
+msgid "Front-page Content Display"
+msgstr "フロントページのコンテンツディスプレイ"
+
+#: inc/customizer/frontpage-options.php:2874
+msgid "Select frontpage content display"
+msgstr "FrontPageコンテンツ表示を選択します"
+
+#: inc/customizer/frontpage-options.php:2878
+msgid "Front-page Widgets"
+msgstr "フロントページウィジェット"
+
+#: inc/customizer/frontpage-options.php:2879
+msgid "Page Contents & Front-page Widgets"
+msgstr "ページの内容とフロントページウィジェット"
+
+#: inc/customizer/frontpage-options.php:2899
+msgid "Front-page Content Alignment"
+msgstr "フロントページのコンテンツアライメント"
+
+#: inc/customizer/frontpage-options.php:2900
+msgid "Select frontpage content alignment"
+msgstr "FrontPageコンテンツのアラインメントを選択します"
+
+#: inc/customizer/frontpage-options.php:2904
+msgid "Home Content - Home Sidebar"
+msgstr "ホームコンテンツ - ホームサイドバー"
+
+#: inc/customizer/frontpage-options.php:2905
+msgid "Home Sidebar - Home Content"
+msgstr "ホームサイドバー - ホームコンテンツ"
+
+#: inc/customizer/frontpage-options.php:2906
+msgid "Only Home Content"
+msgstr "ホームコンテンツのみ"
+
+#: inc/customizer/theme-options.php:31
+#: admin-dashboard/src/components/json/home-content.js:5
+msgid "Header Options"
+msgstr "ヘッダーオプション"
+
+#: inc/customizer/theme-options.php:47
+msgid "Header Settings"
+msgstr "ヘッダー設定"
+
+#: inc/customizer/theme-options.php:68
+msgid "Theme Header Layout"
+msgstr "テーマヘッダーレイアウト"
+
+#: inc/customizer/theme-options.php:69
+msgid "Select built-in header layout from theme"
+msgstr "テーマからビルトインヘッダーレイアウトを選択します"
+
+#: inc/customizer/theme-options.php:73
+msgid "Side"
+msgstr "側"
+
+#: inc/customizer/theme-options.php:74
+msgid "Side 2"
+msgstr "サイド2"
+
+#: inc/customizer/theme-options.php:75
+msgid "Side 3"
+msgstr "サイド3"
+
+#: inc/customizer/theme-options.php:76
+msgid "Side 4"
+msgstr "サイド4"
+
+#: inc/customizer/theme-options.php:77
+msgid "Centered"
+msgstr "中心"
+
+#: inc/customizer/theme-options.php:78
+msgid "Centered 2"
+msgstr "中心2"
+
+#: inc/customizer/theme-options.php:79
+msgid "Centered 3"
+msgstr "中心3"
+
+#: inc/customizer/theme-options.php:80
+msgid "Centered 4"
+msgstr "中央4"
+
+#: inc/customizer/theme-options.php:81
+msgid "Compressed"
+msgstr "圧縮"
+
+#: inc/customizer/theme-options.php:82
+msgid "Compressed 2"
+msgstr "圧縮2"
+
+#: inc/customizer/theme-options.php:83
+msgid "Compressed 3"
+msgstr "圧縮3"
+
+#: inc/customizer/theme-options.php:84
+msgid "Compressed 4"
+msgstr "圧縮4"
+
+#: inc/customizer/theme-options.php:105
+msgid "Site Mode Switch"
+msgstr "サイトモードスイッチ"
+
+#: inc/customizer/theme-options.php:109
+msgid "Enable"
+msgstr "有効にする"
+
+#: inc/customizer/theme-options.php:110 inc/customizer/theme-options.php:687
+#: inc/customizer/theme-options.php:715 inc/customizer/theme-options.php:742
+msgid "Disable"
+msgstr "無効にします"
+
+#: inc/customizer/theme-options.php:129
+msgid "Disable Sticky Header"
+msgstr "粘着性ヘッダーを無効にします"
+
+#: inc/customizer/theme-options.php:151
+msgid "Top Header Section"
+msgstr "トップヘッダーセクション"
+
+#: inc/customizer/theme-options.php:173
+msgid "Show Top Header"
+msgstr "トップヘッダーを表示します"
+
+#: inc/customizer/theme-options.php:199
+msgid "Show Social Menu"
+msgstr "ソーシャルメニューを表示します"
+
+#: inc/customizer/theme-options.php:220
+msgid "Show Date"
+msgstr "日付を表示します"
+
+#: inc/customizer/theme-options.php:242
+msgid "Menu Border"
+msgstr "メニューボーダー"
+
+#: inc/customizer/theme-options.php:246 inc/customizer/theme-options.php:835
+#: inc/customizer/theme-options.php:910 inc/customizer/theme-options.php:947
+#: inc/customizer/theme-options.php:1217 inc/customizer/theme-options.php:1242
+msgid "Show"
+msgstr "見せる"
+
+#: inc/customizer/theme-options.php:247 inc/customizer/theme-options.php:836
+#: inc/customizer/theme-options.php:911 inc/customizer/theme-options.php:948
+#: inc/customizer/theme-options.php:1218 inc/customizer/theme-options.php:1243
+msgid "Hide"
+msgstr "隠れる"
+
+#: inc/customizer/theme-options.php:261 inc/customizer/theme-options.php:282
+msgid "Header Advertisement"
+msgstr "ヘッダー広告"
+
+#: inc/customizer/theme-options.php:322
+msgid "Header Section Advertisement"
+msgstr "ヘッダーセクション広告"
+
+#: inc/customizer/theme-options.php:348
+msgid "URL Link"
+msgstr "URLリンク"
+
+#: inc/customizer/theme-options.php:367
+msgid "Open In New Tab"
+msgstr "新しいタブで開きます"
+
+#: inc/customizer/theme-options.php:388
+msgid "Show Header Advertisement On"
+msgstr "ヘッダー広告を表示します"
+
+#: inc/customizer/theme-options.php:389
+msgid "Select scope to display on header advertisement section"
+msgstr "ヘッダー広告セクションに表示するスコープを選択します"
+
+#: inc/customizer/theme-options.php:393
+msgid "Show Site-wide"
+msgstr "サイト全体を表示します"
+
+#: inc/customizer/theme-options.php:394
+msgid "Show on Homepage only"
+msgstr "ホームページのみで表示します"
+
+#: inc/customizer/theme-options.php:406 lib/info/info.php:71
+msgid "Theme Options"
+msgstr "テーマオプション"
+
+#: inc/customizer/theme-options.php:424
+msgid "Site Layout Mode"
+msgstr "サイトレイアウトモード"
+
+#: inc/customizer/theme-options.php:446
+msgid "Theme Tone"
+msgstr "テーマトーン"
+
+#: inc/customizer/theme-options.php:447
+msgid "Publish and reload to preview changes"
+msgstr "変更をプレビューするために公開およびリロードします"
+
+#: inc/customizer/theme-options.php:451 inc/customizer/theme-options.php:570
+#: inc/customizer/theme-options.php:1597 inc/customizer/theme-options.php:2641
+#: inc/customizer/theme-options.php:2780 inc/hooks/hook-meta.php:80
+#: inc/hooks/hook-meta.php:297 inc/hooks/hook-meta.php:486
+msgid "Default"
+msgstr "デフォルト"
+
+#: inc/customizer/theme-options.php:452
+msgid "BlackNews"
+msgstr "ブラックネューズ"
+
+#: inc/customizer/theme-options.php:453
+msgid "CelebNews"
+msgstr "セレブネー"
+
+#: inc/customizer/theme-options.php:454
+msgid "CentralNews"
+msgstr "CentralNews"
+
+#: inc/customizer/theme-options.php:455
+msgid "GamerNews"
+msgstr "Gamernews"
+
+#: inc/customizer/theme-options.php:456 inc/template-functions.php:1687
+#: inc/template-functions.php:1781 inc/template-functions.php:1805
+#: inc/template-functions.php:1845 inc/template-functions.php:1891
+#: inc/template-functions.php:1911 inc/template-functions.php:1934
+#: inc/template-functions.php:1953
+msgid "General News"
+msgstr "一般的なニュース"
+
+#: inc/customizer/theme-options.php:457
+msgid "GlobalNews"
+msgstr "GlobalNews"
+
+#: inc/customizer/theme-options.php:458
+msgid "MoreMag"
+msgstr "Moremag"
+
+#: inc/customizer/theme-options.php:459
+msgid "NewsCorp"
+msgstr "NewsCorp"
+
+#: inc/customizer/theme-options.php:460
+msgid "NewsDay"
+msgstr "Newsday"
+
+#: inc/customizer/theme-options.php:461
+msgid "Newsical"
+msgstr "新聞"
+
+#: inc/customizer/theme-options.php:462
+msgid "NewsLight"
+msgstr "ニュースライト"
+
+#: inc/customizer/theme-options.php:463 inc/customizer/theme-options.php:464
+msgid "NewsMore"
+msgstr "新聞私"
+
+#: inc/customizer/theme-options.php:465
+msgid "SideNews"
+msgstr "側面"
+
+#: inc/customizer/theme-options.php:485
+msgid "Layout Option"
+msgstr "レイアウトオプション"
+
+#: inc/customizer/theme-options.php:489
+msgid "Boxed"
+msgstr "箱入り"
+
+#: inc/customizer/theme-options.php:490
+msgid "Wide"
+msgstr "広い"
+
+#: inc/customizer/theme-options.php:509
+msgid "Enable Box's Top/Bottom Gaps"
+msgstr "ボックスのトップ/ボトムギャップを有効にします"
+
+#: inc/customizer/theme-options.php:524
+msgid "Breadcrumb Options"
+msgstr "パン界のオプション"
+
+#: inc/customizer/theme-options.php:545
+msgid "Show breadcrumbs"
+msgstr "パン粉を表示します"
+
+#: inc/customizer/theme-options.php:565
+msgid "Select Breadcrumbs"
+msgstr "パン粉を選択します"
+
+#: inc/customizer/theme-options.php:566
+msgid ""
+"Please ensure that you have enabled the plugin's breadcrumbs before choosing"
+" other than Default"
+msgstr "デフォルト以外に選択する前に、プラグインのパンくずを有効にしていることを確認してください"
+
+#: inc/customizer/theme-options.php:571
+msgid "Yoast SEO"
+msgstr "yoast seo"
+
+#: inc/customizer/theme-options.php:572
+msgid "Rank Math"
+msgstr "ランク数学"
+
+#: inc/customizer/theme-options.php:573
+msgid "NavXT"
+msgstr "navxt"
+
+#: inc/customizer/theme-options.php:592
+msgid "Global Settings"
+msgstr "グローバル設定"
+
+#: inc/customizer/theme-options.php:613
+msgid "Enable Preloader"
+msgstr "Preloaderを有効にします"
+
+#: inc/customizer/theme-options.php:633
+msgid "Disable Emoji Script"
+msgstr "絵文字スクリプトを無効にします"
+
+#: inc/customizer/theme-options.php:634
+msgid "GDPR friendly & better performance"
+msgstr "GDPRフレンドリーで優れたパフォーマンス"
+
+#: inc/customizer/theme-options.php:656
+msgid "Global Content Alignment"
+msgstr "グローバルコンテンツアライメント"
+
+#: inc/customizer/theme-options.php:660
+msgid "Content - Primary sidebar"
+msgstr "コンテンツ - プライマリサイドバー"
+
+#: inc/customizer/theme-options.php:661
+msgid "Primary sidebar - Content"
+msgstr "プライマリサイドバー - コンテンツ"
+
+#: inc/customizer/theme-options.php:662
+msgid "Full width content"
+msgstr "全幅のコンテンツ"
+
+#: inc/customizer/theme-options.php:681
+msgid "Also Show Content Image in Archive"
+msgstr "また、アーカイブにコンテンツ画像を表示します"
+
+#: inc/customizer/theme-options.php:682
+msgid "If there is no Post Featured image set"
+msgstr "投稿が表示されていない場合は、画像セットが設定されています"
+
+#: inc/customizer/theme-options.php:686 inc/customizer/theme-options.php:714
+#: inc/customizer/theme-options.php:741
+msgid "Enable "
+msgstr "有効にする"
+
+#: inc/customizer/theme-options.php:709
+msgid "Image Lazy Loading"
+msgstr "画像怠zyな読み込み"
+
+#: inc/customizer/theme-options.php:710
+msgid "Set for better performance"
+msgstr "パフォーマンスを向上させるために設定します"
+
+#: inc/customizer/theme-options.php:736
+msgid "Image Async Decoding"
+msgstr "画像の非同期デコード"
+
+#: inc/customizer/theme-options.php:737
+msgid "Set to enhance rendering speed"
+msgstr "レンダリング速度を向上させるように設定します"
+
+#: inc/customizer/theme-options.php:764
+msgid "Widget Title Style"
+msgstr "ウィジェットタイトルスタイル"
+
+#: inc/customizer/theme-options.php:768
+msgid "Border Bottom"
+msgstr "境界底"
+
+#: inc/customizer/theme-options.php:769
+msgid "Border Center"
+msgstr "国境センター"
+
+#: inc/customizer/theme-options.php:770
+msgid "Fill and Border"
+msgstr "充填と境界"
+
+#: inc/customizer/theme-options.php:771
+msgid "Fill"
+msgstr "埋める"
+
+#: inc/customizer/theme-options.php:772 inc/customizer/theme-options.php:799
+#: inc/customizer/theme-options.php:1092 inc/customizer/theme-options.php:1696
+#: inc/customizer/theme-options.php:2755
+msgid "None"
+msgstr "なし"
+
+#: inc/customizer/theme-options.php:793
+msgid "Scroll to Top Position"
+msgstr "上部の位置までスクロールします"
+
+#: inc/customizer/theme-options.php:797 inc/customizer/theme-options.php:2614
+#: inc/hooks/hook-meta.php:292 inc/hooks/hook-meta.php:481
+msgid "Right"
+msgstr "右"
+
+#: inc/customizer/theme-options.php:798 inc/customizer/theme-options.php:2613
+#: inc/hooks/hook-meta.php:291 inc/hooks/hook-meta.php:480
+msgid "Left"
+msgstr "左"
+
+#: inc/customizer/theme-options.php:811
+msgid "Categories Settings"
+msgstr "カテゴリ設定"
+
+#: inc/customizer/theme-options.php:831
+msgid "Post Categories"
+msgstr "ポストカテゴリ"
+
+#: inc/customizer/theme-options.php:857
+msgid "Categories to be displayed"
+msgstr "表示されるカテゴリ"
+
+#: inc/customizer/theme-options.php:861
+msgid "Show All"
+msgstr "すべてを表示します"
+
+#: inc/customizer/theme-options.php:862
+msgid "Top One Category"
+msgstr "トップ1カテゴリ"
+
+#: inc/customizer/theme-options.php:863
+msgid "Custom"
+msgstr "カスタム"
+
+#: inc/customizer/theme-options.php:884
+msgid "Number of Categories"
+msgstr "カテゴリの数"
+
+#: inc/customizer/theme-options.php:922
+msgid "View Count Settings"
+msgstr "カウント設定を表示します"
+
+#: inc/customizer/theme-options.php:968
+msgid "View Count Option"
+msgstr "カウントオプションを表示します"
+
+#: inc/customizer/theme-options.php:969
+msgid "Select post view count for single post"
+msgstr "シングルポストの[Post View Count]を選択します"
+
+#: inc/customizer/theme-options.php:973
+msgid "Default - Each View"
+msgstr "デフォルト - 各ビュー"
+
+#: inc/customizer/theme-options.php:974
+msgid "Count On Content Scroll"
+msgstr "コンテンツスクロールに頼ります"
+
+#: inc/customizer/theme-options.php:986
+msgid "Author and Date Settings"
+msgstr "著者と日付設定"
+
+#: inc/customizer/theme-options.php:1007
+msgid "For Spotlight Posts"
+msgstr "スポットライトの投稿用"
+
+#: inc/customizer/theme-options.php:1011 inc/customizer/theme-options.php:1038
+#: inc/customizer/theme-options.php:1064
+msgid "Show Date and Author"
+msgstr "日付と著者を表示します"
+
+#: inc/customizer/theme-options.php:1012 inc/customizer/theme-options.php:1039
+#: inc/customizer/theme-options.php:1065
+msgid "Show Date Only"
+msgstr "日付のみを表示します"
+
+#: inc/customizer/theme-options.php:1013 inc/customizer/theme-options.php:1040
+#: inc/customizer/theme-options.php:1066
+msgid "Show Author Only"
+msgstr "著者のみを表示します"
+
+#: inc/customizer/theme-options.php:1014 inc/customizer/theme-options.php:1041
+#: inc/customizer/theme-options.php:1067
+msgid "Hide All"
+msgstr "すべてを隠します"
+
+#: inc/customizer/theme-options.php:1034
+msgid "For Small Grid"
+msgstr "小さなグリッド用"
+
+#: inc/customizer/theme-options.php:1060
+msgid "For List"
+msgstr "リスト用"
+
+#: inc/customizer/theme-options.php:1086
+msgid "Author Icon/Gravatar"
+msgstr "著者アイコン/グラバター"
+
+#: inc/customizer/theme-options.php:1090
+msgid "Show Gravatar"
+msgstr "グラベートを表示します"
+
+#: inc/customizer/theme-options.php:1091
+msgid "Show Icon"
+msgstr "アイコンを表示します"
+
+#: inc/customizer/theme-options.php:1113
+msgid "Single Post Date Type"
+msgstr "シングルポストの日付タイプ"
+
+#: inc/customizer/theme-options.php:1117 inc/customizer/theme-options.php:1143
+msgid "Published"
+msgstr "公開"
+
+#: inc/customizer/theme-options.php:1118 inc/customizer/theme-options.php:1144
+msgid "Modified"
+msgstr "修正"
+
+#: inc/customizer/theme-options.php:1119 inc/customizer/theme-options.php:1145
+msgid "Both"
+msgstr "両方"
+
+#: inc/customizer/theme-options.php:1139
+msgid "Archive Post Date Type"
+msgstr "アーカイブ投稿日付タイプ"
+
+#: inc/customizer/theme-options.php:1164
+msgid "Date Format"
+msgstr "日付形式"
+
+#: inc/customizer/theme-options.php:1168
+msgid "WordPress Default Date Format"
+msgstr "WordPressデフォルトの日付形式"
+
+#: inc/customizer/theme-options.php:1169
+msgid "Ago Date Format"
+msgstr "前の日付形式"
+
+#: inc/customizer/theme-options.php:1170
+msgid "Year and Month Format"
+msgstr "年および月の形式"
+
+#: inc/customizer/theme-options.php:1171
+msgid "Month and Day Format"
+msgstr "月と日の形式"
+
+#: inc/customizer/theme-options.php:1172
+msgid "Year Format"
+msgstr "年の形式"
+
+#: inc/customizer/theme-options.php:1173
+msgid "Month Format"
+msgstr "月形式"
+
+#: inc/customizer/theme-options.php:1174
+msgid "Day Format"
+msgstr "日形式"
+
+#: inc/customizer/theme-options.php:1175
+msgid "24 Hours Format"
+msgstr "24時間形式"
+
+#: inc/customizer/theme-options.php:1176
+msgid "12 Hours Format"
+msgstr "12時間形式"
+
+#: inc/customizer/theme-options.php:1192
+msgid "Minutes Read Count"
+msgstr "数分読み取りカウント"
+
+#: inc/customizer/theme-options.php:1213
+msgid "Single Post Minutes Read Count"
+msgstr "シングルポスト分を読み取ります"
+
+#: inc/customizer/theme-options.php:1238
+msgid "Archive Posts Minutes Read Count"
+msgstr "アーカイブ投稿議事録読み取りカウント"
+
+#: inc/customizer/theme-options.php:1264
+msgid "Number of Words per Minute Read"
+msgstr "1分あたりの単語数を読みます"
+
+#: inc/customizer/theme-options.php:1277
+msgid "Excerpt Settings"
+msgstr "抜粋設定"
+
+#: inc/customizer/theme-options.php:1298
+msgid "Global Excerpt Length"
+msgstr "グローバルな抜粋長"
+
+#: inc/customizer/theme-options.php:1319
+msgid "Global Excerpt Read More"
+msgstr "グローバルな抜粋をもっと読んでください"
+
+#: inc/customizer/theme-options.php:1342
+msgid "Custom Menu Section"
+msgstr "カスタムメニューセクション"
+
+#: inc/customizer/theme-options.php:1362
+msgid "Enable Custom Menu Section"
+msgstr "カスタムメニューセクションを有効にします"
+
+#: inc/customizer/theme-options.php:1383
+msgid "Icon Mode"
+msgstr "アイコンモード"
+
+#: inc/customizer/theme-options.php:1387
+msgid "Ripple"
+msgstr "波紋"
+
+#: inc/customizer/theme-options.php:1388
+msgid "FontAwesome Icon"
+msgstr "フォンテソンアイコン"
+
+#: inc/customizer/theme-options.php:1409
+msgid "Icon"
+msgstr "アイコン"
+
+#: inc/customizer/theme-options.php:1436 inc/customizer/theme-options.php:2475
+#: inc/customizer/theme-options.php:2973
+#: inc/widgets/widget-author-info.php:164
+#: inc/widgets/widget-express-posts-grid.php:126
+#: inc/widgets/widget-express-posts-list.php:136
+#: inc/widgets/widget-popular-posts.php:116
+#: inc/widgets/widget-posts-double-column.php:141
+#: inc/widgets/widget-posts-double-column.php:142
+#: inc/widgets/widget-posts-grid.php:114 inc/widgets/widget-posts-list.php:117
+#: inc/widgets/widget-posts-single-column.php:117
+#: inc/widgets/widget-posts-slider.php:111
+#: inc/widgets/widget-posts-tabs.php:113 inc/widgets/widget-posts-tabs.php:117
+#: inc/widgets/widget-posts-tabs.php:121
+#: inc/widgets/widget-trending-posts-by-tag.php:120
+#: inc/widgets/widget-trending-posts-by-view.php:116
+#: inc/widgets/widget-trending-posts.php:138
+msgid "Title"
+msgstr "タイトル"
+
+#: inc/customizer/theme-options.php:1457
+msgid "Link"
+msgstr "リンク"
+
+#: inc/customizer/theme-options.php:1472
+msgid "Single Post"
+msgstr "単一の投稿"
+
+#: inc/customizer/theme-options.php:1492
+msgid "Show Featured Image"
+msgstr "注目の画像を表示します"
+
+#: inc/customizer/theme-options.php:1513
+msgid "Featured Image Size"
+msgstr "特徴の画像サイズ"
+
+#: inc/customizer/theme-options.php:1517 inc/customizer/theme-options.php:1573
+#: inc/customizer/theme-options.php:2566 inc/hooks/hook-meta.php:286
+#: inc/hooks/hook-meta.php:474
+msgid "Full"
+msgstr "満杯"
+
+#: inc/customizer/theme-options.php:1518
+msgid "Large"
+msgstr "大きい"
+
+#: inc/customizer/theme-options.php:1519
+msgid "Medium"
+msgstr "中くらい"
+
+#: inc/customizer/theme-options.php:1520
+msgid "Thumbnail"
+msgstr "サムネイル"
+
+#: inc/customizer/theme-options.php:1540
+msgid "Featured Image Width"
+msgstr "特徴の画像幅"
+
+#: inc/customizer/theme-options.php:1544
+msgid "Full - Default"
+msgstr "フル - デフォルト"
+
+#: inc/customizer/theme-options.php:1545
+msgid "Original"
+msgstr "オリジナル"
+
+#: inc/customizer/theme-options.php:1568
+msgid "Post Title Option"
+msgstr "投稿タイトルオプション"
+
+#: inc/customizer/theme-options.php:1572
+msgid "Boxed - Default"
+msgstr "箱入り - デフォルト"
+
+#: inc/customizer/theme-options.php:1593
+msgid "Single Content Mode"
+msgstr "シングルコンテンツモード"
+
+#: inc/customizer/theme-options.php:1598 inc/hooks/hook-meta.php:83
+msgid "Spacious"
+msgstr "広々とした"
+
+#: inc/customizer/theme-options.php:1617
+msgid "Enable Reading Progress Bar"
+msgstr "進行状況バーを読むことができます"
+
+#: inc/customizer/theme-options.php:1670
+msgid "Social Share Options"
+msgstr "ソーシャルシェアオプション"
+
+#: inc/customizer/theme-options.php:1690
+msgid "Defined Links"
+msgstr "定義されたリンク"
+
+#: inc/customizer/theme-options.php:1694
+msgid "Theme"
+msgstr "テーマ"
+
+#: inc/customizer/theme-options.php:1695
+msgid "JetPack"
+msgstr "ジェットパック"
+
+#: inc/customizer/theme-options.php:1713
+msgid "Position"
+msgstr "位置"
+
+#: inc/customizer/theme-options.php:1717
+msgid "Before and After Content"
+msgstr "コンテンツの前後"
+
+#: inc/customizer/theme-options.php:1741
+#: inc/widgets/widget-author-info.php:169
+msgid "Facebook"
+msgstr "Facebook"
+
+#: inc/customizer/theme-options.php:1769
+msgid "X (Twitter)"
+msgstr "X（Twitter）"
+
+#: inc/customizer/theme-options.php:1796
+msgid "LinkedIn"
+msgstr "LinkedIn"
+
+#: inc/customizer/theme-options.php:1823
+msgid "Telegram"
+msgstr "電報"
+
+#: inc/customizer/theme-options.php:1850
+msgid "Pinterest"
+msgstr "Pinterest"
+
+#: inc/customizer/theme-options.php:1877
+msgid "Buffer App"
+msgstr "バッファアプリ"
+
+#: inc/customizer/theme-options.php:1905
+msgid "WhatsApp"
+msgstr "whatsapp"
+
+#: inc/customizer/theme-options.php:1932
+msgid "Reddit"
+msgstr "reddit"
+
+#: inc/customizer/theme-options.php:1959
+msgid "Line"
+msgstr "ライン"
+
+#: inc/customizer/theme-options.php:1986
+msgid "Email"
+msgstr "メール"
+
+#: inc/customizer/theme-options.php:2016
+msgid "Essential Posts Settings"
+msgstr "必須の投稿設定"
+
+#: inc/customizer/theme-options.php:2037
+msgid "Show Copy Post Link"
+msgstr "コピー投稿リンクを表示します"
+
+#: inc/customizer/theme-options.php:2065
+msgid "Show Post Bookmark Option"
+msgstr "[ブックマークの投稿]オプションを表示します"
+
+#: inc/customizer/theme-options.php:2094
+msgid "Show Post Print Option"
+msgstr "印刷後のオプションを表示します"
+
+#: inc/customizer/theme-options.php:2121
+msgid "Show Post Badge"
+msgstr "ポストバッジを表示します"
+
+#: inc/customizer/theme-options.php:2141
+msgid "Show Post Subtitles"
+msgstr "字幕を表示します"
+
+#: inc/customizer/theme-options.php:2161
+msgid "Show Post Featured Video"
+msgstr "掲載された投稿のビデオ"
+
+#: inc/customizer/theme-options.php:2181
+msgid "Show Post Source Attribution"
+msgstr "ポストソースの帰属を表示します"
+
+#: inc/customizer/theme-options.php:2201
+msgid "Show Post Sponsor"
+msgstr "ポストスポンサーを表示します"
+
+#: inc/customizer/theme-options.php:2223
+msgid "Below Posts Settings"
+msgstr "以下の投稿設定"
+
+#: inc/customizer/theme-options.php:2244
+msgid "Show Reactions under Content"
+msgstr "コンテンツの下で反応を示します"
+
+#: inc/customizer/theme-options.php:2266
+msgid "Reactions Section Title"
+msgstr "反応セクションのタイトル"
+
+#: inc/customizer/theme-options.php:2288
+msgid "Show Author Bio under Content"
+msgstr "コンテンツの下で著者のバイオを表示します"
+
+#: inc/customizer/theme-options.php:2309
+msgid "Show Tags under Content"
+msgstr "コンテンツの下にタグを表示します"
+
+#: inc/customizer/theme-options.php:2330
+msgid "Show Category under Content"
+msgstr "コンテンツの下のカテゴリを表示します"
+
+#: inc/customizer/theme-options.php:2353
+msgid "Show MailChimp Subscription Box"
+msgstr "MailChimpサブスクリプションボックスを表示します"
+
+#: inc/customizer/theme-options.php:2373
+msgid "Show Author's Posts"
+msgstr "著者の投稿を表示します"
+
+#: inc/customizer/theme-options.php:2392
+msgid "Show Bookmarked (Saved) Posts"
+msgstr "ブックマーク（保存）投稿を表示します"
+
+#: inc/customizer/theme-options.php:2412
+msgid "Show Trending Posts List"
+msgstr "トレンド投稿リストを表示します"
+
+#: inc/customizer/theme-options.php:2434
+msgid "Related Posts Settings"
+msgstr "関連する投稿設定"
+
+#: inc/customizer/theme-options.php:2455
+msgid "Enable Related Posts"
+msgstr "関連する投稿を有効にします"
+
+#: inc/customizer/theme-options.php:2497
+msgid "Maximum Number of Related Posts"
+msgstr "関連する投稿の最大数"
+
+#: inc/customizer/theme-options.php:2517
+msgid "Archive Settings"
+msgstr "アーカイブ設定"
+
+#: inc/customizer/theme-options.php:2538
+msgid "Disable Main Banner on Blog"
+msgstr "ブログでメインバナーを無効にします"
+
+#: inc/customizer/theme-options.php:2559 inc/hooks/hook-meta.php:330
+#: inc/hooks/hook-meta.php:468
+msgid "Archive layout"
+msgstr "アーカイブレイアウト"
+
+#: inc/customizer/theme-options.php:2560 inc/hooks/hook-meta.php:336
+#: inc/hooks/hook-meta.php:517
+msgid "Select layout for archive"
+msgstr "アーカイブのレイアウトを選択します"
+
+#: inc/customizer/theme-options.php:2564 inc/hooks/hook-meta.php:285
+#: inc/hooks/hook-meta.php:473
+msgid "Grid"
+msgstr "グリッド"
+
+#: inc/customizer/theme-options.php:2565
+msgid "List"
+msgstr "リスト"
+
+#: inc/customizer/theme-options.php:2567 inc/hooks/hook-meta.php:287
+#: inc/hooks/hook-meta.php:475
+msgid "Masonry"
+msgstr "石工"
+
+#: inc/customizer/theme-options.php:2586
+msgid "Make First Post Full"
+msgstr "最初の投稿をいっぱいにします"
+
+#: inc/customizer/theme-options.php:2608 inc/customizer/theme-options.php:2636
+msgid "Image Alignment"
+msgstr "画像アライメント"
+
+#: inc/customizer/theme-options.php:2609 inc/customizer/theme-options.php:2637
+msgid "Select image alignment for archive"
+msgstr "アーカイブの画像アライメントを選択します"
+
+#: inc/customizer/theme-options.php:2615 inc/customizer/theme-options.php:2642
+#: inc/hooks/hook-meta.php:293 inc/hooks/hook-meta.php:298
+#: inc/hooks/hook-meta.php:482 inc/hooks/hook-meta.php:487
+msgid "Alternate"
+msgstr "代替"
+
+#: inc/customizer/theme-options.php:2643 inc/hooks/hook-meta.php:299
+#: inc/hooks/hook-meta.php:488
+msgid "Tile"
+msgstr "タイル"
+
+#: inc/customizer/theme-options.php:2644
+msgid "Default With List"
+msgstr "リスト付きデフォルト"
+
+#: inc/customizer/theme-options.php:2665
+msgid "Grid Column Layout"
+msgstr "グリッド列レイアウト"
+
+#: inc/customizer/theme-options.php:2666
+msgid "Select column for archive grid"
+msgstr "アーカイブグリッドの列を選択します"
+
+#: inc/customizer/theme-options.php:2670 inc/customizer/theme-options.php:2698
+msgid "Two Column"
+msgstr "2列"
+
+#: inc/customizer/theme-options.php:2671 inc/customizer/theme-options.php:2699
+msgid "Three Column"
+msgstr "3列"
+
+#: inc/customizer/theme-options.php:2672 inc/customizer/theme-options.php:2700
+msgid "Four Column"
+msgstr "4列"
+
+#: inc/customizer/theme-options.php:2693
+msgid "Select Masonry Layout"
+msgstr "メーソンレイアウトを選択します"
+
+#: inc/customizer/theme-options.php:2694
+msgid "Select masonry layout for archive"
+msgstr "アーカイブ用の石積みレイアウトを選択します"
+
+#: inc/customizer/theme-options.php:2720
+msgid "Select Title Position"
+msgstr "[タイトル位置]を選択します"
+
+#: inc/customizer/theme-options.php:2721
+msgid "Select full layout for archive"
+msgstr "アーカイブの完全なレイアウトを選択します"
+
+#: inc/customizer/theme-options.php:2725
+msgid "After Image"
+msgstr "画像の後"
+
+#: inc/customizer/theme-options.php:2726
+msgid "Before Image"
+msgstr "画像の前"
+
+#: inc/customizer/theme-options.php:2727
+msgid "Over Image"
+msgstr "画像上"
+
+#: inc/customizer/theme-options.php:2748
+msgid "Content View"
+msgstr "コンテンツビュー"
+
+#: inc/customizer/theme-options.php:2749
+msgid "Select content view for archive"
+msgstr "アーカイブのコンテンツビューを選択します"
+
+#: inc/customizer/theme-options.php:2753
+msgid "Post Excerpt"
+msgstr "予言後"
+
+#: inc/customizer/theme-options.php:2754
+msgid "Full Content"
+msgstr "完全なコンテンツ"
+
+#: inc/customizer/theme-options.php:2775
+msgid "Pagination"
+msgstr "ページネーション"
+
+#: inc/customizer/theme-options.php:2776
+msgid "Select pagination view for archive"
+msgstr "アーカイブのページネーションビューを選択します"
+
+#: inc/customizer/theme-options.php:2781
+msgid "Ajax Load More"
+msgstr "Ajaxはもっとロードします"
+
+#: inc/customizer/theme-options.php:2782
+msgid "Infinite Scroll"
+msgstr "無限の巻物"
+
+#: inc/customizer/theme-options.php:2796
+msgid "Sidebar Settings"
+msgstr "サイドバー設定"
+
+#: inc/customizer/theme-options.php:2817
+msgid "Make Sidebar Sticky"
+msgstr "サイドバーを粘着させます"
+
+#: inc/customizer/theme-options.php:2838
+msgid "Sidebar Sticky Position"
+msgstr "サイドバースティッキーポジション"
+
+#: inc/customizer/theme-options.php:2843
+msgid "Bottom"
+msgstr "底"
+
+#: inc/customizer/theme-options.php:2856
+msgid "You May Have Missed"
+msgstr "あなたは逃したかもしれません"
+
+#: inc/customizer/theme-options.php:2875 inc/customizer/theme-options.php:2953
+msgid "Show Above Footer"
+msgstr "上のフッターを表示します"
+
+#: inc/customizer/theme-options.php:2895
+msgid "Posts Section Title"
+msgstr "セクションのタイトルを投稿します"
+
+#: inc/customizer/theme-options.php:2933
+msgid "Mailchimp Subscriptions"
+msgstr "MailChimpサブスクリプション"
+
+#: inc/customizer/theme-options.php:2995
+msgid "Shortcode"
+msgstr "ショートコード"
+
+#: inc/customizer/theme-options.php:3018
+msgid "Visible In:"
+msgstr "目に見える："
+
+#: inc/customizer/theme-options.php:3023
+msgid "Front page only"
+msgstr "フロントページのみ"
+
+#: inc/customizer/theme-options.php:3024
+msgid "All pages"
+msgstr "すべてのページ"
+
+#: inc/customizer/theme-options.php:3037
+msgid "Footer"
+msgstr "フッター"
+
+#: inc/customizer/theme-options.php:3075
+msgid "Footer Background Image"
+msgstr "フッターの背景画像"
+
+#: inc/customizer/theme-options.php:3102
+msgid "Copyright Text"
+msgstr "著作権テキスト"
+
+#: inc/customizer/theme-options.php:3103
+msgid "The {year} is used for current year"
+msgstr "{年}は今年に使用されます"
+
+#: inc/customizer/theme-options.php:3124
+msgid "Hide footer Menu Section"
+msgstr "フッターメニューセクションを非表示にします"
+
+#: inc/customizer/theme-options.php:3145
+msgid "Hide Theme Credits"
+msgstr "テーマクレジットを非表示にします"
+
+#: inc/hooks/blocks/block-archive-grid.php:43
+#: inc/hooks/blocks/block-archive-list.php:20
+#: inc/hooks/blocks/block-archive-masonry.php:21
+#: template-parts/content-page.php:27 template-parts/content.php:69
+msgid "Pages:"
+msgstr "ページ："
+
+#: inc/hooks/blocks/block-header-layout-centered-2.php:112
+#: inc/hooks/blocks/block-header-layout-centered-3.php:112
+#: inc/hooks/blocks/block-header-layout-centered-4.php:114
+#: inc/hooks/blocks/block-header-layout-centered.php:95
+msgid "Close Off Canvas Navigation"
+msgstr "キャンバスナビゲーションを閉じます"
+
+#: inc/hooks/blocks/block-header-layout-compressed-2.php:48
+#: inc/hooks/blocks/block-header-layout-compressed-3.php:49
+#: inc/hooks/blocks/block-header-layout-compressed-4.php:49
+#: inc/hooks/blocks/block-header-layout-compressed.php:49
+msgid "Open Off-Canvas Navigation"
+msgstr "オフキャンバスナビゲーションを開きます"
+
+#: inc/hooks/blocks/block-post-author.php:14
+msgid "Author's Other Posts"
+msgstr "著者の他の投稿"
+
+#: inc/hooks/blocks/block-post-bookmarked.php:21
+msgid "Your Saved Posts"
+msgstr "保存した投稿"
+
+#: inc/hooks/hook-header-section.php:246
+msgid "Light/Dark Button"
+msgstr "ライト/ダークボタン"
+
+#: inc/hooks/hook-meta-analytics.php:8
+msgid "Post Analytics"
+msgstr "分析を投稿します"
+
+#: inc/hooks/hook-meta-analytics.php:55
+msgid "Reactions Overview"
+msgstr "反応の概要"
+
+#: inc/hooks/hook-meta-analytics.php:65
+msgid "Reaction Settings"
+msgstr "反応設定"
+
+#: inc/hooks/hook-meta-analytics.php:69
+msgid "Engagement Metrics"
+msgstr "エンゲージメントメトリック"
+
+#: inc/hooks/hook-meta-analytics.php:70
+msgid "Views:"
+msgstr "ビュー："
+
+#: inc/hooks/hook-meta-analytics.php:71
+msgid "Comments:"
+msgstr "コメント："
+
+#: inc/hooks/hook-meta-analytics.php:75
+msgid "Content Stats"
+msgstr "コンテンツ統計"
+
+#: inc/hooks/hook-meta-analytics.php:76
+msgid "Word Count:"
+msgstr "単語数："
+
+#: inc/hooks/hook-meta-analytics.php:76 inc/hooks/hook-meta-analytics.php:77
+msgid "estimated"
+msgstr "推定"
+
+#: inc/hooks/hook-meta-analytics.php:77
+msgid "Read Time:"
+msgstr "読む時間："
+
+#: inc/hooks/hook-meta-analytics.php:77
+msgid "min"
+msgstr "分"
+
+#: inc/hooks/hook-meta-analytics.php:81
+msgid "Links in This Post"
+msgstr "この投稿のリンク"
+
+#: inc/hooks/hook-meta-analytics.php:87 inc/hooks/hook-meta-analytics.php:88
+#: inc/hooks/hook-meta-analytics.php:89 inc/hooks/hook-meta-analytics.php:91
+#: inc/hooks/hook-meta-analytics.php:92 inc/hooks/hook-meta-analytics.php:93
+msgid "link"
+msgstr "リンク"
+
+#: inc/hooks/hook-meta-analytics.php:87
+msgid "total links found"
+msgstr "合計リンクが見つかりました"
+
+#: inc/hooks/hook-meta-analytics.php:88
+msgid "to your own site"
+msgstr "あなた自身のサイトに"
+
+#: inc/hooks/hook-meta-analytics.php:89
+msgid "to other websites"
+msgstr "他のウェブサイトに"
+
+#: inc/hooks/hook-meta-analytics.php:90
+msgid "site"
+msgstr "サイト"
+
+#: inc/hooks/hook-meta-analytics.php:90
+msgid "external domains linked"
+msgstr "リンクされた外部ドメイン"
+
+#: inc/hooks/hook-meta-analytics.php:91
+msgid "marked nofollow"
+msgstr "マークされたnofollow"
+
+#: inc/hooks/hook-meta-analytics.php:92
+msgid "that open in new tab"
+msgstr "新しいタブで開く"
+
+#: inc/hooks/hook-meta-analytics.php:93
+msgid "without visible text"
+msgstr "目に見えるテキストなし"
+
+#: inc/hooks/hook-meta-analytics.php:98
+msgid "%d %s %s"
+msgstr "%d %s％s"
+
+#: inc/hooks/hook-meta-analytics.php:108
+msgid "Most Linked External Sites:"
+msgstr "最もリンクされた外部サイト："
+
+#: inc/hooks/hook-meta-analytics.php:117
+msgid "Examples Without Anchor Text:"
+msgstr "アンカーテキストのない例："
+
+#: inc/hooks/hook-meta-analytics.php:125
+msgid "Shortest Link Text:"
+msgstr "最短リンクテキスト："
+
+#: inc/hooks/hook-meta-analytics.php:126
+msgid "Longest Link Text:"
+msgstr "最長のリンクテキスト："
+
+#: inc/hooks/hook-meta-analytics.php:130
+msgid "No links were found in this post."
+msgstr "この投稿ではリンクは見つかりませんでした。"
+
+#: inc/hooks/hook-meta-analytics.php:135
+msgid "Explore Shortcuts"
+msgstr "ショートカットを探索します"
+
+#: inc/hooks/hook-meta-analytics.php:136
+msgid "View Author Archive"
+msgstr "著者アーカイブを表示します"
+
+#: inc/hooks/hook-meta-analytics.php:137
+msgid "View Publish Day Archive"
+msgstr "パブリッシュデイアーカイブを表示します"
+
+#: inc/hooks/hook-meta-extra.php:15
+msgctxt "taxonomy general name"
+msgid "Post Badges"
+msgstr "バッジを投稿します"
+
+#: inc/hooks/hook-meta-extra.php:16
+msgctxt "taxonomy singular name"
+msgid "Post Badge"
+msgstr "バッジをポスト"
+
+#: inc/hooks/hook-meta-extra.php:17
+msgid "Search Badges"
+msgstr "バッジを検索します"
+
+#: inc/hooks/hook-meta-extra.php:18
+msgid "All Badges"
+msgstr "すべてのバッジ"
+
+#: inc/hooks/hook-meta-extra.php:19
+msgid "Parent Badge"
+msgstr "親バッジ"
+
+#: inc/hooks/hook-meta-extra.php:20
+msgid "Parent Badge:"
+msgstr "親バッジ："
+
+#: inc/hooks/hook-meta-extra.php:21
+msgid "Edit Badge"
+msgstr "バッジを編集します"
+
+#: inc/hooks/hook-meta-extra.php:22
+msgid "Update Badge"
+msgstr "バッジを更新します"
+
+#: inc/hooks/hook-meta-extra.php:23
+msgid "Add New Badge"
+msgstr "新しいバッジを追加します"
+
+#: inc/hooks/hook-meta-extra.php:24
+msgid "New Badge Name"
+msgstr "新しいバッジ名"
+
+#: inc/hooks/hook-meta-extra.php:25
+msgid "Badges"
+msgstr "バッジ"
+
+#: inc/hooks/hook-meta-extra.php:65 inc/hooks/hook-meta-extra.php:75
+msgid "Post Subtitle"
+msgstr "サブタイトルを投稿します"
+
+#: inc/hooks/hook-meta-extra.php:66
+msgid "Featured Video"
+msgstr "注目のビデオ"
+
+#: inc/hooks/hook-meta-extra.php:67
+msgid "Source Attribution"
+msgstr "ソースの帰属"
+
+#: inc/hooks/hook-meta-extra.php:68
+msgid "Sponsorship Settings"
+msgstr "スポンサーシップ設定"
+
+#: inc/hooks/hook-meta-extra.php:77
+msgid "Displayed below the post title."
+msgstr "投稿タイトルの下に表示されます。"
+
+#: inc/hooks/hook-meta-extra.php:83
+msgid "Featured Video URL"
+msgstr "注目のビデオURL"
+
+#: inc/hooks/hook-meta-extra.php:85
+msgid "Paste YouTube, Vimeo, or Facebook link."
+msgstr "YouTube、Vimeo、またはFacebookリンクを貼り付けます。"
+
+#: inc/hooks/hook-meta-extra.php:92
+msgid "Source Name"
+msgstr "ソース名"
+
+#: inc/hooks/hook-meta-extra.php:94
+msgid "Source URL"
+msgstr "ソースURL"
+
+#: inc/hooks/hook-meta-extra.php:104
+msgid "Mark as Sponsored"
+msgstr "スポンサーとしてマーク"
+
+#: inc/hooks/hook-meta-extra.php:105
+msgid "Sponsor Name"
+msgstr "スポンサー名"
+
+#: inc/hooks/hook-meta-extra.php:107
+msgid "Sponsor URL"
+msgstr "スポンサーURL"
+
+#: inc/hooks/hook-meta-extra.php:158
+msgid "View posts with badge: %s"
+msgstr "バッジで投稿を表示：%s"
+
+#: inc/hooks/hook-meta-extra.php:178
+msgid "Source:"
+msgstr "ソース："
+
+#: inc/hooks/hook-meta-extra.php:180
+msgid "Visit source: %s"
+msgstr "出典：%sにアクセスしてください"
+
+#: inc/hooks/hook-meta-extra.php:203
+msgid "Sponsored by:"
+msgstr "スポンサー："
+
+#: inc/hooks/hook-meta-extra.php:205
+msgid "Visit sponsor: %s"
+msgstr "スポンサーをご覧ください：%s"
+
+#: inc/hooks/hook-meta-extra.php:362
+msgid "Author Support & Donation"
+msgstr "著者のサポートと寄付"
+
+#: inc/hooks/hook-meta-extra.php:365
+msgid "Donation Link"
+msgstr "寄付リンク"
+
+#: inc/hooks/hook-meta-extra.php:368
+msgid ""
+"Enter your donation or support URL (e.g., PayPal.me, BuyMeACoffee, Ko-fi)."
+msgstr "寄付またはサポートURL（例：PayPal.me、BuyMeacoffee、KO-Fi）を入力してください。"
+
+#: inc/hooks/hook-meta-extra.php:372
+msgid "Donation Button Text"
+msgstr "寄付ボタンテキスト"
+
+#: inc/hooks/hook-meta-extra.php:375
+msgid ""
+"Custom text for the donation button (e.g., \"Buy me a coffee\", \"Support "
+"Author\")."
+msgstr "寄付ボタンのカスタムテキスト（例：「私にコーヒーを買う」、「サポート著者」）。"
+
+#: inc/hooks/hook-meta.php:23
+msgid "Layout Options"
+msgstr "レイアウトオプション"
+
+#: inc/hooks/hook-meta.php:72
+msgid "Content Options"
+msgstr "コンテンツオプション"
+
+#: inc/hooks/hook-meta.php:77 inc/hooks/hook-meta.php:98
+msgid "Set as global layout"
+msgstr "グローバルレイアウトとして設定します"
+
+#: inc/hooks/hook-meta.php:88
+msgid "Please go to Customize>Themes Options for Single Post/Page."
+msgstr "シングル投稿/ページのカスタマイズ>テーマオプションに移動してください。"
+
+#: inc/hooks/hook-meta.php:93
+msgid "Sidebar Options"
+msgstr "サイドバーオプション"
+
+#: inc/hooks/hook-meta.php:101
+msgid "Content - Primary Sidebar"
+msgstr "コンテンツ - プライマリサイドバー"
+
+#: inc/hooks/hook-meta.php:104
+msgid "Primary Sidebar - Content"
+msgstr "プライマリサイドバー - コンテンツ"
+
+#: inc/hooks/hook-meta.php:107
+msgid "No Sidebar"
+msgstr "サイドバーはありません"
+
+#: inc/hooks/hook-meta.php:111
+msgid "Please go to Customize>Front-page Options for Homepage."
+msgstr "ホームページのカスタマイズ>フロントページオプションにアクセスしてください。"
+
+#: inc/hooks/hook-meta.php:184 inc/hooks/hook-meta.php:227
+msgid "Category Color 1"
+msgstr "カテゴリカラー1"
+
+#: inc/hooks/hook-meta.php:185 inc/hooks/hook-meta.php:228
+msgid "Category Color 2"
+msgstr "カテゴリカラー2"
+
+#: inc/hooks/hook-meta.php:186 inc/hooks/hook-meta.php:229
+msgid "Category Color 3"
+msgstr "カテゴリカラー3"
+
+#: inc/hooks/hook-meta.php:187 inc/hooks/hook-meta.php:230
+msgid "Category Color 4"
+msgstr "カテゴリカラー4"
+
+#: inc/hooks/hook-meta.php:188 inc/hooks/hook-meta.php:231
+msgid "Category Color 5"
+msgstr "カテゴリカラー5"
+
+#: inc/hooks/hook-meta.php:189 inc/hooks/hook-meta.php:232
+msgid "Category Color 6"
+msgstr "カテゴリカラー6"
+
+#: inc/hooks/hook-meta.php:190 inc/hooks/hook-meta.php:233
+msgid "Category Color 7"
+msgstr "カテゴリカラー7"
+
+#: inc/hooks/hook-meta.php:195 inc/hooks/hook-meta.php:223
+msgid "Color Class"
+msgstr "カラークラス"
+
+#: inc/hooks/hook-meta.php:201 inc/hooks/hook-meta.php:242
+msgid ""
+"Select category color class. You can set appropriate categories color on "
+"\"Categories\" section of the theme customizer."
+msgstr "カテゴリカラークラスを選択します。テーマカスタマイザーの「カテゴリ」セクションで適切なカテゴリの色を設定できます。"
+
+#: inc/hooks/hook-meta.php:284 inc/hooks/hook-meta.php:472
+msgid "list"
+msgstr "リスト"
+
+#: inc/hooks/hook-meta.php:300 inc/hooks/hook-meta.php:489
+msgid "Default with list"
+msgstr "リスト付きデフォルト"
+
+#: inc/hooks/hook-meta.php:304 inc/hooks/hook-meta.php:311
+#: inc/hooks/hook-meta.php:493 inc/hooks/hook-meta.php:500
+msgid "Two column"
+msgstr "2列"
+
+#: inc/hooks/hook-meta.php:305 inc/hooks/hook-meta.php:310
+#: inc/hooks/hook-meta.php:494 inc/hooks/hook-meta.php:499
+msgid "Three column"
+msgstr "3列"
+
+#: inc/hooks/hook-meta.php:306 inc/hooks/hook-meta.php:312
+#: inc/hooks/hook-meta.php:495 inc/hooks/hook-meta.php:501
+msgid "Four column"
+msgstr "4列"
+
+#: inc/hooks/hook-meta.php:316 inc/hooks/hook-meta.php:505
+msgid "Title before image"
+msgstr "画像の前のタイトル"
+
+#: inc/hooks/hook-meta.php:317 inc/hooks/hook-meta.php:506
+msgid "Image before title"
+msgstr "タイトルの前の画像"
+
+#: inc/hooks/hook-meta.php:318 inc/hooks/hook-meta.php:507
+msgid "Title over Image"
+msgstr "画像上のタイトル"
+
+#: inc/hooks/hook-meta.php:341 inc/hooks/hook-meta.php:353
+#: inc/hooks/hook-meta.php:523 inc/hooks/hook-meta.php:537
+msgid "Archive Alignment"
+msgstr "アーカイブアライメント"
+
+#: inc/hooks/hook-meta.php:347 inc/hooks/hook-meta.php:530
+msgid "Select alignment for list archive layout"
+msgstr "リストアーカイブレイアウトのアライメントを選択します"
+
+#: inc/hooks/hook-meta.php:359 inc/hooks/hook-meta.php:544
+msgid "Select alignment for grid archive layout"
+msgstr "グリッドアーカイブレイアウトのアライメントを選択します"
+
+#: inc/hooks/hook-meta.php:365
+msgid "Select grid column"
+msgstr "グリッド列を選択します"
+
+#: inc/hooks/hook-meta.php:371 inc/hooks/hook-meta.php:558
+msgid "Select column layout for grid archive layout"
+msgstr "グリッドアーカイブレイアウトの列レイアウトを選択します"
+
+#: inc/hooks/hook-meta.php:377 inc/hooks/hook-meta.php:564
+msgid "Select masonry layout"
+msgstr "メーソンレイアウトを選択します"
+
+#: inc/hooks/hook-meta.php:383 inc/hooks/hook-meta.php:572
+msgid "Select layout for masonry archive layout"
+msgstr "石積みアーカイブレイアウトのレイアウトを選択します"
+
+#: inc/hooks/hook-meta.php:389 inc/hooks/hook-meta.php:578
+msgid "Select full layout"
+msgstr "完全なレイアウトを選択します"
+
+#: inc/hooks/hook-meta.php:395 inc/hooks/hook-meta.php:586
+msgid "Select layout for full archive layout"
+msgstr "完全なアーカイブレイアウトのレイアウトを選択します"
+
+#: inc/hooks/hook-meta.php:550
+msgid "Select grid layout"
+msgstr "グリッドレイアウトを選択します"
+
+#: inc/hooks/hook-tgm.php:19 lib/info/info.php:143
+msgid "AF Companion"
+msgstr "仲間によって"
+
+#: inc/hooks/hook-tgm.php:24
+msgid "Elespare"
+msgstr "昇格"
+
+#: inc/hooks/hook-tgm.php:29
+msgid "Blockspare"
+msgstr "blockspare"
+
+#: inc/hooks/hook-tgm.php:34
+msgid "Templatespare"
+msgstr "TemplatesPare"
+
+#: inc/hooks/hook-tgm.php:39
+msgid "Latest Posts Block"
+msgstr "最新の投稿ブロック"
+
+#: inc/hooks/hook-tgm.php:44
+msgid "Magic Content Box"
+msgstr "マジックコンテンツボックス"
+
+#: inc/hooks/hook-tgm.php:49
+msgid "WP Post Author"
+msgstr "WP投稿者"
+
+#: inc/hooks/hook-tgm.php:54
+msgid "MailChimp for WordPress"
+msgstr "WordPressのMailChimp"
+
+#: inc/hooks/hook-tgm.php:59
+msgid "Free Live Chat using 3CX"
+msgstr "3CXを使用した無料のライブチャット"
+
+#: inc/template-functions.php:565 inc/template-functions.php:567
+msgid "Read more about %s"
+msgstr "%sの詳細をご覧ください"
+
+#: inc/template-functions.php:602
+msgid "Previous"
+msgstr "前の"
+
+#: inc/template-functions.php:603
+msgid "Next"
+msgstr "次"
+
+#: inc/template-functions.php:728
+msgid "%s min read"
+msgstr "%s分で読めます"
+
+#: inc/template-functions.php:1010 inc/template-functions.php:1148
+msgid "Copy link to clipboard"
+msgstr "リンクをクリップボードにコピーします"
+
+#: inc/template-functions.php:1010 inc/template-functions.php:1148
+msgid "Link copied to clipboard!"
+msgstr "クリップボードにコピーされたリンク！"
+
+#: inc/template-functions.php:1013 inc/template-functions.php:1150
+msgid "Save this post"
+msgstr "この投稿を保存します"
+
+#: inc/template-functions.php:1013 inc/template-functions.php:1150
+msgid "Please log in to bookmark this post."
+msgstr "この投稿をブックマークするには、ログインしてください。"
+
+#: inc/template-functions.php:1016 inc/template-functions.php:1151
+msgid "Print this page"
+msgstr "このページを印刷します"
+
+#: inc/template-functions.php:1220
+msgid "%s views"
+msgstr "%sビュー"
+
+#: inc/template-functions.php:1324
+msgid "Love"
+msgstr "愛"
+
+#: inc/template-functions.php:1325
+msgid "Funny"
+msgstr "面白い"
+
+#: inc/template-functions.php:1326
+msgid "Wow"
+msgstr "おお"
+
+#: inc/template-functions.php:1327
+msgid "Sad"
+msgstr "悲しい"
+
+#: inc/template-functions.php:1328
+msgid "Angry"
+msgstr "怒り"
+
+#: inc/template-functions.php:1339
+msgid "Post Reactions"
+msgstr "反応後"
+
+#: inc/template-functions.php:1543
+msgid "Support Author"
+msgstr "サポート著者"
+
+#: inc/template-functions.php:1559
+msgid "About the Author"
+msgstr "著者について"
+
+#: inc/template-functions.php:1594
+msgid "Visit Website"
+msgstr "ウェブサイトにアクセスしてください"
+
+#: inc/template-functions.php:1600
+msgid "View All Posts"
+msgstr "すべての投稿を表示します"
+
+#: inc/template-functions.php:1654 inc/template-functions.php:1714
+msgid "Featured"
+msgstr "特集"
+
+#: inc/template-functions.php:1656 inc/template-functions.php:1716
+#: inc/template-functions.php:1871
+msgid "General"
+msgstr "一般的な"
+
+#: inc/template-functions.php:1678 inc/template-functions.php:1819
+#: inc/template-functions.php:1881 inc/template-functions.php:1923
+msgid "Watch Video"
+msgstr "ビデオを見る"
+
+#: inc/template-functions.php:1680
+msgid "Latest News"
+msgstr "最新ニュース"
+
+#: inc/template-functions.php:1685 inc/template-functions.php:1779
+#: inc/template-functions.php:1803 inc/template-functions.php:1824
+#: inc/template-functions.php:1842 inc/template-functions.php:1869
+#: inc/template-functions.php:1888 inc/template-functions.php:1909
+#: inc/template-functions.php:1932 inc/template-functions.php:1951
+msgid "Featured News"
+msgstr "特集ニュース"
+
+#: inc/template-functions.php:1688
+msgid "Central News"
+msgstr "セントラルニュース"
+
+#: inc/template-functions.php:1689 inc/template-functions.php:1783
+#: inc/template-functions.php:1807 inc/template-functions.php:1846
+#: inc/template-functions.php:1892 inc/template-functions.php:1913
+#: inc/template-functions.php:1936 inc/template-functions.php:1955
+msgid "More News"
+msgstr "その他のニュース"
+
+#: inc/template-functions.php:1707 inc/template-functions.php:1858
+#: inc/template-functions.php:1904
+msgid "Watch"
+msgstr "時計"
+
+#: inc/template-functions.php:1737
+msgid "Watch Videos"
+msgstr "ビデオを見る"
+
+#: inc/template-functions.php:1753 inc/template-functions.php:1796
+#: inc/template-functions.php:1835
+msgid "Subscribe"
+msgstr "購読する"
+
+#: inc/template-functions.php:1772
+msgid "Watch Online"
+msgstr "オンラインで見る"
+
+#: inc/template-functions.php:1782 inc/template-functions.php:1806
+#: inc/template-functions.php:1912
+msgid "Global News"
+msgstr "グローバルニュース"
+
+#: inc/template-functions.php:1825 inc/template-functions.php:1847
+msgid "Related News"
+msgstr "関連ニュース"
+
+#: inc/template-functions.php:1866
+#: lib/tgm/class-tgm-plugin-activation.php:2286
+msgid "Recommended"
+msgstr "推奨"
+
+#: inc/template-functions.php:1868
+msgid "Archive"
+msgstr "アーカイブ"
+
+#: inc/template-functions.php:1872
+msgid "Opinion"
+msgstr "意見"
+
+#: inc/template-functions.php:1935
+msgid "Top News"
+msgstr "トップニュース"
+
+#: inc/template-functions.php:1954
+msgid "Hot News"
+msgstr "ホットニュース"
+
+#: inc/template-tags.php:144 inc/template-tags.php:226
+msgid "Published: "
+msgstr "公開："
+
+#: inc/template-tags.php:146 inc/template-tags.php:228
+msgid "Updated: "
+msgstr "更新："
+
+#: inc/template-tags.php:265
+msgid "ago"
+msgstr "前"
+
+#. translators: %s: Name of current post. Only visible to screen readers
+#: inc/template-tags.php:291 template-parts/content-page.php:41
+msgid "Edit <span class=\"screen-reader-text\">%s</span>"
+msgstr "編集<span class = \"screen-reader-text\"> %s </span>"
+
+#: inc/updater/theme-updater.php:29
+msgid "Theme License"
+msgstr "テーマライセンス"
+
+#: inc/updater/theme-updater.php:30
+msgid "Enter your theme license key."
+msgstr "テーマライセンスキーを入力します。"
+
+#: inc/updater/theme-updater.php:31
+msgid "License Key"
+msgstr "ライセンスキー"
+
+#: inc/updater/theme-updater.php:32
+msgid "License Action"
+msgstr "ライセンスアクション"
+
+#: inc/updater/theme-updater.php:33
+msgid "Deactivate License"
+msgstr "ライセンスを無効にします"
+
+#: inc/updater/theme-updater.php:34
+msgid "Activate License"
+msgstr "ライセンスをアクティブにします"
+
+#: inc/updater/theme-updater.php:35 inc/updater/theme-updater.php:47
+msgid "License status is unknown."
+msgstr "ライセンスステータスは不明です。"
+
+#: inc/updater/theme-updater.php:36
+msgid "Renew?"
+msgstr "更新？"
+
+#: inc/updater/theme-updater.php:37
+msgid "unlimited"
+msgstr "無制限"
+
+#: inc/updater/theme-updater.php:38
+msgid "License key is active."
+msgstr "ライセンスキーがアクティブです。"
+
+#: inc/updater/theme-updater.php:39
+msgid "Expires %s."
+msgstr "%sの有効期限が切れます。"
+
+#: inc/updater/theme-updater.php:40
+msgid "You have %1$s / %2$s sites activated."
+msgstr "%1$s / %2$sサイトがアクティブ化されています。"
+
+#: inc/updater/theme-updater.php:41
+msgid "License key expired %s."
+msgstr "ライセンスキーの有効期限が切れた%s。"
+
+#: inc/updater/theme-updater.php:42
+msgid "License key has expired."
+msgstr "ライセンスキーが期限切れになりました。"
+
+#: inc/updater/theme-updater.php:43
+msgid "License keys do not match."
+msgstr "ライセンスキーが一致しません。"
+
+#: inc/updater/theme-updater.php:44
+msgid "License is inactive."
+msgstr "ライセンスは非アクティブです。"
+
+#: inc/updater/theme-updater.php:45
+msgid "License key is disabled."
+msgstr "ライセンスキーは無効です。"
+
+#: inc/updater/theme-updater.php:46
+msgid "Site is inactive."
+msgstr "サイトは非アクティブです。"
+
+#: inc/updater/theme-updater.php:48
+msgid ""
+"Updating this theme will lose any customizations you have made. 'Cancel' to "
+"stop, 'OK' to update."
+msgstr "このテーマを更新すると、作成したカスタマイズが失われます。 「キャンセル」して、「OK」を更新します。"
+
+#: inc/updater/theme-updater.php:49
+msgid ""
+"<strong>%1$s %2$s</strong> is available. <a href=\"%3$s\" class=\"thickbox\""
+" title=\"%4s\">Check out what's new</a> or <a href=\"%5$s\"%6$s>update "
+"now</a>."
+msgstr ""
+"<strong> %1$s %2$s </strong>が利用可能です。 <a href = \"%3$s\" class = \"thickbox\""
+" title = \"％4s\">新しい</a>または<a href = \"%5$s\" %6$s> update now "
+"</a>をチェックしてください。"
+
+#: inc/widgets/widget-author-info.php:20
+msgid "Displays author info."
+msgstr "著者情報を表示します。"
+
+#: inc/widgets/widget-author-info.php:24
+msgid "AFTMN Author Info"
+msgstr "aftmn著者情報"
+
+#: inc/widgets/widget-author-info.php:164
+msgid "About Author"
+msgstr "著者について"
+
+#: inc/widgets/widget-author-info.php:166
+msgid "Profile image"
+msgstr "プロファイル画像"
+
+#: inc/widgets/widget-author-info.php:167
+msgid "Name"
+msgstr "名前"
+
+#: inc/widgets/widget-author-info.php:168
+msgid "Descriptions"
+msgstr "説明"
+
+#: inc/widgets/widget-author-info.php:171
+msgid "Twitter"
+msgstr "ツイッター"
+
+#: inc/widgets/widget-author-info.php:172
+msgid "TikTok"
+msgstr "ティクトク"
+
+#: inc/widgets/widget-author-info.php:173
+msgid "YouTube"
+msgstr "YouTube"
+
+#: inc/widgets/widget-author-info.php:174
+msgid "Linkedin"
+msgstr "LinkedIn"
+
+#: inc/widgets/widget-author-info.php:175
+msgid "VK"
+msgstr "VK"
+
+#: inc/widgets/widget-express-posts-grid.php:25
+#: inc/widgets/widget-express-posts-list.php:28
+msgid "Displays Express Posts from selected categories."
+msgstr "選択したカテゴリからのエクスプレス投稿を表示します。"
+
+#: inc/widgets/widget-express-posts-grid.php:29
+msgid "AFTMN Express Posts Grid"
+msgstr "Aftmn Expressの投稿グリッド"
+
+#: inc/widgets/widget-express-posts-grid.php:128
+#: inc/widgets/widget-express-posts-list.php:138
+#: inc/widgets/widget-popular-posts.php:118
+#: inc/widgets/widget-posts-carousel.php:110
+#: inc/widgets/widget-posts-double-column.php:145
+#: inc/widgets/widget-posts-grid.php:116 inc/widgets/widget-posts-list.php:119
+#: inc/widgets/widget-posts-single-column.php:119
+#: inc/widgets/widget-posts-slider.php:114
+#: inc/widgets/widget-trending-posts-by-tag.php:122
+#: inc/widgets/widget-trending-posts-by-view.php:117
+#: inc/widgets/widget-trending-posts.php:141
+msgid "Number of posts"
+msgstr "投稿数"
+
+#: inc/widgets/widget-express-posts-list.php:32
+msgid "AFTMN Express Posts List"
+msgstr "AFTMN Express投稿リスト"
+
+#: inc/widgets/widget-popular-posts.php:30
+#: inc/widgets/widget-posts-double-column.php:30
+#: inc/widgets/widget-posts-grid.php:28 inc/widgets/widget-posts-list.php:28
+#: inc/widgets/widget-trending-posts-by-tag.php:30
+#: inc/widgets/widget-trending-posts-by-view.php:30
+#: inc/widgets/widget-trending-posts.php:30
+msgid "Displays grid from selected categories."
+msgstr "選択したカテゴリからグリッドを表示します。"
+
+#: inc/widgets/widget-popular-posts.php:34
+msgid "AFTMN Popular News"
+msgstr "aftmn人気ニュース"
+
+#: inc/widgets/widget-posts-carousel.php:20
+msgid "Displays posts carousel from selected category."
+msgstr "選択したカテゴリからの投稿カルーセルを表示します。"
+
+#: inc/widgets/widget-posts-carousel.php:24
+msgid "AFTMN Posts Carousel"
+msgstr "AftmnはCarouselを投稿します"
+
+#: inc/widgets/widget-posts-carousel.php:109
+#: inc/widgets/widget-posts-slider.php:113
+#: inc/widgets/widget-posts-tabs.php:114 inc/widgets/widget-posts-tabs.php:118
+#: inc/widgets/widget-posts-tabs.php:122
+msgid "Select category"
+msgstr "カテゴリを選択します"
+
+#: inc/widgets/widget-posts-double-column.php:34
+msgid "AFTMN Post Double Columns"
+msgstr "AFTMNポストダブルコラム"
+
+#: inc/widgets/widget-posts-double-column.php:143
+msgid "Select Category 1"
+msgstr "カテゴリ1を選択します"
+
+#: inc/widgets/widget-posts-double-column.php:144
+msgid "Select Category 2"
+msgstr "カテゴリ2を選択します"
+
+#: inc/widgets/widget-posts-grid.php:32
+msgid "AFTMN Post Grid"
+msgstr "aftmnポストグリッド"
+
+#: inc/widgets/widget-posts-list.php:32
+msgid "AFTMN Post List"
+msgstr "AFTMN投稿リスト"
+
+#: inc/widgets/widget-posts-single-column.php:28
+msgid "Displays posts single column from selected categories."
+msgstr "選択したカテゴリからシングル列を投稿します。"
+
+#: inc/widgets/widget-posts-single-column.php:32
+msgid "AFTMN Post Single Column"
+msgstr "AFTMNポスト単一列"
+
+#: inc/widgets/widget-posts-slider.php:20
+msgid "Displays posts slider from selected category."
+msgstr "選択したカテゴリから投稿スライダーを表示します。"
+
+#: inc/widgets/widget-posts-slider.php:24
+msgid "AFTMN Posts Slider"
+msgstr "AFTMNはスライダーを投稿します"
+
+#: inc/widgets/widget-posts-tabs.php:21
+msgid "Displays tabbed posts lists from selected settings."
+msgstr "選択した設定からタブ付き投稿リストを表示します。"
+
+#: inc/widgets/widget-posts-tabs.php:26
+msgid "AFTMN Posts Tabs"
+msgstr "AFTMN投稿タブ"
+
+#: inc/widgets/widget-posts-tabs.php:97 inc/widgets/widget-posts-tabs.php:103
+msgid "Yes"
+msgstr "はい"
+
+#: inc/widgets/widget-posts-tabs.php:98 inc/widgets/widget-posts-tabs.php:104
+msgid "No"
+msgstr "いいえ"
+
+#: inc/widgets/widget-posts-tabs.php:124
+msgid "Settings for all tabs"
+msgstr "すべてのタブの設定"
+
+#: inc/widgets/widget-posts-tabs.php:126
+msgid "Number of posts per tab"
+msgstr "タブごとの投稿数"
+
+#: inc/widgets/widget-social-contacts.php:20
+msgid "Displays social contacts lists from selected settings."
+msgstr "選択した設定からソーシャルコンタクトリストを表示します。"
+
+#: inc/widgets/widget-social-contacts.php:24
+msgid "AFTMN Social Contacts"
+msgstr "AFTMNソーシャルコンタクト"
+
+#: inc/widgets/widget-social-contacts.php:67
+msgid ""
+"Social menu is not set. You need to create menu and assign it to Social Menu"
+" on Menu Settings."
+msgstr "ソーシャルメニューは設定されていません。メニューを作成し、メニュー設定のソーシャルメニューに割り当てる必要があります。"
+
+#: inc/widgets/widget-trending-posts-by-tag.php:34
+msgid "AFTMN Trending News (By Tag)"
+msgstr "aftmnトレンドニュース（タグによる）"
+
+#: inc/widgets/widget-trending-posts-by-view.php:34
+msgid "AFTMN Trending News (By View)"
+msgstr "aftmnトレンドニュース（ビュー）"
+
+#: inc/widgets/widget-trending-posts.php:34
+msgid "AFTMN Trending News"
+msgstr "AFTMNトレンドニュース"
+
+#: inc/widgets/widget-youtube-video.php:21
+msgid "Displays youtube video slider."
+msgstr "YouTubeビデオスライダーを表示します。"
+
+#: inc/widgets/widget-youtube-video.php:25
+msgid "AFTMN YouTube Video"
+msgstr "aftmn youtubeビデオ"
+
+#: inc/widgets/widget-youtube-video.php:173
+msgid "YouTube Videos:"
+msgstr "YouTubeビデオ："
+
+#: inc/widgets/widgets-base.php:222
+msgid "Upload"
+msgstr "アップロード"
+
+#: inc/widgets/widgets-base.php:223
+msgid "Select Image"
+msgstr "画像を選択します"
+
+#: inc/widgets/widgets-base.php:224
+msgid "Choose Image"
+msgstr "画像を選択します"
+
+#: inc/widgets/widgets-base.php:235
+msgctxt "Remove"
+msgid "X"
+msgstr "x"
+
+#: inc/widgets/widgets-common-functions.php:89
+msgid "Recent"
+msgstr "最近の"
+
+#: inc/widgets/widgets-register-sidebars.php:13
+msgid "Main Sidebar"
+msgstr "メインサイドバー"
+
+#: inc/widgets/widgets-register-sidebars.php:15
+msgid "Add widgets for main sidebar."
+msgstr "メインサイドバーにウィジェットを追加します。"
+
+#: inc/widgets/widgets-register-sidebars.php:23
+msgid "Header 1"
+msgstr "ヘッダー1"
+
+#: inc/widgets/widgets-register-sidebars.php:25
+#: inc/widgets/widgets-register-sidebars.php:34
+#: inc/widgets/widgets-register-sidebars.php:42
+msgid "Add widgets for header section."
+msgstr "ヘッダーセクションにウィジェットを追加します。"
+
+#: inc/widgets/widgets-register-sidebars.php:32
+msgid "Header 2"
+msgstr "ヘッダー2"
+
+#: inc/widgets/widgets-register-sidebars.php:40
+msgid "Header 3"
+msgstr "ヘッダー3"
+
+#: inc/widgets/widgets-register-sidebars.php:51
+msgid "Front-page Content Section"
+msgstr "フロントページのコンテンツセクション"
+
+#: inc/widgets/widgets-register-sidebars.php:53
+msgid "Add widgets to front-page contents section."
+msgstr "フロントページコンテンツセクションにウィジェットを追加します。"
+
+#: inc/widgets/widgets-register-sidebars.php:61
+msgid "Front-page Sidebar Section"
+msgstr "フロントページのサイドバーセクション"
+
+#: inc/widgets/widgets-register-sidebars.php:63
+msgid "Add widgets to front-page sidebar section."
+msgstr "フロントページのサイドバーセクションにウィジェットを追加します。"
+
+#: inc/widgets/widgets-register-sidebars.php:71
+msgid "Banner Ad Section"
+msgstr "バナー広告セクション"
+
+#: inc/widgets/widgets-register-sidebars.php:73
+msgid "Add widgets for frontpage banner section advertisement."
+msgstr "FrontPage Bannerセクションの広告にウィジェットを追加します。"
+
+#: inc/widgets/widgets-register-sidebars.php:84
+msgid "Add widgets for off-canvas section."
+msgstr "オフキャンバスセクションのウィジェットを追加します。"
+
+#: inc/widgets/widgets-register-sidebars.php:92
+msgid "Above Site Header Section"
+msgstr "上記のサイトヘッダーセクション"
+
+#: inc/widgets/widgets-register-sidebars.php:94
+msgid "Add widgets for above site header section."
+msgstr "上記のサイトヘッダーセクションにウィジェットを追加します。"
+
+#: inc/widgets/widgets-register-sidebars.php:102
+msgid "Below Site Header Section"
+msgstr "[サイトヘッダー]セクションの下"
+
+#: inc/widgets/widgets-register-sidebars.php:104
+msgid "Add widgets for below site header section."
+msgstr "以下のサイトヘッダーセクションにウィジェットを追加します。"
+
+#: inc/widgets/widgets-register-sidebars.php:112
+msgid "Above Main Banner Section"
+msgstr "メインバナーセクションの上"
+
+#: inc/widgets/widgets-register-sidebars.php:114
+msgid "Add widgets for above main banner section."
+msgstr "上記のメインバナーセクションにウィジェットを追加します。"
+
+#: inc/widgets/widgets-register-sidebars.php:122
+msgid "Below Main Banner Section"
+msgstr "メインバナーセクションの下"
+
+#: inc/widgets/widgets-register-sidebars.php:124
+msgid "Add widgets for below main banner section."
+msgstr "以下のメインバナーセクションにウィジェットを追加します。"
+
+#: inc/widgets/widgets-register-sidebars.php:132
+msgid "Below Featured Section"
+msgstr "以下の注目セクション"
+
+#: inc/widgets/widgets-register-sidebars.php:134
+msgid "Add widgets for below featured section."
+msgstr "以下の注目セクションにウィジェットを追加します。"
+
+#: inc/widgets/widgets-register-sidebars.php:142
+msgid "Above Site Footer Section"
+msgstr "上記のサイトフッターセクション"
+
+#: inc/widgets/widgets-register-sidebars.php:144
+msgid "Add widgets for above site footer section."
+msgstr "上記のサイトフッターセクションにウィジェットを追加します。"
+
+#: inc/widgets/widgets-register-sidebars.php:153
+msgid "Footer First Section"
+msgstr "フッターの最初のセクション"
+
+#: inc/widgets/widgets-register-sidebars.php:155
+msgid "Displays items on footer first column."
+msgstr "フッターの最初の列にアイテムを表示します。"
+
+#: inc/widgets/widgets-register-sidebars.php:164
+msgid "Footer Second Section"
+msgstr "フッター2番目のセクション"
+
+#: inc/widgets/widgets-register-sidebars.php:166
+msgid "Displays items on footer second column."
+msgstr "フッター2列にアイテムを表示します。"
+
+#: inc/widgets/widgets-register-sidebars.php:174
+msgid "Footer Third Section"
+msgstr "フッター3番目のセクション"
+
+#: inc/widgets/widgets-register-sidebars.php:176
+msgid "Displays items on footer third column."
+msgstr "フッター3列にアイテムを表示します。"
+
+#: inc/widgets/widgets-register-sidebars.php:184
+msgid "Below Site Footer Section"
+msgstr "サイトフッターセクションの下"
+
+#: inc/widgets/widgets-register-sidebars.php:186
+msgid "Add widgets for below site footer section."
+msgstr "以下のサイトフッターセクションにウィジェットを追加します。"
+
+#: inc/widgets/widgets-register-sidebars.php:195
+msgid "Above Single Post Title Section"
+msgstr "上の単一の投稿タイトルセクション"
+
+#: inc/widgets/widgets-register-sidebars.php:197
+msgid "Add widgets for single above post title."
+msgstr "上記の投稿タイトルにウィジェットを追加します。"
+
+#: inc/widgets/widgets-register-sidebars.php:205
+msgid "Below Single Post Title Section"
+msgstr "以下の単一の投稿タイトルセクション"
+
+#: inc/widgets/widgets-register-sidebars.php:207
+msgid "Add widgets for single below single post title ."
+msgstr "シングル以下のシングルポストタイトルのウィジェットを追加します。"
+
+#: inc/widgets/widgets-register-sidebars.php:215
+msgid "Above Single Featured Image Section"
+msgstr "上記の単一の特徴的な画像セクション"
+
+#: inc/widgets/widgets-register-sidebars.php:217
+msgid "Add widgets for above featured image."
+msgstr "上記のフィーチャー画像のウィジェットを追加します。"
+
+#: inc/widgets/widgets-register-sidebars.php:225
+msgid "Below Single Featured Image Section"
+msgstr "以下のシングルフィーチャー画像セクション"
+
+#: inc/widgets/widgets-register-sidebars.php:227
+msgid "Add widgets for below featured image ."
+msgstr "以下の注目画像にウィジェットを追加します。"
+
+#: inc/widgets/widgets-register-sidebars.php:235
+msgid "Above Single Post Content Section"
+msgstr "上記の単一の投稿コンテンツセクション"
+
+#: inc/widgets/widgets-register-sidebars.php:237
+msgid "Add widgets for single posts= content."
+msgstr "単一の投稿にウィジェットを追加します=コンテンツ。"
+
+#: inc/widgets/widgets-register-sidebars.php:245
+msgid "Below Single Post Content Section"
+msgstr "以下の単一の投稿コンテンツセクション"
+
+#: inc/widgets/widgets-register-sidebars.php:247
+msgid "Add widgets for single post content."
+msgstr "単一の投稿コンテンツにウィジェットを追加します。"
+
+#: inc/woocommerce.php:254
+msgid "View your shopping cart"
+msgstr "ショッピングカートをご覧ください"
+
+#. translators: number of items in the mini cart.
+#: inc/woocommerce.php:258
+msgid "%d item"
+msgstr "%dアイテム"
+
+#: lib/breadcrumb-trail/inc/breadcrumbs.php:304
+msgid "Browse:"
+msgstr "ブラウズ："
+
+#: lib/breadcrumb-trail/inc/breadcrumbs.php:305
+msgctxt "breadcrumbs aria label"
+msgid "Breadcrumbs"
+msgstr "パン粉"
+
+#: lib/breadcrumb-trail/inc/breadcrumbs.php:306
+msgid "Home"
+msgstr "家"
+
+#: lib/breadcrumb-trail/inc/breadcrumbs.php:307
+msgid "404 Not Found"
+msgstr "404見つかりません"
+
+#: lib/breadcrumb-trail/inc/breadcrumbs.php:308
+msgid "Archives"
+msgstr "アーカイブ"
+
+#. Translators: %s is the search query.
+#: lib/breadcrumb-trail/inc/breadcrumbs.php:310
+msgid "Search results for: %s"
+msgstr "検索結果：%s"
+
+#. Translators: %s is the page number.
+#: lib/breadcrumb-trail/inc/breadcrumbs.php:312
+msgid "Page %s"
+msgstr "ページ%s"
+
+#. Translators: %s is the page number.
+#: lib/breadcrumb-trail/inc/breadcrumbs.php:314
+msgid "Comment Page %s"
+msgstr "コメントページ%s"
+
+#. Translators: Minute archive title. %s is the minute time format.
+#: lib/breadcrumb-trail/inc/breadcrumbs.php:316
+msgid "Minute %s"
+msgstr "微細な%s"
+
+#. Translators: Weekly archive title. %s is the week date format.
+#: lib/breadcrumb-trail/inc/breadcrumbs.php:318
+msgid "Week %s"
+msgstr "週%s"
+
+#: lib/breadcrumb-trail/inc/breadcrumbs.php:791
+msgctxt "minute and hour archives time format"
+msgid "g:i a"
+msgstr "G：I A"
+
+#: lib/breadcrumb-trail/inc/breadcrumbs.php:809
+msgctxt "minute archives time format"
+msgid "i"
+msgstr "私"
+
+#: lib/breadcrumb-trail/inc/breadcrumbs.php:827
+msgctxt "hour archives time format"
+msgid "g a"
+msgstr "g a"
+
+#: lib/breadcrumb-trail/inc/breadcrumbs.php:844
+#: lib/breadcrumb-trail/inc/breadcrumbs.php:874
+#: lib/breadcrumb-trail/inc/breadcrumbs.php:902
+#: lib/breadcrumb-trail/inc/breadcrumbs.php:930
+#: lib/breadcrumb-trail/inc/breadcrumbs.php:1285
+msgctxt "yearly archives date format"
+msgid "Y"
+msgstr "y"
+
+#: lib/breadcrumb-trail/inc/breadcrumbs.php:845
+#: lib/breadcrumb-trail/inc/breadcrumbs.php:903
+#: lib/breadcrumb-trail/inc/breadcrumbs.php:1289
+msgctxt "monthly archives date format"
+msgid "F"
+msgstr "f"
+
+#: lib/breadcrumb-trail/inc/breadcrumbs.php:846
+#: lib/breadcrumb-trail/inc/breadcrumbs.php:1293
+msgctxt "daily archives date format"
+msgid "j"
+msgstr "j"
+
+#: lib/breadcrumb-trail/inc/breadcrumbs.php:875
+msgctxt "weekly archives date format"
+msgid "W"
+msgstr "w"
+
+#: lib/info/class.info.php:126
+msgid ""
+"Welcome! Thank you for choosing %1$s. To fully take advantage of the best "
+"our theme can offer please make sure you visit theme details page."
+msgstr ""
+"いらっしゃいませ！ "
+"%1$sを選択していただきありがとうございます。私たちのテーマが提供できる最高のものを完全に活用するために、テーマの詳細ページにアクセスしてください。"
+
+#: lib/info/class.info.php:126
+msgid "Get started with %1$s"
+msgstr "%1$sを始めましょう"
+
+#: lib/info/class.info.php:126 lib/tgm/class-tgm-plugin-activation.php:395
+msgid "Dismiss this notice"
+msgstr "この通知を却下します"
+
+#: lib/info/class.info.php:232
+msgid "%s() method does not exist."
+msgstr "%s（）メソッドは存在しません。"
+
+#: lib/info/class.info.php:341 lib/info/class.info.php:382
+msgid "Manage Plugins"
+msgstr "プラグインを管理します"
+
+#: lib/info/class.info.php:410
+msgid "Product Features"
+msgstr "製品機能"
+
+#: lib/info/class.info.php:411
+msgid "Free"
+msgstr "無料"
+
+#: lib/info/class.info.php:412
+msgid "Premium"
+msgstr "プレミアム"
+
+#: lib/info/info.php:20
+msgid ""
+"Howdy %1$s, we would like to thank you for installing and activating %2$s "
+"theme for your precious site. All of the features provided by the theme are "
+"now ready to use; Here, we have gathered all of the essential details and "
+"helpful links for you and your better experience with %2$s. Once again, "
+"Thanks for using our theme!"
+msgstr ""
+"Howdy %1$s、貴重なサイトの%2$sテーマをインストールしてアクティブ化してくれてありがとう。テーマによって提供されるすべての機能は、使用できるようになりました。ここでは、あなたのための本質的な詳細と有用なリンクをすべて集め、%2$sでのあなたのより良い経験を集めました。もう一度、私たちのテーマを使ってくれてありがとう！"
+
+#: lib/info/info.php:24
+msgid "Getting Started"
+msgstr "はじめる"
+
+#: lib/info/info.php:26 admin-dashboard/src/components/main.js:62
+msgid "Useful Plugins"
+msgstr "便利なプラグイン"
+
+#: lib/info/info.php:27 lib/info/info.php:87 lib/info/info.php:90
+msgid "Demo Content"
+msgstr "デモコンテンツ"
+
+#: lib/info/info.php:34
+#: admin-dashboard/src/components/json/dashboard-content.js:6
+msgid "Theme Details"
+msgstr "テーマの詳細"
+
+#: lib/info/info.php:38 lib/info/info.php:98
+msgid "View Demo"
+msgstr "デモを表示します"
+
+#: lib/info/info.php:42 lib/info/info.php:57 lib/info/info.php:120
+msgid "View Documentation"
+msgstr "ドキュメントを表示します"
+
+#: lib/info/info.php:54 lib/info/info.php:117
+msgid "Theme Documentation"
+msgstr "テーマのドキュメント"
+
+#: lib/info/info.php:63 lib/info/info.php:66
+#: admin-dashboard/src/components/json/home-content.js:55
+msgid "Static Front Page"
+msgstr "静的フロントページ"
+
+#: lib/info/info.php:65
+msgid ""
+"To achieve custom home page other than blog listing, you need to create and "
+"set static front page."
+msgstr "ブログリスト以外のカスタムホームページを達成するには、静的なフロントページを作成して設定する必要があります。"
+
+#: lib/info/info.php:73
+msgid ""
+"Theme uses Customizer API for theme options. Using the Customizer you can "
+"easily customize different aspects of the theme."
+msgstr ""
+"テーマは、テーマオプションにカスタマイザーAPIを使用します。カスタマイザーを使用すると、テーマのさまざまな側面を簡単にカスタマイズできます。"
+
+#: lib/info/info.php:79 lib/info/info.php:82
+msgid "Widgets"
+msgstr "ウィジェット"
+
+#: lib/info/info.php:81
+msgid ""
+"Theme uses Wedgets API for widget options. Using the Widgets you can easily "
+"customize different aspects of the theme."
+msgstr ""
+"テーマは、ウィジェットオプションにWedgets APIを使用します。ウィジェットを使用すると、テーマのさまざまな側面を簡単にカスタマイズできます。"
+
+#: lib/info/info.php:89
+msgid ""
+"To import sample demo content, %1$s plugin should be installed and "
+"activated. After plugin is activated, visit AF Companion Dashboard from "
+"admin menu."
+msgstr ""
+"サンプルデモコンテンツをインポートするには、%1$sプラグインをインストールしてアクティブ化する必要があります。プラグインがアクティブになったら、管理者メニューからAFコンパニオンダッシュボードにアクセスします。"
+
+#: lib/info/info.php:95
+msgid "Theme Preview"
+msgstr "テーマプレビュー"
+
+#: lib/info/info.php:97
+msgid ""
+"You can check out the theme demos for reference to find out what you can "
+"achieve using the theme and how it can be customized."
+msgstr "テーマのデモをチェックして、テーマを使用して達成できるものとカスタマイズ方法を確認することができます。"
+
+#: lib/info/info.php:108 lib/info/info.php:111
+msgid "Contact Support"
+msgstr "お問い合わせサポート"
+
+#: lib/info/info.php:110
+msgid ""
+"Got theme support question or found bug or got some feedbacks? Best place to"
+" ask your query is the dedicated Support forum for the theme."
+msgstr ""
+"テーマサポートの質問やバグを見つけたのか、いくつかのフィードバックを受けたのか？クエリを尋ねるのに最適な場所は、テーマの専用サポートフォーラムです。"
+
+#: lib/info/info.php:126
+msgid "Child Theme"
+msgstr "子供のテーマ"
+
+#: lib/info/info.php:128
+msgid ""
+"For advanced theme customization, it is recommended to use child theme "
+"rather than modifying the theme file itself. Using this approach, you wont "
+"lose the customization after theme update."
+msgstr ""
+"高度なテーマのカスタマイズの場合、テーマファイル自体を変更するのではなく、子テーマを使用することをお勧めします。このアプローチを使用して、テーマの更新後にカスタマイズを失うことはありません。"
+
+#: lib/info/info.php:129
+msgid "Learn More"
+msgstr "もっと詳しく知る"
+
+#: lib/info/info.php:138
+msgid ""
+"Theme supports some helpful WordPress plugins to enhance your site. But, "
+"please enable only those plugins which you need in your site. For example, "
+"enable WooCommerce only if you are using e-commerce."
+msgstr ""
+"テーマは、サイトを強化するためにいくつかの役立つWordPressプラグインをサポートしています。ただし、サイトで必要なプラグインのみを有効にしてください。たとえば、eコマースを使用している場合にのみ、woocommerceを有効にします。"
+
+#: lib/info/info.php:143
+msgid ""
+"To import demo content for this theme, %1$s plugin is needed. Please make "
+"sure plugin is installed and activated. After plugin is activated, you will "
+"see AF Companion Dashboard from admin menu."
+msgstr ""
+"このテーマのデモコンテンツをインポートするには、%1$sプラグインが必要です。プラグインがインストールされ、アクティブ化されていることを確認してください。プラグインがアクティブになった後、管理者メニューからAFコンパニオンダッシュボードが表示されます。"
+
+#: lib/info/info.php:191
+msgid ""
+"If you want more advanced features then you can upgrade to the premium "
+"version of the theme."
+msgstr "より高度な機能が必要な場合は、テーマのプレミアムバージョンにアップグレードできます。"
+
+#: lib/info/info.php:192
+msgid "Upgrade Now"
+msgstr "今すぐアップグレードしてください"
+
+#: lib/tgm/class-tgm-plugin-activation.php:327
+msgid "Install Required Plugins"
+msgstr "必要なプラグインをインストールします"
+
+#: lib/tgm/class-tgm-plugin-activation.php:328
+msgid "Install Plugins"
+msgstr "プラグインをインストールします"
+
+#. translators: %s: plugin name.
+#: lib/tgm/class-tgm-plugin-activation.php:330
+msgid "Installing Plugin: %s"
+msgstr "プラグインのインストール：%s"
+
+#. translators: %s: plugin name.
+#: lib/tgm/class-tgm-plugin-activation.php:332
+msgid "Updating Plugin: %s"
+msgstr "プラグインの更新：%s"
+
+#: lib/tgm/class-tgm-plugin-activation.php:333
+msgid "Something went wrong with the plugin API."
+msgstr "プラグインAPIで何か問題が発生しました。"
+
+#. translators: 1: plugin name(s).
+#: lib/tgm/class-tgm-plugin-activation.php:334
+msgid "This theme requires the following plugin: %1$s."
+msgstr "このテーマには、次のプラグインが必要です：%1$s。"
+
+#. translators: 1: plugin name(s).
+#: lib/tgm/class-tgm-plugin-activation.php:340
+msgid "This theme recommends the following plugin: %1$s."
+msgstr "このテーマは、次のプラグインを推奨しています：%1$s。"
+
+#. translators: 1: plugin name(s).
+#: lib/tgm/class-tgm-plugin-activation.php:346
+msgid ""
+"The following plugin needs to be updated to its latest version to ensure "
+"maximum compatibility with this theme: %1$s."
+msgstr "次のプラグインを最新バージョンに更新する必要があります。このテーマとの最大の互換性、%1$s。"
+
+#. translators: 1: plugin name(s).
+#: lib/tgm/class-tgm-plugin-activation.php:352
+msgid "There is an update available for: %1$s."
+msgstr "利用可能なアップデートがあります：%1$s。"
+
+#. translators: 1: plugin name(s).
+#: lib/tgm/class-tgm-plugin-activation.php:358
+msgid "The following required plugin is currently inactive: %1$s."
+msgstr "以下の必要なプラグインは現在非アクティブです：%1$s。"
+
+#. translators: 1: plugin name(s).
+#: lib/tgm/class-tgm-plugin-activation.php:364
+msgid "The following recommended plugin is currently inactive: %1$s."
+msgstr "現在、推奨されるプラグインは現在非アクティブです：%1$s。"
+
+#: lib/tgm/class-tgm-plugin-activation.php:370
+msgid "Begin installing plugin"
+msgstr "プラグインのインストールを開始します"
+
+#: lib/tgm/class-tgm-plugin-activation.php:375
+msgid "Begin updating plugin"
+msgstr "プラグインの更新を開始します"
+
+#: lib/tgm/class-tgm-plugin-activation.php:380
+msgid "Begin activating plugin"
+msgstr "プラグインのアクティブ化を開始します"
+
+#: lib/tgm/class-tgm-plugin-activation.php:385
+msgid "Return to Required Plugins Installer"
+msgstr "必要なプラグインインストーラーに戻ります"
+
+#: lib/tgm/class-tgm-plugin-activation.php:386
+#: lib/tgm/class-tgm-plugin-activation.php:830
+#: lib/tgm/class-tgm-plugin-activation.php:2543
+#: lib/tgm/class-tgm-plugin-activation.php:3590
+msgid "Return to the Dashboard"
+msgstr "ダッシュボードに戻ります"
+
+#: lib/tgm/class-tgm-plugin-activation.php:387
+#: lib/tgm/class-tgm-plugin-activation.php:3169
+msgid "Plugin activated successfully."
+msgstr "プラグインが正常にアクティブ化されました。"
+
+#: lib/tgm/class-tgm-plugin-activation.php:388
+#: lib/tgm/class-tgm-plugin-activation.php:2962
+msgid "The following plugin was activated successfully:"
+msgstr "次のプラグインが正常にアクティブになりました。"
+
+#. translators: 1: plugin name.
+#: lib/tgm/class-tgm-plugin-activation.php:390
+msgid "No action taken. Plugin %1$s was already active."
+msgstr "措置はありません。プラグイン%1$sはすでにアクティブでした。"
+
+#. translators: 1: plugin name.
+#: lib/tgm/class-tgm-plugin-activation.php:392
+msgid ""
+"Plugin not activated. A higher version of %s is needed for this theme. "
+"Please update the plugin."
+msgstr "プラグインがアクティブ化されていません。このテーマには、%sのより高いバージョンが必要です。プラグインを更新してください。"
+
+#. translators: 1: dashboard link.
+#: lib/tgm/class-tgm-plugin-activation.php:394
+msgid "All plugins installed and activated successfully. %1$s"
+msgstr "すべてのプラグインがインストールされ、正常にアクティブ化されました。 %1$s"
+
+#: lib/tgm/class-tgm-plugin-activation.php:396
+msgid ""
+"There are one or more required or recommended plugins to install, update or "
+"activate."
+msgstr "インストール、更新、またはアクティブ化するために、1つ以上の必要なプラグインまたは推奨プラグインがあります。"
+
+#: lib/tgm/class-tgm-plugin-activation.php:397
+msgid "Please contact the administrator of this site for help."
+msgstr "ヘルプについては、このサイトの管理者に連絡してください。"
+
+#: lib/tgm/class-tgm-plugin-activation.php:522
+msgid "This plugin needs to be updated to be compatible with your theme."
+msgstr "このプラグインは、テーマと互換性があるように更新する必要があります。"
+
+#: lib/tgm/class-tgm-plugin-activation.php:523
+msgid "Update Required"
+msgstr "更新が必要です"
+
+#: lib/tgm/class-tgm-plugin-activation.php:939
+msgid ""
+"The remote plugin package does not contain a folder with the desired slug "
+"and renaming did not work."
+msgstr "リモートプラグインパッケージには、目的のスラッグがあるフォルダーが含まれておらず、名前変更は機能しませんでした。"
+
+#: lib/tgm/class-tgm-plugin-activation.php:939
+#: lib/tgm/class-tgm-plugin-activation.php:942
+msgid ""
+"Please contact the plugin provider and ask them to package their plugin "
+"according to the WordPress guidelines."
+msgstr "プラグインプロバイダーに連絡し、WordPressガイドラインに従ってプラグインをパッケージ化するように依頼してください。"
+
+#: lib/tgm/class-tgm-plugin-activation.php:942
+msgid ""
+"The remote plugin package consists of more than one file, but the files are "
+"not packaged in a folder."
+msgstr "リモートプラグインパッケージは複数のファイルで構成されていますが、ファイルはフォルダーにパッケージ化されていません。"
+
+#: lib/tgm/class-tgm-plugin-activation.php:1131
+#: lib/tgm/class-tgm-plugin-activation.php:2958
+msgctxt "plugin A *and* plugin B"
+msgid "and"
+msgstr "そして"
+
+#. translators: %s: version number
+#: lib/tgm/class-tgm-plugin-activation.php:1992
+msgid "TGMPA v%s"
+msgstr "TGMPA V%s"
+
+#: lib/tgm/class-tgm-plugin-activation.php:2283
+msgid "Required"
+msgstr "必須"
+
+#: lib/tgm/class-tgm-plugin-activation.php:2302
+msgid "WordPress Repository"
+msgstr "WordPressリポジトリ"
+
+#: lib/tgm/class-tgm-plugin-activation.php:2305
+msgid "External Source"
+msgstr "外部ソース"
+
+#: lib/tgm/class-tgm-plugin-activation.php:2308
+msgid "Pre-Packaged"
+msgstr "事前にパッケージ化されています"
+
+#: lib/tgm/class-tgm-plugin-activation.php:2325
+msgid "Not Installed"
+msgstr "インストールされていません"
+
+#: lib/tgm/class-tgm-plugin-activation.php:2329
+msgid "Installed But Not Activated"
+msgstr "インストールされていますが、アクティブ化されていません"
+
+#: lib/tgm/class-tgm-plugin-activation.php:2331
+msgid "Active"
+msgstr "アクティブ"
+
+#: lib/tgm/class-tgm-plugin-activation.php:2337
+msgid "Required Update not Available"
+msgstr "必要な更新は利用できません"
+
+#: lib/tgm/class-tgm-plugin-activation.php:2340
+msgid "Requires Update"
+msgstr "更新が必要です"
+
+#: lib/tgm/class-tgm-plugin-activation.php:2343
+msgid "Update recommended"
+msgstr "更新をお勧めします"
+
+#. translators: 1: install status, 2: update status
+#: lib/tgm/class-tgm-plugin-activation.php:2352
+msgctxt "Install/Update Status"
+msgid "%1$s, %2$s"
+msgstr "%1$s、%2$s"
+
+#. translators: 1: number of plugins.
+#: lib/tgm/class-tgm-plugin-activation.php:2398
+msgctxt "plugins"
+msgid "All <span class=\"count\">(%s)</span>"
+msgstr "すべて<span class = \"count\">（%s）</span>"
+
+#. translators: 1: number of plugins.
+#: lib/tgm/class-tgm-plugin-activation.php:2402
+msgid "To Install <span class=\"count\">(%s)</span>"
+msgstr "<span class = \"count\">（%s）</span>をインストールするには"
+
+#. translators: 1: number of plugins.
+#: lib/tgm/class-tgm-plugin-activation.php:2406
+msgid "Update Available <span class=\"count\">(%s)</span>"
+msgstr "更新可能<span class = \"count\">（%s）</span>"
+
+#. translators: 1: number of plugins.
+#: lib/tgm/class-tgm-plugin-activation.php:2410
+msgid "To Activate <span class=\"count\">(%s)</span>"
+msgstr "<span class = \"count\">（%s）</span>をアクティブにするには"
+
+#: lib/tgm/class-tgm-plugin-activation.php:2492
+msgctxt "as in: \"version nr unknown\""
+msgid "unknown"
+msgstr "未知"
+
+#: lib/tgm/class-tgm-plugin-activation.php:2500
+msgid "Installed version:"
+msgstr "インストールバージョン："
+
+#: lib/tgm/class-tgm-plugin-activation.php:2508
+msgid "Minimum required version:"
+msgstr "最小必要なバージョン："
+
+#: lib/tgm/class-tgm-plugin-activation.php:2520
+msgid "Available version:"
+msgstr "利用可能なバージョン："
+
+#: lib/tgm/class-tgm-plugin-activation.php:2543
+msgid "No plugins to install, update or activate."
+msgstr "インストール、更新、またはアクティブ化するプラグインはありません。"
+
+#: lib/tgm/class-tgm-plugin-activation.php:2557
+msgid "Plugin"
+msgstr "プラグイン"
+
+#: lib/tgm/class-tgm-plugin-activation.php:2558
+msgid "Source"
+msgstr "ソース"
+
+#: lib/tgm/class-tgm-plugin-activation.php:2559
+msgid "Type"
+msgstr "タイプ"
+
+#: lib/tgm/class-tgm-plugin-activation.php:2563
+msgid "Version"
+msgstr "バージョン"
+
+#: lib/tgm/class-tgm-plugin-activation.php:2564
+msgid "Status"
+msgstr "状態"
+
+#. translators: %2$s: plugin name in screen reader markup
+#: lib/tgm/class-tgm-plugin-activation.php:2613
+msgid "Install %2$s"
+msgstr "%2$sをインストールします"
+
+#. translators: %2$s: plugin name in screen reader markup
+#: lib/tgm/class-tgm-plugin-activation.php:2618
+msgid "Update %2$s"
+msgstr "%2$sを更新します"
+
+#. translators: %2$s: plugin name in screen reader markup
+#: lib/tgm/class-tgm-plugin-activation.php:2624
+msgid "Activate %2$s"
+msgstr "%2$sをアクティブにします"
+
+#: lib/tgm/class-tgm-plugin-activation.php:2694
+msgid "Upgrade message from the plugin author:"
+msgstr "プラグイン著者からのメッセージをアップグレードします："
+
+#: lib/tgm/class-tgm-plugin-activation.php:2727
+msgid "Install"
+msgstr "インストール"
+
+#: lib/tgm/class-tgm-plugin-activation.php:2767
+msgid "No plugins were selected to be installed. No action taken."
+msgstr "インストールするプラグインは選択されていません。措置はありません。"
+
+#: lib/tgm/class-tgm-plugin-activation.php:2769
+msgid "No plugins were selected to be updated. No action taken."
+msgstr "更新するプラグインは選択されていません。措置はありません。"
+
+#: lib/tgm/class-tgm-plugin-activation.php:2810
+msgid "No plugins are available to be installed at this time."
+msgstr "現時点では、プラグインをインストールできません。"
+
+#: lib/tgm/class-tgm-plugin-activation.php:2812
+msgid "No plugins are available to be updated at this time."
+msgstr "現時点では、プラグインを更新できません。"
+
+#: lib/tgm/class-tgm-plugin-activation.php:2918
+msgid "No plugins were selected to be activated. No action taken."
+msgstr "アクティブ化されるプラグインは選択されていません。措置はありません。"
+
+#: lib/tgm/class-tgm-plugin-activation.php:2944
+msgid "No plugins are available to be activated at this time."
+msgstr "現時点では、プラグインをアクティブにすることはできません。"
+
+#: lib/tgm/class-tgm-plugin-activation.php:3168
+msgid "Plugin activation failed."
+msgstr "プラグインのアクティブ化に失敗しました。"
+
+#. translators: 1: plugin name, 2: action number 3: total number of actions.
+#: lib/tgm/class-tgm-plugin-activation.php:3508
+msgid "Updating Plugin %1$s (%2$d/%3$d)"
+msgstr "プラグイン%1$s（%2$d/%3$d）の更新）"
+
+#. translators: 1: plugin name, 2: error message.
+#: lib/tgm/class-tgm-plugin-activation.php:3511
+msgid "An error occurred while installing %1$s: <strong>%2$s</strong>."
+msgstr "%1$s：<strong> %2$s </strong>のインストール中にエラーが発生しました。"
+
+#. translators: 1: plugin name.
+#: lib/tgm/class-tgm-plugin-activation.php:3513
+msgid "The installation of %1$s failed."
+msgstr "%1$sのインストールは失敗しました。"
+
+#: lib/tgm/class-tgm-plugin-activation.php:3517
+msgid ""
+"The installation and activation process is starting. This process may take a"
+" while on some hosts, so please be patient."
+msgstr "インストールとアクティベーションプロセスが開始されています。このプロセスには一部のホストに時間がかかる場合があるため、我慢してください。"
+
+#. translators: 1: plugin name.
+#: lib/tgm/class-tgm-plugin-activation.php:3519
+#: lib/tgm/class-tgm-plugin-activation.php:3527
+msgid "%1$s done."
+msgstr "%1$s DONE。"
+
+#: lib/tgm/class-tgm-plugin-activation.php:3520
+msgid "All installations and activations have been completed."
+msgstr "すべてのインストールとアクティベーションが完了しました。"
+
+#. translators: 1: plugin name, 2: action number 3: total number of actions.
+#: lib/tgm/class-tgm-plugin-activation.php:3522
+msgid "Installing and Activating Plugin %1$s (%2$d/%3$d)"
+msgstr "プラグイン%1$sのインストールとアクティブ化（%2$d/%3$d）"
+
+#: lib/tgm/class-tgm-plugin-activation.php:3525
+msgid ""
+"The installation process is starting. This process may take a while on some "
+"hosts, so please be patient."
+msgstr "インストールプロセスが開始されています。このプロセスには一部のホストに時間がかかる場合があるため、我慢してください。"
+
+#: lib/tgm/class-tgm-plugin-activation.php:3528
+msgid "All installations have been completed."
+msgstr "すべてのインストールが完了しました。"
+
+#. translators: 1: plugin name, 2: action number 3: total number of actions.
+#: lib/tgm/class-tgm-plugin-activation.php:3530
+msgid "Installing Plugin %1$s (%2$d/%3$d)"
+msgstr "プラグイン%1$s（%2$d/%3$d）のインストール"
+
+#. Template Name of the theme
+msgid "Blank Canvas"
+msgstr "空白のキャンバス"
+
+#. Template Name of the theme
+msgid "Page Builder Full Width"
+msgstr "ページビルダーの全幅"
+
+#. translators: %s: search query.
+#: search.php:21
+msgid "Search Results for: %s"
+msgstr "検索結果：%s"
+
+#: single.php:65
+msgid "Embedded video content"
+msgstr "埋め込みビデオコンテンツ"
+
+#: template-parts/content-none.php:14
+msgid "Nothing Found"
+msgstr "何も見つかりませんでした"
+
+#. translators: 1: link to WP admin new post page.
+#: template-parts/content-none.php:25
+msgid "Ready to publish your first post? <a href=\"%1$s\">Get started here</a>."
+msgstr "最初の投稿を公開する準備はできましたか？ <a href = \"%1$s\">ここから始めます</a>。"
+
+#: template-parts/content-none.php:38
+msgid ""
+"Sorry, but nothing matched your search terms. Please try again with some "
+"different keywords."
+msgstr "申し訳ありませんが、検索用語と一致するものはありません。いくつかの異なるキーワードで再試行してください。"
+
+#: template-parts/content-none.php:44
+msgid ""
+"It seems we can&rsquo;t find what you&rsquo;re looking for. Perhaps "
+"searching can help."
+msgstr "私たちはあなたが探しているものを見つけることができると思われます。おそらく検索が役立つでしょう。"
+
+#. translators: %s: Name of current post. Only visible to screen readers
+#: template-parts/content.php:21
+msgid "Continue reading<span class=\"screen-reader-text\"> \"%s\"</span>"
+msgstr "続きを読み続けます<span class = \"screen-reader-text\"> \"%s\" </span>"
+
+#: template-parts/content.php:61
+msgid "<span class=\"em-post-navigation\">Previous:</span> %title"
+msgstr "<span class = \"em-post-navigation\">前：</span> %title"
+
+#: template-parts/content.php:62
+msgid "<span class=\"em-post-navigation\">Next:</span> %title"
+msgstr "<span class = \"em-post-navigation\">次：</span> %title"
+
+#: template-parts/content.php:65
+msgid "Continue Reading"
+msgstr "読み続けます"
+
+#: admin-dashboard/src/components/blockspare.demo.js:32
+msgid "Update Blockspare Pro"
+msgstr "BlockSpare Proを更新します"
+
+#: admin-dashboard/src/components/blockspare.demo.js:34
+msgid "Update Blockspare"
+msgstr "Blockspareを更新します"
+
+#: admin-dashboard/src/components/blockspare.demo.js:48
+msgid "Page Builder Gutenberg Blocks & Patterns"
+msgstr "ページビルダーグーテンバーグブロックとパターン"
+
+#: admin-dashboard/src/components/blockspare.demo.js:51
+msgid ""
+"Add pages effortlessly with expertly crafted Gutenberg patterns and blocks "
+"for blogs, magazines, newspapers, and agency sites using the Blockspare "
+"plugin!"
+msgstr ""
+"Blockspareプラグインを使用して、ブログ、雑誌、新聞、代理店のサイト用に、巧みに作成されたGutenbergパターンとブロックを使用して、ページを簡単に追加します！"
+
+#: admin-dashboard/src/components/dashboard-content.js:42
+msgid "Hello "
+msgstr "こんにちは"
+
+#: admin-dashboard/src/components/dashboard-content.js:45
+msgid "Welcome to "
+msgstr "ようこそ"
+
+#: admin-dashboard/src/components/elespare-demo.js:34
+msgid "Update Elespare Pro"
+msgstr "Elespare Proを更新します"
+
+#: admin-dashboard/src/components/elespare-demo.js:36
+msgid "Update Elespare"
+msgstr "Elespareを更新します"
+
+#: admin-dashboard/src/components/elespare-demo.js:50
+msgid "Page Builder Elementor Widgets"
+msgstr "ページビルダー要素ウィジェット"
+
+#: admin-dashboard/src/components/elespare-demo.js:53
+msgid ""
+"Add pages effortlessly with expertly crafted Elementor widgets for blogs, "
+"magazines, newspapers, and agency sites using the Elespare plugin!"
+msgstr ""
+"Elespareプラグインを使用して、ブログ、雑誌、新聞、代理店のサイト用に巧みに作成されたElementorウィジェットを使用して、ページを簡単に追加します！"
+
+#: admin-dashboard/src/components/json/dashboard-content.js:2
+msgid ""
+"we would like to thank you for installing and activating [theme] theme for "
+"your precious site. All of the features provided by the theme are now ready "
+"to use; Here, we have gathered all of the essential details and helpful "
+"links for you and your better experience with [theme]. Once again, Thanks "
+"for using our theme!"
+msgstr ""
+"貴重なサイトに[テーマ]テーマをインストールしてアクティブ化してくれてありがとう。テーマによって提供されるすべての機能は、使用できるようになりました。ここでは、あなたのための本質的な詳細と有用なリンクをすべて集め、[テーマ]でのあなたのより良い経験を集めました。もう一度、私たちのテーマを使ってくれてありがとう！"
+
+#: admin-dashboard/src/components/json/dashboard-content.js:10
+msgid "View Demos"
+msgstr "デモを表示します"
+
+#: admin-dashboard/src/components/json/dashboard-content.js:23
+msgid "Need Help?"
+msgstr "助けが必要ですか？"
+
+#: admin-dashboard/src/components/json/dashboard-content.js:25
+msgid "Demo Sites"
+msgstr "デモサイト"
+
+#: admin-dashboard/src/components/json/home-content.js:6
+msgid ""
+"Set the theme header type, set the colors, spacing, alignment and more."
+msgstr "テーマヘッダータイプを設定し、色、間隔、アライメントなどを設定します。"
+
+#: admin-dashboard/src/components/json/home-content.js:15
+msgid "Banner Advertisement"
+msgstr "バナー広告"
+
+#: admin-dashboard/src/components/json/home-content.js:16
+msgid ""
+"You can easily place your promotional banners within your header section."
+msgstr "プロモーションバナーをヘッダーセクション内に簡単に配置できます。"
+
+#: admin-dashboard/src/components/json/home-content.js:25
+msgid "Color Options"
+msgstr "カラーオプション"
+
+#: admin-dashboard/src/components/json/home-content.js:26
+msgid "Change the color setting provide with the Theme."
+msgstr "カラー設定を変更して、テーマを提供します。"
+
+#: admin-dashboard/src/components/json/home-content.js:36
+msgid "Selecting different categories can be done for different section."
+msgstr "異なるカテゴリを選択することは、異なるセクションで実行できます。"
+
+#: admin-dashboard/src/components/json/home-content.js:45
+msgid "Front-page Option"
+msgstr "フロントページオプション"
+
+#: admin-dashboard/src/components/json/home-content.js:46
+msgid ""
+"Front-page layout with Popular Tag, Breaking News, Feature News can be set."
+msgstr "人気のあるタグ、速報ニュース、機能ニュースを備えたフロントページレイアウトを設定できます。"
+
+#: admin-dashboard/src/components/json/home-content.js:56
+msgid ""
+"Set the Homepage as a static page to create own homepage using widgets."
+msgstr "ホームページを静的ページとして設定して、ウィジェットを使用して独自のホームページを作成します。"
+
+#: admin-dashboard/src/components/json/home-content.js:65
+msgid "Widgets Area"
+msgstr "ウィジェットエリア"
+
+#: admin-dashboard/src/components/json/home-content.js:66
+msgid "Widgets can be added on all the section provide by the Theme."
+msgstr "ウィジェットは、テーマで提供されるすべてのセクションに追加できます。"
+
+#: admin-dashboard/src/components/json/home-content.js:75
+msgid "Archive Options"
+msgstr "アーカイブオプション"
+
+#: admin-dashboard/src/components/json/home-content.js:76
+msgid "Customize the blog layout desgin."
+msgstr "ブログのレイアウトDesginをカスタマイズします。"
+
+#: admin-dashboard/src/components/json/home-content.js:82
+msgid "Theme Option"
+msgstr "テーマオプション"
+
+#: admin-dashboard/src/components/json/home-content.js:83
+msgid ""
+"Set the Global Layout, Breadcrumb, Sidebar, Single Post, You may have missed"
+" and more."
+msgstr "グローバルなレイアウト、パン界、サイドバー、シングルポストを設定すると、見逃している可能性があります。"
+
+#: admin-dashboard/src/components/json/home-content.js:92
+msgid "Footer Options"
+msgstr "フッターオプション"
+
+#: admin-dashboard/src/components/json/home-content.js:93
+msgid "Set the footer type, number of columns, spacing and colors."
+msgstr "フッタータイプ、列の数、間隔、色を設定します。"
+
+#: admin-dashboard/src/components/json/premium-plugins-content.js:4
+msgid "Elespare (Elementor)"
+msgstr "Elespare（Elementor）"
+
+#: admin-dashboard/src/components/json/premium-plugins-content.js:6
+msgid ""
+"A stunning assortment of WordPress post widgets. It allows you to display "
+"your posts in many formats such as grid, list, tile, full, express, and so "
+"on."
+msgstr "WordPress投稿ウィジェットの見事な品揃え。グリッド、リスト、タイル、フル、エクスプレスなど、多くの形式で投稿を表示できます。"
+
+#: admin-dashboard/src/components/json/premium-plugins-content.js:10
+msgid "Blockspare Pro"
+msgstr "blockspare pro"
+
+#: admin-dashboard/src/components/json/premium-plugins-content.js:12
+msgid "Beautiful Page Building Gutenberg Blocks for WordPress"
+msgstr "WordPress用の美しいページビルディンググーテンバーグブロック"
+
+#: admin-dashboard/src/components/json/premium-plugins-content.js:16
+msgid "Magic Content Box Block"
+msgstr "マジックコンテンツボックスブロック"
+
+#: admin-dashboard/src/components/json/premium-plugins-content.js:18
+msgid ""
+"We build a beautiful series of page section Gutenberg blocks for WordPress "
+"content to help you quickly create the website you have always desired.."
+msgstr ""
+"WordPressコンテンツ用の美しいシリーズのページセクションGutenbergブロックを構築して、常に望んでいるWebサイトをすばやく作成するのに役立ちます。"
+
+#: admin-dashboard/src/components/json/premium-plugins-content.js:22
+msgid "Latest Posts Block for WordPress (Gutenberg)"
+msgstr "WordPressの最新の投稿ブロック（Gutenberg）"
+
+#: admin-dashboard/src/components/json/premium-plugins-content.js:24
+msgid ""
+"A beautiful collection of latest posts Gutenberg blocks for WordPress, which"
+" helps you to design posts grid, posts list, full posts layout, advanced "
+"express posts design, and tile layouts of your posts."
+msgstr ""
+"WordPress用の最新の投稿Gutenbergブロックの美しいコレクションは、投稿のグリッド、投稿リスト、フル投稿レイアウト、高度なExpress投稿デザイン、投稿のタイルレイアウトを設計するのに役立ちます。"
+
+#: admin-dashboard/src/components/json/premium-plugins-content.js:28
+msgid "Team and Testimonial Block for WordPress (Gutenberg)"
+msgstr "WordPressのチームと証言ブロック（Gutenberg）"
+
+#: admin-dashboard/src/components/json/premium-plugins-content.js:30
+msgid ""
+"With the Team and Testimonial Block for Gutenberg, you can quickly create a "
+"beautiful, responsive, and high-converting team, members, review, rating, "
+"etc, sections. There is no need to code anything."
+msgstr ""
+"Gutenbergのチームと証言ブロックを使用すると、美しく、応答性が高く、高い収集されたチーム、メンバー、レビュー、評価などをすばやく作成できます。何もコーディングする必要はありません。"
+
+#: admin-dashboard/src/components/json/premium-plugins-content.js:34
+msgid "Pricing Table Block for WordPress (Gutenberg)"
+msgstr "WordPressの価格設定テーブルブロック（Gutenberg）"
+
+#: admin-dashboard/src/components/json/premium-plugins-content.js:36
+msgid ""
+"With the Pricing Table Block for Gutenberg, you can quickly create a "
+"beautiful, responsive, and high-converting pricing table. There is no need "
+"to code anything."
+msgstr ""
+"Gutenbergの価格設定テーブルブロックを使用すると、美しく、応答性が高く、面倒な価格設定テーブルをすばやく作成できます。何もコーディングする必要はありません。"
+
+#: admin-dashboard/src/components/json/sidebar-content.js:5
+msgid "View"
+msgstr "ビュー"
+
+#: admin-dashboard/src/components/json/sidebar-content.js:13
+msgid ""
+"Got theme support question or found bug or got some feedbacks? Best place to"
+" ask your query is the dedicated Support forum for the theme.."
+msgstr ""
+"テーマサポートの質問やバグを見つけたのか、いくつかのフィードバックを受けたのか？クエリを尋ねるのに最適な場所は、テーマの専用サポートフォーラムです。"
+
+#: admin-dashboard/src/components/json/sidebar-content.js:16
+msgid "Video  Tutorials"
+msgstr "ビデオチュートリアル"
+
+#: admin-dashboard/src/components/json/sidebar-content.js:19
+msgid "Watch out the videos for an easy learning on Customizing the Theme ."
+msgstr "テーマのカスタマイズに関する簡単な学習をするために、ビデオに注意してください。"
+
+#: admin-dashboard/src/components/json/sidebar-content.js:22
+msgid "3CX Free Live Chat"
+msgstr "3CX無料ライブチャット"
+
+#: admin-dashboard/src/components/json/sidebar-content.js:24
+msgid "Visit"
+msgstr "訪問"
+
+#: admin-dashboard/src/components/json/sidebar-content.js:26
+msgid ""
+"We have built a new live chat solution called 3cx startup! this will give "
+"you completely free live chat, voice capability plus a team communication "
+"system!"
+msgstr ""
+"3CXスタートアップと呼ばれる新しいライブチャットソリューションを構築しました！これにより、完全に無料のライブチャット、音声機能とチームコミュニケーションシステムが提供されます！"
+
+#: admin-dashboard/src/components/json/useful-plugins-content.js:5
+msgid ""
+"Use AF Companion to import live demo content, widgets, and settings swiftly."
+" This plugin gives fundamental layout to build your website and accelerate "
+"the development process."
+msgstr ""
+"AFコンパニオンを使用して、ライブデモコンテンツ、ウィジェット、設定を迅速にインポートします。このプラグインは、ウェブサイトを構築し、開発プロセスを加速するための基本的なレイアウトを提供します。"
+
+#: admin-dashboard/src/components/json/useful-plugins-content.js:9
+msgid ""
+"You may design complicated layouts for your website in just a few minutes "
+"with our adaptable and inventive blocks."
+msgstr "適応性のある独創的なブロックを使用して、わずか数分でウェブサイトの複雑なレイアウトを設計することができます。"
+
+#: admin-dashboard/src/components/json/useful-plugins-content.js:13
+msgid ""
+"Get ready-to-use Starter Sites instantly and build modern websites in "
+"minutes."
+msgstr "すぐにすぐに使用できるスターターサイトを入手し、数分で最新のWebサイトを構築します。"
+
+#: admin-dashboard/src/components/json/useful-plugins-content.js:17
+msgid ""
+"DESIGN PERFECT BLOG, NEWS, OR MAGAZINE WEBSITES Elespare is a simple yet "
+"effective WordPress plugin that lets you use Elementor to create fantastic "
+"Header, Footer and Contents of websites with highly customization options "
+"for FREE. "
+msgstr ""
+"Design Perfect "
+"Blog、News、またはMagazineのWebサイトElespareは、Elementorを使用して、無料でカスタマイズオプションを備えた素晴らしいヘッダー、フッター、Webサイトのコンテンツを作成できるシンプルで効果的なWordPressプラグインです。"
+
+#: admin-dashboard/src/components/json/useful-plugins-content.js:21
+msgid ""
+"A beautiful collection of latest posts Gutenberg blocks for WordPress, which"
+" helps you to design posts grid, posts list, full posts layout, advanced "
+"express posts design and tile layouts of your posts."
+msgstr ""
+"WordPress用の最新の投稿Gutenbergブロックの美しいコレクション。これにより、投稿のグリッド、投稿リスト、完全な投稿レイアウト、高度なExpress投稿デザイン、投稿のタイルレイアウトを設計するのに役立ちます。"
+
+#: admin-dashboard/src/components/json/useful-plugins-content.js:25
+msgid ""
+"We build a beautiful series of page section Gutenberg blocks for WordPress "
+"content to help you quickly create the website you've always desired."
+msgstr ""
+"WordPressコンテンツ用のページセクションGutenbergブロックの美しいシリーズを作成して、常に望んでいたWebサイトをすばやく作成できます。"
+
+#: admin-dashboard/src/components/json/useful-plugins-content.js:29
+msgid ""
+"It has 3 different widgets for post's author, selective author by id and "
+"custom author. It also provides shortcodes for the author profile."
+msgstr ""
+"Postの著者には3つの異なるウィジェットがあり、IDとカスタム著者による選択的な著者があります。また、著者プロファイルのショートコードも提供します。"
+
+#: admin-dashboard/src/components/json/useful-plugins-content.js:33
+msgid ""
+"This free plugin offers a free live chat solution for your website visitors "
+"to contact you via live chat or a live call - all for free! Engage with your"
+" customers and increase sales."
+msgstr ""
+"この無料のプラグインは、あなたのウェブサイトの訪問者がライブチャットまたはライブコールであなたに連絡するための無料のライブチャットソリューションを提供します"
+" - すべて無料で！顧客と関わり、売り上げを増やします。"
+
+#: admin-dashboard/src/components/json/useful-plugins-content.js:37
+msgid ""
+"A free WordPress Plugin which facilitates with the functionality to submit "
+"Posts from frontend with or without logging in with various configurable "
+"options."
+msgstr ""
+"さまざまな構成可能なオプションでログインするまたはログインせずにFrontEndから投稿を送信する機能を容易にする無料のWordPressプラグイン。"
+
+#: admin-dashboard/src/components/json/useful-plugins-content.js:41
+msgid ""
+"This plugin helps you grow your Mailchimp lists and write better newsletters"
+" through various methods. You can create good looking opt-in forms or "
+"integrate with any existing form on your site, like your comment, contact or"
+" checkout form."
+msgstr ""
+"このプラグインは、MailChimpリストを拡大し、さまざまな方法でより良いニュースレターを書くのに役立ちます。見栄えの良いオプトインフォームを作成したり、コメント、連絡先、チェックアウトフォームなど、サイトの既存のフォームと統合できます。"
+
+#: admin-dashboard/src/components/json/useful-plugins-content.js:48
+#: admin-dashboard/src/components/json/useful-plugins-content.js:53
+msgid "Get Started with Beautiful Starter Templates."
+msgstr "美しいスターターテンプレートを始めましょう。"
+
+#: admin-dashboard/src/components/json/useful-plugins-content.js:49
+msgid ""
+"Use templatespare to import live demo content, widgets, and settings "
+"swiftly. This plugin gives fundamental layout to build your website and "
+"accelerate the development process."
+msgstr ""
+"TemplatesPareを使用して、ライブデモコンテンツ、ウィジェット、設定を迅速にインポートします。このプラグインは、ウェブサイトを構築し、開発プロセスを加速するための基本的なレイアウトを提供します。"
+
+#: admin-dashboard/src/components/json/useful-plugins-content.js:54
+msgid ""
+"Use blockspare to import live demo content, widgets, and settings swiftly. "
+"This plugin gives fundamental layout to build your website and accelerate "
+"the development process."
+msgstr ""
+"BlockSpareを使用して、ライブデモコンテンツ、ウィジェット、設定を迅速にインポートします。このプラグインは、ウェブサイトを構築し、開発プロセスを加速するための基本的なレイアウトを提供します。"
+
+#: admin-dashboard/src/components/main.js:54
+msgid "Get started"
+msgstr "始めましょう"
+
+#: admin-dashboard/src/components/main.js:69
+msgid "Premium Plugins"
+msgstr "プレミアムプラグイン"
+
+#: admin-dashboard/src/components/main.js:77
+msgid "Change Log"
+msgstr "ログを変更します"
+
+#: admin-dashboard/src/components/nav-content/home.js:26
+msgid "Go to option"
+msgstr "オプションに移動します"
+
+#: admin-dashboard/src/components/nav-content/premium-plugins.js:24
+msgid "Buy Now"
+msgstr "今すぐ購入"
+
+#: admin-dashboard/src/components/templatespare-demo.js:60
+msgid "Update Templatespare"
+msgstr "TemplatesPareを更新します"
+
+#: admin-dashboard/src/components/templatespare-demo.js:75
+msgid "Create Your Dream Website in Minutes!"
+msgstr "数分で夢のウェブサイトを作成してください！"
+
+#: admin-dashboard/src/components/templatespare-demo.js:79
+msgid ""
+"No coding needed. One-click import of expert-made starter sites with "
+"customizer, widgets, Elementor Template Kits, and Gutenberg Patterns. Start "
+"now with Templatespare Plugin!"
+msgstr ""
+"コーディングは必要ありません。カスタマイザー、ウィジェット、Elementorテンプレートキット、グーテンバーグパターンを使用したエキスパートメイドのスターターサイトのワンクリックインポート。"
+" TemplatesPareプラグインから今すぐ始めましょう！"
+
+#: admin-dashboard/src/components/templatespare-demo.js:225
+msgid "Preview"
+msgstr "プレビュー"
+
+#: admin-dashboard/src/components/templatespare-demo.js:232
+msgid "All Themes Plan"
+msgstr "すべてのテーマ計画"

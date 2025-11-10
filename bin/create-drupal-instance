@@ -190,14 +190,23 @@ chmod("$instancePath/sites/sites.php", 0644);
 
 echo GREEN . "✓" . NC . " Symlinks, custom index.php, core wrapper, and sites.php created\n";
 
-// Step 3: Create database
-echo YELLOW . "[3/9]" . NC . " Creating database...\n";
+// Step 3: Create or verify database
+echo YELLOW . "[3/9]" . NC . " Setting up database...\n";
 try {
-    $pdo = new PDO("mysql:host=localhost", $dbUser, $dbPass);
-    $pdo->exec("CREATE DATABASE IF NOT EXISTS `$dbName` CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci");
-    echo GREEN . "✓" . NC . " Database created: $dbName\n";
+    // Try to connect to the database first (shared hosting scenario)
+    try {
+        $testPdo = new PDO("mysql:host=localhost;dbname=$dbName", $dbUser, $dbPass);
+        echo GREEN . "✓" . NC . " Database already exists: $dbName (using existing)\n";
+    } catch (PDOException $e) {
+        // Database doesn't exist, try to create it
+        $pdo = new PDO("mysql:host=localhost", $dbUser, $dbPass);
+        $pdo->exec("CREATE DATABASE `$dbName` CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci");
+        echo GREEN . "✓" . NC . " Database created: $dbName\n";
+    }
 } catch (PDOException $e) {
-    echo YELLOW . "⚠" . NC . " Database creation failed or already exists\n";
+    echo RED . "✗" . NC . " Database setup failed: " . $e->getMessage() . "\n";
+    echo YELLOW . "  Please create the database manually and ensure credentials are correct\n";
+    exit(1);
 }
 
 // Step 4: Create settings.php

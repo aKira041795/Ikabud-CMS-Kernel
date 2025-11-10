@@ -1,0 +1,260 @@
+.toplevel_page_templatespare-main-dashboard #fs_connect .fs-actions .button.button-primary{
+  display: none!important;
+}
+
+.templatespare-drop-zone {
+  border: 2px dashed #007cba;
+  padding: 20px;
+  text-align: center;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+.templatespare-drop-zone.drag-over {
+  background-color: #f0f8ff;
+}
+
+.templatespare-drop-zone input {
+  display: none;
+}
+
+.file-name {
+  margin-top: 10px;
+  color: #333;
+  font-size: 14px;
+  font-style: italic;
+}
+
+.templatespare-success-img {
+  display: none;
+  position: relative;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  padding: 20px;
+  margin-top: 100px;
+  text-align: center;
+  z-index: 9999;
+}
+
+.templatespare-success-img p {
+  margin: 0;
+  font-size: 18px;
+  color: #4CAF50;
+}
+
+.templatespare-success-img img {
+  margin-top: 10px;
+  width: 50px;
+  height: auto;
+}
+
+.wrap .templatespare-import-kit-popup-wrap .progress-wrap strong {
+  display: block;
+  text-align: center;
+  color: #687c93;
+  width: 100% !important;
+  padding-top: 20px;
+}
+
+.wrap .templatespare_import_zip {
+  margin-top: 10px;
+}
+
+/* new css backup */
+
+.templatespare_page_templatespare-site-backup .notice,
+.templatespare_page_templatespare-site-import .notice {
+  display: none;
+}
+
+button .dashicons-plus-alt,
+.table-view-list .column-actions .button i.dashicons {
+  display: inline-block;
+  vertical-align: middle;
+  font-size: 1.15rem;
+  height: unset;
+  width: unset;
+  margin-bottom: 2px;
+}
+
+.dashicons-database-import {
+  display: inline-block;
+  vertical-align: middle;
+  height: unset;
+  width: unset;
+  margin-bottom: 4px;
+}
+
+.table-view-list .column-actions .button i.dashicons.dashicons-trash {
+  margin-bottom: 4px;
+}
+
+.templatespare_page_templatespare-site-backup button.templastespare_sitebackup,
+.table-view-list .column-actions .button{
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 30px;
+  padding: 1px 15px 1px 12px;
+}
+.templatespare_page_templatespare-site-backup button.templastespare_sitebackup {
+  padding: 7px 25px 7px 22px;
+  font-size: 18px;
+}
+button .dashicons-plus-alt {
+  font-size: 18px;
+  margin-bottom: 3px;
+}
+
+.table-view-list .column-actions .button {
+  margin: 5px 5px 5px 0;
+}
+
+.starter-sites_page_templatespare-site-backup .widefat th {
+  font-weight: 700;
+}
+.starter-sites_page_templatespare-site-backup .widefat td {
+  vertical-align: middle;
+  color: #687c93;
+}
+
+.table-view-list td.column-backup-name.column-backup-date::before {
+  content: "\f145";
+}
+
+.table-view-list td.column-backup-name::before {
+  content: "\f18f";
+  font-family: 'dashicons';
+  padding-right: 5px;
+  font-size: 18px;
+  display: inline-block;
+  vertical-align: middle;
+  margin-bottom: 2px;
+}
+.table-view-list td.column-id.load-folder-size::before {
+  content: "\f498";
+  font-family: 'dashicons';
+  padding-right: 5px;
+  font-size: 18px;
+  display: inline-block;
+  vertical-align: middle;
+  margin-bottom: 2px;
+}
+
+.starter-sites_page_templatespare-site-backup .striped>tbody>:nth-child(odd) {
+  background-color: #edf2fc;
+}
+
+.table-view-list .column-actions .button-danger {
+  background: #f03f3f;
+  border-color: #f03f3f;
+  color: #fff;
+}
+.table-view-list .column-actions .button-primary{
+  background:#416ce5;
+  border-color:#416ce5;
+}
+.templatespare_page_templatespare-site-backup button.templastespare_sitebackup:focus ,
+.templatespare_page_templatespare-site-backup button.templastespare_sitebackup:hover ,
+.templatespare_page_templatespare-site-backup button.templastespare_sitebackup {
+  background: #4CAF51;
+  border-color: #4CAF51;
+}
+.templatespare_page_templatespare-site-backup button.templastespare_sitebackup:hover,
+.table-view-list .column-actions .button-primary:hover,
+.table-view-list .column-actions .button-danger:hover {
+  opacity: .85;
+}
+
+/* new css import */
+
+.templatespare-demo-drop,
+.templatespare-drop-zone .file-name,
+.templatespare-error {
+  color: #687c93;
+}
+
+body.templatespare_page_templatespare-site-import.wp-core-ui button{
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 30px;
+  padding: 10px 25px;
+  margin-top: 40px;
+  min-height: 38px;
+}
+
+body.templatespare_page_templatespare-site-import.wp-core-ui button:hover{
+  opacity: .85;
+}
+
+body.templatespare_page_templatespare-site-import.wp-core-ui button,
+body.templatespare_page_templatespare-site-import.wp-core-ui button:hover,
+body.templatespare_page_templatespare-site-import.wp-core-ui button:focus,
+.templatespare_page_templatespare-site-import input.templatespare_import_zip:focus,
+.templatespare_page_templatespare-site-import input.templatespare_import_zip:hover,
+.templatespare_page_templatespare-site-import input.templatespare_import_zip {
+  background: #4CAF51;
+  border-color: #4CAF51;
+}
+.templatespare_page_templatespare-site-import .importing {
+  text-align: center;
+}
+.templatespare_page_templatespare-site-import .importing img.templatespare-loader-img {
+  padding: 30px;
+  max-width: 200px;
+}
+
+.templatespare-import-kit-popup-wrap .progress-bar-container {
+  max-width: 768px;
+  margin: 0 auto;
+  height: 3px;
+}
+
+form#templatespare-upload-file {
+  text-align: center;
+  margin-bottom: 40px;
+}
+
+.templatespare-drop-zone {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 220px;
+}
+
+.templatespare-drop-zone.templatespare-file-selected,
+.templatespare-drop-zone:hover {
+  border-color: #4caf51;
+  background: rgb(255 255 255 / 60%);
+}
+
+
+.templatespare-check-wrap {
+  display: flex;
+  /* align-items: center;
+  justify-content: center; */
+  margin-top: 30px;
+  font-size: 16px;
+}
+
+.templatespare-check-wrap p {
+  margin-top: 0;
+  font-size: 16px;
+}
+
+.templatespare-check-wrap p a {
+  color: #154de9;
+}
+
+.templatespare-check-wrap input,
+.templatespare-check-wrap label {
+  display: inline-block;
+  vertical-align: middle;
+  font-size: 16px;
+  margin-bottom: 1em;
+  cursor: pointer;
+}
+
+.templatespare-check-wrap input{
+  margin-top: 0;
+}

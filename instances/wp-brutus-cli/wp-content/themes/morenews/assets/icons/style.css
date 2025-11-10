@@ -1,0 +1,246 @@
+@font-face {
+  font-family: 'aft-icons';
+  src:  url('fonts/aft-icons.eot?e3nek0');
+  src:  url('fonts/aft-icons.eot?e3nek0#iefix') format('embedded-opentype'),
+    url('fonts/aft-icons.ttf?e3nek0') format('truetype'),
+    url('fonts/aft-icons.woff?e3nek0') format('woff'),
+    url('fonts/aft-icons.svg?e3nek0#aft-icons') format('svg');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+#scroll-up,
+.custom-menu-link i,
+.af-yt-video-play .fa-play,
+.af-bg-play .fa-play,
+.slick-arrow.fa-angle-up,
+.slick-arrow.fa-angle-down,
+.slick-arrow.fa-angle-right,
+.slick-arrow.fa-angle-left,
+.posts-navigation .nav-previous:before,
+.posts-navigation .nav-next:after,
+.post-navigation .nav-previous:before,
+.post-navigation .nav-next:after,
+.author-links .fa-user-circle,
+.author-links .fa-clock,
+.aft-comment-count .fa-comment,
+.aft-view-count .fa-eye,
+.af-search-click .fa-search,
+.af-search-wrap .fa-search,
+.af-tabs>li>a i,
+.em-post-format .fa-film,
+.em-post-format .fa-play,
+.em-post-format .fa-images,
+.em-post-format .fa-image,
+[class^="aft-icon-"], [class*=" aft-icon-"], .elegant-widget [class*=" fa-arrow-"] {
+  /* use !important to prevent issues with browser extensions that change fonts */
+  font-family: 'aft-icons';
+  font-style: normal;
+  font-weight: normal;
+  font-variant: normal;
+  text-transform: none;
+
+  /* Better Font Rendering =========== */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.af-tabs>li>a .fa-bolt::before {
+  content: "\f0e7";
+}
+.af-tabs>li>a .fa-clock:before {
+  content: "\e904";
+}
+.af-tabs>li>a .fa-fire:before {
+  content: "\e922";
+}
+
+.aft-icon-tiktok:before {
+  content: "\e900";
+}
+.aft-icon-messenger:before {
+  content: "\e901";
+}
+.aft-icon-github:before {
+  content: "\e902";
+}
+.author-links .fa-user-circle:before,
+.aft-icon-circle-user-regular:before {
+  content: "\e903";
+}
+.author-links .fa-clock:before,
+.aft-icon-clock-regular:before {
+  content: "\e904";
+}
+.aft-view-count .fa-eye:before,
+.aft-icon-eye-regular:before {
+  content: "\e905";
+}
+.aft-icon-magnifying-glass-solid:before {
+  content: "\e906";
+}
+.em-post-format .fa-images:before,
+.aft-icon-images-regular:before {
+  content: "\e907";
+}
+.aft-comment-count .fa-comment:before,
+.aft-icon-comment-regular:before {
+  content: "\e908";
+}
+.aft-icon-clock-solid:before {
+  content: "\e909";
+}
+.aft-icon-facebook:before {
+  content: "\e90a";
+}
+.aft-icon-threads:before {
+  content: "\e916";
+}
+.aft-icon-twitch:before {
+  content: "\e90b";
+}
+.aft-icon-viber:before {
+  content: "\e90c";
+}
+.aft-icon-yahoo:before {
+  content: "\e90d";
+}
+.aft-icon-bolt-lightning-solid:before {
+  content: "\e90e";
+}
+.aft-icon-hashtag-solid:before {
+  content: "\e90f";
+}
+.custom-menu-link i.fa-bell:before,
+.aft-icon-bell-solid:before {
+  content: "\e910";
+}
+.em-post-format .fa-play:before,
+.af-yt-video-play .fa-play:before,
+.af-bg-play .fa-play:before,
+.aft-icon-play:before,
+.custom-menu-link .fa-play:before,
+.aft-icon-play-solid:before {
+  content: "\e911";
+}
+.custom-menu-link .fa-sign-in-alt:before,
+.aft-icon-right-to-bracket-solid:before {
+  content: "\e912";
+}
+.custom-menu-link .fa-user:before,
+.aft-icon-user-solid:before {
+  content: "\e913";
+}
+.af-search-wrap .fa-search:before,
+.af-search-click .fa-search::before,
+.aft-icon-search:before {
+  content: "\f002";
+}
+.em-post-format .fa-image:before{
+  content: "\e91b";
+}
+.aft-icon-camera:before {
+  content: "\f030";
+}
+.em-post-format .fa-film:before{
+  content: "\e90a";
+}
+.aft-icon-video-camera:before {
+  content: "\f03d";
+}
+.slick-arrow.fa-angle-left:before,
+.aft-icon-chevron-left:before {
+  content: "\f053";
+}
+.slick-arrow.fa-angle-right:before,
+.aft-icon-chevron-right:before {
+  content: "\f054";
+}
+.slick-arrow.fa-angle-up:before,
+.aft-icon-chevron-up:before {
+  content: "\f077";
+}
+.slick-arrow.fa-angle-down:before,
+.aft-icon-chevron-down:before {
+  content: "\f078";
+}
+.aft-icon-shopping-cart:before {
+  content: "\f07a";
+}
+.aft-icon-twitter:before {
+  content: "\f099";
+}
+.aft-icon-pinterest:before {
+  content: "\f0d2";
+}
+.aft-icon-google-plus:before {
+  content: "\f0d5";
+}
+.aft-icon-linkedin:before {
+  content: "\f0e1";
+}
+.aft-icon-bolt:before {
+  content: "\f0e7";
+}
+.aft-icon-youtube-play:before {
+  content: "\f16a";
+}
+.aft-icon-stack-overflow:before {
+  content: "\f16c";
+}
+.aft-icon-instagram:before {
+  content: "\f16d";
+}
+.aft-icon-tumblr:before {
+  content: "\f173";
+}
+.aft-icon-dribbble:before {
+  content: "\f17d";
+}
+.aft-icon-vk:before {
+  content: "\f189";
+}
+.aft-icon-weibo:before {
+  content: "\f18a";
+}
+.aft-icon-slack:before {
+  content: "\f198";
+}
+.aft-icon-wordpress:before {
+  content: "\f19a";
+}
+.aft-icon-behance:before {
+  content: "\f1b4";
+}
+.aft-icon-spotify:before {
+  content: "\f1bc";
+}
+.aft-icon-soundcloud:before {
+  content: "\f1be";
+}
+.aft-icon-wechat:before {
+  content: "\f1d7";
+}
+.custom-menu-link .fa-share-alt:before,
+.aft-icon-share-alt:before {
+  content: "\f1e0";
+}
+.aft-icon-whatsapp:before {
+  content: "\f232";
+}
+.aft-icon-vimeo:before {
+  content: "\f27d";
+}
+.aft-icon-reddit-alien:before {
+  content: "\f281";
+}
+.aft-icon-snapchat-square:before {
+  content: "\f2ad";
+}
+.aft-icon-quora:before {
+  content: "\f2c4";
+}
+.aft-icon-telegram:before {
+  content: "\f2c6";
+}

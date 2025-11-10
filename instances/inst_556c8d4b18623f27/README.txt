@@ -1,0 +1,1 @@
+../../shared-cores/joomla/README.txt

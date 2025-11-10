@@ -1,0 +1,39 @@
+{
+    "version": 1,
+    "settings": {
+        "appearanceTools": true,
+        "spacing": {
+            "blockGap": true,
+            "margin": true,
+            "padding": true
+        },
+        "align": {
+            "wide": true,
+            "full": true
+        },
+        "layout": {
+            "contentSize": "930px",
+            "wideSize": "1400px"
+        }
+    },
+    "styles": {
+        "blocks": {
+            "core/image": {
+                "elements": {
+                    "figure": {
+                        "maxWidth": "100%",
+                        "marginLeft": "auto",
+                        "marginRight": "auto"
+                    }
+                }
+            }
+        },
+        "elements": {
+            "link": {
+                "typography": {
+                    "textDecoration": "none"
+                }
+            }
+        }
+    }
+}

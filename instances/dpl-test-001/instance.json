@@ -1,0 +1,15 @@
+{
+    "instance_id": "dpl-test-001",
+    "instance_name": "Test Drupal Site",
+    "cms_type": "drupal",
+    "domain": "drupal.test",
+    "admin_subdomain": "admin.drupal.test",
+    "database": {
+        "name": "ikabud_drupal",
+        "user": "root",
+        "host": "localhost",
+        "prefix": "drupal_"
+    },
+    "created_at": "2025-11-10T06:46:25+00:00",
+    "version": "1.0"
+}
