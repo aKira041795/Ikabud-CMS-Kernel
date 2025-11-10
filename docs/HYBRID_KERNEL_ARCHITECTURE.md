@@ -697,6 +697,62 @@ header('Content-Security-Policy: frame-ancestors \'self\' http://' .
 4. **No VirtualHost changes needed** (single entry point handles all)
 5. **Cache works immediately**
 
+### Creating Joomla Instances
+
+**Automated Setup**:
+```bash
+./create-joomla-instance.sh joomla-001 joomla.test ikabud_joomla root password jml_
+```
+
+**Manual Setup Steps**:
+1. **Create instance structure**:
+   ```bash
+   mkdir -p instances/joomla-001/{administrator/{cache,logs,manifests},cache,tmp,images}
+   ```
+
+2. **Copy template files**:
+   ```bash
+   cp templates/joomla-defines.php instances/joomla-001/defines.php
+   cp templates/joomla-site-index.php instances/joomla-001/index.php
+   cp templates/joomla-admin-index.php instances/joomla-001/administrator/index.php
+   ```
+
+3. **Create symlinks to shared core**:
+   ```bash
+   # Administrator symlinks
+   ln -s ../../shared-cores/joomla/administrator/components instances/joomla-001/administrator/
+   ln -s ../../shared-cores/joomla/administrator/templates instances/joomla-001/administrator/
+   # Site symlinks
+   ln -s ../shared-cores/joomla/components instances/joomla-001/
+   ln -s ../shared-cores/joomla/templates instances/joomla-001/
+   ```
+
+4. **Configure Apache VirtualHosts**:
+   ```apache
+   # Frontend (cached through kernel)
+   <VirtualHost *:80>
+       ServerName joomla.test
+       DocumentRoot /var/www/html/ikabud-kernel/public
+   </VirtualHost>
+   
+   # Admin (direct access)
+   <VirtualHost *:80>
+       ServerName admin.joomla.test
+       DocumentRoot /var/www/html/ikabud-kernel/instances/joomla-001
+   </VirtualHost>
+   ```
+
+5. **Complete installation**:
+   - Access `http://admin.joomla.test/installation/`
+   - Follow Joomla installer
+   - Remove installation directory after completion
+
+**Key Differences from WordPress**:
+- ✅ `JPATH_BASE` must be set before loading defines
+- ✅ Administrator needs custom bootstrap (loads defines.php manually)
+- ✅ `JPATH_THEMES` must NOT be predefined (let Joomla set it)
+- ✅ Autoload PSR-4 file needs symlink in shared core cache
+
 ---
 
 ## Troubleshooting
