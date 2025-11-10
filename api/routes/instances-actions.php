@@ -213,16 +213,47 @@ $app->post('/api/instances/create', function (Request $request, Response $respon
     $body = json_decode($request->getBody()->getContents(), true);
     
     // Validate required fields
-    $required = ['instance_name', 'cms_type', 'database_name'];
+    $required = ['instance_id', 'instance_name', 'cms_type', 'database_name'];
     foreach ($required as $field) {
-        if (!isset($body[$field])) {
+        if (!isset($body[$field]) || empty($body[$field])) {
             $response->getBody()->write(json_encode(['error' => "Field '{$field}' is required"]));
             return $response->withStatus(400)->withHeader('Content-Type', 'application/json');
         }
     }
     
-    // Generate instance ID
-    $instanceId = 'inst_' . bin2hex(random_bytes(8));
+    // Get and validate instance ID
+    $instanceId = $body['instance_id'];
+    
+    // Validate instance ID format: lowercase, numbers, hyphens, 3-50 chars, must start/end with alphanumeric
+    if (!preg_match('/^[a-z0-9][a-z0-9-]*[a-z0-9]$/', $instanceId) || strlen($instanceId) < 3 || strlen($instanceId) > 50) {
+        $response->getBody()->write(json_encode([
+            'success' => false,
+            'error' => 'Invalid instance ID format. Must be 3-50 characters, lowercase letters, numbers, and hyphens only. Must start and end with alphanumeric.'
+        ]));
+        return $response->withStatus(400)->withHeader('Content-Type', 'application/json');
+    }
+    
+    // Check if instance ID already exists in database
+    $stmt = $db->prepare("SELECT COUNT(*) FROM instances WHERE instance_id = ?");
+    $stmt->execute([$instanceId]);
+    if ($stmt->fetchColumn() > 0) {
+        $response->getBody()->write(json_encode([
+            'success' => false,
+            'error' => 'Instance ID already exists. Please choose a different one.'
+        ]));
+        return $response->withStatus(409)->withHeader('Content-Type', 'application/json');
+    }
+    
+    // Check if instance directory already exists
+    $rootPath = dirname(__DIR__, 2);
+    $instancePath = $rootPath . '/instances/' . $instanceId;
+    if (is_dir($instancePath)) {
+        $response->getBody()->write(json_encode([
+            'success' => false,
+            'error' => 'Instance directory already exists. Please choose a different instance ID.'
+        ]));
+        return $response->withStatus(409)->withHeader('Content-Type', 'application/json');
+    }
     
     // Insert instance
     $stmt = $db->prepare("
@@ -249,7 +280,6 @@ $app->post('/api/instances/create', function (Request $request, Response $respon
     ]);
     
     // Execute instance creation script based on CMS type
-    $rootPath = dirname(__DIR__, 2);
     $cmsType = $body['cms_type'] ?? 'wordpress';
     
     // Determine which script to use based on CMS type
@@ -271,15 +301,26 @@ $app->post('/api/instances/create', function (Request $request, Response $respon
         return $response->withStatus(500)->withHeader('Content-Type', 'application/json');
     }
     
+    $instanceName = escapeshellarg($body['instance_name']);
     $domain = escapeshellarg($body['domain'] ?? 'localhost');
+    $adminSubdomain = $body['admin_subdomain'] ?? 'admin.' . ($body['domain'] ?? 'localhost');
     $dbName = escapeshellarg($body['database_name']);
     $dbUser = escapeshellarg($body['database_user'] ?? 'root');
     $dbPass = escapeshellarg($body['database_password'] ?? '');
+    $dbHost = escapeshellarg($body['database_host'] ?? 'localhost');
     $dbPrefix = escapeshellarg($body['database_prefix'] ?? 'wp_');
     
     // Build command based on CMS type
-    // Format: ./script.sh <instance_id> <domain> <db_name> <db_user> <db_pass> [db_prefix]
-    $command = "cd $rootPath && $scriptPath $instanceId $domain $dbName $dbUser $dbPass $dbPrefix 2>&1";
+    // WordPress: ./script.sh <instance_id> <instance_name> <db_name> <domain> <cms_type> <db_user> <db_pass> <db_host> <db_prefix>
+    // Joomla: ./script.sh <instance_id> <instance_name> <domain> <db_name> <db_user> <db_pass> <db_prefix>
+    if ($cmsType === 'wordpress') {
+        $command = "cd $rootPath && $scriptPath $instanceId $instanceName $dbName $domain $cmsType $dbUser $dbPass $dbHost $dbPrefix 2>&1";
+    } else if ($cmsType === 'joomla') {
+        $command = "cd $rootPath && $scriptPath $instanceId $instanceName $domain $dbName $dbUser $dbPass $dbPrefix 2>&1";
+    } else {
+        // Drupal or other
+        $command = "cd $rootPath && $scriptPath $instanceId $instanceName $domain $dbName $dbUser $dbPass $dbPrefix 2>&1";
+    }
     exec($command, $output, $returnCode);
     
     // Check if instance directory was created (check for CMS-specific config file)
@@ -306,10 +347,22 @@ $app->post('/api/instances/create', function (Request $request, Response $respon
         return $response->withStatus(500)->withHeader('Content-Type', 'application/json');
     }
     
+    // Determine installation URL based on CMS type
+    $installationUrls = [
+        'wordpress' => "http://{$adminSubdomain}/wp-admin/install.php",
+        'joomla' => "http://{$adminSubdomain}/installation/setup",
+        'drupal' => "http://{$adminSubdomain}/install.php"
+    ];
+    
+    $installationUrl = $installationUrls[$cmsType] ?? "http://{$adminSubdomain}";
+    
     $response->getBody()->write(json_encode([
         'success' => true,
         'instance_id' => $instanceId,
         'message' => 'Instance created successfully',
+        'installation_url' => $installationUrl,
+        'admin_url' => "http://{$adminSubdomain}",
+        'frontend_url' => "http://" . ($body['domain'] ?? 'localhost'),
         'details' => implode("\n", $output)
     ]));
     

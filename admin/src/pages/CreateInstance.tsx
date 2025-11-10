@@ -1,13 +1,14 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import toast from 'react-hot-toast';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, CheckCircle, XCircle } from 'lucide-react';
 
 export default function CreateInstance() {
   const { token } = useAuth();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
+  const [isInstanceIdManuallyEdited, setIsInstanceIdManuallyEdited] = useState(false);
   const [formData, setFormData] = useState({
     instance_id: '',
     instance_name: '',
@@ -24,18 +25,55 @@ export default function CreateInstance() {
     max_children: 5
   });
 
+  // Generate slug from instance name
+  const generateSlug = (name: string) => {
+    if (!name) return '';
+    return name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')  // Replace non-alphanumeric with hyphens
+      .replace(/^-+|-+$/g, '')      // Remove leading/trailing hyphens
+      .substring(0, 32);            // Limit length
+  };
+
   // Get CMS-specific settings
   const getCMSDefaults = (cmsType: string) => {
     switch (cmsType) {
       case 'wordpress':
-        return { prefix: 'wp_', contentDir: 'wp-content', script: 'create-instance.sh' };
+        return { prefix: 'wp_', contentDir: 'wp-content', script: 'create-instance.sh', idPrefix: 'wp' };
       case 'joomla':
-        return { prefix: 'jml_', contentDir: 'administrator', script: 'create-joomla-instance.sh' };
+        return { prefix: 'jml_', contentDir: 'administrator', script: 'create-joomla-instance.sh', idPrefix: 'jml' };
       case 'drupal':
-        return { prefix: 'drupal_', contentDir: 'sites', script: 'create-drupal-instance.sh' };
+        return { prefix: 'drupal_', contentDir: 'sites', script: 'create-drupal-instance.sh', idPrefix: 'dpl' };
       default:
-        return { prefix: '', contentDir: '', script: '' };
+        return { prefix: '', contentDir: '', script: '', idPrefix: 'inst' };
     }
+  };
+
+  // Validate instance ID format
+  const isInstanceIdValid = (id: string) => {
+    if (!id) return false;
+    return /^[a-z0-9][a-z0-9-]*[a-z0-9]$/.test(id) && id.length >= 3 && id.length <= 50;
+  };
+
+  // Auto-generate instance ID from instance name
+  useEffect(() => {
+    if (!isInstanceIdManuallyEdited && formData.instance_name && formData.cms_type) {
+      const slug = generateSlug(formData.instance_name);
+      const cmsPrefix = getCMSDefaults(formData.cms_type).idPrefix;
+      const generatedId = slug ? `${cmsPrefix}-${slug}` : '';
+      
+      setFormData(prev => ({
+        ...prev,
+        instance_id: generatedId
+      }));
+    }
+  }, [formData.instance_name, formData.cms_type, isInstanceIdManuallyEdited]);
+
+  // Handle manual instance ID changes
+  const handleInstanceIdChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value.toLowerCase();
+    setFormData(prev => ({ ...prev, instance_id: value }));
+    setIsInstanceIdManuallyEdited(true);
   };
 
   // Get create command for selected CMS
@@ -45,7 +83,15 @@ export default function CreateInstance() {
     const defaults = getCMSDefaults(formData.cms_type);
     const prefix = formData.database_prefix || defaults.prefix;
     
-    return `./${defaults.script} ${formData.instance_id} ${formData.domain} ${formData.database_name} ${formData.database_user} ${formData.database_password} ${prefix}`;
+    // WordPress: <instance_id> <instance_name> <db_name> <domain> <cms_type> <db_user> <db_pass> <db_host> <db_prefix>
+    // Joomla: <instance_id> <instance_name> <domain> <db_name> <db_user> <db_pass> <db_prefix>
+    if (formData.cms_type === 'wordpress') {
+      return `./${defaults.script} ${formData.instance_id} "${formData.instance_name}" ${formData.database_name} ${formData.domain} ${formData.cms_type} ${formData.database_user} ${formData.database_password} ${formData.database_host} ${prefix}`;
+    } else if (formData.cms_type === 'joomla') {
+      return `./${defaults.script} ${formData.instance_id} "${formData.instance_name}" ${formData.domain} ${formData.database_name} ${formData.database_user} ${formData.database_password} ${prefix}`;
+    } else {
+      return `./${defaults.script} ${formData.instance_id} "${formData.instance_name}" ${formData.domain} ${formData.database_name} ${formData.database_user} ${formData.database_password} ${prefix}`;
+    }
   };
 
   const handleCMSTypeChange = (newCmsType: string) => {
@@ -55,6 +101,10 @@ export default function CreateInstance() {
       cms_type: newCmsType,
       database_prefix: defaults.prefix
     });
+    // Reset manual edit flag when CMS type changes to regenerate ID with new prefix
+    if (!isInstanceIdManuallyEdited) {
+      setIsInstanceIdManuallyEdited(false);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -74,10 +124,31 @@ export default function CreateInstance() {
       const data = await response.json();
 
       if (data.success) {
-        toast.success('Instance created successfully!');
-        navigate('/');
+        // Show success message with installation URL
+        const message = (
+          <div>
+            <p className="font-semibold">Instance created successfully!</p>
+            {data.installation_url && (
+              <div className="mt-2 space-y-1">
+                <p className="text-sm">Installation URL:</p>
+                <a 
+                  href={data.installation_url} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="text-sm text-blue-600 hover:underline block"
+                >
+                  {data.installation_url}
+                </a>
+              </div>
+            )}
+          </div>
+        );
+        toast.success(message, { duration: 10000 });
+        
+        // Navigate after a delay to allow user to see the URL
+        setTimeout(() => navigate('/'), 3000);
       } else {
-        toast.error(data.message || 'Failed to create instance');
+        toast.error(data.error || data.message || 'Failed to create instance');
       }
     } catch (error) {
       toast.error('An error occurred');
@@ -100,25 +171,6 @@ export default function CreateInstance() {
         <h1 className="text-3xl font-bold text-gray-900 mb-8">Create New Instance</h1>
 
         <form onSubmit={handleSubmit} className="bg-white shadow-sm border border-gray-200 rounded-md p-8 space-y-6">
-          {/* Instance ID */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Instance ID *
-            </label>
-            <input
-              type="text"
-              value={formData.instance_id}
-              onChange={(e) => setFormData({...formData, instance_id: e.target.value})}
-              pattern="[a-z0-9\-]+"
-              required
-              className="block w-full px-4 py-2.5 rounded border border-gray-300 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-colors"
-              placeholder="wp-client-001"
-            />
-            <p className="mt-1 text-sm text-gray-500">
-              Lowercase letters, numbers, and hyphens only
-            </p>
-          </div>
-
           {/* Instance Name */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -130,8 +182,63 @@ export default function CreateInstance() {
               onChange={(e) => setFormData({...formData, instance_name: e.target.value})}
               required
               className="block w-full px-4 py-2.5 rounded border border-gray-300 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-colors"
-              placeholder="Client Website"
+              placeholder="ACME Corporation Website"
             />
+            <p className="mt-1 text-sm text-gray-500">
+              A friendly name for your instance
+            </p>
+          </div>
+
+          {/* Instance ID */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Instance ID *
+              {formData.instance_id && (
+                <span className="ml-2">
+                  {isInstanceIdValid(formData.instance_id) ? (
+                    <span className="inline-flex items-center text-green-600 text-xs">
+                      <CheckCircle className="w-3 h-3 mr-1" />
+                      Valid
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center text-red-600 text-xs">
+                      <XCircle className="w-3 h-3 mr-1" />
+                      Invalid format
+                    </span>
+                  )}
+                </span>
+              )}
+            </label>
+            <div className="relative">
+              <input
+                type="text"
+                value={formData.instance_id}
+                onChange={handleInstanceIdChange}
+                onFocus={() => setIsInstanceIdManuallyEdited(true)}
+                required
+                className={`block w-full px-4 py-2.5 rounded border ${
+                  formData.instance_id && !isInstanceIdValid(formData.instance_id)
+                    ? 'border-red-500 focus:border-red-500 focus:ring-red-500'
+                    : 'border-gray-300 focus:border-primary-500 focus:ring-primary-500'
+                } focus:ring-1 transition-colors`}
+                placeholder="wp-acme-corporation"
+              />
+              {!isInstanceIdManuallyEdited && formData.instance_name && formData.cms_type && (
+                <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                  <span className="text-gray-400 text-xs bg-white px-1">
+                    Auto-generated
+                  </span>
+                </div>
+              )}
+            </div>
+            <p className="mt-1 text-sm text-gray-500">
+              Used in URLs and directories. Format: lowercase, numbers, hyphens (3-50 chars)
+            </p>
+            {!isInstanceIdValid(formData.instance_id) && formData.instance_id && (
+              <p className="mt-1 text-xs text-red-600">
+                Must start and end with alphanumeric, contain only lowercase letters, numbers, and hyphens
+              </p>
+            )}
           </div>
 
           {/* CMS Type */}
@@ -368,10 +475,10 @@ export default function CreateInstance() {
             </button>
             <button
               type="submit"
-              disabled={loading || !formData.cms_type}
+              disabled={loading || !formData.cms_type || !isInstanceIdValid(formData.instance_id)}
               className="flex-1 px-6 py-3 border border-transparent rounded text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
-              {loading ? 'Creating Instance...' : !formData.cms_type ? 'Select CMS to Continue' : 'Create Instance'}
+              {loading ? 'Creating Instance...' : !formData.cms_type ? 'Select CMS to Continue' : !isInstanceIdValid(formData.instance_id) ? 'Fix Instance ID' : 'Create Instance'}
             </button>
           </div>
             </>

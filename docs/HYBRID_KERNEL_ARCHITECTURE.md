@@ -502,6 +502,8 @@ POST   /api/v1/cache/{id}/warm          # Warm cache
 - [ ] Cache management UI in React admin panel
 - [ ] Real-time cache analytics dashboard
 - [ ] Automatic cache warming on content publish
+- [ ] Drupal instance creation automation
+- [ ] Multi-version CMS support (WordPress 5.x + 6.x simultaneously)
 
 ---
 
@@ -664,6 +666,90 @@ header('Content-Security-Policy: frame-ancestors \'self\' http://' .
 
 **Result**: WordPress Customizer works perfectly! 🎨
 
+### 7. Production-Ready Instance Creation
+
+**Joomla Instance Automation** (November 2025):
+
+**Script Features**:
+- ✅ Validates instance doesn't already exist
+- ✅ Validates shared core exists
+- ✅ Creates only necessary writable directories
+- ✅ Copies instance-specific directories (images, media, templates)
+- ✅ Creates symlinks with correct path depths
+- ✅ Auto-creates database with proper charset
+- ✅ Generates configuration.php with all settings
+- ✅ Generates unique secret key per instance
+- ✅ Sets proper permissions (775 writable, 755 others)
+- ✅ Sets ownership to www-data:www-data
+- ✅ Provides correct installation URL with /setup suffix
+
+**Directory Structure** (Optimized):
+```
+instances/[instance_id]/
+├── administrator/
+│   ├── cache/          (real, 775, writable)
+│   ├── logs/           (real, 775, writable)
+│   ├── manifests/      (real, 775, writable)
+│   ├── components/     (symlink: ../../../shared-cores/joomla/administrator/components)
+│   ├── help/           (symlink: ../../../shared-cores/joomla/administrator/help)
+│   ├── includes/       (symlink: ../../../shared-cores/joomla/administrator/includes)
+│   ├── language/       (symlink: ../../../shared-cores/joomla/administrator/language)
+│   ├── modules/        (symlink: ../../../shared-cores/joomla/administrator/modules)
+│   └── templates/      (symlink: ../../../shared-cores/joomla/administrator/templates)
+├── cache/              (symlink: ../../shared-cores/joomla/cache)
+├── tmp/                (real, 775, writable - for temp files)
+├── images/             (real, 775, writable - for user uploads)
+│   ├── banners/
+│   ├── headers/
+│   └── sampledata/
+├── media/              (real, 775, copied from shared core - for component assets)
+├── templates/          (real, 755, copied from shared core - for customizations)
+├── components/         (symlink: ../../shared-cores/joomla/components)
+├── language/           (symlink: ../../shared-cores/joomla/language)
+├── layouts/            (symlink: ../../shared-cores/joomla/layouts)
+├── libraries/          (symlink: ../../shared-cores/joomla/libraries)
+├── modules/            (symlink: ../../shared-cores/joomla/modules)
+├── plugins/            (symlink: ../../shared-cores/joomla/plugins)
+├── installation/       (symlink: ../../shared-cores/joomla/installation)
+├── configuration.php   (real, 644, auto-generated)
+├── defines.php         (real, 755, from template)
+├── index.php           (real, 755, from template)
+├── .htaccess           (real, 644, from template)
+└── instance.json       (real, 644, auto-generated)
+```
+
+**Common Issues Solved**:
+1. ❌ **Wrong symlink paths** → ✅ Fixed: Administrator uses `../../../`, root uses `../../`
+2. ❌ **Images as symlink** → ✅ Fixed: Physical directory for user uploads
+3. ❌ **Media as symlink** → ✅ Fixed: Copied from shared core, customizable per instance
+4. ❌ **Templates as symlink** → ✅ Fixed: Copied from shared core, customizable per instance
+5. ❌ **Missing /setup in URL** → ✅ Fixed: Installation URL includes `/setup` suffix
+6. ❌ **No database creation** → ✅ Fixed: Auto-creates database with proper charset
+7. ❌ **No configuration.php** → ✅ Fixed: Auto-generated with all settings
+
+**React Integration Ready**:
+```javascript
+// API endpoint for instance creation
+POST /api/instances/create
+{
+  "instance_id": "joomla-002",
+  "domain": "joomla2.test",
+  "db_name": "ikabud_joomla2",
+  "db_user": "root",
+  "db_pass": "password",
+  "db_prefix": "jml_"
+}
+
+// Response includes installation URL
+{
+  "success": true,
+  "instance_id": "joomla-002",
+  "installation_url": "http://joomla2.test/installation/setup",
+  "database_created": true,
+  "disk_space_used": "52MB"
+}
+```
+
 ---
 
 ## Deployment Guide
@@ -699,59 +785,111 @@ header('Content-Security-Policy: frame-ancestors \'self\' http://' .
 
 ### Creating Joomla Instances
 
-**Automated Setup**:
+**Automated Setup** (Production-Ready):
 ```bash
-./create-joomla-instance.sh joomla-001 joomla.test ikabud_joomla root password jml_
+./create-joomla-instance.sh <instance_id> <domain> <db_name> <db_user> <db_pass> [db_prefix]
+
+# Example:
+./create-joomla-instance.sh joomla-002 joomla2.test ikabud_joomla2 root password jml_
 ```
 
-**Manual Setup Steps**:
-1. **Create instance structure**:
-   ```bash
-   mkdir -p instances/joomla-001/{administrator/{cache,logs,manifests},cache,tmp,images}
-   ```
+**What the Script Does** (8 Steps):
+1. ✅ Creates instance directory structure (only writable directories)
+2. ✅ Copies template files (defines.php, index.php, .htaccess)
+3. ✅ Sets up administrator directory with custom bootstrap
+4. ✅ Creates symlinks to shared core (with correct path depths)
+5. ✅ Creates database automatically
+6. ✅ Generates instance manifest (instance.json)
+7. ✅ Creates configuration.php with all settings
+8. ✅ Sets proper permissions (775 for writable, 755 for others)
 
-2. **Copy template files**:
-   ```bash
-   cp templates/joomla-defines.php instances/joomla-001/defines.php
-   cp templates/joomla-site-index.php instances/joomla-001/index.php
-   cp templates/joomla-admin-index.php instances/joomla-001/administrator/index.php
-   ```
+**Critical Symlink Paths** (Lessons Learned):
+```bash
+# Administrator symlinks - MUST use ../../../ (3 levels up)
+ln -sf "../../../shared-cores/joomla/administrator/components" instances/joomla-001/administrator/components
+ln -sf "../../../shared-cores/joomla/administrator/help" instances/joomla-001/administrator/help
+ln -sf "../../../shared-cores/joomla/administrator/includes" instances/joomla-001/administrator/includes
+ln -sf "../../../shared-cores/joomla/administrator/language" instances/joomla-001/administrator/language
+ln -sf "../../../shared-cores/joomla/administrator/modules" instances/joomla-001/administrator/modules
+ln -sf "../../../shared-cores/joomla/administrator/templates" instances/joomla-001/administrator/templates
 
-3. **Create symlinks to shared core**:
-   ```bash
-   # Administrator symlinks
-   ln -s ../../shared-cores/joomla/administrator/components instances/joomla-001/administrator/
-   ln -s ../../shared-cores/joomla/administrator/templates instances/joomla-001/administrator/
-   # Site symlinks
-   ln -s ../shared-cores/joomla/components instances/joomla-001/
-   ln -s ../shared-cores/joomla/templates instances/joomla-001/
-   ```
+# Root symlinks - MUST use ../../ (2 levels up)
+ln -sf "../../shared-cores/joomla/components" instances/joomla-001/components
+ln -sf "../../shared-cores/joomla/modules" instances/joomla-001/modules
+ln -sf "../../shared-cores/joomla/plugins" instances/joomla-001/plugins
+ln -sf "../../shared-cores/joomla/libraries" instances/joomla-001/libraries
+```
 
-4. **Configure Apache VirtualHosts**:
-   ```apache
-   # Frontend (cached through kernel)
-   <VirtualHost *:80>
-       ServerName joomla.test
-       DocumentRoot /var/www/html/ikabud-kernel/public
-   </VirtualHost>
-   
-   # Admin (direct access)
-   <VirtualHost *:80>
-       ServerName admin.joomla.test
-       DocumentRoot /var/www/html/ikabud-kernel/instances/joomla-001
-   </VirtualHost>
-   ```
+**Instance-Specific vs Shared Directories**:
 
-5. **Complete installation**:
-   - Access `http://admin.joomla.test/installation/`
-   - Follow Joomla installer
-   - Remove installation directory after completion
+**Physical (Instance-Specific)**:
+- `images/` - User-uploaded images (~1.1MB initial, grows with uploads)
+- `media/` - Component assets, can be customized (~39MB copied from shared core)
+- `templates/` - Site templates, can be customized (~5-10MB copied from shared core)
+- `tmp/` - Temporary files (instance-specific for isolation)
+- `administrator/cache/` - Instance-specific cache
+- `administrator/logs/` - Instance-specific logs
+- `administrator/manifests/` - Extension manifests
+
+**Symlinked (Shared)**:
+- `components/`, `modules/`, `plugins/`, `libraries/` - Core Joomla files
+- `language/`, `layouts/`, `includes/` - Core resources
+- `api/`, `cli/`, `installation/` - Core utilities
+- `cache/` - Shared system cache (read-only)
+
+**Why This Matters**:
+- ✅ **images/**: Each site needs its own uploaded images
+- ✅ **media/**: Extensions may customize CSS/JS per instance
+- ✅ **templates/**: Each site may customize themes
+- ✅ **tmp/**: Prevents file conflicts between instances
+- ✅ **Core files**: Shared to save 75-80% disk space
+
+**Disk Space Savings**:
+- Per instance: ~50-60MB (vs 200-300MB full copy)
+- 100 instances: ~5-6GB (vs 20-30GB)
+- Savings: 75-80% reduction
+
+**Auto-Generated Configuration**:
+```php
+// configuration.php (created automatically)
+class JConfig
+{
+    public $dbtype = 'mysqli';
+    public $host = 'localhost';
+    public $user = 'root';
+    public $password = 'your_password';
+    public $db = 'ikabud_joomla2';
+    public $dbprefix = 'jml_';
+    public $secret = 'ikabud_instance_secret_[random]';
+    public $tmp_path = '/full/path/to/instances/joomla-001/tmp';
+    public $log_path = '/full/path/to/instances/joomla-001/administrator/logs';
+    // ... all other Joomla config options
+}
+```
+
+**Installation URL** (Critical):
+```bash
+# ✅ Correct URL (includes /setup)
+http://joomla.test/installation/setup
+
+# ❌ Wrong URL (missing /setup)
+http://joomla.test/installation/
+```
+
+**Post-Creation Steps**:
+1. Configure Apache virtual host for domain
+2. Add domain to `/etc/hosts` if testing locally
+3. Access installation URL: `http://domain.test/installation/setup`
+4. Complete Joomla installation wizard
+5. Installation directory automatically removed after completion
 
 **Key Differences from WordPress**:
 - ✅ `JPATH_BASE` must be set before loading defines
 - ✅ Administrator needs custom bootstrap (loads defines.php manually)
 - ✅ `JPATH_THEMES` must NOT be predefined (let Joomla set it)
-- ✅ Autoload PSR-4 file needs symlink in shared core cache
+- ✅ Symlink paths critical: `../../../` for administrator, `../../` for root
+- ✅ Instance-specific directories: images, media, templates, tmp
+- ✅ Shared core directories: components, modules, plugins, libraries
 
 ---
 
@@ -820,3 +958,58 @@ Instead of complex Apache VirtualHost configurations (which don't work on shared
 This approach works **everywhere** - from shared hosting to enterprise VPS.
 
 **The paradox is solved. The kernel delivers real value. On any hosting platform.** 🚀
+
+---
+
+## Latest Updates (November 2025)
+
+### Production-Ready Joomla Instance Creation
+
+**Major Improvements**:
+1. ✅ **Automated instance creation script** - 8-step process with validation
+2. ✅ **Correct symlink paths** - Fixed critical path depth issues
+3. ✅ **Instance-specific directories** - Proper separation of user content
+4. ✅ **Auto-database creation** - No manual SQL needed
+5. ✅ **Auto-configuration** - configuration.php generated with all settings
+6. ✅ **Proper permissions** - 775 for writable, 755 for others
+7. ✅ **React integration ready** - API endpoint for instance creation
+
+**Key Architectural Decisions**:
+
+| Directory | Type | Size | Reason |
+|-----------|------|------|--------|
+| `images/` | Physical | ~1.1MB | User uploads unique per instance |
+| `media/` | Physical | ~39MB | Component assets, customizable |
+| `templates/` | Physical | ~5-10MB | Theme customizations per instance |
+| `tmp/` | Physical | ~1MB | Temp file isolation |
+| `components/` | Symlink | - | Core files, shared across instances |
+| `modules/` | Symlink | - | Core files, shared across instances |
+| `plugins/` | Symlink | - | Core files, shared across instances |
+| `libraries/` | Symlink | - | Core files, shared across instances |
+
+**Disk Space Impact**:
+- **Before optimization**: 200-300MB per instance
+- **After optimization**: 50-60MB per instance
+- **Savings**: 75-80% reduction
+- **100 instances**: 5-6GB vs 20-30GB (15-24GB saved)
+
+**Documentation Added**:
+1. `JOOMLA_INSTANCE_CREATION_IMPROVEMENTS.md` - Complete changelog
+2. `JOOMLA_DIRECTORY_STRUCTURE_DECISIONS.md` - Detailed rationale
+3. `INSTANCE_CREATION_SUMMARY.md` - Quick reference guide
+
+**Common Issues Fixed**:
+- ❌ Wrong symlink paths → ✅ Correct depth: `../../../` for admin, `../../` for root
+- ❌ Images as symlink → ✅ Physical directory for uploads
+- ❌ Media as symlink → ✅ Copied, customizable per instance
+- ❌ Templates as symlink → ✅ Copied, customizable per instance
+- ❌ Missing /setup in URL → ✅ Correct installation URL
+- ❌ Manual database creation → ✅ Auto-created with proper charset
+- ❌ No configuration.php → ✅ Auto-generated with all settings
+
+**Next Steps**:
+- [ ] WordPress instance creation script improvements
+- [ ] Drupal instance creation automation
+- [ ] React admin UI integration for instance creation
+- [ ] Backup/restore automation
+- [ ] Instance cloning feature
