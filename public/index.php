@@ -332,6 +332,11 @@ $app->any('/{path:.*}', function (Request $request, Response $response, array $a
                     define('_JEXEC', 1);
                     require_once $instanceDir . '/includes/defines.php';
                     require_once $instanceDir . '/includes/framework.php';
+                } elseif ($cmsType === 'drupal') {
+                    // Drupal uses its own index.php with DrupalKernel bootstrap
+                    // We don't need to load anything here - the instance's index.php handles it
+                    // Just set a flag so Drupal knows it's running through the kernel
+                    define('IKABUD_DRUPAL_KERNEL', true);
                 }
                 
                 // Load determined extensions after CMS core
