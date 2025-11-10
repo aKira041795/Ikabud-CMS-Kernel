@@ -69,8 +69,10 @@ echo -e "${YELLOW}[4/6]${NC} Creating symlinks to shared core..."
 
 # Symlink administrator directories
 ln -sf "../../$SHARED_CORE/administrator/components" "$INSTANCE_PATH/administrator/components"
+ln -sf "../../$SHARED_CORE/administrator/help" "$INSTANCE_PATH/administrator/help"
 ln -sf "../../$SHARED_CORE/administrator/includes" "$INSTANCE_PATH/administrator/includes"
 ln -sf "../../$SHARED_CORE/administrator/language" "$INSTANCE_PATH/administrator/language"
+ln -sf "../../$SHARED_CORE/administrator/manifests" "$INSTANCE_PATH/administrator/manifests"
 ln -sf "../../$SHARED_CORE/administrator/modules" "$INSTANCE_PATH/administrator/modules"
 ln -sf "../../$SHARED_CORE/administrator/templates" "$INSTANCE_PATH/administrator/templates"
 
@@ -88,6 +90,7 @@ ln -sf "../$SHARED_CORE/api" "$INSTANCE_PATH/api"
 ln -sf "../$SHARED_CORE/cli" "$INSTANCE_PATH/cli"
 ln -sf "../$SHARED_CORE/includes" "$INSTANCE_PATH/includes"
 ln -sf "../$SHARED_CORE/libraries" "$INSTANCE_PATH/libraries"
+ln -sf "../$SHARED_CORE/installation" "$INSTANCE_PATH/installation"
 ln -sf "../$SHARED_CORE/htaccess.txt" "$INSTANCE_PATH/htaccess.txt"
 ln -sf "../$SHARED_CORE/LICENSE.txt" "$INSTANCE_PATH/LICENSE.txt"
 ln -sf "../$SHARED_CORE/README.txt" "$INSTANCE_PATH/README.txt"
