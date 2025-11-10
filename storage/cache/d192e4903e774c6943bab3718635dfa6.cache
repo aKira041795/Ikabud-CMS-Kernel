@@ -1,4 +1,4 @@
-a:6:{s:7:"headers";a:14:{i:0;s:31:"X-Content-Type-Options: nosniff";i:1;s:31:"X-XSS-Protection: 1; mode=block";i:2;s:89:"Set-Cookie: c3dcb113ba9b9f02a522f7a4de3a81b6=tqlo9n342t8gn794ohah4cr0qg; path=/; HttpOnly";i:3;s:27:"x-frame-options: SAMEORIGIN";i:4;s:48:"referrer-policy: strict-origin-when-cross-origin";i:5;s:39:"cross-origin-opener-policy: same-origin";i:6;s:38:"Content-Type: text/html; charset=utf-8";i:7;s:38:"Expires: Wed, 17 Aug 2005 00:00:00 GMT";i:8;s:44:"Last-Modified: Mon, 10 Nov 2025 05:00:39 GMT";i:9;s:77:"Cache-Control: no-store, no-cache, must-revalidate, post-check=0, pre-check=0";i:10;s:16:"Pragma: no-cache";i:11;s:13:"X-Cache: MISS";i:12;s:42:"X-Cache-Instance: jml-joomla-the-beginning";i:13;s:27:"X-Powered-By: Ikabud-Kernel";}s:4:"body";s:7501:"<!DOCTYPE html>
+a:6:{s:7:"headers";a:14:{i:0;s:31:"X-Content-Type-Options: nosniff";i:1;s:31:"X-XSS-Protection: 1; mode=block";i:2;s:89:"Set-Cookie: c3dcb113ba9b9f02a522f7a4de3a81b6=eka0o733bj5lru75q84ecqnhhr; path=/; HttpOnly";i:3;s:27:"x-frame-options: SAMEORIGIN";i:4;s:48:"referrer-policy: strict-origin-when-cross-origin";i:5;s:39:"cross-origin-opener-policy: same-origin";i:6;s:38:"Content-Type: text/html; charset=utf-8";i:7;s:38:"Expires: Wed, 17 Aug 2005 00:00:00 GMT";i:8;s:44:"Last-Modified: Mon, 10 Nov 2025 08:06:45 GMT";i:9;s:77:"Cache-Control: no-store, no-cache, must-revalidate, post-check=0, pre-check=0";i:10;s:16:"Pragma: no-cache";i:11;s:13:"X-Cache: MISS";i:12;s:42:"X-Cache-Instance: jml-joomla-the-beginning";i:13;s:27:"X-Powered-By: Ikabud-Kernel";}s:4:"body";s:7501:"<!DOCTYPE html>
 <html lang="en-gb" dir="ltr">
 
 <head>
@@ -27,7 +27,7 @@ a:6:{s:7:"headers";a:14:{i:0;s:31:"X-Content-Type-Options: nosniff";i:1;s:31:"X-
 	}</style>
 
     <script src="/media/mod_menu/js/menu.min.js?306cea" type="module"></script>
-	<script type="application/json" class="joomla-script-options new">{"joomla.jtext":{"JSHOWPASSWORD":"Show Password","JHIDEPASSWORD":"Hide Password","ERROR":"Error","MESSAGE":"Message","NOTICE":"Notice","WARNING":"Warning","JCLOSE":"Close","JOK":"OK","JOPEN":"Open"},"system.paths":{"root":"","rootFull":"http://phoenix.test/","base":"","baseFull":"http://phoenix.test/"},"csrf.token":"ec5bbd2b0ac969972a0c68d576c2f901","system.keepalive":{"interval":840000,"uri":"/component/ajax?format=json"}}</script>
+	<script type="application/json" class="joomla-script-options new">{"joomla.jtext":{"JSHOWPASSWORD":"Show Password","JHIDEPASSWORD":"Hide Password","ERROR":"Error","MESSAGE":"Message","NOTICE":"Notice","WARNING":"Warning","JCLOSE":"Close","JOK":"OK","JOPEN":"Open"},"system.paths":{"root":"","rootFull":"http://phoenix.test/","base":"","baseFull":"http://phoenix.test/"},"csrf.token":"d28cbfed74902c7b723696fedeacdedd","system.keepalive":{"interval":840000,"uri":"/component/ajax?format=json"}}</script>
 	<script src="/media/system/js/core.min.js?2cb912"></script>
 	<script src="/media/templates/site/cassiopeia/js/template.min.js?306cea" type="module"></script>
 	<script src="/media/system/js/keepalive.min.js?08e025" type="module"></script>
@@ -146,7 +146,7 @@ a:6:{s:7:"headers";a:14:{i:0;s:31:"X-Content-Type-Options: nosniff";i:1;s:31:"X-
         <input type="hidden" name="option" value="com_users">
         <input type="hidden" name="task" value="user.login">
         <input type="hidden" name="return" value="aHR0cDovL3Bob2VuaXgudGVzdC8=">
-        <input type="hidden" name="ec5bbd2b0ac969972a0c68d576c2f901" value="1">    </div>
+        <input type="hidden" name="d28cbfed74902c7b723696fedeacdedd" value="1">    </div>
     </form>
     </div>
 </div>
@@ -162,4 +162,4 @@ a:6:{s:7:"headers";a:14:{i:0;s:31:"X-Content-Type-Options: nosniff";i:1;s:31:"X-
 </body>
 
 </html>
-";s:9:"timestamp";i:1762750839;s:17:"extensions_loaded";a:0:{}s:15:"extension_count";i:0;s:8:"cms_type";s:6:"joomla";}
+";s:9:"timestamp";i:1762762005;s:17:"extensions_loaded";a:0:{}s:15:"extension_count";i:0;s:8:"cms_type";s:6:"joomla";}

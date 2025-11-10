@@ -402,37 +402,81 @@ $app->any('/{path:.*}', function (Request $request, Response $response, array $a
     }
     
     // Capture and cache if needed
-    if ($shouldCacheResponse && ob_get_level() > 0) {
-        $body = ob_get_contents();
-        ob_end_clean();
-        
-        // Add X-Cache: MISS header for first request
-        header('X-Cache: MISS');
-        header('X-Cache-Instance: ' . $instanceId);
-        header('X-Powered-By: Ikabud-Kernel');
-        
-        // Only cache if there were no errors (check for PHP warnings/errors in output)
-        if ($body !== false && is_string($body) && !preg_match('/<b>(Warning|Error|Notice|Fatal error)<\/b>/', $body)) {
-            // Store in cache with plugin metadata
-            $headers = headers_list();
-            $cacheData = [
-                'headers' => $headers,
-                'body' => $body,
-                'timestamp' => time()
-            ];
+    if ($shouldCacheResponse) {
+        // Check if Drupal response object is available
+        if (isset($GLOBALS['ikabud_drupal_response'])) {
+            // Handle Drupal's Symfony Response object
+            $drupalResponse = $GLOBALS['ikabud_drupal_response'];
+            $body = $drupalResponse->getContent();
             
-            // Add extension loading stats if available
-            if (isset($conditionalLoader)) {
-                $cacheData['extensions_loaded'] = $conditionalLoader->getLoadedExtensions();
-                $cacheData['extension_count'] = count($conditionalLoader->getLoadedExtensions());
-                $cacheData['cms_type'] = $conditionalLoader->getCMSType();
+            // Override Drupal's cache headers
+            $drupalResponse->headers->set('X-Cache', 'MISS');
+            $drupalResponse->headers->set('X-Cache-Instance', $instanceId);
+            $drupalResponse->headers->set('X-Powered-By', 'Ikabud-Kernel');
+            $drupalResponse->headers->set('Cache-Control', 'public, max-age=3600');
+            $drupalResponse->headers->remove('Pragma');
+            $drupalResponse->headers->remove('Expires');
+            
+            // Cache the response
+            if ($body !== false && is_string($body) && !empty($body)) {
+                $cacheData = [
+                    'headers' => [],
+                    'body' => $body,
+                    'timestamp' => time(),
+                    'cms_type' => 'drupal'
+                ];
+                
+                // Convert Symfony headers to array
+                foreach ($drupalResponse->headers->all() as $name => $values) {
+                    foreach ($values as $value) {
+                        $cacheData['headers'][] = $name . ': ' . $value;
+                    }
+                }
+                
+                $cache->set($instanceId, $requestUri, $cacheData);
             }
             
-            $cache->set($instanceId, $requestUri, $cacheData);
+            // Send the response
+            $drupalResponse->send();
+            
+        } elseif (ob_get_level() > 0) {
+            // Handle WordPress/Joomla output buffering
+            $body = ob_get_contents();
+            ob_end_clean();
+            
+            // Override CMS cache headers for kernel caching
+            header_remove('Cache-Control');
+            header_remove('Pragma');
+            header_remove('Expires');
+            
+            // Add kernel cache headers
+            header('X-Cache: MISS');
+            header('X-Cache-Instance: ' . $instanceId);
+            header('X-Powered-By: Ikabud-Kernel');
+            header('Cache-Control: public, max-age=3600');
+            
+            // Only cache if there were no errors
+            if ($body !== false && is_string($body) && !preg_match('/<b>(Warning|Error|Notice|Fatal error)<\/b>/', $body)) {
+                $headers = headers_list();
+                $cacheData = [
+                    'headers' => $headers,
+                    'body' => $body,
+                    'timestamp' => time()
+                ];
+                
+                // Add extension loading stats if available
+                if (isset($conditionalLoader)) {
+                    $cacheData['extensions_loaded'] = $conditionalLoader->getLoadedExtensions();
+                    $cacheData['extension_count'] = count($conditionalLoader->getLoadedExtensions());
+                    $cacheData['cms_type'] = $conditionalLoader->getCMSType();
+                }
+                
+                $cache->set($instanceId, $requestUri, $cacheData);
+            }
+            
+            // Output the captured content
+            echo $body;
         }
-        
-        // Output the captured content
-        echo $body;
     }
     
     exit;
