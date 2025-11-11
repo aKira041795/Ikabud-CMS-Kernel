@@ -18,8 +18,9 @@ define('RED', "\033[0;31m");
 define('NC', "\033[0m"); // No Color
 
 if ($argc < 7) {
-    echo RED . "Usage: $argv[0] <instance_id> <instance_name> <domain> <db_name> <db_user> <db_pass> [db_prefix]" . NC . "\n";
+    echo RED . "Usage: $argv[0] <instance_id> <instance_name> <domain> <db_name> <db_user> <db_pass> [db_prefix] [joomla_version]" . NC . "\n";
     echo "Example: $argv[0] jml-shop-001 'My Joomla Shop' shop.example.com ikabud_joomla root password jml_\n";
+    echo "         $argv[0] jml-shop-002 'My Joomla 5 Shop' shop2.example.com ikabud_joomla root password jml_ joomla5\n";
     exit(1);
 }
 
@@ -30,16 +31,19 @@ $dbName = $argv[4];
 $dbUser = $argv[5];
 $dbPass = $argv[6];
 $dbPrefix = $argv[7] ?? 'jml_';
+$joomlaVersion = $argv[8] ?? 'joomla'; // Default to joomla (v4.4.14)
 
 $rootPath = dirname(__DIR__);
 $instancePath = "$rootPath/instances/$instanceId";
-$sharedCore = "$rootPath/shared-cores/joomla";
+$sharedCore = "$rootPath/shared-cores/$joomlaVersion";
+$sharedCoreRelative = "shared-cores/$joomlaVersion"; // For symlinks
 $secretKey = "ikabud_{$instanceId}_secret_" . bin2hex(random_bytes(16));
 
 echo YELLOW . "Creating Joomla instance: $instanceId" . NC . "\n";
 echo "Instance Name: $instanceName\n";
 echo "Domain: $domain\n";
-echo "Database: $dbName\n\n";
+echo "Database: $dbName\n";
+echo "Joomla Version: $joomlaVersion\n\n";
 
 // Validate instance doesn't exist
 if (is_dir($instancePath)) {
@@ -87,23 +91,26 @@ echo GREEN . "✓" . NC . " Administrator setup complete\n";
 // Step 4: Create symlinks to shared core
 echo YELLOW . "[4/9]" . NC . " Creating symlinks to shared Joomla core...\n";
 
-// Administrator symlinks (../../../ - three levels up)
+// Administrator symlinks (../../../ - three levels up from administrator/)
 $adminSymlinks = [
-    'components', 'help', 'includes', 'language', 'modules', 'templates'
+    'components', 'help', 'includes', 'language', 'manifests', 'modules', 'templates'
 ];
 foreach ($adminSymlinks as $item) {
-    symlink("../../../$sharedCore/administrator/$item", "$instancePath/administrator/$item");
+    symlink("../../../$sharedCoreRelative/administrator/$item", "$instancePath/administrator/$item");
 }
 
-// Root level symlinks (../../ - two levels up)
+// Root level symlinks (../../ - two levels up from instance root)
 $rootSymlinks = [
     'api', 'cache', 'cli', 'components', 'includes', 'language',
-    'layouts', 'libraries', 'modules', 'plugins', 'installation',
+    'layouts', 'libraries', 'modules', 'plugins',
     'htaccess.txt', 'LICENSE.txt', 'README.txt', 'robots.txt.dist', 'web.config.txt'
 ];
 foreach ($rootSymlinks as $item) {
-    @symlink("../../$sharedCore/$item", "$instancePath/$item");
+    @symlink("../../$sharedCoreRelative/$item", "$instancePath/$item");
 }
+
+// Copy installation directory (not symlink) so it can be removed after setup
+recursiveCopy("$sharedCore/installation", "$instancePath/installation");
 
 // Copy media and templates (instance-specific)
 function recursiveCopy($src, $dst) {
@@ -124,7 +131,29 @@ function recursiveCopy($src, $dst) {
 recursiveCopy("$sharedCore/media", "$instancePath/media");
 recursiveCopy("$sharedCore/templates", "$instancePath/templates");
 
-echo GREEN . "✓" . NC . " Symlinks created\n";
+// Copy default images from shared core
+$imagesToCopy = glob("$sharedCore/images/*.{png,html}", GLOB_BRACE);
+foreach ($imagesToCopy as $image) {
+    $filename = basename($image);
+    @copy($image, "$instancePath/images/$filename");
+}
+
+// Copy banner, header, and sampledata images
+foreach (['banners', 'headers', 'sampledata'] as $subdir) {
+    $sourceDir = "$sharedCore/images/$subdir";
+    $destDir = "$instancePath/images/$subdir";
+    if (is_dir($sourceDir)) {
+        $files = glob("$sourceDir/*");
+        foreach ($files as $file) {
+            if (is_file($file)) {
+                $filename = basename($file);
+                @copy($file, "$destDir/$filename");
+            }
+        }
+    }
+}
+
+echo GREEN . "✓" . NC . " Symlinks and files copied\n";
 
 // Step 5: Create database
 echo YELLOW . "[5/9]" . NC . " Creating database...\n";

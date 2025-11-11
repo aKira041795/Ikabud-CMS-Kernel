@@ -14,8 +14,9 @@ NC='\033[0m' # No Color
 
 # Check arguments
 if [ "$#" -lt 6 ]; then
-    echo -e "${RED}Usage: $0 <instance_id> <instance_name> <domain> <db_name> <db_user> <db_pass> [db_prefix]${NC}"
+    echo -e "${RED}Usage: $0 <instance_id> <instance_name> <domain> <db_name> <db_user> <db_pass> [db_prefix] [joomla_version]${NC}"
     echo "Example: $0 joomla-002 'My Joomla Site' joomla2.test ikabud_joomla2 root password jml_"
+    echo "         $0 joomla-003 'My Joomla 5 Site' joomla3.test ikabud_joomla3 root password jml_ joomla5"
     exit 1
 fi
 
@@ -30,9 +31,10 @@ DB_NAME="$4"
 DB_USER="$5"
 DB_PASS="$6"
 DB_PREFIX="${7:-jml_}"
+JOOMLA_VERSION="${8:-joomla}"  # Default to joomla (v4.4.14)
 
 INSTANCE_PATH="instances/$INSTANCE_ID"
-SHARED_CORE="shared-cores/joomla"
+SHARED_CORE="shared-cores/$JOOMLA_VERSION"
 SECRET_KEY="ikabud_${INSTANCE_ID}_secret_$(openssl rand -hex 16)"
 
 # Validate instance doesn't already exist
@@ -51,6 +53,7 @@ echo -e "${YELLOW}Creating Joomla instance: $INSTANCE_ID${NC}"
 echo -e "Instance Name: $INSTANCE_NAME"
 echo -e "Domain: $DOMAIN"
 echo -e "Database: $DB_NAME"
+echo -e "Joomla Version: $JOOMLA_VERSION"
 
 # Step 1: Create instance directory structure
 echo -e "${YELLOW}[1/9]${NC} Creating instance directory structure..."
@@ -127,12 +130,14 @@ ln -sf "../../$SHARED_CORE/api" "$INSTANCE_PATH/api"
 ln -sf "../../$SHARED_CORE/cli" "$INSTANCE_PATH/cli"
 ln -sf "../../$SHARED_CORE/includes" "$INSTANCE_PATH/includes"
 ln -sf "../../$SHARED_CORE/libraries" "$INSTANCE_PATH/libraries"
-ln -sf "../../$SHARED_CORE/installation" "$INSTANCE_PATH/installation"
 ln -sf "../../$SHARED_CORE/htaccess.txt" "$INSTANCE_PATH/htaccess.txt"
 ln -sf "../../$SHARED_CORE/LICENSE.txt" "$INSTANCE_PATH/LICENSE.txt"
 ln -sf "../../$SHARED_CORE/README.txt" "$INSTANCE_PATH/README.txt"
 ln -sf "../../$SHARED_CORE/robots.txt.dist" "$INSTANCE_PATH/robots.txt.dist"
 ln -sf "../../$SHARED_CORE/web.config.txt" "$INSTANCE_PATH/web.config.txt"
+
+# Copy installation directory (not symlink) so it can be removed after setup
+cp -r "$SHARED_CORE/installation" "$INSTANCE_PATH/installation"
 
 echo -e "${GREEN}✓${NC} Symlinks created"
 

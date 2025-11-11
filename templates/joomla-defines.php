@@ -22,18 +22,18 @@ $instanceDir = __DIR__;
 
 // Shared core paths - point to shared Joomla core
 $sharedCore = dirname(dirname($instanceDir)) . '/shared-cores/joomla';
-\define('JPATH_LIBRARIES', $sharedCore . '/libraries');
-\define('JPATH_PLUGINS', $sharedCore . '/plugins');
-// Don't define JPATH_THEMES - let Joomla set it based on context (site vs admin)
+\defined('JPATH_LIBRARIES') || \define('JPATH_LIBRARIES', $sharedCore . '/libraries');
+\defined('JPATH_PLUGINS') || \define('JPATH_PLUGINS', $sharedCore . '/plugins');
+\defined('JPATH_THEMES') || \define('JPATH_THEMES', $instanceDir . '/templates');
 
 // Instance-specific paths - these must be writable
-\define('JPATH_ADMINISTRATOR', $instanceDir . '/administrator');
-\define('JPATH_CACHE', $instanceDir . '/administrator/cache');
-\define('JPATH_MANIFESTS', $instanceDir . '/administrator/manifests');
+\defined('JPATH_ADMINISTRATOR') || \define('JPATH_ADMINISTRATOR', $instanceDir . '/administrator');
+\defined('JPATH_CACHE') || \define('JPATH_CACHE', $instanceDir . '/administrator/cache');
+\defined('JPATH_MANIFESTS') || \define('JPATH_MANIFESTS', $instanceDir . '/administrator/manifests');
 
-// Installation path - point to non-existent directory to prevent redirect
-\define('JPATH_INSTALLATION', $instanceDir . '/installation');
+// Installation path - point to instance directory
+\defined('JPATH_INSTALLATION') || \define('JPATH_INSTALLATION', $instanceDir . '/installation');
 
 // API and CLI paths - shared from core
-\define('JPATH_API', $sharedCore . '/api');
-\define('JPATH_CLI', $sharedCore . '/cli');
+\defined('JPATH_API') || \define('JPATH_API', $sharedCore . '/api');
+\defined('JPATH_CLI') || \define('JPATH_CLI', $sharedCore . '/cli');
