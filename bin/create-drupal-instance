@@ -18,8 +18,9 @@ define('RED', "\033[0;31m");
 define('NC', "\033[0m"); // No Color
 
 if ($argc < 7) {
-    echo RED . "Usage: $argv[0] <instance_id> <instance_name> <domain> <db_name> <db_user> <db_pass> [db_prefix]" . NC . "\n";
+    echo RED . "Usage: $argv[0] <instance_id> <instance_name> <domain> <db_name> <db_user> <db_pass> [db_prefix] [drupal_version]" . NC . "\n";
     echo "Example: $argv[0] dpl-shop-001 'My Drupal Shop' shop.example.com ikabud_drupal root password drupal_\n";
+    echo "         $argv[0] dpl-shop-002 'My Drupal 11 Shop' shop2.example.com ikabud_drupal root password drupal_ drupal11\n";
     exit(1);
 }
 
@@ -30,16 +31,18 @@ $dbName = $argv[4];
 $dbUser = $argv[5];
 $dbPass = $argv[6];
 $dbPrefix = $argv[7] ?? '';
+$drupalVersion = $argv[8] ?? 'drupal'; // Default to drupal (v9.5.11)
 
 $rootPath = dirname(__DIR__);
 $instancePath = "$rootPath/instances/$instanceId";
-$sharedCore = "$rootPath/shared-cores/drupal";
+$sharedCore = "$rootPath/shared-cores/$drupalVersion";
 $hashSalt = bin2hex(random_bytes(32));
 
 echo YELLOW . "Creating Drupal instance: $instanceId" . NC . "\n";
 echo "Instance Name: $instanceName\n";
 echo "Domain: $domain\n";
-echo "Database: $dbName\n\n";
+echo "Database: $dbName\n";
+echo "Drupal Version: $drupalVersion\n\n";
 
 // Validate instance doesn't exist
 if (is_dir($instancePath)) {
@@ -91,7 +94,7 @@ $coreSymlinks = [
 ];
 
 foreach ($coreSymlinks as $item) {
-    $relativeTarget = "../../shared-cores/drupal/$item";
+    $relativeTarget = "../../shared-cores/$drupalVersion/$item";
     @symlink($relativeTarget, "$instancePath/$item");
 }
 
@@ -99,7 +102,7 @@ foreach ($coreSymlinks as $item) {
 mkdir("$instancePath/core", 0755);
 
 // Create wrapper install.php that sets correct root before loading shared core installer
-$coreInstallContent = <<<'COREINSTALL'
+$coreInstallContent = <<<COREINSTALL
 <?php
 /**
  * Drupal installer wrapper for Ikabud Kernel instance
@@ -115,7 +118,7 @@ $coreInstallContent = <<<'COREINSTALL'
 
 // Now include the actual Drupal installer from shared core
 // It will do chdir('..') which takes us from /core to instance root
-require_once __DIR__ . '/../../../shared-cores/drupal/core/install.php';
+require_once __DIR__ . '/../../../shared-cores/$drupalVersion/core/install.php';
 
 COREINSTALL;
 
@@ -129,7 +132,7 @@ foreach ($coreItems as $item) {
     if ($item === '.' || $item === '..' || $item === 'install.php') {
         continue;
     }
-    $target = "../../../shared-cores/drupal/core/$item";
+    $target = "../../../shared-cores/$drupalVersion/core/$item";
     @symlink($target, "$instancePath/core/$item");
 }
 
@@ -373,9 +376,21 @@ try {
 // Step 9: Install Drupal using Drush
 echo YELLOW . "[9/9]" . NC . " Installing Drupal via Drush...\n";
 $drushPath = "$sharedCore/vendor/bin/drush";
+
 if (file_exists($drushPath)) {
+    // Check if drush is executable
+    if (!is_executable($drushPath)) {
+        chmod($drushPath, 0755);
+        echo "   Made Drush executable\n";
+    }
+    
+    // Check PHP CLI availability
+    $phpPath = trim(shell_exec('which php') ?: PHP_BINARY);
+    echo "   Using PHP: $phpPath\n";
+    echo "   Using Drush: $drushPath\n";
+    
     $dbUrl = "mysql://$dbUser:$dbPass@localhost/$dbName";
-    $installCmd = "cd '$instancePath' && '$drushPath' site:install standard " .
+    $installCmd = "cd '$instancePath' && '$phpPath' '$drushPath' site:install standard " .
                   "--db-url='$dbUrl' " .
                   "--site-name='$instanceName' " .
                   "--account-name=admin " .
@@ -384,16 +399,24 @@ if (file_exists($drushPath)) {
                   "--yes 2>&1";
     
     echo "   Installing Drupal (this may take 2-3 minutes)...\n";
+    echo "   Command: cd '$instancePath' && drush site:install...\n";
+    
     exec($installCmd, $installOutput, $installReturn);
     
     if ($installReturn === 0) {
         echo GREEN . "✓" . NC . " Drupal installed successfully\n";
     } else {
-        echo YELLOW . "⚠" . NC . " Drupal installation completed with warnings\n";
-        echo "   You can complete installation manually at: http://admin.$domain/core/install.php\n";
+        echo RED . "✗" . NC . " Drupal installation failed (exit code: $installReturn)\n";
+        echo YELLOW . "   Output:\n";
+        foreach ($installOutput as $line) {
+            echo "   " . $line . "\n";
+        }
+        echo "\n";
+        echo YELLOW . "   Complete installation manually at: http://admin.$domain/core/install.php" . NC . "\n";
     }
 } else {
-    echo YELLOW . "⚠" . NC . " Drush not found. Install manually at: http://admin.$domain/core/install.php\n";
+    echo YELLOW . "⚠" . NC . " Drush not found at: $drushPath\n";
+    echo YELLOW . "   Install Drupal manually at: http://admin.$domain/core/install.php" . NC . "\n";
 }
 
 // Summary
