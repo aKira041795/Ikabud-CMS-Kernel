@@ -220,6 +220,43 @@ CREATE TABLE IF NOT EXISTS `dsl_snippets` (
 -- USER & AUTHENTICATION TABLES
 -- ============================================================================
 
+-- Admin users (for React admin panel)
+CREATE TABLE IF NOT EXISTS `admin_users` (
+  `id` INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  `username` VARCHAR(50) NOT NULL UNIQUE,
+  `password` VARCHAR(255) NOT NULL,
+  `full_name` VARCHAR(100) DEFAULT NULL,
+  `email` VARCHAR(100) DEFAULT NULL,
+  `role` ENUM('admin', 'manager', 'viewer') DEFAULT 'viewer',
+  `permissions` JSON DEFAULT NULL,
+  `status` ENUM('active', 'inactive') DEFAULT 'active',
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX `idx_username` (`username`),
+  INDEX `idx_status` (`status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Admin sessions (JWT token storage)
+CREATE TABLE IF NOT EXISTS `admin_sessions` (
+  `id` INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  `user_id` INT NOT NULL,
+  `token` VARCHAR(512) NOT NULL UNIQUE,
+  `expires_at` DATETIME NOT NULL,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX `idx_token` (`token`),
+  INDEX `idx_expires` (`expires_at`),
+  FOREIGN KEY (`user_id`) REFERENCES `admin_users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Login attempts (for rate limiting)
+CREATE TABLE IF NOT EXISTS `login_attempts` (
+  `id` INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  `ip_address` VARCHAR(45) NOT NULL,
+  `username` VARCHAR(100) DEFAULT NULL,
+  `attempted_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX `idx_ip_time` (`ip_address`, `attempted_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- Users (kernel-level authentication)
 CREATE TABLE IF NOT EXISTS `users` (
   `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -254,6 +291,27 @@ CREATE TABLE IF NOT EXISTS `api_tokens` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================================================
+-- VIRTUAL PROCESSES
+-- ============================================================================
+
+-- Virtual processes (instance process tracking)
+CREATE TABLE IF NOT EXISTS `virtual_processes` (
+  `id` INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  `instance_id` VARCHAR(64) NOT NULL UNIQUE,
+  `virtual_pid` VARCHAR(20) NOT NULL,
+  `status` ENUM('running', 'stopped', 'error') DEFAULT 'running',
+  `started_at` TIMESTAMP NULL,
+  `stopped_at` TIMESTAMP NULL,
+  `last_activity` TIMESTAMP NULL,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX `idx_instance_id` (`instance_id`),
+  INDEX `idx_status` (`status`),
+  INDEX `idx_virtual_pid` (`virtual_pid`),
+  FOREIGN KEY (`instance_id`) REFERENCES `instances` (`instance_id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================================================
 -- INITIAL DATA
 -- ============================================================================
 
@@ -269,9 +327,13 @@ INSERT INTO `kernel_config` (`key`, `value`, `type`, `description`, `is_system`)
 ('dsl.cache_ttl', '3600', 'integer', 'DSL cache TTL in seconds', FALSE),
 ('routing.default_cms', 'native', 'string', 'Default CMS for root route', FALSE);
 
--- Insert default admin user (password: admin123 - CHANGE IN PRODUCTION!)
+-- Insert default admin user for React admin panel (password: Ikabud@2024#Secure - CHANGE IN PRODUCTION!)
+INSERT INTO `admin_users` (`username`, `password`, `full_name`, `email`, `role`, `permissions`, `status`) VALUES
+('admin', '$2y$10$Gq3/x4ZKLM/emjYlQSNXme2IdPrygpmPZAD4.wAhmR7uJIqPJrc9i', 'System Administrator', 'admin@ikabud-kernel.local', 'admin', JSON_ARRAY('*'), 'active');
+
+-- Insert default kernel-level user (password: Ikabud@2024#Secure - CHANGE IN PRODUCTION!)
 INSERT INTO `users` (`username`, `email`, `password_hash`, `display_name`, `role`) VALUES
-('admin', 'admin@ikabud-kernel.local', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Administrator', 'admin');
+('admin', 'admin@ikabud-kernel.local', '$2y$10$Gq3/x4ZKLM/emjYlQSNXme2IdPrygpmPZAD4.wAhmR7uJIqPJrc9i', 'Administrator', 'admin');
 
 -- Insert default DSL snippets
 INSERT INTO `dsl_snippets` (`snippet_name`, `snippet_code`, `description`, `category`, `is_system`) VALUES

@@ -257,8 +257,38 @@ file_put_contents("$instancePath/wp-config.php", $wpConfig);
 chmod("$instancePath/wp-config.php", 0644);
 echo GREEN . "✓" . NC . " wp-config.php created\n";
 
-// Step 4: Create instance manifest
-echo YELLOW . "[4/6]" . NC . " Creating instance manifest...\n";
+// Step 4: Copy .htaccess and MU plugins
+echo YELLOW . "[4/6]" . NC . " Setting up CORS and cache configuration...\n";
+
+// Copy .htaccess template
+$htaccessTemplate = "$rootPath/templates/instance.htaccess";
+if (file_exists($htaccessTemplate)) {
+    copy($htaccessTemplate, "$instancePath/.htaccess");
+    echo GREEN . "✓" . NC . " Copied .htaccess with CORS configuration\n";
+} else {
+    echo YELLOW . "⚠" . NC . " .htaccess template not found (skipping)\n";
+}
+
+// Copy CORS plugin to mu-plugins
+$corsPlugin = "$rootPath/templates/ikabud-cors.php";
+if (file_exists($corsPlugin)) {
+    copy($corsPlugin, "$instancePath/wp-content/mu-plugins/ikabud-cors.php");
+    echo GREEN . "✓" . NC . " Installed CORS handler plugin (mu-plugins)\n";
+} else {
+    echo YELLOW . "⚠" . NC . " CORS plugin template not found (skipping)\n";
+}
+
+// Copy cache invalidation plugin to mu-plugins
+$cachePlugin = "$rootPath/templates/ikabud-cache-invalidation.php";
+if (file_exists($cachePlugin)) {
+    copy($cachePlugin, "$instancePath/wp-content/mu-plugins/ikabud-cache-invalidation.php");
+    echo GREEN . "✓" . NC . " Installed cache invalidation plugin (mu-plugins)\n";
+} else {
+    echo YELLOW . "⚠" . NC . " Cache invalidation plugin template not found (skipping)\n";
+}
+
+// Step 5: Create instance manifest
+echo YELLOW . "[5/6]" . NC . " Creating instance manifest...\n";
 $manifest = [
     'instance_id' => $instanceId,
     'instance_name' => $instanceName,
@@ -278,8 +308,8 @@ $manifest = [
 file_put_contents("$instancePath/instance.json", json_encode($manifest, JSON_PRETTY_PRINT));
 echo GREEN . "✓" . NC . " Instance manifest created\n";
 
-// Step 5: Create database
-echo YELLOW . "[5/6]" . NC . " Creating database...\n";
+// Step 6: Create database
+echo YELLOW . "[6/7]" . NC . " Creating database...\n";
 try {
     $pdo = new PDO("mysql:host=$dbHost", $dbUser, $dbPass);
     $pdo->exec("CREATE DATABASE IF NOT EXISTS `$dbName` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
@@ -288,8 +318,8 @@ try {
     echo YELLOW . "⚠" . NC . " Database creation failed or already exists: " . $e->getMessage() . "\n";
 }
 
-// Step 6: Register as process
-echo YELLOW . "[6/6]" . NC . " Registering instance as process...\n";
+// Step 7: Register as process
+echo YELLOW . "[7/7]" . NC . " Registering instance as process...\n";
 if (file_exists("$rootPath/bin/register-instance-process")) {
     passthru("$rootPath/bin/register-instance-process '$instanceId' '$instanceName' '$cmsType'");
 } else {
