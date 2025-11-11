@@ -57,18 +57,24 @@ const initRotate = image => {
       rotate(parseInt(target.value, 10), image);
       target.value = 0;
       // Deselect all buttons
-      document.querySelectorAll('#jform_rotate_distinct label').forEach(element => element.classList.remove('active', 'focus'));
+      [].slice.call(document.querySelectorAll('#jform_rotate_distinct label')).forEach(element => {
+        element.classList.remove('active');
+        element.classList.remove('focus');
+      });
     });
 
     // The 90 degree rotate buttons listeners
-    document.querySelectorAll('#jform_rotate_distinct [type=radio]').forEach(element => {
+    [].slice.call(document.querySelectorAll('#jform_rotate_distinct [type=radio]')).forEach(element => {
       element.addEventListener('click', ({
         target
       }) => {
         rotate(parseInt(target.value, 10), image);
 
         // Deselect all buttons
-        document.querySelectorAll('#jform_rotate_distinct label').forEach(el => el.classList.remove('active', 'focus'));
+        [].slice.call(document.querySelectorAll('#jform_rotate_distinct label')).forEach(el => {
+          el.classList.remove('active');
+          el.classList.remove('focus');
+        });
       });
     });
     activated = true;
@@ -84,7 +90,7 @@ window.addEventListener('media-manager-edit-init', () => {
         resolve();
       });
     },
-    Deactivate(/* image */
+    Deactivate( /* image */
     ) {
       return new Promise(resolve => {
         resolve();

@@ -554,7 +554,7 @@
         // Sanity check for browser support (object expected).
         // When using iFrame uploads, responses must be returned as a string.
         if (typeof response === 'string') {
-          response = JSON.parse(response);
+          response = $.parseJSON(response);
         }
 
         // Prior to invoking the response's commands, verify that they can be
@@ -1333,20 +1333,7 @@
       const settings = response.settings || ajax.settings || drupalSettings;
 
       // Parse response.data into an element collection.
-      const parseHTML = (htmlString) => {
-        const fragment = document.createDocumentFragment();
-        // Create a temporary div element
-        const tempDiv = fragment.appendChild(document.createElement('div'));
-
-        // Set the innerHTML of the div to the provided HTML string
-        tempDiv.innerHTML = htmlString;
-
-        // Return the contents of the temporary div
-        return tempDiv.childNodes;
-      };
-
-      let $newContent = $(parseHTML(response.data));
-
+      let $newContent = $($.parseHTML(response.data, document, true));
       // For backward compatibility, in some cases a wrapper will be added. This
       // behavior will be removed before Drupal 9.0.0. If different behavior is
       // needed, the theme functions can be overridden.
@@ -1436,7 +1423,7 @@
      *   The JSON response object from the Ajax request.
      * @param {string} response.selector
      *   A jQuery selector string.
-     * @param {string} [response.asterisk]
+     * @param {boolean} [response.asterisk]
      *   An optional CSS selector. If specified, an asterisk will be
      *   appended to the HTML inside the provided selector.
      * @param {number} [status]
@@ -1525,7 +1512,7 @@
      *   The XMLHttpRequest status.
      */
     css(ajax, response, status) {
-      // eslint-disable-next-line no-jquery/no-css
+      // eslint-disable-next-line jquery/no-css
       $(response.selector).css(response.argument);
     },
 
@@ -1713,23 +1700,34 @@
      *   {@link Drupal.Ajax} object created by {@link Drupal.ajax}.
      * @param {object} response
      *   The response from the Ajax request.
-     * @param {object[]} response.data
+     * @param {object[]|string} response.data
      *   An array of styles to be added.
      * @param {number} [status]
      *   The XMLHttpRequest status.
      */
     add_css(ajax, response, status) {
-      const allUniqueBundleIds = response.data.map(function (style) {
-        const uniqueBundleId = style.href + ajax.instanceIndex;
-        // Force file to load as a CSS stylesheet using 'css!' flag.
-        loadjs(`css!${style.href}`, uniqueBundleId, {
-          before(path, styleEl) {
-            // This allows all attributes to be added, like media.
-            Object.keys(style).forEach((attributeKey) => {
-              styleEl.setAttribute(attributeKey, style[attributeKey]);
-            });
-          },
+      if (typeof response.data === 'string') {
+        Drupal.deprecationError({
+          message:
+            'Passing a string to the Drupal.ajax.add_css() method is deprecated in 10.1.0 and is removed from drupal:11.0.0. See https://www.drupal.org/node/3154948.',
         });
+        $('head').prepend(response.data);
+        return;
+      }
+
+      const allUniqueBundleIds = response.data.map(function (style) {
+        const uniqueBundleId = style.href;
+        // Force file to load as a CSS stylesheet using 'css!' flag.
+        if (!loadjs.isDefined(uniqueBundleId)) {
+          loadjs(`css!${style.href}`, uniqueBundleId, {
+            before(path, styleEl) {
+              // This allows all attributes to be added, like media.
+              Object.keys(style).forEach((attributeKey) => {
+                styleEl.setAttribute(attributeKey, style[attributeKey]);
+              });
+            },
+          });
+        }
         return uniqueBundleId;
       });
       // Returns the promise so that the next AJAX command waits on the
@@ -1795,32 +1793,31 @@
       const parentEl = document.querySelector(response.selector || 'body');
       const settings = ajax.settings || drupalSettings;
       const allUniqueBundleIds = response.data.map((script) => {
-        // loadjs requires a unique ID, and an AJAX instance's `instanceIndex`
-        // is guaranteed to be unique.
-        // @see Drupal.behaviors.AJAX.detach
-        const uniqueBundleId = script.src + ajax.instanceIndex;
-        loadjs(script.src, uniqueBundleId, {
-          // The default loadjs behavior is to load script with async, in Drupal
-          // we need to explicitly tell scripts to load async, this is set in
-          // the before callback below if necessary.
-          async: false,
-          before(path, scriptEl) {
-            // This allows all attributes to be added, like defer, async and
-            // crossorigin.
-            Object.keys(script).forEach((attributeKey) => {
-              scriptEl.setAttribute(attributeKey, script[attributeKey]);
-            });
+        const uniqueBundleId = script.src;
+        if (!loadjs.isDefined(uniqueBundleId)) {
+          loadjs(script.src, uniqueBundleId, {
+            // The default loadjs behavior is to load script with async, in Drupal
+            // we need to explicitly tell scripts to load async, this is set in
+            // the before callback below if necessary.
+            async: false,
+            before(path, scriptEl) {
+              // This allows all attributes to be added, like defer, async and
+              // crossorigin.
+              Object.keys(script).forEach((attributeKey) => {
+                scriptEl.setAttribute(attributeKey, script[attributeKey]);
+              });
 
-            // By default, loadjs appends the script to the head. When scripts
-            // are loaded via AJAX, their location has no impact on
-            // functionality. But, since non-AJAX loaded scripts can choose
-            // their parent element, we provide that option here for the sake of
-            // consistency.
-            parentEl.appendChild(scriptEl);
-            // Return false to bypass loadjs' default DOM insertion mechanism.
-            return false;
-          },
-        });
+              // By default, loadjs appends the script to the head. When scripts
+              // are loaded via AJAX, their location has no impact on
+              // functionality. But, since non-AJAX loaded scripts can choose
+              // their parent element, we provide that option here for the sake of
+              // consistency.
+              parentEl.appendChild(scriptEl);
+              // Return false to bypass loadjs' default DOM insertion mechanism.
+              return false;
+            },
+          });
+        }
         return uniqueBundleId;
       });
       // Returns the promise so that the next AJAX command waits on the

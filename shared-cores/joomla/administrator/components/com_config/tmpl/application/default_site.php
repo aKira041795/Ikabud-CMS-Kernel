@@ -13,10 +13,7 @@ use Joomla\CMS\Layout\LayoutHelper;
 
 defined('_JEXEC') or die;
 
-/** @var \Joomla\Component\Config\Administrator\View\Application\HtmlView $this */
-
 $this->name = Text::_('COM_CONFIG_SITE_SETTINGS');
-$this->description = '';
 $this->fieldsname = 'site';
 $this->formclass = 'options-form';
 

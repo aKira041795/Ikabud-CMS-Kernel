@@ -18,6 +18,7 @@ use Joomla\CMS\MVC\View\GenericDataException;
 use Joomla\CMS\MVC\View\HtmlView as BaseHtmlView;
 use Joomla\CMS\Plugin\PluginHelper;
 use Joomla\CMS\Toolbar\Button\DropdownButton;
+use Joomla\CMS\Toolbar\Toolbar;
 use Joomla\CMS\Toolbar\ToolbarHelper;
 use Joomla\Component\Content\Administrator\Extension\ContentComponent;
 use Joomla\Component\Content\Administrator\Helper\ContentHelper;
@@ -50,7 +51,7 @@ class HtmlView extends BaseHtmlView
     /**
      * The model state
      *
-     * @var   \Joomla\Registry\Registry
+     * @var   \Joomla\CMS\Object\CMSObject
      */
     protected $state;
 
@@ -170,7 +171,7 @@ class HtmlView extends BaseHtmlView
     {
         $canDo   = ContentHelper::getActions('com_content', 'category', $this->state->get('filter.category_id'));
         $user    = $this->getCurrentUser();
-        $toolbar = $this->getDocument()->getToolbar();
+        $toolbar = Toolbar::getInstance();
 
         ToolbarHelper::title(Text::_('COM_CONTENT_ARTICLES_TITLE'), 'copy article');
 
@@ -235,17 +236,13 @@ class HtmlView extends BaseHtmlView
                 && $user->authorise('core.edit', 'com_content')
             ) {
                 $childBar->popupButton('batch', 'JTOOLBAR_BATCH')
-                    ->popupType('inline')
-                    ->textHeader(Text::_('COM_CONTENT_BATCH_OPTIONS'))
-                    ->url('#joomla-dialog-batch')
-                    ->modalWidth('800px')
-                    ->modalHeight('fit-content')
+                    ->selector('collapseModal')
                     ->listCheck(true);
             }
         }
 
         if (!$this->isEmptyState && $this->state->get('filter.published') == ContentComponent::CONDITION_TRASHED && $canDo->get('core.delete')) {
-            $toolbar->delete('articles.delete', 'JTOOLBAR_DELETE_FROM_TRASH')
+            $toolbar->delete('articles.delete', 'JTOOLBAR_EMPTY_TRASH')
                 ->message('JGLOBAL_CONFIRM_DELETE')
                 ->listCheck(true);
         }

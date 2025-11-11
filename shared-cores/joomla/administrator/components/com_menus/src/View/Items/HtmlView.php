@@ -10,7 +10,6 @@
 
 namespace Joomla\Component\Menus\Administrator\View\Items;
 
-use Joomla\CMS\Event\Menu\BeforeRenderMenuItemsViewEvent;
 use Joomla\CMS\Factory;
 use Joomla\CMS\Helper\ContentHelper;
 use Joomla\CMS\HTML\HTMLHelper;
@@ -18,6 +17,7 @@ use Joomla\CMS\Language\Multilanguage;
 use Joomla\CMS\Language\Text;
 use Joomla\CMS\MVC\View\GenericDataException;
 use Joomla\CMS\MVC\View\HtmlView as BaseHtmlView;
+use Joomla\CMS\Toolbar\Toolbar;
 use Joomla\CMS\Toolbar\ToolbarHelper;
 
 // phpcs:disable PSR1.Files.SideEffects
@@ -56,7 +56,7 @@ class HtmlView extends BaseHtmlView
     /**
      * The model state
      *
-     * @var  \Joomla\Registry\Registry
+     * @var  \Joomla\CMS\Object\CMSObject
      */
     protected $state;
 
@@ -105,7 +105,7 @@ class HtmlView extends BaseHtmlView
         $this->activeFilters = $this->get('ActiveFilters');
 
         // Check for errors.
-        if (\count($errors = $this->get('Errors'))) {
+        if (count($errors = $this->get('Errors'))) {
             throw new GenericDataException(implode("\n", $errors), 500);
         }
 
@@ -140,7 +140,7 @@ class HtmlView extends BaseHtmlView
                 case 'component':
                 default:
                     // Load language
-                    $lang->load($item->componentname . '.sys', JPATH_ADMINISTRATOR)
+                        $lang->load($item->componentname . '.sys', JPATH_ADMINISTRATOR)
                     || $lang->load($item->componentname . '.sys', JPATH_ADMINISTRATOR . '/components/' . $item->componentname);
 
                     if (!empty($item->componentname)) {
@@ -219,7 +219,7 @@ class HtmlView extends BaseHtmlView
                             unset($xml);
 
                             // Special case if neither a view nor layout title is found
-                            if (\count($titleParts) == 1) {
+                            if (count($titleParts) == 1) {
                                 $titleParts[] = $vars['view'];
                             }
                         }
@@ -276,9 +276,7 @@ class HtmlView extends BaseHtmlView
         }
 
         // Allow a system plugin to insert dynamic menu types to the list shown in menus:
-        $this->getDispatcher()->dispatch('onBeforeRenderMenuItems', new BeforeRenderMenuItemsViewEvent('onBeforeRenderMenuItems', [
-            'subject' => $this,
-        ]));
+        Factory::getApplication()->triggerEvent('onBeforeRenderMenuItems', [$this]);
 
         parent::display($tpl);
     }
@@ -301,7 +299,7 @@ class HtmlView extends BaseHtmlView
         $menuTypeTitle = $this->get('State')->get('menutypetitle');
 
         // Get the toolbar object instance
-        $toolbar = $this->getDocument()->getToolbar();
+        $toolbar = Toolbar::getInstance('toolbar');
 
         if ($menuTypeTitle) {
             ToolbarHelper::title(Text::sprintf('COM_MENUS_VIEW_ITEMS_MENU_TITLE', $menuTypeTitle), 'list menumgr');
@@ -354,12 +352,9 @@ class HtmlView extends BaseHtmlView
                 && $user->authorise('core.edit', 'com_menus')
                 && $user->authorise('core.edit.state', 'com_menus')
             ) {
-                $childBar->popupButton('batch', 'JTOOLBAR_BATCH')
-                    ->popupType('inline')
-                    ->textHeader(Text::_('COM_MENUS_BATCH_OPTIONS'))
-                    ->url('#joomla-dialog-batch')
-                    ->modalWidth('800px')
-                    ->modalHeight('fit-content')
+                $childBar->popupButton('batch')
+                    ->text('JTOOLBAR_BATCH')
+                    ->selector('collapseModal')
                     ->listCheck(true);
             }
         }
@@ -372,7 +367,7 @@ class HtmlView extends BaseHtmlView
 
         if (!$protected && $this->state->get('filter.published') == -2 && $canDo->get('core.delete')) {
             $toolbar->delete('items.delete')
-                ->text('JTOOLBAR_DELETE_FROM_TRASH')
+                ->text('JTOOLBAR_EMPTY_TRASH')
                 ->message('JGLOBAL_CONFIRM_DELETE')
                 ->listCheck(true);
         }

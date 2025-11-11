@@ -15,7 +15,6 @@ use Joomla\CMS\Language\Text;
 use Joomla\CMS\Log\Log;
 use Joomla\Database\ParameterType;
 use Joomla\Filesystem\File;
-use Joomla\Filesystem\Path;
 
 // phpcs:disable PSR1.Files.SideEffects
 \defined('_JEXEC') or die;
@@ -326,7 +325,7 @@ class InstallerScript
 
         if (!empty($this->deleteFolders)) {
             foreach ($this->deleteFolders as $folder) {
-                if (is_dir(Path::clean(JPATH_ROOT . $folder)) && !Folder::delete(JPATH_ROOT . $folder)) {
+                if (Folder::exists(JPATH_ROOT . $folder) && !Folder::delete(JPATH_ROOT . $folder)) {
                     echo Text::sprintf('JLIB_INSTALLER_ERROR_FILE_FOLDER', $folder) . '<br>';
                 }
             }

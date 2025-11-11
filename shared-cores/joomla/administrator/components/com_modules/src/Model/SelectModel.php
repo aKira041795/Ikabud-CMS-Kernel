@@ -13,11 +13,10 @@ namespace Joomla\Component\Modules\Administrator\Model;
 use Joomla\CMS\Application\ApplicationHelper;
 use Joomla\CMS\Component\ComponentHelper;
 use Joomla\CMS\Factory;
+use Joomla\CMS\Filesystem\Path;
 use Joomla\CMS\Language\Text;
 use Joomla\CMS\MVC\Model\ListModel;
 use Joomla\Database\ParameterType;
-use Joomla\Database\QueryInterface;
-use Joomla\Filesystem\Path;
 use Joomla\Utilities\ArrayHelper;
 
 // phpcs:disable PSR1.Files.SideEffects
@@ -84,7 +83,7 @@ class SelectModel extends ListModel
     /**
      * Build an SQL query to load the list data.
      *
-     * @return  QueryInterface
+     * @return  \Joomla\Database\DatabaseQuery
      */
     protected function getListQuery()
     {

@@ -9,13 +9,14 @@
 
 namespace Joomla\CMS\Form\Field;
 
+use DateTime;
 use Joomla\CMS\Factory;
 use Joomla\CMS\Form\FormField;
 use Joomla\CMS\Language\Text;
 use Joomla\Registry\Registry;
 
 // phpcs:disable PSR1.Files.SideEffects
-\defined('_JEXEC') or die;
+\defined('JPATH_PLATFORM') or die;
 // phpcs:enable PSR1.Files.SideEffects
 
 /**
@@ -281,56 +282,52 @@ class CalendarField extends FormField
      */
     protected function getInput()
     {
-        $user  = Factory::getApplication()->getIdentity();
-        $data  = $this->collectLayoutData();
-        $value = $data['value'];
+        $user = Factory::getApplication()->getIdentity();
 
         // If a known filter is given use it.
         switch (strtoupper($this->filter)) {
             case 'SERVER_UTC':
                 // Convert a date to UTC based on the server timezone.
-                if ($value && $value != $this->getDatabase()->getNullDate()) {
+                if ($this->value && $this->value != $this->getDatabase()->getNullDate()) {
                     // Get a date object based on the correct timezone.
-                    $date = Factory::getDate($value, 'UTC');
+                    $date = Factory::getDate($this->value, 'UTC');
                     $date->setTimezone(new \DateTimeZone(Factory::getApplication()->get('offset')));
 
                     // Transform the date string.
-                    $value = $date->format('Y-m-d H:i:s', true, false);
+                    $this->value = $date->format('Y-m-d H:i:s', true, false);
                 }
                 break;
             case 'USER_UTC':
                 // Convert a date to UTC based on the user timezone.
-                if ($value && $value != $this->getDatabase()->getNullDate()) {
+                if ($this->value && $this->value != $this->getDatabase()->getNullDate()) {
                     // Get a date object based on the correct timezone.
-                    $date = Factory::getDate($value, 'UTC');
+                    $date = Factory::getDate($this->value, 'UTC');
                     $date->setTimezone($user->getTimezone());
 
                     // Transform the date string.
-                    $value = $date->format('Y-m-d H:i:s', true, false);
+                    $this->value = $date->format('Y-m-d H:i:s', true, false);
                 }
                 break;
         }
 
         // Format value when not nulldate ('0000-00-00 00:00:00'), otherwise blank it as it would result in 1970-01-01.
-        if ($value && $value != $this->getDatabase()->getNullDate() && strtotime($value) !== false) {
+        if ($this->value && $this->value != $this->getDatabase()->getNullDate() && strtotime($this->value) !== false) {
             $tz = date_default_timezone_get();
             date_default_timezone_set('UTC');
 
             if ($this->filterFormat) {
-                $date  = \DateTimeImmutable::createFromFormat('U', strtotime($value));
-                $value = $date->format($this->filterFormat);
+                $date        = \DateTimeImmutable::createFromFormat('U', strtotime($this->value));
+                $this->value = $date->format($this->filterFormat);
             } else {
-                $value = strftime($this->format, strtotime($value));
+                $this->value = strftime($this->format, strtotime($this->value));
             }
 
             date_default_timezone_set($tz);
         } else {
-            $value = '';
+            $this->value = '';
         }
 
-        $data['value'] = $value;
-
-        return $this->getRenderer($this->layout)->render($data);
+        return $this->getRenderer($this->layout)->render($this->getLayoutData());
     }
 
     /**
@@ -389,11 +386,11 @@ class CalendarField extends FormField
      *
      * @since   4.0.0
      */
-    public function filter($value, $group = null, ?Registry $input = null)
+    public function filter($value, $group = null, Registry $input = null)
     {
         // Make sure there is a valid SimpleXMLElement.
         if (!($this->element instanceof \SimpleXMLElement)) {
-            throw new \UnexpectedValueException(\sprintf('%s::filter `element` is not an instance of SimpleXMLElement', \get_class($this)));
+            throw new \UnexpectedValueException(sprintf('%s::filter `element` is not an instance of SimpleXMLElement', \get_class($this)));
         }
 
         if ((int) $value <= 0) {
@@ -418,8 +415,8 @@ class CalendarField extends FormField
                 $return = Factory::getDate($value, $app->get('offset'))->toSql();
                 break;
 
+            // Convert a date to UTC based on the user timezone offset.
             case 'USER_UTC':
-                // Convert a date to UTC based on the user timezone offset.
                 // Get the user timezone setting defaulting to the server timezone setting.
                 $offset = $app->getIdentity()->getParam('timezone', $app->get('offset'));
 

@@ -10,7 +10,7 @@
 
 defined('_JEXEC') or die;
 
-use Joomla\Filter\OutputFilter;
+use Joomla\CMS\Filter\OutputFilter;
 
 $id      = empty($displayData['id']) ? '' : (' id="' . $displayData['id'] . '"');
 $target  = empty($displayData['target']) ? '' : (' target="' . $displayData['target'] . '"');

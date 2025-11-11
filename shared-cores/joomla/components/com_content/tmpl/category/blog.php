@@ -18,7 +18,6 @@ use Joomla\CMS\Layout\LayoutHelper;
 
 $app = Factory::getApplication();
 
-/** @var \Joomla\Component\Content\Site\View\Category\HtmlView $this */
 $this->category->text = $this->category->description;
 $app->triggerEvent('onContentPrepare', [$this->category->extension . '.categories', &$this->category, &$this->params, 0]);
 $this->category->description = $this->category->text;
@@ -35,7 +34,7 @@ $afterDisplayContent = trim(implode("\n", $results));
 $htag    = $this->params->get('show_page_heading') ? 'h2' : 'h1';
 
 ?>
-<div class="com-content-category-blog blog">
+<div class="com-content-category-blog blog" itemscope itemtype="https://schema.org/Blog">
     <?php if ($this->params->get('show_page_heading')) : ?>
         <div class="page-header">
             <h1> <?php echo $this->escape($this->params->get('page_heading')); ?> </h1>
@@ -85,7 +84,7 @@ $htag    = $this->params->get('show_page_heading') ? 'h2' : 'h1';
     <?php if (!empty($this->lead_items)) : ?>
         <div class="com-content-category-blog__items blog-items items-leading <?php echo $this->params->get('blog_class_leading'); ?>">
             <?php foreach ($this->lead_items as &$item) : ?>
-                <div class="com-content-category-blog__item blog-item">
+                <div class="com-content-category-blog__item blog-item" itemprop="blogPost" itemscope itemtype="https://schema.org/BlogPosting">
                     <?php
                     $this->item = &$item;
                     echo $this->loadTemplate('item');
@@ -103,7 +102,8 @@ $htag    = $this->params->get('show_page_heading') ? 'h2' : 'h1';
         <?php endif; ?>
         <div class="com-content-category-blog__items blog-items <?php echo $blogClass; ?>">
         <?php foreach ($this->intro_items as $key => &$item) : ?>
-            <div class="com-content-category-blog__item blog-item">
+            <div class="com-content-category-blog__item blog-item"
+                itemprop="blogPost" itemscope itemtype="https://schema.org/BlogPosting">
                     <?php
                     $this->item = & $item;
                     echo $this->loadTemplate('item');
@@ -125,10 +125,6 @@ $htag    = $this->params->get('show_page_heading') ? 'h2' : 'h1';
                 <h3> <?php echo Text::_('JGLOBAL_SUBCATEGORIES'); ?> </h3>
             <?php endif; ?>
             <?php echo $this->loadTemplate('children'); ?> </div>
-    <?php endif; ?>
-    <?php // Code to add a link to submit an article. ?>
-    <?php if ($this->category->getParams()->get('access-create')) : ?>
-        <?php echo HTMLHelper::_('contenticon.create', $this->category, $this->category->params); ?>
     <?php endif; ?>
     <?php if (($this->params->def('show_pagination', 1) == 1 || ($this->params->get('show_pagination') == 2)) && ($this->pagination->pagesTotal > 1)) : ?>
         <div class="com-content-category-blog__navigation w-100">

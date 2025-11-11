@@ -15,10 +15,8 @@ use Joomla\CMS\Router\Route;
 
 defined('_JEXEC') or die;
 
-/** @var \Joomla\Component\Config\Administrator\View\Application\HtmlView $this */
-
 HTMLHelper::_('form.csrf');
-$this->getDocument()->getWebAssetManager()
+$this->document->getWebAssetManager()
     ->useScript('webcomponent.field-send-test-mail');
 
 // Load JavaScript message titles
@@ -38,7 +36,6 @@ Text::script('JLIB_JS_AJAX_ERROR_TIMEOUT');
 $ajaxUri = Route::_('index.php?option=com_config&task=application.sendtestmail&format=json');
 
 $this->name = Text::_('COM_CONFIG_MAIL_SETTINGS');
-$this->description = '';
 $this->fieldsname = 'mail';
 $this->formclass = 'options-form';
 

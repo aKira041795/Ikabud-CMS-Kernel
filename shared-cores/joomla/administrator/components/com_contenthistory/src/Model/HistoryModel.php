@@ -22,7 +22,6 @@ use Joomla\CMS\Table\ContentHistory;
 use Joomla\CMS\Table\ContentType;
 use Joomla\CMS\Table\Table;
 use Joomla\Database\ParameterType;
-use Joomla\Database\QueryInterface;
 
 // phpcs:disable PSR1.Files.SideEffects
 \defined('_JEXEC') or die;
@@ -38,13 +37,13 @@ class HistoryModel extends ListModel
     /**
      * Constructor.
      *
-     * @param   array                 $config   An optional associative array of configuration settings.
-     * @param   ?MVCFactoryInterface  $factory  The factory.
+     * @param   array                $config   An optional associative array of configuration settings.
+     * @param   MVCFactoryInterface  $factory  The factory.
      *
      * @see     \Joomla\CMS\MVC\Model\BaseDatabaseModel
      * @since   3.2
      */
-    public function __construct($config = [], ?MVCFactoryInterface $factory = null)
+    public function __construct($config = [], MVCFactoryInterface $factory = null)
     {
         if (empty($config['filter_fields'])) {
             $config['filter_fields'] = [
@@ -96,7 +95,7 @@ class HistoryModel extends ListModel
         $typeAlias        = implode('.', $typeAlias);
         $contentTypeTable->load(['type_alias' => $typeAlias]);
         $typeEditables = (array) Factory::getApplication()->getUserState(str_replace('.', '.edit.', $contentTypeTable->type_alias) . '.id');
-        $result        = \in_array((int) $id, $typeEditables);
+        $result        = in_array((int) $id, $typeEditables);
 
         return $result;
     }
@@ -157,15 +156,15 @@ class HistoryModel extends ListModel
                         }
 
                         return false;
-                    }
+                    } else {
+                        try {
+                            Log::add(Text::_('JLIB_APPLICATION_ERROR_DELETE_NOT_PERMITTED'), Log::WARNING, 'jerror');
+                        } catch (\RuntimeException $exception) {
+                            Factory::getApplication()->enqueueMessage(Text::_('JLIB_APPLICATION_ERROR_DELETE_NOT_PERMITTED'), 'warning');
+                        }
 
-                    try {
-                        Log::add(Text::_('JLIB_APPLICATION_ERROR_DELETE_NOT_PERMITTED'), Log::WARNING, 'jerror');
-                    } catch (\RuntimeException $exception) {
-                        Factory::getApplication()->enqueueMessage(Text::_('JLIB_APPLICATION_ERROR_DELETE_NOT_PERMITTED'), 'warning');
+                        return false;
                     }
-
-                    return false;
                 }
             } else {
                 $this->setError($table->getError());
@@ -199,7 +198,7 @@ class HistoryModel extends ListModel
         }
 
         // This should be an array with at least one element
-        if (!\is_array($items) || !isset($items[0])) {
+        if (!is_array($items) || !isset($items[0])) {
             return $items;
         }
 
@@ -264,15 +263,15 @@ class HistoryModel extends ListModel
                         }
 
                         return false;
-                    }
+                    } else {
+                        try {
+                            Log::add(Text::_('COM_CONTENTHISTORY_ERROR_KEEP_NOT_PERMITTED'), Log::WARNING, 'jerror');
+                        } catch (\RuntimeException $exception) {
+                            Factory::getApplication()->enqueueMessage(Text::_('COM_CONTENTHISTORY_ERROR_KEEP_NOT_PERMITTED'), 'warning');
+                        }
 
-                    try {
-                        Log::add(Text::_('COM_CONTENTHISTORY_ERROR_KEEP_NOT_PERMITTED'), Log::WARNING, 'jerror');
-                    } catch (\RuntimeException $exception) {
-                        Factory::getApplication()->enqueueMessage(Text::_('COM_CONTENTHISTORY_ERROR_KEEP_NOT_PERMITTED'), 'warning');
+                        return false;
                     }
-
-                    return false;
                 }
             } else {
                 $this->setError($table->getError());
@@ -318,7 +317,7 @@ class HistoryModel extends ListModel
     /**
      * Build an SQL query to load the list data.
      *
-     * @return  QueryInterface
+     * @return  \Joomla\Database\DatabaseQuery
      *
      * @since   3.2
      */

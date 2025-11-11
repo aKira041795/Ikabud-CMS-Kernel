@@ -9,12 +9,13 @@
 
 namespace Joomla\CMS\Error\JsonApi;
 
+use Exception;
 use Joomla\CMS\Router\Exception\RouteNotFoundException;
 use Tobscure\JsonApi\Exception\Handler\ExceptionHandlerInterface;
 use Tobscure\JsonApi\Exception\Handler\ResponseBag;
 
 // phpcs:disable PSR1.Files.SideEffects
-\defined('_JEXEC') or die;
+\defined('JPATH_PLATFORM') or die;
 // phpcs:enable PSR1.Files.SideEffects
 
 /**

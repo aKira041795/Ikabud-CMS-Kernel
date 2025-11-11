@@ -1,0 +1,313 @@
+{
+    "version": "1.0.0",
+    "generated": "2025-11-10 11:02:52",
+    "instance_id": "dpl-test-001",
+    "modules": {
+        "announcements_feed": {
+            "priority": 10,
+            "load_on": {
+                "routes": [
+                    "*"
+                ]
+            }
+        },
+        "automated_cron": {
+            "priority": 10,
+            "load_on": {
+                "routes": [
+                    "*"
+                ]
+            }
+        },
+        "big_pipe": {
+            "priority": 50,
+            "load_on": {
+                "routes": [
+                    "*"
+                ]
+            }
+        },
+        "block": {
+            "priority": 10,
+            "load_on": {
+                "routes": [
+                    "*"
+                ]
+            }
+        },
+        "block_content": {
+            "priority": 10,
+            "load_on": {
+                "routes": [
+                    "*"
+                ]
+            }
+        },
+        "breakpoint": {
+            "priority": 10,
+            "load_on": {
+                "routes": [
+                    "*"
+                ]
+            }
+        },
+        "ckeditor5": {
+            "priority": 10,
+            "load_on": {
+                "routes": [
+                    "/node/add/*",
+                    "/node/*/edit"
+                ],
+                "admin_only": true
+            }
+        },
+        "comment": {
+            "priority": 10,
+            "load_on": {
+                "routes": [
+                    "*"
+                ]
+            }
+        },
+        "config": {
+            "priority": 10,
+            "load_on": {
+                "routes": [
+                    "*"
+                ]
+            }
+        },
+        "contact": {
+            "priority": 10,
+            "load_on": {
+                "routes": [
+                    "*"
+                ]
+            }
+        },
+        "contextual": {
+            "priority": 5,
+            "load_on": {
+                "admin_only": true
+            }
+        },
+        "datetime": {
+            "priority": 10,
+            "load_on": {
+                "routes": [
+                    "*"
+                ]
+            }
+        },
+        "dblog": {
+            "priority": 10,
+            "load_on": {
+                "routes": [
+                    "*"
+                ]
+            }
+        },
+        "dynamic_page_cache": {
+            "priority": 50,
+            "load_on": {
+                "routes": [
+                    "*"
+                ]
+            }
+        },
+        "editor": {
+            "priority": 10,
+            "load_on": {
+                "routes": [
+                    "/node/add/*",
+                    "/node/*/edit"
+                ],
+                "admin_only": true
+            }
+        },
+        "field": {
+            "priority": 1,
+            "required": true
+        },
+        "field_ui": {
+            "priority": 10,
+            "load_on": {
+                "routes": [
+                    "*"
+                ]
+            }
+        },
+        "file": {
+            "priority": 15,
+            "load_on": {
+                "field_types": [
+                    "image",
+                    "media"
+                ]
+            }
+        },
+        "filter": {
+            "priority": 1,
+            "required": true
+        },
+        "help": {
+            "priority": 5,
+            "load_on": {
+                "admin_only": true
+            }
+        },
+        "history": {
+            "priority": 10,
+            "load_on": {
+                "routes": [
+                    "*"
+                ]
+            }
+        },
+        "image": {
+            "priority": 15,
+            "load_on": {
+                "field_types": [
+                    "image",
+                    "media"
+                ]
+            }
+        },
+        "link": {
+            "priority": 10,
+            "load_on": {
+                "routes": [
+                    "*"
+                ]
+            }
+        },
+        "menu_link_content": {
+            "priority": 10,
+            "load_on": {
+                "routes": [
+                    "*"
+                ]
+            }
+        },
+        "menu_ui": {
+            "priority": 10,
+            "load_on": {
+                "routes": [
+                    "*"
+                ]
+            }
+        },
+        "mysql": {
+            "priority": 10,
+            "load_on": {
+                "routes": [
+                    "*"
+                ]
+            }
+        },
+        "node": {
+            "priority": 1,
+            "required": true
+        },
+        "options": {
+            "priority": 10,
+            "load_on": {
+                "routes": [
+                    "*"
+                ]
+            }
+        },
+        "page_cache": {
+            "priority": 50,
+            "load_on": {
+                "routes": [
+                    "*"
+                ]
+            }
+        },
+        "path": {
+            "priority": 1,
+            "required": true
+        },
+        "path_alias": {
+            "priority": 10,
+            "load_on": {
+                "routes": [
+                    "*"
+                ]
+            }
+        },
+        "search": {
+            "priority": 10,
+            "load_on": {
+                "routes": [
+                    "*"
+                ]
+            }
+        },
+        "shortcut": {
+            "priority": 10,
+            "load_on": {
+                "routes": [
+                    "*"
+                ]
+            }
+        },
+        "system": {
+            "priority": 1,
+            "required": true
+        },
+        "taxonomy": {
+            "priority": 10,
+            "load_on": {
+                "routes": [
+                    "*"
+                ]
+            }
+        },
+        "text": {
+            "priority": 1,
+            "required": true
+        },
+        "toolbar": {
+            "priority": 5,
+            "load_on": {
+                "admin_only": true
+            }
+        },
+        "update": {
+            "priority": 5,
+            "load_on": {
+                "admin_only": true
+            }
+        },
+        "user": {
+            "priority": 1,
+            "required": true
+        },
+        "views_ui": {
+            "priority": 10,
+            "load_on": {
+                "routes": [
+                    "*"
+                ]
+            }
+        },
+        "views": {
+            "priority": 10,
+            "load_on": {
+                "routes": [
+                    "*"
+                ]
+            }
+        },
+        "standard": {
+            "priority": 10,
+            "load_on": {
+                "routes": [
+                    "*"
+                ]
+            }
+        }
+    }
+}

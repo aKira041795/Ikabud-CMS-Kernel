@@ -78,7 +78,7 @@ class UpdatesiteModel extends AdminModel
      *
      * @param   integer  $pk  The id of the primary key.
      *
-     * @return  \stdClass|boolean  Object on success, false on failure.
+     * @return  CMSObject|boolean  Object on success, false on failure.
      *
      * @since   4.0.0
      */

@@ -12,7 +12,7 @@ namespace Joomla\CMS\Schema\ChangeItem;
 use Joomla\CMS\Schema\ChangeItem;
 
 // phpcs:disable PSR1.Files.SideEffects
-\defined('_JEXEC') or die;
+\defined('JPATH_PLATFORM') or die;
 // phpcs:enable PSR1.Files.SideEffects
 
 /**
@@ -295,15 +295,21 @@ class MysqlChangeItem extends ChangeItem
                 break;
 
             case 'MEDIUMTEXT':
-                $typeCheck = 'UPPER(type) IN (' . $this->db->quote('MEDIUMTEXT') . ',' . $this->db->quote('LONGTEXT') . ')';
+                $typeCheck = $this->db->hasUTF8mb4Support()
+                    ? 'UPPER(type) IN (' . $this->db->quote('MEDIUMTEXT') . ',' . $this->db->quote('LONGTEXT') . ')'
+                    : 'UPPER(type) = ' . $this->db->quote('MEDIUMTEXT');
                 break;
 
             case 'TEXT':
-                $typeCheck = 'UPPER(type) IN (' . $this->db->quote('TEXT') . ',' . $this->db->quote('MEDIUMTEXT') . ')';
+                $typeCheck = $this->db->hasUTF8mb4Support()
+                    ? 'UPPER(type) IN (' . $this->db->quote('TEXT') . ',' . $this->db->quote('MEDIUMTEXT') . ')'
+                    : 'UPPER(type) = ' . $this->db->quote('TEXT');
                 break;
 
             case 'TINYTEXT':
-                $typeCheck = 'UPPER(type) IN (' . $this->db->quote('TINYTEXT') . ',' . $this->db->quote('TEXT') . ')';
+                $typeCheck = $this->db->hasUTF8mb4Support()
+                    ? 'UPPER(type) IN (' . $this->db->quote('TINYTEXT') . ',' . $this->db->quote('TEXT') . ')'
+                    : 'UPPER(type) = ' . $this->db->quote('TINYTEXT');
                 break;
 
             default:
@@ -331,9 +337,9 @@ class MysqlChangeItem extends ChangeItem
         if ($index !== false) {
             if ($index == 0 || strtolower($changesArray[$index - 1]) !== 'not') {
                 return ' `null` = ' . $this->db->quote('YES');
+            } else {
+                return ' `null` = ' . $this->db->quote('NO');
             }
-
-            return ' `null` = ' . $this->db->quote('NO');
         }
 
         return false;
@@ -365,9 +371,9 @@ class MysqlChangeItem extends ChangeItem
         if ($index !== false) {
             if (strtolower($changesArray[$index + 1]) === 'null') {
                 return ' `default` IS NULL';
+            } else {
+                return ' `default` = ' . $changesArray[$index + 1];
             }
-
-            return ' `default` = ' . $changesArray[$index + 1];
         }
 
         return false;

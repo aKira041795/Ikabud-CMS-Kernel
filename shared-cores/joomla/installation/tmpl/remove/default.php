@@ -41,19 +41,17 @@ HTMLHelper::_('behavior.formvalidator');
                     class="j-install-step-form flex-column d-none"
                 >
         <?php endif; ?>
+        <p><?php echo Text::_('INSTL_DEFAULTLANGUAGE_DESC'); ?></p>
         <table class="table table-sm">
-            <caption>
-                <?php echo Text::_('INSTL_DEFAULTLANGUAGE_DESC'); ?>
-            </caption>
             <thead>
             <tr>
-                <th scope="col">
+                <th>
                     <?php echo Text::_('INSTL_DEFAULTLANGUAGE_COLUMN_HEADER_SELECT'); ?>
                 </th>
-                <th scope="col">
+                <th>
                     <?php echo Text::_('INSTL_DEFAULTLANGUAGE_COLUMN_HEADER_LANGUAGE'); ?>
                 </th>
-                <th scope="col">
+                <th>
                     <?php echo Text::_('INSTL_DEFAULTLANGUAGE_COLUMN_HEADER_TAG'); ?>
                 </th>
             </tr>
@@ -73,11 +71,11 @@ HTMLHelper::_('behavior.formvalidator');
                             } ?>
                         />
                     </td>
-                    <th scope="row">
+                    <td>
                         <label for="admin-language-cb<?php echo $i; ?>">
                             <?php echo $lang->name; ?>
                         </label>
-                    </th>
+                    </td>
                     <td>
                         <?php echo $lang->language; ?>
                     </td>
@@ -85,19 +83,17 @@ HTMLHelper::_('behavior.formvalidator');
             <?php endforeach; ?>
             </tbody>
         </table>
+        <p><?php echo Text::_('INSTL_DEFAULTLANGUAGE_DESC_FRONTEND'); ?></p>
         <table class="table table-sm">
-            <caption>
-                <?php echo Text::_('INSTL_DEFAULTLANGUAGE_DESC_FRONTEND'); ?>
-            </caption>
             <thead>
             <tr>
-                <th scope="col">
+                <th>
                     <?php echo Text::_('INSTL_DEFAULTLANGUAGE_COLUMN_HEADER_SELECT'); ?>
                 </th>
-                <th scope="col">
+                <th>
                     <?php echo Text::_('INSTL_DEFAULTLANGUAGE_COLUMN_HEADER_LANGUAGE'); ?>
                 </th>
-                <th scope="col">
+                <th>
                     <?php echo Text::_('INSTL_DEFAULTLANGUAGE_COLUMN_HEADER_TAG'); ?>
                 </th>
             </tr>
@@ -117,11 +113,11 @@ HTMLHelper::_('behavior.formvalidator');
                             } ?>
                         />
                     </td>
-                    <th scope="row">
+                    <td>
                         <label for="site-language-cb<?php echo $i; ?>">
                             <?php echo $lang->name; ?>
                         </label>
-                    </th>
+                    </td>
                     <td>
                         <?php echo $lang->language; ?>
                     </td>

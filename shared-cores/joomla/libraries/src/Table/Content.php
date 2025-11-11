@@ -15,17 +15,14 @@ use Joomla\CMS\Factory;
 use Joomla\CMS\Language\Text;
 use Joomla\CMS\Tag\TaggableTableInterface;
 use Joomla\CMS\Tag\TaggableTableTrait;
-use Joomla\CMS\User\CurrentUserInterface;
-use Joomla\CMS\User\CurrentUserTrait;
 use Joomla\CMS\Versioning\VersionableTableInterface;
 use Joomla\Database\DatabaseDriver;
 use Joomla\Database\ParameterType;
-use Joomla\Event\DispatcherInterface;
 use Joomla\Registry\Registry;
 use Joomla\String\StringHelper;
 
 // phpcs:disable PSR1.Files.SideEffects
-\defined('_JEXEC') or die;
+\defined('JPATH_PLATFORM') or die;
 // phpcs:enable PSR1.Files.SideEffects
 
 /**
@@ -33,10 +30,9 @@ use Joomla\String\StringHelper;
  *
  * @since  1.5
  */
-class Content extends Table implements VersionableTableInterface, TaggableTableInterface, CurrentUserInterface
+class Content extends Table implements VersionableTableInterface, TaggableTableInterface
 {
     use TaggableTableTrait;
-    use CurrentUserTrait;
 
     /**
      * Indicates that columns fully support the NULL value in the database
@@ -49,16 +45,15 @@ class Content extends Table implements VersionableTableInterface, TaggableTableI
     /**
      * Constructor
      *
-     * @param   DatabaseDriver        $db          Database connector object
-     * @param   ?DispatcherInterface  $dispatcher  Event dispatcher for this table
+     * @param   DatabaseDriver  $db  A database connector object
      *
      * @since   1.5
      */
-    public function __construct(DatabaseDriver $db, ?DispatcherInterface $dispatcher = null)
+    public function __construct(DatabaseDriver $db)
     {
         $this->typeAlias = 'com_content.article';
 
-        parent::__construct('#__content', 'id', $db, $dispatcher);
+        parent::__construct('#__content', 'id', $db);
 
         // Set the alias since the column is called state
         $this->setColumnAlias('published', 'state');
@@ -95,14 +90,14 @@ class Content extends Table implements VersionableTableInterface, TaggableTableI
     /**
      * Method to get the parent asset id for the record
      *
-     * @param   ?Table    $table  A Table object (optional) for the asset parent
-     * @param   ?integer  $id     The id (optional) of the content.
+     * @param   Table    $table  A Table object (optional) for the asset parent
+     * @param   integer  $id     The id (optional) of the content.
      *
      * @return  integer
      *
      * @since   1.6
      */
-    protected function _getAssetParentId(?Table $table = null, $id = null)
+    protected function _getAssetParentId(Table $table = null, $id = null)
     {
         $assetId = null;
 
@@ -128,9 +123,9 @@ class Content extends Table implements VersionableTableInterface, TaggableTableI
         // Return the asset id.
         if ($assetId) {
             return $assetId;
+        } else {
+            return parent::_getAssetParentId($table, $id);
         }
-
-        return parent::_getAssetParentId($table, $id);
     }
 
     /**
@@ -264,7 +259,7 @@ class Content extends Table implements VersionableTableInterface, TaggableTableI
         }
 
         // Check the publish down date is not earlier than publish up.
-        if (!\is_null($this->publish_up) && !\is_null($this->publish_down) && $this->publish_down < $this->publish_up) {
+        if (!is_null($this->publish_up) && !is_null($this->publish_down) && $this->publish_down < $this->publish_up) {
             // Swap the dates.
             $temp               = $this->publish_up;
             $this->publish_up   = $this->publish_down;
@@ -319,7 +314,7 @@ class Content extends Table implements VersionableTableInterface, TaggableTableI
     public function store($updateNulls = true)
     {
         $date = Factory::getDate()->toSql();
-        $user = $this->getCurrentUser();
+        $user = Factory::getUser();
 
         // Set created date if not set.
         if (!(int) $this->created) {
@@ -328,15 +323,12 @@ class Content extends Table implements VersionableTableInterface, TaggableTableI
 
         if ($this->id) {
             // Existing item
-            $this->modified_by = $user->id;
+            $this->modified_by = $user->get('id');
             $this->modified    = $date;
-            if (empty($this->created_by)) {
-                $this->created_by = 0;
-            }
         } else {
             // Field created_by can be set by the user, so we don't touch it if it's set.
             if (empty($this->created_by)) {
-                $this->created_by = $user->id;
+                $this->created_by = $user->get('id');
             }
 
             // Set modified to created date if not set
@@ -351,7 +343,7 @@ class Content extends Table implements VersionableTableInterface, TaggableTableI
         }
 
         // Verify that the alias is unique
-        $table = new self($this->getDbo(), $this->getDispatcher());
+        $table = Table::getInstance('Content', 'JTable', ['dbo' => $this->getDbo()]);
 
         if ($table->load(['alias' => $this->alias, 'catid' => $this->catid]) && ($table->id != $this->id || $this->id == 0)) {
             // Is the existing article trashed?

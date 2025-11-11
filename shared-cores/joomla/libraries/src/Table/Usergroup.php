@@ -13,10 +13,9 @@ use Joomla\CMS\Language\Text;
 use Joomla\Database\DatabaseDriver;
 use Joomla\Database\Exception\ExecutionFailureException;
 use Joomla\Database\ParameterType;
-use Joomla\Event\DispatcherInterface;
 
 // phpcs:disable PSR1.Files.SideEffects
-\defined('_JEXEC') or die;
+\defined('JPATH_PLATFORM') or die;
 // phpcs:enable PSR1.Files.SideEffects
 
 /**
@@ -29,14 +28,13 @@ class Usergroup extends Table
     /**
      * Constructor
      *
-     * @param   DatabaseDriver        $db          Database connector object
-     * @param   ?DispatcherInterface  $dispatcher  Event dispatcher for this table
+     * @param   DatabaseDriver  $db  Database driver object.
      *
      * @since   1.7.0
      */
-    public function __construct(DatabaseDriver $db, ?DispatcherInterface $dispatcher = null)
+    public function __construct(DatabaseDriver $db)
     {
-        parent::__construct('#__usergroups', 'id', $db, $dispatcher);
+        parent::__construct('#__usergroups', 'id', $db);
     }
 
     /**
@@ -95,7 +93,7 @@ class Usergroup extends Table
 
         // We do not allow to move non public to root and public to non-root
         if (!empty($this->id)) {
-            $table = new self($this->getDbo(), $this->getDispatcher());
+            $table = self::getInstance('Usergroup', 'JTable', ['dbo' => $this->getDbo()]);
 
             $table->load($this->id);
 
@@ -113,7 +111,7 @@ class Usergroup extends Table
 
         // The new parent_id has to be a valid group
         if ($this->parent_id) {
-            $table = new self($this->getDbo(), $this->getDispatcher());
+            $table = self::getInstance('Usergroup', 'JTable', ['dbo' => $this->getDbo()]);
             $table->load($this->parent_id);
 
             if ($table->id != $this->parent_id) {
@@ -158,9 +156,9 @@ class Usergroup extends Table
         $right = $left + 1;
 
         // Execute this function recursively over all children
-        foreach ($children as $child) {
+        for ($i = 0, $n = \count($children); $i < $n; $i++) {
             // $right is the current right value, which is incremented on recursion return
-            $right = $this->rebuild($child, $right);
+            $right = $this->rebuild($children[$i], $right);
 
             // If there is an update failure, return false to break out of the recursion
             if ($right === false) {

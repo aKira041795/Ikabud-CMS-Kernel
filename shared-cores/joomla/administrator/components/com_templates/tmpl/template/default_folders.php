@@ -10,8 +10,6 @@
 
 defined('_JEXEC') or die;
 
-/** @var \Joomla\Component\Templates\Administrator\View\Template\HtmlView $this */
-
 ksort($this->files, SORT_STRING);
 ?>
 

@@ -14,10 +14,7 @@ use Joomla\CMS\Application\ApplicationHelper;
 use Joomla\CMS\Factory;
 use Joomla\CMS\Language\Text;
 use Joomla\CMS\Table\Table;
-use Joomla\CMS\User\CurrentUserInterface;
-use Joomla\CMS\User\CurrentUserTrait;
 use Joomla\Database\DatabaseDriver;
-use Joomla\Event\DispatcherInterface;
 use Joomla\Registry\Registry;
 
 // phpcs:disable PSR1.Files.SideEffects
@@ -29,10 +26,8 @@ use Joomla\Registry\Registry;
  *
  * @since  2.5
  */
-class FilterTable extends Table implements CurrentUserInterface
+class FilterTable extends Table
 {
-    use CurrentUserTrait;
-
     /**
      * Indicates that columns fully support the NULL value in the database
      *
@@ -52,20 +47,19 @@ class FilterTable extends Table implements CurrentUserInterface
     /**
      * Constructor
      *
-     * @param   DatabaseDriver        $db          Database connector object
-     * @param   ?DispatcherInterface  $dispatcher  Event dispatcher for this table
+     * @param   DatabaseDriver  $db  Database Driver connector object.
      *
      * @since   2.5
      */
-    public function __construct(DatabaseDriver $db, ?DispatcherInterface $dispatcher = null)
+    public function __construct(DatabaseDriver $db)
     {
-        parent::__construct('#__finder_filters', 'filter_id', $db, $dispatcher);
+        parent::__construct('#__finder_filters', 'filter_id', $db);
 
         $this->setColumnAlias('published', 'state');
     }
 
     /**
-     * Method to perform sanity checks on the \Joomla\CMS\Table\Table instance properties to ensure
+     * Method to perform sanity checks on the \JTable instance properties to ensure
      * they are safe to store in the database.  Child classes should override this
      * method to make sure the data they are storing in the database is safe and
      * as expected before storage.
@@ -111,11 +105,11 @@ class FilterTable extends Table implements CurrentUserInterface
     }
 
     /**
-     * Method to store a row in the database from the \Joomla\CMS\Table\Table instance properties.
+     * Method to store a row in the database from the \JTable instance properties.
      * If a primary key value is set the row with that primary key value will be
      * updated with the instance property values.  If no primary key value is set
      * a new row will be inserted into the database with the properties from the
-     * \Joomla\CMS\Table\Table instance.
+     * \JTable instance.
      *
      * @param   boolean  $updateNulls  True to update fields even if they are null. [optional]
      *
@@ -126,7 +120,7 @@ class FilterTable extends Table implements CurrentUserInterface
     public function store($updateNulls = true)
     {
         $date   = Factory::getDate()->toSql();
-        $userId = $this->getCurrentUser()->id;
+        $userId = Factory::getUser()->id;
 
         // Set created date if not set.
         if (!(int) $this->created) {
@@ -151,8 +145,8 @@ class FilterTable extends Table implements CurrentUserInterface
             }
         }
 
-        if (\is_array($this->data)) {
-            $this->map_count = \count($this->data);
+        if (is_array($this->data)) {
+            $this->map_count = count($this->data);
             $this->data      = implode(',', $this->data);
         } else {
             $this->map_count = 0;
@@ -160,7 +154,7 @@ class FilterTable extends Table implements CurrentUserInterface
         }
 
         // Verify that the alias is unique
-        $table = new self($this->getDbo(), $this->getDispatcher());
+        $table = new static($this->getDbo());
 
         if ($table->load(['alias' => $this->alias]) && ($table->filter_id != $this->filter_id || $this->filter_id == 0)) {
             $this->setError(Text::_('COM_FINDER_FILTER_ERROR_UNIQUE_ALIAS'));

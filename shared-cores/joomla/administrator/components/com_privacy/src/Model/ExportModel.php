@@ -11,7 +11,6 @@
 namespace Joomla\Component\Privacy\Administrator\Model;
 
 use Joomla\CMS\Component\ComponentHelper;
-use Joomla\CMS\Event\Privacy\ExportRequestEvent;
 use Joomla\CMS\Factory;
 use Joomla\CMS\Language\Language;
 use Joomla\CMS\Language\Text;
@@ -20,8 +19,7 @@ use Joomla\CMS\MVC\Model\BaseDatabaseModel;
 use Joomla\CMS\Plugin\PluginHelper;
 use Joomla\CMS\Table\Table;
 use Joomla\CMS\Uri\Uri;
-use Joomla\CMS\User\UserFactoryAwareInterface;
-use Joomla\CMS\User\UserFactoryAwareTrait;
+use Joomla\CMS\User\User;
 use Joomla\Component\Actionlogs\Administrator\Model\ActionlogModel;
 use Joomla\Component\Privacy\Administrator\Export\Domain;
 use Joomla\Component\Privacy\Administrator\Helper\PrivacyHelper;
@@ -37,10 +35,8 @@ use PHPMailer\PHPMailer\Exception as phpmailerException;
  *
  * @since  3.9.0
  */
-class ExportModel extends BaseDatabaseModel implements UserFactoryAwareInterface
+class ExportModel extends BaseDatabaseModel
 {
-    use UserFactoryAwareTrait;
-
     /**
      * Create the export document for an information request.
      *
@@ -93,19 +89,14 @@ class ExportModel extends BaseDatabaseModel implements UserFactoryAwareInterface
                 ->setLimit(1)
         )->loadResult();
 
-        $user = $userId ? $this->getUserFactory()->loadUserById($userId) : null;
+        $user = $userId ? User::getInstance($userId) : null;
 
         // Log the export
         $this->logExport($table);
 
-        $dispatcher = $this->getDispatcher();
+        PluginHelper::importPlugin('privacy');
 
-        PluginHelper::importPlugin('privacy', null, true, $dispatcher);
-
-        $pluginResults = $dispatcher->dispatch('onPrivacyExportRequest', new ExportRequestEvent('onPrivacyExportRequest', [
-            'subject' => $table,
-            'user'    => $user,
-        ]))->getArgument('result', []);
+        $pluginResults = Factory::getApplication()->triggerEvent('onPrivacyExportRequest', [$table, $user]);
 
         $domains = [];
 
@@ -189,7 +180,7 @@ class ExportModel extends BaseDatabaseModel implements UserFactoryAwareInterface
         )->loadResult();
 
         if ($userId) {
-            $receiver = $this->getUserFactory()->loadUserById($userId);
+            $receiver = User::getInstance($userId);
 
             /*
              * We don't know if the user has admin access, so we will check if they have an admin language in their parameters,

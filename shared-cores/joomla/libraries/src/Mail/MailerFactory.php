@@ -9,6 +9,7 @@
 
 namespace Joomla\CMS\Mail;
 
+use Exception;
 use Joomla\CMS\Log\Log;
 use Joomla\Registry\Registry;
 

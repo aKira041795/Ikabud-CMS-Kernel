@@ -17,7 +17,7 @@ use Joomla\CMS\Router\Route;
 use Joomla\CMS\UCM\UCMType;
 
 // phpcs:disable PSR1.Files.SideEffects
-\defined('_JEXEC') or die;
+\defined('JPATH_PLATFORM') or die;
 // phpcs:enable PSR1.Files.SideEffects
 
 /**
@@ -25,7 +25,7 @@ use Joomla\CMS\UCM\UCMType;
  *
  * @since  3.2
  */
-class CategoryFeedView extends AbstractView
+class CategoryFeedView extends HtmlView
 {
     /**
      * Execute and display a template script.
@@ -74,12 +74,6 @@ class CategoryFeedView extends AbstractView
         // Get some data from the model
         $items    = $this->get('Items');
         $category = $this->get('Category');
-        $params   = $app->getParams();
-
-        // If the feed has been disabled, we want to bail out here
-        if ($params->get('show_feed_link', 1) == 0) {
-            throw new \Exception(Text::_('JGLOBAL_RESOURCE_NOT_FOUND'), 404);
-        }
 
         // Don't display feed if category id missing or non existent
         if ($category == false || $category->alias === 'root') {
@@ -91,7 +85,7 @@ class CategoryFeedView extends AbstractView
 
             // Strip html from feed item title
             if ($titleField) {
-                $title = htmlspecialchars($item->$titleField, ENT_QUOTES, 'UTF-8');
+                $title = $this->escape($item->$titleField);
                 $title = html_entity_decode($title, ENT_QUOTES, 'UTF-8');
             } else {
                 $title = '';
@@ -104,7 +98,7 @@ class CategoryFeedView extends AbstractView
             // Strip HTML from feed item description text.
             $description   = $item->description;
             $author        = $item->created_by_alias ?: $item->author;
-            $categoryTitle = $item->category_title ?? $category->title;
+            $categoryTitle = isset($item->category_title) ? $item->category_title : $category->title;
 
             if ($createdField) {
                 $date = isset($item->$createdField) ? date('r', strtotime($item->$createdField)) : '';

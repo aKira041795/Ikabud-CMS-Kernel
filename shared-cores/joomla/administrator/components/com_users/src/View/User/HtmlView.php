@@ -15,6 +15,7 @@ use Joomla\CMS\Helper\ContentHelper;
 use Joomla\CMS\Language\Text;
 use Joomla\CMS\MVC\View\GenericDataException;
 use Joomla\CMS\MVC\View\HtmlView as BaseHtmlView;
+use Joomla\CMS\Object\CMSObject;
 use Joomla\CMS\Toolbar\Toolbar;
 use Joomla\CMS\Toolbar\ToolbarHelper;
 use Joomla\CMS\User\UserFactoryAwareInterface;
@@ -66,7 +67,7 @@ class HtmlView extends BaseHtmlView implements UserFactoryAwareInterface
     /**
      * The model state
      *
-     * @var  \Joomla\Registry\Registry
+     * @var  CMSObject
      */
     protected $state;
 
@@ -77,15 +78,6 @@ class HtmlView extends BaseHtmlView implements UserFactoryAwareInterface
      * @since 4.2.0
      */
     protected $mfaConfigurationUI;
-
-    /**
-     * Array of fieldsets not to display
-     *
-     * @var    string[]
-     *
-     * @since  5.2.0
-     */
-    public $ignore_fieldsets = [];
 
     /**
      * Display the view
@@ -109,12 +101,12 @@ class HtmlView extends BaseHtmlView implements UserFactoryAwareInterface
         $this->state = $this->get('State');
 
         // Check for errors.
-        if (\count($errors = $this->get('Errors'))) {
+        if (count($errors = $this->get('Errors'))) {
             throw new GenericDataException(implode("\n", $errors), 500);
         }
 
         // Prevent user from modifying own group(s)
-        $user = $this->getCurrentUser();
+        $user = Factory::getApplication()->getIdentity();
 
         if ((int) $user->id != (int) $this->item->id || $user->authorise('core.admin')) {
             $this->grouplist = $this->get('Groups');
@@ -154,11 +146,11 @@ class HtmlView extends BaseHtmlView implements UserFactoryAwareInterface
     {
         Factory::getApplication()->getInput()->set('hidemainmenu', true);
 
-        $user      = $this->getCurrentUser();
+        $user      = Factory::getApplication()->getIdentity();
         $canDo     = ContentHelper::getActions('com_users');
         $isNew     = ($this->item->id == 0);
         $isProfile = $this->item->id == $user->id;
-        $toolbar   = $this->getDocument()->getToolbar();
+        $toolbar   = Toolbar::getInstance();
 
         ToolbarHelper::title(
             Text::_(

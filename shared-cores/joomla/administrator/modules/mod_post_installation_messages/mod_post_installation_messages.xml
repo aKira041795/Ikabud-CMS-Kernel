@@ -9,10 +9,8 @@
 	<authorUrl>www.joomla.org</authorUrl>
 	<version>4.0.0</version>
 	<description>MOD_POST_INSTALLATION_MESSAGES_XML_DESCRIPTION</description>
-	<namespace path="src">Joomla\Module\PostInstallationMessages</namespace>
 	<files>
-		<folder module="mod_post_installation_messages">services</folder>
-		<folder>src</folder>
+		<filename module="mod_post_installation_messages">mod_post_installation_messages.php</filename>
 		<folder>tmpl</folder>
 	</files>
 	<languages>

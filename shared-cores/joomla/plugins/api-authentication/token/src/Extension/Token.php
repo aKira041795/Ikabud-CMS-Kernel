@@ -12,13 +12,12 @@ namespace Joomla\Plugin\ApiAuthentication\Token\Extension;
 
 use Joomla\CMS\Authentication\Authentication;
 use Joomla\CMS\Crypt\Crypt;
-use Joomla\CMS\Event\User\AuthenticationEvent;
 use Joomla\CMS\Plugin\CMSPlugin;
 use Joomla\CMS\User\UserFactoryAwareTrait;
+use Joomla\Component\Plugins\Administrator\Model\PluginModel;
 use Joomla\Database\DatabaseAwareTrait;
 use Joomla\Database\ParameterType;
 use Joomla\Event\DispatcherInterface;
-use Joomla\Event\SubscriberInterface;
 use Joomla\Filter\InputFilter;
 
 // phpcs:disable PSR1.Files.SideEffects
@@ -30,7 +29,7 @@ use Joomla\Filter\InputFilter;
  *
  * @since  4.0.0
  */
-final class Token extends CMSPlugin implements SubscriberInterface
+final class Token extends CMSPlugin
 {
     use DatabaseAwareTrait;
     use UserFactoryAwareTrait;
@@ -60,18 +59,6 @@ final class Token extends CMSPlugin implements SubscriberInterface
     private $filter;
 
     /**
-     * Returns an array of events this subscriber will listen to.
-     *
-     * @return  array
-     *
-     * @since   5.0.0
-     */
-    public static function getSubscribedEvents(): array
-    {
-        return ['onUserAuthenticate' => 'onUserAuthenticate'];
-    }
-
-    /**
      * Constructor.
      *
      * @param   DispatcherInterface   $dispatcher   The dispatcher
@@ -90,16 +77,16 @@ final class Token extends CMSPlugin implements SubscriberInterface
     /**
      * This method should handle any authentication and report back to the subject
      *
-     * @param   AuthenticationEvent  $event    Authentication event
+     * @param   array   $credentials  Array holding the user credentials
+     * @param   array   $options      Array of extra options
+     * @param   object  $response     Authentication response object
      *
      * @return  void
      *
      * @since   4.0.0
      */
-    public function onUserAuthenticate(AuthenticationEvent $event): void
+    public function onUserAuthenticate($credentials, $options, &$response): void
     {
-        $response = $event->getAuthenticationResponse();
-
         // Default response is authentication failure.
         $response->type          = 'Token';
         $response->status        = Authentication::STATUS_FAILURE;
@@ -117,11 +104,11 @@ final class Token extends CMSPlugin implements SubscriberInterface
         // Apache specific fixes. See https://github.com/symfony/symfony/issues/19693
         if (
             empty($authHeader) && \PHP_SAPI === 'apache2handler'
-            && \function_exists('apache_request_headers') && apache_request_headers() !== false
+            && function_exists('apache_request_headers') && apache_request_headers() !== false
         ) {
             $apacheHeaders = array_change_key_case(apache_request_headers(), CASE_LOWER);
 
-            if (\array_key_exists('authorization', $apacheHeaders)) {
+            if (array_key_exists('authorization', $apacheHeaders)) {
                 $authHeader = $this->filter->clean($apacheHeaders['authorization'], 'STRING');
             }
         }
@@ -159,7 +146,7 @@ final class Token extends CMSPlugin implements SubscriberInterface
          */
         $parts = explode(':', $authString, 3);
 
-        if (\count($parts) != 3) {
+        if (count($parts) != 3) {
             return;
         }
 
@@ -168,7 +155,7 @@ final class Token extends CMSPlugin implements SubscriberInterface
         /**
          * Verify the HMAC algorithm requested in the token string is allowed
          */
-        $allowedAlgo = \in_array($algo, $this->allowedAlgos);
+        $allowedAlgo = in_array($algo, $this->allowedAlgos);
 
         /**
          * Make sure the user ID is an integer
@@ -252,11 +239,8 @@ final class Token extends CMSPlugin implements SubscriberInterface
         $response->username      = $user->username;
         $response->email         = $user->email;
         $response->fullname      = $user->name;
-        $response->timezone      = $user->getParam('timezone', $this->getApplication()->get('offset', 'UTC'));
-        $response->language      = $user->getParam('language', $this->getApplication()->get('language'));
-
-        // Stop event propagation when status is STATUS_SUCCESS
-        $event->stopPropagation();
+        $response->timezone      = $user->get('timezone');
+        $response->language      = $user->get('language');
     }
 
     /**
@@ -331,7 +315,7 @@ final class Token extends CMSPlugin implements SubscriberInterface
      */
     private function getPluginParameter(string $folder, string $plugin, string $param, $default = null)
     {
-        /** @var \Joomla\Component\Plugins\Administrator\Model\PluginModel $model */
+        /** @var PluginModel $model */
         $model = $this->getApplication()->bootComponent('plugins')
             ->getMVCFactory()->createModel('Plugin', 'Administrator', ['ignore_request' => true]);
 
@@ -358,7 +342,7 @@ final class Token extends CMSPlugin implements SubscriberInterface
             return [];
         }
 
-        if (!\is_array($userGroups)) {
+        if (!is_array($userGroups)) {
             $userGroups = [$userGroups];
         }
 

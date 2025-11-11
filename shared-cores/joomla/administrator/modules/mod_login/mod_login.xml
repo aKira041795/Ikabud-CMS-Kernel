@@ -11,7 +11,7 @@
 	<description>MOD_LOGIN_XML_DESCRIPTION</description>
 	<namespace path="src">Joomla\Module\Login</namespace>
 	<files>
-		<folder module="mod_login">services</folder>
+		<filename module="mod_login">mod_login.php</filename>
 		<folder>src</folder>
 		<folder>tmpl</folder>
 	</files>

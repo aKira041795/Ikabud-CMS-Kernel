@@ -24,7 +24,9 @@ $instanceDir = __DIR__;
 $sharedCore = dirname(dirname($instanceDir)) . '/shared-cores/joomla';
 \defined('JPATH_LIBRARIES') || \define('JPATH_LIBRARIES', $sharedCore . '/libraries');
 \defined('JPATH_PLUGINS') || \define('JPATH_PLUGINS', $sharedCore . '/plugins');
-\defined('JPATH_THEMES') || \define('JPATH_THEMES', $instanceDir . '/templates');
+
+// JPATH_THEMES - set based on context (JPATH_BASE determines site vs admin)
+\defined('JPATH_THEMES') || \define('JPATH_THEMES', \defined('JPATH_BASE') ? JPATH_BASE . '/templates' : $instanceDir . '/templates');
 
 // Instance-specific paths - these must be writable
 \defined('JPATH_ADMINISTRATOR') || \define('JPATH_ADMINISTRATOR', $instanceDir . '/administrator');

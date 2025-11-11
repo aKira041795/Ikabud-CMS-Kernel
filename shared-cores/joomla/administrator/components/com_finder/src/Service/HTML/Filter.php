@@ -11,6 +11,7 @@
 namespace Joomla\Component\Finder\Administrator\Service\HTML;
 
 use Joomla\CMS\Factory;
+use Joomla\CMS\Filter\OutputFilter;
 use Joomla\CMS\HTML\HTMLHelper;
 use Joomla\CMS\Language\Multilanguage;
 use Joomla\CMS\Language\Text;
@@ -18,7 +19,6 @@ use Joomla\Component\Finder\Administrator\Helper\LanguageHelper;
 use Joomla\Component\Finder\Administrator\Indexer\Query;
 use Joomla\Database\DatabaseAwareTrait;
 use Joomla\Database\ParameterType;
-use Joomla\Filter\OutputFilter;
 use Joomla\Registry\Registry;
 
 // phpcs:disable PSR1.Files.SideEffects
@@ -55,8 +55,8 @@ class Filter
 
         // Get the configuration options.
         $filterId    = $options['filter_id'] ?? null;
-        $activeNodes = \array_key_exists('selected_nodes', $options) ? $options['selected_nodes'] : [];
-        $classSuffix = \array_key_exists('class_suffix', $options) ? $options['class_suffix'] : '';
+        $activeNodes = array_key_exists('selected_nodes', $options) ? $options['selected_nodes'] : [];
+        $classSuffix = array_key_exists('class_suffix', $options) ? $options['class_suffix'] : '';
 
         // Load the predefined filter if specified.
         if (!empty($filterId)) {
@@ -105,7 +105,7 @@ class Filter
         }
 
         // Check that we have at least one branch.
-        if (\count($branches) === 0) {
+        if (count($branches) === 0) {
             return null;
         }
 
@@ -148,7 +148,7 @@ class Filter
             // Translate node titles if possible.
             $lang = Factory::getLanguage();
 
-            foreach ($nodes as $nv) {
+            foreach ($nodes as $nk => $nv) {
                 if (trim($nv->parent_title, '*') === 'Language') {
                     $title = LanguageHelper::branchLanguageTitle($nv->title);
                 } else {
@@ -156,7 +156,7 @@ class Filter
                     $title = $lang->hasKey($key) ? Text::_($key) : $nv->title;
                 }
 
-                $nv->title = $title;
+                $nodes[$nk]->title = $title;
             }
 
             // Adding slides
@@ -165,7 +165,7 @@ class Filter
                 'accordion',
                 Text::sprintf(
                     'COM_FINDER_FILTER_BRANCH_LABEL',
-                    Text::_(LanguageHelper::branchSingular($bv->title)) . ' - ' . \count($nodes)
+                    Text::_(LanguageHelper::branchSingular($bv->title)) . ' - ' . count($nodes)
                 ),
                 'accordion-' . $bk
             );
@@ -177,7 +177,7 @@ class Filter
             // Populate the group with nodes.
             foreach ($nodes as $nk => $nv) {
                 // Determine if the node should be checked.
-                $checked = \in_array($nk, $activeNodes) ? ' checked="checked"' : '';
+                $checked = in_array($nk, $activeNodes) ? ' checked="checked"' : '';
 
                 // Build a node.
                 $html .= '<div class="form-check">';
@@ -278,7 +278,7 @@ class Filter
             }
 
             // Check that we have at least one branch.
-            if (\count($branches) === 0) {
+            if (count($branches) === 0) {
                 return null;
             }
 
@@ -320,7 +320,7 @@ class Filter
                 $db->setQuery($query);
 
                 try {
-                    $bv->nodes = $db->loadObjectList('id');
+                    $branches[$bk]->nodes = $db->loadObjectList('id');
                 } catch (\RuntimeException $e) {
                     return null;
                 }
@@ -329,7 +329,7 @@ class Filter
                 $language = Factory::getLanguage();
                 $root     = [];
 
-                foreach ($bv->nodes as $node_id => $node) {
+                foreach ($branches[$bk]->nodes as $node_id => $node) {
                     if (trim($node->parent_title, '*') === 'Language') {
                         $title = LanguageHelper::branchLanguageTitle($node->title);
                     } else {
@@ -338,10 +338,10 @@ class Filter
                     }
 
                     if ($node->level > 2) {
-                        $node->title = str_repeat('-', $node->level - 2) . $title;
+                        $branches[$bk]->nodes[$node_id]->title = str_repeat('-', $node->level - 2) . $title;
                     } else {
-                        $node->title = $title;
-                        $root[]      = $branches[$bk]->nodes[$node_id];
+                        $branches[$bk]->nodes[$node_id]->title = $title;
+                        $root[]                                = $branches[$bk]->nodes[$node_id];
                     }
 
                     if ($node->parent_id && isset($branches[$bk]->nodes[$node->parent_id])) {
@@ -355,7 +355,7 @@ class Filter
                 $branches[$bk]->nodes = $this->reduce($root);
 
                 // Add the Search All option to the branch.
-                array_unshift($bv->nodes, ['id' => null, 'title' => Text::_('COM_FINDER_FILTER_SELECT_ALL_LABEL')]);
+                array_unshift($branches[$bk]->nodes, ['id' => null, 'title' => Text::_('COM_FINDER_FILTER_SELECT_ALL_LABEL')]);
             }
 
             // Store the data in cache.
@@ -372,7 +372,7 @@ class Filter
         $html .= '<div class="filter-branch' . $classSuffix . '">';
 
         // Iterate through all branches and build code.
-        foreach ($branches as $bv) {
+        foreach ($branches as $bk => $bv) {
             // If the multi-lang plugin is enabled then drop the language branch.
             if ($bv->title === 'Language' && Multilanguage::isEnabled()) {
                 continue;
@@ -381,13 +381,13 @@ class Filter
             $active = null;
 
             // Check if the branch is in the filter.
-            if (\array_key_exists($bv->title, $idxQuery->filters)) {
+            if (array_key_exists($bv->title, $idxQuery->filters)) {
                 // Get the request filters.
                 $temp   = Factory::getApplication()->getInput()->request->get('t', [], 'array');
 
                 // Search for active nodes in the branch and get the active node.
                 $active = array_intersect($temp, $idxQuery->filters[$bv->title]);
-                $active = \count($active) === 1 ? array_shift($active) : null;
+                $active = count($active) === 1 ? array_shift($active) : null;
             }
 
             // Build a node.
@@ -400,7 +400,7 @@ class Filter
             $html .= '<div class="controls">';
             $html .= HTMLHelper::_(
                 'select.genericlist',
-                $bv->nodes,
+                $branches[$bk]->nodes,
                 't[]',
                 'class="form-select advancedSelect"',
                 'id',
@@ -460,9 +460,6 @@ class Filter
             $html .= Text::_('COM_FINDER_FILTER_DATE1');
             $html .= '</label>';
             $html .= '<br>';
-            $html .= '<label for="finder-filter-w1" class="visually-hidden">';
-            $html .= Text::_('COM_FINDER_FILTER_DATE1_OPERATOR');
-            $html .= '</label>';
             $html .= HTMLHelper::_(
                 'select.genericlist',
                 $operators,
@@ -482,9 +479,6 @@ class Filter
             $html .= Text::_('COM_FINDER_FILTER_DATE2');
             $html .= '</label>';
             $html .= '<br>';
-            $html .= '<label for="finder-filter-w2" class="visually-hidden">';
-            $html .= Text::_('COM_FINDER_FILTER_DATE2_OPERATOR');
-            $html .= '</label>';
             $html .= HTMLHelper::_(
                 'select.genericlist',
                 $operators,
@@ -512,7 +506,7 @@ class Filter
      *
      * @return  \stdClass[]  Flat array of all nodes of a tree with the children after each parent
      *
-     * @since   5.1.0
+     * @since   4.4.4
      */
     private function reduce(array $array)
     {

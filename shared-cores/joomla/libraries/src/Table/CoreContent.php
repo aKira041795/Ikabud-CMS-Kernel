@@ -13,15 +13,12 @@ use Joomla\CMS\Application\ApplicationHelper;
 use Joomla\CMS\Factory;
 use Joomla\CMS\Helper\ContentHelper;
 use Joomla\CMS\Language\Text;
-use Joomla\CMS\User\CurrentUserInterface;
-use Joomla\CMS\User\CurrentUserTrait;
 use Joomla\Database\DatabaseDriver;
 use Joomla\Database\ParameterType;
-use Joomla\Event\DispatcherInterface;
 use Joomla\String\StringHelper;
 
 // phpcs:disable PSR1.Files.SideEffects
-\defined('_JEXEC') or die;
+\defined('JPATH_PLATFORM') or die;
 // phpcs:enable PSR1.Files.SideEffects
 
 /**
@@ -29,10 +26,8 @@ use Joomla\String\StringHelper;
  *
  * @since  3.1
  */
-class CoreContent extends Table implements CurrentUserInterface
+class CoreContent extends Table
 {
-    use CurrentUserTrait;
-
     /**
      * Indicates that columns fully support the NULL value in the database
      *
@@ -42,7 +37,7 @@ class CoreContent extends Table implements CurrentUserInterface
     protected $_supportNullValue = true;
 
     /**
-     * An array of key names to be json encoded in the bind method
+     * Encode necessary fields to JSON in the bind method
      *
      * @var    array
      * @since  4.0.0
@@ -52,14 +47,13 @@ class CoreContent extends Table implements CurrentUserInterface
     /**
      * Constructor
      *
-     * @param   DatabaseDriver        $db          Database connector object
-     * @param   ?DispatcherInterface  $dispatcher  Event dispatcher for this table
+     * @param   DatabaseDriver  $db  A database connector object
      *
      * @since   3.1
      */
-    public function __construct(DatabaseDriver $db, ?DispatcherInterface $dispatcher = null)
+    public function __construct(DatabaseDriver $db)
     {
-        parent::__construct('#__ucm_content', 'core_content_id', $db, $dispatcher);
+        parent::__construct('#__ucm_content', 'core_content_id', $db);
 
         $this->setColumnAlias('published', 'core_state');
         $this->setColumnAlias('checked_out', 'core_checked_out_user_id');
@@ -155,7 +149,7 @@ class CoreContent extends Table implements CurrentUserInterface
     }
 
     /**
-     * Override \Joomla\CMS\Table\Table delete method to include deleting corresponding row from #__ucm_base.
+     * Override JTable delete method to include deleting corresponding row from #__ucm_base.
      *
      * @param   integer  $pk  primary key value to delete. Must be set or throws an exception.
      *
@@ -166,7 +160,7 @@ class CoreContent extends Table implements CurrentUserInterface
      */
     public function delete($pk = null)
     {
-        $baseTable = new Ucm($this->getDbo(), $this->getDispatcher());
+        $baseTable = Table::getInstance('Ucm', 'JTable', ['dbo' => $this->getDbo()]);
 
         return parent::delete($pk) && $baseTable->delete($pk);
     }
@@ -211,9 +205,9 @@ class CoreContent extends Table implements CurrentUserInterface
 
         if ($ucmId = $db->loadResult()) {
             return $this->delete($ucmId);
+        } else {
+            return true;
         }
-
-        return true;
     }
 
     /**
@@ -228,12 +222,12 @@ class CoreContent extends Table implements CurrentUserInterface
     public function store($updateNulls = true)
     {
         $date = Factory::getDate();
-        $user = $this->getCurrentUser();
+        $user = Factory::getUser();
 
         if ($this->core_content_id) {
             // Existing item
             $this->core_modified_time    = $date->toSql();
-            $this->core_modified_user_id = $user->id;
+            $this->core_modified_user_id = $user->get('id');
             $isNew                       = false;
         } else {
             // New content item. A content item core_created_time and core_created_user_id field can be set by the user,
@@ -243,7 +237,7 @@ class CoreContent extends Table implements CurrentUserInterface
             }
 
             if (empty($this->core_created_user_id)) {
-                $this->core_created_user_id = $user->id;
+                $this->core_created_user_id = $user->get('id');
             }
 
             if (!(int) $this->core_modified_time) {

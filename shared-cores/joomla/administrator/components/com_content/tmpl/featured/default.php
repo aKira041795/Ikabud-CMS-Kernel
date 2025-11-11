@@ -25,16 +25,14 @@ use Joomla\CMS\Session\Session;
 use Joomla\Component\Content\Administrator\Helper\ContentHelper;
 use Joomla\Utilities\ArrayHelper;
 
-/** @var \Joomla\Component\Content\Administrator\View\Featured\HtmlView $this */
-
 /** @var \Joomla\CMS\WebAsset\WebAssetManager $wa */
-$wa = $this->getDocument()->getWebAssetManager();
+$wa = $this->document->getWebAssetManager();
 $wa->useScript('table.columns')
     ->useScript('multiselect');
 
 $app       = Factory::getApplication();
-$user      = $this->getCurrentUser();
-$userId    = $user->id;
+$user      = Factory::getUser();
+$userId    = $user->get('id');
 $listOrder = $this->escape($this->state->get('list.ordering'));
 $listDirn  = $this->escape($this->state->get('list.direction'));
 $saveOrder = $listOrder == 'fp.ordering';
@@ -358,7 +356,7 @@ $assoc = Associations::isEnabled();
                                         </span>
                                     </td>
                                     <td class="d-none d-md-table-cell text-center">
-                                        <span class="badge bg-warning">
+                                        <span class="badge bg-warning text-dark">
                                             <?php echo (int) $item->rating; ?>
                                         </span>
                                     </td>

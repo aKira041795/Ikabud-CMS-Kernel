@@ -10,15 +10,14 @@
 namespace Joomla\CMS\WebAsset;
 
 use Joomla\CMS\Event\AbstractEvent;
-use Joomla\CMS\Event\WebAsset\WebAssetRegistryAssetChanged;
+use Joomla\CMS\Filesystem\Path;
 use Joomla\CMS\WebAsset\Exception\UnknownAssetException;
 use Joomla\Event\Dispatcher as EventDispatcher;
 use Joomla\Event\DispatcherAwareInterface;
 use Joomla\Event\DispatcherAwareTrait;
-use Joomla\Filesystem\Path;
 
 // phpcs:disable PSR1.Files.SideEffects
-\defined('_JEXEC') or die;
+\defined('JPATH_PLATFORM') or die;
 // phpcs:enable PSR1.Files.SideEffects
 
 /**
@@ -132,7 +131,7 @@ class WebAssetRegistry implements WebAssetRegistryInterface, DispatcherAwareInte
         $this->parseRegistryFiles();
 
         if (empty($this->assets[$type][$name])) {
-            throw new UnknownAssetException(\sprintf('There is no "%s" asset of a "%s" type in the registry.', $name, $type));
+            throw new UnknownAssetException(sprintf('There is no "%s" asset of a "%s" type in the registry.', $name, $type));
         }
 
         return $this->assets[$type][$name];
@@ -152,7 +151,7 @@ class WebAssetRegistry implements WebAssetRegistryInterface, DispatcherAwareInte
     {
         $type = strtolower($type);
 
-        if (!\array_key_exists($type, $this->assets)) {
+        if (!array_key_exists($type, $this->assets)) {
             $this->assets[$type] = [];
         }
 
@@ -222,11 +221,11 @@ class WebAssetRegistry implements WebAssetRegistryInterface, DispatcherAwareInte
     /**
      * Prepare new Asset instance.
      *
-     * @param   string   $name          The asset name
-     * @param   ?string  $uri           The URI for the asset
-     * @param   array    $options       Additional options for the asset
-     * @param   array    $attributes    Attributes for the asset
-     * @param   array    $dependencies  Asset dependencies
+     * @param   string  $name          The asset name
+     * @param   string  $uri           The URI for the asset
+     * @param   array   $options       Additional options for the asset
+     * @param   array   $attributes    Attributes for the asset
+     * @param   array   $dependencies  Asset dependencies
      *
      * @return  WebAssetItem
      *
@@ -234,7 +233,7 @@ class WebAssetRegistry implements WebAssetRegistryInterface, DispatcherAwareInte
      */
     public function createAsset(
         string $name,
-        ?string $uri = null,
+        string $uri = null,
         array $options = [],
         array $attributes = [],
         array $dependencies = []
@@ -374,7 +373,7 @@ class WebAssetRegistry implements WebAssetRegistryInterface, DispatcherAwareInte
         $data = $data ? json_decode($data, true) : null;
 
         if ($data === null) {
-            throw new \RuntimeException(\sprintf('Asset registry file "%s" contains invalid JSON', $path));
+            throw new \RuntimeException(sprintf('Asset registry file "%s" contains invalid JSON', $path));
         }
 
         // Check if asset field exists and contains data. If it doesn't - we can just bail here.
@@ -393,13 +392,13 @@ class WebAssetRegistry implements WebAssetRegistryInterface, DispatcherAwareInte
         foreach ($data['assets'] as $i => $item) {
             if (empty($item['name'])) {
                 throw new \RuntimeException(
-                    \sprintf('Failed parsing asset registry file "%s". Property "name" is required for asset index "%s"', $path, $i)
+                    sprintf('Failed parsing asset registry file "%s". Property "name" is required for asset index "%s"', $path, $i)
                 );
             }
 
             if (empty($item['type'])) {
                 throw new \RuntimeException(
-                    \sprintf('Failed parsing asset registry file "%s". Property "type" is required for asset "%s"', $path, $item['name'])
+                    sprintf('Failed parsing asset registry file "%s". Property "type" is required for asset "%s"', $path, $item['name'])
                 );
             }
 
@@ -443,7 +442,7 @@ class WebAssetRegistry implements WebAssetRegistryInterface, DispatcherAwareInte
         $event = AbstractEvent::create(
             'onWebAssetRegistryChangedAsset' . ucfirst($change),
             [
-                'eventClass' => WebAssetRegistryAssetChanged::class,
+                'eventClass' => 'Joomla\\CMS\\Event\\WebAsset\\WebAssetRegistryAssetChanged',
                 'subject'    => $this,
                 'assetType'  => $type,
                 'asset'      => $asset,

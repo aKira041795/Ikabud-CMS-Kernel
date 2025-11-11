@@ -11,9 +11,11 @@
 defined('_JEXEC') or die;
 
 use Joomla\CMS\Factory;
+use Joomla\CMS\HTML\HTMLHelper;
+use Joomla\CMS\Language\Text;
 use Joomla\CMS\Session\Session;
 
-extract($displayData);
+extract($displayData, EXTR_OVERWRITE);
 
 /**
  * Layout variables
@@ -26,34 +28,43 @@ extract($displayData);
  */
 
 /** @var Joomla\CMS\WebAsset\WebAssetManager $wa */
-$wa = Factory::getApplication()->getDocument()->getWebAssetManager();
+$wa = Factory::getDocument()->getWebAssetManager();
+$wa->getRegistry()->addExtensionRegistryFile('com_contenthistory');
 
 $wa->useScript('core')
-    ->useScript('joomla.dialog-autocreate')
-    ->useScript('webcomponent.toolbar-button');
+    ->useScript('webcomponent.toolbar-button')
+    ->useScript('com_contenthistory.admin-history-versions');
 
-$url = 'index.php?' . http_build_query([
-    'option'                => 'com_contenthistory',
-    'view'                  => 'history',
-    'layout'                => 'modal',
-    'tmpl'                  => 'component',
-    'item_id'               => $itemId,
-    Session::getFormToken() => 1,
-]);
-
-
-$dialogOptions = [
-    'popupType'  => 'iframe',
-    'src'        => $url,
-    'textHeader' => $title ?? '',
-];
-
+echo HTMLHelper::_(
+    'bootstrap.renderModal',
+    'versionsModal',
+    [
+        'url'    => 'index.php?' . http_build_query(
+            [
+                'option' => 'com_contenthistory',
+                'view' => 'history',
+                'layout' => 'modal',
+                'tmpl' => 'component',
+                'item_id' => $itemId,
+                Session::getFormToken() => 1
+            ]
+        ),
+        'title'  => $title,
+        'height' => '100%',
+        'width'  => '100%',
+        'modalWidth'  => '80',
+        'bodyHeight'  => '60',
+        'footer' => '<button type="button" class="btn btn-secondary" data-bs-dismiss="modal" aria-hidden="true">'
+            . Text::_('JLIB_HTML_BEHAVIOR_CLOSE') . '</button>'
+    ]
+);
 ?>
 <joomla-toolbar-button id="toolbar-versions">
     <button
         class="btn btn-primary"
-        data-joomla-dialog="<?php echo $this->escape(json_encode($dialogOptions, JSON_UNESCAPED_SLASHES)); ?>"
-        type="button">
+        type="button"
+        data-bs-target="#versionsModal"
+        data-bs-toggle="modal">
         <span class="icon-code-branch" aria-hidden="true"></span>
         <?php echo $title; ?>
     </button>

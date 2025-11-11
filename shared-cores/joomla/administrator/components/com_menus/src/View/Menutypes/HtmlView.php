@@ -14,6 +14,7 @@ use Joomla\CMS\Factory;
 use Joomla\CMS\Language\Text;
 use Joomla\CMS\MVC\View\HtmlView as BaseHtmlView;
 use Joomla\CMS\Object\CMSObject;
+use Joomla\CMS\Toolbar\Toolbar;
 use Joomla\CMS\Toolbar\ToolbarHelper;
 
 // phpcs:disable PSR1.Files.SideEffects
@@ -79,9 +80,7 @@ class HtmlView extends BaseHtmlView
 
         $this->types = $sortedTypes;
 
-        if (!$app->getInput()->get('tmpl')) {
-            $this->addToolbar();
-        }
+        $this->addToolbar();
 
         parent::display($tpl);
     }
@@ -98,7 +97,7 @@ class HtmlView extends BaseHtmlView
         // Add page title
         ToolbarHelper::title(Text::_('COM_MENUS'), 'list menumgr');
 
-        $toolbar = $this->getDocument()->getToolbar();
+        $toolbar = Toolbar::getInstance();
 
         // Cancel
         $title = Text::_('JTOOLBAR_CANCEL');

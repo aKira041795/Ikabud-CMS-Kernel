@@ -39,6 +39,7 @@ const elSearchContainer = document.getElementById('comModulesSelectSearchContain
 const elSearchHeader = document.getElementById('comModulesSelectTypeHeader');
 const elSearchResults = document.getElementById('comModulesSelectResultsContainer');
 const alertElement = document.querySelector('.modules-alert');
+const elCards = [].slice.call(document.querySelectorAll('.comModulesSelectCard'));
 if (elSearch && elSearchContainer) {
   // Add the keyboard event listener which performs the live search in the cards
   elSearch.addEventListener('keyup', event => {
@@ -52,7 +53,7 @@ if (elSearch && elSearchContainer) {
     }
 
     // Iterate all the module cards
-    document.querySelectorAll('.comModulesSelectCard').forEach(card => {
+    elCards.forEach(card => {
       // First remove the class which hide the module cards
       card.classList.remove('d-none');
 
@@ -61,7 +62,7 @@ if (elSearch && elSearchContainer) {
         return;
       }
       const cardHeader = card.querySelector('.new-module-title');
-      const cardBody = card.querySelector('.new-module-caption');
+      const cardBody = card.querySelector('.card-body');
       const title = cardHeader ? cardHeader.textContent : '';
       const description = cardBody ? cardBody.textContent : '';
 

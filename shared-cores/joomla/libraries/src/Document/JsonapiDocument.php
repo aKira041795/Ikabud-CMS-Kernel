@@ -14,7 +14,7 @@ use Tobscure\JsonApi\Document;
 use Tobscure\JsonApi\ElementInterface;
 
 // phpcs:disable PSR1.Files.SideEffects
-\defined('_JEXEC') or die;
+\defined('JPATH_PLATFORM') or die;
 // phpcs:enable PSR1.Files.SideEffects
 
 /**
@@ -158,7 +158,8 @@ class JsonapiDocument extends JsonDocument implements \JsonSerializable
      *
      * @since  4.0.0
      */
-    public function jsonSerialize(): mixed
+    #[\ReturnTypeWillChange]
+    public function jsonSerialize()
     {
         return $this->toArray();
     }

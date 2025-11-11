@@ -38,7 +38,7 @@ class HtmlView extends BaseHtmlView
     /**
      * The active item
      *
-     * @var \stdClass
+     * @var object
      */
     protected $item;
 
@@ -145,7 +145,7 @@ class HtmlView extends BaseHtmlView
         }
 
         ToolbarHelper::divider();
-        $inlinehelp  = (string) $this->form->getXml()->config->inlinehelp['button'] === 'show';
+        $inlinehelp  = (string) $this->form->getXml()->config->inlinehelp['button'] == 'show' ?: false;
         $targetClass = (string) $this->form->getXml()->config->inlinehelp['targetclass'] ?: 'hide-aware-inline-help';
 
         if ($inlinehelp) {

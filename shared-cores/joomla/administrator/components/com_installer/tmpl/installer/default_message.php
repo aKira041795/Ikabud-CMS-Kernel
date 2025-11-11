@@ -10,8 +10,6 @@
 
 defined('_JEXEC') or die;
 
-/** @var \Joomla\Component\Installer\Administrator\View\Installer\HtmlView $this */
-
 $state    = $this->get('State');
 $message1 = $state->get('message');
 $message2 = $state->get('extension_message');

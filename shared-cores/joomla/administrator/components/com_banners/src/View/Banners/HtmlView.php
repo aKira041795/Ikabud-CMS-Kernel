@@ -10,6 +10,7 @@
 
 namespace Joomla\Component\Banners\Administrator\View\Banners;
 
+use Joomla\CMS\Factory;
 use Joomla\CMS\Form\Form;
 use Joomla\CMS\Helper\ContentHelper;
 use Joomla\CMS\Language\Multilanguage;
@@ -18,6 +19,7 @@ use Joomla\CMS\MVC\View\GenericDataException;
 use Joomla\CMS\MVC\View\HtmlView as BaseHtmlView;
 use Joomla\CMS\Pagination\Pagination;
 use Joomla\CMS\Toolbar\Button\DropdownButton;
+use Joomla\CMS\Toolbar\Toolbar;
 use Joomla\CMS\Toolbar\ToolbarHelper;
 use Joomla\Component\Banners\Administrator\Model\BannersModel;
 use Joomla\Registry\Registry;
@@ -140,8 +142,8 @@ class HtmlView extends BaseHtmlView
     protected function addToolbar(): void
     {
         $canDo   = ContentHelper::getActions('com_banners', 'category', $this->state->get('filter.category_id'));
-        $user    = $this->getCurrentUser();
-        $toolbar = $this->getDocument()->getToolbar();
+        $user    = Factory::getApplication()->getIdentity();
+        $toolbar = Toolbar::getInstance();
 
         ToolbarHelper::title(Text::_('COM_BANNERS_MANAGER_BANNERS'), 'bookmark banners');
 
@@ -182,7 +184,7 @@ class HtmlView extends BaseHtmlView
             }
 
             if ($this->state->get('filter.published') == -2 && $canDo->get('core.delete')) {
-                $toolbar->delete('banners.delete', 'JTOOLBAR_DELETE_FROM_TRASH')
+                $toolbar->delete('banners.delete', 'JTOOLBAR_EMPTY_TRASH')
                     ->message('JGLOBAL_CONFIRM_DELETE')
                     ->listCheck(true);
             }
@@ -194,11 +196,7 @@ class HtmlView extends BaseHtmlView
                 && $user->authorise('core.edit.state', 'com_banners')
             ) {
                 $childBar->popupButton('batch', 'JTOOLBAR_BATCH')
-                    ->popupType('inline')
-                    ->textHeader(Text::_('COM_BANNERS_BATCH_OPTIONS'))
-                    ->url('#joomla-dialog-batch')
-                    ->modalWidth('800px')
-                    ->modalHeight('fit-content')
+                    ->selector('collapseModal')
                     ->listCheck(true);
             }
         }

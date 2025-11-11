@@ -14,6 +14,7 @@ use Joomla\CMS\Factory;
 use Joomla\CMS\Form\Form;
 use Joomla\CMS\Language\Text;
 use Joomla\CMS\Pagination\Pagination;
+use Joomla\CMS\Toolbar\Toolbar;
 use Joomla\Component\Installer\Administrator\Model\DatabaseModel;
 use Joomla\Component\Installer\Administrator\View\Installer\HtmlView as InstallerViewDefault;
 
@@ -117,7 +118,7 @@ class HtmlView extends InstallerViewDefault
      */
     protected function addToolbar()
     {
-        $toolbar = $this->getDocument()->getToolbar();
+        $toolbar = Toolbar::getInstance();
 
         $toolbar->standardButton('fix', 'COM_INSTALLER_TOOLBAR_DATABASE_FIX', 'database.fix')
             ->listCheck(true)

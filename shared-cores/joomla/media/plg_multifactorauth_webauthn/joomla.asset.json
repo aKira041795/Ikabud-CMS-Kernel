@@ -10,12 +10,26 @@
       "type": "script",
       "uri": "plg_multifactorauth_webauthn/webauthn.min.js",
       "dependencies": [
+        "plg_multifactorauth_webauthn.webauthn.es5",
         "core"
       ],
       "attributes": {
         "defer": true
       },
-      "version": "8e8e14"
+      "version": "bdb7df28bffa4cbab10e5ee64575658fa5c3c562"
+    },
+    {
+      "name": "plg_multifactorauth_webauthn.webauthn.es5",
+      "type": "script",
+      "uri": "plg_multifactorauth_webauthn/webauthn-es5.min.js",
+      "dependencies": [
+        "core"
+      ],
+      "attributes": {
+        "nomodule": true,
+        "defer": true
+      },
+      "version": "17da4e8066e1edfa5792ed94e0eb02ff437695a0"
     }
   ]
 }

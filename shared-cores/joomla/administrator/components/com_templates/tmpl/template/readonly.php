@@ -15,8 +15,6 @@ use Joomla\CMS\HTML\HTMLHelper;
 use Joomla\CMS\Language\Text;
 use Joomla\CMS\Router\Route;
 
-/** @var \Joomla\Component\Templates\Administrator\View\Template\HtmlView $this */
-
 $input = Factory::getApplication()->getInput();
 ?>
 <form action="<?php echo Route::_('index.php?option=com_templates&view=template&id=' . $input->getInt('id') . '&file=' . $this->file); ?>" method="post" name="adminForm" id="adminForm">

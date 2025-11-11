@@ -33,5 +33,7 @@
       getTreeElements(root).map(element => toggleState(element, selfChecked));
     }
   };
-  document.querySelectorAll('.treeselect input[type="checkbox"]').forEach(checkbox => checkbox.addEventListener('click', switchState));
+  [].slice.call(document.querySelectorAll('.treeselect input[type="checkbox"]')).forEach(checkbox => {
+    checkbox.addEventListener('click', switchState);
+  });
 })(document);

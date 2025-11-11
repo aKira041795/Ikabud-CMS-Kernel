@@ -11,7 +11,6 @@
 namespace Joomla\Plugin\MediaAction\Rotate\Extension;
 
 use Joomla\Component\Media\Administrator\Plugin\MediaActionPlugin;
-use Joomla\Event\SubscriberInterface;
 
 // phpcs:disable PSR1.Files.SideEffects
 \defined('_JEXEC') or die;
@@ -22,6 +21,6 @@ use Joomla\Event\SubscriberInterface;
  *
  * @since  4.0.0
  */
-final class Rotate extends MediaActionPlugin implements SubscriberInterface
+final class Rotate extends MediaActionPlugin
 {
 }

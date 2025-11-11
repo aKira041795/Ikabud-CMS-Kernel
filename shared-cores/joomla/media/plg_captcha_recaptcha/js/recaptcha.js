@@ -7,8 +7,9 @@
 ((window, document) => {
 
   window.JoomlainitReCaptcha2 = () => {
+    const elements = [].slice.call(document.getElementsByClassName('g-recaptcha'));
     const optionKeys = ['sitekey', 'theme', 'size', 'tabindex', 'callback', 'expired-callback', 'error-callback'];
-    document.querySelectorAll('.g-recaptcha').forEach(element => {
+    elements.forEach(element => {
       let options = {};
       if (element.dataset) {
         options = element.dataset;

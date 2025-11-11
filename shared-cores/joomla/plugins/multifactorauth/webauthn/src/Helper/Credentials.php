@@ -10,16 +10,18 @@
 
 namespace Joomla\Plugin\Multifactorauth\Webauthn\Helper;
 
+use Exception;
 use Joomla\CMS\Application\CMSApplication;
 use Joomla\CMS\Factory;
 use Joomla\CMS\Language\Text;
 use Joomla\CMS\Uri\Uri;
 use Joomla\CMS\User\User;
 use Joomla\CMS\User\UserFactoryInterface;
-use Joomla\CMS\WebAuthn\Server;
 use Joomla\Plugin\Multifactorauth\Webauthn\CredentialRepository;
+use Joomla\Plugin\Multifactorauth\Webauthn\Hotfix\Server;
 use Joomla\Session\SessionInterface;
 use Laminas\Diactoros\ServerRequestFactory;
+use Webauthn\AttestedCredentialData;
 use Webauthn\AuthenticationExtensions\AuthenticationExtensionsClientInputs;
 use Webauthn\AuthenticatorSelectionCriteria;
 use Webauthn\PublicKeyCredentialCreationOptions;
@@ -88,7 +90,7 @@ abstract class Credentials
      *
      * @param   string   $data   The JSON-encoded data returned by the browser during the authentication flow
      *
-     * @return  ?PublicKeyCredentialSource
+     * @return  AttestedCredentialData|null
      * @throws  \Exception  When something does not check out
      * @since   4.2.0
      */
@@ -109,7 +111,7 @@ abstract class Credentials
             $publicKeyCredentialCreationOptions = null;
         }
 
-        if (!\is_object($publicKeyCredentialCreationOptions) || !($publicKeyCredentialCreationOptions instanceof PublicKeyCredentialCreationOptions)) {
+        if (!is_object($publicKeyCredentialCreationOptions) || !($publicKeyCredentialCreationOptions instanceof PublicKeyCredentialCreationOptions)) {
             throw new \RuntimeException(Text::_('PLG_MULTIFACTORAUTH_WEBAUTHN_ERR_CREATE_NO_PK'));
         }
 
@@ -206,7 +208,7 @@ abstract class Credentials
         $publicKeyCredentialRequestOptions = unserialize($serializedOptions);
 
         if (
-            !\is_object($publicKeyCredentialRequestOptions)
+            !is_object($publicKeyCredentialRequestOptions)
             || empty($publicKeyCredentialRequestOptions)
             || !($publicKeyCredentialRequestOptions instanceof PublicKeyCredentialRequestOptions)
         ) {
@@ -239,7 +241,7 @@ abstract class Credentials
         $scheme    = Uri::getInstance()->getScheme();
         $subdomain = ($scheme == 'https') ? 'secure' : 'www';
 
-        return \sprintf('%s://%s.gravatar.com/avatar/%s.jpg?s=%u&d=mm', $scheme, $subdomain, md5($user->email), $size);
+        return sprintf('%s://%s.gravatar.com/avatar/%s.jpg?s=%u&d=mm', $scheme, $subdomain, md5($user->email), $size);
     }
 
     /**
@@ -292,7 +294,7 @@ abstract class Credentials
         $refConstructor = $refClass->getConstructor();
         $params         = $refConstructor->getParameters();
 
-        if (\count($params) === 3) {
+        if (count($params) === 3) {
             // WebAuthn library 2, 3
             $server = new Server($rpEntity, $repository, null);
         } else {
@@ -301,7 +303,7 @@ abstract class Credentials
         }
 
         // Ed25519 is only available with libsodium
-        if (!\function_exists('sodium_crypto_sign_seed_keypair')) {
+        if (!function_exists('sodium_crypto_sign_seed_keypair')) {
             $server->setSelectedAlgorithms(['RS256', 'RS512', 'PS256', 'PS512', 'ES256', 'ES512']);
         }
 

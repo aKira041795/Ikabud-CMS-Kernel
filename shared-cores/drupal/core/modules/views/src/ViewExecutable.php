@@ -8,6 +8,7 @@ use Drupal\Core\Logger\LoggerChannelTrait;
 use Drupal\Core\Routing\RouteProviderInterface;
 use Drupal\Core\Session\AccountInterface;
 use Drupal\views\Plugin\views\display\DisplayRouterInterface;
+use Drupal\views\Plugin\views\query\QueryPluginBase;
 use Drupal\views\Plugin\ViewsPluginManager;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -219,7 +220,7 @@ class ViewExecutable {
    *
    * @var \Drupal\views\Plugin\views\query\QueryPluginBase
    */
-  public $query = NULL;
+  public ?QueryPluginBase $query = NULL;
 
   /**
    * The used pager plugin used by the current executed view.
@@ -2535,7 +2536,7 @@ class ViewExecutable {
    * @return array
    *   The names of all variables that should be serialized.
    */
-  public function __sleep(): array {
+  public function __sleep() {
     // Limit to only the required data which is needed to properly restore the
     // state during unserialization.
     $this->serializationData = [
@@ -2555,7 +2556,7 @@ class ViewExecutable {
   /**
    * Magic method implementation to unserialize the view executable.
    */
-  public function __wakeup(): void {
+  public function __wakeup() {
     // There are cases, like in testing where we don't have a container
     // available.
     if (\Drupal::hasContainer() && !empty($this->serializationData)) {

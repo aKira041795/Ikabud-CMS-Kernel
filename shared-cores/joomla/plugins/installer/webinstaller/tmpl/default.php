@@ -12,7 +12,7 @@ defined('_JEXEC') or die;
 
 use Joomla\CMS\Language\Text;
 
-/** @var \Joomla\Plugin\Installer\Web\Extension\WebInstaller $this */
+/** @var PlgInstallerWebinstaller $this */
 
 $dir = $this->isRTL() ? ' dir="ltr"' : '';
 

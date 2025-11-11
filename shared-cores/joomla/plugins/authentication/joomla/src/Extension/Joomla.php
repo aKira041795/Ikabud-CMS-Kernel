@@ -11,12 +11,10 @@
 namespace Joomla\Plugin\Authentication\Joomla\Extension;
 
 use Joomla\CMS\Authentication\Authentication;
-use Joomla\CMS\Event\User\AuthenticationEvent;
 use Joomla\CMS\Plugin\CMSPlugin;
-use Joomla\CMS\User\UserFactoryAwareTrait;
+use Joomla\CMS\User\User;
 use Joomla\CMS\User\UserHelper;
 use Joomla\Database\DatabaseAwareTrait;
-use Joomla\Event\SubscriberInterface;
 
 // phpcs:disable PSR1.Files.SideEffects
 \defined('_JEXEC') or die;
@@ -27,37 +25,23 @@ use Joomla\Event\SubscriberInterface;
  *
  * @since  1.5
  */
-final class Joomla extends CMSPlugin implements SubscriberInterface
+final class Joomla extends CMSPlugin
 {
     use DatabaseAwareTrait;
-    use UserFactoryAwareTrait;
-
-    /**
-     * Returns an array of events this subscriber will listen to.
-     *
-     * @return  array
-     *
-     * @since   5.0.0
-     */
-    public static function getSubscribedEvents(): array
-    {
-        return ['onUserAuthenticate' => 'onUserAuthenticate'];
-    }
 
     /**
      * This method should handle any authentication and report back to the subject
      *
-     * @param   AuthenticationEvent  $event    Authentication event
+     * @param   array   $credentials  Array holding the user credentials
+     * @param   array   $options      Array of extra options
+     * @param   object  &$response    Authentication response object
      *
      * @return  void
      *
      * @since   1.5
      */
-    public function onUserAuthenticate(AuthenticationEvent $event): void
+    public function onUserAuthenticate($credentials, $options, &$response)
     {
-        $credentials = $event->getCredentials();
-        $response    = $event->getAuthenticationResponse();
-
         $response->type = 'Joomla';
 
         // Joomla does not like blank passwords
@@ -83,7 +67,7 @@ final class Joomla extends CMSPlugin implements SubscriberInterface
 
             if ($match === true) {
                 // Bring this in line with the rest of the system
-                $user               = $this->getUserFactory()->loadUserById($result->id);
+                $user               = User::getInstance($result->id);
                 $response->email    = $user->email;
                 $response->fullname = $user->name;
 
@@ -105,11 +89,6 @@ final class Joomla extends CMSPlugin implements SubscriberInterface
 
                 $response->status        = $_status;
                 $response->error_message = $_errorMessage;
-
-                // Stop event propagation when status is STATUS_SUCCESS
-                if ($response->status === Authentication::STATUS_SUCCESS) {
-                    $event->stopPropagation();
-                }
             } else {
                 // Invalid password
                 $response->status        = Authentication::STATUS_FAILURE;

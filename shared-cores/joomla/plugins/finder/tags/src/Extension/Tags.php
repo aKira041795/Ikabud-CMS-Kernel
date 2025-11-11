@@ -11,15 +11,14 @@
 namespace Joomla\Plugin\Finder\Tags\Extension;
 
 use Joomla\CMS\Component\ComponentHelper;
-use Joomla\CMS\Event\Finder as FinderEvent;
+use Joomla\CMS\Table\Table;
 use Joomla\Component\Finder\Administrator\Indexer\Adapter;
 use Joomla\Component\Finder\Administrator\Indexer\Helper;
 use Joomla\Component\Finder\Administrator\Indexer\Indexer;
 use Joomla\Component\Finder\Administrator\Indexer\Result;
 use Joomla\Component\Tags\Site\Helper\RouteHelper;
 use Joomla\Database\DatabaseAwareTrait;
-use Joomla\Database\QueryInterface;
-use Joomla\Event\SubscriberInterface;
+use Joomla\Database\DatabaseQuery;
 use Joomla\Registry\Registry;
 
 // phpcs:disable PSR1.Files.SideEffects
@@ -31,7 +30,7 @@ use Joomla\Registry\Registry;
  *
  * @since  3.1
  */
-final class Tags extends Adapter implements SubscriberInterface
+final class Tags extends Adapter
 {
     use DatabaseAwareTrait;
 
@@ -92,37 +91,18 @@ final class Tags extends Adapter implements SubscriberInterface
     protected $state_field = 'published';
 
     /**
-     * Returns an array of events this subscriber will listen to.
-     *
-     * @return  array
-     *
-     * @since   5.2.0
-     */
-    public static function getSubscribedEvents(): array
-    {
-        return array_merge(parent::getSubscribedEvents(), [
-            'onFinderAfterDelete' => 'onFinderAfterDelete',
-            'onFinderAfterSave'   => 'onFinderAfterSave',
-            'onFinderBeforeSave'  => 'onFinderBeforeSave',
-            'onFinderChangeState' => 'onFinderChangeState',
-        ]);
-    }
-
-    /**
      * Method to remove the link information for items that have been deleted.
      *
-     * @param   FinderEvent\AfterDeleteEvent   $event  The event instance.
+     * @param   string  $context  The context of the action being performed.
+     * @param   Table   $table    A Table object containing the record to be deleted
      *
      * @return  void
      *
      * @since   3.1
      * @throws  \Exception on database error.
      */
-    public function onFinderAfterDelete(FinderEvent\AfterDeleteEvent $event): void
+    public function onFinderAfterDelete($context, $table): void
     {
-        $context = $event->getContext();
-        $table   = $event->getItem();
-
         if ($context === 'com_tags.tag') {
             $id = $table->id;
         } elseif ($context === 'com_finder.index') {
@@ -138,19 +118,17 @@ final class Tags extends Adapter implements SubscriberInterface
     /**
      * Method to determine if the access level of an item changed.
      *
-     * @param   FinderEvent\AfterSaveEvent   $event  The event instance.
+     * @param   string   $context  The context of the content passed to the plugin.
+     * @param   Table    $row      A Table object
+     * @param   boolean  $isNew    If the content has just been created
      *
      * @return  void
      *
      * @since   3.1
      * @throws  \Exception on database error.
      */
-    public function onFinderAfterSave(FinderEvent\AfterSaveEvent $event): void
+    public function onFinderAfterSave($context, $row, $isNew): void
     {
-        $context = $event->getContext();
-        $row     = $event->getItem();
-        $isNew   = $event->getIsNew();
-
         // We only want to handle tags here.
         if ($context === 'com_tags.tag') {
             // Check if the access levels are different
@@ -169,19 +147,17 @@ final class Tags extends Adapter implements SubscriberInterface
      * This event is fired before the data is actually saved so we are going
      * to queue the item to be indexed later.
      *
-     * @param   FinderEvent\BeforeSaveEvent   $event  The event instance.
+     * @param   string   $context  The context of the content passed to the plugin.
+     * @param   Table    $row      A Table object
+     * @param   boolean  $isNew    If the content is just about to be created
      *
-     * @return  void
+     * @return  boolean  True on success.
      *
      * @since   3.1
      * @throws  \Exception on database error.
      */
-    public function onFinderBeforeSave(FinderEvent\BeforeSaveEvent $event): void
+    public function onFinderBeforeSave($context, $row, $isNew)
     {
-        $context = $event->getContext();
-        $row     = $event->getItem();
-        $isNew   = $event->getIsNew();
-
         // We only want to handle news feeds here
         if ($context === 'com_tags.tag') {
             // Query the database for the old access level if the item isn't new
@@ -189,6 +165,8 @@ final class Tags extends Adapter implements SubscriberInterface
                 $this->checkItemAccess($row);
             }
         }
+
+        return true;
     }
 
     /**
@@ -196,18 +174,16 @@ final class Tags extends Adapter implements SubscriberInterface
      * from outside the edit screen. This is fired when the item is published,
      * unpublished, archived, or unarchived from the list view.
      *
-     * @param   FinderEvent\AfterChangeStateEvent   $event  The event instance.
+     * @param   string   $context  The context for the content passed to the plugin.
+     * @param   array    $pks      A list of primary key ids of the content that has changed state.
+     * @param   integer  $value    The value of the state that the content has been changed to.
      *
      * @return  void
      *
      * @since   3.1
      */
-    public function onFinderChangeState(FinderEvent\AfterChangeStateEvent $event): void
+    public function onFinderChangeState($context, $pks, $value)
     {
-        $context = $event->getContext();
-        $pks     = $event->getPks();
-        $value   = $event->getValue();
-
         // We only want to handle tags here
         if ($context === 'com_tags.tag') {
             $this->itemStateChange($pks, $value);
@@ -270,23 +246,16 @@ final class Tags extends Adapter implements SubscriberInterface
         $item->addInstruction(Indexer::META_CONTEXT, 'author');
         $item->addInstruction(Indexer::META_CONTEXT, 'created_by_alias');
 
-        // Get taxonomies to display
-        $taxonomies = $this->params->get('taxonomies', ['type', 'author', 'language']);
-
         // Add the type taxonomy data.
-        if (\in_array('type', $taxonomies)) {
-            $item->addTaxonomy('Type', 'Tag');
-        }
+        $item->addTaxonomy('Type', 'Tag');
 
         // Add the author taxonomy data.
-        if (\in_array('author', $taxonomies) && (!empty($item->author) || !empty($item->created_by_alias))) {
+        if (!empty($item->author) || !empty($item->created_by_alias)) {
             $item->addTaxonomy('Author', !empty($item->created_by_alias) ? $item->created_by_alias : $item->author);
         }
 
         // Add the language taxonomy data.
-        if (\in_array('language', $taxonomies)) {
-            $item->addTaxonomy('Language', $item->language);
-        }
+        $item->addTaxonomy('Language', $item->language);
 
         // Get content extras.
         Helper::getContentExtras($item);
@@ -310,9 +279,9 @@ final class Tags extends Adapter implements SubscriberInterface
     /**
      * Method to get the SQL query used to retrieve the list of content items.
      *
-     * @param   mixed  $query  An object implementing QueryInterface or null.
+     * @param   mixed  $query  A DatabaseQuery object or null.
      *
-     * @return  QueryInterface  A database object.
+     * @return  DatabaseQuery  A database object.
      *
      * @since   3.1
      */
@@ -321,7 +290,7 @@ final class Tags extends Adapter implements SubscriberInterface
         $db = $this->getDatabase();
 
         // Check if we can use the supplied SQL query.
-        $query = $query instanceof QueryInterface ? $query : $db->getQuery(true)
+        $query = $query instanceof DatabaseQuery ? $query : $db->getQuery(true)
             ->select('a.id, a.title, a.alias, a.description AS summary')
             ->select('a.created_time AS start_date, a.created_user_id AS created_by')
             ->select('a.metakey, a.metadesc, a.metadata, a.language, a.access')
@@ -352,7 +321,7 @@ final class Tags extends Adapter implements SubscriberInterface
     /**
      * Method to get a SQL query to load the published and access states for the given tag.
      *
-     * @return  QueryInterface  A database object.
+     * @return  DatabaseQuery  A database object.
      *
      * @since   3.1
      */
@@ -372,7 +341,7 @@ final class Tags extends Adapter implements SubscriberInterface
      *
      * @param   string  $time  The modified timestamp.
      *
-     * @return  QueryInterface  A database object.
+     * @return  DatabaseQuery  A database object.
      *
      * @since   3.1
      */

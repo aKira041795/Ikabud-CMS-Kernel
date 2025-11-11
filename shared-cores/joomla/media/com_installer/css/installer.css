@@ -1,49 +1,49 @@
-@charset "UTF-8";
+/**
+ * @copyright   (C) 2017 Open Source Matters, Inc. <https://www.joomla.org>
+ * @license     GNU General Public License version 2 or later; see LICENSE.txt
+ */
+
 #loading {
-  opacity: .8;
-  background-color: #fffc;
-  background-image: url("../../system/images/ajax-loader.gif?v=144b8c");
-  background-position: center;
-  background-repeat: no-repeat;
   position: fixed;
+  background-image: url(../../system/images/ajax-loader.gif);
+  background-color: rgba(255,255,255,.8);
+  background-repeat: no-repeat;
+  background-position: center center;
+  opacity: .8;
   overflow: hidden;
 }
 
 #dragarea {
-  box-sizing: border-box;
-  background-color: var(--body-bg);
+  background-color: #fafbfc;
   border: 1px dashed #999;
-  width: 100%;
+  box-sizing: border-box;
   padding: 5% 0;
-  transition: all .2s;
+  transition: all 0.2s ease 0s;
+  width: 100%;
+}
+
+#dragarea p.lead {
+  color: #999;
 }
 
 #upload-icon {
-  color: #999;
+  font-size: 48px;
   width: auto;
   height: auto;
   margin: 0;
-  font-size: 48px;
   line-height: 175%;
+  color: #999;
   transition: all .2s;
 }
 
 #dragarea.hover {
-  background-color: #eee;
   border-color: #666;
+  background-color: #eee;
 }
 
-#dragarea.hover #upload-icon, #dragarea p.lead {
+#dragarea.hover #upload-icon,
+#dragarea p.lead {
   color: #666;
-}
-
-[data-color-scheme="dark"] #dragarea.hover #upload-icon, [data-color-scheme="dark"] #dragarea p.lead {
-  color: #eee;
-}
-
-[data-color-scheme="dark"] #dragarea.hover {
-  background-color: #666;
-  border-color: #eee;
 }
 
 .upload-progress, .install-progress {
@@ -51,13 +51,34 @@
   margin: 5px auto;
 }
 
+/* Default transition (.3s) is too slow, progress will not run to 100% */
 .upload-progress .progress .bar {
-  -o-transition: width .1s;
   -webkit-transition: width .1s;
   -moz-transition: width .1s;
+  -o-transition: width .1s;
   transition: width .1s;
 }
 
-#dragarea[data-state="pending"] .upload-progress, #dragarea[data-state="pending"] .install-progress, #dragarea[data-state="uploading"] .install-progress, #dragarea[data-state="uploading"] .upload-actions, #dragarea[data-state="installing"] .upload-progress, #dragarea[data-state="installing"] .upload-actions {
+#dragarea[data-state=pending] .upload-progress {
+  display: none;
+}
+
+#dragarea[data-state=pending] .install-progress {
+  display: none;
+}
+
+#dragarea[data-state=uploading] .install-progress {
+  display: none;
+}
+
+#dragarea[data-state=uploading] .upload-actions {
+  display: none;
+}
+
+#dragarea[data-state=installing] .upload-progress {
+  display: none;
+}
+
+#dragarea[data-state=installing] .upload-actions {
   display: none;
 }

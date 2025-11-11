@@ -6,16 +6,29 @@
   "license": "GPL-2.0-or-later",
   "assets": [
     {
-      "name": "com_actionlogs.admin-actionlogs",
+      "name": "com_actionlogs.admin-actionlogs.es5",
       "type": "script",
-      "uri": "com_actionlogs/admin-actionlogs-default.min.js",
+      "uri": "com_actionlogs/admin-actionlogs-default-es5.min.js",
       "dependencies": [
         "core"
       ],
       "attributes": {
+        "nomodule": true,
+        "defer": true
+      },
+      "version": "a8772c5549628c697a11b5de9ddc1a92014ee2e6"
+    },
+    {
+      "name": "com_actionlogs.admin-actionlogs",
+      "type": "script",
+      "uri": "com_actionlogs/admin-actionlogs-default.min.js",
+      "dependencies": [
+        "com_actionlogs.admin-actionlogs.es5"
+      ],
+      "attributes": {
         "type": "module"
       },
-      "version": "3205a4"
+      "version": "991c59deebeafb17053cc5a30b22e2fdf3b0f35b"
     }
   ]
 }

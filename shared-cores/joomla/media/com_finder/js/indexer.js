@@ -50,7 +50,7 @@
         // Auto close the window
         if (message === Joomla.Text._('COM_FINDER_INDEXER_MESSAGE_COMPLETE')) {
           removeElement('progress');
-          window.parent.location.reload();
+          window.parent.Joomla.Modal.getCurrent().close();
         }
       }
     };

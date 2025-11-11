@@ -58,7 +58,7 @@ trait MultiFactorAuthenticationHandler
     {
         // Multi-factor Authentication checks take place only for logged in users.
         try {
-            $user = $this->getIdentity();
+            $user = $this->getIdentity() ?? null;
         } catch (\Exception $e) {
             return false;
         }
@@ -99,15 +99,15 @@ trait MultiFactorAuthenticationHandler
         $userOptions        = ComponentHelper::getParams('com_users');
         $neverMFAUserGroups = $userOptions->get('neverMFAUserGroups', []);
         $forceMFAUserGroups = $userOptions->get('forceMFAUserGroups', []);
-        $isMFADisallowed    = \count(
+        $isMFADisallowed    = count(
             array_intersect(
-                \is_array($neverMFAUserGroups) ? $neverMFAUserGroups : [],
+                is_array($neverMFAUserGroups) ? $neverMFAUserGroups : [],
                 $user->getAuthorisedGroups()
             )
         ) >= 1;
-        $isMFAMandatory     = \count(
+        $isMFAMandatory     = count(
             array_intersect(
-                \is_array($forceMFAUserGroups) ? $forceMFAUserGroups : [],
+                is_array($forceMFAUserGroups) ? $forceMFAUserGroups : [],
                 $user->getAuthorisedGroups()
             )
         ) >= 1;
@@ -196,7 +196,7 @@ trait MultiFactorAuthenticationHandler
         $records = MfaHelper::getUserMfaRecords($user->id);
 
         // No MFA Methods? Then we obviously don't need to display a Captive login page.
-        if (\count($records) < 1) {
+        if (count($records) < 1) {
             return false;
         }
 
@@ -217,7 +217,7 @@ trait MultiFactorAuthenticationHandler
 
         // Filter the records based on currently active MFA Methods
         foreach ($records as $record) {
-            if (\in_array($record->method, $methodNames)) {
+            if (in_array($record->method, $methodNames)) {
                 // We found an active Method. Show the Captive page.
                 return true;
             }
@@ -271,16 +271,11 @@ trait MultiFactorAuthenticationHandler
             return false;
         }
 
-        // Do not redirect if we are already in a MFA management or captive page
-        if ($this->isMultiFactorAuthenticationPage()) {
-            return false;
-        }
-
         $option       = strtolower($this->input->getCmd('option', ''));
         $task         = strtolower($this->input->getCmd('task', ''));
 
         // Allow the frontend user to log out (in case they forgot their MFA code or something)
-        if (!$isAdmin && ($option == 'com_users') && \in_array($task, ['user.logout', 'user.menulogout'])) {
+        if (!$isAdmin && ($option == 'com_users') && in_array($task, ['user.logout', 'user.menulogout'])) {
             return false;
         }
 
@@ -290,7 +285,14 @@ trait MultiFactorAuthenticationHandler
         }
 
         // Allow the Joomla update finalisation to run
-        if ($isAdmin && $option === 'com_joomlaupdate' && \in_array($task, ['update.finalise', 'update.cleanup', 'update.finaliseconfirm'])) {
+        if ($isAdmin && $option === 'com_joomlaupdate' && in_array($task, ['update.finalise', 'update.cleanup', 'update.finaliseconfirm'])) {
+            return false;
+        }
+
+        // Do not redirect if we are already in a MFA management or captive page
+        $onlyCaptive = $this->isMultiFactorAuthenticationPending() && !$isMFASetupMandatory;
+
+        if ($this->isMultiFactorAuthenticationPage($onlyCaptive)) {
             return false;
         }
 
@@ -331,7 +333,7 @@ trait MultiFactorAuthenticationHandler
             );
         }
 
-        return \in_array($view, $allowedViews) || \in_array($task, $allowedTasks);
+        return in_array($view, $allowedViews) || in_array($task, $allowedTasks);
     }
 
     /**
@@ -419,7 +421,7 @@ trait MultiFactorAuthenticationHandler
                     Factory::getApplication()->bootComponent('com_users')->getMVCFactory()->createTable('Mfa', 'Administrator')->save(
                         [
                             'user_id'    => $user->id,
-                            'title'      => \sprintf("%s %s", Text::_('PLG_MULTIFACTORAUTH_YUBIKEY_METHOD_TITLE'), $config['yubikey']),
+                            'title'      => sprintf("%s %s", Text::_('PLG_MULTIFACTORAUTH_YUBIKEY_METHOD_TITLE'), $config['yubikey']),
                             'method'     => 'yubikey',
                             'default'    => 0,
                             'created_on' => Date::getInstance()->toSql(),
@@ -483,7 +485,7 @@ trait MultiFactorAuthenticationHandler
      *
      * @return  string  Decrypted, but JSON-encoded, information
      *
-     * @link    https://github.com/joomla/joomla-cms/pull/12497
+     * @see     https://github.com/joomla/joomla-cms/pull/12497
      * @since   4.2.0
      */
     private function decryptLegacyTFAString(string $secret, string $stringToDecrypt): string
@@ -503,13 +505,13 @@ trait MultiFactorAuthenticationHandler
         $aes       = new Aes($secret, 256);
         $decrypted = $aes->decryptString($stringToDecrypt);
 
-        if (!\is_string($decrypted) || empty($decrypted)) {
+        if (!is_string($decrypted) || empty($decrypted)) {
             $aes->setPassword($secret, true);
 
             $decrypted = $aes->decryptString($stringToDecrypt);
         }
 
-        if (!\is_string($decrypted) || empty($decrypted)) {
+        if (!is_string($decrypted) || empty($decrypted)) {
             return '';
         }
 

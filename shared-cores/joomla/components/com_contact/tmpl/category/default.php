@@ -12,7 +12,6 @@ defined('_JEXEC') or die;
 
 use Joomla\CMS\Layout\LayoutHelper;
 
-/** @var \Joomla\Component\Contact\Site\View\Category\HtmlView $this */
 ?>
 
 <div class="com-contact-category">

@@ -11,12 +11,11 @@
    * and closes the select frame.
    */
   window.jSelectMenuItem = (id, title, uri, object, link, lang) => {
-    // eslint-disable-next-line no-console
-    console.warn('Method jSelectMenuItem() is deprecated. Use postMessage() instead.');
     let thislang = '';
     if (!Joomla.getOptions('xtd-menus')) {
       // Something went wrong!
-      return;
+      window.parent.Joomla.Modal.getCurrent().close();
+      throw new Error('core.js was not properly initialised');
     }
 
     // eslint-disable-next-line prefer-destructuring
@@ -34,27 +33,28 @@
     }
 
     // Close the modal
-    if (window.parent.Joomla.Modal && window.parent.Joomla.Modal.getCurrent()) {
+    if (window.parent.Joomla && window.parent.Joomla.Modal) {
       window.parent.Joomla.Modal.getCurrent().close();
     }
   };
 
   // Get the elements
-  document.querySelectorAll('.select-link').forEach(element => {
+  const elements = [].slice.call(document.querySelectorAll('.select-link'));
+  elements.forEach(element => {
     // Listen for click event
     element.addEventListener('click', event => {
       event.preventDefault();
       const functionName = event.target.getAttribute('data-function');
-      if (functionName === 'jSelectMenuItem' && window[functionName]) {
+      if (functionName === 'jSelectMenuItem') {
         // Used in xtd_contacts
         window[functionName](event.target.getAttribute('data-id'), event.target.getAttribute('data-title'), event.target.getAttribute('data-uri'), null, null, event.target.getAttribute('data-language'));
-      } else if (window.parent[functionName]) {
+      } else {
         // Used in com_menus
         window.parent[functionName](event.target.getAttribute('data-id'), event.target.getAttribute('data-title'), null, null, event.target.getAttribute('data-uri'), event.target.getAttribute('data-language'), null);
       }
 
       // Close the modal
-      if (window.parent.Joomla.Modal && window.parent.Joomla.Modal.getCurrent()) {
+      if (window.parent.Joomla.Modal) {
         window.parent.Joomla.Modal.getCurrent().close();
       }
     });

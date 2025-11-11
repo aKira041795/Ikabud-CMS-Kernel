@@ -14,7 +14,9 @@ use Joomla\CMS\Form\Form;
 use Joomla\CMS\Language\Text;
 use Joomla\CMS\MVC\View\GenericDataException;
 use Joomla\CMS\MVC\View\HtmlView as BaseHtmlView;
+use Joomla\CMS\Object\CMSObject;
 use Joomla\CMS\Pagination\Pagination;
+use Joomla\CMS\Toolbar\Toolbar;
 use Joomla\CMS\Toolbar\ToolbarHelper;
 use Joomla\Component\Privacy\Administrator\Model\ConsentsModel;
 
@@ -66,7 +68,7 @@ class HtmlView extends BaseHtmlView
     /**
      * The state information
      *
-     * @var    \Joomla\Registry\Registry
+     * @var    CMSObject
      * @since  3.9.0
      */
     protected $state;
@@ -100,12 +102,12 @@ class HtmlView extends BaseHtmlView
         $this->filterForm    = $model->getFilterForm();
         $this->activeFilters = $model->getActiveFilters();
 
-        if (!\count($this->items) && $this->isEmptyState = $this->get('IsEmptyState')) {
+        if (!count($this->items) && $this->isEmptyState = $this->get('IsEmptyState')) {
             $this->setLayout('emptystate');
         }
 
         // Check for errors.
-        if (\count($errors = $this->get('Errors'))) {
+        if (count($errors = $this->get('Errors'))) {
             throw new Genericdataexception(implode("\n", $errors), 500);
         }
 
@@ -125,7 +127,7 @@ class HtmlView extends BaseHtmlView
     {
         ToolbarHelper::title(Text::_('COM_PRIVACY_VIEW_CONSENTS'), 'lock');
 
-        $toolbar = $this->getDocument()->getToolbar();
+        $toolbar = Toolbar::getInstance();
 
         // Add a button to invalidate a consent
         if (!$this->isEmptyState) {

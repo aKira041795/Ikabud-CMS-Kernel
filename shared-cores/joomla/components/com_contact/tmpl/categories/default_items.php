@@ -15,7 +15,6 @@ use Joomla\CMS\Language\Text;
 use Joomla\CMS\Router\Route;
 use Joomla\Component\Contact\Site\Helper\RouteHelper;
 
-/** @var \Joomla\Component\Contact\Site\View\Categories\HtmlView $this */
 if ($this->maxLevelcat != 0 && count($this->items[$this->parent->id]) > 0) :
     ?>
     <?php foreach ($this->items[$this->parent->id] as $id => $item) : ?>

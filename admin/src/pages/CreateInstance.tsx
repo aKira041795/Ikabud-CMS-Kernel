@@ -13,6 +13,7 @@ export default function CreateInstance() {
     instance_id: '',
     instance_name: '',
     cms_type: '',
+    cms_version: '',
     domain: '',
     admin_subdomain: '',
     database_name: '',
@@ -35,17 +36,39 @@ export default function CreateInstance() {
       .substring(0, 32);            // Limit length
   };
 
+  // Get available versions for each CMS
+  const getCMSVersions = (cmsType: string) => {
+    switch (cmsType) {
+      case 'drupal':
+        return [
+          { value: 'drupal', label: 'Drupal 10.3.10 (Default)', description: 'MySQL 5.7+ / MariaDB 10.3+ | PHP 8.1-8.3' },
+          { value: 'drupal11', label: 'Drupal 11.0.5 (Latest)', description: 'MySQL 8.0+ / MariaDB 10.6+ | PHP 8.3+' }
+        ];
+      case 'joomla':
+        return [
+          { value: 'joomla', label: 'Joomla 4.4.14 (Default)', description: 'MySQL 5.7+ / MariaDB 10.1+' },
+          { value: 'joomla5', label: 'Joomla 5.2.1 (Latest)', description: 'MySQL 8.0.13+ / MariaDB 10.4+' }
+        ];
+      case 'wordpress':
+        return [
+          { value: 'wordpress', label: 'WordPress (Latest)', description: 'MySQL 5.7+ / MariaDB 10.3+' }
+        ];
+      default:
+        return [];
+    }
+  };
+
   // Get CMS-specific settings
   const getCMSDefaults = (cmsType: string) => {
     switch (cmsType) {
       case 'wordpress':
-        return { prefix: 'wp_', contentDir: 'wp-content', script: 'bin/create-wordpress-instance', idPrefix: 'wp' };
+        return { prefix: 'wp_', contentDir: 'wp-content', script: 'bin/create-wordpress-instance', idPrefix: 'wp', defaultVersion: 'wordpress' };
       case 'joomla':
-        return { prefix: 'jml_', contentDir: 'administrator', script: 'bin/create-joomla-instance', idPrefix: 'jml' };
+        return { prefix: 'jml_', contentDir: 'administrator', script: 'bin/create-joomla-instance', idPrefix: 'jml', defaultVersion: 'joomla' };
       case 'drupal':
-        return { prefix: '', contentDir: 'sites', script: 'bin/create-drupal-instance', idPrefix: 'dpl' }; // Drush doesn't use prefix
+        return { prefix: '', contentDir: 'sites', script: 'bin/create-drupal-instance', idPrefix: 'dpl', defaultVersion: 'drupal' };
       default:
-        return { prefix: '', contentDir: '', script: '', idPrefix: 'inst' };
+        return { prefix: '', contentDir: '', script: '', idPrefix: 'inst', defaultVersion: '' };
     }
   };
 
@@ -103,6 +126,7 @@ export default function CreateInstance() {
     setFormData({
       ...formData,
       cms_type: newCmsType,
+      cms_version: defaults.defaultVersion,
       database_prefix: defaults.prefix
     });
     // Reset manual edit flag when CMS type changes to regenerate ID with new prefix
@@ -129,12 +153,30 @@ export default function CreateInstance() {
 
       if (data.success) {
         // Show success message with installation URL
+        const isDrupal = formData.cms_type === 'drupal';
+        const drupalAutoInstalled = data.drupal_auto_installed;
+        
         const message = (
           <div>
             <p className="font-semibold">Instance created successfully!</p>
-            {data.installation_url && (
+            {isDrupal && drupalAutoInstalled ? (
               <div className="mt-2 space-y-1">
-                <p className="text-sm">Installation URL:</p>
+                <p className="text-sm text-green-600">✓ Drupal installed automatically via Drush</p>
+                <p className="text-sm">Username: <strong>admin</strong> / Password: <strong>admin123</strong></p>
+                {data.admin_url && (
+                  <a 
+                    href={data.admin_url} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="text-sm text-blue-600 hover:underline block"
+                  >
+                    {data.admin_url}
+                  </a>
+                )}
+              </div>
+            ) : data.installation_url ? (
+              <div className="mt-2 space-y-1">
+                <p className="text-sm">Complete installation at:</p>
                 <a 
                   href={data.installation_url} 
                   target="_blank" 
@@ -143,6 +185,25 @@ export default function CreateInstance() {
                 >
                   {data.installation_url}
                 </a>
+                {isDrupal && !drupalAutoInstalled && (
+                  <p className="text-xs text-yellow-600 mt-1">
+                    ⚠️ Drush auto-install failed. Complete installation manually.
+                  </p>
+                )}
+              </div>
+            ) : (
+              <div className="mt-2 space-y-1">
+                <p className="text-sm">Access your site at:</p>
+                {data.admin_url && (
+                  <a 
+                    href={data.admin_url} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="text-sm text-blue-600 hover:underline block"
+                  >
+                    {data.admin_url}
+                  </a>
+                )}
               </div>
             )}
           </div>
@@ -265,15 +326,68 @@ export default function CreateInstance() {
               <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded">
                 <p className="text-xs text-blue-800 font-medium mb-1">
                   {formData.cms_type === 'wordpress' && '📦 WordPress - Shared core from shared-cores/wordpress/'}
-                  {formData.cms_type === 'joomla' && '📦 Joomla - Shared core from shared-cores/joomla/'}
-                  {formData.cms_type === 'drupal' && '📦 Drupal - Shared core from shared-cores/drupal/'}
+                  {formData.cms_type === 'joomla' && `📦 Joomla - Shared core from shared-cores/${formData.cms_version || 'joomla'}/`}
+                  {formData.cms_type === 'drupal' && `📦 Drupal - Shared core from shared-cores/${formData.cms_version || 'drupal'}/`}
                 </p>
-                <p className="text-xs text-blue-700">
+                <p className="text-xs text-blue-700 mb-1">
                   Script: <code className="bg-blue-100 px-1 py-0.5 rounded">{getCMSDefaults(formData.cms_type).script}</code>
                 </p>
+                {formData.cms_type === 'drupal' && (
+                  <p className="text-xs text-blue-700">
+                    ✨ <strong>Auto-install:</strong> Drupal will be installed automatically via Drush
+                  </p>
+                )}
+                {formData.cms_type === 'joomla' && (
+                  <p className="text-xs text-blue-700">
+                    ⚙️ <strong>Manual setup:</strong> Complete installation via web interface after creation
+                  </p>
+                )}
+                {formData.cms_type === 'wordpress' && (
+                  <p className="text-xs text-blue-700">
+                    ⚙️ <strong>Manual setup:</strong> Complete installation via web interface after creation
+                  </p>
+                )}
               </div>
             )}
           </div>
+
+          {/* CMS Version Selection */}
+          {formData.cms_type && (formData.cms_type === 'drupal' || formData.cms_type === 'joomla') && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                {formData.cms_type === 'drupal' ? 'Drupal' : 'Joomla'} Version *
+              </label>
+              <select
+                value={formData.cms_version}
+                onChange={(e) => setFormData({...formData, cms_version: e.target.value})}
+                required
+                className="block w-full px-4 py-2.5 rounded border border-gray-300 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-colors"
+              >
+                {getCMSVersions(formData.cms_type).map((version) => (
+                  <option key={version.value} value={version.value}>
+                    {version.label}
+                  </option>
+                ))}
+              </select>
+              {formData.cms_version && (
+                <div className="mt-2 p-2 bg-gray-50 border border-gray-200 rounded">
+                  <p className="text-xs text-gray-700">
+                    <strong>Requirements:</strong> {getCMSVersions(formData.cms_type).find(v => v.value === formData.cms_version)?.description}
+                  </p>
+                  {formData.cms_type === 'drupal' && formData.cms_version === 'drupal11' && (
+                    <p className="text-xs text-yellow-700 mt-1">
+                      ⚠️ Ensure your MySQL is 8.0+ and PHP is 8.3+ before installing
+                    </p>
+                  )}
+                  {formData.cms_type === 'joomla' && formData.cms_version === 'joomla5' && (
+                    <p className="text-xs text-yellow-700 mt-1">
+                      ⚠️ Ensure your MySQL is 8.0.13+ or MariaDB is 10.4+ before installing
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Show remaining fields only when CMS is selected */}
           {formData.cms_type && (
@@ -336,8 +450,8 @@ export default function CreateInstance() {
                 />
                 <p className="mt-1 text-xs text-gray-500">
                   {formData.cms_type === 'drupal' 
-                    ? 'Will be auto-created if it doesn\'t exist (or use existing on shared hosting)' 
-                    : 'Database must already exist'}
+                    ? 'Auto-created if needed (Drush handles database setup)' 
+                    : 'Database must already exist before installation'}
                 </p>
               </div>
 
@@ -465,7 +579,10 @@ export default function CreateInstance() {
                 <code>{getCreateCommand()}</code>
               </div>
               <p className="mt-2 text-xs text-gray-500">
-                This command will be executed to create your {formData.cms_type} instance
+                This command will be executed to create your {formData.cms_type} instance.
+                {formData.cms_type === 'drupal' && ' Drush will automatically install Drupal with admin credentials (admin/admin123).'}
+                {formData.cms_type === 'joomla' && ' After creation, complete setup at the installation URL.'}
+                {formData.cms_type === 'wordpress' && ' After creation, complete setup at the installation URL.'}
               </p>
             </div>
           )}

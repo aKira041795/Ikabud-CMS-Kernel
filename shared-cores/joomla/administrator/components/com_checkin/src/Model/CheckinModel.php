@@ -10,7 +10,6 @@
 
 namespace Joomla\Component\Checkin\Administrator\Model;
 
-use Joomla\CMS\Event\Checkin\AfterCheckinEvent;
 use Joomla\CMS\Factory;
 use Joomla\CMS\MVC\Factory\MVCFactoryInterface;
 use Joomla\CMS\MVC\Model\ListModel;
@@ -36,13 +35,13 @@ class CheckinModel extends ListModel
     /**
      * Constructor.
      *
-     * @param   array                 $config   An optional associative array of configuration settings.
-     * @param   ?MVCFactoryInterface  $factory  The factory.
+     * @param   array                $config   An optional associative array of configuration settings.
+     * @param   MVCFactoryInterface  $factory  The factory.
      *
      * @see     \Joomla\CMS\MVC\Model\BaseDatabaseModel
      * @since   3.2
      */
-    public function __construct($config = [], ?MVCFactoryInterface $factory = null)
+    public function __construct($config = [], MVCFactoryInterface $factory = null)
     {
         if (empty($config['filter_fields'])) {
             $config['filter_fields'] = [
@@ -85,7 +84,7 @@ class CheckinModel extends ListModel
     {
         $db = $this->getDatabase();
 
-        if (!\is_array($ids)) {
+        if (!is_array($ids)) {
             return 0;
         }
 
@@ -128,10 +127,8 @@ class CheckinModel extends ListModel
             $db->setQuery($query);
 
             if ($db->execute()) {
-                $results += $db->getAffectedRows();
-                $this->getDispatcher()->dispatch('onAfterCheckin', new AfterCheckinEvent('onAfterCheckin', [
-                    'subject' => $tn,
-                ]));
+                $results = $results + $db->getAffectedRows();
+                $app->triggerEvent('onAfterCheckin', [$tn]);
             }
         }
 
@@ -205,7 +202,7 @@ class CheckinModel extends ListModel
                 }
             }
 
-            $this->total = \count($results);
+            $this->total = count($results);
 
             // Order items by table
             if ($this->getState('list.ordering') == 'table') {
@@ -227,7 +224,7 @@ class CheckinModel extends ListModel
             $limit = (int) $this->getState('list.limit');
 
             if ($limit !== 0) {
-                $this->items = \array_slice($results, $this->getState('list.start'), $limit);
+                $this->items = array_slice($results, $this->getState('list.start'), $limit);
             } else {
                 $this->items = $results;
             }

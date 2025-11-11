@@ -8,9 +8,8 @@
  * @license     GNU General Public License version 2 or later; see LICENSE.txt
  */
 
-\defined('_JEXEC') or die;
+defined('_JEXEC') or die;
 
-use Joomla\CMS\Event\Plugin\AjaxEvent;
 use Joomla\CMS\Factory;
 use Joomla\CMS\Language\Text;
 use Joomla\CMS\Log\Log;
@@ -100,7 +99,7 @@ if (!$format) {
                 || $lang->load('mod_' . $module, $basePath . '/modules/mod_' . $module);
 
                 try {
-                    $results = \call_user_func($class . '::' . $method . 'Ajax');
+                    $results = call_user_func($class . '::' . $method . 'Ajax');
                 } catch (Exception $e) {
                     $results = $e;
                 }
@@ -126,15 +125,13 @@ if (!$format) {
      * (i.e. index.php?option=com_ajax&plugin=foo)
      *
      */
+    $group      = $input->get('group', 'ajax');
+    PluginHelper::importPlugin($group);
+    $plugin     = ucfirst($input->get('plugin'));
+
     try {
-        $dispatcher = $app->getDispatcher();
-        $group      = $input->get('group', 'ajax');
-        $eventName  = 'onAjax' . ucfirst($input->get('plugin', ''));
-
-        PluginHelper::importPlugin($group, null, true, $dispatcher);
-
-        $results = $dispatcher->dispatch($eventName, new AjaxEvent($eventName, ['subject' => $app]))->getArgument('result', []);
-    } catch (Throwable $e) {
+        $results = Factory::getApplication()->triggerEvent('onAjax' . $plugin);
+    } catch (Exception $e) {
         $results = $e;
     }
 } elseif ($input->get('template')) {
@@ -184,7 +181,7 @@ if (!$format) {
                 || $lang->load('tpl_' . $template, $basePath . '/templates/' . $template);
 
                 try {
-                    $results = \call_user_func($class . '::' . $method . 'Ajax');
+                    $results = call_user_func($class . '::' . $method . 'Ajax');
                 } catch (Exception $e) {
                     $results = $e;
                 }
@@ -204,14 +201,14 @@ if (!$format) {
 
 // Return the results in the desired format
 switch ($format) {
+    // JSONinzed
     case 'json':
-        // JSONinzed
         echo new JsonResponse($results, null, false, $input->get('ignoreMessages', true, 'bool'));
 
         break;
 
+    // Handle as raw format
     default:
-        // Handle as raw format
         // Output exception
         if ($results instanceof Exception) {
             // Log an error
@@ -221,8 +218,8 @@ switch ($format) {
             $app->setHeader('status', $results->getCode(), true);
 
             // Echo exception type and message
-            $out = \get_class($results) . ': ' . $results->getMessage();
-        } elseif (\is_scalar($results)) {
+            $out = get_class($results) . ': ' . $results->getMessage();
+        } elseif (is_scalar($results)) {
             // Output string/ null
             $out = (string) $results;
         } else {

@@ -23,9 +23,6 @@
   padding-inline-end: 8px;
   padding-inline-start: 22px;
   background-color: $breadcrumbs-bg;
-  a {
-    color: $breadcrumbs-color;
-  }
   &:first-of-type {
     padding-inline-start: 16px;
   }

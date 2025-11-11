@@ -65,5 +65,7 @@
   };
 
   // Give some times to the layout and other scripts to settle their stuff
-  window.addEventListener('load', () => setTimeout(checkPrivacy, 360));
+  window.addEventListener('load', () => {
+    setTimeout(checkPrivacy, 360);
+  });
 })(document);

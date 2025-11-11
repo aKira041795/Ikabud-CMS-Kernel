@@ -56,7 +56,7 @@
       "type": "script",
       "uri": "template.js",
       "attributes" : {
-        "type": "module"
+        "defer": true
       },
       "dependencies": [
         "core"

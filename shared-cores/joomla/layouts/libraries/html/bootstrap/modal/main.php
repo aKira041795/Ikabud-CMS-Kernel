@@ -32,7 +32,6 @@ extract($displayData);
  *                             - bodyHeight   int      Optional height of the modal body in viewport units (vh)
  *                             - modalWidth   int      Optional width of the modal in viewport units (vh)
  *                             - footer       string   Optional markup for the modal footer
- *                             - modalCss     string   Optional CSS classes of the modal
  * @var   string  $body      Markup for the modal body. Appended after the <iframe> if the URL option is set
  */
 
@@ -43,14 +42,10 @@ if (!isset($params['animation']) || $params['animation']) {
 }
 
 $modalWidth       = isset($params['modalWidth']) ? round((int) $params['modalWidth'], -1) : '';
-$modalDialogClass = 'modal-lg';
+$modalDialogClass = '';
 
 if ($modalWidth && $modalWidth > 0 && $modalWidth <= 100) {
-    $modalDialogClass .= ' jviewport-width' . $modalWidth;
-}
-
-if (!empty($params['modalCss'])) {
-    $modalDialogClass = $params['modalCss'];
+    $modalDialogClass = ' jviewport-width' . $modalWidth;
 }
 
 $modalAttributes = [
@@ -72,7 +67,7 @@ if (isset($params['url'])) {
 }
 ?>
 <div id="<?php echo $selector; ?>" role="dialog" <?php echo ArrayHelper::toString($modalAttributes); ?> <?php echo $url ?? ''; ?> <?php echo isset($url) ? 'data-iframe="' . trim($iframeHtml) . '"' : ''; ?>>
-    <div class="modal-dialog <?php echo $modalDialogClass; ?>">
+    <div class="modal-dialog modal-lg<?php echo $modalDialogClass; ?>">
         <div class="modal-content">
             <?php
                 // Header

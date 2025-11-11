@@ -14,8 +14,8 @@ use Joomla\CMS\Helper\ModuleHelper;
 use Joomla\CMS\Language\LanguageHelper;
 use Joomla\CMS\MVC\Factory\MVCFactoryInterface;
 use Joomla\CMS\MVC\Model\ListModel;
+use Joomla\Database\DatabaseQuery;
 use Joomla\Database\ParameterType;
-use Joomla\Database\QueryInterface;
 
 // phpcs:disable PSR1.Files.SideEffects
 \defined('_JEXEC') or die;
@@ -31,13 +31,13 @@ class MenusModel extends ListModel
     /**
      * Constructor.
      *
-     * @param   array                 $config   An optional associative array of configuration settings.
-     * @param   ?MVCFactoryInterface  $factory  The factory.
+     * @param   array                $config   An optional associative array of configuration settings.
+     * @param   MVCFactoryInterface  $factory  The factory.
      *
      * @see     \Joomla\CMS\MVC\Model\BaseDatabaseModel
      * @since   3.2
      */
-    public function __construct($config = [], ?MVCFactoryInterface $factory = null)
+    public function __construct($config = [], MVCFactoryInterface $factory = null)
     {
         if (empty($config['filter_fields'])) {
             $config['filter_fields'] = [
@@ -45,7 +45,6 @@ class MenusModel extends ListModel
                 'title', 'a.title',
                 'menutype', 'a.menutype',
                 'client_id', 'a.client_id',
-                'ordering', 'a.ordering',
             ];
         }
 
@@ -145,7 +144,7 @@ class MenusModel extends ListModel
     /**
      * Method to build an SQL query to load the list data.
      *
-     * @return  QueryInterface  An SQL query
+     * @return  DatabaseQuery  An SQL query
      *
      * @since   1.6
      */
@@ -166,7 +165,6 @@ class MenusModel extends ListModel
                     $db->quoteName('a.title'),
                     $db->quoteName('a.description'),
                     $db->quoteName('a.client_id'),
-                    $db->quoteName('a.ordering'),
                 ]
             )
         )
@@ -211,8 +209,11 @@ class MenusModel extends ListModel
      *
      * @since   1.6
      */
-    protected function populateState($ordering = 'a.ordering', $direction = 'asc')
+    protected function populateState($ordering = 'a.title', $direction = 'asc')
     {
+        $search   = $this->getUserStateFromRequest($this->context . '.search', 'filter_search');
+        $this->setState('filter.search', $search);
+
         $clientId = (int) $this->getUserStateFromRequest($this->context . '.client_id', 'client_id', 0, 'int');
         $this->setState('client_id', $clientId);
 
@@ -281,7 +282,11 @@ class MenusModel extends ListModel
         $langCodes = [];
 
         foreach ($languages as $language) {
-            $languageName = $language->metadata['nativeName'] ?? $language->metadata['name'];
+            if (isset($language->metadata['nativeName'])) {
+                $languageName = $language->metadata['nativeName'];
+            } else {
+                $languageName = $language->metadata['name'];
+            }
 
             $langCodes[$language->metadata['tag']] = $languageName;
         }
@@ -303,7 +308,7 @@ class MenusModel extends ListModel
         $mLanguages = $db->setQuery($query)->loadColumn();
 
         // Check if we have a mod_menu module set to All languages or a mod_menu module for each admin language.
-        if (!\in_array('*', $mLanguages) && \count($langMissing = array_diff(array_keys($langCodes), $mLanguages))) {
+        if (!in_array('*', $mLanguages) && count($langMissing = array_diff(array_keys($langCodes), $mLanguages))) {
             return array_intersect_key($langCodes, array_flip($langMissing));
         }
 

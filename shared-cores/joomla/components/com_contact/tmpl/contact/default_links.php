@@ -10,8 +10,11 @@
 
 defined('_JEXEC') or die;
 
-/** @var \Joomla\Component\Contact\Site\View\Contact\HtmlView $this */
+use Joomla\CMS\Language\Text;
+
 ?>
+<?php echo '<h3>' . Text::_('COM_CONTACT_LINKS') . '</h3>'; ?>
+
 <div class="com-contact__links contact-links">
     <ul class="list-unstyled">
         <?php
@@ -31,7 +34,7 @@ defined('_JEXEC') or die;
             $label = $label ?: $link;
             ?>
             <li>
-                <a href="<?php echo $link; ?>" rel="noopener noreferrer">
+                <a href="<?php echo $link; ?>" itemprop="url" rel="noopener noreferrer">
                     <?php echo $label; ?>
                 </a>
             </li>

@@ -15,10 +15,8 @@ use Joomla\CMS\Language\Text;
 use Joomla\CMS\Layout\LayoutHelper;
 use Joomla\CMS\Router\Route;
 
-/** @var \Joomla\Component\Finder\Administrator\View\Searches\HtmlView $this */
-
 /** @var Joomla\CMS\WebAsset\WebAssetManager $wa */
-$wa = $this->getDocument()->getWebAssetManager();
+$wa = $this->document->getWebAssetManager();
 $wa->useScript('multiselect');
 
 $listOrder = $this->escape($this->state->get('list.ordering'));

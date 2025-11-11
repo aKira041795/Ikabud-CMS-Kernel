@@ -11,10 +11,8 @@
 namespace Joomla\Component\Workflow\Administrator\Table;
 
 use Joomla\CMS\Access\Rules;
-use Joomla\CMS\Table\Asset;
 use Joomla\CMS\Table\Table;
 use Joomla\Database\DatabaseDriver;
-use Joomla\Event\DispatcherInterface;
 
 // phpcs:disable PSR1.Files.SideEffects
 \defined('_JEXEC') or die;
@@ -48,14 +46,13 @@ class TransitionTable extends Table
     ];
 
     /**
-     * @param   DatabaseDriver        $db          Database connector object
-     * @param   ?DispatcherInterface  $dispatcher  Event dispatcher for this table
+     * @param   DatabaseDriver  $db  Database connector object
      *
      * @since  4.0.0
      */
-    public function __construct(DatabaseDriver $db, ?DispatcherInterface $dispatcher = null)
+    public function __construct(DatabaseDriver $db)
     {
-        parent::__construct('#__workflow_transitions', 'id', $db, $dispatcher);
+        parent::__construct('#__workflow_transitions', 'id', $db);
     }
 
     /**
@@ -94,7 +91,7 @@ class TransitionTable extends Table
     protected function _getAssetName()
     {
         $k        = $this->_tbl_key;
-        $workflow = new WorkflowTable($this->getDbo(), $this->getDispatcher());
+        $workflow = new WorkflowTable($this->getDbo());
         $workflow->load($this->workflow_id);
 
         $parts = explode('.', $workflow->extension);
@@ -119,18 +116,18 @@ class TransitionTable extends Table
     /**
      * Get the parent asset id for the record
      *
-     * @param   ?Table    $table  A Table object for the asset parent.
-     * @param   ?integer  $id     The id for the asset
+     * @param   Table    $table  A Table object for the asset parent.
+     * @param   integer  $id     The id for the asset
      *
      * @return  integer  The id of the asset's parent
      *
      * @since  4.0.0
      */
-    protected function _getAssetParentId(?Table $table = null, $id = null)
+    protected function _getAssetParentId(Table $table = null, $id = null)
     {
-        $asset = new Asset($this->getDbo(), $this->getDispatcher());
+        $asset = self::getInstance('Asset', 'JTable', ['dbo' => $this->getDbo()]);
 
-        $workflow = new WorkflowTable($this->getDbo(), $this->getDispatcher());
+        $workflow = new WorkflowTable($this->getDbo());
         $workflow->load($this->workflow_id);
 
         $parts = explode('.', $workflow->extension);

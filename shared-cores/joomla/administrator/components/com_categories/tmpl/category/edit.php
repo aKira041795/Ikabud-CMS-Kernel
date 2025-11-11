@@ -18,10 +18,8 @@ use Joomla\CMS\Layout\LayoutHelper;
 use Joomla\CMS\Router\Route;
 use Joomla\CMS\Workflow\WorkflowServiceInterface;
 
-/** @var \Joomla\Component\Categories\Administrator\View\Category\HtmlView $this */
-
 /** @var Joomla\CMS\WebAsset\WebAssetManager $wa */
-$wa = $this->getDocument()->getWebAssetManager();
+$wa = $this->document->getWebAssetManager();
 $wa->useScript('keepalive')
     ->useScript('form.validate');
 

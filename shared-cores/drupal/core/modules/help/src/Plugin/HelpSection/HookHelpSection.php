@@ -33,23 +33,21 @@ class HookHelpSection extends HelpSectionPluginBase implements ContainerFactoryP
    * @param array $configuration
    *   A configuration array containing information about the plugin instance.
    * @param string $plugin_id
-   *   The plugin_id for the plugin instance.
+   *   The plugin ID for the plugin instance.
    * @param mixed $plugin_definition
    *   The plugin implementation definition.
    * @param \Drupal\Core\Extension\ModuleHandlerInterface $module_handler
    *   The module handler service.
-   * @param \Drupal\Core\Extension\ModuleExtensionList $moduleExtensionList
+   * @param \Drupal\Core\Extension\ModuleExtensionList|null $moduleExtensionList
    *   The module extension list.
    */
-  public function __construct(
-    array $configuration,
-    $plugin_id,
-    $plugin_definition,
-    ModuleHandlerInterface $module_handler,
-    protected ModuleExtensionList $moduleExtensionList,
-  ) {
+  public function __construct(array $configuration, $plugin_id, $plugin_definition, ModuleHandlerInterface $module_handler, protected ?ModuleExtensionList $moduleExtensionList = NULL) {
     parent::__construct($configuration, $plugin_id, $plugin_definition);
     $this->moduleHandler = $module_handler;
+    if ($this->moduleExtensionList === NULL) {
+      @trigger_error('Calling ' . __METHOD__ . '() without the $moduleExtensionList argument is deprecated in drupal:10.3.0 and will be required in drupal:12.0.0. See https://www.drupal.org/node/3310017', E_USER_DEPRECATED);
+      $this->moduleExtensionList = \Drupal::service('extension.list.module');
+    }
   }
 
   /**

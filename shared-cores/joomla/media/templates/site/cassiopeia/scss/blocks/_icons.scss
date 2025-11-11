@@ -67,10 +67,9 @@
 
 // WebAuthn
 .plg_system_webauthn_login_button svg {
-  width: 30px;
-  margin: 4px;
+  margin-inline-end: 2px;
 }
 
-.plg_system_webauthn_login_button svg path, .plg_system_webauthn_login_button svg circle {
+.plg_system_webauthn_login_button svg path {
   fill: var(--black);
 }

@@ -34,14 +34,18 @@ class HistoryUserTimestamp extends FilterPluginBase {
    * @param array $configuration
    *   A configuration array containing information about the plugin instance.
    * @param string $plugin_id
-   *   The plugin_id for the plugin instance.
+   *   The plugin ID for the plugin instance.
    * @param mixed $plugin_definition
    *   The plugin implementation definition.
-   * @param \Drupal\Component\Datetime\TimeInterface $time
+   * @param \Drupal\Component\Datetime\TimeInterface|null $time
    *   The time service.
    */
-  public function __construct(array $configuration, $plugin_id, $plugin_definition, protected TimeInterface $time) {
+  public function __construct(array $configuration, $plugin_id, $plugin_definition, protected ?TimeInterface $time = NULL) {
     parent::__construct($configuration, $plugin_id, $plugin_definition);
+    if (!$time) {
+      @trigger_error('Calling ' . __METHOD__ . ' without the $time argument is deprecated in drupal:10.3.0 and it will be required in drupal:11.0.0. See https://www.drupal.org/node/3395991', E_USER_DEPRECATED);
+      $this->time = \Drupal::service('datetime.time');
+    }
   }
 
   /**

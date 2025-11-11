@@ -19,18 +19,17 @@ use Joomla\CMS\Component\Router\RouterLegacy;
 use Joomla\CMS\Component\Router\RouterServiceInterface;
 use Joomla\CMS\Dispatcher\DispatcherInterface;
 use Joomla\CMS\Dispatcher\LegacyComponentDispatcher;
-use Joomla\CMS\Fields\FieldsFormServiceInterface;
-use Joomla\CMS\Fields\FieldsServiceTrait;
+use Joomla\CMS\Fields\FieldsServiceInterface;
+use Joomla\CMS\Filesystem\Path;
 use Joomla\CMS\Menu\AbstractMenu;
 use Joomla\CMS\MVC\Factory\LegacyFactory;
 use Joomla\CMS\MVC\Factory\MVCFactoryInterface;
 use Joomla\CMS\MVC\Factory\MVCFactoryServiceInterface;
 use Joomla\CMS\Tag\TagServiceInterface;
 use Joomla\CMS\Tag\TagServiceTrait;
-use Joomla\Filesystem\Path;
 
 // phpcs:disable PSR1.Files.SideEffects
-\defined('_JEXEC') or die;
+\defined('JPATH_PLATFORM') or die;
 // phpcs:enable PSR1.Files.SideEffects
 
 /**
@@ -42,14 +41,13 @@ class LegacyComponent implements
     ComponentInterface,
     MVCFactoryServiceInterface,
     CategoryServiceInterface,
-    FieldsFormServiceInterface,
+    FieldsServiceInterface,
     RouterServiceInterface,
     TagServiceInterface
 {
-    use CategoryServiceTrait, TagServiceTrait, FieldsServiceTrait {
+    use CategoryServiceTrait, TagServiceTrait {
         CategoryServiceTrait::getTableNameForSection insteadof TagServiceTrait;
         CategoryServiceTrait::getStateColumnForSection insteadof TagServiceTrait;
-        CategoryServiceTrait::prepareForm insteadof FieldsServiceTrait;
     }
 
     /**

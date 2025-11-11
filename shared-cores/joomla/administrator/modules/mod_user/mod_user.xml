@@ -9,10 +9,8 @@
 	<authorUrl>www.joomla.org</authorUrl>
 	<version>4.0.0</version>
 	<description>MOD_USER_XML_DESCRIPTION</description>
-	<namespace path="src">Joomla\Module\User</namespace>
 	<files>
-		<folder module="mod_user">services</folder>
-		<folder>src</folder>
+		<filename module="mod_user">mod_user.php</filename>
 		<folder>tmpl</folder>
 	</files>
 	<languages>

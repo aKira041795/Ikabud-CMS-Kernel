@@ -17,7 +17,7 @@ use Joomla\Database\ParameterType;
 use Joomla\Utilities\ArrayHelper;
 
 // phpcs:disable PSR1.Files.SideEffects
-\defined('_JEXEC') or die;
+\defined('JPATH_PLATFORM') or die;
 // phpcs:enable PSR1.Files.SideEffects
 
 /**
@@ -81,7 +81,7 @@ class TagField extends ListField
      */
     protected function getInput()
     {
-        $data = $this->collectLayoutData();
+        $data = $this->getLayoutData();
 
         if (!\is_array($this->value) && !empty($this->value)) {
             if ($this->value instanceof TagsHelper) {
@@ -192,7 +192,7 @@ class TagField extends ListField
             $topIds = $db->loadColumn();
 
             // Merge the used values into the most used tags
-            if (!empty($this->value) && \is_array($this->value)) {
+            if (!empty($this->value) && is_array($this->value)) {
                 $topIds = array_unique(array_merge($topIds, $this->value));
             }
 
@@ -214,8 +214,8 @@ class TagField extends ListField
                 }
 
                 // Limit the main query to the missing amount of tags
-                $count        = \count($options);
-                $prefillLimit -= $count;
+                $count        = count($options);
+                $prefillLimit = $prefillLimit - $count;
                 $query->setLimit($prefillLimit);
 
                 // Exclude the already loaded tags from the main query
@@ -315,7 +315,7 @@ class TagField extends ListField
             return false;
         }
 
-        return $this->getCurrentUser()->authorise('core.create', 'com_tags');
+        return Factory::getUser()->authorise('core.create', 'com_tags');
     }
 
     /**

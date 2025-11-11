@@ -12,7 +12,6 @@ defined('_JEXEC') or die;
 
 use Joomla\CMS\Language\Text;
 
-/** @var \Joomla\Component\Config\Site\View\Config\HtmlView $this */
 ?>
 <fieldset>
 

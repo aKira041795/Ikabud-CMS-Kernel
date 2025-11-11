@@ -1,4 +1,4 @@
-a:6:{s:7:"headers";a:14:{i:0;s:31:"X-Content-Type-Options: nosniff";i:1;s:31:"X-XSS-Protection: 1; mode=block";i:2;s:89:"Set-Cookie: 2cc2f10fe1a31dcf88c8edc095cca34a=is0ebpr33gs7io7kd99qkf8jao; path=/; HttpOnly";i:3;s:27:"x-frame-options: SAMEORIGIN";i:4;s:48:"referrer-policy: strict-origin-when-cross-origin";i:5;s:39:"cross-origin-opener-policy: same-origin";i:6;s:38:"Content-Type: text/html; charset=utf-8";i:7;s:38:"Expires: Wed, 17 Aug 2005 00:00:00 GMT";i:8;s:44:"Last-Modified: Mon, 10 Nov 2025 07:46:30 GMT";i:9;s:77:"Cache-Control: no-store, no-cache, must-revalidate, post-check=0, pre-check=0";i:10;s:16:"Pragma: no-cache";i:11;s:13:"X-Cache: MISS";i:12;s:28:"X-Cache-Instance: joomla-001";i:13;s:27:"X-Powered-By: Ikabud-Kernel";}s:4:"body";s:12265:"<!DOCTYPE html>
+a:6:{s:7:"headers";a:11:{i:0;s:31:"X-Content-Type-Options: nosniff";i:1;s:31:"X-XSS-Protection: 1; mode=block";i:2;s:27:"x-frame-options: SAMEORIGIN";i:3;s:48:"referrer-policy: strict-origin-when-cross-origin";i:4;s:39:"cross-origin-opener-policy: same-origin";i:5;s:38:"Content-Type: text/html; charset=utf-8";i:6;s:44:"Last-Modified: Mon, 10 Nov 2025 10:54:59 GMT";i:7;s:13:"X-Cache: MISS";i:8;s:28:"X-Cache-Instance: joomla-001";i:9;s:27:"X-Powered-By: Ikabud-Kernel";i:10;s:35:"Cache-Control: public, max-age=3600";}s:4:"body";s:12265:"<!DOCTYPE html>
 <html lang="en-gb" dir="ltr">
 
 <head>
@@ -319,4 +319,4 @@ a:6:{s:7:"headers";a:14:{i:0;s:31:"X-Content-Type-Options: nosniff";i:1;s:31:"X-
 </body>
 
 </html>
-";s:9:"timestamp";i:1762760790;s:17:"extensions_loaded";a:0:{}s:15:"extension_count";i:0;s:8:"cms_type";s:6:"joomla";}
+";s:9:"timestamp";i:1762772099;s:17:"extensions_loaded";a:0:{}s:15:"extension_count";i:0;s:8:"cms_type";s:6:"joomla";}

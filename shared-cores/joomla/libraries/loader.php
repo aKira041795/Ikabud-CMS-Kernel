@@ -5,11 +5,11 @@
  *
  * @copyright  (C) 2005 Open Source Matters, Inc. <https://www.joomla.org>
  * @license    GNU General Public License version 2 or later; see LICENSE.txt
- *
+
  * @phpcs:disable PSR1.Classes.ClassDeclaration.MissingNamespace
  */
 
-defined('_JEXEC') or die;
+defined('JPATH_PLATFORM') or die;
 
 /**
  * Static class to handle loading of libraries.
@@ -699,12 +699,12 @@ if (!function_exists('jexit')) {
      *
      * @param   mixed  $message  Exit code or string. Defaults to zero.
      *
-     * @return  never
+     * @return  void
      *
      * @codeCoverageIgnore
      * @since   1.7.0
      */
-    function jexit($message = 0): never
+    function jexit($message = 0)
     {
         exit($message);
     }

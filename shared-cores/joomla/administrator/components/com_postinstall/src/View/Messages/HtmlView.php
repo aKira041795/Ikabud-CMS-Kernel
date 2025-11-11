@@ -13,6 +13,7 @@ namespace Joomla\Component\Postinstall\Administrator\View\Messages;
 use Joomla\CMS\Factory;
 use Joomla\CMS\Language\Text;
 use Joomla\CMS\MVC\View\HtmlView as BaseHtmlView;
+use Joomla\CMS\Toolbar\Toolbar;
 use Joomla\CMS\Toolbar\ToolbarHelper;
 use Joomla\Component\Postinstall\Administrator\Model\MessagesModel;
 
@@ -27,15 +28,6 @@ use Joomla\Component\Postinstall\Administrator\Model\MessagesModel;
  */
 class HtmlView extends BaseHtmlView
 {
-    /**
-     * An array of items
-     *
-     * @var   array
-     *
-     * @since  5.2.0
-     */
-    protected $items;
-
     /**
      * Executes before rendering the page for the Browse task.
      *
@@ -82,7 +74,7 @@ class HtmlView extends BaseHtmlView
      */
     private function toolbar()
     {
-        $toolbar = $this->getDocument()->getToolbar();
+        $toolbar = Toolbar::getInstance();
 
         if (!empty($this->items)) {
             $toolbar->unpublish('message.hideAll', 'COM_POSTINSTALL_HIDE_ALL_MESSAGES');

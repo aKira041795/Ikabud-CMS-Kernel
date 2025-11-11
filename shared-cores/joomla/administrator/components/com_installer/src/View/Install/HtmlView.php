@@ -14,6 +14,7 @@ use Joomla\CMS\Access\Exception\NotAllowed;
 use Joomla\CMS\Helper\ContentHelper;
 use Joomla\CMS\Language\Text;
 use Joomla\CMS\Plugin\PluginHelper;
+use Joomla\CMS\Toolbar\Toolbar;
 use Joomla\Component\Installer\Administrator\View\Installer\HtmlView as InstallerViewDefault;
 
 // phpcs:disable PSR1.Files.SideEffects
@@ -61,7 +62,7 @@ class HtmlView extends InstallerViewDefault
      */
     protected function addToolbar()
     {
-        $toolbar = $this->getDocument()->getToolbar();
+        $toolbar = Toolbar::getInstance();
 
         if (ContentHelper::getActions('com_installer')->get('core.manage')) {
             $toolbar->linkButton('list', 'COM_INSTALLER_TOOLBAR_MANAGE')

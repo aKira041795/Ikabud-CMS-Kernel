@@ -10,7 +10,8 @@
 
 defined('_JEXEC') or die;
 
-/** @var \Joomla\CMS\Layout\FileLayout $this */
+use Joomla\CMS\Factory;
+
 $value = $field->value;
 
 if ($value == '') {
@@ -25,7 +26,7 @@ foreach ($value as $userId) {
         continue;
     }
 
-    $user = $this->getUserFactory()->loadUserById($userId);
+    $user = Factory::getUser($userId);
 
     if ($user) {
         // Use the Username

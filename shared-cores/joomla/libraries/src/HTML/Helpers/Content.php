@@ -10,15 +10,14 @@
 namespace Joomla\CMS\HTML\Helpers;
 
 use Joomla\CMS\Date\Date;
-use Joomla\CMS\Event\Content\ContentPrepareEvent;
 use Joomla\CMS\Factory;
 use Joomla\CMS\HTML\HTMLHelper;
+use Joomla\CMS\Object\CMSObject;
 use Joomla\CMS\Plugin\PluginHelper;
-use Joomla\Event\DispatcherInterface;
 use Joomla\Registry\Registry;
 
 // phpcs:disable PSR1.Files.SideEffects
-\defined('_JEXEC') or die;
+\defined('JPATH_PLATFORM') or die;
 // phpcs:enable PSR1.Files.SideEffects
 
 /**
@@ -41,22 +40,14 @@ abstract class Content
      */
     public static function prepare($text, $params = null, $context = 'text')
     {
-        if (!$params instanceof Registry) {
-            $params = new Registry($params);
+        if ($params === null) {
+            $params = new CMSObject();
         }
 
         $article       = new \stdClass();
         $article->text = $text;
-
-        $dispatcher = Factory::getContainer()->get(DispatcherInterface::class);
-
-        PluginHelper::importPlugin('content', null, true, $dispatcher);
-        $dispatcher->dispatch('onContentPrepare', new ContentPrepareEvent('onContentPrepare', [
-            'context' => $context,
-            'subject' => $article,
-            'params'  => $params,
-            'page'    => 0,
-        ]));
+        PluginHelper::importPlugin('content');
+        Factory::getApplication()->triggerEvent('onContentPrepare', [$context, &$article, &$params, 0]);
 
         return $article->text;
     }

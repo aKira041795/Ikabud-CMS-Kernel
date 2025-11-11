@@ -9,12 +9,13 @@
 
 namespace Joomla\CMS\Form\Field;
 
+use Joomla\CMS\Factory;
 use Joomla\CMS\Form\FormField;
 use Joomla\CMS\Language\Text;
 use Joomla\CMS\User\User;
 
 // phpcs:disable PSR1.Files.SideEffects
-\defined('_JEXEC') or die;
+\defined('JPATH_PLATFORM') or die;
 // phpcs:enable PSR1.Files.SideEffects
 
 /**
@@ -79,7 +80,7 @@ class UserField extends FormField
 
         // If user can't access com_users the field should be readonly.
         if ($return && !$this->readonly) {
-            $this->readonly = !$this->getCurrentUser()->authorise('core.manage', 'com_users');
+            $this->readonly = !Factory::getUser()->authorise('core.manage', 'com_users');
         }
 
         return $return;
@@ -95,10 +96,10 @@ class UserField extends FormField
     protected function getInput()
     {
         if (empty($this->layout)) {
-            throw new \UnexpectedValueException(\sprintf('%s has no layout assigned.', $this->name));
+            throw new \UnexpectedValueException(sprintf('%s has no layout assigned.', $this->name));
         }
 
-        return $this->getRenderer($this->layout)->render($this->collectLayoutData());
+        return $this->getRenderer($this->layout)->render($this->getLayoutData());
     }
 
     /**
@@ -121,7 +122,7 @@ class UserField extends FormField
         } elseif (strtoupper($this->value) === 'CURRENT') {
             // Handle the special case for "current".
             // 'CURRENT' is not a reasonable value to be placed in the html
-            $current = $this->getCurrentUser();
+            $current = Factory::getUser();
 
             $this->value = $current->id;
 

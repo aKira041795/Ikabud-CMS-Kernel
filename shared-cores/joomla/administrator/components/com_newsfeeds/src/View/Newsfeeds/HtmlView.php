@@ -16,7 +16,9 @@ use Joomla\CMS\Language\Multilanguage;
 use Joomla\CMS\Language\Text;
 use Joomla\CMS\MVC\View\GenericDataException;
 use Joomla\CMS\MVC\View\HtmlView as BaseHtmlView;
+use Joomla\CMS\Object\CMSObject;
 use Joomla\CMS\Toolbar\Button\DropdownButton;
+use Joomla\CMS\Toolbar\Toolbar;
 use Joomla\CMS\Toolbar\ToolbarHelper;
 
 // phpcs:disable PSR1.Files.SideEffects
@@ -33,7 +35,7 @@ class HtmlView extends BaseHtmlView
     /**
      * The list of newsfeeds
      *
-     * @var    array
+     * @var    CMSObject
      *
      * @since  1.6
      */
@@ -51,7 +53,7 @@ class HtmlView extends BaseHtmlView
     /**
      * The model state
      *
-     * @var    \Joomla\Registry\Registry
+     * @var    CMSObject
      *
      * @since  1.6
      */
@@ -145,12 +147,12 @@ class HtmlView extends BaseHtmlView
     {
         $state   = $this->get('State');
         $canDo   = ContentHelper::getActions('com_newsfeeds', 'category', $state->get('filter.category_id'));
-        $user    = $this->getCurrentUser();
-        $toolbar = $this->getDocument()->getToolbar();
+        $user    = Factory::getApplication()->getIdentity();
+        $toolbar = Toolbar::getInstance();
 
         ToolbarHelper::title(Text::_('COM_NEWSFEEDS_MANAGER_NEWSFEEDS'), 'rss newsfeeds');
 
-        if ($canDo->get('core.create') || \count($user->getAuthorisedCategories('com_newsfeeds', 'core.create')) > 0) {
+        if ($canDo->get('core.create') || count($user->getAuthorisedCategories('com_newsfeeds', 'core.create')) > 0) {
             $toolbar->addNew('newsfeed.add');
         }
 
@@ -183,17 +185,13 @@ class HtmlView extends BaseHtmlView
                 && $user->authorise('core.edit.state', 'com_newsfeeds')
             ) {
                 $childBar->popupButton('batch', 'JTOOLBAR_BATCH')
-                    ->popupType('inline')
-                    ->textHeader(Text::_('COM_NEWSFEEDS_BATCH_OPTIONS'))
-                    ->url('#joomla-dialog-batch')
-                    ->modalWidth('800px')
-                    ->modalHeight('fit-content')
+                    ->selector('collapseModal')
                     ->listCheck(true);
             }
         }
 
         if (!$this->isEmptyState && $state->get('filter.published') == -2 && $canDo->get('core.delete')) {
-            $toolbar->delete('newsfeeds.delete', 'JTOOLBAR_DELETE_FROM_TRASH')
+            $toolbar->delete('newsfeeds.delete', 'JTOOLBAR_EMPTY_TRASH')
                 ->message('JGLOBAL_CONFIRM_DELETE')
                 ->listCheck(true);
         }

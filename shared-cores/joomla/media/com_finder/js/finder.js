@@ -64,7 +64,8 @@
 
   // The boot sequence
   const onBoot = () => {
-    document.querySelectorAll('.js-finder-search-query').forEach(searchword => {
+    const searchWords = [].slice.call(document.querySelectorAll('.js-finder-search-query'));
+    searchWords.forEach(searchword => {
       // Handle the auto suggestion
       if (Joomla.getOptions('finder-search')) {
         searchword.awesomplete = new Awesomplete(searchword);
@@ -79,7 +80,10 @@
         }
       }
     });
-    document.querySelectorAll('.js-finder-searchform').forEach(form => form.addEventListener('submit', onSubmit));
+    const forms = [].slice.call(document.querySelectorAll('.js-finder-searchform'));
+    forms.forEach(form => {
+      form.addEventListener('submit', onSubmit);
+    });
 
     // Cleanup
     document.removeEventListener('DOMContentLoaded', onBoot);

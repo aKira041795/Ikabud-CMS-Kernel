@@ -87,7 +87,7 @@ class HtmlView extends BaseHtmlView
         $this->item       = $this->get('Item');
 
         // Check for errors.
-        if (\count($errors = $this->get('Errors'))) {
+        if (count($errors = $this->get('Errors'))) {
             throw new GenericDataException(implode("\n", $errors), 500);
         }
 
@@ -122,7 +122,7 @@ class HtmlView extends BaseHtmlView
         $user       = $this->getCurrentUser();
         $userId     = $user->id;
         $isNew      = empty($this->item->id);
-        $toolbar    = $this->getDocument()->getToolbar();
+        $toolbar    = Toolbar::getInstance();
 
         $canDo = StageHelper::getActions($this->extension, 'stage', $this->item->id);
 

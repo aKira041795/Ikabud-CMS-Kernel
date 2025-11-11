@@ -8,21 +8,25 @@ Joomla = window.Joomla || {};
 
   document.addEventListener('DOMContentLoaded', () => {
     // Handle toggle all
-    document.querySelectorAll('.filter-toggle-all').forEach(button => {
-      button.addEventListener('click', () => document.querySelectorAll('.filter-node').forEach(node => node.click()));
+    [].slice.call(document.querySelectorAll('.filter-toggle-all')).forEach(button => {
+      button.addEventListener('click', () => {
+        [].slice.call(document.querySelectorAll('.filter-node')).forEach(node => {
+          node.click();
+        });
+      });
     });
 
     // Update the count
-    document.querySelectorAll('.filter-node').forEach(() => {
+    [].slice.call(document.querySelectorAll('.filter-node')).forEach(() => {
       const count = document.getElementById('jform_map_count');
       if (count) {
         count.value = document.querySelectorAll('input[type="checkbox"]:checked').length;
       }
     });
-    document.querySelectorAll('.js-filter').forEach(button => {
+    Array.from(document.querySelectorAll('.js-filter')).forEach(button => {
       button.addEventListener('click', event => {
         const btn = event.currentTarget;
-        document.querySelectorAll(`.${btn.dataset.id}`).forEach(el => el.click());
+        Array.from(document.querySelectorAll(`.${btn.dataset.id}`)).map(el => el.click());
       });
     });
 
@@ -34,13 +38,15 @@ Joomla = window.Joomla || {};
         let elements;
         if (event.target.innerText === Joomla.Text._('COM_FINDER_FILTER_SHOW_ALL')) {
           event.target.innerText = Joomla.Text._('COM_FINDER_FILTER_HIDE_ALL');
-          elements = document.querySelectorAll('.accordion-button.collapsed');
+          elements = [].slice.call(document.querySelectorAll('.accordion-button.collapsed'));
         } else {
           event.target.innerText = Joomla.Text._('COM_FINDER_FILTER_SHOW_ALL');
-          elements = document.querySelectorAll('.accordion-button:not(.collapsed)');
+          elements = [].slice.call(document.querySelectorAll('.accordion-button:not(.collapsed)'));
         }
         if (elements) {
-          elements.forEach(element => element.click());
+          elements.forEach(element => {
+            element.click();
+          });
         }
       });
     }

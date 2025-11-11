@@ -9,10 +9,8 @@
 	<authorUrl>www.joomla.org</authorUrl>
 	<version>4.0.0</version>
 	<description>MOD_MESSAGES_XML_DESCRIPTION</description>
-	<namespace path="src">Joomla\Module\Messages</namespace>
 	<files>
-		<folder module="mod_messages">services</folder>
-		<folder>src</folder>
+		<filename module="mod_messages">mod_messages.php</filename>
 		<folder>tmpl</folder>
 	</files>
 	<languages>

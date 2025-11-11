@@ -6,7 +6,8 @@
 Joomla = window.Joomla || {};
 (Joomla => {
   Joomla.toggleAll = () => {
-    document.querySelectorAll('.chk-menulink').forEach(checkBox => {
+    const checkBoxes = [].slice.call(document.querySelectorAll('.chk-menulink'));
+    checkBoxes.forEach(checkBox => {
       checkBox.checked = !checkBox.checked;
     });
   };

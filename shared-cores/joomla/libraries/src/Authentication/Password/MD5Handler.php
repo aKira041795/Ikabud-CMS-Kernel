@@ -14,7 +14,7 @@ use Joomla\CMS\Crypt\Crypt;
 use Joomla\CMS\User\UserHelper;
 
 // phpcs:disable PSR1.Files.SideEffects
-\defined('_JEXEC') or die;
+\defined('JPATH_PLATFORM') or die;
 // phpcs:enable PSR1.Files.SideEffects
 
 /**

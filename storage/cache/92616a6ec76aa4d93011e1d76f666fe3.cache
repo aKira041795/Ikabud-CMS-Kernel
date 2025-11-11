@@ -1,4 +1,4 @@
-a:6:{s:7:"headers";a:7:{i:0;s:27:"X-Frame-Options: SAMEORIGIN";i:1;s:31:"X-Content-Type-Options: nosniff";i:2;s:31:"X-XSS-Protection: 1; mode=block";i:3;s:36:"Content-type: text/css;charset=UTF-8";i:4;s:13:"X-Cache: MISS";i:5;s:28:"X-Cache-Instance: joomla-001";i:6;s:27:"X-Powered-By: Ikabud-Kernel";}s:4:"body";s:4549:"@charset "UTF-8";
+a:6:{s:7:"headers";a:8:{i:0;s:27:"X-Frame-Options: SAMEORIGIN";i:1;s:31:"X-Content-Type-Options: nosniff";i:2;s:31:"X-XSS-Protection: 1; mode=block";i:3;s:36:"Content-type: text/css;charset=UTF-8";i:4;s:13:"X-Cache: MISS";i:5;s:28:"X-Cache-Instance: joomla-001";i:6;s:27:"X-Powered-By: Ikabud-Kernel";i:7;s:35:"Cache-Control: public, max-age=3600";}s:4:"body";s:4549:"@charset "UTF-8";
 joomla-alert {
   --jui-alert-min-width: 250px;
   --jui-alert-padding: .5rem 1.25rem;
@@ -160,4 +160,4 @@ html[dir="rtl"] joomla-alert .joomla-alert--close, html[dir="rtl"] joomla-alert 
     animation-duration: 1ms !important;
   }
 }
-";s:9:"timestamp";i:1762760790;s:17:"extensions_loaded";a:0:{}s:15:"extension_count";i:0;s:8:"cms_type";s:6:"joomla";}
+";s:9:"timestamp";i:1762772100;s:17:"extensions_loaded";a:0:{}s:15:"extension_count";i:0;s:8:"cms_type";s:6:"joomla";}

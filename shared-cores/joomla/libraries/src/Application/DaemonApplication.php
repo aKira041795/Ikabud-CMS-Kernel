@@ -9,10 +9,6 @@
 
 namespace Joomla\CMS\Application;
 
-use Joomla\CMS\Event\Application\AfterExecuteEvent;
-use Joomla\CMS\Event\Application\BeforeExecuteEvent;
-use Joomla\CMS\Event\Application\DaemonForkEvent;
-use Joomla\CMS\Event\Application\DaemonReceiveSignalEvent;
 use Joomla\CMS\Filesystem\Folder;
 use Joomla\CMS\Input\Cli;
 use Joomla\CMS\Log\Log;
@@ -20,7 +16,7 @@ use Joomla\Event\DispatcherInterface;
 use Joomla\Registry\Registry;
 
 // phpcs:disable PSR1.Files.SideEffects
-\defined('_JEXEC') or die;
+\defined('JPATH_PLATFORM') or die;
 // phpcs:enable PSR1.Files.SideEffects
 
 /**
@@ -103,20 +99,20 @@ abstract class DaemonApplication extends CliApplication
     /**
      * Class constructor.
      *
-     * @param   ?Cli                  $input       An optional argument to provide dependency injection for the application's
-     *                                             input object.  If the argument is a JInputCli object that object will become
-     *                                             the application's input object, otherwise a default input object is created.
-     * @param   ?Registry             $config      An optional argument to provide dependency injection for the application's
-     *                                             config object.  If the argument is a Registry object that object will become
-     *                                             the application's config object, otherwise a default config object is created.
-     * @param   ?DispatcherInterface  $dispatcher  An optional argument to provide dependency injection for the application's
-     *                                             event dispatcher.  If the argument is a DispatcherInterface object that object will become
-     *                                             the application's event dispatcher, if it is null then the default event dispatcher
-     *                                             will be created based on the application's loadDispatcher() method.
+     * @param   Cli                  $input       An optional argument to provide dependency injection for the application's
+     *                                            input object.  If the argument is a JInputCli object that object will become
+     *                                            the application's input object, otherwise a default input object is created.
+     * @param   Registry             $config      An optional argument to provide dependency injection for the application's
+     *                                            config object.  If the argument is a Registry object that object will become
+     *                                            the application's config object, otherwise a default config object is created.
+     * @param   DispatcherInterface  $dispatcher  An optional argument to provide dependency injection for the application's
+     *                                            event dispatcher.  If the argument is a DispatcherInterface object that object will become
+     *                                            the application's event dispatcher, if it is null then the default event dispatcher
+     *                                            will be created based on the application's loadDispatcher() method.
      *
      * @since   1.7.0
      */
-    public function __construct(?Cli $input = null, ?Registry $config = null, ?DispatcherInterface $dispatcher = null)
+    public function __construct(Cli $input = null, Registry $config = null, DispatcherInterface $dispatcher = null)
     {
         // Verify that the process control extension for PHP is available.
         if (!\defined('SIGHUP')) {
@@ -169,13 +165,7 @@ abstract class DaemonApplication extends CliApplication
         }
 
         // Fire the onReceiveSignal event.
-        static::$instance->getDispatcher()->dispatch(
-            'onReceiveSignal',
-            new DaemonReceiveSignalEvent('onReceiveSignal', [
-                'signal'  => $signal,
-                'subject' => static::$instance,
-            ])
-        );
+        static::$instance->triggerEvent('onReceiveSignal', [$signal]);
 
         switch ($signal) {
             case SIGINT:
@@ -357,10 +347,7 @@ abstract class DaemonApplication extends CliApplication
     public function execute()
     {
         // Trigger the onBeforeExecute event
-        $this->dispatchEvent(
-            'onBeforeExecute',
-            new BeforeExecuteEvent('onBeforeExecute', ['subject' => $this, 'container' => $this->getContainer()])
-        );
+        $this->triggerEvent('onBeforeExecute');
 
         // Enable basic garbage collection.
         gc_enable();
@@ -390,10 +377,7 @@ abstract class DaemonApplication extends CliApplication
         }
 
         // Trigger the onAfterExecute event.
-        $this->dispatchEvent(
-            'onAfterExecute',
-            new AfterExecuteEvent('onAfterExecute', ['subject' => $this])
-        );
+        $this->triggerEvent('onAfterExecute');
     }
 
     /**
@@ -547,9 +531,9 @@ abstract class DaemonApplication extends CliApplication
                 Log::add('Unable to change process owner.', Log::CRITICAL);
 
                 return false;
+            } else {
+                Log::add('Unable to change process owner.', Log::WARNING);
             }
-
-            Log::add('Unable to change process owner.', Log::WARNING);
         }
 
         // Setup the signal handlers for the daemon.
@@ -611,9 +595,7 @@ abstract class DaemonApplication extends CliApplication
         // If the fork failed, throw an exception.
         if ($pid === -1) {
             throw new \RuntimeException('The process could not be forked.');
-        }
-
-        if ($pid === 0) {
+        } elseif ($pid === 0) {
             // Update the process id for the child.
             $this->processId = (int) posix_getpid();
         } else {
@@ -671,7 +653,7 @@ abstract class DaemonApplication extends CliApplication
 
             // Attach the signal handler for the signal.
             if (!$this->pcntlSignal(\constant($signal), ['DaemonApplication', 'signal'])) {
-                Log::add(\sprintf('Unable to reroute signal handler: %s', $signal), Log::EMERGENCY);
+                Log::add(sprintf('Unable to reroute signal handler: %s', $signal), Log::EMERGENCY);
 
                 return false;
             }
@@ -694,10 +676,10 @@ abstract class DaemonApplication extends CliApplication
         // If we are already exiting, chill.
         if ($this->exiting) {
             return;
+        } else {
+            // If not, now we are.
+            $this->exiting = true;
         }
-
-        // If not, now we are.
-        $this->exiting = true;
 
         // If we aren't already daemonized then just kill the application.
         if (!$this->running && !$this->isActive()) {
@@ -788,10 +770,7 @@ abstract class DaemonApplication extends CliApplication
     protected function postFork()
     {
         // Trigger the onFork event.
-        $this->dispatchEvent(
-            'onFork',
-            new DaemonForkEvent('onFork', ['subject' => $this])
-        );
+        $this->triggerEvent('onFork');
     }
 
     /**

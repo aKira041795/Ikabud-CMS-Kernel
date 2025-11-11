@@ -12,7 +12,6 @@ namespace Joomla\Component\Mails\Administrator\Table;
 
 use Joomla\CMS\Table\Table;
 use Joomla\Database\DatabaseDriver;
-use Joomla\Event\DispatcherInterface;
 
 // phpcs:disable PSR1.Files.SideEffects
 \defined('_JEXEC') or die;
@@ -36,13 +35,12 @@ class TemplateTable extends Table
     /**
      * Constructor
      *
-     * @param   DatabaseDriver        $db          Database connector object
-     * @param   ?DispatcherInterface  $dispatcher  Event dispatcher for this table
+     * @param   DatabaseDriver  $db  Database connector object
      *
      * @since   4.0.0
      */
-    public function __construct(DatabaseDriver $db, ?DispatcherInterface $dispatcher = null)
+    public function __construct(DatabaseDriver $db)
     {
-        parent::__construct('#__mail_templates', ['template_id', 'language'], $db, $dispatcher);
+        parent::__construct('#__mail_templates', ['template_id', 'language'], $db);
     }
 }

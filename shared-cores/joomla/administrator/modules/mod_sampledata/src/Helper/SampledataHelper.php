@@ -23,16 +23,16 @@ use Joomla\CMS\Plugin\PluginHelper;
  *
  * @since  3.8.0
  */
-class SampledataHelper
+abstract class SampledataHelper
 {
     /**
      * Get a list of sampledata.
      *
      * @return  mixed  An array of sampledata, or false on error.
      *
-     * @since  5.1.0
+     * @since  3.8.0
      */
-    public function getSampledataList()
+    public static function getList()
     {
         PluginHelper::importPlugin('sampledata');
 
@@ -48,23 +48,5 @@ class SampledataHelper
                 )
             )
             ->getArgument('result') ?? [];
-    }
-
-    /**
-     * Get a list of sampledata.
-     *
-     * @return  mixed  An array of sampledata, or false on error.
-     *
-     * @since  3.8.0
-     *
-     * @deprecated 5.1.0 will be removed in 7.0
-     *             Use the non-static method getSampledataList
-     *             Example: Factory::getApplication()->bootModule('mod_sampledata', 'administrator')
-     *                            ->getHelper('SampledataHelper')
-     *                            ->getSampledataList()
-     */
-    public static function getList()
-    {
-        return (new self())->getSampledataList();
     }
 }

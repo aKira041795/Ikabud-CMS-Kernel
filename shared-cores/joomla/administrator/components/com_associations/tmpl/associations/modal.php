@@ -18,8 +18,6 @@ use Joomla\CMS\Router\Route;
 use Joomla\CMS\Session\Session;
 use Joomla\Component\Associations\Administrator\Helper\AssociationsHelper;
 
-/** @var Joomla\Component\Associations\Administrator\View\Associations\HtmlView $this */
-
 $app = Factory::getApplication();
 
 if ($app->isClient('site')) {
@@ -27,14 +25,14 @@ if ($app->isClient('site')) {
 }
 
 /** @var Joomla\CMS\WebAsset\WebAssetManager $wa */
-$wa = $this->getDocument()->getWebAssetManager();
+$wa = $this->document->getWebAssetManager();
 $wa->useScript('multiselect')
     ->useScript('com_associations.admin-associations-modal');
 
 $function         = $app->getInput()->getCmd('function', 'jSelectAssociation');
 $listOrder        = $this->escape($this->state->get('list.ordering'));
 $listDirn         = $this->escape($this->state->get('list.direction'));
-$canManageCheckin = $this->getCurrentUser()->authorise('core.manage', 'com_checkin');
+$canManageCheckin = Factory::getUser()->authorise('core.manage', 'com_checkin');
 
 $iconStates = [
     -2 => 'icon-trash',
@@ -43,7 +41,7 @@ $iconStates = [
     2  => 'icon-archive',
 ];
 
-$this->getDocument()->addScriptOptions('associations-modal', ['func' => $function]);
+$this->document->addScriptOptions('associations-modal', ['func' => $function]);
 
 ?>
 <div class="container-popup">

@@ -10,7 +10,6 @@
 
 namespace Joomla\Plugin\Workflow\Publishing\Extension;
 
-use Joomla\CMS\Event\Model;
 use Joomla\CMS\Event\Table\BeforeStoreEvent;
 use Joomla\CMS\Event\View\DisplayEvent;
 use Joomla\CMS\Event\Workflow\WorkflowFunctionalityUsedEvent;
@@ -23,6 +22,7 @@ use Joomla\CMS\Table\ContentHistory;
 use Joomla\CMS\Table\TableInterface;
 use Joomla\CMS\Workflow\WorkflowPluginTrait;
 use Joomla\CMS\Workflow\WorkflowServiceInterface;
+use Joomla\Event\Event;
 use Joomla\Event\EventInterface;
 use Joomla\Event\SubscriberInterface;
 use Joomla\Registry\Registry;
@@ -82,14 +82,18 @@ final class Publishing extends CMSPlugin implements SubscriberInterface
     /**
      * The form event.
      *
-     * @param   Model\PrepareFormEvent  $event  The event
+     * @param   EventInterface  $event  The event
      *
      * @since   4.0.0
      */
-    public function onContentPrepareForm(Model\PrepareFormEvent $event)
+    public function onContentPrepareForm(EventInterface $event)
     {
-        $form    = $event->getForm();
-        $data    = $event->getData();
+        if (!$event instanceof Event) {
+            return;
+        }
+
+        [$form, $data] = array_values($event->getArguments());
+
         $context = $form->getName();
 
         // Extend the transition form
@@ -105,8 +109,8 @@ final class Publishing extends CMSPlugin implements SubscriberInterface
     /**
      * Add different parameter options to the transition view, we need when executing the transition
      *
-     * @param   Form       $form The form
-     * @param   \stdClass  $data The data
+     * @param   Form      $form The form
+     * @param   stdClass  $data The data
      *
      * @return  boolean
      *
@@ -129,8 +133,8 @@ final class Publishing extends CMSPlugin implements SubscriberInterface
      * Disable certain fields in the item  form view, when we want to take over this function in the transition
      * Check also for the workflow implementation and if the field exists
      *
-     * @param   Form       $form  The form
-     * @param   \stdClass  $data  The data
+     * @param   Form      $form  The form
+     * @param   stdClass  $data  The data
      *
      * @return  boolean
      *
@@ -194,9 +198,7 @@ final class Publishing extends CMSPlugin implements SubscriberInterface
     /**
      * Manipulate the generic list view
      *
-     * @param   DisplayEvent  $event
-     *
-     * @return  void
+     * @param   DisplayEvent    $event
      *
      * @since   4.0.0
      */
@@ -213,7 +215,7 @@ final class Publishing extends CMSPlugin implements SubscriberInterface
         $singularsection = Inflector::singularize($section);
 
         if (!$this->isSupported($component . '.' . $singularsection)) {
-            return;
+            return true;
         }
 
         // That's the hard coded list from the AdminController publish method => change, when it's make dynamic in the future
@@ -248,6 +250,8 @@ final class Publishing extends CMSPlugin implements SubscriberInterface
 		";
 
         $this->getApplication()->getDocument()->addScriptDeclaration($js);
+
+        return true;
     }
 
     /**
@@ -291,7 +295,7 @@ final class Publishing extends CMSPlugin implements SubscriberInterface
         // Release allowed pks, the job is done
         $this->getApplication()->set('plgWorkflowPublishing.' . $context, []);
 
-        if (\in_array(false, $result, true)) {
+        if (in_array(false, $result, true)) {
             $event->setStopTransition();
 
             return false;
@@ -344,17 +348,20 @@ final class Publishing extends CMSPlugin implements SubscriberInterface
     /**
      * Change State of an item. Used to disable state change
      *
-     * @param   Model\BeforeChangeStateEvent  $event
+     * @param   EventInterface  $event
      *
      * @return boolean
      *
      * @throws \Exception
      * @since   4.0.0
      */
-    public function onContentBeforeChangeState(Model\BeforeChangeStateEvent $event)
+    public function onContentBeforeChangeState(EventInterface $event)
     {
-        $context = $event->getContext();
-        $pks     = $event->getPks();
+        if (!$event instanceof Event) {
+            return;
+        }
+
+        [$context, $pks] = array_values($event->getArguments());
 
         if (!$this->isSupported($context)) {
             return true;
@@ -372,23 +379,21 @@ final class Publishing extends CMSPlugin implements SubscriberInterface
     /**
      * The save event.
      *
-     * @param   Model\BeforeSaveEvent  $event
+     * @param   EventInterface  $event
      *
      * @return  boolean
      *
      * @since   4.0.0
      */
-    public function onContentBeforeSave(Model\BeforeSaveEvent $event)
+    public function onContentBeforeSave(EventInterface $event)
     {
-        $context = $event->getContext();
+        /** @var TableInterface $table */
+        [$context, $table, $isNew, $data] = array_values($event->getArguments());
 
         if (!$this->isSupported($context)) {
             return true;
         }
 
-        /** @var TableInterface $table */
-        $table   = $event->getItem();
-        $data    = $event->getData();
         $keyName = $table->getColumnAlias('published');
 
         // Check for the old value
@@ -500,7 +505,7 @@ final class Publishing extends CMSPlugin implements SubscriberInterface
         $parts = explode('.', $context);
 
         // We need at least the extension + view for loading the table fields
-        if (\count($parts) < 2) {
+        if (count($parts) < 2) {
             return false;
         }
 

@@ -38,6 +38,7 @@ const elSearchContainer = document.getElementById('comSchedulerSelectSearchConta
 const elSearchHeader = document.getElementById('comSchedulerSelectTypeHeader');
 const elSearchResults = document.getElementById('comSchedulerSelectResultsContainer');
 const alertElement = document.querySelector('.tasks-alert');
+const elCards = [].slice.call(document.querySelectorAll('.comSchedulerSelectCard'));
 if (elSearch && elSearchContainer) {
   // Add the keyboard event listener which performs the live search in the cards
   elSearch.addEventListener('keyup', ({
@@ -52,7 +53,7 @@ if (elSearch && elSearchContainer) {
     }
 
     // Iterate over all the task cards
-    document.querySelectorAll('.comSchedulerSelectCard').forEach(card => {
+    elCards.forEach(card => {
       // First remove the class which hide the task cards
       card.classList.remove('d-none');
 
@@ -61,7 +62,7 @@ if (elSearch && elSearchContainer) {
         return;
       }
       const cardHeader = card.querySelector('.new-task-title');
-      const cardBody = card.querySelector('.new-task-caption');
+      const cardBody = card.querySelector('.card-body');
       const title = cardHeader ? cardHeader.textContent : '';
       const description = cardBody ? cardBody.textContent : '';
 

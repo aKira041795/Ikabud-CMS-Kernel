@@ -14,7 +14,7 @@ use Joomla\CMS\Language\Text;
 use Joomla\Database\DatabaseDriver;
 
 // phpcs:disable PSR1.Files.SideEffects
-\defined('_JEXEC') or die;
+\defined('JPATH_PLATFORM') or die;
 // phpcs:enable PSR1.Files.SideEffects
 
 /**
@@ -290,7 +290,8 @@ class Date extends \DateTime
      *
      * @since   1.7.0
      */
-    public function format($format, $local = false, $translate = true): string
+    #[\ReturnTypeWillChange]
+    public function format($format, $local = false, $translate = true)
     {
         if ($translate) {
             // Do string replacements for date format options that can be translated.
@@ -398,7 +399,8 @@ class Date extends \DateTime
      * @since   1.7.0
      * @note    This method can't be type hinted due to a PHP bug: https://bugs.php.net/bug.php?id=61483
      */
-    public function setTimezone($tz): \Datetime
+    #[\ReturnTypeWillChange]
+    public function setTimezone($tz)
     {
         $this->tz = $tz;
 
@@ -424,15 +426,15 @@ class Date extends \DateTime
     /**
      * Gets the date as an SQL datetime string.
      *
-     * @param   boolean          $local  True to return the date string in the local time zone, false to return it in GMT.
-     * @param   ?DatabaseDriver  $db     The database driver or null to use Factory::getDbo()
+     * @param   boolean         $local  True to return the date string in the local time zone, false to return it in GMT.
+     * @param   DatabaseDriver  $db     The database driver or null to use Factory::getDbo()
      *
      * @return  string     The date string in SQL datetime format.
      *
      * @link    http://dev.mysql.com/doc/refman/5.0/en/datetime.html
      * @since   2.5.0
      */
-    public function toSql($local = false, ?DatabaseDriver $db = null)
+    public function toSql($local = false, DatabaseDriver $db = null)
     {
         if ($db === null) {
             $db = Factory::getDbo();

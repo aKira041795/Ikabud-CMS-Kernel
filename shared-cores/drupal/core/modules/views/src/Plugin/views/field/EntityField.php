@@ -148,7 +148,7 @@ class EntityField extends FieldPluginBase implements CacheableDependencyInterfac
    * @param array $configuration
    *   A configuration array containing information about the plugin instance.
    * @param string $plugin_id
-   *   The plugin_id for the plugin instance.
+   *   The plugin ID for the plugin instance.
    * @param mixed $plugin_definition
    *   The plugin implementation definition.
    * @param \Drupal\Core\Entity\EntityTypeManagerInterface $entity_type_manager
@@ -168,7 +168,7 @@ class EntityField extends FieldPluginBase implements CacheableDependencyInterfac
    * @param \Drupal\Core\Entity\EntityTypeBundleInfoInterface $entity_type_bundle_info
    *   The entity type bundle info service.
    */
-  public function __construct(array $configuration, $plugin_id, $plugin_definition, EntityTypeManagerInterface $entity_type_manager, FormatterPluginManager $formatter_plugin_manager, FieldTypePluginManagerInterface $field_type_plugin_manager, LanguageManagerInterface $language_manager, RendererInterface $renderer, EntityRepositoryInterface $entity_repository, EntityFieldManagerInterface $entity_field_manager, EntityTypeBundleInfoInterface $entity_type_bundle_info) {
+  public function __construct(array $configuration, $plugin_id, $plugin_definition, EntityTypeManagerInterface $entity_type_manager, FormatterPluginManager $formatter_plugin_manager, FieldTypePluginManagerInterface $field_type_plugin_manager, LanguageManagerInterface $language_manager, RendererInterface $renderer, EntityRepositoryInterface $entity_repository, EntityFieldManagerInterface $entity_field_manager, ?EntityTypeBundleInfoInterface $entity_type_bundle_info = NULL) {
     parent::__construct($configuration, $plugin_id, $plugin_definition);
 
     $this->entityTypeManager = $entity_type_manager;
@@ -178,6 +178,10 @@ class EntityField extends FieldPluginBase implements CacheableDependencyInterfac
     $this->renderer = $renderer;
     $this->entityRepository = $entity_repository;
     $this->entityFieldManager = $entity_field_manager;
+    if ($entity_type_bundle_info === NULL) {
+      $entity_type_bundle_info = \Drupal::service('entity_type.bundle.info');
+      @trigger_error('Calling ' . __CLASS__ . '::__construct() without the $entity_type_bundle_info argument is deprecated in drupal:10.3.0 and is required in drupal:11.0.0. See https://www.drupal.org/node/3380621', E_USER_DEPRECATED);
+    }
     $this->entityTypeBundleInfo = $entity_type_bundle_info;
 
     // @todo Unify 'entity field'/'field_name' instead of converting back and

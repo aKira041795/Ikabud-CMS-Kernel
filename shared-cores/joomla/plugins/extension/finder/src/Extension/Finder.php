@@ -10,15 +10,11 @@
 
 namespace Joomla\Plugin\Extension\Finder\Extension;
 
-use Joomla\CMS\Event\Extension\AbstractExtensionEvent;
-use Joomla\CMS\Event\Extension\AfterInstallEvent;
-use Joomla\CMS\Event\Extension\AfterUninstallEvent;
-use Joomla\CMS\Event\Extension\AfterUpdateEvent;
+use Joomla\CMS\Installer\Installer;
 use Joomla\CMS\Plugin\CMSPlugin;
 use Joomla\Component\Finder\Administrator\Indexer\Helper;
 use Joomla\Database\DatabaseAwareTrait;
 use Joomla\Database\ParameterType;
-use Joomla\Event\SubscriberInterface;
 use Joomla\String\StringHelper;
 
 // phpcs:disable PSR1.Files.SideEffects
@@ -30,39 +26,22 @@ use Joomla\String\StringHelper;
  *
  * @since  4.0.0
  */
-final class Finder extends CMSPlugin implements SubscriberInterface
+final class Finder extends CMSPlugin
 {
     use DatabaseAwareTrait;
 
     /**
-     * Returns an array of events this subscriber will listen to.
-     *
-     * @return array
-     *
-     * @since   5.2.0
-     */
-    public static function getSubscribedEvents(): array
-    {
-        return [
-            'onExtensionAfterInstall'   => 'onExtensionAfterInstall',
-            'onExtensionAfterUpdate'    => 'onExtensionAfterUpdate',
-            'onExtensionAfterUninstall' => 'onExtensionAfterUninstall',
-        ];
-    }
-
-    /**
      * Add common words to finder after language got installed
      *
-     * @param   AfterInstallEvent $event  Event instance.
+     * @param   Installer   $installer  Installer object
+     * @param   integer     $eid        Extension Identifier
      *
      * @return  void
      *
      * @since   4.0.0
      */
-    public function onExtensionAfterInstall(AbstractExtensionEvent $event): void
+    public function onExtensionAfterInstall($installer, $eid)
     {
-        $eid = $event->getEid();
-
         if (!$eid) {
             return;
         }
@@ -89,32 +68,31 @@ final class Finder extends CMSPlugin implements SubscriberInterface
     /**
      * Add common words to finder after language got updated
      *
-     * @param   AfterUpdateEvent $event  Event instance.
+     * @param   Installer  $installer  Installer object
+     * @param   integer    $eid        Extension identifier
      *
      * @return  void
      *
      * @since   4.0.0
      */
-    public function onExtensionAfterUpdate(AfterUpdateEvent $event): void
+    public function onExtensionAfterUpdate($installer, $eid)
     {
-        $this->onExtensionAfterInstall($event);
+        $this->onExtensionAfterInstall($installer, $eid);
     }
 
     /**
      * Remove common words to finder after language got uninstalled
      *
-     * @param   AfterUninstallEvent $event  Event instance.
+     * @param   Installer  $installer  Installer instance
+     * @param   integer    $eid        Extension id
+     * @param   boolean    $removed    Installation result
      *
      * @return  void
      *
      * @since   4.0.0
      */
-    public function onExtensionAfterUninstall(AfterUninstallEvent $event): void
+    public function onExtensionAfterUninstall($installer, $eid, $removed)
     {
-        $installer = $event->getInstaller();
-        $eid       = $event->getEid();
-        $removed   = $event->getRemoved();
-
         // Check that the language was successfully uninstalled.
         if ($eid && $removed && $installer->extension->type === 'language') {
             $this->removeCommonWords($installer->extension);

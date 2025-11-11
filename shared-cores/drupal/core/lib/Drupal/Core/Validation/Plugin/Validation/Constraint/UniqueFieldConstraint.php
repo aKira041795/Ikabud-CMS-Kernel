@@ -18,9 +18,21 @@ class UniqueFieldConstraint extends SymfonyConstraint {
   public $message = 'A @entity_type with @field_name %value already exists.';
 
   /**
-   * {@inheritdoc}
+   * This constraint is case-insensitive by default.
+   *
+   * For example "FOO" and "foo" would be considered as equivalent, and
+   * validation of the constraint would fail.
+   *
+   * @var bool
    */
-  public function validatedBy(): string {
+  public $caseSensitive = FALSE;
+
+  /**
+   * Returns the name of the class that validates this constraint.
+   *
+   * @return string
+   */
+  public function validatedBy() {
     return '\Drupal\Core\Validation\Plugin\Validation\Constraint\UniqueFieldValueValidator';
   }
 

@@ -22,6 +22,7 @@
       // Do nothing
     }
   };
+
   document.addEventListener('DOMContentLoaded', () => {
     const jformType = document.getElementById('jform_type');
     if (jformType) {

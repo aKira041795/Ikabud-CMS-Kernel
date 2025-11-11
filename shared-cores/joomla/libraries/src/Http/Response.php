@@ -12,7 +12,7 @@ namespace Joomla\CMS\Http;
 use Joomla\Http\Response as FrameworkResponse;
 
 // phpcs:disable PSR1.Files.SideEffects
-\defined('_JEXEC') or die;
+\defined('JPATH_PLATFORM') or die;
 // phpcs:enable PSR1.Files.SideEffects
 
 /**

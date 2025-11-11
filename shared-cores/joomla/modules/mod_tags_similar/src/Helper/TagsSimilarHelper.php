@@ -16,8 +16,6 @@ use Joomla\CMS\Helper\ContentHelper;
 use Joomla\CMS\Helper\TagsHelper;
 use Joomla\CMS\Language\Text;
 use Joomla\Component\Tags\Site\Helper\RouteHelper;
-use Joomla\Database\DatabaseAwareInterface;
-use Joomla\Database\DatabaseAwareTrait;
 use Joomla\Database\ParameterType;
 use Joomla\Registry\Registry;
 
@@ -30,20 +28,16 @@ use Joomla\Registry\Registry;
  *
  * @since  3.1
  */
-class TagsSimilarHelper implements DatabaseAwareInterface
+abstract class TagsSimilarHelper
 {
-    use DatabaseAwareTrait;
-
     /**
-     * Get a list of items with similar tags
+     * Get a list of tags
      *
      * @param   Registry  &$params  Module parameters
      *
      * @return  array
-     *
-     * @since   5.1.0
      */
-    public function getItems(&$params)
+    public static function getList(&$params)
     {
         $app    = Factory::getApplication();
         $option = $app->getInput()->get('option');
@@ -55,8 +49,8 @@ class TagsSimilarHelper implements DatabaseAwareInterface
             return [];
         }
 
-        $db         = $this->getDatabase();
-        $user       = $app->getIdentity();
+        $db         = Factory::getDbo();
+        $user       = Factory::getUser();
         $groups     = $user->getAuthorisedViewLevels();
         $matchtype  = $params->get('matchtype', 'all');
         $ordering   = $params->get('ordering', 'count');
@@ -223,23 +217,5 @@ class TagsSimilarHelper implements DatabaseAwareInterface
         }
 
         return $results;
-    }
-
-    /**
-     * Get a list of items with similar tags
-     *
-     * @param   Registry  &$params  Module parameters
-     *
-     * @return  array
-     *
-     * @deprecated 5.1.0 will be removed in 7.0
-     *             Use the non-static method getItems
-     *             Example: Factory::getApplication()->bootModule('mod_tags_similar', 'site')
-     *                          ->getHelper('TagsSimilarHelper')
-     *                          ->getItems($params)
-     */
-    public static function getList(&$params)
-    {
-        return (new self())->getItems($params);
     }
 }

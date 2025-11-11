@@ -7,8 +7,9 @@
 ((window, document) => {
 
   window.JoomlainitReCaptchaInvisible = () => {
+    const elements = [].slice.call(document.getElementsByClassName('g-recaptcha'));
     const optionKeys = ['sitekey', 'badge', 'size', 'tabindex', 'callback', 'expired-callback', 'error-callback'];
-    document.getElementsByClassName('g-recaptcha').forEach(element => {
+    elements.forEach(element => {
       let options = {};
       if (element.dataset) {
         options = element.dataset;

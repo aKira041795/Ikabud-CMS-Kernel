@@ -15,8 +15,6 @@ use Joomla\CMS\Language\Multilanguage;
 use Joomla\CMS\Language\Text;
 use Joomla\CMS\Layout\LayoutHelper;
 
-/** @var \Joomla\Component\Categories\Administrator\View\Categories\HtmlView $this */
-
 $published = (int) $this->state->get('filter.published');
 $extension = $this->escape($this->state->get('filter.extension'));
 
@@ -65,9 +63,4 @@ $extension = $this->escape($this->state->get('filter.extension'));
         </div>
     </div>
     <?php endif; ?>
-</div>
-<div class="btn-toolbar p-3">
-    <joomla-toolbar-button task="category.batch" class="ms-auto">
-        <button type="button" class="btn btn-success"><?php echo Text::_('JGLOBAL_BATCH_PROCESS'); ?></button>
-    </joomla-toolbar-button>
 </div>

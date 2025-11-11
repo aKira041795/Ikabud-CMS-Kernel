@@ -12,7 +12,6 @@ namespace Joomla\Component\Finder\Administrator\Table;
 
 use Joomla\CMS\Table\Table;
 use Joomla\Database\DatabaseDriver;
-use Joomla\Event\DispatcherInterface;
 
 // phpcs:disable PSR1.Files.SideEffects
 \defined('_JEXEC') or die;
@@ -36,14 +35,13 @@ class LinkTable extends Table
     /**
      * Constructor
      *
-     * @param   DatabaseDriver        $db          Database connector object
-     * @param   ?DispatcherInterface  $dispatcher  Event dispatcher for this table
+     * @param   DatabaseDriver  $db  Database Driver connector object.
      *
      * @since   2.5
      */
-    public function __construct(DatabaseDriver $db, ?DispatcherInterface $dispatcher = null)
+    public function __construct(DatabaseDriver $db)
     {
-        parent::__construct('#__finder_links', 'link_id', $db, $dispatcher);
+        parent::__construct('#__finder_links', 'link_id', $db);
     }
 
     /**

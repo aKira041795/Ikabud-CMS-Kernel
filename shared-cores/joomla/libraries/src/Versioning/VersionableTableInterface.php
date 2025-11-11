@@ -12,7 +12,7 @@ namespace Joomla\CMS\Versioning;
 use Joomla\CMS\Table\TableInterface;
 
 // phpcs:disable PSR1.Files.SideEffects
-\defined('_JEXEC') or die;
+\defined('JPATH_PLATFORM') or die;
 // phpcs:enable PSR1.Files.SideEffects
 
 /**

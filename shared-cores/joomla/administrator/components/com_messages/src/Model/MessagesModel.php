@@ -14,7 +14,6 @@ use Joomla\CMS\Factory;
 use Joomla\CMS\MVC\Factory\MVCFactoryInterface;
 use Joomla\CMS\MVC\Model\ListModel;
 use Joomla\Database\ParameterType;
-use Joomla\Database\QueryInterface;
 
 // phpcs:disable PSR1.Files.SideEffects
 \defined('_JEXEC') or die;
@@ -30,13 +29,13 @@ class MessagesModel extends ListModel
     /**
      * Override parent constructor.
      *
-     * @param   array                 $config   An optional associative array of configuration settings.
-     * @param   ?MVCFactoryInterface  $factory  The factory.
+     * @param   array                $config   An optional associative array of configuration settings.
+     * @param   MVCFactoryInterface  $factory  The factory.
      *
      * @see     \Joomla\CMS\MVC\Model\BaseDatabaseModel
      * @since   3.2
      */
-    public function __construct($config = [], ?MVCFactoryInterface $factory = null)
+    public function __construct($config = [], MVCFactoryInterface $factory = null)
     {
         if (empty($config['filter_fields'])) {
             $config['filter_fields'] = [
@@ -100,7 +99,7 @@ class MessagesModel extends ListModel
     /**
      * Build an SQL query to load the list data.
      *
-     * @return  QueryInterface
+     * @return  \Joomla\Database\DatabaseQuery
      *
      * @since   1.6
      */
@@ -110,7 +109,7 @@ class MessagesModel extends ListModel
         $db    = $this->getDatabase();
         $query = $db->getQuery(true);
         $user  = $this->getCurrentUser();
-        $id    = (int) $user->id;
+        $id    = (int) $user->get('id');
 
         // Select the required fields from the table.
         $query->select(

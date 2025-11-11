@@ -7,8 +7,12 @@ Joomla = window.Joomla || {};
 ((document, Joomla) => {
 
   document.addEventListener('DOMContentLoaded', () => {
-    document.querySelectorAll('.cache-entry').forEach(el => el.addEventListener('click', ({
-      currentTarget
-    }) => Joomla.isChecked(currentTarget.checked)));
+    [].slice.call(document.querySelectorAll('.cache-entry')).forEach(el => {
+      el.addEventListener('click', ({
+        currentTarget
+      }) => {
+        Joomla.isChecked(currentTarget.checked);
+      });
+    });
   });
 })(document, Joomla);

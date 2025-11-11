@@ -10,13 +10,28 @@
       "type": "script",
       "uri": "plg_multifactorauth_totp/setup.min.js",
       "dependencies": [
+        "plg_multifactorauth_totp.setup.es5",
         "qrcode",
         "core"
       ],
       "attributes": {
         "type": "module"
       },
-      "version": "5219a2"
+      "version": "9c5f7b842b3abb4f6a3f93d7cb6f45e17424b26d"
+    },
+    {
+      "name": "plg_multifactorauth_totp.setup.es5",
+      "type": "script",
+      "uri": "plg_multifactorauth_totp/setup-es5.min.js",
+      "dependencies": [
+        "qrcode",
+        "core"
+      ],
+      "attributes": {
+        "nomodule": true,
+        "defer": true
+      },
+      "version": "0c81f4762e9978989d83be103091b700d27c57cb"
     }
   ]
 }

@@ -16,10 +16,10 @@ use Joomla\CMS\Form\FormFactoryAwareInterface;
 use Joomla\CMS\Form\FormFactoryAwareTrait;
 use Joomla\CMS\MVC\Factory\MVCFactoryInterface;
 use Joomla\CMS\Pagination\Pagination;
-use Joomla\Database\QueryInterface;
+use Joomla\Database\DatabaseQuery;
 
 // phpcs:disable PSR1.Files.SideEffects
-\defined('_JEXEC') or die;
+\defined('JPATH_PLATFORM') or die;
 // phpcs:enable PSR1.Files.SideEffects
 
 /**
@@ -60,7 +60,7 @@ class ListModel extends BaseDatabaseModel implements FormFactoryAwareInterface, 
     /**
      * An internal cache for the last query used.
      *
-     * @var    QueryInterface|string
+     * @var    DatabaseQuery|string
      * @since  1.6
      */
     protected $query = [];
@@ -134,7 +134,7 @@ class ListModel extends BaseDatabaseModel implements FormFactoryAwareInterface, 
      * @since   1.6
      * @throws  \Exception
      */
-    public function __construct($config = [], ?MVCFactoryInterface $factory = null)
+    public function __construct($config = [], MVCFactoryInterface $factory = null)
     {
         parent::__construct($config, $factory);
 
@@ -168,7 +168,7 @@ class ListModel extends BaseDatabaseModel implements FormFactoryAwareInterface, 
     /**
      * Provide a query to be used to evaluate if this is an Empty State, can be overridden in the model to provide granular control.
      *
-     * @return QueryInterface
+     * @return DatabaseQuery
      *
      * @since 4.0.0
      */
@@ -176,7 +176,7 @@ class ListModel extends BaseDatabaseModel implements FormFactoryAwareInterface, 
     {
         $query = clone $this->_getListQuery();
 
-        if ($query instanceof QueryInterface) {
+        if ($query instanceof DatabaseQuery) {
             $query->clear('bounded')
                 ->clear('group')
                 ->clear('having')
@@ -207,7 +207,7 @@ class ListModel extends BaseDatabaseModel implements FormFactoryAwareInterface, 
      *
      * This method ensures that the query is constructed only once for a given state of the model.
      *
-     * @return  QueryInterface  An object implementing the QueryInterface interface
+     * @return  DatabaseQuery  A DatabaseQuery object
      *
      * @since   1.6
      */
@@ -240,7 +240,7 @@ class ListModel extends BaseDatabaseModel implements FormFactoryAwareInterface, 
             foreach ($this->filter_fields as $filter) {
                 $filterName = 'filter.' . $filter;
 
-                if (!empty($this->state->get($filterName)) || is_numeric($this->state->get($filterName))) {
+                if (property_exists($this->state, $filterName) && (!empty($this->state->{$filterName}) || is_numeric($this->state->{$filterName}))) {
                     $activeFilters[$filter] = $this->state->get($filterName);
                 }
             }
@@ -279,15 +279,15 @@ class ListModel extends BaseDatabaseModel implements FormFactoryAwareInterface, 
     }
 
     /**
-     * Method to get an object implementing QueryInterface for retrieving the data set from a database.
+     * Method to get a DatabaseQuery object for retrieving the data set from a database.
      *
-     * @return  QueryInterface|string  An object implementing QueryInterface to retrieve the data set.
+     * @return  DatabaseQuery|string  A DatabaseQuery object to retrieve the data set.
      *
      * @since   1.6
      */
     protected function getListQuery()
     {
-        return $this->getDatabase()->getQuery(true);
+        return $this->getDbo()->getQuery(true);
     }
 
     /**
@@ -629,8 +629,7 @@ class ListModel extends BaseDatabaseModel implements FormFactoryAwareInterface, 
      * @param   string   $key        The key of the user state variable.
      * @param   string   $request    The name of the variable passed in a request.
      * @param   string   $default    The default value for the variable if not found. Optional.
-     * @param   string   $type       Filter for the variable. Optional.
-     *                   @see        \Joomla\CMS\Filter\InputFilter::clean() for valid values.
+     * @param   string   $type       Filter for the variable, for valid values see {@link InputFilter::clean()}. Optional.
      * @param   boolean  $resetPage  If true, the limitstart in request is set to zero
      *
      * @return  mixed  The request user state.

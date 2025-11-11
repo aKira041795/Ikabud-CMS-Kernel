@@ -11,8 +11,9 @@
 defined('_JEXEC') or die;
 
 use Joomla\CMS\Language\Text;
+use Joomla\Plugin\Installer\Url\Extension\UrlInstaller;
 
-/** @var \Joomla\Plugin\Installer\Url\Extension\UrlInstaller $this */
+/** @var UrlInstaller $this */
 
 $this->getApplication()->getDocument()->getWebAssetManager()
     ->registerAndUseScript('plg_installer_urlinstaller.urlinstaller', 'plg_installer_urlinstaller/urlinstaller.js', [], ['defer' => true], ['core']);

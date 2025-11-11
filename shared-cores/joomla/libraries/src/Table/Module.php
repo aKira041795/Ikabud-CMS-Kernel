@@ -13,11 +13,10 @@ use Joomla\CMS\Access\Rules;
 use Joomla\CMS\Factory;
 use Joomla\CMS\Language\Text;
 use Joomla\Database\DatabaseDriver;
-use Joomla\Event\DispatcherInterface;
 use Joomla\Registry\Registry;
 
 // phpcs:disable PSR1.Files.SideEffects
-\defined('_JEXEC') or die;
+\defined('JPATH_PLATFORM') or die;
 // phpcs:enable PSR1.Files.SideEffects
 
 /**
@@ -38,14 +37,13 @@ class Module extends Table
     /**
      * Constructor.
      *
-     * @param   DatabaseDriver        $db          Database connector object
-     * @param   ?DispatcherInterface  $dispatcher  Event dispatcher for this table
+     * @param   DatabaseDriver  $db  Database driver object.
      *
      * @since   1.5
      */
-    public function __construct(DatabaseDriver $db, ?DispatcherInterface $dispatcher = null)
+    public function __construct(DatabaseDriver $db)
     {
-        parent::__construct('#__modules', 'id', $db, $dispatcher);
+        parent::__construct('#__modules', 'id', $db);
 
         $this->access = (int) Factory::getApplication()->get('access');
     }
@@ -81,14 +79,14 @@ class Module extends Table
     /**
      * Method to get the parent asset id for the record
      *
-     * @param   ?Table    $table  A Table object (optional) for the asset parent
-     * @param   ?integer  $id     The id (optional) of the content.
+     * @param   Table    $table  A Table object (optional) for the asset parent
+     * @param   integer  $id     The id (optional) of the content.
      *
      * @return  integer
      *
      * @since   3.2
      */
-    protected function _getAssetParentId(?Table $table = null, $id = null)
+    protected function _getAssetParentId(Table $table = null, $id = null)
     {
         $assetId = null;
 
@@ -111,9 +109,9 @@ class Module extends Table
         // Return the asset id.
         if ($assetId) {
             return $assetId;
+        } else {
+            return parent::_getAssetParentId($table, $id);
         }
-
-        return parent::_getAssetParentId($table, $id);
     }
 
     /**
@@ -151,7 +149,7 @@ class Module extends Table
         }
 
         // Prevent to save too large content > 65535
-        if ((!empty($this->content) && \strlen($this->content) > 65535) || (!empty($this->params) && \strlen($this->params) > 65535)) {
+        if ((\strlen($this->content) > 65535) || (\strlen($this->params) > 65535)) {
             $this->setError(Text::_('COM_MODULES_FIELD_CONTENT_TOO_LARGE'));
 
             return false;

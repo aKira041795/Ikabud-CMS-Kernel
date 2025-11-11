@@ -62,7 +62,7 @@ class LoginHelper
     {
         $user = Factory::getUser();
 
-        return (!$user->guest) ? 'logout' : 'login';
+        return (!$user->get('guest')) ? 'logout' : 'login';
     }
 
     /**

@@ -15,7 +15,6 @@ use Joomla\CMS\Factory;
 use Joomla\CMS\MVC\Factory\MVCFactoryInterface;
 use Joomla\CMS\MVC\Model\ListModel;
 use Joomla\Database\ParameterType;
-use Joomla\Database\QueryInterface;
 
 // phpcs:disable PSR1.Files.SideEffects
 \defined('_JEXEC') or die;
@@ -31,12 +30,12 @@ class LinksModel extends ListModel
     /**
      * Constructor.
      *
-     * @param   array                 $config   An optional associative array of configuration settings.
-     * @param   ?MVCFactoryInterface  $factory  The factory.
+     * @param   array                $config   An optional associative array of configuration settings.
+     * @param   MVCFactoryInterface  $factory  The factory.
      *
      * @since   1.6
      */
-    public function __construct($config = [], ?MVCFactoryInterface $factory = null)
+    public function __construct($config = [], MVCFactoryInterface $factory = null)
     {
         if (empty($config['filter_fields'])) {
             $config['filter_fields'] = [
@@ -128,7 +127,7 @@ class LinksModel extends ListModel
     /**
      * Build an SQL query to load the list data.
      *
-     * @return  QueryInterface
+     * @return  \Joomla\Database\DatabaseQuery
      *
      * @since   1.6
      */

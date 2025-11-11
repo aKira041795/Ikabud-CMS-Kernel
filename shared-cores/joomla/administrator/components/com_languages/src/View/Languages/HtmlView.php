@@ -15,6 +15,7 @@ use Joomla\CMS\Language\Text;
 use Joomla\CMS\MVC\View\GenericDataException;
 use Joomla\CMS\MVC\View\HtmlView as BaseHtmlView;
 use Joomla\CMS\Toolbar\Button\DropdownButton;
+use Joomla\CMS\Toolbar\Toolbar;
 use Joomla\CMS\Toolbar\ToolbarHelper;
 
 // phpcs:disable PSR1.Files.SideEffects
@@ -45,7 +46,7 @@ class HtmlView extends BaseHtmlView
     /**
      * The model state
      *
-     * @var   \Joomla\Registry\Registry
+     * @var    \Joomla\CMS\Object\CMSObject
      *
      * @since  4.0.0
      */
@@ -84,7 +85,7 @@ class HtmlView extends BaseHtmlView
         $this->activeFilters = $this->get('ActiveFilters');
 
         // Check for errors.
-        if (\count($errors = $this->get('Errors'))) {
+        if (count($errors = $this->get('Errors'))) {
             throw new GenericDataException(implode("\n", $errors), 500);
         }
 
@@ -103,7 +104,7 @@ class HtmlView extends BaseHtmlView
     protected function addToolbar(): void
     {
         $canDo   = ContentHelper::getActions('com_languages');
-        $toolbar = $this->getDocument()->getToolbar();
+        $toolbar = Toolbar::getInstance();
 
         ToolbarHelper::title(Text::_('COM_LANGUAGES_VIEW_LANGUAGES_TITLE'), 'comments langmanager');
 
@@ -130,7 +131,7 @@ class HtmlView extends BaseHtmlView
         }
 
         if ($this->state->get('filter.published') == -2 && $canDo->get('core.delete')) {
-            $toolbar->delete('languages.delete', 'JTOOLBAR_DELETE_FROM_TRASH')
+            $toolbar->delete('languages.delete', 'JTOOLBAR_EMPTY_TRASH')
                 ->message('JGLOBAL_CONFIRM_DELETE')
                 ->listCheck(true);
         }

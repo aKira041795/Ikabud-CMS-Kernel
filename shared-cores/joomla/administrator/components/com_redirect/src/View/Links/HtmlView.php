@@ -17,6 +17,7 @@ use Joomla\CMS\MVC\View\GenericDataException;
 use Joomla\CMS\MVC\View\HtmlView as BaseHtmlView;
 use Joomla\CMS\Plugin\PluginHelper;
 use Joomla\CMS\Toolbar\Button\DropdownButton;
+use Joomla\CMS\Toolbar\Toolbar;
 use Joomla\CMS\Toolbar\ToolbarHelper;
 use Joomla\Component\Redirect\Administrator\Helper\RedirectHelper;
 
@@ -70,7 +71,7 @@ class HtmlView extends BaseHtmlView
     /**
      * The model state
      *
-     * @var  \Joomla\Registry\Registry
+     * @var  \Joomla\CMS\Object\CMSObject
      */
     protected $state;
 
@@ -135,7 +136,7 @@ class HtmlView extends BaseHtmlView
             throw new GenericDataException(implode("\n", $errors), 500);
         }
 
-        if (!PluginHelper::isEnabled('system', 'redirect') || !RedirectHelper::collectUrlsEnabled()) {
+        if (!(PluginHelper::isEnabled('system', 'redirect') && RedirectHelper::collectUrlsEnabled())) {
             $this->redirectPluginId = RedirectHelper::getRedirectPluginId();
         }
 
@@ -155,7 +156,7 @@ class HtmlView extends BaseHtmlView
     {
         $state   = $this->get('State');
         $canDo   = ContentHelper::getActions('com_redirect');
-        $toolbar = $this->getDocument()->getToolbar();
+        $toolbar = Toolbar::getInstance();
 
         ToolbarHelper::title(Text::_('COM_REDIRECT_MANAGER_LINKS'), 'map-signs redirect');
 
@@ -192,7 +193,7 @@ class HtmlView extends BaseHtmlView
         }
 
         if ($state->get('filter.state') == -2 && $canDo->get('core.delete')) {
-            $toolbar->delete('links.delete', 'JTOOLBAR_DELETE_FROM_TRASH')
+            $toolbar->delete('links.delete', 'JTOOLBAR_EMPTY_TRASH')
                 ->message('JGLOBAL_CONFIRM_DELETE')
                 ->listCheck(true);
         }
@@ -204,11 +205,7 @@ class HtmlView extends BaseHtmlView
 
         if ($canDo->get('core.create')) {
             $toolbar->popupButton('batch', 'JTOOLBAR_BULK_IMPORT')
-                ->popupType('inline')
-                ->textHeader(Text::_('COM_REDIRECT_BATCH_OPTIONS'))
-                ->url('#joomla-dialog-batch')
-                ->modalWidth('800px')
-                ->modalHeight('fit-content')
+                ->selector('collapseModal')
                 ->listCheck(false);
         }
 

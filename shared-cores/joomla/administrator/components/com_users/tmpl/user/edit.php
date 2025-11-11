@@ -19,7 +19,7 @@ use Joomla\CMS\Router\Route;
 /** @var Joomla\Component\Users\Administrator\View\User\HtmlView $this */
 
 /** @var Joomla\CMS\WebAsset\WebAssetManager $wa */
-$wa = $this->getDocument()->getWebAssetManager();
+$wa = $this->document->getWebAssetManager();
 $wa->useScript('keepalive')
     ->useScript('form.validate');
 

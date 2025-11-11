@@ -65,6 +65,7 @@ class Taxonomy
     {
         $node            = new \stdClass();
         $node->title     = $title;
+        $node->state     = $state;
         $node->access    = $access;
         $node->parent_id = 1;
         $node->language  = '*';
@@ -88,15 +89,12 @@ class Taxonomy
      */
     public static function addNode($branch, $title, $state = 1, $access = 1, $language = '*')
     {
-        if ($state != 1) {
-            return 0;
-        }
-
         // Get the branch id, insert it if it does not exist.
         $branchId = static::addBranch($branch);
 
         $node            = new \stdClass();
         $node->title     = $title;
+        $node->state     = $state;
         $node->access    = $access;
         $node->parent_id = $branchId;
         $node->language  = $language;
@@ -120,10 +118,6 @@ class Taxonomy
      */
     public static function addNestedNode($branch, NodeInterface $node, $state = 1, $access = 1, $language = '*', $branchId = null)
     {
-        if ($state != 1) {
-            return 0;
-        }
-
         if (!$branchId) {
             // Get the branch id, insert it if it does not exist.
             $branchId = static::addBranch($branch);
@@ -131,22 +125,15 @@ class Taxonomy
 
         $parent = $node->getParent();
 
-        $pstate    = $node->state ?? ($node->published ?? $state);
-        $paccess   = $node->access ?? $access;
-        $planguage = $node->language ?? $language;
-
         if ($parent && $parent->title != 'ROOT') {
-            $parentId = self::addNestedNode($branch, $parent, $pstate, $paccess, $planguage, $branchId);
+            $parentId = self::addNestedNode($branch, $parent, $state, $access, $language, $branchId);
         } else {
             $parentId = $branchId;
         }
 
-        if (!$parentId) {
-            return 0;
-        }
-
         $temp            = new \stdClass();
         $temp->title     = $node->title;
+        $temp->state     = $state;
         $temp->access    = $access;
         $temp->parent_id = $parentId;
         $temp->language  = $language;
@@ -187,7 +174,7 @@ class Taxonomy
         $result = $db->loadObject();
 
         // Check if the database matches the input data.
-        if ((bool) $result && $result->access == $node->access) {
+        if ((bool) $result && $result->state == $node->state && $result->access == $node->access) {
             // The data matches, add the item to the cache.
             static::$nodes[$parentId . ':' . $node->title] = $result;
 
@@ -205,6 +192,7 @@ class Taxonomy
         if (empty($result)) {
             // Prepare the node object.
             $nodeTable->title    = $node->title;
+            $nodeTable->state    = (int) $node->state;
             $nodeTable->access   = (int) $node->access;
             $nodeTable->language = $node->language;
             $nodeTable->setLocation((int) $parentId, 'last-child');
@@ -212,6 +200,7 @@ class Taxonomy
             // Prepare the node object.
             $nodeTable->id       = (int) $result->id;
             $nodeTable->title    = $result->title;
+            $nodeTable->state    = (int) ($node->state > 0 ? $node->state : $result->state);
             $nodeTable->access   = (int) $result->access;
             $nodeTable->language = $node->language;
             $nodeTable->setLocation($result->parent_id, 'last-child');
@@ -457,7 +446,7 @@ class Taxonomy
      */
     public static function getTaxonomy($id = 0)
     {
-        if (!\count(self::$taxonomies)) {
+        if (!count(self::$taxonomies)) {
             $db    = Factory::getDbo();
             $query = $db->getQuery(true);
 
@@ -491,7 +480,7 @@ class Taxonomy
      */
     public static function getBranch($title = '')
     {
-        if (!\count(self::$branches)) {
+        if (!count(self::$branches)) {
             $taxonomies = self::getTaxonomy();
 
             foreach ($taxonomies as $t) {

@@ -10,9 +10,7 @@
 
 namespace Joomla\Module\Wrapper\Site\Helper;
 
-use Joomla\CMS\Application\SiteApplication;
 use Joomla\CMS\Factory;
-use Joomla\Registry\Registry;
 
 // phpcs:disable PSR1.Files.SideEffects
 \defined('_JEXEC') or die;
@@ -28,14 +26,13 @@ class WrapperHelper
     /**
      * Gets the parameters for the wrapper
      *
-     * @param   Registry        $params     The module parameters.
-     * @param   SiteApplication $app        The current application.
+     * @param   mixed  &$params  The parameters set in the administrator section
      *
-     * @return  mixed  $params  The modified parameters
+     * @return  mixed  &$params  The modified parameters
      *
-     * @since   5.1.0
+     * @since   1.5
      */
-    public function getParamsWrapper(Registry $params, SiteApplication $app)
+    public static function getParams(&$params)
     {
         $params->def('url', '');
         $params->def('scrolling', 'auto');
@@ -51,7 +48,7 @@ class WrapperHelper
             // Adds 'http://' if none is set
             if (strpos($url, '/') === 0) {
                 // Relative URL in component. use server http_host.
-                $url = 'http://' . $app->getInput()->server->get('HTTP_HOST') . $url;
+                $url = 'http://' . Factory::getApplication()->getInput()->server->get('HTTP_HOST') . $url;
             } elseif (strpos($url, 'http') === false && strpos($url, 'https') === false) {
                 $url = 'http://' . $url;
             }
@@ -68,25 +65,5 @@ class WrapperHelper
         $params->set('url', $url);
 
         return $params;
-    }
-
-    /**
-     * Gets the parameters for the wrapper
-     *
-     * @param   mixed  &$params  The parameters set in the administrator section
-     *
-     * @return  mixed  &$params  The modified parameters
-     *
-     * @since   1.5
-     *
-     * @deprecated 5.1.0 will be removed in 7.0
-     *             Use the non-static method getParamsWrapper
-     *             Example: Factory::getApplication()->bootModule('mod_wrapper', 'site')
-     *                          ->getHelper('WrapperHelper')
-     *                          ->getParamsWrapper($params, Factory::getApplication())
-     */
-    public static function getParams(&$params)
-    {
-        return (new self())->getParamsWrapper($params, Factory::getApplication());
     }
 }

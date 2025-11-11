@@ -13,8 +13,6 @@ namespace Joomla\Module\TagsPopular\Site\Helper;
 use Joomla\CMS\Component\ComponentHelper;
 use Joomla\CMS\Factory;
 use Joomla\CMS\Helper\ContentHelper;
-use Joomla\Database\DatabaseAwareInterface;
-use Joomla\Database\DatabaseAwareTrait;
 use Joomla\Database\ParameterType;
 
 // phpcs:disable PSR1.Files.SideEffects
@@ -26,10 +24,8 @@ use Joomla\Database\ParameterType;
  *
  * @since  3.1
  */
-class TagsPopularHelper implements DatabaseAwareInterface
+abstract class TagsPopularHelper
 {
-    use DatabaseAwareTrait;
-
     /**
      * Get list of popular tags
      *
@@ -37,13 +33,12 @@ class TagsPopularHelper implements DatabaseAwareInterface
      *
      * @return  mixed
      *
-     * @since   5.1.0
+     * @since   3.1
      */
-    public function getTags(&$params)
+    public static function getList(&$params)
     {
-        $db          = $this->getDatabase();
-        $app         = Factory::getApplication();
-        $user        = $app->getIdentity();
+        $db          = Factory::getDbo();
+        $user        = Factory::getUser();
         $groups      = $user->getAuthorisedViewLevels();
         $timeframe   = $params->get('timeframe', 'alltime');
         $maximum     = (int) $params->get('maximum', 5);
@@ -82,7 +77,7 @@ class TagsPopularHelper implements DatabaseAwareInterface
             'INNER',
             $db->quoteName('#__ucm_content', 'ucm'),
             $db->quoteName('m.content_item_id') . ' = ' . $db->quoteName('ucm.core_content_item_id') .
-                ' AND ' . $db->quoteName('m.type_id') . ' = ' . $db->quoteName('ucm.core_type_id')
+            ' AND ' . $db->quoteName('m.type_id') . ' = ' . $db->quoteName('ucm.core_type_id')
         );
 
         $query->join(
@@ -121,17 +116,17 @@ class TagsPopularHelper implements DatabaseAwareInterface
         $query->where($db->quoteName('c.core_state') . ' = 1')
             ->where(
                 '(' . $db->quoteName('c.core_access') . ' IN (' . implode(',', $query->bindArray($groups)) . ')'
-                    . ' OR ' . $db->quoteName('c.core_access') . ' = 0)'
+                . ' OR ' . $db->quoteName('c.core_access') . ' = 0)'
             )
             ->where(
                 '(' . $db->quoteName('c.core_publish_up') . ' IS NULL'
-                    . ' OR ' . $db->quoteName('c.core_publish_up') . ' = :nullDate2'
-                    . ' OR ' . $db->quoteName('c.core_publish_up') . ' <= :nowDate2)'
+                . ' OR ' . $db->quoteName('c.core_publish_up') . ' = :nullDate2'
+                . ' OR ' . $db->quoteName('c.core_publish_up') . ' <= :nowDate2)'
             )
             ->where(
                 '(' . $db->quoteName('c.core_publish_down') . ' IS NULL'
-                    . ' OR ' . $db->quoteName('c.core_publish_down') . ' = :nullDate3'
-                    . ' OR ' . $db->quoteName('c.core_publish_down') . ' >= :nowDate3)'
+                . ' OR ' . $db->quoteName('c.core_publish_down') . ' = :nullDate3'
+                . ' OR ' . $db->quoteName('c.core_publish_down') . ' >= :nowDate3)'
             )
             ->bind([':nullDate2', ':nullDate3'], $nullDate)
             ->bind([':nowDate2', ':nowDate3'], $nowDate);
@@ -188,29 +183,9 @@ class TagsPopularHelper implements DatabaseAwareInterface
             $results = $db->loadObjectList();
         } catch (\RuntimeException $e) {
             $results = [];
-            $app->enqueueMessage($e->getMessage(), 'error');
+            Factory::getApplication()->enqueueMessage($e->getMessage(), 'error');
         }
 
         return $results;
-    }
-
-    /**
-     * Get list of popular tags
-     *
-     * @param   \Joomla\Registry\Registry  &$params  module parameters
-     *
-     * @return  mixed
-     *
-     * @since   3.1
-     *
-     * @deprecated 5.1.0 will be removed in 7.0
-     *             Use the non-static method getTags
-     *             Example: Factory::getApplication()->bootModule('mod_tags_popular', 'site')
-     *                          ->getHelper('TagsPopularHelper')
-     *                          ->getTags($params)
-     */
-    public static function getList(&$params)
-    {
-        return (new self())->getTags($params);
     }
 }

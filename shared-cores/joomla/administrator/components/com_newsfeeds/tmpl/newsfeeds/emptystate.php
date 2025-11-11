@@ -10,18 +10,17 @@
 
 defined('_JEXEC') or die;
 
+use Joomla\CMS\Factory;
 use Joomla\CMS\Layout\LayoutHelper;
-
-/** @var \Joomla\Component\Newsfeeds\Administrator\View\Newsfeeds\HtmlView $this */
 
 $displayData = [
     'textPrefix' => 'COM_NEWSFEEDS',
     'formURL'    => 'index.php?option=com_newsfeeds&view=newsfeeds',
-    'helpURL'    => 'https://docs.joomla.org/Special:MyLanguage/Help5.x:News_Feeds',
+    'helpURL'    => 'https://docs.joomla.org/Special:MyLanguage/Help4.x:News_Feeds',
     'icon'       => 'icon-rss newsfeeds',
 ];
 
-$user = $this->getCurrentUser();
+$user = Factory::getApplication()->getIdentity();
 
 if ($user->authorise('core.create', 'com_newsfeeds') || count($user->getAuthorisedCategories('com_newsfeeds', 'core.create')) > 0) {
     $displayData['createURL'] = 'index.php?option=com_newsfeeds&task=newsfeed.add';

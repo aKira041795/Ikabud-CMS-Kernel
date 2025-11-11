@@ -13,7 +13,6 @@ defined('_JEXEC') or die;
 use Joomla\CMS\Language\Text;
 use Joomla\CMS\String\PunycodeHelper;
 
-/** @var \Joomla\Component\Contact\Site\View\Contact\HtmlView $this */
 $icon = $this->params->get('contact_icons') == 0;
 
 /**
@@ -21,7 +20,7 @@ $icon = $this->params->get('contact_icons') == 0;
  * jicon-text, jicon-none, jicon-icon
  */
 ?>
-<dl class="com-contact__address contact-address dl-horizontal">
+<dl class="com-contact__address contact-address dl-horizontal" itemprop="address" itemscope itemtype="https://schema.org/PostalAddress">
     <?php
     if (
         ($this->params->get('address_check') > 0) &&
@@ -39,7 +38,7 @@ $icon = $this->params->get('contact_icons') == 0;
 
         <?php if ($this->item->address && $this->params->get('show_street_address')) : ?>
             <dd>
-                <span class="contact-street">
+                <span class="contact-street" itemprop="streetAddress">
                     <?php echo nl2br($this->item->address, false); ?>
                 </span>
             </dd>
@@ -47,28 +46,28 @@ $icon = $this->params->get('contact_icons') == 0;
 
         <?php if ($this->item->suburb && $this->params->get('show_suburb')) : ?>
             <dd>
-                <span class="contact-suburb">
+                <span class="contact-suburb" itemprop="addressLocality">
                     <?php echo $this->item->suburb; ?>
                 </span>
             </dd>
         <?php endif; ?>
         <?php if ($this->item->state && $this->params->get('show_state')) : ?>
             <dd>
-                <span class="contact-state">
+                <span class="contact-state" itemprop="addressRegion">
                     <?php echo $this->item->state; ?>
                 </span>
             </dd>
         <?php endif; ?>
         <?php if ($this->item->postcode && $this->params->get('show_postcode')) : ?>
             <dd>
-                <span class="contact-postcode">
+                <span class="contact-postcode" itemprop="postalCode">
                     <?php echo $this->item->postcode; ?>
                 </span>
             </dd>
         <?php endif; ?>
         <?php if ($this->item->country && $this->params->get('show_country')) : ?>
             <dd>
-                <span class="contact-country">
+                <span class="contact-country" itemprop="addressCountry">
                     <?php echo $this->item->country; ?>
                 </span>
             </dd>
@@ -103,7 +102,7 @@ $icon = $this->params->get('contact_icons') == 0;
         <?php endif; ?>
     </dt>
     <dd>
-        <span class="contact-telephone">
+        <span class="contact-telephone" itemprop="telephone">
             <?php echo $this->item->telephone; ?>
         </span>
     </dd>
@@ -119,7 +118,7 @@ $icon = $this->params->get('contact_icons') == 0;
         <?php endif; ?>
     </dt>
     <dd>
-        <span class="contact-fax">
+        <span class="contact-fax" itemprop="faxNumber">
         <?php echo $this->item->fax; ?>
         </span>
     </dd>
@@ -135,7 +134,7 @@ $icon = $this->params->get('contact_icons') == 0;
         <?php endif; ?>
     </dt>
     <dd>
-        <span class="contact-mobile">
+        <span class="contact-mobile" itemprop="telephone">
             <?php echo $this->item->mobile; ?>
         </span>
     </dd>
@@ -152,7 +151,7 @@ $icon = $this->params->get('contact_icons') == 0;
     </dt>
     <dd>
         <span class="contact-webpage">
-            <a href="<?php echo $this->item->webpage; ?>" target="_blank" rel="noopener noreferrer">
+            <a href="<?php echo $this->item->webpage; ?>" target="_blank" rel="noopener noreferrer" itemprop="url">
             <?php echo $this->escape(PunycodeHelper::urlToUTF8($this->item->webpage)); ?></a>
         </span>
     </dd>

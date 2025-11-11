@@ -10,8 +10,6 @@
 
 namespace Joomla\Component\Contact\Site\Controller;
 
-use Joomla\CMS\Event\Contact\SubmitContactEvent;
-use Joomla\CMS\Event\Contact\ValidateContactEvent;
 use Joomla\CMS\Factory;
 use Joomla\CMS\Language\Text;
 use Joomla\CMS\Log\Log;
@@ -22,8 +20,7 @@ use Joomla\CMS\Plugin\PluginHelper;
 use Joomla\CMS\Router\Route;
 use Joomla\CMS\String\PunycodeHelper;
 use Joomla\CMS\Uri\Uri;
-use Joomla\CMS\User\UserFactoryAwareInterface;
-use Joomla\CMS\User\UserFactoryAwareTrait;
+use Joomla\CMS\User\User;
 use Joomla\CMS\Versioning\VersionableControllerTrait;
 use Joomla\Component\Fields\Administrator\Helper\FieldsHelper;
 use Joomla\Utilities\ArrayHelper;
@@ -38,9 +35,8 @@ use PHPMailer\PHPMailer\Exception as phpMailerException;
  *
  * @since  1.5.19
  */
-class ContactController extends FormController implements UserFactoryAwareInterface
+class ContactController extends FormController
 {
-    use UserFactoryAwareTrait;
     use VersionableControllerTrait;
 
     /**
@@ -173,10 +169,7 @@ class ContactController extends FormController implements UserFactoryAwareInterf
         }
 
         // Validation succeeded, continue with custom handlers
-        $results = $this->getDispatcher()->dispatch('onValidateContact', new ValidateContactEvent('onValidateContact', [
-            'subject' => $contact,
-            'data'    => &$data, // @todo: Remove reference in Joomla 6, @deprecated: Data modification onValidateContact is not allowed, use onSubmitContact instead
-        ]))->getArgument('result', []);
+        $results = $this->app->triggerEvent('onValidateContact', [&$contact, &$data]);
 
         $passValidation = true;
 
@@ -196,12 +189,7 @@ class ContactController extends FormController implements UserFactoryAwareInterf
         }
 
         // Passed Validation: Process the contact plugins to integrate with other applications
-        $event = $this->getDispatcher()->dispatch('onSubmitContact', new SubmitContactEvent('onSubmitContact', [
-            'subject' => $contact,
-            'data'    => &$data, // @todo: Remove reference in Joomla 6, see SubmitContactEvent::__constructor()
-        ]));
-        // Get the final data
-        $data = $event->getArgument('data', $data);
+        $this->app->triggerEvent('onSubmitContact', [&$contact, &$data]);
 
         // Send the email
         $sent = false;
@@ -246,8 +234,8 @@ class ContactController extends FormController implements UserFactoryAwareInterf
         $app = $this->app;
 
         if ($contact->email_to == '' && $contact->user_id != 0) {
-            $contact_user      = $this->getUserFactory()->loadUserById($contact->user_id);
-            $contact->email_to = $contact_user->email;
+            $contact_user      = User::getInstance($contact->user_id);
+            $contact->email_to = $contact_user->get('email');
         }
 
         $templateData = [

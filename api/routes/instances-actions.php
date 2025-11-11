@@ -310,16 +310,25 @@ $app->post('/api/instances/create', function (Request $request, Response $respon
     $dbHost = escapeshellarg($body['database_host'] ?? 'localhost');
     $dbPrefix = escapeshellarg($body['database_prefix'] ?? 'wp_');
     
+    // Get CMS version (defaults based on CMS type)
+    $cmsVersionDefaults = [
+        'wordpress' => 'wordpress',
+        'joomla' => 'joomla',
+        'drupal' => 'drupal'
+    ];
+    $cmsVersion = $body['cms_version'] ?? $cmsVersionDefaults[$cmsType] ?? 'wordpress';
+    
     // Build command based on CMS type
     // WordPress: ./script.sh <instance_id> <instance_name> <db_name> <domain> <cms_type> <db_user> <db_pass> <db_host> <db_prefix>
-    // Joomla: ./script.sh <instance_id> <instance_name> <domain> <db_name> <db_user> <db_pass> <db_prefix>
+    // Joomla: ./script.sh <instance_id> <instance_name> <domain> <db_name> <db_user> <db_pass> <db_prefix> [joomla_version]
+    // Drupal: ./script.sh <instance_id> <instance_name> <domain> <db_name> <db_user> <db_pass> <db_prefix> [drupal_version]
     if ($cmsType === 'wordpress') {
         $command = "cd $rootPath && $scriptPath $instanceId $instanceName $dbName $domain $cmsType $dbUser $dbPass $dbHost $dbPrefix 2>&1";
     } else if ($cmsType === 'joomla') {
-        $command = "cd $rootPath && $scriptPath $instanceId $instanceName $domain $dbName $dbUser $dbPass $dbPrefix 2>&1";
+        $command = "cd $rootPath && $scriptPath $instanceId $instanceName $domain $dbName $dbUser $dbPass $dbPrefix $cmsVersion 2>&1";
     } else {
-        // Drupal or other
-        $command = "cd $rootPath && $scriptPath $instanceId $instanceName $domain $dbName $dbUser $dbPass $dbPrefix 2>&1";
+        // Drupal
+        $command = "cd $rootPath && $scriptPath $instanceId $instanceName $domain $dbName $dbUser $dbPass $dbPrefix $cmsVersion 2>&1";
     }
     exec($command, $output, $returnCode);
     
@@ -351,20 +360,49 @@ $app->post('/api/instances/create', function (Request $request, Response $respon
     $installationUrls = [
         'wordpress' => "http://{$adminSubdomain}/wp-admin/install.php",
         'joomla' => "http://{$adminSubdomain}/installation/setup",
-        'drupal' => "http://{$adminSubdomain}/install.php"
+        'drupal' => "http://{$adminSubdomain}/core/install.php" // Fallback if Drush fails
     ];
     
     $installationUrl = $installationUrls[$cmsType] ?? "http://{$adminSubdomain}";
     
-    $response->getBody()->write(json_encode([
+    // For Drupal, check if Drush installation was successful
+    $drupalAutoInstalled = false;
+    if ($cmsType === 'drupal') {
+        // Check if Drush completed installation (settings.php should be updated)
+        $settingsPath = $instancePath . '/sites/default/settings.php';
+        if (file_exists($settingsPath)) {
+            $settingsContent = file_get_contents($settingsPath);
+            // If Drush installed successfully, settings.php will have been updated
+            $drupalAutoInstalled = strpos($settingsContent, 'hash_salt') !== false;
+        }
+    }
+    
+    $responseData = [
         'success' => true,
         'instance_id' => $instanceId,
         'message' => 'Instance created successfully',
-        'installation_url' => $installationUrl,
         'admin_url' => "http://{$adminSubdomain}",
         'frontend_url' => "http://" . ($body['domain'] ?? 'localhost'),
         'details' => implode("\n", $output)
-    ]));
+    ];
+    
+    // Add installation URL only if manual installation is needed
+    if ($cmsType !== 'drupal' || !$drupalAutoInstalled) {
+        $responseData['installation_url'] = $installationUrl;
+    }
+    
+    // Add Drupal-specific info
+    if ($cmsType === 'drupal') {
+        $responseData['drupal_auto_installed'] = $drupalAutoInstalled;
+        if ($drupalAutoInstalled) {
+            $responseData['admin_credentials'] = [
+                'username' => 'admin',
+                'password' => 'admin123'
+            ];
+        }
+    }
+    
+    $response->getBody()->write(json_encode($responseData));
     
     return $response->withStatus(201)->withHeader('Content-Type', 'application/json');
 })->add(new JWTMiddleware());

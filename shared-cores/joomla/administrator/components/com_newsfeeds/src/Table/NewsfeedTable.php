@@ -17,11 +17,8 @@ use Joomla\CMS\String\PunycodeHelper;
 use Joomla\CMS\Table\Table;
 use Joomla\CMS\Tag\TaggableTableInterface;
 use Joomla\CMS\Tag\TaggableTableTrait;
-use Joomla\CMS\User\CurrentUserInterface;
-use Joomla\CMS\User\CurrentUserTrait;
 use Joomla\CMS\Versioning\VersionableTableInterface;
 use Joomla\Database\DatabaseDriver;
-use Joomla\Event\DispatcherInterface;
 use Joomla\String\StringHelper;
 
 // phpcs:disable PSR1.Files.SideEffects
@@ -33,10 +30,9 @@ use Joomla\String\StringHelper;
  *
  * @since  1.6
  */
-class NewsfeedTable extends Table implements VersionableTableInterface, TaggableTableInterface, CurrentUserInterface
+class NewsfeedTable extends Table implements VersionableTableInterface, TaggableTableInterface
 {
     use TaggableTableTrait;
-    use CurrentUserTrait;
 
     /**
      * Indicates that columns fully support the NULL value in the database
@@ -57,15 +53,12 @@ class NewsfeedTable extends Table implements VersionableTableInterface, Taggable
     /**
      * Constructor
      *
-     * @param   DatabaseDriver        $db          Database connector object
-     * @param   ?DispatcherInterface  $dispatcher  Event dispatcher for this table
-     *
-     * @since   1.6
+     * @param   DatabaseDriver  $db  A database connector object
      */
-    public function __construct(DatabaseDriver $db, ?DispatcherInterface $dispatcher = null)
+    public function __construct(DatabaseDriver $db)
     {
         $this->typeAlias = 'com_newsfeeds.newsfeed';
-        parent::__construct('#__newsfeeds', 'id', $db, $dispatcher);
+        parent::__construct('#__newsfeeds', 'id', $db);
         $this->setColumnAlias('title', 'name');
     }
 
@@ -130,7 +123,7 @@ class NewsfeedTable extends Table implements VersionableTableInterface, Taggable
     }
 
     /**
-     * Overridden \Joomla\CMS\Table\Table::store to set modified data.
+     * Overridden \JTable::store to set modified data.
      *
      * @param   boolean  $updateNulls  True to update fields even if they are null.
      *
@@ -141,7 +134,7 @@ class NewsfeedTable extends Table implements VersionableTableInterface, Taggable
     public function store($updateNulls = true)
     {
         $date = Factory::getDate();
-        $user = $this->getCurrentUser();
+        $user = Factory::getUser();
 
         // Set created date if not set.
         if (!(int) $this->created) {
@@ -150,12 +143,12 @@ class NewsfeedTable extends Table implements VersionableTableInterface, Taggable
 
         if ($this->id) {
             // Existing item
-            $this->modified_by = $user->id;
+            $this->modified_by = $user->get('id');
             $this->modified    = $date->toSql();
         } else {
             // Field created_by can be set by the user, so we don't touch it if it's set.
             if (empty($this->created_by)) {
-                $this->created_by = $user->id;
+                $this->created_by = $user->get('id');
             }
 
             if (!(int) $this->modified) {

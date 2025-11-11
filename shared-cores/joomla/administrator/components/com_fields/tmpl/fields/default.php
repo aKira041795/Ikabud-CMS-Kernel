@@ -20,16 +20,14 @@ use Joomla\CMS\Router\Route;
 use Joomla\CMS\Session\Session;
 use Joomla\Component\Fields\Administrator\Helper\FieldsHelper;
 
-/** @var \Joomla\Component\Fields\Administrator\View\Fields\HtmlView $this */
-
 /** @var \Joomla\CMS\WebAsset\WebAssetManager $wa */
-$wa = $this->getDocument()->getWebAssetManager();
+$wa = $this->document->getWebAssetManager();
 $wa->useScript('table.columns')
     ->useScript('multiselect');
 
 $app       = Factory::getApplication();
-$user      = $this->getCurrentUser();
-$userId    = $user->id;
+$user      = Factory::getUser();
+$userId    = $user->get('id');
 $context   = $this->escape($this->state->get('filter.context'));
 $component = $this->state->get('filter.component');
 $section   = $this->state->get('filter.section');
@@ -207,7 +205,15 @@ if (count($this->filterForm->getField('context')->options) > 1) {
                         && $user->authorise('core.edit', $component)
                         && $user->authorise('core.edit.state', $component)
                     ) : ?>
-                        <template id="joomla-dialog-batch"><?php echo $this->loadTemplate('batch_body'); ?></template>
+                        <?php echo HTMLHelper::_(
+                            'bootstrap.renderModal',
+                            'collapseModal',
+                            [
+                                    'title' => Text::_('COM_FIELDS_VIEW_FIELDS_BATCH_OPTIONS'),
+                                    'footer' => $this->loadTemplate('batch_footer')
+                                ],
+                            $this->loadTemplate('batch_body')
+                        ); ?>
                     <?php endif; ?>
                 <?php endif; ?>
                 <input type="hidden" name="task" value="">

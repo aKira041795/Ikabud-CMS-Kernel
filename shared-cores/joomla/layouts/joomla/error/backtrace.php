@@ -21,48 +21,50 @@ if (!$backtraceList) {
 
 $class = $displayData['class'] ?? 'table table-striped table-bordered';
 ?>
-<h2 id="caption">Call Stack</h2>
-<table class="<?php echo $class ?>" aria-describedby="caption">
-    <thead>
-        <tr>
-            <th scope="col">
-                <strong>#</strong>
-            </th>
-            <th scope="col">
-                <strong>Function</strong>
-            </th>
-            <th scope="col">
-                <strong>Location</strong>
-            </th>
-        </tr>
-    </thead>
-    <tbody>
-        <?php foreach ($backtraceList as $k => $backtrace) : ?>
-            <tr>
-                <td>
-                    <?php echo $k + 1; ?>
-                </td>
+<table class="<?php echo $class ?>">
+    <tr>
+        <td colspan="3">
+            <strong>Call stack</strong>
+        </td>
+    </tr>
 
-                <?php if (isset($backtrace['class'])) : ?>
-                <td>
-                    <?php echo $backtrace['class'] . $backtrace['type'] . $backtrace['function'] . '()'; ?>
-                </td>
-                <?php else : ?>
-                <td>
-                    <?php echo $backtrace['function'] . '()'; ?>
-                </td>
-                <?php endif; ?>
+    <tr>
+        <td>
+            <strong>#</strong>
+        </td>
+        <td>
+            <strong>Function</strong>
+        </td>
+        <td>
+            <strong>Location</strong>
+        </td>
+    </tr>
 
-                <?php if (isset($backtrace['file'])) : ?>
-                <td>
-                    <?php echo HTMLHelper::_('debug.xdebuglink', $backtrace['file'], $backtrace['line']); ?>
-                </td>
-                <?php else : ?>
-                <td>
-                    &#160;
-                </td>
-                <?php endif; ?>
-            </tr>
-        <?php endforeach; ?>
-    </tbody>
+    <?php foreach ($backtraceList as $k => $backtrace) : ?>
+    <tr>
+        <td>
+            <?php echo $k + 1; ?>
+        </td>
+
+        <?php if (isset($backtrace['class'])) : ?>
+        <td>
+            <?php echo $backtrace['class'] . $backtrace['type'] . $backtrace['function'] . '()'; ?>
+        </td>
+        <?php else : ?>
+        <td>
+            <?php echo $backtrace['function'] . '()'; ?>
+        </td>
+        <?php endif; ?>
+
+        <?php if (isset($backtrace['file'])) : ?>
+        <td>
+            <?php echo HTMLHelper::_('debug.xdebuglink', $backtrace['file'], $backtrace['line']); ?>
+        </td>
+        <?php else : ?>
+        <td>
+            &#160;
+        </td>
+        <?php endif; ?>
+    </tr>
+    <?php endforeach; ?>
 </table>

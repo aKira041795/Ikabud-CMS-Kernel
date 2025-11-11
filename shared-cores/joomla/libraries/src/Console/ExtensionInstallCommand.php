@@ -18,7 +18,7 @@ use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
 
 // phpcs:disable PSR1.Files.SideEffects
-\defined('_JEXEC') or die;
+\defined('JPATH_PLATFORM') or die;
 // phpcs:enable PSR1.Files.SideEffects
 
 /**
@@ -123,7 +123,7 @@ class ExtensionInstallCommand extends AbstractCommand
         }
 
         $tmpPath  = $this->getApplication()->get('tmp_path');
-        $tmpPath .= '/' . basename($path);
+        $tmpPath  = $tmpPath . '/' . basename($path);
         $package  = InstallerHelper::unpack($path, true);
 
         if ($package['type'] === false) {
@@ -197,9 +197,7 @@ class ExtensionInstallCommand extends AbstractCommand
             $this->ioStyle->success('Extension installed successfully.');
 
             return self::INSTALLATION_SUCCESSFUL;
-        }
-
-        if ($url = $this->cliInput->getOption('url')) {
+        } elseif ($url = $this->cliInput->getOption('url')) {
             $result = $this->processUrlInstallation($url);
 
             if (!$result) {

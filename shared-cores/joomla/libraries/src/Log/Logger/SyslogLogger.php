@@ -14,7 +14,7 @@ use Joomla\CMS\Log\LogEntry;
 use Joomla\CMS\Log\Logger;
 
 // phpcs:disable PSR1.Files.SideEffects
-\defined('_JEXEC') or die;
+\defined('JPATH_PLATFORM') or die;
 // phpcs:enable PSR1.Files.SideEffects
 
 /**
@@ -81,11 +81,11 @@ class SyslogLogger extends Logger
         $sysOptions = 0;
 
         if ($this->options['sys_add_pid']) {
-            $sysOptions |= LOG_PID;
+            $sysOptions = $sysOptions | LOG_PID;
         }
 
         if ($this->options['sys_use_stderr']) {
-            $sysOptions |= LOG_PERROR;
+            $sysOptions = $sysOptions | LOG_PERROR;
         }
 
         // Default logging facility is LOG_USER for Windows compatibility.

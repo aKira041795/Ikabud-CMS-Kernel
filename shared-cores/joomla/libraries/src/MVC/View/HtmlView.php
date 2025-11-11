@@ -11,16 +11,15 @@ namespace Joomla\CMS\MVC\View;
 
 use Joomla\CMS\Application\ApplicationHelper;
 use Joomla\CMS\Event\AbstractEvent;
-use Joomla\CMS\Event\View\DisplayEvent;
 use Joomla\CMS\Factory;
+use Joomla\CMS\Filesystem\Path;
 use Joomla\CMS\Language\Text;
 use Joomla\CMS\Uri\Uri;
 use Joomla\CMS\User\CurrentUserInterface;
 use Joomla\CMS\User\CurrentUserTrait;
-use Joomla\Filesystem\Path;
 
 // phpcs:disable PSR1.Files.SideEffects
-\defined('_JEXEC') or die;
+\defined('JPATH_PLATFORM') or die;
 // phpcs:enable PSR1.Files.SideEffects
 
 /**
@@ -194,7 +193,7 @@ class HtmlView extends AbstractView implements CurrentUserInterface
             AbstractEvent::create(
                 'onBeforeDisplay',
                 [
-                    'eventClass' => DisplayEvent::class,
+                    'eventClass' => 'Joomla\CMS\Event\View\DisplayEvent',
                     'subject'    => $this,
                     'extension'  => $context,
                 ]
@@ -208,7 +207,7 @@ class HtmlView extends AbstractView implements CurrentUserInterface
             AbstractEvent::create(
                 'onAfterDisplay',
                 [
-                    'eventClass' => DisplayEvent::class,
+                    'eventClass' => 'Joomla\CMS\Event\View\DisplayEvent',
                     'subject'    => $this,
                     'extension'  => $context,
                     'source'     => $result,
@@ -417,7 +416,8 @@ class HtmlView extends AbstractView implements CurrentUserInterface
 
             // Done with the requested template; get the buffer and
             // clear it.
-            $this->_output = ob_get_clean();
+            $this->_output = ob_get_contents();
+            ob_end_clean();
 
             return $this->_output;
         }

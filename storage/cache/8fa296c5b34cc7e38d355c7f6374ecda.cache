@@ -1,8 +1,0 @@
-a:6:{s:7:"headers";a:11:{i:0;s:27:"X-Frame-Options: SAMEORIGIN";i:1;s:31:"X-Content-Type-Options: nosniff";i:2;s:31:"X-XSS-Protection: 1; mode=block";i:3;s:48:"Access-Control-Allow-Origin: http://phoenix.test";i:4;s:61:"Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS";i:5;s:127:"Access-Control-Allow-Headers: Authorization, Content-Type, X-WP-Nonce, X-Requested-With, Origin, Accept, X-HTTP-Method-Override";i:6;s:38:"Access-Control-Allow-Credentials: true";i:7;s:36:"Content-Type: application/javascript";i:8;s:13:"X-Cache: MISS";i:9;s:42:"X-Cache-Instance: jml-joomla-the-beginning";i:10;s:27:"X-Powered-By: Ikabud-Kernel";}s:4:"body";s:979:"/**
- * @package     Joomla.Site
- * @subpackage  Templates.Cassiopeia
- * @copyright   (C) 2017 Open Source Matters, Inc. <https://www.joomla.org>
- * @license     GNU General Public License version 2 or later; see LICENSE.txt
- * @since       4.0.0
- */Joomla=window.Joomla||{},((s,e)=>{function r(l){(l&&l.target?l.target:e).querySelectorAll("fieldset.btn-group").forEach(t=>{t.getAttribute("disabled")===!0&&(t.style.pointerEvents="none",t.querySelectorAll(".btn").forEach(a=>a.classList.add("disabled")))})}e.addEventListener("DOMContentLoaded",l=>{r(l);const o=e.getElementById("back-top");function t(){e.body.scrollTop>20||e.documentElement.scrollTop>20?o.classList.add("visible"):o.classList.remove("visible")}o&&(t(),window.addEventListener("scroll",t),o.addEventListener("click",a=>{a.preventDefault(),window.scrollTo(0,0)})),e.head.querySelectorAll('link[rel="lazy-stylesheet"]').forEach(a=>{a.rel="stylesheet"})}),e.addEventListener("joomla:updated",r)})(Joomla,document);
-";s:9:"timestamp";i:1762750840;s:17:"extensions_loaded";a:0:{}s:15:"extension_count";i:0;s:8:"cms_type";s:6:"joomla";}

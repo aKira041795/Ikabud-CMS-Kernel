@@ -12,13 +12,12 @@ namespace Joomla\CMS\Changelog;
 use Joomla\CMS\Http\HttpFactory;
 use Joomla\CMS\Language\Text;
 use Joomla\CMS\Log\Log;
-use Joomla\CMS\Object\LegacyErrorHandlingTrait;
-use Joomla\CMS\Object\LegacyPropertyManagementTrait;
+use Joomla\CMS\Object\CMSObject;
 use Joomla\CMS\Version;
 use Joomla\Registry\Registry;
 
 // phpcs:disable PSR1.Files.SideEffects
-\defined('_JEXEC') or die;
+\defined('JPATH_PLATFORM') or die;
 // phpcs:enable PSR1.Files.SideEffects
 
 /**
@@ -26,11 +25,8 @@ use Joomla\Registry\Registry;
  *
  * @since  4.0.0
  */
-class Changelog
+class Changelog extends CMSObject
 {
-    use LegacyErrorHandlingTrait;
-    use LegacyPropertyManagementTrait;
-
     /**
      * Update manifest `<element>` element
      *
@@ -122,7 +118,7 @@ class Changelog
     /**
      * Resource handle for the XML Parser
      *
-     * @var    \XMLParser
+     * @var    resource
      * @since  4.0.0
      */
     protected $xmlParser;
@@ -158,14 +154,6 @@ class Changelog
      * @since  4.0.0
      */
     protected $latest;
-
-    /**
-     * Update manifest `<folder>` element
-     *
-     * @var    string
-     * @since  5.1.1
-     */
-    protected $folder;
 
     /**
      * Gets the reference to the current direct parent
@@ -225,11 +213,6 @@ class Changelog
         // Reset the data
         if (isset($this->$tag)) {
             $this->$tag->data = '';
-        }
-
-        // Skip technical elements
-        if ($name === 'CHANGELOGS' || $name === 'CHANGELOG' || $name === 'ITEM') {
-            return;
         }
 
         $name = strtolower($name);
@@ -374,7 +357,7 @@ class Changelog
 
         if (!xml_parse($this->xmlParser, $response->body)) {
             Log::add(
-                \sprintf(
+                sprintf(
                     'XML error: %s at line %d',
                     xml_error_string(xml_get_error_code($this->xmlParser)),
                     xml_get_current_line_number($this->xmlParser)

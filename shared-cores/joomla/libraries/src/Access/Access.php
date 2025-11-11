@@ -20,7 +20,7 @@ use Joomla\Database\ParameterType;
 use Joomla\Utilities\ArrayHelper;
 
 // phpcs:disable PSR1.Files.SideEffects
-\defined('_JEXEC') or die;
+\defined('JPATH_PLATFORM') or die;
 // phpcs:enable PSR1.Files.SideEffects
 
 /**
@@ -987,9 +987,7 @@ class Access
                 if (($id < 0) && (($id * -1) == $userId)) {
                     $authorised[] = $level;
                     break;
-                }
-
-                if (($id >= 0) && \in_array($id, $groups)) {
+                } elseif (($id >= 0) && \in_array($id, $groups)) {
                     // Check to see if the group is mapped to the level.
                     $authorised[] = $level;
                     break;
@@ -1015,12 +1013,12 @@ class Access
         if (!is_file($file) || !is_readable($file)) {
             // If unable to find the file return false.
             return false;
+        } else {
+            // Else return the actions from the xml.
+            $xml = simplexml_load_file($file);
+
+            return self::getActionsFromData($xml, $xpath);
         }
-
-        // Else return the actions from the xml.
-        $xml = simplexml_load_file($file);
-
-        return self::getActionsFromData($xml, $xpath);
     }
 
     /**

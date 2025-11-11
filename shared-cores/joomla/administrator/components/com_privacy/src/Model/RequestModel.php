@@ -21,8 +21,7 @@ use Joomla\CMS\MVC\Model\AdminModel;
 use Joomla\CMS\Router\Route;
 use Joomla\CMS\Table\Table;
 use Joomla\CMS\Uri\Uri;
-use Joomla\CMS\User\UserFactoryAwareInterface;
-use Joomla\CMS\User\UserFactoryAwareTrait;
+use Joomla\CMS\User\User;
 use Joomla\CMS\User\UserHelper;
 use Joomla\Component\Actionlogs\Administrator\Model\ActionlogModel;
 use Joomla\Component\Privacy\Administrator\Table\RequestTable;
@@ -38,10 +37,8 @@ use PHPMailer\PHPMailer\Exception as phpmailerException;
  *
  * @since  3.9.0
  */
-class RequestModel extends AdminModel implements UserFactoryAwareInterface
+class RequestModel extends AdminModel
 {
-    use UserFactoryAwareTrait;
-
     /**
      * Clean the cache
      *
@@ -273,7 +270,7 @@ class RequestModel extends AdminModel implements UserFactoryAwareInterface
         )->loadResult();
 
         if ($userId) {
-            $receiver = $this->getUserFactory()->loadUserById($userId);
+            $receiver = User::getInstance($userId);
 
             /*
              * We don't know if the user has admin access, so we will check if they have an admin language in their parameters,
@@ -386,7 +383,7 @@ class RequestModel extends AdminModel implements UserFactoryAwareInterface
      * @return  array|boolean  Array of filtered data if valid, false otherwise.
      *
      * @see     \Joomla\CMS\Form\FormRule
-     * @see     \Joomla\CMS\Filter\InputFilter
+     * @see     JFilterInput
      * @since   3.9.0
      */
     public function validate($form, $data, $group = null)

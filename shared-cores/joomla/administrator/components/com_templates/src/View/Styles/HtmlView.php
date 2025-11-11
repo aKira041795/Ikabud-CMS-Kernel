@@ -15,6 +15,7 @@ use Joomla\CMS\Helper\ContentHelper;
 use Joomla\CMS\Language\Text;
 use Joomla\CMS\MVC\View\GenericDataException;
 use Joomla\CMS\MVC\View\HtmlView as BaseHtmlView;
+use Joomla\CMS\Toolbar\Toolbar;
 use Joomla\CMS\Toolbar\ToolbarHelper;
 
 // phpcs:disable PSR1.Files.SideEffects
@@ -45,7 +46,7 @@ class HtmlView extends BaseHtmlView
     /**
      * The model state
      *
-     * @var  \Joomla\Registry\Registry
+     * @var  \Joomla\CMS\Object\CMSObject
      */
     protected $state;
 
@@ -98,7 +99,7 @@ class HtmlView extends BaseHtmlView
         }
 
         // Check for errors.
-        if (\count($errors = $this->get('Errors'))) {
+        if (count($errors = $this->get('Errors'))) {
             throw new GenericDataException(implode("\n", $errors), 500);
         }
 
@@ -118,7 +119,7 @@ class HtmlView extends BaseHtmlView
     {
         $canDo    = ContentHelper::getActions('com_templates');
         $clientId = (int) $this->get('State')->get('client_id');
-        $toolbar  = $this->getDocument()->getToolbar();
+        $toolbar  = Toolbar::getInstance();
 
         // Add a shortcut to the templates list view.
         $toolbar->linkButton('templates', 'COM_TEMPLATES_MANAGER_TEMPLATES')

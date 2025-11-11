@@ -18,11 +18,8 @@ use Joomla\CMS\String\PunycodeHelper;
 use Joomla\CMS\Table\Table;
 use Joomla\CMS\Tag\TaggableTableInterface;
 use Joomla\CMS\Tag\TaggableTableTrait;
-use Joomla\CMS\User\CurrentUserInterface;
-use Joomla\CMS\User\CurrentUserTrait;
 use Joomla\CMS\Versioning\VersionableTableInterface;
 use Joomla\Database\DatabaseDriver;
-use Joomla\Event\DispatcherInterface;
 use Joomla\String\StringHelper;
 
 // phpcs:disable PSR1.Files.SideEffects
@@ -34,10 +31,9 @@ use Joomla\String\StringHelper;
  *
  * @since  1.0
  */
-class ContactTable extends Table implements VersionableTableInterface, TaggableTableInterface, CurrentUserInterface
+class ContactTable extends Table implements VersionableTableInterface, TaggableTableInterface
 {
     use TaggableTableTrait;
-    use CurrentUserTrait;
 
     /**
      * Indicates that columns fully support the NULL value in the database
@@ -48,7 +44,7 @@ class ContactTable extends Table implements VersionableTableInterface, TaggableT
     protected $_supportNullValue = true;
 
     /**
-     * Ensure the params and metadata are json encoded in the bind method
+     * Ensure the params and metadata in json encoded in the bind method
      *
      * @var    array
      * @since  3.3
@@ -58,16 +54,15 @@ class ContactTable extends Table implements VersionableTableInterface, TaggableT
     /**
      * Constructor
      *
-     * @param   DatabaseDriver        $db          Database connector object
-     * @param   ?DispatcherInterface  $dispatcher  Event dispatcher for this table
+     * @param   DatabaseDriver  $db  Database connector object
      *
      * @since   1.0
      */
-    public function __construct(DatabaseDriver $db, ?DispatcherInterface $dispatcher = null)
+    public function __construct(DatabaseDriver $db)
     {
         $this->typeAlias = 'com_contact.contact';
 
-        parent::__construct('#__contact_details', 'id', $db, $dispatcher);
+        parent::__construct('#__contact_details', 'id', $db);
 
         $this->setColumnAlias('title', 'name');
     }
@@ -84,7 +79,7 @@ class ContactTable extends Table implements VersionableTableInterface, TaggableT
     public function store($updateNulls = true)
     {
         $date   = Factory::getDate()->toSql();
-        $userId = $this->getCurrentUser()->id;
+        $userId = Factory::getUser()->id;
 
         // Set created date if not set.
         if (!(int) $this->created) {
@@ -121,7 +116,7 @@ class ContactTable extends Table implements VersionableTableInterface, TaggableT
         }
 
         // Verify that the alias is unique
-        $table = new self($this->getDbo(), $this->getDispatcher());
+        $table = Table::getInstance('ContactTable', __NAMESPACE__ . '\\', ['dbo' => $this->getDbo()]);
 
         if ($table->load(['alias' => $this->alias, 'catid' => $this->catid]) && ($table->id != $this->id || $this->id == 0)) {
             // Is the existing contact trashed?
@@ -142,7 +137,7 @@ class ContactTable extends Table implements VersionableTableInterface, TaggableT
      *
      * @return  boolean  True on success, false on failure
      *
-     * @see     \Joomla\CMS\Table\Table::check
+     * @see     \JTable::check
      * @since   1.5
      */
     public function check()
@@ -231,10 +226,6 @@ class ContactTable extends Table implements VersionableTableInterface, TaggableT
             $this->modified_by = $this->created_by;
         }
 
-        if (empty($this->hits)) {
-            $this->hits = 0;
-        }
-
         return true;
     }
 
@@ -261,7 +252,7 @@ class ContactTable extends Table implements VersionableTableInterface, TaggableT
 
 
     /**
-     * Get the type alias for the history and tags mapping table
+     * Get the type alias for the history table
      *
      * @return  string  The alias as described above
      *

@@ -10,10 +10,8 @@
 
 namespace Joomla\Plugin\MediaAction\Resize\Extension;
 
-use Joomla\CMS\Event\Model\BeforeSaveEvent;
 use Joomla\CMS\Image\Image;
 use Joomla\Component\Media\Administrator\Plugin\MediaActionPlugin;
-use Joomla\Event\SubscriberInterface;
 
 // phpcs:disable PSR1.Files.SideEffects
 \defined('_JEXEC') or die;
@@ -24,36 +22,22 @@ use Joomla\Event\SubscriberInterface;
  *
  * @since  4.0.0
  */
-final class Resize extends MediaActionPlugin implements SubscriberInterface
+final class Resize extends MediaActionPlugin
 {
-    /**
-     * Returns an array of events this subscriber will listen to.
-     *
-     * @return  array
-     *
-     * @since   5.2.0
-     */
-    public static function getSubscribedEvents(): array
-    {
-        return array_merge(parent::getSubscribedEvents(), [
-            'onContentBeforeSave' => 'onContentBeforeSave',
-        ]);
-    }
-
     /**
      * The save event.
      *
-     * @param   BeforeSaveEvent $event  The event instance
+     * @param   string   $context  The context
+     * @param   object   $item     The item
+     * @param   boolean  $isNew    Is new item
+     * @param   array    $data     The validated data
      *
      * @return  void
      *
      * @since   4.0.0
      */
-    public function onContentBeforeSave(BeforeSaveEvent $event): void
+    public function onContentBeforeSave($context, $item, $isNew, $data = [])
     {
-        $context = $event->getContext();
-        $item    = $event->getItem();
-
         if ($context != 'com_media.file') {
             return;
         }
@@ -62,11 +46,7 @@ final class Resize extends MediaActionPlugin implements SubscriberInterface
             return;
         }
 
-        if (!\in_array(strtolower($item->extension), ['jpg', 'jpeg', 'png', 'gif', 'webp', 'avif'])) {
-            return;
-        }
-
-        if (strtolower($item->extension) === 'avif' && !\function_exists('imageavif')) {
+        if (!in_array($item->extension, ['jpg', 'jpeg', 'png', 'gif'])) {
             return;
         }
 
@@ -83,25 +63,19 @@ final class Resize extends MediaActionPlugin implements SubscriberInterface
             Image::SCALE_INSIDE
         );
 
-        switch (strtolower($item->extension)) {
+        $type = IMAGETYPE_JPEG;
+
+        switch ($item->extension) {
             case 'gif':
                 $type = IMAGETYPE_GIF;
                 break;
             case 'png':
                 $type = IMAGETYPE_PNG;
-                break;
-            case 'avif':
-                $type = IMAGETYPE_AVIF;
-                break;
-            case 'webp':
-                $type = IMAGETYPE_WEBP;
-                break;
-            default:
-                $type = IMAGETYPE_JPEG;
         }
 
         ob_start();
         $imgObject->toFile(null, $type);
-        $item->data = ob_get_clean();
+        $item->data = ob_get_contents();
+        ob_end_clean();
     }
 }

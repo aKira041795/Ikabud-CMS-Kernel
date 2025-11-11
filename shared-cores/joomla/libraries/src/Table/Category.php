@@ -15,16 +15,13 @@ use Joomla\CMS\Factory;
 use Joomla\CMS\Language\Text;
 use Joomla\CMS\Tag\TaggableTableInterface;
 use Joomla\CMS\Tag\TaggableTableTrait;
-use Joomla\CMS\User\CurrentUserInterface;
-use Joomla\CMS\User\CurrentUserTrait;
 use Joomla\CMS\Versioning\VersionableTableInterface;
 use Joomla\Database\DatabaseDriver;
 use Joomla\Database\ParameterType;
-use Joomla\Event\DispatcherInterface;
 use Joomla\Registry\Registry;
 
 // phpcs:disable PSR1.Files.SideEffects
-\defined('_JEXEC') or die;
+\defined('JPATH_PLATFORM') or die;
 // phpcs:enable PSR1.Files.SideEffects
 
 /**
@@ -32,10 +29,9 @@ use Joomla\Registry\Registry;
  *
  * @since  1.5
  */
-class Category extends Nested implements VersionableTableInterface, TaggableTableInterface, CurrentUserInterface
+class Category extends Nested implements VersionableTableInterface, TaggableTableInterface
 {
     use TaggableTableTrait;
-    use CurrentUserTrait;
 
     /**
      * Indicates that columns fully support the NULL value in the database
@@ -48,12 +44,11 @@ class Category extends Nested implements VersionableTableInterface, TaggableTabl
     /**
      * Constructor
      *
-     * @param   DatabaseDriver        $db          Database connector object
-     * @param   ?DispatcherInterface  $dispatcher  Event dispatcher for this table
+     * @param   DatabaseDriver  $db  Database driver object.
      *
      * @since   1.5
      */
-    public function __construct(DatabaseDriver $db, ?DispatcherInterface $dispatcher = null)
+    public function __construct(DatabaseDriver $db)
     {
         /**
          * @deprecated  4.0 will be removed in 6.0
@@ -61,7 +56,7 @@ class Category extends Nested implements VersionableTableInterface, TaggableTabl
          *              the introduction of the getTypeAlias function.
          */
         $this->typeAlias = '{extension}.category';
-        parent::__construct('#__categories', 'id', $db, $dispatcher);
+        parent::__construct('#__categories', 'id', $db);
         $this->access = (int) Factory::getApplication()->get('access');
     }
 
@@ -96,14 +91,14 @@ class Category extends Nested implements VersionableTableInterface, TaggableTabl
     /**
      * Get the parent asset id for the record
      *
-     * @param   ?Table    $table  A Table object for the asset parent.
-     * @param   ?integer  $id     The id for the asset
+     * @param   Table    $table  A Table object for the asset parent.
+     * @param   integer  $id     The id for the asset
      *
      * @return  integer  The id of the asset's parent
      *
      * @since   1.6
      */
-    protected function _getAssetParentId(?Table $table = null, $id = null)
+    protected function _getAssetParentId(Table $table = null, $id = null)
     {
         $assetId = null;
 
@@ -142,9 +137,9 @@ class Category extends Nested implements VersionableTableInterface, TaggableTabl
         // Return the asset id.
         if ($assetId) {
             return $assetId;
+        } else {
+            return parent::_getAssetParentId($table, $id);
         }
-
-        return parent::_getAssetParentId($table, $id);
     }
 
     /**
@@ -232,7 +227,7 @@ class Category extends Nested implements VersionableTableInterface, TaggableTabl
     public function store($updateNulls = true)
     {
         $date = Factory::getDate()->toSql();
-        $user = $this->getCurrentUser();
+        $user = Factory::getUser();
 
         // Set created date if not set.
         if (!(int) $this->created_time) {
@@ -241,7 +236,7 @@ class Category extends Nested implements VersionableTableInterface, TaggableTabl
 
         if ($this->id) {
             // Existing category
-            $this->modified_user_id = $user->id;
+            $this->modified_user_id = $user->get('id');
             $this->modified_time    = $date;
         } else {
             if (!(int) ($this->modified_time)) {
@@ -250,7 +245,7 @@ class Category extends Nested implements VersionableTableInterface, TaggableTabl
 
             // Field created_user_id can be set by the user, so we don't touch it if it's set.
             if (empty($this->created_user_id)) {
-                $this->created_user_id = $user->id;
+                $this->created_user_id = $user->get('id');
             }
 
             if (empty($this->modified_user_id)) {
@@ -259,7 +254,7 @@ class Category extends Nested implements VersionableTableInterface, TaggableTabl
         }
 
         // Verify that the alias is unique
-        $table = new Category($this->getDbo(), $this->getDispatcher());
+        $table = Table::getInstance('Category', 'JTable', ['dbo' => $this->getDbo()]);
 
         if (
             $table->load(['alias' => $this->alias, 'parent_id' => (int) $this->parent_id, 'extension' => $this->extension])

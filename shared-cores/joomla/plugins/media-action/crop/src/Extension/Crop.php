@@ -12,7 +12,6 @@ namespace Joomla\Plugin\MediaAction\Crop\Extension;
 
 use Joomla\CMS\Application\CMSWebApplicationInterface;
 use Joomla\Component\Media\Administrator\Plugin\MediaActionPlugin;
-use Joomla\Event\SubscriberInterface;
 
 // phpcs:disable PSR1.Files.SideEffects
 \defined('_JEXEC') or die;
@@ -23,7 +22,7 @@ use Joomla\Event\SubscriberInterface;
  *
  * @since  4.0.0
  */
-final class Crop extends MediaActionPlugin implements SubscriberInterface
+final class Crop extends MediaActionPlugin
 {
     /**
      * Load the javascript files of the plugin.
@@ -40,7 +39,7 @@ final class Crop extends MediaActionPlugin implements SubscriberInterface
             return;
         }
 
-        $this->getApplication()->getDocument()->getWebAssetManager()->useScript('cropper-module');
+        $this->getApplication()->getDocument()->getWebAssetManager()->useScript('cropperjs');
     }
 
     /**

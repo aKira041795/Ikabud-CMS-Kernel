@@ -13,7 +13,6 @@ namespace Joomla\Plugin\Editors\TinyMCE\PluginTraits;
 use Joomla\CMS\Access\Access;
 use Joomla\CMS\Component\ComponentHelper;
 use Joomla\CMS\Filter\InputFilter;
-use Joomla\CMS\User\User;
 
 // phpcs:disable PSR1.Files.SideEffects
 \defined('_JEXEC') or die;
@@ -38,7 +37,7 @@ trait GlobalFilters
     {
         // Filter settings
         $config     = ComponentHelper::getParams('com_config');
-        $userGroups = Access::getGroupsByUser($user->id);
+        $userGroups = Access::getGroupsByUser($user->get('id'));
         $filters    = $config->get('filters');
 
         $forbiddenListTags       = [];
@@ -103,11 +102,11 @@ trait GlobalFilters
                  * Each list is cumulative.
                  * "BL" is deprecated in Joomla! 4, will be removed in Joomla! 5
                  */
-                if (\in_array($filterType, ['BL', 'FL'])) {
+                if (in_array($filterType, ['BL', 'FL'])) {
                     $forbiddenList           = true;
                     $forbiddenListTags       = array_merge($forbiddenListTags, $tempTags);
                     $forbiddenListAttributes = array_merge($forbiddenListAttributes, $tempAttributes);
-                } elseif (\in_array($filterType, ['CBL', 'CFL'])) {
+                } elseif (in_array($filterType, ['CBL', 'CFL'])) {
                     // "CBL" is deprecated in Joomla! 4, will be removed in Joomla! 5
                     // Only set to true if Tags or Attributes were added
                     if ($tempTags || $tempAttributes) {
@@ -115,7 +114,7 @@ trait GlobalFilters
                         $customListTags       = array_merge($customListTags, $tempTags);
                         $customListAttributes = array_merge($customListAttributes, $tempAttributes);
                     }
-                } elseif (\in_array($filterType, ['WL', 'AL'])) {
+                } elseif (in_array($filterType, ['WL', 'AL'])) {
                     // "WL" is deprecated in Joomla! 4, will be removed in Joomla! 5
                     $allowedList           = true;
                     $allowedListTags       = array_merge($allowedListTags, $tempTags);
@@ -134,48 +133,48 @@ trait GlobalFilters
 
         // Unfiltered assumes first priority.
         if ($unfiltered) {
-            // Don't apply filtering.
+            // Dont apply filtering.
             return false;
-        }
-
-        // Custom forbidden list precedes Default forbidden list.
-        if ($customList) {
-            $filter = InputFilter::getInstance([], [], 1, 1);
-
-            // Override filter's default forbidden tags and attributes
-            if ($customListTags) {
-                $filter->blockedTags = $customListTags;
-            }
-
-            if ($customListAttributes) {
-                $filter->blockedAttributes = $customListAttributes;
-            }
-        } elseif ($forbiddenList) {
-            // Forbidden list takes second precedence.
-            // Remove the allowed tags and attributes from the forbidden list.
-            $forbiddenListTags       = array_diff($forbiddenListTags, $allowedListTags);
-            $forbiddenListAttributes = array_diff($forbiddenListAttributes, $allowedListAttributes);
-
-            $filter = InputFilter::getInstance($forbiddenListTags, $forbiddenListAttributes, 1, 1);
-
-            // Remove allowed tags from filter's default forbidden list
-            if ($allowedListTags) {
-                $filter->blockedTags = array_diff($filter->blockedTags, $allowedListTags);
-            }
-
-            // Remove allowed attributes from filter's default forbidden list
-            if ($allowedListAttributes) {
-                $filter->blockedAttributes = array_diff($filter->blockedAttributes, $allowedListAttributes);
-            }
-        } elseif ($allowedList) {
-            // Allowed list take third precedence.
-            // Turn off XSS auto clean
-            $filter = InputFilter::getInstance($allowedListTags, $allowedListAttributes, 0, 0, 0);
         } else {
-            // No HTML takes last place.
-            $filter = InputFilter::getInstance();
-        }
+            // Custom forbidden list precedes Default forbidden list.
+            if ($customList) {
+                $filter = InputFilter::getInstance([], [], 1, 1);
 
-        return $filter;
+                // Override filter's default forbidden tags and attributes
+                if ($customListTags) {
+                    $filter->blockedTags = $customListTags;
+                }
+
+                if ($customListAttributes) {
+                    $filter->blockedAttributes = $customListAttributes;
+                }
+            } elseif ($forbiddenList) {
+                // Forbidden list takes second precedence.
+                // Remove the allowed tags and attributes from the forbidden list.
+                $forbiddenListTags       = array_diff($forbiddenListTags, $allowedListTags);
+                $forbiddenListAttributes = array_diff($forbiddenListAttributes, $allowedListAttributes);
+
+                $filter = InputFilter::getInstance($forbiddenListTags, $forbiddenListAttributes, 1, 1);
+
+                // Remove allowed tags from filter's default forbidden list
+                if ($allowedListTags) {
+                    $filter->blockedTags = array_diff($filter->blockedTags, $allowedListTags);
+                }
+
+                // Remove allowed attributes from filter's default forbidden list
+                if ($allowedListAttributes) {
+                    $filter->blockedAttributes = array_diff($filter->blockedAttributes, $allowedListAttributes);
+                }
+            } elseif ($allowedList) {
+                // Allowed list take third precedence.
+                // Turn off XSS auto clean
+                $filter = InputFilter::getInstance($allowedListTags, $allowedListAttributes, 0, 0, 0);
+            } else {
+                // No HTML takes last place.
+                $filter = InputFilter::getInstance();
+            }
+
+            return $filter;
+        }
     }
 }

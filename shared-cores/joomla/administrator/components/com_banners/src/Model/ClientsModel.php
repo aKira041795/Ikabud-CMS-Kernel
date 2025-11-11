@@ -13,7 +13,6 @@ namespace Joomla\Component\Banners\Administrator\Model;
 use Joomla\CMS\Component\ComponentHelper;
 use Joomla\CMS\MVC\Model\ListModel;
 use Joomla\Database\ParameterType;
-use Joomla\Database\QueryInterface;
 
 // phpcs:disable PSR1.Files.SideEffects
 \defined('_JEXEC') or die;
@@ -95,7 +94,7 @@ class ClientsModel extends ListModel
     /**
      * Build an SQL query to load the list data.
      *
-     * @return  QueryInterface
+     * @return  \Joomla\Database\DatabaseQuery
      */
     protected function getListQuery()
     {
@@ -282,10 +281,10 @@ class ClientsModel extends ListModel
 
         // Inject the values back into the array.
         foreach ($items as $item) {
-            $item->count_published   = $countPublished[$item->id] ?? 0;
-            $item->count_unpublished = $countUnpublished[$item->id] ?? 0;
-            $item->count_trashed     = $countTrashed[$item->id] ?? 0;
-            $item->count_archived    = $countArchived[$item->id] ?? 0;
+            $item->count_published   = isset($countPublished[$item->id]) ? $countPublished[$item->id] : 0;
+            $item->count_unpublished = isset($countUnpublished[$item->id]) ? $countUnpublished[$item->id] : 0;
+            $item->count_trashed     = isset($countTrashed[$item->id]) ? $countTrashed[$item->id] : 0;
+            $item->count_archived    = isset($countArchived[$item->id]) ? $countArchived[$item->id] : 0;
         }
 
         // Add the items to the internal cache.

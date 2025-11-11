@@ -10,16 +10,15 @@
 
 defined('_JEXEC') or die;
 
+use Joomla\CMS\Factory;
 use Joomla\CMS\HTML\HTMLHelper;
 use Joomla\CMS\Language\LanguageHelper;
 use Joomla\CMS\Language\Text;
 use Joomla\CMS\Layout\LayoutHelper;
 use Joomla\CMS\Router\Route;
 
-/** @var \Joomla\Component\Languages\Administrator\View\Overrides\HtmlView $this */
-
 /** @var \Joomla\CMS\WebAsset\WebAssetManager $wa */
-$wa = $this->getDocument()->getWebAssetManager();
+$wa = $this->document->getWebAssetManager();
 $wa->useScript('table.columns')
     ->useScript('multiselect');
 
@@ -72,7 +71,7 @@ $oppositeStrings  = LanguageHelper::parseIniFile($oppositeFilename);
                             </tr>
                         </thead>
                         <tbody>
-                        <?php $canEdit = $this->getCurrentUser()->authorise('core.edit', 'com_languages'); ?>
+                        <?php $canEdit = Factory::getUser()->authorise('core.edit', 'com_languages'); ?>
                         <?php $i = 0; ?>
                         <?php foreach ($this->items as $key => $text) : ?>
                             <tr class="row<?php echo $i % 2; ?>" id="overriderrow<?php echo $i; ?>">

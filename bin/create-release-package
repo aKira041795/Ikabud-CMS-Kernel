@@ -1,0 +1,473 @@
+#!/bin/bash
+
+################################################################################
+# Ikabud Kernel - Release Package Creator
+# Version: 1.0.0
+# Description: Creates a distributable release package
+################################################################################
+
+set -e
+
+# Colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+CYAN='\033[0;36m'
+NC='\033[0m'
+
+# Configuration
+VERSION=${1:-"1.0.0"}
+RELEASE_DIR="releases"
+PACKAGE_NAME="ikabud-kernel-${VERSION}"
+TEMP_DIR="/tmp/${PACKAGE_NAME}"
+
+################################################################################
+# Helper Functions
+################################################################################
+
+print_header() {
+    echo -e "${CYAN}"
+    echo "╔════════════════════════════════════════════════════════════════╗"
+    echo "║                                                                ║"
+    echo "║          Ikabud Kernel - Release Package Creator              ║"
+    echo "║                                                                ║"
+    echo "╚════════════════════════════════════════════════════════════════╝"
+    echo -e "${NC}"
+}
+
+print_success() {
+    echo -e "${GREEN}✓ $1${NC}"
+}
+
+print_error() {
+    echo -e "${RED}✗ $1${NC}"
+}
+
+print_warning() {
+    echo -e "${YELLOW}⚠ $1${NC}"
+}
+
+print_info() {
+    echo -e "${BLUE}ℹ $1${NC}"
+}
+
+print_step() {
+    echo -e "${CYAN}▶ $1${NC}"
+}
+
+################################################################################
+# Main Functions
+################################################################################
+
+check_requirements() {
+    print_step "Checking requirements..."
+    
+    local missing=()
+    
+    # Check for required commands
+    command -v git >/dev/null 2>&1 || missing+=("git")
+    command -v composer >/dev/null 2>&1 || missing+=("composer")
+    command -v tar >/dev/null 2>&1 || missing+=("tar")
+    command -v zip >/dev/null 2>&1 || missing+=("zip")
+    
+    if [ ${#missing[@]} -gt 0 ]; then
+        print_error "Missing required tools: ${missing[*]}"
+        exit 1
+    fi
+    
+    print_success "All requirements met"
+}
+
+verify_version() {
+    print_step "Verifying version..."
+    
+    # Check if version is valid semver
+    if ! [[ $VERSION =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+        print_error "Invalid version format. Use semantic versioning (e.g., 1.0.0)"
+        exit 1
+    fi
+    
+    # Check if version already exists
+    if [ -d "${RELEASE_DIR}/${PACKAGE_NAME}" ]; then
+        print_warning "Release ${VERSION} already exists"
+        read -p "Overwrite? (y/n) " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            exit 0
+        fi
+        rm -rf "${RELEASE_DIR}/${PACKAGE_NAME}"
+    fi
+    
+    print_success "Version ${VERSION} validated"
+}
+
+create_temp_directory() {
+    print_step "Creating temporary directory..."
+    
+    # Remove existing temp directory if it exists
+    if [ -d "$TEMP_DIR" ]; then
+        rm -rf "$TEMP_DIR"
+    fi
+    
+    # Create fresh temp directory
+    mkdir -p "$TEMP_DIR"
+    
+    print_success "Temporary directory created: $TEMP_DIR"
+}
+
+copy_source_files() {
+    print_step "Copying source files..."
+    
+    # Copy core directories
+    cp -r api "$TEMP_DIR/"
+    cp -r bin "$TEMP_DIR/"
+    cp -r cms "$TEMP_DIR/"
+    cp -r database "$TEMP_DIR/"
+    cp -r docs "$TEMP_DIR/"
+    cp -r dsl "$TEMP_DIR/"
+    cp -r kernel "$TEMP_DIR/"
+    cp -r public "$TEMP_DIR/"
+    cp -r templates "$TEMP_DIR/"
+    
+    # Create empty directories
+    mkdir -p "$TEMP_DIR/instances"
+    mkdir -p "$TEMP_DIR/shared-cores"
+    mkdir -p "$TEMP_DIR/storage/cache"
+    mkdir -p "$TEMP_DIR/storage/logs"
+    mkdir -p "$TEMP_DIR/themes"
+    mkdir -p "$TEMP_DIR/logs"
+    
+    # Add .gitkeep files
+    touch "$TEMP_DIR/instances/.gitkeep"
+    touch "$TEMP_DIR/shared-cores/.gitkeep"
+    touch "$TEMP_DIR/storage/cache/.gitkeep"
+    touch "$TEMP_DIR/storage/logs/.gitkeep"
+    touch "$TEMP_DIR/themes/.gitkeep"
+    touch "$TEMP_DIR/logs/.gitkeep"
+    
+    # Copy root files
+    cp composer.json "$TEMP_DIR/"
+    cp composer.lock "$TEMP_DIR/"
+    cp .env.example "$TEMP_DIR/"
+    cp .gitignore "$TEMP_DIR/"
+    cp ikabud "$TEMP_DIR/"
+    
+    # Copy documentation
+    cp README.md "$TEMP_DIR/"
+    cp INSTALL.md "$TEMP_DIR/"
+    cp REQUIREMENTS.md "$TEMP_DIR/"
+    cp CHANGELOG.md "$TEMP_DIR/"
+    cp LICENSE "$TEMP_DIR/"
+    cp CONTRIBUTING.md "$TEMP_DIR/"
+    cp install.sh "$TEMP_DIR/"
+    
+    # Make scripts executable
+    chmod +x "$TEMP_DIR/ikabud"
+    chmod +x "$TEMP_DIR/install.sh"
+    chmod +x "$TEMP_DIR"/bin/*
+    
+    print_success "Source files copied"
+}
+
+copy_admin_ui() {
+    print_step "Copying admin UI..."
+    
+    if [ -d "admin/dist" ]; then
+        mkdir -p "$TEMP_DIR/admin"
+        cp -r admin/dist "$TEMP_DIR/admin/"
+        cp admin/package.json "$TEMP_DIR/admin/"
+        print_success "Admin UI copied (built version)"
+    else
+        print_warning "Admin UI not built, skipping"
+    fi
+}
+
+install_dependencies() {
+    print_step "Installing production dependencies..."
+    
+    cd "$TEMP_DIR"
+    
+    # Install Composer dependencies (production only)
+    composer install --no-dev --optimize-autoloader --no-interaction
+    
+    # Remove development files
+    rm -rf tests/
+    rm -f phpunit.xml
+    rm -f .phpunit.result.cache
+    
+    cd - > /dev/null
+    
+    print_success "Dependencies installed"
+}
+
+update_version_info() {
+    print_step "Updating version information..."
+    
+    # Update composer.json version
+    sed -i "s/\"version\": \".*\"/\"version\": \"${VERSION}\"/" "$TEMP_DIR/composer.json"
+    
+    # Create VERSION file
+    echo "$VERSION" > "$TEMP_DIR/VERSION"
+    
+    # Create BUILD_INFO file
+    cat > "$TEMP_DIR/BUILD_INFO" <<EOF
+Build Information
+=================
+
+Version: ${VERSION}
+Build Date: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+Git Commit: $(git rev-parse HEAD)
+Git Branch: $(git rev-parse --abbrev-ref HEAD)
+Builder: $(whoami)@$(hostname)
+
+Package Contents:
+- Core Kernel
+- CMS Adapters (WordPress, Joomla, Drupal)
+- CLI Tool
+- REST API
+- Admin UI (built)
+- Documentation
+- Installation Scripts
+
+Installation:
+See INSTALL.md for installation instructions
+EOF
+    
+    print_success "Version information updated"
+}
+
+create_checksums() {
+    print_step "Creating checksums..."
+    
+    cd "$TEMP_DIR"
+    
+    # Create checksums for all PHP files
+    find . -type f -name "*.php" -exec sha256sum {} \; > CHECKSUMS.txt
+    
+    # Create overall package checksum
+    tar czf - . | sha256sum > PACKAGE_CHECKSUM.txt
+    
+    cd - > /dev/null
+    
+    print_success "Checksums created"
+}
+
+create_archives() {
+    print_step "Creating release archives..."
+    
+    # Create release directory
+    mkdir -p "$RELEASE_DIR"
+    
+    # Create tar.gz archive
+    print_info "Creating tar.gz archive..."
+    tar czf "${RELEASE_DIR}/${PACKAGE_NAME}.tar.gz" -C /tmp "$PACKAGE_NAME"
+    print_success "Created ${PACKAGE_NAME}.tar.gz"
+    
+    # Create zip archive
+    print_info "Creating zip archive..."
+    cd /tmp
+    zip -r "${PACKAGE_NAME}.zip" "$PACKAGE_NAME" -q
+    mv "${PACKAGE_NAME}.zip" "$(pwd)/${RELEASE_DIR}/"
+    cd - > /dev/null
+    print_success "Created ${PACKAGE_NAME}.zip"
+    
+    # Calculate archive checksums
+    cd "$RELEASE_DIR"
+    sha256sum "${PACKAGE_NAME}.tar.gz" > "${PACKAGE_NAME}.tar.gz.sha256"
+    sha256sum "${PACKAGE_NAME}.zip" > "${PACKAGE_NAME}.zip.sha256"
+    cd - > /dev/null
+    
+    print_success "Release archives created"
+}
+
+create_release_notes() {
+    print_step "Creating release notes..."
+    
+    cat > "${RELEASE_DIR}/${PACKAGE_NAME}-RELEASE-NOTES.md" <<EOF
+# Ikabud Kernel ${VERSION} - Release Notes
+
+**Release Date**: $(date +"%Y-%m-%d")
+
+## Download
+
+- **TAR.GZ**: [ikabud-kernel-${VERSION}.tar.gz](ikabud-kernel-${VERSION}.tar.gz)
+- **ZIP**: [ikabud-kernel-${VERSION}.zip](ikabud-kernel-${VERSION}.zip)
+
+## Checksums
+
+### TAR.GZ
+\`\`\`
+$(cat "${RELEASE_DIR}/${PACKAGE_NAME}.tar.gz.sha256")
+\`\`\`
+
+### ZIP
+\`\`\`
+$(cat "${RELEASE_DIR}/${PACKAGE_NAME}.zip.sha256")
+\`\`\`
+
+## Installation
+
+### Quick Install
+\`\`\`bash
+# Download and extract
+wget https://github.com/yourusername/ikabud-kernel/releases/download/v${VERSION}/ikabud-kernel-${VERSION}.tar.gz
+tar -xzf ikabud-kernel-${VERSION}.tar.gz
+cd ikabud-kernel-${VERSION}
+
+# Run installer
+sudo ./install.sh
+\`\`\`
+
+### Manual Install
+See [INSTALL.md](INSTALL.md) for detailed installation instructions.
+
+## What's New
+
+See [CHANGELOG.md](CHANGELOG.md) for a complete list of changes.
+
+## System Requirements
+
+- **OS**: Linux (Ubuntu 20.04+, Debian 10+, CentOS 8+)
+- **PHP**: 8.1 or higher
+- **Database**: MySQL 8.0+ or MariaDB 10.5+
+- **Web Server**: Apache 2.4+ or Nginx 1.18+
+- **Memory**: 2GB minimum (4GB+ recommended)
+
+See [REQUIREMENTS.md](REQUIREMENTS.md) for complete requirements.
+
+## Upgrade Instructions
+
+### From Previous Version
+
+\`\`\`bash
+# Backup your data
+mysqldump -u root -p ikabud_kernel > backup.sql
+cp -r /var/www/html/ikabud-kernel /var/www/html/ikabud-kernel.backup
+
+# Extract new version
+tar -xzf ikabud-kernel-${VERSION}.tar.gz
+cd ikabud-kernel-${VERSION}
+
+# Update dependencies
+composer install --no-dev --optimize-autoloader
+
+# Run migrations (if any)
+# mysql -u ikabud_user -p ikabud_kernel < database/migrations/v${VERSION}.sql
+
+# Restart services
+sudo systemctl restart apache2  # or nginx
+\`\`\`
+
+## Support
+
+- **Documentation**: https://docs.ikabud.com
+- **Issues**: https://github.com/yourusername/ikabud-kernel/issues
+- **Discussions**: https://github.com/yourusername/ikabud-kernel/discussions
+- **Email**: support@ikabud.com
+
+## Contributors
+
+Thank you to all contributors who made this release possible!
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for contribution guidelines.
+
+## License
+
+Ikabud Kernel is open-source software licensed under the MIT License.
+See [LICENSE](LICENSE) for details.
+
+---
+
+**Enjoy Ikabud Kernel ${VERSION}!** 🚀
+EOF
+    
+    print_success "Release notes created"
+}
+
+cleanup() {
+    print_step "Cleaning up..."
+    
+    # Remove temporary directory
+    if [ -d "$TEMP_DIR" ]; then
+        rm -rf "$TEMP_DIR"
+    fi
+    
+    print_success "Cleanup complete"
+}
+
+print_summary() {
+    echo
+    echo -e "${GREEN}"
+    echo "╔════════════════════════════════════════════════════════════════╗"
+    echo "║                                                                ║"
+    echo "║              Release Package Created Successfully!            ║"
+    echo "║                                                                ║"
+    echo "╚════════════════════════════════════════════════════════════════╝"
+    echo -e "${NC}"
+    echo
+    print_info "Release Summary:"
+    echo "  Version: ${VERSION}"
+    echo "  Package Name: ${PACKAGE_NAME}"
+    echo "  Location: ${RELEASE_DIR}/"
+    echo
+    print_info "Created Files:"
+    echo "  - ${PACKAGE_NAME}.tar.gz"
+    echo "  - ${PACKAGE_NAME}.tar.gz.sha256"
+    echo "  - ${PACKAGE_NAME}.zip"
+    echo "  - ${PACKAGE_NAME}.zip.sha256"
+    echo "  - ${PACKAGE_NAME}-RELEASE-NOTES.md"
+    echo
+    
+    # Calculate sizes
+    TAR_SIZE=$(du -h "${RELEASE_DIR}/${PACKAGE_NAME}.tar.gz" | cut -f1)
+    ZIP_SIZE=$(du -h "${RELEASE_DIR}/${PACKAGE_NAME}.zip" | cut -f1)
+    
+    print_info "Package Sizes:"
+    echo "  - TAR.GZ: ${TAR_SIZE}"
+    echo "  - ZIP: ${ZIP_SIZE}"
+    echo
+    
+    print_info "Next Steps:"
+    echo "  1. Test the installation package"
+    echo "  2. Update CHANGELOG.md if needed"
+    echo "  3. Create a GitHub release"
+    echo "  4. Upload the packages"
+    echo "  5. Announce the release"
+    echo
+    print_success "Release package ready for distribution!"
+    echo
+}
+
+################################################################################
+# Main Execution
+################################################################################
+
+main() {
+    print_header
+    
+    # Check if version is provided
+    if [ -z "$1" ]; then
+        print_error "Version number required"
+        echo "Usage: $0 <version>"
+        echo "Example: $0 1.0.0"
+        exit 1
+    fi
+    
+    # Run all steps
+    check_requirements
+    verify_version
+    create_temp_directory
+    copy_source_files
+    copy_admin_ui
+    install_dependencies
+    update_version_info
+    create_checksums
+    create_archives
+    create_release_notes
+    cleanup
+    print_summary
+}
+
+# Run main function
+main "$@"

@@ -1,0 +1,122 @@
+MIT License
+
+Copyright (c) 2025 Ikabud Kernel Contributors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+---
+
+Third-Party Licenses
+====================
+
+Ikabud Kernel includes or depends on the following third-party software:
+
+1. Slim Framework (https://www.slimframework.com/)
+   License: MIT License
+   Copyright (c) 2011-present Josh Lockhart
+
+2. PHP-DI (https://php-di.org/)
+   License: MIT License
+   Copyright (c) Matthieu Napoli
+
+3. Firebase PHP-JWT (https://github.com/firebase/php-jwt)
+   License: BSD-3-Clause License
+   Copyright (c) 2011, Neuman Vong
+
+4. phpdotenv (https://github.com/vlucas/phpdotenv)
+   License: BSD-3-Clause License
+   Copyright (c) 2013, Vance Lucas
+
+5. Monolog (https://github.com/Seldaek/monolog)
+   License: MIT License
+   Copyright (c) 2011-present Jordi Boggiano
+
+6. React (https://reactjs.org/)
+   License: MIT License
+   Copyright (c) Meta Platforms, Inc. and affiliates
+
+7. Vite (https://vitejs.dev/)
+   License: MIT License
+   Copyright (c) 2019-present, Yuxi (Evan) You
+
+8. TailwindCSS (https://tailwindcss.com/)
+   License: MIT License
+   Copyright (c) Tailwind Labs, Inc.
+
+9. Recharts (https://recharts.org/)
+   License: MIT License
+   Copyright (c) 2015-present Recharts Group
+
+10. Lucide Icons (https://lucide.dev/)
+    License: ISC License
+    Copyright (c) Lucide Contributors
+
+For complete license texts of third-party software, please refer to their
+respective repositories or the vendor directory.
+
+---
+
+CMS Compatibility Notice
+=========================
+
+Ikabud Kernel is designed to work with the following Content Management Systems:
+
+- WordPress (https://wordpress.org/) - GPL v2 or later
+- Joomla (https://www.joomla.org/) - GPL v2
+- Drupal (https://www.drupal.org/) - GPL v2 or later
+
+These CMS platforms are separate software projects with their own licenses.
+Ikabud Kernel does not include or redistribute these CMS platforms. Users
+must obtain and install them separately according to their respective licenses.
+
+---
+
+Attribution
+===========
+
+If you use Ikabud Kernel in your project, attribution is appreciated but not
+required. You may include a notice such as:
+
+"Powered by Ikabud Kernel (https://github.com/yourusername/ikabud-kernel)"
+
+---
+
+Disclaimer
+==========
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+---
+
+Contact
+=======
+
+For licensing questions or commercial licensing inquiries, please contact:
+- Email: license@ikabud.com
+- Website: https://ikabud.com/license
+
+---
+
+Last Updated: November 10, 2025

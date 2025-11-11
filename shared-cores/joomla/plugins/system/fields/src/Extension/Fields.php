@@ -10,8 +10,7 @@
 
 namespace Joomla\Plugin\System\Fields\Extension;
 
-use Joomla\CMS\Event\Content;
-use Joomla\CMS\Event\Model;
+use Joomla\CMS\Form\Form;
 use Joomla\CMS\Language\Multilanguage;
 use Joomla\CMS\Plugin\CMSPlugin;
 use Joomla\CMS\User\UserFactoryAwareTrait;
@@ -32,20 +31,26 @@ final class Fields extends CMSPlugin
     use UserFactoryAwareTrait;
 
     /**
+     * Load the language file on instantiation.
+     *
+     * @var    boolean
+     * @since  3.7.0
+     */
+    protected $autoloadLanguage = true;
+
+    /**
      * Normalizes the request data.
      *
-     * @param   Model\NormaliseRequestDataEvent  $event  The event object
+     * @param   string  $context  The context
+     * @param   object  $data     The object
+     * @param   Form    $form     The form
      *
      * @return  void
      *
      * @since   3.8.7
      */
-    public function onContentNormaliseRequestData(Model\NormaliseRequestDataEvent $event)
+    public function onContentNormaliseRequestData($context, $data, Form $form)
     {
-        $context = $event->getContext();
-        $data    = $event->getData();
-        $form    = $event->getForm();
-
         if (!FieldsHelper::extract($context, $data)) {
             return;
         }
@@ -92,7 +97,7 @@ final class Fields extends CMSPlugin
     public function onContentAfterSave($context, $item, $isNew, $data = []): void
     {
         // Check if data is an array and the item has an id
-        if (!\is_array($data) || empty($item->id) || empty($data['com_fields'])) {
+        if (!is_array($data) || empty($item->id) || empty($data['com_fields'])) {
             return;
         }
 
@@ -130,7 +135,7 @@ final class Fields extends CMSPlugin
         // Loop over the fields
         foreach ($fields as $field) {
             // Determine the value if it is (un)available from the data
-            if (\array_key_exists($field->name, $data['com_fields'])) {
+            if (array_key_exists($field->name, $data['com_fields'])) {
                 $value = $data['com_fields'][$field->name] === false ? null : $data['com_fields'][$field->name];
             } else {
                 // Field not available on form, use stored value
@@ -138,12 +143,12 @@ final class Fields extends CMSPlugin
             }
 
             // If no value set (empty) remove value from database
-            if (\is_array($value) ? !\count($value) : !\strlen($value)) {
+            if (is_array($value) ? !count($value) : !strlen($value)) {
                 $value = null;
             }
 
             // JSON encode value for complex fields
-            if (\is_array($value) && (\count($value, COUNT_NORMAL) !== \count($value, COUNT_RECURSIVE) || !\count(array_filter(array_keys($value), 'is_numeric')))) {
+            if (is_array($value) && (count($value, COUNT_NORMAL) !== count($value, COUNT_RECURSIVE) || !count(array_filter(array_keys($value), 'is_numeric')))) {
                 $value = json_encode($value);
             }
 
@@ -177,7 +182,7 @@ final class Fields extends CMSPlugin
         $task = $this->getApplication()->getInput()->getCmd('task');
 
         // Skip fields save when we activate a user, because we will lose the saved data
-        if (\in_array($task, ['activate', 'block', 'unblock'])) {
+        if (in_array($task, ['activate', 'block', 'unblock'])) {
             return;
         }
 
@@ -219,7 +224,7 @@ final class Fields extends CMSPlugin
     /**
      * The user delete event.
      *
-     * @param   array     $user    The context
+     * @param   \stdClass  $user    The context
      * @param   boolean   $success Is success
      * @param   string    $msg     The message
      *
@@ -238,16 +243,15 @@ final class Fields extends CMSPlugin
     /**
      * The form event.
      *
-     * @param   Model\PrepareFormEvent  $event  The event object
+     * @param   Form      $form  The form
+     * @param   \stdClass  $data  The data
      *
-     * @return  void
+     * @return  boolean
      *
      * @since   3.7.0
      */
-    public function onContentPrepareForm(Model\PrepareFormEvent $event)
+    public function onContentPrepareForm(Form $form, $data)
     {
-        $form    = $event->getForm();
-        $data    = $event->getData();
         $context = $form->getName();
 
         // When a category is edited, the context is com_categories.categorycom_content
@@ -256,11 +260,11 @@ final class Fields extends CMSPlugin
             $data    = $data ?: $this->getApplication()->getInput()->get('jform', [], 'array');
 
             // Set the catid on the category to get only the fields which belong to this category
-            if (\is_array($data) && \array_key_exists('id', $data)) {
+            if (is_array($data) && array_key_exists('id', $data)) {
                 $data['catid'] = $data['id'];
             }
 
-            if (\is_object($data) && isset($data->id)) {
+            if (is_object($data) && isset($data->id)) {
                 $data->catid = $data->id;
             }
         }
@@ -268,7 +272,7 @@ final class Fields extends CMSPlugin
         $parts = FieldsHelper::extract($context, $form);
 
         if (!$parts) {
-            return;
+            return true;
         }
 
         $input = $this->getApplication()->getInput();
@@ -280,53 +284,64 @@ final class Fields extends CMSPlugin
             $data = $jformData;
         }
 
-        if (\is_array($data)) {
+        if (is_array($data)) {
             $data = (object) $data;
         }
 
         FieldsHelper::prepareForm($parts[0] . '.' . $parts[1], $form, $data);
+
+        return true;
     }
 
     /**
      * The display event.
      *
-     * @param   Content\AfterTitleEvent  $event  The event object
+     * @param   string    $context     The context
+     * @param   \stdClass  $item        The item
+     * @param   Registry  $params      The params
+     * @param   integer   $limitstart  The start
      *
-     * @return  void
+     * @return  string
      *
      * @since   3.7.0
      */
-    public function onContentAfterTitle(Content\AfterTitleEvent $event)
+    public function onContentAfterTitle($context, $item, $params, $limitstart = 0)
     {
-        $event->addResult($this->display($event->getContext(), $event->getItem(), $event->getParams(), 1));
+        return $this->display($context, $item, $params, 1);
     }
 
     /**
      * The display event.
      *
-     * @param   Content\BeforeDisplayEvent  $event  The event object
+     * @param   string    $context     The context
+     * @param   \stdClass  $item        The item
+     * @param   Registry  $params      The params
+     * @param   integer   $limitstart  The start
      *
-     * @return  void
+     * @return  string
      *
      * @since   3.7.0
      */
-    public function onContentBeforeDisplay(Content\BeforeDisplayEvent $event)
+    public function onContentBeforeDisplay($context, $item, $params, $limitstart = 0)
     {
-        $event->addResult($this->display($event->getContext(), $event->getItem(), $event->getParams(), 2));
+        return $this->display($context, $item, $params, 2);
     }
 
     /**
      * The display event.
      *
-     * @param   Content\AfterDisplayEvent  $event  The event object
+     * @param   string    $context     The context
+     * @param   \stdClass  $item        The item
+     * @param   Registry  $params      The params
+     * @param   integer   $limitstart  The start
      *
-     * @return  void
+     * @return  string
      *
      * @since   3.7.0
      */
-    public function onContentAfterDisplay(Content\AfterDisplayEvent $event)
+    public function onContentAfterDisplay($context, $item, $params, $limitstart = 0)
     {
-        $event->addResult($this->display($event->getContext(), $event->getItem(), $event->getParams(), 3));
+        return $this->display($context, $item, $params, 3);
     }
 
     /**
@@ -364,7 +379,7 @@ final class Fields extends CMSPlugin
             $item = $this->prepareTagItem($item);
         }
 
-        if (\is_string($params) || !$params) {
+        if (is_string($params) || !$params) {
             $params = new Registry($params);
         }
 
@@ -414,17 +429,15 @@ final class Fields extends CMSPlugin
     /**
      * Performs the display event.
      *
-     * @param   Content\ContentPrepareEvent  $event  The event object
+     * @param   string    $context  The context
+     * @param   \stdClass  $item     The item
      *
      * @return  void
      *
      * @since   3.7.0
      */
-    public function onContentPrepare(Content\ContentPrepareEvent $event)
+    public function onContentPrepare($context, $item)
     {
-        $context = $event->getContext();
-        $item    = $event->getItem();
-
         // Check property exists (avoid costly & useless recreation), if need to recreate them, just unset the property!
         if (isset($item->jcfields)) {
             return;

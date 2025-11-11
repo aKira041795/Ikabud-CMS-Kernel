@@ -5,9 +5,9 @@
  *
  * @copyright  (C) 2010 Open Source Matters, Inc. <https://www.joomla.org>
  * @license    GNU General Public License version 2 or later; see LICENSE.txt
- *
+
  * @phpcs:disable Squiz.Classes.ValidClassName.NotCamelCaps
- *
+
  * @phpcs:disable PSR1.Classes.ClassDeclaration.MissingNamespace
  */
 
@@ -33,14 +33,12 @@ abstract class En_GBLocalise
      */
     public static function getPluralSuffixes($count)
     {
-        switch ($count) {
-            case 0:
-                return ['0'];
-
-            case 1:
-                return ['ONE', '1'];
+        if ($count == 0) {
+            return ['0'];
+        } elseif ($count == 1) {
+            return ['ONE', '1'];
+        } else {
+            return ['OTHER', 'MORE'];
         }
-
-        return ['OTHER', 'MORE'];
     }
 }

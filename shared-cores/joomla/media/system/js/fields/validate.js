@@ -143,7 +143,7 @@
 	 * representing integers) in the range `0` to `base - 1`, or `base` if
 	 * the code point does not represent a value.
 	 */
-	const basicToDigit = function basicToDigit(codePoint) {
+	const basicToDigit = function (codePoint) {
 	  if (codePoint >= 0x30 && codePoint < 0x3A) {
 	    return 26 + (codePoint - 0x30);
 	  }
@@ -167,7 +167,7 @@
 	 * used; else, the lowercase form is used. The behavior is undefined
 	 * if `flag` is non-zero and `digit` has no uppercase form.
 	 */
-	const digitToBasic = function digitToBasic(digit, flag) {
+	const digitToBasic = function (digit, flag) {
 	  //  0..25 map to ASCII a..z or A..Z
 	  // 26..35 map to ASCII 0..9
 	  return digit + 22 + 75 * (digit < 26) - ((flag != 0) << 5);
@@ -178,7 +178,7 @@
 	 * https://tools.ietf.org/html/rfc3492#section-3.4
 	 * @private
 	 */
-	const adapt = function adapt(delta, numPoints, firstTime) {
+	const adapt = function (delta, numPoints, firstTime) {
 	  let k = 0;
 	  delta = firstTime ? floor(delta / damp) : delta >> 1;
 	  delta += floor(delta / numPoints);
@@ -196,7 +196,7 @@
 	 * @param {String} input The Punycode string of ASCII-only symbols.
 	 * @returns {String} The resulting string of Unicode symbols.
 	 */
-	const decode = function decode(input) {
+	const decode = function (input) {
 	  // Don't use UCS-2.
 	  const output = [];
 	  const inputLength = input.length;
@@ -278,7 +278,7 @@
 	 * @param {String} input The string of Unicode symbols.
 	 * @returns {String} The resulting Punycode string of ASCII-only symbols.
 	 */
-	const encode = function encode(input) {
+	const encode = function (input) {
 	  const output = [];
 
 	  // Convert the input in UCS-2 to an array of Unicode code points.
@@ -369,7 +369,7 @@
 	 * @returns {String} The Unicode representation of the given Punycode
 	 * string.
 	 */
-	const toUnicode = function toUnicode(input) {
+	const toUnicode = function (input) {
 	  return mapDomain(input, function (string) {
 	    return regexPunycode.test(string) ? decode(string.slice(4).toLowerCase()) : string;
 	  });
@@ -386,7 +386,7 @@
 	 * @returns {String} The Punycode representation of the given domain name or
 	 * email address.
 	 */
-	const toASCII = function toASCII(input) {
+	const toASCII = function (input) {
 	  return mapDomain(input, function (string) {
 	    return regexNonASCII.test(string) ? 'xn--' + encode(string) : string;
 	  });
@@ -455,7 +455,8 @@
 	    });
 
 	    // Attach all forms with a class 'form-validate'
-	    document.querySelectorAll('form').forEach(form => {
+	    const forms = [].slice.call(document.querySelectorAll('form'));
+	    forms.forEach(form => {
 	      if (form.classList.contains('form-validate')) {
 	        this.attachToForm(form);
 	      }
@@ -485,7 +486,8 @@
 	        message = label.querySelector('span.form-control-feedback');
 	      }
 	    }
-	    element.classList.remove('form-control-danger', 'invalid');
+	    element.classList.remove('form-control-danger');
+	    element.classList.remove('invalid');
 	    element.classList.add('form-control-success');
 	    element.parentNode.classList.remove('has-danger');
 	    element.parentNode.classList.add('has-success');
@@ -506,8 +508,10 @@
 	  markInvalid(element, empty) {
 	    // Get a label
 	    const label = element.form.querySelector(`label[for="${element.id}"]`);
-	    element.classList.remove('form-control-success', 'valid');
-	    element.classList.add('form-control-danger', 'invalid');
+	    element.classList.remove('form-control-success');
+	    element.classList.remove('valid');
+	    element.classList.add('form-control-danger');
+	    element.classList.add('invalid');
 	    element.parentNode.classList.remove('has-success');
 	    element.parentNode.classList.add('has-danger');
 	    element.setAttribute('aria-invalid', 'true');
@@ -547,13 +551,18 @@
 	    if (label) {
 	      message = label.querySelector('span.form-control-feedback');
 	    }
-	    element.classList.remove('form-control-danger', 'form-control-success', 'remove');
+	    element.classList.remove('form-control-danger');
+	    element.classList.remove('form-control-success');
+	    element.classList.remove('invalid');
 	    element.classList.add('valid');
-	    element.parentNode.classList.remove('has-danger', 'has-success');
+	    element.parentNode.classList.remove('has-danger');
+	    element.parentNode.classList.remove('has-success');
 
 	    // Remove message
-	    if (message && label) {
-	      label.removeChild(message);
+	    if (message) {
+	      if (label) {
+	        label.removeChild(message);
+	      }
 	    }
 
 	    // Restore Label
@@ -646,7 +655,7 @@
 	    if (form.nodeName === 'FORM') {
 	      fields = [].slice.call(form.elements);
 	    } else {
-	      fields = form.querySelectorAll('input, textarea, select, button, fieldset');
+	      fields = [].slice.call(form.querySelectorAll('input, textarea, select, button, fieldset'));
 	    }
 	    fields.forEach(field => {
 	      if (this.validate(field) === false) {
@@ -681,7 +690,7 @@
 	    if (form.nodeName === 'FORM') {
 	      elements = [].slice.call(form.elements);
 	    } else {
-	      elements = form.querySelectorAll('input, textarea, select, button, fieldset');
+	      elements = [].slice.call(form.querySelectorAll('input, textarea, select, button, fieldset'));
 	    }
 
 	    // Iterate through the form object and attach the validate method to all input fields.

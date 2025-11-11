@@ -10,13 +10,11 @@
 
 namespace Joomla\Component\Users\Site\Controller;
 
-use Joomla\CMS\Application\CMSWebApplicationInterface;
 use Joomla\CMS\Component\ComponentHelper;
+use Joomla\CMS\Factory;
 use Joomla\CMS\Language\Text;
 use Joomla\CMS\MVC\Controller\BaseController;
 use Joomla\CMS\Router\Route;
-use Joomla\CMS\User\UserFactoryAwareInterface;
-use Joomla\CMS\User\UserFactoryAwareTrait;
 
 // phpcs:disable PSR1.Files.SideEffects
 \defined('_JEXEC') or die;
@@ -27,10 +25,8 @@ use Joomla\CMS\User\UserFactoryAwareTrait;
  *
  * @since  1.6
  */
-class RegistrationController extends BaseController implements UserFactoryAwareInterface
+class RegistrationController extends BaseController
 {
-    use UserFactoryAwareTrait;
-
     /**
      * Method to activate a user.
      *
@@ -46,7 +42,7 @@ class RegistrationController extends BaseController implements UserFactoryAwareI
         $uParams = ComponentHelper::getParams('com_users');
 
         // Check for admin activation. Don't allow non-super-admin to delete a super admin
-        if ($uParams->get('useractivation') != 2 && $user->id) {
+        if ($uParams->get('useractivation') != 2 && $user->get('id')) {
             $this->setRedirect('index.php');
 
             return true;
@@ -62,7 +58,7 @@ class RegistrationController extends BaseController implements UserFactoryAwareI
         $token = $input->getAlnum('token');
 
         // Check that the token is in a valid format.
-        if ($token === null || \strlen($token) !== 32) {
+        if ($token === null || strlen($token) !== 32) {
             throw new \Exception(Text::_('JINVALID_TOKEN'), 403);
         }
 
@@ -77,7 +73,7 @@ class RegistrationController extends BaseController implements UserFactoryAwareI
         }
 
         // Get the user we want to activate
-        $userToActivate = $this->getUserFactory()->loadUserById($userIdToActivate);
+        $userToActivate = Factory::getUser($userIdToActivate);
 
         // Admin activation is on and admin is activating the account
         if (($uParams->get('useractivation') == 2) && $userToActivate->getParam('activate', 0)) {
@@ -176,11 +172,11 @@ class RegistrationController extends BaseController implements UserFactoryAwareI
             $errors = $model->getErrors();
 
             // Push up to three validation messages out to the user.
-            for ($i = 0, $n = \count($errors); $i < $n && $i < 3; $i++) {
+            for ($i = 0, $n = count($errors); $i < $n && $i < 3; $i++) {
                 if ($errors[$i] instanceof \Exception) {
-                    $app->enqueueMessage($errors[$i]->getMessage(), CMSWebApplicationInterface::MSG_ERROR);
+                    $app->enqueueMessage($errors[$i]->getMessage(), 'error');
                 } else {
-                    $app->enqueueMessage($errors[$i], CMSWebApplicationInterface::MSG_ERROR);
+                    $app->enqueueMessage($errors[$i], 'error');
                 }
             }
 

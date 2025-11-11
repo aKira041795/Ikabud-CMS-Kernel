@@ -12,7 +12,6 @@ defined('_JEXEC') or die;
 
 use Joomla\CMS\Factory;
 use Joomla\CMS\Form\FormHelper;
-use Joomla\CMS\Language\Text;
 
 /** @var Joomla\CMS\WebAsset\WebAssetManager $wa */
 $wa = Factory::getApplication()->getDocument()->getWebAssetManager();
@@ -22,10 +21,7 @@ $wa = Factory::getApplication()->getDocument()->getWebAssetManager();
 <fieldset class="<?php echo !empty($displayData->formclass) ? $displayData->formclass : ''; ?>">
     <legend><?php echo $displayData->name; ?></legend>
     <?php if (!empty($displayData->description)) : ?>
-        <div class="alert alert-info">
-            <span class="icon-info-circle" aria-hidden="true"></span><span class="visually-hidden"><?php echo Text::_('INFO'); ?></span>
-            <?php echo $displayData->description; ?>
-        </div>
+        <p><?php echo $displayData->description; ?></p>
     <?php endif; ?>
     <?php $fieldsnames = explode(',', $displayData->fieldsname); ?>
         <div class="form-grid">

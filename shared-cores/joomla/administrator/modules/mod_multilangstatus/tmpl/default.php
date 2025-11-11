@@ -10,6 +10,7 @@
 
 defined('_JEXEC') or die;
 
+use Joomla\CMS\HTML\HTMLHelper;
 use Joomla\CMS\Language\Text;
 use Joomla\CMS\Router\Route;
 
@@ -19,21 +20,29 @@ if (!$multilanguageEnabled || $hideLinks) {
     return;
 }
 
-$app->getDocument()->getWebAssetManager()->useScript('joomla.dialog-autocreate');
+$modalHTML = HTMLHelper::_(
+    'bootstrap.renderModal',
+    'multiLangModal',
+    [
+        'title'      => Text::_('MOD_MULTILANGSTATUS'),
+        'url'        => Route::_('index.php?option=com_languages&view=multilangstatus&tmpl=component'),
+        'height'     => '400px',
+        'width'      => '800px',
+        'bodyHeight' => 70,
+        'modalWidth' => 80,
+        'footer'     => '<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">' . Text::_('JTOOLBAR_CLOSE') . '</button>',
+    ]
+);
 
-$popupOptions = [
-    'popupType'  => 'iframe',
-    'src'        => Route::_('index.php?option=com_languages&view=multilangstatus&tmpl=component', false),
-    'textHeader' => Text::_('MOD_MULTILANGSTATUS'),
-];
-
+$app->getDocument()->getWebAssetManager()
+    ->registerAndUseScript('mod_multilangstatus.admin', 'mod_multilangstatus/admin-multilangstatus.min.js', [], ['type' => 'module', 'defer' => true]);
 ?>
-<button type="button" class="header-item-content multilanguage" title="<?php echo htmlspecialchars(Text::_('MOD_MULTILANGSTATUS')); ?>"
-        data-joomla-dialog="<?php echo htmlspecialchars(json_encode($popupOptions, JSON_UNESCAPED_SLASHES)) ?>">
+<a data-bs-target="#multiLangModal" class="header-item-content multilanguage" title="<?php echo Text::_('MOD_MULTILANGSTATUS'); ?>" data-bs-toggle="modal" role="button">
     <div class="header-item-icon">
         <span class="icon-language" aria-hidden="true"></span>
     </div>
     <div class="header-item-text">
         <?php echo Text::_('MOD_MULTILANGSTATUS'); ?>
     </div>
-</button>
+</a>
+<?php echo $modalHTML; ?>

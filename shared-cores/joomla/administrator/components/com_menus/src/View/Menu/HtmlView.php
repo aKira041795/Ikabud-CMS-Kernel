@@ -15,6 +15,7 @@ use Joomla\CMS\Helper\ContentHelper;
 use Joomla\CMS\Language\Text;
 use Joomla\CMS\MVC\View\GenericDataException;
 use Joomla\CMS\MVC\View\HtmlView as BaseHtmlView;
+use Joomla\CMS\Object\CMSObject;
 use Joomla\CMS\Toolbar\Toolbar;
 use Joomla\CMS\Toolbar\ToolbarHelper;
 
@@ -46,14 +47,14 @@ class HtmlView extends BaseHtmlView
     /**
      * The model state
      *
-     * @var  \Joomla\Registry\Registry
+     * @var  CMSObject
      */
     protected $state;
 
     /**
      * The actions the user is authorised to perform
      *
-     * @var  \Joomla\Registry\Registry
+     * @var  CMSObject
      */
     protected $canDo;
 
@@ -75,7 +76,7 @@ class HtmlView extends BaseHtmlView
         $this->canDo = ContentHelper::getActions('com_menus', 'menu', $this->item->id);
 
         // Check for errors.
-        if (\count($errors = $this->get('Errors'))) {
+        if (count($errors = $this->get('Errors'))) {
             throw new GenericDataException(implode("\n", $errors), 500);
         }
 
@@ -96,7 +97,7 @@ class HtmlView extends BaseHtmlView
         $input->set('hidemainmenu', true);
 
         $isNew   = ($this->item->id == 0);
-        $toolbar = $this->getDocument()->getToolbar();
+        $toolbar = Toolbar::getInstance();
 
         ToolbarHelper::title(Text::_($isNew ? 'COM_MENUS_VIEW_NEW_MENU_TITLE' : 'COM_MENUS_VIEW_EDIT_MENU_TITLE'), 'list menu');
 

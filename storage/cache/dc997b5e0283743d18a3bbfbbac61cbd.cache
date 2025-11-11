@@ -1,4 +1,4 @@
-a:3:{s:7:"headers";a:7:{i:0;s:27:"X-Frame-Options: SAMEORIGIN";i:1;s:31:"X-Content-Type-Options: nosniff";i:2;s:31:"X-XSS-Protection: 1; mode=block";i:3;s:36:"Content-type: text/css;charset=UTF-8";i:4;s:13:"X-Cache: MISS";i:5;s:30:"X-Cache-Instance: dpl-test-001";i:6;s:27:"X-Powered-By: Ikabud-Kernel";}s:4:"body";s:3416:"/* @license GPL-2.0-or-later https://www.drupal.org/licensing/faq */
+a:6:{s:7:"headers";a:8:{i:0;s:27:"X-Frame-Options: SAMEORIGIN";i:1;s:31:"X-Content-Type-Options: nosniff";i:2;s:31:"X-XSS-Protection: 1; mode=block";i:3;s:36:"Content-type: text/css;charset=UTF-8";i:4;s:13:"X-Cache: MISS";i:5;s:30:"X-Cache-Instance: dpl-test-001";i:6;s:27:"X-Powered-By: Ikabud-Kernel";i:7;s:35:"Cache-Control: public, max-age=3600";}s:4:"body";s:3416:"/* @license GPL-2.0-or-later https://www.drupal.org/licensing/faq */
 .text-align-left{text-align:left;}.text-align-right{text-align:right;}.text-align-center{text-align:center;}.text-align-justify{text-align:justify;}.align-left{float:left;}.align-right{float:right;}.align-center{display:block;margin-right:auto;margin-left:auto;}
 .fieldgroup{padding:0;border-width:0;}
 .container-inline div,.container-inline label{display:inline-block;}.container-inline .details-wrapper{display:block;}.container-inline .hidden{display:none;}
@@ -16,4 +16,4 @@ a:3:{s:7:"headers";a:7:{i:0;s:27:"X-Frame-Options: SAMEORIGIN";i:1;s:31:"X-Conte
 .system-status-general-info__item{margin-top:1em;padding:0 1em 1em;border:1px solid #ccc;}.system-status-general-info__item-title{border-bottom:1px solid #ccc;}
 .tablesort{display:inline-block;width:16px;height:16px;background-size:100%;}.tablesort--asc{background-image:url(/core/misc/icons/787878/twistie-down.svg);}.tablesort--desc{background-image:url(/core/misc/icons/787878/twistie-up.svg);}
 .views-align-left{text-align:left;}.views-align-right{text-align:right;}.views-align-center{text-align:center;}.views-view-grid .views-col{float:left;}.views-view-grid .views-row{float:left;clear:both;width:100%;}.views-display-link + .views-display-link{margin-left:0.5em;}
-";s:9:"timestamp";i:1762759992;}
+";s:9:"timestamp";i:1762872783;s:17:"extensions_loaded";a:0:{}s:15:"extension_count";i:0;s:8:"cms_type";s:6:"drupal";}

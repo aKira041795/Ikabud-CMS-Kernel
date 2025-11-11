@@ -10,10 +10,11 @@
 namespace Joomla\CMS\Service\Provider;
 
 use Joomla\CMS\Application\AdministratorApplication;
+use Joomla\CMS\Application\ApplicationHelper;
+use Joomla\CMS\Application\CMSApplicationInterface;
 use Joomla\CMS\Application\ConsoleApplication;
 use Joomla\CMS\Application\SiteApplication;
 use Joomla\CMS\Factory;
-use Joomla\CMS\Input\Input as CMSInput;
 use Joomla\CMS\Installation\Application\InstallationApplication;
 use Joomla\CMS\Session\EventListener\MetadataManagerListener;
 use Joomla\CMS\Session\MetadataManager;
@@ -26,13 +27,16 @@ use Joomla\DI\Exception\DependencyResolutionException;
 use Joomla\DI\ServiceProviderInterface;
 use Joomla\Event\DispatcherInterface;
 use Joomla\Event\LazyServiceEventListener;
+use Joomla\Event\Priority;
 use Joomla\Registry\Registry;
 use Joomla\Session\HandlerInterface;
 use Joomla\Session\SessionEvents;
+use Joomla\Session\SessionInterface;
 use Joomla\Session\Storage\RuntimeStorage;
+use Joomla\Session\StorageInterface;
 
 // phpcs:disable PSR1.Files.SideEffects
-\defined('_JEXEC') or die;
+\defined('JPATH_PLATFORM') or die;
 // phpcs:enable PSR1.Files.SideEffects
 
 /**
@@ -58,10 +62,10 @@ class Session implements ServiceProviderInterface
             function (Container $container) {
                 /** @var Registry $config */
                 $config = $container->get('config');
-                $input  = $container->get(CMSInput::class);
+                $app    = Factory::getApplication();
 
                 // Generate a session name.
-                $name = $this->generateSessionName($config, AdministratorApplication::class);
+                $name = ApplicationHelper::getHash($config->get('session_name', AdministratorApplication::class));
 
                 // Calculate the session lifetime.
                 $lifetime = $config->get('lifetime') ? $config->get('lifetime') * 60 : 900;
@@ -82,11 +86,9 @@ class Session implements ServiceProviderInterface
                     $this->registerSessionHandlerAsService($container, $handler);
                 }
 
-                $options['cookie_domain'] = $config->get('cookie_domain', '');
-                $options['cookie_path']   = $config->get('cookie_path', '/');
-
-                return new \Joomla\CMS\Session\Session(
-                    new JoomlaStorage($input, $handler, $options),
+                return $this->buildSession(
+                    new JoomlaStorage($app->getInput(), $handler, $options),
+                    $app,
                     $container->get(DispatcherInterface::class),
                     $options
                 );
@@ -99,7 +101,7 @@ class Session implements ServiceProviderInterface
             function (Container $container) {
                 /** @var Registry $config */
                 $config = $container->get('config');
-                $input  = $container->get(CMSInput::class);
+                $app    = Factory::getApplication();
 
                 /**
                  * Session handler for the session is always filesystem so it doesn't flip to the database after
@@ -129,11 +131,9 @@ class Session implements ServiceProviderInterface
                     $this->registerSessionHandlerAsService($container, $handler);
                 }
 
-                $options['cookie_domain'] = $config->get('cookie_domain', '');
-                $options['cookie_path']   = $config->get('cookie_path', '/');
-
-                return new \Joomla\CMS\Session\Session(
-                    new JoomlaStorage($input, $handler, $options),
+                return $this->buildSession(
+                    new JoomlaStorage($app->getInput(), $handler),
+                    $app,
                     $container->get(DispatcherInterface::class),
                     $options
                 );
@@ -146,10 +146,10 @@ class Session implements ServiceProviderInterface
             function (Container $container) {
                 /** @var Registry $config */
                 $config = $container->get('config');
-                $input  = $container->get(CMSInput::class);
+                $app    = Factory::getApplication();
 
                 // Generate a session name.
-                $name = $this->generateSessionName($config, SiteApplication::class);
+                $name = ApplicationHelper::getHash($config->get('session_name', SiteApplication::class));
 
                 // Calculate the session lifetime.
                 $lifetime = $config->get('lifetime') ? $config->get('lifetime') * 60 : 900;
@@ -170,11 +170,9 @@ class Session implements ServiceProviderInterface
                     $this->registerSessionHandlerAsService($container, $handler);
                 }
 
-                $options['cookie_domain'] = $config->get('cookie_domain', '');
-                $options['cookie_path']   = $config->get('cookie_path', '/');
-
-                return new \Joomla\CMS\Session\Session(
-                    new JoomlaStorage($input, $handler, $options),
+                return $this->buildSession(
+                    new JoomlaStorage($app->getInput(), $handler, $options),
+                    $app,
                     $container->get(DispatcherInterface::class),
                     $options
                 );
@@ -187,9 +185,10 @@ class Session implements ServiceProviderInterface
             function (Container $container) {
                 /** @var Registry $config */
                 $config = $container->get('config');
+                $app    = Factory::getApplication();
 
                 // Generate a session name.
-                $name = $this->generateSessionName($config, ConsoleApplication::class);
+                $name = ApplicationHelper::getHash($config->get('session_name', ConsoleApplication::class));
 
                 // Calculate the session lifetime.
                 $lifetime = $config->get('lifetime') ? $config->get('lifetime') * 60 : 900;
@@ -211,8 +210,9 @@ class Session implements ServiceProviderInterface
                     $this->registerSessionHandlerAsService($container, $handler);
                 }
 
-                return new \Joomla\CMS\Session\Session(
+                return $this->buildSession(
                     new RuntimeStorage(),
+                    $app,
                     $container->get(DispatcherInterface::class),
                     $options
                 );
@@ -258,7 +258,7 @@ class Session implements ServiceProviderInterface
                      */
                     if (!Factory::$application) {
                         throw new DependencyResolutionException(
-                            \sprintf(
+                            sprintf(
                                 'Creating the "session.metadata_manager" service requires %s::$application be initialised.',
                                 Factory::class
                             )
@@ -287,20 +287,32 @@ class Session implements ServiceProviderInterface
     }
 
     /**
-     * This is a straight up clone of \Joomla\CMS\Application\ApplicationHelper::getHash but instead getting the secret
-     * directly from the DIC rather than via the application - as we haven't actually set the app up yet in Factory
+     * Build the root session service
      *
-     * @param   Registry  $config       The application configuration.
-     * @param   string    $seedDefault  The default seed for the secret if there isn't a session name configured
-     *                                  globally. This is the relevant application's classname
+     * @param   StorageInterface         $storage     The session storage engine.
+     * @param   CMSApplicationInterface  $app         The application instance.
+     * @param   DispatcherInterface      $dispatcher  The event dispatcher.
+     * @param   array                    $options     The configured session options.
      *
-     * @return  string
+     * @return  SessionInterface
      *
      * @since   4.0.0
      */
-    private function generateSessionName(Registry $config, string $seedDefault): string
-    {
-        return md5($config->get('secret') . $config->get('session_name', $seedDefault));
+    private function buildSession(
+        StorageInterface $storage,
+        CMSApplicationInterface $app,
+        DispatcherInterface $dispatcher,
+        array $options
+    ): SessionInterface {
+        $input = $app->getInput();
+
+        if (method_exists($app, 'afterSessionStart')) {
+            $dispatcher->addListener(SessionEvents::START, [$app, 'afterSessionStart'], Priority::HIGH);
+        }
+
+        $session = new \Joomla\CMS\Session\Session($storage, $dispatcher, $options);
+
+        return $session;
     }
 
     /**

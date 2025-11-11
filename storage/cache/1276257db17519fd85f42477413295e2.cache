@@ -1,4 +1,4 @@
-a:6:{s:7:"headers";a:10:{i:0;s:27:"X-Frame-Options: SAMEORIGIN";i:1;s:31:"X-Content-Type-Options: nosniff";i:2;s:31:"X-XSS-Protection: 1; mode=block";i:3;s:38:"Content-Type: text/html; charset=UTF-8";i:4;s:61:"Link: <http://brutus.test/wp-json/>; rel="https://api.w.org/"";i:5;s:105:"Link: <http://brutus.test/wp-json/wp/v2/pages/17>; rel="alternate"; title="JSON"; type="application/json"";i:6;s:42:"Link: <http://brutus.test/>; rel=shortlink";i:7;s:13:"X-Cache: MISS";i:8;s:31:"X-Cache-Instance: wp-brutus-cli";i:9;s:27:"X-Powered-By: Ikabud-Kernel";}s:4:"body";s:267384:"<!doctype html>
+a:6:{s:7:"headers";a:11:{i:0;s:27:"X-Frame-Options: SAMEORIGIN";i:1;s:31:"X-Content-Type-Options: nosniff";i:2;s:31:"X-XSS-Protection: 1; mode=block";i:3;s:38:"Content-Type: text/html; charset=UTF-8";i:4;s:61:"Link: <http://brutus.test/wp-json/>; rel="https://api.w.org/"";i:5;s:105:"Link: <http://brutus.test/wp-json/wp/v2/pages/17>; rel="alternate"; title="JSON"; type="application/json"";i:6;s:42:"Link: <http://brutus.test/>; rel=shortlink";i:7;s:13:"X-Cache: MISS";i:8;s:31:"X-Cache-Instance: wp-brutus-cli";i:9;s:27:"X-Powered-By: Ikabud-Kernel";i:10;s:35:"Cache-Control: public, max-age=3600";}s:4:"body";s:267384:"<!doctype html>
 <html lang="en-US">
 
 <head>
@@ -4436,4 +4436,4 @@ body.aft-dark-mode #sidr,body.aft-dark-mode,body.aft-dark-mode.custom-background
 
 </body>
 
-</html>";s:9:"timestamp";i:1762760713;s:17:"extensions_loaded";a:0:{}s:15:"extension_count";i:0;s:8:"cms_type";s:9:"wordpress";}
+</html>";s:9:"timestamp";i:1762784221;s:17:"extensions_loaded";a:0:{}s:15:"extension_count";i:0;s:8:"cms_type";s:9:"wordpress";}

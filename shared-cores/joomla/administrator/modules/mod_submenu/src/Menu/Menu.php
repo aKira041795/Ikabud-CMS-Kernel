@@ -11,7 +11,6 @@
 namespace Joomla\Module\Submenu\Administrator\Menu;
 
 use Joomla\CMS\Component\ComponentHelper;
-use Joomla\CMS\Event\Menu\PreprocessMenuItemsEvent;
 use Joomla\CMS\Factory;
 use Joomla\CMS\Language\Associations;
 use Joomla\CMS\Language\Text;
@@ -42,23 +41,17 @@ abstract class Menu
      */
     public static function preprocess($parent)
     {
-        $app        = Factory::getApplication();
-        $user       = $app->getIdentity();
-        $children   = $parent->getChildren();
-        $language   = Factory::getLanguage();
-        $dispatcher = $app->getDispatcher();
+        $app      = Factory::getApplication();
+        $user     = $app->getIdentity();
+        $children = $parent->getChildren();
+        $language = Factory::getLanguage();
 
         /**
          * Trigger onPreprocessMenuItems for the current level of backend menu items.
          * $children is an array of MenuItem objects. A plugin can traverse the whole tree,
          * but new nodes will only be run through this method if their parents have not been processed yet.
          */
-        $children = $dispatcher->dispatch('onPreprocessMenuItems', new PreprocessMenuItemsEvent('onPreprocessMenuItems', [
-            'context' => 'administrator.module.mod_submenu',
-            'subject' => &$children, // @todo: Remove reference in Joomla 6, see PreprocessMenuItemsEvent::__constructor()
-            'params'  => null,
-            'enabled' => true,
-        ]))->getArgument('subject', $children);
+        $app->triggerEvent('onPreprocessMenuItems', ['administrator.module.mod_submenu', $children]);
 
         foreach ($children as $item) {
             if (substr($item->link, 0, 8) === 'special:') {

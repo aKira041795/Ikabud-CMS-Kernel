@@ -1,4 +1,4 @@
-a:6:{s:7:"headers";a:14:{i:0;s:31:"X-Content-Type-Options: nosniff";i:1;s:31:"X-XSS-Protection: 1; mode=block";i:2;s:89:"Set-Cookie: c3dcb113ba9b9f02a522f7a4de3a81b6=eka0o733bj5lru75q84ecqnhhr; path=/; HttpOnly";i:3;s:27:"x-frame-options: SAMEORIGIN";i:4;s:48:"referrer-policy: strict-origin-when-cross-origin";i:5;s:39:"cross-origin-opener-policy: same-origin";i:6;s:38:"Content-Type: text/html; charset=utf-8";i:7;s:38:"Expires: Wed, 17 Aug 2005 00:00:00 GMT";i:8;s:44:"Last-Modified: Mon, 10 Nov 2025 08:06:45 GMT";i:9;s:77:"Cache-Control: no-store, no-cache, must-revalidate, post-check=0, pre-check=0";i:10;s:16:"Pragma: no-cache";i:11;s:13:"X-Cache: MISS";i:12;s:42:"X-Cache-Instance: jml-joomla-the-beginning";i:13;s:27:"X-Powered-By: Ikabud-Kernel";}s:4:"body";s:7501:"<!DOCTYPE html>
+a:6:{s:7:"headers";a:11:{i:0;s:31:"X-Content-Type-Options: nosniff";i:1;s:31:"X-XSS-Protection: 1; mode=block";i:2;s:27:"x-frame-options: SAMEORIGIN";i:3;s:48:"referrer-policy: strict-origin-when-cross-origin";i:4;s:39:"cross-origin-opener-policy: same-origin";i:5;s:38:"Content-Type: text/html; charset=utf-8";i:6;s:44:"Last-Modified: Tue, 11 Nov 2025 14:59:39 GMT";i:7;s:13:"X-Cache: MISS";i:8;s:42:"X-Cache-Instance: jml-joomla-the-beginning";i:9;s:27:"X-Powered-By: Ikabud-Kernel";i:10;s:35:"Cache-Control: public, max-age=3600";}s:4:"body";s:7738:"<!DOCTYPE html>
 <html lang="en-gb" dir="ltr">
 
 <head>
@@ -12,10 +12,10 @@ a:6:{s:7:"headers";a:14:{i:0;s:31:"X-Content-Type-Options: nosniff";i:1;s:31:"X-
 	<link href="/media/system/images/favicon.ico" rel="alternate icon" type="image/vnd.microsoft.icon">
 	<link href="/media/system/images/joomla-favicon-pinned.svg" rel="mask-icon" color="#000">
 
-    <link href="/media/system/css/joomla-fontawesome.min.css?306cea" rel="lazy-stylesheet"><noscript><link href="/media/system/css/joomla-fontawesome.min.css?306cea" rel="stylesheet"></noscript>
-	<link href="/media/templates/site/cassiopeia/css/template.min.css?306cea" rel="stylesheet">
-	<link href="/media/templates/site/cassiopeia/css/global/colors_standard.min.css?306cea" rel="stylesheet">
-	<link href="/media/templates/site/cassiopeia/css/vendor/joomla-custom-elements/joomla-alert.min.css?0.2.0" rel="stylesheet">
+    <link href="/media/system/css/joomla-fontawesome.min.css?c951af768f7ea368f99456b6c01dc56d" rel="lazy-stylesheet" /><noscript><link href="/media/system/css/joomla-fontawesome.min.css?c951af768f7ea368f99456b6c01dc56d" rel="stylesheet" /></noscript>
+	<link href="/media/templates/site/cassiopeia/css/template.min.css?c951af768f7ea368f99456b6c01dc56d" rel="stylesheet" />
+	<link href="/media/templates/site/cassiopeia/css/global/colors_standard.min.css?c951af768f7ea368f99456b6c01dc56d" rel="stylesheet" />
+	<link href="/media/templates/site/cassiopeia/css/vendor/joomla-custom-elements/joomla-alert.min.css?0.2.0" rel="stylesheet" />
 	<style>:root {
 		--hue: 214;
 		--template-bg-light: #f0f4fb;
@@ -26,14 +26,14 @@ a:6:{s:7:"headers";a:14:{i:0;s:31:"X-Content-Type-Options: nosniff";i:1;s:31:"X-
 		
 	}</style>
 
-    <script src="/media/mod_menu/js/menu.min.js?306cea" type="module"></script>
-	<script type="application/json" class="joomla-script-options new">{"joomla.jtext":{"JSHOWPASSWORD":"Show Password","JHIDEPASSWORD":"Hide Password","ERROR":"Error","MESSAGE":"Message","NOTICE":"Notice","WARNING":"Warning","JCLOSE":"Close","JOK":"OK","JOPEN":"Open"},"system.paths":{"root":"","rootFull":"http://phoenix.test/","base":"","baseFull":"http://phoenix.test/"},"csrf.token":"d28cbfed74902c7b723696fedeacdedd","system.keepalive":{"interval":840000,"uri":"/component/ajax?format=json"}}</script>
+    <script type="application/json" class="joomla-script-options new">{"joomla.jtext":{"JSHOWPASSWORD":"Show Password","JHIDEPASSWORD":"Hide Password","ERROR":"Error","MESSAGE":"Message","NOTICE":"Notice","WARNING":"Warning","JCLOSE":"Close","JOK":"OK","JOPEN":"Open"},"system.paths":{"root":"","rootFull":"http:\/\/phoenix.test\/","base":"","baseFull":"http:\/\/phoenix.test\/"},"csrf.token":"2fc233692754244fdedb739f1ebd4d21","system.keepalive":{"interval":840000,"uri":"\/component\/ajax\/?format=json"},"plg_system_schedulerunner":{"interval":300}}</script>
 	<script src="/media/system/js/core.min.js?2cb912"></script>
-	<script src="/media/templates/site/cassiopeia/js/template.min.js?306cea" type="module"></script>
+	<script src="/media/templates/site/cassiopeia/js/template.min.js?c951af768f7ea368f99456b6c01dc56d" type="module"></script>
 	<script src="/media/system/js/keepalive.min.js?08e025" type="module"></script>
 	<script src="/media/system/js/fields/passwordview.min.js?d2a409" defer></script>
 	<script src="/media/system/js/messages.min.js?9a4811" type="module"></script>
-	<script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","@id":"http://phoenix.test/#/schema/BreadcrumbList/17","itemListElement":[{"@type":"ListItem","position":1,"item":{"@id":"http://phoenix.test/","name":"Home"}}]}</script>
+	<script src="/media/plg_system_schedulerunner/js/run-schedule.min.js?229d3b" type="module"></script>
+	<script type="application/ld+json">{"@context":"https:\/\/schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"item":{"@id":"http:\/\/phoenix.test\/","name":"Home"}}]}</script>
 
 </head>
 
@@ -70,7 +70,7 @@ a:6:{s:7:"headers";a:14:{i:0;s:31:"X-Content-Type-Options: nosniff";i:1;s:31:"X-
             <div id="system-message-container" aria-live="polite"></div>
 
             <main>
-                <div class="blog-featured">
+                <div class="blog-featured" itemscope itemtype="https://schema.org/Blog">
         <div class="page-header">
         <h1>
         Home        </h1>
@@ -135,18 +135,18 @@ a:6:{s:7:"headers";a:14:{i:0;s:31:"X-Content-Type-Options: nosniff";i:1;s:31:"X-
 
                     <ul class="mod-login__options list-unstyled">
                 <li>
-                    <a href="/component/users/reset">
+                    <a href="/component/users/reset?Itemid=101">
                     Forgot your password?</a>
                 </li>
                 <li>
-                    <a href="/component/users/remind">
+                    <a href="/component/users/remind?Itemid=101">
                     Forgot your username?</a>
                 </li>
                             </ul>
         <input type="hidden" name="option" value="com_users">
         <input type="hidden" name="task" value="user.login">
         <input type="hidden" name="return" value="aHR0cDovL3Bob2VuaXgudGVzdC8=">
-        <input type="hidden" name="d28cbfed74902c7b723696fedeacdedd" value="1">    </div>
+        <input type="hidden" name="2fc233692754244fdedb739f1ebd4d21" value="1">    </div>
     </form>
     </div>
 </div>
@@ -162,4 +162,4 @@ a:6:{s:7:"headers";a:14:{i:0;s:31:"X-Content-Type-Options: nosniff";i:1;s:31:"X-
 </body>
 
 </html>
-";s:9:"timestamp";i:1762762005;s:17:"extensions_loaded";a:0:{}s:15:"extension_count";i:0;s:8:"cms_type";s:6:"joomla";}
+";s:9:"timestamp";i:1762873179;s:17:"extensions_loaded";a:0:{}s:15:"extension_count";i:0;s:8:"cms_type";s:6:"joomla";}

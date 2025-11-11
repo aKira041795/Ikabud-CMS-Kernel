@@ -1,0 +1,9 @@
+name: 'User route alter test support'
+description: 'Provides test support for user route alter tests.'
+type: module
+# version: VERSION
+
+# Information added by Drupal.org packaging script on 2024-11-22
+version: '10.3.10'
+project: 'drupal'
+datestamp: 1732284484

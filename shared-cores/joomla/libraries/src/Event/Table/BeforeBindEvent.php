@@ -10,11 +10,11 @@
 namespace Joomla\CMS\Event\Table;
 
 // phpcs:disable PSR1.Files.SideEffects
-\defined('_JEXEC') or die;
+\defined('JPATH_PLATFORM') or die;
 // phpcs:enable PSR1.Files.SideEffects
 
 /**
- * Event class for Table onBeforeBind event
+ * Event class for JTable's onBeforeBind event
  *
  * @since  4.0.0
  */
@@ -24,8 +24,8 @@ class BeforeBindEvent extends AbstractEvent
      * Constructor.
      *
      * Mandatory arguments:
-     * subject      TableInterface The table we are operating on
-     * src          mixed           An associative array or object to bind to the Table instance.
+     * subject      JTableInterface The table we are operating on
+     * src          mixed           An associative array or object to bind to the JTable instance.
      * ignore       mixed           An optional array or space separated list of properties to ignore while binding.
      *
      * @param   string  $name       The event name.

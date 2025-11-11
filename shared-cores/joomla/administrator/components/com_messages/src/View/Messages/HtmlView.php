@@ -10,10 +10,12 @@
 
 namespace Joomla\Component\Messages\Administrator\View\Messages;
 
+use Joomla\CMS\Factory;
 use Joomla\CMS\Helper\ContentHelper;
 use Joomla\CMS\Language\Text;
 use Joomla\CMS\MVC\View\GenericDataException;
 use Joomla\CMS\MVC\View\HtmlView as BaseHtmlView;
+use Joomla\CMS\Toolbar\Toolbar;
 use Joomla\CMS\Toolbar\ToolbarHelper;
 
 // phpcs:disable PSR1.Files.SideEffects
@@ -44,7 +46,7 @@ class HtmlView extends BaseHtmlView
     /**
      * The model state
      *
-     * @var  \Joomla\Registry\Registry
+     * @var  \Joomla\CMS\Object\CMSObject
      */
     protected $state;
 
@@ -115,10 +117,10 @@ class HtmlView extends BaseHtmlView
     {
         $state = $this->get('State');
         $canDo = ContentHelper::getActions('com_messages');
-        $user  = $this->getCurrentUser();
+        $user  = Factory::getApplication()->getIdentity();
 
         // Get the toolbar object instance
-        $toolbar = $this->getDocument()->getToolbar();
+        $toolbar = Toolbar::getInstance('toolbar');
 
         ToolbarHelper::title(Text::_('COM_MESSAGES_MANAGER_MESSAGES'), 'envelope inbox');
 
@@ -156,7 +158,7 @@ class HtmlView extends BaseHtmlView
 
         if (!$this->isEmptyState && $this->state->get('filter.state') == -2 && $canDo->get('core.delete')) {
             $toolbar->delete('messages.delete')
-                ->text('JTOOLBAR_DELETE_FROM_TRASH')
+                ->text('JTOOLBAR_EMPTY_TRASH')
                 ->message('JGLOBAL_CONFIRM_DELETE')
                 ->listCheck(true);
         }

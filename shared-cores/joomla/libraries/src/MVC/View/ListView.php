@@ -10,15 +10,15 @@
 namespace Joomla\CMS\MVC\View;
 
 use Doctrine\Inflector\InflectorFactory;
-use Joomla\CMS\HTML\HTMLHelper;
+use Joomla\CMS\Factory;
 use Joomla\CMS\Language\Text;
 use Joomla\CMS\Layout\FileLayout;
+use Joomla\CMS\Object\CMSObject;
 use Joomla\CMS\Toolbar\Toolbar;
 use Joomla\CMS\Toolbar\ToolbarHelper;
-use Joomla\Registry\Registry;
 
 // phpcs:disable PSR1.Files.SideEffects
-\defined('_JEXEC') or die;
+\defined('JPATH_PLATFORM') or die;
 // phpcs:enable PSR1.Files.SideEffects
 
 /**
@@ -47,14 +47,14 @@ class ListView extends HtmlView
     /**
      * The model state
      *
-     * @var  \Joomla\Registry\Registry
+     * @var  CMSObject
      */
     protected $state;
 
     /**
      * The actions the user is authorised to perform
      *
-     * @var  Registry
+     * @var  CMSObject
      */
     protected $canDo;
 
@@ -138,8 +138,7 @@ class ListView extends HtmlView
         }
 
         // Set default value for $canDo to avoid fatal error if child class doesn't set value for this property
-        // Return a CanDo object to prevent any BC break, will be changed in 7.0 to Registry
-        $this->canDo = new CanDo();
+        $this->canDo = new CMSObject();
     }
 
     /**
@@ -185,7 +184,7 @@ class ListView extends HtmlView
                 \call_user_func([$helperClass, 'addSubmenu'], $this->getName());
             }
 
-            $this->sidebar = HTMLHelper::_('sidebar.render');
+            $this->sidebar = \JHtmlSidebar::render();
         }
 
         $this->items         = $this->get('Items');
@@ -205,10 +204,10 @@ class ListView extends HtmlView
     protected function addToolbar()
     {
         $canDo = $this->canDo;
-        $user  = $this->getCurrentUser();
+        $user  = Factory::getUser();
 
         // Get the toolbar object instance
-        $bar = $this->getDocument()->getToolbar();
+        $bar = Toolbar::getInstance('toolbar');
 
         $viewName         = $this->getName();
         $singularViewName = InflectorFactory::create()->build()->singularize($viewName);
@@ -258,7 +257,7 @@ class ListView extends HtmlView
                 $this->state->get('filter.published') == -2
             )
         ) {
-            ToolbarHelper::deleteList('JGLOBAL_CONFIRM_DELETE', $viewName . '.delete', 'JTOOLBAR_DELETE_FROM_TRASH');
+            ToolbarHelper::deleteList('JGLOBAL_CONFIRM_DELETE', $viewName . '.delete', 'JTOOLBAR_EMPTY_TRASH');
         } elseif ($canDo->get('core.edit.state')) {
             ToolbarHelper::trash($viewName . '.trash');
         }

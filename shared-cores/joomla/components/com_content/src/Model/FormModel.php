@@ -107,7 +107,7 @@ class FormModel extends \Joomla\Component\Content\Administrator\Model\ArticleMod
 
         // Compute selected asset permissions.
         $user   = $this->getCurrentUser();
-        $userId = $user->id;
+        $userId = $user->get('id');
         $asset  = 'com_content.article.' . $value->id;
 
         // Check general edit permission first.

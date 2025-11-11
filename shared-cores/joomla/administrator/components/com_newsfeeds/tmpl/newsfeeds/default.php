@@ -10,6 +10,7 @@
 
 defined('_JEXEC') or die;
 
+use Joomla\CMS\Factory;
 use Joomla\CMS\HTML\HTMLHelper;
 use Joomla\CMS\Language\Associations;
 use Joomla\CMS\Language\Multilanguage;
@@ -18,14 +19,12 @@ use Joomla\CMS\Layout\LayoutHelper;
 use Joomla\CMS\Router\Route;
 use Joomla\CMS\Session\Session;
 
-/** @var \Joomla\Component\Newsfeeds\Administrator\View\Newsfeeds\HtmlView $this */
-
 /** @var \Joomla\CMS\WebAsset\WebAssetManager $wa */
-$wa = $this->getDocument()->getWebAssetManager();
+$wa = $this->document->getWebAssetManager();
 $wa->useScript('table.columns')
     ->useScript('multiselect');
 
-$user      = $this->getCurrentUser();
+$user      = Factory::getUser();
 $listOrder = $this->escape($this->state->get('list.ordering'));
 $listDirn  = $this->escape($this->state->get('list.direction'));
 $saveOrder = $listOrder == 'a.ordering';
@@ -98,7 +97,7 @@ if ($saveOrder && !empty($this->items)) {
                             $ordering   = ($listOrder == 'a.ordering');
                             $canCreate  = $user->authorise('core.create', 'com_newsfeeds.category.' . $item->catid);
                             $canEdit    = $user->authorise('core.edit', 'com_newsfeeds.category.' . $item->catid);
-                            $canCheckin = $user->authorise('core.manage', 'com_checkin') || $item->checked_out == $user->id || is_null($item->checked_out);
+                            $canCheckin = $user->authorise('core.manage', 'com_checkin') || $item->checked_out == $user->get('id') || is_null($item->checked_out);
                             $canEditOwn = $user->authorise('core.edit.own', 'com_newsfeeds.category.' . $item->catid) && $item->created_by == $user->id;
                             $canChange  = $user->authorise('core.edit.state', 'com_newsfeeds.category.' . $item->catid) && $canCheckin;
                             ?>
@@ -183,7 +182,15 @@ if ($saveOrder && !empty($this->items)) {
                         && $user->authorise('core.edit', 'com_newsfeeds')
                         && $user->authorise('core.edit.state', 'com_newsfeeds')
                     ) : ?>
-                        <template id="joomla-dialog-batch"><?php echo $this->loadTemplate('batch_body'); ?></template>
+                        <?php echo HTMLHelper::_(
+                            'bootstrap.renderModal',
+                            'collapseModal',
+                            [
+                                'title'  => Text::_('COM_NEWSFEEDS_BATCH_OPTIONS'),
+                                'footer' => $this->loadTemplate('batch_footer'),
+                            ],
+                            $this->loadTemplate('batch_body')
+                        ); ?>
                     <?php endif; ?>
                 <?php endif; ?>
                 <input type="hidden" name="task" value="">

@@ -10,7 +10,7 @@
 namespace Joomla\CMS\Tree;
 
 // phpcs:disable PSR1.Files.SideEffects
-\defined('_JEXEC') or die;
+\defined('JPATH_PLATFORM') or die;
 // phpcs:enable PSR1.Files.SideEffects
 
 /**
@@ -148,8 +148,8 @@ trait ImmutableNodeTrait
     {
         if ($right) {
             return $this->_rightSibling;
+        } else {
+            return $this->_leftSibling;
         }
-
-        return $this->_leftSibling;
     }
 }

@@ -10,11 +10,13 @@
 
 namespace Joomla\Component\Guidedtours\Administrator\View\Tours;
 
+use Joomla\CMS\Factory;
 use Joomla\CMS\Helper\ContentHelper;
 use Joomla\CMS\Language\Multilanguage;
 use Joomla\CMS\Language\Text;
 use Joomla\CMS\MVC\View\GenericDataException;
 use Joomla\CMS\MVC\View\HtmlView as BaseHtmlView;
+use Joomla\CMS\Toolbar\Toolbar;
 use Joomla\CMS\Toolbar\ToolbarHelper;
 
 // phpcs:disable PSR1.Files.SideEffects
@@ -45,7 +47,7 @@ class HtmlView extends BaseHtmlView
     /**
      * The model state
      *
-     * @var \Joomla\Registry\Registry
+     * @var \Joomla\CMS\Object\CMSObject
      */
     protected $state;
 
@@ -117,12 +119,12 @@ class HtmlView extends BaseHtmlView
     protected function addToolbar()
     {
         // Get the toolbar object instance
-        $toolbar = $this->getDocument()->getToolbar();
+        $toolbar = Toolbar::getInstance('toolbar');
 
         ToolbarHelper::title(Text::_('COM_GUIDEDTOURS_TOURS_LIST'), 'map-signs');
 
         $canDo = ContentHelper::getActions('com_guidedtours');
-        $user  = $this->getCurrentUser();
+        $user  = Factory::getApplication()->getIdentity();
 
         if ($canDo->get('core.create')) {
             $toolbar->addNew('tour.add');
@@ -159,7 +161,7 @@ class HtmlView extends BaseHtmlView
 
         if (!$this->isEmptyState && $this->state->get('filter.published') == -2 && $canDo->get('core.delete')) {
             $toolbar->delete('tours.delete')
-                ->text('JTOOLBAR_DELETE_FROM_TRASH')
+                ->text('JTOOLBAR_EMPTY_TRASH')
                 ->message('JGLOBAL_CONFIRM_DELETE')
                 ->listCheck(true);
         }

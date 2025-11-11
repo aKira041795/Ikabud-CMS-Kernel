@@ -1,16 +1,6 @@
 (function () {
   'use strict';
 
-  function _extends() {
-    return _extends = Object.assign ? Object.assign.bind() : function (n) {
-      for (var e = 1; e < arguments.length; e++) {
-        var t = arguments[e];
-        for (var r in t) ({}).hasOwnProperty.call(t, r) && (n[r] = t[r]);
-      }
-      return n;
-    }, _extends.apply(null, arguments);
-  }
-
   /**
    * --------------------------------------------------------------------------
    * Bootstrap util/sanitizer.js
@@ -209,7 +199,7 @@
     if (destination === null) {
       newDestination = {};
     }
-    Object.keys(source).forEach(key => {
+    [].slice.call(Object.keys(source)).forEach(key => {
       newDestination[key] = source[key];
     });
     return destination;
@@ -253,8 +243,9 @@
   Joomla.loadOptions = options => {
     // Load form the script container
     if (!options) {
+      const elements = [].slice.call(document.querySelectorAll('.joomla-script-options.new'));
       let counter = 0;
-      document.querySelectorAll('.joomla-script-options.new').forEach(element => {
+      elements.forEach(element => {
         const str = element.text || element.textContent;
         const option = JSON.parse(str);
         if (option) {
@@ -273,7 +264,7 @@
       Joomla.optionsStorage = options || {};
     } else if (options) {
       // Merge with existing
-      Object.keys(options).forEach(key => {
+      [].slice.call(Object.keys(options)).forEach(key => {
         /**
          * If both existing and new options are objects, merge them with Joomla.extend().
          * But test for new option being null, as null is an object, but we want to allow
@@ -332,7 +323,7 @@
      * @returns {Joomla.Text}
      */
     load: object => {
-      Object.keys(object).forEach(key => {
+      [].slice.call(Object.keys(object)).forEach(key => {
         Joomla.Text.strings[key.toUpperCase()] = object[key];
       });
       return Joomla.Text;
@@ -576,8 +567,9 @@
     if (!/^[0-9A-F]{32}$/i.test(newToken)) {
       return;
     }
-    document.querySelectorAll('input[type="hidden"]').forEach(element => {
-      if (element.value === '1' && element.name.length === 32) {
+    const elements = [].slice.call(document.getElementsByTagName('input'));
+    elements.forEach(element => {
+      if (element.type === 'hidden' && element.value === '1' && element.name.length === 32) {
         element.name = newToken;
       }
     });
@@ -649,7 +641,7 @@
 
       // Custom headers
       if (newOptions.headers) {
-        Object.keys(newOptions.headers).forEach(key => {
+        [].slice.call(Object.keys(newOptions.headers)).forEach(key => {
           // Allow request without Content-Type
           // eslint-disable-next-line no-empty
           if (key === 'Content-Type' && newOptions.headers['Content-Type'] === 'false') ; else {
@@ -742,7 +734,10 @@
    * @return string
    */
   Joomla.sanitizeHtml = (unsafeHtml, allowList, sanitizeFn) => {
-    const allowed = allowList === undefined || allowList === null ? DefaultAllowlist : _extends({}, DefaultAllowlist, allowList);
+    const allowed = allowList === undefined || allowList === null ? DefaultAllowlist : {
+      ...DefaultAllowlist,
+      ...allowList
+    };
     return sanitizeHtml(unsafeHtml, allowed, sanitizeFn);
   };
 

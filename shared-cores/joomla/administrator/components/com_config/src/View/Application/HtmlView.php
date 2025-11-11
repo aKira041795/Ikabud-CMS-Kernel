@@ -14,6 +14,7 @@ use Joomla\CMS\Component\ComponentHelper;
 use Joomla\CMS\Factory;
 use Joomla\CMS\Language\Text;
 use Joomla\CMS\MVC\View\HtmlView as BaseHtmlView;
+use Joomla\CMS\Toolbar\Toolbar;
 use Joomla\CMS\Toolbar\ToolbarHelper;
 use Joomla\Component\Config\Administrator\Helper\ConfigHelper;
 
@@ -31,7 +32,7 @@ class HtmlView extends BaseHtmlView
     /**
      * The model state
      *
-     * @var   \Joomla\Registry\Registry
+     * @var    \Joomla\CMS\Object\CMSObject
      * @since  3.2
      */
     public $state;
@@ -51,34 +52,6 @@ class HtmlView extends BaseHtmlView
      * @since 3.2
      */
     public $data;
-
-    /**
-     * Title of the fieldset
-     *
-     * @var    string
-     */
-    public $name;
-
-    /**
-     * Name of the fields to display
-     *
-     * @var    string
-     */
-    public $fieldsname;
-
-    /**
-     * CSS class of the form
-     *
-     * @var    string
-     */
-    public $formclass;
-
-    /**
-     * Description of the fieldset
-     *
-     * @var    string
-     */
-    public $description;
 
     /**
      * Execute and display a template script.
@@ -137,7 +110,7 @@ class HtmlView extends BaseHtmlView
      */
     protected function addToolbar()
     {
-        $toolbar    = $this->getDocument()->getToolbar();
+        $toolbar    = Toolbar::getInstance();
 
         ToolbarHelper::title(Text::_('COM_CONFIG_GLOBAL_CONFIGURATION'), 'cog config');
         $toolbar->apply('application.apply');

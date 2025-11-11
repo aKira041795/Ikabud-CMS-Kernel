@@ -2,12 +2,10 @@
  * @copyright  (C) 2018 Open Source Matters, Inc. <https://www.joomla.org>
  * @license    GNU General Public License version 2 or later; see LICENSE.txt
  */
-const setUp = container => {
-  const batchSelector = container.getElementById('batch-group-id');
-  const batchCopyMove = container.getElementById('batch-copy-move');
-  if (!container || !batchCopyMove) {
-    return;
-  }
+document.addEventListener('DOMContentLoaded', () => {
+
+  const batchSelector = document.getElementById('batch-group-id');
+  const batchCopyMove = document.getElementById('batch-copy-move');
   batchCopyMove.classList.add('hidden');
   batchSelector.addEventListener('change', () => {
     if (batchSelector.value === 'nogroup' || batchSelector.value !== '') {
@@ -16,8 +14,4 @@ const setUp = container => {
       batchCopyMove.classList.add('hidden');
     }
   }, false);
-};
-setUp(document);
-document.addEventListener('joomla:loaded', ({
-  target
-}) => setUp(target));
+});

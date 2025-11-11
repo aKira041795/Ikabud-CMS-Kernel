@@ -9,8 +9,10 @@
 
 namespace Joomla\CMS\MVC\Model;
 
+use Joomla\CMS\Object\CMSObject;
+
 // phpcs:disable PSR1.Files.SideEffects
-\defined('_JEXEC') or die;
+\defined('JPATH_PLATFORM') or die;
 // phpcs:enable PSR1.Files.SideEffects
 
 /**
@@ -31,7 +33,7 @@ trait StateBehaviorTrait
     /**
      * A state object
      *
-     * @var    State
+     * @var    CMSObject
      * @since  4.0.0
      */
     protected $state = null;
@@ -49,7 +51,7 @@ trait StateBehaviorTrait
     public function getState($property = null, $default = null)
     {
         if ($this->state === null) {
-            $this->state = new State();
+            $this->state = new CMSObject();
         }
 
         if (!$this->__state_set) {
@@ -76,7 +78,7 @@ trait StateBehaviorTrait
     public function setState($property, $value = null)
     {
         if ($this->state === null) {
-            $this->state = new State();
+            $this->state = new CMSObject();
         }
 
         return $this->state->set($property, $value);

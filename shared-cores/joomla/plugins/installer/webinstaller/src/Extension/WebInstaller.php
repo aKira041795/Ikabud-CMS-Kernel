@@ -11,7 +11,6 @@
 namespace Joomla\Plugin\Installer\Web\Extension;
 
 use Joomla\CMS\Application\CMSApplication;
-use Joomla\CMS\Event\Installer\AddInstallationTabEvent;
 use Joomla\CMS\Form\Rule\UrlRule;
 use Joomla\CMS\Language\Text;
 use Joomla\CMS\Plugin\CMSPlugin;
@@ -19,7 +18,6 @@ use Joomla\CMS\Plugin\PluginHelper;
 use Joomla\CMS\Updater\Update;
 use Joomla\CMS\Uri\Uri;
 use Joomla\CMS\Version;
-use Joomla\Event\SubscriberInterface;
 
 // phpcs:disable PSR1.Files.SideEffects
 \defined('_JEXEC') or die;
@@ -30,7 +28,7 @@ use Joomla\Event\SubscriberInterface;
  *
  * @since  3.2
  */
-final class WebInstaller extends CMSPlugin implements SubscriberInterface
+final class WebInstaller extends CMSPlugin
 {
     /**
      * The URL for the remote server.
@@ -66,27 +64,13 @@ final class WebInstaller extends CMSPlugin implements SubscriberInterface
     private $rtl = null;
 
     /**
-     * Returns an array of events this subscriber will listen to.
-     *
-     * @return  array
-     *
-     * @since   5.0.0
-     */
-    public static function getSubscribedEvents(): array
-    {
-        return ['onInstallerAddInstallationTab' => 'onInstallerAddInstallationTab'];
-    }
-
-    /**
      * Event listener for the `onInstallerAddInstallationTab` event.
      *
-     * @param   AddInstallationTabEvent  $event  The event instance
-     *
-     * @return  void
+     * @return  array  Returns an array with the tab information
      *
      * @since   4.0.0
      */
-    public function onInstallerAddInstallationTab(AddInstallationTabEvent $event)
+    public function onInstallerAddInstallationTab()
     {
         // Load language files
         $this->loadLanguage();
@@ -141,7 +125,7 @@ final class WebInstaller extends CMSPlugin implements SubscriberInterface
         $tab['content'] = ob_get_clean();
         $tab['content'] = '<legend>' . $tab['label'] . '</legend>' . $tab['content'];
 
-        $event->addResult($tab);
+        return $tab;
     }
 
     /**

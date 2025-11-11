@@ -14,8 +14,6 @@ use Joomla\CMS\Access\Exception\NotAllowed;
 use Joomla\CMS\Factory;
 use Joomla\CMS\Language\Text;
 use Joomla\CMS\MVC\View\AbstractView;
-use Joomla\CMS\User\CurrentUserInterface;
-use Joomla\CMS\User\CurrentUserTrait;
 use Joomla\Component\Admin\Administrator\Model\SysinfoModel;
 
 // phpcs:disable PSR1.Files.SideEffects
@@ -27,10 +25,8 @@ use Joomla\Component\Admin\Administrator\Model\SysinfoModel;
  *
  * @since  3.5
  */
-class JsonView extends AbstractView implements CurrentUserInterface
+class JsonView extends AbstractView
 {
-    use CurrentUserTrait;
-
     /**
      * Execute and display a template script.
      *
@@ -45,7 +41,7 @@ class JsonView extends AbstractView implements CurrentUserInterface
     public function display($tpl = null): void
     {
         // Access check.
-        if (!$this->getCurrentUser()->authorise('core.admin')) {
+        if (!Factory::getUser()->authorise('core.admin')) {
             throw new NotAllowed(Text::_('JERROR_ALERTNOAUTHOR'), 403);
         }
 

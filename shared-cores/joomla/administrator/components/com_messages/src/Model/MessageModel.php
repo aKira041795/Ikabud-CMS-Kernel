@@ -24,8 +24,6 @@ use Joomla\CMS\Router\Route;
 use Joomla\CMS\Table\Asset;
 use Joomla\CMS\Table\Table;
 use Joomla\CMS\User\User;
-use Joomla\CMS\User\UserFactoryAwareInterface;
-use Joomla\CMS\User\UserFactoryAwareTrait;
 use Joomla\Database\ParameterType;
 use PHPMailer\PHPMailer\Exception as phpMailerException;
 
@@ -38,10 +36,8 @@ use PHPMailer\PHPMailer\Exception as phpMailerException;
  *
  * @since  1.6
  */
-class MessageModel extends AdminModel implements UserFactoryAwareInterface
+class MessageModel extends AdminModel
 {
-    use UserFactoryAwareTrait;
-
     /**
      * Message
      *
@@ -69,7 +65,7 @@ class MessageModel extends AdminModel implements UserFactoryAwareInterface
         $input = Factory::getApplication()->getInput();
 
         $user  = $this->getCurrentUser();
-        $this->setState('user.id', $user->id);
+        $this->setState('user.id', $user->get('id'));
 
         $messageId = (int) $input->getInt('message_id');
         $this->setState('message.id', $messageId);
@@ -300,7 +296,7 @@ class MessageModel extends AdminModel implements UserFactoryAwareInterface
 
         // Assign empty values.
         if (empty($table->user_id_from)) {
-            $table->user_id_from = $this->getCurrentUser()->id;
+            $table->user_id_from = $this->getCurrentUser()->get('id');
         }
 
         if ((int) $table->date_time == 0) {
@@ -315,7 +311,7 @@ class MessageModel extends AdminModel implements UserFactoryAwareInterface
         }
 
         // Load the user details (already valid from table check).
-        $toUser = $this->getUserFactory()->loadUserById($table->user_id_to);
+        $toUser = User::getInstance($table->user_id_to);
 
         // Check if recipient can access com_messages.
         if (!$toUser->authorise('core.login.admin') || !$toUser->authorise('core.manage', 'com_messages')) {
@@ -356,7 +352,7 @@ class MessageModel extends AdminModel implements UserFactoryAwareInterface
         }
 
         if ($config->get('mail_on_new', true)) {
-            $fromUser         = $this->getUserFactory()->loadUserById($table->user_id_from);
+            $fromUser         = User::getInstance($table->user_id_from);
             $debug            = Factory::getApplication()->get('debug_lang');
             $default_language = ComponentHelper::getParams('com_languages')->get('administrator');
             $lang             = Language::getInstance($toUser->getParam('admin_language', $default_language), $debug);
@@ -366,7 +362,7 @@ class MessageModel extends AdminModel implements UserFactoryAwareInterface
             $app      = Factory::getApplication();
             $linkMode = $app->get('force_ssl', 0) >= 1 ? Route::TLS_FORCE : Route::TLS_IGNORE;
             $sitename = $app->get('sitename');
-            $fromName = $fromUser->name;
+            $fromName = $fromUser->get('name');
             $siteURL  = Route::link(
                 'administrator',
                 'index.php?option=com_messages&view=message&message_id=' . $table->message_id,

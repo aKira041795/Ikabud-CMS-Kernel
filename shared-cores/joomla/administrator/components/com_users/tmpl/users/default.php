@@ -11,6 +11,7 @@
 defined('_JEXEC') or die;
 
 use Joomla\CMS\Access\Access;
+use Joomla\CMS\Factory;
 use Joomla\CMS\HTML\HTMLHelper;
 use Joomla\CMS\Language\Text;
 use Joomla\CMS\Layout\LayoutHelper;
@@ -22,13 +23,13 @@ use Joomla\CMS\String\PunycodeHelper;
 
 
 /** @var \Joomla\CMS\WebAsset\WebAssetManager $wa */
-$wa = $this->getDocument()->getWebAssetManager();
+$wa = $this->document->getWebAssetManager();
 $wa->useScript('table.columns')
     ->useScript('multiselect');
 
 $listOrder  = $this->escape($this->state->get('list.ordering'));
 $listDirn   = $this->escape($this->state->get('list.direction'));
-$loggeduser = $this->getCurrentUser();
+$loggeduser = Factory::getUser();
 $mfa        = PluginHelper::isEnabled('multifactorauth');
 
 ?>
@@ -131,7 +132,7 @@ $mfa        = PluginHelper::isEnabled('multifactorauth');
                                     </div>
                                     <?php echo HTMLHelper::_('users.notesModal', $item->note_count, $item->id); ?>
                                     <?php if ($item->requireReset == '1') : ?>
-                                        <span class="badge bg-warning"><?php echo Text::_('COM_USERS_PASSWORD_RESET_REQUIRED'); ?></span>
+                                        <span class="badge bg-warning text-dark"><?php echo Text::_('COM_USERS_PASSWORD_RESET_REQUIRED'); ?></span>
                                     <?php endif; ?>
                                 </th>
                                 <td class="break-word d-none d-md-table-cell">
@@ -216,7 +217,15 @@ $mfa        = PluginHelper::isEnabled('multifactorauth');
                         && $loggeduser->authorise('core.edit', 'com_users')
                         && $loggeduser->authorise('core.edit.state', 'com_users')
                     ) : ?>
-                        <template id="joomla-dialog-batch"><?php echo $this->loadTemplate('batch_body'); ?></template>
+                        <?php echo HTMLHelper::_(
+                            'bootstrap.renderModal',
+                            'collapseModal',
+                            [
+                                'title'  => Text::_('COM_USERS_BATCH_OPTIONS'),
+                                'footer' => $this->loadTemplate('batch_footer'),
+                            ],
+                            $this->loadTemplate('batch_body')
+                        ); ?>
                     <?php endif; ?>
                 <?php endif; ?>
 

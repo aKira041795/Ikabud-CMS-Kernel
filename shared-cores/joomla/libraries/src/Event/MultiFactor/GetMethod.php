@@ -16,7 +16,7 @@ use Joomla\CMS\Event\Result\ResultTypeObjectAware;
 use Joomla\Component\Users\Administrator\DataShape\MethodDescriptor;
 
 // phpcs:disable PSR1.Files.SideEffects
-\defined('_JEXEC') or die;
+\defined('JPATH_PLATFORM') or die;
 // phpcs:enable PSR1.Files.SideEffects
 
 /**

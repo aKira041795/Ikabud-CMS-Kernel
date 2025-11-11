@@ -135,7 +135,7 @@ class TransitionField extends GroupedlistField
         $component = reset($parts);
 
         if (\count($items)) {
-            $user = $this->getCurrentUser();
+            $user = Factory::getUser();
 
             $items = array_filter(
                 $items,

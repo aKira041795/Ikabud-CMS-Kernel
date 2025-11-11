@@ -11,10 +11,9 @@ namespace Joomla\CMS\Table;
 
 use Joomla\CMS\Language\Text;
 use Joomla\Database\DatabaseDriver;
-use Joomla\Event\DispatcherInterface;
 
 // phpcs:disable PSR1.Files.SideEffects
-\defined('_JEXEC') or die;
+\defined('JPATH_PLATFORM') or die;
 // phpcs:enable PSR1.Files.SideEffects
 
 /**
@@ -27,14 +26,13 @@ class ContentType extends Table
     /**
      * Constructor
      *
-     * @param   DatabaseDriver        $db          Database connector object
-     * @param   ?DispatcherInterface  $dispatcher  Event dispatcher for this table
+     * @param   DatabaseDriver  $db  A database connector object
      *
      * @since   3.1
      */
-    public function __construct(DatabaseDriver $db, ?DispatcherInterface $dispatcher = null)
+    public function __construct(DatabaseDriver $db)
     {
-        parent::__construct('#__content_types', 'type_id', $db, $dispatcher);
+        parent::__construct('#__content_types', 'type_id', $db);
     }
 
     /**
@@ -57,13 +55,13 @@ class ContentType extends Table
 
         // Check for valid name.
         if (trim($this->type_title) === '') {
-            throw new \UnexpectedValueException(\sprintf('The title is empty'));
+            throw new \UnexpectedValueException(sprintf('The title is empty'));
         }
 
         $this->type_title = ucfirst($this->type_title);
 
         if (empty($this->type_alias)) {
-            throw new \UnexpectedValueException(\sprintf('The type_alias is empty'));
+            throw new \UnexpectedValueException(sprintf('The type_alias is empty'));
         }
 
         return true;
@@ -81,7 +79,7 @@ class ContentType extends Table
     public function store($updateNulls = false)
     {
         // Verify that the alias is unique
-        $table = new self($this->getDbo(), $this->getDispatcher());
+        $table = Table::getInstance('Contenttype', 'JTable', ['dbo' => $this->getDbo()]);
 
         if ($table->load(['type_alias' => $this->type_alias]) && ($table->type_id != $this->type_id || $this->type_id == 0)) {
             $this->setError(Text::_('COM_TAGS_ERROR_UNIQUE_ALIAS'));
@@ -117,7 +115,7 @@ class ContentType extends Table
      */
     public function getTypeId($typeAlias)
     {
-        $db    = $this->getDbo();
+        $db    = $this->_db;
         $query = $db->getQuery(true);
         $query->select($db->quoteName('type_id'))
             ->from($db->quoteName($this->_tbl))

@@ -1,23 +1,22 @@
-@charset "UTF-8";
 #finder-filter-window {
-  width: 100%;
-  margin: 10px 0;
-  padding: 0;
+  margin: 10px 0 10px;
   overflow: auto;
+  padding: 0;
+  width: 100%;
 }
 
 ul#finder-filter-select-dates {
+  list-style: none;
   margin: 0;
   padding: 0;
-  list-style: none;
 }
 
 ul#finder-filter-select-dates li.filter-date {
   background: none;
-  width: 49%;
+  list-style: none;
   margin: 0;
   padding: 5px 0;
-  list-style: none;
+  width: 49%;
 }
 
 ul#finder-filter-select-dates li.filter-date select.filter-date-operator {

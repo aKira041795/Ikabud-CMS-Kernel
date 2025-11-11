@@ -29,10 +29,7 @@ if (!file_exists(JPATH_LIBRARIES . '/vendor/autoload.php')) {
     die('Joomla vendor dependencies not found.');
 }
 
-// Load Joomla's defines.php to set JPATH_THEMES and other constants
-require_once JPATH_LIBRARIES . '/../includes/defines.php';
-
-// Load administrator framework from shared core
+// Load administrator framework from shared core (skip defines.php - already defined in instance defines.php)
 require_once JPATH_LIBRARIES . '/../administrator/includes/framework.php';
 
 // Set profiler start time

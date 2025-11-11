@@ -11,15 +11,12 @@
 namespace Joomla\Component\Privacy\Administrator\Model;
 
 use Joomla\CMS\Component\ComponentHelper;
-use Joomla\CMS\Event\Privacy\CanRemoveDataEvent;
-use Joomla\CMS\Event\Privacy\RemoveDataEvent;
 use Joomla\CMS\Factory;
 use Joomla\CMS\Language\Text;
 use Joomla\CMS\MVC\Model\BaseDatabaseModel;
 use Joomla\CMS\Plugin\PluginHelper;
 use Joomla\CMS\Table\Table;
-use Joomla\CMS\User\UserFactoryAwareInterface;
-use Joomla\CMS\User\UserFactoryAwareTrait;
+use Joomla\CMS\User\User;
 use Joomla\Component\Actionlogs\Administrator\Model\ActionlogModel;
 use Joomla\Component\Privacy\Administrator\Removal\Status;
 use Joomla\Component\Privacy\Administrator\Table\RequestTable;
@@ -33,10 +30,8 @@ use Joomla\Component\Privacy\Administrator\Table\RequestTable;
  *
  * @since  3.9.0
  */
-class RemoveModel extends BaseDatabaseModel implements UserFactoryAwareInterface
+class RemoveModel extends BaseDatabaseModel
 {
-    use UserFactoryAwareTrait;
-
     /**
      * Remove the user data.
      *
@@ -89,18 +84,14 @@ class RemoveModel extends BaseDatabaseModel implements UserFactoryAwareInterface
                 ->setLimit(1)
         )->loadResult();
 
-        $user = $userId ? $this->getUserFactory()->loadUserById($userId) : null;
+        $user = $userId ? User::getInstance($userId) : null;
 
-        $canRemove  = true;
-        $dispatcher = $this->getDispatcher();
+        $canRemove = true;
 
-        PluginHelper::importPlugin('privacy', null, true, $dispatcher);
+        PluginHelper::importPlugin('privacy');
 
         /** @var Status[] $pluginResults */
-        $pluginResults = $dispatcher->dispatch('onPrivacyCanRemoveData', new CanRemoveDataEvent('onPrivacyCanRemoveData', [
-            'subject' => $table,
-            'user'    => $user,
-        ]))->getArgument('result', []);
+        $pluginResults = Factory::getApplication()->triggerEvent('onPrivacyCanRemoveData', [$table, $user]);
 
         foreach ($pluginResults as $status) {
             if (!$status->canRemove) {
@@ -119,10 +110,7 @@ class RemoveModel extends BaseDatabaseModel implements UserFactoryAwareInterface
         // Log the removal
         $this->logRemove($table);
 
-        $dispatcher->dispatch('onPrivacyRemoveData', new RemoveDataEvent('onPrivacyRemoveData', [
-            'subject' => $table,
-            'user'    => $user,
-        ]));
+        Factory::getApplication()->triggerEvent('onPrivacyRemoveData', [$table, $user]);
 
         return true;
     }

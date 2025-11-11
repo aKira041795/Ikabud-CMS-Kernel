@@ -12,7 +12,7 @@ namespace Joomla\CMS\Form\Field;
 use Joomla\CMS\Form\FormField;
 
 // phpcs:disable PSR1.Files.SideEffects
-\defined('_JEXEC') or die;
+\defined('JPATH_PLATFORM') or die;
 // phpcs:enable PSR1.Files.SideEffects
 
 /**
@@ -126,7 +126,7 @@ class FileField extends FormField
      */
     protected function getInput()
     {
-        return $this->getRenderer($this->layout)->render($this->collectLayoutData());
+        return $this->getRenderer($this->layout)->render($this->getLayoutData());
     }
 
     /**

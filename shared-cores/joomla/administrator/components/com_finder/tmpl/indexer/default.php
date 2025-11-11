@@ -13,8 +13,6 @@ defined('_JEXEC') or die;
 use Joomla\CMS\Factory;
 use Joomla\CMS\Language\Text;
 
-/** @var \Joomla\Component\Finder\Administrator\View\Indexer\HtmlView $this */
-
 Text::script('COM_FINDER_INDEXER_MESSAGE_COMPLETE');
 Text::script('COM_FINDER_AN_ERROR_HAS_OCCURRED');
 Text::script('COM_FINDER_MESSAGE_RETURNED');
@@ -22,7 +20,7 @@ Text::script('JLIB_JS_AJAX_ERROR_OTHER');
 Text::script('JLIB_JS_AJAX_ERROR_PARSE');
 
 /** @var Joomla\CMS\WebAsset\WebAssetManager $wa */
-$wa = $this->getDocument()->getWebAssetManager();
+$wa = $this->document->getWebAssetManager();
 $wa->useScript('keepalive')
     ->useStyle('com_finder.indexer')
     ->useScript('com_finder.indexer');

@@ -10,15 +10,15 @@
 
 defined('_JEXEC') or die;
 
+use Joomla\CMS\Factory;
 use Joomla\CMS\HTML\HTMLHelper;
 use Joomla\CMS\Language\Text;
 use Joomla\CMS\Router\Route;
 
-/** @var \Joomla\Component\Config\Site\View\Templates\HtmlView $this */
-$user = $this->getCurrentUser();
+$user = Factory::getUser();
 
 /** @var Joomla\CMS\WebAsset\WebAssetManager $wa */
-$wa = $this->getDocument()->getWebAssetManager();
+$wa = $this->document->getWebAssetManager();
 $wa->useScript('keepalive')
     ->useScript('form.validate')
     ->useScript('com_config.templates');
@@ -48,7 +48,7 @@ $wa->useScript('keepalive')
     <input type="hidden" name="task" value="">
     <?php echo HTMLHelper::_('form.token'); ?>
 
-    <div class="d-grid gap-2 d-sm-block mb-2">
+    <div class="mb-2">
     <button type="button" class="btn btn-primary " data-submit-task="templates.apply">
         <span class="icon-check text-white" aria-hidden="true"></span>
         <?php echo Text::_('JSAVE') ?>

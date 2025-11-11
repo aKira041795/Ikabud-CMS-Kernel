@@ -1,17 +1,18 @@
-@charset "UTF-8";
 .match-custom .control-group .control-label {
   width: auto;
-  padding: 0;
+  padding: 0 0 0 0;
 }
 
 .match-custom .control-group .controls {
-  min-width: 7rem;
+  /* flex: 1; */
   display: inline-block;
+  min-width: 7rem;
 }
 
 .match-custom .control-group {
-  margin-right: 1.5rem;
+  /* display: flex; */
   display: inline-block;
+  margin-right: 1.5rem;
 }
 
 .match-custom label {

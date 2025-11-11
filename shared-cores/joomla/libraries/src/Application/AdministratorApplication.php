@@ -11,9 +11,6 @@ namespace Joomla\CMS\Application;
 
 use Joomla\Application\Web\WebClient;
 use Joomla\CMS\Component\ComponentHelper;
-use Joomla\CMS\Event\Application\AfterDispatchEvent;
-use Joomla\CMS\Event\Application\AfterInitialiseDocumentEvent;
-use Joomla\CMS\Event\Application\AfterRouteEvent;
 use Joomla\CMS\Factory;
 use Joomla\CMS\Filter\InputFilter;
 use Joomla\CMS\Input\Input;
@@ -27,7 +24,7 @@ use Joomla\DI\Container;
 use Joomla\Registry\Registry;
 
 // phpcs:disable PSR1.Files.SideEffects
-\defined('_JEXEC') or die;
+\defined('JPATH_PLATFORM') or die;
 // phpcs:enable PSR1.Files.SideEffects
 
 /**
@@ -58,20 +55,20 @@ class AdministratorApplication extends CMSApplication
     /**
      * Class constructor.
      *
-     * @param   ?Input      $input      An optional argument to provide dependency injection for the application's input
-     *                                  object.  If the argument is a JInput object that object will become the
-     *                                  application's input object, otherwise a default input object is created.
-     * @param   ?Registry   $config     An optional argument to provide dependency injection for the application's config
-     *                                  object.  If the argument is a Registry object that object will become the
-     *                                  application's config object, otherwise a default config object is created.
-     * @param   ?WebClient  $client     An optional argument to provide dependency injection for the application's
-     *                                  client object.  If the argument is a WebClient object that object will become the
-     *                                  application's client object, otherwise a default client object is created.
-     * @param   ?Container  $container  Dependency injection container.
+     * @param   Input      $input      An optional argument to provide dependency injection for the application's input
+     *                                 object.  If the argument is a JInput object that object will become the
+     *                                 application's input object, otherwise a default input object is created.
+     * @param   Registry   $config     An optional argument to provide dependency injection for the application's config
+     *                                 object.  If the argument is a Registry object that object will become the
+     *                                 application's config object, otherwise a default config object is created.
+     * @param   WebClient  $client     An optional argument to provide dependency injection for the application's
+     *                                 client object.  If the argument is a WebClient object that object will become the
+     *                                 application's client object, otherwise a default client object is created.
+     * @param   Container  $container  Dependency injection container.
      *
      * @since   3.2
      */
-    public function __construct(?Input $input = null, ?Registry $config = null, ?WebClient $client = null, ?Container $container = null)
+    public function __construct(Input $input = null, Registry $config = null, WebClient $client = null, Container $container = null)
     {
         // Register the application name
         $this->name = 'administrator';
@@ -107,6 +104,9 @@ class AdministratorApplication extends CMSApplication
         // Set up the params
         $document = Factory::getDocument();
 
+        // Register the document object with Factory
+        Factory::$document = $document;
+
         switch ($document->getType()) {
             case 'html':
                 // Get the template
@@ -140,21 +140,12 @@ class AdministratorApplication extends CMSApplication
         $document->setDescription($this->get('MetaDesc'));
         $document->setGenerator('Joomla! - Open Source Content Management');
 
-        // Trigger the onAfterInitialiseDocument event.
-        PluginHelper::importPlugin('system', null, true, $this->getDispatcher());
-        $this->dispatchEvent(
-            'onAfterInitialiseDocument',
-            new AfterInitialiseDocumentEvent('onAfterInitialiseDocument', ['subject' => $this, 'document' => $document])
-        );
-
         $contents = ComponentHelper::renderComponent($component);
-        $document->setBuffer($contents, ['type' => 'component']);
+        $document->setBuffer($contents, 'component');
 
         // Trigger the onAfterDispatch event.
-        $this->dispatchEvent(
-            'onAfterDispatch',
-            new AfterDispatchEvent('onAfterDispatch', ['subject' => $this])
-        );
+        PluginHelper::importPlugin('system');
+        $this->triggerEvent('onAfterDispatch');
     }
 
     /**
@@ -410,7 +401,7 @@ class AdministratorApplication extends CMSApplication
         $rootUser = $this->get('root_user');
 
         if (property_exists('\JConfig', 'root_user')) {
-            if ($this->getIdentity()->username === $rootUser || $this->getIdentity()->id === (string) $rootUser) {
+            if (Factory::getUser()->get('username') === $rootUser || Factory::getUser()->id === (string) $rootUser) {
                 $this->enqueueMessage(
                     Text::sprintf(
                         'JWARNING_REMOVE_ROOT_USER',
@@ -418,7 +409,7 @@ class AdministratorApplication extends CMSApplication
                     ),
                     'warning'
                 );
-            } elseif ($this->getIdentity()->authorise('core.admin')) {
+            } elseif (Factory::getUser()->authorise('core.admin')) {
                 // Show this message to superusers too
                 $this->enqueueMessage(
                     Text::sprintf(
@@ -459,11 +450,8 @@ class AdministratorApplication extends CMSApplication
         $this->isHandlingMultiFactorAuthentication();
 
         // Trigger the onAfterRoute event.
-        PluginHelper::importPlugin('system', null, true, $this->getDispatcher());
-        $this->dispatchEvent(
-            'onAfterRoute',
-            new AfterRouteEvent('onAfterRoute', ['subject' => $this])
-        );
+        PluginHelper::importPlugin('system');
+        $this->triggerEvent('onAfterRoute');
     }
 
     /**
@@ -487,8 +475,8 @@ class AdministratorApplication extends CMSApplication
          * request to go through. Otherwise we force com_login to be loaded, letting the user (re)try authenticating
          * with a user account that has the Backend Login privilege.
          */
-        if ($user->guest || !$user->authorise('core.login.admin')) {
-            $option = \in_array($option, $this->allowedUnprivilegedOptions) ? $option : 'com_login';
+        if ($user->get('guest') || !$user->authorise('core.login.admin')) {
+            $option = in_array($option, $this->allowedUnprivilegedOptions) ? $option : 'com_login';
         }
 
         /**

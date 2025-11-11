@@ -6,8 +6,11 @@
 (() => {
 
   document.addEventListener('DOMContentLoaded', () => {
-    document.querySelectorAll('.article-status').forEach(element => {
-      element.addEventListener('click', event => event.stopPropagation());
+    const elements = [].slice.call(document.querySelectorAll('.article-status'));
+    elements.forEach(element => {
+      element.addEventListener('click', event => {
+        event.stopPropagation();
+      });
     });
   });
 })();

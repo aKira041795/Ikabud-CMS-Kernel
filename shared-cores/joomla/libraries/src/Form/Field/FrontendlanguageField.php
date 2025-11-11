@@ -12,7 +12,7 @@ namespace Joomla\CMS\Form\Field;
 use Joomla\CMS\Factory;
 
 // phpcs:disable PSR1.Files.SideEffects
-\defined('_JEXEC') or die;
+\defined('JPATH_PLATFORM') or die;
 // phpcs:enable PSR1.Files.SideEffects
 
 /**
@@ -64,7 +64,7 @@ class FrontendlanguageField extends ListField
         } catch (\RuntimeException $e) {
             $languages = [];
 
-            if ($this->getCurrentUser()->authorise('core.admin')) {
+            if (Factory::getUser()->authorise('core.admin')) {
                 Factory::getApplication()->enqueueMessage($e->getMessage(), 'error');
             }
         }

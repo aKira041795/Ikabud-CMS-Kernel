@@ -35,4 +35,6 @@ const handleCategoryToggleButtonClick = ({
   const target = document.getElementById(`category-${categoryId}`);
   target.toggleAttribute('hidden');
 };
-document.querySelectorAll(buttonsSelector).forEach(button => button.addEventListener('click', handleCategoryToggleButtonClick));
+Array.from(document.querySelectorAll(buttonsSelector)).forEach(button => {
+  button.addEventListener('click', handleCategoryToggleButtonClick);
+});

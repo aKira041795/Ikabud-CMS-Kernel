@@ -61,6 +61,9 @@ $app->post('/api/auth/login', function (Request $request, Response $response) {
             $stmt = $db->prepare("INSERT INTO login_attempts (ip_address, username, attempted_at) VALUES (?, ?, NOW())");
             $stmt->execute([$ipAddress, $username]);
             
+            // Debug logging (remove in production)
+            error_log("LOGIN_FAILED: User not found or inactive - username: {$username}");
+            
             $response->getBody()->write(json_encode([
                 'success' => false,
                 'error' => 'Invalid username or password'
@@ -73,6 +76,9 @@ $app->post('/api/auth/login', function (Request $request, Response $response) {
             // Log failed attempt
             $stmt = $db->prepare("INSERT INTO login_attempts (ip_address, username, attempted_at) VALUES (?, ?, NOW())");
             $stmt->execute([$ipAddress, $username]);
+            
+            // Debug logging (remove in production)
+            error_log("LOGIN_FAILED: Password mismatch - username: {$username}");
             
             $response->getBody()->write(json_encode([
                 'success' => false,

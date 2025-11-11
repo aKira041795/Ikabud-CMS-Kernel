@@ -19,7 +19,7 @@ use Joomla\CMS\Updater\Updater;
 use Joomla\CMS\Version;
 
 // phpcs:disable PSR1.Files.SideEffects
-\defined('_JEXEC') or die;
+\defined('JPATH_PLATFORM') or die;
 // phpcs:enable PSR1.Files.SideEffects
 
 /**
@@ -29,9 +29,6 @@ use Joomla\CMS\Version;
  */
 class ExtensionAdapter extends UpdateAdapter
 {
-    protected $currentUpdate;
-    protected $latest;
-
     /**
      * Start element parser callback.
      *
@@ -63,8 +60,8 @@ class ExtensionAdapter extends UpdateAdapter
                 $this->currentUpdate->infourl        = '';
                 break;
 
+            // Don't do anything
             case 'UPDATES':
-                // Don't do anything
                 break;
 
             default:

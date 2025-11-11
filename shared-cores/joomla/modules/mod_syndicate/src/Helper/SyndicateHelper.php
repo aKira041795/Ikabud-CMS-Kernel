@@ -33,9 +33,9 @@ class SyndicateHelper
      *
      * @return  string|null  The link as a string, if found
      *
-     * @since   5.1.0
+     * @since   1.5
      */
-    public function getSyndicateLink(Registry $params, HtmlDocument $document)
+    public static function getLink(Registry $params, HtmlDocument $document)
     {
         foreach ($document->_links as $link => $value) {
             $value = ArrayHelper::toString($value);
@@ -46,26 +46,5 @@ class SyndicateHelper
         }
 
         return null;
-    }
-
-    /**
-     * Gets the link
-     *
-     * @param   Registry      $params    The module parameters
-     * @param   HtmlDocument  $document  The document
-     *
-     * @return  string|null  The link as a string, if found
-     *
-     * @since   1.5
-     *
-     * @deprecated 5.1.0 will be removed in 7.0
-     *             Use the non-static method getSyndicateLink
-     *             Example: Factory::getApplication()->bootModule('mod_syndicate', 'site')
-     *                            ->getHelper('SyndicateHelper')
-     *                            ->getSyndicateLink($params, Factory::getApplication()->getDocument())
-     */
-    public static function getLink(Registry $params, HtmlDocument $document)
-    {
-        return (new self())->getSyndicateLink($params, $document);
     }
 }

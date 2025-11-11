@@ -40,9 +40,10 @@ class Edit {
     customElements.whenDefined('joomla-tab').then(async () => {
       const tabContainer = document.getElementById('myTab');
       const tabsUlElement = tabContainer.firstElementChild;
+      const links = [].slice.call(tabsUlElement.querySelectorAll('button[aria-controls]'));
 
       // Couple the tabs with the plugin objects
-      tabsUlElement.querySelectorAll('button[aria-controls]').forEach((link, index) => {
+      links.forEach((link, index) => {
         const tab = document.getElementById(link.getAttribute('aria-controls'));
         if (index === 0) {
           tab.insertAdjacentElement('beforeend', this.baseContainer);
@@ -121,7 +122,7 @@ class Edit {
   }
 
   // Reset the image to the initial state
-  Reset(/* current */
+  Reset( /* current */
   ) {
     this.current.contents = `data:image/${this.fileType};base64,${this.options.contents}`;
     this.imagePreview.setAttribute('src', this.current.contents);
@@ -147,7 +148,7 @@ class Edit {
 
   // @TODO Update the progress bar
   // eslint-disable-next-line class-methods-use-this
-  updateProgressBar(/* position */) {}
+  updateProgressBar( /* position */) {}
 
   // @TODO Remove the progress bar
   // eslint-disable-next-line class-methods-use-this

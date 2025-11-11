@@ -15,6 +15,7 @@ use Joomla\CMS\Helper\ContentHelper;
 use Joomla\CMS\Language\Text;
 use Joomla\CMS\MVC\View\GenericDataException;
 use Joomla\CMS\MVC\View\HtmlView as BaseHtmlView;
+use Joomla\CMS\Object\CMSObject;
 use Joomla\CMS\Toolbar\Toolbar;
 use Joomla\CMS\Toolbar\ToolbarHelper;
 
@@ -47,7 +48,7 @@ class HtmlView extends BaseHtmlView
     /**
      * The model state.
      *
-     * @var   \Joomla\Registry\Registry
+     * @var   CMSObject
      * @since 1.6
      */
     protected $state;
@@ -66,7 +67,7 @@ class HtmlView extends BaseHtmlView
         $this->state = $this->get('State');
 
         // Check for errors.
-        if (\count($errors = $this->get('Errors'))) {
+        if (count($errors = $this->get('Errors'))) {
             throw new GenericDataException(implode("\n", $errors), 500);
         }
 
@@ -88,7 +89,7 @@ class HtmlView extends BaseHtmlView
 
         $isNew   = ($this->item->id == 0);
         $canDo   = ContentHelper::getActions('com_users');
-        $toolbar = $this->getDocument()->getToolbar();
+        $toolbar = Toolbar::getInstance();
 
         ToolbarHelper::title(Text::_($isNew ? 'COM_USERS_VIEW_NEW_LEVEL_TITLE' : 'COM_USERS_VIEW_EDIT_LEVEL_TITLE'), 'user-lock levels-add');
 

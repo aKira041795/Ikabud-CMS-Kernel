@@ -10,10 +10,8 @@
 
 namespace Joomla\Plugin\WebServices\Media\Extension;
 
-use Joomla\CMS\Event\Application\BeforeApiRouteEvent;
 use Joomla\CMS\Plugin\CMSPlugin;
 use Joomla\CMS\Router\ApiRouter;
-use Joomla\Event\SubscriberInterface;
 use Joomla\Router\Route;
 
 // phpcs:disable PSR1.Files.SideEffects
@@ -25,35 +23,27 @@ use Joomla\Router\Route;
  *
  * @since  4.1.0
  */
-final class Media extends CMSPlugin implements SubscriberInterface
+final class Media extends CMSPlugin
 {
     /**
-     * Returns an array of events this subscriber will listen to.
+     * Load the language file on instantiation.
      *
-     * @return  array
-     *
-     * @since   5.1.0
+     * @var    boolean
+     * @since  4.1.0
      */
-    public static function getSubscribedEvents(): array
-    {
-        return [
-            'onBeforeApiRoute' => 'onBeforeApiRoute',
-        ];
-    }
+    protected $autoloadLanguage = true;
 
     /**
      * Registers com_media's API's routes in the application.
      *
-     * @param   BeforeApiRouteEvent  $event  The event object
+     * @param   ApiRouter  &$router  The API Routing object
      *
      * @return  void
      *
      * @since   4.1.0
      */
-    public function onBeforeApiRoute(BeforeApiRouteEvent $event): void
+    public function onBeforeApiRoute(&$router): void
     {
-        $router = $event->getRouter();
-
         $this->createAdapterReadRoutes(
             $router,
             'v1/media/adapters',

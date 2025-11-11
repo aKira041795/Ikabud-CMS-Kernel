@@ -25,7 +25,7 @@ use Tobscure\JsonApi\Exception\Handler\FallbackExceptionHandler;
 use Tobscure\JsonApi\Exception\Handler\ResponseBag;
 
 // phpcs:disable PSR1.Files.SideEffects
-\defined('_JEXEC') or die;
+\defined('JPATH_PLATFORM') or die;
 // phpcs:enable PSR1.Files.SideEffects
 
 /**

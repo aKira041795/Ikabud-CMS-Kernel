@@ -16,6 +16,7 @@ use Joomla\CMS\MVC\View\GenericDataException;
 use Joomla\CMS\MVC\View\HtmlView as BaseHtmlView;
 use Joomla\CMS\Router\Route;
 use Joomla\CMS\Toolbar\Button\DropdownButton;
+use Joomla\CMS\Toolbar\Toolbar;
 use Joomla\CMS\Toolbar\ToolbarHelper;
 
 // phpcs:disable PSR1.Files.SideEffects
@@ -44,13 +45,6 @@ class HtmlView extends BaseHtmlView
      * @since  4.0.0
      */
     protected $stage;
-
-    /**
-     * The model state
-     *
-     * @var  object
-     */
-    protected $state;
 
     /**
      * The HTML for displaying sidebar
@@ -137,7 +131,7 @@ class HtmlView extends BaseHtmlView
         $this->workflow      = $this->get('Workflow');
 
         // Check for errors.
-        if (\count($errors = $this->get('Errors'))) {
+        if (count($errors = $this->get('Errors'))) {
             throw new GenericDataException(implode("\n", $errors), 500);
         }
 
@@ -169,7 +163,7 @@ class HtmlView extends BaseHtmlView
 
         $user = $this->getCurrentUser();
 
-        $toolbar = $this->getDocument()->getToolbar();
+        $toolbar = Toolbar::getInstance('toolbar');
 
         ToolbarHelper::title(Text::sprintf('COM_WORKFLOW_STAGES_LIST', Text::_($this->state->get('active_workflow', ''))), 'address contact');
 
@@ -209,7 +203,7 @@ class HtmlView extends BaseHtmlView
         }
 
         if ($this->state->get('filter.published') === '-2' && $canDo->get('core.delete')) {
-            $toolbar->delete('stages.delete', 'JTOOLBAR_DELETE_FROM_TRASH')
+            $toolbar->delete('stages.delete', 'JTOOLBAR_EMPTY_TRASH')
                 ->message('JGLOBAL_CONFIRM_DELETE')
                 ->listCheck(true);
         }

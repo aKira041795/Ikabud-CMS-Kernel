@@ -18,7 +18,6 @@ use Joomla\CMS\Table\Table;
 use Joomla\Component\Associations\Administrator\Helper\AssociationsHelper;
 use Joomla\Database\Exception\ExecutionFailureException;
 use Joomla\Database\ParameterType;
-use Joomla\Database\QueryInterface;
 
 // phpcs:disable PSR1.Files.SideEffects
 \defined('_JEXEC') or die;
@@ -34,13 +33,13 @@ class AssociationsModel extends ListModel
     /**
      * Override parent constructor.
      *
-     * @param   array                 $config   An optional associative array of configuration settings.
-     * @param   ?MVCFactoryInterface  $factory  The factory.
+     * @param   array                $config   An optional associative array of configuration settings.
+     * @param   MVCFactoryInterface  $factory  The factory.
      *
      * @see     \Joomla\CMS\MVC\Model\BaseDatabaseModel
      * @since   3.7
      */
-    public function __construct($config = [], ?MVCFactoryInterface $factory = null)
+    public function __construct($config = [], MVCFactoryInterface $factory = null)
     {
         if (empty($config['filter_fields'])) {
             $config['filter_fields'] = [
@@ -101,6 +100,13 @@ class AssociationsModel extends ListModel
         $this->setState('itemtype', $this->getUserStateFromRequest($this->context . '.itemtype', 'itemtype', '', 'string'));
         $this->setState('language', $this->getUserStateFromRequest($this->context . '.language', 'language', '', 'string'));
 
+        $this->setState('filter.search', $this->getUserStateFromRequest($this->context . '.filter.search', 'filter_search', '', 'string'));
+        $this->setState('filter.state', $this->getUserStateFromRequest($this->context . '.filter.state', 'filter_state', '', 'cmd'));
+        $this->setState('filter.category_id', $this->getUserStateFromRequest($this->context . '.filter.category_id', 'filter_category_id', '', 'cmd'));
+        $this->setState('filter.menutype', $this->getUserStateFromRequest($this->context . '.filter.menutype', 'filter_menutype', '', 'string'));
+        $this->setState('filter.access', $this->getUserStateFromRequest($this->context . '.filter.access', 'filter_access', '', 'string'));
+        $this->setState('filter.level', $this->getUserStateFromRequest($this->context . '.filter.level', 'filter_level', '', 'cmd'));
+
         // List state information.
         parent::populateState($ordering, $direction);
 
@@ -146,7 +152,7 @@ class AssociationsModel extends ListModel
     /**
      * Build an SQL query to load the list data.
      *
-     * @return  QueryInterface|boolean
+     * @return  \Joomla\Database\DatabaseQuery|boolean
      *
      * @since  3.7.0
      */
@@ -389,7 +395,7 @@ class AssociationsModel extends ListModel
         $baselevel = 1;
 
         if ($categoryId = $this->getState('filter.category_id')) {
-            $categoryTable = Table::getInstance('Category', '\\Joomla\\CMS\\Table\\');
+            $categoryTable = Table::getInstance('Category', 'JTable');
             $categoryTable->load($categoryId);
             $baselevel = (int) $categoryTable->level;
 

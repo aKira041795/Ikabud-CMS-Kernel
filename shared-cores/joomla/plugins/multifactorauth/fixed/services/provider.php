@@ -8,7 +8,7 @@
  * @license     GNU General Public License version 2 or later; see LICENSE.txt
  */
 
-\defined('_JEXEC') || die;
+defined('_JEXEC') || die;
 
 use Joomla\CMS\Extension\PluginInterface;
 use Joomla\CMS\Plugin\PluginHelper;
@@ -32,7 +32,10 @@ return new class () implements ServiceProviderInterface {
         $container->set(
             PluginInterface::class,
             function (Container $container) {
-                return new Fixed($container->get(DispatcherInterface::class), (array) PluginHelper::getPlugin('multifactorauth', 'fixed'));
+                $config  = (array) PluginHelper::getPlugin('multifactorauth', 'fixed');
+                $subject = $container->get(DispatcherInterface::class);
+
+                return new Fixed($subject, $config);
             }
         );
     }

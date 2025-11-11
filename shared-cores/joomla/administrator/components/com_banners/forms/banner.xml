@@ -77,7 +77,7 @@
 			name="description"
 			type="editor"
 			label="JGLOBAL_DESCRIPTION"
-			filter="\Joomla\CMS\Component\ComponentHelper::filterText"
+			filter="JComponentHelper::filterText"
 			buttons="true"
 			hide="readmore,pagebreak,module,article,contact,menu"
 		/>

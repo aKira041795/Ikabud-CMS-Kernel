@@ -13,20 +13,20 @@ use Joomla\Application\AbstractApplication;
 use Joomla\CMS\Application\CLI\CliInput;
 use Joomla\CMS\Application\CLI\CliOutput;
 use Joomla\CMS\Application\CLI\Output\Stdout;
-use Joomla\CMS\Event\Application\AfterExecuteEvent;
-use Joomla\CMS\Event\Application\BeforeExecuteEvent;
 use Joomla\CMS\Extension\ExtensionManagerTrait;
 use Joomla\CMS\Factory;
 use Joomla\CMS\Language\Language;
 use Joomla\DI\Container;
 use Joomla\DI\ContainerAwareTrait;
+use Joomla\Event\DispatcherAwareInterface;
+use Joomla\Event\DispatcherAwareTrait;
 use Joomla\Event\DispatcherInterface;
 use Joomla\Input\Input;
 use Joomla\Registry\Registry;
 use Joomla\Session\SessionInterface;
 
 // phpcs:disable PSR1.Files.SideEffects
-\defined('_JEXEC') or die;
+\defined('JPATH_PLATFORM') or die;
 // phpcs:enable PSR1.Files.SideEffects
 
 /**
@@ -37,8 +37,9 @@ use Joomla\Session\SessionInterface;
  * @deprecated  4.0 will be removed in 6.0
  *              Use the ConsoleApplication instead
  */
-abstract class CliApplication extends AbstractApplication implements CMSApplicationInterface
+abstract class CliApplication extends AbstractApplication implements DispatcherAwareInterface, CMSApplicationInterface
 {
+    use DispatcherAwareTrait;
     use EventAware;
     use IdentityAware;
     use ContainerAwareTrait;
@@ -96,29 +97,29 @@ abstract class CliApplication extends AbstractApplication implements CMSApplicat
     /**
      * Class constructor.
      *
-     * @param   ?Input                $input       An optional argument to provide dependency injection for the application's
-     *                                             input object.  If the argument is a JInputCli object that object will become
-     *                                             the application's input object, otherwise a default input object is created.
-     * @param   ?Registry             $config      An optional argument to provide dependency injection for the application's
-     *                                             config object.  If the argument is a Registry object that object will become
-     *                                             the application's config object, otherwise a default config object is created.
-     * @param   ?CliOutput            $output      The output handler.
-     * @param   ?CliInput             $cliInput    The CLI input handler.
-     * @param   ?DispatcherInterface  $dispatcher  An optional argument to provide dependency injection for the application's
-     *                                             event dispatcher.  If the argument is a DispatcherInterface object that object will become
-     *                                             the application's event dispatcher, if it is null then the default event dispatcher
-     *                                             will be created based on the application's loadDispatcher() method.
-     * @param   ?Container            $container   Dependency injection container.
+     * @param   Input                $input       An optional argument to provide dependency injection for the application's
+     *                                            input object.  If the argument is a JInputCli object that object will become
+     *                                            the application's input object, otherwise a default input object is created.
+     * @param   Registry             $config      An optional argument to provide dependency injection for the application's
+     *                                            config object.  If the argument is a Registry object that object will become
+     *                                            the application's config object, otherwise a default config object is created.
+     * @param   CliOutput            $output      The output handler.
+     * @param   CliInput             $cliInput    The CLI input handler.
+     * @param   DispatcherInterface  $dispatcher  An optional argument to provide dependency injection for the application's
+     *                                            event dispatcher.  If the argument is a DispatcherInterface object that object will become
+     *                                            the application's event dispatcher, if it is null then the default event dispatcher
+     *                                            will be created based on the application's loadDispatcher() method.
+     * @param   Container            $container   Dependency injection container.
      *
      * @since   1.7.0
      */
     public function __construct(
-        ?Input $input = null,
-        ?Registry $config = null,
-        ?CliOutput $output = null,
-        ?CliInput $cliInput = null,
-        ?DispatcherInterface $dispatcher = null,
-        ?Container $container = null
+        Input $input = null,
+        Registry $config = null,
+        CliOutput $output = null,
+        CliInput $cliInput = null,
+        DispatcherInterface $dispatcher = null,
+        Container $container = null
     ) {
         // Close the application if we are not executed from the command line.
         if (!\defined('STDOUT') || !\defined('STDIN') || !isset($_SERVER['argv'])) {
@@ -178,7 +179,7 @@ abstract class CliApplication extends AbstractApplication implements CMSApplicat
             default:
                 $trace = debug_backtrace();
                 trigger_error(
-                    \sprintf(
+                    sprintf(
                         'Undefined property via __get(): %1$s in %2$s on line %3$s',
                         $name,
                         $trace[0]['file'],
@@ -235,7 +236,7 @@ abstract class CliApplication extends AbstractApplication implements CMSApplicat
         // Only create the object if it doesn't exist.
         if (empty(static::$instance)) {
             if (!class_exists($name)) {
-                throw new \RuntimeException(\sprintf('Unable to load application: %s', $name), 500);
+                throw new \RuntimeException(sprintf('Unable to load application: %s', $name), 500);
             }
 
             static::$instance = new $name();
@@ -256,19 +257,13 @@ abstract class CliApplication extends AbstractApplication implements CMSApplicat
         $this->createExtensionNamespaceMap();
 
         // Trigger the onBeforeExecute event
-        $this->dispatchEvent(
-            'onBeforeExecute',
-            new BeforeExecuteEvent('onBeforeExecute', ['subject' => $this, 'container' => $this->getContainer()])
-        );
+        $this->triggerEvent('onBeforeExecute');
 
         // Perform application routines.
         $this->doExecute();
 
         // Trigger the onAfterExecute event.
-        $this->dispatchEvent(
-            'onAfterExecute',
-            new AfterExecuteEvent('onAfterExecute', ['subject' => $this])
-        );
+        $this->triggerEvent('onAfterExecute');
     }
 
     /**

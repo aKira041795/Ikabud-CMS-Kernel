@@ -454,7 +454,6 @@
 			label="COM_CONFIG_FIELD_SERVER_TIMEZONE_LABEL"
 			description="COM_CONFIG_FIELD_SERVER_TIMEZONE_DESC"
 			default="UTC"
-			layout="joomla.form.field.groupedlist-fancy-select"
 			>
 			<option value="UTC">JLIB_FORM_VALUE_TIMEZONE_UTC</option>
 		</field>
@@ -627,9 +626,9 @@
 			type="textarea"
 			label="COM_CONFIG_FIELD_METADESC_LABEL"
 			filter="string"
+			cols="60"
 			rows="3"
-			cols="30"
-			maxlength="300"
+			maxlength="160"
 			charcounter="true"
 		/>
 

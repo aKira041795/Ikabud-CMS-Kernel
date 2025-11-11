@@ -30,14 +30,14 @@ use Joomla\Component\Menus\Administrator\Helper\MenusHelper;
 class XmlView extends BaseHtmlView
 {
     /**
-     * @var  AdministratorMenuItem[]
+     * @var  \stdClass[]
      *
      * @since  3.8.0
      */
     protected $items;
 
     /**
-     * @var   \Joomla\Registry\Registry
+     * @var    \Joomla\CMS\Object\CMSObject
      *
      * @since  3.8.0
      */

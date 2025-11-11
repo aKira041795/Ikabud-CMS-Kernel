@@ -7,8 +7,6 @@
  *
  * Copyright (c) 2014 Thomas Kjærgaard
  *
- * ADAPTED BY: Joomla for use in the Joomla! CMS
- *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
  * in the Software without restriction, including without limitation the rights
@@ -48,7 +46,7 @@ class PasswordStrength {
     score += this.constructor.calc(value, /[A-Z]/g, this.uppercase, mods);
     score += this.constructor.calc(value, /[0-9]/g, this.numbers, mods);
     // eslint-disable-next-line no-useless-escape
-    score += this.constructor.calc(value, /[@$!#?=;:*\-_€%&()`´+[\]{}'"\\|,.<>/~^]/g, this.special, mods);
+    score += this.constructor.calc(value, /[$!#?=;:*\-_€%&()`´]/g, this.special, mods);
     if (mods === 1) {
       score += value.length > this.length ? 100 : 100 / this.length * value.length;
     } else {
@@ -103,7 +101,7 @@ class PasswordStrength {
     }
   };
   document.addEventListener('DOMContentLoaded', () => {
-    const fields = document.querySelectorAll('.js-password-strength');
+    const fields = [].slice.call(document.querySelectorAll('.js-password-strength'));
 
     // Loop  through the fields
     fields.forEach((field, index) => {
@@ -136,7 +134,9 @@ class PasswordStrength {
       // Add a listener for input data change
       field.addEventListener('keyup', ({
         target
-      }) => getMeter(target));
+      }) => {
+        getMeter(target);
+      });
     });
 
     // Set a handler for the validation script

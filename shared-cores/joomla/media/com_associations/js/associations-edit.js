@@ -6,7 +6,8 @@ Joomla = window.Joomla || {};
 ((Joomla, document) => {
 
   Joomla.hideAssociation = (formControl, languageCode) => {
-    document.querySelectorAll('#associations .control-group').forEach(element => {
+    const controlGroup = [].slice.call(document.querySelectorAll('#associations .control-group'));
+    controlGroup.forEach(element => {
       // Current selected language. Hide it
       const el = element.querySelector('.control-label label');
       if (el) {
@@ -18,13 +19,14 @@ Joomla = window.Joomla || {};
     });
   };
   Joomla.showAssociationMessage = () => {
+    const controlGroup = [].slice.call(document.querySelectorAll('#associations .control-group'));
     const associations = document.getElementById('associations');
     if (associations) {
       const html = document.createElement('joomla-alert');
       html.innerText = Joomla.Text._('JGLOBAL_ASSOC_NOT_POSSIBLE');
       associations.insertAdjacentElement('afterbegin', html);
     }
-    document.querySelectorAll('#associations .control-group').forEach(element => {
+    controlGroup.forEach(element => {
       element.classList.add('hidden');
     });
   };
@@ -55,7 +57,7 @@ Joomla = window.Joomla || {};
     let functionName;
     if (result.success) {
       if (result.data.length !== 0) {
-        Object.keys(result.data).forEach(lang => {
+        [].slice.call(Object.keys(result.data)).forEach(lang => {
           functionName = callbackFunctionPrefix + lang.replace('-', '_');
           window[functionName](result.data[lang].id, result.data[lang].title, result.data[lang].catid, null, null, lang);
         });
@@ -159,7 +161,8 @@ Joomla = window.Joomla || {};
         /** For each language, remove the associations, ie,
          *  empty the associations fields and reset the buttons to Select/Create
          */
-        document.querySelectorAll('#associations .control-group').forEach(element => {
+        const controlGroup = [].slice.call(document.querySelectorAll('#associations .control-group'));
+        controlGroup.forEach(element => {
           const attribute = element.querySelector('.control-label label').getAttribute('for');
           const languageCode = attribute.replace('_name', '').replace('jform_associations_', '');
 
@@ -172,9 +175,12 @@ Joomla = window.Joomla || {};
           }
 
           // Call the modal clear button
-          let clear = document.getElementById(`${formControl}_associations_${languageCode}_clear`);
-          clear = clear || element.querySelector('[data-button-action="clear"]');
-          clear.click();
+          const clear = document.getElementById(`${formControl}_associations_${languageCode}_clear`);
+          if (clear.onclick) {
+            clear.onclick();
+          } else if (clear.click) {
+            clear.click();
+          }
         });
 
         // If associations existed, send a warning to the user

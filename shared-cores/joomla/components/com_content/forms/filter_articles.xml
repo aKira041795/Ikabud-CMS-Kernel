@@ -13,7 +13,8 @@
 		<field
 			name="published"
 			type="status"
-			label="JSTATUS"
+			label="COM_CONTENT_FILTER_PUBLISHED"
+			description="COM_CONTENT_FILTER_PUBLISHED_DESC"
 			onchange="this.form.submit();"
 			>
 			<option value="">JOPTION_SELECT_PUBLISHED</option>
@@ -22,7 +23,7 @@
 		<field
 			name="category_id"
 			type="category"
-			label="JCATEGORY"
+			label="JOPTION_SELECT_CATEGORY"
 			multiple="true"
 			extension="com_content"
 			layout="joomla.form.field.list-fancy-select"
@@ -34,7 +35,7 @@
 		<field
 			name="access"
 			type="accesslevel"
-			label="JGRID_HEADING_ACCESS"
+			label="JOPTION_SELECT_ACCESS"
 			multiple="true"
 			layout="joomla.form.field.list-fancy-select"
 			hint="JOPTION_SELECT_ACCESS"
@@ -44,7 +45,7 @@
 		<field
 			name="author_id"
 			type="author"
-			label="JAUTHOR"
+			label="JOPTION_SELECT_AUTHOR"
 			multiple="true"
 			layout="joomla.form.field.list-fancy-select"
 			hint="JOPTION_SELECT_AUTHOR"
@@ -56,7 +57,8 @@
 		<field
 			name="level"
 			type="integer"
-			label="JGLOBAL_MAXLEVEL_LABEL"
+			label="JOPTION_FILTER_LEVEL"
+			description="JOPTION_FILTER_LEVEL_DESC"
 			first="1"
 			last="10"
 			step="1"
@@ -69,7 +71,8 @@
 		<field
 			name="language"
 			type="contentlanguage"
-			label="JGRID_HEADING_LANGUAGE"
+			label="JOPTION_FILTER_LANGUAGE"
+			description="JOPTION_FILTER_LANGUAGE_DESC"
 			onchange="this.form.submit();"
 			>
 			<option value="">JOPTION_SELECT_LANGUAGE</option>
@@ -92,7 +95,8 @@
 		<field
 			name="fullordering"
 			type="list"
-			label="JGLOBAL_SORT_BY"
+			label="COM_CONTENT_LIST_FULL_ORDERING"
+			description="COM_CONTENT_LIST_FULL_ORDERING_DESC"
 			onchange="this.form.submit();"
 			default="a.title ASC"
 			validate="options"
@@ -127,7 +131,8 @@
 		<field
 			name="limit"
 			type="limitbox"
-			label="JGLOBAL_LIST_LIMIT"
+			label="COM_CONTENT_LIST_LIMIT"
+			description="COM_CONTENT_LIST_LIMIT_DESC"
 			default="25"
 			onchange="this.form.submit();"
 		/>

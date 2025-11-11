@@ -11,12 +11,10 @@
 namespace Joomla\Plugin\ApiAuthentication\Basic\Extension;
 
 use Joomla\CMS\Authentication\Authentication;
-use Joomla\CMS\Event\User\AuthenticationEvent;
 use Joomla\CMS\Plugin\CMSPlugin;
 use Joomla\CMS\User\UserFactoryAwareTrait;
 use Joomla\CMS\User\UserHelper;
 use Joomla\Database\DatabaseAwareTrait;
-use Joomla\Event\SubscriberInterface;
 
 // phpcs:disable PSR1.Files.SideEffects
 \defined('_JEXEC') or die;
@@ -27,36 +25,24 @@ use Joomla\Event\SubscriberInterface;
  *
  * @since  4.0.0
  */
-final class Basic extends CMSPlugin implements SubscriberInterface
+final class Basic extends CMSPlugin
 {
     use DatabaseAwareTrait;
     use UserFactoryAwareTrait;
 
     /**
-     * Returns an array of events this subscriber will listen to.
-     *
-     * @return  array
-     *
-     * @since   5.2.0
-     */
-    public static function getSubscribedEvents(): array
-    {
-        return ['onUserAuthenticate' => 'onUserAuthenticate'];
-    }
-
-    /**
      * This method should handle any authentication and report back to the subject
      *
-     * @param   AuthenticationEvent  $event    Authentication event
+     * @param   array   $credentials  Array holding the user credentials
+     * @param   array   $options      Array of extra options
+     * @param   object  &$response    Authentication response object
      *
      * @return  void
      *
      * @since   4.0.0
      */
-    public function onUserAuthenticate(AuthenticationEvent $event): void
+    public function onUserAuthenticate($credentials, $options, &$response)
     {
-        $response = $event->getAuthenticationResponse();
-
         $response->type = 'Basic';
 
         $username = $this->getApplication()->getInput()->server->get('PHP_AUTH_USER', '', 'USERNAME');

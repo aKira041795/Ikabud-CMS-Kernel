@@ -14,7 +14,6 @@ use Joomla\CMS\Cache\CacheControllerFactoryAwareTrait;
 use Joomla\CMS\Cache\Controller\CallbackController;
 use Joomla\CMS\Cache\Exception\CacheExceptionInterface;
 use Joomla\CMS\Component\ComponentHelper;
-use Joomla\CMS\Event\Model\AfterCleanCacheEvent;
 use Joomla\CMS\Extension\ComponentInterface;
 use Joomla\CMS\Factory;
 use Joomla\CMS\Language\Text;
@@ -25,6 +24,7 @@ use Joomla\CMS\MVC\Factory\MVCFactoryServiceInterface;
 use Joomla\CMS\Table\Table;
 use Joomla\CMS\User\CurrentUserInterface;
 use Joomla\CMS\User\CurrentUserTrait;
+use Joomla\Database\DatabaseAwareInterface;
 use Joomla\Database\DatabaseAwareTrait;
 use Joomla\Database\DatabaseInterface;
 use Joomla\Database\DatabaseQuery;
@@ -32,10 +32,11 @@ use Joomla\Database\Exception\DatabaseNotFoundException;
 use Joomla\Event\DispatcherAwareInterface;
 use Joomla\Event\DispatcherAwareTrait;
 use Joomla\Event\DispatcherInterface;
+use Joomla\Event\Event;
 use Joomla\Event\EventInterface;
 
 // phpcs:disable PSR1.Files.SideEffects
-\defined('_JEXEC') or die;
+\defined('JPATH_PLATFORM') or die;
 // phpcs:enable PSR1.Files.SideEffects
 
 /**
@@ -49,7 +50,8 @@ abstract class BaseDatabaseModel extends BaseModel implements
     DatabaseModelInterface,
     DispatcherAwareInterface,
     CurrentUserInterface,
-    CacheControllerFactoryAwareInterface
+    CacheControllerFactoryAwareInterface,
+    DatabaseAwareInterface
 {
     use DatabaseAwareTrait;
     use MVCFactoryAwareTrait;
@@ -82,7 +84,7 @@ abstract class BaseDatabaseModel extends BaseModel implements
      * @since   3.0
      * @throws  \Exception
      */
-    public function __construct($config = [], ?MVCFactoryInterface $factory = null)
+    public function __construct($config = [], MVCFactoryInterface $factory = null)
     {
         parent::__construct($config);
 
@@ -105,7 +107,7 @@ abstract class BaseDatabaseModel extends BaseModel implements
         $db = \array_key_exists('dbo', $config) ? $config['dbo'] : Factory::getDbo();
 
         if ($db) {
-            @trigger_error(\sprintf('Database is not available in constructor in 6.0.'), E_USER_DEPRECATED);
+            @trigger_error(sprintf('Database is not available in constructor in 6.0.'), E_USER_DEPRECATED);
             $this->setDatabase($db);
 
             // Is needed, when models use the deprecated MVC DatabaseAwareTrait, as the trait is overriding the local functions
@@ -114,10 +116,10 @@ abstract class BaseDatabaseModel extends BaseModel implements
 
         // Set the default view search path
         if (\array_key_exists('table_path', $config)) {
-            static::addTablePath($config['table_path']);
+            $this->addTablePath($config['table_path']);
         } elseif (\defined('JPATH_COMPONENT_ADMINISTRATOR')) {
-            static::addTablePath(JPATH_COMPONENT_ADMINISTRATOR . '/tables');
-            static::addTablePath(JPATH_COMPONENT_ADMINISTRATOR . '/table');
+            $this->addTablePath(JPATH_COMPONENT_ADMINISTRATOR . '/tables');
+            $this->addTablePath(JPATH_COMPONENT_ADMINISTRATOR . '/table');
         }
 
         // Set the clean cache event
@@ -155,13 +157,13 @@ abstract class BaseDatabaseModel extends BaseModel implements
     protected function _getList($query, $limitstart = 0, $limit = 0)
     {
         if (\is_string($query)) {
-            $query = $this->getDatabase()->getQuery(true)->setQuery($query);
+            $query = $this->getDbo()->getQuery(true)->setQuery($query);
         }
 
         $query->setLimit($limit, $limitstart);
-        $this->getDatabase()->setQuery($query);
+        $this->getDbo()->setQuery($query);
 
-        return $this->getDatabase()->loadObjectList();
+        return $this->getDbo()->loadObjectList();
     }
 
     /**
@@ -192,9 +194,9 @@ abstract class BaseDatabaseModel extends BaseModel implements
             $query = clone $query;
             $query->clear('select')->clear('order')->clear('limit')->clear('offset')->select('COUNT(*)');
 
-            $this->getDatabase()->setQuery($query);
+            $this->getDbo()->setQuery($query);
 
-            return (int) $this->getDatabase()->loadResult();
+            return (int) $this->getDbo()->loadResult();
         }
 
         // Otherwise fall back to inefficient way of counting all results.
@@ -205,10 +207,10 @@ abstract class BaseDatabaseModel extends BaseModel implements
             $query->clear('limit')->clear('offset')->clear('order');
         }
 
-        $this->getDatabase()->setQuery($query);
-        $this->getDatabase()->execute();
+        $this->getDbo()->setQuery($query);
+        $this->getDbo()->execute();
 
-        return (int) $this->getDatabase()->getNumRows();
+        return (int) $this->getDbo()->getNumRows();
     }
 
     /**
@@ -221,13 +223,13 @@ abstract class BaseDatabaseModel extends BaseModel implements
      * @return  Table|boolean  Table object or boolean false if failed
      *
      * @since   3.0
-     * @see     Table::getInstance()
+     * @see     \JTable::getInstance()
      */
     protected function _createTable($name, $prefix = 'Table', $config = [])
     {
         // Make sure we are returning a DBO object
         if (!\array_key_exists('dbo', $config)) {
-            $config['dbo'] = $this->getDatabase();
+            $config['dbo'] = $this->getDbo();
         }
 
         $table = $this->getMVCFactory()->createTable($name, $prefix, $config);
@@ -316,7 +318,7 @@ abstract class BaseDatabaseModel extends BaseModel implements
         }
 
         // Trigger the onContentCleanCache event.
-        $this->getDispatcher()->dispatch($this->event_clean_cache, new AfterCleanCacheEvent($this->event_clean_cache, $options));
+        $this->dispatchEvent(new Event($this->event_clean_cache, $options));
     }
 
     /**
@@ -348,7 +350,7 @@ abstract class BaseDatabaseModel extends BaseModel implements
     {
         if (!$this->dispatcher) {
             @trigger_error(
-                \sprintf('Dispatcher for %s should be set through MVC factory. It will throw an exception in 6.0', __CLASS__),
+                sprintf('Dispatcher for %s should be set through MVC factory. It will throw an exception in 6.0', __CLASS__),
                 E_USER_DEPRECATED
             );
 
@@ -374,7 +376,7 @@ abstract class BaseDatabaseModel extends BaseModel implements
         $this->getDispatcher()->dispatch($event->getName(), $event);
 
         @trigger_error(
-            \sprintf(
+            sprintf(
                 'Method %s is deprecated and will be removed in 6.0. Use getDispatcher()->dispatch() directly.',
                 __METHOD__
             ),
@@ -416,7 +418,7 @@ abstract class BaseDatabaseModel extends BaseModel implements
      *              Use setDatabase() instead
      *              Example: $model->setDatabase($db);
      */
-    public function setDbo(?DatabaseInterface $db = null)
+    public function setDbo(DatabaseInterface $db = null)
     {
         if ($db === null) {
             return;
@@ -440,7 +442,7 @@ abstract class BaseDatabaseModel extends BaseModel implements
     public function __get($name)
     {
         if ($name === '_db') {
-            return $this->getDatabase();
+            return $this->getDbo();
         }
 
         // Default the variable

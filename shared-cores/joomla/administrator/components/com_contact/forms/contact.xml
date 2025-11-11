@@ -76,7 +76,7 @@
 			name="misc"
 			type="editor"
 			label="COM_CONTACT_FIELD_INFORMATION_MISC_LABEL"
-			filter="\Joomla\CMS\Component\ComponentHelper::filterText"
+			filter="JComponentHelper::filterText"
 			buttons="true"
 			hide="readmore,pagebreak"
 		/>
@@ -175,7 +175,7 @@
 			label="JFIELD_META_DESCRIPTION_LABEL"
 			rows="3"
 			cols="30"
-			maxlength="300"
+			maxlength="160"
 			charcounter="true"
 		/>
 
@@ -742,7 +742,6 @@
 					name="custom_reply"
 					type="list"
 					label="COM_CONTACT_FIELD_CONFIG_CUSTOM_REPLY_LABEL"
-					description="COM_CONTACT_FIELD_CONFIG_CUSTOM_REPLY_DESC"
 					useglobal="true"
 					validate="options"
 					>

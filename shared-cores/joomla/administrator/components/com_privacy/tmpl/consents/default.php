@@ -20,11 +20,11 @@ use Joomla\CMS\Router\Route;
 /** @var \Joomla\Component\Privacy\Administrator\View\Consents\HtmlView $this */
 
 /** @var \Joomla\CMS\WebAsset\WebAssetManager $wa */
-$wa = $this->getDocument()->getWebAssetManager();
+$wa = $this->document->getWebAssetManager();
 $wa->useScript('table.columns')
     ->useScript('multiselect');
 
-$user       = $this->getCurrentUser();
+$user       = Factory::getUser();
 $listOrder  = $this->escape($this->state->get('list.ordering'));
 $listDirn   = $this->escape($this->state->get('list.direction'));
 $now        = Factory::getDate();

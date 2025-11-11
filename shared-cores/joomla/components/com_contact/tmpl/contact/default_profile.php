@@ -15,7 +15,6 @@ use Joomla\CMS\Language\Text;
 use Joomla\CMS\Plugin\PluginHelper;
 use Joomla\CMS\String\PunycodeHelper;
 
-/** @var \Joomla\Component\Contact\Site\View\Contact\HtmlView $this */
 ?>
 <?php if (PluginHelper::isEnabled('user', 'profile')) :
     $fields = $this->item->profile->getFieldset('profile'); ?>

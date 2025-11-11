@@ -28,16 +28,6 @@
   background-color: var(--template-bg-dark);
 }
 
-.js-stools-container-bar .btn-toolbar .js-stools-btn-clear[disabled], .js-stools-container-bar .btn-toolbar .js-stools-btn-clear.dropdown-toggle[disabled] {
-  background: var(--btn-disabled-bg);
-  border: var(--js-stools-btn-clear-disabled-border);
-  opacity: .5;
-}
-
-.js-stools-container-bar .btn-toolbar .js-stools-btn-clear[disabled]:hover, .js-stools-container-bar .btn-toolbar .js-stools-btn-clear[disabled]:active, .js-stools-container-bar .btn-toolbar .js-stools-btn-clear[disabled]:focus, .js-stools-container-bar .btn-toolbar .js-stools-btn-clear.dropdown-toggle[disabled]:hover, .js-stools-container-bar .btn-toolbar .js-stools-btn-clear.dropdown-toggle[disabled]:active, .js-stools-container-bar .btn-toolbar .js-stools-btn-clear.dropdown-toggle[disabled]:focus {
-  cursor: not-allowed;
-}
-
 .js-stools-container-bar .ordering-select {
   display: flex;
 }
@@ -49,7 +39,7 @@
 
 .js-stools-container-filters-visible {
   grid-gap: 8px;
-  background-color: var(--body-bg);
+  background-color: #fff;
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
   padding: 10px;
   display: grid;
@@ -62,14 +52,4 @@
 .js-stools-container-selector {
   margin: 5px 0;
   margin-inline-end: 8px;
-}
-
-[data-bs-theme="dark"] .js-stools-container-bar .btn-toolbar .js-stools-btn-clear[disabled], [data-bs-theme="dark"] .js-stools-container-bar .btn-toolbar .js-stools-btn-clear.dropdown-toggle[disabled] {
-  background: var(--body-bg);
-  border: var(--btn-secondary-border);
-  opacity: .5;
-}
-
-[data-bs-theme="dark"] .js-stools-container-bar .btn-toolbar .js-stools-btn-clear[disabled]:hover, [data-bs-theme="dark"] .js-stools-container-bar .btn-toolbar .js-stools-btn-clear[disabled]:active, [data-bs-theme="dark"] .js-stools-container-bar .btn-toolbar .js-stools-btn-clear[disabled]:focus, [data-bs-theme="dark"] .js-stools-container-bar .btn-toolbar .js-stools-btn-clear.dropdown-toggle[disabled]:hover, [data-bs-theme="dark"] .js-stools-container-bar .btn-toolbar .js-stools-btn-clear.dropdown-toggle[disabled]:active, [data-bs-theme="dark"] .js-stools-container-bar .btn-toolbar .js-stools-btn-clear.dropdown-toggle[disabled]:focus {
-  cursor: not-allowed;
 }

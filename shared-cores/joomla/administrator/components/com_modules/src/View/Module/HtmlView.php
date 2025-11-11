@@ -46,27 +46,18 @@ class HtmlView extends BaseHtmlView
     /**
      * The model state
      *
-     * @var  \Joomla\Registry\Registry
+     * @var  \Joomla\CMS\Object\CMSObject
      */
     protected $state;
 
     /**
      * The actions the user is authorised to perform
      *
-     * @var    \Joomla\Registry\Registry
+     * @var    \Joomla\CMS\Object\CMSObject
      *
      * @since  4.0.0
      */
     protected $canDo;
-
-    /**
-     * Array of fieldsets not to display
-     *
-     * @var    string[]
-     *
-     * @since  5.2.0
-     */
-    public $ignore_fieldsets = [];
 
     /**
      * Display the view
@@ -77,36 +68,17 @@ class HtmlView extends BaseHtmlView
      */
     public function display($tpl = null)
     {
-        $this->state = $this->get('State');
-
-        // Have to stop it earlier, because on cancel task for a new module we do not have an ID, and Model doing redirect on getItem()
-        if ($this->getLayout() === 'modalreturn' && !$this->state->get('module.id')) {
-            parent::display($tpl);
-
-            return;
-        }
-
         $this->form  = $this->get('Form');
         $this->item  = $this->get('Item');
+        $this->state = $this->get('State');
         $this->canDo = ContentHelper::getActions('com_modules', 'module', $this->item->id);
 
-        if ($this->getLayout() === 'modalreturn') {
-            parent::display($tpl);
-
-            return;
-        }
-
         // Check for errors.
-        if (\count($errors = $this->get('Errors'))) {
+        if (count($errors = $this->get('Errors'))) {
             throw new GenericDataException(implode("\n", $errors), 500);
         }
 
-        if ($this->getLayout() !== 'modal') {
-            $this->addToolbar();
-        } else {
-            $this->addModalToolbar();
-        }
-
+        $this->addToolbar();
         parent::display($tpl);
     }
 
@@ -123,9 +95,9 @@ class HtmlView extends BaseHtmlView
 
         $user       = $this->getCurrentUser();
         $isNew      = ($this->item->id == 0);
-        $checkedOut = !(\is_null($this->item->checked_out) || $this->item->checked_out == $user->id);
+        $checkedOut = !(is_null($this->item->checked_out) || $this->item->checked_out == $user->get('id'));
         $canDo      = $this->canDo;
-        $toolbar    = $this->getDocument()->getToolbar();
+        $toolbar    = Toolbar::getInstance();
 
         ToolbarHelper::title(Text::sprintf('COM_MODULES_MANAGER_MODULE', Text::_($this->item->module)), 'cube module');
 
@@ -188,36 +160,5 @@ class HtmlView extends BaseHtmlView
 
         $toolbar->inlinehelp();
         $toolbar->help($help->key, false, $url);
-    }
-
-    /**
-     * Add the modal toolbar.
-     *
-     * @return  void
-     *
-     * @since   5.1.0
-     *
-     * @throws  \Exception
-     */
-    protected function addModalToolbar()
-    {
-        $isNew   = ($this->item->id == 0);
-        $toolbar = $this->getDocument()->getToolbar();
-        $canDo   = $this->canDo;
-
-        ToolbarHelper::title(Text::sprintf('COM_MODULES_MANAGER_MODULE', Text::_($this->item->module)), 'cube module');
-
-        $canCreate = $isNew && $canDo->get('core.create');
-        $canEdit   = $canDo->get('core.edit');
-
-        // For new records, check the create permission.
-        if ($canCreate || $canEdit) {
-            $toolbar->apply('module.apply');
-            $toolbar->save('module.save');
-        }
-
-        $toolbar->cancel('module.cancel');
-
-        $toolbar->inlinehelp();
     }
 }

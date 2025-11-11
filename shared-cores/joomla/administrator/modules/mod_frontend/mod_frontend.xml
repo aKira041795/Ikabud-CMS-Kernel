@@ -9,10 +9,8 @@
 	<authorUrl>www.joomla.org</authorUrl>
 	<version>4.0.0</version>
 	<description>MOD_FRONTEND_XML_DESCRIPTION</description>
-	<namespace path="src">Joomla\Module\Frontend</namespace>
 	<files>
-		<folder module="mod_frontend">services</folder>
-		<folder>src</folder>
+		<filename module="mod_frontend">mod_frontend.php</filename>
 		<folder>tmpl</folder>
 	</files>
 	<languages>

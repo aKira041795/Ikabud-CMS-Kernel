@@ -11,15 +11,14 @@
 namespace Joomla\Plugin\Finder\Categories\Extension;
 
 use Joomla\CMS\Component\ComponentHelper;
-use Joomla\CMS\Event\Finder as FinderEvent;
+use Joomla\CMS\Table\Table;
 use Joomla\Component\Finder\Administrator\Indexer\Adapter;
 use Joomla\Component\Finder\Administrator\Indexer\Helper;
 use Joomla\Component\Finder\Administrator\Indexer\Indexer;
 use Joomla\Component\Finder\Administrator\Indexer\Result;
 use Joomla\Database\DatabaseAwareTrait;
+use Joomla\Database\DatabaseQuery;
 use Joomla\Database\ParameterType;
-use Joomla\Database\QueryInterface;
-use Joomla\Event\SubscriberInterface;
 use Joomla\Registry\Registry;
 
 // phpcs:disable PSR1.Files.SideEffects
@@ -31,7 +30,7 @@ use Joomla\Registry\Registry;
  *
  * @since  2.5
  */
-final class Categories extends Adapter implements SubscriberInterface
+final class Categories extends Adapter
 {
     use DatabaseAwareTrait;
 
@@ -92,23 +91,6 @@ final class Categories extends Adapter implements SubscriberInterface
     protected $autoloadLanguage = true;
 
     /**
-     * Returns an array of events this subscriber will listen to.
-     *
-     * @return  array
-     *
-     * @since   5.2.0
-     */
-    public static function getSubscribedEvents(): array
-    {
-        return array_merge(parent::getSubscribedEvents(), [
-            'onFinderAfterDelete' => 'onFinderAfterDelete',
-            'onFinderAfterSave'   => 'onFinderAfterSave',
-            'onFinderBeforeSave'  => 'onFinderBeforeSave',
-            'onFinderChangeState' => 'onFinderChangeState',
-        ]);
-    }
-
-    /**
      * Method to setup the indexer to be run.
      *
      * @return  boolean  True on success.
@@ -123,28 +105,26 @@ final class Categories extends Adapter implements SubscriberInterface
     /**
      * Method to remove the link information for items that have been deleted.
      *
-     * @param   FinderEvent\AfterDeleteEvent   $event  The event instance.
+     * @param   string  $context  The context of the action being performed.
+     * @param   Table   $table    A Table object containing the record to be deleted
      *
-     * @return  void.
+     * @return  boolean  True on success.
      *
      * @since   2.5
      * @throws  \Exception on database error.
      */
-    public function onFinderAfterDelete(FinderEvent\AfterDeleteEvent $event): void
+    public function onFinderDelete($context, $table)
     {
-        $context = $event->getContext();
-        $table   = $event->getItem();
-
         if ($context === 'com_categories.category') {
             $id = $table->id;
         } elseif ($context === 'com_finder.index') {
             $id = $table->link_id;
         } else {
-            return;
+            return true;
         }
 
         // Remove item from the index.
-        $this->remove($id);
+        return $this->remove($id);
     }
 
     /**
@@ -152,19 +132,17 @@ final class Categories extends Adapter implements SubscriberInterface
      * Reindexes the link information for a category that has been saved.
      * It also makes adjustments if the access level of the category has changed.
      *
-     * @param   FinderEvent\AfterSaveEvent   $event  The event instance.
+     * @param   string   $context  The context of the category passed to the plugin.
+     * @param   Table    $row      A Table object.
+     * @param   boolean  $isNew    True if the category has just been created.
      *
      * @return  void
      *
      * @since   2.5
      * @throws  \Exception on database error.
      */
-    public function onFinderAfterSave(FinderEvent\AfterSaveEvent $event): void
+    public function onFinderAfterSave($context, $row, $isNew): void
     {
-        $context = $event->getContext();
-        $row     = $event->getItem();
-        $isNew   = $event->getIsNew();
-
         // We only want to handle categories here.
         if ($context === 'com_categories.category') {
             // Check if the access levels are different.
@@ -187,19 +165,17 @@ final class Categories extends Adapter implements SubscriberInterface
      * Smart Search before content save method.
      * This event is fired before the data is actually saved.
      *
-     * @param   FinderEvent\BeforeSaveEvent   $event  The event instance.
+     * @param   string   $context  The context of the category passed to the plugin.
+     * @param   Table    $row      A Table object.
+     * @param   boolean  $isNew    True if the category is just about to be created.
      *
-     * @return  void
+     * @return  boolean  True on success.
      *
      * @since   2.5
      * @throws  \Exception on database error.
      */
-    public function onFinderBeforeSave(FinderEvent\BeforeSaveEvent $event): void
+    public function onFinderBeforeSave($context, $row, $isNew)
     {
-        $context = $event->getContext();
-        $row     = $event->getItem();
-        $isNew   = $event->getIsNew();
-
         // We only want to handle categories here.
         if ($context === 'com_categories.category') {
             // Query the database for the old access level and the parent if the item isn't new.
@@ -208,6 +184,8 @@ final class Categories extends Adapter implements SubscriberInterface
                 $this->checkCategoryAccess($row);
             }
         }
+
+        return true;
     }
 
     /**
@@ -215,18 +193,16 @@ final class Categories extends Adapter implements SubscriberInterface
      * from outside the edit screen. This is fired when the item is published,
      * unpublished, archived, or unarchived from the list view.
      *
-     * @param   FinderEvent\AfterChangeStateEvent   $event  The event instance.
+     * @param   string   $context  The context for the category passed to the plugin.
+     * @param   array    $pks      An array of primary key ids of the category that has changed state.
+     * @param   integer  $value    The value of the state that the category has been changed to.
      *
      * @return  void
      *
      * @since   2.5
      */
-    public function onFinderChangeState(FinderEvent\AfterChangeStateEvent $event): void
+    public function onFinderChangeState($context, $pks, $value)
     {
-        $context = $event->getContext();
-        $pks     = $event->getPks();
-        $value   = $event->getValue();
-
         // We only want to handle categories here.
         if ($context === 'com_categories.category') {
             /*
@@ -359,18 +335,11 @@ final class Categories extends Adapter implements SubscriberInterface
         // Translate the state. Categories should only be published if the parent category is published.
         $item->state = $this->translateState($item->state);
 
-        // Get taxonomies to display
-        $taxonomies = $this->params->get('taxonomies', ['type', 'language']);
-
         // Add the type taxonomy data.
-        if (\in_array('type', $taxonomies)) {
-            $item->addTaxonomy('Type', 'Category');
-        }
+        $item->addTaxonomy('Type', 'Category');
 
         // Add the language taxonomy data.
-        if (\in_array('language', $taxonomies)) {
-            $item->addTaxonomy('Language', $item->language);
-        }
+        $item->addTaxonomy('Language', $item->language);
 
         // Get content extras.
         Helper::getContentExtras($item);
@@ -382,9 +351,9 @@ final class Categories extends Adapter implements SubscriberInterface
     /**
      * Method to get the SQL query used to retrieve the list of content items.
      *
-     * @param   mixed  $query  An object implementing QueryInterface or null.
+     * @param   mixed  $query  A DatabaseQuery object or null.
      *
-     * @return  QueryInterface  A database object.
+     * @return  DatabaseQuery  A database object.
      *
      * @since   2.5
      */
@@ -393,7 +362,7 @@ final class Categories extends Adapter implements SubscriberInterface
         $db = $this->getDatabase();
 
         // Check if we can use the supplied SQL query.
-        $query = $query instanceof QueryInterface ? $query : $db->getQuery(true);
+        $query = $query instanceof DatabaseQuery ? $query : $db->getQuery(true);
 
         $query->select(
             $db->quoteName(
@@ -455,7 +424,7 @@ final class Categories extends Adapter implements SubscriberInterface
      * Method to get a SQL query to load the published and access states for
      * a category and its parents.
      *
-     * @return  QueryInterface  A database object.
+     * @return  DatabaseQuery  A database object.
      *
      * @since   2.5
      */

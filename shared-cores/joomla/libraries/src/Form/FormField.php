@@ -15,8 +15,6 @@ use Joomla\CMS\Form\Field\SubformField;
 use Joomla\CMS\Language\Text;
 use Joomla\CMS\Layout\FileLayout;
 use Joomla\CMS\Log\Log;
-use Joomla\CMS\User\CurrentUserInterface;
-use Joomla\CMS\User\CurrentUserTrait;
 use Joomla\Database\DatabaseAwareInterface;
 use Joomla\Database\DatabaseAwareTrait;
 use Joomla\Database\DatabaseInterface;
@@ -26,7 +24,7 @@ use Joomla\String\Normalise;
 use Joomla\String\StringHelper;
 
 // phpcs:disable PSR1.Files.SideEffects
-\defined('_JEXEC') or die;
+\defined('JPATH_PLATFORM') or die;
 // phpcs:enable PSR1.Files.SideEffects
 
 /**
@@ -34,10 +32,9 @@ use Joomla\String\StringHelper;
  *
  * @since  1.7.0
  */
-abstract class FormField implements DatabaseAwareInterface, CurrentUserInterface
+abstract class FormField implements DatabaseAwareInterface
 {
     use DatabaseAwareTrait;
-    use CurrentUserTrait;
 
     /**
      * The description text for the form field. Usually used in tooltips.
@@ -377,14 +374,6 @@ abstract class FormField implements DatabaseAwareInterface, CurrentUserInterface
     protected $layout;
 
     /**
-     * Cached data for layout rendering
-     *
-     * @var    array
-     * @since  5.1.0
-     */
-    protected $layoutData = [];
-
-    /**
      * Layout to render the form field
      *
      * @var  string
@@ -497,7 +486,7 @@ abstract class FormField implements DatabaseAwareInterface, CurrentUserInterface
 
             default:
                 // Check for data attribute
-                if (strpos($name, 'data-') === 0 && \array_key_exists($name, $this->dataAttributes)) {
+                if (strpos($name, 'data-') === 0 && array_key_exists($name, $this->dataAttributes)) {
                     return $this->dataAttributes[$name];
                 }
         }
@@ -646,9 +635,6 @@ abstract class FormField implements DatabaseAwareInterface, CurrentUserInterface
         $this->input = null;
         $this->label = null;
 
-        // Reset the cached layout data
-        $this->layoutData = [];
-
         // Set the XML element object.
         $this->element = $element;
 
@@ -776,10 +762,10 @@ abstract class FormField implements DatabaseAwareInterface, CurrentUserInterface
     protected function getInput()
     {
         if (empty($this->layout)) {
-            throw new \UnexpectedValueException(\sprintf('%s has no layout assigned.', $this->name));
+            throw new \UnexpectedValueException(sprintf('%s has no layout assigned.', $this->name));
         }
 
-        return $this->getRenderer($this->layout)->render($this->collectLayoutData());
+        return $this->getRenderer($this->layout)->render($this->getLayoutData());
     }
 
     /**
@@ -817,7 +803,7 @@ abstract class FormField implements DatabaseAwareInterface, CurrentUserInterface
             return '';
         }
 
-        $data = $this->collectLayoutData();
+        $data = $this->getLayoutData();
 
         // Forcing the Alias field to display the tip below
         $position = ((string) $this->element['name']) === 'alias' ? ' data-bs-placement="bottom" ' : '';
@@ -911,11 +897,11 @@ abstract class FormField implements DatabaseAwareInterface, CurrentUserInterface
     {
         if ($fieldName) {
             return $fieldName;
+        } else {
+            self::$count = self::$count + 1;
+
+            return self::$generated_fieldname . self::$count;
         }
-
-        self::$count += 1;
-
-        return self::$generated_fieldname . self::$count;
     }
 
     /**
@@ -987,7 +973,7 @@ abstract class FormField implements DatabaseAwareInterface, CurrentUserInterface
      */
     public function render($layoutId, $data = [])
     {
-        $data = array_merge($this->collectLayoutData(), $data);
+        $data = array_merge($this->getLayoutData(), $data);
 
         return $this->getRenderer($layoutId)->render($data);
     }
@@ -1058,7 +1044,7 @@ abstract class FormField implements DatabaseAwareInterface, CurrentUserInterface
             'options' => $options,
         ];
 
-        $data = array_merge($this->collectLayoutData(), $data);
+        $data = array_merge($this->getLayoutData(), $data);
 
         return $this->getRenderer($this->renderLayout)->render($data);
     }
@@ -1076,11 +1062,11 @@ abstract class FormField implements DatabaseAwareInterface, CurrentUserInterface
      * @since   4.0.0
      * @throws  \UnexpectedValueException
      */
-    public function filter($value, $group = null, ?Registry $input = null)
+    public function filter($value, $group = null, Registry $input = null)
     {
         // Make sure there is a valid SimpleXMLElement.
         if (!($this->element instanceof \SimpleXMLElement)) {
-            throw new \UnexpectedValueException(\sprintf('%s::filter `element` is not an instance of SimpleXMLElement', \get_class($this)));
+            throw new \UnexpectedValueException(sprintf('%s::filter `element` is not an instance of SimpleXMLElement', \get_class($this)));
         }
 
         // Get the field filter type.
@@ -1094,24 +1080,8 @@ abstract class FormField implements DatabaseAwareInterface, CurrentUserInterface
             }
 
             // Check for a callback filter
-            if (strpos($filter, '::') !== false) {
-                if (\is_callable(explode('::', $filter))) {
-                    return \call_user_func(explode('::', $filter), $value);
-                }
-
-                /** @deprecated Can be removed with Joomla 6.0 since the class alias is deprecated since Joomla 4.0*/
-                [$class, $method] = explode('::', $filter);
-                if ($class === 'JComponentHelper') {
-                    throw new \UnexpectedValueException(
-                        \sprintf(
-                            '%s::filter field `%s` calls a deprecated filter class %s, the class needs to be namespaced use %s instead or activate the backward compatible plugin.',
-                            \get_class($this),
-                            $this->element['name'],
-                            $class,
-                            '\\Joomla\\CMS\\Component\\ComponentHelper'
-                        )
-                    );
-                }
+            if (strpos($filter, '::') !== false && \is_callable(explode('::', $filter))) {
+                return \call_user_func(explode('::', $filter), $value);
             }
 
             // Load the FormRule object for the field. FormRule objects take precedence over PHP functions
@@ -1123,14 +1093,14 @@ abstract class FormField implements DatabaseAwareInterface, CurrentUserInterface
             }
 
             if (\function_exists($filter)) {
-                return $filter($value);
+                return \call_user_func($filter, $value);
             }
 
             if ($this instanceof SubformField) {
                 $subForm = $this->loadSubForm();
 
                 // Subform field may have a default value, that is a JSON string
-                if ($value && \is_string($value)) {
+                if ($value && is_string($value)) {
                     $value = json_decode($value, true);
 
                     // The string is invalid json
@@ -1172,11 +1142,11 @@ abstract class FormField implements DatabaseAwareInterface, CurrentUserInterface
      * @throws  \InvalidArgumentException
      * @throws  \UnexpectedValueException
      */
-    public function validate($value, $group = null, ?Registry $input = null)
+    public function validate($value, $group = null, Registry $input = null)
     {
         // Make sure there is a valid SimpleXMLElement.
         if (!($this->element instanceof \SimpleXMLElement)) {
-            throw new \UnexpectedValueException(\sprintf('%s::validate `element` is not an instance of SimpleXMLElement', \get_class($this)));
+            throw new \UnexpectedValueException(sprintf('%s::validate `element` is not an instance of SimpleXMLElement', \get_class($this)));
         }
 
         $valid = true;
@@ -1211,20 +1181,16 @@ abstract class FormField implements DatabaseAwareInterface, CurrentUserInterface
 
             // If the object could not be loaded return an error message.
             if ($rule === false) {
-                throw new \UnexpectedValueException(\sprintf('%s::validate() rule `%s` missing.', \get_class($this), $type));
+                throw new \UnexpectedValueException(sprintf('%s::validate() rule `%s` missing.', \get_class($this), $type));
             }
 
             if ($rule instanceof DatabaseAwareInterface) {
                 try {
                     $rule->setDatabase($this->getDatabase());
                 } catch (DatabaseNotFoundException $e) {
-                    @trigger_error(\sprintf('Database must be set, this will not be caught anymore in 5.0.'), E_USER_DEPRECATED);
+                    @trigger_error(sprintf('Database must be set, this will not be caught anymore in 5.0.'), E_USER_DEPRECATED);
                     $rule->setDatabase(Factory::getContainer()->get(DatabaseInterface::class));
                 }
-            }
-
-            if ($rule instanceof CurrentUserInterface) {
-                $rule->setCurrentUser($this->getCurrentUser());
             }
 
             try {
@@ -1243,13 +1209,9 @@ abstract class FormField implements DatabaseAwareInterface, CurrentUserInterface
                 try {
                     $rule->setDatabase($this->getDatabase());
                 } catch (DatabaseNotFoundException $e) {
-                    @trigger_error(\sprintf('Database must be set, this will not be caught anymore in 5.0.'), E_USER_DEPRECATED);
+                    @trigger_error(sprintf('Database must be set, this will not be caught anymore in 5.0.'), E_USER_DEPRECATED);
                     $rule->setDatabase(Factory::getContainer()->get(DatabaseInterface::class));
                 }
-            }
-
-            if ($rule instanceof CurrentUserInterface) {
-                $rule->setCurrentUser($this->getCurrentUser());
             }
 
             try {
@@ -1289,7 +1251,7 @@ abstract class FormField implements DatabaseAwareInterface, CurrentUserInterface
      *
      * @since   4.0.0
      */
-    public function postProcess($value, $group = null, ?Registry $input = null)
+    public function postProcess($value, $group = null, Registry $input = null)
     {
         return $value;
     }
@@ -1340,25 +1302,6 @@ abstract class FormField implements DatabaseAwareInterface, CurrentUserInterface
         ];
 
         return $options;
-    }
-
-    /**
-     * Method to get the data to be passed to the layout for rendering.
-     * The data is cached in memory.
-     *
-     * @return  array
-     *
-     * @since 5.1.0
-     */
-    protected function collectLayoutData(): array
-    {
-        if ($this->layoutData) {
-            return $this->layoutData;
-        }
-
-        $this->layoutData = $this->getLayoutData();
-
-        return $this->layoutData;
     }
 
     /**

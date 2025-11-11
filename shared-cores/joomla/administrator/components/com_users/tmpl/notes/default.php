@@ -10,19 +10,18 @@
 
 defined('_JEXEC') or die;
 
+use Joomla\CMS\Factory;
 use Joomla\CMS\HTML\HTMLHelper;
 use Joomla\CMS\Language\Text;
 use Joomla\CMS\Layout\LayoutHelper;
 use Joomla\CMS\Router\Route;
 
-/** @var \Joomla\Component\Users\Administrator\View\Notes\HtmlView $this */
-
 /** @var \Joomla\CMS\WebAsset\WebAssetManager $wa */
-$wa = $this->getDocument()->getWebAssetManager();
+$wa = $this->document->getWebAssetManager();
 $wa->useScript('table.columns')
     ->useScript('multiselect');
 
-$user       = $this->getCurrentUser();
+$user       = Factory::getUser();
 $listOrder  = $this->escape($this->state->get('list.ordering'));
 $listDirn   = $this->escape($this->state->get('list.direction'));
 
@@ -70,7 +69,7 @@ $listDirn   = $this->escape($this->state->get('list.direction'));
                     <tbody>
                     <?php foreach ($this->items as $i => $item) :
                         $canEdit    = $user->authorise('core.edit', 'com_users.category.' . $item->catid);
-                        $canCheckin = $user->authorise('core.admin', 'com_checkin') || $item->checked_out == $user->id || is_null($item->checked_out);
+                        $canCheckin = $user->authorise('core.admin', 'com_checkin') || $item->checked_out == $user->get('id') || is_null($item->checked_out);
                         $canChange  = $user->authorise('core.edit.state', 'com_users.category.' . $item->catid) && $canCheckin;
                         $subject    = $item->subject ?: Text::_('COM_USERS_EMPTY_SUBJECT');
                         ?>

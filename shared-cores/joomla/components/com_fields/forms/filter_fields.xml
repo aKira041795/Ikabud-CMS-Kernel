@@ -15,8 +15,7 @@
 			name="search"
 			type="text"
 			inputmode="search"
-			label="COM_FIELDS_FIELDS_FILTER_SEARCH_LABEL"
-			description="COM_FIELDS_FIELDS_FILTER_SEARCH_DESC"
+			label=""
 			hint="JSEARCH_FILTER"
 			class="js-stools-search-string"
 		/>
@@ -24,7 +23,6 @@
 		<field
 			name="state"
 			type="status"
-			label="JSTATUS"
 			onchange="this.form.submit();"
 			>
 			<option value="">JOPTION_SELECT_PUBLISHED</option>
@@ -42,7 +40,6 @@
 		<field
 			name="assigned_cat_ids"
 			type="category"
-			label="JCATEGORY"
 			onchange="this.form.submit();"
 			>
 			<option value="">COM_FIELDS_VIEW_FIELDS_SELECT_CATEGORY</option>
@@ -51,7 +48,6 @@
 		<field
 			name="access"
 			type="accesslevel"
-			label="JGRID_HEADING_ACCESS"
 			onchange="this.form.submit();"
 			>
 			<option value="">JOPTION_SELECT_ACCESS</option>
@@ -60,7 +56,6 @@
 		<field
 			name="language"
 			type="contentlanguage"
-			label="JGRID_HEADING_LANGUAGE"
 			onchange="this.form.submit();"
 			>
 			<option value="">JOPTION_SELECT_LANGUAGE</option>
@@ -100,7 +95,8 @@
 		<field
 			name="limit"
 			type="limitbox"
-			label="JGLOBAL_LIST_LIMIT"
+			label="COM_FIELDS_LIST_LIMIT"
+			description="COM_FIELDS_LIST_LIMIT_DESC"
 			default="25"
 			onchange="this.form.submit();"
 		/>

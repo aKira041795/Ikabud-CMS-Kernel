@@ -384,35 +384,78 @@ if (file_exists($drushPath)) {
         echo "   Made Drush executable\n";
     }
     
-    // Check PHP CLI availability
-    $phpPath = trim(shell_exec('which php') ?: PHP_BINARY);
+    // Detect PHP CLI path with multiple fallbacks
+    $phpPath = PHP_BINARY; // Start with current PHP binary
+    
+    // Try to find PHP in common locations if PHP_BINARY seems wrong
+    if (!file_exists($phpPath) || !is_executable($phpPath)) {
+        $possiblePaths = [
+            '/usr/bin/php',
+            '/usr/local/bin/php',
+            '/opt/php/bin/php',
+            trim(shell_exec('which php 2>/dev/null') ?: ''),
+        ];
+        
+        foreach ($possiblePaths as $path) {
+            if ($path && file_exists($path) && is_executable($path)) {
+                $phpPath = $path;
+                break;
+            }
+        }
+    }
+    
     echo "   Using PHP: $phpPath\n";
     echo "   Using Drush: $drushPath\n";
+    echo "   Instance Path: $instancePath\n";
     
-    $dbUrl = "mysql://$dbUser:$dbPass@localhost/$dbName";
-    $installCmd = "cd '$instancePath' && '$phpPath' '$drushPath' site:install standard " .
-                  "--db-url='$dbUrl' " .
-                  "--site-name='$instanceName' " .
-                  "--account-name=admin " .
-                  "--account-pass=admin123 " .
-                  "--account-mail=admin@$domain " .
-                  "--yes 2>&1";
-    
-    echo "   Installing Drupal (this may take 2-3 minutes)...\n";
-    echo "   Command: cd '$instancePath' && drush site:install...\n";
-    
-    exec($installCmd, $installOutput, $installReturn);
-    
-    if ($installReturn === 0) {
-        echo GREEN . "✓" . NC . " Drupal installed successfully\n";
-    } else {
-        echo RED . "✗" . NC . " Drupal installation failed (exit code: $installReturn)\n";
-        echo YELLOW . "   Output:\n";
-        foreach ($installOutput as $line) {
-            echo "   " . $line . "\n";
-        }
-        echo "\n";
+    // Verify PHP is executable
+    if (!file_exists($phpPath) || !is_executable($phpPath)) {
+        echo RED . "✗" . NC . " PHP executable not found or not executable: $phpPath\n";
         echo YELLOW . "   Complete installation manually at: http://admin.$domain/core/install.php" . NC . "\n";
+    } else {
+        // Change to instance directory (required for Drush to work correctly)
+        $originalDir = getcwd();
+        chdir($instancePath);
+        
+        // Set up environment variables for Drush
+        putenv("DRUSH_PHP=$phpPath");
+        putenv("HOME=" . getenv('HOME')); // Preserve HOME for Drush
+        
+        $dbUrl = "mysql://$dbUser:$dbPass@localhost/$dbName";
+        
+        // Build Drush command arguments
+        $drushArgs = [
+            escapeshellarg($phpPath),
+            escapeshellarg($drushPath),
+            'site:install',
+            'standard',
+            '--db-url=' . escapeshellarg($dbUrl),
+            '--site-name=' . escapeshellarg($instanceName),
+            '--account-name=admin',
+            '--account-pass=admin123',
+            '--account-mail=' . escapeshellarg("admin@$domain"),
+            '--yes',
+            '2>&1'
+        ];
+        
+        $installCmd = implode(' ', $drushArgs);
+        
+        echo "   Installing Drupal (this may take 2-3 minutes)...\n";
+        echo "   Running: drush site:install standard...\n\n";
+        
+        // Use passthru for real-time output visibility
+        passthru($installCmd, $installReturn);
+        
+        // Change back to original directory
+        chdir($originalDir);
+        
+        echo "\n";
+        if ($installReturn === 0) {
+            echo GREEN . "✓" . NC . " Drupal installed successfully via Drush\n";
+        } else {
+            echo RED . "✗" . NC . " Drupal installation failed (exit code: $installReturn)\n";
+            echo YELLOW . "   Complete installation manually at: http://admin.$domain/core/install.php" . NC . "\n";
+        }
     }
 } else {
     echo YELLOW . "⚠" . NC . " Drush not found at: $drushPath\n";

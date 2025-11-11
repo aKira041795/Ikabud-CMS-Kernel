@@ -10,7 +10,6 @@
 
 namespace Joomla\Plugin\System\Webauthn\PluginTraits;
 
-use Joomla\CMS\Event\Result\ResultAwareInterface;
 use Joomla\Event\Event;
 
 // phpcs:disable PSR1.Files.SideEffects
@@ -35,14 +34,9 @@ trait EventReturnAware
      */
     private function returnFromEvent(Event $event, $value = null): void
     {
-        if ($event instanceof ResultAwareInterface) {
-            $event->addResult($value);
-            return;
-        }
-
         $result = $event->getArgument('result') ?: [];
 
-        if (!\is_array($result)) {
+        if (!is_array($result)) {
             $result = [$result];
         }
 

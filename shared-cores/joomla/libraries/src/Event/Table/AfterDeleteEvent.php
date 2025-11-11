@@ -10,11 +10,11 @@
 namespace Joomla\CMS\Event\Table;
 
 // phpcs:disable PSR1.Files.SideEffects
-\defined('_JEXEC') or die;
+\defined('JPATH_PLATFORM') or die;
 // phpcs:enable PSR1.Files.SideEffects
 
 /**
- * Event class for \Joomla\CMS\Table\Table onAfterDelete event
+ * Event class for JTable's onAfterDelete event
  *
  * @since  4.0.0
  */
@@ -24,7 +24,7 @@ class AfterDeleteEvent extends AbstractEvent
      * Constructor.
      *
      * Mandatory arguments:
-     * subject      \Joomla\CMS\Table\TableInterface The table we are operating on
+     * subject      JTableInterface The table we are operating on
      * pk           The optional primary key value we deleted.
      *
      * @param   string  $name       The event name.

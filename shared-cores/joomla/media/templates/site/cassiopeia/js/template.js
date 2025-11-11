@@ -7,50 +7,68 @@
  */
 
 Joomla = window.Joomla || {};
-((Joomla, document) => {
+
+(function(Joomla, document) {
+  'use strict';
 
   function initTemplate(event) {
-    const target = event && event.target ? event.target : document;
+    var target = event && event.target ? event.target : document;
 
     /**
      * Prevent clicks on buttons within a disabled fieldset
      */
-    target.querySelectorAll('fieldset.btn-group').forEach(fieldset => {
-      if (fieldset.getAttribute('disabled') === true) {
-        fieldset.style.pointerEvents = 'none';
-        fieldset.querySelectorAll('.btn').forEach(btn => btn.classList.add('disabled'));
+    var fieldsets = target.querySelectorAll('fieldset.btn-group');
+    for (var i = 0; i < fieldsets.length; i++) {
+      var self = fieldsets[i];
+      if (self.getAttribute('disabled') ===  true) {
+        self.style.pointerEvents = 'none';
+        var btns = self.querySelectorAll('.btn');
+        for (var ib = 0; ib < btns.length; ib++) {
+          btns[ib].classList.add('disabled');
+        }
       }
-    });
+    }
   }
-  document.addEventListener('DOMContentLoaded', event => {
+
+  document.addEventListener('DOMContentLoaded', function (event) {
     initTemplate(event);
 
     /**
      * Back to top
      */
-    const backToTop = document.getElementById('back-top');
-    function checkScrollPos() {
-      if (document.body.scrollTop > 20 || document.documentElement.scrollTop > 20) {
-        backToTop.classList.add('visible');
-      } else {
-        backToTop.classList.remove('visible');
-      }
-    }
+    var backToTop = document.getElementById('back-top');
+
     if (backToTop) {
+
+      function checkScrollPos() {
+        if (document.body.scrollTop > 20 || document.documentElement.scrollTop > 20) {
+          backToTop.classList.add('visible');
+        } else {
+          backToTop.classList.remove('visible')
+        }
+      }
+
       checkScrollPos();
-      window.addEventListener('scroll', checkScrollPos);
-      backToTop.addEventListener('click', ev => {
-        ev.preventDefault();
+
+      window.onscroll = function() {
+        checkScrollPos();
+      };
+
+      backToTop.addEventListener('click', function(event) {
+        event.preventDefault();
         window.scrollTo(0, 0);
       });
     }
-    document.head.querySelectorAll('link[rel="lazy-stylesheet"]').forEach($link => {
-      $link.rel = 'stylesheet';
-    });
+
+    [].slice.call(document.head.querySelectorAll('link[rel="lazy-stylesheet"]'))
+      .forEach(function($link){
+        $link.rel = "stylesheet";
+      });
   });
 
   /**
    * Initialize when a part of the page was updated
    */
   document.addEventListener('joomla:updated', initTemplate);
+
 })(Joomla, document);

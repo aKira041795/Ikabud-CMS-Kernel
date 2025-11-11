@@ -10,23 +10,22 @@
 
 defined('_JEXEC') or die;
 
+use Joomla\CMS\Factory;
 use Joomla\CMS\HTML\HTMLHelper;
 use Joomla\CMS\Language\Text;
 use Joomla\CMS\Layout\LayoutHelper;
 use Joomla\CMS\Router\Route;
 use Joomla\Component\Associations\Administrator\Helper\AssociationsHelper;
 
-/** @var Joomla\Component\Associations\Administrator\View\Associations\HtmlView $this */
-
 /** @var Joomla\CMS\WebAsset\WebAssetManager $wa */
-$wa = $this->getDocument()->getWebAssetManager();
+$wa = $this->document->getWebAssetManager();
 $wa->useScript('com_associations.admin-associations-default')
     ->useScript('table.columns')
     ->useScript('multiselect');
 
 $listOrder        = $this->escape($this->state->get('list.ordering'));
 $listDirn         = $this->escape($this->state->get('list.direction'));
-$canManageCheckin = $this->getCurrentUser()->authorise('core.manage', 'com_checkin');
+$canManageCheckin = Factory::getUser()->authorise('core.manage', 'com_checkin');
 
 $iconStates = [
     -2 => 'icon-trash',

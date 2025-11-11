@@ -57,6 +57,7 @@ function propertyIsUnsafe(target, key) {
   && !(Object.hasOwnProperty.call(target, key) // unsafe if they exist up the prototype chain,
   && Object.propertyIsEnumerable.call(target, key)); // and also unsafe if they're nonenumerable.
 }
+
 function mergeObject(target, source, options) {
   var destination = {};
   if (options.isMergeableObject(target)) {
@@ -2121,6 +2122,7 @@ function group_outros() {
     p: outros // parent group
   };
 }
+
 function check_outros() {
   if (!outros.r) {
     run_all(outros.c);
@@ -2332,7 +2334,7 @@ function create_fragment$8(ctx) {
       button.innerHTML = /*text*/ctx[5];
       if (!mounted) {
         dispose = listen(button, "click", function () {
-          if (is_function(/*action*/ctx[0])) /*action*/ctx[0].apply(this, arguments);
+          if (is_function( /*action*/ctx[0])) /*action*/ctx[0].apply(this, arguments);
         });
         mounted = true;
       }
@@ -2532,7 +2534,7 @@ function create_fragment$7(ctx) {
       current = true;
     },
     p(ctx, [dirty]) {
-      if (/*buttons*/ctx[1]) {
+      if ( /*buttons*/ctx[1]) {
         if (if_block) {
           if_block.p(ctx, dirty);
           if (dirty & /*buttons*/2) {
@@ -2822,7 +2824,7 @@ function create_fragment$4(ctx) {
       current = true;
     },
     p(ctx, [dirty]) {
-      if (/*title*/ctx[2]) {
+      if ( /*title*/ctx[2]) {
         if (if_block0) {
           if_block0.p(ctx, dirty);
           if (dirty & /*title*/4) {
@@ -2841,7 +2843,7 @@ function create_fragment$4(ctx) {
         });
         check_outros();
       }
-      if (/*cancelIcon*/ctx[3] && /*cancelIcon*/ctx[3].enabled) {
+      if ( /*cancelIcon*/ctx[3] && /*cancelIcon*/ctx[3].enabled) {
         if (if_block1) {
           if_block1.p(ctx, dirty);
           if (dirty & /*cancelIcon*/8) {
@@ -3096,11 +3098,11 @@ function create_if_block$1(ctx) {
 }
 function create_fragment$2(ctx) {
   let div;
-  let show_if_2 = !isUndefined(/*step*/ctx[2].options.title) || /*step*/ctx[2].options.cancelIcon && /*step*/ctx[2].options.cancelIcon.enabled;
+  let show_if_2 = !isUndefined( /*step*/ctx[2].options.title) || /*step*/ctx[2].options.cancelIcon && /*step*/ctx[2].options.cancelIcon.enabled;
   let t0;
-  let show_if_1 = !isUndefined(/*step*/ctx[2].options.text);
+  let show_if_1 = !isUndefined( /*step*/ctx[2].options.text);
   let t1;
-  let show_if = Array.isArray(/*step*/ctx[2].options.buttons) && /*step*/ctx[2].options.buttons.length;
+  let show_if = Array.isArray( /*step*/ctx[2].options.buttons) && /*step*/ctx[2].options.buttons.length;
   let current;
   let if_block0 = show_if_2 && create_if_block_2(ctx);
   let if_block1 = show_if_1 && create_if_block_1(ctx);
@@ -3125,7 +3127,7 @@ function create_fragment$2(ctx) {
       current = true;
     },
     p(ctx, [dirty]) {
-      if (dirty & /*step*/4) show_if_2 = !isUndefined(/*step*/ctx[2].options.title) || /*step*/ctx[2].options.cancelIcon && /*step*/ctx[2].options.cancelIcon.enabled;
+      if (dirty & /*step*/4) show_if_2 = !isUndefined( /*step*/ctx[2].options.title) || /*step*/ctx[2].options.cancelIcon && /*step*/ctx[2].options.cancelIcon.enabled;
       if (show_if_2) {
         if (if_block0) {
           if_block0.p(ctx, dirty);
@@ -3145,7 +3147,7 @@ function create_fragment$2(ctx) {
         });
         check_outros();
       }
-      if (dirty & /*step*/4) show_if_1 = !isUndefined(/*step*/ctx[2].options.text);
+      if (dirty & /*step*/4) show_if_1 = !isUndefined( /*step*/ctx[2].options.text);
       if (show_if_1) {
         if (if_block1) {
           if_block1.p(ctx, dirty);
@@ -3165,7 +3167,7 @@ function create_fragment$2(ctx) {
         });
         check_outros();
       }
-      if (dirty & /*step*/4) show_if = Array.isArray(/*step*/ctx[2].options.buttons) && /*step*/ctx[2].options.buttons.length;
+      if (dirty & /*step*/4) show_if = Array.isArray( /*step*/ctx[2].options.buttons) && /*step*/ctx[2].options.buttons.length;
       if (show_if) {
         if (if_block2) {
           if_block2.p(ctx, dirty);
@@ -3266,7 +3268,7 @@ function create_fragment$1(ctx) {
     }
   });
   let div_levels = [{
-    "aria-describedby": div_aria_describedby_value = !isUndefined(/*step*/ctx[4].options.text) ? /*descriptionId*/ctx[2] : null
+    "aria-describedby": div_aria_describedby_value = !isUndefined( /*step*/ctx[4].options.text) ? /*descriptionId*/ctx[2] : null
   }, {
     "aria-labelledby": div_aria_labelledby_value = /*step*/ctx[4].options.title ? /*labelId*/ctx[3] : null
   }, /*dataStepId*/ctx[1], {
@@ -3303,7 +3305,7 @@ function create_fragment$1(ctx) {
       }
     },
     p(ctx, [dirty]) {
-      if (/*step*/ctx[4].options.arrow && /*step*/ctx[4].options.attachTo && /*step*/ctx[4].options.attachTo.element && /*step*/ctx[4].options.attachTo.on) {
+      if ( /*step*/ctx[4].options.arrow && /*step*/ctx[4].options.attachTo && /*step*/ctx[4].options.attachTo.element && /*step*/ctx[4].options.attachTo.on) {
         if (if_block) ;else {
           if_block = create_if_block();
           if_block.c();
@@ -3318,7 +3320,7 @@ function create_fragment$1(ctx) {
       if (dirty & /*labelId*/8) shepherdcontent_changes.labelId = /*labelId*/ctx[3];
       if (dirty & /*step*/16) shepherdcontent_changes.step = /*step*/ctx[4];
       shepherdcontent.$set(shepherdcontent_changes);
-      set_attributes(div, div_data = get_spread_update(div_levels, [(!current || dirty & /*step, descriptionId*/20 && div_aria_describedby_value !== (div_aria_describedby_value = !isUndefined(/*step*/ctx[4].options.text) ? /*descriptionId*/ctx[2] : null)) && {
+      set_attributes(div, div_data = get_spread_update(div_levels, [(!current || dirty & /*step, descriptionId*/20 && div_aria_describedby_value !== (div_aria_describedby_value = !isUndefined( /*step*/ctx[4].options.text) ? /*descriptionId*/ctx[2] : null)) && {
         "aria-describedby": div_aria_describedby_value
       }, (!current || dirty & /*step, labelId*/24 && div_aria_labelledby_value !== (div_aria_labelledby_value = /*step*/ctx[4].options.title ? /*labelId*/ctx[3] : null)) && {
         "aria-labelledby": div_aria_labelledby_value
@@ -4593,70 +4595,6 @@ function emptyStorage() {
   sessionStorage.removeItem('tourId');
   sessionStorage.removeItem('tourToken');
   sessionStorage.removeItem('previousStepUrl');
-  sessionStorage.removeItem('skipTour');
-  sessionStorage.removeItem('autoTourId');
-}
-
-/**
-  Synchronize tour state for this user in their account/profile
-  tid = tour ID
-  sid = step number (the step the user is on)
-  state = state of the tour (completed, skipped, cancelled)
-*/
-function fetchTourState(tid, sid, context) {
-  const fetchUrl = 'index.php?option=com_guidedtours&task=ajax.fetchUserState&format=json';
-  Joomla.request({
-    url: `${fetchUrl}&tid=${tid}&sid=${sid}&context=${context}`,
-    method: 'GET',
-    perform: true,
-    onSuccess: response => {
-      try {
-        JSON.parse(response);
-      } catch (e) {
-        Joomla.renderMessages({
-          error: [Joomla.Text._('PLG_SYSTEM_GUIDEDTOURS_TOUR_INVALID_RESPONSE')]
-        }, 'gt');
-        return false;
-      }
-      return true;
-    },
-    onError: () => {
-      Joomla.renderMessages({
-        error: [Joomla.Text._('PLG_SYSTEM_GUIDEDTOURS_TOUR_ERROR_RESPONSE')]
-      });
-      return false;
-    }
-  });
-}
-
-/**
- Stop tour on some specific context
-  - tour.complete
-  - tour.cancel
-  - tour.skip       Only autostart tours, to never display again
-*/
-function stopTour(tour, context) {
-  const tid = sessionStorage.getItem('tourId');
-  let sid = sessionStorage.getItem('currentStepId');
-  if (sid === 'tourinfo') {
-    sid = 1;
-  } else {
-    sid = Number(sid) + 1;
-  }
-  let trueContext = context;
-  if (context === 'tour.cancel' && sessionStorage.getItem('skipTour') === 'true') {
-    trueContext = 'tour.skip';
-  }
-  if (trueContext === 'tour.cancel' || trueContext === 'tour.skip' || trueContext === 'tour.complete') {
-    // ajax call to set the user state
-    fetchTourState(tid, sid, trueContext);
-
-    // close the tour
-    emptyStorage();
-    tour.steps = [];
-    return true; // cf. https://docs.shepherdpro.com/api/tour/classes/tour/#cancel
-  }
-  return false; // wrong context
 }
 function getTourInstance() {
   const tour = new Shepherd.Tour({
@@ -4675,23 +4613,22 @@ function getTourInstance() {
     keyboardNavigation: true
   });
   tour.on('cancel', () => {
-    // Test that a tour exists still, it may have already been emptied when skipping the tour
-    if (sessionStorage.getItem('tourId')) {
-      stopTour(tour, 'tour.cancel');
-    }
+    emptyStorage();
+    tour.steps = [];
   });
   return tour;
 }
 function addProgressIndicator(stepElement, index, total) {
   const header = stepElement.querySelector('.shepherd-header');
   const progress = document.createElement('div');
-  progress.classList.add('shepherd-progress', 'badge', 'bg-secondary', 'px-2');
+  progress.classList.add('shepherd-progress');
   progress.setAttribute('role', 'status');
+  progress.setAttribute('aria-label', Joomla.Text._('PLG_SYSTEM_GUIDEDTOURS_STEP_NUMBER_OF').replace('{number}', index).replace('{total}', total));
   const progressText = document.createElement('span');
-  progressText.classList.add('m-0');
-  progressText.innerText = Joomla.Text._('PLG_SYSTEM_GUIDEDTOURS_STEP_NUMBER_OF').replace('{number}', index).replace('{total}', total);
+  progressText.setAttribute('aria-hidden', true);
+  progressText.innerText = `${index}/${total}`;
   progress.appendChild(progressText);
-  header.insertBefore(progress, header.querySelector('.shepherd-title'));
+  header.insertBefore(progress, stepElement.querySelector('.shepherd-cancel-icon'));
 }
 function setFocus(primaryButton, secondaryButton, cancelButton) {
   if (primaryButton && !primaryButton.disabled) {
@@ -4702,16 +4639,6 @@ function setFocus(primaryButton, secondaryButton, cancelButton) {
     cancelButton.focus();
   }
 }
-function enableButton(eventElement) {
-  const element = eventElement instanceof Event ? document.querySelector(`.step-next-button-${eventElement.currentTarget.step_id}`) : eventElement;
-  element.removeAttribute('disabled');
-  element.classList.remove('disabled');
-}
-function disableButton(eventElement) {
-  const element = eventElement instanceof Event ? document.querySelector(`.step-next-button-${eventElement.currentTarget.step_id}`) : eventElement;
-  element.setAttribute('disabled', 'disabled');
-  element.classList.add('disabled');
-}
 function addStepToTourButton(tour, stepObj, buttons) {
   const step = new Shepherd.Step(tour, {
     title: stepObj.title,
@@ -4720,7 +4647,6 @@ function addStepToTourButton(tour, stepObj, buttons) {
     buttons,
     id: stepObj.id,
     arrow: true,
-    params: stepObj.params,
     beforeShowPromise() {
       return new Promise(resolve => {
         // Set graceful fallbacks in case there is an issue with the target.
@@ -4762,14 +4688,6 @@ function addStepToTourButton(tour, stepObj, buttons) {
         const element = this.getElement();
         const target = this.getTarget();
 
-        // if target element doesn't exist e.g. because we have navigated to a new page mid-tour then end the tour here!
-        // Take care though since some steps have no target to we check for these too
-        if (!target && this.options.attachTo.element) {
-          emptyStorage();
-          this.cancel();
-          return;
-        }
-
         // Force the screen reader to only read the content of the popup after a refresh
         element.setAttribute('aria-live', 'assertive');
         sessionStorage.setItem('currentStepId', this.id);
@@ -4779,48 +4697,15 @@ function addStepToTourButton(tour, stepObj, buttons) {
           const primaryButton = element.querySelector('.shepherd-button-primary');
           const secondaryButton = element.querySelector('.shepherd-button-secondary');
 
-          // Check to see if the 'next' button should be enabled before showing the step based on being required or
-          // matching the required value
-          switch (this.options.attachTo.interactive_type) {
-            case 'text':
-              if ((target.hasAttribute('required') || this.options.params.required || 0) && (target.tagName.toLowerCase() === 'input' && ['email', 'password', 'search', 'tel', 'text', 'url'].includes(target.type) || target.tagName.toLowerCase() === 'textarea')) {
-                if ((this.options.params.requiredvalue || '') !== '') {
-                  if (target.value.trim() === this.options.params.requiredvalue) {
-                    enableButton(primaryButton);
-                  } else {
-                    disableButton(primaryButton);
-                  }
-                } else if (target.value.trim().length) {
-                  enableButton(primaryButton);
-                } else {
-                  disableButton(primaryButton);
-                }
-              }
-              break;
-            case 'checkbox_radio':
-              if (target.tagName.toLowerCase() === 'input' && (target.hasAttribute('required') || this.options.params.required || 0) && ['checkbox', 'radio'].includes(target.type)) {
-                if (target.checked) {
-                  enableButton(primaryButton);
-                } else {
-                  disableButton(primaryButton);
-                }
-              }
-              break;
-            case 'select':
-              if (target.tagName.toLowerCase() === 'select' && (target.hasAttribute('required') || this.options.params.required || 0)) {
-                if ((this.options.params.requiredvalue || '') !== '') {
-                  if (target.value.trim() === this.options.params.requiredvalue) {
-                    enableButton(primaryButton);
-                  } else {
-                    disableButton(primaryButton);
-                  }
-                } else if (target.value.trim().length) {
-                  enableButton(primaryButton);
-                } else {
-                  disableButton(primaryButton);
-                }
-              }
-              break;
+          // The 'next' button should always be enabled if the target input field of type 'text' has a value
+          if (target.tagName.toLowerCase() === 'input' && target.hasAttribute('required') && ['email', 'password', 'search', 'tel', 'text', 'url'].includes(target.type)) {
+            if (target.value.trim().length) {
+              primaryButton.removeAttribute('disabled');
+              primaryButton.classList.remove('disabled');
+            } else {
+              primaryButton.setAttribute('disabled', 'disabled');
+              primaryButton.classList.add('disabled');
+            }
           }
           cancelButton.addEventListener('keydown', event => {
             if (event.key === 'Tab') {
@@ -4883,8 +4768,7 @@ function addStepToTourButton(tour, stepObj, buttons) {
         on: stepObj.position,
         url: stepObj.url,
         type: stepObj.type,
-        interactive_type: stepObj.interactive_type,
-        params: stepObj.params
+        interactive_type: stepObj.interactive_type
       }
     });
   } else {
@@ -4892,8 +4776,7 @@ function addStepToTourButton(tour, stepObj, buttons) {
       attachTo: {
         url: stepObj.url,
         type: stepObj.type,
-        interactive_type: stepObj.interactive_type,
-        params: stepObj.params
+        interactive_type: stepObj.interactive_type
       }
     });
   }
@@ -4906,53 +4789,33 @@ function addStepToTourButton(tour, stepObj, buttons) {
   }
   tour.addStep(step);
 }
-function addStartButton(tour, buttons, label) {
-  buttons.push({
-    text: label,
-    classes: 'btn btn-primary shepherd-button-primary',
-    action() {
-      return this.next();
-    }
-  });
-}
-function addSkipButton(tour, buttons) {
-  buttons.push({
-    text: Joomla.Text._('PLG_SYSTEM_GUIDEDTOURS_HIDE_FOREVER'),
-    classes: 'btn btn-secondary shepherd-button-secondary',
-    action() {
-      sessionStorage.setItem('skipTour', 'true');
-      return this.cancel();
-    }
-  });
-}
 function showTourInfo(tour, stepObj) {
-  const buttons = [];
-  if (sessionStorage.getItem('autoTourId') === sessionStorage.getItem('tourId')) {
-    addSkipButton(tour, buttons);
-  }
-  addStartButton(tour, buttons, stepObj.start_label);
   tour.addStep({
     title: stepObj.title,
     text: stepObj.description,
     classes: 'shepherd-theme-arrows',
-    buttons,
+    buttons: [{
+      classes: 'btn btn-primary shepherd-button-primary',
+      action() {
+        return this.next();
+      },
+      text: Joomla.Text._('PLG_SYSTEM_GUIDEDTOURS_START')
+    }],
     id: 'tourinfo',
     when: {
       show() {
         sessionStorage.setItem('currentStepId', 'tourinfo');
-        sessionStorage.setItem('skipTour', 'false');
         addProgressIndicator(this.getElement(), 1, sessionStorage.getItem('stepCount'));
       }
     }
   });
 }
-function pushCompleteButton(tour, buttons) {
+function pushCompleteButton(buttons) {
   buttons.push({
     text: Joomla.Text._('PLG_SYSTEM_GUIDEDTOURS_COMPLETE'),
     classes: 'btn btn-primary shepherd-button-primary',
     action() {
-      stopTour(tour, 'tour.complete');
-      return this.complete();
+      return this.cancel();
     }
   });
 }
@@ -4982,6 +4845,16 @@ function addBackButton(buttons, step) {
       return this.back();
     }
   });
+}
+function enableButton(event) {
+  const element = document.querySelector(`.step-next-button-${event.currentTarget.step_id}`);
+  element.removeAttribute('disabled');
+  element.classList.remove('disabled');
+}
+function disableButton(event) {
+  const element = document.querySelector(`.step-next-button-${event.currentTarget.step_id}`);
+  element.setAttribute('disabled', 'disabled');
+  element.classList.add('disabled');
 }
 function startTour(obj) {
   // We store the tour id to restart on site refresh
@@ -5018,7 +4891,7 @@ function startTour(obj) {
     ind = 1;
   }
 
-  // Now let's add all followup steps
+  // Now let's add all follow up steps
   const len = obj.steps.length;
   let buttons;
   for (let index = ind; index < len; index += 1) {
@@ -5032,11 +4905,6 @@ function startTour(obj) {
       addBackButton(buttons, obj.steps[index]);
     }
     if (obj && obj.steps[index].target && obj.steps[index].type === 'interactive') {
-      if (typeof obj.steps[index].params === 'string' && obj.steps[index].params !== '') {
-        obj.steps[index].params = JSON.parse(obj.steps[index].params);
-      } else {
-        obj.steps[index].params = [];
-      }
       const ele = document.querySelector(obj.steps[index].target);
       if (ele) {
         if (obj && obj.steps && obj.steps[index] && obj.steps[index].interactive_type) {
@@ -5051,48 +4919,12 @@ function startTour(obj) {
               break;
             case 'text':
               ele.step_id = index;
-              if ((ele.hasAttribute('required') || obj.steps[index].params.required || 0) && (ele.tagName.toLowerCase() === 'input' && ['email', 'password', 'search', 'tel', 'text', 'url'].includes(ele.type) || ele.tagName.toLowerCase() === 'textarea')) {
+              if (ele.hasAttribute('required') && ['email', 'password', 'search', 'tel', 'text', 'url'].includes(ele.type)) {
                 ['input', 'focus'].forEach(eventName => ele.addEventListener(eventName, event => {
                   if (!sessionStorage.getItem('tourId')) {
                     return;
                   }
-                  if ((obj.steps[index].params.requiredvalue || '') !== '') {
-                    if (event.target.value.trim() === obj.steps[index].params.requiredvalue) {
-                      enableButton(event);
-                    } else {
-                      disableButton(event);
-                    }
-                  } else if (event.target.value.trim().length) {
-                    enableButton(event);
-                  } else {
-                    disableButton(event);
-                  }
-                }));
-              }
-              break;
-            case 'checkbox_radio':
-              ele.step_id = index;
-              if (ele.tagName.toLowerCase() === 'input' && (ele.hasAttribute('required') || obj.steps[index].params.required || 0) && ['checkbox', 'radio'].includes(ele.type)) {
-                ['click'].forEach(eventName => ele.addEventListener(eventName, event => {
-                  if (event.target.checked) {
-                    enableButton(event);
-                  } else {
-                    disableButton(event);
-                  }
-                }));
-              }
-              break;
-            case 'select':
-              ele.step_id = index;
-              if (ele.tagName.toLowerCase() === 'select' && (ele.hasAttribute('required') || obj.steps[index].params.required || 0)) {
-                ['change'].forEach(eventName => ele.addEventListener(eventName, event => {
-                  if ((obj.steps[index].params.requiredvalue || '') !== '') {
-                    if (event.target.value.trim() === obj.steps[index].params.requiredvalue) {
-                      enableButton(event);
-                    } else {
-                      disableButton(event);
-                    }
-                  } else if (event.target.value.trim().length) {
+                  if (event.target.value.trim().length) {
                     enableButton(event);
                   } else {
                     disableButton(event);
@@ -5112,11 +4944,11 @@ function startTour(obj) {
       }
     }
     if (index < len - 1) {
-      if (obj && obj.steps[index].type !== 'interactive' || obj && ['text', 'checkbox_radio', 'select', 'other'].includes(obj.steps[index].interactive_type)) {
+      if (obj && obj.steps[index].type !== 'interactive' || obj && obj.steps[index].interactive_type === 'text' || obj && obj.steps[index].interactive_type === 'other') {
         pushNextButton(buttons, obj.steps[index]);
       }
     } else {
-      pushCompleteButton(obj, buttons);
+      pushCompleteButton(buttons);
     }
     addStepToTourButton(tour, obj.steps[index], buttons);
     prevStep = obj.steps[index];
@@ -5124,15 +4956,8 @@ function startTour(obj) {
   tour.start();
 }
 function loadTour(tourId) {
-  const tourUid = Number.parseInt(tourId, 10) > 0 ? '' : encodeURI(tourId);
-  const tourNumber = Number.parseInt(tourId, 10) > 0 ? Number.parseInt(tourId, 10) : 0;
-  if (tourNumber > 0 || tourUid !== '') {
-    let url = `${Joomla.getOptions('system.paths').rootFull}administrator/index.php?option=com_ajax&plugin=guidedtours&group=system&format=json`;
-    if (tourNumber > 0) {
-      url += `&id=${tourNumber}`;
-    } else {
-      url += `&uid=${tourUid}`;
-    }
+  if (tourId > 0) {
+    const url = `${Joomla.getOptions('system.paths').rootFull}administrator/index.php?option=com_ajax&plugin=guidedtours&group=system&format=json&id=${tourId}`;
     fetch(url).then(response => response.json()).then(result => {
       if (!result.success) {
         if (result.messages) {
@@ -5163,26 +4988,19 @@ document.querySelector('body').addEventListener('click', event => {
   }
 
   // Click button but missing data-id
-  if ((!event.target.hasAttribute('data-id') || event.target.getAttribute('data-id') <= 0) && (!event.target.hasAttribute('data-gt-uid') || event.target.getAttribute('data-gt-uid') === '')) {
+  if (typeof event.target.getAttribute('data-id') === 'undefined' || event.target.getAttribute('data-id') <= 0) {
     Joomla.renderMessages({
       error: [Joomla.Text._('PLG_SYSTEM_GUIDEDTOURS_COULD_NOT_LOAD_THE_TOUR')]
     });
     return;
   }
   sessionStorage.setItem('tourToken', String(Joomla.getOptions('com_guidedtours.token')));
-  loadTour(event.target.getAttribute('data-id') || event.target.getAttribute('data-gt-uid'));
+  loadTour(event.target.getAttribute('data-id'));
 });
 
 // Start a given tour
-let tourId = sessionStorage.getItem('tourId');
-
-// Autostart tours have priority
-if (Joomla.getOptions('com_guidedtours.autotour', '') !== '') {
-  sessionStorage.setItem('tourToken', String(Joomla.getOptions('com_guidedtours.token')));
-  sessionStorage.setItem('autoTourId', String(Joomla.getOptions('com_guidedtours.autotour')));
-  tourId = Joomla.getOptions('com_guidedtours.autotour');
-}
-if ((Number.parseInt(tourId, 10) > 0 || tourId !== '') && sessionStorage.getItem('tourToken') === String(Joomla.getOptions('com_guidedtours.token'))) {
+const tourId = sessionStorage.getItem('tourId');
+if (tourId > 0 && sessionStorage.getItem('tourToken') === String(Joomla.getOptions('com_guidedtours.token'))) {
   loadTour(tourId);
 } else {
   emptyStorage();

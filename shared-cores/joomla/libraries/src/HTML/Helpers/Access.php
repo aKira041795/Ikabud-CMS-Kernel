@@ -17,7 +17,7 @@ use Joomla\CMS\Language\Text;
 use Joomla\CMS\Layout\LayoutHelper;
 
 // phpcs:disable PSR1.Files.SideEffects
-\defined('_JEXEC') or die;
+\defined('JPATH_PLATFORM') or die;
 // phpcs:enable PSR1.Files.SideEffects
 
 /**
@@ -79,7 +79,7 @@ abstract class Access
         $options = $db->loadObjectList();
 
         // If params is an array, push these options to the array
-        if (\is_array($params)) {
+        if (is_array($params)) {
             $options = array_merge($params, $options);
         } elseif ($params) {
             // If all levels is allowed, push it into the array.
@@ -116,9 +116,9 @@ abstract class Access
     {
         $options = array_values(UserGroupsHelper::getInstance()->getAll());
 
-        foreach ($options as $option) {
-            $option->value = $option->id;
-            $option->text  = str_repeat('- ', $option->level) . $option->title;
+        for ($i = 0, $n = count($options); $i < $n; $i++) {
+            $options[$i]->value = $options[$i]->id;
+            $options[$i]->text  = str_repeat('- ', $options[$i]->level) . $options[$i]->title;
         }
 
         // If all usergroups is allowed, push it into the array.
@@ -152,7 +152,9 @@ abstract class Access
 
         $html = [];
 
-        foreach ($groups as $item) {
+        for ($i = 0, $n = count($groups); $i < $n; $i++) {
+            $item = &$groups[$i];
+
             // If checkSuperAdmin is true, only add item if the user is superadmin or the group is not super admin
             if ((!$checkSuperAdmin) || $isSuperAdmin || (!AccessCheck::checkGroup($item->id, 'core.admin'))) {
                 // Set up the variable attributes. ID may not start with a number (CSS)
@@ -162,7 +164,7 @@ abstract class Access
                 $checked = '';
 
                 if ($selected) {
-                    $checked = \in_array($item->id, $selected) ? ' checked="checked"' : '';
+                    $checked = in_array($item->id, $selected) ? ' checked="checked"' : '';
                 }
 
                 $rel = ($item->parent_id > 0) ? ' rel="group_' . $item->parent_id . '_' . $count . '"' : '';
@@ -210,10 +212,12 @@ abstract class Access
         $html   = [];
         $html[] = '<ul class="checklist access-actions">';
 
-        foreach ($actions as $item) {
+        for ($i = 0, $n = count($actions); $i < $n; $i++) {
+            $item = &$actions[$i];
+
             // Setup  the variable attributes.
             $eid     = $count . 'action_' . $item->id;
-            $checked = \in_array($item->id, $selected) ? ' checked="checked"' : '';
+            $checked = in_array($item->id, $selected) ? ' checked="checked"' : '';
 
             // Build the HTML for the item.
             $html[] = '	<li>';
@@ -292,7 +296,7 @@ abstract class Access
             $options,
             $name,
             [
-                'id'          => $config['id'] ?? 'assetgroups_' . (++$count),
+                'id'          => isset($config['id']) ? $config['id'] : 'assetgroups_' . (++$count),
                 'list.attr'   => $attribs === null ? 'class="inputbox" size="3"' : $attribs,
                 'list.select' => (int) $selected,
             ]

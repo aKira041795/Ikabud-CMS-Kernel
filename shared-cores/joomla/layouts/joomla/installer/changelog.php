@@ -34,7 +34,7 @@ array_walk(
                 $class = 'bg-success';
                 break;
             case 'change':
-                $class = 'bg-warning';
+                $class = 'bg-warning text-dark';
                 break;
             case 'remove':
                 $class = 'bg-secondary';

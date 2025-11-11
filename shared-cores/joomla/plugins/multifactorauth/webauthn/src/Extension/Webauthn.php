@@ -10,6 +10,7 @@
 
 namespace Joomla\Plugin\Multifactorauth\Webauthn\Extension;
 
+use Exception;
 use Joomla\CMS\Event\MultiFactor\Captive;
 use Joomla\CMS\Event\MultiFactor\GetMethod;
 use Joomla\CMS\Event\MultiFactor\GetSetup;
@@ -28,6 +29,7 @@ use Joomla\Component\Users\Administrator\Table\MfaTable;
 use Joomla\Event\SubscriberInterface;
 use Joomla\Input\Input;
 use Joomla\Plugin\Multifactorauth\Webauthn\Helper\Credentials;
+use RuntimeException;
 use Webauthn\PublicKeyCredentialRequestOptions;
 
 // phpcs:disable PSR1.Files.SideEffects
@@ -93,7 +95,7 @@ class Webauthn extends CMSPlugin implements SubscriberInterface
                     'name'               => $this->mfaMethodName,
                     'display'            => Text::_('PLG_MULTIFACTORAUTH_WEBAUTHN_LBL_DISPLAYEDAS'),
                     'shortinfo'          => Text::_('PLG_MULTIFACTORAUTH_WEBAUTHN_LBL_SHORTINFO'),
-                    'image'              => 'media/plg_multifactorauth_webauthn/images/passkeys.svg',
+                    'image'              => 'media/plg_multifactorauth_webauthn/images/webauthn.svg',
                     'allowMultiple'      => true,
                     'allowEntryBatching' => true,
                 ]
@@ -137,7 +139,7 @@ class Webauthn extends CMSPlugin implements SubscriberInterface
          * If there are no authenticators set up yet I need to show a different message and take a different action when
          * my user clicks the submit button.
          */
-        if (!\is_array($record->options) || empty($record->options['credentialId'] ?? '')) {
+        if (!is_array($record->options) || empty($record->options['credentialId'] ?? '')) {
             $document = $this->getApplication()->getDocument();
             $wam      = $document->getWebAssetManager();
             $wam->getRegistry()->addExtensionRegistryFile('plg_multifactorauth_webauthn');
@@ -213,7 +215,7 @@ class Webauthn extends CMSPlugin implements SubscriberInterface
         }
 
         // Editing an existing authenticator: only the title is saved
-        if (\is_array($record->options) && !empty($record->options['credentialId'] ?? '')) {
+        if (is_array($record->options) && !empty($record->options['credentialId'] ?? '')) {
             $event->addResult($record->options);
 
             return;
@@ -325,7 +327,7 @@ class Webauthn extends CMSPlugin implements SubscriberInterface
             $serializedOptions = base64_decode($pkOptionsEncoded);
             $pkOptions         = unserialize($serializedOptions);
 
-            if (!\is_object($pkOptions) || empty($pkOptions) || !($pkOptions instanceof PublicKeyCredentialRequestOptions)) {
+            if (!is_object($pkOptions) || empty($pkOptions) || !($pkOptions instanceof PublicKeyCredentialRequestOptions)) {
                 throw new \RuntimeException('The pending key request is corrupt; a new one will be created');
             }
 

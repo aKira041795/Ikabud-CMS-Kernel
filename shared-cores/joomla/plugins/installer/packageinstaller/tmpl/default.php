@@ -13,8 +13,9 @@ defined('_JEXEC') or die;
 use Joomla\CMS\Filesystem\FilesystemHelper;
 use Joomla\CMS\HTML\HTMLHelper;
 use Joomla\CMS\Language\Text;
+use Joomla\Plugin\Installer\Package\Extension\PackageInstaller;
 
-/** @var \Joomla\Plugin\Installer\Package\Extension\PackageInstaller $this */
+/** @var PackageInstaller $this */
 
 HTMLHelper::_('form.csrf');
 

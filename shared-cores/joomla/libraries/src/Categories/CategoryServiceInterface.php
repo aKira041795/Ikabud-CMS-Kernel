@@ -12,7 +12,7 @@ namespace Joomla\CMS\Categories;
 use Joomla\CMS\Form\Form;
 
 // phpcs:disable PSR1.Files.SideEffects
-\defined('_JEXEC') or die;
+\defined('JPATH_PLATFORM') or die;
 // phpcs:enable PSR1.Files.SideEffects
 
 /**

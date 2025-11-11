@@ -33,7 +33,7 @@ ul.media-tree {
 .media-disk-name {
   padding: 4px 1px;
   font-size: 1rem;
-  color: $sidebar-disk-name-color;
+  color: var(--template-bg-dark);
 
   &:empty {
     display: none;
@@ -110,7 +110,7 @@ ul.media-tree {
   padding-right: 2px;
   font-size: 15px;
   line-height: normal;
-  color: $sidebar-tree-icon-color;
+  color: var(--template-bg-dark-60);
   vertical-align: middle;
 }
 

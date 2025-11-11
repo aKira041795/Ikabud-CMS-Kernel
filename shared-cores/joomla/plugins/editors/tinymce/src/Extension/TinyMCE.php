@@ -10,16 +10,9 @@
 
 namespace Joomla\Plugin\Editors\TinyMCE\Extension;
 
-use Joomla\CMS\Event\Editor\EditorSetupEvent;
-use Joomla\CMS\Language\Text;
 use Joomla\CMS\Plugin\CMSPlugin;
-use Joomla\CMS\Session\Session;
 use Joomla\Database\DatabaseAwareTrait;
-use Joomla\Event\SubscriberInterface;
-use Joomla\Filesystem\Folder;
-use Joomla\Plugin\Editors\TinyMCE\PluginTraits\KnownButtons;
-use Joomla\Plugin\Editors\TinyMCE\PluginTraits\ToolbarPresets;
-use Joomla\Plugin\Editors\TinyMCE\Provider\TinyMCEProvider;
+use Joomla\Plugin\Editors\TinyMCE\PluginTraits\DisplayTrait;
 
 // phpcs:disable PSR1.Files.SideEffects
 \defined('_JEXEC') or die;
@@ -30,92 +23,27 @@ use Joomla\Plugin\Editors\TinyMCE\Provider\TinyMCEProvider;
  *
  * @since  1.5
  */
-final class TinyMCE extends CMSPlugin implements SubscriberInterface
+final class TinyMCE extends CMSPlugin
 {
+    use DisplayTrait;
     use DatabaseAwareTrait;
 
-    // @todo: KnownButtons, ToolbarPresets for backward compatibility. Remove in Joomla 6
-    use KnownButtons;
-    use ToolbarPresets;
-
     /**
-     * Returns an array of events this subscriber will listen to.
+     * Load the language file on instantiation.
      *
-     * @return array
-     *
-     * @since   5.0.0
+     * @var    boolean
+     * @since  3.1
      */
-    public static function getSubscribedEvents(): array
-    {
-        return [
-            'onEditorSetup' => 'onEditorSetup',
-            'onAjaxTinymce' => 'onAjaxTinymce',
-        ];
-    }
+    protected $autoloadLanguage = true;
 
     /**
-     * Register Editor instance
-     *
-     * @param EditorSetupEvent $event
-     *
-     * @return void
-     *
-     * @since   5.0.0
-     */
-    public function onEditorSetup(EditorSetupEvent $event)
-    {
-        $this->loadLanguage();
-
-        $event->getEditorsRegistry()
-            ->add(new TinyMCEProvider($this->params, $this->getApplication(), $this->getDispatcher(), $this->getDatabase()));
-    }
-
-    /**
-     * Returns the templates
+     * Initializes the Editor.
      *
      * @return  void
      *
-     * @since   5.0.0
+     * @since   1.5
      */
-    public function onAjaxTinymce()
+    public function onInit()
     {
-        if (!Session::checkToken('request')) {
-            echo json_encode([]);
-            exit();
-        }
-
-        $this->loadLanguage();
-
-        $templates = [];
-        $language  = $this->getApplication()->getLanguage();
-        $template  = $this->getApplication()->getInput()->getPath('template', '');
-
-        if ('' === $template) {
-            echo json_encode([]);
-            exit();
-        }
-
-        $filepaths = is_dir(JPATH_ROOT . '/templates/' . $template)
-            ? Folder::files(JPATH_ROOT . '/templates/' . $template, '\.(html|txt)$', false, true)
-            : [];
-
-        foreach ($filepaths as $filepath) {
-            $fileinfo    = pathinfo($filepath);
-            $filename    = $fileinfo['filename'];
-            $title_upper = strtoupper($filename);
-
-            if ($filename === 'index') {
-                continue;
-            }
-
-            $templates[] = (object) [
-                'title'       => $language->hasKey('PLG_TINY_TEMPLATE_' . $title_upper . '_TITLE') ? Text::_('PLG_TINY_TEMPLATE_' . $title_upper . '_TITLE') : $filename,
-                'description' => $language->hasKey('PLG_TINY_TEMPLATE_' . $title_upper . '_DESC') ? Text::_('PLG_TINY_TEMPLATE_' . $title_upper . '_DESC') : ' ',
-                'content'     => file_get_contents($filepath),
-            ];
-        }
-
-        echo json_encode($templates);
-        exit();
     }
 }

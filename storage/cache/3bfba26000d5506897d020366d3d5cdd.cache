@@ -1,4 +1,4 @@
-a:6:{s:7:"headers";a:7:{i:0;s:27:"X-Frame-Options: SAMEORIGIN";i:1;s:31:"X-Content-Type-Options: nosniff";i:2;s:31:"X-XSS-Protection: 1; mode=block";i:3;s:36:"Content-Type: application/javascript";i:4;s:13:"X-Cache: MISS";i:5;s:31:"X-Cache-Instance: wp-brutus-cli";i:6;s:27:"X-Powered-By: Ikabud-Kernel";}s:4:"body";s:3139:"/*!
+a:6:{s:7:"headers";a:8:{i:0;s:27:"X-Frame-Options: SAMEORIGIN";i:1;s:31:"X-Content-Type-Options: nosniff";i:2;s:31:"X-XSS-Protection: 1; mode=block";i:3;s:36:"Content-Type: application/javascript";i:4;s:13:"X-Cache: MISS";i:5;s:31:"X-Cache-Instance: wp-brutus-cli";i:6;s:27:"X-Powered-By: Ikabud-Kernel";i:7;s:35:"Cache-Control: public, max-age=3600";}s:4:"body";s:3139:"/*!
  * jQuery Cookie Plugin v1.4.1
  * https://github.com/carhartl/jquery-cookie
  *
@@ -111,4 +111,4 @@ a:6:{s:7:"headers";a:7:{i:0;s:27:"X-Frame-Options: SAMEORIGIN";i:1;s:31:"X-Conte
 		return !$.cookie(key);
 	};
 
-}));";s:9:"timestamp";i:1762760713;s:17:"extensions_loaded";a:0:{}s:15:"extension_count";i:0;s:8:"cms_type";s:9:"wordpress";}
+}));";s:9:"timestamp";i:1762784222;s:17:"extensions_loaded";a:0:{}s:15:"extension_count";i:0;s:8:"cms_type";s:9:"wordpress";}

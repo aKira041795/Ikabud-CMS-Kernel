@@ -9,7 +9,7 @@
 
 namespace Joomla\CMS\Client;
 
-\defined('_JEXEC') or die;
+\defined('JPATH_PLATFORM') or die;
 
 use Joomla\CMS\Language\Text;
 use Joomla\CMS\Log\Log;

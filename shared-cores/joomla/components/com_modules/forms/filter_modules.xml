@@ -31,7 +31,8 @@
 		<field
 			name="access"
 			type="accesslevel"
-			label="JGRID_HEADING_ACCESS"
+			label="JOPTION_FILTER_ACCESS"
+			description="JOPTION_FILTER_ACCESS_DESC"
 			onchange="this.form.submit();"
 			>
 			<option value="">JOPTION_SELECT_ACCESS</option>
@@ -71,7 +72,8 @@
 		<field
 			name="limit"
 			type="limitbox"
-			label="JGLOBAL_LIST_LIMIT"
+			label="COM_MODULES_LIST_LIMIT"
+			description="JFIELD_PLG_SEARCH_SEARCHLIMIT_DESC"
 			default="25"
 			onchange="this.form.submit();"
 		/>

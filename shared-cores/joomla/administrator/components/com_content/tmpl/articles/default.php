@@ -25,16 +25,14 @@ use Joomla\CMS\Session\Session;
 use Joomla\Component\Content\Administrator\Helper\ContentHelper;
 use Joomla\Utilities\ArrayHelper;
 
-/** @var \Joomla\Component\Content\Administrator\View\Articles\HtmlView $this */
-
 /** @var \Joomla\CMS\WebAsset\WebAssetManager $wa */
-$wa = $this->getDocument()->getWebAssetManager();
+$wa = $this->document->getWebAssetManager();
 $wa->useScript('table.columns')
     ->useScript('multiselect');
 
 $app       = Factory::getApplication();
-$user      = $this->getCurrentUser();
-$userId    = $user->id;
+$user      = Factory::getUser();
+$userId    = $user->get('id');
 $listOrder = $this->escape($this->state->get('list.ordering'));
 $listDirn  = $this->escape($this->state->get('list.direction'));
 $saveOrder = $listOrder == 'a.ordering';
@@ -362,7 +360,7 @@ $assoc = Associations::isEnabled();
                                         </span>
                                     </td>
                                     <td class="d-none d-md-table-cell text-center">
-                                        <span class="badge bg-warning">
+                                        <span class="badge bg-warning text-dark">
                                             <?php echo (int) $item->rating; ?>
                                         </span>
                                     </td>
@@ -385,7 +383,15 @@ $assoc = Associations::isEnabled();
                         && $user->authorise('core.edit', 'com_content')
                         && $user->authorise('core.edit.state', 'com_content')
                     ) : ?>
-                        <template id="joomla-dialog-batch"><?php echo $this->loadTemplate('batch_body'); ?></template>
+                        <?php echo HTMLHelper::_(
+                            'bootstrap.renderModal',
+                            'collapseModal',
+                            [
+                                'title'  => Text::_('COM_CONTENT_BATCH_OPTIONS'),
+                                'footer' => $this->loadTemplate('batch_footer'),
+                            ],
+                            $this->loadTemplate('batch_body')
+                        ); ?>
                     <?php endif; ?>
                 <?php endif; ?>
 

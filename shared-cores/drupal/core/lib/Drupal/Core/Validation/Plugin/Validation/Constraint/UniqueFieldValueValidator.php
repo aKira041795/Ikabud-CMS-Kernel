@@ -38,7 +38,7 @@ class UniqueFieldValueValidator extends ConstraintValidator implements Container
   /**
    * {@inheritdoc}
    */
-  public function validate($items, Constraint $constraint): void {
+  public function validate($items, Constraint $constraint) {
     if (!$items->first()) {
       return;
     }
@@ -64,12 +64,23 @@ class UniqueFieldValueValidator extends ConstraintValidator implements Container
       ->getStorage($entity_type_id)
       ->getAggregateQuery()
       ->accessCheck(FALSE)
-      ->condition($field_name, $item_values, 'IN')
       ->groupBy("$field_name.$property_name");
     if (!$is_new) {
       $entity_id = $entity->id();
       $query->condition($id_key, $entity_id, '<>');
     }
+
+    if ($constraint->caseSensitive) {
+      $query->condition($field_name, $item_values, 'IN');
+    }
+    else {
+      $or_group = $query->orConditionGroup();
+      foreach ($item_values as $item_value) {
+        $or_group->condition($field_name, \Drupal::database()->escapeLike($item_value), 'LIKE');
+      }
+      $query->condition($or_group);
+    }
+
     $results = $query->execute();
 
     if (!empty($results)) {

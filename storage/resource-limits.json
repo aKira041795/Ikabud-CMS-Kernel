@@ -1,0 +1,23 @@
+{
+    "version": "1.0.0",
+    "updated": "2025-11-10 11:09:13",
+    "limits": {
+        "test-instance-001": {
+            "memory_mb": 256,
+            "cpu_percent": 50,
+            "storage_mb": 1024,
+            "cache_mb": 1,
+            "requests_per_minute": 60
+        },
+        "wp-test-001": {
+            "memory_mb": 512,
+            "storage_mb": 2048,
+            "cache_mb": 200
+        },
+        "dpl-test-001": {
+            "memory_mb": 512,
+            "storage_mb": 2048,
+            "cache_mb": 200
+        }
+    }
+}

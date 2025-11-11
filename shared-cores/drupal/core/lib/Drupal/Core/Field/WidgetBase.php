@@ -40,7 +40,7 @@ abstract class WidgetBase extends PluginSettingsBase implements WidgetInterface,
    * Constructs a WidgetBase object.
    *
    * @param string $plugin_id
-   *   The plugin_id for the widget.
+   *   The plugin ID for the widget.
    * @param mixed $plugin_definition
    *   The plugin implementation definition.
    * @param \Drupal\Core\Field\FieldDefinitionInterface $field_definition
@@ -549,6 +549,7 @@ abstract class WidgetBase extends PluginSettingsBase implements WidgetInterface,
 
         $violations_by_delta = $item_list_violations = [];
         foreach ($violations as $violation) {
+          $violation = new InternalViolation($violation);
           // Separate violations by delta.
           $property_path = explode('.', $violation->getPropertyPath());
           $delta = array_shift($property_path);
@@ -559,6 +560,8 @@ abstract class WidgetBase extends PluginSettingsBase implements WidgetInterface,
           else {
             $item_list_violations[] = $violation;
           }
+          // @todo Remove BC layer https://www.drupal.org/i/3307859 on PHP 8.2.
+          $violation->arrayPropertyPath = $property_path;
         }
 
         /** @var \Symfony\Component\Validator\ConstraintViolationInterface[] $delta_violations */

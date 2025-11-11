@@ -8,57 +8,58 @@
 
 declare(strict_types=1);
 
-// EARLY CHECKS (before any autoloading)
-// This must run FIRST to catch requests before Slim routing
+// EARLY MAINTENANCE CHECK (before any autoloading)
+// This must run FIRST to catch maintenance mode before Slim routing
 $host = $_SERVER['HTTP_HOST'] ?? '';
 $requestUri = $_SERVER['REQUEST_URI'] ?? '/';
 
-// Skip early checks for admin/API routes
+// Skip early checks for admin/API routes (they don't need maintenance check)
 if (strpos($requestUri, '/admin') !== 0 && 
     strpos($requestUri, '/api/') !== 0 && 
     strpos($requestUri, '/login') !== 0) {
     
-    // Dynamic domain lookup from database
-    $instanceId = null;
-    $envFile = __DIR__ . '/../.env';
-    if (file_exists($envFile)) {
-        $envVars = [];
-        $lines = file($envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
-        foreach ($lines as $line) {
-            if (strpos(trim($line), '#') === 0) continue;
-            if (strpos($line, '=') !== false) {
-                list($key, $value) = explode('=', $line, 2);
-                $envVars[trim($key)] = trim($value);
+    // Simple domain-to-instance cache (in-memory for this request)
+    static $domainCache = [];
+    
+    if (!isset($domainCache[$host])) {
+        // Load .env for database connection (minimal parsing)
+        $envFile = __DIR__ . '/../.env';
+        if (file_exists($envFile)) {
+            $env = parse_ini_file($envFile);
+            
+            try {
+                $pdo = new PDO(
+                    "mysql:host={$env['DB_HOST']};dbname={$env['DB_DATABASE']}",
+                    $env['DB_USERNAME'],
+                    $env['DB_PASSWORD'],
+                    [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
+                );
+                
+                $stmt = $pdo->prepare("SELECT instance_id FROM instances WHERE domain = ? LIMIT 1");
+                $stmt->execute([$host]);
+                $domainCache[$host] = $stmt->fetchColumn() ?: null;
+            } catch (PDOException $e) {
+                error_log("[Ikabud] Early DB check failed: " . $e->getMessage());
+                $domainCache[$host] = null;
             }
-        }
-        
-        $dbHost = $envVars['DB_HOST'] ?? 'localhost';
-        $dbName = $envVars['DB_DATABASE'] ?? 'ikabud-kernel';
-        $dbUser = $envVars['DB_USERNAME'] ?? 'root';
-        $dbPass = $envVars['DB_PASSWORD'] ?? '';
-        
-        try {
-            $pdo = new PDO("mysql:host=$dbHost;dbname=$dbName", $dbUser, $dbPass);
-            $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-            $stmt = $pdo->prepare("SELECT instance_id FROM instances WHERE domain = ? LIMIT 1");
-            $stmt->execute([$host]);
-            $instance = $stmt->fetch(PDO::FETCH_ASSOC);
-            $instanceId = $instance['instance_id'] ?? null;
-        } catch (PDOException $e) {
-            error_log("Database connection failed: " . $e->getMessage());
         }
     }
 
-    if ($instanceId) {
-        $instanceDir = __DIR__ . '/../instances/' . $instanceId;
-        
-        // Check for maintenance mode
+    if ($domainCache[$host]) {
+        $instanceDir = __DIR__ . '/../instances/' . $domainCache[$host];
         $maintenanceFile = $instanceDir . '/.maintenance';
+        
         if (file_exists($maintenanceFile)) {
             http_response_code(503);
             header('Content-Type: text/html; charset=utf-8');
             header('Retry-After: 300');
-            readfile(__DIR__ . '/../templates/maintenance.html');
+            
+            $templatePath = __DIR__ . '/../templates/maintenance.html';
+            if (file_exists($templatePath)) {
+                readfile($templatePath);
+            } else {
+                echo '<h1>503 Service Unavailable</h1><p>Site is under maintenance.</p>';
+            }
             exit;
         }
     }
@@ -74,7 +75,8 @@ require __DIR__ . '/../vendor/autoload.php';
 
 // Initialize Config (loads .env file)
 use IkabudKernel\Core\Config;
-Config::getInstance();
+$config = Config::getInstance();
+$debugMode = ($config->get('APP_DEBUG') === 'true');
 
 // Boot the kernel FIRST (before anything else)
 try {
@@ -181,14 +183,40 @@ $app->get('/login', function (Request $request, Response $response) {
 // Catch-all route for CMS routing (matches all paths including root)
 // Using empty string default to match root path
 $app->any('[/{path:.*}]', function (Request $request, Response $response, array $args = ['path' => '']) {
-    // Skip instance routing for admin paths (already handled above)
-    $requestPath = $request->getUri()->getPath();
-    if (strpos($requestPath, '/admin') === 0 || $requestPath === '/login') {
+    // Get request info
+    $host = $request->getUri()->getHost();
+    $requestUri = $request->getUri()->getPath();
+    
+    // Handle admin panel BEFORE instance lookup (no database entry needed)
+    if (strpos($requestUri, '/admin') === 0) {
+        $adminPath = __DIR__ . '/admin';
+        $filePath = preg_replace('#^/admin#', '', $requestUri);
+        
+        if (empty($filePath) || $filePath === '/') {
+            $filePath = '/index.html';
+        }
+        
+        $fullPath = $adminPath . $filePath;
+        
+        // Serve the file if it exists
+        if (file_exists($fullPath) && is_file($fullPath)) {
+            $mimeType = mime_content_type($fullPath) ?: 'application/octet-stream';
+            $response = $response->withHeader('Content-Type', $mimeType);
+            $response->getBody()->write(file_get_contents($fullPath));
+            return $response;
+        } else {
+            // SPA fallback - serve index.html for client-side routing
+            $indexPath = $adminPath . '/index.html';
+            if (file_exists($indexPath)) {
+                $response = $response->withHeader('Content-Type', 'text/html');
+                $response->getBody()->write(file_get_contents($indexPath));
+                return $response;
+            }
+        }
+        
+        $response->getBody()->write("Admin panel file not found: {$filePath}");
         return $response->withStatus(404);
     }
-    
-    // Get instance from domain using database lookup
-    $host = $request->getUri()->getHost();
     
     // Add CORS headers for cross-subdomain API requests
     // This allows any subdomain (admin.*, dashboard.*, etc.) to make API calls
@@ -223,12 +251,44 @@ $app->any('[/{path:.*}]', function (Request $request, Response $response, array 
         return $response->withStatus(404);
     }
     
-    // DEBUG: Log which instance is being loaded
-    error_log("IKABUD_ROUTING: domain={$host} -> instance_id={$instanceId}");
+    // Log instance routing in debug mode
+    if ($debugMode ?? false) {
+        error_log("[Ikabud] Routing: {$host} -> {$instanceId}");
+    }
     
     $stmt = $db->prepare("SELECT * FROM instances WHERE instance_id = ? LIMIT 1");
     $stmt->execute([$instanceId]);
     $instance = $stmt->fetch(PDO::FETCH_ASSOC);
+    
+    if (!$instance || $instance['status'] !== 'active') {
+        $response->getBody()->write("Instance is not active: {$instanceId}");
+        return $response->withStatus(503);
+    }
+    
+    // Handle native kernel instance (no CMS to load)
+    if ($instance['cms_type'] === 'native') {
+        $config = json_decode($instance['config'] ?? '{}', true);
+        
+        // If this is the kernel itself
+        if (isset($config['type']) && $config['type'] === 'kernel') {
+            // Redirect root path to admin panel
+            if ($requestUri === '/' || $requestUri === '') {
+                return $response
+                    ->withHeader('Location', '/admin')
+                    ->withStatus(302);
+            }
+            
+            // For other paths, return kernel status
+            $response->getBody()->write(json_encode([
+                'status' => 'ok',
+                'message' => 'Ikabud Kernel is running',
+                'instance' => $instanceId,
+                'version' => '1.0.0',
+                'admin_url' => '/admin'
+            ]));
+            return $response->withHeader('Content-Type', 'application/json');
+        }
+    }
     
     // Check for maintenance mode
     $instanceDir = __DIR__ . '/../instances/' . $instanceId;
@@ -239,11 +299,6 @@ $app->any('[/{path:.*}]', function (Request $request, Response $response, array 
         $maintenanceHtml = file_get_contents(__DIR__ . '/../templates/maintenance.html');
         $response->getBody()->write($maintenanceHtml);
         return $response->withStatus(503)->withHeader('Content-Type', 'text/html');
-    }
-    
-    if (!$instance || $instance['status'] !== 'active') {
-        $response->getBody()->write("Instance is not active: {$instanceId}");
-        return $response->withStatus(503);
     }
     
     // Instance is active - proceed with caching layer
@@ -282,8 +337,10 @@ $app->any('[/{path:.*}]', function (Request $request, Response $response, array 
     $_SERVER['DOCUMENT_ROOT'] = $instanceDir;
     $_SERVER['IKABUD_INSTANCE_ID'] = $instanceId;
     
-    // DEBUG: Verify directory change
-    error_log("IKABUD_CHDIR: Changed to {$instanceDir}, getcwd()=" . getcwd() . ", instance_id={$instanceId}");
+    // Verify directory change in debug mode
+    if ($debugMode ?? false) {
+        error_log("[Ikabud] Changed to: {$instanceDir} (cwd: " . getcwd() . ")");
+    }
     
     $requestPath = parse_url($requestUri, PHP_URL_PATH);
     $requestedFile = $instanceDir . $requestPath;
@@ -335,9 +392,10 @@ $app->any('[/{path:.*}]', function (Request $request, Response $response, array 
                     require_once $instanceDir . '/includes/framework.php';
                 } elseif ($cmsType === 'drupal') {
                     // Drupal uses its own index.php with DrupalKernel bootstrap
-                    // We don't need to load anything here - the instance's index.php handles it
-                    // Just set a flag so Drupal knows it's running through the kernel
-                    define('IKABUD_DRUPAL_KERNEL', true);
+                    // Set flag so Drupal knows it's running through the kernel
+                    if (!defined('IKABUD_DRUPAL_KERNEL')) {
+                        define('IKABUD_DRUPAL_KERNEL', true);
+                    }
                 }
                 
                 // Load determined extensions after CMS core
@@ -385,7 +443,7 @@ $app->any('[/{path:.*}]', function (Request $request, Response $response, array 
             $GLOBALS['ikabud_conditional_loader'] = $conditionalLoader;
         }
         
-        // Set flag for Drupal to know it's running through the kernel
+        // Set Drupal kernel flag
         if ($cmsType === 'drupal' && !defined('IKABUD_DRUPAL_KERNEL')) {
             define('IKABUD_DRUPAL_KERNEL', true);
         }
@@ -403,10 +461,12 @@ $app->any('[/{path:.*}]', function (Request $request, Response $response, array 
             $GLOBALS['ikabud_conditional_loader'] = $conditionalLoader;
         }
         
-        // Set flag for Drupal to know it's running through the kernel
+        // Set Drupal kernel flag
         if ($cmsType === 'drupal' && !defined('IKABUD_DRUPAL_KERNEL')) {
             define('IKABUD_DRUPAL_KERNEL', true);
-            error_log("IKABUD_DRUPAL: Defined IKABUD_DRUPAL_KERNEL constant for instance_id={$instanceId}");
+            if ($debugMode ?? false) {
+                error_log("[Ikabud] Drupal kernel mode enabled for: {$instanceId}");
+            }
         }
         
         $_SERVER['SCRIPT_FILENAME'] = $instanceDir . '/index.php';
@@ -415,10 +475,8 @@ $app->any('[/{path:.*}]', function (Request $request, Response $response, array 
     
     // Capture and cache if needed
     if ($shouldCacheResponse) {
-        error_log("IKABUD_CACHE: shouldCacheResponse=true, checking for Drupal response, instance_id={$instanceId}");
         // Check if Drupal response object is available
         if (isset($GLOBALS['ikabud_drupal_response'])) {
-            error_log("IKABUD_CACHE: Drupal response found in GLOBALS, instance_id={$instanceId}");
             // Handle Drupal's Symfony Response object
             $drupalResponse = $GLOBALS['ikabud_drupal_response'];
             $body = $drupalResponse->getContent();
@@ -431,7 +489,9 @@ $app->any('[/{path:.*}]', function (Request $request, Response $response, array 
             $drupalResponse->headers->remove('Pragma');
             $drupalResponse->headers->remove('Expires');
             
-            error_log("IKABUD_CACHE: Headers set on Drupal response: X-Cache=MISS, X-Powered-By=Ikabud-Kernel");
+            if ($debugMode ?? false) {
+                error_log("[Ikabud] Caching Drupal response for: {$instanceId}");
+            }
             
             // Cache the response
             if ($body !== false && is_string($body) && !empty($body)) {
@@ -466,10 +526,16 @@ $app->any('[/{path:.*}]', function (Request $request, Response $response, array 
             header_remove('Expires');
             
             // Add kernel cache headers
-            header('X-Cache: MISS');
-            header('X-Cache-Instance: ' . $instanceId);
-            header('X-Powered-By: Ikabud-Kernel');
-            header('Cache-Control: public, max-age=3600');
+            $cacheHeaders = [
+                'X-Cache: MISS',
+                'X-Cache-Instance: ' . $instanceId,
+                'X-Powered-By: Ikabud-Kernel',
+                'Cache-Control: public, max-age=3600'
+            ];
+            
+            foreach ($cacheHeaders as $headerLine) {
+                header($headerLine);
+            }
             
             // Only cache if there were no errors
             if ($body !== false && is_string($body) && !preg_match('/<b>(Warning|Error|Notice|Fatal error)<\/b>/', $body)) {

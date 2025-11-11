@@ -11,7 +11,6 @@
 namespace Joomla\Plugin\Workflow\Featuring\Extension;
 
 use Joomla\CMS\Event\AbstractEvent;
-use Joomla\CMS\Event\Model;
 use Joomla\CMS\Event\Table\BeforeStoreEvent;
 use Joomla\CMS\Event\View\DisplayEvent;
 use Joomla\CMS\Event\Workflow\WorkflowFunctionalityUsedEvent;
@@ -84,14 +83,13 @@ final class Featuring extends CMSPlugin implements SubscriberInterface
     /**
      * The form event.
      *
-     * @param   Model\PrepareFormEvent  $event  The event
+     * @param   EventInterface  $event  The event
      *
      * @since   4.0.0
      */
-    public function onContentPrepareForm(Model\PrepareFormEvent $event)
+    public function onContentPrepareForm(EventInterface $event)
     {
-        $form = $event->getForm();
-        $data = $event->getData();
+        [$form, $data] = array_values($event->getArguments());
 
         $context = $form->getName();
 
@@ -110,7 +108,7 @@ final class Featuring extends CMSPlugin implements SubscriberInterface
      * Check also for the workflow implementation and if the field exists
      *
      * @param   Form      $form  The form
-     * @param   object    $data  The data
+     * @param   stdClass  $data  The data
      *
      * @return  boolean
      *
@@ -180,8 +178,6 @@ final class Featuring extends CMSPlugin implements SubscriberInterface
      *
      * @param   DisplayEvent  $event
      *
-     * @return  void
-     *
      * @since   4.0.0
      */
     public function onAfterDisplay(DisplayEvent $event)
@@ -197,7 +193,7 @@ final class Featuring extends CMSPlugin implements SubscriberInterface
         $singularsection = Inflector::singularize($section);
 
         if (!$this->isSupported($component . '.' . $singularsection)) {
-            return;
+            return true;
         }
 
         // List of related batch functions we need to hide
@@ -229,6 +225,8 @@ final class Featuring extends CMSPlugin implements SubscriberInterface
 		";
 
         $this->getApplication()->getDocument()->addScriptDeclaration($js);
+
+        return true;
     }
 
     /**
@@ -340,7 +338,7 @@ final class Featuring extends CMSPlugin implements SubscriberInterface
      *
      * @return   boolean
      *
-     * @throws   \Exception
+     * @throws   Exception
      * @since   4.0.0
      */
     public function onContentBeforeChangeFeatured(FeatureEvent $event)
@@ -364,23 +362,21 @@ final class Featuring extends CMSPlugin implements SubscriberInterface
     /**
      * The save event.
      *
-     * @param   Model\BeforeSaveEvent  $event
+     * @param   EventInterface  $event
      *
      * @return  boolean
      *
      * @since   4.0.0
      */
-    public function onContentBeforeSave(Model\BeforeSaveEvent $event)
+    public function onContentBeforeSave(EventInterface $event)
     {
-        $context = $event->getContext();
+        /** @var TableInterface $table */
+        [$context, $table, $isNew, $data] = array_values($event->getArguments());
 
         if (!$this->isSupported($context)) {
             return true;
         }
 
-        /** @var TableInterface $table */
-        $table   = $event->getItem();
-        $data    = $event->getData();
         $keyName = $table->getColumnAlias('featured');
 
         // Check for the old value
@@ -495,7 +491,7 @@ final class Featuring extends CMSPlugin implements SubscriberInterface
         $parts = explode('.', $context);
 
         // We need at least the extension + view for loading the table fields
-        if (\count($parts) < 2) {
+        if (count($parts) < 2) {
             return false;
         }
 

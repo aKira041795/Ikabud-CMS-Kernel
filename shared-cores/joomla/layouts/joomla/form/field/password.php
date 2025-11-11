@@ -63,7 +63,7 @@ if ($meter) {
     $class = 'js-password-strength ' . $class;
 
     if ($forcePassword) {
-        $class .= ' meteredPassword';
+        $class = $class . ' meteredPassword';
     }
 }
 

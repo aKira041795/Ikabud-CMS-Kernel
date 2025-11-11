@@ -10,10 +10,9 @@
 
 namespace Joomla\Plugin\Editors\None\Extension;
 
-use Joomla\CMS\Event\Editor\EditorSetupEvent;
+use Joomla\CMS\Layout\LayoutHelper;
 use Joomla\CMS\Plugin\CMSPlugin;
-use Joomla\Event\SubscriberInterface;
-use Joomla\Plugin\Editors\None\Provider\EditorNoneProvider;
+use Joomla\Event\Event;
 
 // phpcs:disable PSR1.Files.SideEffects
 \defined('_JEXEC') or die;
@@ -24,34 +23,93 @@ use Joomla\Plugin\Editors\None\Provider\EditorNoneProvider;
  *
  * @since  1.5
  */
-final class None extends CMSPlugin implements SubscriberInterface
+final class None extends CMSPlugin
 {
     /**
-     * Returns an array of events this subscriber will listen to.
+     * Display the editor area.
      *
-     * @return array
+     * @param   string   $name     The control name.
+     * @param   string   $content  The contents of the text area.
+     * @param   string   $width    The width of the text area (px or %).
+     * @param   string   $height   The height of the text area (px or %).
+     * @param   integer  $col      The number of columns for the textarea.
+     * @param   integer  $row      The number of rows for the textarea.
+     * @param   boolean  $buttons  True and the editor buttons will be displayed.
+     * @param   string   $id       An optional ID for the textarea (note: since 1.6). If not supplied the name is used.
+     * @param   string   $asset    The object asset
+     * @param   object   $author   The author.
+     * @param   array    $params   Associative array of editor parameters.
      *
-     * @since   5.2.0
+     * @return  string
      */
-    public static function getSubscribedEvents(): array
-    {
-        return [
-            'onEditorSetup' => 'onEditorSetup',
-        ];
+    public function onDisplay(
+        $name,
+        $content,
+        $width,
+        $height,
+        $col,
+        $row,
+        $buttons = true,
+        $id = null,
+        $asset = null,
+        $author = null,
+        $params = []
+    ) {
+        if (empty($id)) {
+            $id = $name;
+        }
+
+        // Only add "px" to width and height if they are not given as a percentage
+        if (is_numeric($width)) {
+            $width .= 'px';
+        }
+
+        if (is_numeric($height)) {
+            $height .= 'px';
+        }
+
+        $readonly = !empty($params['readonly']) ? ' readonly disabled' : '';
+
+        $this->getApplication()->getDocument()->getWebAssetManager()
+            ->registerAndUseScript(
+                'webcomponent.editor-none',
+                'plg_editors_none/joomla-editor-none.min.js',
+                [],
+                ['type' => 'module']
+            );
+
+        return '<joomla-editor-none>'
+            . '<textarea name="' . $name . '" id="' . $id . '" cols="' . $col . '" rows="' . $row
+            . '" style="width: ' . $width . '; height: ' . $height . ';"' . $readonly . '>' . $content . '</textarea>'
+            . '</joomla-editor-none>'
+            . $this->displayButtons($id, $buttons, $asset, $author);
     }
 
     /**
-     * Register Editor instance
+     * Displays the editor buttons.
      *
-     * @param EditorSetupEvent $event
+     * @param   string  $name     The control name.
+     * @param   mixed   $buttons  [array with button objects | boolean true to display buttons]
+     * @param   string  $asset    The object asset
+     * @param   object  $author   The author.
      *
-     * @return void
-     *
-     * @since   5.2.0
+     * @return  void|string HTML
      */
-    public function onEditorSetup(EditorSetupEvent $event): void
+    private function displayButtons($name, $buttons, $asset, $author)
     {
-        $event->getEditorsRegistry()
-            ->add(new EditorNoneProvider($this->params, $this->getApplication(), $this->getDispatcher()));
+        if (is_array($buttons) || (is_bool($buttons) && $buttons)) {
+            $buttonsEvent = new Event(
+                'getButtons',
+                [
+                    'editor'  => $name,
+                    'buttons' => $buttons,
+                ]
+            );
+
+            $buttonsResult = $this->getDispatcher()->dispatch('getButtons', $buttonsEvent);
+            $buttons       = $buttonsResult['result'];
+
+            return LayoutHelper::render('joomla.editors.buttons', $buttons);
+        }
     }
 }

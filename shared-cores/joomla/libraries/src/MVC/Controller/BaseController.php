@@ -9,12 +9,11 @@
 
 namespace Joomla\CMS\MVC\Controller;
 
-use Joomla\Application\AbstractApplication;
-use Joomla\CMS\Application\CMSApplicationInterface;
-use Joomla\CMS\Application\CMSWebApplicationInterface;
+use Joomla\CMS\Application\CMSApplication;
 use Joomla\CMS\Cache\Exception\CacheExceptionInterface;
 use Joomla\CMS\Document\DocumentAwareInterface;
 use Joomla\CMS\Factory;
+use Joomla\CMS\Filesystem\Path;
 use Joomla\CMS\Filter\InputFilter;
 use Joomla\CMS\Language\LanguageAwareInterface;
 use Joomla\CMS\Language\Text;
@@ -30,15 +29,10 @@ use Joomla\CMS\User\CurrentUserInterface;
 use Joomla\Event\DispatcherAwareInterface;
 use Joomla\Event\DispatcherAwareTrait;
 use Joomla\Event\DispatcherInterface;
-use Joomla\Filesystem\Path;
 use Joomla\Input\Input;
-use Psr\Log\LoggerAwareInterface;
-use Psr\Log\LoggerAwareTrait;
-use Psr\Log\LoggerInterface;
-use Psr\Log\NullLogger;
 
 // phpcs:disable PSR1.Files.SideEffects
-\defined('_JEXEC') or die;
+\defined('JPATH_PLATFORM') or die;
 // phpcs:enable PSR1.Files.SideEffects
 
 /**
@@ -49,9 +43,8 @@ use Psr\Log\NullLogger;
  *
  * @since  2.5.5
  */
-class BaseController implements ControllerInterface, DispatcherAwareInterface, LoggerAwareInterface
+class BaseController implements ControllerInterface, DispatcherAwareInterface
 {
-    use LoggerAwareTrait;
     use DispatcherAwareTrait;
 
     /**
@@ -185,7 +178,7 @@ class BaseController implements ControllerInterface, DispatcherAwareInterface, L
     /**
      * The Application
      *
-     * @var    CMSApplicationInterface
+     * @var    CMSApplication|null
      * @since  4.0.0
      */
     protected $app;
@@ -274,7 +267,7 @@ class BaseController implements ControllerInterface, DispatcherAwareInterface, L
         }
 
         @trigger_error(
-            \sprintf(
+            sprintf(
                 '%1$s::getInstance() is deprecated. Load it through the MVC factory.',
                 self::class
             ),
@@ -355,17 +348,16 @@ class BaseController implements ControllerInterface, DispatcherAwareInterface, L
     /**
      * Constructor.
      *
-     * @param   array                     $config   An optional associative array of configuration settings.
-     *                                              Recognized key values include 'name', 'default_task',
-     *                                              'model_path', and 'view_path' (this list is not meant to be
-     *                                              comprehensive).
-     * @param   ?MVCFactoryInterface      $factory  The factory.
-     * @param   ?CMSApplicationInterface  $app      The Application for the dispatcher
-     * @param   ?Input                    $input    Input
+     * @param   array                 $config   An optional associative array of configuration settings.
+     *                                          Recognized key values include 'name', 'default_task', 'model_path', and
+     *                                          'view_path' (this list is not meant to be comprehensive).
+     * @param   ?MVCFactoryInterface  $factory  The factory.
+     * @param   ?CMSApplication       $app      The Application for the dispatcher
+     * @param   ?Input                $input    Input
      *
      * @since   3.0
      */
-    public function __construct($config = [], ?MVCFactoryInterface $factory = null, ?CMSApplicationInterface $app = null, ?Input $input = null)
+    public function __construct($config = [], MVCFactoryInterface $factory = null, ?CMSApplication $app = null, ?Input $input = null)
     {
         $this->methods     = [];
         $this->message     = null;
@@ -376,15 +368,6 @@ class BaseController implements ControllerInterface, DispatcherAwareInterface, L
 
         $this->app   = $app ?: Factory::getApplication();
         $this->input = $input ?: $this->app->getInput();
-
-        /**
-         * @deprecated This is to maintain b/c with the J4.0 implementation of BaseController. In Joomla 6.0 this will be
-         *             removed and instead the logger should be injected by the MVCFactory using
-         *             BaseController::setLogger()
-         */
-        if ($this->app instanceof AbstractApplication) {
-            $this->setLogger($this->app->getLogger());
-        }
 
         if (\defined('JDEBUG') && JDEBUG) {
             Log::addLogger(['text_file' => 'jcontroller.log.php'], Log::ALL, ['controller']);
@@ -445,9 +428,9 @@ class BaseController implements ControllerInterface, DispatcherAwareInterface, L
         // Set the default model search path
         if (\array_key_exists('model_path', $config)) {
             // User-defined dirs
-            static::addModelPath($config['model_path'], $this->model_prefix);
+            $this->addModelPath($config['model_path'], $this->model_prefix);
         } else {
-            static::addModelPath($this->basePath . '/models', $this->model_prefix);
+            $this->addModelPath($this->basePath . '/models', $this->model_prefix);
         }
 
         // Set the default view search path
@@ -474,7 +457,7 @@ class BaseController implements ControllerInterface, DispatcherAwareInterface, L
      * @param   string  $type  The path type (e.g. 'model', 'view').
      * @param   mixed   $path  The directory string  or stream array to search.
      *
-     * @return  static  A BaseController object to support chaining.
+     * @return  static  A \JControllerLegacy object to support chaining.
      *
      * @since   3.0
      */
@@ -522,25 +505,14 @@ class BaseController implements ControllerInterface, DispatcherAwareInterface, L
      */
     protected function checkEditId($context, $id)
     {
-        if (!($this->app instanceof CMSWebApplicationInterface)) {
-            throw new \Exception(
-                \sprintf(
-                    'The %s method requires an instance of %s but instead %s was supplied',
-                    __METHOD__,
-                    CMSWebApplicationInterface::class,
-                    \get_class($this->app)
-                )
-            );
-        }
-
         if ($id) {
             $values = (array) $this->app->getUserState($context . '.id');
 
             $result = \in_array((int) $id, $values);
 
             if (\defined('JDEBUG') && JDEBUG) {
-                $this->getLogger()->info(
-                    \sprintf(
+                $this->app->getLogger()->info(
+                    sprintf(
                         'Checking edit ID %s.%s: %d %s',
                         $context,
                         $id,
@@ -626,8 +598,7 @@ class BaseController implements ControllerInterface, DispatcherAwareInterface, L
      * you will need to override it in your own controllers.
      *
      * @param   boolean  $cachable   If true, the view output will be cached
-     * @param   array    $urlparams  An array of safe url parameters and their variable types.
-     *                   @see        \Joomla\CMS\Filter\InputFilter::clean() for valid values.
+     * @param   array    $urlparams  An array of safe url parameters and their variable types, for valid values see {@link InputFilter::clean()}.
      *
      * @return  static  A \JControllerLegacy object to support chaining.
      *
@@ -636,17 +607,6 @@ class BaseController implements ControllerInterface, DispatcherAwareInterface, L
      */
     public function display($cachable = false, $urlparams = [])
     {
-        if (!($this->app instanceof CMSWebApplicationInterface)) {
-            throw new \Exception(
-                \sprintf(
-                    'The %s method requires an instance of %s but instead %s was supplied',
-                    __METHOD__,
-                    CMSWebApplicationInterface::class,
-                    \get_class($this->app)
-                )
-            );
-        }
-
         $document   = $this->app->getDocument();
         $viewType   = $document->getType();
         $viewName   = $this->input->get('view', $this->default_view);
@@ -654,8 +614,11 @@ class BaseController implements ControllerInterface, DispatcherAwareInterface, L
 
         $view = $this->getView($viewName, $viewType, '', ['base_path' => $this->basePath, 'layout' => $viewLayout]);
 
-        // Set models for the View
-        $this->prepareViewModel($view);
+        // Get/Create the model
+        if ($model = $this->getModel($viewName, '', ['base_path' => $this->basePath])) {
+            // Push the model into the view (as default)
+            $view->setModel($model, true);
+        }
 
         if ($view instanceof DocumentAwareInterface && $document) {
             $view->setDocument($this->app->getDocument());
@@ -768,21 +731,14 @@ class BaseController implements ControllerInterface, DispatcherAwareInterface, L
                 return $model;
             }
 
-            if ($this->app instanceof CMSWebApplicationInterface) {
-                // Let's get the application object and set menu information if it's available
-                $menu = $this->app->getMenu();
+            // Let's get the application object and set menu information if it's available
+            $menu = $this->app->getMenu();
 
-                if (\is_object($menu) && $item = $menu->getActive()) {
-                    // Let's get the application object and set menu information if it's available
-                    $menu = $this->app->getMenu();
+            if (\is_object($menu) && $item = $menu->getActive()) {
+                $params = $menu->getParams($item->id);
 
-                    if (\is_object($menu) && $item = $menu->getActive()) {
-                        $params = $menu->getParams($item->id);
-
-                        // Set default state data
-                        $model->setState('parameters.menu', $params);
-                    }
-                }
+                // Set default state data
+                $model->setState('parameters.menu', $params);
             }
         }
 
@@ -894,21 +850,9 @@ class BaseController implements ControllerInterface, DispatcherAwareInterface, L
      * @return  void
      *
      * @since   3.0
-     * @throws  \Exception
      */
     protected function holdEditId($context, $id)
     {
-        if (!($this->app instanceof CMSWebApplicationInterface)) {
-            throw new \Exception(
-                \sprintf(
-                    'The %s method requires an instance of %s but instead %s was supplied',
-                    __METHOD__,
-                    CMSWebApplicationInterface::class,
-                    \get_class($this->app)
-                )
-            );
-        }
-
         $values = (array) $this->app->getUserState($context . '.id');
 
         // Add the id to the list if non-zero.
@@ -918,8 +862,8 @@ class BaseController implements ControllerInterface, DispatcherAwareInterface, L
             $this->app->setUserState($context . '.id', $values);
 
             if (\defined('JDEBUG') && JDEBUG) {
-                $this->getLogger()->info(
-                    \sprintf(
+                $this->app->getLogger()->info(
+                    sprintf(
                         'Holding edit ID %s.%s %s',
                         $context,
                         $id,
@@ -937,21 +881,9 @@ class BaseController implements ControllerInterface, DispatcherAwareInterface, L
      * @return  boolean  False if no redirect exists.
      *
      * @since   3.0
-     * @throws  \Exception
      */
     public function redirect()
     {
-        if (!($this->app instanceof CMSWebApplicationInterface)) {
-            throw new \Exception(
-                \sprintf(
-                    'The %s method requires an instance of %s but instead %s was supplied',
-                    __METHOD__,
-                    CMSWebApplicationInterface::class,
-                    \get_class($this->app)
-                )
-            );
-        }
-
         if ($this->redirect) {
             // Enqueue the redirect message
             $this->app->enqueueMessage($this->message, $this->messageType);
@@ -1023,21 +955,9 @@ class BaseController implements ControllerInterface, DispatcherAwareInterface, L
      * @return  void
      *
      * @since   3.0
-     * @throws  \Exception
      */
     protected function releaseEditId($context, $id)
     {
-        if (!($this->app instanceof CMSWebApplicationInterface)) {
-            throw new \Exception(
-                \sprintf(
-                    'The %s method requires an instance of %s but instead %s was supplied',
-                    __METHOD__,
-                    CMSWebApplicationInterface::class,
-                    \get_class($this->app)
-                )
-            );
-        }
-
         $values = (array) $this->app->getUserState($context . '.id');
 
         // Do a strict search of the edit list values.
@@ -1048,8 +968,8 @@ class BaseController implements ControllerInterface, DispatcherAwareInterface, L
             $this->app->setUserState($context . '.id', $values);
 
             if (\defined('JDEBUG') && JDEBUG) {
-                $this->getLogger()->info(
-                    \sprintf(
+                $this->app->getLogger()->info(
+                    sprintf(
                         'Releasing edit ID %s.%s %s',
                         $context,
                         $id,
@@ -1059,23 +979,6 @@ class BaseController implements ControllerInterface, DispatcherAwareInterface, L
                 );
             }
         }
-    }
-
-    /**
-     * Get the logger.
-     *
-     * @return  LoggerInterface
-     *
-     * @since   5.0.0
-     */
-    protected function getLogger()
-    {
-        // If a logger hasn't been set, use NullLogger
-        if (!($this->logger instanceof LoggerInterface)) {
-            $this->setLogger(new NullLogger());
-        }
-
-        return $this->logger;
     }
 
     /**
@@ -1127,22 +1030,10 @@ class BaseController implements ControllerInterface, DispatcherAwareInterface, L
      * @return  boolean  True if found and valid, otherwise return false or redirect to referrer page.
      *
      * @since   3.7.0
-     * @throws  \Exception
      * @see     Session::checkToken()
      */
     public function checkToken($method = 'post', $redirect = true)
     {
-        if (!($this->app instanceof CMSWebApplicationInterface)) {
-            throw new \Exception(
-                \sprintf(
-                    'The %s method requires an instance of %s but instead %s was supplied',
-                    __METHOD__,
-                    CMSWebApplicationInterface::class,
-                    \get_class($this->app)
-                )
-            );
-        }
-
         $valid = Session::checkToken($method);
 
         if (!$valid && $redirect) {
@@ -1152,7 +1043,7 @@ class BaseController implements ControllerInterface, DispatcherAwareInterface, L
                 $referrer = 'index.php';
             }
 
-            $this->app->enqueueMessage(Text::_('JINVALID_TOKEN_NOTICE'), CMSWebApplicationInterface::MSG_WARNING);
+            $this->app->enqueueMessage(Text::_('JINVALID_TOKEN_NOTICE'), 'warning');
             $this->app->redirect($referrer);
         }
 
@@ -1193,35 +1084,6 @@ class BaseController implements ControllerInterface, DispatcherAwareInterface, L
     }
 
     /**
-     * Method to set the View Models
-     *
-     * This function is provided as a default implementation,
-     * and only set one Model in the view (that with the same prefix/sufix than the view).
-     * In case you want to set several Models for your view,
-     * you will need to override it in your DisplayController controller.
-     *
-     * @param   ViewInterface  $view  The view Object
-     *
-     * @return  void
-     *
-     * @since   5.0.0
-     */
-    protected function prepareViewModel(ViewInterface $view)
-    {
-        if (!method_exists($view, 'setModel')) {
-            return;
-        }
-
-        $viewName = $view->getName();
-
-        // Get/Create the model
-        if ($model = $this->getModel($viewName, '', ['base_path' => $this->basePath])) {
-            // Push the model into the view (as default)
-            $view->setModel($model, true);
-        }
-    }
-
-    /**
      * Get the event dispatcher.
      *
      * The override was made to keep a backward compatibility for legacy component.
@@ -1236,7 +1098,7 @@ class BaseController implements ControllerInterface, DispatcherAwareInterface, L
     {
         if (!$this->dispatcher) {
             @trigger_error(
-                \sprintf('Dispatcher for %s should be set through MVC factory. It will throw an exception in 6.0', __CLASS__),
+                sprintf('Dispatcher for %s should be set through MVC factory. It will throw an exception in 6.0', __CLASS__),
                 E_USER_DEPRECATED
             );
 

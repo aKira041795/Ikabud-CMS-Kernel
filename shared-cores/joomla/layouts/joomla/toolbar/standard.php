@@ -11,7 +11,6 @@
 defined('_JEXEC') or die;
 
 use Joomla\CMS\Factory;
-use Joomla\CMS\Language\Text;
 
 extract($displayData, EXTR_OVERWRITE);
 
@@ -32,7 +31,7 @@ extract($displayData, EXTR_OVERWRITE);
  * @var   string  $message          Confirmation message before run the task
  */
 
-Factory::getApplication()->getDocument()->getWebAssetManager()
+Factory::getDocument()->getWebAssetManager()
     ->useScript('core')
     ->useScript('webcomponent.toolbar-button');
 
@@ -44,12 +43,6 @@ $listAttr = !empty($listCheck)      ? ' list-selection' : '';
 $formAttr = !empty($form)           ? ' form="' . $this->escape($form) . '"' : '';
 $validate = !empty($formValidation) ? ' form-validation' : '';
 $msgAttr  = !empty($message)        ? ' confirm-message="' . $this->escape($message) . '"' : '';
-
-if ($msgAttr) {
-    Text::script('WARNING');
-    Text::script('JYES');
-    Text::script('JNO');
-}
 
 if (!empty($task)) {
     $taskAttr = ' task="' . $task . '"';

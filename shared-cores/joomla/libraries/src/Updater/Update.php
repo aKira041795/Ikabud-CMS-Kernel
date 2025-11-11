@@ -14,16 +14,12 @@ use Joomla\CMS\Filter\InputFilter;
 use Joomla\CMS\Http\HttpFactory;
 use Joomla\CMS\Language\Text;
 use Joomla\CMS\Log\Log;
-use Joomla\CMS\Object\LegacyErrorHandlingTrait;
-use Joomla\CMS\Object\LegacyPropertyManagementTrait;
-use Joomla\CMS\Table\Tuf as TufMetadata;
-use Joomla\CMS\TUF\TufFetcher;
+use Joomla\CMS\Object\CMSObject;
 use Joomla\CMS\Version;
-use Joomla\Database\DatabaseDriver;
 use Joomla\Registry\Registry;
 
 // phpcs:disable PSR1.Files.SideEffects
-\defined('_JEXEC') or die;
+\defined('JPATH_PLATFORM') or die;
 // phpcs:enable PSR1.Files.SideEffects
 
 /**
@@ -32,11 +28,8 @@ use Joomla\Registry\Registry;
  *
  * @since  1.7.0
  */
-class Update
+class Update extends CMSObject
 {
-    use LegacyErrorHandlingTrait;
-    use LegacyPropertyManagementTrait;
-
     /**
      * Update manifest `<name>` element
      *
@@ -176,7 +169,7 @@ class Update
     /**
      * Resource handle for the XML Parser
      *
-     * @var    \XMLParser
+     * @var    resource
      * @since  3.0.0
      */
     protected $xmlParser;
@@ -206,7 +199,7 @@ class Update
     protected $currentUpdate;
 
     /**
-     * Object containing the latest update data which meets the requirements
+     * Object containing the latest update data which meets the PHP and DB version requirements
      *
      * @var    \stdClass
      * @since  3.0.0
@@ -237,39 +230,12 @@ class Update
     protected $minimum_stability = Updater::STABILITY_STABLE;
 
     /**
-     * Current release channel
-     *
-     * @var    string
-     * @since  5.1.0
-     */
-    protected $channel;
-
-    /**
      * Array with compatible versions used by the pre-update check
      *
      * @var    array
      * @since  3.10.2
      */
     protected $compatibleVersions = [];
-    public $downloadurl;
-    protected $tag;
-    protected $stability;
-    protected $supported_databases;
-    protected $php_minimum;
-    protected $folder;
-    protected $changelogurl;
-    public $sha256;
-    public $sha384;
-    public $sha512;
-    protected $section;
-
-    /**
-     * Joomla! target version used by the pre-update check
-     *
-     * @var    string
-     * @since  5.1.1
-     */
-    private $targetVersion;
 
     /**
      * Gets the reference to the current direct parent
@@ -318,13 +284,13 @@ class Update
         }
 
         switch ($name) {
+            // This is a new update; create a current update
             case 'UPDATE':
-                // This is a new update; create a current update
                 $this->currentUpdate = new \stdClass();
                 break;
 
+            // Handle the array of download sources
             case 'DOWNLOADSOURCE':
-                // Handle the array of download sources
                 $source = new DownloadSource();
 
                 foreach ($attrs as $key => $data) {
@@ -336,12 +302,12 @@ class Update
 
                 break;
 
+            // Don't do anything
             case 'UPDATES':
-                // Don't do anything
                 break;
 
+            // For everything else there's...the default!
             default:
-                // For everything else there's...the default!
                 $name = strtolower($name);
 
                 if (!isset($this->currentUpdate->$name)) {
@@ -382,7 +348,7 @@ class Update
                 if (
                     isset($this->currentUpdate->targetplatform->name)
                     && $product == $this->currentUpdate->targetplatform->name
-                    && preg_match('/^' . $this->currentUpdate->targetplatform->version . '/', $this->getTargetVersion())
+                    && preg_match('/^' . $this->currentUpdate->targetplatform->version . '/', $this->get('jversion.full', JVERSION))
                 ) {
                     // Collect information on updates which do not meet PHP and DB version requirements
                     $otherUpdateInfo          = new \stdClass();
@@ -399,19 +365,6 @@ class Update
                         $otherUpdateInfo->php           = new \stdClass();
                         $otherUpdateInfo->php->required = $this->currentUpdate->php_minimum->_data;
                         $otherUpdateInfo->php->used     = PHP_VERSION;
-                    }
-
-                    $channelMatch = false;
-
-                    // Check if the release channel matches, assume true if tag isn't present
-                    if (!$this->channel || !isset($this->currentUpdate->channel) || preg_match('/' . $this->channel . '/', $this->currentUpdate->channel->_data)) {
-                        $channelMatch = true;
-                    }
-
-                    if (!$channelMatch) {
-                        $otherUpdateInfo->channel           = new \stdClass();
-                        $otherUpdateInfo->channel->required = $this->currentUpdate->channel->_data;
-                        $otherUpdateInfo->channel->used     = $this->channel;
                     }
 
                     $dbMatch = false;
@@ -457,7 +410,7 @@ class Update
                         $stabilityMatch = false;
                     }
 
-                    if ($phpMatch && $stabilityMatch && $dbMatch && $channelMatch) {
+                    if ($phpMatch && $stabilityMatch && $dbMatch) {
                         if (!empty($this->currentUpdate->downloadurl) && !empty($this->currentUpdate->downloadurl->_data)) {
                             $this->compatibleVersions[] = $this->currentUpdate->version->_data;
                         }
@@ -534,97 +487,7 @@ class Update
     }
 
     /**
-     * Loads update information from a TUF repo.
-     *
-     *
-     * @param TufMetadata $metadataTable     The metadata table
-     * @param string      $url               The repo url
-     * @param int         $minimumStability  The minimum stability required for updating the extension {@see Updater}
-     * @param string      $channel           The update channel
-     *
-     * @return  boolean  True on success
-     *
-     * @since   5.1.0
-     */
-    public function loadFromTuf(TufMetadata $metadataTable, string $url, $minimumStability = Updater::STABILITY_STABLE, $channel = null)
-    {
-        $tufFetcher = new TufFetcher(
-            $metadataTable,
-            $url,
-            Factory::getContainer()->get(DatabaseDriver::class),
-            (new HttpFactory())->getHttp(),
-            Factory::getApplication(),
-        );
-
-        $metaData = $tufFetcher->getValidUpdate();
-
-        $data              = json_decode($metaData, true);
-        $constraintChecker = new ConstraintChecker();
-
-        foreach ($data['signed']['targets'] as $target) {
-            // Check if this target is newer than the current version
-            if (isset($this->latest) && version_compare($target['custom']['version'], $this->latest->version, '<')) {
-                continue;
-            }
-
-            if (!$constraintChecker->check($target['custom'], $minimumStability)) {
-                $this->otherUpdateInfo = $constraintChecker->getFailedEnvironmentConstraints();
-
-                continue;
-            }
-
-            if (!empty($target['custom']['downloads'])) {
-                $this->compatibleVersions[] = $target['custom']['version'];
-            }
-
-            $this->latest = new \stdClass();
-
-            foreach ($target['custom'] as $key => $val) {
-                $this->latest->$key = $val;
-            }
-
-            $this->downloadSources = [];
-
-            if (!empty($this->latest->downloads)) {
-                foreach ($this->latest->downloads as $download) {
-                    $source = new DownloadSource();
-
-                    foreach ($download as $key => $sourceUrl) {
-                        $key          = strtolower($key);
-                        $source->$key = $sourceUrl;
-                    }
-
-                    $this->downloadSources[] = $source;
-                }
-            }
-
-            $this->client = $this->latest->client;
-
-            foreach ($target['hashes'] as $hashAlgorithm => $hashSum) {
-                $this->$hashAlgorithm = (object) ['_data' => $hashSum];
-            }
-        }
-
-        // If the latest item is set then we transfer it to where we want to
-        if (isset($this->latest)) {
-            foreach ($this->downloadSources as $source) {
-                $this->downloadurl = (object) [
-                    '_data'  => $source->url,
-                    'type'   => $source->type,
-                    'format' => $source->format,
-                ];
-
-                break;
-            }
-
-            unset($this->latest);
-        }
-
-        return true;
-    }
-
-    /**
-     * Loads a XML file from a URL.
+     * Loads an XML file from a URL.
      *
      * @param   string  $url               The URL.
      * @param   int     $minimumStability  The minimum stability required for updating the extension {@see Updater}
@@ -633,7 +496,7 @@ class Update
      *
      * @since   1.7.0
      */
-    public function loadFromXml($url, $minimumStability = Updater::STABILITY_STABLE, $channel = null)
+    public function loadFromXml($url, $minimumStability = Updater::STABILITY_STABLE)
     {
         $version    = new Version();
         $httpOption = new Registry();
@@ -654,7 +517,6 @@ class Update
         }
 
         $this->minimum_stability = $minimumStability;
-        $this->channel           = $channel;
 
         $this->xmlParser = xml_parser_create('');
         xml_set_object($this->xmlParser, $this);
@@ -663,7 +525,7 @@ class Update
 
         if (!xml_parse($this->xmlParser, $response->body)) {
             Log::add(
-                \sprintf(
+                sprintf(
                     'XML error: %s at line %d',
                     xml_error_string(xml_get_error_code($this->xmlParser)),
                     xml_get_current_line_number($this->xmlParser)
@@ -699,35 +561,5 @@ class Update
         }
 
         return Updater::STABILITY_STABLE;
-    }
-
-    /**
-     * Set extension's Joomla! target version
-     *
-     * @param   string  $version  The target version
-     *
-     * @return  void
-     *
-     * @since   5.1.1
-     */
-    public function setTargetVersion($version)
-    {
-        $this->targetVersion = $version;
-    }
-
-    /**
-     * Get extension's Joomla! target version
-     *
-     * @return  string
-     *
-     * @since   5.1.1
-     */
-    public function getTargetVersion()
-    {
-        if (!$this->targetVersion) {
-            return JVERSION;
-        }
-
-        return $this->targetVersion;
     }
 }

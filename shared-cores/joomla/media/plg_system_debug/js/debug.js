@@ -21,12 +21,15 @@
    * Register events
    */
   const registerEvents = () => {
-    document.querySelectorAll(debugSectionTogglerSelector).forEach(toggler => {
+    const sectionTogglers = [].slice.call(document.querySelectorAll(debugSectionTogglerSelector));
+    sectionTogglers.forEach(toggler => {
       toggler.addEventListener('click', event => {
         event.preventDefault();
         toggle(toggler.getAttribute(toggleTargetAttribute));
       });
     });
   };
-  document.addEventListener('DOMContentLoaded', registerEvents);
+  document.addEventListener('DOMContentLoaded', () => {
+    registerEvents();
+  });
 })(document);

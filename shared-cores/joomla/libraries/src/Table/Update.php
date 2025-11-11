@@ -11,10 +11,9 @@ namespace Joomla\CMS\Table;
 
 use Joomla\CMS\Language\Text;
 use Joomla\Database\DatabaseDriver;
-use Joomla\Event\DispatcherInterface;
 
 // phpcs:disable PSR1.Files.SideEffects
-\defined('_JEXEC') or die;
+\defined('JPATH_PLATFORM') or die;
 // phpcs:enable PSR1.Files.SideEffects
 
 /**
@@ -26,7 +25,7 @@ use Joomla\Event\DispatcherInterface;
 class Update extends Table
 {
     /**
-     * Ensure the params are json encoded in the bind method
+     * Ensure the params in json encoded in the bind method
      *
      * @var    array
      * @since  4.0.0
@@ -36,14 +35,13 @@ class Update extends Table
     /**
      * Constructor
      *
-     * @param   DatabaseDriver        $db          Database connector object
-     * @param   ?DispatcherInterface  $dispatcher  Event dispatcher for this table
+     * @param   DatabaseDriver  $db  Database driver object.
      *
      * @since   1.7.0
      */
-    public function __construct(DatabaseDriver $db, ?DispatcherInterface $dispatcher = null)
+    public function __construct(DatabaseDriver $db)
     {
-        parent::__construct('#__updates', 'update_id', $db, $dispatcher);
+        parent::__construct('#__updates', 'update_id', $db);
     }
 
     /**

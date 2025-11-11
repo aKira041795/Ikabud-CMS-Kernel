@@ -10,21 +10,17 @@
 namespace Joomla\CMS\User;
 
 use Joomla\CMS\Access\Access;
-use Joomla\CMS\Event\User\AfterDeleteEvent;
-use Joomla\CMS\Event\User\AfterSaveEvent;
-use Joomla\CMS\Event\User\BeforeDeleteEvent;
-use Joomla\CMS\Event\User\BeforeSaveEvent;
 use Joomla\CMS\Factory;
 use Joomla\CMS\Language\Text;
-use Joomla\CMS\Object\LegacyErrorHandlingTrait;
-use Joomla\CMS\Object\LegacyPropertyManagementTrait;
+use Joomla\CMS\Log\Log;
+use Joomla\CMS\Object\CMSObject;
 use Joomla\CMS\Plugin\PluginHelper;
 use Joomla\CMS\Table\Table;
 use Joomla\Registry\Registry;
 use Joomla\Utilities\ArrayHelper;
 
 // phpcs:disable PSR1.Files.SideEffects
-\defined('_JEXEC') or die;
+\defined('JPATH_PLATFORM') or die;
 // phpcs:enable PSR1.Files.SideEffects
 
 /**
@@ -32,12 +28,8 @@ use Joomla\Utilities\ArrayHelper;
  *
  * @since  1.7.0
  */
-#[\AllowDynamicProperties]
-class User
+class User extends CMSObject
 {
-    use LegacyErrorHandlingTrait;
-    use LegacyPropertyManagementTrait;
-
     /**
      * A cached switch for if this user has root access rights.
      *
@@ -183,38 +175,6 @@ class User
     public $requireReset = null;
 
     /**
-     * The type alias
-     *
-     * @var    string
-     * @since  5.0.0
-     */
-    public $typeAlias = null;
-
-    /**
-     * The otp key
-     *
-     * @var    string
-     * @since  5.0.0
-     */
-    public $otpKey = null;
-
-    /**
-     * The otp
-     *
-     * @var    string
-     * @since  5.0.0
-     */
-    public $otep = null;
-
-    /**
-     * The authentication provider
-     *
-     * @var    string
-     * @since  5.0.0
-     */
-    public $authProvider = null;
-
-    /**
      * User parameters
      *
      * @var    Registry
@@ -261,6 +221,16 @@ class User
     protected static $instances = [];
 
     /**
+     * The access level id
+     *
+     * @var    integer
+     * @since  4.3.0
+     *
+     * @deprecated 4.4.0 will be removed in 6.0 as this property is not used anymore
+     */
+    public $aid = null;
+
+    /**
      * Constructor activating the default information of the language
      *
      * @param   integer  $identifier  The primary key of the user to load (optional).
@@ -279,6 +249,7 @@ class User
             // Initialise
             $this->id        = 0;
             $this->sendEmail = 0;
+            $this->aid       = 0;
             $this->guest     = 1;
         }
     }
@@ -298,7 +269,7 @@ class User
     public static function getInstance($identifier = 0)
     {
         @trigger_error(
-            \sprintf(
+            sprintf(
                 '%1$s() is deprecated. Load the user from the dependency injection container or via %2$s::getApplication()->getIdentity().',
                 __METHOD__,
                 __CLASS__
@@ -309,9 +280,9 @@ class User
         // Find the user id
         if (!is_numeric($identifier)) {
             return Factory::getContainer()->get(UserFactoryInterface::class)->loadUserByUsername($identifier);
+        } else {
+            $id = $identifier;
         }
-
-        $id = $identifier;
 
         // If the $id is zero, just return an empty User.
         // Note: don't cache this user because it'll have a new ID on save!
@@ -525,7 +496,7 @@ class User
     {
         // Create the user table object
         /** @var \Joomla\CMS\Table\User $table */
-        $table = static::getTable();
+        $table = $this->getTable();
         $table->load($this->id);
 
         return $table->setLastVisit($timestamp);
@@ -576,14 +547,14 @@ class User
      * @note    At 4.0 this method will no longer be static
      * @since   1.7.0
      */
-    public static function getTable($type = null, $prefix = '\\Joomla\\CMS\\Table\\')
+    public static function getTable($type = null, $prefix = 'JTable')
     {
         static $tabletype;
 
         // Set the default tabletype;
         if (!isset($tabletype)) {
             $tabletype['name']   = 'user';
-            $tabletype['prefix'] = '\\Joomla\\CMS\\Table\\';
+            $tabletype['prefix'] = 'JTable';
         }
 
         // Set a custom table type is defined
@@ -701,7 +672,7 @@ class User
     public function save($updateOnly = false)
     {
         // Create the user table object
-        $table        = static::getTable();
+        $table        = $this->getTable();
         $this->params = (string) $this->_params;
         $table->bind($this->getProperties());
 
@@ -769,17 +740,15 @@ class User
                 }
             }
 
-            // Fire the onUserBeforeSave event.
-            $dispatcher = Factory::getApplication()->getDispatcher();
-            PluginHelper::importPlugin('user', null, true, $dispatcher);
+            // Unset the activation token, if the mail address changes - that affects both, activation and PW resets
+            if ($this->email !== $oldUser->email && $this->id !== 0 && !empty($this->activation) && !$this->block) {
+                $table->activation = '';
+            }
 
-            $saveEvent = new BeforeSaveEvent('onUserBeforeSave', [
-                'subject' => $oldUser->getProperties(),
-                'isNew'   => $isNew,
-                'data'    => $this->getProperties(),
-            ]);
-            $dispatcher->dispatch('onUserBeforeSave', $saveEvent);
-            $result = $saveEvent['result'] ?? [];
+            // Fire the onUserBeforeSave event.
+            PluginHelper::importPlugin('user');
+
+            $result = Factory::getApplication()->triggerEvent('onUserBeforeSave', [$oldUser->getProperties(), $isNew, $this->getProperties()]);
 
             if (\in_array(false, $result, true)) {
                 // Plugin will have to raise its own error or throw an exception.
@@ -791,7 +760,7 @@ class User
 
             // Set the id for the User object in case we created a new user.
             if (empty($this->id)) {
-                $this->id = $table->id;
+                $this->id = $table->get('id');
             }
 
             if ($my->id == $table->id) {
@@ -800,12 +769,7 @@ class User
             }
 
             // Fire the onUserAfterSave event
-            $dispatcher->dispatch('onUserAfterSave', new AfterSaveEvent('onUserAfterSave', [
-                'subject'      => $this->getProperties(),
-                'isNew'        => $isNew,
-                'savingResult' => $result,
-                'errorMessage' => $this->getError() ?? '',
-            ]));
+            Factory::getApplication()->triggerEvent('onUserAfterSave', [$this->getProperties(), $isNew, $result, $this->getError()]);
         } catch (\Exception $e) {
             $this->setError($e->getMessage());
 
@@ -824,27 +788,20 @@ class User
      */
     public function delete()
     {
-        $dispatcher = Factory::getApplication()->getDispatcher();
-        PluginHelper::importPlugin('user', null, true, $dispatcher);
+        PluginHelper::importPlugin('user');
 
         // Trigger the onUserBeforeDelete event
-        $dispatcher->dispatch('onUserBeforeDelete', new BeforeDeleteEvent('onUserBeforeDelete', [
-            'subject' => $this->getProperties(),
-        ]));
+        Factory::getApplication()->triggerEvent('onUserBeforeDelete', [$this->getProperties()]);
 
         // Create the user table object
-        $table = static::getTable();
+        $table = $this->getTable();
 
         if (!$result = $table->delete($this->id)) {
             $this->setError($table->getError());
         }
 
         // Trigger the onUserAfterDelete event
-        $dispatcher->dispatch('onUserAfterDelete', new AfterDeleteEvent('onUserAfterDelete', [
-            'subject'        => $this->getProperties(),
-            'deletingResult' => $result,
-            'errorMessage'   => $this->getError() ?? '',
-        ]));
+        Factory::getApplication()->triggerEvent('onUserAfterDelete', [$this->getProperties(), $result, $this->getError()]);
 
         return $result;
     }
@@ -861,12 +818,14 @@ class User
     public function load($id)
     {
         // Create the user table object
-        $table = static::getTable();
+        $table = $this->getTable();
 
         // Load the UserModel object based on the user id or throw a warning.
         if (!$table->load($id)) {
             // Reset to guest user
             $this->guest = 1;
+
+            Log::add(Text::sprintf('JLIB_USER_ERROR_UNABLE_TO_LOAD_USER', $id), Log::WARNING, 'jerror');
 
             return false;
         }
@@ -926,6 +885,7 @@ class User
             // Initialise
             $this->id        = 0;
             $this->sendEmail = 0;
+            $this->aid       = 0;
             $this->guest     = 1;
         }
     }

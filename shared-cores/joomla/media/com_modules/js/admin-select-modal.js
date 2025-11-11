@@ -6,7 +6,8 @@
 (document => {
 
   document.addEventListener('DOMContentLoaded', () => {
-    document.querySelectorAll('#new-modules-list a.select-link').forEach(elem => {
+    const elems = document.querySelectorAll('#new-modules-list a.select-link');
+    elems.forEach(elem => {
       elem.addEventListener('click', ({
         currentTarget,
         target

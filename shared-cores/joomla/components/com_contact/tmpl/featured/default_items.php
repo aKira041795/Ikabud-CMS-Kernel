@@ -16,9 +16,8 @@ use Joomla\CMS\Router\Route;
 use Joomla\CMS\Uri\Uri;
 use Joomla\Component\Contact\Site\Helper\RouteHelper;
 
-/** @var \Joomla\Component\Contact\Site\View\Featured\HtmlView $this */
 /** @var Joomla\CMS\WebAsset\WebAssetManager $wa */
-$wa = $this->getDocument()->getWebAssetManager();
+$wa = $this->document->getWebAssetManager();
 $wa->useScript('com_contact.contacts-list')
     ->useScript('core');
 
@@ -125,11 +124,11 @@ $listDirn  = $this->escape($this->state->get('list.direction'));
                     <?php if ($this->items[$i]->published == 0) : ?>
                         <tr class="system-unpublished featured-list-row<?php echo $i % 2; ?>">
                     <?php else : ?>
-                        <tr class="featured-list-row<?php echo $i % 2; ?>">
+                        <tr class="featured-list-row<?php echo $i % 2; ?>" itemscope itemtype="https://schema.org/Person">
                     <?php endif; ?>
                     <th scope="row" class="list-title">
-                        <a href="<?php echo Route::_(RouteHelper::getContactRoute($item->slug, $item->catid, $item->language)); ?>">
-                            <span><?php echo $this->escape($item->name); ?></span>
+                        <a href="<?php echo Route::_(RouteHelper::getContactRoute($item->slug, $item->catid, $item->language)); ?>" itemprop="url">
+                            <span itemprop="name"><?php echo $this->escape($item->name); ?></span>
                         </a>
                         <?php if ($item->published == 0) : ?>
                             <div>
@@ -141,50 +140,50 @@ $listDirn  = $this->escape($this->state->get('list.direction'));
                     </th>
 
                     <?php if ($this->params->get('show_position_headings')) : ?>
-                        <td class="item-position">
+                        <td class="item-position" itemprop="jobTitle">
                             <?php echo $item->con_position; ?>
                         </td>
                     <?php endif; ?>
 
                     <?php if ($this->params->get('show_email_headings')) : ?>
-                        <td class="item-email">
+                        <td class="item-email" itemprop="email">
                             <?php echo $item->email_to; ?>
                         </td>
                     <?php endif; ?>
 
                     <?php if ($this->params->get('show_telephone_headings')) : ?>
-                        <td class="item-phone">
+                        <td class="item-phone" itemprop="telephone">
                             <?php echo $item->telephone; ?>
                         </td>
                     <?php endif; ?>
 
                     <?php if ($this->params->get('show_mobile_headings')) : ?>
-                        <td class="item-phone">
+                        <td class="item-phone" itemprop="telephone">
                             <?php echo $item->mobile; ?>
                         </td>
                     <?php endif; ?>
 
                     <?php if ($this->params->get('show_fax_headings')) : ?>
-                        <td class="item-phone">
+                        <td class="item-phone" itemprop="faxNumber">
                             <?php echo $item->fax; ?>
                         </td>
                     <?php endif; ?>
 
                     <?php if ($this->params->get('show_suburb_headings')) : ?>
-                        <td class="item-suburb">
-                            <span><?php echo $item->suburb; ?></span>
+                        <td class="item-suburb" itemprop="address" itemscope itemtype="https://schema.org/PostalAddress">
+                            <span itemprop="addressLocality"><?php echo $item->suburb; ?></span>
                         </td>
                     <?php endif; ?>
 
                     <?php if ($this->params->get('show_state_headings')) : ?>
-                        <td class="item-state">
-                            <span><?php echo $item->state; ?></span>
+                        <td class="item-state" itemprop="address" itemscope itemtype="https://schema.org/PostalAddress">
+                            <span itemprop="addressRegion"><?php echo $item->state; ?></span>
                         </td>
                     <?php endif; ?>
 
                     <?php if ($this->params->get('show_country_headings')) : ?>
-                        <td class="item-state">
-                            <span><?php echo $item->country; ?></span>
+                        <td class="item-state" itemprop="address" itemscope itemtype="https://schema.org/PostalAddress">
+                            <span itemprop="addressCountry"><?php echo $item->country; ?></span>
                         </td>
                     <?php endif; ?>
                 <?php endforeach; ?>

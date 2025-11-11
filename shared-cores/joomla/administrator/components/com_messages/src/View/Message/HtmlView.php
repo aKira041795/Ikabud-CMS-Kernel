@@ -14,9 +14,9 @@ use Joomla\CMS\Factory;
 use Joomla\CMS\Language\Text;
 use Joomla\CMS\MVC\View\GenericDataException;
 use Joomla\CMS\MVC\View\HtmlView as BaseHtmlView;
+use Joomla\CMS\Toolbar\Toolbar;
 use Joomla\CMS\Toolbar\ToolbarHelper;
-use Joomla\CMS\User\UserFactoryAwareInterface;
-use Joomla\CMS\User\UserFactoryAwareTrait;
+use Joomla\CMS\User\User;
 
 // phpcs:disable PSR1.Files.SideEffects
 \defined('_JEXEC') or die;
@@ -27,10 +27,8 @@ use Joomla\CMS\User\UserFactoryAwareTrait;
  *
  * @since  1.6
  */
-class HtmlView extends BaseHtmlView implements UserFactoryAwareInterface
+class HtmlView extends BaseHtmlView
 {
-    use UserFactoryAwareTrait;
-
     /**
      * The Form object
      *
@@ -48,7 +46,7 @@ class HtmlView extends BaseHtmlView implements UserFactoryAwareInterface
     /**
      * The model state
      *
-     * @var  \Joomla\Registry\Registry
+     * @var  \Joomla\CMS\Object\CMSObject
      */
     protected $state;
 
@@ -68,11 +66,9 @@ class HtmlView extends BaseHtmlView implements UserFactoryAwareInterface
         $this->state = $this->get('State');
 
         // Check for errors.
-        if (\count($errors = $this->get('Errors'))) {
+        if (count($errors = $this->get('Errors'))) {
             throw new GenericDataException(implode("\n", $errors), 500);
-        }
-
-        if ($this->getLayout() !== 'edit' && empty($this->item->message_id)) {
+        } elseif ($this->getLayout() !== 'edit' && empty($this->item->message_id)) {
             throw new GenericDataException(Text::_('JERROR_ALERTNOAUTHOR'), 403);
         }
 
@@ -90,7 +86,7 @@ class HtmlView extends BaseHtmlView implements UserFactoryAwareInterface
     protected function addToolbar()
     {
         $app     = Factory::getApplication();
-        $toolbar = $this->getDocument()->getToolbar();
+        $toolbar = Toolbar::getInstance();
 
         if ($this->getLayout() == 'edit') {
             $app->getInput()->set('hidemainmenu', true);
@@ -102,7 +98,7 @@ class HtmlView extends BaseHtmlView implements UserFactoryAwareInterface
             $toolbar->help('Private_Messages:_Write');
         } else {
             ToolbarHelper::title(Text::_('COM_MESSAGES_VIEW_PRIVATE_MESSAGE'), 'envelope inbox');
-            $sender = $this->getUserFactory()->loadUserById($this->item->user_id_from);
+            $sender = User::getInstance($this->item->user_id_from);
 
             if (
                 $sender->id !== $app->getIdentity()->get('id') && ($sender->authorise('core.admin')

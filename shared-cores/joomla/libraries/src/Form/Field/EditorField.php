@@ -13,7 +13,7 @@ use Joomla\CMS\Editor\Editor;
 use Joomla\CMS\Factory;
 
 // phpcs:disable PSR1.Files.SideEffects
-\defined('_JEXEC') or die;
+\defined('JPATH_PLATFORM') or die;
 // phpcs:enable PSR1.Files.SideEffects
 
 /**

@@ -47,6 +47,9 @@
         fieldset.classList.remove('options-grid-form-full');
         fieldset.classList.add('options-grid-form-half');
       }
+      if (Joomla.editors.instances.jform_core) {
+        Joomla.editors.instances.jform_core.refresh();
+      }
       if (typeof Storage !== 'undefined') {
         localStorage.setItem('coreSwitchState', 'checked');
       }

@@ -15,6 +15,7 @@ use Joomla\CMS\Language\Text;
 use Joomla\CMS\MVC\View\GenericDataException;
 use Joomla\CMS\MVC\View\HtmlView as BaseHtmlView;
 use Joomla\CMS\Toolbar\Button\DropdownButton;
+use Joomla\CMS\Toolbar\Toolbar;
 use Joomla\CMS\Toolbar\ToolbarHelper;
 use Joomla\Component\Finder\Administrator\Helper\LanguageHelper;
 
@@ -50,7 +51,7 @@ class HtmlView extends BaseHtmlView
     /**
      * The model state
      *
-     * @var   \Joomla\Registry\Registry
+     * @var    \Joomla\CMS\Object\CMSObject
      *
      * @since  3.6.1
      */
@@ -117,7 +118,7 @@ class HtmlView extends BaseHtmlView
         }
 
         // Check for errors.
-        if (\count($errors = $this->get('Errors'))) {
+        if (count($errors = $this->get('Errors'))) {
             throw new GenericDataException(implode("\n", $errors), 500);
         }
 
@@ -137,7 +138,7 @@ class HtmlView extends BaseHtmlView
     protected function addToolbar()
     {
         $canDo   = ContentHelper::getActions('com_finder');
-        $toolbar = $this->getDocument()->getToolbar();
+        $toolbar = Toolbar::getInstance();
 
         ToolbarHelper::title(Text::_('COM_FINDER_MAPS_TOOLBAR_TITLE'), 'search-plus finder');
 
@@ -164,11 +165,9 @@ class HtmlView extends BaseHtmlView
 
             $toolbar->divider();
             $toolbar->popupButton('bars', 'COM_FINDER_STATISTICS')
-                ->popupType('iframe')
-                ->textHeader(Text::_('COM_FINDER_STATISTICS_TITLE'))
                 ->url('index.php?option=com_finder&view=statistics&tmpl=component')
-                ->modalWidth('800px')
-                ->modalHeight('500px')
+                ->iframeWidth(550)
+                ->iframeHeight(350)
                 ->title(Text::_('COM_FINDER_STATISTICS_TITLE'))
                 ->icon('icon-bars');
             $toolbar->divider();

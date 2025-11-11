@@ -199,7 +199,7 @@
       if (!this.select) {
         throw new Error('Simple color field requires a select element');
       }
-      this.options = this.select.querySelectorAll('option');
+      this.options = [].slice.call(this.select.querySelectorAll('option'));
       this.select.classList.add('hidden');
 
       // Build the pop up
@@ -238,7 +238,7 @@
       if (clss) {
         this.icon.setAttribute('class', clss);
       }
-      const uniqueId = `simple-color-${Math.random().toString(36).substring(2, 12)}`;
+      const uniqueId = `simple-color-${Math.random().toString(36).substr(2, 10)}`;
       this.icon.setAttribute('type', 'button');
       this.icon.setAttribute('tabindex', '0');
       this.icon.style.backgroundColor = color;

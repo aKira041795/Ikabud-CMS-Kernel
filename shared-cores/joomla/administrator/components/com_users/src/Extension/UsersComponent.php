@@ -15,14 +15,13 @@ use Joomla\CMS\Component\Router\RouterServiceTrait;
 use Joomla\CMS\Extension\BootableExtensionInterface;
 use Joomla\CMS\Extension\MVCComponent;
 use Joomla\CMS\Factory;
-use Joomla\CMS\Fields\FieldsFormServiceInterface;
-use Joomla\CMS\Fields\FieldsServiceTrait;
+use Joomla\CMS\Fields\FieldsServiceInterface;
 use Joomla\CMS\HTML\HTMLRegistryAwareTrait;
 use Joomla\Component\Users\Administrator\Service\HTML\Users;
 use Psr\Container\ContainerInterface;
 
 // phpcs:disable PSR1.Files.SideEffects
-\defined('_JEXEC') or die;
+\defined('JPATH_PLATFORM') or die;
 // phpcs:enable PSR1.Files.SideEffects
 
 /**
@@ -30,9 +29,8 @@ use Psr\Container\ContainerInterface;
  *
  * @since  4.0.0
  */
-class UsersComponent extends MVCComponent implements BootableExtensionInterface, RouterServiceInterface, FieldsFormServiceInterface
+class UsersComponent extends MVCComponent implements BootableExtensionInterface, RouterServiceInterface, FieldsServiceInterface
 {
-    use FieldsServiceTrait;
     use RouterServiceTrait;
     use HTMLRegistryAwareTrait;
 

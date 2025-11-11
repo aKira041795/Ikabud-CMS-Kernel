@@ -9,11 +9,12 @@
 
 namespace Joomla\CMS\Form\Field;
 
+use Joomla\CMS\Factory;
 use Joomla\CMS\Language\Text;
 use Joomla\Database\ParameterType;
 
 // phpcs:disable PSR1.Files.SideEffects
-\defined('_JEXEC') or die;
+\defined('JPATH_PLATFORM') or die;
 // phpcs:enable PSR1.Files.SideEffects
 
 /**
@@ -72,7 +73,7 @@ class MenuField extends GroupedlistField
         $menus = $db->setQuery($query)->loadObjectList();
 
         if ($accessType) {
-            $user = $this->getCurrentUser();
+            $user = Factory::getUser();
 
             foreach ($menus as $key => $menu) {
                 switch ($accessType) {
@@ -83,8 +84,8 @@ class MenuField extends GroupedlistField
                         }
                         break;
 
+                    // Editing a menu item is a bit tricky, we have to check the current menutype for core.edit and all others for core.create
                     case 'edit':
-                        // Editing a menu item is a bit tricky, we have to check the current menutype for core.edit and all others for core.create
                         $check = $this->value == $menu->value ? 'edit' : 'create';
 
                         if (!$user->authorise('core.' . $check, 'com_menus.menu.' . (int) $menu->id)) {

@@ -18,7 +18,7 @@ use Joomla\CMS\Router\Route;
 /** @var \Joomla\Component\Admin\Administrator\View\Help\HtmlView $this */
 
 /** @var Joomla\CMS\WebAsset\WebAssetManager $wa */
-$wa = $this->getDocument()->getWebAssetManager();
+$wa = $this->document->getWebAssetManager();
 $wa->useScript('com_admin.admin-help');
 
 ?>

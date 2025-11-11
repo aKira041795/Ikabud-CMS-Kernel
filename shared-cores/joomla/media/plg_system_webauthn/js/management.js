@@ -407,8 +407,18 @@ window.Joomla = window.Joomla || {};
     if (addButton) {
       addButton.addEventListener('click', Joomla.plgSystemWebauthnAddOnClick);
     }
-    document.querySelectorAll('.plg_system_webauthn-manage-edit').forEach(button => button.addEventListener('click', Joomla.plgSystemWebauthnEditOnClick));
-    document.querySelectorAll('.plg_system_webauthn-manage-delete').forEach(button => button.addEventListener('click', Joomla.plgSystemWebauthnDeleteOnClick));
+    const editLabelButtons = [].slice.call(document.querySelectorAll('.plg_system_webauthn-manage-edit'));
+    if (editLabelButtons.length) {
+      editLabelButtons.forEach(button => {
+        button.addEventListener('click', Joomla.plgSystemWebauthnEditOnClick);
+      });
+    }
+    const deleteButtons = [].slice.call(document.querySelectorAll('.plg_system_webauthn-manage-delete'));
+    if (deleteButtons.length) {
+      deleteButtons.forEach(button => {
+        button.addEventListener('click', Joomla.plgSystemWebauthnDeleteOnClick);
+      });
+    }
   };
 
   // Initialization. Runs on DOM content loaded since this script is always loaded deferred.

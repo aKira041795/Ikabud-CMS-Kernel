@@ -72,24 +72,3 @@ span[lang]:after {
   content: attr(lang);
   font-size: smaller;
 }
-
-.float-start {
-  float: left;
-}
-
-.float-end {
-  float: right;
-}
-
-.float-none {
-  float: none;
-}
-
-.mx-auto {
-  margin-left: auto !important;
-  margin-right: auto !important;
-}
-
-.d-block {
-  display: block !important;
-}

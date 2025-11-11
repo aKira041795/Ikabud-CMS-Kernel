@@ -20,8 +20,7 @@ use Joomla\CMS\MVC\Factory\MVCFactoryInterface;
 use Joomla\CMS\MVC\Model\AdminModel;
 use Joomla\CMS\Plugin\PluginHelper;
 use Joomla\CMS\Table\Table;
-use Joomla\CMS\User\UserFactoryAwareInterface;
-use Joomla\CMS\User\UserFactoryAwareTrait;
+use Joomla\CMS\User\User;
 use Joomla\CMS\User\UserHelper;
 use Joomla\Database\ParameterType;
 use Joomla\Utilities\ArrayHelper;
@@ -35,10 +34,8 @@ use Joomla\Utilities\ArrayHelper;
  *
  * @since  1.6
  */
-class UserModel extends AdminModel implements UserFactoryAwareInterface
+class UserModel extends AdminModel
 {
-    use UserFactoryAwareTrait;
-
     /**
      * An item.
      *
@@ -49,13 +46,13 @@ class UserModel extends AdminModel implements UserFactoryAwareInterface
     /**
      * Constructor.
      *
-     * @param   array                 $config   An optional associative array of configuration settings.
-     * @param   ?MVCFactoryInterface  $factory  The factory.
+     * @param   array                $config   An optional associative array of configuration settings.
+     * @param   MVCFactoryInterface  $factory  The factory.
      *
      * @see     \Joomla\CMS\MVC\Model\BaseDatabaseModel
      * @since   3.2
      */
-    public function __construct($config = [], ?MVCFactoryInterface $factory = null)
+    public function __construct($config = [], MVCFactoryInterface $factory = null)
     {
         $config = array_merge(
             [
@@ -142,7 +139,7 @@ class UserModel extends AdminModel implements UserFactoryAwareInterface
 
         // When multilanguage is set, a user's default site language should also be a Content Language
         if (Multilanguage::isEnabled()) {
-            $form->setFieldAttribute('language', 'type', 'frontendlanguage', 'params');
+            $form->setFieldAttribute('language', 'type', 'frontend_language', 'params');
         }
 
         $userId = (int) $form->getValue('id');
@@ -225,7 +222,7 @@ class UserModel extends AdminModel implements UserFactoryAwareInterface
     public function save($data)
     {
         $pk   = (!empty($data['id'])) ? $data['id'] : (int) $this->getState('user.id');
-        $user = $this->getUserFactory()->loadUserById($pk);
+        $user = User::getInstance($pk);
 
         $my            = $this->getCurrentUser();
         $iAmSuperAdmin = $my->authorise('core.admin');
@@ -252,7 +249,7 @@ class UserModel extends AdminModel implements UserFactoryAwareInterface
         }
 
         // Make sure that we are not removing ourself from Super Admin group
-        if ($iAmSuperAdmin && $my->id == $pk) {
+        if ($iAmSuperAdmin && $my->get('id') == $pk) {
             // Check that at least one of our new groups is Super Admin
             $stillSuperAdmin = false;
             $myNewGroups     = $data['groups'];
@@ -322,7 +319,7 @@ class UserModel extends AdminModel implements UserFactoryAwareInterface
 
         PluginHelper::importPlugin($this->events_map['delete']);
 
-        if (\in_array($user->id, $pks)) {
+        if (in_array($user->id, $pks)) {
             $this->setError(Text::_('COM_USERS_USERS_ERROR_CANNOT_DELETE_SELF'));
 
             return false;
@@ -339,7 +336,7 @@ class UserModel extends AdminModel implements UserFactoryAwareInterface
 
                 if ($allow) {
                     // Get users data for the users to delete.
-                    $user_to_delete = $this->getUserFactory()->loadUserById($pk);
+                    $user_to_delete = Factory::getUser($pk);
 
                     // Fire the before delete event.
                     Factory::getApplication()->triggerEvent($this->event_before_delete, [$table->getProperties()]);
@@ -348,10 +345,10 @@ class UserModel extends AdminModel implements UserFactoryAwareInterface
                         $this->setError($table->getError());
 
                         return false;
+                    } else {
+                        // Trigger the after delete event.
+                        Factory::getApplication()->triggerEvent($this->event_after_delete, [$user_to_delete->getProperties(), true, $this->getError()]);
                     }
-
-                    // Trigger the after delete event.
-                    Factory::getApplication()->triggerEvent($this->event_after_delete, [$user_to_delete->getProperties(), true, $this->getError()]);
                 } else {
                     // Prune items that you can't change.
                     unset($pks[$i]);
@@ -397,7 +394,7 @@ class UserModel extends AdminModel implements UserFactoryAwareInterface
 
         // Access checks.
         foreach ($pks as $i => $pk) {
-            if ($value == 1 && $pk == $user->id) {
+            if ($value == 1 && $pk == $user->get('id')) {
                 // Cannot block yourself.
                 unset($pks[$i]);
                 Factory::getApplication()->enqueueMessage(Text::_('COM_USERS_USERS_ERROR_CANNOT_BLOCK_SELF'), 'error');
@@ -433,7 +430,7 @@ class UserModel extends AdminModel implements UserFactoryAwareInterface
                         // Trigger the before save event.
                         $result = Factory::getApplication()->triggerEvent($this->event_before_save, [$old, false, $table->getProperties()]);
 
-                        if (\in_array(false, $result, true)) {
+                        if (in_array(false, $result, true)) {
                             // Plugin will have to raise its own error or throw an exception.
                             return false;
                         }
@@ -520,7 +517,7 @@ class UserModel extends AdminModel implements UserFactoryAwareInterface
                         // Trigger the before save event.
                         $result = Factory::getApplication()->triggerEvent($this->event_before_save, [$old, false, $table->getProperties()]);
 
-                        if (\in_array(false, $result, true)) {
+                        if (in_array(false, $result, true)) {
                             // Plugin will have to raise it's own error or throw an exception.
                             return false;
                         }
@@ -712,20 +709,20 @@ class UserModel extends AdminModel implements UserFactoryAwareInterface
         $db = $this->getDatabase();
 
         switch ($action) {
-            case 'set':
                 // Sets users to a selected group
+            case 'set':
                 $doDelete = 'all';
                 $doAssign = true;
                 break;
 
-            case 'del':
                 // Remove users from a selected group
+            case 'del':
                 $doDelete = 'group';
                 break;
 
+                // Add users to a selected group
             case 'add':
             default:
-                // Add users to a selected group
                 $doAssign = true;
                 break;
         }
@@ -813,7 +810,7 @@ class UserModel extends AdminModel implements UserFactoryAwareInterface
             $groups = false;
 
             foreach ($userIds as $id) {
-                if (!\in_array($id, $users)) {
+                if (!in_array($id, $users)) {
                     $query->values($id . ',' . $groupId);
                     $groups = true;
                 }
@@ -858,9 +855,9 @@ class UserModel extends AdminModel implements UserFactoryAwareInterface
                 ->getMVCFactory()->createModel('Groups', 'Administrator', ['ignore_request' => true]);
 
             return $model->getItems();
+        } else {
+            return null;
         }
-
-        return null;
     }
 
     /**
@@ -915,7 +912,7 @@ class UserModel extends AdminModel implements UserFactoryAwareInterface
     public function getOtpConfig($userId = null)
     {
         @trigger_error(
-            \sprintf(
+            sprintf(
                 '%s() is deprecated. Use \Joomla\Component\Users\Administrator\Helper\Mfa::getUserMfaRecords() instead.',
                 __METHOD__
             ),
@@ -946,7 +943,7 @@ class UserModel extends AdminModel implements UserFactoryAwareInterface
     public function setOtpConfig($userId, $otpConfig)
     {
         @trigger_error(
-            \sprintf(
+            sprintf(
                 '%s() is deprecated. Multi-factor Authentication actions are handled by plugins in the multifactorauth folder.',
                 __METHOD__
             ),
@@ -969,7 +966,7 @@ class UserModel extends AdminModel implements UserFactoryAwareInterface
     public function getOtpConfigEncryptionKey()
     {
         @trigger_error(
-            \sprintf(
+            sprintf(
                 '%s() is deprecated. Use \Joomla\CMS\Factory::getApplication()->get(\'secret\') instead',
                 __METHOD__
             ),
@@ -995,7 +992,7 @@ class UserModel extends AdminModel implements UserFactoryAwareInterface
     public function getTwofactorform($userId = null)
     {
         @trigger_error(
-            \sprintf(
+            sprintf(
                 '%s() is deprecated. Use \Joomla\Component\Users\Administrator\Helper\Mfa::getConfigurationInterface()',
                 __METHOD__
             ),
@@ -1021,7 +1018,7 @@ class UserModel extends AdminModel implements UserFactoryAwareInterface
     public function generateOteps($userId, $count = 10)
     {
         @trigger_error(
-            \sprintf(
+            sprintf(
                 '%s() is deprecated. See \Joomla\Component\Users\Administrator\Model\BackupcodesModel::saveBackupCodes()',
                 __METHOD__
             ),
@@ -1049,7 +1046,7 @@ class UserModel extends AdminModel implements UserFactoryAwareInterface
     public function isValidSecretKey($userId, $secretKey, $options = [])
     {
         @trigger_error(
-            \sprintf(
+            sprintf(
                 '%s() is deprecated. Multi-factor Authentication actions are handled by plugins in the multifactorauth folder.',
                 __METHOD__
             ),
@@ -1076,7 +1073,7 @@ class UserModel extends AdminModel implements UserFactoryAwareInterface
     public function isValidOtep($userId, $otep, $otpConfig = null)
     {
         @trigger_error(
-            \sprintf(
+            sprintf(
                 '%s() is deprecated. Multi-factor Authentication actions are handled by plugins in the multifactorauth folder.',
                 __METHOD__
             ),

@@ -9,19 +9,15 @@
 
 namespace Joomla\CMS\MVC\Model;
 
-use Joomla\CMS\Event\Model;
 use Joomla\CMS\Factory;
 use Joomla\CMS\Form\Form;
 use Joomla\CMS\Form\FormFactoryInterface;
 use Joomla\CMS\Form\FormField;
 use Joomla\CMS\Plugin\PluginHelper;
-use Joomla\CMS\User\CurrentUserInterface;
-use Joomla\Event\DispatcherAwareInterface;
-use Joomla\Event\DispatcherInterface;
 use Joomla\Utilities\ArrayHelper;
 
 // phpcs:disable PSR1.Files.SideEffects
-\defined('_JEXEC') or die;
+\defined('JPATH_PLATFORM') or die;
 // phpcs:enable PSR1.Files.SideEffects
 
 /**
@@ -88,10 +84,6 @@ trait FormBehaviorTrait
 
         $form = $formFactory->createForm($name, $options);
 
-        if ($form instanceof CurrentUserInterface && method_exists($this, 'getCurrentUser')) {
-            $form->setCurrentUser($this->getCurrentUser());
-        }
-
         // Load the data.
         if (substr($source, 0, 1) === '<') {
             if ($form->load($source, false, $xpath) == false) {
@@ -148,24 +140,11 @@ trait FormBehaviorTrait
      */
     protected function preprocessData($context, &$data, $group = 'content')
     {
-        if ($this instanceof DispatcherAwareInterface) {
-            $dispatcher = $this->getDispatcher();
-        } else {
-            $dispatcher = Factory::getContainer()->get(DispatcherInterface::class);
-        }
-
         // Get the dispatcher and load the users plugins.
-        PluginHelper::importPlugin($group, null, true, $dispatcher);
+        PluginHelper::importPlugin($group);
 
         // Trigger the data preparation event.
-        $data = $dispatcher->dispatch(
-            'onContentPrepareData',
-            new Model\PrepareDataEvent('onContentPrepareData', [
-                'context' => $context,
-                'data'    => &$data, // @todo: Remove reference in Joomla 6, see PrepareDataEvent::__constructor()
-                'subject' => new \stdClass(),
-            ])
-        )->getArgument('data', $data);
+        Factory::getApplication()->triggerEvent('onContentPrepareData', [$context, &$data]);
     }
 
     /**
@@ -183,20 +162,11 @@ trait FormBehaviorTrait
      */
     protected function preprocessForm(Form $form, $data, $group = 'content')
     {
-        if ($this instanceof DispatcherAwareInterface) {
-            $dispatcher = $this->getDispatcher();
-        } else {
-            $dispatcher = Factory::getContainer()->get(DispatcherInterface::class);
-        }
-
         // Import the appropriate plugin group.
-        PluginHelper::importPlugin($group, null, true, $dispatcher);
+        PluginHelper::importPlugin($group);
 
         // Trigger the form preparation event.
-        $dispatcher->dispatch(
-            'onContentPrepareForm',
-            new Model\PrepareFormEvent('onContentPrepareForm', ['subject' => $form, 'data' => $data])
-        );
+        Factory::getApplication()->triggerEvent('onContentPrepareForm', [$form, $data]);
     }
 
     /**

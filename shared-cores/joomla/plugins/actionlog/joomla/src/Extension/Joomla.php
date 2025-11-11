@@ -11,22 +11,16 @@
 namespace Joomla\Plugin\Actionlog\Joomla\Extension;
 
 use Joomla\CMS\Component\ComponentHelper;
-use Joomla\CMS\Event\AbstractEvent;
-use Joomla\CMS\Event\Application;
-use Joomla\CMS\Event\Cache;
-use Joomla\CMS\Event\Checkin;
-use Joomla\CMS\Event\Extension;
-use Joomla\CMS\Event\Model;
-use Joomla\CMS\Event\User;
+use Joomla\CMS\Factory;
+use Joomla\CMS\Installer\Installer;
 use Joomla\CMS\MVC\Factory\MVCFactoryServiceInterface;
-use Joomla\CMS\User\UserFactoryAwareTrait;
+use Joomla\CMS\Table\Table;
+use Joomla\CMS\User\User;
 use Joomla\Component\Actionlogs\Administrator\Helper\ActionlogsHelper;
 use Joomla\Component\Actionlogs\Administrator\Plugin\ActionLogPlugin;
 use Joomla\Database\DatabaseAwareTrait;
 use Joomla\Database\Exception\ExecutionFailureException;
 use Joomla\Event\DispatcherInterface;
-use Joomla\Event\Event;
-use Joomla\Event\SubscriberInterface;
 use Joomla\Utilities\ArrayHelper;
 
 // phpcs:disable PSR1.Files.SideEffects
@@ -38,10 +32,9 @@ use Joomla\Utilities\ArrayHelper;
  *
  * @since  3.9.0
  */
-final class Joomla extends ActionLogPlugin implements SubscriberInterface
+final class Joomla extends ActionLogPlugin
 {
     use DatabaseAwareTrait;
-    use UserFactoryAwareTrait;
 
     /**
      * Array of loggable extensions.
@@ -97,62 +90,20 @@ final class Joomla extends ActionLogPlugin implements SubscriberInterface
     }
 
     /**
-     * Returns an array of events this subscriber will listen to.
-     *
-     * @return array
-     *
-     * @since   5.2.0
-     */
-    public static function getSubscribedEvents(): array
-    {
-        return [
-            'onContentAfterSave'        => 'onContentAfterSave',
-            'onContentAfterDelete'      => 'onContentAfterDelete',
-            'onContentChangeState'      => 'onContentChangeState',
-            'onApplicationAfterSave'    => 'onApplicationAfterSave',
-            'onExtensionAfterInstall'   => 'onExtensionAfterInstall',
-            'onExtensionAfterUninstall' => 'onExtensionAfterUninstall',
-            'onExtensionAfterUpdate'    => 'onExtensionAfterUpdate',
-            'onExtensionAfterSave'      => 'onExtensionAfterSave',
-            'onExtensionAfterDelete'    => 'onExtensionAfterDelete',
-            'onUserAfterSave'           => 'onUserAfterSave',
-            'onUserAfterDelete'         => 'onUserAfterDelete',
-            'onUserAfterSaveGroup'      => 'onUserAfterSaveGroup',
-            'onUserAfterDeleteGroup'    => 'onUserAfterDeleteGroup',
-            'onUserAfterLogin'          => 'onUserAfterLogin',
-            'onUserLoginFailure'        => 'onUserLoginFailure',
-            'onUserLogout'              => 'onUserLogout',
-            'onUserAfterRemind'         => 'onUserAfterRemind',
-            'onAfterCheckin'            => 'onAfterCheckin',
-            'onAfterLogPurge'           => 'onAfterLogPurge',
-            'onAfterLogExport'          => 'onAfterLogExport',
-            'onAfterPurge'              => 'onAfterPurge',
-            'onAfterDispatch'           => 'onAfterDispatch',
-            'onJoomlaAfterUpdate'       => 'onJoomlaAfterUpdate',
-            'onUserAfterResetRequest'   => 'onUserAfterResetRequest',
-            'onUserAfterResetComplete'  => 'onUserAfterResetComplete',
-            'onUserBeforeSave'          => 'onUserBeforeSave',
-            'onBeforeTourSaveUserState' => 'onBeforeTourSaveUserState',
-        ];
-    }
-
-    /**
      * After save content logging method
      * This method adds a record to #__action_logs contains (message, date, context, user)
      * Method is called right after the content is saved
      *
-     * @param   Model\AfterSaveEvent $event  The event instance.
+     * @param   string   $context  The context of the content passed to the plugin
+     * @param   object   $article  A JTableContent object
+     * @param   boolean  $isNew    If the content is just about to be created
      *
      * @return  void
      *
      * @since   3.9.0
      */
-    public function onContentAfterSave(Model\AfterSaveEvent $event): void
+    public function onContentAfterSave($context, $article, $isNew): void
     {
-        $context = $event->getContext();
-        $article = $event->getItem();
-        $isNew   = $event->getIsNew();
-
         if (isset($this->contextAliases[$context])) {
             $context = $this->contextAliases[$context];
         }
@@ -201,17 +152,16 @@ final class Joomla extends ActionLogPlugin implements SubscriberInterface
      * This method adds a record to #__action_logs contains (message, date, context, user)
      * Method is called right after the content is deleted
      *
-     * @param   Model\AfterDeleteEvent $event  The event instance.
+     * @param   string  $context  The context of the content passed to the plugin
+     * @param   object  $article  A JTableContent object
      *
      * @return  void
      *
      * @since   3.9.0
      */
-    public function onContentAfterDelete(Model\AfterDeleteEvent $event): void
+    public function onContentAfterDelete($context, $article): void
     {
-        $context = $event->getContext();
-        $article = $event->getItem();
-        $option  = $this->getApplication()->getInput()->get('option');
+        $option = $this->getApplication()->getInput()->get('option');
 
         if (!$this->checkLoggable($option)) {
             return;
@@ -248,18 +198,17 @@ final class Joomla extends ActionLogPlugin implements SubscriberInterface
      * This method adds a record to #__action_logs contains (message, date, context, user)
      * Method is called when the status of the article is changed
      *
-     * @param   Model\AfterChangeStateEvent $event  The event instance.
+     * @param   string   $context  The context of the content passed to the plugin
+     * @param   array    $pks      An array of primary key ids of the content that has changed state.
+     * @param   integer  $value    The value of the state that the content has been changed to.
      *
      * @return  void
      *
      * @since   3.9.0
      */
-    public function onContentChangeState(Model\AfterChangeStateEvent $event): void
+    public function onContentChangeState($context, $pks, $value)
     {
-        $context = $event->getContext();
-        $pks     = $event->getPks();
-        $value   = $event->getValue();
-        $option  = $this->getApplication()->getInput()->getCmd('option');
+        $option = $this->getApplication()->getInput()->getCmd('option');
 
         if (!$this->checkLoggable($option)) {
             return;
@@ -338,16 +287,16 @@ final class Joomla extends ActionLogPlugin implements SubscriberInterface
     }
 
     /**
-     * On Saving application configuration logging method.
+     * On Saving application configuration logging method
      * Method is called when the application config is being saved
      *
-     * @param   Application\AfterSaveConfigurationEvent $event  The event instance.
+     * @param   \Joomla\Registry\Registry  $config  Registry object with the new config
      *
      * @return  void
      *
      * @since   3.9.0
      */
-    public function onApplicationAfterSave(Application\AfterSaveConfigurationEvent $event): void
+    public function onApplicationAfterSave($config): void
     {
         $option = $this->getApplication()->getInput()->getCmd('option');
 
@@ -373,17 +322,16 @@ final class Joomla extends ActionLogPlugin implements SubscriberInterface
      * This method adds a record to #__action_logs contains (message, date, context, user)
      * Method is called when an extension is installed
      *
-     * @param   Extension\AfterInstallEvent $event  The event instance.
+     * @param   Installer   $installer  Installer object
+     * @param   integer     $eid        Extension Identifier
      *
      * @return  void
      *
      * @since   3.9.0
      */
-    public function onExtensionAfterInstall(Extension\AfterInstallEvent $event): void
+    public function onExtensionAfterInstall($installer, $eid)
     {
-        $installer = $event->getInstaller();
-        $eid       = $event->getEid();
-        $context   = $this->getApplication()->getInput()->get('option');
+        $context = $this->getApplication()->getInput()->get('option');
 
         if (!$this->checkLoggable($context)) {
             return;
@@ -420,18 +368,17 @@ final class Joomla extends ActionLogPlugin implements SubscriberInterface
      * This method adds a record to #__action_logs contains (message, date, context, user)
      * Method is called when an extension is uninstalled
      *
-     * @param   Extension\AfterUninstallEvent $event  The event instance.
+     * @param   Installer  $installer  Installer instance
+     * @param   integer    $eid        Extension id
+     * @param   integer    $result     Installation result
      *
      * @return  void
      *
      * @since   3.9.0
      */
-    public function onExtensionAfterUninstall(Extension\AfterUninstallEvent $event): void
+    public function onExtensionAfterUninstall($installer, $eid, $result)
     {
-        $installer = $event->getInstaller();
-        $eid       = $event->getEid();
-        $result    = $event->getRemoved();
-        $context   = $this->getApplication()->getInput()->get('option');
+        $context = $this->getApplication()->getInput()->get('option');
 
         if (!$this->checkLoggable($context)) {
             return;
@@ -473,17 +420,16 @@ final class Joomla extends ActionLogPlugin implements SubscriberInterface
      * This method adds a record to #__action_logs contains (message, date, context, user)
      * Method is called when an extension is updated
      *
-     * @param   Extension\AfterUpdateEvent $event  The event instance.
+     * @param   Installer  $installer  Installer instance
+     * @param   integer    $eid        Extension id
      *
      * @return  void
      *
      * @since   3.9.0
      */
-    public function onExtensionAfterUpdate(Extension\AfterUpdateEvent $event): void
+    public function onExtensionAfterUpdate($installer, $eid)
     {
-        $installer = $event->getInstaller();
-        $eid       = $event->getEid();
-        $context   = $this->getApplication()->getInput()->get('option');
+        $context = $this->getApplication()->getInput()->get('option');
 
         if (!$this->checkLoggable($context)) {
             return;
@@ -516,24 +462,22 @@ final class Joomla extends ActionLogPlugin implements SubscriberInterface
     }
 
     /**
-     * On Saving extensions logging method.
+     * On Saving extensions logging method
      * Method is called when an extension is being saved
      *
-     * @param   Model\AfterSaveEvent $event  The event instance.
+     * @param   string   $context  The extension
+     * @param   Table    $table    DataBase Table object
+     * @param   boolean  $isNew    If the extension is new or not
      *
      * @return  void
      *
      * @since   3.9.0
      */
-    public function onExtensionAfterSave(Model\AfterSaveEvent $event): void
+    public function onExtensionAfterSave($context, $table, $isNew): void
     {
-        $context = $event->getContext();
-        $table   = $event->getItem();
-        $isNew   = $event->getIsNew();
-
         $option = $this->getApplication()->getInput()->getCmd('option');
 
-        if ($table->module != null) {
+        if ($table->get('module') != null) {
             $option = 'com_modules';
         }
 
@@ -563,35 +507,31 @@ final class Joomla extends ActionLogPlugin implements SubscriberInterface
             $messageLanguageKey = $defaultLanguageKey;
         }
 
-        $id_holder    = $params->id_holder;
-        $title_holder = $params->title_holder;
-        $message      = [
+        $message = [
             'action'         => $isNew ? 'add' : 'update',
             'type'           => 'PLG_ACTIONLOG_JOOMLA_TYPE_' . $params->type_title,
-            'id'             => $table->$id_holder,
-            'title'          => $table->$title_holder,
-            'extension_name' => $table->$title_holder,
-            'itemlink'       => ActionlogsHelper::getContentTypeLink($option, $contentType, $table->$id_holder, $id_holder),
+            'id'             => $table->get($params->id_holder),
+            'title'          => $table->get($params->title_holder),
+            'extension_name' => $table->get($params->title_holder),
+            'itemlink'       => ActionlogsHelper::getContentTypeLink($option, $contentType, $table->get($params->id_holder), $params->id_holder),
         ];
 
         $this->addLog([$message], $messageLanguageKey, $context);
     }
 
     /**
-     * On Deleting extensions logging method.
+     * On Deleting extensions logging method
      * Method is called when an extension is being deleted
      *
-     * @param   Model\AfterDeleteEvent $event  The event instance.
+     * @param   string  $context  The extension
+     * @param   Table   $table    DataBase Table object
      *
      * @return  void
      *
      * @since   3.9.0
      */
-    public function onExtensionAfterDelete(Model\AfterDeleteEvent $event): void
+    public function onExtensionAfterDelete($context, $table): void
     {
-        $context = $event->getContext();
-        $table   = $event->getItem();
-
         if (!$this->checkLoggable($this->getApplication()->getInput()->get('option'))) {
             return;
         }
@@ -605,11 +545,10 @@ final class Joomla extends ActionLogPlugin implements SubscriberInterface
 
         $messageLanguageKey = 'PLG_SYSTEM_ACTIONLOGS_CONTENT_DELETED';
 
-        $title_holder = $params->title_holder;
-        $message      = [
+        $message = [
             'action' => 'delete',
             'type'   => 'PLG_ACTIONLOG_JOOMLA_TYPE_' . $params->type_title,
-            'title'  => $table->$title_holder,
+            'title'  => $table->get($params->title_holder),
         ];
 
         $this->addLog([$message], $messageLanguageKey, $context);
@@ -621,17 +560,17 @@ final class Joomla extends ActionLogPlugin implements SubscriberInterface
      * Method is called after user data is stored in the database.
      * This method logs who created/edited any user's data
      *
-     * @param   User\AfterSaveEvent $event  The event instance.
+     * @param   array    $user     Holds the new user data.
+     * @param   boolean  $isnew    True if a new user is stored.
+     * @param   boolean  $success  True if user was successfully stored in the database.
+     * @param   string   $msg      Message.
      *
      * @return  void
      *
      * @since   3.9.0
      */
-    public function onUserAfterSave(User\AfterSaveEvent $event): void
+    public function onUserAfterSave($user, $isnew, $success, $msg): void
     {
-        $user  = $event->getUser();
-        $isnew = $event->getIsNew();
-
         $context = $this->getApplication()->getInput()->get('option');
         $task    = $this->getApplication()->getInput()->get('task');
 
@@ -647,7 +586,7 @@ final class Joomla extends ActionLogPlugin implements SubscriberInterface
             return;
         }
 
-        $jUser = $this->getApplication()->getIdentity();
+        $jUser = Factory::getUser();
 
         if (!$jUser->id) {
             $messageLanguageKey = 'PLG_ACTIONLOG_JOOMLA_USER_REGISTERED';
@@ -680,31 +619,7 @@ final class Joomla extends ActionLogPlugin implements SubscriberInterface
             'accountlink' => 'index.php?option=com_users&task=user.edit&id=' . $userId,
         ];
 
-        // Check if block / unblock comes from Actions on list
-        if ($task === 'block' || $task === 'unblock') {
-            $messageLanguageKey = $task === 'block' ? 'PLG_ACTIONLOG_JOOMLA_USER_BLOCK' : 'PLG_ACTIONLOG_JOOMLA_USER_UNBLOCK';
-            $message['action']  = $task;
-        }
-
         $this->addLog([$message], $messageLanguageKey, $context, $userId);
-
-        // Check if on save a block / unblock has changed
-        if ($action === 'update') {
-            $session = $this->getApplication()->getSession();
-            $data    = $session->get('block', null);
-
-            if ($data !== null) {
-                $messageLanguageKey = 'PLG_ACTIONLOG_JOOMLA_USER_UNBLOCK';
-                $action             = 'unblock';
-                if ($data === 'block') {
-                    $messageLanguageKey = 'PLG_ACTIONLOG_JOOMLA_USER_BLOCK';
-                    $action             = 'block';
-                }
-
-                $message['action'] = $action;
-                $this->addLog([$message], $messageLanguageKey, $context, $userId);
-            }
-        }
     }
 
     /**
@@ -712,15 +627,16 @@ final class Joomla extends ActionLogPlugin implements SubscriberInterface
      *
      * Method is called after user data is deleted from the database
      *
-     * @param   User\AfterDeleteEvent $event  The event instance.
+     * @param   array    $user     Holds the user data
+     * @param   boolean  $success  True if user was successfully stored in the database
+     * @param   string   $msg      Message
      *
      * @return  void
      *
      * @since   3.9.0
      */
-    public function onUserAfterDelete(User\AfterDeleteEvent $event): void
+    public function onUserAfterDelete($user, $success, $msg): void
     {
-        $user    = $event->getUser();
         $context = $this->getApplication()->getInput()->get('option');
 
         if (!$this->checkLoggable($context)) {
@@ -744,17 +660,16 @@ final class Joomla extends ActionLogPlugin implements SubscriberInterface
      *
      * Method is called after user group is stored into the database
      *
-     * @param   Model\AfterSaveEvent $event  The event instance.
+     * @param   string   $context  The context
+     * @param   Table    $table    DataBase Table object
+     * @param   boolean  $isNew    Is new or not
      *
      * @return  void
      *
      * @since   3.9.0
      */
-    public function onUserAfterSaveGroup(Model\AfterSaveEvent $event): void
+    public function onUserAfterSaveGroup($context, $table, $isNew): void
     {
-        $table = $event->getItem();
-        $isNew = $event->getIsNew();
-
         // Override context (com_users.group) with the component context (com_users) to pass the checkLoggable
         $context = $this->getApplication()->getInput()->get('option');
 
@@ -786,15 +701,16 @@ final class Joomla extends ActionLogPlugin implements SubscriberInterface
      *
      * Method is called after user group is deleted from the database
      *
-     * @param   Model\AfterDeleteEvent $event  The event instance.
+     * @param   array    $group    Holds the group data
+     * @param   boolean  $success  True if user was successfully stored in the database
+     * @param   string   $msg      Message
      *
      * @return  void
      *
      * @since   3.9.0
      */
-    public function onUserAfterDeleteGroup(Model\AfterDeleteEvent $event): void
+    public function onUserAfterDeleteGroup($group, $success, $msg): void
     {
-        $group   = $event->getItem();
         $context = $this->getApplication()->getInput()->get('option');
 
         if (!$this->checkLoggable($context)) {
@@ -806,8 +722,8 @@ final class Joomla extends ActionLogPlugin implements SubscriberInterface
         $message = [
             'action' => 'delete',
             'type'   => 'PLG_ACTIONLOG_JOOMLA_TYPE_USER_GROUP',
-            'id'     => $group->id,
-            'title'  => $group->title,
+            'id'     => $group['id'],
+            'title'  => $group['title'],
         ];
 
         $this->addLog([$message], $messageLanguageKey, $context);
@@ -816,16 +732,14 @@ final class Joomla extends ActionLogPlugin implements SubscriberInterface
     /**
      * Method to log user login success action
      *
-     * @param   User\AfterLoginEvent $event  The event instance.
+     * @param   array  $options  Array holding options (user, responseType)
      *
      * @return  void
      *
      * @since   3.9.0
      */
-    public function onUserAfterLogin(User\AfterLoginEvent $event): void
+    public function onUserAfterLogin($options)
     {
-        $options = $event->getOptions();
-
         if ($options['action'] === 'core.login.api') {
             return;
         }
@@ -853,16 +767,15 @@ final class Joomla extends ActionLogPlugin implements SubscriberInterface
     /**
      * Method to log user login failed action
      *
-     * @param   User\LoginFailureEvent $event  The event instance.
+     * @param   array  $response  Array of response data.
      *
      * @return  void
      *
      * @since   3.9.0
      */
-    public function onUserLoginFailure(User\LoginFailureEvent $event): void
+    public function onUserLoginFailure($response)
     {
-        $response = $event->getAuthenticationResponse();
-        $context  = 'com_users';
+        $context = 'com_users';
 
         if (!$this->checkLoggable($context)) {
             return;
@@ -905,22 +818,22 @@ final class Joomla extends ActionLogPlugin implements SubscriberInterface
     /**
      * Method to log user's logout action
      *
-     * @param   User\LogoutEvent $event  The event instance.
+     * @param   array  $user     Holds the user data
+     * @param   array  $options  Array holding options (remember, autoregister, group)
      *
      * @return  void
      *
      * @since   3.9.0
      */
-    public function onUserLogout(User\LogoutEvent $event): void
+    public function onUserLogout($user, $options = [])
     {
-        $user    = $event->getParameters();
         $context = 'com_users';
 
         if (!$this->checkLoggable($context)) {
             return;
         }
 
-        $loggedOutUser = $this->getUserFactory()->loadUserById($user['id']);
+        $loggedOutUser = User::getInstance($user['id']);
 
         if ($loggedOutUser->block) {
             return;
@@ -951,7 +864,7 @@ final class Joomla extends ActionLogPlugin implements SubscriberInterface
      */
     protected function checkLoggable($extension)
     {
-        return \in_array($extension, $this->loggableExtensions);
+        return in_array($extension, $this->loggableExtensions);
     }
 
     /**
@@ -959,15 +872,14 @@ final class Joomla extends ActionLogPlugin implements SubscriberInterface
      *
      * Method is called after user request to remind their username.
      *
-     * @param   User\AfterRemindEvent $event  The event instance.
+     * @param   array  $user  Holds the user data.
      *
      * @return  void
      *
      * @since   3.9.0
      */
-    public function onUserAfterRemind(User\AfterRemindEvent $event): void
+    public function onUserAfterRemind($user)
     {
-        $user    = $event->getUser();
         $context = $this->getApplication()->getInput()->get('option');
 
         if (!$this->checkLoggable($context)) {
@@ -993,17 +905,16 @@ final class Joomla extends ActionLogPlugin implements SubscriberInterface
      *
      * Method is called after user request to check-in items.
      *
-     * @param   Checkin\AfterCheckinEvent $event  The event instance.
+     * @param   array  $table  Holds the table name.
      *
      * @return  void
      *
      * @since   3.9.3
      */
-    public function onAfterCheckin(Checkin\AfterCheckinEvent $event): void
+    public function onAfterCheckin($table)
     {
-        $table   = $event->getTableName();
         $context = 'com_checkin';
-        $user    = $this->getApplication()->getIdentity();
+        $user    = Factory::getUser();
 
         if (!$this->checkLoggable($context)) {
             return;
@@ -1029,14 +940,16 @@ final class Joomla extends ActionLogPlugin implements SubscriberInterface
      *
      * Method is called after user request to clean action log items.
      *
+     * @param   array  $group  Holds the group name.
+     *
      * @return  void
      *
      * @since   3.9.4
      */
-    public function onAfterLogPurge(): void
+    public function onAfterLogPurge($group = '')
     {
         $context = $this->getApplication()->getInput()->get('option');
-        $user    = $this->getApplication()->getIdentity();
+        $user    = Factory::getUser();
         $message = [
             'action'      => 'actionlogs',
             'type'        => 'PLG_ACTIONLOG_JOOMLA_TYPE_USER',
@@ -1055,14 +968,16 @@ final class Joomla extends ActionLogPlugin implements SubscriberInterface
      *
      * Method is called after user request to export action log items.
      *
+     * @param   array  $group  Holds the group name.
+     *
      * @return  void
      *
      * @since   3.9.4
      */
-    public function onAfterLogExport(): void
+    public function onAfterLogExport($group = '')
     {
         $context = $this->getApplication()->getInput()->get('option');
-        $user    = $this->getApplication()->getIdentity();
+        $user    = Factory::getUser();
         $message = [
             'action'      => 'actionlogs',
             'type'        => 'PLG_ACTIONLOG_JOOMLA_TYPE_USER',
@@ -1081,17 +996,16 @@ final class Joomla extends ActionLogPlugin implements SubscriberInterface
      *
      * Method is called after user request to clean cached items.
      *
-     * @param   Cache\AfterPurgeEvent $event  The event instance.
+     * @param   string  $group  Holds the group name.
      *
      * @return  void
      *
      * @since   3.9.4
      */
-    public function onAfterPurge(Cache\AfterPurgeEvent $event): void
+    public function onAfterPurge($group = 'all')
     {
-        $group   = $event->getGroup() ?: 'all';
         $context = $this->getApplication()->getInput()->get('option');
-        $user    = $this->getApplication()->getIdentity();
+        $user    = Factory::getUser();
 
         if (!$this->checkLoggable($context)) {
             return;
@@ -1120,7 +1034,7 @@ final class Joomla extends ActionLogPlugin implements SubscriberInterface
      *
      * @since   4.0.0
      */
-    public function onAfterDispatch(): void
+    public function onAfterDispatch()
     {
         if (!$this->getApplication()->isClient('api')) {
             return;
@@ -1132,7 +1046,7 @@ final class Joomla extends ActionLogPlugin implements SubscriberInterface
 
         $verb = $this->getApplication()->getInput()->getMethod();
 
-        if (!\in_array($verb, $this->loggableVerbs)) {
+        if (!in_array($verb, $this->loggableVerbs)) {
             return;
         }
 
@@ -1158,21 +1072,16 @@ final class Joomla extends ActionLogPlugin implements SubscriberInterface
      *
      * Method is called after user update the CMS.
      *
-     * @param   Event $event  The event instance.
+     * @param   string  $oldVersion  The Joomla version before the update
      *
      * @return  void
      *
      * @since   3.9.21
-     *
-     * @TODO: Update to use a real event class
      */
-    public function onJoomlaAfterUpdate(Event $event): void
+    public function onJoomlaAfterUpdate($oldVersion = null)
     {
-        $arguments  = array_values($event->getArguments());
-        $oldVersion = $arguments[0] ?? '';
-
         $context = $this->getApplication()->getInput()->get('option');
-        $user    = $this->getApplication()->getIdentity();
+        $user    = Factory::getUser();
 
         if (empty($oldVersion)) {
             $oldVersion = $this->getApplication()->getLanguage()->_('JLIB_UNKNOWN');
@@ -1198,7 +1107,7 @@ final class Joomla extends ActionLogPlugin implements SubscriberInterface
      *
      * @param   string  $context  The context of the action log
      *
-     * @return  ?\stdClass  The params
+     * @return  \stdClass  The params
      *
      * @since   4.2.0
      */
@@ -1218,16 +1127,15 @@ final class Joomla extends ActionLogPlugin implements SubscriberInterface
      *
      * Method is called after user request to reset their password.
      *
-     * @param   User\AfterResetRequestEvent $event  The event instance.
+     * @param   array  $user  Holds the user data.
      *
      * @return  void
      *
      * @since   4.2.9
      */
-    public function onUserAfterResetRequest(User\AfterResetRequestEvent $event): void
+    public function onUserAfterResetRequest($user)
     {
-        $user    = $event->getUser();
-        $context = $this->getApplication()->getInput()->get('option');
+        $context = $this->getApplication()->input->get('option');
 
         if (!$this->checkLoggable($context)) {
             return;
@@ -1252,16 +1160,15 @@ final class Joomla extends ActionLogPlugin implements SubscriberInterface
      *
      * Method is called after user complete the reset of their password.
      *
-     * @param   User\AfterResetCompleteEvent $event  The event instance.
+     * @param   array  $user  Holds the user data.
      *
      * @return  void
      *
      * @since   4.2.9
      */
-    public function onUserAfterResetComplete(User\AfterResetCompleteEvent $event)
+    public function onUserAfterResetComplete($user)
     {
-        $user    = $event->getUser();
-        $context = $this->getApplication()->getInput()->get('option');
+        $context = $this->getApplication()->input->get('option');
 
         if (!$this->checkLoggable($context)) {
             return;
@@ -1279,80 +1186,5 @@ final class Joomla extends ActionLogPlugin implements SubscriberInterface
         ];
 
         $this->addLog([$message], 'PLG_ACTIONLOG_JOOMLA_USER_RESET_COMPLETE', $context, $user->id);
-    }
-
-    /**
-     * Method is called before user data is stored in the database
-     *
-     * @param   User\BeforeSaveEvent $event  The event instance.
-     *
-     * @return  void
-     *
-     * @since   5.0.0
-     */
-    public function onUserBeforeSave(User\BeforeSaveEvent $event): void
-    {
-        $user = $event->getUser();
-        $new  = $event->getData();
-
-        $session = $this->getApplication()->getSession();
-        $session->set('block', null);
-
-        if ($user['block'] !== (int) $new['block']) {
-            $blockunblock = $new['block'] === '1' ? 'block' : 'unblock';
-            $session->set('block', $blockunblock);
-        }
-    }
-
-    /**
-     * Method is called when a user cancels, completes or skips a tour
-     *
-     * @param   AbstractEvent $event The event instance.
-     *
-     * @return  void
-     *
-     * @since  5.2.0
-     */
-    public function onBeforeTourSaveUserState(AbstractEvent $event): void
-    {
-        $option = $this->getApplication()->getInput()->get('option');
-
-        if (!$this->checkLoggable($option)) {
-            return;
-        }
-
-        $tourId     = $event->getArgument('tourId');
-        $state      = $event->getArgument('actionState');
-        $stepNumber = $event->getArgument('stepNumber');
-
-        switch ($state) {
-            case 'skipped':
-                $messageLanguageKey = 'PLG_ACTIONLOG_JOOMLA_GUIDEDTOURS_TOURSKIPPED';
-                break;
-            case 'completed':
-                $messageLanguageKey = 'PLG_ACTIONLOG_JOOMLA_GUIDEDTOURS_TOURCOMPLETED';
-                break;
-            default:
-                $messageLanguageKey = 'PLG_ACTIONLOG_JOOMLA_GUIDEDTOURS_TOURDELAYED';
-        }
-
-        // Get the tour from the model to fetch the translated title of the tour
-        $factory   = $this->getApplication()->bootComponent('com_guidedtours')->getMVCFactory();
-        $tourModel = $factory->createModel(
-            'Tour',
-            'Administrator',
-            ['ignore_request' => true]
-        );
-
-        $tour = $tourModel->getItem($tourId);
-
-        $message = [
-            'id'    => $tourId,
-            'title' => $tour->title_translation,
-            'state' => $state,
-            'step'  => $stepNumber,
-        ];
-
-        $this->addLog([$message], $messageLanguageKey, 'com_guidedtours.state');
     }
 }

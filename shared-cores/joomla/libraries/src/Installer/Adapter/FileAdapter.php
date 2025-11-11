@@ -10,6 +10,7 @@
 namespace Joomla\CMS\Installer\Adapter;
 
 use Joomla\CMS\Filesystem\Folder;
+use Joomla\CMS\Filesystem\Path;
 use Joomla\CMS\Installer\Installer;
 use Joomla\CMS\Installer\InstallerAdapter;
 use Joomla\CMS\Language\Text;
@@ -17,10 +18,9 @@ use Joomla\CMS\Log\Log;
 use Joomla\CMS\Table\Table;
 use Joomla\Database\ParameterType;
 use Joomla\Filesystem\File;
-use Joomla\Filesystem\Path;
 
 // phpcs:disable PSR1.Files.SideEffects
-\defined('_JEXEC') or die;
+\defined('JPATH_PLATFORM') or die;
 // phpcs:enable PSR1.Files.SideEffects
 
 /**
@@ -79,7 +79,7 @@ class FileAdapter extends InstallerAdapter
 
         // Now that we have folder list, lets start creating them
         foreach ($this->folderList as $folder) {
-            if (!is_dir(Path::clean($folder))) {
+            if (!Folder::exists($folder)) {
                 if (!$created = Folder::create($folder)) {
                     throw new \RuntimeException(
                         Text::sprintf('JLIB_INSTALLER_ABORT_FILE_INSTALL_FAIL_SOURCE_DIRECTORY', $folder)
@@ -308,7 +308,7 @@ class FileAdapter extends InstallerAdapter
         // Lastly, remove the extension_root
         $folder = $this->parent->getPath('extension_root');
 
-        if (is_dir(Path::clean($folder))) {
+        if (Folder::exists($folder)) {
             Folder::delete($folder);
         }
 
@@ -343,7 +343,6 @@ class FileAdapter extends InstallerAdapter
     protected function setupUninstall()
     {
         $manifestFile = JPATH_MANIFESTS . '/files/' . $this->extension->element . '.xml';
-        $this->parent->setPath('manifest', $manifestFile);
 
         // Because libraries may not have their own folders we cannot use the standard method of finding an installation manifest
         if (!file_exists($manifestFile)) {
@@ -516,7 +515,7 @@ class FileAdapter extends InstallerAdapter
                 $folderName .= '/' . $dir;
 
                 // Check if folder exists, if not then add to the array for folder creation
-                if (!is_dir(Path::clean($folderName))) {
+                if (!Folder::exists($folderName)) {
                     $this->folderList[] = $folderName;
                 }
             }
@@ -526,7 +525,7 @@ class FileAdapter extends InstallerAdapter
             $targetFolder = empty($target) ? $jRootPath : $jRootPath . '/' . $target;
 
             // Check if source folder exists
-            if (!is_dir(Path::clean($sourceFolder))) {
+            if (!Folder::exists($sourceFolder)) {
                 Log::add(Text::sprintf('JLIB_INSTALLER_ABORT_FILE_INSTALL_FAIL_SOURCE_DIRECTORY', $sourceFolder), Log::WARNING, 'jerror');
 
                 // If installation fails, rollback

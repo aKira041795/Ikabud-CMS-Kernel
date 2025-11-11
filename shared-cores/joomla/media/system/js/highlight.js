@@ -1,13 +1,3 @@
-function _extends() {
-  return _extends = Object.assign ? Object.assign.bind() : function (n) {
-    for (var e = 1; e < arguments.length; e++) {
-      var t = arguments[e];
-      for (var r in t) ({}).hasOwnProperty.call(t, r) && (n[r] = t[r]);
-    }
-    return n;
-  }, _extends.apply(null, arguments);
-}
-
 /**
  * A NodeIterator with iframes support and a method to check if an element is
  * matching a specified selector
@@ -1813,7 +1803,10 @@ const defaultOptions = {
 if (Joomla.getOptions && typeof Joomla.getOptions === 'function' && Joomla.getOptions('highlight')) {
   const scriptOptions = Joomla.getOptions('highlight');
   scriptOptions.forEach(currentOpts => {
-    const options = _extends({}, defaultOptions, currentOpts);
+    const options = {
+      ...defaultOptions,
+      ...currentOpts
+    };
 
     // Continue only if the element exists
     if (!options.compatibility) {
@@ -1822,7 +1815,9 @@ if (Joomla.getOptions && typeof Joomla.getOptions === 'function' && Joomla.getOp
         const instance = new Mark(element);
 
         // Loop through the terms
-        options.highLight.forEach(term => instance.mark(term, options));
+        options.highLight.forEach(term => {
+          instance.mark(term, options);
+        });
       }
     } else {
       const start = document.querySelector(`#${options.start}`);

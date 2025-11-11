@@ -109,14 +109,14 @@ class TaskModel extends AdminModel
     /**
      * TaskModel constructor. Needed just to set $app
      *
-     * @param   array                  $config       An array of configuration options
-     * @param   ?MVCFactoryInterface   $factory      The factory
-     * @param   ?FormFactoryInterface  $formFactory  The form factory
+     * @param   array                      $config       An array of configuration options
+     * @param   MVCFactoryInterface|null   $factory      The factory
+     * @param   FormFactoryInterface|null  $formFactory  The form factory
      *
      * @since  4.1.0
      * @throws \Exception
      */
-    public function __construct($config = [], ?MVCFactoryInterface $factory = null, ?FormFactoryInterface $formFactory = null)
+    public function __construct($config = [], MVCFactoryInterface $factory = null, FormFactoryInterface $formFactory = null)
     {
         $config['events_map'] = $config['events_map'] ?? [];
 
@@ -153,7 +153,7 @@ class TaskModel extends AdminModel
      * @param   array  $data      Data that needs to go into the form
      * @param   bool   $loadData  Should the form load its data from the DB?
      *
-     * @return Form|boolean  A Form object on success, false on failure.
+     * @return Form|boolean  A JForm object on success, false on failure.
      *
      * @since  4.1.0
      * @throws \Exception
@@ -358,11 +358,7 @@ class TaskModel extends AdminModel
     public function getTask(array $options = []): ?\stdClass
     {
         $resolver = new OptionsResolver();
-
-        try {
-            static::configureTaskGetterOptions($resolver);
-        } catch (\Exception $e) {
-        }
+        $this->configureTaskGetterOptions($resolver);
 
         try {
             $options = $resolver->resolve($options);
@@ -388,7 +384,7 @@ class TaskModel extends AdminModel
                     ->bind(':taskId', $options['id'], ParameterType::INTEGER);
             } else {
                 $id = $this->getNextTaskId($db, $now, $options);
-                if (\count($id) === 0) {
+                if (count($id) === 0) {
                     return null;
                 }
                 $lockQuery->where($db->quoteName('id') . ' = :taskId')
@@ -445,7 +441,7 @@ class TaskModel extends AdminModel
      *                      - allowDisabled: Whether to allow disabled tasks.
      *                      - id: The ID of the task.
      * @return Query The lock query.
-     * @since 5.2.0
+     * @since 4.4.9
      */
     private function buildLockQuery($db, $now, $options)
     {
@@ -489,7 +485,7 @@ class TaskModel extends AdminModel
      *                       - allowDisabled: Whether to allow disabled tasks.
      * @return array The ID of the next task, or an empty array if no task is found.
      *
-     * @since 5.2.0
+     * @since 4.4.9
      * @throws \RuntimeException If there is an error executing the query.
      */
     private function getNextTaskId($db, $now, $options)
@@ -537,7 +533,7 @@ class TaskModel extends AdminModel
      * @param \JDatabaseDriver $db The database driver to use.
      * @param string $now The current time in the database's time format.
      * @return \stdClass|null The fetched task object, or null if no task was found.
-     * @since 5.2.0
+     * @since 4.4.9
      * @throws \RuntimeException If there was an error executing the query.
      */
     private function fetchTask($db, $now): ?\stdClass
@@ -560,6 +556,7 @@ class TaskModel extends AdminModel
 
         return $task;
     }
+
 
     /**
      * Set up an {@see OptionsResolver} to resolve options compatible with the {@see GetTask()} method.
@@ -681,7 +678,7 @@ class TaskModel extends AdminModel
      */
     private function buildExecutionRules(array $executionRules): array
     {
-        // Maps interval strings, use with \sprintf($map[intType], $interval)
+        // Maps interval strings, use with sprintf($map[intType], $interval)
         $intervalStringMap = [
             'minutes' => 'PT%dM',
             'hours'   => 'PT%dH',
@@ -698,7 +695,7 @@ class TaskModel extends AdminModel
             // Rule type for intervals interval-<minute/hours/...>
             $intervalType    = explode('-', $ruleType)[1];
             $interval        = $executionRules["interval-$intervalType"];
-            $buildExpression = \sprintf($intervalStringMap[$intervalType], $interval);
+            $buildExpression = sprintf($intervalStringMap[$intervalType], $interval);
         }
 
         if ($ruleClass === 'cron-expression') {
@@ -734,7 +731,7 @@ class TaskModel extends AdminModel
         /** @var TaskTable $table */
         $table = $this->getTable();
 
-        $user = $this->getCurrentUser();
+        $user = Factory::getApplication()->getIdentity();
 
         $context = $this->option . '.' . $this->name;
 
@@ -757,7 +754,7 @@ class TaskModel extends AdminModel
                 // Prune items that are already at the given state.
                 $lockedColumnName = $table->getColumnAlias('locked');
 
-                if (property_exists($table, $lockedColumnName) && \is_null($table->$lockedColumnName)) {
+                if (property_exists($table, $lockedColumnName) && \is_null($table->get($lockedColumnName))) {
                     unset($pks[$i]);
                 }
             }

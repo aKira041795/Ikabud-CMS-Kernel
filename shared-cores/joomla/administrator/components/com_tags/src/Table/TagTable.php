@@ -15,11 +15,8 @@ use Joomla\CMS\Factory;
 use Joomla\CMS\Helper\TagsHelper;
 use Joomla\CMS\Language\Text;
 use Joomla\CMS\Table\Nested;
-use Joomla\CMS\User\CurrentUserInterface;
-use Joomla\CMS\User\CurrentUserTrait;
 use Joomla\CMS\Versioning\VersionableTableInterface;
 use Joomla\Database\DatabaseDriver;
-use Joomla\Event\DispatcherInterface;
 use Joomla\String\StringHelper;
 
 // phpcs:disable PSR1.Files.SideEffects
@@ -31,10 +28,8 @@ use Joomla\String\StringHelper;
  *
  * @since  3.1
  */
-class TagTable extends Nested implements VersionableTableInterface, CurrentUserInterface
+class TagTable extends Nested implements VersionableTableInterface
 {
-    use CurrentUserTrait;
-
     /**
      * An array of key names to be json encoded in the bind function
      *
@@ -54,16 +49,13 @@ class TagTable extends Nested implements VersionableTableInterface, CurrentUserI
     /**
      * Constructor
      *
-     * @param   DatabaseDriver        $db          Database connector object
-     * @param   ?DispatcherInterface  $dispatcher  Event dispatcher for this table
-     *
-     * @since   3.1.0
+     * @param   DatabaseDriver  $db  A database connector object
      */
-    public function __construct(DatabaseDriver $db, ?DispatcherInterface $dispatcher = null)
+    public function __construct(DatabaseDriver $db)
     {
         $this->typeAlias = 'com_tags.tag';
 
-        parent::__construct('#__tags', 'id', $db, $dispatcher);
+        parent::__construct('#__tags', 'id', $db);
     }
 
     /**
@@ -159,7 +151,7 @@ class TagTable extends Nested implements VersionableTableInterface, CurrentUserI
     }
 
     /**
-     * Overridden \Joomla\CMS\Table\Table::store to set modified data and user id.
+     * Overridden \JTable::store to set modified data and user id.
      *
      * @param   boolean  $updateNulls  True to update fields even if they are null.
      *
@@ -170,11 +162,11 @@ class TagTable extends Nested implements VersionableTableInterface, CurrentUserI
     public function store($updateNulls = true)
     {
         $date = Factory::getDate();
-        $user = $this->getCurrentUser();
+        $user = Factory::getUser();
 
         if ($this->id) {
             // Existing item
-            $this->modified_user_id = $user->id;
+            $this->modified_user_id = $user->get('id');
             $this->modified_time    = $date->toSql();
         } else {
             // New tag. A tag created and created_by field can be set by the user,
@@ -184,7 +176,7 @@ class TagTable extends Nested implements VersionableTableInterface, CurrentUserI
             }
 
             if (empty($this->created_user_id)) {
-                $this->created_user_id = $user->id;
+                $this->created_user_id = $user->get('id');
             }
 
             if (!(int) $this->modified_time) {

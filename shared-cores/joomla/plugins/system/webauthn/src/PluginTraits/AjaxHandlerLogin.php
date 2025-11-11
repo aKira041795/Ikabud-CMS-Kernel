@@ -10,6 +10,7 @@
 
 namespace Joomla\Plugin\System\Webauthn\PluginTraits;
 
+use Exception;
 use Joomla\CMS\Authentication\Authentication;
 use Joomla\CMS\Authentication\AuthenticationResponse;
 use Joomla\CMS\Event\Plugin\System\Webauthn\AjaxLogin;
@@ -46,9 +47,6 @@ trait AjaxHandlerLogin
      */
     public function onAjaxWebauthnLogin(AjaxLogin $event): void
     {
-        // Load plugin language files
-        $this->loadLanguage();
-
         $session   = $this->getApplication()->getSession();
         $returnUrl = $session->get('plg_system_webauthn.returnUrl', Uri::base());
         $userId    = $session->get('plg_system_webauthn.userId', 0);
@@ -67,7 +65,7 @@ trait AjaxHandlerLogin
             $user = Factory::getContainer()->get(UserFactoryInterface::class)->loadUserById($userId);
 
             if ($user->id != $userId) {
-                $message = \sprintf('User #%d does not exist', $userId);
+                $message = sprintf('User #%d does not exist', $userId);
                 Log::add($message, Log::NOTICE, 'webauthn.system');
 
                 throw new \RuntimeException(Text::_('PLG_SYSTEM_WEBAUTHN_ERR_CREATE_INVALID_LOGIN_REQUEST'));
@@ -76,7 +74,7 @@ trait AjaxHandlerLogin
             // Validate the authenticator response and get the user handle
             $userHandle           = $this->getUserHandleFromResponse($user);
 
-            if (\is_null($userHandle)) {
+            if (is_null($userHandle)) {
                 Log::add('Cannot retrieve the user handle from the request; the browser did not assert our request.', Log::NOTICE, 'webauthn.system');
 
                 throw new \RuntimeException(Text::_('PLG_SYSTEM_WEBAUTHN_ERR_CREATE_INVALID_LOGIN_REQUEST'));
@@ -86,7 +84,7 @@ trait AjaxHandlerLogin
             $validUserHandle = $credentialRepository->getHandleFromUserId($userId);
 
             if ($userHandle != $validUserHandle) {
-                $message = \sprintf('Invalid user handle; expected %s, got %s', $validUserHandle, $userHandle);
+                $message = sprintf('Invalid user handle; expected %s, got %s', $validUserHandle, $userHandle);
                 Log::add($message, Log::NOTICE, 'webauthn.system');
 
                 throw new \RuntimeException(Text::_('PLG_SYSTEM_WEBAUTHN_ERR_CREATE_INVALID_LOGIN_REQUEST'));
@@ -96,7 +94,7 @@ trait AjaxHandlerLogin
             $user = Factory::getContainer()->get(UserFactoryInterface::class)->loadUserById($userId);
 
             if ($user->id != $userId) {
-                $message = \sprintf('Invalid user ID; expected %d, got %d', $userId, $user->id);
+                $message = sprintf('Invalid user ID; expected %d, got %d', $userId, $user->id);
                 Log::add($message, Log::NOTICE, 'webauthn.system');
 
                 throw new \RuntimeException(Text::_('PLG_SYSTEM_WEBAUTHN_ERR_CREATE_INVALID_LOGIN_REQUEST'));
@@ -112,10 +110,10 @@ trait AjaxHandlerLogin
             $response->status        = Authentication::STATUS_UNKNOWN;
             $response->error_message = $e->getMessage();
 
-            Log::add(\sprintf("Received login failure. Message: %s", $e->getMessage()), Log::ERROR, 'webauthn.system');
+            Log::add(sprintf("Received login failure. Message: %s", $e->getMessage()), Log::ERROR, 'webauthn.system');
 
             // This also enqueues the login failure message for display after redirection. Look for JLog in that method.
-            $this->processLoginFailure($response);
+            $this->processLoginFailure($response, null, 'system');
         } finally {
             /**
              * This code needs to run no matter if the login succeeded or failed. It prevents replay attacks and takes
@@ -197,22 +195,14 @@ trait AjaxHandlerLogin
         }
 
         // Run the user plugins. They CAN block login by returning boolean false and setting $response->error_message.
-        $dispatcher = $this->getApplication()->getDispatcher();
-
-        PluginHelper::importPlugin('user', null, true, $dispatcher);
-
-        $event   = new \Joomla\CMS\Event\User\LoginEvent(
-            'onUserLogin',
-            [
-                'options' => $options,
-                'subject' => (array) $response,
-            ]
-        );
-        $result  = $dispatcher->dispatch('onUserLogin', $event);
-        $results = !isset($result['result']) || \is_null($result['result']) ? [] : $result['result'];
+        PluginHelper::importPlugin('user');
+        $eventClassName = self::getEventClassByEventName('onUserLogin');
+        $event          = new $eventClassName('onUserLogin', [(array) $response, $options]);
+        $result         = $this->getApplication()->getDispatcher()->dispatch($event->getName(), $event);
+        $results        = !isset($result['result']) || \is_null($result['result']) ? [] : $result['result'];
 
         // If there is no boolean FALSE result from any plugin the login is successful.
-        if (\in_array(false, $results, true) === false) {
+        if (in_array(false, $results, true) === false) {
             // Set the user in the session, letting Joomla! know that we are logged in.
             $this->getApplication()->getSession()->set('user', $user);
 
@@ -221,27 +211,17 @@ trait AjaxHandlerLogin
             $options['responseType'] = $response->type;
 
             // The user is successfully logged in. Run the after login events
-            $event = new \Joomla\CMS\Event\User\AfterLoginEvent(
-                'onUserAfterLogin',
-                [
-                    'options' => $options,
-                    'subject' => (array) $response,
-                ]
-            );
-            $dispatcher->dispatch($event->getName(), $event);
+            $eventClassName = self::getEventClassByEventName('onUserAfterLogin');
+            $event          = new $eventClassName('onUserAfterLogin', [$options]);
+            $this->getApplication()->getDispatcher()->dispatch($event->getName(), $event);
 
             return;
         }
 
         // If we are here the plugins marked a login failure. Trigger the onUserLoginFailure Event.
-        $event = new \Joomla\CMS\Event\User\LoginFailureEvent(
-            'onUserLoginFailure',
-            [
-                'options' => $options,
-                'subject' => (array) $response,
-            ]
-        );
-        $dispatcher->dispatch('onUserLoginFailure', $event);
+        $eventClassName = self::getEventClassByEventName('onUserLoginFailure');
+        $event          = new $eventClassName('onUserLoginFailure', [(array) $response]);
+        $this->getApplication()->getDispatcher()->dispatch($event->getName(), $event);
 
         // Log the failure
         Log::add($response->error_message, Log::WARNING, 'jerror');

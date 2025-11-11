@@ -17,7 +17,6 @@ use Joomla\CMS\MVC\Model\ListModel;
 use Joomla\CMS\Plugin\PluginHelper;
 use Joomla\CMS\Uri\Uri;
 use Joomla\Component\Finder\Administrator\Indexer\Query;
-use Joomla\Database\QueryInterface;
 use Joomla\String\StringHelper;
 
 // phpcs:disable PSR1.Files.SideEffects
@@ -115,7 +114,7 @@ class SearchModel extends ListModel
         // Convert the rows to result objects.
         foreach ($items as $rk => $row) {
             // Build the result object.
-            if (\is_resource($row->object)) {
+            if (is_resource($row->object)) {
                 $result = unserialize(stream_get_contents($row->object));
             } else {
                 $result = unserialize($row->object);
@@ -147,7 +146,7 @@ class SearchModel extends ListModel
     /**
      * Method to build a database query to load the list data.
      *
-     * @return  QueryInterface  A database query.
+     * @return  \Joomla\Database\DatabaseQuery  A database query.
      *
      * @since   2.5
      */
@@ -192,14 +191,14 @@ class SearchModel extends ListModel
         if (!empty($this->searchquery->filters)) {
             // Convert the associative array to a numerically indexed array.
             $groups     = array_values($this->searchquery->filters);
-            $taxonomies = \call_user_func_array('array_merge', array_values($this->searchquery->filters));
+            $taxonomies = call_user_func_array('array_merge', array_values($this->searchquery->filters));
 
             $query->join('INNER', $db->quoteName('#__finder_taxonomy_map') . ' AS t ON t.link_id = l.link_id')
                 ->where('t.node_id IN (' . implode(',', array_unique($taxonomies)) . ')');
 
             // Iterate through each taxonomy group.
-            foreach ($groups as $group) {
-                $query->having('SUM(CASE WHEN t.node_id IN (' . implode(',', $group) . ') THEN 1 ELSE 0 END) > 0');
+            for ($i = 0, $c = count($groups); $i < $c; $i++) {
+                $query->having('SUM(CASE WHEN t.node_id IN (' . implode(',', $groups[$i]) . ') THEN 1 ELSE 0 END) > 0');
             }
         }
 
@@ -290,12 +289,12 @@ class SearchModel extends ListModel
             return $query;
         }
 
-        $included = \call_user_func_array('array_merge', array_values($this->includedTerms));
+        $included = call_user_func_array('array_merge', array_values($this->includedTerms));
         $query->join('INNER', $db->quoteName('#__finder_links_terms') . ' AS m ON m.link_id = l.link_id')
             ->where('m.term_id IN (' . implode(',', $included) . ')');
 
         // Check if there are any excluded terms to deal with.
-        if (\count($this->excludedTerms)) {
+        if (count($this->excludedTerms)) {
             $query2 = $db->getQuery(true);
             $query2->select('e.link_id')
                 ->from($db->quoteName('#__finder_links_terms', 'e'))
@@ -306,9 +305,9 @@ class SearchModel extends ListModel
         /*
          * The query contains required search terms.
          */
-        if (\count($this->requiredTerms)) {
+        if (count($this->requiredTerms)) {
             foreach ($this->requiredTerms as $terms) {
-                if (\count($terms)) {
+                if (count($terms)) {
                     $query->having('SUM(CASE WHEN m.term_id IN (' . implode(',', $terms) . ') THEN 1 ELSE 0 END) > 0');
                 } else {
                     $query->where('false');
@@ -342,7 +341,7 @@ class SearchModel extends ListModel
             $queryUri              = Uri::getInstance($this->getQuery()->toUri());
 
             // If the default field is not included in the shown sort fields, add it.
-            if (!\in_array($defaultSortFieldValue, $sortOrderFieldValues)) {
+            if (!in_array($defaultSortFieldValue, $sortOrderFieldValues)) {
                 array_unshift($sortOrderFieldValues, $defaultSortFieldValue);
             }
 
@@ -391,7 +390,7 @@ class SearchModel extends ListModel
         $currentOrderingDirection = $app->getInput()->getWord('od', $app->getParams()->get('sort_direction', 'desc'));
 
         // Validate the sorting direction and add it only if it is different than the set in the params.
-        if (\in_array($direction, ['asc', 'desc']) && $direction != $app->getParams()->get('sort_direction', 'desc')) {
+        if (in_array($direction, ['asc', 'desc']) && $direction != $app->getParams()->get('sort_direction', 'desc')) {
             $queryUri->setVar('od', StringHelper::strtolower($direction));
         }
 
@@ -471,35 +470,37 @@ class SearchModel extends ListModel
         $params   = $app->getParams();
         $user     = $this->getCurrentUser();
         $language = $app->getLanguage();
-        $options  = [];
 
         $this->setState('filter.language', Multilanguage::isEnabled());
+
+        $request = $input->request;
+        $options = [];
 
         // Get the empty query setting.
         $options['empty'] = $params->get('allow_empty_query', 0);
 
         // Get the static taxonomy filters.
-        $options['filter'] = $input->getInt('f', $params->get('f', ''));
+        $options['filter'] = $request->getInt('f', $params->get('f', ''));
 
         // Get the dynamic taxonomy filters.
-        $options['filters'] = $input->get('t', $params->get('t', []), 'array');
+        $options['filters'] = $request->get('t', $params->get('t', []), 'array');
 
         // Get the query string.
-        $options['input'] = $input->getString('q', $params->get('q', ''));
+        $options['input'] = $request->getString('q', $params->get('q', ''));
 
         // Get the query language.
-        $options['language'] = $input->getCmd('l', $params->get('l', $language->getTag()));
+        $options['language'] = $request->getCmd('l', $params->get('l', $language->getTag()));
 
         // Set the word match mode
         $options['word_match'] = $params->get('word_match', 'exact');
 
         // Get the start date and start date modifier filters.
-        $options['date1'] = $input->getString('d1', $params->get('d1', ''));
-        $options['when1'] = $input->getString('w1', $params->get('w1', ''));
+        $options['date1'] = $request->getString('d1', $params->get('d1', ''));
+        $options['when1'] = $request->getString('w1', $params->get('w1', ''));
 
         // Get the end date and end date modifier filters.
-        $options['date2'] = $input->getString('d2', $params->get('d2', ''));
-        $options['when2'] = $input->getString('w2', $params->get('w2', ''));
+        $options['date2'] = $request->getString('d2', $params->get('d2', ''));
+        $options['when2'] = $request->getString('w2', $params->get('w2', ''));
 
         // Load the query object.
         $this->searchquery = new Query($options, $this->getDatabase());
@@ -577,7 +578,7 @@ class SearchModel extends ListModel
         $this->setState('params', $params);
 
         // Load the user state.
-        $this->setState('user.id', (int) $user->id);
+        $this->setState('user.id', (int) $user->get('id'));
         $this->setState('user.groups', $user->getAuthorisedViewLevels());
     }
 }

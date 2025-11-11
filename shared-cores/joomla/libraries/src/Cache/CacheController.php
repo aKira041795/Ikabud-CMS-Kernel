@@ -10,7 +10,7 @@
 namespace Joomla\CMS\Cache;
 
 use Joomla\CMS\Factory;
-use Joomla\Filesystem\Path;
+use Joomla\CMS\Filesystem\Path;
 
 // phpcs:disable PSR1.Files.SideEffects
 \defined('_JEXEC') or die;
@@ -20,7 +20,6 @@ use Joomla\Filesystem\Path;
  * Public cache handler
  *
  * @since  1.7.0
- * @mixin  Cache
  * @note   As of 4.0 this class will be abstract
  */
 class CacheController
@@ -55,8 +54,8 @@ class CacheController
 
         // Overwrite default options with given options
         foreach ($options as $option => $value) {
-            if ($value !== null) {
-                $this->options[$option] = $value;
+            if (isset($options[$option])) {
+                $this->options[$option] = $options[$option];
             }
         }
     }
@@ -94,7 +93,7 @@ class CacheController
     public static function getInstance($type = 'output', $options = [])
     {
         @trigger_error(
-            \sprintf(
+            sprintf(
                 '%s() is deprecated. The cache controller should be fetched from the factory.',
                 __METHOD__
             ),

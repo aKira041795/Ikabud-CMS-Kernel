@@ -9,8 +9,6 @@
 
 namespace Joomla\CMS\Console;
 
-use Joomla\CMS\Component\ComponentHelper;
-use Joomla\CMS\Version;
 use Joomla\Component\Joomlaupdate\Administrator\Model\UpdateModel;
 use Joomla\Console\Command\AbstractCommand;
 use Symfony\Component\Console\Command\Command;
@@ -19,7 +17,7 @@ use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
 
 // phpcs:disable PSR1.Files.SideEffects
-\defined('_JEXEC') or die;
+\defined('JPATH_PLATFORM') or die;
 // phpcs:enable PSR1.Files.SideEffects
 
 /**
@@ -35,7 +33,7 @@ class CheckJoomlaUpdatesCommand extends AbstractCommand
      * @var    string
      * @since  4.0.0
      */
-    protected static $defaultName = 'core:update:check';
+    protected static $defaultName = 'core:check-updates';
 
     /**
      * Stores the Update Information
@@ -44,23 +42,6 @@ class CheckJoomlaUpdatesCommand extends AbstractCommand
      * @since  4.0.0
      */
     private $updateInfo;
-
-    /**
-     * Command constructor (overridden to include the alias)
-     *
-     * @param   string|null  $name  The name of the command; if the name is empty and no default is set, a name must be set in the configure() method
-     *
-     * @since   5.1.0
-     * @deprecated 5.1.0 will be removed in 6.0
-     *             Use core:update:check instead of core:check-updates
-     *
-     */
-    public function __construct(?string $name = null)
-    {
-        $this->setAliases(['core:check-updates']);
-
-        parent::__construct($name);
-    }
 
     /**
      * Initialise the command.
@@ -143,24 +124,9 @@ class CheckJoomlaUpdatesCommand extends AbstractCommand
     {
         $symfonyStyle = new SymfonyStyle($input, $output);
 
-        $model  = $this->getUpdateInfo();
-        $data   = $model->getUpdateInformation();
-        $config = ComponentHelper::getParams('com_joomlaupdate');
-
-        $symfonyStyle->title('Joomla! Update Status');
-
-        switch ($config->get('updatesource', 'default')) {
-            case 'default':
-            case 'next':
-                $symfonyStyle->writeln('You are on the ' . $config->get('updatesource', 'default') . ' update channel.');
-                break;
-            case 'custom':
-                $symfonyStyle->writeln('You are on a custom update channel with the URL ' . $config->get('customurl') . '.');
-                break;
-        }
-
-        $version = new Version();
-        $symfonyStyle->writeln('Your current Joomla version is ' . $version->getShortVersion() . '.');
+        $model = $this->getUpdateInfo();
+        $data  = $model->getUpdateInformation();
+        $symfonyStyle->title('Joomla! Updates');
 
         if (!$data['hasUpdate']) {
             $symfonyStyle->success('You already have the latest Joomla version ' . $data['latest']);

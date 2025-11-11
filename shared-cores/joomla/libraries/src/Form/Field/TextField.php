@@ -17,7 +17,7 @@ use Joomla\CMS\Language\Text;
 use Joomla\CMS\Uri\Uri;
 
 // phpcs:disable PSR1.Files.SideEffects
-\defined('_JEXEC') or die;
+\defined('JPATH_PLATFORM') or die;
 // phpcs:enable PSR1.Files.SideEffects
 
 /**
@@ -199,7 +199,7 @@ class TextField extends FormField
             $this->dirname = $dirname ? $this->getName($this->fieldname . '_dir') : false;
 
             $this->maxLength   = (int) $this->element['maxlength'];
-            $this->charcounter = isset($this->element['charcounter']) && strtolower($this->element['charcounter']) === 'true';
+            $this->charcounter = isset($this->element['charcounter']) ? strtolower($this->element['charcounter']) === 'true' : false;
 
             $this->addonBefore = (string) $this->element['addonBefore'];
             $this->addonAfter  = (string) $this->element['addonAfter'];
@@ -247,7 +247,7 @@ class TextField extends FormField
             }
         }
 
-        return $this->getRenderer($this->layout)->render($this->collectLayoutData());
+        return $this->getRenderer($this->layout)->render($this->getLayoutData());
     }
 
     /**

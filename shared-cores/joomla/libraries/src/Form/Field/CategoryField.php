@@ -9,12 +9,13 @@
 
 namespace Joomla\CMS\Form\Field;
 
+use Joomla\CMS\Factory;
 use Joomla\CMS\HTML\HTMLHelper;
 use Joomla\CMS\Language\Text;
 use Joomla\CMS\Log\Log;
 
 // phpcs:disable PSR1.Files.SideEffects
-\defined('_JEXEC') or die;
+\defined('JPATH_PLATFORM') or die;
 // phpcs:enable PSR1.Files.SideEffects
 
 /**
@@ -73,7 +74,7 @@ class CategoryField extends ListField
             // Verify permissions.  If the action attribute is set, then we scan the options.
             if ((string) $this->element['action']) {
                 // Get the current user object.
-                $user = $this->getCurrentUser();
+                $user = Factory::getUser();
 
                 foreach ($options as $i => $option) {
                     /*

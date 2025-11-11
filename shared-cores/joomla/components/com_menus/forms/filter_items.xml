@@ -24,7 +24,8 @@
 		<field
 			name="published"
 			type="status"
-			label="JSTATUS"
+			label="COM_MENUS_FILTER_PUBLISHED"
+			description="COM_MENUS_FILTER_PUBLISHED_DESC"
 			optionsFilter="*,0,1,-2"
 			onchange="this.form.submit();"
 			>
@@ -33,7 +34,8 @@
 		<field
 			name="access"
 			type="accesslevel"
-			label="JGRID_HEADING_ACCESS"
+			label="JOPTION_FILTER_ACCESS"
+			description="JOPTION_FILTER_ACCESS_DESC"
 			onchange="this.form.submit();"
 			>
 			<option value="">JOPTION_SELECT_ACCESS</option>
@@ -41,7 +43,8 @@
 		<field
 			name="language"
 			type="contentlanguage"
-			label="JGRID_HEADING_LANGUAGE"
+			label="JOPTION_FILTER_LANGUAGE"
+			description="JOPTION_FILTER_LANGUAGE_DESC"
 			onchange="this.form.submit();"
 			>
 			<option value="">JOPTION_SELECT_LANGUAGE</option>
@@ -50,7 +53,8 @@
 		<field
 			name="level"
 			type="integer"
-			label="JGLOBAL_MAXLEVEL_LABEL"
+			label="JOPTION_FILTER_LEVEL"
+			description="JOPTION_FILTER_LEVEL_DESC"
 			first="1"
 			last="10"
 			step="1"
@@ -102,7 +106,8 @@
 		<field
 			name="limit"
 			type="limitbox"
-			label="JGLOBAL_LIST_LIMIT"
+			label="COM_MENUS_LIST_LIMIT"
+			description="COM_MENUS_LIST_LIMIT_DESC"
 			default="25"
 			onchange="this.form.submit();"
 		/>
