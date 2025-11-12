@@ -1,0 +1,5 @@
+name: 'Ikabud Cache Invalidation'
+type: module
+description: 'Automatically invalidates Ikabud Kernel cache when content changes'
+core_version_requirement: ^10 || ^11
+package: 'Ikabud'

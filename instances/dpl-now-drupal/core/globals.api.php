@@ -1,0 +1,1 @@
+../../../shared-cores/drupal/core/globals.api.php

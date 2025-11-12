@@ -1,0 +1,1 @@
+../../../shared-cores/drupal/core/INSTALL.txt

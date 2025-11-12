@@ -1,0 +1,15 @@
+{
+    "instance_id": "dpl-test-manual",
+    "instance_name": "Test Manual",
+    "cms_type": "drupal",
+    "domain": "testmanual.test",
+    "admin_subdomain": "admin.testmanual.test",
+    "database": {
+        "name": "ikabud_test_manual",
+        "user": "root",
+        "host": "localhost",
+        "prefix": ""
+    },
+    "created_at": "2025-11-12T01:40:50+00:00",
+    "version": "1.0"
+}

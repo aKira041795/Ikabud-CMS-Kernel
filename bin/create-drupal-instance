@@ -508,6 +508,13 @@ INFO;
             } else {
                 echo YELLOW . "   ⚠ Cache invalidation template not found, skipping\n" . NC;
             }
+            
+            // Clean up shared core settings.php created by Drush
+            echo YELLOW . "   Cleaning up shared core settings.php..." . NC . "\n";
+            if (file_exists("$sharedCore/sites/default/settings.php")) {
+                @unlink("$sharedCore/sites/default/settings.php");
+                echo GREEN . "   ✓ Shared core settings.php removed\n" . NC;
+            }
         } else {
             echo RED . "✗" . NC . " Drupal installation failed (exit code: $installReturn)\n";
             echo YELLOW . "   Complete installation manually at: http://admin.$domain/core/install.php" . NC . "\n";
