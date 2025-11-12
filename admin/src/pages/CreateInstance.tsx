@@ -1,14 +1,19 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import toast from 'react-hot-toast';
-import { ArrowLeft, CheckCircle, XCircle } from 'lucide-react';
+import { ArrowLeft, CheckCircle, XCircle, Terminal } from 'lucide-react';
 
 export default function CreateInstance() {
   const { token } = useAuth();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [isInstanceIdManuallyEdited, setIsInstanceIdManuallyEdited] = useState(false);
+  const [showTerminal, setShowTerminal] = useState(false);
+  const [terminalOutput, setTerminalOutput] = useState('');
+  const [installationComplete, setInstallationComplete] = useState(false);
+  const terminalRef = useRef<HTMLDivElement>(null);
+  const pollIntervalRef = useRef<number | null>(null);
   const [formData, setFormData] = useState({
     instance_id: '',
     instance_name: '',
@@ -135,9 +140,73 @@ export default function CreateInstance() {
     }
   };
 
+  // Poll for installation logs
+  const pollInstallationLog = async (instanceId: string) => {
+    try {
+      const response = await fetch(`/api/instances/${instanceId}/creation-log`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      const data = await response.json();
+      
+      if (data.exists && data.content) {
+        setTerminalOutput(data.content);
+        
+        // Auto-scroll to bottom
+        if (terminalRef.current) {
+          terminalRef.current.scrollTop = terminalRef.current.scrollHeight;
+        }
+        
+        // Check if installation is complete
+        if (data.is_complete) {
+          setInstallationComplete(true);
+          if (pollIntervalRef.current) {
+            clearInterval(pollIntervalRef.current);
+            pollIntervalRef.current = null;
+          }
+          setLoading(false);
+          
+          toast.success(
+            <div>
+              <p className="font-semibold">Drupal installed successfully!</p>
+              <p className="text-sm mt-1">Username: <strong>admin</strong> / Password: <strong>admin123</strong></p>
+            </div>,
+            { duration: 8000 }
+          );
+        } else if (data.has_failed) {
+          if (pollIntervalRef.current) {
+            clearInterval(pollIntervalRef.current);
+            pollIntervalRef.current = null;
+          }
+          setLoading(false);
+          toast.error('Installation failed. Check the terminal output for details.');
+        }
+      }
+    } catch (error) {
+      console.error('Error polling log:', error);
+    }
+  };
+
+  // Cleanup polling on unmount
+  useEffect(() => {
+    return () => {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+      }
+    };
+  }, []);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    
+    // Show terminal for Drupal installations
+    if (formData.cms_type === 'drupal') {
+      setShowTerminal(true);
+      setTerminalOutput('Starting Drupal instance creation...\n');
+      setInstallationComplete(false);
+    }
 
     try {
       const response = await fetch('/api/instances/create', {
@@ -152,6 +221,20 @@ export default function CreateInstance() {
       const data = await response.json();
 
       if (data.success) {
+        // For Drupal, start polling the log file
+        if (formData.cms_type === 'drupal') {
+          setTerminalOutput(prev => prev + '\nInstance created. Installing Drupal via Drush...\n');
+          
+          // Start polling after a short delay
+          setTimeout(() => {
+            pollInstallationLog(formData.instance_id);
+            pollIntervalRef.current = setInterval(() => {
+              pollInstallationLog(formData.instance_id);
+            }, 2000); // Poll every 2 seconds
+          }, 1000);
+          
+          return; // Don't show success toast yet, wait for installation to complete
+        }
         // Show success message with installation URL
         const isDrupal = formData.cms_type === 'drupal';
         const drupalAutoInstalled = data.drupal_auto_installed;
@@ -211,7 +294,9 @@ export default function CreateInstance() {
         toast.success(message, { duration: 10000 });
         
         // Navigate after a delay to allow user to see the URL
-        setTimeout(() => navigate('/'), 3000);
+        if (formData.cms_type !== 'drupal') {
+          setTimeout(() => navigate('/'), 3000);
+        }
       } else {
         toast.error(data.error || data.message || 'Failed to create instance');
       }
@@ -607,6 +692,43 @@ export default function CreateInstance() {
             </>
           )}
         </form>
+
+        {/* Terminal Output for Drupal Installation */}
+        {showTerminal && (
+          <div className="mt-6 bg-white shadow-sm border border-gray-200 rounded-md overflow-hidden">
+            <div className="bg-gray-800 px-4 py-3 flex items-center justify-between">
+              <div className="flex items-center gap-2 text-white">
+                <Terminal className="w-5 h-5" />
+                <span className="font-medium">Drupal Installation Progress</span>
+              </div>
+              {installationComplete && (
+                <button
+                  onClick={() => navigate('/')}
+                  className="px-3 py-1 bg-green-600 hover:bg-green-700 text-white text-sm rounded transition-colors"
+                >
+                  Go to Dashboard
+                </button>
+              )}
+            </div>
+            <div
+              ref={terminalRef}
+              className="bg-gray-900 text-green-400 p-4 font-mono text-sm h-96 overflow-y-auto"
+              style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}
+            >
+              {terminalOutput || 'Waiting for installation to start...'}
+              {loading && !installationComplete && (
+                <span className="inline-block animate-pulse ml-1">▊</span>
+              )}
+            </div>
+            {installationComplete && (
+              <div className="bg-green-50 border-t border-green-200 px-4 py-3">
+                <p className="text-sm text-green-800">
+                  ✓ Installation complete! You can now access your Drupal site.
+                </p>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

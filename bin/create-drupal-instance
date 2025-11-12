@@ -68,8 +68,12 @@ $directories = [
 ];
 
 foreach ($directories as $dir) {
-    @mkdir($instancePath . $dir, 0755, true);
+    @mkdir($instancePath . $dir, 0775, true);
 }
+
+// Set ownership to www-data for the entire instance directory
+exec("chown -R www-data:www-data " . escapeshellarg($instancePath) . " 2>&1", $chownOutput, $chownReturn);
+
 echo GREEN . "✓" . NC . " Directory structure created\n";
 
 // Step 2: Create symlinks to shared core (excluding 'core' directory)
@@ -99,7 +103,7 @@ foreach ($coreSymlinks as $item) {
 }
 
 // Create real 'core' directory with wrapper install.php
-mkdir("$instancePath/core", 0755);
+mkdir("$instancePath/core", 0775);
 
 // Create wrapper install.php that sets correct root before loading shared core installer
 $coreInstallContent = <<<COREINSTALL
@@ -329,24 +333,28 @@ echo GREEN . "✓" . NC . " Instance manifest created\n";
 // Step 7: Set permissions
 echo YELLOW . "[7/9]" . NC . " Setting permissions...\n";
 
-// Set directory permissions
+// Set directory permissions (777 for files directory to ensure web server can write)
 chmod("$instancePath/sites/default", 0775);
-chmod("$instancePath/sites/default/files", 0775);
-chmod("$instancePath/sites/default/private", 0775);
+chmod("$instancePath/sites/default/files", 0777);
+chmod("$instancePath/sites/default/private", 0777);
+
+// Create subdirectories with proper permissions
+@mkdir("$instancePath/sites/default/files/translations", 0777, true);
+@mkdir("$instancePath/sites/default/files/config", 0777, true);
+@mkdir("$instancePath/sites/default/files/config/sync", 0777, true);
 
 // Set file permissions (writable for installer)
 chmod("$instancePath/sites/default/settings.php", 0666);
 chmod("$instancePath/sites/default/services.yml", 0666);
 
-// Change ownership to www-data for web server access (requires sudo)
+// Try to change ownership to www-data if sudo is available (optional)
 exec("sudo chown -R www-data:www-data '$instancePath/sites/default/files' 2>&1", $output, $returnCode);
 if ($returnCode === 0) {
     exec("sudo chown www-data:www-data '$instancePath/sites/default/settings.php' 2>&1");
     exec("sudo chown www-data:www-data '$instancePath/sites/default/services.yml' 2>&1");
     echo GREEN . "✓" . NC . " Permissions and ownership set\n";
 } else {
-    echo YELLOW . "⚠" . NC . " Permissions set (ownership change requires sudo)\n";
-    echo YELLOW . "  Run: sudo chown -R www-data:www-data $instancePath/sites/default/files" . NC . "\n";
+    echo GREEN . "✓" . NC . " Permissions set (directories are world-writable for Drush)\n";
 }
 
 // Step 8: Register instance in database
@@ -375,7 +383,7 @@ try {
 
 // Step 9: Install Drupal using Drush
 echo YELLOW . "[9/9]" . NC . " Installing Drupal via Drush...\n";
-$drushPath = "$sharedCore/vendor/bin/drush";
+$drushPath = "$sharedCore/vendor/bin/drush.php";
 
 if (file_exists($drushPath)) {
     // Check if drush is executable
@@ -413,22 +421,37 @@ if (file_exists($drushPath)) {
         echo RED . "✗" . NC . " PHP executable not found or not executable: $phpPath\n";
         echo YELLOW . "   Complete installation manually at: http://admin.$domain/core/install.php" . NC . "\n";
     } else {
+        // Make shared core's sites/default writable for Drush
+        // This gets overwritten each time but instances use their own settings.php
+        @chmod("$sharedCore/sites/default", 0777);
+        @chmod("$sharedCore/sites/default/files", 0777);
+        if (file_exists("$sharedCore/sites/default/settings.php")) {
+            @chmod("$sharedCore/sites/default/settings.php", 0666);
+        }
+        
         // Change to instance directory (required for Drush to work correctly)
         $originalDir = getcwd();
         chdir($instancePath);
         
         // Set up environment variables for Drush
         putenv("DRUSH_PHP=$phpPath");
-        putenv("HOME=" . getenv('HOME')); // Preserve HOME for Drush
+        // Set HOME directory for Drush (required for Symfony filesystem)
+        $homeDir = getenv('HOME') ?: '/tmp';
+        putenv("HOME=$homeDir");
+        // Force Drush to use instance's sites directory
+        putenv("DRUPAL_SITES_DIRECTORY=$instancePath/sites");
         
         $dbUrl = "mysql://$dbUser:$dbPass@localhost/$dbName";
         
-        // Build Drush command arguments
+        // Build Drush command arguments with explicit paths
         $drushArgs = [
             escapeshellarg($phpPath),
             escapeshellarg($drushPath),
             'site:install',
             'standard',
+            '--root=' . escapeshellarg($instancePath),
+            '--sites-subdir=default',
+            '--uri=' . escapeshellarg("http://$domain"),
             '--db-url=' . escapeshellarg($dbUrl),
             '--site-name=' . escapeshellarg($instanceName),
             '--account-name=admin',

@@ -140,6 +140,7 @@ require __DIR__ . '/../api/routes/users.php';
 require __DIR__ . '/../api/routes/kernel.php';
 require __DIR__ . '/../api/routes/instances.php';
 require __DIR__ . '/../api/routes/instances-actions.php';
+require __DIR__ . '/../api/routes/instance-logs.php';
 require __DIR__ . '/../api/routes/themes.php';
 require __DIR__ . '/../api/routes/dsl.php';
 require __DIR__ . '/../api/routes/conditional-loading.php';

@@ -321,16 +321,72 @@ $app->post('/api/instances/create', function (Request $request, Response $respon
     // Build command based on CMS type
     // WordPress: ./script.sh <instance_id> <instance_name> <db_name> <domain> <cms_type> <db_user> <db_pass> <db_host> <db_prefix>
     // Joomla: ./script.sh <instance_id> <instance_name> <domain> <db_name> <db_user> <db_pass> <db_prefix> [joomla_version]
-    // Drupal: ./script.sh <instance_id> <instance_name> <domain> <db_name> <db_user> <db_pass> <db_prefix> [drupal_version]
+    // Drupal: php script.php <instance_id> <instance_name> <domain> <db_name> <db_user> <db_pass> <db_prefix> [drupal_version]
+    
+    // Detect PHP binary
+    $phpBinary = PHP_BINARY ?: '/usr/bin/php';
+    
     if ($cmsType === 'wordpress') {
         $command = "cd $rootPath && $scriptPath $instanceId $instanceName $dbName $domain $cmsType $dbUser $dbPass $dbHost $dbPrefix 2>&1";
     } else if ($cmsType === 'joomla') {
         $command = "cd $rootPath && $scriptPath $instanceId $instanceName $domain $dbName $dbUser $dbPass $dbPrefix $cmsVersion 2>&1";
     } else {
-        // Drupal
-        $command = "cd $rootPath && $scriptPath $instanceId $instanceName $domain $dbName $dbUser $dbPass $dbPrefix $cmsVersion 2>&1";
+        // Drupal - use php explicitly for better compatibility
+        $command = "cd $rootPath && $phpBinary $scriptPath $instanceId $instanceName $domain $dbName $dbUser $dbPass $dbPrefix $cmsVersion 2>&1";
     }
-    exec($command, $output, $returnCode);
+    
+    // For Drupal, run in background due to long Drush installation time
+    if ($cmsType === 'drupal') {
+        // Create a log file for the installation output
+        $logFile = $rootPath . '/storage/logs/instance-creation-' . $instanceId . '.log';
+        $logDir = dirname($logFile);
+        
+        // Ensure log directory exists with proper permissions
+        if (!is_dir($logDir)) {
+            mkdir($logDir, 0755, true);
+        }
+        
+        // Run in background and redirect output to log file
+        // Build command with proper escaping
+        $bgCommand = sprintf(
+            'nohup %s %s %s %s %s %s %s %s %s %s > %s 2>&1 &',
+            escapeshellarg($phpBinary),
+            escapeshellarg($scriptPath),
+            escapeshellarg($instanceId),
+            $instanceName,  // Already escaped above
+            $domain,        // Already escaped above
+            $dbName,        // Already escaped above
+            $dbUser,        // Already escaped above
+            $dbPass,        // Already escaped above
+            $dbPrefix,      // Already escaped above
+            escapeshellarg($cmsVersion),
+            escapeshellarg($logFile)
+        );
+        
+        // Log the command for debugging
+        error_log("Drupal instance creation command: " . $bgCommand);
+        
+        // Change to root directory and execute
+        $oldDir = getcwd();
+        chdir($rootPath);
+        
+        // Use shell_exec with sh -c to properly handle background execution
+        $shellCommand = "sh -c " . escapeshellarg($bgCommand);
+        shell_exec($shellCommand);
+        
+        chdir($oldDir);
+        
+        // Log execution
+        error_log("Command executed via shell_exec");
+        
+        // Give it a moment to start and create initial files
+        sleep(3);
+        
+        $output = ["Instance creation started in background. Check log: $logFile"];
+        $returnCode = 0;
+    } else {
+        exec($command, $output, $returnCode);
+    }
     
     // Check if instance directory was created (check for CMS-specific config file)
     $instancePath = $rootPath . '/instances/' . $instanceId;
@@ -377,10 +433,16 @@ $app->post('/api/instances/create', function (Request $request, Response $respon
         }
     }
     
+    // Customize message for Drupal background installation
+    $message = 'Instance created successfully';
+    if ($cmsType === 'drupal' && !$drupalAutoInstalled) {
+        $message = 'Instance created. Drupal installation running in background (2-3 minutes). Refresh page to check status.';
+    }
+    
     $responseData = [
         'success' => true,
         'instance_id' => $instanceId,
-        'message' => 'Instance created successfully',
+        'message' => $message,
         'admin_url' => "http://{$adminSubdomain}",
         'frontend_url' => "http://" . ($body['domain'] ?? 'localhost'),
         'details' => implode("\n", $output)
