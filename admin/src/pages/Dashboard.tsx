@@ -1,10 +1,12 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { Server, Activity, XCircle, Database, Plus } from 'lucide-react';
+import { Server, Activity, XCircle, Database, Plus, Trash2, HardDrive } from 'lucide-react';
+import { toast } from 'react-hot-toast';
 
 export default function Dashboard() {
   const { token } = useAuth();
+  const queryClient = useQueryClient();
 
   const { data: instances, isLoading, error } = useQuery({
     queryKey: ['instances'],
@@ -23,6 +25,38 @@ export default function Dashboard() {
     },
     refetchInterval: 5000,
     retry: 1
+  });
+
+  // Fetch cache stats
+  const { data: cacheStats } = useQuery({
+    queryKey: ['cache-stats'],
+    queryFn: async () => {
+      const response = await fetch('/api/v1/cache/stats', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (!response.ok) throw new Error('Failed to fetch cache stats');
+      return response.json();
+    },
+    refetchInterval: 10000
+  });
+
+  // Clear all cache mutation
+  const clearAllCacheMutation = useMutation({
+    mutationFn: async () => {
+      const response = await fetch('/api/v1/cache', {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (!response.ok) throw new Error('Failed to clear cache');
+      return response.json();
+    },
+    onSuccess: () => {
+      toast.success('All cache cleared successfully!');
+      queryClient.invalidateQueries({ queryKey: ['cache-stats'] });
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to clear cache: ${error.message}`);
+    }
   });
 
   if (isLoading) {
@@ -67,7 +101,7 @@ export default function Dashboard() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 gap-5 sm:grid-cols-3 mb-6">
+      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4 mb-6">
         <div className="bg-white overflow-hidden shadow rounded-lg">
           <div className="p-5">
             <div className="flex items-center">
@@ -125,6 +159,43 @@ export default function Dashboard() {
                 </dl>
               </div>
             </div>
+          </div>
+        </div>
+
+        {/* Cache Stats Card */}
+        <div className="bg-white overflow-hidden shadow rounded-lg">
+          <div className="p-5">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center">
+                <div className="flex-shrink-0">
+                  <HardDrive className="h-6 w-6 text-blue-400" />
+                </div>
+                <div className="ml-3">
+                  <dt className="text-sm font-medium text-gray-500">
+                    Cache
+                  </dt>
+                  <dd className="text-lg font-semibold text-gray-900">
+                    {cacheStats?.hit_rate || '0%'}
+                  </dd>
+                </div>
+              </div>
+            </div>
+            <div className="text-xs text-gray-500 space-y-1 mb-3">
+              <div>Hits: {cacheStats?.hits || 0}</div>
+              <div>Misses: {cacheStats?.misses || 0}</div>
+            </div>
+            <button
+              onClick={() => {
+                if (confirm('Clear all cache? This will affect all instances.')) {
+                  clearAllCacheMutation.mutate();
+                }
+              }}
+              disabled={clearAllCacheMutation.isPending}
+              className="w-full inline-flex items-center justify-center px-3 py-1.5 border border-red-300 text-xs font-medium rounded text-red-700 bg-white hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Trash2 className="w-3 h-3 mr-1" />
+              {clearAllCacheMutation.isPending ? 'Clearing...' : 'Clear All Cache'}
+            </button>
           </div>
         </div>
       </div>
