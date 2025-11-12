@@ -15,10 +15,13 @@ class SyscallHandlers
     private PDO $db;
     private Cache $cache;
     
+    private ImageOptimizer $imageOptimizer;
+    
     public function __construct(PDO $db, Cache $cache)
     {
         $this->db = $db;
         $this->cache = $cache;
+        $this->imageOptimizer = new ImageOptimizer();
     }
     
     /**
@@ -392,6 +395,51 @@ class SyscallHandlers
         }
         
         return ob_get_clean();
+    }
+    
+    /**
+     * Image Optimize Syscall
+     */
+    public function imageOptimize(array $args): array
+    {
+        $imagePath = $args['path'] ?? null;
+        $options = $args['options'] ?? [];
+        
+        if (!$imagePath) {
+            throw new Exception("Missing image path");
+        }
+        
+        return $this->imageOptimizer->optimize($imagePath, $options);
+    }
+    
+    /**
+     * Image Generate Responsive Syscall
+     */
+    public function imageResponsive(array $args): array
+    {
+        $imagePath = $args['path'] ?? null;
+        
+        if (!$imagePath) {
+            throw new Exception("Missing image path");
+        }
+        
+        return $this->imageOptimizer->generateResponsive($imagePath);
+    }
+    
+    /**
+     * Image Generate Picture Tag Syscall
+     */
+    public function imagePictureTag(array $args): string
+    {
+        $imagePath = $args['path'] ?? null;
+        $alt = $args['alt'] ?? '';
+        $attributes = $args['attributes'] ?? [];
+        
+        if (!$imagePath) {
+            throw new Exception("Missing image path");
+        }
+        
+        return $this->imageOptimizer->generatePictureTag($imagePath, $alt, $attributes);
     }
     
     /**

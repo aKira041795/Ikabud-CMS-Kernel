@@ -556,6 +556,11 @@ class Kernel
         
         // Theme syscalls
         self::registerSyscall('theme.render', [$this->syscallHandlers, 'themeRender']);
+        
+        // Image optimization syscalls
+        self::registerSyscall('image.optimize', [$this->syscallHandlers, 'imageOptimize']);
+        self::registerSyscall('image.responsive', [$this->syscallHandlers, 'imageResponsive']);
+        self::registerSyscall('image.picture', [$this->syscallHandlers, 'imagePictureTag']);
     }
     
     private function initializeErrorHandling(): void
