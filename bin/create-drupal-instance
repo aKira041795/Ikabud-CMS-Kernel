@@ -1,5 +1,5 @@
 #!/usr/bin/env php
-<?php
+<?php declare(strict_types=1);
 /**
  * Drupal Instance Creator (PHP CLI)
  * 
@@ -8,8 +8,6 @@
  * 
  * Usage: ./create-drupal-instance <instance_id> <instance_name> <domain> <db_name> <db_user> <db_pass> [db_prefix]
  */
-
-declare(strict_types=1);
 
 // Colors for output
 define('GREEN', "\033[0;32m");
