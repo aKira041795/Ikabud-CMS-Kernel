@@ -84,6 +84,12 @@ class AssetLoader
             return $html;
         }
         
+        // Check if jQuery already loaded in HTML (avoid double-loading)
+        if (stripos($html, 'jquery') !== false && 
+            (stripos($html, 'jquery.min.js') !== false || stripos($html, 'jquery.js') !== false)) {
+            return $html; // jQuery already present
+        }
+        
         // Find </head> tag and inject before it
         if (preg_match('/<\/head>/i', $html)) {
             ob_start();

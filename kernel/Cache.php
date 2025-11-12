@@ -10,7 +10,7 @@ namespace IkabudKernel\Core;
 class Cache
 {
     private string $cacheDir;
-    private int $ttl = 3600; // 1 hour default
+    private int $ttl = 1800; // 30 minutes default (reduced from 1 hour for fresher content)
     private array $stats = [
         'hits' => 0,
         'misses' => 0,
@@ -330,9 +330,12 @@ class Cache
         
         // Don't cache if user is logged in (check CMS cookies)
         foreach ($_COOKIE as $name => $value) {
-            if (str_starts_with($name, 'wordpress_logged_in_') ||  // WordPress
+            if (str_starts_with($name, 'wordpress_logged_in_') ||  // WordPress login
+                str_starts_with($name, 'wordpress_sec_') ||        // WordPress security
+                str_starts_with($name, 'wp-') ||                    // WordPress general
                 str_starts_with($name, 'joomla_') ||                // Joomla
-                $name === 'SESS' ||                                  // Drupal
+                str_starts_with($name, 'SESS') ||                   // Drupal 7
+                str_starts_with($name, 'SSESS') ||                  // Drupal 8/9/10/11
                 str_starts_with($name, 'PHPSESSID')) {              // Generic PHP session
                 $this->stats['bypasses']++;
                 return false;

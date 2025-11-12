@@ -577,7 +577,8 @@ class Kernel
         header('X-Frame-Options: SAMEORIGIN');
         header('X-Content-Type-Options: nosniff');
         header('X-XSS-Protection: 1; mode=block');
-        header("Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:;");
+        // More permissive CSP for CMS compatibility (allows CDNs, external resources)
+        header("Content-Security-Policy: default-src 'self' https:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https: http:; style-src 'self' 'unsafe-inline' https:; img-src 'self' data: https: http:; font-src 'self' data: https:; connect-src 'self' https: wss:; frame-src 'self' https:;");
         header('Referrer-Policy: strict-origin-when-cross-origin');
         header('Permissions-Policy: geolocation=(), microphone=(), camera=()');
         
@@ -586,9 +587,10 @@ class Kernel
         ini_set('session.cookie_secure', '1');
         ini_set('session.cookie_samesite', 'Strict');
         
-        // Disable dangerous functions (if not already disabled)
+        // Disable only truly dangerous functions (keep CMS-needed ones like exec, curl_exec)
+        // Note: Many CMS plugins need exec for image processing, curl_exec for HTTP requests
         if (function_exists('ini_set')) {
-            @ini_set('disable_functions', 'exec,passthru,shell_exec,system,proc_open,popen,curl_exec,curl_multi_exec,parse_ini_file,show_source');
+            @ini_set('disable_functions', 'passthru,shell_exec,system,proc_open,popen,show_source');
         }
     }
     

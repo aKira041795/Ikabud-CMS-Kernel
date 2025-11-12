@@ -43,6 +43,11 @@ class SecurityManager
         // Theme syscalls
         'theme.render' => ['guest', 'user', 'editor', 'admin'],
         
+        // Image optimization syscalls
+        'image.optimize' => ['user', 'editor', 'admin'],
+        'image.responsive' => ['user', 'editor', 'admin'],
+        'image.picture' => ['guest', 'user', 'editor', 'admin'],
+        
         // Cache syscalls
         'cache.get' => ['guest', 'user', 'editor', 'admin'],
         'cache.set' => ['editor', 'admin'],
