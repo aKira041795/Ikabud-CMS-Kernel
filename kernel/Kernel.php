@@ -577,8 +577,8 @@ class Kernel
         header('X-Frame-Options: SAMEORIGIN');
         header('X-Content-Type-Options: nosniff');
         header('X-XSS-Protection: 1; mode=block');
-        // More permissive CSP for CMS compatibility (allows CDNs, external resources)
-        header("Content-Security-Policy: default-src 'self' https:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https: http:; style-src 'self' 'unsafe-inline' https:; img-src 'self' data: https: http:; font-src 'self' data: https:; connect-src 'self' https: wss:; frame-src 'self' https:;");
+        // More permissive CSP for CMS compatibility (allows CDNs, external resources, workers, mixed content)
+        header("Content-Security-Policy: default-src 'self' https: http:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https: http: blob:; style-src 'self' 'unsafe-inline' https: http:; img-src 'self' data: https: http:; font-src 'self' data: https: http:; connect-src 'self' https: http: wss: ws:; frame-src 'self' https: http:; worker-src 'self' blob:;");
         header('Referrer-Policy: strict-origin-when-cross-origin');
         header('Permissions-Policy: geolocation=(), microphone=(), camera=()');
         
