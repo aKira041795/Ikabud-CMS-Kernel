@@ -81,16 +81,16 @@ CREATE TABLE IF NOT EXISTS `kernel_rate_limits` (
 COMMENT='Rate limit tracking per syscall and identifier';
 
 -- Add indexes to existing kernel_syscalls table if it exists
-ALTER TABLE `kernel_syscalls` 
-  ADD INDEX IF NOT EXISTS `idx_status` (`status`),
-  ADD INDEX IF NOT EXISTS `idx_execution_time` (`execution_time`);
+-- Indexes may already exist, ignore errors
+-- ALTER TABLE `kernel_syscalls` ADD INDEX `idx_status` (`status`);
+-- ALTER TABLE `kernel_syscalls` ADD INDEX `idx_execution_time` (`execution_time`);
 
 -- Add resource usage tracking columns to instances table if they don't exist
-ALTER TABLE `instances`
-  ADD COLUMN IF NOT EXISTS `memory_limit_mb` INT DEFAULT 256 COMMENT 'Memory limit in MB',
-  ADD COLUMN IF NOT EXISTS `cpu_limit_percent` INT DEFAULT 100 COMMENT 'CPU limit percentage',
-  ADD COLUMN IF NOT EXISTS `storage_limit_mb` INT DEFAULT 5120 COMMENT 'Storage limit in MB (5GB default)',
-  ADD COLUMN IF NOT EXISTS `cache_limit_mb` INT DEFAULT 512 COMMENT 'Cache limit in MB';
+-- Columns may already exist, will error if so (safe to ignore)
+-- ALTER TABLE `instances` ADD COLUMN `memory_limit_mb` INT DEFAULT 256 COMMENT 'Memory limit in MB';
+-- ALTER TABLE `instances` ADD COLUMN `cpu_limit_percent` INT DEFAULT 100 COMMENT 'CPU limit percentage';
+-- ALTER TABLE `instances` ADD COLUMN `storage_limit_mb` INT DEFAULT 5120 COMMENT 'Storage limit in MB (5GB default)';
+-- ALTER TABLE `instances` ADD COLUMN `cache_limit_mb` INT DEFAULT 512 COMMENT 'Cache limit in MB';
 
 -- Create view for recent security events
 CREATE OR REPLACE VIEW `v_recent_security_events` AS
