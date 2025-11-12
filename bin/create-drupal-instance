@@ -475,6 +475,39 @@ if (file_exists($drushPath)) {
         echo "\n";
         if ($installReturn === 0) {
             echo GREEN . "✓" . NC . " Drupal installed successfully via Drush\n";
+            
+            // Install cache invalidation module
+            echo YELLOW . "   Installing Ikabud cache invalidation module..." . NC . "\n";
+            
+            // Create module directory
+            $moduleDir = "$instancePath/modules/custom/ikabud_cache";
+            @mkdir($moduleDir, 0755, true);
+            
+            // Copy module file from template
+            $templatePath = "$rootPath/templates/ikabud-cache-invalidation-drupal.php";
+            if (file_exists($templatePath)) {
+                copy($templatePath, "$moduleDir/ikabud_cache.module");
+                
+                // Create module info file
+                $infoContent = <<<INFO
+name: 'Ikabud Cache Invalidation'
+type: module
+description: 'Automatically invalidates Ikabud Kernel cache when content changes'
+core_version_requirement: ^10 || ^11
+package: 'Ikabud'
+INFO;
+                file_put_contents("$moduleDir/ikabud_cache.info.yml", $infoContent);
+                
+                // Enable the module via Drush
+                chdir($instancePath);
+                $enableCmd = escapeshellarg($phpPath) . ' ' . escapeshellarg($drushPath) . ' pm:enable ikabud_cache -y 2>&1';
+                $enableOutput = shell_exec($enableCmd);
+                chdir($originalDir);
+                
+                echo GREEN . "   ✓ Cache invalidation module installed and enabled\n" . NC;
+            } else {
+                echo YELLOW . "   ⚠ Cache invalidation template not found, skipping\n" . NC;
+            }
         } else {
             echo RED . "✗" . NC . " Drupal installation failed (exit code: $installReturn)\n";
             echo YELLOW . "   Complete installation manually at: http://admin.$domain/core/install.php" . NC . "\n";
