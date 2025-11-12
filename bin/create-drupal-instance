@@ -380,7 +380,8 @@ try {
 
 // Step 9: Install Drupal using Drush
 echo YELLOW . "[9/9]" . NC . " Installing Drupal via Drush...\n";
-$drushPath = "$sharedCore/vendor/bin/drush.php";
+// Use drush wrapper script instead of drush.php to avoid namespace issues
+$drushPath = "$sharedCore/vendor/bin/drush";
 
 if (file_exists($drushPath)) {
     // Check if drush is executable
@@ -444,8 +445,8 @@ if (file_exists($drushPath)) {
         $dbUrl = "mysql://$dbUser:$dbPass@localhost/$dbName";
         
         // Build Drush command arguments with explicit paths
+        // Use drush wrapper directly (it handles PHP internally)
         $drushArgs = [
-            escapeshellarg($phpPath),
             escapeshellarg($drushPath),
             'site:install',
             'standard',
@@ -500,7 +501,7 @@ INFO;
                 
                 // Enable the module via Drush
                 chdir($instancePath);
-                $enableCmd = escapeshellarg($phpPath) . ' ' . escapeshellarg($drushPath) . ' pm:enable ikabud_cache -y 2>&1';
+                $enableCmd = escapeshellarg($drushPath) . ' pm:enable ikabud_cache -y 2>&1';
                 $enableOutput = shell_exec($enableCmd);
                 chdir($originalDir);
                 
