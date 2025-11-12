@@ -30,6 +30,12 @@ class Kernel
     private array $processes = [];
     private array $bootLog = [];
     
+    // New managers
+    private ?TransactionManager $transactionManager = null;
+    private ?SecurityManager $securityManager = null;
+    private ?SyscallHandlers $syscallHandlers = null;
+    private ?HealthMonitor $healthMonitor = null;
+    
     /**
      * Get singleton instance
      */
@@ -308,14 +314,31 @@ class Kernel
     }
     
     /**
-     * Execute a syscall
+     * Execute a syscall with security checks
      */
-    public static function syscall(string $name, array $args = []): mixed
+    public static function syscall(string $name, array $args = [], ?string $role = null): mixed
     {
         $kernel = self::getInstance();
         
         if (!isset($kernel->syscalls[$name])) {
             throw new Exception("Syscall not found: {$name}");
+        }
+        
+        // Security checks
+        if ($kernel->securityManager) {
+            // Check permission
+            if (!$kernel->securityManager->checkPermission($name, $role)) {
+                throw new Exception("Permission denied for syscall: {$name}");
+            }
+            
+            // Check rate limit
+            $identifier = $role ?? ($_SERVER['REMOTE_ADDR'] ?? 'unknown');
+            if (!$kernel->securityManager->checkRateLimit($name, $identifier)) {
+                throw new Exception("Rate limit exceeded for syscall: {$name}");
+            }
+            
+            // Validate arguments
+            $args = $kernel->securityManager->validateArgs($name, $args);
         }
         
         $startTime = microtime(true);
@@ -357,6 +380,58 @@ class Kernel
     {
         $kernel = self::getInstance();
         return isset($kernel->syscalls[$name]);
+    }
+    
+    /**
+     * Execute transaction
+     */
+    public static function transaction(callable $callback): mixed
+    {
+        $kernel = self::getInstance();
+        
+        if (!$kernel->transactionManager) {
+            throw new Exception("TransactionManager not initialized");
+        }
+        
+        $txId = uniqid('tx_', true);
+        $kernel->transactionManager->begin($txId);
+        
+        try {
+            $result = $callback($txId, $kernel->transactionManager);
+            $kernel->transactionManager->commit($txId);
+            return $result;
+        } catch (Exception $e) {
+            $kernel->transactionManager->rollback($txId);
+            throw $e;
+        }
+    }
+    
+    /**
+     * Get health status
+     */
+    public static function health(): array
+    {
+        $kernel = self::getInstance();
+        
+        if (!$kernel->healthMonitor) {
+            return ['status' => 'unknown', 'error' => 'HealthMonitor not initialized'];
+        }
+        
+        return $kernel->healthMonitor->check();
+    }
+    
+    /**
+     * Get quick health status
+     */
+    public static function healthQuick(): array
+    {
+        $kernel = self::getInstance();
+        
+        if (!$kernel->healthMonitor) {
+            return ['status' => 'unknown'];
+        }
+        
+        return $kernel->healthMonitor->getQuickStatus();
     }
     
     /**
@@ -420,6 +495,10 @@ class Kernel
             PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
             PDO::ATTR_EMULATE_PREPARES => false,
         ]);
+        
+        // Initialize managers that depend on database
+        $this->transactionManager = new TransactionManager($this->db);
+        $this->securityManager = new SecurityManager($this->db);
     }
     
     private function loadKernelConfig(): void
@@ -450,25 +529,33 @@ class Kernel
     
     private function registerCoreSyscalls(): void
     {
+        // Initialize syscall handlers
+        $cache = new Cache();
+        $this->syscallHandlers = new SyscallHandlers($this->db, $cache);
+        
+        // Initialize health monitor
+        $resourceManager = new ResourceManager();
+        $this->healthMonitor = new HealthMonitor($this->db, $resourceManager, $cache, self::$bootStartTime);
+        
         // Content syscalls
-        self::registerSyscall('content.fetch', [$this, 'syscallContentFetch']);
-        self::registerSyscall('content.create', [$this, 'syscallContentCreate']);
-        self::registerSyscall('content.update', [$this, 'syscallContentUpdate']);
-        self::registerSyscall('content.delete', [$this, 'syscallContentDelete']);
+        self::registerSyscall('content.fetch', [$this->syscallHandlers, 'contentFetch']);
+        self::registerSyscall('content.create', [$this->syscallHandlers, 'contentCreate']);
+        self::registerSyscall('content.update', [$this->syscallHandlers, 'contentUpdate']);
+        self::registerSyscall('content.delete', [$this->syscallHandlers, 'contentDelete']);
         
         // Database syscalls
-        self::registerSyscall('db.query', [$this, 'syscallDbQuery']);
-        self::registerSyscall('db.insert', [$this, 'syscallDbInsert']);
+        self::registerSyscall('db.query', [$this->syscallHandlers, 'dbQuery']);
+        self::registerSyscall('db.insert', [$this->syscallHandlers, 'dbInsert']);
         
         // HTTP syscalls
-        self::registerSyscall('http.get', [$this, 'syscallHttpGet']);
-        self::registerSyscall('http.post', [$this, 'syscallHttpPost']);
+        self::registerSyscall('http.get', [$this->syscallHandlers, 'httpGet']);
+        self::registerSyscall('http.post', [$this->syscallHandlers, 'httpPost']);
         
         // Asset syscalls
-        self::registerSyscall('asset.enqueue', [$this, 'syscallAssetEnqueue']);
+        self::registerSyscall('asset.enqueue', [$this->syscallHandlers, 'assetEnqueue']);
         
         // Theme syscalls
-        self::registerSyscall('theme.render', [$this, 'syscallThemeRender']);
+        self::registerSyscall('theme.render', [$this->syscallHandlers, 'themeRender']);
     }
     
     private function initializeErrorHandling(): void
@@ -485,6 +572,19 @@ class Kernel
         header('X-Frame-Options: SAMEORIGIN');
         header('X-Content-Type-Options: nosniff');
         header('X-XSS-Protection: 1; mode=block');
+        header("Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:;");
+        header('Referrer-Policy: strict-origin-when-cross-origin');
+        header('Permissions-Policy: geolocation=(), microphone=(), camera=()');
+        
+        // Set PHP security settings
+        ini_set('session.cookie_httponly', '1');
+        ini_set('session.cookie_secure', '1');
+        ini_set('session.cookie_samesite', 'Strict');
+        
+        // Disable dangerous functions (if not already disabled)
+        if (function_exists('ini_set')) {
+            @ini_set('disable_functions', 'exec,passthru,shell_exec,system,proc_open,popen,curl_exec,curl_multi_exec,parse_ini_file,show_source');
+        }
     }
     
     private function detectSharedCores(): array
@@ -607,16 +707,4 @@ class Kernel
             $error
         ]);
     }
-    
-    // Placeholder syscall implementations
-    private function syscallContentFetch(array $args): array { return []; }
-    private function syscallContentCreate(array $args): int { return 0; }
-    private function syscallContentUpdate(array $args): bool { return true; }
-    private function syscallContentDelete(array $args): bool { return true; }
-    private function syscallDbQuery(array $args): array { return []; }
-    private function syscallDbInsert(array $args): int { return 0; }
-    private function syscallHttpGet(array $args): string { return ''; }
-    private function syscallHttpPost(array $args): string { return ''; }
-    private function syscallAssetEnqueue(array $args): void {}
-    private function syscallThemeRender(array $args): string { return ''; }
 }
