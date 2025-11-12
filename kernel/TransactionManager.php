@@ -23,9 +23,9 @@ class TransactionManager
     }
     
     /**
-     * Begin a new transaction
+     * Begin a new transaction with optional context metadata
      */
-    public function begin(string $transactionId): void
+    public function begin(string $transactionId, array $context = []): void
     {
         $this->transactionLevel++;
         
@@ -37,7 +37,8 @@ class TransactionManager
             'started_at' => microtime(true),
             'level' => $this->transactionLevel,
             'operations' => [],
-            'savepoint' => "sp_level_{$this->transactionLevel}"
+            'savepoint' => "sp_level_{$this->transactionLevel}",
+            'context' => $context
         ];
         
         // Create savepoint for nested transactions

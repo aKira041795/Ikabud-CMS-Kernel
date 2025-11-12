@@ -16,6 +16,7 @@ class HealthMonitor
     private ResourceManager $resourceManager;
     private Cache $cache;
     private float $bootTime;
+    private array $alertHooks = [];
     
     public function __construct(PDO $db, ResourceManager $resourceManager, Cache $cache, float $bootTime)
     {
@@ -23,6 +24,28 @@ class HealthMonitor
         $this->resourceManager = $resourceManager;
         $this->cache = $cache;
         $this->bootTime = $bootTime;
+    }
+    
+    /**
+     * Register alert hook
+     */
+    public function onAlert(callable $callback): void
+    {
+        $this->alertHooks[] = $callback;
+    }
+    
+    /**
+     * Trigger alert hooks
+     */
+    private function triggerAlerts(string $level, array $details): void
+    {
+        foreach ($this->alertHooks as $hook) {
+            try {
+                $hook($level, $details);
+            } catch (Exception $e) {
+                error_log("Health alert hook failed: " . $e->getMessage());
+            }
+        }
     }
     
     /**
@@ -39,6 +62,15 @@ class HealthMonitor
         ];
         
         $overallStatus = $this->determineOverallStatus($checks);
+        
+        // Trigger alerts if not healthy
+        if ($overallStatus !== 'healthy') {
+            $this->triggerAlerts($overallStatus, [
+                'status' => $overallStatus,
+                'checks' => $checks,
+                'timestamp' => time()
+            ]);
+        }
         
         return [
             'status' => $overallStatus,

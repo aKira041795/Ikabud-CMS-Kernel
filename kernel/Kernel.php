@@ -383,9 +383,9 @@ class Kernel
     }
     
     /**
-     * Execute transaction
+     * Execute transaction with optional context metadata
      */
-    public static function transaction(callable $callback): mixed
+    public static function transaction(callable $callback, array $context = []): mixed
     {
         $kernel = self::getInstance();
         
@@ -394,7 +394,7 @@ class Kernel
         }
         
         $txId = uniqid('tx_', true);
-        $kernel->transactionManager->begin($txId);
+        $kernel->transactionManager->begin($txId, $context);
         
         try {
             $result = $callback($txId, $kernel->transactionManager);

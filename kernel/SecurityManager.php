@@ -16,6 +16,8 @@ class SecurityManager
     private array $syscallPermissions = [];
     private array $rateLimits = [];
     private array $requestCounts = [];
+    private array $roleHierarchy = [];
+    private bool $auditMode = false;
     
     // Default syscall permissions (role-based)
     private const DEFAULT_PERMISSIONS = [
@@ -64,15 +66,48 @@ class SecurityManager
         'cache.clear' => 5
     ];
     
-    public function __construct(PDO $db)
+    public function __construct(PDO $db, bool $auditMode = false)
     {
         $this->db = $db;
         $this->syscallPermissions = self::DEFAULT_PERMISSIONS;
         $this->rateLimits = self::DEFAULT_RATE_LIMITS;
+        $this->auditMode = $auditMode;
+        
+        // Default role hierarchy
+        $this->roleHierarchy = [
+            'admin' => ['editor', 'user', 'guest', 'developer', 'api'],
+            'editor' => ['user', 'guest'],
+            'developer' => ['user', 'guest'],
+            'user' => ['guest']
+        ];
     }
     
     /**
-     * Check if role has permission for syscall
+     * Set role hierarchy
+     */
+    public function setRoleHierarchy(array $hierarchy): void
+    {
+        $this->roleHierarchy = $hierarchy;
+    }
+    
+    /**
+     * Get all roles inherited by a role
+     */
+    private function getInheritedRoles(string $role): array
+    {
+        $roles = [$role];
+        
+        if (isset($this->roleHierarchy[$role])) {
+            foreach ($this->roleHierarchy[$role] as $inheritedRole) {
+                $roles = array_merge($roles, $this->getInheritedRoles($inheritedRole));
+            }
+        }
+        
+        return array_unique($roles);
+    }
+    
+    /**
+     * Check if role has permission for syscall (with hierarchy support)
      */
     public function checkPermission(string $syscall, ?string $role = null): bool
     {
@@ -86,8 +121,12 @@ class SecurityManager
             return false;
         }
         
-        // Check if role is in allowed list
-        return in_array($role, $this->syscallPermissions[$syscall]);
+        // Get all roles including inherited ones
+        $allRoles = $this->getInheritedRoles($role);
+        
+        // Check if any of the roles (including inherited) have permission
+        $allowedRoles = $this->syscallPermissions[$syscall];
+        return !empty(array_intersect($allRoles, $allowedRoles));
     }
     
     /**
@@ -122,6 +161,13 @@ class SecurityManager
         // Check limit
         if ($this->requestCounts[$key]['count'] >= $this->rateLimits[$syscall]) {
             $this->logRateLimitExceeded($syscall, $identifier);
+            
+            // In audit mode, log but don't block
+            if ($this->auditMode) {
+                $this->requestCounts[$key]['count']++;
+                return true;
+            }
+            
             return false;
         }
         

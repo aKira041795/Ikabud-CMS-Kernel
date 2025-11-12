@@ -1,0 +1,30 @@
+a:6:{s:7:"headers";a:11:{i:0;s:27:"X-Frame-Options: SAMEORIGIN";i:1;s:31:"X-Content-Type-Options: nosniff";i:2;s:31:"X-XSS-Protection: 1; mode=block";i:3;s:179:"Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:;";i:4;s:48:"Referrer-Policy: strict-origin-when-cross-origin";i:5;s:60:"Permissions-Policy: geolocation=(), microphone=(), camera=()";i:6;s:36:"Content-Type: application/javascript";i:7;s:13:"X-Cache: MISS";i:8;s:31:"X-Cache-Instance: wp-brutus-cli";i:9;s:27:"X-Powered-By: Ikabud-Kernel";i:10;s:35:"Cache-Control: public, max-age=3600";}s:4:"body";s:956:"jQuery(document).ready(function ($) {
+    var header = document.getElementById("main-navigation-bar");
+    var masthead = document.getElementById("masthead");
+
+    if (!header || !masthead) return;
+
+    var stickyHeight = header.offsetHeight;
+    var sticky = header.offsetTop + stickyHeight;
+    var isStickyActive = false;
+
+    function applyStickyHeader() {
+        if (window.pageYOffset > sticky) {
+            if (!isStickyActive) {
+                header.classList.add("aft-sticky-navigation");
+                masthead.style.paddingBottom = stickyHeight + "px";
+                isStickyActive = true;
+            }
+        } else {
+            if (isStickyActive) {
+                header.classList.remove("aft-sticky-navigation");
+                masthead.style.paddingBottom = "0px";
+                isStickyActive = false;
+            }
+        }
+    }
+
+    $(window).on('scroll', applyStickyHeader);
+    applyStickyHeader(); // Run on load
+});
+";s:9:"timestamp";i:1762947274;s:17:"extensions_loaded";a:0:{}s:15:"extension_count";i:0;s:8:"cms_type";s:9:"wordpress";}
