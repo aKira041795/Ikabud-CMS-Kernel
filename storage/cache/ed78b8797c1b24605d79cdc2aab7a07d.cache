@@ -1,9 +1,8 @@
-a:4:{s:7:"headers";a:13:{i:0;s:38:"content-type: text/html; charset=UTF-8";i:1;s:35:"cache-control: max-age=3600, public";i:2;s:35:"date: Wed, 12 Nov 2025 08:57:45 GMT";i:3;s:27:"x-drupal-dynamic-cache: HIT";i:4;s:20:"content-language: en";i:5;s:31:"x-content-type-options: nosniff";i:6;s:27:"x-frame-options: SAMEORIGIN";i:7;s:47:"x-generator: Drupal 10 (https://www.drupal.org)";i:8;s:50:"surrogate-control: no-store, content="BigPipe/1.0"";i:9;s:21:"x-accel-buffering: no";i:10;s:13:"x-cache: MISS";i:11;s:32:"x-cache-instance: dpl-now-drupal";i:12;s:27:"x-powered-by: Ikabud-Kernel";}s:4:"body";s:26318:"<!DOCTYPE html>
+a:4:{s:7:"headers";a:13:{i:0;s:38:"content-type: text/html; charset=UTF-8";i:1;s:35:"cache-control: max-age=3600, public";i:2;s:35:"date: Wed, 12 Nov 2025 14:10:57 GMT";i:3;s:28:"x-drupal-dynamic-cache: MISS";i:4;s:20:"content-language: en";i:5;s:31:"x-content-type-options: nosniff";i:6;s:27:"x-frame-options: SAMEORIGIN";i:7;s:47:"x-generator: Drupal 10 (https://www.drupal.org)";i:8;s:21:"content-length: 15929";i:9;s:20:"x-drupal-cache: MISS";i:10;s:13:"x-cache: MISS";i:11;s:32:"x-cache-instance: dpl-now-drupal";i:12;s:27:"x-powered-by: Ikabud-Kernel";}s:4:"body";s:15929:"<!DOCTYPE html>
 <html lang="en" dir="ltr" style="--color--primary-hue:202;--color--primary-saturation:79%;--color--primary-lightness:50">
   <head>
     <meta charset="utf-8" />
-<noscript><meta http-equiv="Refresh" content="0; URL=/big_pipe/no-js?destination=/node" />
-</noscript><meta name="Generator" content="Drupal 10 (https://www.drupal.org)" />
+<meta name="Generator" content="Drupal 10 (https://www.drupal.org)" />
 <meta name="MobileOptimized" content="width" />
 <meta name="HandheldFriendly" content="true" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -11,11 +10,10 @@ a:4:{s:7:"headers";a:13:{i:0;s:38:"content-type: text/html; charset=UTF-8";i:1;s
 <link rel="alternate" type="application/rss+xml" title="" href="http://genesis.test/rss.xml" />
 
     <title>Home | Now Drupal</title>
-    <link rel="stylesheet" media="all" href="/sites/default/files/css/css_Cfd3BEW9IpL65kOQZzvz454ER83EHwklVjJWA-4vZAs.css?delta=0&amp;language=en&amp;theme=olivero&amp;include=eJx9T0sSwyAIvZDGM6HSxomRDGBsbl_biS666IbP-w0EKoovrZBd5HpAXsJEbE5lEyOXKO7Og6ChnE5kcgc1ZIzWX9ZnCtskHojRnAmbuG9ddoo1ownE6ALtBxUsKsutt1ax5_L0FzjTEzRRsYL9lAh8TVIQOKy2pYi_WAFmakaJsgd2dze1Z4_HPvOSeqaY8O_r4ZWVWEPVIRn7GyKPeD4" />
-<link rel="stylesheet" media="all" href="/sites/default/files/css/css_OzUUwsA37tJ4bBGIZgtHs_g_Q9HAs1Tkpz0TWTfNDsY.css?delta=1&amp;language=en&amp;theme=olivero&amp;include=eJx9T0sSwyAIvZDGM6HSxomRDGBsbl_biS666IbP-w0EKoovrZBd5HpAXsJEbE5lEyOXKO7Og6ChnE5kcgc1ZIzWX9ZnCtskHojRnAmbuG9ddoo1ownE6ALtBxUsKsutt1ax5_L0FzjTEzRRsYL9lAh8TVIQOKy2pYi_WAFmakaJsgd2dze1Z4_HPvOSeqaY8O_r4ZWVWEPVIRn7GyKPeD4" />
+    <link rel="stylesheet" media="all" href="/sites/default/files/css/css_2-qtmoduHZ0IfKibpxPtox8KDYiD5-CveXxV4LsEfYM.css?delta=0&amp;language=en&amp;theme=olivero&amp;include=eJxdjUEOwyAMBD8UhzcZ2KaoYEc2DeL3raqKQy57mNnV-vSOFiI7Nq3lgmk4qkau5H3WIsfCpw4YMsVJsWp6LfEA8nYVDA-_3Jvmd8WW1BCStlMF0n3_94k6vne29sJXObgXFXIklcw2l3SwpSeNknFnwmY6PraWS3I" />
+<link rel="stylesheet" media="all" href="/sites/default/files/css/css_KceZABCfMu1lwxNYPSv65YgzAaD7_Ikh9EqjiZNGeQM.css?delta=1&amp;language=en&amp;theme=olivero&amp;include=eJxdjUEOwyAMBD8UhzcZ2KaoYEc2DeL3raqKQy57mNnV-vSOFiI7Nq3lgmk4qkau5H3WIsfCpw4YMsVJsWp6LfEA8nYVDA-_3Jvmd8WW1BCStlMF0n3_94k6vne29sJXObgXFXIklcw2l3SwpSeNknFnwmY6PraWS3I" />
 
-    <script src="/sites/default/files/js/js_-n6k-tBTuoV787uIrpk45JQ-XWOpUcJHYbGnDuOESjw.js?scope=header&amp;delta=0&amp;language=en&amp;theme=olivero&amp;include=eJx9jEEOhDAMAz8U6Bv2JSikEURkmyotC88HIcqBw55seWyTpcp7XVFD9DWj9vQknUpaCpA5N4hU5ccXANPTuoXC6DR3m0SGaqYjergV6N99K71GPRfCzJ_4lQSjTEOWzKGZAyBxRRw"></script>
-
+    
     
 <link rel="preload" href="/core/themes/olivero/fonts/metropolis/Metropolis-Regular.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="/core/themes/olivero/fonts/metropolis/Metropolis-SemiBold.woff2" as="font" type="font/woff2" crossorigin>
@@ -24,40 +22,11 @@ a:4:{s:7:"headers";a:13:{i:0;s:38:"content-type: text/html; charset=UTF-8";i:1;s
     <noscript><link rel="stylesheet" href="/core/themes/olivero/css/components/navigation/nav-primary-no-js.css?t5le7y" />
 </noscript>
   </head>
-  <body class="toolbar-loading user-logged-in path-frontpage">
+  <body class="path-frontpage">
         <a href="#main-content" class="visually-hidden focusable skip-link">
       Skip to main content
     </a>
-    <div id="toolbar-administration" role="group" aria-label="Site administration toolbar" data-drupal-claro-processed-toolbar class="toolbar claro-toolbar">
-  <nav id="toolbar-bar" role="navigation" aria-label="Toolbar items" class="toolbar-bar clearfix">
-    <h2 class="visually-hidden">Toolbar items</h2>
-                <div class="home-toolbar-tab toolbar-tab">
-        <a href="/" title="Return to site content" class="toolbar-icon toolbar-icon-escape-admin toolbar-item" data-toolbar-escape-admin>Back to site</a>
-        <div><nav class="toolbar-lining clearfix" role="navigation"></nav></div>      </div>
-                <div class="toolbar-tab">
-        <a href="/admin" title="Admin menu" class="toolbar-icon toolbar-icon-menu trigger toolbar-item" data-drupal-subtrees="" id="toolbar-item-administration" data-toolbar-tray="toolbar-item-administration-tray" role="button" aria-pressed="false">Manage</a>
-        <div id="toolbar-item-administration-tray" data-toolbar-tray="toolbar-item-administration-tray" class="toolbar-tray"><nav class="toolbar-lining clearfix" role="navigation" aria-label="Administration menu"><h3 class="toolbar-tray-name visually-hidden">Administration menu</h3><div class="toolbar-menu-administration"><ul class="toolbar-menu claro-toolbar-menu"><li class="menu-item menu-item--collapsed"><a href="/admin/content" title="Find and manage content." id="toolbar-link-system-admin_content" class="toolbar-icon toolbar-icon-system-admin-content" data-drupal-link-system-path="admin/content">Content</a></li><li class="menu-item menu-item--collapsed"><a href="/admin/structure" title="Administer blocks, content types, menus, etc." id="toolbar-link-system-admin_structure" class="toolbar-icon toolbar-icon-system-admin-structure" data-drupal-link-system-path="admin/structure">Structure</a></li><li class="menu-item"><a href="/admin/appearance" title="Select and configure themes." id="toolbar-link-system-themes_page" class="toolbar-icon toolbar-icon-system-themes-page" data-drupal-link-system-path="admin/appearance">Appearance</a></li><li class="menu-item"><a href="/admin/modules" title="Add and install modules to extend site functionality." id="toolbar-link-system-modules_list" class="toolbar-icon toolbar-icon-system-modules-list" data-drupal-link-system-path="admin/modules">Extend</a></li><li class="menu-item menu-item--collapsed"><a href="/admin/config" title="Administer settings." id="toolbar-link-system-admin_config" class="toolbar-icon toolbar-icon-system-admin-config" data-drupal-link-system-path="admin/config">Configuration</a></li><li class="menu-item"><a href="/admin/people" title="Manage user accounts, roles, and permissions." id="toolbar-link-entity-user-collection" class="toolbar-icon toolbar-icon-entity-user-collection" data-drupal-link-system-path="admin/people">People</a></li><li class="menu-item menu-item--collapsed"><a href="/admin/reports" title="View reports, updates, and errors." id="toolbar-link-system-admin_reports" class="toolbar-icon toolbar-icon-system-admin-reports" data-drupal-link-system-path="admin/reports">Reports</a></li><li class="menu-item"><a href="/admin/help" title="Reference for usage, configuration, and modules." id="toolbar-link-help-main" class="toolbar-icon toolbar-icon-help-main" data-drupal-link-system-path="admin/help">Help</a></li></ul></div></nav></div>      </div>
-                <div class="toolbar-tab">
-        <a href="/admin/config/user-interface/shortcut" title="Shortcuts" class="toolbar-icon toolbar-icon-shortcut trigger toolbar-item" id="toolbar-item-shortcuts" data-toolbar-tray="toolbar-item-shortcuts-tray" role="button" aria-pressed="false">Shortcuts</a>
-        <div id="toolbar-item-shortcuts-tray" data-toolbar-tray="toolbar-item-shortcuts-tray" class="toolbar-tray"><nav class="toolbar-lining clearfix" role="navigation" aria-label="User-defined shortcuts"><h3 class="toolbar-tray-name visually-hidden">User-defined shortcuts</h3><span data-big-pipe-placeholder-id="callback=shortcut.lazy_builders%3AlazyLinks&amp;&amp;token=5-XBI-QHgyU_l7Bu0FizHR7YBqK2bTVTBFF8Z0DVTis"><a href="#" class="toolbar-tray-lazy-placeholder-link">&nbsp;</a>
-</span></nav></div>      </div>
-                <div class="hidden contextual-toolbar-tab toolbar-tab">
-        <button class="toolbar-icon toolbar-icon-edit toolbar-item" aria-pressed="false" type="button">Edit</button>
-
-        <div><nav class="toolbar-lining clearfix" role="navigation"></nav></div>      </div>
-                <div class="toolbar-tab">
-        <a href="/user" title="My account" class="toolbar-icon toolbar-icon-user trigger toolbar-item" id="toolbar-item-user" data-toolbar-tray="toolbar-item-user-tray" role="button" aria-pressed="false"><span data-big-pipe-placeholder-id="callback=user.toolbar_link_builder%3ArenderDisplayName&amp;&amp;token=XGROnxBLjNjdNZJ_VcOhVZtenx2tDkIKPfojS_uZFXA">&nbsp;
-</span></a>
-        <div id="toolbar-item-user-tray" data-toolbar-tray="toolbar-item-user-tray" class="toolbar-tray"><nav class="toolbar-lining clearfix" role="navigation" aria-label="User account actions"><h3 class="toolbar-tray-name visually-hidden">User account actions</h3><span data-big-pipe-placeholder-id="callback=user.toolbar_link_builder%3ArenderToolbarLinks&amp;&amp;token=QPmvukHqpEJJ4rYEzUUFx0ERxrtfmQ9TMOp_hvyLHEk"><a href="#" class="toolbar-tray-lazy-placeholder-link">&nbsp;</a>
-</span></nav></div>      </div>
-                <div class="announce-toolbar-tab toolbar-tab">
-        <span data-big-pipe-placeholder-id="callback=announcements_feed.lazy_builders%3ArenderAnnouncements&amp;&amp;token=m--BNYDqgTao0j2QoLFf1TwfQN-Bm9xPlckw9QAC1h4">
-</span>
-        <div><nav class="toolbar-lining clearfix" role="navigation"></nav></div>      </div>
-      </nav>
-  
-</div>
-
+    
       <div class="dialog-off-canvas-main-canvas" data-off-canvas-main-canvas>
     
 <div id="page-wrapper" class="page-wrapper">
@@ -82,9 +51,9 @@ a:4:{s:7:"headers";a:13:{i:0;s:38:"content-type: text/html; charset=UTF-8";i:1;s
               
 
 
-<div id="block-olivero-site-branding" class="contextual-region site-branding block block-system block-system-branding-block">
+<div id="block-olivero-site-branding" class="site-branding block block-system block-system-branding-block">
   
-    <div data-contextual-id="block:block=olivero_site_branding:langcode=en" data-contextual-token="ZckyMplGTxPEoiCegKyvkMzD_7RJPAoslQu8NhOxIHc" data-drupal-ajax-container=""></div>
+    
     <div class="site-branding__inner">
               <div class="site-branding__text">
         <div class="site-branding__name">
@@ -106,9 +75,9 @@ a:4:{s:7:"headers";a:13:{i:0;s:38:"content-type: text/html; charset=UTF-8";i:1;s
 
                 <div id="header-nav" class="header-nav" data-drupal-selector="header-nav">
                   
-<div class="search-block-form contextual-region block block-search-narrow" data-drupal-selector="search-block-form" id="block-olivero-search-form-narrow" role="search">
+<div class="search-block-form block block-search-narrow" data-drupal-selector="search-block-form" id="block-olivero-search-form-narrow" role="search">
   
-    <div data-contextual-id="block:block=olivero_search_form_narrow:langcode=en" data-contextual-token="DusMVzN8mSPtXowcSOF4gaklmm1kD61yB9ApdPcSWjQ" data-drupal-ajax-container=""></div>
+    
       <div class="content">
       <form action="/search/node" method="get" id="search-block-form" accept-charset="UTF-8" class="search-form search-block-form">
   <div class="js-form-item form-item js-form-type-search form-item-keys js-form-item-keys form-no-label">
@@ -127,10 +96,10 @@ a:4:{s:7:"headers";a:13:{i:0;s:38:"content-type: text/html; charset=UTF-8";i:1;s
 
     </div>
   </div>
-<nav  id="block-olivero-main-menu" class="contextual-region primary-nav block block-menu navigation menu--main" aria-labelledby="block-olivero-main-menu-menu" role="navigation">
+<nav  id="block-olivero-main-menu" class="primary-nav block block-menu navigation menu--main" aria-labelledby="block-olivero-main-menu-menu" role="navigation">
             
   <h2 class="visually-hidden block__title" id="block-olivero-main-menu-menu">Main navigation</h2>
-  <div data-contextual-id="block:block=olivero_main_menu:langcode=en|menu:menu=main:langcode=en" data-contextual-token="n7j1lxT88fNgXW5s7RW-okCpDCP0pi-z8KoTo9mWK00" data-drupal-ajax-container=""></div>
+  
         
 
 
@@ -143,7 +112,7 @@ a:4:{s:7:"headers";a:13:{i:0;s:38:"content-type: text/html; charset=UTF-8";i:1;s
         
         <li class="primary-nav__menu-item primary-nav__menu-item--link primary-nav__menu-item--level-1">
                               
-                      <a href="/" class="primary-nav__menu-link primary-nav__menu-link--link primary-nav__menu-link--level-1" data-drupal-selector="primary-nav-menu-link-has-children" data-drupal-link-system-path="&lt;front&gt;">            <span class="primary-nav__menu-link-inner primary-nav__menu-link-inner--level-1">Home</span>
+                      <a href="/" class="primary-nav__menu-link primary-nav__menu-link--link primary-nav__menu-link--level-1 is-active" data-drupal-selector="primary-nav-menu-link-has-children" data-drupal-link-system-path="&lt;front&gt;" aria-current="page">            <span class="primary-nav__menu-link-inner primary-nav__menu-link-inner--level-1">Home</span>
           </a>
 
             
@@ -169,9 +138,9 @@ a:4:{s:7:"headers";a:13:{i:0;s:38:"content-type: text/html; charset=UTF-8";i:1;s
                   
 
   <div class="region region--secondary-menu">
-    <div class="search-block-form contextual-region block block-search-wide" data-drupal-selector="search-block-form-2" id="block-olivero-search-form-wide" role="search">
+    <div class="search-block-form block block-search-wide" data-drupal-selector="search-block-form-2" id="block-olivero-search-form-wide" role="search">
   
-    <div data-contextual-id="block:block=olivero_search_form_wide:langcode=en" data-contextual-token="lyhe5ZHUGcMDwlZYS7J5BPOTkmA-GtZIZRdV99yESN0" data-drupal-ajax-container=""></div>
+    
       <button class="block-search-wide__button" aria-label="Search Form" data-drupal-selector="block-search-wide-button">
       <svg xmlns="http://www.w3.org/2000/svg" width="22" height="23" viewBox="0 0 22 23">
   <path fill="currentColor" d="M21.7,21.3l-4.4-4.4C19,15.1,20,12.7,20,10c0-5.5-4.5-10-10-10S0,4.5,0,10s4.5,10,10,10c2.1,0,4.1-0.7,5.8-1.8l4.5,4.5c0.4,0.4,1,0.4,1.4,0S22.1,21.7,21.7,21.3z M10,18c-4.4,0-8-3.6-8-8s3.6-8,8-8s8,3.6,8,8S14.4,18,10,18z"/>
@@ -201,10 +170,10 @@ a:4:{s:7:"headers";a:13:{i:0;s:38:"content-type: text/html; charset=UTF-8";i:1;s
       </div>
     </div>
   </div>
-<nav  id="block-olivero-account-menu" class="contextual-region block block-menu navigation menu--account secondary-nav" aria-labelledby="block-olivero-account-menu-menu" role="navigation">
+<nav  id="block-olivero-account-menu" class="block block-menu navigation menu--account secondary-nav" aria-labelledby="block-olivero-account-menu-menu" role="navigation">
             
   <span class="visually-hidden" id="block-olivero-account-menu-menu">User account menu</span>
-  <div data-contextual-id="block:block=olivero_account_menu:langcode=en|menu:menu=account:langcode=en" data-contextual-token="sDTW90yxmQVtj5x3u3nPiX1dc2Gw7PF9399nd34BMDc" data-drupal-ajax-container=""></div>
+  
         
 
 
@@ -214,15 +183,7 @@ a:4:{s:7:"headers";a:13:{i:0;s:38:"content-type: text/html; charset=UTF-8";i:1;s
         
         
         <li class="secondary-nav__menu-item secondary-nav__menu-item--link secondary-nav__menu-item--level-1">
-          <a href="/user" class="secondary-nav__menu-link secondary-nav__menu-link--link secondary-nav__menu-link--level-1" data-drupal-link-system-path="user">My account</a>
-
-                  </li>
-      
-                          
-        
-        
-        <li class="secondary-nav__menu-item secondary-nav__menu-item--link secondary-nav__menu-item--level-1">
-          <a href="/user/logout?token=big_pipe_nojs_placeholder_attribute_safe:fzL0Ox4jS6qafdt6gzGzjWGb_hsR6kJ8L8E0D4hC5Mo" class="secondary-nav__menu-link secondary-nav__menu-link--link secondary-nav__menu-link--level-1" data-drupal-link-system-path="user/logout">Log out</a>
+          <a href="/user/login" class="secondary-nav__menu-link secondary-nav__menu-link--link secondary-nav__menu-link--level-1" data-drupal-link-system-path="user/login">Log in</a>
 
                   </li>
           </ul>
@@ -248,8 +209,7 @@ a:4:{s:7:"headers";a:13:{i:0;s:38:"content-type: text/html; charset=UTF-8";i:1;s
             
 
   <div class="region region--highlighted grid-full layout--pass--content-medium">
-    <div data-drupal-messages-fallback class="hidden messages-list"></div><span data-big-pipe-placeholder-id="callback=Drupal%5CCore%5CRender%5CElement%5CStatusMessages%3A%3ArenderMessages&amp;args%5B0%5D&amp;token=_HAdUpwWmet0TOTe2PSiJuMntExoshbm1kh2wQzzzAA">
-</span>
+    <div data-drupal-messages-fallback class="hidden messages-list"></div>
 
   </div>
 
@@ -263,13 +223,13 @@ a:4:{s:7:"headers";a:13:{i:0;s:38:"content-type: text/html; charset=UTF-8";i:1;s
   <div class="region region--content-above grid-full layout--pass--content-medium">
     
 
-<div id="block-olivero-page-title" class="contextual-region block block-core block-page-title-block">
+<div id="block-olivero-page-title" class="block block-core block-page-title-block">
   
   
-<div class="shortcut-wrapper">
-</div>
 
-  <div data-contextual-id="block:block=olivero_page_title:langcode=en" data-contextual-token="NWpe4hqUEUtLVu5h9--AYlCNBQXxOFjeVlm1Qsq5Bk8" data-drupal-ajax-container=""></div>
+
+
+  
 </div>
 
   </div>
@@ -283,19 +243,19 @@ a:4:{s:7:"headers";a:13:{i:0;s:38:"content-type: text/html; charset=UTF-8";i:1;s
   
     
       <div class="block__content">
-      <div class="views-element-container contextual-region">
-<div class="contextual-region view view-frontpage view-id-frontpage view-display-id-page_1 grid-full layout--pass--content-narrow js-view-dom-id-ba3fe81f1bbf08d281616ebd3bbaacf978887e75d81c0136fb543b64f2982685">
+      <div class="views-element-container">
+<div class="view view-frontpage view-id-frontpage view-display-id-page_1 grid-full layout--pass--content-narrow js-view-dom-id-018fd8902f60da13ccf32e7a56c26360437180fdf7015252d7d9839b3b7dd806">
   
-    <div data-contextual-id="entity.view.edit_form:view=frontpage:location=page&amp;name=frontpage&amp;display_id=page_1&amp;langcode=en" data-contextual-token="K-eZ2XGnXJt0hktj63vCCeqzOXNmsgpoGRhznbXqyMA" data-drupal-ajax-container=""></div>
+    
       
       <div class="view-content">
           <div class="views-row">
 
 
-<article data-history-node-id="1" class="contextual-region node node--type-page node--promoted node--view-mode-teaser teaser" data-component-id="olivero:teaser">
+<article data-history-node-id="1" class="node node--type-page node--promoted node--view-mode-teaser teaser" data-component-id="olivero:teaser">
   <header>
         
-    <div data-contextual-id="node:node=1:changed=1762917154&amp;langcode=en" data-contextual-token="_k0PFjfz2ylVlbxc8kW6oPsWVr0D5zy7yzI02Pybiho" data-drupal-ajax-container=""></div>
+    
       <div class="teaser__meta">
                 </div>
     <div class="teaser__top">
@@ -337,9 +297,9 @@ a:4:{s:7:"headers";a:13:{i:0;s:38:"content-type: text/html; charset=UTF-8";i:1;s
   <div class="rotate">
     
 
-<div id="block-olivero-syndicate" class="contextual-region block block-node block-node-syndicate-block" role="complementary">
+<div id="block-olivero-syndicate" role="complementary" class="block block-node block-node-syndicate-block">
   
-    <div data-contextual-id="block:block=olivero_syndicate:langcode=en" data-contextual-token="F7H-y5-JT-vRgtjcHoVeElgGD_jWuVkvSfCCmKnOiw0" data-drupal-ajax-container=""></div>
+    
       <div class="block__content">
       
 
@@ -373,9 +333,9 @@ a:4:{s:7:"headers";a:13:{i:0;s:38:"content-type: text/html; charset=UTF-8";i:1;s
   <div class="region region--footer-bottom grid-full layout--pass--content-medium">
     
 
-<div id="block-olivero-powered" class="contextual-region block block-system block-system-powered-by-block">
+<div id="block-olivero-powered" class="block block-system block-system-powered-by-block">
   
-    <div data-contextual-id="block:block=olivero_powered:langcode=en" data-contextual-token="ppio7suw4h-PBELT3NcHMLv1QgJWssUkNNfSYDBfYOE" data-drupal-ajax-container=""></div>
+    
     
   <span>
     Powered by    <a href="https://www.drupal.org">Drupal</a>
@@ -400,9 +360,9 @@ a:4:{s:7:"headers";a:13:{i:0;s:38:"content-type: text/html; charset=UTF-8";i:1;s
   </div>
 
     
-    <drupal-big-pipe-scripts-bottom-marker><script type="application/json" data-drupal-selector="drupal-settings-json">{"path":{"baseUrl":"\/","pathPrefix":"","currentPath":"node","currentPathIsAdmin":false,"isFront":true,"currentLanguage":"en"},"pluralDelimiter":"\u0003","suppressDeprecationErrors":true,"ajaxPageState":{"libraries":"eJx9T1tuBCEMuxCPM_QkVYB0NypDUBJmOrcvXTG70n70B8WxcexEt89OHWNag8vcDH9sQI1FRocaXhtfqX3r_xJjrglkigRj5q1zw2YauNKOwt4bguLi13fINsmHu1u6-IVYnqDBTjcw4uYV57ECcj7JzgcKFp9Onyrnl4UiSL77BiJ8vG8PKuj0zmJ52BXkwk5PNdximlHdahSvZm84oGbo-FE2am7MapfZ3xxoplW3Ex4aH2_YuIyKv74SkvE","theme":"olivero","theme_token":null},"ajaxTrustedUrl":{"\/search\/node":true},"bigPipePlaceholderIds":{"callback=Drupal%5CCore%5CRender%5CElement%5CStatusMessages%3A%3ArenderMessages\u0026args%5B0%5D\u0026token=_HAdUpwWmet0TOTe2PSiJuMntExoshbm1kh2wQzzzAA":true,"callback=announcements_feed.lazy_builders%3ArenderAnnouncements\u0026\u0026token=m--BNYDqgTao0j2QoLFf1TwfQN-Bm9xPlckw9QAC1h4":true,"callback=user.toolbar_link_builder%3ArenderToolbarLinks\u0026\u0026token=QPmvukHqpEJJ4rYEzUUFx0ERxrtfmQ9TMOp_hvyLHEk":true,"callback=user.toolbar_link_builder%3ArenderDisplayName\u0026\u0026token=XGROnxBLjNjdNZJ_VcOhVZtenx2tDkIKPfojS_uZFXA":true,"callback=shortcut.lazy_builders%3AlazyLinks\u0026\u0026token=5-XBI-QHgyU_l7Bu0FizHR7YBqK2bTVTBFF8Z0DVTis":true},"toolbar":{"breakpoints":{"toolbar.narrow":"only screen and (min-width: 16.5em)","toolbar.standard":"only screen and (min-width: 38.125em)","toolbar.wide":"only screen and (min-width: 61em)"},"subtreesHash":"28-YldcVXmuByNgjgy9nWQq0ZHKMOSYh4eG7DeqhqQk"},"user":{"uid":"1","permissionsHash":"is-admin"}}</script>
-<script src="/sites/default/files/js/js_Sk8VrPcRzfmPtjoSusCZwAQINA0Y3gkQWEwQ5QY9NX0.js?scope=footer&amp;delta=0&amp;language=en&amp;theme=olivero&amp;include=eJx9jEEOhDAMAz8U6Bv2JSikEURkmyotC88HIcqBw55seWyTpcp7XVFD9DWj9vQknUpaCpA5N4hU5ccXANPTuoXC6DR3m0SGaqYjergV6N99K71GPRfCzJ_4lQSjTEOWzKGZAyBxRRw"></script>
-<drupal-big-pipe-scripts-bottom-marker>
+    <script type="application/json" data-drupal-selector="drupal-settings-json">{"path":{"baseUrl":"\/","pathPrefix":"","currentPath":"node","currentPathIsAdmin":false,"isFront":true,"currentLanguage":"en"},"pluralDelimiter":"\u0003","suppressDeprecationErrors":true,"ajaxTrustedUrl":{"\/search\/node":true},"user":{"uid":0,"permissionsHash":"dda27dab8cef08d8260a1c4f37235e6a41c384e34a918729f246f6780338ed41"}}</script>
+<script src="/sites/default/files/js/js_2lAwouSToTf05Ngy3Qem0UyXlHJDEyjwZOGzt9CNAgw.js?scope=footer&amp;delta=0&amp;language=en&amp;theme=olivero&amp;include=eJzLz8ksSy3K10_PyU9KzNEtLqnMycxL18mHChenJhYlZ-iWZ6akAgBmbhB_"></script>
+
   </body>
 </html>
-";s:9:"timestamp";i:1762947228;s:8:"cms_type";s:6:"drupal";}
+";s:9:"timestamp";i:1762956657;s:8:"cms_type";s:6:"drupal";}

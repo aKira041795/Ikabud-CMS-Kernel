@@ -15,4 +15,4 @@ a:6:{s:7:"headers";a:11:{i:0;s:27:"X-Frame-Options: SAMEORIGIN";i:1;s:31:"X-Cont
 .system-status-report-counters__item{width:100%;margin-bottom:0.5em;padding:0.5em 0;text-align:center;white-space:nowrap;background-color:rgba(0,0,0,0.063);}@media screen and (min-width:60em){.system-status-report-counters{display:flex;flex-wrap:wrap;justify-content:space-between;}.system-status-report-counters__item--half-width{width:49%;}.system-status-report-counters__item--third-width{width:33%;}}
 .system-status-general-info__item{margin-top:1em;padding:0 1em 1em;border:1px solid #ccc;}.system-status-general-info__item-title{border-bottom:1px solid #ccc;}
 .tablesort{display:inline-block;width:16px;height:16px;background-size:100%;}.tablesort--asc{background-image:url(/core/misc/icons/787878/twistie-down.svg);}.tablesort--desc{background-image:url(/core/misc/icons/787878/twistie-up.svg);}
-";s:9:"timestamp";i:1762947248;s:17:"extensions_loaded";a:0:{}s:15:"extension_count";i:0;s:8:"cms_type";s:6:"drupal";}
+";s:9:"timestamp";i:1762956669;s:17:"extensions_loaded";a:0:{}s:15:"extension_count";i:0;s:8:"cms_type";s:6:"drupal";}

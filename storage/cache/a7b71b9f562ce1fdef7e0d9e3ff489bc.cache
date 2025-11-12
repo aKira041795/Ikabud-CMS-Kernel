@@ -1,4 +1,4 @@
-a:4:{s:7:"headers";a:13:{i:0;s:38:"content-type: text/html; charset=UTF-8";i:1;s:35:"cache-control: max-age=3600, public";i:2;s:35:"date: Wed, 12 Nov 2025 11:34:07 GMT";i:3;s:28:"x-drupal-dynamic-cache: MISS";i:4;s:20:"content-language: en";i:5;s:31:"x-content-type-options: nosniff";i:6;s:27:"x-frame-options: SAMEORIGIN";i:7;s:47:"x-generator: Drupal 10 (https://www.drupal.org)";i:8;s:21:"content-length: 17286";i:9;s:20:"x-drupal-cache: MISS";i:10;s:13:"x-cache: MISS";i:11;s:32:"x-cache-instance: dpl-now-drupal";i:12;s:27:"x-powered-by: Ikabud-Kernel";}s:4:"body";s:17286:"<!DOCTYPE html>
+a:4:{s:7:"headers";a:13:{i:0;s:38:"content-type: text/html; charset=UTF-8";i:1;s:35:"cache-control: max-age=3600, public";i:2;s:35:"date: Wed, 12 Nov 2025 11:34:07 GMT";i:3;s:28:"x-drupal-dynamic-cache: MISS";i:4;s:20:"content-language: en";i:5;s:31:"x-content-type-options: nosniff";i:6;s:27:"x-frame-options: SAMEORIGIN";i:7;s:47:"x-generator: Drupal 10 (https://www.drupal.org)";i:8;s:21:"content-length: 17286";i:9;s:19:"x-drupal-cache: HIT";i:10;s:13:"x-cache: MISS";i:11;s:32:"x-cache-instance: dpl-now-drupal";i:12;s:27:"x-powered-by: Ikabud-Kernel";}s:4:"body";s:17286:"<!DOCTYPE html>
 <html lang="en" dir="ltr" style="--color--primary-hue:202;--color--primary-saturation:79%;--color--primary-lightness:50">
   <head>
     <meta charset="utf-8" />
@@ -366,4 +366,4 @@ a:4:{s:7:"headers";a:13:{i:0;s:38:"content-type: text/html; charset=UTF-8";i:1;s
 
   </body>
 </html>
-";s:9:"timestamp";i:1762947247;s:8:"cms_type";s:6:"drupal";}
+";s:9:"timestamp";i:1762956669;s:8:"cms_type";s:6:"drupal";}

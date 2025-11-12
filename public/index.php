@@ -482,6 +482,9 @@ $app->any('[/{path:.*}]', function (Request $request, Response $response, array 
             $drupalResponse = $GLOBALS['ikabud_drupal_response'];
             $body = $drupalResponse->getContent();
             
+            // Inject jQuery if needed
+            $body = \IkabudKernel\Core\AssetLoader::injectJQuery($body);
+            
             // Override Drupal's cache headers
             $drupalResponse->headers->set('X-Cache', 'MISS');
             $drupalResponse->headers->set('X-Cache-Instance', $instanceId);
@@ -520,6 +523,9 @@ $app->any('[/{path:.*}]', function (Request $request, Response $response, array 
             // Handle WordPress/Joomla output buffering
             $body = ob_get_contents();
             ob_end_clean();
+            
+            // Inject jQuery if needed
+            $body = \IkabudKernel\Core\AssetLoader::injectJQuery($body);
             
             // Override CMS cache headers for kernel caching
             header_remove('Cache-Control');
