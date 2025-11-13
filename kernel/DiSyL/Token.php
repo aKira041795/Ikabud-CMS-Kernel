@@ -23,6 +23,8 @@ class Token
     public const NULL = 'NULL';               // null
     public const TEXT = 'TEXT';               // raw text outside tags
     public const COMMENT = 'COMMENT';         // {!-- comment --}
+    public const PIPE = 'PIPE';               // | (for filters)
+    public const COLON = 'COLON';             // : (for filter params)
     public const EOF = 'EOF';                 // end of file
     
     public string $type;

@@ -94,6 +94,16 @@ class Lexer
             return $this->handleEqual();
         }
         
+        // Handle pipe (for filters)
+        if ($char === '|') {
+            return $this->handlePipe();
+        }
+        
+        // Handle colon (for filter params)
+        if ($char === ':' && $this->inTag) {
+            return $this->handleColon();
+        }
+        
         // Handle string (double or single quotes)
         if ($char === '"' || $char === "'") {
             return $this->handleString($char);
@@ -189,11 +199,51 @@ class Lexer
         $startColumn = $this->column;
         $startPosition = $this->position;
         
-        $this->advance(); // consume '='
+        $this->advance(); // consume =
         
         return new Token(
             Token::EQUAL,
             '=',
+            $startLine,
+            $startColumn,
+            $startPosition
+        );
+    }
+    
+    /**
+     * Handle pipe: | (for filters)
+     */
+    private function handlePipe(): Token
+    {
+        $startLine = $this->line;
+        $startColumn = $this->column;
+        $startPosition = $this->position;
+        
+        $this->advance(); // consume |
+        
+        return new Token(
+            Token::PIPE,
+            '|',
+            $startLine,
+            $startColumn,
+            $startPosition
+        );
+    }
+    
+    /**
+     * Handle colon: : (for filter params)
+     */
+    private function handleColon(): Token
+    {
+        $startLine = $this->line;
+        $startColumn = $this->column;
+        $startPosition = $this->position;
+        
+        $this->advance(); // consume :
+        
+        return new Token(
+            Token::COLON,
+            ':',
             $startLine,
             $startColumn,
             $startPosition

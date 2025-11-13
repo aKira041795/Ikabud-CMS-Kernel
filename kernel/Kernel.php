@@ -699,8 +699,8 @@ class Kernel
     }
     
     /**
-     * Initialize DiSyL Manifest
-     * Only validates and logs on first boot, then caches in memory
+     * Initialize DiSyL Manifest v0.2
+     * Loads manifest with caching, inheritance resolution, and validation
      */
     private function initializeDisylManifest(): void
     {
@@ -711,15 +711,29 @@ class Kernel
         }
         
         try {
-            // Load DiSyL manifest (cached after first load)
+            // Load DiSyL manifest v0.2 (with caching and inheritance)
             if (class_exists('\\IkabudKernel\\Core\\DiSyL\\ManifestLoader')) {
-                \IkabudKernel\Core\DiSyL\ManifestLoader::load();
+                $manifest = \IkabudKernel\Core\DiSyL\ManifestLoader::load();
                 
                 // Only validate and log once per process
                 if (!$initialized) {
+                    // Validate manifest structure
                     $errors = \IkabudKernel\Core\DiSyL\ManifestLoader::validate();
                     if (!empty($errors)) {
-                        error_log('[Ikabud] DiSyL Manifest validation errors: ' . implode(', ', $errors));
+                        error_log('[Ikabud] DiSyL Manifest v' . ($manifest['version'] ?? '0.0.0') . ' validation errors: ' . implode(', ', $errors));
+                    } else {
+                        // Log successful initialization with version and features
+                        $version = \IkabudKernel\Core\DiSyL\ManifestLoader::getVersion();
+                        $supportedCMS = \IkabudKernel\Core\DiSyL\ManifestLoader::getSupportedCMS();
+                        $filterCount = count(\IkabudKernel\Core\DiSyL\ManifestLoader::getFilters());
+                        
+                        error_log(sprintf(
+                            '[Ikabud] DiSyL Manifest v%s loaded: %d CMS adapters, %d filters, caching %s',
+                            $version,
+                            count($supportedCMS),
+                            $filterCount,
+                            ($manifest['cache']['enabled'] ?? false) ? 'enabled' : 'disabled'
+                        ));
                     }
                 }
                 
