@@ -1,0 +1,326 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://ikabud.com/schemas/disyl-manifest-v0.2.json",
+  "title": "DiSyL Component Manifest",
+  "description": "Schema for DiSyL Component to CMS Translation Manifest",
+  "type": "object",
+  "required": ["version", "description"],
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "JSON Schema reference"
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "description": "Manifest version (semver)"
+    },
+    "description": {
+      "type": "string",
+      "description": "Manifest description"
+    },
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "created": {
+          "type": "string",
+          "format": "date"
+        },
+        "author": {
+          "type": "string"
+        },
+        "license": {
+          "type": "string"
+        }
+      }
+    },
+    "base_components": {
+      "type": "object",
+      "description": "Base component definitions for inheritance",
+      "patternProperties": {
+        "^base_[a-z_]+$": {
+          "$ref": "#/definitions/component"
+        }
+      }
+    },
+    "cms_adapters": {
+      "type": "object",
+      "description": "CMS-specific component mappings",
+      "patternProperties": {
+        "^[a-z]+$": {
+          "$ref": "#/definitions/cms_adapter"
+        }
+      }
+    },
+    "universal_components": {
+      "type": "object",
+      "description": "Universal components (work across all CMS)",
+      "patternProperties": {
+        "^ikb_[a-z_]+$": {
+          "$ref": "#/definitions/component"
+        }
+      }
+    },
+    "control_structures": {
+      "type": "object",
+      "description": "Control flow structures (if, for, include)",
+      "patternProperties": {
+        "^[a-z]+$": {
+          "$ref": "#/definitions/control_structure"
+        }
+      }
+    },
+    "filters": {
+      "type": "object",
+      "description": "Expression filters",
+      "patternProperties": {
+        "^[a-z_]+$": {
+          "$ref": "#/definitions/filter"
+        }
+      }
+    },
+    "preview_modes": {
+      "type": "object",
+      "description": "Preview rendering modes",
+      "patternProperties": {
+        "^[a-z_]+$": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "description": { "type": "string" }
+          }
+        }
+      }
+    },
+    "deprecated": {
+      "type": "object",
+      "description": "Deprecated components",
+      "patternProperties": {
+        "^ikb_[a-z_]+$": {
+          "$ref": "#/definitions/deprecation"
+        }
+      }
+    },
+    "cache": {
+      "type": "object",
+      "description": "Caching configuration",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "strategy": { "type": "string", "enum": ["hash", "timestamp", "version"] },
+        "storage": {
+          "type": "object",
+          "properties": {
+            "type": { "type": "string", "enum": ["opcache", "file", "redis", "memcached"] },
+            "fallback": { "type": "string" }
+          }
+        },
+        "invalidation": {
+          "type": "object",
+          "properties": {
+            "on_manifest_change": { "type": "boolean" },
+            "on_cms_update": { "type": "boolean" },
+            "ttl": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "compiled_path": { "type": "string" }
+      }
+    }
+  },
+  "definitions": {
+    "capabilities": {
+      "type": "object",
+      "description": "Component capabilities",
+      "properties": {
+        "supports_children": {
+          "type": "boolean",
+          "description": "Whether component can have child nodes"
+        },
+        "output_mode": {
+          "type": "string",
+          "enum": ["inline", "container", "loop", "conditional", "include"],
+          "description": "How component outputs content"
+        },
+        "provides_context": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Context variables provided to children"
+        },
+        "async": {
+          "type": "boolean",
+          "description": "Whether component supports async rendering"
+        },
+        "cacheable": {
+          "type": "boolean",
+          "description": "Whether component output can be cached"
+        }
+      }
+    },
+    "attribute": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["string", "integer", "boolean", "color", "url", "expression", "identifier"]
+        },
+        "required": { "type": "boolean" },
+        "default": {},
+        "description": { "type": "string" },
+        "enum": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "min": { "type": "number" },
+        "max": { "type": "number" },
+        "map_to": { "type": "string" },
+        "transform": {
+          "oneOf": [
+            { "type": "object" },
+            { "type": "string" }
+          ]
+        },
+        "pipeline": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "action": { "type": "string" },
+              "format": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "component": {
+      "type": "object",
+      "properties": {
+        "extends": {
+          "type": "string",
+          "description": "Base component to inherit from"
+        },
+        "capabilities": {
+          "$ref": "#/definitions/capabilities"
+        },
+        "html_tag": {
+          "type": "string",
+          "description": "HTML tag to render"
+        },
+        "class_prefix": {
+          "type": "string",
+          "description": "CSS class prefix"
+        },
+        "render_method": {
+          "type": "string",
+          "description": "PHP method name for rendering"
+        },
+        "data_source": {
+          "type": "string",
+          "description": "CMS data source class"
+        },
+        "render_modes": {
+          "type": "object",
+          "properties": {
+            "html": { "type": "boolean" },
+            "json": { "type": "boolean" },
+            "ssr": { "type": "boolean" },
+            "static": { "type": "boolean" }
+          }
+        },
+        "attributes": {
+          "type": "object",
+          "patternProperties": {
+            "^[a-z_]+$": {
+              "$ref": "#/definitions/attribute"
+            }
+          }
+        },
+        "context_variables": {
+          "type": "object",
+          "description": "Variables provided to template context",
+          "patternProperties": {
+            "^[a-z_\\.]+$": { "type": "string" }
+          }
+        }
+      }
+    },
+    "cms_adapter": {
+      "type": "object",
+      "required": ["name", "version"],
+      "properties": {
+        "name": { "type": "string" },
+        "version": { "type": "string" },
+        "components": {
+          "type": "object",
+          "patternProperties": {
+            "^ikb_[a-z_]+$": {
+              "$ref": "#/definitions/component"
+            }
+          }
+        },
+        "hooks": {
+          "type": "object",
+          "description": "CMS lifecycle hooks",
+          "properties": {
+            "init": { "type": "string" },
+            "template_include": { "type": "string" },
+            "before_render": { "type": "string" },
+            "after_render": { "type": "string" },
+            "component_render": { "type": "string" }
+          }
+        }
+      }
+    },
+    "control_structure": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["conditional", "loop", "include"]
+        },
+        "self_closing": { "type": "boolean" },
+        "capabilities": {
+          "$ref": "#/definitions/capabilities"
+        },
+        "attributes": {
+          "type": "object",
+          "patternProperties": {
+            "^[a-z_]+$": {
+              "$ref": "#/definitions/attribute"
+            }
+          }
+        }
+      }
+    },
+    "filter": {
+      "type": "object",
+      "required": ["description", "php"],
+      "properties": {
+        "description": { "type": "string" },
+        "php": { "type": "string" },
+        "js": { "type": "string" },
+        "params": {
+          "type": "object",
+          "patternProperties": {
+            "^[a-z_]+$": {
+              "type": "object",
+              "properties": {
+                "type": { "type": "string" },
+                "default": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "deprecation": {
+      "type": "object",
+      "required": ["message", "remove_in_version"],
+      "properties": {
+        "message": { "type": "string" },
+        "remove_in_version": { "type": "string" },
+        "replacement": { "type": "string" },
+        "migration_guide": { "type": "string", "format": "uri" }
+      }
+    }
+  }
+}

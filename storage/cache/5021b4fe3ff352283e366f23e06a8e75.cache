@@ -1,4 +1,4 @@
 a:6:{s:7:"headers";a:7:{i:0;s:27:"X-Frame-Options: SAMEORIGIN";i:1;s:31:"X-Content-Type-Options: nosniff";i:2;s:31:"X-XSS-Protection: 1; mode=block";i:3;s:341:"Content-Security-Policy: default-src 'self' https: http:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https: http: blob:; style-src 'self' 'unsafe-inline' https: http:; img-src 'self' data: https: http:; font-src 'self' data: https: http:; connect-src 'self' https: http: wss: ws:; frame-src 'self' https: http:; worker-src 'self' blob:;";i:4;s:48:"Referrer-Policy: strict-origin-when-cross-origin";i:5;s:60:"Permissions-Policy: geolocation=(), microphone=(), camera=()";i:6;s:36:"Content-type: text/css;charset=UTF-8";}s:4:"body";s:98:"/**
  * All of the CSS for your public-facing functionality should be
  * included in this file.
- */";s:9:"timestamp";i:1763050370;s:8:"cms_type";s:9:"wordpress";s:17:"extensions_loaded";a:0:{}s:15:"extension_count";i:0;}
+ */";s:9:"timestamp";i:1763076437;s:8:"cms_type";s:9:"wordpress";s:17:"extensions_loaded";a:0:{}s:15:"extension_count";i:0;}
