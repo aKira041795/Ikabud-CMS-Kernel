@@ -1,16 +1,36 @@
 # DiSyL Documentation
 
 **Declarative Ikabud Syntax Language**  
-**Version:** 0.1.0 (POC Complete)
+**Version:** 0.1.0 (Phase 1 Complete)
 
-## 📚 Documentation Index
+## 📚 Essential Documentation
 
-### Quick Start
-- **[Complete Guide](DISYL_COMPLETE_GUIDE.md)** - Comprehensive documentation covering everything
-- **[Next Steps & Roadmap](DISYL_NEXT_STEPS.md)** - Future development plans and phases
+### Start Here
+- **[README](DISYL_README.md)** - This file
+- **[Complete Guide](DISYL_COMPLETE_GUIDE.md)** - Comprehensive documentation (20KB)
+- **[Next Steps](DISYL_NEXT_STEPS.md)** - Roadmap for next 18 weeks
 
-### Technical Documentation
-- **[Rendering Fix](DISYL_RENDERING_FIX.md)** - Deep dive into expression interpolation and rendering fixes
+### Grammar & Language
+- **[Grammar Specification](DISYL_GRAMMAR_SPECIFICATION.md)** - Formal grammar docs
+- **[Grammar EBNF](DISYL_GRAMMAR_v0.1.ebnf)** - Formal EBNF definition
+- **[Language Reference](DISYL_LANGUAGE_REFERENCE.md)** - Syntax reference
+
+### Architecture
+- **[Manifest Architecture](DISYL_MANIFEST_ARCHITECTURE.md)** - CMS translation system
+- **[Component Catalog](DISYL_COMPONENT_CATALOG.md)** - Available components
+- **[API Reference](DISYL_API_REFERENCE.md)** - API documentation
+
+### Examples & Guides
+- **[Code Examples](DISYL_CODE_EXAMPLES.md)** - Real-world examples
+- **[WordPress Theme Example](DISYL_WORDPRESS_THEME_EXAMPLE.md)** - Theme development
+- **[Release Notes v0.1.0](DISYL_RELEASE_NOTES_v0.1.0.md)** - What's new
+
+### Archive
+Historical documents moved to `archive/` directory:
+- Weekly progress reports (WEEK1-8)
+- Decision analysis and changelog
+- POC setup and evaluation docs
+- Integration fixes and kernel docs
 
 ## 🚀 Quick Links
 
