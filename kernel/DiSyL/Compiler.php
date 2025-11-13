@@ -1,11 +1,15 @@
 <?php
 /**
- * DiSyL Compiler
+ * DiSyL Compiler v0.2
  * 
  * Validates and optimizes AST from Parser
- * Integrates with Grammar and ComponentRegistry for validation
+ * Integrates with Manifest v0.2 for:
+ * - Component capabilities validation
+ * - Filter validation
+ * - Attribute validation
+ * - Deprecation warnings
  * 
- * @version 0.1.0
+ * @version 0.2.0
  */
 
 namespace IkabudKernel\Core\DiSyL;
@@ -19,6 +23,7 @@ class Compiler
     private ?Cache $cache;
     private array $errors = [];
     private array $warnings = [];
+    private ?string $cmsType = null;
     
     /**
      * Constructor
@@ -27,6 +32,14 @@ class Compiler
     {
         $this->grammar = new Grammar();
         $this->cache = $cache;
+    }
+    
+    /**
+     * Set CMS type for validation
+     */
+    public function setCMSType(?string $cmsType): void
+    {
+        $this->cmsType = $cmsType;
     }
     
     /**
@@ -43,6 +56,9 @@ class Compiler
         $this->errors = [];
         $this->warnings = [];
         
+        // Extract CMS type from context
+        $this->cmsType = $context['cms_type'] ?? null;
+        
         // Check cache first
         $cacheKey = $this->generateCacheKey($ast, $context);
         if ($this->cache !== null) {
@@ -55,13 +71,22 @@ class Compiler
         // 1. Validate AST structure
         $ast = $this->validateStructure($ast);
         
-        // 2. Validate components and attributes
+        // 2. Validate components and attributes (v0.2: with capabilities)
         $ast = $this->validateComponents($ast);
         
-        // 3. Apply defaults (normalize attributes)
+        // 3. Validate component capabilities (v0.2)
+        $ast = $this->validateCapabilities($ast);
+        
+        // 4. Validate filters (v0.2)
+        $ast = $this->validateFilters($ast);
+        
+        // 5. Check for deprecated components (v0.2)
+        $this->checkDeprecations($ast);
+        
+        // 6. Apply defaults (normalize attributes)
         $ast = $this->applyDefaults($ast);
         
-        // 4. Optimize AST
+        // 7. Optimize AST
         $ast = $this->optimize($ast);
         
         // 5. Add compilation metadata
@@ -325,18 +350,114 @@ class Compiler
     }
     
     /**
-     * Check if compilation has errors
+     * Validate component capabilities (v0.2)
      */
-    public function hasErrors(): bool
+    private function validateCapabilities(array $ast): array
     {
-        return !empty($this->errors);
+        if (!isset($ast['children'])) {
+            return $ast;
+        }
+        
+        foreach ($ast['children'] as &$node) {
+            if ($node['type'] === 'tag') {
+                $componentName = $node['name'];
+                
+                // Get component capabilities from manifest
+                $capabilities = ManifestLoader::getCapabilities($componentName, $this->cmsType);
+                
+                if ($capabilities) {
+                    // Validate supports_children
+                    $hasChildren = !empty($node['children']);
+                    $supportsChildren = $capabilities['supports_children'] ?? false;
+                    
+                    if ($hasChildren && !$supportsChildren) {
+                        $this->addError(
+                            "Component '{$componentName}' does not support children",
+                            $node
+                        );
+                    }
+                    
+                    // Store capabilities in node for renderer
+                    $node['capabilities'] = $capabilities;
+                }
+                
+                // Recursively validate children
+                if (isset($node['children'])) {
+                    $node['children'] = $this->validateCapabilities(['children' => $node['children']])['children'];
+                }
+            }
+        }
+        
+        return $ast;
     }
     
     /**
-     * Check if compilation has warnings
+     * Validate filters in expressions (v0.2)
      */
-    public function hasWarnings(): bool
+    private function validateFilters(array $ast): array
     {
-        return !empty($this->warnings);
+        if (!isset($ast['children'])) {
+            return $ast;
+        }
+        
+        foreach ($ast['children'] as &$node) {
+            if ($node['type'] === 'tag' && isset($node['attrs'])) {
+                foreach ($node['attrs'] as $attrName => &$attrValue) {
+                    if (is_array($attrValue) && ($attrValue['type'] ?? '') === 'filtered_expression') {
+                        // Validate each filter
+                        foreach ($attrValue['filters'] as $filter) {
+                            $filterName = $filter['name'];
+                            $filterDef = ManifestLoader::getFilter($filterName);
+                            
+                            if (!$filterDef) {
+                                $this->addError(
+                                    "Unknown filter '{$filterName}' in attribute '{$attrName}'",
+                                    $node
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+            
+            // Recursively validate children
+            if (isset($node['children'])) {
+                $node['children'] = $this->validateFilters(['children' => $node['children']])['children'];
+            }
+        }
+        
+        return $ast;
+    }
+    
+    /**
+     * Check for deprecated components (v0.2)
+     */
+    private function checkDeprecations(array $ast): void
+    {
+        if (!isset($ast['children'])) {
+            return;
+        }
+        
+        foreach ($ast['children'] as $node) {
+            if ($node['type'] === 'tag') {
+                $componentName = $node['name'];
+                
+                if (ManifestLoader::isDeprecated($componentName)) {
+                    $deprecationInfo = ManifestLoader::getDeprecationInfo($componentName);
+                    
+                    $message = $deprecationInfo['message'] ?? "Component '{$componentName}' is deprecated";
+                    if (isset($deprecationInfo['replacement'])) {
+                        $message .= ". Use '{$deprecationInfo['replacement']}' instead.";
+                    }
+                    
+                    $this->addWarning($message, $node);
+                }
+            }
+            
+            // Recursively check children
+            if (isset($node['children'])) {
+                $this->checkDeprecations(['children' => $node['children']]);
+            }
+        }
     }
 }
