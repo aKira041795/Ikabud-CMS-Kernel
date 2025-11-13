@@ -1,0 +1,195 @@
+{
+  "version": "0.1.0",
+  "description": "DiSyL Component to CMS Translation Manifest",
+  "cms_adapters": {
+    "wordpress": {
+      "name": "WordPress",
+      "version": "6.0+",
+      "components": {
+        "ikb_section": {
+          "render_method": "renderIkbSection",
+          "html_tag": "section",
+          "class_prefix": "ikb-section",
+          "attributes": {
+            "type": {
+              "map_to": "class",
+              "transform": "ikb-section-{value}"
+            },
+            "bg": {
+              "map_to": "style.background",
+              "transform": "background: {value};"
+            },
+            "padding": {
+              "map_to": "style.padding",
+              "values": {
+                "none": "0",
+                "small": "1rem",
+                "normal": "2rem",
+                "large": "4rem"
+              }
+            }
+          }
+        },
+        "ikb_query": {
+          "render_method": "renderIkbQuery",
+          "data_source": "WP_Query",
+          "attributes": {
+            "type": {
+              "map_to": "post_type"
+            },
+            "limit": {
+              "map_to": "posts_per_page"
+            },
+            "orderby": {
+              "map_to": "orderby"
+            },
+            "category": {
+              "map_to": "category_name"
+            }
+          },
+          "context_variables": {
+            "item.id": "get_the_ID()",
+            "item.title": "get_the_title()",
+            "item.content": "apply_filters('the_content', get_the_content())",
+            "item.excerpt": "get_the_excerpt()",
+            "item.url": "get_permalink()",
+            "item.date": "get_the_date()",
+            "item.author": "get_the_author()",
+            "item.thumbnail": "get_the_post_thumbnail_url('medium')",
+            "item.categories": "wp_get_post_categories(get_the_ID(), ['fields' => 'names'])"
+          }
+        }
+      },
+      "hooks": {
+        "init": "\\IkabudKernel\\Core\\DiSyL\\KernelIntegration::initWordPress",
+        "template_include": "\\IkabudKernel\\Core\\DiSyL\\KernelIntegration::interceptTemplate"
+      }
+    },
+    "drupal": {
+      "name": "Drupal",
+      "version": "9.0+",
+      "components": {
+        "ikb_query": {
+          "render_method": "renderIkbQuery",
+          "data_source": "EntityQuery",
+          "attributes": {
+            "type": {
+              "map_to": "entity_type"
+            },
+            "limit": {
+              "map_to": "range.limit"
+            }
+          },
+          "context_variables": {
+            "item.id": "$entity->id()",
+            "item.title": "$entity->getTitle()",
+            "item.content": "$entity->get('body')->value"
+          }
+        }
+      }
+    },
+    "joomla": {
+      "name": "Joomla",
+      "version": "4.0+",
+      "components": {
+        "ikb_query": {
+          "render_method": "renderIkbQuery",
+          "data_source": "JModelList",
+          "attributes": {
+            "type": {
+              "map_to": "context"
+            },
+            "limit": {
+              "map_to": "list.limit"
+            }
+          }
+        }
+      }
+    }
+  },
+  "universal_components": {
+    "ikb_text": {
+      "html_tag": "div",
+      "class_prefix": "ikb-text",
+      "attributes": {
+        "size": {
+          "map_to": "style.font-size",
+          "values": {
+            "xs": "0.75rem",
+            "sm": "0.875rem",
+            "md": "1rem",
+            "lg": "1.125rem",
+            "xl": "1.25rem",
+            "2xl": "1.5rem"
+          }
+        },
+        "weight": {
+          "map_to": "style.font-weight",
+          "values": {
+            "light": "300",
+            "normal": "400",
+            "medium": "500",
+            "bold": "700"
+          }
+        },
+        "color": {
+          "map_to": "style.color",
+          "transform": "color: {value};"
+        },
+        "align": {
+          "map_to": "style.text-align",
+          "transform": "text-align: {value};"
+        }
+      }
+    },
+    "ikb_container": {
+      "html_tag": "div",
+      "class_prefix": "ikb-container",
+      "attributes": {
+        "width": {
+          "map_to": "style.max-width",
+          "values": {
+            "sm": "640px",
+            "md": "768px",
+            "lg": "1024px",
+            "xl": "1280px"
+          }
+        }
+      }
+    }
+  },
+  "control_structures": {
+    "if": {
+      "type": "conditional",
+      "attributes": {
+        "condition": {
+          "required": true,
+          "type": "expression"
+        }
+      }
+    },
+    "for": {
+      "type": "loop",
+      "attributes": {
+        "items": {
+          "required": true,
+          "type": "expression"
+        },
+        "as": {
+          "required": true,
+          "type": "identifier"
+        }
+      }
+    },
+    "include": {
+      "type": "include",
+      "self_closing": true,
+      "attributes": {
+        "template": {
+          "required": true,
+          "type": "string"
+        }
+      }
+    }
+  }
+}
