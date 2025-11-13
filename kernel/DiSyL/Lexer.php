@@ -94,9 +94,9 @@ class Lexer
             return $this->handleEqual();
         }
         
-        // Handle string (double quotes)
-        if ($char === '"') {
-            return $this->handleString();
+        // Handle string (double or single quotes)
+        if ($char === '"' || $char === "'") {
+            return $this->handleString($char);
         }
         
         // Handle number
@@ -201,38 +201,48 @@ class Lexer
     }
     
     /**
-     * Handle string: "value"
+     * Handle string: "value" or 'value'
+     * Supports escape sequences: \n, \t, \r, \\, \", \', \{, \}
      */
-    private function handleString(): Token
+    private function handleString(string $quote = '"'): Token
     {
         $startLine = $this->line;
         $startColumn = $this->column;
         $startPosition = $this->position;
         
-        $this->advance(); // consume opening "
+        $this->advance(); // consume opening quote
         
         $value = '';
         
-        while ($this->position < $this->length && $this->peek() !== '"') {
+        while ($this->position < $this->length && $this->peek() !== $quote) {
             $char = $this->peek();
             
             // Handle escape sequences
-            if ($char === '\\' && $this->peek(1) === '"') {
-                $this->advance(); // consume \
-                $value .= '"';
-                $this->advance(); // consume "
-            } elseif ($char === '\\' && $this->peek(1) === '\\') {
-                $this->advance(); // consume \
-                $value .= '\\';
-                $this->advance(); // consume \
-            } elseif ($char === '\\' && $this->peek(1) === 'n') {
-                $this->advance(); // consume \
-                $value .= "\n";
-                $this->advance(); // consume n
-            } elseif ($char === '\\' && $this->peek(1) === 't') {
-                $this->advance(); // consume \
-                $value .= "\t";
-                $this->advance(); // consume t
+            if ($char === '\\') {
+                $this->advance(); // consume backslash
+                if ($this->position >= $this->length) {
+                    throw new LexerException(
+                        'Unterminated escape sequence in string',
+                        $this->line,
+                        $this->column,
+                        $this->position
+                    );
+                }
+                
+                $escaped = $this->peek();
+                $value .= match($escaped) {
+                    'n' => "\n",
+                    'r' => "\r",
+                    't' => "\t",
+                    '\\' => '\\',
+                    '"' => '"',
+                    "'" => "'",
+                    '{' => '{',
+                    '}' => '}',
+                    '0' => "\0",
+                    default => $escaped // Unknown escape, keep as-is
+                };
+                $this->advance();
             } else {
                 $value .= $char;
                 $this->advance();
@@ -241,14 +251,14 @@ class Lexer
         
         if ($this->position >= $this->length) {
             throw new LexerException(
-                'Unterminated string',
+                "Unterminated string (expected closing {$quote})",
                 $startLine,
                 $startColumn,
                 $startPosition
             );
         }
         
-        $this->advance(); // consume closing "
+        $this->advance(); // consume closing quote
         
         return new Token(
             Token::STRING,
@@ -346,65 +356,6 @@ class Lexer
     }
     
     /**
-     * Handle text (outside tags)
-     */
-    private function handleText(): Token
-    {
-        $startLine = $this->line;
-        $startColumn = $this->column;
-        $startPosition = $this->position;
-        
-        $value = '';
-        
-        // Collect text until we hit an opening brace
-        while ($this->position < $this->length && $this->peek() !== '{') {
-            $value .= $this->peek();
-            $this->advance();
-        }
-        
-        return new Token(
-            Token::TEXT,
-            $value,
-            $startLine,
-            $startColumn,
-            $startPosition
-        );
-    }
-    
-    /**
-     * Handle comment: {!-- comment --}
-     */
-    private function handleComment(int $startLine, int $startColumn, int $startPosition): Token
-    {
-        // We've already consumed '{', now consume '!--'
-        $this->advance(); // !
-        $this->advance(); // -
-        $this->advance(); // -
-        
-        $value = '';
-        
-        // Collect comment text until we find '--}'
-        while ($this->position < $this->length) {
-            if ($this->peek() === '-' && $this->peek(1) === '-' && $this->peek(2) === '}') {
-                $this->advance(); // -
-                $this->advance(); // -
-                $this->advance(); // }
-                break;
-            }
-            $value .= $this->peek();
-            $this->advance();
-        }
-        
-        return new Token(
-            Token::COMMENT,
-            trim($value),
-            $startLine,
-            $startColumn,
-            $startPosition
-        );
-    }
-    
-    /**
      * Peek at character at current position + offset
      */
     private function peek(int $offset = 0): ?string
@@ -438,12 +389,27 @@ class Lexer
     }
     
     /**
-     * Skip whitespace characters
+     * Skip whitespace (only in tag context)
+     * Preserves line tracking while skipping spaces and tabs
      */
     private function skipWhitespace(): void
     {
-        while ($this->position < $this->length && ctype_space($this->peek())) {
-            $this->advance();
+        while (!$this->isAtEnd()) {
+            $char = $this->peek();
+            
+            if ($char === ' ' || $char === "\t") {
+                $this->advance();
+            } elseif ($char === "\r") {
+                $this->advance();
+                // Handle CRLF
+                if ($this->peek() === "\n") {
+                    $this->advance();
+                }
+            } elseif ($char === "\n") {
+                $this->advance();
+            } else {
+                break;
+            }
         }
     }
     
@@ -455,4 +421,91 @@ class Lexer
         return $char !== null && ctype_digit($char);
     }
     
+    /**
+     * Handle text (outside tags)
+     * Supports escaped braces: \{ and \}
+     */
+    private function handleText(): Token
+    {
+        $startLine = $this->line;
+        $startColumn = $this->column;
+        $startPosition = $this->position;
+        
+        $value = '';
+        
+        while (!$this->isAtEnd() && $this->peek() !== '{') {
+            $char = $this->peek();
+            
+            // Handle escaped braces in text
+            if ($char === '\\') {
+                $next = $this->peek(1);
+                if ($next === '{' || $next === '}') {
+                    $this->advance(); // consume backslash
+                    $value .= $next; // add the brace
+                    $this->advance(); // consume brace
+                } else {
+                    // Not an escape sequence, keep backslash
+                    $value .= $char;
+                    $this->advance();
+                }
+            } else {
+                $value .= $char;
+                $this->advance();
+            }
+        }
+        
+        return new Token(
+            Token::TEXT,
+            $value,
+            $startLine,
+            $startColumn,
+            $startPosition
+        );
+    }
+    
+    /**
+     * Handle comment: {!-- comment --}
+     * Supports multi-line comments
+     */
+    private function handleComment(int $startLine, int $startColumn, int $startPosition): Token
+    {
+        // Consume {!--
+        $this->advance(); // !
+        $this->advance(); // -
+        $this->advance(); // -
+        
+        $value = '';
+        $foundClosing = false;
+        
+        // Find closing --}
+        while ($this->position < $this->length) {
+            if ($this->peek() === '-' && $this->peek(1) === '-' && $this->peek(2) === '}') {
+                $this->advance(); // -
+                $this->advance(); // -
+                $this->advance(); // }
+                $this->inTag = false;
+                $foundClosing = true;
+                break;
+            }
+            $value .= $this->peek();
+            $this->advance();
+        }
+        
+        if (!$foundClosing) {
+            throw new LexerException(
+                'Unterminated comment (expected --})',
+                $startLine,
+                $startColumn,
+                $startPosition
+            );
+        }
+        
+        return new Token(
+            Token::COMMENT,
+            $value,
+            $startLine,
+            $startColumn,
+            $startPosition
+        );
+    }
 }
