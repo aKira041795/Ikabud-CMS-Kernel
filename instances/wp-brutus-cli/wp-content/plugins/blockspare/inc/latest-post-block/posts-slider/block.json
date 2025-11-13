@@ -1,0 +1,614 @@
+{
+  "name": "blockspare/blockspare-posts-block-slider",
+  "category": "blockspare",
+  "title": "Posts Slider",
+  "description": "Display Posts Slider from Selected Categories.",
+  "textdomain": "blockspare",
+  "keywords": [
+		"Posts",
+    "Slider",
+    "Carousel",
+    "Grid"
+	],
+  "attributes": {
+    "categories": {
+      "type": "array",
+      "default": []
+    },
+    "postType": {
+      "type": "string",
+      "default": "post"
+    },
+    "tags": {
+      "type": "array",
+      "default": []
+    },
+    "order": {
+      "type": "string",
+      "default": "desc"
+    },
+    "orderBy": {
+      "type": "string",
+      "default": "date"
+    },
+    "postTax": {
+      "type": "boolean",
+      "default": true
+    },
+    "taxType": {
+      "type": "string",
+      "default": "category"
+    },
+    "uniqueClass": {
+      "type": "string",
+      "default": ""
+    },
+    "className": {
+      "type": "string"
+    },
+    "postsToShow": {
+      "type": "number",
+      "default": 4
+    },
+    "displayPostDate": {
+      "type": "boolean",
+      "default": true
+    },
+    "displayPostExcerpt": {
+      "type": "boolean",
+      "default": false
+    },
+    "displayPostAuthor": {
+      "type": "boolean",
+      "default": true
+    },
+    "displayPostImage": {
+      "type": "boolean",
+      "default": true
+    },
+    "displayPostLink": {
+      "type": "boolean",
+      "default": true
+    },
+    "postTitleColor": {
+      "type": "string",
+      "default": "#000"
+    },
+    "postTitleFontSize": {
+      "type": "number",
+      "default": 26
+    },
+    "titleFontFamily": {
+      "type": "string",
+      "default": "Default"
+    },
+    "titleFontWeight": {
+      "type": "string",
+      "default": ""
+    },
+    "titleFontSubset": {
+      "type": "string"
+    },
+    "titleFontSizeType": {
+      "type": "string",
+      "default": "px"
+    },
+    "titleFontSizeMobile": {
+      "type": "number",
+      "default": 16
+    },
+    "titleFontSizeTablet": {
+      "type": "number",
+      "default": 20
+    },
+    "titleLoadGoogleFonts": {
+      "type": "boolean",
+      "default": false
+    },
+    "linkColor": {
+      "type": "string",
+      "default": "#000000"
+    },
+    "borderColor": {
+      "type": "string",
+      "default": "#f4f4f4"
+    },
+    "generalColor": {
+      "type": "string",
+      "default": "#505050"
+    },
+    "displayPostCategory": {
+      "type": "boolean",
+      "default": true
+    },
+    "slider": {
+      "type": "string",
+      "default": "blockspare-posts-block-full-layout-1"
+    },
+    "fullPostTitleColor": {
+      "type": "string",
+      "default": "#fff"
+    },
+    "fullPostLinkColor": {
+      "type": "string",
+      "default": "#fff"
+    },
+    "fullPostGeneralColor": {
+      "type": "string",
+      "default": "#fff"
+    },
+    "columns": {
+      "type": "number",
+      "default": 2
+    },
+    "align": {
+      "type": "string",
+      "default": "center"
+    },
+    "readMoreText": {
+      "type": "string",
+      "default": "Read More.."
+    },
+    "offset": {
+      "type": "number",
+      "default": 0
+    },
+    "excerptLength": {
+      "type": "number",
+      "default": 20
+    },
+    "displayPostsBy": {
+      "type": "string",
+      "default": "blockspare-posts-block-post-by-category"
+    },
+    "sectionTag": {
+      "type": "string",
+      "default": "section"
+    },
+    "sectionTitle": {
+      "type": "string"
+    },
+    "imageSize": {
+      "type": "string",
+      "default": "large"
+    },
+    "url": {
+      "type": "string",
+      "source": "attribute",
+      "selector": "img",
+      "attribute": "src"
+    },
+    "id": {
+      "type": "number"
+    },
+    "marginTop": {
+      "type": "number",
+      "default": 30
+    },
+    "marginBottom": {
+      "type": "number",
+      "default": 30
+    },
+    "marginLeft": {
+      "type": "number",
+      "default": 0
+    },
+    "marginRight": {
+      "type": "number",
+      "default": 0
+    },
+    "backGroundColor": {
+      "type": "string",
+      "default": "#f9f9f9"
+    },
+    "borderRadius": {
+      "type": "number",
+      "default": 0
+    },
+    "contentOrder": {
+      "type": "string",
+      "default": "content-order-1"
+    },
+    "enableBackgroundColor": {
+      "type": "boolean",
+      "default": true
+    },
+    "enableBoxShadow": {
+      "type": "boolean",
+      "default": false
+    },
+    "xOffset": {
+      "type": "number",
+      "default": 0
+    },
+    "yOffset": {
+      "type": "number",
+      "default": 3
+    },
+    "blur": {
+      "type": "number",
+      "default": 10
+    },
+    "spread": {
+      "type": "number",
+      "default": -9
+    },
+    "shadowColor": {
+      "type": "string",
+      "default": "#000"
+    },
+    "descriptionFontSize": {
+      "type": "number",
+      "default": 14
+    },
+    "descriptionFontFamily": {
+      "type": "string",
+      "default": "Default"
+    },
+    "descriptionFontWeight": {
+      "type": "string",
+      "default": ""
+    },
+    "descriptionFontSubset": {
+      "type": "string"
+    },
+    "descriptionFontSizeType": {
+      "type": "string",
+      "default": "px"
+    },
+    "descriptionFontSizeMobile": {
+      "type": "number",
+      "default": 14
+    },
+    "descriptionFontSizeTablet": {
+      "type": "number",
+      "default": 14
+    },
+    "descriptionLoadGoogleFonts": {
+      "type": "boolean",
+      "default": false
+    },
+    "lineHeight": {
+      "type": "number",
+      "default": 1.5
+    },
+    "contentPaddingTop": {
+      "type": "number",
+      "default": 15
+    },
+    "contentPaddingLeft": {
+      "type": "number",
+      "default": 15
+    },
+    "contentPaddingBottom": {
+      "type": "number",
+      "default": 15
+    },
+    "contentPaddingRight": {
+      "type": "number",
+      "default": 15
+    },
+    "categoryMarginTop": {
+      "type": "number",
+      "default": 5
+    },
+    "categoryMarginBottom": {
+      "type": "number",
+      "default": 5
+    },
+    "categoryMarginLeft": {
+      "type": "number",
+      "default": 0
+    },
+    "categoryMarginRight": {
+      "type": "number",
+      "default": 0
+    },
+    "titleMarginTop": {
+      "type": "number",
+      "default": 5
+    },
+    "titleMarginBottom": {
+      "type": "number",
+      "default": 5
+    },
+    "titleMarginLeft": {
+      "type": "number",
+      "default": 0
+    },
+    "titleMarginRight": {
+      "type": "number",
+      "default": 0
+    },
+    "metaMarginTop": {
+      "type": "number",
+      "default": 5
+    },
+    "metaMarginBottom": {
+      "type": "number",
+      "default": 5
+    },
+    "metaMarginLeft": {
+      "type": "number",
+      "default": 0
+    },
+    "metaMarginRight": {
+      "type": "number",
+      "default": 0
+    },
+    "exceprtMarginTop": {
+      "type": "number",
+      "default": 5
+    },
+    "exceprtMarginBottom": {
+      "type": "number",
+      "default": 5
+    },
+    "exceprtMarginLeft": {
+      "type": "number",
+      "default": 0
+    },
+    "exceprtMarginRight": {
+      "type": "number",
+      "default": 0
+    },
+    "moreLinkMarginTop": {
+      "type": "number",
+      "default": 5
+    },
+    "moreLinkMarginBottom": {
+      "type": "number",
+      "default": 5
+    },
+    "moreLinkMarginLeft": {
+      "type": "number",
+      "default": 0
+    },
+    "moreLinkMarginRight": {
+      "type": "number",
+      "default": 0
+    },
+    "categoryLayoutOption": {
+      "type": "string",
+      "default": "solid"
+    },
+    "categoryTextColor": {
+      "type": "string",
+      "default": "#fff"
+    },
+    "categoryBorderColor": {
+      "type": "string",
+      "default": "#ccc"
+    },
+    "categoryBackgroundColor": {
+      "type": "string",
+      "default": "#222222"
+    },
+    "secondCategoryTextColor": {
+      "type": "string",
+      "default": "#fff"
+    },
+    "secondCategoryBorderColor": {
+      "type": "string",
+      "default": "#d60000"
+    },
+    "secondCategoryBackgroundColor": {
+      "type": "string",
+      "default": "#d60000"
+    },
+    "thirdCategoryTextColor": {
+      "type": "string",
+      "default": "#fff"
+    },
+    "thirdCategoryBorderColor": {
+      "type": "string",
+      "default": "#f99500"
+    },
+    "thirdCategoryBackgroundColor": {
+      "type": "string",
+      "default": "#f99500"
+    },
+    "tileCategoryTextColor": {
+      "type": "string",
+      "default": "#fff"
+    },
+    "tileCategoryBorderColor": {
+      "type": "string",
+      "default": "#ccc"
+    },
+    "tileCategoryBackgroundColor": {
+      "type": "string",
+      "default": "#222222"
+    },
+    "tileSecondCategoryTextColor": {
+      "type": "string",
+      "default": "#fff"
+    },
+    "tileSecondCategoryBorderColor": {
+      "type": "string",
+      "default": "#d60000"
+    },
+    "tileSecondCategoryBackgroundColor": {
+      "type": "string",
+      "default": "#d60000"
+    },
+    "tileThirdCategoryTextColor": {
+      "type": "string",
+      "default": "#fff"
+    },
+    "tileThirdCategoryBorderColor": {
+      "type": "string",
+      "default": "#f99500"
+    },
+    "tileThirdCategoryBackgroundColor": {
+      "type": "string",
+      "default": "#f99500"
+    },
+    "categoryBorderWidth": {
+      "type": "number",
+      "default": 1
+    },
+    "categoryBorderRadius": {
+      "type": "number",
+      "default": 0
+    },
+    "authorIcon": {
+      "type": "string",
+      "default": "far fa-user-circle"
+    },
+    "dateIcon": {
+      "type": "string",
+      "default": "far fa-clock"
+    },
+    "enableComment": {
+      "type": "boolean",
+      "default": true
+    },
+    "commentIcon": {
+      "type": "string",
+      "default": "far fa-comment"
+    },
+    "showsliderNextPrev": {
+      "type": "boolean",
+      "default": true
+    },
+    "carouselNextIcon": {
+      "type": "string",
+      "default": "fas fa-chevron-right"
+    },
+    "gutterSpace": {
+      "type": "number",
+      "default": 1
+    },
+    "showDots": {
+      "type": "boolean",
+      "default": false
+    },
+    "enableAutoPlay": {
+      "type": "boolean",
+      "default": true
+    },
+    "numberofSlide": {
+      "type": "number",
+      "default": 1
+    },
+    "carouselSpeed": {
+      "type": "number",
+      "default": "800"
+    },
+    "navigationColor": {
+      "type": "string",
+      "default": "#000"
+    },
+    "navigationShape": {
+      "type": "string",
+      "default": "lpc-navigation-1"
+    },
+    "navigationSize": {
+      "type": "string",
+      "default": "lpc-navigation-small"
+    },
+    "enableNavInHover": {
+      "type": "boolean",
+      "default": true
+    },
+    "navigationShapeColor": {
+      "type": "string",
+      "default": "#fff"
+    },
+    "titleOnHover": {
+      "type": "string",
+      "default": "lpc-title-hover"
+    },
+    "titleOnHoverColor": {
+      "type": "string",
+      "default": "#222222"
+    },
+    "tileTitleOnHoverColor": {
+      "type": "string",
+      "default": "#f4f4f4"
+    },
+    "enableEqualHeight": {
+      "type": "boolean",
+      "default": true
+    },
+    "animation": {
+      "type": "string",
+      "default": ""
+    },
+    "blockHoverEffect": {
+      "type": "string",
+      "default": ""
+    },
+    "postCategoryFontSize": {
+      "type": "number",
+      "default": 10
+    },
+    "postCategoryFontFamily": {
+      "type": "string",
+      "default": "Default"
+    },
+    "postCategoryFontWeight": {
+      "type": "string",
+      "default": "600"
+    },
+    "postCategoryFontSubset": {
+      "type": "string"
+    },
+    "postCategoryFontSizeType": {
+      "type": "string",
+      "default": "px"
+    },
+    "postCategoryFontSizeMobile": {
+      "type": "number",
+      "default": 10
+    },
+    "postCategoryFontSizeTablet": {
+      "type": "number",
+      "default": 10
+    },
+    "postCategoryLoadGoogleFonts": {
+      "type": "boolean",
+      "default": false
+    },
+    "postMetaFontSize": {
+      "type": "number",
+      "default": 11
+    },
+    "postMetaFontFamily": {
+      "type": "string",
+      "default": "Default"
+    },
+    "postMetaFontWeight": {
+      "type": "string",
+      "default": ""
+    },
+    "postMetaFontSubset": {
+      "type": "string"
+    },
+    "postMetaFontSizeType": {
+      "type": "string",
+      "default": "px"
+    },
+    "postMetaFontSizeMobile": {
+      "type": "number",
+      "default": 11
+    },
+    "postMetaFontSizeTablet": {
+      "type": "number",
+      "default": 11
+    },
+    "postMetaLoadGoogleFonts": {
+      "type": "boolean",
+      "default": false
+    },
+    "imageHoverEffect": {
+      "type": "string",
+      "default": ""
+    },
+    "colorType": {
+      "type": "string",
+      "default": "bs-single-color"
+    }
+  }
+}

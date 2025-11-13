@@ -1,0 +1,118 @@
+/* subnav menu */
+.settings-sub-nav{
+    background: var(--color-indigo);
+    display: flex;
+    padding: 10px 20px 0 20px;
+    margin-top: 0;
+    overflow-y: scroll;
+}
+.sub-navbar-item {
+    display: inline-block;
+    padding: 10px 15px;
+    border-radius: 4px 4px 0 0;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    margin: 0;
+    white-space: nowrap;
+}
+.sub-navbar-item a{
+    color: white;
+}
+.sub-navbar-item.active{
+    background: #f0f0f1;
+}
+.sub-navbar-item.active  a{
+    color: var(--color-indigo);
+}
+
+.settings-sub-nav~.aft-container .integration-container {
+    padding: 0;
+}
+
+/* order popup */
+.wp-post-author_page_awpa-settings .modal-popup {
+    background-color: #fff;
+    padding: 20px;
+    position: relative;
+}
+
+.wp-post-author_page_awpa-settings .modal-popup h2{
+    font-size: 24px;
+}
+
+.wp-post-author_page_awpa-settings .modal-popup p{
+    font-size: 16px;
+}
+.wp-post-author_page_awpa-settings .modal-popup p::first-letter{
+    text-transform: uppercase;
+}
+
+.wp-post-author_page_awpa-settings .modal-popup a{
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    color: #333;
+    cursor: pointer;
+    font-size: 20px;
+    transition: all .3s;
+    padding: 0 1.5px 3px;
+    color: #333;
+}
+
+.wp-post-author_page_awpa-settings .modal-popup a:hover{
+    background-color: #f0f0f1;
+}
+
+/* add plan */
+
+.upgrade_subscription {
+    margin-bottom: 20px;
+    border: 1px solid var(--color-gray-light-2);
+    border-radius: 3px;
+    padding: 20px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 20px;
+}
+
+
+.upgrade_subscription > *:not(.btn) {
+    width: min(300px, 100%);
+    flex: 1 1 auto;
+}
+.upgrade_subscription > div label {
+    margin-bottom: 5px;
+    display: inline-block;
+}
+
+.upgrade_subscription  input, .upgrade_subscription select {
+    padding: 3px 8px;
+    border: 1px solid var(--color-gray-light-2);
+    width: 100%;
+    max-width: 100%;
+}
+
+.upgrade_subscription  input:focus, .upgrade_subscription  select:focus {
+    outline: non;
+    box-shadow: none;
+    border: 1px solid var(--color-indigo);
+    color: inherit;
+}
+
+.upgrade_subscription  .btn{
+    margin: 0;
+}
+
+.upgrade_subscription  span{
+    display: block;
+    width: 100% !important;
+    color: var(--color-red);
+}

@@ -1,0 +1,204 @@
+/* General Reset */
+.ele-templates-container * {box-sizing: border-box;}
+
+.post-type-elespare_builder #wpcontent,
+.elespare_page_elespare_dashboard-contact #wpcontent,
+.elespare_page_elespare_explore_more #wpcontent,
+.toplevel_page_elespare_dashboard #wpcontent {
+    padding-left: 0;
+}
+.ele-upgrade {
+    padding-right: 15px;
+}
+
+.post-type-elespare_builder #wpcontent #wpbody-content {
+    padding-left: 20px;
+}
+
+.elespare_page_elespare_explore_more #wpbody-content .notice,
+.elespare-pro_page_elespare_explore_more #wpbody-content .notice{
+    display: none;
+}
+
+/* Container Styles */
+#elespare-demo-list {
+    font-family: Arial, sans-serif;
+}
+
+.ele-templates-demo-lists {
+    width: 100%;
+    background-color: #f5f3f1;
+}
+
+.ele-templates-demo-lists-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 15px;
+    margin-bottom: 40px;
+    background: #fff;
+    padding: 0px 40px;
+    box-shadow: 0 0 8px rgba(0, 0, 0, 0.1);
+    position: sticky;
+    top: 32px;
+    z-index: 1;
+}
+
+.ele-logo-area .brand-logo img {
+    height: 40px;
+    width: auto;
+}
+
+.ele-menu-area {
+    flex-grow: 1;
+    margin-left: 20px;
+}
+
+.ele-templates-demo-lists-header-top-tabs ul {
+    display: flex;
+    list-style: none;
+    flex-wrap: wrap;
+}
+
+.ele-templates-demo-lists-header-top-tabs ul li {
+    margin-right: 20px;
+}
+
+.ele-templates-demo-lists-header-top-tabs ul li a {
+    text-decoration: none;
+    color: #333;
+    padding: 10px 15px;
+    border-radius: 5px;
+    transition: background-color 0.3s ease;
+}
+
+.ele-templates-demo-lists-header-top-tabs ul li a.active {
+    background-color: #007bff;
+    color: #fff;
+}
+
+.ele-templates-demo-lists-header-top-tabs ul li a.inactive:hover {
+    background-color: #e2e6ea;
+}
+
+.ele-items-area {
+    display: flex;
+    align-items: center;
+}
+
+.ele-templates-demo-lists-header-top-right ul {
+    list-style: none;
+    display: flex;
+}
+
+.ele-templates-demo-lists-header-top-right ul li .icon {
+    font-size: 24px;
+    cursor: pointer;
+}
+
+.ele-templates-demo-lists-body {
+    background-color: #fff;
+    border-radius: 10px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.ele-library-templates ul.ele-templates-container li {
+    position: relative;
+}
+
+.template-item-figure {
+    border: 1px solid #ddd;
+    border-radius: 10px;
+    overflow: hidden;
+    transition: box-shadow 0.3s ease;
+}
+
+.template-item-figure:hover {
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+.ele-library-template-body img {
+    max-width: 100%;
+    height: auto;
+    display: block;
+    margin: 0 auto;
+}
+
+.elespare-immport-btn {
+    display: inline-block;
+    background-color: #007bff;
+    color: #fff;
+    padding: 10px 20px;
+    border-radius: 5px;
+    text-decoration: none;
+    margin-top: 10px;
+}
+
+.elespare-immport-btn:hover {
+    background-color: #0056b3;
+}
+
+.ele-library-template-footer {
+    padding: 10px 15px;
+    text-align: center;
+}
+
+.ele-library-template-footer h3 {
+    margin: 10px 0;
+    font-size: 1.2em;
+}
+
+.ele-library-template-footer a {
+
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    font-size: 0.9em;
+}
+
+.ele-library-template-footer a:hover {
+    color: #0056b3;
+}
+
+/* iframe */
+
+.elspare-demo {
+    background-color: #fff;
+}
+
+.elspare-demo-iframe {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 100000;
+    height: 100vh;
+    margin: 0;
+    display: flex;
+    flex-direction: column-reverse;
+}
+
+.elspare-demo-iframe iframe {
+    flex-grow: 1;
+    position: relative;
+    z-index: 100001;
+    height: 100%;
+    width: 100%;
+}
+
+@media screen and (max-width: 480px){
+    .ele-menu-area {
+        margin-left: 0;
+        margin-top: 20px;
+    }
+    .ele-library-templates-header .ele-logo-area {
+        padding-left: 0;
+    }
+    .ele-upgrade{padding-right: 0;}
+    .ele-templates-demo-lists-header {
+        padding: 15px;
+        position: static;
+    }
+}

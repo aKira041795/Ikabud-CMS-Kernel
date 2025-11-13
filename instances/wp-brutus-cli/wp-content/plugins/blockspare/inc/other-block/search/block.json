@@ -1,0 +1,280 @@
+{
+  "name": "blockspare/search",
+  "category": "blockspare",
+  "title": "Search",
+  "description": "Display Search Block at any Sections.",
+  "textdomain": "blockspare",
+  "keywords": [
+    "Search",
+    "Icon",
+    "Blockspare",
+    "Section"
+  ],
+  "attributes": {
+    "sectionTag": {
+      "type": "string",
+      "default": "section"
+    },
+    "align": {
+      "type": "string",
+      "default": "center"
+    },
+    "searchStyle": {
+      "type": "string",
+      "default": "form"
+    },
+    "searchIcon": {
+      "type": "string",
+      "default": "fas fa-search"
+    },
+    "iconSize": {
+      "type": "number",
+      "default": 18
+    },
+    "iconOption": {
+      "type": "string",
+      "default": "dropdown"
+    },
+    "buttonType": {
+      "type": "string",
+      "default": "text"
+    },
+    "buttonIcon": {
+      "type": "string",
+      "default": "fas fa-search"
+    },
+    "placeholder": {
+      "type": "string",
+      "default": "Search"
+    },
+    "sectionAlign": {
+      "type": "string",
+      "default": "left"
+    },
+    "borderRadius": {
+      "type": "number",
+      "default": 0
+    },
+    "buttonLabel": {
+      "type": "string",
+      "default": "Search"
+    },
+    "height": {
+      "type": "number",
+      "default": 45
+    },
+    "placeholderFontSize": {
+      "type": "number",
+      "default": 14
+    },
+    "placeholderFontFamily": {
+      "type": "string",
+      "default": "Default"
+    },
+    "placeholderFontWeight": {
+      "type": "string",
+      "default": ""
+    },
+    "placeholderFontSubset": {
+      "type": "string"
+    },
+    "placeholderFontSizeType": {
+      "type": "string",
+      "default": "px"
+    },
+    "placeholderFontSizeMobile": {
+      "type": "number",
+      "default": 14
+    },
+    "placeholderFontSizeTablet": {
+      "type": "number",
+      "default": 14
+    },
+    "placeholderLoadGoogleFonts": {
+      "type": "boolean",
+      "default": false
+    },
+    "searchFontSize": {
+      "type": "number",
+      "default": 16
+    },
+    "searchFontFamily": {
+      "type": "string",
+      "default": "Default"
+    },
+    "searchFontWeight": {
+      "type": "string",
+      "default": ""
+    },
+    "searchFontSubset": {
+      "type": "string"
+    },
+    "searchFontSizeType": {
+      "type": "string",
+      "default": "px"
+    },
+    "searchFontSizeMobile": {
+      "type": "number",
+      "default": 14
+    },
+    "searchFontSizeTablet": {
+      "type": "number",
+      "default": 14
+    },
+    "searchLoadGoogleFonts": {
+      "type": "boolean",
+      "default": false
+    },
+    "inputFontSize": {
+      "type": "number",
+      "default": 14
+    },
+    "inputFontFamily": {
+      "type": "string",
+      "default": "Default"
+    },
+    "inputFontWeight": {
+      "type": "string",
+      "default": ""
+    },
+    "inputFontSubset": {
+      "type": "string"
+    },
+    "inputFontSizeType": {
+      "type": "string",
+      "default": "px"
+    },
+    "inputFontSizeMobile": {
+      "type": "number",
+      "default": 14
+    },
+    "inputFontSizeTablet": {
+      "type": "number",
+      "default": 14
+    },
+    "inputLoadGoogleFonts": {
+      "type": "boolean",
+      "default": false
+    },
+    "iconColor": {
+      "type": "string",
+      "default": "#000"
+    },
+    "formIconColor": {
+      "type": "string",
+      "default": "#fff"
+    },
+    "closeIconColor": {
+      "type": "string",
+      "default": "#fff"
+    },
+    "bgColor": {
+      "type": "string",
+      "default": "#fff"
+    },
+    "buttonBgColor": {
+      "type": "string",
+      "default": "#bb1919"
+    },
+    "buttonTextColor": {
+      "type": "string",
+      "default": "#fff"
+    },
+    "placeholderTextColor": {
+      "type": "string",
+      "default": "#64696F"
+    },
+    "inputTextColor": {
+      "type": "string",
+      "default": "#2c3338"
+    },
+    "marginTop": {
+      "type": "number",
+      "default": 0
+    },
+    "marginBottom": {
+      "type": "number",
+      "default": 0
+    },
+    "marginRight": {
+      "type": "number",
+      "default": 0
+    },
+    "marginLeft": {
+      "type": "number",
+      "default": 0
+    },
+    "paddingTop": {
+      "type": "number",
+      "default": 0
+    },
+    "paddingBottom": {
+      "type": "number",
+      "default": 0
+    },
+    "paddingRight": {
+      "type": "number",
+      "default": 0
+    },
+    "paddingLeft": {
+      "type": "number",
+      "default": 0
+    },
+    "toggleIconPaddingTop": {
+      "type": "number",
+      "default": 0
+    },
+    "toggleIconPaddingBottom": {
+      "type": "number",
+      "default": 0
+    },
+    "toggleIconPaddingRight": {
+      "type": "number",
+      "default": 0
+    },
+    "toggleIconPaddingLeft": {
+      "type": "number",
+      "default": 0
+    },
+    "searchFormPaddingTop": {
+      "type": "number",
+      "default": 10
+    },
+    "searchFormPaddingBottom": {
+      "type": "number",
+      "default": 10
+    },
+    "searchFormPaddingRight": {
+      "type": "number",
+      "default": 10
+    },
+    "searchFormPaddingLeft": {
+      "type": "number",
+      "default": 10
+    },
+    "searchInputPaddingRight": {
+      "type": "number",
+      "default": 8
+    },
+    "searchInputPaddingLeft": {
+      "type": "number",
+      "default": 8
+    },
+    "toggleSearch": {
+      "type": "boolean",
+      "default": false
+    },
+    "animation": {
+      "type": "string",
+      "default": ""
+    },
+    "uniqueClass": {
+      "type": "string",
+      "default": ""
+    },
+    "blockHoverEffect": {
+      "type": "string",
+      "default": ""
+    }
+  }
+}

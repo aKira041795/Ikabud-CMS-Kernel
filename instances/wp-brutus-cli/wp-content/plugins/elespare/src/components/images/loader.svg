@@ -1,0 +1,21 @@
+<svg version="1.1" class="elespare-loader-svg" xmlns="http://www.w3.org/2000/svg" x="0px" y="0px" width="150px" height="150px" viewBox="0 0 140 140">
+			<style type="text/css">
+				.st0 {fill: none;stroke: url(#XMLID_4_);stroke-width: 3;stroke-linecap: round;stroke-linejoin: round;stroke-miterlimit: 10;}
+				.tc-stroke-animation {stroke-dasharray: 1160;stroke-dashoffset: 1160;animation: dash 3s ease alternate infinite;}
+				@keyframes  dash {
+					to {
+						stroke-dashoffset: 0;
+					}
+				}
+			</style>
+			<linearGradient id="XMLID_4_" gradientUnits="userSpaceOnUse" x1="100" y1="5.9468" x2="100" y2="194.0532">
+				<stop offset="7.730226e-002" style="stop-color:#FFDCC5"></stop>
+				<stop offset="0.9154" style="stop-color:#FF3700"></stop>
+			</linearGradient>
+			<path class="st0 tc-stroke-animation" d="M6.5,6.5v127.1h127.1V6.5H6.5z M27.9,38.8c12.4,0,24.7,0,37.3,0c0,4.3,0,8.1,0,12.2c-12.5,0-24.8,0-37.3,0
+				C27.9,47,27.9,43,27.9,38.8z M27.9,64c12.5,0,24.8,0,37.3,0c0,4.1,0,8.1,0,12.2c-12.5,0-24.8,0-37.3,0C27.9,72.2,27.9,68.3,27.9,64z
+				M112.1,51c-8.4,0-16.8,0-25.2,0c0,4.3,0,8.6,0,13c8.4,0,16.7,0,25.2,0c0,3.2,0,6.3,0,9.4c0,0.9,0,1.9,0,2.8c0,4.3,0,8.6,0,13
+				c0,1.4,0,2.8,0,4.2c0,2.5,0,5.1,0,7.8c-15.5,0-31.1,0-46.9,0c-1.8,0-3.6,0-5.4,0c-10.6,0-21.2,0-31.9,0c0-3.9,0-7.8,0-12
+				c10.6,0,21.2,0,31.9,0c1.8,0,3.6,0,5.4,0c11.5,0,23.1,0,34.8,0c0-4.3,0-8.7,0-13c-8.4,0-16.7,0-25.2,0c0-2.9,0-5.7,0-8.6
+				c0-1.2,0-2.4,0-3.6c0-4.3,0-8.7,0-13c0-1.1,0-2.2,0-3.4c0-2.9,0-5.8,0-8.8c12.4,0,24.7,0,37.3,0C112.1,43.1,112.1,46.9,112.1,51z"></path>
+			</svg>

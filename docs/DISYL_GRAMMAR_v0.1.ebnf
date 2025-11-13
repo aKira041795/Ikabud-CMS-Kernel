@@ -1,0 +1,296 @@
+(*
+ * DiSyL Grammar Specification v0.1
+ * Extended Backus-Naur Form (EBNF)
+ * 
+ * Notation:
+ * - ::= defines a production rule
+ * - | separates alternatives
+ * - () groups items
+ * - [] optional items (0 or 1)
+ * - {} repetition (0 or more)
+ * - "" literal strings
+ * - (* *) comments
+ *)
+
+(* ============================================================================
+   DOCUMENT STRUCTURE
+   ============================================================================ *)
+
+document ::= { node }
+
+node ::= tag_node
+       | text_node
+       | expression_node
+       | comment_node
+
+(* ============================================================================
+   TAG NODES (Components)
+   ============================================================================ *)
+
+tag_node ::= self_closing_tag
+           | paired_tag
+
+self_closing_tag ::= "{" tag_name [ attributes ] "/" "}"
+
+paired_tag ::= opening_tag { node } closing_tag
+
+opening_tag ::= "{" tag_name [ attributes ] "}"
+
+closing_tag ::= "{" "/" tag_name "}"
+
+tag_name ::= component_name
+           | control_structure_name
+
+component_name ::= "ikb_" identifier
+
+control_structure_name ::= "if" | "for" | "include"
+
+(* ============================================================================
+   ATTRIBUTES
+   ============================================================================ *)
+
+attributes ::= attribute { attribute }
+
+attribute ::= identifier "=" attribute_value
+
+attribute_value ::= quoted_string
+                  | expression_string
+                  | boolean_literal
+                  | number_literal
+
+quoted_string ::= '"' { string_char } '"'
+                | "'" { string_char } "'"
+
+expression_string ::= "{" expression "}"
+
+boolean_literal ::= "true" | "false"
+
+number_literal ::= [ "-" ] digit { digit } [ "." digit { digit } ]
+
+(* ============================================================================
+   EXPRESSIONS
+   ============================================================================ *)
+
+expression_node ::= "{" expression "}"
+
+expression ::= simple_expression
+             | property_access
+             | method_call
+
+simple_expression ::= identifier
+
+property_access ::= identifier { "." identifier }
+
+method_call ::= identifier "(" [ argument_list ] ")"
+
+argument_list ::= expression { "," expression }
+
+(* ============================================================================
+   TEXT NODES
+   ============================================================================ *)
+
+text_node ::= text_content
+
+text_content ::= { text_char | interpolated_expression }
+
+interpolated_expression ::= "{" expression "}"
+
+text_char ::= any_char - ( "{" | "}" )
+
+(* ============================================================================
+   COMMENT NODES
+   ============================================================================ *)
+
+comment_node ::= "{!--" comment_content "--}"
+
+comment_content ::= { any_char - "--}" }
+
+(* ============================================================================
+   LEXICAL ELEMENTS
+   ============================================================================ *)
+
+identifier ::= letter { letter | digit | "_" }
+
+letter ::= "a" | "b" | ... | "z" | "A" | "B" | ... | "Z"
+
+digit ::= "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9"
+
+string_char ::= any_char - ( '"' | "'" | "\\" )
+              | escape_sequence
+
+escape_sequence ::= "\\" ( "\\" | '"' | "'" | "n" | "r" | "t" | "{" | "}" )
+
+any_char ::= (* any Unicode character *)
+
+whitespace ::= " " | "\t" | "\n" | "\r"
+
+(* ============================================================================
+   RESERVED KEYWORDS
+   ============================================================================ *)
+
+(* Control Structures *)
+reserved_control ::= "if" | "for" | "include"
+
+(* Boolean Literals *)
+reserved_boolean ::= "true" | "false"
+
+(* Component Prefix *)
+reserved_prefix ::= "ikb_"
+
+(* ============================================================================
+   NAMING CONVENTIONS
+   ============================================================================ *)
+
+(*
+ * Component Names:
+ * - Must start with "ikb_"
+ * - Followed by lowercase letters, numbers, or underscores
+ * - Examples: ikb_section, ikb_text, ikb_card
+ *
+ * Control Structures:
+ * - Lowercase keywords: if, for, include
+ * - No prefix required
+ *
+ * Attributes:
+ * - Lowercase letters, numbers, or underscores
+ * - Examples: type, size, weight, bg
+ *
+ * Expressions:
+ * - Variable names: lowercase or camelCase
+ * - Property access: dot notation (item.title)
+ * - Examples: title, item.content, post.author.name
+ *)
+
+(* ============================================================================
+   SYNTAX RULES
+   ============================================================================ *)
+
+(*
+ * Rule 1: Self-Closing Tags
+ * - Void components MUST be self-closing
+ * - Use "/" before closing brace
+ * - Example: {ikb_image src="..." /}
+ *
+ * Rule 2: Paired Tags
+ * - Opening and closing tag names MUST match exactly
+ * - Closing tag uses "/" prefix
+ * - Example: {ikb_text}content{/ikb_text}
+ *
+ * Rule 3: Nesting
+ * - Tags must be properly nested (no overlapping)
+ * - Closing tags must match in reverse order of opening
+ *
+ * Rule 4: Expressions
+ * - Standalone expressions: {variable}
+ * - In text: "Hello {name}!"
+ * - In attributes: title="{item.title}"
+ *
+ * Rule 5: Comments
+ * - Use {!-- comment --} syntax
+ * - Cannot be nested
+ * - Can span multiple lines
+ *
+ * Rule 6: Whitespace
+ * - Whitespace is preserved in text nodes
+ * - Whitespace is ignored in tag definitions
+ * - Indentation is recommended for readability
+ *)
+
+(* ============================================================================
+   EXAMPLES
+   ============================================================================ *)
+
+(*
+ * Example 1: Simple Component
+ * {ikb_text size="lg" weight="bold"}
+ *     Hello World!
+ * {/ikb_text}
+ *
+ * Example 2: Self-Closing Component
+ * {ikb_image src="photo.jpg" alt="Photo" /}
+ *
+ * Example 3: Expression Interpolation
+ * {ikb_text}
+ *     Published on {item.date} by {item.author}
+ * {/ikb_text}
+ *
+ * Example 4: Attribute Expressions
+ * {ikb_card title="{item.title}" image="{item.thumbnail}" /}
+ *
+ * Example 5: Conditional Rendering
+ * {if condition="item.thumbnail"}
+ *     {ikb_image src="{item.thumbnail}" /}
+ * {/if}
+ *
+ * Example 6: Loops
+ * {for items="posts" as="post"}
+ *     {ikb_text}{post.title}{/ikb_text}
+ * {/for}
+ *
+ * Example 7: Includes
+ * {include template="components/header" /}
+ *
+ * Example 8: Nested Components
+ * {ikb_section type="hero"}
+ *     {ikb_container width="lg"}
+ *         {ikb_text size="2xl"}Welcome{/ikb_text}
+ *     {/ikb_container}
+ * {/ikb_section}
+ *
+ * Example 9: Comments
+ * {!-- This is a comment --}
+ * {ikb_text}Visible content{/ikb_text}
+ * {!-- 
+ *     Multi-line comment
+ *     Can span multiple lines
+ * --}
+ *)
+
+(* ============================================================================
+   ERROR PRODUCTIONS
+   ============================================================================ *)
+
+(*
+ * Common Errors:
+ *
+ * 1. Missing closing tag
+ *    {ikb_text}content
+ *    Error: Expected {/ikb_text}
+ *
+ * 2. Mismatched closing tag
+ *    {ikb_section}{/ikb_container}
+ *    Error: Expected {/ikb_section}, got {/ikb_container}
+ *
+ * 3. Non-self-closing void component
+ *    {ikb_image src="..."}
+ *    Error: ikb_image must be self-closing, use /}
+ *
+ * 4. Invalid attribute syntax
+ *    {ikb_text size=lg}
+ *    Error: Attribute value must be quoted
+ *
+ * 5. Unclosed expression
+ *    {item.title
+ *    Error: Expected }
+ *
+ * 6. Invalid component name
+ *    {myComponent}
+ *    Error: Component names must start with ikb_
+ *
+ * 7. Reserved keyword as identifier
+ *    {if}content{/if}
+ *    Error: 'if' is a control structure, requires condition attribute
+ *)
+
+(* ============================================================================
+   VERSION HISTORY
+   ============================================================================ *)
+
+(*
+ * v0.1 (November 2025)
+ * - Initial grammar specification
+ * - Basic components and control structures
+ * - Expression interpolation
+ * - Attribute evaluation
+ * - Comments
+ *)

@@ -1,0 +1,594 @@
+{
+  "name": "blockspare/blockspare-latest-posts-grid",
+  "category": "blockspare",
+  "title": "Posts Grid",
+  "description": "Display Posts Grid from Selected Categories.",
+  "textdomain": "blockspare",
+  "keywords": [
+		"Posts",
+    "Tile",
+    "Column",
+    "Grid"
+	],
+  "attributes": {
+    "categories": {
+      "type": "array",
+      "default": []
+    },
+    "showPresets": {
+      "type": "boolean",
+      "default": true
+    },
+    "postType": {
+      "type": "string",
+      "default": "post"
+    },
+    "tags": {
+      "type": "array",
+      "default": []
+    },
+    "order": {
+      "type": "string",
+      "default": "desc"
+    },
+    "orderBy": {
+      "type": "string",
+      "default": "date"
+    },
+    "postTax": {
+      "type": "boolean",
+      "default": true
+    },
+    "taxType": {
+      "type": "string",
+      "default": "category"
+    },
+    "uniqueClass": {
+      "type": "string",
+      "default": ""
+    },
+    "className": {
+      "type": "string"
+    },
+    "postsToShow": {
+      "type": "number",
+      "default": 4
+    },
+    "displayPostDate": {
+      "type": "boolean",
+      "default": true
+    },
+    "displayPostExcerpt": {
+      "type": "boolean",
+      "default": false
+    },
+    "displayPostAuthor": {
+      "type": "boolean",
+      "default": true
+    },
+    "displayPostImage": {
+      "type": "boolean",
+      "default": true
+    },
+    "displayPostLink": {
+      "type": "boolean",
+      "default": true
+    },
+    "displayPostTitle": {
+      "type": "boolean",
+      "default": true
+    },
+    "PostTitleLength": {
+      "type": "number",
+      "default": 10
+    },
+    "postTitleColor": {
+      "type": "string",
+      "default": "#000"
+    },
+    "postTitleFontSize": {
+      "type": "number",
+      "default": 16
+    },
+    "titleFontFamily": {
+      "type": "string",
+      "default": "Default"
+    },
+    "titleFontWeight": {
+      "type": "string",
+      "default": ""
+    },
+    "titleFontSubset": {
+      "type": "string"
+    },
+    "titleFontSizeType": {
+      "type": "string",
+      "default": "px"
+    },
+    "titleFontSizeMobile": {
+      "type": "number",
+      "default": 16
+    },
+    "titleFontSizeTablet": {
+      "type": "number",
+      "default": 16
+    },
+    "titleLoadGoogleFonts": {
+      "type": "boolean",
+      "default": false
+    },
+    "linkColor": {
+      "type": "string",
+      "default": "#000000"
+    },
+    "borderColor": {
+      "type": "string",
+      "default": "#f4f4f4"
+    },
+    "generalColor": {
+      "type": "string",
+      "default": "#505050"
+    },
+    "displayPostCategory": {
+      "type": "boolean",
+      "default": true
+    },
+    "design": {
+      "type": "string",
+      "default": "blockspare-posts-block-list-layout-1"
+    },
+    "enableTwoColumn": {
+      "type": "boolean",
+      "default": false
+    },
+    "grid": {
+      "type": "string",
+      "default": "blockspare-posts-block-grid-layout-1"
+    },
+    "tile": {
+      "type": "string",
+      "default": "blockspare-posts-block-tile-layout-1"
+    },
+    "express": {
+      "type": "string",
+      "default": "blockspare-posts-block-express-layout-1"
+    },
+    "full": {
+      "type": "string",
+      "default": "blockspare-posts-block-full-layout-1"
+    },
+    "columns": {
+      "type": "number",
+      "default": 2
+    },
+    "align": {
+      "type": "string",
+      "default": "center"
+    },
+    "readMoreText": {
+      "type": "string",
+      "default": "Read More.."
+    },
+    "offset": {
+      "type": "number",
+      "default": 0
+    },
+    "excerptLength": {
+      "type": "number",
+      "default": 20
+    },
+    "displayPostsBy": {
+      "type": "string",
+      "default": "blockspare-posts-block-post-by-category"
+    },
+    "sectionTag": {
+      "type": "string",
+      "default": "section"
+    },
+    "sectionTitle": {
+      "type": "string"
+    },
+    "imageSize": {
+      "type": "string",
+      "default": "large"
+    },
+    "url": {
+      "type": "string",
+      "source": "attribute",
+      "selector": "img",
+      "attribute": "src"
+    },
+    "id": {
+      "type": "number"
+    },
+    "marginTop": {
+      "type": "number",
+      "default": 30
+    },
+    "marginBottom": {
+      "type": "number",
+      "default": 30
+    },
+    "marginLeft": {
+      "type": "number",
+      "default": 0
+    },
+    "marginRight": {
+      "type": "number",
+      "default": 0
+    },
+    "backGroundColor": {
+      "type": "string",
+      "default": "#f9f9f9"
+    },
+    "borderRadius": {
+      "type": "number",
+      "default": 0
+    },
+    "contentOrder": {
+      "type": "string",
+      "default": "content-order-1"
+    },
+    "enableBoxShadow": {
+      "type": "boolean",
+      "default": false
+    },
+    "xOffset": {
+      "type": "number",
+      "default": 0
+    },
+    "yOffset": {
+      "type": "number",
+      "default": 3
+    },
+    "blur": {
+      "type": "number",
+      "default": 10
+    },
+    "spread": {
+      "type": "number",
+      "default": -9
+    },
+    "shadowColor": {
+      "type": "string",
+      "default": "#000"
+    },
+    "descriptionFontSize": {
+      "type": "number",
+      "default": 14
+    },
+    "descriptionFontFamily": {
+      "type": "string",
+      "default": "Default"
+    },
+    "descriptionFontWeight": {
+      "type": "string",
+      "default": ""
+    },
+    "descriptionFontSubset": {
+      "type": "string"
+    },
+    "descriptionFontSizeType": {
+      "type": "string",
+      "default": "px"
+    },
+    "descriptionFontSizeMobile": {
+      "type": "number",
+      "default": 14
+    },
+    "descriptionFontSizeTablet": {
+      "type": "number",
+      "default": 14
+    },
+    "descriptionLoadGoogleFonts": {
+      "type": "boolean",
+      "default": false
+    },
+    "contentPaddingTop": {
+      "type": "number",
+      "default": 15
+    },
+    "contentPaddingLeft": {
+      "type": "number",
+      "default": 15
+    },
+    "contentPaddingBottom": {
+      "type": "number",
+      "default": 15
+    },
+    "contentPaddingRight": {
+      "type": "number",
+      "default": 15
+    },
+    "categoryMarginTop": {
+      "type": "number",
+      "default": 5
+    },
+    "categoryMarginBottom": {
+      "type": "number",
+      "default": 5
+    },
+    "categoryMarginLeft": {
+      "type": "number",
+      "default": 0
+    },
+    "categoryMarginRight": {
+      "type": "number",
+      "default": 0
+    },
+    "titleMarginTop": {
+      "type": "number",
+      "default": 5
+    },
+    "titleMarginBottom": {
+      "type": "number",
+      "default": 5
+    },
+    "titleMarginLeft": {
+      "type": "number",
+      "default": 0
+    },
+    "titleMarginRight": {
+      "type": "number",
+      "default": 0
+    },
+    "metaMarginTop": {
+      "type": "number",
+      "default": 5
+    },
+    "metaMarginBottom": {
+      "type": "number",
+      "default": 5
+    },
+    "metaMarginLeft": {
+      "type": "number",
+      "default": 0
+    },
+    "metaMarginRight": {
+      "type": "number",
+      "default": 0
+    },
+    "exceprtMarginTop": {
+      "type": "number",
+      "default": 5
+    },
+    "exceprtMarginBottom": {
+      "type": "number",
+      "default": 5
+    },
+    "exceprtMarginLeft": {
+      "type": "number",
+      "default": 0
+    },
+    "exceprtMarginRight": {
+      "type": "number",
+      "default": 0
+    },
+    "moreLinkMarginTop": {
+      "type": "number",
+      "default": 5
+    },
+    "moreLinkMarginBottom": {
+      "type": "number",
+      "default": 5
+    },
+    "moreLinkMarginLeft": {
+      "type": "number",
+      "default": 0
+    },
+    "moreLinkMarginRight": {
+      "type": "number",
+      "default": 0
+    },
+    "categoryLayoutOption": {
+      "type": "string",
+      "default": "solid"
+    },
+    "categoryTextColor": {
+      "type": "string",
+      "default": "#fff"
+    },
+    "categoryBorderColor": {
+      "type": "string",
+      "default": "#ccc"
+    },
+    "categoryBackgroundColor": {
+      "type": "string",
+      "default": "#222222"
+    },
+    "secondCategoryTextColor": {
+      "type": "string",
+      "default": "#fff"
+    },
+    "secondCategoryBorderColor": {
+      "type": "string",
+      "default": "#d60000"
+    },
+    "secondCategoryBackgroundColor": {
+      "type": "string",
+      "default": "#d60000"
+    },
+    "thirdCategoryTextColor": {
+      "type": "string",
+      "default": "#fff"
+    },
+    "thirdCategoryBorderColor": {
+      "type": "string",
+      "default": "#f99500"
+    },
+    "thirdCategoryBackgroundColor": {
+      "type": "string",
+      "default": "#f99500"
+    },
+    "categoryBorderWidth": {
+      "type": "number",
+      "default": 1
+    },
+    "categoryBorderRadius": {
+      "type": "number",
+      "default": 0
+    },
+    "authorIcon": {
+      "type": "string",
+      "default": "far fa-user-circle"
+    },
+    "dateIcon": {
+      "type": "string",
+      "default": "far fa-clock"
+    },
+    "enableComment": {
+      "type": "boolean",
+      "default": true
+    },
+    "commentIcon": {
+      "type": "string",
+      "default": "far fa-comment"
+    },
+    "titleOnHover": {
+      "type": "string",
+      "default": "lpc-title-hover"
+    },
+    "titleOnHoverColor": {
+      "type": "string",
+      "default": "#222222"
+    },
+    "enableEqualHeight": {
+      "type": "boolean",
+      "default": true
+    },
+    "animation": {
+      "type": "string",
+      "default": ""
+    },
+    "blockHoverEffect": {
+      "type": "string",
+      "default": ""
+    },
+    "enablePagination": {
+      "type": "boolean",
+      "default": false
+    },
+    "loadMoreText": {
+      "type": "string",
+      "default": "Load More"
+    },
+    "loadMoreStyle": {
+      "type": "string",
+      "default": ""
+    },
+    "loadMoreTextColor": {
+      "type": "string",
+      "default": "#505050"
+    },
+    "loadMoreSolidTextColor": {
+      "type": "string",
+      "default": "#fff"
+    },
+    "loadMoreTextBgColor": {
+      "type": "string",
+      "default": "#505050"
+    },
+    "loadMoreTextHoverColor": {
+      "type": "string",
+      "default": "#222222"
+    },
+    "loadMoreSolidTextHoverColor": {
+      "type": "string",
+      "default": "#fff"
+    },
+    "loadMoreTextBgHoverColor": {
+      "type": "string",
+      "default": "#222222"
+    },
+    "loadMoreColor": {
+      "type": "string",
+      "default": "#222222"
+    },
+    "loadMoreAlignment": {
+      "type": "string",
+      "default": "left"
+    },
+    "enableFeatureImage": {
+      "type": "boolean",
+      "default": true
+    },
+    "gutterSpace": {
+      "type": "number",
+      "default": 20
+    },
+    "postTitleLineHeight": {
+      "type": "number",
+      "default": 1.5
+    },
+    "postCategoryFontSize": {
+      "type": "number",
+      "default": 10
+    },
+    "postCategoryFontFamily": {
+      "type": "string",
+      "default": "Default"
+    },
+    "postCategoryFontWeight": {
+      "type": "string",
+      "default": "600"
+    },
+    "postCategoryFontSubset": {
+      "type": "string"
+    },
+    "postCategoryFontSizeType": {
+      "type": "string",
+      "default": "px"
+    },
+    "postCategoryFontSizeMobile": {
+      "type": "number",
+      "default": 10
+    },
+    "postCategoryFontSizeTablet": {
+      "type": "number",
+      "default": 10
+    },
+    "postCategoryLoadGoogleFonts": {
+      "type": "boolean",
+      "default": false
+    },
+    "postMetaFontSize": {
+      "type": "number",
+      "default": 11
+    },
+    "postMetaFontFamily": {
+      "type": "string",
+      "default": "Default"
+    },
+    "postMetaFontWeight": {
+      "type": "string",
+      "default": ""
+    },
+    "postMetaFontSubset": {
+      "type": "string"
+    },
+    "postMetaFontSizeType": {
+      "type": "string",
+      "default": "px"
+    },
+    "postMetaFontSizeMobile": {
+      "type": "number",
+      "default": 11
+    },
+    "postMetaFontSizeTablet": {
+      "type": "number",
+      "default": 11
+    },
+    "postMetaLoadGoogleFonts": {
+      "type": "boolean",
+      "default": false
+    },
+    "imageHoverEffect": {
+      "type": "string",
+      "default": ""
+    },
+    "colorType": {
+      "type": "string",
+      "default": "bs-single-color"
+    }
+  }
+}

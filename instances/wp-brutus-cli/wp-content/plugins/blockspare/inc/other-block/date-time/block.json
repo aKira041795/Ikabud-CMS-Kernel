@@ -1,0 +1,262 @@
+{
+    "name": "blockspare/date-time",
+    "category": "blockspare",
+    "title": "Date and Time",
+    "description": "Display Current Date and Time at any Sections.",
+    "textdomain": "blockspare",
+    "keywords": [
+        "Date",
+        "Time",
+        "Blockspare",
+        "Section"
+    ],
+    "attributes": {
+        "className": {
+            "type": "string"
+        },
+        "uniqueClass": {
+            "type": "string",
+            "default": ""
+        },
+        "date": {
+            "type": "boolean",
+            "default": true
+        },
+        "time": {
+            "type": "boolean",
+            "default": false
+        },
+        "align": {
+            "type": "string",
+            "default": "center"
+        },
+        "sectionAlign": {
+            "type": "string",
+            "default": "left"
+        },
+        "textBeforeDate": {
+            "type": "string",
+            "default": ""
+        },
+        "textAfterDate": {
+            "type": "string",
+            "default": ""
+        },
+        "dateIconToggle": {
+            "type": "boolean",
+            "default": true
+        },
+        "dateIcon": {
+            "type": "string",
+            "default": "far fa-calendar-alt"
+        },
+        "dateIconSize": {
+            "type": "number",
+            "default": 16
+        },
+        "timeIconToggle": {
+            "type": "boolean",
+            "default": true
+        },
+        "timeIcon": {
+            "type": "string",
+            "default": "far fa-clock"
+        },
+        "timeIconSize": {
+            "type": "number",
+            "default": 16
+        },
+        "layoutOption": {
+            "type": "string",
+            "default": "date-time-style-1"
+        },
+        "dateOrder": {
+            "type": "string",
+            "default": "date-time-order-1"
+        },
+        "layoutType": {
+            "type": "string",
+            "default": "date-time-horizontal"
+        },
+        "dateColor": {
+            "type": "string",
+            "default": "#000"
+        },
+        "dateIconColor": {
+            "type": "string",
+            "default": "#000"
+        },
+        "textBeforeColor": {
+            "type": "string",
+            "default": "#000"
+        },
+        "textAfterColor": {
+            "type": "string",
+            "default": "#000"
+        },
+        "timeColor": {
+            "type": "string",
+            "default": "#000"
+        },
+        "timeIconColor": {
+            "type": "string",
+            "default": "#000"
+        },
+        "bgColor": {
+            "type": "string",
+            "default": "#ffb400"
+        },
+        "dateFontSize": {
+            "type": "number",
+            "default": 16
+        },
+        "dateFontFamily": {
+            "type": "string",
+            "default": "Default"
+        },
+        "dateFontWeight": {
+            "type": "string",
+            "default": ""
+        },
+        "dateFontSubset": {
+            "type": "string"
+        },
+        "dateFontSizeType": {
+            "type": "string",
+            "default": "px"
+        },
+        "dateFontSizeMobile": {
+            "type": "number",
+            "default": 14
+        },
+        "dateFontSizeTablet": {
+            "type": "number",
+            "default": 16
+        },
+        "dateLoadGoogleFonts": {
+            "type": "boolean",
+            "default": false
+        },
+        "timeFontSize": {
+            "type": "number",
+            "default": 16
+        },
+        "timeFontFamily": {
+            "type": "string",
+            "default": "Default"
+        },
+        "timeFontWeight": {
+            "type": "string",
+            "default": ""
+        },
+        "timeFontSubset": {
+            "type": "string"
+        },
+        "timeFontSizeType": {
+            "type": "string",
+            "default": "px"
+        },
+        "timeFontSizeMobile": {
+            "type": "number",
+            "default": 14
+        },
+        "timeFontSizeTablet": {
+            "type": "number",
+            "default": 16
+        },
+        "timeLoadGoogleFonts": {
+            "type": "boolean",
+            "default": false
+        },
+        "beforeDateFontSize": {
+            "type": "number",
+            "default": 16
+        },
+        "beforeDateFontFamily": {
+            "type": "string",
+            "default": "Default"
+        },
+        "beforeDateFontWeight": {
+            "type": "string",
+            "default": ""
+        },
+        "beforeDateFontSubset": {
+            "type": "string"
+        },
+        "beforeDateFontSizeType": {
+            "type": "string",
+            "default": "px"
+        },
+        "beforeDateFontSizeMobile": {
+            "type": "number",
+            "default": 14
+        },
+        "beforeDateFontSizeTablet": {
+            "type": "number",
+            "default": 16
+        },
+        "beforeDateLoadGoogleFonts": {
+            "type": "boolean",
+            "default": false
+        },
+        "afterDateFontSize": {
+            "type": "number",
+            "default": 16
+        },
+        "afterDateFontFamily": {
+            "type": "string",
+            "default": "Default"
+        },
+        "afterDateFontWeight": {
+            "type": "string",
+            "default": ""
+        },
+        "afterDateFontSubset": {
+            "type": "string"
+        },
+        "afterDateFontSizeType": {
+            "type": "string",
+            "default": "px"
+        },
+        "afterDateFontSizeMobile": {
+            "type": "number",
+            "default": 14
+        },
+        "afterDateFontSizeTablet": {
+            "type": "number",
+            "default": 16
+        },
+        "afterDateLoadGoogleFonts": {
+            "type": "boolean",
+            "default": false
+        },
+        "animation": {
+            "type": "string",
+            "default": ""
+        },
+        "borderRadius": {
+            "type": "string",
+            "default": "date-time-mixed"
+        },
+        "marginTop": {
+            "type": "number",
+            "default": 30
+        },
+        "marginBottom": {
+            "type": "number",
+            "default": 30
+        },
+        "marginLeft": {
+            "type": "number",
+            "default": 0
+        },
+        "marginRight": {
+            "type": "number",
+            "default": 0
+        },
+        "blockHoverEffect": {
+            "type": "string",
+            "default": ""
+        }
+    }
+}

@@ -1,0 +1,257 @@
+{
+	"name": "awpa/add-form",
+	"category": "awpa",
+	"attributes": {
+		"uniqueClass": {
+			"type": "string",
+			"default": ""
+		},
+		"formSelect": {
+			"type": "string",
+			"default": "1"
+		},
+		"labelFontSize": {
+			"type": "number",
+			"default": 14
+		},
+		"labelTabletForntSize": {
+			"type": "number",
+			"default": 14
+		},
+		"labelMobileForntSize": {
+			"type": "number",
+			"default": 14
+		},
+		"labelFontFamily": {
+			"type": "string",
+			"default": "Default"
+		},
+		"labelLoadGoogleFonts": {
+			"type": "boolean",
+			"default": false
+		},
+		"labelFontWeight": {
+			"type": "string",
+			"default": 600
+		},
+		"labelFontSubset": {
+			"type": "string"
+		},
+		"labelFontSizeType": {
+			"type": "string",
+			"default": "px"
+		},
+		"labelColor": {
+			"type": "string"
+		},
+		"inputTextColor": {
+			"type": "string"
+		},
+		"inputbgColor": {
+			"type": "string",
+			"default": "#fff"
+		},
+		"boxBgColor": {
+			"type": "string"
+		},
+		"enableBgImage": {
+			"type": "boolean",
+			"defaultf": false
+		},
+		"imgURL": {
+			"type": "string",
+			"default": false
+		},
+		"imgID": {
+			"type": "number"
+		},
+		"imgAlt": {
+			"type": "string",
+			"source": "attribute",
+			"attribute": "alt",
+			"selector": "img"
+		},
+		"btnText": {
+			"type": "string",
+			"default": "Register"
+		},
+		"btnTextColor": {
+			"type": "string",
+			"default": "#fff"
+		},
+		"textDescriptionColor":{
+			"type": "string",
+			"default": "#000"
+		},
+		"textPlaceholderColor":{
+			"type": "string",
+			"default": "#000"
+		},
+		"btnBgColor": {
+			"type": "string",
+			"default": "#2d1286"
+		},
+		"btnBorderRadius": {
+			"type": "number",
+			"default": 3
+		},
+		"inputBoxShadow": {
+			"type": "boolean",
+			"default": false
+		},
+		"inputxOffset": {
+			"type": "number",
+			"default": 0
+		},
+		"inputyOffset": {
+			"type": "number",
+			"default": 6
+		},
+		"inputblur": {
+			"type": "number",
+			"default": 12
+		},
+		"inputspread": {
+			"type": "number",
+			"default": -10
+		},
+		"inputshadowColor": {
+			"type": "string",
+			"default": "#000"
+		},
+		"inputBorderRadius": {
+			"type": "number",
+			"default": 3
+		},
+		"registrationPaddingTop": {
+            "type": "number",
+            "default": 16
+        },
+        "registrationPaddingRight": {
+            "type": "number",
+            "default": 16
+        },
+        "registrationPaddingBottom": {
+            "type": "number",
+            "default": 16
+        },
+        "registrationPaddingLeft": {
+            "type": "number",
+            "default": 16
+        },
+		"registrationMarginTop": {
+            "type": "number",
+            "default": 30
+        },
+        "registrationMarginRight": {
+            "type": "number",
+            "default": 0
+        },
+        "registrationMarginBottom": {
+            "type": "number",
+            "default": 30
+        },
+        "registrationMarginLeft": {
+            "type": "number",
+            "default": 0
+        },
+		"enableBoxShadow": {
+            "type": "boolean",
+            "default": false
+        },
+        "xOffset": {
+            "type": "number",
+            "default": 0
+        },
+        "yOffset": {
+            "type": "number",
+            "default": 6
+        },
+        "blur": {
+            "type": "number",
+            "default": 12
+        },
+        "spread": {
+            "type": "number",
+            "default": -10
+        },
+        "shadowColor": {
+            "type": "string",
+            "default": "#000"
+        },
+        "borderRadius": {
+            "type": "number",
+            "default": 0
+        },
+		"imageBackgroundOpacity": {
+            "type": "number",
+            "default": 1
+        },
+		"titleFontSize": {
+            "type": "number",
+            "default": 32
+        },
+        "titleTabletForntSize": {
+            "type": "number",
+            "default": 26
+        },
+        "titleMobileForntSize": {
+            "type": "number",
+            "default": 26
+        },
+        "titleFontFamily": {
+            "type": "string",
+            "default": "Default"
+        },
+        "titleLoadGoogleFonts": {
+            "type": "boolean",
+            "default": false
+        },
+        "titleFontWeight": {
+            "type": "string",
+            "default": 600
+        },
+        "titleFontSubset": {
+            "type": "string"
+        },
+        "titleFontSizeType": {
+            "type": "string",
+            "default": "px"
+        },
+		"btnFontSize": {
+            "type": "number",
+            "default": 14
+        },
+        "btnTabletForntSize": {
+            "type": "number",
+            "default": 14
+        },
+        "btnMobileForntSize": {
+            "type": "number",
+            "default": 14
+        },
+        "btnFontFamily": {
+            "type": "string",
+            "default": "Default"
+        },
+        "btnLoadGoogleFonts": {
+            "type": "boolean",
+            "default": false
+        },
+        "btnFontWeight": {
+            "type": "string",
+            "default": 600
+        },
+        "btnFontSubset": {
+            "type": "string"
+        },
+        "btnFontSizeType": {
+            "type": "string",
+            "default": "px"
+        },
+		"formTitleColor": {
+            "type": "string",
+            "default": "#343a40"
+        }
+	}
+}

@@ -1,0 +1,581 @@
+// variables
+$overlay-color: rgba(0, 0, 0, 0.15);
+$border-radius: 6px;
+
+
+// tags/categories
+
+.elespare-popular-taxonomies-lists {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    .elespare-popular-tags-text {
+        display: flex;
+        // align-items: center;
+        overflow: hidden;
+
+        .elespare-primary-icon-wrapper {
+            display: flex;
+            align-items: center;
+            .elespare-primary-icon {
+                text-decoration: none !important;
+            }
+        }
+        .elespare-tag-title-wrapper {
+            align-self: center;
+        }
+    }
+    ul {
+        margin: 0;
+        padding: 0;
+        list-style-type: none;
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 10px;
+        li {
+            margin: 0;
+            padding: 0;
+            .elespare-secondry-wrap {
+                display: flex;
+                align-items: center;
+                gap: 5px;
+                .elespare-secondary-icon {
+                    text-decoration: none !important;
+                }
+            }
+            a {
+                text-decoration: none;
+            }
+        }
+    }
+}
+
+// layout 01
+
+.popular-tag-style-1 {
+    .elespare-popular-taxonomies-lists {
+        .elespare-popular-tags-text {
+            gap: 5px;
+        }
+    }
+}
+
+// layout 02
+
+.popular-tag-style-2 {
+    .elespare-popular-taxonomies-lists {
+        .elespare-popular-tags-text {
+            gap: 10px;
+            padding: 5px 10px;
+        }
+    }
+}
+
+// layout 03
+
+.popular-tag-style-3 {
+    .elespare-popular-taxonomies-lists {
+        .elespare-popular-tags-text {
+            gap: 10px;
+            padding: 5px 10px;
+            border-radius: $border-radius;
+        }
+    }
+}
+
+// layout 04
+
+.popular-tag-style-4 {
+    .elespare-popular-taxonomies-lists {
+        .elespare-popular-tags-text {
+            border-radius: 0 $border-radius 0 $border-radius;
+            .elespare-primary-icon-wrapper {
+                padding: 5px 10px;
+                border-right: 1px solid $overlay-color;
+            }
+            .elespare-tag-title-wrapper {
+                padding: 5px 10px;
+                display: inline-block;
+            }
+        }
+    }
+}
+
+// layout 05
+
+.popular-tag-style-5 {
+    .elespare-popular-taxonomies-lists {
+        .elespare-popular-tags-text {
+            border-radius: 100px;
+            overflow: hidden;
+            .elespare-primary-icon-wrapper {
+                padding: 5px 10px 5px 12px;
+                background-color: $overlay-color;
+            }
+            .elespare-tag-title-wrapper {
+                padding: 5px 10px;
+                display: inline-block;
+            }
+        }
+    }
+}
+
+// layout 06
+
+.popular-tag-style-6 {
+    .elespare-popular-taxonomies-lists {
+        .elespare-popular-tags-text {
+            gap: 10px;
+            border-radius: 0 $border-radius $border-radius $border-radius;
+            overflow: hidden;
+            .elespare-primary-icon-wrapper {
+                padding: 5px 10px;
+                background-color: $overlay-color;
+                position: relative;
+                &::after {
+                    content: "";
+                    border: 8px solid;
+                    border-color: transparent transparent transparent $overlay-color;
+                    position: absolute;
+                    top: 50%;
+                    left: 100%;
+                    transform: translateY(-50%);
+                }
+            }
+            .elespare-tag-title-wrapper {
+                padding: 5px 10px;
+                display: inline-block;
+            }
+        }
+    }
+}
+
+// layout 07
+
+.popular-tag-style-7 {
+    .elespare-popular-taxonomies-lists {
+        .elespare-popular-tags-text {
+            border-radius: $border-radius 0 0 0;
+            overflow: hidden;
+            .elespare-primary-icon-wrapper {
+                clip-path: polygon(0 0, 100% 0%, 75% 100%, 0% 100%);
+                padding: 5px 20px 5px 12px;
+                background-color: $overlay-color;
+            }
+            .elespare-tag-title-wrapper {
+                padding: 5px 10px;
+                display: inline-block;
+            }
+        }
+    }
+}
+
+// layout 08
+
+.popular-tag-style-8 {
+    .elespare-popular-taxonomies-lists {
+        .elespare-popular-tags-text {
+            border-radius: 100px;
+            overflow: hidden;
+            .elespare-primary-icon-wrapper {
+                clip-path: polygon(0 0, 75% 0, 100% 100%, 0% 100%);
+                padding: 5px 20px 5px 12px;
+                background-color: $overlay-color;
+            }
+            .elespare-tag-title-wrapper {
+                padding: 5px 10px;
+                display: inline-block;
+            }
+        }
+    }
+}
+
+// layout 09
+
+.popular-tag-style-9 {
+    .elespare-popular-taxonomies-lists {
+        .elespare-popular-tags-text {
+            align-items: flex-start;
+            border-radius: $border-radius;
+            .elespare-primary-icon-wrapper {
+                padding: 0 0 5px 10px;
+                i{
+                    background-color: $overlay-color;
+                    border-radius: 0 0 100px 100px;
+                    padding: 15px 10px 10px 10px;
+                    display: inline-block;
+                    text-align: center;
+                    line-height: 1;
+                }
+            }
+            .elespare-tag-title-wrapper {
+                padding: 5px 10px;
+                display: inline-block;
+            }
+        }
+    }
+}
+
+// layout 10
+
+.popular-tag-style-10 {
+    .elespare-popular-taxonomies-lists {
+        .elespare-popular-tags-text {
+            border-radius: $border-radius;
+            overflow: hidden;
+            .elespare-primary-icon-wrapper {
+                clip-path: polygon(0% 0%, 75% 0, 100% 50%, 75% 100%, 0% 100%);
+                padding: 5px 20px 5px 12px;
+                background-color: $overlay-color;
+            }
+            .elespare-tag-title-wrapper {
+                padding: 5px 10px;
+                display: inline-block;
+            }
+        }
+    }
+}
+
+// layout 11
+
+.popular-tag-style-11 {
+    .elespare-popular-taxonomies-lists {
+        .elespare-popular-tags-text {
+            border-radius: $border-radius 0 $border-radius 0;
+            overflow: hidden;
+            .elespare-primary-icon-wrapper {
+                padding: 3px 0 3px 5px;
+                i {
+                    clip-path: circle(45% at 50% 50%);
+                    padding: 12px;
+                    background-color: $overlay-color;
+                    display: inline-block;
+                    line-height: 1;
+                }
+            }
+            .elespare-tag-title-wrapper {
+                padding: 5px 10px;
+                display: inline-block;
+            }
+        }
+    }
+}
+
+// layout 12
+
+.popular-tag-style-12 {
+    .elespare-popular-taxonomies-lists {
+        .elespare-popular-tags-text {
+            border-radius: $border-radius $border-radius 0 0;
+            overflow: hidden;
+            .elespare-primary-icon-wrapper {
+                padding: 5px 0 5px 5px;
+                i {
+                    clip-path: circle(50% at 50% 50%);
+                    padding: 7px 8px;
+                    border: 2px solid currentColor;
+                    display: inline-block;
+                    line-height: 1;
+                    border-radius: 50%;
+                }
+            }
+            .elespare-tag-title-wrapper {
+                padding: 5px 10px;
+                display: inline-block;
+            }
+        }
+    }
+}
+
+// border-radius
+
+.elespare-popular-taxonomies-lists {
+    &.popular-tag-rounded {
+        .elespare-popular-tags-text {
+            border-radius: $border-radius;
+        }
+    }
+    &.popular-tag-circular {
+        .elespare-popular-tags-text {
+            border-radius: 100px;
+        }
+    }
+    &.popular-tag-rectangular {
+        .elespare-popular-tags-text {
+            border-radius: 0;
+        }
+    }
+}
+
+// border-radius circular gap
+div {
+    &:not(.popular-tag-style-2, .popular-tag-style-3, .popular-tag-style-11, .popular-tag-style-12) {
+        .elespare-popular-taxonomies-lists {
+            &.popular-tag-circular {
+                .elespare-popular-tags-text {
+                    .elespare-primary-icon-wrapper {
+                        padding-left: 12px;
+                    }
+                }
+            }
+        }
+    }
+    &.popular-tag-style-2, &.popular-tag-style-3 {
+        .elespare-popular-taxonomies-lists {
+            &.popular-tag-circular {
+                .elespare-popular-tags-text {
+                    .elespare-primary-icon-wrapper {
+                        padding-left: 2px;
+                    }
+                }
+            }
+        }
+    }
+    &.popular-tag-style-11, &.popular-tag-style-12 {
+        .elespare-popular-taxonomies-lists {
+            &.popular-tag-circular {
+                .elespare-popular-tags-text {
+                    .elespare-primary-icon-wrapper {
+                        padding-left: 7px;
+                    }
+                }
+            }
+        }
+    }
+}
+
+// vertical
+
+.elespare-popular-taxonomies-lists {
+    &.popular-vertical {
+        flex-direction: column;
+        align-items: flex-start;
+        .elespare-popular-tags-text {
+            width: 100%;
+        }
+        ul {
+            width: 100%;
+        }
+    }
+}
+
+// columns
+.elespare-popular-taxonomies-lists {
+    &.popular-vertical {
+        .popular-vertical {
+            flex-direction: column;
+            align-items: flex-start;
+        }
+        .elespare-column-2 {
+            li {
+                width: calc(100% / 2 - 10px);
+            }
+        }
+        .elespare-column-3 {
+            li {
+                width: calc(100% / 3 - 10px);
+            }
+        }
+        .elespare-column-4 {
+            li {
+                width: calc(100% / 4 - 10px);
+            }
+        }
+    }
+}
+
+body.rtl {
+
+    // layout 04
+    .popular-tag-style-4 {
+        .elespare-popular-taxonomies-lists {
+            .elespare-popular-tags-text {
+                border-radius: $border-radius 0 $border-radius 0;
+                .elespare-primary-icon-wrapper {
+                    border-right: none;
+                    border-left: 1px solid $overlay-color;
+                }
+            }
+        }
+    }
+
+    // layout 05
+
+    .popular-tag-style-5 {
+        .elespare-popular-taxonomies-lists {
+            .elespare-popular-tags-text {
+                .elespare-primary-icon-wrapper {
+                    padding: 5px 12px 5px 10px;
+                }
+            }
+        }
+    }
+
+    // layout 06
+
+    .popular-tag-style-6 {
+        .elespare-popular-taxonomies-lists {
+            .elespare-popular-tags-text {
+                border-radius: $border-radius 0 $border-radius $border-radius;
+                .elespare-primary-icon-wrapper {
+                    &::after {
+                        border-color: transparent $overlay-color transparent transparent;
+                        left: auto;
+                        right: 100%;
+                    }
+                }
+            }
+        }
+    }
+
+    // layout 07
+
+    .popular-tag-style-7 {
+        .elespare-popular-taxonomies-lists {
+            .elespare-popular-tags-text {
+                border-radius: 0 $border-radius 0 0;
+                .elespare-primary-icon-wrapper {
+                    clip-path: polygon(0 0, 100% 0%, 100% 100%, 25% 100%);
+                    padding: 5px 12px 5px 20px;
+                }
+            }
+        }
+    }
+
+    // layout 08
+
+    .popular-tag-style-8 {
+        .elespare-popular-taxonomies-lists {
+            .elespare-popular-tags-text {
+                .elespare-primary-icon-wrapper {
+                    clip-path: polygon(25% 0, 100% 0, 100% 100%, 0% 100%);
+                    padding: 5px 12px 5px 20px;
+                }
+            }
+        }
+    }
+
+    // layout 09
+
+    .popular-tag-style-9 {
+        .elespare-popular-taxonomies-lists {
+            .elespare-popular-tags-text {
+                .elespare-primary-icon-wrapper {
+                    padding: 0 10px 5px 0;
+                }
+            }
+        }
+    }
+
+    // layout 10
+
+    .popular-tag-style-10 {
+        .elespare-popular-taxonomies-lists {
+            .elespare-popular-tags-text {
+                .elespare-primary-icon-wrapper {
+                    clip-path: polygon(25% 0%, 100% 0%, 100% 100%, 25% 100%, 0% 50%);
+                    padding: 5px 12px 5px 20px;
+                }
+            }
+        }
+    }
+
+    // layout 11
+
+    .popular-tag-style-11 {
+        .elespare-popular-taxonomies-lists {
+            .elespare-popular-tags-text {
+                border-radius: 0 $border-radius 0 $border-radius;
+                .elespare-primary-icon-wrapper {
+                    padding: 3px 5px 3px 0;
+                }
+            }
+        }
+    }
+
+    // layout 12
+
+    .popular-tag-style-12 {
+        .elespare-popular-taxonomies-lists {
+            .elespare-popular-tags-text {
+                .elespare-primary-icon-wrapper {
+                    padding: 5px 5px 5px 0;
+                }
+            }
+        }
+    }
+
+    // border-radius
+
+    .elespare-popular-taxonomies-lists {
+        &.popular-tag-rounded {
+            .elespare-popular-tags-text {
+                border-radius: $border-radius;
+            }
+        }
+        &.popular-tag-circular {
+            .elespare-popular-tags-text {
+                border-radius: 100px;
+            }
+        }
+        &.popular-tag-rectangular {
+            .elespare-popular-tags-text {
+                border-radius: 0;
+            }
+        }
+    }
+
+    // border-radius circular gap
+    div {
+        &.popular-tag-style-2, .popular-tag-style-3 {
+            .elespare-popular-taxonomies-lists {
+                &.popular-tag-circular {
+                    .elespare-popular-tags-text {
+                        .elespare-primary-icon-wrapper {
+                            padding-left: 0;
+                            padding-right: 2px;
+                        }
+                    }
+                }
+            }
+        }
+        &.popular-tag-style-4, &.popular-tag-style-5, &.popular-tag-style-6, &.popular-tag-style-9 {
+            .elespare-popular-taxonomies-lists {
+                &.popular-tag-circular {
+                    .elespare-popular-tags-text {
+                        .elespare-primary-icon-wrapper {
+                            padding-left: 10px;
+                            padding-right: 12px;
+                        }
+                    }
+                }
+            }
+        }
+        &.popular-tag-style-7, &.popular-tag-style-8, &.popular-tag-style-10 {
+            .elespare-popular-taxonomies-lists {
+                &.popular-tag-circular {
+                    .elespare-popular-tags-text {
+                        .elespare-primary-icon-wrapper {
+                            padding-left: 20px;
+                            padding-right: 12px;
+                        }
+                    }
+                }
+            }
+        }
+        &.popular-tag-style-11, &.popular-tag-style-12 {
+            .elespare-popular-taxonomies-lists {
+                &.popular-tag-circular {
+                    .elespare-popular-tags-text {
+                        .elespare-primary-icon-wrapper {
+                            padding-left: 0;
+                            padding-right: 7px;
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

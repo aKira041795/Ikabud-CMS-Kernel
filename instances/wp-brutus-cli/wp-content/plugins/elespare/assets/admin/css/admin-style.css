@@ -1,0 +1,13 @@
+.elementor-add-new-section .elementor-add-elespare-button {
+    background-color: #fff;
+    /* margin-left: 5px; */
+    background-image: url(../images/import-logo.png);
+    background-repeat: no-repeat;
+    background-position: center center;
+    background-size: cover;
+    border: 5px solid #f42e3c;
+}
+
+.elementor-add-new-section .elementor-add-elespare-button .eicon-folder {
+    visibility: hidden;
+}

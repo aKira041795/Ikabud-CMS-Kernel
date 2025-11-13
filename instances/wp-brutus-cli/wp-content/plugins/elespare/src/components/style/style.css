@@ -1,0 +1,249 @@
+#elespare-library-modal .dialog-widget-content.dialog-widget-content {
+    width: 100%;
+    max-width: 1200px;
+    position: fixed;
+    top: 50% !important;
+    left: 50% !important;
+    transform: translate(-50%, -50%);
+    background-color: #f1f3f5;
+}
+
+#elespare-library-modal .dialog-widget-content .dialog-message {
+    padding: 0;
+    min-height: auto;
+}
+
+.ele-templates-modal .ele-templates-modal-header {
+    background-color: #fff;
+    color: #495157;
+    box-shadow: 0 0 8px rgba(0, 0, 0, 0.1);
+    text-align: center;
+    position: relative;
+    padding: 0;
+    z-index: 1;
+    font-size: 15px;
+    font-weight: 500;
+}
+
+.ele-templates-modal .ele-library-templates-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 50px;
+}
+
+.ele-templates-modal .ele-logo-area {
+    text-align: left;
+    padding-left: 15px;
+}
+
+.ele-templates-modal .ele-logo-area>* {
+    display: flex;
+    align-items: center;
+}
+
+.ele-templates-modal .ele-logo-area .brand-logo {
+    line-height: 1;
+    text-transform: uppercase;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.ele-templates-modal .ele-logo-area .elespare-logo {
+    background-color: #fff;
+    display: inline-block;
+    width: auto;
+    height: 40px;
+}
+
+.ele-templates-modal .ele-templates-modal-header-top-tabs ul {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    text-align: center;
+    font-size: 13px;
+}
+
+.ele-templates-modal .ele-templates-modal-header-top-tabs ul .navbar-item {
+    margin: 0;
+    display: inline-block;
+    padding: 13px 0;
+    width: 115px;
+    cursor: pointer;
+}
+
+.ele-templates-modal .ele-templates-modal-header-top-tabs .navbar-item a {
+    color: #6d7882;
+}
+
+.ele-templates-modal .ele-templates-modal-header-top-tabs .navbar-item.active {
+    background-image: linear-gradient(180deg, #f1f3f5, #fff);
+    border-bottom: 3px solid #f42e3c;
+}
+
+.ele-templates-modal .ele-items-area .top-right {
+    display: flex;
+    flex-direction: row-reverse;
+}
+
+.ele-templates-modal .ele-items-area .top-right-list {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: content-box;
+    width: 47px;
+    border-left: 1px solid #e6e9ec;
+}
+
+.ele-templates-modal .ele-items-area .top-right-list i {
+    font-size: 18px;
+    cursor: pointer;
+    transition: all .3s;
+}
+
+.ele-templates-modal .ele-items-area .top-right-list i:not(:hover) {
+    color: #a4afb7;
+}
+
+.ele-templates-modal .ele-templates-modal-body {
+    height: 750px;
+    max-height: 85vh;
+    overflow: auto;
+    min-height: 50px;
+    font-size: 12px;
+    line-height: 1.5;
+    box-sizing: border-box;
+    text-align: center;
+}
+
+.ele-templates-modal .ele-library-templates {
+    height: 100%;
+}
+
+.ele-templates-modal .ele-templates-container:not(:has(.ele-loader-box)) {
+    margin: 0;
+    padding: 30px;
+}
+
+.ele-templates-modal .ele-templates-container li {
+    margin: 10px;
+    padding: 8px;
+    box-shadow: 0 1px 20px 0 rgba(0, 0, 0, 0.07);
+    border-radius: 3px;
+    background-color: #fff;
+    break-inside: avoid;
+    width: calc(33.333% - 50px);
+    overflow: hidden;
+    margin: calc(30px / 2);
+}
+
+.ele-templates-modal .ele-templates-container .ele-library-template-body {
+    position: relative;
+}
+
+.ele-templates-modal .ele-templates-container .ele-library-template-body img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.ele-templates-modal .ele-templates-container li:not(:hover) .ele-library-template-preview {
+    opacity: 0;
+}
+
+.ele-templates-modal .ele-templates-container .ele-library-template-body .ele-library-template-preview {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, .5);
+    transition: opacity .5s;
+    cursor: pointer;
+}
+
+.ele-templates-modal .ele-templates-container .ele-library-template-body .ele-library-template-preview>span {
+    font-size: 16px;
+    color: #fff;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+}
+
+.ele-templates-modal .ele-templates-container .ele-library-template-footer {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    line-height: 1;
+    height: 30px;
+    align-items: center;
+    margin-top: 8px;
+}
+
+.ele-templates-modal .ele-library-template-footer .elespare-immport-btn {
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 1.2;
+    padding: 8px 16px;
+    outline: none;
+    border: none;
+    border-radius: 3px;
+    background-color: #39b54a;
+    color: #fff;
+    transition: all 0.3s;
+}
+
+.ele-templates-modal .ele-library-template-footer .elespare-immport-btn i {
+    margin-right: 5px;
+}
+
+.ele-templates-modal .ele-templates-container li:not(:hover) .elespare-immport-btn {
+    display: none;
+}
+
+.ele-templates-modal .ele-library-template-footer h3 {
+    text-align: left;
+    color: #6d7882;
+    flex-grow: 1;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    overflow: hidden;
+    padding-right: 5px;
+    font-weight: 400;
+    font-size: 11px;
+}
+
+.ele-templates-modal .ele-templates-container li:hover .ele-library-template-footer h3 {
+    display: none;
+}
+
+.ele-templates-modal .ele-templates-container:has(.ele-loader-box) {
+    height: 100% !important;
+    width: 100% !important;
+}
+
+.ele-templates-modal .ele-loader-box {
+    position: absolute;
+    left: 50% !important;
+    top: 50% !important;
+    transform: translate(-50%, -50%);
+}
+
+.ele-load-more {
+    padding: 10px 20px;
+    font-size: 16px;
+    font-weight: 400;
+    background-color: #f42e3c;
+    border: none;
+    border-radius: 3px;
+    color: #fff;
+    margin-bottom: 30px;
+    cursor: pointer;
+}
+
+.ele-templates-modal .ele-loader-box p {
+    font-size: 20px;
+    color: #39b54a;
+}

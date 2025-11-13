@@ -1,0 +1,24 @@
+
+import './../assets/js/elespare-promotion.js';
+import './../inc/common-styles/style.scss';
+import './widgets/posts-express-list/styles/style.scss';
+import './widgets/posts-grid/styles/style.scss';
+import './widgets/posts-list/styles/style.scss';
+import './widgets/posts-single-column/styles/style.scss';
+import './widgets/posts-tile/styles/style.scss'
+import './widgets/posts-slider/styles/style.scss';
+import './widgets/posts-flash/styles/style.scss';
+import './widgets/posts-banner-1/styles/style.scss';
+import './widgets/author/styles/style.scss';
+import './widgets/social-links/styles/style.scss';
+import './widgets/search-form/styles/style.scss';
+import './widgets/nav-menu-horizontal/styles/style.scss';
+import './widgets/section-title/styles/style.scss';
+import './widgets/popular-tags/styles/style.scss';
+import './widgets/date-time/styles/style.scss';
+import './widgets/custom-link-button/styles/style.scss';
+import './widgets/copyright/styles/style.scss';
+import './widgets/popular-tags/styles/style.scss';
+import './widgets/date-time/styles/style.scss';
+import './widgets/site-title/style/style.scss';
+import './widgets/main-banner-1/styles/style.scss';

@@ -1,0 +1,374 @@
+{
+  "name": "blockspare/latest-posts-flash",
+  "category": "blockspare",
+  "title": "Latest Post Flash",
+  "description": "Display Ticker Posts (Flash) from Selected Categories.",
+  "textdomain": "blockspare",
+  "keywords": [
+		"Posts",
+    "Ticker",
+    "Flash"
+	],
+  "attributes": {
+    "align": {
+      "type": "string",
+      "default": "wide"
+    },
+    "categories": {
+      "type": "array",
+      "default": []
+    },
+    "postType": {
+      "type": "string",
+      "default": "post"
+    },
+    "tags": {
+      "type": "array",
+      "default": []
+    },
+    "order": {
+      "type": "string",
+      "default": "desc"
+    },
+    "orderBy": {
+      "type": "string",
+      "default": "date"
+    },
+    "postTax": {
+      "type": "boolean",
+      "default": true
+    },
+    "taxType": {
+      "type": "string",
+      "default": "category"
+    },
+    "uniqueClass": {
+      "type": "string",
+      "default": ""
+    },
+    "carouselType": {
+      "type": "string",
+      "default": "horizontal"
+    },
+    "className": {
+      "type": "string"
+    },
+    "postsToShow": {
+      "type": "number",
+      "default": 4
+    },
+    "postTitleColor": {
+      "type": "string",
+      "default": "#000"
+    },
+    "postTitleFontSize": {
+      "type": "number",
+      "default": 14
+    },
+    "titleFontFamily": {
+      "type": "string",
+      "default": "Default"
+    },
+    "titleFontWeight": {
+      "type": "string",
+      "default": ""
+    },
+    "titleFontSubset": {
+      "type": "string"
+    },
+    "titleFontSizeType": {
+      "type": "string",
+      "default": "px"
+    },
+    "titleFontSizeMobile": {
+      "type": "number",
+      "default": 12
+    },
+    "titleFontSizeTablet": {
+      "type": "number",
+      "default": 14
+    },
+    "titleLoadGoogleFonts": {
+      "type": "boolean",
+      "default": false
+    },
+    "enableCount": {
+      "type": "boolean",
+      "default": false
+    },
+    "countColor": {
+      "type": "string",
+      "default": "#fff"
+    },
+    "exclusiveColor": {
+      "type": "string",
+      "default": "#222222"
+    },
+    "exclusiveBgColor": {
+      "type": "string",
+      "default": "#FF9900"
+    },
+    "offset": {
+      "type": "number",
+      "default": 0
+    },
+    "displayPostsBy": {
+      "type": "string",
+      "default": "blockspare-posts-block-post-by-category"
+    },
+    "sectionTag": {
+      "type": "string",
+      "default": "section"
+    },
+    "sectionTitle": {
+      "type": "string"
+    },
+    "imageSize": {
+      "type": "string",
+      "default": "thumbnail"
+    },
+    "url": {
+      "type": "string",
+      "source": "attribute",
+      "selector": "img",
+      "attribute": "src"
+    },
+    "id": {
+      "type": "number"
+    },
+    "marginTop": {
+      "type": "number",
+      "default": 0
+    },
+    "marginBottom": {
+      "type": "number",
+      "default": 0
+    },
+    "marginRight": {
+      "type": "number",
+      "default": 0
+    },
+    "marginLeft": {
+      "type": "number",
+      "default": 0
+    },
+    "paddingTop": {
+      "type": "number",
+      "default": 0
+    },
+    "paddingBottom": {
+      "type": "number",
+      "default": 0
+    },
+    "paddingRight": {
+      "type": "number",
+      "default": 0
+    },
+    "paddingLeft": {
+      "type": "number",
+      "default": 5
+    },
+    "backGroundColor": {
+      "type": "string",
+      "default": "transparent"
+    },
+    "borderRadius": {
+      "type": "number",
+      "default": 0
+    },
+    "lineHeight": {
+      "type": "number",
+      "default": 1.3
+    },
+    "gutterSpace": {
+      "type": "number",
+      "default": 1
+    },
+    "enableAutoPlay": {
+      "type": "boolean",
+      "default": false
+    },
+    "numberofSlideHorizontal": {
+      "type": "number",
+      "default": 4
+    },
+    "carouselSpeed": {
+      "type": "number",
+      "default": "800"
+    },
+    "titleOnHover": {
+      "type": "string",
+      "default": "lpc-title-hover"
+    },
+    "titleOnHoverColor": {
+      "type": "string",
+      "default": "#404040"
+    },
+    "enableEqualHeight": {
+      "type": "boolean",
+      "default": true
+    },
+    "animation": {
+      "type": "string",
+      "default": ""
+    },
+    "blockHoverEffect": {
+      "type": "string",
+      "default": ""
+    },
+    "layoutStyle": {
+      "type": "string",
+      "default": "flash-style-1"
+    },
+    "exclusiveText": {
+      "type": "string",
+      "default": "Breaking News"
+    },
+    "exclusiveSubtitle": {
+      "type": "boolean",
+      "default": false
+    },
+    "exclusiveSubtitleText": {
+      "type": "string",
+      "default": "Exclusive"
+    },
+    "spinner": {
+      "type": "boolean",
+      "default": true
+    },
+    "spinnerOption": {
+      "type": "string",
+      "default": "spinner-option-1"
+    },
+    "spinnerStyle": {
+      "type": "string",
+      "default": "spinner-style-2"
+    },
+    "spinnerIcon": {
+      "type": "string",
+      "default": "fas fa-spinner"
+    },
+    "animationStyle": {
+      "type": "string",
+      "default": "animation-style-2"
+    },
+    "direction": {
+      "type": "string",
+      "default": "left"
+    },
+    "animationSpeed": {
+      "type": "number",
+      "default": 60
+    },
+    "pauseOnHover": {
+      "type": "boolean",
+      "default": true
+    },
+    "border": {
+      "type": "boolean",
+      "default": false
+    },
+    "borderWidth": {
+      "type": "number",
+      "default": 3
+    },
+    "borderStyle": {
+      "type": "string",
+      "default": "solid"
+    },
+    "borderColor": {
+      "type": "string",
+      "default": "#000"
+    },
+    "imgBorderRadius": {
+      "type": "number",
+      "default": 0
+    },
+    "exclusiveFontSize": {
+      "type": "number",
+      "default": 16
+    },
+    "exclusiveFontFamily": {
+      "type": "string",
+      "default": "Default"
+    },
+    "exclusiveFontWeight": {
+      "type": "string",
+      "default": ""
+    },
+    "exclusiveFontSubset": {
+      "type": "string"
+    },
+    "exclusiveFontSizeType": {
+      "type": "string",
+      "default": "px"
+    },
+    "exclusiveFontSizeMobile": {
+      "type": "number",
+      "default": 14
+    },
+    "exclusiveFontSizeTablet": {
+      "type": "number",
+      "default": 14
+    },
+    "exclusiveLoadGoogleFonts": {
+      "type": "boolean",
+      "default": false
+    },
+    "newsColor": {
+      "type": "string",
+      "default": "#fff"
+    },
+    "newsBgColor": {
+      "type": "string",
+      "default": "#BB1919"
+    },
+    "background": {
+      "type": "boolean",
+      "default": true
+    },
+    "fixedWidth": {
+      "type": "boolean",
+      "default": false
+    },
+    "postWidth": {
+      "type": "number",
+      "default": 375
+    },
+    "postTitleLineHeight": {
+      "type": "number",
+      "default": 1.5
+    },
+    "exclusiveSubtitleFontSize": {
+      "type": "number",
+      "default": 11
+    },
+    "exclusiveSubtitleFontFamily": {
+      "type": "string",
+      "default": "Default"
+    },
+    "exclusiveSubtitleFontWeight": {
+      "type": "string",
+      "default": "600"
+    },
+    "exclusiveSubtitleFontSubset": {
+      "type": "string"
+    },
+    "exclusiveSubtitleFontSizeType": {
+      "type": "string",
+      "default": "px"
+    },
+    "exclusiveSubtitleFontSizeMobile": {
+      "type": "number",
+      "default": 11
+    },
+    "exclusiveSubtitleFontSizeTablet": {
+      "type": "number",
+      "default": 11
+    },
+    "exclusiveSubtitleLoadGoogleFonts": {
+      "type": "boolean",
+      "default": false
+    }
+  }
+}

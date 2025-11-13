@@ -1,0 +1,201 @@
+{
+  "name": "blockspare/popular-tags",
+  "category": "blockspare",
+  "title": "Popular Tags",
+  "description": "Display Popular Tags of your website at any Sections.",
+  "textdomain": "blockspare",
+  "keywords": [
+    "Popular",
+    "Tags",
+    "Blockspare",
+    "Section"
+  ],
+  "attributes": {
+    "sectionTag": {
+      "type": "string",
+      "default": "section"
+    },
+    "align": {
+      "type": "string",
+      "default": "center"
+    },
+    "tagStyle": {
+      "type": "string",
+      "default": "popular-tag-style-1"
+    },
+    "primaryIconToggle": {
+      "type": "boolean",
+      "default": true
+    },
+    "primaryIcon": {
+      "type": "string",
+      "default": "fas fa-tag"
+    },
+    "directionOption": {
+      "type": "string",
+      "default": "popular-horizontal"
+    },
+    "column": {
+      "type": "string",
+      "default": "bs-column-1"
+    },
+    "filterOption": {
+      "type": "string",
+      "default": "tags"
+    },
+    "orderOption": {
+      "type": "string",
+      "default": "popular"
+    },
+    "tagsIcon": {
+      "type": "string",
+      "default": "fas fa-hashtag"
+    },
+    "tagsIconToggle": {
+      "type": "boolean",
+      "default": true
+    },
+    "tagsNumber": {
+      "type": "number",
+      "default": 5
+    },
+    "popularTagsFontSize": {
+      "type": "number",
+      "default": 16
+    },
+    "popularTagsFontFamily": {
+      "type": "string",
+      "default": "Default"
+    },
+    "popularTagsFontWeight": {
+      "type": "string",
+      "default": ""
+    },
+    "popularTagsFontSubset": {
+      "type": "string"
+    },
+    "popularTagsFontSizeType": {
+      "type": "string",
+      "default": "px"
+    },
+    "popularTagsFontSizeMobile": {
+      "type": "number",
+      "default": 14
+    },
+    "popularTagsFontSizeTablet": {
+      "type": "number",
+      "default": 16
+    },
+    "popularTagsLoadGoogleFonts": {
+      "type": "boolean",
+      "default": false
+    },
+    "tagsFontSize": {
+      "type": "number",
+      "default": 16
+    },
+    "tagsFontFamily": {
+      "type": "string",
+      "default": "Default"
+    },
+    "tagsFontWeight": {
+      "type": "string",
+      "default": ""
+    },
+    "tagsFontSubset": {
+      "type": "string"
+    },
+    "tagsFontSizeType": {
+      "type": "string",
+      "default": "px"
+    },
+    "tagsFontSizeMobile": {
+      "type": "number",
+      "default": 14
+    },
+    "tagsFontSizeTablet": {
+      "type": "number",
+      "default": 16
+    },
+    "tagsLoadGoogleFonts": {
+      "type": "boolean",
+      "default": false
+    },
+    "popularTagColor": {
+      "type": "string",
+      "default": "#000"
+    },
+    "popularTagHoverColor": {
+      "type": "string",
+      "default": "#4E4949"
+    },
+    "tagsColor": {
+      "type": "string",
+      "default": "#000"
+    },
+    "tagsHoverColor": {
+      "type": "string",
+      "default": "#4E4949"
+    },
+    "primaryIconColor": {
+      "type": "string",
+      "default": "#000"
+    },
+    "secondaryIconColor": {
+      "type": "string",
+      "default": "#000"
+    },
+    "secondaryColor": {
+      "type": "string",
+      "default": "#ffb400"
+    },
+    "marginTop": {
+      "type": "number",
+      "default": 30
+    },
+    "marginBottom": {
+      "type": "number",
+      "default": 30
+    },
+    "marginRight": {
+      "type": "number",
+      "default": 0
+    },
+    "marginLeft": {
+      "type": "number",
+      "default": 0
+    },
+    "paddingTop": {
+      "type": "number",
+      "default": 0
+    },
+    "paddingBottom": {
+      "type": "number",
+      "default": 0
+    },
+    "paddingRight": {
+      "type": "number",
+      "default": 0
+    },
+    "paddingLeft": {
+      "type": "number",
+      "default": 0
+    },
+    "animation": {
+      "type": "string",
+      "default": ""
+    },
+    "borderRadius": {
+      "type": "string",
+      "default": "popular-tag-mixed"
+    },
+    "uniqueClass": {
+      "type": "string",
+      "default": ""
+    },
+    "blockHoverEffect": {
+      "type": "string",
+      "default": ""
+    }
+  }
+}

@@ -1,0 +1,105 @@
+.elespare-widget-title-section{
+    &.title-style-1{
+        .elespare-widget-title {
+            position: relative;
+            margin-bottom: 15px;
+            margin-top: 0px;
+            padding-bottom: 10px;
+            line-height: 1.2;
+        }
+    }
+}
+
+.elespare-widget-title-section{
+    .elespare-widget-title{
+        font-size: 20px;
+    }
+}
+
+
+.elespare-widget-title-section{
+    &.title-style-2{
+        .elespare-widget-title{
+            span{
+                &.elespare-section-title {
+                    padding: 0px 0px 10px;
+                    display: inline-block;
+                    position: relative;
+                    margin: 0px 0 15px;
+                    line-height: 1.2;
+                }
+            }
+        }
+    }
+}
+
+.elespare-widget-title-section{
+    &.title-style-3{
+        .elespare-widget-title{
+            margin: 0 0 15px;
+        }
+    }
+}
+
+
+
+
+body.rtl{
+    .elementor-element{
+        &.elespare-section-title-elespare-left{
+            .elespare-widget-title-section{
+                &.title-style-3{
+                    .elespare-section-title{
+                        padding: 5px 0px 7px 10px;
+                    }
+                }
+                &.title-style-4{
+                    .elespare-widget-title{
+                        flex-direction: row-reverse;
+                    }
+                }
+               &.title-style-5{
+                    .elespare-widget-title{
+                        flex-direction: row-reverse;
+                    }
+                }
+                &.title-style-6{
+                    .elespare-widget-title{
+                        flex-direction: row-reverse;
+                        .elespare-section-title-after{
+                            margin: 0 0 0 10px;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    .elementor-element{
+        &.elespare-section-title-elespare-right{
+            .elespare-widget-title-section{
+                &.title-style-4{
+                    .elespare-widget-title{
+                        flex-direction: row;
+                        .elespare-section-title-before{
+                            margin: 0 0 0 10px;
+                        }
+                    }
+                }
+                &.title-style-5{
+                    .elespare-widget-title{
+                        flex-direction: row-reverse;
+                    }
+                }
+                &.title-style-6{
+                    .elespare-widget-title{
+                        flex-direction: row;
+                        .elespare-section-title-after{
+                            margin: 0 10px 0 0px;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+}
