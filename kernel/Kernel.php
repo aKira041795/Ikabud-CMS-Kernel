@@ -191,6 +191,9 @@ class Kernel
             // 1.6 Initialize security sandbox
             $this->initializeSecuritySandbox();
             
+            // 1.7 Initialize DiSyL Manifest
+            $this->initializeDisylManifest();
+            
             $duration = (microtime(true) - $phaseStart) * 1000;
             $this->logPhase(1, 'Kernel-Level Dependencies', 'completed', $duration);
             
@@ -696,18 +699,58 @@ class Kernel
     }
     
     /**
+     * Initialize DiSyL Manifest
+     */
+    private function initializeDisylManifest(): void
+    {
+        try {
+            // Load DiSyL manifest
+            if (class_exists('\\IkabudKernel\\Core\\DiSyL\\ManifestLoader')) {
+                \IkabudKernel\Core\DiSyL\ManifestLoader::load();
+                
+                // Validate manifest structure
+                $errors = \IkabudKernel\Core\DiSyL\ManifestLoader::validate();
+                if (!empty($errors)) {
+                    error_log('[Ikabud] DiSyL Manifest validation errors: ' . implode(', ', $errors));
+                }
+                
+                // Log supported CMS types
+                $supported = \IkabudKernel\Core\DiSyL\ManifestLoader::getSupportedCMS();
+                error_log('[Ikabud] DiSyL supports: ' . implode(', ', $supported));
+            }
+        } catch (\Exception $e) {
+            error_log('[Ikabud] DiSyL Manifest initialization failed: ' . $e->getMessage());
+        }
+    }
+    
+    /**
      * Initialize CMS-specific integrations
      * Called after CMS is loaded
      */
     public static function initCMSIntegrations(string $cmsType): void
     {
+        // Check if CMS is supported via manifest
+        if (class_exists('\\IkabudKernel\\Core\\DiSyL\\ManifestLoader')) {
+            if (!\IkabudKernel\Core\DiSyL\ManifestLoader::isCMSSupported($cmsType)) {
+                error_log("[Ikabud] DiSyL does not support CMS type: {$cmsType}");
+                return;
+            }
+            
+            // Get CMS hooks from manifest
+            $hooks = \IkabudKernel\Core\DiSyL\ManifestLoader::getCMSHooks($cmsType);
+            
+            // Execute init hook if defined
+            if (isset($hooks['init']) && is_callable($hooks['init'])) {
+                call_user_func($hooks['init']);
+            }
+        }
+        
+        // Fallback to hardcoded initialization
         if ($cmsType === 'wordpress') {
-            // Initialize DiSyL for WordPress
             if (class_exists('\\IkabudKernel\\Core\\DiSyL\\KernelIntegration')) {
                 \IkabudKernel\Core\DiSyL\KernelIntegration::initWordPress();
             }
         }
-        // Add other CMS integrations here as needed
     }
     
     private function logSyscall(string $name, array $args, $result, float $time, int $memory, string $status, ?string $error = null): void
