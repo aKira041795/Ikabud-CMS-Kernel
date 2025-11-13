@@ -42,10 +42,27 @@ class Parser
         ];
         
         // Parse all nodes until EOF
+        $maxIterations = 10000; // Safety limit
+        $iterations = 0;
+        
         while (!$this->isAtEnd()) {
+            // Safety check: prevent infinite loop
+            if (++$iterations > $maxIterations) {
+                $this->addError('Parser exceeded maximum iterations (possible infinite loop)', $this->peek());
+                break;
+            }
+            
+            $beforePos = $this->position;
             $node = $this->parseNode();
+            
             if ($node !== null) {
                 $ast['children'][] = $node;
+            }
+            
+            // Critical: If position didn't advance, force it
+            if ($this->position === $beforePos && !$this->isAtEnd()) {
+                $this->addError('Parser stuck at position ' . $this->position, $this->peek());
+                $this->advance(); // Force advance to prevent infinite loop
             }
         }
         
@@ -185,8 +202,16 @@ class Parser
         // Parse children until we find matching closing tag
         $children = [];
         $this->tagStack[] = $tagName; // Push to stack
+        $maxChildIterations = 1000; // Safety limit for child parsing
+        $childIterations = 0;
         
         while (!$this->isAtEnd()) {
+            // Safety check: prevent infinite loop in child parsing
+            if (++$childIterations > $maxChildIterations) {
+                $this->addError("Exceeded maximum child iterations for {$tagName} (possible infinite loop)", $this->peek());
+                array_pop($this->tagStack);
+                break;
+            }
             // Check for closing tag
             if ($this->check(Token::LBRACE) && $this->checkNext(Token::SLASH)) {
                 // Peek at the closing tag name
