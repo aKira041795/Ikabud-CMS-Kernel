@@ -695,6 +695,21 @@ class Kernel
         ));
     }
     
+    /**
+     * Initialize CMS-specific integrations
+     * Called after CMS is loaded
+     */
+    public static function initCMSIntegrations(string $cmsType): void
+    {
+        if ($cmsType === 'wordpress') {
+            // Initialize DiSyL for WordPress
+            if (class_exists('\\IkabudKernel\\Core\\DiSyL\\KernelIntegration')) {
+                \IkabudKernel\Core\DiSyL\KernelIntegration::initWordPress();
+            }
+        }
+        // Add other CMS integrations here as needed
+    }
+    
     private function logSyscall(string $name, array $args, $result, float $time, int $memory, string $status, ?string $error = null): void
     {
         $stmt = $this->db->prepare("

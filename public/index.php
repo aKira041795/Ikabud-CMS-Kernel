@@ -8,61 +8,14 @@
 
 declare(strict_types=1);
 
-// EARLY MAINTENANCE CHECK (before any autoloading)
-// This must run FIRST to catch maintenance mode before Slim routing
+// Early maintenance check (before autoloading)
 $host = $_SERVER['HTTP_HOST'] ?? '';
 $requestUri = $_SERVER['REQUEST_URI'] ?? '/';
 
-// Skip early checks for admin/API routes (they don't need maintenance check)
-if (strpos($requestUri, '/admin') !== 0 && 
-    strpos($requestUri, '/api/') !== 0 && 
-    strpos($requestUri, '/login') !== 0) {
-    
-    // Simple domain-to-instance cache (in-memory for this request)
-    static $domainCache = [];
-    
-    if (!isset($domainCache[$host])) {
-        // Load .env for database connection (minimal parsing)
-        $envFile = __DIR__ . '/../.env';
-        if (file_exists($envFile)) {
-            $env = parse_ini_file($envFile);
-            
-            try {
-                $pdo = new PDO(
-                    "mysql:host={$env['DB_HOST']};dbname={$env['DB_DATABASE']}",
-                    $env['DB_USERNAME'],
-                    $env['DB_PASSWORD'],
-                    [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
-                );
-                
-                $stmt = $pdo->prepare("SELECT instance_id FROM instances WHERE domain = ? LIMIT 1");
-                $stmt->execute([$host]);
-                $domainCache[$host] = $stmt->fetchColumn() ?: null;
-            } catch (PDOException $e) {
-                error_log("[Ikabud] Early DB check failed: " . $e->getMessage());
-                $domainCache[$host] = null;
-            }
-        }
-    }
-
-    if ($domainCache[$host]) {
-        $instanceDir = __DIR__ . '/../instances/' . $domainCache[$host];
-        $maintenanceFile = $instanceDir . '/.maintenance';
-        
-        if (file_exists($maintenanceFile)) {
-            http_response_code(503);
-            header('Content-Type: text/html; charset=utf-8');
-            header('Retry-After: 300');
-            
-            $templatePath = __DIR__ . '/../templates/maintenance.html';
-            if (file_exists($templatePath)) {
-                readfile($templatePath);
-            } else {
-                echo '<h1>503 Service Unavailable</h1><p>Site is under maintenance.</p>';
-            }
-            exit;
-        }
-    }
+// Check maintenance mode before loading anything heavy
+if (file_exists(__DIR__ . '/../kernel/Middleware/MaintenanceMiddleware.php')) {
+    require_once __DIR__ . '/../kernel/Middleware/MaintenanceMiddleware.php';
+    \IkabudKernel\Core\Middleware\MaintenanceMiddleware::check($host, $requestUri);
 }
 
 use IkabudKernel\Core\Kernel;
@@ -219,23 +172,7 @@ $app->any('[/{path:.*}]', function (Request $request, Response $response, array 
         return $response->withStatus(404);
     }
     
-    // Add CORS headers for cross-subdomain API requests
-    // This allows any subdomain (admin.*, dashboard.*, etc.) to make API calls
-    $origin = $request->getHeaderLine('Origin');
-    if ($origin && preg_match('/^https?:\/\/(.+\.)?[^.]+\.test$/', $origin)) {
-        // Set headers using native PHP header() function
-        // This ensures they're sent before WordPress processes the request
-        header('Access-Control-Allow-Origin: ' . $origin);
-        header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
-        header('Access-Control-Allow-Headers: Authorization, Content-Type, X-WP-Nonce, X-Requested-With, Origin, Accept, X-HTTP-Method-Override');
-        header('Access-Control-Allow-Credentials: true');
-        
-        // Handle OPTIONS preflight request
-        if ($request->getMethod() === 'OPTIONS') {
-            http_response_code(200);
-            exit;
-        }
-    }
+    // CORS headers are handled by middleware - no need for duplicate native headers
     
     // Get kernel and database
     $kernel = \IkabudKernel\Core\Kernel::getInstance();
@@ -387,21 +324,19 @@ $app->any('[/{path:.*}]', function (Request $request, Response $response, array 
                 // Load CMS core based on type
                 if ($cmsType === 'wordpress') {
                     require_once $instanceDir . '/wp-load.php';
-                    
-                    // Initialize DiSyL integration for WordPress
-                    require_once __DIR__ . '/../kernel/DiSyL/KernelIntegration.php';
-                    \IkabudKernel\Core\DiSyL\KernelIntegration::initWordPress();
-                    
+                    // Initialize WordPress integrations via Kernel
+                    Kernel::initCMSIntegrations('wordpress');
                 } elseif ($cmsType === 'joomla') {
                     define('_JEXEC', 1);
                     require_once $instanceDir . '/includes/defines.php';
                     require_once $instanceDir . '/includes/framework.php';
+                    Kernel::initCMSIntegrations('joomla');
                 } elseif ($cmsType === 'drupal') {
                     // Drupal uses its own index.php with DrupalKernel bootstrap
-                    // Set flag so Drupal knows it's running through the kernel
                     if (!defined('IKABUD_DRUPAL_KERNEL')) {
                         define('IKABUD_DRUPAL_KERNEL', true);
                     }
+                    Kernel::initCMSIntegrations('drupal');
                 }
                 
                 // Load determined extensions after CMS core
@@ -481,73 +416,10 @@ $app->any('[/{path:.*}]', function (Request $request, Response $response, array 
     
     // Capture and cache if needed
     if ($shouldCacheResponse) {
-        // Check if Drupal response object is available
-        if (isset($GLOBALS['ikabud_drupal_response'])) {
-            // Handle Drupal's Symfony Response object
-            $drupalResponse = $GLOBALS['ikabud_drupal_response'];
-            $body = $drupalResponse->getContent();
-            
-            // Inject jQuery if needed
-            $body = \IkabudKernel\Core\AssetLoader::injectJQuery($body);
-            
-            // Override Drupal's cache headers
-            $drupalResponse->headers->set('X-Cache', 'MISS');
-            $drupalResponse->headers->set('X-Cache-Instance', $instanceId);
-            $drupalResponse->headers->set('X-Powered-By', 'Ikabud-Kernel');
-            $drupalResponse->headers->set('Cache-Control', 'public, max-age=3600');
-            $drupalResponse->headers->remove('Pragma');
-            $drupalResponse->headers->remove('Expires');
-            
-            if ($debugMode ?? false) {
-                error_log("[Ikabud] Caching Drupal response for: {$instanceId}");
-            }
-            
-            // Cache the response
-            if ($body !== false && is_string($body) && !empty($body)) {
-                $cacheData = [
-                    'headers' => [],
-                    'body' => $body,
-                    'timestamp' => time(),
-                    'cms_type' => 'drupal'
-                ];
-                
-                // Convert Symfony headers to array
-                foreach ($drupalResponse->headers->all() as $name => $values) {
-                    foreach ($values as $value) {
-                        $cacheData['headers'][] = $name . ': ' . $value;
-                    }
-                }
-                
-                $cache->set($instanceId, $requestUri, $cacheData);
-            }
-            
-            // Send the response
-            $drupalResponse->send();
-            
-        } elseif (ob_get_level() > 0) {
-            // Handle WordPress/Joomla output buffering
+        // Capture output and cache
+        if (ob_get_level() > 0) {
             $body = ob_get_contents();
             ob_end_clean();
-            
-            // Inject jQuery if needed
-            $body = \IkabudKernel\Core\AssetLoader::injectJQuery($body);
-            
-            // Override CMS cache headers for kernel caching
-            header_remove('Cache-Control');
-            header_remove('Pragma');
-            header_remove('Expires');
-            
-            // Add kernel cache headers
-            $cacheHeaders = [
-                'X-Cache: MISS',
-                'X-Cache-Instance: ' . $instanceId,
-                'X-Powered-By: Ikabud-Kernel',
-                'Cache-Control: public, max-age=3600'
-            ];
-            
-            foreach ($cacheHeaders as $headerLine) {
-                header($headerLine);
-            }
             
             // Only cache if there were no errors
             if ($body !== false && is_string($body) && !preg_match('/<b>(Warning|Error|Notice|Fatal error)<\/b>/', $body)) {
@@ -555,14 +427,14 @@ $app->any('[/{path:.*}]', function (Request $request, Response $response, array 
                 $cacheData = [
                     'headers' => $headers,
                     'body' => $body,
-                    'timestamp' => time()
+                    'timestamp' => time(),
+                    'cms_type' => $cmsType
                 ];
                 
                 // Add extension loading stats if available
                 if (isset($conditionalLoader)) {
                     $cacheData['extensions_loaded'] = $conditionalLoader->getLoadedExtensions();
                     $cacheData['extension_count'] = count($conditionalLoader->getLoadedExtensions());
-                    $cacheData['cms_type'] = $conditionalLoader->getCMSType();
                 }
                 
                 $cache->set($instanceId, $requestUri, $cacheData);
