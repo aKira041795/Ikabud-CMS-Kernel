@@ -239,6 +239,7 @@ class Parser
                     )
                 );
                 $this->advance(); // force advance
+                break; // CRITICAL: Break the loop to prevent infinite loop
             }
         }
         

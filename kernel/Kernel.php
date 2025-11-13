@@ -700,23 +700,30 @@ class Kernel
     
     /**
      * Initialize DiSyL Manifest
+     * Only validates and logs on first boot, then caches in memory
      */
     private function initializeDisylManifest(): void
     {
+        static $initialized = false;
+        
+        if ($initialized) {
+            return; // Already initialized in this process
+        }
+        
         try {
-            // Load DiSyL manifest
+            // Load DiSyL manifest (cached after first load)
             if (class_exists('\\IkabudKernel\\Core\\DiSyL\\ManifestLoader')) {
                 \IkabudKernel\Core\DiSyL\ManifestLoader::load();
                 
-                // Validate manifest structure
-                $errors = \IkabudKernel\Core\DiSyL\ManifestLoader::validate();
-                if (!empty($errors)) {
-                    error_log('[Ikabud] DiSyL Manifest validation errors: ' . implode(', ', $errors));
+                // Only validate and log once per process
+                if (!$initialized) {
+                    $errors = \IkabudKernel\Core\DiSyL\ManifestLoader::validate();
+                    if (!empty($errors)) {
+                        error_log('[Ikabud] DiSyL Manifest validation errors: ' . implode(', ', $errors));
+                    }
                 }
                 
-                // Log supported CMS types
-                $supported = \IkabudKernel\Core\DiSyL\ManifestLoader::getSupportedCMS();
-                error_log('[Ikabud] DiSyL supports: ' . implode(', ', $supported));
+                $initialized = true;
             }
         } catch (\Exception $e) {
             error_log('[Ikabud] DiSyL Manifest initialization failed: ' . $e->getMessage());
