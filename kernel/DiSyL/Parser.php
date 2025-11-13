@@ -18,6 +18,7 @@ class Parser
     private int $position = 0;
     private int $length = 0;
     private array $errors = [];
+    private array $tagStack = []; // Track open tags for better error messages
     
     /**
      * Parse tokens into AST
@@ -183,7 +184,7 @@ class Parser
         
         // Parse children until we find matching closing tag
         $children = [];
-        $depth = 0;
+        $this->tagStack[] = $tagName; // Push to stack
         
         while (!$this->isAtEnd()) {
             // Check for closing tag
@@ -200,9 +201,19 @@ class Parser
                     // If this is OUR closing tag, parse it and break
                     if ($closingName === $tagName) {
                         $closingTag = $this->parseClosingTag($startToken);
+                        array_pop($this->tagStack); // Pop from stack
                         break;
                     }
-                    // Otherwise, it's a mismatched closing tag - restore and continue
+                    // Mismatched closing tag - add helpful error
+                    $token = $this->peek();
+                    $this->addParserError(
+                        ParserError::mismatchedClosingTag(
+                            $tagName,
+                            $closingName,
+                            $token->line,
+                            $token->column
+                        )
+                    );
                     $this->position = $savedPos;
                 }
             }
@@ -218,12 +229,29 @@ class Parser
             
             // Safety check: if position didn't advance, break to prevent infinite loop
             if ($this->position === $beforePos) {
-                $this->addError(
-                    sprintf('Parser stuck at position %d while parsing children of {%s}', $this->position, $tagName),
-                    $this->peek()
+                $token = $this->peek();
+                $this->addParserError(
+                    ParserError::parserStuck(
+                        $tagName,
+                        $this->position,
+                        $token?->line ?? 1,
+                        $token?->column ?? 1
+                    )
                 );
                 $this->advance(); // force advance
             }
+        }
+        
+        // Check if we exited loop without finding closing tag
+        if ($this->isAtEnd() && !empty($this->tagStack)) {
+            $this->addParserError(
+                ParserError::missingClosingTag(
+                    $tagName,
+                    $startToken->line,
+                    $startToken->column
+                )
+            );
+            array_pop($this->tagStack); // Clean up stack
         }
         
         return [
@@ -380,6 +408,14 @@ class Parser
         $token = $this->peek();
         
         if ($token === null) {
+            $this->addParserError(
+                ParserError::unexpectedToken(
+                    'EOF',
+                    $type,
+                    1,
+                    1
+                )
+            );
             throw new ParserException(
                 $message . ' (unexpected end of input)',
                 1,
@@ -389,6 +425,14 @@ class Parser
         }
         
         if ($token->type !== $type) {
+            $this->addParserError(
+                ParserError::unexpectedToken(
+                    $token->type,
+                    $type,
+                    $token->line,
+                    $token->column
+                )
+            );
             throw new ParserException(
                 sprintf('%s, got %s', $message, $token->type),
                 $token->line,
@@ -406,23 +450,33 @@ class Parser
      */
     private function isAtEnd(): bool
     {
-        $token = $this->peek();
-        return $token === null || $token->type === Token::EOF;
+        return $this->position >= $this->length;
     }
     
     /**
-     * Add error to error list (non-fatal)
+     * Add error to error list
      */
-    private function addError(string $message, ?Token $token): void
+    private function addError(string $message, ?Token $token = null): void
     {
-        $error = [
-            'message' => $message,
-            'line' => $token ? $token->line : 0,
-            'column' => $token ? $token->column : 0,
-            'position' => $token ? $token->position : 0
-        ];
+        $line = $token?->line ?? 1;
+        $column = $token?->column ?? 1;
         
-        $this->errors[] = $error;
+        $this->errors[] = [
+            'message' => $message,
+            'line' => $line,
+            'column' => $column,
+            'position' => $token?->position ?? $this->position,
+            'formatted' => sprintf("Line %d, Col %d: %s", $line, $column, $message)
+        ];
+    }
+    
+    /**
+     * Add ParserError to error list
+     */
+    private function addParserError(ParserError $error): void
+    {
+        $this->errors[] = $error->toArray();
+        $this->errors[count($this->errors) - 1]['formatted'] = $error->format();
     }
     
     /**
