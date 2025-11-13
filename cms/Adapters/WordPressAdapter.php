@@ -506,4 +506,16 @@ class WordPressAdapter implements CMSInterface
             }
         }
     }
+    
+    /**
+     * Render DiSyL AST to HTML
+     */
+    public function renderDisyl(array $ast, array $context = []): string
+    {
+        require_once __DIR__ . '/../../kernel/DiSyL/Renderers/BaseRenderer.php';
+        require_once __DIR__ . '/../../kernel/DiSyL/Renderers/WordPressRenderer.php';
+        
+        $renderer = new \IkabudKernel\Core\DiSyL\Renderers\WordPressRenderer($this);
+        return $renderer->render($ast, $context);
+    }
 }

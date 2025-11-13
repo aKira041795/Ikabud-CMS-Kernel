@@ -1,0 +1,113 @@
+/*
+Theme Name: DiSyL POC
+Theme URI: https://ikabud.com/themes/disyl-poc
+Description: Proof of concept WordPress theme powered by DiSyL declarative templates. Demonstrates DiSyL's capabilities with real WordPress content.
+Version: 0.1.0
+Author: Ikabud
+Author URI: https://ikabud.com
+License: MIT
+Text Domain: disyl-poc
+Tags: disyl, declarative, modern, clean, blog
+*/
+
+/* Reset & Base Styles */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    line-height: 1.6;
+    color: #333;
+    background: #f8f9fa;
+}
+
+/* Container Utilities */
+.ikb-container {
+    width: 100%;
+    margin: 0 auto;
+    padding: 0 1rem;
+}
+
+/* Section Utilities */
+.ikb-section {
+    padding: 2rem 0;
+}
+
+.ikb-section-hero {
+    padding: 4rem 0;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.ikb-section-content {
+    background: #fff;
+}
+
+.ikb-section-footer {
+    background: #2c3e50;
+    color: #ecf0f1;
+}
+
+/* Block/Grid Utilities */
+.ikb-block {
+    display: grid;
+    gap: 1rem;
+}
+
+/* Card Styles */
+.ikb-card {
+    background: #fff;
+    border-radius: 8px;
+    overflow: hidden;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.ikb-card-elevated {
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.ikb-card-elevated:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 12px rgba(0, 0, 0, 0.15);
+}
+
+.ikb-card-outlined {
+    border: 2px solid #e2e8f0;
+}
+
+.ikb-card-image {
+    width: 100%;
+    height: 200px;
+    object-fit: cover;
+}
+
+.ikb-card-title {
+    font-size: 1.25rem;
+    font-weight: 700;
+    margin: 1rem;
+    color: #2d3748;
+}
+
+.ikb-card a {
+    text-decoration: none;
+    color: inherit;
+}
+
+/* Text Utilities */
+.ikb-text {
+    margin: 0.5rem 0;
+}
+
+.ikb-image-responsive {
+    max-width: 100%;
+    height: auto;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .ikb-block {
+        grid-template-columns: 1fr !important;
+    }
+}

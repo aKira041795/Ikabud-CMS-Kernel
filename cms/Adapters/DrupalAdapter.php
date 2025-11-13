@@ -526,3 +526,15 @@ class DrupalAdapter implements CMSInterface
         }
     }
 }
+
+    
+    /**
+     * Render DiSyL AST to HTML
+     */
+    public function renderDisyl(array $ast, array $context = []): string
+    {
+        // TODO: Implement Drupal-specific DiSyL rendering
+        // This will be implemented in Week 6
+        return '<\!-- DiSyL rendering not yet implemented for Drupal -->';
+    }
+}

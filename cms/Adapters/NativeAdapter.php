@@ -354,4 +354,16 @@ class NativeAdapter implements CMSInterface
     {
         return '<html><body><h1>404 Not Found</h1></body></html>';
     }
+    
+    /**
+     * Render DiSyL AST to HTML
+     */
+    public function renderDisyl(array $ast, array $context = []): string
+    {
+        require_once __DIR__ . '/../../kernel/DiSyL/Renderers/BaseRenderer.php';
+        require_once __DIR__ . '/../../kernel/DiSyL/Renderers/NativeRenderer.php';
+        
+        $renderer = new \IkabudKernel\Core\DiSyL\Renderers\NativeRenderer($this);
+        return $renderer->render($ast, $context);
+    }
 }

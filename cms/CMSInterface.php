@@ -183,4 +183,17 @@ interface CMSInterface
      * @return void
      */
     public function setData(string $key, mixed $value): void;
+    
+    /**
+     * Render DiSyL AST to HTML
+     * 
+     * Converts a compiled DiSyL Abstract Syntax Tree into rendered HTML
+     * using CMS-specific rendering logic
+     * 
+     * @param array $ast Compiled DiSyL AST from Compiler
+     * @param array $context Rendering context (variables, data, etc.)
+     * @return string Rendered HTML
+     * @throws \Exception if rendering fails
+     */
+    public function renderDisyl(array $ast, array $context = []): string;
 }
