@@ -27,9 +27,9 @@ define('NONCE_SALT',       '8&6X{75-5E{C~]ru/NspTV.8_?+8zZE_gcp3AMA$m/EoT7x+%93@
 $table_prefix = 'bru_';
 
 // WordPress Debugging
-define('WP_DEBUG', false);
-define('WP_DEBUG_LOG', false);
-define('WP_DEBUG_DISPLAY', false);
+define('WP_DEBUG', true);
+define('WP_DEBUG_LOG', true);
+define('WP_DEBUG_DISPLAY', true);
 
 // Force direct filesystem method (no FTP needed)
 define('FS_METHOD', 'direct');

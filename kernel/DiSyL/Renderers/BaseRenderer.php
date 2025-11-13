@@ -55,6 +55,7 @@ abstract class BaseRenderer
         return match($node['type']) {
             'tag' => $this->renderTag($node),
             'text' => $this->renderText($node),
+            'expression' => $this->renderExpression($node),
             'comment' => $this->renderComment($node),
             default => ''
         };
@@ -68,6 +69,9 @@ abstract class BaseRenderer
         $tagName = $node['name'];
         $attrs = $node['attrs'] ?? [];
         $children = $node['children'] ?? [];
+        
+        // Evaluate expressions in attribute values
+        $attrs = $this->evaluateAttributes($attrs);
         
         // Check if we have a custom renderer for this component
         if (isset($this->components[$tagName])) {
@@ -85,11 +89,68 @@ abstract class BaseRenderer
     }
     
     /**
+     * Evaluate expressions in attribute values
+     */
+    protected function evaluateAttributes(array $attrs): array
+    {
+        $evaluated = [];
+        
+        foreach ($attrs as $key => $value) {
+            // Check if value is a string containing an expression
+            if (is_string($value) && preg_match('/^\{(.+)\}$/', $value, $matches)) {
+                // Extract expression and evaluate it
+                $expression = $matches[1];
+                $evaluated[$key] = $this->evaluateExpression($expression);
+            } else {
+                $evaluated[$key] = $value;
+            }
+        }
+        
+        return $evaluated;
+    }
+    
+    /**
      * Render a text node
      */
     protected function renderText(array $node): string
     {
-        return htmlspecialchars($node['value'], ENT_QUOTES, 'UTF-8');
+        $text = $node['value'];
+        
+        // Interpolate expressions like {title}, {item.title}, etc.
+        $text = preg_replace_callback('/\{([a-zA-Z0-9_.]+)\}/', function($matches) {
+            $expr = $matches[1];
+            $value = $this->evaluateExpression($expr);
+            
+            // Convert value to string
+            if (is_array($value)) {
+                return implode(', ', $value);
+            } elseif (is_object($value)) {
+                return method_exists($value, '__toString') ? (string)$value : '';
+            } else {
+                return (string)$value;
+            }
+        }, $text);
+        
+        return htmlspecialchars($text, ENT_QUOTES, 'UTF-8');
+    }
+    
+    /**
+     * Render an expression node
+     */
+    protected function renderExpression(array $node): string
+    {
+        $expr = $node['value'];
+        $value = $this->evaluateExpression($expr);
+        
+        // Convert value to string
+        if (is_array($value)) {
+            return htmlspecialchars(implode(', ', $value), ENT_QUOTES, 'UTF-8');
+        } elseif (is_object($value)) {
+            $str = method_exists($value, '__toString') ? (string)$value : '';
+            return htmlspecialchars($str, ENT_QUOTES, 'UTF-8');
+        } else {
+            return htmlspecialchars((string)$value, ENT_QUOTES, 'UTF-8');
+        }
     }
     
     /**

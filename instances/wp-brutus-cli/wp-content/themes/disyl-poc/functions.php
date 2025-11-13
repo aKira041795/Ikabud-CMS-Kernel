@@ -31,8 +31,12 @@ try {
     require_once $kernel_path . '/kernel/DiSyL/Compiler.php';
     require_once $kernel_path . '/kernel/DiSyL/Renderers/BaseRenderer.php';
     require_once $kernel_path . '/kernel/DiSyL/Renderers/WordPressRenderer.php';
+    require_once $kernel_path . '/kernel/DiSyL/KernelIntegration.php';
     require_once $kernel_path . '/cms/CMSInterface.php';
     require_once $kernel_path . '/cms/Adapters/WordPressAdapter.php';
+    
+    // Initialize DiSyL WordPress integration
+    \IkabudKernel\Core\DiSyL\KernelIntegration::initWordPress();
 } catch (Exception $e) {
     wp_die('Error loading DiSyL: ' . $e->getMessage());
 }

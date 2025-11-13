@@ -244,6 +244,37 @@ class WordPressRenderer extends BaseRenderer
     }
     
     /**
+     * Render ikb_content component (raw HTML content)
+     */
+    protected function renderIkbContent(array $node, array $attrs, array $children): string
+    {
+        // Render children and evaluate expressions, but don't escape HTML
+        $content = '';
+        foreach ($children as $child) {
+            if ($child['type'] === 'text') {
+                $text = $child['value'];
+                // Interpolate expressions but return raw value
+                $text = preg_replace_callback('/\{([a-zA-Z0-9_.]+)\}/', function($matches) {
+                    $expr = $matches[1];
+                    $value = $this->evaluateExpression($expr);
+                    // Return raw value without escaping
+                    return is_string($value) ? $value : '';
+                }, $text);
+                $content .= $text;
+            } elseif ($child['type'] === 'expression') {
+                // Handle expression nodes - evaluate and return raw HTML
+                $expr = $child['value'];
+                $value = $this->evaluateExpression($expr);
+                $content .= is_string($value) ? $value : '';
+            } else {
+                $content .= $this->renderNode($child);
+            }
+        }
+        
+        return $content;
+    }
+    
+    /**
      * Render ikb_text component
      */
     protected function renderIkbText(array $node, array $attrs, array $children): string
@@ -303,30 +334,36 @@ class WordPressRenderer extends BaseRenderer
         $order = $attrs['order'] ?? 'desc';
         $category = $attrs['category'] ?? null;
         
-        // Build WP_Query args
-        $args = [
-            'post_type' => $type,
-            'posts_per_page' => $limit,
-            'orderby' => $orderby,
-            'order' => strtoupper($order),
-            'post_status' => 'publish'
-        ];
-        
-        if ($category) {
-            $args['category_name'] = $category;
-        }
-        
-        // Allow WordPress filters
-        if (function_exists('apply_filters')) {
-            $args = apply_filters('disyl_query_args', $args, $attrs);
-        }
-        
-        // Execute WP_Query
-        if (class_exists('WP_Query')) {
-            $query = new \WP_Query($args);
+        // Special case: On single post/page, use the main query if limit=1
+        if ($limit == 1 && function_exists('is_singular') && is_singular()) {
+            global $wp_query;
+            $query = $wp_query;
         } else {
-            // Fallback if WordPress not loaded
-            return '<!-- WordPress not loaded -->';
+            // Build WP_Query args
+            $args = [
+                'post_type' => $type,
+                'posts_per_page' => $limit,
+                'orderby' => $orderby,
+                'order' => strtoupper($order),
+                'post_status' => 'publish'
+            ];
+            
+            if ($category) {
+                $args['category_name'] = $category;
+            }
+            
+            // Allow WordPress filters
+            if (function_exists('apply_filters')) {
+                $args = apply_filters('disyl_query_args', $args, $attrs);
+            }
+            
+            // Execute WP_Query
+            if (class_exists('WP_Query')) {
+                $query = new \WP_Query($args);
+            } else {
+                // Fallback if WordPress not loaded
+                return '<!-- WordPress not loaded -->';
+            }
         }
         
         $html = '';
@@ -341,7 +378,7 @@ class WordPressRenderer extends BaseRenderer
                 $this->context['item'] = [
                     'id' => get_the_ID(),
                     'title' => get_the_title(),
-                    'content' => get_the_content(),
+                    'content' => apply_filters('the_content', get_the_content()), // Apply WordPress filters
                     'excerpt' => get_the_excerpt(),
                     'url' => get_permalink(),
                     'date' => get_the_date(),
@@ -350,6 +387,7 @@ class WordPressRenderer extends BaseRenderer
                     'categories' => wp_get_post_categories(get_the_ID(), ['fields' => 'names'])
                 ];
                 
+                error_log('[DiSyL] ikb_query rendering ' . count($children) . ' children');
                 $html .= $this->renderChildren($children);
             }
             
@@ -357,6 +395,7 @@ class WordPressRenderer extends BaseRenderer
             $this->context = $originalContext;
         }
         
+        error_log('[DiSyL] ikb_query final output length: ' . strlen($html));
         return $html;
     }
     
@@ -412,14 +451,37 @@ class WordPressRenderer extends BaseRenderer
     {
         $template = $attrs['template'] ?? '';
         
-        // Try to load WordPress template part
-        if (function_exists('get_template_part')) {
-            ob_start();
-            get_template_part('disyl/' . $template);
-            return ob_get_clean();
+        if (empty($template)) {
+            return '<!-- Include: no template specified -->';
         }
         
-        return '<!-- Include: ' . esc_html($template) . ' -->';
+        // Build path to DiSyL template
+        $theme_dir = get_stylesheet_directory();
+        $template_path = $theme_dir . '/disyl/' . $template . '.disyl';
+        
+        // Check if template exists
+        if (!file_exists($template_path)) {
+            return '<!-- Include: template not found: ' . esc_html($template) . ' -->';
+        }
+        
+        // Load and render directly with current renderer
+        try {
+            $template_content = file_get_contents($template_path);
+            
+            $lexer = new \IkabudKernel\Core\DiSyL\Lexer();
+            $parser = new \IkabudKernel\Core\DiSyL\Parser();
+            $compiler = new \IkabudKernel\Core\DiSyL\Compiler();
+            
+            $tokens = $lexer->tokenize($template_content);
+            $ast = $parser->parse($tokens);
+            $compiled = $compiler->compile($ast);
+            
+            // Render children directly with current context (not through CMS adapter)
+            return $this->renderChildren($compiled['children'] ?? []);
+            
+        } catch (\Exception $e) {
+            return '<!-- Include error: ' . esc_html($e->getMessage()) . ' -->';
+        }
     }
     
     /**
@@ -442,10 +504,53 @@ class WordPressRenderer extends BaseRenderer
      */
     protected function renderText(array $node): string
     {
+        $text = $node['value'];
+        
+        // Interpolate expressions like {title}, {item.title}, etc.
+        $text = preg_replace_callback('/\{([a-zA-Z0-9_.]+)\}/', function($matches) {
+            $expr = $matches[1];
+            $value = $this->evaluateExpression($expr);
+            
+            // Convert value to string
+            if (is_array($value)) {
+                return implode(', ', $value);
+            } elseif (is_object($value)) {
+                return method_exists($value, '__toString') ? (string)$value : '';
+            } else {
+                return (string)$value;
+            }
+        }, $text);
+        
+        // Use WordPress escaping if available
         if (function_exists('esc_html')) {
-            return esc_html($node['value']);
+            return esc_html($text);
         }
         
-        return htmlspecialchars($node['value'], ENT_QUOTES, 'UTF-8');
+        return htmlspecialchars($text, ENT_QUOTES, 'UTF-8');
+    }
+    
+    /**
+     * Override expression rendering to use WordPress escaping
+     */
+    protected function renderExpression(array $node): string
+    {
+        $expr = $node['value'];
+        $value = $this->evaluateExpression($expr);
+        
+        // Convert value to string
+        if (is_array($value)) {
+            $str = implode(', ', $value);
+        } elseif (is_object($value)) {
+            $str = method_exists($value, '__toString') ? (string)$value : '';
+        } else {
+            $str = (string)$value;
+        }
+        
+        // Use WordPress escaping if available
+        if (function_exists('esc_html')) {
+            return esc_html($str);
+        }
+        
+        return htmlspecialchars($str, ENT_QUOTES, 'UTF-8');
     }
 }

@@ -70,8 +70,34 @@ class KernelIntegration
             
             error_log('[DiSyL] Rendering successful! Output length: ' . strlen($output));
             
-            // Output directly and exit to prevent WordPress from loading PHP template
-            echo $output;
+            // Wrap with HTML structure and WordPress hooks
+            $html = '<!DOCTYPE html>' . "\n";
+            $html .= '<html ' . get_language_attributes() . '>' . "\n";
+            $html .= '<head>' . "\n";
+            $html .= '<meta charset="' . get_bloginfo('charset') . '">' . "\n";
+            $html .= '<meta name="viewport" content="width=device-width, initial-scale=1.0">' . "\n";
+            
+            // Let WordPress output its head content
+            ob_start();
+            wp_head();
+            $html .= ob_get_clean();
+            
+            $html .= '</head>' . "\n";
+            $html .= '<body class="' . implode(' ', get_body_class()) . '">' . "\n";
+            
+            // DiSyL content
+            $html .= $output;
+            
+            // Let WordPress output its footer content
+            ob_start();
+            wp_footer();
+            $html .= ob_get_clean();
+            
+            $html .= '</body>' . "\n";
+            $html .= '</html>';
+            
+            // Output and exit
+            echo $html;
             exit;
             
         } catch (\Exception $e) {

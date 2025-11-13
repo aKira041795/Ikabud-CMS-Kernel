@@ -1,4 +1,4 @@
-{include template="components/header"}
+{include template="components/header" /}
 
 {!-- Hero Section --}
 {ikb_section type="hero" bg="linear-gradient(135deg, #667eea 0%, #764ba2 100%)" padding="large"}
@@ -85,4 +85,4 @@
     {/ikb_container}
 {/ikb_section}
 
-{include template="components/footer"}
+{include template="components/footer" /}

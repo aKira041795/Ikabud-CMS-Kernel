@@ -154,6 +154,21 @@ class Parser
         // Consume closing brace
         $this->expect(Token::RBRACE, 'Expected closing brace');
         
+        // If no attributes and immediately closed, treat as expression
+        // e.g., {title} or {item.title}
+        if (empty($attributes) && !$selfClosing) {
+            // Check if this looks like an expression (no ikb_ prefix, lowercase, dots allowed)
+            if (!str_starts_with($tagName, 'ikb_') && 
+                (ctype_lower($tagName[0]) || strpos($tagName, '.') !== false)) {
+                // Return as expression node (text type with expression marker)
+                return [
+                    'type' => 'expression',
+                    'value' => $tagName,
+                    'loc' => $this->getLocation($startToken)
+                ];
+            }
+        }
+        
         // If self-closing, return immediately
         if ($selfClosing) {
             return [
@@ -168,31 +183,46 @@ class Parser
         
         // Parse children until we find matching closing tag
         $children = [];
+        $depth = 0;
+        
         while (!$this->isAtEnd()) {
             // Check for closing tag
             if ($this->check(Token::LBRACE) && $this->checkNext(Token::SLASH)) {
-                // Parse closing tag
-                $closingTag = $this->parseClosingTag($startToken);
+                // Peek at the closing tag name
+                $savedPos = $this->position;
+                $this->advance(); // skip {
+                $this->advance(); // skip /
                 
-                // Verify tag names match
-                if ($closingTag !== null && $closingTag['name'] !== $tagName) {
-                    $this->addError(
-                        sprintf(
-                            'Mismatched closing tag: expected {/%s}, got {/%s}',
-                            $tagName,
-                            $closingTag['name']
-                        ),
-                        $this->peek()
-                    );
+                if ($this->check(Token::IDENT)) {
+                    $closingName = $this->peek()->value;
+                    $this->position = $savedPos; // restore position
+                    
+                    // If this is OUR closing tag, parse it and break
+                    if ($closingName === $tagName) {
+                        $closingTag = $this->parseClosingTag($startToken);
+                        break;
+                    }
+                    // Otherwise, it's a mismatched closing tag - restore and continue
+                    $this->position = $savedPos;
                 }
-                
-                break;
             }
+            
+            // Save position before parsing child
+            $beforePos = $this->position;
             
             // Parse child node
             $child = $this->parseNode();
             if ($child !== null) {
                 $children[] = $child;
+            }
+            
+            // Safety check: if position didn't advance, break to prevent infinite loop
+            if ($this->position === $beforePos) {
+                $this->addError(
+                    sprintf('Parser stuck at position %d while parsing children of {%s}', $this->position, $tagName),
+                    $this->peek()
+                );
+                $this->advance(); // force advance
             }
         }
         

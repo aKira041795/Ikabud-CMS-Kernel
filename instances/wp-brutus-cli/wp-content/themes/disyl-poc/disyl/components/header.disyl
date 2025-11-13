@@ -1,13 +1,3 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="DiSyL POC - Declarative WordPress Theme">
-    <title>Brutus Blog - DiSyL POC</title>
-</head>
-<body>
-
 {ikb_section type="header" bg="#2c3e50" padding="small"}
     {ikb_container width="xl"}
         {ikb_block cols=2 gap=2 align="center"}
