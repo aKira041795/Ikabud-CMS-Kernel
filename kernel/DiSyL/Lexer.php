@@ -414,6 +414,14 @@ class Lexer
     }
     
     /**
+     * Check if at end of input
+     */
+    private function isAtEnd(): bool
+    {
+        return $this->position >= $this->length;
+    }
+    
+    /**
      * Check if character is a number
      */
     private function isNumber(?string $char): bool
