@@ -355,7 +355,7 @@ class Parser
             $attrValue = null;
             
             if ($valueToken->type === Token::STRING) {
-                $attrValue = $this->advance()->value;
+                $attrValue = $this->parseAttributeValue();
             } elseif ($valueToken->type === Token::NUMBER) {
                 $attrValue = $this->advance()->value;
             } elseif ($valueToken->type === Token::BOOL) {
@@ -506,6 +506,105 @@ class Parser
     }
     
     /**
+     * Parse attribute value with optional filters
+     * Supports: "value", "value | filter", "value | filter:param=val"
+     */
+    private function parseAttributeValue()
+    {
+        $token = $this->advance();
+        $value = $token->value;
+        
+        // Check for filters (pipe after value)
+        if ($this->check(Token::PIPE)) {
+            return $this->parseFilteredExpression($value, $token);
+        }
+        
+        return $value;
+    }
+    
+    /**
+     * Parse filtered expression: value | filter1 | filter2:param=val
+     */
+    private function parseFilteredExpression($baseValue, Token $baseToken): array
+    {
+        $filters = [];
+        
+        while ($this->check(Token::PIPE)) {
+            $this->advance(); // consume |
+            
+            // Get filter name
+            if (!$this->check(Token::IDENT)) {
+                $this->addError('Expected filter name after |', $this->peek());
+                break;
+            }
+            
+            $filterName = $this->advance()->value;
+            $filterParams = [];
+            
+            // Check for filter parameters (colon)
+            if ($this->check(Token::COLON)) {
+                $this->advance(); // consume :
+                $filterParams = $this->parseFilterParams();
+            }
+            
+            $filters[] = [
+                'name' => $filterName,
+                'params' => $filterParams
+            ];
+        }
+        
+        return [
+            'type' => 'filtered_expression',
+            'value' => $baseValue,
+            'filters' => $filters,
+            'loc' => $this->getLocation($baseToken)
+        ];
+    }
+    
+    /**
+     * Parse filter parameters: param1=val1,param2=val2
+     */
+    private function parseFilterParams(): array
+    {
+        $params = [];
+        
+        while (true) {
+            // Get parameter name
+            if (!$this->check(Token::IDENT)) {
+                break;
+            }
+            
+            $paramName = $this->advance()->value;
+            
+            // Expect equals
+            if (!$this->check(Token::EQUAL)) {
+                $this->addError("Expected = after filter parameter '{$paramName}'", $this->peek());
+                break;
+            }
+            $this->advance(); // consume =
+            
+            // Get parameter value
+            $paramValue = null;
+            $valueToken = $this->peek();
+            
+            if ($valueToken && in_array($valueToken->type, [Token::STRING, Token::NUMBER, Token::BOOL])) {
+                $paramValue = $this->advance()->value;
+            } else {
+                $this->addError("Expected value for filter parameter '{$paramName}'", $valueToken);
+                break;
+            }
+            
+            $params[$paramName] = $paramValue;
+            
+            // Check for more parameters (would need comma support in lexer)
+            // For now, only support one parameter per filter
+            break;
+        }
+        
+        return $params;
+    }
+    
+    /**
      * Get location info from token
      */
     private function getLocation(Token $token): array
@@ -513,8 +612,7 @@ class Parser
         return [
             'line' => $token->line,
             'column' => $token->column,
-            'start' => $token->position,
-            'end' => $token->position + strlen((string)$token->value)
+            'position' => $token->position
         ];
     }
 }
