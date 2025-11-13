@@ -387,6 +387,11 @@ $app->any('[/{path:.*}]', function (Request $request, Response $response, array 
                 // Load CMS core based on type
                 if ($cmsType === 'wordpress') {
                     require_once $instanceDir . '/wp-load.php';
+                    
+                    // Initialize DiSyL integration for WordPress
+                    require_once __DIR__ . '/../kernel/DiSyL/KernelIntegration.php';
+                    \IkabudKernel\Core\DiSyL\KernelIntegration::initWordPress();
+                    
                 } elseif ($cmsType === 'joomla') {
                     define('_JEXEC', 1);
                     require_once $instanceDir . '/includes/defines.php';

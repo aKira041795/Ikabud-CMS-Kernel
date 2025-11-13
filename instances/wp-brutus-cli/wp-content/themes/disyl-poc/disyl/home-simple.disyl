@@ -1,0 +1,25 @@
+{ikb_section type="hero" padding="large"}
+    {ikb_container width="xl"}
+        {ikb_text size="2xl" weight="bold" align="center"}
+            Welcome to Brutus Blog
+        {/ikb_text}
+        {ikb_text size="lg" align="center"}
+            Exploring technology, design, and innovation
+        {/ikb_text}
+    {/ikb_container}
+{/ikb_section}
+
+{ikb_section type="content" padding="large"}
+    {ikb_container width="lg"}
+        {ikb_text size="xl" weight="bold" align="center"}
+            Latest Posts
+        {/ikb_text}
+        
+        {ikb_query type="post" limit="3"}
+            {ikb_card}
+                {ikb_text size="lg"}{title}{/ikb_text}
+                {ikb_text size="sm"}{excerpt}{/ikb_text}
+            {/ikb_card}
+        {/ikb_query}
+    {/ikb_container}
+{/ikb_section}
