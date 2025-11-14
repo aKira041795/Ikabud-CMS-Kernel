@@ -172,6 +172,11 @@ abstract class BaseRenderer
      */
     protected function applyFilters($value, string $filterChain)
     {
+        // If value is null, convert to empty string to prevent deprecation warnings
+        if ($value === null) {
+            $value = '';
+        }
+        
         // Split filter chain by pipe
         $filters = explode('|', $filterChain);
         
@@ -209,7 +214,9 @@ abstract class BaseRenderer
      */
     protected function valueToString($value): string
     {
-        if (is_array($value)) {
+        if ($value === null) {
+            return '';
+        } elseif (is_array($value)) {
             return implode(', ', $value);
         } elseif (is_object($value)) {
             return method_exists($value, '__toString') ? (string)$value : '';
