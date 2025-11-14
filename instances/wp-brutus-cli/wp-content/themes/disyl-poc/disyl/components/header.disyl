@@ -100,7 +100,7 @@
             </div>
             
             {!-- Search Form (Hidden by default) --}
-            <div class="header-search-form" style="display: none;">
+            <div class="header-search-form hidden">
                 <form role="search" method="get" class="search-form" action="{site.url | esc_url}">
                     <input type="search" class="search-field" placeholder="Search..." name="s" />
                     <button type="submit" class="search-submit">Search</button>

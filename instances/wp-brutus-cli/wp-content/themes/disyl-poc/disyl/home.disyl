@@ -95,7 +95,7 @@
                 </div>
                 
                 {!-- Latest Posts - 2 Column Layout --}
-                <div class="section-header" style="margin-top: 3rem;">
+                <div class="section-header section-header-spaced">
                     {ikb_text size="2xl" weight="bold"}
                         📰 Latest Articles
                     {/ikb_text}

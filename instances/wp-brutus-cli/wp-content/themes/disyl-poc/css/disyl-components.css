@@ -4,6 +4,57 @@
  */
 
 /* ===========================
+   Utility Classes (Manifest-Driven)
+   =========================== */
+.hidden {
+    display: none !important;
+}
+
+.section-header-spaced {
+    margin-top: 3rem;
+}
+
+/* Padding Utilities */
+.padding-none { padding: 0; }
+.padding-small { padding: 1rem; }
+.padding-normal { padding: 2rem; }
+.padding-large { padding: 3rem; }
+.padding-xlarge { padding: 4rem; }
+
+/* Gap Utilities */
+.gap-0 { gap: 0; }
+.gap-1 { gap: 0.5rem; }
+.gap-2 { gap: 1rem; }
+.gap-3 { gap: 1.5rem; }
+.gap-4 { gap: 2rem; }
+
+/* Font Weight Utilities */
+.font-normal { font-weight: 400; }
+.font-medium { font-weight: 500; }
+.font-semibold { font-weight: 600; }
+.font-bold { font-weight: 700; }
+
+/* Text Alignment Utilities */
+.text-left { text-align: left; }
+.text-center { text-align: center; }
+.text-right { text-align: right; }
+.text-justify { text-align: justify; }
+
+/* Data Attribute Styling */
+[data-bg="primary"] { background: var(--primary-color); }
+[data-bg="secondary"] { background: var(--secondary-color); }
+[data-bg="transparent"] { background: transparent; }
+[data-bg="#f8f9fa"] { background: #f8f9fa; }
+
+[data-color] { color: attr(data-color); }
+
+/* Image Responsive */
+.ikb-image-responsive {
+    max-width: 100%;
+    height: auto;
+}
+
+/* ===========================
    ikb_section Component
    =========================== */
 .ikb-section {

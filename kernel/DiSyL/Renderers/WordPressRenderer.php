@@ -83,27 +83,34 @@ class WordPressRenderer extends ManifestDrivenRenderer
     
     /**
      * Render ikb_block component
+     * Uses manifest-driven rendering
      */
     protected function renderIkbBlock(array $node, array $attrs, array $children): string
     {
-        $cols = $attrs['cols'] ?? 1;
-        $gap = $attrs['gap'] ?? 1;
-        $align = $attrs['align'] ?? 'left';
+        $component = ModularManifestLoader::getComponent('ikb_block');
         
-        $classes = ['ikb-block', 'ikb-block-cols-' . $cols];
-        
-        if (function_exists('apply_filters')) {
-            $classes = apply_filters('disyl_block_classes', $classes, $cols, $attrs);
+        if (!$component) {
+            return $this->renderFromManifest('ikb_block', $attrs, $children);
         }
         
-        $html = sprintf(
-            '<div class="%s" style="display: grid; grid-template-columns: repeat(%d, 1fr); gap: %srem; text-align: %s;">',
-            esc_attr(implode(' ', $classes)),
-            $cols,
-            $gap,
-            esc_attr($align)
-        );
+        $classes = $this->buildCssClasses($component, $attrs);
+        $dataAttrs = $this->buildDataAttributes($component, $attrs);
         
+        if (function_exists('apply_filters')) {
+            $classes = apply_filters('disyl_block_classes', $classes, $attrs);
+        }
+        
+        $html = '<div';
+        
+        if (!empty($classes)) {
+            $html .= ' class="' . esc_attr(implode(' ', $classes)) . '"';
+        }
+        
+        foreach ($dataAttrs as $key => $value) {
+            $html .= ' ' . $key . '="' . esc_attr($value) . '"';
+        }
+        
+        $html .= '>';
         $html .= $this->renderChildren($children);
         $html .= '</div>';
         
@@ -112,32 +119,30 @@ class WordPressRenderer extends ManifestDrivenRenderer
     
     /**
      * Render ikb_container component
+     * Uses manifest-driven rendering
      */
     protected function renderIkbContainer(array $node, array $attrs, array $children): string
     {
-        $width = $attrs['width'] ?? 'lg';
-        $center = $attrs['center'] ?? true;
+        $component = ModularManifestLoader::getComponent('ikb_container');
         
-        $widthMap = [
-            'sm' => '640px',
-            'md' => '768px',
-            'lg' => '1024px',
-            'xl' => '1280px',
-            'full' => '100%'
-        ];
+        if (!$component) {
+            return $this->renderFromManifest('ikb_container', $attrs, $children);
+        }
         
-        $maxWidth = $widthMap[$width] ?? '1024px';
-        $margin = $center ? '0 auto' : '0';
+        $classes = $this->buildCssClasses($component, $attrs);
+        $dataAttrs = $this->buildDataAttributes($component, $attrs);
         
-        $classes = ['ikb-container', 'ikb-container-' . $width];
+        $html = '<div';
         
-        $html = sprintf(
-            '<div class="%s" style="max-width: %s; margin: %s;">',
-            esc_attr(implode(' ', $classes)),
-            $maxWidth,
-            $margin
-        );
+        if (!empty($classes)) {
+            $html .= ' class="' . esc_attr(implode(' ', $classes)) . '"';
+        }
         
+        foreach ($dataAttrs as $key => $value) {
+            $html .= ' ' . $key . '="' . esc_attr($value) . '"';
+        }
+        
+        $html .= '>';
         $html .= $this->renderChildren($children);
         $html .= '</div>';
         
@@ -146,27 +151,36 @@ class WordPressRenderer extends ManifestDrivenRenderer
     
     /**
      * Render ikb_card component
+     * Uses manifest-driven rendering
      */
     protected function renderIkbCard(array $node, array $attrs, array $children): string
     {
+        $component = ModularManifestLoader::getComponent('ikb_card');
+        
+        if (!$component) {
+            return $this->renderFromManifest('ikb_card', $attrs, $children);
+        }
+        
         $title = $attrs['title'] ?? '';
         $image = $attrs['image'] ?? '';
         $link = $attrs['link'] ?? '';
-        $variant = $attrs['variant'] ?? 'default';
         
-        $variantStyles = [
-            'default' => 'border: 1px solid #ddd; padding: 1rem;',
-            'outlined' => 'border: 2px solid #333; padding: 1rem;',
-            'elevated' => 'box-shadow: 0 4px 6px rgba(0,0,0,0.1); padding: 1rem;'
-        ];
+        $classes = $this->buildCssClasses($component, $attrs);
+        $dataAttrs = $this->buildDataAttributes($component, $attrs);
         
-        $style = $variantStyles[$variant] ?? $variantStyles['default'];
-        $classes = ['ikb-card', 'ikb-card-' . $variant];
+        $html = '<div';
         
-        $html = '<div class="' . esc_attr(implode(' ', $classes)) . '" style="' . $style . '">';
+        if (!empty($classes)) {
+            $html .= ' class="' . esc_attr(implode(' ', $classes)) . '"';
+        }
+        
+        foreach ($dataAttrs as $key => $value) {
+            $html .= ' ' . $key . '="' . esc_attr($value) . '"';
+        }
+        
+        $html .= '>';
         
         if ($image) {
-            // Use WordPress image functions if available
             if (function_exists('wp_get_attachment_image_url')) {
                 $imageId = attachment_url_to_postid($image);
                 if ($imageId) {
@@ -175,10 +189,10 @@ class WordPressRenderer extends ManifestDrivenRenderer
                         'alt' => esc_attr($title)
                     ]);
                 } else {
-                    $html .= '<img src="' . esc_url($image) . '" alt="' . esc_attr($title) . '" class="ikb-card-image" style="width: 100%; height: auto;">';
+                    $html .= '<img src="' . esc_url($image) . '" alt="' . esc_attr($title) . '" class="ikb-card-image">';
                 }
             } else {
-                $html .= '<img src="' . esc_url($image) . '" alt="' . esc_attr($title) . '" class="ikb-card-image" style="width: 100%; height: auto;">';
+                $html .= '<img src="' . esc_url($image) . '" alt="' . esc_attr($title) . '" class="ikb-card-image">';
             }
         }
         
@@ -189,7 +203,7 @@ class WordPressRenderer extends ManifestDrivenRenderer
         $html .= $this->renderChildren($children);
         
         if ($link) {
-            $html = '<a href="' . esc_url($link) . '" class="ikb-card-link" style="text-decoration: none; color: inherit;">' . $html . '</a>';
+            $html = '<a href="' . esc_url($link) . '" class="ikb-card-link">' . $html . '</a>';
         }
         
         $html .= '</div>';
@@ -241,7 +255,7 @@ class WordPressRenderer extends ManifestDrivenRenderer
         }
         
         if ($responsive) {
-            $html .= ' style="max-width: 100%; height: auto;"';
+            $html .= ' class="ikb-image-responsive"';
         }
         
         $html .= '>';
@@ -282,47 +296,30 @@ class WordPressRenderer extends ManifestDrivenRenderer
     
     /**
      * Render ikb_text component
+     * Uses manifest-driven rendering
      */
     protected function renderIkbText(array $node, array $attrs, array $children): string
     {
-        $size = $attrs['size'] ?? 'md';
-        $weight = $attrs['weight'] ?? 'normal';
-        $color = $attrs['color'] ?? '';
-        $align = $attrs['align'] ?? 'left';
+        $component = ModularManifestLoader::getComponent('ikb_text');
         
-        $sizeMap = [
-            'xs' => '0.75rem',
-            'sm' => '0.875rem',
-            'md' => '1rem',
-            'lg' => '1.125rem',
-            'xl' => '1.25rem',
-            '2xl' => '1.5rem'
-        ];
-        
-        $weightMap = [
-            'light' => '300',
-            'normal' => '400',
-            'medium' => '500',
-            'bold' => '700'
-        ];
-        
-        $fontSize = $sizeMap[$size] ?? '1rem';
-        $fontWeight = $weightMap[$weight] ?? '400';
-        
-        $style = sprintf(
-            'font-size: %s; font-weight: %s; text-align: %s;',
-            $fontSize,
-            $fontWeight,
-            esc_attr($align)
-        );
-        
-        if ($color) {
-            $style .= ' color: ' . esc_attr($color) . ';';
+        if (!$component) {
+            return $this->renderFromManifest('ikb_text', $attrs, $children);
         }
         
-        $classes = ['ikb-text', 'ikb-text-' . $size];
+        $classes = $this->buildCssClasses($component, $attrs);
+        $dataAttrs = $this->buildDataAttributes($component, $attrs);
         
-        $html = '<div class="' . esc_attr(implode(' ', $classes)) . '" style="' . $style . '">';
+        $html = '<div';
+        
+        if (!empty($classes)) {
+            $html .= ' class="' . esc_attr(implode(' ', $classes)) . '"';
+        }
+        
+        foreach ($dataAttrs as $key => $value) {
+            $html .= ' ' . $key . '="' . esc_attr($value) . '"';
+        }
+        
+        $html .= '>';
         $html .= $this->renderChildren($children);
         $html .= '</div>';
         
