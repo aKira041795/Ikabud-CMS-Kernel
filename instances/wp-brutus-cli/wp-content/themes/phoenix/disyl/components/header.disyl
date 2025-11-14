@@ -1,0 +1,41 @@
+{!-- Phoenix Theme - Header Component --}
+<!DOCTYPE html>
+<html lang="{site.language | esc_attr}">
+<head>
+    <meta charset="{site.charset | esc_attr}">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <title>{site.name | esc_html}</title>
+    <link rel="stylesheet" href="{site.theme_url}/style.css">
+</head>
+<body>
+
+<header class="site-header">
+    <div class="header-container">
+        {!-- Logo --}
+        <div class="site-branding">
+            <a href="{site.url | esc_url}" class="site-logo">
+                Phoenix
+            </a>
+        </div>
+        
+        {!-- Mobile Menu Toggle --}
+        <button class="menu-toggle" aria-label="Toggle navigation" aria-expanded="false">
+            ☰
+        </button>
+        
+        {!-- Primary Navigation --}
+        <nav class="main-nav" role="navigation" aria-label="Primary navigation">
+            <ul>
+                <li><a href="{site.url | esc_url}" class="active">Home</a></li>
+                <li><a href="{site.url}/blog" | esc_url}>Blog</a></li>
+                <li><a href="{site.url}/about" | esc_url}>About</a></li>
+                <li><a href="{site.url}/services" | esc_url}>Services</a></li>
+                <li><a href="{site.url}/portfolio" | esc_url}>Portfolio</a></li>
+                <li><a href="{site.url}/contact" | esc_url}>Contact</a></li>
+            </ul>
+        </nav>
+    </div>
+</header>
+
+<main class="site-content">

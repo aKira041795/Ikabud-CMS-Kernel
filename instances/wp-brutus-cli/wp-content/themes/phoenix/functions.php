@@ -1,0 +1,404 @@
+<?php
+/**
+ * Phoenix Theme Functions
+ * 
+ * DiSyL-powered WordPress theme with advanced features
+ * 
+ * @package Phoenix
+ * @version 1.0.0
+ */
+
+// Prevent direct access
+if (!defined('ABSPATH')) {
+    exit;
+}
+
+/**
+ * Theme Setup
+ */
+function phoenix_setup() {
+    // Add theme support
+    add_theme_support('title-tag');
+    add_theme_support('post-thumbnails');
+    add_theme_support('automatic-feed-links');
+    add_theme_support('html5', array(
+        'search-form',
+        'comment-form',
+        'comment-list',
+        'gallery',
+        'caption',
+    ));
+    add_theme_support('custom-logo', array(
+        'height'      => 100,
+        'width'       => 400,
+        'flex-height' => true,
+        'flex-width'  => true,
+    ));
+    add_theme_support('custom-background');
+    add_theme_support('customize-selective-refresh-widgets');
+    
+    // Register navigation menus
+    register_nav_menus(array(
+        'primary' => __('Primary Menu', 'phoenix'),
+        'footer'  => __('Footer Menu', 'phoenix'),
+        'social'  => __('Social Links', 'phoenix'),
+    ));
+    
+    // Add image sizes
+    add_image_size('phoenix-hero', 1920, 1080, true);
+    add_image_size('phoenix-featured', 800, 600, true);
+    add_image_size('phoenix-thumbnail', 400, 300, true);
+    add_image_size('phoenix-slider', 1600, 900, true);
+}
+add_action('after_setup_theme', 'phoenix_setup');
+
+/**
+ * Register Widget Areas
+ */
+function phoenix_widgets_init() {
+    // Sidebar
+    register_sidebar(array(
+        'name'          => __('Main Sidebar', 'phoenix'),
+        'id'            => 'sidebar-1',
+        'description'   => __('Main sidebar widget area', 'phoenix'),
+        'before_widget' => '<div id="%1$s" class="widget %2$s">',
+        'after_widget'  => '</div>',
+        'before_title'  => '<h3 class="widget-title">',
+        'after_title'   => '</h3>',
+    ));
+    
+    // Footer widgets (4 columns)
+    for ($i = 1; $i <= 4; $i++) {
+        register_sidebar(array(
+            'name'          => sprintf(__('Footer Widget %d', 'phoenix'), $i),
+            'id'            => 'footer-' . $i,
+            'description'   => sprintf(__('Footer widget area %d', 'phoenix'), $i),
+            'before_widget' => '<div id="%1$s" class="footer-widget %2$s">',
+            'after_widget'  => '</div>',
+            'before_title'  => '<h3 class="widget-title">',
+            'after_title'   => '</h3>',
+        ));
+    }
+    
+    // Homepage widgets
+    register_sidebar(array(
+        'name'          => __('Homepage Hero', 'phoenix'),
+        'id'            => 'homepage-hero',
+        'description'   => __('Homepage hero section widgets', 'phoenix'),
+        'before_widget' => '<div id="%1$s" class="hero-widget %2$s">',
+        'after_widget'  => '</div>',
+        'before_title'  => '<h2 class="widget-title">',
+        'after_title'   => '</h2>',
+    ));
+    
+    register_sidebar(array(
+        'name'          => __('Homepage Features', 'phoenix'),
+        'id'            => 'homepage-features',
+        'description'   => __('Homepage features section widgets', 'phoenix'),
+        'before_widget' => '<div id="%1$s" class="feature-widget %2$s">',
+        'after_widget'  => '</div>',
+        'before_title'  => '<h3 class="widget-title">',
+        'after_title'   => '</h3>',
+    ));
+}
+add_action('widgets_init', 'phoenix_widgets_init');
+
+/**
+ * Enqueue Scripts and Styles
+ */
+function phoenix_scripts() {
+    // Theme stylesheet
+    wp_enqueue_style('phoenix-style', get_stylesheet_uri(), array(), '1.0.0');
+    
+    // Custom JavaScript
+    wp_enqueue_script('phoenix-scripts', get_template_directory_uri() . '/assets/js/phoenix.js', array(), '1.0.0', true);
+    
+    // Localize script
+    wp_localize_script('phoenix-scripts', 'phoenixData', array(
+        'ajaxurl' => admin_url('admin-ajax.php'),
+        'nonce'   => wp_create_nonce('phoenix-nonce'),
+    ));
+    
+    // Comment reply script
+    if (is_singular() && comments_open() && get_option('thread_comments')) {
+        wp_enqueue_script('comment-reply');
+    }
+}
+add_action('wp_enqueue_scripts', 'phoenix_scripts');
+
+/**
+ * DiSyL Integration
+ */
+function phoenix_disyl_render($template) {
+    // Only process if DiSyL engine is available
+    if (!class_exists('\\IkabudKernel\\Core\\DiSyL\\Lexer')) {
+        return $template;
+    }
+    
+    // Map WordPress template hierarchy to DiSyL templates
+    $disyl_template = null;
+    
+    if (is_front_page()) {
+        $disyl_template = 'home.disyl';
+    } elseif (is_home()) {
+        $disyl_template = 'blog.disyl';
+    } elseif (is_single()) {
+        $disyl_template = 'single.disyl';
+    } elseif (is_page()) {
+        $disyl_template = 'page.disyl';
+    } elseif (is_archive()) {
+        $disyl_template = 'archive.disyl';
+    } elseif (is_search()) {
+        $disyl_template = 'search.disyl';
+    } elseif (is_404()) {
+        $disyl_template = '404.disyl';
+    }
+    
+    if (!$disyl_template) {
+        return $template;
+    }
+    
+    $disyl_path = get_template_directory() . '/disyl/' . $disyl_template;
+    
+    if (!file_exists($disyl_path)) {
+        return $template;
+    }
+    
+    try {
+        // Load DiSyL classes
+        $lexer = new \IkabudKernel\Core\DiSyL\Lexer();
+        $parser = new \IkabudKernel\Core\DiSyL\Parser();
+        $compiler = new \IkabudKernel\Core\DiSyL\Compiler();
+        $renderer = new \IkabudKernel\Core\DiSyL\Renderers\WordPressRenderer();
+        
+        // Read template
+        $template_content = file_get_contents($disyl_path);
+        
+        // Process DiSyL
+        $tokens = $lexer->tokenize($template_content);
+        $ast = $parser->parse($tokens);
+        $compiled = $compiler->compile($ast);
+        
+        // Build context
+        $context = phoenix_build_context();
+        
+        // Render
+        $html = $renderer->render($compiled, $context);
+        
+        // Output
+        echo $html;
+        
+        return false; // Prevent WordPress from loading default template
+        
+    } catch (\Exception $e) {
+        error_log('Phoenix DiSyL Error: ' . $e->getMessage());
+        return $template; // Fallback to default template
+    }
+}
+add_filter('template_include', 'phoenix_disyl_render', 99);
+
+/**
+ * Build DiSyL Context
+ */
+function phoenix_build_context() {
+    global $post, $wp_query;
+    
+    $context = array(
+        'site' => array(
+            'name' => get_bloginfo('name'),
+            'description' => get_bloginfo('description'),
+            'url' => home_url('/'),
+            'theme_url' => get_template_directory_uri(),
+            'charset' => get_bloginfo('charset'),
+            'language' => get_bloginfo('language'),
+        ),
+        'user' => array(
+            'logged_in' => is_user_logged_in(),
+            'id' => get_current_user_id(),
+            'name' => wp_get_current_user()->display_name,
+        ),
+        'query' => array(
+            'is_home' => is_home(),
+            'is_front_page' => is_front_page(),
+            'is_single' => is_single(),
+            'is_page' => is_page(),
+            'is_archive' => is_archive(),
+            'is_search' => is_search(),
+            'is_404' => is_404(),
+        ),
+    );
+    
+    // Add post data if available
+    if ($post) {
+        $context['post'] = array(
+            'id' => $post->ID,
+            'title' => get_the_title(),
+            'content' => apply_filters('the_content', $post->post_content),
+            'excerpt' => get_the_excerpt(),
+            'date' => get_the_date(),
+            'author' => get_the_author(),
+            'author_id' => $post->post_author,
+            'author_url' => get_author_posts_url($post->post_author),
+            'author_avatar' => get_avatar_url($post->post_author),
+            'url' => get_permalink(),
+            'thumbnail' => get_the_post_thumbnail_url($post, 'full'),
+            'categories' => wp_get_post_categories($post->ID, array('fields' => 'names')),
+            'tags' => wp_get_post_tags($post->ID, array('fields' => 'names')),
+            'comment_count' => $post->comment_count,
+            'comments_open' => comments_open(),
+        );
+    }
+    
+    return $context;
+}
+
+/**
+ * Custom Excerpt Length
+ */
+function phoenix_excerpt_length($length) {
+    return 30;
+}
+add_filter('excerpt_length', 'phoenix_excerpt_length');
+
+/**
+ * Custom Excerpt More
+ */
+function phoenix_excerpt_more($more) {
+    return '...';
+}
+add_filter('excerpt_more', 'phoenix_excerpt_more');
+
+/**
+ * Add custom classes to body
+ */
+function phoenix_body_classes($classes) {
+    if (!is_singular()) {
+        $classes[] = 'hfeed';
+    }
+    
+    if (is_active_sidebar('sidebar-1')) {
+        $classes[] = 'has-sidebar';
+    }
+    
+    return $classes;
+}
+add_filter('body_class', 'phoenix_body_classes');
+
+/**
+ * Custom Walker for Navigation Menu
+ */
+class Phoenix_Walker_Nav_Menu extends Walker_Nav_Menu {
+    function start_el(&$output, $item, $depth = 0, $args = null, $id = 0) {
+        $classes = empty($item->classes) ? array() : (array) $item->classes;
+        $classes[] = 'menu-item-' . $item->ID;
+        
+        if ($item->current) {
+            $classes[] = 'active';
+        }
+        
+        $class_names = join(' ', apply_filters('nav_menu_css_class', array_filter($classes), $item, $args, $depth));
+        $class_names = $class_names ? ' class="' . esc_attr($class_names) . '"' : '';
+        
+        $output .= '<li' . $class_names . '>';
+        
+        $atts = array();
+        $atts['href'] = !empty($item->url) ? $item->url : '';
+        $atts = apply_filters('nav_menu_link_attributes', $atts, $item, $args, $depth);
+        
+        $attributes = '';
+        foreach ($atts as $attr => $value) {
+            if (!empty($value)) {
+                $attributes .= ' ' . $attr . '="' . esc_attr($value) . '"';
+            }
+        }
+        
+        $item_output = $args->before;
+        $item_output .= '<a' . $attributes . '>';
+        $item_output .= $args->link_before . apply_filters('the_title', $item->title, $item->ID) . $args->link_after;
+        $item_output .= '</a>';
+        $item_output .= $args->after;
+        
+        $output .= apply_filters('walker_nav_menu_start_el', $item_output, $item, $depth, $args);
+    }
+}
+
+/**
+ * AJAX Load More Posts
+ */
+function phoenix_load_more_posts() {
+    check_ajax_referer('phoenix-nonce', 'nonce');
+    
+    $paged = isset($_POST['page']) ? intval($_POST['page']) : 1;
+    
+    $args = array(
+        'post_type' => 'post',
+        'posts_per_page' => 6,
+        'paged' => $paged,
+    );
+    
+    $query = new WP_Query($args);
+    
+    if ($query->have_posts()) {
+        ob_start();
+        while ($query->have_posts()) {
+            $query->the_post();
+            get_template_part('disyl/components/post', 'card');
+        }
+        $html = ob_get_clean();
+        wp_reset_postdata();
+        
+        wp_send_json_success(array(
+            'html' => $html,
+            'has_more' => $paged < $query->max_num_pages,
+        ));
+    } else {
+        wp_send_json_error(array('message' => 'No more posts'));
+    }
+}
+add_action('wp_ajax_phoenix_load_more', 'phoenix_load_more_posts');
+add_action('wp_ajax_nopriv_phoenix_load_more', 'phoenix_load_more_posts');
+
+/**
+ * Customizer Settings
+ */
+function phoenix_customize_register($wp_customize) {
+    // Hero Section
+    $wp_customize->add_section('phoenix_hero', array(
+        'title' => __('Hero Section', 'phoenix'),
+        'priority' => 30,
+    ));
+    
+    $wp_customize->add_setting('phoenix_hero_title', array(
+        'default' => 'Welcome to Phoenix',
+        'sanitize_callback' => 'sanitize_text_field',
+    ));
+    
+    $wp_customize->add_control('phoenix_hero_title', array(
+        'label' => __('Hero Title', 'phoenix'),
+        'section' => 'phoenix_hero',
+        'type' => 'text',
+    ));
+    
+    $wp_customize->add_setting('phoenix_hero_subtitle', array(
+        'default' => 'A beautiful DiSyL-powered WordPress theme',
+        'sanitize_callback' => 'sanitize_textarea_field',
+    ));
+    
+    $wp_customize->add_control('phoenix_hero_subtitle', array(
+        'label' => __('Hero Subtitle', 'phoenix'),
+        'section' => 'phoenix_hero',
+        'type' => 'textarea',
+    ));
+    
+    // Colors
+    $wp_customize->add_setting('phoenix_primary_color', array(
+        'default' => '#667eea',
+        'sanitize_callback' => 'sanitize_hex_color',
+    ));
+    
+    $wp_customize->add_control(new WP_Customize_Color_Control($wp_customize, 'phoenix_primary_color', array(
+        'label' => __('Primary Color', 'phoenix'),
+        'section' => 'colors',
+    )));
+}
+add_action('customize_register', 'phoenix_customize_register');
