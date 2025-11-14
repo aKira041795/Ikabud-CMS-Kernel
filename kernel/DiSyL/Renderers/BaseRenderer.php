@@ -100,7 +100,23 @@ abstract class BaseRenderer
             if (is_string($value) && preg_match('/^\{(.+)\}$/', $value, $matches)) {
                 // Extract expression and evaluate it
                 $expression = $matches[1];
-                $result = $this->evaluateExpression($expression);
+                
+                // Check if expression contains filters (pipe character)
+                if (strpos($expression, '|') !== false) {
+                    // Split into base expression and filter chain
+                    $parts = explode('|', $expression, 2);
+                    $baseExpr = trim($parts[0]);
+                    $filterChain = trim($parts[1]);
+                    
+                    // Evaluate base expression
+                    $result = $this->evaluateExpression($baseExpr);
+                    
+                    // Apply filters
+                    $result = $this->applyFilters($result, $filterChain);
+                } else {
+                    // No filters, just evaluate
+                    $result = $this->evaluateExpression($expression);
+                }
                 
                 // Convert arrays to strings for attributes
                 if (is_array($result)) {
