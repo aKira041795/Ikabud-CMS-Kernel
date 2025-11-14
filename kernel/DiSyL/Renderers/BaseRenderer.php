@@ -182,8 +182,10 @@ abstract class BaseRenderer
                 $filterName = $filter;
             }
             
-            // Apply filter using ManifestLoader
-            if (class_exists('\\IkabudKernel\\Core\\DiSyL\\ManifestLoader')) {
+            // Apply filter using ModularManifestLoader (v0.4) or fallback to ManifestLoader (v0.2)
+            if (class_exists('\\IkabudKernel\\Core\\DiSyL\\ModularManifestLoader')) {
+                $value = \IkabudKernel\Core\DiSyL\ModularManifestLoader::applyFilter($filterName, $value, $params);
+            } elseif (class_exists('\\IkabudKernel\\Core\\DiSyL\\ManifestLoader')) {
                 $value = \IkabudKernel\Core\DiSyL\ManifestLoader::applyFilter($filterName, $value, $params);
             }
         }

@@ -699,8 +699,8 @@ class Kernel
     }
     
     /**
-     * Initialize DiSyL Manifest v0.2
-     * Loads manifest with caching, inheritance resolution, and validation
+     * Initialize DiSyL Manifest v0.4
+     * Loads modular manifests with profiles, mount points, and namespaces
      */
     private function initializeDisylManifest(): void
     {
@@ -711,30 +711,48 @@ class Kernel
         }
         
         try {
-            // Load DiSyL manifest v0.2 (with caching and inheritance)
-            if (class_exists('\\IkabudKernel\\Core\\DiSyL\\ManifestLoader')) {
+            // Try ModularManifestLoader first (v0.4)
+            if (class_exists('\\IkabudKernel\\Core\\DiSyL\\ModularManifestLoader')) {
+                // Detect CMS type
+                $cmsType = 'WordPress'; // Default, can be detected dynamically
+                
+                // Initialize with profile (default: full)
+                \IkabudKernel\Core\DiSyL\ModularManifestLoader::init('full', $cmsType);
+                
+                $version = \IkabudKernel\Core\DiSyL\ModularManifestLoader::getVersion();
+                $profile = \IkabudKernel\Core\DiSyL\ModularManifestLoader::getCurrentProfile();
+                $filterCount = count(\IkabudKernel\Core\DiSyL\ModularManifestLoader::getFilters());
+                $manifestCount = count(\IkabudKernel\Core\DiSyL\ModularManifestLoader::getLoadedManifests());
+                
+                error_log(sprintf(
+                    '[Ikabud] DiSyL v%s loaded: profile "%s", %d manifests, %d filters, CMS: %s',
+                    $version,
+                    $profile,
+                    $manifestCount,
+                    $filterCount,
+                    $cmsType
+                ));
+                
+                $initialized = true;
+            }
+            // Fallback to legacy ManifestLoader (v0.2)
+            elseif (class_exists('\\IkabudKernel\\Core\\DiSyL\\ManifestLoader')) {
                 $manifest = \IkabudKernel\Core\DiSyL\ManifestLoader::load();
                 
-                // Only validate and log once per process
-                if (!$initialized) {
-                    // Validate manifest structure
-                    $errors = \IkabudKernel\Core\DiSyL\ManifestLoader::validate();
-                    if (!empty($errors)) {
-                        error_log('[Ikabud] DiSyL Manifest v' . ($manifest['version'] ?? '0.0.0') . ' validation errors: ' . implode(', ', $errors));
-                    } else {
-                        // Log successful initialization with version and features
-                        $version = \IkabudKernel\Core\DiSyL\ManifestLoader::getVersion();
-                        $supportedCMS = \IkabudKernel\Core\DiSyL\ManifestLoader::getSupportedCMS();
-                        $filterCount = count(\IkabudKernel\Core\DiSyL\ManifestLoader::getFilters());
-                        
-                        error_log(sprintf(
-                            '[Ikabud] DiSyL Manifest v%s loaded: %d CMS adapters, %d filters, caching %s',
-                            $version,
-                            count($supportedCMS),
-                            $filterCount,
-                            ($manifest['cache']['enabled'] ?? false) ? 'enabled' : 'disabled'
-                        ));
-                    }
+                $errors = \IkabudKernel\Core\DiSyL\ManifestLoader::validate();
+                if (!empty($errors)) {
+                    error_log('[Ikabud] DiSyL Manifest v' . ($manifest['version'] ?? '0.0.0') . ' validation errors: ' . implode(', ', $errors));
+                } else {
+                    $version = \IkabudKernel\Core\DiSyL\ManifestLoader::getVersion();
+                    $supportedCMS = \IkabudKernel\Core\DiSyL\ManifestLoader::getSupportedCMS();
+                    $filterCount = count(\IkabudKernel\Core\DiSyL\ManifestLoader::getFilters());
+                    
+                    error_log(sprintf(
+                        '[Ikabud] DiSyL Manifest v%s loaded (legacy): %d CMS adapters, %d filters',
+                        $version,
+                        count($supportedCMS),
+                        $filterCount
+                    ));
                 }
                 
                 $initialized = true;
