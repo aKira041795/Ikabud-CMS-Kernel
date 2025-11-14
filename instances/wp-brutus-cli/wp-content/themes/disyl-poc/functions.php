@@ -236,6 +236,11 @@ function disyl_theme_scripts() {
     // Google Fonts
     wp_enqueue_style('disyl-google-fonts', 'https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap', [], null);
     
+    // Slider JavaScript (only on homepage)
+    if (is_front_page() || is_home()) {
+        wp_enqueue_script('disyl-slider', get_template_directory_uri() . '/js/slider.js', [], '1.0.0', true);
+    }
+    
     // Comment reply script
     if (is_singular() && comments_open() && get_option('thread_comments')) {
         wp_enqueue_script('comment-reply');

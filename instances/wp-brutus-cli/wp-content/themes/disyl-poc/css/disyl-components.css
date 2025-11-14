@@ -188,19 +188,27 @@
 /* ===========================
    Featured Slider
    =========================== */
+.featured-slider-wrapper {
+    position: relative;
+    overflow: hidden;
+    border-radius: 16px;
+}
+
 .featured-posts-slider {
     position: relative;
+    display: flex;
+    transition: transform 0.5s ease-in-out;
 }
 
 .featured-slide {
     position: relative;
-    min-height: 400px;
+    min-height: 500px;
+    min-width: 100%;
     display: flex;
     align-items: center;
-    padding: 2rem;
+    padding: 3rem;
     background: linear-gradient(135deg, rgba(102, 126, 234, 0.9) 0%, rgba(118, 75, 162, 0.9) 100%);
-    border-radius: 12px;
-    margin-bottom: 1.5rem;
+    flex-shrink: 0;
 }
 
 .slide-image {
@@ -273,6 +281,64 @@
     transform: translateX(4px);
 }
 
+/* Slider Navigation */
+.slider-nav {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    background: rgba(255, 255, 255, 0.9);
+    color: #667eea;
+    border: none;
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    font-size: 2rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.slider-nav:hover {
+    background: #ffffff;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.slider-prev {
+    left: 2rem;
+}
+
+.slider-next {
+    right: 2rem;
+}
+
+.slider-dots {
+    position: absolute;
+    bottom: 2rem;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 0.5rem;
+    z-index: 10;
+}
+
+.slider-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.5);
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.slider-dot.active {
+    background: #ffffff;
+    width: 30px;
+    border-radius: 6px;
+}
+
 /* ===========================
    Post Cards
    =========================== */
@@ -301,6 +367,7 @@
     width: 100%;
     height: 200px;
     overflow: hidden;
+    border-radius: 8px 8px 0 0;
 }
 
 .post-thumbnail img {
@@ -312,6 +379,25 @@
 
 .post-thumbnail:hover img {
     transform: scale(1.05);
+}
+
+.post-thumbnail-featured {
+    position: relative;
+    width: 100%;
+    height: 250px;
+    overflow: hidden;
+    border-radius: 8px 8px 0 0;
+}
+
+.post-thumbnail-featured img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform 0.3s ease;
+}
+
+.post-thumbnail-featured:hover img {
+    transform: scale(1.08);
 }
 
 .post-category {

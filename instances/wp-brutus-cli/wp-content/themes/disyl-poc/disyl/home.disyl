@@ -4,38 +4,43 @@
 {!-- Featured Slider / Hero Section --}
 {ikb_section type="featured-slider" class="hero-section" padding="none"}
     {ikb_container size="xlarge"}
-        <div class="featured-posts-slider">
-            {ikb_query type="post" limit=5 featured="true"}
-                <div class="featured-slide">
-                    {if condition="item.thumbnail"}
-                        <div class="slide-image">
-                            <img src="{item.thumbnail | esc_url}" alt="{item.title | esc_attr}" />
-                            <div class="slide-overlay"></div>
-                        </div>
-                    {/if}
-                    <div class="slide-content">
-                        {if condition="item.category"}
-                            <span class="slide-category">{item.category | esc_html}</span>
+        <div class="featured-slider-wrapper">
+            <div class="featured-posts-slider" id="heroSlider">
+                {ikb_query type="post" limit=5 featured="true"}
+                    <div class="featured-slide" data-slide-index="{loop.index}">
+                        {if condition="item.thumbnail"}
+                            <div class="slide-image">
+                                <img src="{item.thumbnail | esc_url}" alt="{item.title | esc_attr}" loading="lazy" />
+                                <div class="slide-overlay"></div>
+                            </div>
                         {/if}
-                        {ikb_text size="3xl" weight="bold" color="#fff"}
-                            <a href="{item.url | esc_url}">{item.title | esc_html}</a>
-                        {/ikb_text}
-                        <div class="slide-meta">
-                            {ikb_text size="sm" color="#fff"}
-                                <span class="author">By {item.author | esc_html}</span>
-                                <span class="separator">•</span>
-                                <span class="date">{item.date | date:format='F j, Y'}</span>
-                                <span class="separator">•</span>
-                                <span class="comments">{item.comment_count} Comments</span>
+                        <div class="slide-content">
+                            {if condition="item.category"}
+                                <span class="slide-category">{item.category | esc_html}</span>
+                            {/if}
+                            {ikb_text size="4xl" weight="bold" color="#fff"}
+                                <a href="{item.url | esc_url}">{item.title | esc_html}</a>
                             {/ikb_text}
+                            <div class="slide-meta">
+                                {ikb_text size="sm" color="#fff"}
+                                    <span class="author">By {item.author | esc_html}</span>
+                                    <span class="separator">•</span>
+                                    <span class="date">{item.date | date:format='F j, Y'}</span>
+                                    <span class="separator">•</span>
+                                    <span class="comments">{item.comment_count} Comments</span>
+                                {/ikb_text}
+                            </div>
+                            {ikb_text size="lg" color="#f0f0f0" margin="top"}
+                                {item.excerpt | wp_trim_words:num_words=35}
+                            {/ikb_text}
+                            <a href="{item.url | esc_url}" class="read-more-btn">Read Full Article →</a>
                         </div>
-                        {ikb_text size="md" color="#f0f0f0" margin="top"}
-                            {item.excerpt | wp_trim_words:num_words=30}
-                        {/ikb_text}
-                        <a href="{item.url | esc_url}" class="read-more-btn">Read More →</a>
                     </div>
-                </div>
-            {/ikb_query}
+                {/ikb_query}
+            </div>
+            <button class="slider-nav slider-prev" aria-label="Previous slide">‹</button>
+            <button class="slider-nav slider-next" aria-label="Next slide">›</button>
+            <div class="slider-dots"></div>
         </div>
     {/ikb_container}
 {/ikb_section}
@@ -46,7 +51,7 @@
         <div class="content-with-sidebar">
             {!-- Main Content --}
             <main class="main-content">
-                {!-- Trending Posts --}
+                {!-- Trending Posts Grid --}
                 <div class="section-header">
                     {ikb_text size="2xl" weight="bold"}
                         🔥 Trending Now
@@ -54,14 +59,14 @@
                     <a href="{site.url | esc_url}/category/trending" class="view-all">View All →</a>
                 </div>
                 
-                {ikb_query type="post" limit=4 orderby="popular"}
-                    <div class="trending-posts-grid">
+                <div class="trending-posts-grid">
+                    {ikb_query type="post" limit=4 orderby="popular"}
                         {ikb_block cols=2 gap=2}
                             {ikb_card class="trending-post-card"}
                                 {if condition="item.thumbnail"}
                                     <div class="post-thumbnail">
                                         <a href="{item.url | esc_url}">
-                                            <img src="{item.thumbnail | esc_url}" alt="{item.title | esc_attr}" />
+                                            <img src="{item.thumbnail | esc_url}" alt="{item.title | esc_attr}" loading="lazy" />
                                         </a>
                                         {if condition="item.category"}
                                             <span class="post-category">{item.category | esc_html}</span>
@@ -82,13 +87,14 @@
                                     {ikb_text size="md" color="#666"}
                                         {item.excerpt | wp_trim_words:num_words=20}
                                     {/ikb_text}
+                                    <a href="{item.url | esc_url}" class="read-more-link">Read More →</a>
                                 </div>
                             {/ikb_card}
                         {/ikb_block}
-                    </div>
-                {/ikb_query}
+                    {/ikb_query}
+                </div>
                 
-                {!-- Latest Posts --}
+                {!-- Latest Posts - 2 Column Layout --}
                 <div class="section-header" style="margin-top: 3rem;">
                     {ikb_text size="2xl" weight="bold"}
                         📰 Latest Articles
@@ -96,47 +102,42 @@
                     <a href="{site.url | esc_url}/blog" class="view-all">View All →</a>
                 </div>
                 
-                {ikb_query type="post" limit=6 orderby="date"}
-                    <div class="latest-posts-list">
-                        {ikb_block cols=1 gap=2}
+                <div class="latest-posts-list">
+                    {ikb_query type="post" limit=6 orderby="date"}
+                        {ikb_block cols=2 gap=2}
                             {ikb_card class="latest-post-card"}
-                                <div class="post-layout">
-                                    {if condition="item.thumbnail"}
-                                        <div class="post-thumbnail-large">
-                                            <a href="{item.url | esc_url}">
-                                                <img src="{item.thumbnail | esc_url}" alt="{item.title | esc_attr}" />
-                                            </a>
-                                            {if condition="item.category"}
-                                                <span class="post-category">{item.category | esc_html}</span>
-                                            {/if}
-                                        </div>
-                                    {/if}
-                                    <div class="post-content-large">
-                                        {ikb_text size="2xl" weight="semibold"}
-                                            <a href="{item.url | esc_url}">{item.title | esc_html}</a>
-                                        {/ikb_text}
-                                        <div class="post-meta">
-                                            {ikb_text size="sm" color="#666"}
-                                                <span class="author">
-                                                    <img src="{item.author_avatar | esc_url}" alt="{item.author | esc_attr}" class="author-avatar-small" />
-                                                    By {item.author | esc_html}
-                                                </span>
-                                                <span class="separator">•</span>
-                                                <span class="date">{item.date | date:format='F j, Y'}</span>
-                                                <span class="separator">•</span>
-                                                <span class="comments">{item.comment_count} Comments</span>
-                                            {/ikb_text}
-                                        </div>
-                                        {ikb_text size="md" color="#666" line-height="relaxed"}
-                                            {item.excerpt | wp_trim_words:num_words=40}
-                                        {/ikb_text}
-                                        <a href="{item.url | esc_url}" class="read-more-link">Continue Reading →</a>
+                                {if condition="item.thumbnail"}
+                                    <div class="post-thumbnail-featured">
+                                        <a href="{item.url | esc_url}">
+                                            <img src="{item.thumbnail | esc_url}" alt="{item.title | esc_attr}" loading="lazy" />
+                                        </a>
+                                        {if condition="item.category"}
+                                            <span class="post-category">{item.category | esc_html}</span>
+                                        {/if}
                                     </div>
+                                {/if}
+                                <div class="post-content-featured">
+                                    {ikb_text size="xl" weight="semibold"}
+                                        <a href="{item.url | esc_url}">{item.title | esc_html}</a>
+                                    {/ikb_text}
+                                    <div class="post-meta">
+                                        {ikb_text size="sm" color="#666"}
+                                            <span class="author">By {item.author | esc_html}</span>
+                                            <span class="separator">•</span>
+                                            <span class="date">{item.date | date:format='M j, Y'}</span>
+                                            <span class="separator">•</span>
+                                            <span class="comments">{item.comment_count} Comments</span>
+                                        {/ikb_text}
+                                    </div>
+                                    {ikb_text size="md" color="#666"}
+                                        {item.excerpt | wp_trim_words:num_words=25}
+                                    {/ikb_text}
+                                    <a href="{item.url | esc_url}" class="read-more-link">Continue Reading →</a>
                                 </div>
                             {/ikb_card}
                         {/ikb_block}
-                    </div>
-                {/ikb_query}
+                    {/ikb_query}
+                </div>
                 
                 {!-- Pagination --}
                 {if condition="pagination.has_pages"}
