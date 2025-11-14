@@ -172,6 +172,22 @@ class Parser
         // Consume closing brace
         $this->expect(Token::RBRACE, 'Expected closing brace');
         
+        // Check if this is a leaf component (should not have children)
+        if (!$selfClosing && ComponentRegistry::has($tagName)) {
+            $component = ComponentRegistry::get($tagName);
+            if (($component['leaf'] ?? false) === true) {
+                // Leaf components should be treated as self-closing
+                return [
+                    'type' => 'tag',
+                    'name' => $tagName,
+                    'attrs' => $attributes,
+                    'children' => [],
+                    'self_closing' => true,
+                    'loc' => $this->getLocation($startToken)
+                ];
+            }
+        }
+        
         // If no attributes and immediately closed, treat as expression
         // e.g., {title} or {item.title}
         if (empty($attributes) && !$selfClosing) {
