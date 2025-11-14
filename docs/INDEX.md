@@ -1,17 +1,21 @@
 # Ikabud Kernel Documentation Index
 
 **Multi-CMS Kernel with DiSyL Templating Engine**  
-**Version:** 1.0.0 | **DiSyL:** 0.2.0 | **Status:** Production Ready
+**Version:** 1.0.0  
+**DiSyL Version:** 0.5.0 ✅ **BETA READY**  
+**Last Updated:** November 14, 2025  
+**Test Pass Rate:** 100% (97/97 tests) | **DiSyL:** 0.2.0 | **Status:** Production Ready
 
 ---
 
 ## 🎉 Latest Updates
 
-**DiSyL Manifest v0.2.0 Released!** (November 14, 2025)
-- ✅ All 10 major features complete and working
-- ✅ Expression filters fully functional
-- ✅ 50x performance improvement
-- ✅ Production-ready for enterprise use
+**DiSyL v0.5.0 Beta Released!** (November 14, 2025)
+- ✅ 100% test pass rate (97/97 tests)
+- ✅ Complete WordPress integration (148+ integrations)
+- ✅ Security audit complete (9.2/10)
+- ✅ Performance benchmarks met (9.5/10)
+- ✅ Production-ready for beta testing
 
 ---
 
@@ -22,11 +26,13 @@
 - **[Executive Summary](EXECUTIVE_SUMMARY.md)** - High-level project overview
 - **[Final Architecture](FINAL_ARCHITECTURE.md)** - Complete system architecture
 
-### 🎨 DiSyL Templating Engine (v0.2.0)
+### 🎨 DiSyL Templating Engine (v0.5.0 Beta)
 - **[DiSyL README](DISYL_README.md)** - DiSyL documentation index
-- **[Manifest Architecture v0.2](DISYL_MANIFEST_ARCHITECTURE.md)** - ⭐ NEW: Enhanced CMS translation system
-- **[v0.2 Migration Guide](DISYL_MANIFEST_V0.2_MIGRATION.md)** - ⭐ NEW: Upgrade from v0.1
-- **[v0.2 Testing Guide](DISYL_V0.2_TESTING_GUIDE.md)** - ⭐ NEW: Comprehensive testing
+- **[🎉 Beta Release v0.5.0](DISYL_BETA_RELEASE_v0.5.0.md)** - ⭐ NEW: Beta release announcement
+- **[Beta Readiness Checklist](DISYL_BETA_READINESS.md)** - ⭐ NEW: 100% complete
+- **[Security Audit](DISYL_SECURITY_AUDIT.md)** - ⭐ NEW: 9.2/10 score
+- **[Performance Benchmarks](DISYL_PERFORMANCE_BENCHMARKS.md)** - ⭐ NEW: 9.5/10 score
+- **[Manifest Architecture v0.4](DISYL_MANIFEST_V0.4_ARCHITECTURE.md)** - ⭐ NEW: Modular architecture
 - **[Complete Guide](DISYL_COMPLETE_GUIDE.md)** - Comprehensive DiSyL guide (20KB)
 - **[Grammar Specification](DISYL_GRAMMAR_SPECIFICATION.md)** - Formal grammar documentation
 - **[Grammar EBNF](DISYL_GRAMMAR_v0.1.ebnf)** - EBNF grammar definition
