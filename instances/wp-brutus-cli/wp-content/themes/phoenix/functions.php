@@ -207,7 +207,7 @@ function phoenix_build_context() {
         'site' => array(
             'name' => get_bloginfo('name'),
             'description' => get_bloginfo('description'),
-            'url' => home_url('/'),
+            'url' => home_url(),
             'theme_url' => get_template_directory_uri(),
             'charset' => get_bloginfo('charset'),
             'language' => get_bloginfo('language'),

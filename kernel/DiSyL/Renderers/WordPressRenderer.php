@@ -15,9 +15,9 @@ use IkabudKernel\Core\DiSyL\ModularManifestLoader;
 
 class WordPressRenderer extends ManifestDrivenRenderer
 {
-    private WordPressAdapter $cms;
+    private ?WordPressAdapter $cms = null;
     
-    public function __construct(WordPressAdapter $cms)
+    public function __construct(?WordPressAdapter $cms = null)
     {
         $this->cms = $cms;
         $this->initializeCMS();
