@@ -136,8 +136,9 @@ abstract class BaseRenderer
             $value = $this->applyFilters($value, $filterChain);
             error_log('[DiSyL Renderer] After filters: ' . var_export($value, true));
             
-            // Convert to string and escape
-            $result = htmlspecialchars($this->valueToString($value), ENT_QUOTES, 'UTF-8');
+            // Filters like esc_url, esc_attr already escape, so don't double-escape
+            // Just convert to string
+            $result = $this->valueToString($value);
             error_log('[DiSyL Renderer] Final result: ' . $result);
             
             return $result;
@@ -152,7 +153,8 @@ abstract class BaseRenderer
             return htmlspecialchars($this->valueToString($value), ENT_QUOTES, 'UTF-8');
         }, $text);
         
-        // Don't double-escape - we already escaped in the callbacks
+        // Return text as-is - it may contain raw HTML which should not be escaped
+        // The embedded expressions have already been processed and escaped as needed
         return $text;
     }
     
