@@ -131,18 +131,26 @@ class KernelIntegration
         // Check for custom page template first
         if (is_page()) {
             $template_slug = get_page_template_slug();
+            error_log('[DiSyL] Page template slug: ' . ($template_slug ?: 'none'));
+            
             if ($template_slug) {
                 // Extract template name from slug
                 // e.g., "page-test-v02.php" -> "test-v-02"
                 $template_name = str_replace(['.php'], '', basename($template_slug));
                 $template_name = str_replace('page-', '', $template_name);
                 
+                error_log('[DiSyL] Extracted template name: ' . $template_name);
+                
                 // Check if custom DiSyL template exists
                 $theme_dir = get_stylesheet_directory();
                 $custom_template = $theme_dir . '/disyl/' . $template_name . '.disyl';
+                error_log('[DiSyL] Checking for: ' . $custom_template);
+                
                 if (file_exists($custom_template)) {
                     error_log('[DiSyL] Using custom template: ' . $template_name);
                     return $template_name;
+                } else {
+                    error_log('[DiSyL] Custom template not found, using default page template');
                 }
             }
         }
