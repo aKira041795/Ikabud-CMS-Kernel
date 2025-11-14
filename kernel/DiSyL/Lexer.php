@@ -104,8 +104,8 @@ class Lexer
             return $this->handleColon();
         }
         
-        // Handle string (double or single quotes)
-        if ($char === '"' || $char === "'") {
+        // Handle string (double or single quotes) - only inside DiSyL tags
+        if (($char === '"' || $char === "'") && $this->inTag) {
             return $this->handleString($char);
         }
         
@@ -513,9 +513,8 @@ class Lexer
             }
         }
         
-        // Check if we stopped at an inline expression with filter: {expr | filter}
-        // Scan ahead to see if there's a pipe before the closing brace
-        if (!$this->isAtEnd() && $this->peek() === '{' && $this->peek(1) !== '!' && $this->peek(1) !== '/') {
+        // Loop to handle multiple inline expressions with filters in the same TEXT token
+        while (!$this->isAtEnd() && $this->peek() === '{' && $this->peek(1) !== '!' && $this->peek(1) !== '/') {
             // Scan ahead to check if this contains a pipe (indicating a filter)
             $scanPos = $this->position + 1;
             $hasPipe = false;
@@ -559,30 +558,29 @@ class Lexer
                         $this->advance();
                     }
                 }
-            }
-        }
-        
-        // After handling inline expression, continue with more text if needed
-        if (!$this->isAtEnd() && $this->peek() !== '{') {
-            
-            // Continue reading text after the expression
-            while (!$this->isAtEnd() && $this->peek() !== '{') {
-                $char = $this->peek();
                 
-                if ($char === '\\') {
-                    $next = $this->peek(1);
-                    if ($next === '{' || $next === '}') {
-                        $this->advance();
-                        $value .= $next;
-                        $this->advance();
+                // After handling inline expression, continue with more text if needed
+                while (!$this->isAtEnd() && $this->peek() !== '{') {
+                    $char = $this->peek();
+                    
+                    if ($char === '\\') {
+                        $next = $this->peek(1);
+                        if ($next === '{' || $next === '}') {
+                            $this->advance();
+                            $value .= $next;
+                            $this->advance();
+                        } else {
+                            $value .= $char;
+                            $this->advance();
+                        }
                     } else {
                         $value .= $char;
                         $this->advance();
                     }
-                } else {
-                    $value .= $char;
-                    $this->advance();
                 }
+            } else {
+                // No pipe found, this is a regular DiSyL tag, stop here
+                break;
             }
         }
         
