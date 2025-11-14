@@ -24,6 +24,7 @@ abstract class BaseRenderer
      */
     public function render(array $ast, array $context = []): string
     {
+        error_log('[DiSyL BaseRenderer] render() called with ' . count($ast['children'] ?? []) . ' children');
         $this->context = $context;
         
         if ($ast['type'] !== 'document') {
@@ -117,7 +118,8 @@ abstract class BaseRenderer
         $text = $node['value'];
         $originalText = $text;
         
-        error_log('[DiSyL Renderer] TEXT NODE: ' . substr($text, 0, 200));
+        error_log('[DiSyL Renderer] TEXT NODE (first 200 chars): ' . substr($text, 0, 200));
+        error_log('[DiSyL Renderer] TEXT NODE contains HTML tags: ' . (preg_match('/<[a-z]+/i', $text) ? 'YES' : 'NO'));
         
         // First, handle filter expressions: {item.title | upper}
         $text = preg_replace_callback('/\{([a-zA-Z0-9_.]+)\s*\|\s*([^}]+)\}/', function($matches) {
@@ -155,6 +157,7 @@ abstract class BaseRenderer
         
         // Return text as-is - it may contain raw HTML which should not be escaped
         // The embedded expressions have already been processed and escaped as needed
+        error_log('[DiSyL Renderer] TEXT NODE final output (first 200 chars): ' . substr($text, 0, 200));
         return $text;
     }
     
