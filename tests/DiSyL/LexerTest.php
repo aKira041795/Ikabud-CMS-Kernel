@@ -77,8 +77,8 @@ class LexerTest extends TestCase
         $input = '{ikb_section title="Welcome"}';
         $tokens = $this->lexer->tokenize($input);
         
-        $this->assertCount(6, $tokens); // LBRACE, IDENT, IDENT, EQUAL, STRING, RBRACE, EOF
-        $this->assertEquals(Token::IDENT, $tokens[1]->value);
+        $this->assertCount(7, $tokens); // LBRACE, IDENT, IDENT, EQUAL, STRING, RBRACE, EOF
+        $this->assertEquals(Token::IDENT, $tokens[1]->type);
         $this->assertEquals('ikb_section', $tokens[1]->value);
         $this->assertEquals(Token::IDENT, $tokens[2]->type);
         $this->assertEquals('title', $tokens[2]->value);
@@ -95,7 +95,7 @@ class LexerTest extends TestCase
         $input = '{ikb_query limit=10}';
         $tokens = $this->lexer->tokenize($input);
         
-        $this->assertCount(6, $tokens);
+        $this->assertCount(7, $tokens); // LBRACE, IDENT, IDENT, EQUAL, NUMBER, RBRACE, EOF
         $this->assertEquals('limit', $tokens[2]->value);
         $this->assertEquals(Token::NUMBER, $tokens[4]->type);
         $this->assertEquals(10, $tokens[4]->value);
@@ -178,7 +178,7 @@ class LexerTest extends TestCase
         $tokens = $this->lexer->tokenize($input);
         
         $textTokens = array_filter($tokens, fn($t) => $t->type === Token::TEXT);
-        $this->assertCount(2, $textTokens);
+        $this->assertCount(3, $textTokens); // "Hello ", "World", "!"
     }
     
     /**

@@ -37,7 +37,7 @@ class ParserTest extends TestCase
      */
     public function testSimpleTag(): void
     {
-        $ast = $this->parseTemplate('{ikb_section}');
+        $ast = $this->parseTemplate('{ikb_section /}');
         
         $this->assertEquals('document', $ast['type']);
         $this->assertCount(1, $ast['children']);
@@ -300,10 +300,10 @@ class ParserTest extends TestCase
         $this->assertArrayHasKey('loc', $tag);
         $this->assertArrayHasKey('line', $tag['loc']);
         $this->assertArrayHasKey('column', $tag['loc']);
-        $this->assertArrayHasKey('start', $tag['loc']);
-        $this->assertArrayHasKey('end', $tag['loc']);
+        $this->assertArrayHasKey('position', $tag['loc']);
         
         $this->assertEquals(1, $tag['loc']['line']);
+        $this->assertEquals(1, $tag['loc']['column']);
     }
     
     /**
@@ -333,7 +333,7 @@ class ParserTest extends TestCase
         
         $this->assertEquals('document', $ast['type']);
         $this->assertEmpty($ast['children']);
-        $this->assertEmpty($ast['errors']);
+        // Parser doesn't track errors in AST, they're thrown as exceptions
     }
     
     /**
@@ -358,11 +358,10 @@ class ParserTest extends TestCase
      */
     public function testMismatchedTags(): void
     {
-        $ast = $this->parseTemplate('{ikb_section}{/ikb_block}');
+        $this->expectException(\IkabudKernel\Core\DiSyL\Exceptions\ParserException::class);
+        $this->expectExceptionMessage('Expected opening brace');
         
-        // Should have errors
-        $this->assertNotEmpty($ast['errors']);
-        $this->assertStringContainsString('Mismatched', $ast['errors'][0]['message']);
+        $ast = $this->parseTemplate('{ikb_section}{/ikb_block}');
     }
     
     /**

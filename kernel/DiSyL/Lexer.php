@@ -114,12 +114,12 @@ class Lexer
             return $this->handleNumber();
         }
         
-        // Handle identifier (tag names, attribute names, keywords)
-        if (ctype_alpha($char) || $char === '_' || $char === ':') {
+        // Handle identifier (tag names, attribute names, keywords) - only inside tags
+        if ($this->inTag && (ctype_alpha($char) || $char === '_' || $char === ':')) {
             return $this->handleIdentifier();
         }
         
-        // Handle text (outside tags)
+        // Handle text (outside tags or unrecognized characters)
         return $this->handleText();
     }
     
@@ -634,7 +634,7 @@ class Lexer
         
         return new Token(
             Token::COMMENT,
-            $value,
+            trim($value),
             $startLine,
             $startColumn,
             $startPosition

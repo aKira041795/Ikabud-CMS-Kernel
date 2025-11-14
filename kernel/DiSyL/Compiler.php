@@ -342,11 +342,27 @@ class Compiler
     }
     
     /**
+     * Check if there are compilation errors
+     */
+    public function hasErrors(): bool
+    {
+        return !empty($this->errors);
+    }
+    
+    /**
      * Get compilation warnings
      */
     public function getWarnings(): array
     {
         return $this->warnings;
+    }
+    
+    /**
+     * Check if there are compilation warnings
+     */
+    public function hasWarnings(): bool
+    {
+        return !empty($this->warnings);
     }
     
     /**

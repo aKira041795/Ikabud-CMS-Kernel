@@ -17,6 +17,7 @@ class ModularManifestLoader
     private static array $namespaces = [];
     private static string $currentProfile = 'full';
     private static ?string $cmsType = null;
+    private static ?array $cachedComponents = null;
     
     /**
      * Initialize with profile and CMS type
@@ -73,8 +74,15 @@ class ModularManifestLoader
         
         // Load manifests specified in profile
         foreach ($profile['load']['manifests'] as $manifestPath) {
-            // Replace {cms} placeholder
-            $manifestPath = str_replace('{cms}', self::$cmsType ?? 'WordPress', $manifestPath);
+            // Replace {cms} placeholder with proper case (WordPress, Drupal, Joomla)
+            $cmsType = self::$cmsType ?? 'wordpress';
+            $cmsFolder = match(strtolower($cmsType)) {
+                'wordpress' => 'WordPress',
+                'drupal' => 'Drupal',
+                'joomla' => 'Joomla',
+                default => ucfirst(strtolower($cmsType))
+            };
+            $manifestPath = str_replace('{cms}', $cmsFolder, $manifestPath);
             self::loadManifest($manifestPath);
         }
         
@@ -93,14 +101,14 @@ class ModularManifestLoader
         $fullPath = __DIR__ . '/Manifests/' . $relativePath;
         
         if (!file_exists($fullPath)) {
-            error_log('[DiSyL] Manifest not found: ' . $relativePath);
+            // Silently skip missing optional manifests
             return;
         }
         
         $manifest = json_decode(file_get_contents($fullPath), true);
         
         if (json_last_error() !== JSON_ERROR_NONE) {
-            error_log('[DiSyL] Invalid manifest: ' . $relativePath);
+            error_log('[DiSyL] Invalid manifest: ' . $relativePath . ' - ' . json_last_error_msg());
             return;
         }
         
@@ -185,14 +193,14 @@ class ModularManifestLoader
      */
     public static function getComponents(): array
     {
-        $components = [];
-        
-        // First, try registry
-        if (!empty(self::$registry['components'])) {
-            return self::$registry['components'];
+        // Return cached if available
+        if (self::$cachedComponents !== null) {
+            return self::$cachedComponents;
         }
         
-        // Otherwise, build from loaded manifests
+        $components = [];
+        
+        // Build from loaded manifests
         foreach (self::$loadedManifests as $path => $manifest) {
             if (isset($manifest['components'])) {
                 foreach ($manifest['components'] as $name => $component) {
@@ -200,24 +208,27 @@ class ModularManifestLoader
                     $namespace = $component['namespace'] ?? 'core';
                     $namespacedName = $namespace . ':' . str_replace('ikb_', '', $name);
                     
-                    $components[$namespacedName] = array_merge($component, [
-                        'full_name' => $name,
-                        'source' => $path
-                    ]);
+                    // Preserve all component data
+                    $components[$namespacedName] = $component;
+                    $components[$namespacedName]['full_name'] = $name;
+                    $components[$namespacedName]['source'] = $path;
                 }
             }
             
             // Also include base_components
             if (isset($manifest['base_components'])) {
                 foreach ($manifest['base_components'] as $name => $component) {
-                    $components['base:' . $name] = array_merge($component, [
-                        'full_name' => $name,
-                        'source' => $path,
-                        'is_base' => true
-                    ]);
+                    $namespacedName = 'base:' . $name;
+                    $components[$namespacedName] = $component;
+                    $components[$namespacedName]['full_name'] = $name;
+                    $components[$namespacedName]['source'] = $path;
+                    $components[$namespacedName]['is_base'] = true;
                 }
             }
         }
+        
+        // Cache the result
+        self::$cachedComponents = $components;
         
         return $components;
     }
@@ -464,6 +475,8 @@ class ModularManifestLoader
     {
         self::$loadedManifests = [];
         self::$registry = [];
+        self::$cachedComponents = null; // Clear component cache
+        
         self::init($profile, $cmsType);
     }
 }

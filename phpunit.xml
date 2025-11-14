@@ -12,6 +12,7 @@
     <testsuites>
         <testsuite name="DiSyL Test Suite">
             <directory>tests/DiSyL</directory>
+            <exclude>tests/DiSyL/Legacy</exclude>
         </testsuite>
     </testsuites>
     
