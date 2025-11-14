@@ -449,11 +449,15 @@ class WordPressRenderer extends BaseRenderer
      */
     protected function renderInclude(array $node, array $attrs, array $children): string
     {
-        $template = $attrs['template'] ?? '';
+        // Support both 'template' and 'file' attributes
+        $template = $attrs['file'] ?? $attrs['template'] ?? '';
         
         if (empty($template)) {
             return '<!-- Include: no template specified -->';
         }
+        
+        // Remove .disyl extension if provided
+        $template = preg_replace('/\.disyl$/', '', $template);
         
         // Build path to DiSyL template
         $theme_dir = get_stylesheet_directory();
