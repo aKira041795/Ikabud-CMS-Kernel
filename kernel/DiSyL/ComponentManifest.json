@@ -1,456 +1,56 @@
 {
   "$schema": "./manifest.schema.json",
-  "version": "0.2.0",
-  "description": "DiSyL Component to CMS Translation Manifest - Enhanced Architecture",
-  "metadata": {
-    "created": "2025-11-14",
-    "author": "Ikabud Kernel Team",
-    "license": "MIT"
+  "version": "0.4.0",
+  "type": "redirect",
+  "description": "DiSyL Manifest - Modular Architecture (v0.4)",
+  
+  "notice": "⚠️  DEPRECATED: This monolithic manifest has been replaced by modular manifests.",
+  
+  "migration": {
+    "status": "Use ModularManifestLoader instead of ManifestLoader",
+    "new_location": "./Manifests/",
+    "structure": {
+      "Core": "./Manifests/Core/",
+      "WordPress": "./Manifests/WordPress/",
+      "Drupal": "./Manifests/Drupal/",
+      "Joomla": "./Manifests/Joomla/",
+      "Profiles": "./Manifests/profiles/",
+      "Registry": "./Manifests/registry.json",
+      "Config": "./Manifests/manifest.config.json"
+    },
+    "documentation": [
+      "../docs/DISYL_MANIFEST_V0.4_ARCHITECTURE.md",
+      "./Manifests/README.md"
+    ]
   },
   
-  "base_components": {
-    "base_query": {
-      "capabilities": {
-        "supports_children": true,
-        "output_mode": "loop",
-        "provides_context": ["item"],
-        "async": false,
-        "cacheable": true
-      },
-      "attributes": {
-        "type": {
-          "required": true,
-          "type": "string",
-          "description": "Content type to query"
-        },
-        "limit": {
-          "type": "integer",
-          "default": 10,
-          "min": 1,
-          "max": 100
-        },
-        "orderby": {
-          "type": "string",
-          "enum": ["date", "title", "author", "modified"],
-          "default": "date"
-        },
-        "order": {
-          "type": "string",
-          "enum": ["asc", "desc"],
-          "default": "desc"
-        }
-      }
-    },
-    "base_section": {
-      "capabilities": {
-        "supports_children": true,
-        "output_mode": "container",
-        "provides_context": [],
-        "async": false,
-        "cacheable": true
-      },
-      "html_tag": "section",
-      "class_prefix": "ikb-section",
-      "attributes": {
-        "type": {
-          "type": "string",
-          "description": "Section variant"
-        },
-        "bg": {
-          "type": "color",
-          "description": "Background color or gradient"
-        },
-        "padding": {
-          "type": "string",
-          "enum": ["none", "small", "normal", "large"],
-          "default": "normal"
-        }
-      }
-    }
-  },
-  
-  "cms_adapters": {
-    "wordpress": {
-      "name": "WordPress",
-      "version": "6.0+",
-      "components": {
-        "ikb_section": {
-          "extends": "base_section",
-          "render_method": "renderIkbSection",
-          "attributes": {
-            "bg": {
-              "map_to": "style.background",
-              "pipeline": [
-                { "action": "sanitize_color" },
-                { "action": "apply_style", "format": "background: {value};" }
-              ]
-            },
-            "padding": {
-              "map_to": "style.padding",
-              "transform": {
-                "none": "0",
-                "small": "1rem",
-                "normal": "2rem",
-                "large": "4rem"
-              }
-            }
-          }
-        },
-        "ikb_query": {
-          "extends": "base_query",
-          "render_method": "renderIkbQuery",
-          "data_source": "WP_Query",
-          "capabilities": {
-            "supports_children": true,
-            "output_mode": "loop",
-            "provides_context": ["item", "loop"],
-            "async": false,
-            "cacheable": true
-          },
-          "attributes": {
-            "type": {
-              "map_to": "post_type"
-            },
-            "limit": {
-              "map_to": "posts_per_page"
-            },
-            "orderby": {
-              "map_to": "orderby"
-            },
-            "category": {
-              "map_to": "category_name"
-            }
-          },
-          "context_variables": {
-            "item.id": "get_the_ID()",
-            "item.title": "get_the_title()",
-            "item.content": "apply_filters('the_content', get_the_content())",
-            "item.excerpt": "get_the_excerpt()",
-            "item.url": "get_permalink()",
-            "item.date": "get_the_date()",
-            "item.author": "get_the_author()",
-            "item.thumbnail": "get_the_post_thumbnail_url('medium')",
-            "item.categories": "wp_get_post_categories(get_the_ID(), ['fields' => 'names'])",
-            "loop.index": "$wp_query->current_post",
-            "loop.count": "$wp_query->post_count",
-            "loop.first": "$wp_query->current_post === 0",
-            "loop.last": "$wp_query->current_post === $wp_query->post_count - 1"
-          }
-        }
-      },
-      "hooks": {
-        "init": "\\IkabudKernel\\Core\\DiSyL\\KernelIntegration::initWordPress",
-        "template_include": "\\IkabudKernel\\Core\\DiSyL\\KernelIntegration::interceptTemplate",
-        "before_render": "apply_filters('disyl_before_render', $output)",
-        "after_render": "apply_filters('disyl_after_render', $output)",
-        "component_render": "apply_filters('disyl_component_{component}', $output, $attrs)"
-      }
-    },
-    "drupal": {
-      "name": "Drupal",
-      "version": "9.0+",
-      "components": {
-        "ikb_query": {
-          "extends": "base_query",
-          "render_method": "renderIkbQuery",
-          "data_source": "EntityQuery",
-          "attributes": {
-            "type": {
-              "map_to": "entity_type"
-            },
-            "limit": {
-              "map_to": "range.limit"
-            }
-          },
-          "context_variables": {
-            "item.id": "$entity->id()",
-            "item.title": "$entity->getTitle()",
-            "item.content": "$entity->get('body')->value"
-          }
-        }
-      }
-    },
-    "joomla": {
-      "name": "Joomla",
-      "version": "4.0+",
-      "components": {
-        "ikb_query": {
-          "extends": "base_query",
-          "render_method": "renderIkbQuery",
-          "data_source": "JModelList",
-          "attributes": {
-            "type": {
-              "map_to": "context"
-            },
-            "limit": {
-              "map_to": "list.limit"
-            }
-          }
-        }
-      }
-    }
-  },
-  
-  "universal_components": {
-    "ikb_text": {
-      "capabilities": {
-        "supports_children": true,
-        "output_mode": "inline",
-        "provides_context": [],
-        "async": false,
-        "cacheable": true
-      },
-      "html_tag": "div",
-      "class_prefix": "ikb-text",
-      "render_modes": {
-        "html": true,
-        "json": true,
-        "ssr": true,
-        "static": true
-      },
-      "attributes": {
-        "size": {
-          "type": "string",
-          "map_to": "style.font-size",
-          "transform": {
-            "xs": "0.75rem",
-            "sm": "0.875rem",
-            "md": "1rem",
-            "lg": "1.125rem",
-            "xl": "1.25rem",
-            "2xl": "1.5rem"
-          }
-        },
-        "weight": {
-          "type": "string",
-          "map_to": "style.font-weight",
-          "transform": {
-            "light": "300",
-            "normal": "400",
-            "medium": "500",
-            "bold": "700"
-          }
-        },
-        "color": {
-          "type": "color",
-          "map_to": "style.color",
-          "pipeline": [
-            { "action": "sanitize_color" },
-            { "action": "apply_style", "format": "color: {value};" }
-          ]
-        },
-        "align": {
-          "type": "string",
-          "map_to": "style.text-align",
-          "enum": ["left", "center", "right", "justify"],
-          "pipeline": [
-            { "action": "apply_style", "format": "text-align: {value};" }
-          ]
-        }
-      }
-    },
-    "ikb_container": {
-      "capabilities": {
-        "supports_children": true,
-        "output_mode": "container",
-        "provides_context": [],
-        "async": false,
-        "cacheable": true
-      },
-      "html_tag": "div",
-      "class_prefix": "ikb-container",
-      "attributes": {
-        "width": {
-          "type": "string",
-          "map_to": "style.max-width",
-          "transform": {
-            "sm": "640px",
-            "md": "768px",
-            "lg": "1024px",
-            "xl": "1280px"
-          }
-        }
-      }
-    },
-    "ikb_card": {
-      "capabilities": {
-        "supports_children": true,
-        "output_mode": "container",
-        "provides_context": [],
-        "async": false,
-        "cacheable": true
-      },
-      "html_tag": "div",
-      "class_prefix": "ikb-card",
-      "attributes": {
-        "variant": {
-          "type": "string",
-          "enum": ["default", "outlined", "elevated"],
-          "default": "default"
-        },
-        "title": {
-          "type": "string"
-        },
-        "image": {
-          "type": "url"
-        },
-        "link": {
-          "type": "url"
-        }
-      }
-    }
-  },
-  
-  "control_structures": {
-    "if": {
-      "type": "conditional",
-      "capabilities": {
-        "supports_children": true,
-        "output_mode": "conditional",
-        "provides_context": [],
-        "async": false,
-        "cacheable": false
-      },
-      "attributes": {
-        "condition": {
-          "required": true,
-          "type": "expression",
-          "description": "Boolean expression to evaluate"
-        }
-      }
-    },
-    "for": {
-      "type": "loop",
-      "capabilities": {
-        "supports_children": true,
-        "output_mode": "loop",
-        "provides_context": ["item", "index"],
-        "async": false,
-        "cacheable": false
-      },
-      "attributes": {
-        "items": {
-          "required": true,
-          "type": "expression",
-          "description": "Array or iterable to loop over"
-        },
-        "as": {
-          "required": true,
-          "type": "identifier",
-          "description": "Variable name for current item"
-        }
-      }
-    },
-    "include": {
-      "type": "include",
-      "self_closing": true,
-      "capabilities": {
-        "supports_children": false,
-        "output_mode": "include",
-        "provides_context": [],
-        "async": false,
-        "cacheable": true
-      },
-      "attributes": {
-        "template": {
-          "required": true,
-          "type": "string",
-          "description": "Path to template file"
-        }
-      }
-    }
-  },
-  
-  "filters": {
-    "upper": {
-      "description": "Convert string to uppercase",
-      "php": "strtoupper({value})",
-      "js": "{value}.toUpperCase()"
-    },
-    "lower": {
-      "description": "Convert string to lowercase",
-      "php": "strtolower({value})",
-      "js": "{value}.toLowerCase()"
-    },
-    "capitalize": {
-      "description": "Capitalize first letter",
-      "php": "ucfirst({value})",
-      "js": "{value}.charAt(0).toUpperCase() + {value}.slice(1)"
-    },
-    "date": {
-      "description": "Format date",
-      "php": "date('{format}', strtotime({value}))",
-      "js": "new Date({value}).toLocaleDateString('{format}')",
-      "params": {
-        "format": {
-          "type": "string",
-          "default": "Y-m-d"
-        }
-      }
-    },
-    "truncate": {
-      "description": "Truncate string to length",
-      "php": "mb_substr({value}, 0, {length}) . ({length} < mb_strlen({value}) ? '...' : '')",
-      "js": "{value}.length > {length} ? {value}.substring(0, {length}) + '...' : {value}",
-      "params": {
-        "length": {
-          "type": "integer",
-          "default": 100
-        }
-      }
-    },
-    "escape": {
-      "description": "Escape HTML entities",
-      "php": "htmlspecialchars({value}, ENT_QUOTES, 'UTF-8')",
-      "js": "{value}.replace(/[&<>\"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',\"'\":'&#39;'}[m]))"
-    },
-    "json": {
-      "description": "Encode as JSON",
-      "php": "json_encode({value})",
-      "js": "JSON.stringify({value})"
-    }
-  },
-  
-  "preview_modes": {
-    "static": {
-      "enabled": true,
-      "description": "Static HTML generation without CMS"
-    },
-    "cms_preview": {
-      "enabled": true,
-      "description": "CMS-aware preview rendering"
-    },
-    "ssr": {
-      "enabled": true,
-      "description": "Server-side rendering mode"
-    },
-    "headless": {
-      "enabled": true,
-      "description": "Headless CMS JSON output"
-    }
-  },
-  
-  "deprecated": {
-    "ikb_oldcomponent": {
-      "message": "Use ikb_newcomponent instead. ikb_oldcomponent will be removed in v0.4.0",
-      "remove_in_version": "0.4.0",
-      "replacement": "ikb_newcomponent",
-      "migration_guide": "https://docs.ikabud.com/migration/oldcomponent"
-    }
-  },
-  
-  "cache": {
+  "backward_compatibility": {
     "enabled": true,
-    "strategy": "hash",
-    "storage": {
-      "type": "opcache",
-      "fallback": "file"
-    },
-    "invalidation": {
-      "on_manifest_change": true,
-      "on_cms_update": true,
-      "ttl": 3600
-    },
-    "compiled_path": "storage/cache/manifest.{cms}.{hash}.compiled"
+    "loader": "ManifestLoader.php (v0.2 - Legacy)",
+    "fallback": "ModularManifestLoader.php will fallback to ManifestLoader if needed",
+    "deprecation_timeline": {
+      "v0.4": "Modular manifests introduced, legacy still supported",
+      "v0.5": "Legacy support maintained, warnings added",
+      "v0.6": "Legacy support deprecated",
+      "v1.0": "Legacy support removed"
+    }
+  },
+  
+  "quick_start": {
+    "use_modular": "IkabudKernel\\Core\\DiSyL\\ModularManifestLoader::init('full', 'wordpress')",
+    "use_legacy": "IkabudKernel\\Core\\DiSyL\\ManifestLoader::load()",
+    "profiles": ["minimal", "full", "headless", "static"],
+    "namespaces": {
+      "core": "Core components (ikb_text, ikb_container, etc.)",
+      "wp": "WordPress components (ikb_query, ikb_post_meta, etc.)",
+      "drupal": "Drupal components",
+      "joomla": "Joomla components"
+    }
+  },
+  
+  "legacy_data": {
+    "note": "For backward compatibility, legacy manifest is preserved in Legacy folder",
+    "location": "./Legacy/ComponentManifest.v0.2.backup.json",
+    "use_case": "Rollback or reference only"
   }
 }

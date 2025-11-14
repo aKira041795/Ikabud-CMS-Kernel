@@ -1,0 +1,234 @@
+{
+  "$schema": "../schemas/components.schema.json",
+  "version": "0.4.0",
+  "type": "components",
+  "description": "Core DiSyL components - Universal, cross-CMS compatible",
+  
+  "meta": {
+    "author": "DiSyL Core Team",
+    "license": "MIT",
+    "homepage": "https://disyl.dev",
+    "cms_support": ["wordpress", "drupal", "joomla", "native"],
+    "tags": ["core", "universal", "cross-cms"]
+  },
+  
+  "base_components": {
+    "base_query": {
+      "description": "Base query component for data iteration",
+      "capabilities": {
+        "supports_children": true,
+        "output_mode": "loop",
+        "provides_context": ["item", "loop"],
+        "async": false,
+        "cacheable": true
+      },
+      "attributes": {
+        "type": {
+          "required": true,
+          "type": "string",
+          "description": "Content type to query"
+        },
+        "limit": {
+          "type": "integer",
+          "default": 10,
+          "min": 1,
+          "max": 100,
+          "description": "Maximum number of items"
+        },
+        "orderby": {
+          "type": "string",
+          "enum": ["date", "title", "author", "modified"],
+          "default": "date",
+          "description": "Sort field"
+        },
+        "order": {
+          "type": "string",
+          "enum": ["asc", "desc"],
+          "default": "desc",
+          "description": "Sort direction"
+        }
+      }
+    },
+    "base_section": {
+      "description": "Base section/container component",
+      "capabilities": {
+        "supports_children": true,
+        "output_mode": "container",
+        "provides_context": [],
+        "async": false,
+        "cacheable": true
+      },
+      "html_tag": "section",
+      "class_prefix": "ikb-section",
+      "attributes": {
+        "type": {
+          "type": "string",
+          "description": "Section variant"
+        },
+        "bg": {
+          "type": "color",
+          "description": "Background color or gradient"
+        },
+        "padding": {
+          "type": "string",
+          "enum": ["none", "small", "normal", "large"],
+          "default": "normal",
+          "description": "Padding size"
+        }
+      }
+    }
+  },
+  
+  "components": {
+    "ikb_text": {
+      "namespace": "core",
+      "category": "content",
+      "tags": ["text", "typography", "content"],
+      "description": "Text content with typography options",
+      "capabilities": {
+        "supports_children": true,
+        "output_mode": "inline",
+        "provides_context": [],
+        "async": false,
+        "cacheable": true
+      },
+      "html_tag": "p",
+      "class_prefix": "ikb-text",
+      "attributes": {
+        "size": {
+          "type": "string",
+          "enum": ["xs", "sm", "md", "lg", "xl", "2xl"],
+          "default": "md",
+          "description": "Text size"
+        },
+        "weight": {
+          "type": "string",
+          "enum": ["normal", "medium", "semibold", "bold"],
+          "default": "normal",
+          "description": "Font weight"
+        },
+        "align": {
+          "type": "string",
+          "enum": ["left", "center", "right", "justify"],
+          "default": "left",
+          "description": "Text alignment"
+        },
+        "color": {
+          "type": "color",
+          "description": "Text color"
+        }
+      }
+    },
+    "ikb_container": {
+      "namespace": "core",
+      "category": "layout",
+      "tags": ["layout", "container", "wrapper"],
+      "description": "Container with max-width and centering",
+      "capabilities": {
+        "supports_children": true,
+        "output_mode": "container",
+        "provides_context": [],
+        "async": false,
+        "cacheable": true
+      },
+      "html_tag": "div",
+      "class_prefix": "ikb-container",
+      "attributes": {
+        "width": {
+          "type": "string",
+          "enum": ["sm", "md", "lg", "xl", "full"],
+          "default": "lg",
+          "description": "Container max-width"
+        }
+      }
+    },
+    "ikb_section": {
+      "namespace": "core",
+      "category": "layout",
+      "tags": ["layout", "section", "block"],
+      "description": "Section container with background and padding",
+      "extends": "base_section",
+      "capabilities": {
+        "supports_children": true,
+        "output_mode": "container",
+        "provides_context": [],
+        "async": false,
+        "cacheable": true
+      }
+    },
+    "ikb_block": {
+      "namespace": "core",
+      "category": "layout",
+      "tags": ["layout", "grid", "flexbox"],
+      "description": "Grid/flexbox layout block",
+      "capabilities": {
+        "supports_children": true,
+        "output_mode": "container",
+        "provides_context": [],
+        "async": false,
+        "cacheable": true
+      },
+      "html_tag": "div",
+      "class_prefix": "ikb-block",
+      "attributes": {
+        "cols": {
+          "type": "integer",
+          "min": 1,
+          "max": 12,
+          "default": 1,
+          "description": "Number of columns"
+        },
+        "gap": {
+          "type": "integer",
+          "min": 0,
+          "max": 10,
+          "default": 2,
+          "description": "Gap size between items"
+        }
+      }
+    },
+    "ikb_card": {
+      "namespace": "core",
+      "category": "content",
+      "tags": ["content", "card", "container"],
+      "description": "Card container with variants",
+      "capabilities": {
+        "supports_children": true,
+        "output_mode": "container",
+        "provides_context": [],
+        "async": false,
+        "cacheable": true
+      },
+      "html_tag": "div",
+      "class_prefix": "ikb-card",
+      "attributes": {
+        "variant": {
+          "type": "string",
+          "enum": ["default", "outlined", "elevated"],
+          "default": "default",
+          "description": "Card style variant"
+        }
+      }
+    },
+    "ikb_include": {
+      "namespace": "core",
+      "category": "utility",
+      "tags": ["utility", "include", "template"],
+      "description": "Include another template file",
+      "capabilities": {
+        "supports_children": false,
+        "output_mode": "include",
+        "provides_context": [],
+        "async": false,
+        "cacheable": true
+      },
+      "attributes": {
+        "template": {
+          "required": true,
+          "type": "string",
+          "description": "Template path to include"
+        }
+      }
+    }
+  }
+}

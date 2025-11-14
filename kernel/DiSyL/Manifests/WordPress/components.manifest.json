@@ -1,0 +1,196 @@
+{
+  "$schema": "../schemas/components.schema.json",
+  "version": "0.4.0",
+  "type": "components",
+  "cms": "wordpress",
+  "description": "WordPress-specific DiSyL components",
+  
+  "meta": {
+    "author": "DiSyL WordPress Team",
+    "license": "MIT",
+    "homepage": "https://disyl.dev/wordpress",
+    "cms_support": ["wordpress"],
+    "tags": ["wordpress", "wp", "cms"],
+    "requires": {
+      "wordpress": ">=6.0",
+      "php": ">=8.0"
+    }
+  },
+  
+  "components": {
+    "ikb_query": {
+      "namespace": "wp",
+      "category": "data",
+      "tags": ["query", "loop", "data", "wordpress"],
+      "description": "WordPress query component using WP_Query",
+      "extends": "base_query",
+      "capabilities": {
+        "supports_children": true,
+        "output_mode": "loop",
+        "provides_context": ["item", "loop"],
+        "async": false,
+        "cacheable": true
+      },
+      "data_source": "WP_Query",
+      "render_method": "renderIkbQuery",
+      "attributes": {
+        "type": {
+          "required": true,
+          "type": "string",
+          "description": "Post type to query",
+          "default": "post"
+        },
+        "limit": {
+          "type": "integer",
+          "default": 10,
+          "min": 1,
+          "max": 100,
+          "map_to": "posts_per_page"
+        },
+        "orderby": {
+          "type": "string",
+          "enum": ["date", "title", "author", "modified", "rand"],
+          "default": "date"
+        },
+        "order": {
+          "type": "string",
+          "enum": ["asc", "desc"],
+          "default": "desc"
+        },
+        "category": {
+          "type": "string",
+          "description": "Category slug or ID",
+          "map_to": "category_name"
+        },
+        "tag": {
+          "type": "string",
+          "description": "Tag slug",
+          "map_to": "tag"
+        },
+        "author": {
+          "type": "integer",
+          "description": "Author ID",
+          "map_to": "author"
+        }
+      },
+      "context_mapping": {
+        "item.id": "get_the_ID()",
+        "item.title": "get_the_title()",
+        "item.content": "get_the_content()",
+        "item.excerpt": "get_the_excerpt()",
+        "item.url": "get_permalink()",
+        "item.date": "get_the_date()",
+        "item.author": "get_the_author()",
+        "item.thumbnail": "get_the_post_thumbnail()",
+        "loop.index": "$loop_index",
+        "loop.count": "$loop_count",
+        "loop.first": "$loop_index === 0",
+        "loop.last": "$loop_index === $loop_count - 1"
+      }
+    },
+    "ikb_section": {
+      "namespace": "wp",
+      "category": "layout",
+      "tags": ["layout", "section", "wordpress"],
+      "description": "WordPress section with WP-specific styling",
+      "extends": "base_section",
+      "render_method": "renderIkbSection",
+      "attributes": {
+        "bg": {
+          "type": "color",
+          "map_to": "style.background",
+          "pipeline": [
+            {"action": "sanitize_color"},
+            {"action": "apply_style", "format": "background: {value};"}
+          ]
+        },
+        "padding": {
+          "type": "string",
+          "enum": ["none", "small", "normal", "large"],
+          "default": "normal",
+          "map_to": "style.padding",
+          "transform": {
+            "none": "0",
+            "small": "1rem",
+            "normal": "2rem",
+            "large": "4rem"
+          }
+        }
+      }
+    },
+    "ikb_post_meta": {
+      "namespace": "wp",
+      "category": "data",
+      "tags": ["metadata", "custom-fields", "wordpress"],
+      "description": "Display WordPress post meta/custom fields",
+      "capabilities": {
+        "supports_children": false,
+        "output_mode": "inline",
+        "provides_context": [],
+        "async": false,
+        "cacheable": true
+      },
+      "render_method": "renderPostMeta",
+      "attributes": {
+        "key": {
+          "required": true,
+          "type": "string",
+          "description": "Meta key to retrieve"
+        },
+        "post_id": {
+          "type": "integer",
+          "description": "Post ID (defaults to current post)"
+        },
+        "default": {
+          "type": "string",
+          "description": "Default value if meta doesn't exist"
+        }
+      }
+    },
+    "ikb_menu": {
+      "namespace": "wp",
+      "category": "navigation",
+      "tags": ["menu", "navigation", "wordpress"],
+      "description": "WordPress navigation menu",
+      "capabilities": {
+        "supports_children": false,
+        "output_mode": "container",
+        "provides_context": [],
+        "async": false,
+        "cacheable": true
+      },
+      "render_method": "renderMenu",
+      "attributes": {
+        "location": {
+          "type": "string",
+          "description": "Menu location (primary, footer, etc.)"
+        },
+        "menu": {
+          "type": "string",
+          "description": "Menu name or ID"
+        }
+      }
+    },
+    "ikb_sidebar": {
+      "namespace": "wp",
+      "category": "layout",
+      "tags": ["sidebar", "widget-area", "wordpress"],
+      "description": "WordPress sidebar/widget area",
+      "capabilities": {
+        "supports_children": false,
+        "output_mode": "container",
+        "provides_context": [],
+        "async": false,
+        "cacheable": false
+      },
+      "render_method": "renderSidebar",
+      "attributes": {
+        "id": {
+          "required": true,
+          "type": "string",
+          "description": "Sidebar ID"
+        }
+      }
+    }
+  }
+}
