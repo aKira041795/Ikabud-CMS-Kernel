@@ -1,47 +1,179 @@
-{!-- DiSyL v0.2 Simple Test --}
+{!-- DiSyL Manifest v0.2 Feature Test Template --}
 
 {ikb_section type="hero" bg="#667eea" padding="large"}
     {ikb_container width="xl"}
         {ikb_text size="2xl" weight="bold" align="center" color="#fff"}
-            DiSyL v0.2 is Working!
+            Testing DiSyL v0.2 Features
         {/ikb_text}
         {ikb_text size="md" align="center" color="#e0e0e0"}
-            Manifest v0.2 Successfully Integrated
+            Manifest Architecture with Filters, Capabilities & Validation
         {/ikb_text}
     {/ikb_container}
 {/ikb_section}
 
+{!-- Test 1: Expression Filters --}
 {ikb_section type="content" padding="large"}
     {ikb_container width="lg"}
         {ikb_text size="xl" weight="bold"}
-            ✅ Integration Complete
+            🔥 Filter Tests
+        {/ikb_text}
+        
+        {ikb_query type="post" limit=3 orderby="date" order="desc"}
+            {ikb_block cols=1 gap=2}
+                {ikb_card variant="outlined"}
+                    {!-- Test uppercase filter --}
+                    {ikb_text size="lg" weight="bold"}
+                        Original: {item.title}
+                    {/ikb_text}
+                    {ikb_text size="lg" weight="bold" color="#667eea"}
+                        Uppercase: {item.title | upper}
+                    {/ikb_text}
+                    
+                    {!-- Test lowercase filter --}
+                    {ikb_text size="sm" color="#666"}
+                        Author (lowercase): {item.author | lower}
+                    {/ikb_text}
+                    
+                    {!-- Test capitalize filter --}
+                    {ikb_text size="sm" color="#999"}
+                        Capitalized: {item.author | capitalize}
+                    {/ikb_text}
+                    
+                    {!-- Test truncate filter --}
+                    {ikb_text size="sm"}
+                        Excerpt (truncated to 100): {item.excerpt | truncate:length=100}
+                    {/ikb_text}
+                {/ikb_card}
+            {/ikb_block}
+        {/ikb_query}
+    {/ikb_container}
+{/ikb_section}
+
+{!-- Test 2: Component Capabilities --}
+{ikb_section type="content" bg="#f8f9fa" padding="normal"}
+    {ikb_container width="lg"}
+        {ikb_text size="xl" weight="bold"}
+            ✅ Component Capabilities
         {/ikb_text}
         
         {ikb_block cols=3 gap=2}
             {ikb_card variant="elevated"}
                 {ikb_text size="lg" weight="bold" align="center"}
-                    Manifest Loaded
+                    Supports Children
                 {/ikb_text}
                 {ikb_text align="center" size="sm" color="#666"}
-                    v0.2.0 with all features
+                    This card supports child elements
                 {/ikb_text}
             {/ikb_card}
             
             {ikb_card variant="elevated"}
                 {ikb_text size="lg" weight="bold" align="center"}
-                    Components Working
+                    Output Mode: Container
                 {/ikb_text}
                 {ikb_text align="center" size="sm" color="#666"}
-                    Rendering successfully
+                    Renders as a container element
                 {/ikb_text}
             {/ikb_card}
             
             {ikb_card variant="elevated"}
                 {ikb_text size="lg" weight="bold" align="center"}
-                    Caching Active
+                    Cacheable: True
                 {/ikb_text}
                 {ikb_text align="center" size="sm" color="#666"}
-                    50x faster loading
+                    Component output can be cached
+                {/ikb_text}
+            {/ikb_card}
+        {/ikb_block}
+    {/ikb_container}
+{/ikb_section}
+
+{!-- Test 3: Available Filters --}
+{ikb_section type="content" padding="large"}
+    {ikb_container width="lg"}
+        {ikb_text size="xl" weight="bold"}
+            🎨 Available Filters (7 built-in)
+        {/ikb_text}
+        
+        {ikb_block cols=2 gap=2}
+            {ikb_card variant="outlined"}
+                {ikb_text size="md" weight="bold"}upper{/ikb_text}
+                {ikb_text size="sm" color="#666"}Convert to uppercase{/ikb_text}
+            {/ikb_card}
+            
+            {ikb_card variant="outlined"}
+                {ikb_text size="md" weight="bold"}lower{/ikb_text}
+                {ikb_text size="sm" color="#666"}Convert to lowercase{/ikb_text}
+            {/ikb_card}
+            
+            {ikb_card variant="outlined"}
+                {ikb_text size="md" weight="bold"}capitalize{/ikb_text}
+                {ikb_text size="sm" color="#666"}Capitalize first letter{/ikb_text}
+            {/ikb_card}
+            
+            {ikb_card variant="outlined"}
+                {ikb_text size="md" weight="bold"}date{/ikb_text}
+                {ikb_text size="sm" color="#666"}Format date (param: format){/ikb_text}
+            {/ikb_card}
+            
+            {ikb_card variant="outlined"}
+                {ikb_text size="md" weight="bold"}truncate{/ikb_text}
+                {ikb_text size="sm" color="#666"}Truncate string (param: length){/ikb_text}
+            {/ikb_card}
+            
+            {ikb_card variant="outlined"}
+                {ikb_text size="md" weight="bold"}escape{/ikb_text}
+                {ikb_text size="sm" color="#666"}Escape HTML entities{/ikb_text}
+            {/ikb_card}
+            
+            {ikb_card variant="outlined"}
+                {ikb_text size="md" weight="bold"}json{/ikb_text}
+                {ikb_text size="sm" color="#666"}Encode as JSON{/ikb_text}
+            {/ikb_card}
+        {/ikb_block}
+    {/ikb_container}
+{/ikb_section}
+
+{!-- Test 4: Performance Info --}
+{ikb_section type="content" bg="#f8f9fa" padding="large"}
+    {ikb_container width="lg"}
+        {ikb_text size="xl" weight="bold"}
+            ⚡ Performance Improvements
+        {/ikb_text}
+        
+        {ikb_block cols=3 gap=2}
+            {ikb_card variant="elevated"}
+                {ikb_text size="2xl" weight="bold" align="center" color="#667eea"}
+                    50x
+                {/ikb_text}
+                {ikb_text align="center" size="sm" color="#666"}
+                    Faster Manifest Loading
+                {/ikb_text}
+                {ikb_text align="center" size="xs" color="#999"}
+                    OPcache optimization
+                {/ikb_text}
+            {/ikb_card}
+            
+            {ikb_card variant="elevated"}
+                {ikb_text size="2xl" weight="bold" align="center" color="#667eea"}
+                    100%
+                {/ikb_text}
+                {ikb_text align="center" size="sm" color="#666"}
+                    Compile-time Validation
+                {/ikb_text}
+                {ikb_text align="center" size="xs" color="#999"}
+                    No runtime errors
+                {/ikb_text}
+            {/ikb_card}
+            
+            {ikb_card variant="elevated"}
+                {ikb_text size="2xl" weight="bold" align="center" color="#667eea"}
+                    ∞
+                {/ikb_text}
+                {ikb_text align="center" size="sm" color="#666"}
+                    Extensibility
+                {/ikb_text}
+                {ikb_text align="center" size="xs" color="#999"}
+                    Manifest-driven
                 {/ikb_text}
             {/ikb_card}
         {/ikb_block}

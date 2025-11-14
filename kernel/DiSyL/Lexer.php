@@ -482,6 +482,7 @@ class Lexer
     /**
      * Handle text (outside tags)
      * Supports escaped braces: \{ and \}
+     * Supports inline expressions: {item.title | upper}
      */
     private function handleText(): Token
     {
@@ -509,6 +510,79 @@ class Lexer
             } else {
                 $value .= $char;
                 $this->advance();
+            }
+        }
+        
+        // Check if we stopped at an inline expression with filter: {expr | filter}
+        // Scan ahead to see if there's a pipe before the closing brace
+        if (!$this->isAtEnd() && $this->peek() === '{' && $this->peek(1) !== '!' && $this->peek(1) !== '/') {
+            // Scan ahead to check if this contains a pipe (indicating a filter)
+            $scanPos = $this->position + 1;
+            $hasPipe = false;
+            $scanDepth = 1;
+            
+            while ($scanPos < $this->length && $scanDepth > 0) {
+                $scanChar = $this->input[$scanPos];
+                if ($scanChar === '{') {
+                    $scanDepth++;
+                } else if ($scanChar === '}') {
+                    $scanDepth--;
+                } else if ($scanChar === '|' && $scanDepth === 1) {
+                    $hasPipe = true;
+                    break;
+                }
+                $scanPos++;
+            }
+            
+            // If it has a pipe, it's an expression with filter - include it in text
+            if ($hasPipe) {
+                $braceDepth = 0;
+                
+                while (!$this->isAtEnd()) {
+                    $char = $this->peek();
+                    
+                    if ($char === '{') {
+                        $braceDepth++;
+                        $value .= $char;
+                        $this->advance();
+                    } else if ($char === '}') {
+                        $value .= $char;
+                        $this->advance();
+                        $braceDepth--;
+                        
+                        if ($braceDepth === 0) {
+                            // Closed the expression, continue with text
+                            break;
+                        }
+                    } else {
+                        $value .= $char;
+                        $this->advance();
+                    }
+                }
+            }
+        }
+        
+        // After handling inline expression, continue with more text if needed
+        if (!$this->isAtEnd() && $this->peek() !== '{') {
+            
+            // Continue reading text after the expression
+            while (!$this->isAtEnd() && $this->peek() !== '{') {
+                $char = $this->peek();
+                
+                if ($char === '\\') {
+                    $next = $this->peek(1);
+                    if ($next === '{' || $next === '}') {
+                        $this->advance();
+                        $value .= $next;
+                        $this->advance();
+                    } else {
+                        $value .= $char;
+                        $this->advance();
+                    }
+                } else {
+                    $value .= $char;
+                    $this->advance();
+                }
             }
         }
         

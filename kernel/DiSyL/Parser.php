@@ -507,14 +507,64 @@ class Parser
     
     /**
      * Parse attribute value with optional filters
-     * Supports: "value", "value | filter", "value | filter:param=val"
+     * Supports: "value", "{expr | filter}", "value | filter:param=val"
      */
     private function parseAttributeValue()
     {
         $token = $this->advance();
         $value = $token->value;
         
-        // Check for filters (pipe after value)
+        // Simple approach: Check if string value contains {expr | filter} pattern
+        if (is_string($value) && strpos($value, '{') === 0 && strpos($value, '|') !== false && substr($value, -1) === '}') {
+            // Extract content between { and }
+            $content = substr($value, 1, -1);
+            
+            // Find the pipe position
+            $pipePos = strpos($content, '|');
+            if ($pipePos !== false) {
+                $baseExpr = '{' . trim(substr($content, 0, $pipePos)) . '}';
+                $filterChain = trim(substr($content, $pipePos + 1));
+                
+                // Parse filters
+                $filters = [];
+                $filterParts = explode('|', $filterChain);
+                
+                foreach ($filterParts as $filterPart) {
+                    $filterPart = trim($filterPart);
+                    if (empty($filterPart)) continue;
+                    
+                    // Check for parameters: "truncate:length=100"
+                    $params = [];
+                    if (strpos($filterPart, ':') !== false) {
+                        list($filterName, $paramStr) = explode(':', $filterPart, 2);
+                        $filterName = trim($filterName);
+                        
+                        // Parse simple param=value
+                        if (preg_match('/(\w+)=(\d+|["\']([^"\']+)["\'])/', $paramStr, $matches)) {
+                            $paramName = $matches[1];
+                            $paramValue = isset($matches[3]) ? $matches[3] : $matches[2];
+                            $params[$paramName] = $paramValue;
+                        }
+                    } else {
+                        $filterName = $filterPart;
+                    }
+                    
+                    $filters[] = [
+                        'name' => $filterName,
+                        'params' => $params
+                    ];
+                }
+                
+                return [
+                    'type' => 'filtered_expression',
+                    'value' => $baseExpr,
+                    'filters' => $filters,
+                    'loc' => $this->getLocation($token)
+                ];
+            }
+        }
+        
+        // Check for filters (pipe after value) - for non-string contexts
         if ($this->check(Token::PIPE)) {
             return $this->parseFilteredExpression($value, $token);
         }
