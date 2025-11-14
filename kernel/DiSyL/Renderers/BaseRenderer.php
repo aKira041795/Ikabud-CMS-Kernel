@@ -232,14 +232,31 @@ abstract class BaseRenderer
             if (strpos($filter, ':') !== false) {
                 list($filterName, $paramStr) = explode(':', $filter, 2);
                 $filterName = trim($filterName);
+                $paramStr = trim($paramStr);
                 
                 // Parse parameters: format="Y-m-d" or format='Y-m-d' or length=100
                 // Handle both single and double quotes, or no quotes
                 if (preg_match('/(\w+)=(["\']?)(.+?)\2$/', $paramStr, $matches)) {
+                    // Named parameter: length=100
                     $params[$matches[1]] = $matches[3];
                 } elseif (preg_match('/(\w+)=(\S+)/', $paramStr, $matches)) {
-                    // No quotes
+                    // Named parameter without quotes: length=100
                     $params[$matches[1]] = $matches[2];
+                } elseif (is_numeric($paramStr)) {
+                    // Positional parameter (number only): truncate:60
+                    // Use 'length' as default parameter name for truncate filter
+                    $params['length'] = $paramStr;
+                } else {
+                    // Positional parameter (string): could be format or other
+                    // Try to infer parameter name based on filter
+                    if ($filterName === 'truncate') {
+                        $params['length'] = $paramStr;
+                    } elseif ($filterName === 'date') {
+                        $params['format'] = $paramStr;
+                    } else {
+                        // Generic: use first parameter name from manifest
+                        $params['value'] = $paramStr;
+                    }
                 }
             } else {
                 $filterName = $filter;

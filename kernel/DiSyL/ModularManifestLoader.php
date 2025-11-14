@@ -177,15 +177,13 @@ class ModularManifestLoader
         // Replace parameters
         foreach ($params as $key => $val) {
             $placeholder = '{' . $key . '}';
-            // Check if the placeholder is already quoted in the template
-            if (strpos($phpCode, "'{$placeholder}'") !== false || strpos($phpCode, "\"{$placeholder}\"") !== false) {
-                // Placeholder is already quoted, replace with var_export
-                $phpCode = str_replace("'{$placeholder}'", var_export($val, true), $phpCode);
-                $phpCode = str_replace("\"{$placeholder}\"", var_export($val, true), $phpCode);
-            } else {
-                // Placeholder is not quoted, use var_export
-                $phpCode = str_replace($placeholder, var_export($val, true), $phpCode);
-            }
+            
+            // Replace quoted placeholders first (e.g., '{format}' in date filter)
+            $phpCode = str_replace("'{$placeholder}'", var_export($val, true), $phpCode);
+            $phpCode = str_replace("\"{$placeholder}\"", var_export($val, true), $phpCode);
+            
+            // Then replace any remaining unquoted placeholders (e.g., {length} in truncate filter)
+            $phpCode = str_replace($placeholder, var_export($val, true), $phpCode);
         }
         
         // Evaluate
