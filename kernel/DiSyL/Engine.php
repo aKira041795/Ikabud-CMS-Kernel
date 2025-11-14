@@ -16,21 +16,20 @@ use IkabudKernel\Core\DiSyL\Lexer;
 use IkabudKernel\Core\DiSyL\Parser;
 use IkabudKernel\Core\DiSyL\Compiler;
 use IkabudKernel\Core\DiSyL\Renderers\BaseRenderer;
-use IkabudKernel\Core\Cache;
 
 class Engine
 {
     private Lexer $lexer;
     private Parser $parser;
     private Compiler $compiler;
-    private ?Cache $cache;
+    private $cache; // Mixed type for compatibility
     
     /**
      * Constructor
      * 
-     * @param Cache|null $cache Optional cache instance
+     * @param mixed $cache Optional cache instance
      */
-    public function __construct(?Cache $cache = null)
+    public function __construct($cache = null)
     {
         $this->lexer = new Lexer();
         $this->parser = new Parser();
