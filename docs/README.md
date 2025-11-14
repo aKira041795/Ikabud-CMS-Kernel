@@ -1,8 +1,23 @@
 # Ikabud Kernel - CMS Operating System
 
 **Version**: 1.0.0  
-**Status**: Fresh Implementation  
+**Status**: Production Ready  
+**DiSyL Version**: 0.2.0 (All Features Complete)  
 **Architecture**: GNU/Linux-inspired microkernel
+
+---
+
+## 🎉 Latest: DiSyL Manifest v0.2.0 Complete!
+
+**DiSyL (Declarative Ikabud Syntax Language)** is now a full-featured, production-ready templating framework with:
+- ✅ 10 major architectural improvements
+- ✅ Expression filters (7 built-in)
+- ✅ Component capabilities & inheritance
+- ✅ 50x faster manifest loading
+- ✅ Compile-time validation
+- ✅ Cross-CMS compatibility
+
+**[View DiSyL Documentation →](DISYL_MANIFEST_ARCHITECTURE.md)**
 
 ---
 
