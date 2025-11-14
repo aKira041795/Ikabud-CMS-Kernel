@@ -84,18 +84,18 @@ class Lexer
             return $this->handleCloseBrace();
         }
         
-        // Handle slash (for closing tags and self-closing)
-        if ($char === '/') {
+        // Handle slash (for closing tags and self-closing) - only inside DiSyL tags
+        if ($char === '/' && $this->inTag) {
             return $this->handleSlash();
         }
         
-        // Handle equals
-        if ($char === '=') {
+        // Handle equals - only inside DiSyL tags
+        if ($char === '=' && $this->inTag) {
             return $this->handleEqual();
         }
         
-        // Handle pipe (for filters)
-        if ($char === '|') {
+        // Handle pipe (for filters) - only inside DiSyL tags
+        if ($char === '|' && $this->inTag) {
             return $this->handlePipe();
         }
         
@@ -527,8 +527,15 @@ class Lexer
                 } else if ($scanChar === '}') {
                     $scanDepth--;
                 } else if ($scanChar === '|' && $scanDepth === 1) {
-                    $hasPipe = true;
-                    break;
+                    // Check if this is a filter pipe (|) or logical OR (||)
+                    $nextChar = $scanPos + 1 < $this->length ? $this->input[$scanPos + 1] : '';
+                    $prevChar = $scanPos > 0 ? $this->input[$scanPos - 1] : '';
+                    
+                    // If it's || or |>, it's not a filter pipe
+                    if ($nextChar !== '|' && $prevChar !== '|') {
+                        $hasPipe = true;
+                        break;
+                    }
                 }
                 $scanPos++;
             }
