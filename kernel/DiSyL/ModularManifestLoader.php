@@ -181,11 +181,45 @@ class ModularManifestLoader
     }
     
     /**
-     * Get all components
+     * Get all components from loaded manifests
      */
     public static function getComponents(): array
     {
-        return self::$registry['components'] ?? [];
+        $components = [];
+        
+        // First, try registry
+        if (!empty(self::$registry['components'])) {
+            return self::$registry['components'];
+        }
+        
+        // Otherwise, build from loaded manifests
+        foreach (self::$loadedManifests as $path => $manifest) {
+            if (isset($manifest['components'])) {
+                foreach ($manifest['components'] as $name => $component) {
+                    // Add namespace if available
+                    $namespace = $component['namespace'] ?? 'core';
+                    $namespacedName = $namespace . ':' . str_replace('ikb_', '', $name);
+                    
+                    $components[$namespacedName] = array_merge($component, [
+                        'full_name' => $name,
+                        'source' => $path
+                    ]);
+                }
+            }
+            
+            // Also include base_components
+            if (isset($manifest['base_components'])) {
+                foreach ($manifest['base_components'] as $name => $component) {
+                    $components['base:' . $name] = array_merge($component, [
+                        'full_name' => $name,
+                        'source' => $path,
+                        'is_base' => true
+                    ]);
+                }
+            }
+        }
+        
+        return $components;
     }
     
     /**
@@ -194,7 +228,35 @@ class ModularManifestLoader
     public static function getComponent(string $namespacedName): ?array
     {
         $components = self::getComponents();
-        return $components[$namespacedName] ?? null;
+        
+        // Try exact match first
+        if (isset($components[$namespacedName])) {
+            return $components[$namespacedName];
+        }
+        
+        // Try without namespace (backward compatibility)
+        foreach ($components as $name => $component) {
+            if ($component['full_name'] === $namespacedName || 
+                str_replace('ikb_', '', $component['full_name']) === $namespacedName) {
+                return $component;
+            }
+        }
+        
+        return null;
+    }
+    
+    /**
+     * Get component capabilities
+     */
+    public static function getCapabilities(string $componentName, ?string $cmsType = null): ?array
+    {
+        $component = self::getComponent($componentName);
+        
+        if (!$component) {
+            return null;
+        }
+        
+        return $component['capabilities'] ?? null;
     }
     
     /**
@@ -283,5 +345,125 @@ class ModularManifestLoader
     public static function getVersion(): string
     {
         return self::$config['version'] ?? '0.4.0';
+    }
+    
+    /**
+     * List all available components
+     */
+    public static function listComponents(): array
+    {
+        $components = self::getComponents();
+        return array_keys($components);
+    }
+    
+    /**
+     * Get components by namespace
+     */
+    public static function getComponentsByNamespace(string $namespace): array
+    {
+        $components = self::getComponents();
+        $filtered = [];
+        
+        foreach ($components as $name => $component) {
+            if (strpos($name, $namespace . ':') === 0) {
+                $filtered[$name] = $component;
+            }
+        }
+        
+        return $filtered;
+    }
+    
+    /**
+     * Check if component exists
+     */
+    public static function hasComponent(string $namespacedName): bool
+    {
+        return self::getComponent($namespacedName) !== null;
+    }
+    
+    /**
+     * Validate component usage
+     */
+    public static function validateComponent(string $componentName, array $attrs = [], bool $hasChildren = false): array
+    {
+        $errors = [];
+        $component = self::getComponent($componentName);
+        
+        if (!$component) {
+            $errors[] = "Component '{$componentName}' not found";
+            return $errors;
+        }
+        
+        // Check children support
+        $capabilities = $component['capabilities'] ?? [];
+        $supportsChildren = $capabilities['supports_children'] ?? true;
+        
+        if ($hasChildren && !$supportsChildren) {
+            $errors[] = "Component '{$componentName}' does not support children";
+        }
+        
+        // Validate required attributes
+        $componentAttrs = $component['attributes'] ?? [];
+        foreach ($componentAttrs as $attrName => $attrDef) {
+            if (($attrDef['required'] ?? false) && !isset($attrs[$attrName])) {
+                $errors[] = "Required attribute '{$attrName}' missing for component '{$componentName}'";
+            }
+        }
+        
+        return $errors;
+    }
+    
+    /**
+     * Get supported CMS types
+     */
+    public static function getSupportedCMS(): array
+    {
+        $cms = [];
+        
+        foreach (self::$loadedManifests as $path => $manifest) {
+            if (isset($manifest['cms'])) {
+                $cms[] = $manifest['cms'];
+            }
+        }
+        
+        return array_unique($cms);
+    }
+    
+    /**
+     * Check if manifest is loaded
+     */
+    public static function isManifestLoaded(string $manifestPath): bool
+    {
+        return isset(self::$loadedManifests[$manifestPath]);
+    }
+    
+    /**
+     * Get manifest info
+     */
+    public static function getManifestInfo(string $manifestPath): ?array
+    {
+        if (!isset(self::$loadedManifests[$manifestPath])) {
+            return null;
+        }
+        
+        $manifest = self::$loadedManifests[$manifestPath];
+        
+        return [
+            'version' => $manifest['version'] ?? 'unknown',
+            'type' => $manifest['type'] ?? 'unknown',
+            'cms' => $manifest['cms'] ?? null,
+            'description' => $manifest['description'] ?? '',
+            'meta' => $manifest['meta'] ?? []
+        ];
+    }
+    
+    /**
+     * Reload manifests (for development/testing)
+     */
+    public static function reload(string $profile = 'full', ?string $cmsType = null): void
+    {
+        self::$loadedManifests = [];
+        self::$registry = [];
+        self::init($profile, $cmsType);
     }
 }

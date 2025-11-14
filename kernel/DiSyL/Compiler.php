@@ -362,8 +362,12 @@ class Compiler
             if ($node['type'] === 'tag') {
                 $componentName = $node['name'];
                 
-                // Get component capabilities from manifest
-                $capabilities = ManifestLoader::getCapabilities($componentName, $this->cmsType);
+                // Get component capabilities from manifest (v0.4 or v0.2)
+                if (class_exists('\\IkabudKernel\\Core\\DiSyL\\ModularManifestLoader')) {
+                    $capabilities = \IkabudKernel\Core\DiSyL\ModularManifestLoader::getCapabilities($componentName, $this->cmsType);
+                } else {
+                    $capabilities = ManifestLoader::getCapabilities($componentName, $this->cmsType);
+                }
                 
                 if ($capabilities) {
                     // Validate supports_children
@@ -407,7 +411,13 @@ class Compiler
                         // Validate each filter
                         foreach ($attrValue['filters'] as $filter) {
                             $filterName = $filter['name'];
-                            $filterDef = ManifestLoader::getFilter($filterName);
+                            
+                            // Get filter definition (v0.4 or v0.2)
+                            if (class_exists('\\IkabudKernel\\Core\\DiSyL\\ModularManifestLoader')) {
+                                $filterDef = \IkabudKernel\Core\DiSyL\ModularManifestLoader::getFilter($filterName);
+                            } else {
+                                $filterDef = ManifestLoader::getFilter($filterName);
+                            }
                             
                             if (!$filterDef) {
                                 $this->addError(
