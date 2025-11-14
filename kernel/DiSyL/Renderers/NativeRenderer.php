@@ -339,10 +339,59 @@ class NativeRenderer extends BaseRenderer
     
     /**
      * Evaluate condition expression
+     * Supports: ||, &&, >, <, >=, <=, ==, !=
      */
     private function evaluateCondition(string $condition): bool
     {
-        // Simple evaluation - can be enhanced with proper expression parser
+        // Handle OR operator (||)
+        if (strpos($condition, '||') !== false) {
+            $parts = explode('||', $condition);
+            foreach ($parts as $part) {
+                if ($this->evaluateCondition(trim($part))) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        
+        // Handle AND operator (&&)
+        if (strpos($condition, '&&') !== false) {
+            $parts = explode('&&', $condition);
+            foreach ($parts as $part) {
+                if (!$this->evaluateCondition(trim($part))) {
+                    return false;
+                }
+            }
+            return true;
+        }
+        
+        // Handle comparison operators
+        $operators = ['>=', '<=', '==', '!=', '>', '<'];
+        foreach ($operators as $op) {
+            if (strpos($condition, $op) !== false) {
+                $parts = explode($op, $condition, 2);
+                if (count($parts) === 2) {
+                    $left = trim($parts[0]);
+                    $right = trim($parts[1]);
+                    
+                    // Evaluate both sides
+                    $leftValue = $this->evaluateExpression($left);
+                    $rightValue = is_numeric($right) ? (float)$right : $this->evaluateExpression($right);
+                    
+                    // Perform comparison
+                    switch ($op) {
+                        case '>': return $leftValue > $rightValue;
+                        case '<': return $leftValue < $rightValue;
+                        case '>=': return $leftValue >= $rightValue;
+                        case '<=': return $leftValue <= $rightValue;
+                        case '==': return $leftValue == $rightValue;
+                        case '!=': return $leftValue != $rightValue;
+                    }
+                }
+            }
+        }
+        
+        // Simple evaluation (truthy check)
         $value = $this->evaluateExpression($condition);
         return (bool)$value;
     }

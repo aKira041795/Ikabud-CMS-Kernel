@@ -493,15 +493,64 @@ class WordPressRenderer extends ManifestDrivenRenderer
     
     /**
      * Evaluate condition expression
+     * Supports: ||, &&, >, <, >=, <=, ==, !=
      */
     private function evaluateCondition(string $condition): bool
     {
-        // Check for WordPress conditional tags
-        if (function_exists($condition)) {
+        // Check for WordPress conditional tags (simple function calls)
+        if (function_exists($condition) && strpos($condition, ' ') === false) {
             return call_user_func($condition);
         }
         
-        // Simple evaluation
+        // Handle OR operator (||)
+        if (strpos($condition, '||') !== false) {
+            $parts = explode('||', $condition);
+            foreach ($parts as $part) {
+                if ($this->evaluateCondition(trim($part))) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        
+        // Handle AND operator (&&)
+        if (strpos($condition, '&&') !== false) {
+            $parts = explode('&&', $condition);
+            foreach ($parts as $part) {
+                if (!$this->evaluateCondition(trim($part))) {
+                    return false;
+                }
+            }
+            return true;
+        }
+        
+        // Handle comparison operators
+        $operators = ['>=', '<=', '==', '!=', '>', '<'];
+        foreach ($operators as $op) {
+            if (strpos($condition, $op) !== false) {
+                $parts = explode($op, $condition, 2);
+                if (count($parts) === 2) {
+                    $left = trim($parts[0]);
+                    $right = trim($parts[1]);
+                    
+                    // Evaluate both sides
+                    $leftValue = $this->evaluateExpression($left);
+                    $rightValue = is_numeric($right) ? (float)$right : $this->evaluateExpression($right);
+                    
+                    // Perform comparison
+                    switch ($op) {
+                        case '>': return $leftValue > $rightValue;
+                        case '<': return $leftValue < $rightValue;
+                        case '>=': return $leftValue >= $rightValue;
+                        case '<=': return $leftValue <= $rightValue;
+                        case '==': return $leftValue == $rightValue;
+                        case '!=': return $leftValue != $rightValue;
+                    }
+                }
+            }
+        }
+        
+        // Simple evaluation (truthy check)
         $value = $this->evaluateExpression($condition);
         return (bool)$value;
     }
