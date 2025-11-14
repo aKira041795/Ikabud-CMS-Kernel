@@ -24,7 +24,6 @@ abstract class BaseRenderer
      */
     public function render(array $ast, array $context = []): string
     {
-        error_log('[DiSyL BaseRenderer] render() called with ' . count($ast['children'] ?? []) . ' children');
         $this->context = $context;
         
         if ($ast['type'] !== 'document') {
@@ -41,10 +40,7 @@ abstract class BaseRenderer
     {
         $html = '';
         
-        foreach ($children as $i => $child) {
-            error_log("[DiSyL BaseRenderer] Rendering child $i: type={$child['type']}" . 
-                      ($child['type'] === 'tag' ? ", name={$child['name']}" : '') .
-                      ($child['type'] === 'text' ? ", length=" . strlen($child['value']) : ''));
+        foreach ($children as $child) {
             $html .= $this->renderNode($child);
         }
         
@@ -56,16 +52,13 @@ abstract class BaseRenderer
      */
     protected function renderNode(array $node): string
     {
-        error_log("[DiSyL BaseRenderer] renderNode() called with type: {$node['type']}");
-        $result = match($node['type']) {
+        return match($node['type']) {
             'tag' => $this->renderTag($node),
             'text' => $this->renderText($node),
             'expression' => $this->renderExpression($node),
             'comment' => $this->renderComment($node),
             default => ''
         };
-        error_log("[DiSyL BaseRenderer] renderNode() result length: " . strlen($result));
-        return $result;
     }
     
     /**
@@ -118,38 +111,29 @@ abstract class BaseRenderer
     
     /**
      * Render a text node
+     * 
+     * Handles:
+     * 1. Raw HTML (preserved as-is)
+     * 2. Filtered expressions: {item.title | esc_html}
+     * 3. Simple expressions: {item.title}
      */
     protected function renderText(array $node): string
     {
         $text = $node['value'];
-        $originalText = $text;
-        
-        error_log('[DiSyL Renderer] TEXT NODE (first 200 chars): ' . substr($text, 0, 200));
-        error_log('[DiSyL Renderer] TEXT NODE contains HTML tags: ' . (preg_match('/<[a-z]+/i', $text) ? 'YES' : 'NO'));
         
         // First, handle filter expressions: {item.title | upper}
         $text = preg_replace_callback('/\{([a-zA-Z0-9_.]+)\s*\|\s*([^}]+)\}/', function($matches) {
-            $fullMatch = $matches[0];
             $expr = $matches[1];
             $filterChain = $matches[2];
             
-            error_log('[DiSyL Renderer] Processing filter expression: ' . $fullMatch);
-            error_log('[DiSyL Renderer] Expression: ' . $expr . ', Filters: ' . $filterChain);
-            
             // Evaluate base expression
             $value = $this->evaluateExpression($expr);
-            error_log('[DiSyL Renderer] Base value: ' . var_export($value, true));
             
-            // Apply filters
+            // Apply filters (filters handle their own escaping)
             $value = $this->applyFilters($value, $filterChain);
-            error_log('[DiSyL Renderer] After filters: ' . var_export($value, true));
             
-            // Filters like esc_url, esc_attr already escape, so don't double-escape
-            // Just convert to string
-            $result = $this->valueToString($value);
-            error_log('[DiSyL Renderer] Final result: ' . $result);
-            
-            return $result;
+            // Convert to string (don't double-escape - filters already did it)
+            return $this->valueToString($value);
         }, $text);
         
         // Then, interpolate simple expressions like {title}, {item.title}
@@ -157,13 +141,12 @@ abstract class BaseRenderer
             $expr = $matches[1];
             $value = $this->evaluateExpression($expr);
             
-            // Convert value to string and escape
+            // Convert value to string and escape (no filter, so we escape)
             return htmlspecialchars($this->valueToString($value), ENT_QUOTES, 'UTF-8');
         }, $text);
         
         // Return text as-is - it may contain raw HTML which should not be escaped
         // The embedded expressions have already been processed and escaped as needed
-        error_log('[DiSyL Renderer] TEXT NODE final output (first 200 chars): ' . substr($text, 0, 200));
         return $text;
     }
     

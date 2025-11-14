@@ -45,8 +45,7 @@ try {
     wp_die('Error loading DiSyL: ' . $e->getMessage());
 }
 
-use IkabudKernel\Core\DiSyL\{Lexer, Parser, Compiler};
-use IkabudKernel\Core\DiSyL\Renderers\WordPressRenderer;
+use IkabudKernel\Core\DiSyL\Engine;
 use IkabudKernel\CMS\Adapters\WordPressAdapter;
 
 /**
@@ -59,40 +58,27 @@ function disyl_render_template($template_name, $context = []) {
         return '<!-- DiSyL Template not found: ' . esc_html($template_name) . ' -->';
     }
     
-    // Get template content
-    $template_content = file_get_contents($template_path);
-    
-    // Cache key based on template name and modification time
-    $cache_key = 'disyl_' . md5($template_name . filemtime($template_path));
-    $compiled = wp_cache_get($cache_key, 'disyl');
-    
-    if ($compiled === false) {
-        try {
-            $lexer = new Lexer();
-            $parser = new Parser();
-            $compiler = new Compiler();
-            
-            $tokens = $lexer->tokenize($template_content);
-            $ast = $parser->parse($tokens);
-            $compiled = $compiler->compile($ast);
-            
-            // Cache for 1 hour
-            wp_cache_set($cache_key, $compiled, 'disyl', 3600);
-        } catch (Exception $e) {
-            return '<!-- DiSyL Compilation Error: ' . esc_html($e->getMessage()) . ' -->';
-        }
-    }
-    
-    // Render through WordPress adapter
-    global $wp_cms_adapter;
-    if (!$wp_cms_adapter) {
-        $wp_cms_adapter = new WordPressAdapter(ABSPATH);
-    }
-    
     try {
+        // Use Engine to orchestrate compilation
+        static $engine = null;
+        if ($engine === null) {
+            $engine = new Engine();
+        }
+        
+        // Compile template (Engine handles caching internally)
+        $compiled = $engine->compileFile($template_path);
+        
+        // Get WordPress adapter
+        global $wp_cms_adapter;
+        if (!$wp_cms_adapter) {
+            $wp_cms_adapter = new WordPressAdapter(ABSPATH);
+        }
+        
+        // Render through adapter (adapter builds context if not provided)
         return $wp_cms_adapter->renderDisyl($compiled, $context);
+        
     } catch (Exception $e) {
-        return '<!-- DiSyL Rendering Error: ' . esc_html($e->getMessage()) . ' -->';
+        return '<!-- DiSyL Error: ' . esc_html($e->getMessage()) . ' -->';
     }
 }
 

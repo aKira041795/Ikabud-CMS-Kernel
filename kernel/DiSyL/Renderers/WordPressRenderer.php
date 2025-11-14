@@ -504,43 +504,19 @@ class WordPressRenderer extends BaseRenderer
     }
     
     /**
-     * Override text rendering to use WordPress escaping and support filters
+     * DO NOT OVERRIDE renderText() - BaseRenderer handles it correctly
+     * 
+     * The BaseRenderer's renderText() properly:
+     * 1. Processes embedded expressions with filters
+     * 2. Escapes dynamic content
+     * 3. Preserves raw HTML
+     * 
+     * WordPressRenderer should only override CMS-specific component rendering,
+     * not core text rendering logic.
+     * 
+     * This follows the Liskov Substitution Principle - child classes should
+     * extend parent behavior, not break it.
      */
-    protected function renderText(array $node): string
-    {
-        $text = $node['value'];
-        
-        // First, handle filter expressions: {item.title | upper}
-        $text = preg_replace_callback('/\{([a-zA-Z0-9_.]+)\s*\|\s*([^}]+)\}/', function($matches) {
-            $expr = $matches[1];
-            $filterChain = $matches[2];
-            
-            // Evaluate base expression
-            $value = $this->evaluateExpression($expr);
-            
-            // Apply filters
-            $value = $this->applyFilters($value, $filterChain);
-            
-            // Convert to string
-            return $this->valueToString($value);
-        }, $text);
-        
-        // Then, interpolate simple expressions like {title}, {item.title}
-        $text = preg_replace_callback('/\{([a-zA-Z0-9_.]+)\}/', function($matches) {
-            $expr = $matches[1];
-            $value = $this->evaluateExpression($expr);
-            
-            // Convert value to string and escape
-            if (function_exists('esc_html')) {
-                return esc_html($this->valueToString($value));
-            }
-            return htmlspecialchars($this->valueToString($value), ENT_QUOTES, 'UTF-8');
-        }, $text);
-        
-        // Return text as-is - it may contain raw HTML which should not be escaped
-        // The embedded expressions have already been processed and escaped as needed
-        return $text;
-    }
     
     /**
      * Override expression rendering to use WordPress escaping

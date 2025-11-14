@@ -125,54 +125,13 @@ class KernelIntegration
     
     /**
      * Get DiSyL template name based on WordPress context
+     * 
+     * Delegates to WordPressAdapter for CMS-specific routing logic.
      */
     private static function getDisylTemplateName(): string
     {
-        // Check for custom page template first
-        if (is_page()) {
-            $template_slug = get_page_template_slug();
-            error_log('[DiSyL] Page template slug: ' . ($template_slug ?: 'none'));
-            
-            if ($template_slug) {
-                // Extract template name from slug
-                // e.g., "page-test-v02.php" -> "test-v-02"
-                $template_name = str_replace(['.php'], '', basename($template_slug));
-                $template_name = str_replace('page-', '', $template_name);
-                
-                error_log('[DiSyL] Extracted template name: ' . $template_name);
-                
-                // Check if custom DiSyL template exists
-                $theme_dir = get_stylesheet_directory();
-                $custom_template = $theme_dir . '/disyl/' . $template_name . '.disyl';
-                error_log('[DiSyL] Checking for: ' . $custom_template);
-                
-                if (file_exists($custom_template)) {
-                    error_log('[DiSyL] Using custom template: ' . $template_name);
-                    return $template_name;
-                } else {
-                    error_log('[DiSyL] Custom template not found, using default page template');
-                }
-            }
-        }
-        
-        // Default template routing
-        if (is_404()) {
-            return '404';
-        } elseif (is_search()) {
-            return 'search';
-        } elseif (is_front_page()) {
-            return 'home';
-        } elseif (is_home()) {
-            return 'home';
-        } elseif (is_single()) {
-            return 'single';
-        } elseif (is_page()) {
-            return 'page';
-        } elseif (is_category() || is_tag() || is_archive()) {
-            return 'archive';
-        } else {
-            return 'home';
-        }
+        $adapter = new \IkabudKernel\CMS\Adapters\WordPressAdapter(ABSPATH);
+        return $adapter->getTemplateName();
     }
     
     /**
@@ -185,43 +144,23 @@ class KernelIntegration
             return disyl_render_template($template_name);
         }
         
-        // Otherwise, render directly
+        // Otherwise, render directly using Engine
         $theme_dir = get_stylesheet_directory();
         $template_path = $theme_dir . '/disyl/' . $template_name . '.disyl';
         
-        if (!file_exists($template_path)) {
-            throw new \Exception("DiSyL template not found: {$template_name}");
-        }
+        // Load required classes
+        require_once __DIR__ . '/Engine.php';
+        require_once __DIR__ . '/Lexer.php';
+        require_once __DIR__ . '/Parser.php';
+        require_once __DIR__ . '/Compiler.php';
+        require_once __DIR__ . '/../cms/CMSInterface.php';
+        require_once __DIR__ . '/../cms/Adapters/WordPressAdapter.php';
         
-        // Load DiSyL engine
-        $kernel_path = dirname(dirname(__DIR__));
-        require_once $kernel_path . '/DiSyL/Lexer.php';
-        require_once $kernel_path . '/DiSyL/Parser.php';
-        require_once $kernel_path . '/DiSyL/Compiler.php';
-        require_once $kernel_path . '/DiSyL/Grammar.php';
-        require_once $kernel_path . '/DiSyL/ComponentRegistry.php';
-        require_once $kernel_path . '/DiSyL/Token.php';
-        require_once $kernel_path . '/DiSyL/Exceptions/LexerException.php';
-        require_once $kernel_path . '/DiSyL/Exceptions/ParserException.php';
-        require_once $kernel_path . '/DiSyL/Exceptions/CompilerException.php';
-        require_once $kernel_path . '/DiSyL/Renderers/BaseRenderer.php';
-        require_once $kernel_path . '/DiSyL/Renderers/WordPressRenderer.php';
-        require_once $kernel_path . '/../cms/CMSInterface.php';
-        require_once $kernel_path . '/../cms/Adapters/WordPressAdapter.php';
+        // Use Engine to orchestrate compilation
+        $engine = new Engine();
+        $compiled = $engine->compileFile($template_path);
         
-        // Get template content
-        $template_content = file_get_contents($template_path);
-        
-        // Compile
-        $lexer = new Lexer();
-        $parser = new Parser();
-        $compiler = new Compiler();
-        
-        $tokens = $lexer->tokenize($template_content);
-        $ast = $parser->parse($tokens);
-        $compiled = $compiler->compile($ast);
-        
-        // Render
+        // Render through adapter (adapter builds context automatically)
         $adapter = new \IkabudKernel\CMS\Adapters\WordPressAdapter(ABSPATH);
         return $adapter->renderDisyl($compiled);
     }

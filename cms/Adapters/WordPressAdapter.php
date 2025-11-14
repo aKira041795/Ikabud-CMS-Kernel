@@ -508,12 +508,124 @@ class WordPressAdapter implements CMSInterface
     }
     
     /**
+     * Build WordPress context for template rendering
+     * 
+     * This is the SINGLE SOURCE OF TRUTH for WordPress context building.
+     * All other code should call this method instead of duplicating logic.
+     */
+    public function buildContext(): array
+    {
+        $context = [];
+        
+        // Site information
+        $context['site'] = [
+            'name' => get_bloginfo('name'),
+            'description' => get_bloginfo('description'),
+            'url' => get_site_url(),
+            'home_url' => get_home_url(),
+            'charset' => get_bloginfo('charset'),
+            'language' => get_bloginfo('language'),
+        ];
+        
+        // Current user
+        if (is_user_logged_in()) {
+            $user = wp_get_current_user();
+            $context['user'] = [
+                'id' => $user->ID,
+                'name' => $user->display_name,
+                'email' => $user->user_email,
+                'logged_in' => true,
+            ];
+        } else {
+            $context['user'] = ['logged_in' => false];
+        }
+        
+        // Current post/page
+        if (is_singular()) {
+            global $post;
+            if ($post) {
+                $context['post'] = [
+                    'id' => $post->ID,
+                    'title' => get_the_title($post),
+                    'content' => get_the_content(null, false, $post),
+                    'excerpt' => get_the_excerpt($post),
+                    'date' => get_the_date('', $post),
+                    'author' => get_the_author_meta('display_name', $post->post_author),
+                    'url' => get_permalink($post),
+                    'thumbnail' => get_the_post_thumbnail_url($post, 'full'),
+                ];
+            }
+        }
+        
+        // Query information
+        $context['is'] = [
+            'home' => is_home() || is_front_page(),
+            'single' => is_single(),
+            'page' => is_page(),
+            'archive' => is_archive(),
+            'search' => is_search(),
+            '404' => is_404(),
+        ];
+        
+        return $context;
+    }
+    
+    /**
+     * Get template name based on WordPress context
+     * 
+     * This is WordPress-specific routing logic.
+     */
+    public function getTemplateName(): string
+    {
+        // Check for custom page template first
+        if (is_page()) {
+            $template_slug = get_page_template_slug();
+            
+            if ($template_slug) {
+                // Extract template name from slug
+                $template_name = str_replace(['.php'], '', basename($template_slug));
+                $template_name = str_replace('page-', '', $template_name);
+                
+                // Check if custom DiSyL template exists
+                $theme_dir = get_stylesheet_directory();
+                $custom_template = $theme_dir . '/disyl/' . $template_name . '.disyl';
+                
+                if (file_exists($custom_template)) {
+                    return $template_name;
+                }
+            }
+        }
+        
+        // Default template routing
+        if (is_404()) {
+            return '404';
+        } elseif (is_search()) {
+            return 'search';
+        } elseif (is_front_page() || is_home()) {
+            return 'home';
+        } elseif (is_single()) {
+            return 'single';
+        } elseif (is_page()) {
+            return 'page';
+        } elseif (is_category() || is_tag() || is_archive()) {
+            return 'archive';
+        } else {
+            return 'home';
+        }
+    }
+    
+    /**
      * Render DiSyL AST to HTML
      */
     public function renderDisyl(array $ast, array $context = []): string
     {
         require_once __DIR__ . '/../../kernel/DiSyL/Renderers/BaseRenderer.php';
         require_once __DIR__ . '/../../kernel/DiSyL/Renderers/WordPressRenderer.php';
+        
+        // If no context provided, build it
+        if (empty($context)) {
+            $context = $this->buildContext();
+        }
         
         $renderer = new \IkabudKernel\Core\DiSyL\Renderers\WordPressRenderer($this);
         return $renderer->render($ast, $context);
