@@ -41,7 +41,10 @@ abstract class BaseRenderer
     {
         $html = '';
         
-        foreach ($children as $child) {
+        foreach ($children as $i => $child) {
+            error_log("[DiSyL BaseRenderer] Rendering child $i: type={$child['type']}" . 
+                      ($child['type'] === 'tag' ? ", name={$child['name']}" : '') .
+                      ($child['type'] === 'text' ? ", length=" . strlen($child['value']) : ''));
             $html .= $this->renderNode($child);
         }
         
@@ -53,13 +56,16 @@ abstract class BaseRenderer
      */
     protected function renderNode(array $node): string
     {
-        return match($node['type']) {
+        error_log("[DiSyL BaseRenderer] renderNode() called with type: {$node['type']}");
+        $result = match($node['type']) {
             'tag' => $this->renderTag($node),
             'text' => $this->renderText($node),
             'expression' => $this->renderExpression($node),
             'comment' => $this->renderComment($node),
             default => ''
         };
+        error_log("[DiSyL BaseRenderer] renderNode() result length: " . strlen($result));
+        return $result;
     }
     
     /**

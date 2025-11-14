@@ -530,16 +530,16 @@ class WordPressRenderer extends BaseRenderer
             $expr = $matches[1];
             $value = $this->evaluateExpression($expr);
             
-            // Convert value to string
-            return $this->valueToString($value);
+            // Convert value to string and escape
+            if (function_exists('esc_html')) {
+                return esc_html($this->valueToString($value));
+            }
+            return htmlspecialchars($this->valueToString($value), ENT_QUOTES, 'UTF-8');
         }, $text);
         
-        // Use WordPress escaping if available
-        if (function_exists('esc_html')) {
-            return esc_html($text);
-        }
-        
-        return htmlspecialchars($text, ENT_QUOTES, 'UTF-8');
+        // Return text as-is - it may contain raw HTML which should not be escaped
+        // The embedded expressions have already been processed and escaped as needed
+        return $text;
     }
     
     /**
