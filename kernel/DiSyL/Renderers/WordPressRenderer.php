@@ -500,25 +500,34 @@ class WordPressRenderer extends BaseRenderer
     }
     
     /**
-     * Override text rendering to use WordPress escaping
+     * Override text rendering to use WordPress escaping and support filters
      */
     protected function renderText(array $node): string
     {
         $text = $node['value'];
         
-        // Interpolate expressions like {title}, {item.title}, etc.
+        // First, handle filter expressions: {item.title | upper}
+        $text = preg_replace_callback('/\{([a-zA-Z0-9_.]+)\s*\|\s*([^}]+)\}/', function($matches) {
+            $expr = $matches[1];
+            $filterChain = $matches[2];
+            
+            // Evaluate base expression
+            $value = $this->evaluateExpression($expr);
+            
+            // Apply filters
+            $value = $this->applyFilters($value, $filterChain);
+            
+            // Convert to string
+            return $this->valueToString($value);
+        }, $text);
+        
+        // Then, interpolate simple expressions like {title}, {item.title}
         $text = preg_replace_callback('/\{([a-zA-Z0-9_.]+)\}/', function($matches) {
             $expr = $matches[1];
             $value = $this->evaluateExpression($expr);
             
             // Convert value to string
-            if (is_array($value)) {
-                return implode(', ', $value);
-            } elseif (is_object($value)) {
-                return method_exists($value, '__toString') ? (string)$value : '';
-            } else {
-                return (string)$value;
-            }
+            return $this->valueToString($value);
         }, $text);
         
         // Use WordPress escaping if available

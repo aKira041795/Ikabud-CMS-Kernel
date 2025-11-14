@@ -115,23 +115,94 @@ abstract class BaseRenderer
     protected function renderText(array $node): string
     {
         $text = $node['value'];
+        $originalText = $text;
         
-        // Interpolate expressions like {title}, {item.title}, etc.
+        error_log('[DiSyL Renderer] TEXT NODE: ' . substr($text, 0, 200));
+        
+        // First, handle filter expressions: {item.title | upper}
+        $text = preg_replace_callback('/\{([a-zA-Z0-9_.]+)\s*\|\s*([^}]+)\}/', function($matches) {
+            $fullMatch = $matches[0];
+            $expr = $matches[1];
+            $filterChain = $matches[2];
+            
+            error_log('[DiSyL Renderer] Processing filter expression: ' . $fullMatch);
+            error_log('[DiSyL Renderer] Expression: ' . $expr . ', Filters: ' . $filterChain);
+            
+            // Evaluate base expression
+            $value = $this->evaluateExpression($expr);
+            error_log('[DiSyL Renderer] Base value: ' . var_export($value, true));
+            
+            // Apply filters
+            $value = $this->applyFilters($value, $filterChain);
+            error_log('[DiSyL Renderer] After filters: ' . var_export($value, true));
+            
+            // Convert to string and escape
+            $result = htmlspecialchars($this->valueToString($value), ENT_QUOTES, 'UTF-8');
+            error_log('[DiSyL Renderer] Final result: ' . $result);
+            
+            return $result;
+        }, $text);
+        
+        // Then, interpolate simple expressions like {title}, {item.title}
         $text = preg_replace_callback('/\{([a-zA-Z0-9_.]+)\}/', function($matches) {
             $expr = $matches[1];
             $value = $this->evaluateExpression($expr);
             
-            // Convert value to string
-            if (is_array($value)) {
-                return implode(', ', $value);
-            } elseif (is_object($value)) {
-                return method_exists($value, '__toString') ? (string)$value : '';
-            } else {
-                return (string)$value;
-            }
+            // Convert value to string and escape
+            return htmlspecialchars($this->valueToString($value), ENT_QUOTES, 'UTF-8');
         }, $text);
         
-        return htmlspecialchars($text, ENT_QUOTES, 'UTF-8');
+        // Don't double-escape - we already escaped in the callbacks
+        return $text;
+    }
+    
+    /**
+     * Apply filter chain to a value
+     */
+    protected function applyFilters($value, string $filterChain)
+    {
+        // Split filter chain by pipe
+        $filters = explode('|', $filterChain);
+        
+        foreach ($filters as $filter) {
+            $filter = trim($filter);
+            if (empty($filter)) continue;
+            
+            // Parse filter name and parameters
+            $params = [];
+            if (strpos($filter, ':') !== false) {
+                list($filterName, $paramStr) = explode(':', $filter, 2);
+                $filterName = trim($filterName);
+                
+                // Parse parameters: format="Y-m-d" or length=100
+                if (preg_match('/(\w+)=(["\']?)([^"\']+)\2/', $paramStr, $matches)) {
+                    $params[$matches[1]] = $matches[3];
+                }
+            } else {
+                $filterName = $filter;
+            }
+            
+            // Apply filter using ManifestLoader
+            if (class_exists('\\IkabudKernel\\Core\\DiSyL\\ManifestLoader')) {
+                $value = \IkabudKernel\Core\DiSyL\ManifestLoader::applyFilter($filterName, $value, $params);
+            }
+        }
+        
+        return $value;
+    }
+    
+    /**
+     * Convert value to string
+     */
+    protected function valueToString($value): string
+    {
+        if (is_array($value)) {
+            return implode(', ', $value);
+        } elseif (is_object($value)) {
+            return method_exists($value, '__toString') ? (string)$value : '';
+        } else {
+            return (string)$value;
+        }
     }
     
     /**
