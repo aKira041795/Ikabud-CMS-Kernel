@@ -1,61 +1,169 @@
-{!-- Single Post Template --}
+{!-- Enhanced Single Post Template with Sidebar --}
 {include file="components/header.disyl"}
 
 {ikb_section type="post-single" padding="large"}
     {ikb_container size="xlarge"}
         <div class="content-with-sidebar">
-            {!-- Main Content --}
+            {!-- Main Content (70%) --}
             <main class="main-content">
-        {ikb_query type="post" limit=1}
+                {ikb_query type="post" limit=1}
+                    {!-- Breadcrumbs --}
+                    <nav class="breadcrumbs">
+                        <a href="{site.url}">Home</a> / 
+                        {if condition="item.categories"}
+                            <a href="{item.category_url}">{item.category}</a> / 
+                        {/if}
+                        <span>{item.title}</span>
+                    </nav>
+                    
+                    {!-- Post Header --}
+                    {ikb_text size="3xl" weight="bold" margin="top-large"}
+                        {item.title | esc_html}
+                    {/ikb_text}
+                    
+                    {!-- Post Meta --}
+                    <div class="post-meta">
+                        {ikb_text size="md" color="#666"}
+                            <span class="post-date">{item.date | date:format='F j, Y'}</span>
+                            <span class="separator">•</span>
+                            <span class="post-author">By <a href="{item.author_url}">{item.author | esc_html}</a></span>
+                            {if condition="item.categories"}
+                                <span class="separator">•</span>
+                                <span class="post-categories">{item.categories | join:', '}</span>
+                            {/if}
+                            <span class="separator">•</span>
+                            <span class="post-comments">{item.comment_count} Comments</span>
+                        {/ikb_text}
+                    </div>
+                    
+                    {!-- Featured Image --}
+                    {if condition="item.thumbnail"}
+                        <figure class="featured-image-wrap">
+                            {ikb_image 
+                                src="{item.thumbnail | esc_url}"
+                                alt="{item.title | esc_attr}"
+                                class="featured-image"
+                                responsive=true
+                                lazy=true
+                            /}
+                        </figure>
+                    {/if}
+                    
+                    {!-- Post Content --}
+                    <div class="post-content">
+                        {ikb_text size="lg" line-height="relaxed"}
+                            {item.content | wp_kses_post}
+                        {/ikb_text}
+                    </div>
+                    
+                    {!-- Post Footer --}
+                    <div class="post-footer">
+                        {!-- Tags --}
+                        {if condition="item.tags"}
+                            <div class="post-tags">
+                                {ikb_text size="sm" weight="medium"}
+                                    Tags:
+                                {/ikb_text}
+                                <div class="tag-list">
+                                    {ikb_query type="tag" post="{item.id}"}
+                                        <a href="{item.url | esc_url}" class="tag">
+                                            {item.name | esc_html}
+                                        </a>
+                                    {/ikb_query}
+                                </div>
+                            </div>
+                        {/if}
+                        
+                        {!-- Share Buttons --}
+                        <div class="share-buttons">
+                            {ikb_text size="sm" weight="medium"}
+                                Share:
+                            {/ikb_text}
+                            <div class="share-links">
+                                <a href="https://twitter.com/intent/tweet?url={item.url | esc_url}&text={item.title | esc_attr}" class="share-twitter" target="_blank">
+                                    Twitter
+                                </a>
+                                <a href="https://www.facebook.com/sharer/sharer.php?u={item.url | esc_url}" class="share-facebook" target="_blank">
+                                    Facebook
+                                </a>
+                                <a href="https://www.linkedin.com/shareArticle?url={item.url | esc_url}&title={item.title | esc_attr}" class="share-linkedin" target="_blank">
+                                    LinkedIn
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    {!-- Author Bio --}
+                    {ikb_card class="author-bio" padding="large" margin="top-xlarge"}
+                        <div class="author-avatar">
+                            <img src="{item.author_avatar | esc_url}" alt="{item.author | esc_attr}" />
+                        </div>
+                        <div class="author-info">
+                            {ikb_text size="lg" weight="semibold"}
+                                About {item.author | esc_html}
+                            {/ikb_text}
+                            {ikb_text size="md" color="#666" margin="top"}
+                                {item.author_bio | esc_html}
+                            {/ikb_text}
+                            <a href="{item.author_url | esc_url}" class="author-posts-link">
+                                View all posts by {item.author | esc_html} →
+                            </a>
+                        </div>
+                    {/ikb_card}
+                    
+                    {!-- Post Navigation --}
+                    <nav class="post-navigation">
+                        {if condition="item.prev"}
+                            <div class="nav-previous">
+                                <a href="{item.prev.url | esc_url}">
+                                    <span class="nav-label">← Previous Post</span>
+                                    <span class="nav-title">{item.prev.title | esc_html}</span>
+                                </a>
+                            </div>
+                        {/if}
+                        {if condition="item.next"}
+                            <div class="nav-next">
+                                <a href="{item.next.url | esc_url}">
+                                    <span class="nav-label">Next Post →</span>
+                                    <span class="nav-title">{item.next.title | esc_html}</span>
+                                </a>
+                            </div>
+                        {/if}
+                    </nav>
+                {/ikb_query}
+                
+                {!-- Comments Section --}
+                {include file="components/comments.disyl"}
+            </main>
             
-            {ikb_text size="2xl" weight="bold"}
-                {item.title}
-            {/ikb_text}
-            
-            {ikb_text size="sm" color="#666"}
-                Published on {item.date} by {item.author}
-            {/ikb_text}
-            
-            {if condition="item.thumbnail"}
-                {ikb_image 
-                    src="{item.thumbnail}"
-                    alt="{item.title}"
-                    responsive=true
-                    lazy=true
-                /}
-            {/if}
-            
-            {ikb_content}
-                {item.content}
-            {/ikb_content}
-            
-            
-            {if condition="item.categories"}
-                {ikb_text size="sm" weight="bold" color="#667eea"}
-                    📁 Categories: {item.categories}
-                {/ikb_text}
-            {/if}
-        {/ikb_query}
+            {!-- Sidebar (30%) --}
+            <aside class="sidebar">
+                {include file="components/sidebar.disyl"}
+            </aside>
+        </div>
     {/ikb_container}
 {/ikb_section}
 
-
-{ikb_section type="content" bg="#f8f9fa" padding="normal"}
-    {ikb_container width="lg"}
-        {ikb_text size="xl" weight="bold" align="center"}
+{!-- Related Posts Section --}
+{ikb_section type="related-posts" bg="#f8f9fa" padding="xlarge"}
+    {ikb_container size="large"}
+        {ikb_text size="2xl" weight="semibold" align="center" margin="bottom-large"}
             Related Posts
         {/ikb_text}
         
-        {ikb_query type="post" limit=3 orderby="random"}
+        {ikb_query type="post" limit=3 related="current"}
             {ikb_block cols=3 gap=2}
                 {ikb_card 
-                    title="{item.title}"
+                    title="{item.title | esc_html}" 
+                    link="{item.url | esc_url}"
                     image="{item.thumbnail}"
-                    link="{item.url}"
-                    variant="outlined"
+                    class="related-post-card"
                 }
-                    {ikb_text size="sm" color="#666"}
-                        {item.date}
+                    {ikb_text size="sm" color="#999"}
+                        {item.date | date:format='F j, Y'}
+                    {/ikb_text}
+                    {ikb_text}
+                        {item.excerpt | wp_trim_words:num_words=15}
                     {/ikb_text}
                 {/ikb_card}
             {/ikb_block}
@@ -63,5 +171,4 @@
     {/ikb_container}
 {/ikb_section}
 
-{include template="components/footer" /}
-{include template="components/footer" /}
+{include file="components/footer.disyl"}

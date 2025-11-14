@@ -1,88 +1,232 @@
-{include template="components/header" /}
+{!-- Enhanced Professional Homepage --}
+{include file="components/header-enhanced.disyl"}
 
-{!-- Hero Section --}
-{ikb_section type="hero" bg="linear-gradient(135deg, #667eea 0%, #764ba2 100%)" padding="large"}
-    {ikb_container width="xl"}
-        {ikb_text size="2xl" weight="bold" align="center" color="#fff"}
-            Welcome to Brutus Blog
-        {/ikb_text}
-        {ikb_text size="lg" align="center" color="#f0f0f0"}
-            Exploring technology, design, and innovation
-        {/ikb_text}
-        {ikb_text size="md" align="center" color="#e0e0e0"}
-            Powered by DiSyL Declarative Templates
-        {/ikb_text}
+{!-- Featured Slider / Hero Section --}
+{ikb_section type="featured-slider" class="hero-section" padding="none"}
+    {ikb_container size="xlarge"}
+        <div class="featured-posts-slider">
+            {ikb_query type="post" limit=5 featured="true"}
+                <div class="featured-slide">
+                    {if condition="item.thumbnail"}
+                        <div class="slide-image">
+                            <img src="{item.thumbnail | esc_url}" alt="{item.title | esc_attr}" />
+                            <div class="slide-overlay"></div>
+                        </div>
+                    {/if}
+                    <div class="slide-content">
+                        {if condition="item.category"}
+                            <span class="slide-category">{item.category | esc_html}</span>
+                        {/if}
+                        {ikb_text size="3xl" weight="bold" color="#fff"}
+                            <a href="{item.url | esc_url}">{item.title | esc_html}</a>
+                        {/ikb_text}
+                        <div class="slide-meta">
+                            {ikb_text size="sm" color="#fff"}
+                                <span class="author">By {item.author | esc_html}</span>
+                                <span class="separator">•</span>
+                                <span class="date">{item.date | date:format='F j, Y'}</span>
+                                <span class="separator">•</span>
+                                <span class="comments">{item.comment_count} Comments</span>
+                            {/ikb_text}
+                        </div>
+                        {ikb_text size="md" color="#f0f0f0" margin="top"}
+                            {item.excerpt | wp_trim_words:num_words=30}
+                        {/ikb_text}
+                        <a href="{item.url | esc_url}" class="read-more-btn">Read More →</a>
+                    </div>
+                </div>
+            {/ikb_query}
+        </div>
     {/ikb_container}
 {/ikb_section}
 
-{!-- Latest Posts Section --}
-{ikb_section type="content" padding="large"}
-    {ikb_container width="lg"}
-        {ikb_text size="xl" weight="bold" align="center"}
-            Latest Posts
-        {/ikb_text}
-        {ikb_text size="md" align="center" color="#666"}
-            Discover our most recent articles
-        {/ikb_text}
+{!-- Main Content Area --}
+{ikb_section type="main-content" padding="xlarge"}
+    {ikb_container size="xlarge"}
+        <div class="content-with-sidebar">
+            {!-- Main Content --}
+            <main class="main-content">
+                {!-- Trending Posts --}
+                <div class="section-header">
+                    {ikb_text size="2xl" weight="bold"}
+                        🔥 Trending Now
+                    {/ikb_text}
+                    <a href="{site.url | esc_url}/category/trending" class="view-all">View All →</a>
+                </div>
+                
+                {ikb_query type="post" limit=4 orderby="popular"}
+                    <div class="trending-posts-grid">
+                        {ikb_block cols=2 gap=2}
+                            {ikb_card class="trending-post-card"}
+                                {if condition="item.thumbnail"}
+                                    <div class="post-thumbnail">
+                                        <a href="{item.url | esc_url}">
+                                            <img src="{item.thumbnail | esc_url}" alt="{item.title | esc_attr}" />
+                                        </a>
+                                        {if condition="item.category"}
+                                            <span class="post-category">{item.category | esc_html}</span>
+                                        {/if}
+                                    </div>
+                                {/if}
+                                <div class="post-content">
+                                    {ikb_text size="xl" weight="semibold"}
+                                        <a href="{item.url | esc_url}">{item.title | esc_html}</a>
+                                    {/ikb_text}
+                                    <div class="post-meta">
+                                        {ikb_text size="sm" color="#666"}
+                                            <span class="author">By {item.author | esc_html}</span>
+                                            <span class="separator">•</span>
+                                            <span class="date">{item.date | date:format='M j, Y'}</span>
+                                        {/ikb_text}
+                                    </div>
+                                    {ikb_text size="md" color="#666"}
+                                        {item.excerpt | wp_trim_words:num_words=20}
+                                    {/ikb_text}
+                                </div>
+                            {/ikb_card}
+                        {/ikb_block}
+                    </div>
+                {/ikb_query}
+                
+                {!-- Latest Posts --}
+                <div class="section-header" style="margin-top: 3rem;">
+                    {ikb_text size="2xl" weight="bold"}
+                        📰 Latest Articles
+                    {/ikb_text}
+                    <a href="{site.url | esc_url}/blog" class="view-all">View All →</a>
+                </div>
+                
+                {ikb_query type="post" limit=6 orderby="date"}
+                    <div class="latest-posts-list">
+                        {ikb_block cols=1 gap=2}
+                            {ikb_card class="latest-post-card"}
+                                <div class="post-layout">
+                                    {if condition="item.thumbnail"}
+                                        <div class="post-thumbnail-large">
+                                            <a href="{item.url | esc_url}">
+                                                <img src="{item.thumbnail | esc_url}" alt="{item.title | esc_attr}" />
+                                            </a>
+                                            {if condition="item.category"}
+                                                <span class="post-category">{item.category | esc_html}</span>
+                                            {/if}
+                                        </div>
+                                    {/if}
+                                    <div class="post-content-large">
+                                        {ikb_text size="2xl" weight="semibold"}
+                                            <a href="{item.url | esc_url}">{item.title | esc_html}</a>
+                                        {/ikb_text}
+                                        <div class="post-meta">
+                                            {ikb_text size="sm" color="#666"}
+                                                <span class="author">
+                                                    <img src="{item.author_avatar | esc_url}" alt="{item.author | esc_attr}" class="author-avatar-small" />
+                                                    By {item.author | esc_html}
+                                                </span>
+                                                <span class="separator">•</span>
+                                                <span class="date">{item.date | date:format='F j, Y'}</span>
+                                                <span class="separator">•</span>
+                                                <span class="comments">{item.comment_count} Comments</span>
+                                            {/ikb_text}
+                                        </div>
+                                        {ikb_text size="md" color="#666" line-height="relaxed"}
+                                            {item.excerpt | wp_trim_words:num_words=40}
+                                        {/ikb_text}
+                                        <a href="{item.url | esc_url}" class="read-more-link">Continue Reading →</a>
+                                    </div>
+                                </div>
+                            {/ikb_card}
+                        {/ikb_block}
+                    </div>
+                {/ikb_query}
+                
+                {!-- Pagination --}
+                {if condition="pagination.has_pages"}
+                    <div class="pagination-wrapper">
+                        <nav class="pagination">
+                            {if condition="pagination.prev"}
+                                <a href="{pagination.prev | esc_url}" class="page-link prev">← Previous</a>
+                            {/if}
+                            
+                            <span class="page-numbers">
+                                Page {pagination.current} of {pagination.total}
+                            </span>
+                            
+                            {if condition="pagination.next"}
+                                <a href="{pagination.next | esc_url}" class="page-link next">Next →</a>
+                            {/if}
+                        </nav>
+                    </div>
+                {/if}
+            </main>
+            
+            {!-- Sidebar --}
+            <aside class="sidebar">
+                {include file="components/sidebar.disyl"}
+            </aside>
+        </div>
+    {/ikb_container}
+{/ikb_section}
+
+{!-- Category Showcase --}
+{ikb_section type="category-showcase" bg="#f8f9fa" padding="xlarge"}
+    {ikb_container size="xlarge"}
+        <div class="section-header">
+            {ikb_text size="2xl" weight="bold" align="center"}
+                📂 Explore Categories
+            {/ikb_text}
+            {ikb_text size="md" color="#666" align="center"}
+                Browse content by topic
+            {/ikb_text}
+        </div>
         
-        {ikb_query type="post" limit=6 orderby="date" order="desc"}
+        {ikb_query type="category" limit=6}
             {ikb_block cols=3 gap=2}
-                {ikb_card 
-                    title="{item.title}"
-                    image="{item.thumbnail}"
-                    link="{item.url}"
-                    variant="elevated"
-                }
-                    {ikb_text size="sm" color="#666"}
-                        {item.date} • {item.author}
+                {ikb_card class="category-card"}
+                    <div class="category-icon">
+                        {if condition="item.image"}
+                            <img src="{item.image | esc_url}" alt="{item.name | esc_attr}" />
+                        {else}
+                            <span class="category-icon-placeholder">📁</span>
+                        {/if}
+                    </div>
+                    {ikb_text size="lg" weight="semibold" align="center"}
+                        <a href="{item.url | esc_url}">{item.name | esc_html}</a>
                     {/ikb_text}
-                    {ikb_text size="sm"}
-                        {item.excerpt}
+                    {ikb_text size="sm" color="#666" align="center"}
+                        {item.count} Articles
                     {/ikb_text}
-                    {if condition="item.categories"}
-                        {ikb_text size="xs" color="#999"}
-                            Categories: {item.categories}
+                    {if condition="item.description"}
+                        {ikb_text size="sm" color="#999" align="center"}
+                            {item.description | esc_html | truncate:60}
                         {/ikb_text}
                     {/if}
-                {/ikb_card}
+                </div>
             {/ikb_block}
         {/ikb_query}
     {/ikb_container}
 {/ikb_section}
 
-{!-- Featured Section --}
-{ikb_section type="content" bg="#f8f9fa" padding="normal"}
-    {ikb_container width="lg"}
-        {ikb_text size="lg" weight="bold" align="center"}
-            Why DiSyL?
-        {/ikb_text}
-        {ikb_block cols=3 gap=2}
-            {ikb_card variant="outlined"}
-                {ikb_text size="lg" weight="bold" align="center"}
-                    ⚡ Fast
-                {/ikb_text}
-                {ikb_text align="center" size="sm"}
-                    Sub-millisecond compilation
-                {/ikb_text}
-            {/ikb_card}
-            {ikb_card variant="outlined"}
-                {ikb_text size="lg" weight="bold" align="center"}
-                    🎨 Declarative
-                {/ikb_text}
-                {ikb_text align="center" size="sm"}
-                    No PHP in templates
-                {/ikb_text}
-            {/ikb_card}
-            {ikb_card variant="outlined"}
-                {ikb_text size="lg" weight="bold" align="center"}
-                    🔒 Type-Safe
-                {/ikb_text}
-                {ikb_text align="center" size="sm"}
-                    Validated attributes
-                {/ikb_text}
-            {/ikb_card}
-        {/ikb_block}
+{!-- Newsletter Section --}
+{ikb_section type="newsletter" bg="linear-gradient(135deg, #667eea 0%, #764ba2 100%)" padding="xlarge"}
+    {ikb_container size="medium"}
+        <div class="newsletter-box">
+            {ikb_text size="3xl" weight="bold" color="#fff" align="center"}
+                📧 Subscribe to Our Newsletter
+            {/ikb_text}
+            {ikb_text size="lg" color="#f0f0f0" align="center" margin="top"}
+                Get the latest articles delivered directly to your inbox
+            {/ikb_text}
+            
+            <form class="newsletter-form-large" method="post">
+                <div class="form-group">
+                    <input type="email" class="newsletter-input" placeholder="Enter your email address" required />
+                    <button type="submit" class="newsletter-button">Subscribe Now</button>
+                </div>
+                <p class="newsletter-privacy">
+                    We respect your privacy. Unsubscribe at any time.
+                </p>
+            </form>
+        </div>
     {/ikb_container}
 {/ikb_section}
 
-{include template="components/footer" /}
+{include file="components/footer-enhanced.disyl"}

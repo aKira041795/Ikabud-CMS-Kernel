@@ -1,0 +1,13 @@
+
+{ikb_section type="footer" bg="#2c3e50" padding="normal"}
+    {ikb_container width="lg"}
+        {ikb_block cols=1 gap=1}
+            {ikb_text size="sm" color="#ecf0f1" align="center"}
+                © 2025 Brutus Blog. Powered by DiSyL Template Engine.
+            {/ikb_text}
+            {ikb_text size="xs" color="#95a5a6" align="center"}
+                A proof of concept demonstrating declarative WordPress theming
+            {/ikb_text}
+        {/ikb_block}
+    {/ikb_container}
+{/ikb_section}

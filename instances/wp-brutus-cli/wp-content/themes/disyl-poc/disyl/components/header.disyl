@@ -1,12 +1,132 @@
-{ikb_section type="header" bg="#2c3e50" padding="small"}
-    {ikb_container width="xl"}
-        {ikb_block cols=2 gap=2 align="center"}
-            {ikb_text size="xl" weight="bold" color="#fff"}
-                Brutus Blog
-            {/ikb_text}
-            {ikb_text align="right" color="#ecf0f1" size="sm"}
-                Powered by DiSyL
-            {/ikb_text}
-        {/ikb_block}
-    {/ikb_container}
-{/ikb_section}
+{!-- Enhanced Professional Header --}
+<header class="site-header">
+    {!-- Top Bar --}
+    <div class="top-bar">
+        {ikb_container size="xlarge"}
+            <div class="top-bar-content">
+                {!-- Date & Social --}
+                <div class="top-bar-left">
+                    <span class="current-date">{site.date | date:format='l, F j, Y'}</span>
+                </div>
+                
+                <div class="top-bar-right">
+                    {!-- Social Links --}
+                    <div class="social-links-header">
+                        {if condition="site.social.facebook"}
+                            <a href="{site.social.facebook | esc_url}" target="_blank" rel="noopener" class="social-link">
+                                <span class="icon-facebook">f</span>
+                            </a>
+                        {/if}
+                        {if condition="site.social.twitter"}
+                            <a href="{site.social.twitter | esc_url}" target="_blank" rel="noopener" class="social-link">
+                                <span class="icon-twitter">t</span>
+                            </a>
+                        {/if}
+                        {if condition="site.social.instagram"}
+                            <a href="{site.social.instagram | esc_url}" target="_blank" rel="noopener" class="social-link">
+                                <span class="icon-instagram">i</span>
+                            </a>
+                        {/if}
+                    </div>
+                </div>
+            </div>
+        {/ikb_container}
+    </div>
+    
+    {!-- Main Header --}
+    <div class="main-header">
+        {ikb_container size="xlarge"}
+            <div class="header-content">
+                {!-- Logo --}
+                <div class="site-branding">
+                    {if condition="site.logo"}
+                        <a href="{site.url | esc_url}" class="custom-logo-link">
+                            <img src="{site.logo | esc_url}" alt="{site.name | esc_attr}" class="custom-logo" />
+                        </a>
+                    {else}
+                        <h1 class="site-title">
+                            <a href="{site.url | esc_url}">{site.name | esc_html}</a>
+                        </h1>
+                        {if condition="site.description"}
+                            <p class="site-description">{site.description | esc_html}</p>
+                        {/if}
+                    {/if}
+                </div>
+                
+                {!-- Header Ad Space (Optional) --}
+                <div class="header-ad">
+                    {!-- Placeholder for ads or custom content --}
+                    <div class="ad-placeholder">
+                        <span>Advertisement</span>
+                    </div>
+                </div>
+            </div>
+        {/ikb_container}
+    </div>
+    
+    {!-- Navigation Bar --}
+    <nav class="main-navigation">
+        {ikb_container size="xlarge"}
+            <div class="nav-wrapper">
+                {!-- Primary Menu --}
+                <div class="primary-menu">
+                    {ikb_menu location="primary"}
+                        <ul class="menu">
+                            <li class="menu-item">
+                                <a href="{item.url | esc_url}">{item.title | esc_html}</a>
+                                {if condition="item.children"}
+                                    <ul class="sub-menu">
+                                        {ikb_query type="menu_item" parent="{item.id}"}
+                                            <li class="menu-item">
+                                                <a href="{item.url | esc_url}">{item.title | esc_html}</a>
+                                            </li>
+                                        {/ikb_query}
+                                    </ul>
+                                {/if}
+                            </li>
+                        </ul>
+                    {/ikb_menu}
+                </div>
+                
+                {!-- Search Toggle --}
+                <div class="header-actions">
+                    <button class="search-toggle" aria-label="Search">
+                        <span class="icon-search">🔍</span>
+                    </button>
+                    <button class="mobile-menu-toggle" aria-label="Menu">
+                        <span class="icon-menu">☰</span>
+                    </button>
+                </div>
+            </div>
+            
+            {!-- Search Form (Hidden by default) --}
+            <div class="header-search-form" style="display: none;">
+                <form role="search" method="get" class="search-form" action="{site.url | esc_url}">
+                    <input type="search" class="search-field" placeholder="Search..." name="s" />
+                    <button type="submit" class="search-submit">Search</button>
+                </form>
+            </div>
+        {/ikb_container}
+    </nav>
+    
+    {!-- Breadcrumbs (for inner pages) --}
+    {if condition="!is_home && !is_front_page"}
+        <div class="breadcrumbs-wrapper">
+            {ikb_container size="xlarge"}
+                <nav class="breadcrumbs" aria-label="Breadcrumb">
+                    <a href="{site.url | esc_url}">Home</a>
+                    {if condition="breadcrumb.items"}
+                        {ikb_query type="breadcrumb"}
+                            <span class="separator">/</span>
+                            {if condition="item.is_current"}
+                                <span class="current">{item.title | esc_html}</span>
+                            {else}
+                                <a href="{item.url | esc_url}">{item.title | esc_html}</a>
+                            {/if}
+                        {/ikb_query}
+                    {/if}
+                </nav>
+            {/ikb_container}
+        </div>
+    {/if}
+</header>
