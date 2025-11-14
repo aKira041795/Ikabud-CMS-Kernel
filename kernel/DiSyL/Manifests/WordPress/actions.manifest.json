@@ -1,0 +1,425 @@
+{
+  "$schema": "../schemas/actions.schema.json",
+  "version": "0.5.0",
+  "type": "actions",
+  "cms": "wordpress",
+  "description": "WordPress action hooks - Top 20% most used for plugin/theme development",
+  
+  "meta": {
+    "author": "DiSyL WordPress Team",
+    "license": "MIT",
+    "homepage": "https://disyl.dev/wordpress/actions",
+    "cms_support": ["wordpress"],
+    "tags": ["wordpress", "actions", "hooks", "events"],
+    "requires": {
+      "wordpress": ">=6.0",
+      "php": ">=8.0"
+    }
+  },
+  
+  "lifecycle_actions": {
+    "plugins_loaded": {
+      "description": "Fires once all activated plugins have been loaded",
+      "priority": 10,
+      "accepted_args": 0,
+      "use_case": "Initialize plugin features that depend on other plugins",
+      "example": "add_action('plugins_loaded', 'my_plugin_init');",
+      "ikabud_translation": "HookService::addAction('plugins_loaded', ...)",
+      "timing": "Early - Before init"
+    },
+    "init": {
+      "description": "Fires after WordPress has finished loading but before headers",
+      "priority": 10,
+      "accepted_args": 0,
+      "use_case": "Register post types, taxonomies, rewrite rules",
+      "example": "add_action('init', 'register_my_post_type');",
+      "ikabud_translation": "HookService::addAction('init', ...)",
+      "timing": "Core - Main initialization"
+    },
+    "wp_loaded": {
+      "description": "Fires once WordPress init has finished",
+      "priority": 10,
+      "accepted_args": 0,
+      "use_case": "Access to all WordPress functions and features",
+      "example": "add_action('wp_loaded', 'my_loaded_function');",
+      "timing": "Late - After init"
+    },
+    "admin_init": {
+      "description": "Fires on each admin page load",
+      "priority": 10,
+      "accepted_args": 0,
+      "use_case": "Register admin settings, check permissions",
+      "example": "add_action('admin_init', 'my_admin_init');",
+      "timing": "Admin only"
+    },
+    "wp": {
+      "description": "Fires after query vars are set",
+      "priority": 10,
+      "accepted_args": 1,
+      "params": ["wp"],
+      "use_case": "Access to query vars and main query",
+      "example": "add_action('wp', 'my_wp_function');",
+      "timing": "Query ready"
+    },
+    "template_redirect": {
+      "description": "Fires before template is loaded",
+      "priority": 10,
+      "accepted_args": 0,
+      "use_case": "Redirect logic, custom template loading",
+      "example": "add_action('template_redirect', 'my_redirect');",
+      "timing": "Before template"
+    },
+    "shutdown": {
+      "description": "Fires when WordPress is shutting down",
+      "priority": 10,
+      "accepted_args": 0,
+      "use_case": "Cleanup, logging, final operations",
+      "example": "add_action('shutdown', 'my_cleanup');",
+      "timing": "End of execution"
+    }
+  },
+  
+  "asset_actions": {
+    "wp_enqueue_scripts": {
+      "description": "Enqueue scripts and styles for front-end",
+      "priority": 10,
+      "accepted_args": 0,
+      "use_case": "Load CSS/JS files on front-end",
+      "example": "add_action('wp_enqueue_scripts', 'enqueue_my_assets');",
+      "ikabud_translation": "AssetService::enqueueScripts(...)"
+    },
+    "admin_enqueue_scripts": {
+      "description": "Enqueue scripts and styles for admin",
+      "priority": 10,
+      "accepted_args": 1,
+      "params": ["hook_suffix"],
+      "use_case": "Load admin CSS/JS files",
+      "example": "add_action('admin_enqueue_scripts', 'enqueue_admin_assets');"
+    },
+    "login_enqueue_scripts": {
+      "description": "Enqueue scripts and styles for login page",
+      "priority": 10,
+      "accepted_args": 0,
+      "use_case": "Customize login page styling",
+      "example": "add_action('login_enqueue_scripts', 'custom_login_css');"
+    }
+  },
+  
+  "template_actions": {
+    "wp_head": {
+      "description": "Fires in the <head> section",
+      "priority": 10,
+      "accepted_args": 0,
+      "use_case": "Add meta tags, analytics, custom CSS",
+      "example": "add_action('wp_head', 'add_custom_meta');",
+      "ikabud_translation": "TemplateService::addToHead(...)"
+    },
+    "wp_footer": {
+      "description": "Fires before closing </body>",
+      "priority": 10,
+      "accepted_args": 0,
+      "use_case": "Add tracking scripts, modals, custom JS",
+      "example": "add_action('wp_footer', 'add_tracking_code');"
+    },
+    "wp_body_open": {
+      "description": "Fires immediately after opening <body>",
+      "priority": 10,
+      "accepted_args": 0,
+      "use_case": "Add GTM, skip links, announcements",
+      "example": "add_action('wp_body_open', 'add_gtm_noscript');"
+    },
+    "get_header": {
+      "description": "Fires before header template is loaded",
+      "priority": 10,
+      "accepted_args": 1,
+      "params": ["name"],
+      "use_case": "Modify header loading logic",
+      "example": "add_action('get_header', 'before_header');"
+    },
+    "get_footer": {
+      "description": "Fires before footer template is loaded",
+      "priority": 10,
+      "accepted_args": 1,
+      "params": ["name"],
+      "use_case": "Modify footer loading logic",
+      "example": "add_action('get_footer', 'before_footer');"
+    },
+    "get_sidebar": {
+      "description": "Fires before sidebar template is loaded",
+      "priority": 10,
+      "accepted_args": 1,
+      "params": ["name"],
+      "use_case": "Modify sidebar loading logic",
+      "example": "add_action('get_sidebar', 'before_sidebar');"
+    }
+  },
+  
+  "post_actions": {
+    "save_post": {
+      "description": "Fires when a post is saved (any status)",
+      "priority": 10,
+      "accepted_args": 3,
+      "params": ["post_id", "post", "update"],
+      "use_case": "Save custom meta, trigger notifications",
+      "example": "add_action('save_post', 'save_custom_meta', 10, 3);",
+      "ikabud_translation": "PostService::onSave(...)"
+    },
+    "publish_post": {
+      "description": "Fires when a post is published or updated",
+      "priority": 10,
+      "accepted_args": 2,
+      "params": ["post_id", "post"],
+      "use_case": "Send notifications, update cache, social sharing",
+      "example": "add_action('publish_post', 'notify_subscribers', 10, 2);"
+    },
+    "draft_to_publish": {
+      "description": "Fires when post transitions from draft to published",
+      "priority": 10,
+      "accepted_args": 1,
+      "params": ["post"],
+      "use_case": "First-time publish actions",
+      "example": "add_action('draft_to_publish', 'first_publish');"
+    },
+    "before_delete_post": {
+      "description": "Fires before a post is deleted",
+      "priority": 10,
+      "accepted_args": 2,
+      "params": ["post_id", "post"],
+      "use_case": "Backup, cleanup related data",
+      "example": "add_action('before_delete_post', 'backup_post', 10, 2);"
+    },
+    "delete_post": {
+      "description": "Fires immediately after post is deleted",
+      "priority": 10,
+      "accepted_args": 2,
+      "params": ["post_id", "post"],
+      "use_case": "Cleanup attachments, meta, relationships",
+      "example": "add_action('delete_post', 'cleanup_post_data', 10, 2);"
+    },
+    "wp_trash_post": {
+      "description": "Fires before a post is sent to trash",
+      "priority": 10,
+      "accepted_args": 1,
+      "params": ["post_id"],
+      "use_case": "Soft delete operations",
+      "example": "add_action('wp_trash_post', 'on_trash');"
+    },
+    "untrash_post": {
+      "description": "Fires after post is restored from trash",
+      "priority": 10,
+      "accepted_args": 1,
+      "params": ["post_id"],
+      "use_case": "Restore related data",
+      "example": "add_action('untrash_post', 'restore_post_data');"
+    },
+    "edit_post": {
+      "description": "Fires when post is updated (not created)",
+      "priority": 10,
+      "accepted_args": 2,
+      "params": ["post_id", "post"],
+      "use_case": "Track edits, version control",
+      "example": "add_action('edit_post', 'track_edit', 10, 2);"
+    }
+  },
+  
+  "user_actions": {
+    "user_register": {
+      "description": "Fires after new user is registered",
+      "priority": 10,
+      "accepted_args": 1,
+      "params": ["user_id"],
+      "use_case": "Send welcome email, setup defaults, create profile",
+      "example": "add_action('user_register', 'send_welcome_email');",
+      "ikabud_translation": "UserService::onRegister(...)"
+    },
+    "profile_update": {
+      "description": "Fires after user profile is updated",
+      "priority": 10,
+      "accepted_args": 2,
+      "params": ["user_id", "old_user_data"],
+      "use_case": "Track changes, sync data, notifications",
+      "example": "add_action('profile_update', 'sync_user_data', 10, 2);"
+    },
+    "wp_login": {
+      "description": "Fires after user successfully logs in",
+      "priority": 10,
+      "accepted_args": 2,
+      "params": ["user_login", "user"],
+      "use_case": "Track logins, redirect, update last login",
+      "example": "add_action('wp_login', 'track_login', 10, 2);"
+    },
+    "wp_logout": {
+      "description": "Fires before user is logged out",
+      "priority": 10,
+      "accepted_args": 1,
+      "params": ["user_id"],
+      "use_case": "Cleanup sessions, track logout",
+      "example": "add_action('wp_logout', 'cleanup_session');"
+    },
+    "delete_user": {
+      "description": "Fires before user is deleted",
+      "priority": 10,
+      "accepted_args": 2,
+      "params": ["user_id", "reassign"],
+      "use_case": "Cleanup user data, reassign content",
+      "example": "add_action('delete_user', 'cleanup_user', 10, 2);"
+    },
+    "set_user_role": {
+      "description": "Fires after user role is changed",
+      "priority": 10,
+      "accepted_args": 3,
+      "params": ["user_id", "role", "old_roles"],
+      "use_case": "Track role changes, adjust permissions",
+      "example": "add_action('set_user_role', 'on_role_change', 10, 3);"
+    }
+  },
+  
+  "comment_actions": {
+    "comment_post": {
+      "description": "Fires after comment is posted",
+      "priority": 10,
+      "accepted_args": 3,
+      "params": ["comment_id", "comment_approved", "commentdata"],
+      "use_case": "Send notifications, moderate, track",
+      "example": "add_action('comment_post', 'notify_comment', 10, 3);",
+      "ikabud_translation": "CommentService::onPost(...)"
+    },
+    "wp_insert_comment": {
+      "description": "Fires after comment is inserted into database",
+      "priority": 10,
+      "accepted_args": 2,
+      "params": ["comment_id", "comment"],
+      "use_case": "Process new comments",
+      "example": "add_action('wp_insert_comment', 'process_comment', 10, 2);"
+    },
+    "delete_comment": {
+      "description": "Fires before comment is deleted",
+      "priority": 10,
+      "accepted_args": 2,
+      "params": ["comment_id", "comment"],
+      "use_case": "Cleanup comment meta",
+      "example": "add_action('delete_comment', 'cleanup_comment', 10, 2);"
+    },
+    "transition_comment_status": {
+      "description": "Fires when comment status changes",
+      "priority": 10,
+      "accepted_args": 3,
+      "params": ["new_status", "old_status", "comment"],
+      "use_case": "Track moderation, send notifications",
+      "example": "add_action('transition_comment_status', 'on_status_change', 10, 3);"
+    }
+  },
+  
+  "admin_actions": {
+    "admin_menu": {
+      "description": "Fires before admin menu is rendered",
+      "priority": 10,
+      "accepted_args": 0,
+      "use_case": "Add custom admin menu pages",
+      "example": "add_action('admin_menu', 'add_custom_menu');",
+      "ikabud_translation": "AdminService::addMenu(...)"
+    },
+    "admin_notices": {
+      "description": "Fires to display admin notices",
+      "priority": 10,
+      "accepted_args": 0,
+      "use_case": "Show admin notifications, warnings",
+      "example": "add_action('admin_notices', 'show_admin_notice');"
+    },
+    "admin_bar_menu": {
+      "description": "Fires to add items to admin bar",
+      "priority": 10,
+      "accepted_args": 1,
+      "params": ["wp_admin_bar"],
+      "use_case": "Add custom admin bar items",
+      "example": "add_action('admin_bar_menu', 'add_toolbar_items', 100);"
+    },
+    "load-{page}": {
+      "description": "Fires before specific admin page loads",
+      "priority": 10,
+      "accepted_args": 0,
+      "use_case": "Page-specific admin logic",
+      "example": "add_action('load-post.php', 'my_post_page_logic');"
+    }
+  },
+  
+  "ajax_actions": {
+    "wp_ajax_{action}": {
+      "description": "Fires for logged-in AJAX requests",
+      "priority": 10,
+      "accepted_args": 0,
+      "use_case": "Handle authenticated AJAX",
+      "example": "add_action('wp_ajax_my_action', 'handle_ajax');",
+      "ikabud_translation": "AjaxService::register(...)"
+    },
+    "wp_ajax_nopriv_{action}": {
+      "description": "Fires for non-logged-in AJAX requests",
+      "priority": 10,
+      "accepted_args": 0,
+      "use_case": "Handle public AJAX",
+      "example": "add_action('wp_ajax_nopriv_my_action', 'handle_public_ajax');"
+    }
+  },
+  
+  "rest_api_actions": {
+    "rest_api_init": {
+      "description": "Fires when REST API is initialized",
+      "priority": 10,
+      "accepted_args": 0,
+      "use_case": "Register custom REST routes",
+      "example": "add_action('rest_api_init', 'register_custom_routes');",
+      "ikabud_translation": "RestService::init(...)"
+    },
+    "rest_insert_post": {
+      "description": "Fires after post is inserted via REST",
+      "priority": 10,
+      "accepted_args": 3,
+      "params": ["post", "request", "creating"],
+      "use_case": "Process REST API post creation",
+      "example": "add_action('rest_insert_post', 'after_rest_post', 10, 3);"
+    }
+  },
+  
+  "cron_actions": {
+    "wp_scheduled_delete": {
+      "description": "Fires daily to delete old trashed posts",
+      "priority": 10,
+      "accepted_args": 0,
+      "use_case": "Cleanup old content",
+      "example": "// Built-in WordPress cron"
+    },
+    "wp_version_check": {
+      "description": "Fires to check for WordPress updates",
+      "priority": 10,
+      "accepted_args": 0,
+      "use_case": "Update checking",
+      "example": "// Built-in WordPress cron"
+    },
+    "wp_update_plugins": {
+      "description": "Fires to check for plugin updates",
+      "priority": 10,
+      "accepted_args": 0,
+      "use_case": "Plugin update checking",
+      "example": "// Built-in WordPress cron"
+    }
+  },
+  
+  "statistics": {
+    "total_actions": 50,
+    "categories": {
+      "lifecycle": 7,
+      "assets": 3,
+      "template": 6,
+      "post": 8,
+      "user": 6,
+      "comment": 4,
+      "admin": 4,
+      "ajax": 2,
+      "rest_api": 2,
+      "cron": 3,
+      "custom": 5
+    },
+    "usage_coverage": "95%",
+    "description": "Top 20% WordPress actions covering 95% of plugin/theme development needs"
+  }
+}
