@@ -1,0 +1,94 @@
+{
+  "$schema": "../schemas/filters.schema.json",
+  "version": "0.2.0",
+  "type": "filters",
+  "description": "Core DiSyL expression filters - cross-CMS compatible",
+  
+  "filters": {
+    "upper": {
+      "description": "Convert string to uppercase",
+      "category": "string",
+      "php": "strtoupper({value})",
+      "js": "{value}.toUpperCase()",
+      "examples": [
+        "{item.title | upper}",
+        "Result: HELLO WORLD"
+      ]
+    },
+    "lower": {
+      "description": "Convert string to lowercase",
+      "category": "string",
+      "php": "strtolower({value})",
+      "js": "{value}.toLowerCase()",
+      "examples": [
+        "{item.author | lower}",
+        "Result: john doe"
+      ]
+    },
+    "capitalize": {
+      "description": "Capitalize first letter of each word",
+      "category": "string",
+      "php": "ucwords({value})",
+      "js": "{value}.replace(/\\b\\w/g, l => l.toUpperCase())",
+      "examples": [
+        "{item.title | capitalize}",
+        "Result: Hello World"
+      ]
+    },
+    "date": {
+      "description": "Format date string",
+      "category": "date",
+      "php": "date('{format}', strtotime({value}))",
+      "js": "new Date({value}).toLocaleDateString('{format}')",
+      "params": {
+        "format": {
+          "type": "string",
+          "default": "Y-m-d",
+          "description": "PHP date format string"
+        }
+      },
+      "examples": [
+        "{item.date | date:format='F j, Y'}",
+        "Result: November 14, 2025"
+      ]
+    },
+    "truncate": {
+      "description": "Truncate string to specified length",
+      "category": "string",
+      "php": "mb_substr({value}, 0, {length}) . ({length} < mb_strlen({value}) ? '...' : '')",
+      "js": "{value}.length > {length} ? {value}.substring(0, {length}) + '...' : {value}",
+      "params": {
+        "length": {
+          "type": "integer",
+          "default": 100,
+          "min": 1,
+          "description": "Maximum string length"
+        }
+      },
+      "examples": [
+        "{item.excerpt | truncate:length=50}",
+        "Result: This is a long text that will be truncat..."
+      ]
+    },
+    "escape": {
+      "description": "Escape HTML entities for safe output",
+      "category": "security",
+      "php": "htmlspecialchars({value}, ENT_QUOTES, 'UTF-8')",
+      "js": "{value}.replace(/[&<>\"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',\"'\":'&#39;'}[m]))",
+      "examples": [
+        "{item.content | escape}",
+        "Result: &lt;script&gt; becomes safe"
+      ]
+    },
+    "json": {
+      "description": "Encode value as JSON",
+      "category": "data",
+      "php": "json_encode({value})",
+      "js": "JSON.stringify({value})",
+      "examples": [
+        "{item.meta | json}",
+        "Result: {\"key\":\"value\"}"
+      ]
+    }
+  }
+}

@@ -1,0 +1,86 @@
+{
+  "$schema": "./schemas/config.schema.json",
+  "version": "0.3.0",
+  "description": "DiSyL Modular Manifest Configuration",
+  
+  "manifest_structure": {
+    "type": "modular",
+    "base_path": "./Manifests",
+    "auto_discovery": true,
+    "lazy_loading": true
+  },
+  
+  "load_order": [
+    "Core/filters.manifest.json",
+    "Core/components.manifest.json",
+    "Core/capabilities.manifest.json",
+    "{cms}/components.manifest.json",
+    "{cms}/filters.manifest.json",
+    "{cms}/hooks.manifest.json",
+    "{cms}/functions.manifest.json",
+    "{cms}/context.manifest.json"
+  ],
+  
+  "cms_manifests": {
+    "wordpress": {
+      "enabled": true,
+      "path": "WordPress",
+      "manifests": [
+        "components.manifest.json",
+        "filters.manifest.json",
+        "hooks.manifest.json",
+        "functions.manifest.json",
+        "context.manifest.json"
+      ]
+    },
+    "drupal": {
+      "enabled": true,
+      "path": "Drupal",
+      "manifests": [
+        "components.manifest.json",
+        "filters.manifest.json",
+        "hooks.manifest.json",
+        "functions.manifest.json"
+      ]
+    },
+    "joomla": {
+      "enabled": true,
+      "path": "Joomla",
+      "manifests": [
+        "components.manifest.json",
+        "filters.manifest.json",
+        "hooks.manifest.json"
+      ]
+    }
+  },
+  
+  "caching": {
+    "enabled": true,
+    "strategy": "per_manifest",
+    "cache_path": "../../storage/cache/manifests",
+    "invalidation": {
+      "on_file_change": true,
+      "ttl": 3600
+    }
+  },
+  
+  "validation": {
+    "enabled": true,
+    "strict_mode": false,
+    "schema_validation": true,
+    "report_warnings": true
+  },
+  
+  "performance": {
+    "parallel_loading": true,
+    "max_concurrent": 5,
+    "preload_core": true,
+    "lazy_load_cms": true
+  },
+  
+  "extensibility": {
+    "allow_plugins": true,
+    "plugin_manifests_path": "../../plugins/*/manifests",
+    "merge_strategy": "deep"
+  }
+}

@@ -1,0 +1,76 @@
+{
+  "$schema": "../schemas/hooks.schema.json",
+  "version": "0.2.0",
+  "type": "hooks",
+  "cms": "wordpress",
+  "description": "WordPress-specific event hooks for DiSyL integration",
+  
+  "lifecycle_hooks": {
+    "init": {
+      "description": "WordPress initialization hook",
+      "callback": "\\IkabudKernel\\Core\\DiSyL\\KernelIntegration::initWordPress",
+      "priority": 10,
+      "accepted_args": 0
+    },
+    "template_include": {
+      "description": "Intercept WordPress template loading",
+      "callback": "\\IkabudKernel\\Core\\DiSyL\\KernelIntegration::interceptTemplate",
+      "priority": 999,
+      "accepted_args": 1
+    }
+  },
+  
+  "render_hooks": {
+    "before_render": {
+      "description": "Execute before DiSyL rendering",
+      "type": "filter",
+      "hook": "disyl_before_render",
+      "params": ["output", "context"],
+      "example": "add_filter('disyl_before_render', function($output) { return $output; });"
+    },
+    "after_render": {
+      "description": "Execute after DiSyL rendering",
+      "type": "filter",
+      "hook": "disyl_after_render",
+      "params": ["output", "context"],
+      "example": "add_filter('disyl_after_render', function($output) { return $output; });"
+    },
+    "component_render": {
+      "description": "Execute when specific component renders",
+      "type": "filter",
+      "hook": "disyl_component_{component}",
+      "params": ["output", "attrs", "context"],
+      "example": "add_filter('disyl_component_ikb_card', function($output, $attrs) { return $output; }, 10, 2);"
+    }
+  },
+  
+  "query_hooks": {
+    "before_query": {
+      "description": "Modify query arguments before execution",
+      "type": "filter",
+      "hook": "disyl_before_query",
+      "params": ["args", "component"]
+    },
+    "after_query": {
+      "description": "Modify query results after execution",
+      "type": "filter",
+      "hook": "disyl_after_query",
+      "params": ["results", "args", "component"]
+    }
+  },
+  
+  "cache_hooks": {
+    "cache_key": {
+      "description": "Modify cache key generation",
+      "type": "filter",
+      "hook": "disyl_cache_key",
+      "params": ["key", "template", "context"]
+    },
+    "cache_invalidate": {
+      "description": "Trigger cache invalidation",
+      "type": "action",
+      "hook": "disyl_cache_invalidate",
+      "params": ["template", "reason"]
+    }
+  }
+}

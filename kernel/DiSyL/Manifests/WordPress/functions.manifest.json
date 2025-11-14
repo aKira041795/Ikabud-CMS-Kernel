@@ -1,0 +1,105 @@
+{
+  "$schema": "../schemas/functions.schema.json",
+  "version": "0.2.0",
+  "type": "functions",
+  "cms": "wordpress",
+  "description": "WordPress template functions available in DiSyL context",
+  
+  "template_functions": {
+    "get_header": {
+      "description": "Get WordPress header template",
+      "signature": "get_header(string $name = null): void",
+      "usage": "{! get_header() !}",
+      "category": "template_parts"
+    },
+    "get_footer": {
+      "description": "Get WordPress footer template",
+      "signature": "get_footer(string $name = null): void",
+      "usage": "{! get_footer() !}",
+      "category": "template_parts"
+    },
+    "get_sidebar": {
+      "description": "Get WordPress sidebar template",
+      "signature": "get_sidebar(string $name = null): void",
+      "usage": "{! get_sidebar() !}",
+      "category": "template_parts"
+    }
+  },
+  
+  "content_functions": {
+    "the_title": {
+      "description": "Display post title",
+      "signature": "the_title(string $before = '', string $after = '', bool $display = true): string|void",
+      "context_var": "item.title",
+      "category": "content"
+    },
+    "the_content": {
+      "description": "Display post content",
+      "signature": "the_content(string $more_link_text = null): void",
+      "context_var": "item.content",
+      "category": "content"
+    },
+    "the_excerpt": {
+      "description": "Display post excerpt",
+      "signature": "the_excerpt(): void",
+      "context_var": "item.excerpt",
+      "category": "content"
+    },
+    "the_permalink": {
+      "description": "Display post permalink",
+      "signature": "the_permalink(): void",
+      "context_var": "item.url",
+      "category": "content"
+    }
+  },
+  
+  "meta_functions": {
+    "get_post_meta": {
+      "description": "Get post meta value",
+      "signature": "get_post_meta(int $post_id, string $key = '', bool $single = false): mixed",
+      "usage": "{item.meta.custom_field}",
+      "category": "metadata"
+    },
+    "get_the_author": {
+      "description": "Get post author name",
+      "signature": "get_the_author(): string",
+      "context_var": "item.author",
+      "category": "metadata"
+    },
+    "get_the_date": {
+      "description": "Get post date",
+      "signature": "get_the_date(string $format = ''): string",
+      "context_var": "item.date",
+      "category": "metadata"
+    }
+  },
+  
+  "taxonomy_functions": {
+    "get_the_category": {
+      "description": "Get post categories",
+      "signature": "get_the_category(int $post_id = null): array",
+      "context_var": "item.categories",
+      "category": "taxonomy"
+    },
+    "get_the_tags": {
+      "description": "Get post tags",
+      "signature": "get_the_tags(int $post_id = null): array|false",
+      "context_var": "item.tags",
+      "category": "taxonomy"
+    }
+  },
+  
+  "media_functions": {
+    "get_the_post_thumbnail": {
+      "description": "Get post featured image",
+      "signature": "get_the_post_thumbnail(int $post_id = null, string|array $size = 'post-thumbnail', string|array $attr = ''): string",
+      "context_var": "item.thumbnail",
+      "category": "media"
+    },
+    "wp_get_attachment_image": {
+      "description": "Get attachment image",
+      "signature": "wp_get_attachment_image(int $attachment_id, string|array $size = 'thumbnail', bool $icon = false, string|array $attr = ''): string",
+      "category": "media"
+    }
+  }
+}
