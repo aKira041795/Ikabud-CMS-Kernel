@@ -147,13 +147,13 @@ class Parser
     {
         $startToken = $this->peek();
         
-        // Consume opening brace
-        $this->expect(Token::LBRACE, 'Expected opening brace');
-        
-        // Check for closing tag: {/tagname}
-        if ($this->check(Token::SLASH)) {
+        // Check for closing tag: {/tagname} - don't consume LBRACE yet
+        if ($this->check(Token::LBRACE) && $this->checkNext(Token::SLASH)) {
             return $this->parseClosingTag($startToken);
         }
+        
+        // Consume opening brace for opening/self-closing tags
+        $this->expect(Token::LBRACE, 'Expected opening brace');
         
         // Parse tag name
         $nameToken = $this->expect(Token::IDENT, 'Expected tag name');
@@ -295,7 +295,7 @@ class Parser
      */
     private function parseClosingTag(Token $startToken): ?array
     {
-        // We're at LBRACE, next should be SLASH
+        // Expect to be at LBRACE
         $this->expect(Token::LBRACE, 'Expected opening brace');
         $this->expect(Token::SLASH, 'Expected slash');
         
