@@ -19,7 +19,7 @@ class ManifestLoader
 {
     private static ?array $manifest = null;
     private static ?array $compiledManifest = null;
-    private static string $manifestPath = __DIR__ . '/ComponentManifest.v0.2.json';
+    private static string $manifestPath = __DIR__ . '/ComponentManifest.json';
     private static string $schemaPath = __DIR__ . '/manifest.schema.json';
     private static string $cacheDir = __DIR__ . '/../../storage/cache/';
     

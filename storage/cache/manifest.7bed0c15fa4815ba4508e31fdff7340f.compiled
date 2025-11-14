@@ -1,0 +1,624 @@
+<?php
+return array (
+  '$schema' => './manifest.schema.json',
+  'version' => '0.2.0',
+  'description' => 'DiSyL Component to CMS Translation Manifest - Enhanced Architecture',
+  'metadata' => 
+  array (
+    'created' => '2025-11-14',
+    'author' => 'Ikabud Kernel Team',
+    'license' => 'MIT',
+  ),
+  'base_components' => 
+  array (
+    'base_query' => 
+    array (
+      'capabilities' => 
+      array (
+        'supports_children' => true,
+        'output_mode' => 'loop',
+        'provides_context' => 
+        array (
+          0 => 'item',
+        ),
+        'async' => false,
+        'cacheable' => true,
+      ),
+      'attributes' => 
+      array (
+        'type' => 
+        array (
+          'required' => true,
+          'type' => 'string',
+          'description' => 'Content type to query',
+        ),
+        'limit' => 
+        array (
+          'type' => 'integer',
+          'default' => 10,
+          'min' => 1,
+          'max' => 100,
+        ),
+        'orderby' => 
+        array (
+          'type' => 'string',
+          'enum' => 
+          array (
+            0 => 'date',
+            1 => 'title',
+            2 => 'author',
+            3 => 'modified',
+          ),
+          'default' => 'date',
+        ),
+        'order' => 
+        array (
+          'type' => 'string',
+          'enum' => 
+          array (
+            0 => 'asc',
+            1 => 'desc',
+          ),
+          'default' => 'desc',
+        ),
+      ),
+    ),
+    'base_section' => 
+    array (
+      'capabilities' => 
+      array (
+        'supports_children' => true,
+        'output_mode' => 'container',
+        'provides_context' => 
+        array (
+        ),
+        'async' => false,
+        'cacheable' => true,
+      ),
+      'html_tag' => 'section',
+      'class_prefix' => 'ikb-section',
+      'attributes' => 
+      array (
+        'type' => 
+        array (
+          'type' => 'string',
+          'description' => 'Section variant',
+        ),
+        'bg' => 
+        array (
+          'type' => 'color',
+          'description' => 'Background color or gradient',
+        ),
+        'padding' => 
+        array (
+          'type' => 'string',
+          'enum' => 
+          array (
+            0 => 'none',
+            1 => 'small',
+            2 => 'normal',
+            3 => 'large',
+          ),
+          'default' => 'normal',
+        ),
+      ),
+    ),
+  ),
+  'cms_adapters' => 
+  array (
+    'wordpress' => 
+    array (
+      'name' => 'WordPress',
+      'version' => '6.0+',
+      'components' => 
+      array (
+        'ikb_section' => 
+        array (
+          'extends' => 'base_section',
+          'render_method' => 'renderIkbSection',
+          'attributes' => 
+          array (
+            'bg' => 
+            array (
+              'map_to' => 'style.background',
+              'pipeline' => 
+              array (
+                0 => 
+                array (
+                  'action' => 'sanitize_color',
+                ),
+                1 => 
+                array (
+                  'action' => 'apply_style',
+                  'format' => 'background: {value};',
+                ),
+              ),
+            ),
+            'padding' => 
+            array (
+              'map_to' => 'style.padding',
+              'transform' => 
+              array (
+                'none' => '0',
+                'small' => '1rem',
+                'normal' => '2rem',
+                'large' => '4rem',
+              ),
+            ),
+          ),
+        ),
+        'ikb_query' => 
+        array (
+          'extends' => 'base_query',
+          'render_method' => 'renderIkbQuery',
+          'data_source' => 'WP_Query',
+          'capabilities' => 
+          array (
+            'supports_children' => true,
+            'output_mode' => 'loop',
+            'provides_context' => 
+            array (
+              0 => 'item',
+              1 => 'loop',
+            ),
+            'async' => false,
+            'cacheable' => true,
+          ),
+          'attributes' => 
+          array (
+            'type' => 
+            array (
+              'map_to' => 'post_type',
+            ),
+            'limit' => 
+            array (
+              'map_to' => 'posts_per_page',
+            ),
+            'orderby' => 
+            array (
+              'map_to' => 'orderby',
+            ),
+            'category' => 
+            array (
+              'map_to' => 'category_name',
+            ),
+          ),
+          'context_variables' => 
+          array (
+            'item.id' => 'get_the_ID()',
+            'item.title' => 'get_the_title()',
+            'item.content' => 'apply_filters(\'the_content\', get_the_content())',
+            'item.excerpt' => 'get_the_excerpt()',
+            'item.url' => 'get_permalink()',
+            'item.date' => 'get_the_date()',
+            'item.author' => 'get_the_author()',
+            'item.thumbnail' => 'get_the_post_thumbnail_url(\'medium\')',
+            'item.categories' => 'wp_get_post_categories(get_the_ID(), [\'fields\' => \'names\'])',
+            'loop.index' => '$wp_query->current_post',
+            'loop.count' => '$wp_query->post_count',
+            'loop.first' => '$wp_query->current_post === 0',
+            'loop.last' => '$wp_query->current_post === $wp_query->post_count - 1',
+          ),
+        ),
+      ),
+      'hooks' => 
+      array (
+        'init' => '\\IkabudKernel\\Core\\DiSyL\\KernelIntegration::initWordPress',
+        'template_include' => '\\IkabudKernel\\Core\\DiSyL\\KernelIntegration::interceptTemplate',
+        'before_render' => 'apply_filters(\'disyl_before_render\', $output)',
+        'after_render' => 'apply_filters(\'disyl_after_render\', $output)',
+        'component_render' => 'apply_filters(\'disyl_component_{component}\', $output, $attrs)',
+      ),
+    ),
+    'drupal' => 
+    array (
+      'name' => 'Drupal',
+      'version' => '9.0+',
+      'components' => 
+      array (
+        'ikb_query' => 
+        array (
+          'extends' => 'base_query',
+          'render_method' => 'renderIkbQuery',
+          'data_source' => 'EntityQuery',
+          'attributes' => 
+          array (
+            'type' => 
+            array (
+              'map_to' => 'entity_type',
+            ),
+            'limit' => 
+            array (
+              'map_to' => 'range.limit',
+            ),
+          ),
+          'context_variables' => 
+          array (
+            'item.id' => '$entity->id()',
+            'item.title' => '$entity->getTitle()',
+            'item.content' => '$entity->get(\'body\')->value',
+          ),
+        ),
+      ),
+    ),
+    'joomla' => 
+    array (
+      'name' => 'Joomla',
+      'version' => '4.0+',
+      'components' => 
+      array (
+        'ikb_query' => 
+        array (
+          'extends' => 'base_query',
+          'render_method' => 'renderIkbQuery',
+          'data_source' => 'JModelList',
+          'attributes' => 
+          array (
+            'type' => 
+            array (
+              'map_to' => 'context',
+            ),
+            'limit' => 
+            array (
+              'map_to' => 'list.limit',
+            ),
+          ),
+        ),
+      ),
+    ),
+  ),
+  'universal_components' => 
+  array (
+    'ikb_text' => 
+    array (
+      'capabilities' => 
+      array (
+        'supports_children' => true,
+        'output_mode' => 'inline',
+        'provides_context' => 
+        array (
+        ),
+        'async' => false,
+        'cacheable' => true,
+      ),
+      'html_tag' => 'div',
+      'class_prefix' => 'ikb-text',
+      'render_modes' => 
+      array (
+        'html' => true,
+        'json' => true,
+        'ssr' => true,
+        'static' => true,
+      ),
+      'attributes' => 
+      array (
+        'size' => 
+        array (
+          'type' => 'string',
+          'map_to' => 'style.font-size',
+          'transform' => 
+          array (
+            'xs' => '0.75rem',
+            'sm' => '0.875rem',
+            'md' => '1rem',
+            'lg' => '1.125rem',
+            'xl' => '1.25rem',
+            '2xl' => '1.5rem',
+          ),
+        ),
+        'weight' => 
+        array (
+          'type' => 'string',
+          'map_to' => 'style.font-weight',
+          'transform' => 
+          array (
+            'light' => '300',
+            'normal' => '400',
+            'medium' => '500',
+            'bold' => '700',
+          ),
+        ),
+        'color' => 
+        array (
+          'type' => 'color',
+          'map_to' => 'style.color',
+          'pipeline' => 
+          array (
+            0 => 
+            array (
+              'action' => 'sanitize_color',
+            ),
+            1 => 
+            array (
+              'action' => 'apply_style',
+              'format' => 'color: {value};',
+            ),
+          ),
+        ),
+        'align' => 
+        array (
+          'type' => 'string',
+          'map_to' => 'style.text-align',
+          'enum' => 
+          array (
+            0 => 'left',
+            1 => 'center',
+            2 => 'right',
+            3 => 'justify',
+          ),
+          'pipeline' => 
+          array (
+            0 => 
+            array (
+              'action' => 'apply_style',
+              'format' => 'text-align: {value};',
+            ),
+          ),
+        ),
+      ),
+    ),
+    'ikb_container' => 
+    array (
+      'capabilities' => 
+      array (
+        'supports_children' => true,
+        'output_mode' => 'container',
+        'provides_context' => 
+        array (
+        ),
+        'async' => false,
+        'cacheable' => true,
+      ),
+      'html_tag' => 'div',
+      'class_prefix' => 'ikb-container',
+      'attributes' => 
+      array (
+        'width' => 
+        array (
+          'type' => 'string',
+          'map_to' => 'style.max-width',
+          'transform' => 
+          array (
+            'sm' => '640px',
+            'md' => '768px',
+            'lg' => '1024px',
+            'xl' => '1280px',
+          ),
+        ),
+      ),
+    ),
+    'ikb_card' => 
+    array (
+      'capabilities' => 
+      array (
+        'supports_children' => true,
+        'output_mode' => 'container',
+        'provides_context' => 
+        array (
+        ),
+        'async' => false,
+        'cacheable' => true,
+      ),
+      'html_tag' => 'div',
+      'class_prefix' => 'ikb-card',
+      'attributes' => 
+      array (
+        'variant' => 
+        array (
+          'type' => 'string',
+          'enum' => 
+          array (
+            0 => 'default',
+            1 => 'outlined',
+            2 => 'elevated',
+          ),
+          'default' => 'default',
+        ),
+        'title' => 
+        array (
+          'type' => 'string',
+        ),
+        'image' => 
+        array (
+          'type' => 'url',
+        ),
+        'link' => 
+        array (
+          'type' => 'url',
+        ),
+      ),
+    ),
+  ),
+  'control_structures' => 
+  array (
+    'if' => 
+    array (
+      'type' => 'conditional',
+      'capabilities' => 
+      array (
+        'supports_children' => true,
+        'output_mode' => 'conditional',
+        'provides_context' => 
+        array (
+        ),
+        'async' => false,
+        'cacheable' => false,
+      ),
+      'attributes' => 
+      array (
+        'condition' => 
+        array (
+          'required' => true,
+          'type' => 'expression',
+          'description' => 'Boolean expression to evaluate',
+        ),
+      ),
+    ),
+    'for' => 
+    array (
+      'type' => 'loop',
+      'capabilities' => 
+      array (
+        'supports_children' => true,
+        'output_mode' => 'loop',
+        'provides_context' => 
+        array (
+          0 => 'item',
+          1 => 'index',
+        ),
+        'async' => false,
+        'cacheable' => false,
+      ),
+      'attributes' => 
+      array (
+        'items' => 
+        array (
+          'required' => true,
+          'type' => 'expression',
+          'description' => 'Array or iterable to loop over',
+        ),
+        'as' => 
+        array (
+          'required' => true,
+          'type' => 'identifier',
+          'description' => 'Variable name for current item',
+        ),
+      ),
+    ),
+    'include' => 
+    array (
+      'type' => 'include',
+      'self_closing' => true,
+      'capabilities' => 
+      array (
+        'supports_children' => false,
+        'output_mode' => 'include',
+        'provides_context' => 
+        array (
+        ),
+        'async' => false,
+        'cacheable' => true,
+      ),
+      'attributes' => 
+      array (
+        'template' => 
+        array (
+          'required' => true,
+          'type' => 'string',
+          'description' => 'Path to template file',
+        ),
+      ),
+    ),
+  ),
+  'filters' => 
+  array (
+    'upper' => 
+    array (
+      'description' => 'Convert string to uppercase',
+      'php' => 'strtoupper({value})',
+      'js' => '{value}.toUpperCase()',
+    ),
+    'lower' => 
+    array (
+      'description' => 'Convert string to lowercase',
+      'php' => 'strtolower({value})',
+      'js' => '{value}.toLowerCase()',
+    ),
+    'capitalize' => 
+    array (
+      'description' => 'Capitalize first letter',
+      'php' => 'ucfirst({value})',
+      'js' => '{value}.charAt(0).toUpperCase() + {value}.slice(1)',
+    ),
+    'date' => 
+    array (
+      'description' => 'Format date',
+      'php' => 'date(\'{format}\', strtotime({value}))',
+      'js' => 'new Date({value}).toLocaleDateString(\'{format}\')',
+      'params' => 
+      array (
+        'format' => 
+        array (
+          'type' => 'string',
+          'default' => 'Y-m-d',
+        ),
+      ),
+    ),
+    'truncate' => 
+    array (
+      'description' => 'Truncate string to length',
+      'php' => 'mb_substr({value}, 0, {length}) . ({length} < mb_strlen({value}) ? \'...\' : \'\')',
+      'js' => '{value}.length > {length} ? {value}.substring(0, {length}) + \'...\' : {value}',
+      'params' => 
+      array (
+        'length' => 
+        array (
+          'type' => 'integer',
+          'default' => 100,
+        ),
+      ),
+    ),
+    'escape' => 
+    array (
+      'description' => 'Escape HTML entities',
+      'php' => 'htmlspecialchars({value}, ENT_QUOTES, \'UTF-8\')',
+      'js' => '{value}.replace(/[&<>"\']/g, m => ({\'&\':\'&amp;\',\'<\':\'&lt;\',\'>\':\'&gt;\',\'"\':\'&quot;\',"\'":\'&#39;\'}[m]))',
+    ),
+    'json' => 
+    array (
+      'description' => 'Encode as JSON',
+      'php' => 'json_encode({value})',
+      'js' => 'JSON.stringify({value})',
+    ),
+  ),
+  'preview_modes' => 
+  array (
+    'static' => 
+    array (
+      'enabled' => true,
+      'description' => 'Static HTML generation without CMS',
+    ),
+    'cms_preview' => 
+    array (
+      'enabled' => true,
+      'description' => 'CMS-aware preview rendering',
+    ),
+    'ssr' => 
+    array (
+      'enabled' => true,
+      'description' => 'Server-side rendering mode',
+    ),
+    'headless' => 
+    array (
+      'enabled' => true,
+      'description' => 'Headless CMS JSON output',
+    ),
+  ),
+  'deprecated' => 
+  array (
+    'ikb_oldcomponent' => 
+    array (
+      'message' => 'Use ikb_newcomponent instead. ikb_oldcomponent will be removed in v0.4.0',
+      'remove_in_version' => '0.4.0',
+      'replacement' => 'ikb_newcomponent',
+      'migration_guide' => 'https://docs.ikabud.com/migration/oldcomponent',
+    ),
+  ),
+  'cache' => 
+  array (
+    'enabled' => true,
+    'strategy' => 'hash',
+    'storage' => 
+    array (
+      'type' => 'opcache',
+      'fallback' => 'file',
+    ),
+    'invalidation' => 
+    array (
+      'on_manifest_change' => true,
+      'on_cms_update' => true,
+      'ttl' => 3600,
+    ),
+    'compiled_path' => 'storage/cache/manifest.{cms}.{hash}.compiled',
+  ),
+);
