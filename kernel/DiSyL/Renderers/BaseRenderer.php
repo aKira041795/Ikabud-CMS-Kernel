@@ -96,8 +96,38 @@ abstract class BaseRenderer
         $evaluated = [];
         
         foreach ($attrs as $key => $value) {
+            // Check if value is a structured filtered_expression array from Parser
+            if (is_array($value) && isset($value['type']) && $value['type'] === 'filtered_expression') {
+                // Extract the base expression (remove curly braces)
+                $baseExpr = trim($value['value'], '{}');
+                
+                // Evaluate base expression
+                $result = $this->evaluateExpression($baseExpr);
+                
+                // Apply filters if present
+                if (!empty($value['filters'])) {
+                    foreach ($value['filters'] as $filter) {
+                        $filterName = $filter['name'];
+                        $filterParams = $filter['params'] ?? [];
+                        
+                        // Apply filter
+                        if (class_exists('\\IkabudKernel\\Core\\DiSyL\\ModularManifestLoader')) {
+                            $result = \IkabudKernel\Core\DiSyL\ModularManifestLoader::applyFilter($filterName, $result, $filterParams);
+                        } elseif (class_exists('\\IkabudKernel\\Core\\DiSyL\\ManifestLoader')) {
+                            $result = \IkabudKernel\Core\DiSyL\ManifestLoader::applyFilter($filterName, $result, $filterParams);
+                        }
+                    }
+                }
+                
+                // Convert arrays to strings for attributes
+                if (is_array($result)) {
+                    $result = implode(', ', $result);
+                }
+                
+                $evaluated[$key] = $result;
+            }
             // Check if value is a string containing an expression
-            if (is_string($value) && preg_match('/^\{(.+)\}$/', $value, $matches)) {
+            elseif (is_string($value) && preg_match('/^\{(.+)\}$/', $value, $matches)) {
                 // Extract expression and evaluate it
                 $expression = $matches[1];
                 
@@ -125,6 +155,7 @@ abstract class BaseRenderer
                 
                 $evaluated[$key] = $result;
             } else {
+                // Not an expression, pass through as-is
                 $evaluated[$key] = $value;
             }
         }
