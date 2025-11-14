@@ -1,5 +1,5 @@
 {!-- Enhanced Professional Homepage --}
-{include file="components/header-enhanced.disyl"}
+{include file="components/header.disyl"}
 
 {!-- Featured Slider / Hero Section --}
 {ikb_section type="featured-slider" class="hero-section" padding="none"}
@@ -229,4 +229,4 @@
     {/ikb_container}
 {/ikb_section}
 
-{include file="components/footer-enhanced.disyl"}
+{include file="components/footer.disyl"}

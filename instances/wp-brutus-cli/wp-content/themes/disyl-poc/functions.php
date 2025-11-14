@@ -255,13 +255,13 @@ function disyl_theme_scripts() {
     // Custom JavaScript (if exists)
     if (file_exists(get_template_directory() . '/js/theme.js')) {
         wp_enqueue_script('disyl-poc-script', get_template_directory_uri() . '/js/theme.js', ['jquery'], '1.0.0', true);
+        
+        // Localize script
+        wp_localize_script('disyl-poc-script', 'disylData', [
+            'ajaxurl' => admin_url('admin-ajax.php'),
+            'nonce'   => wp_create_nonce('disyl-nonce'),
+        ]);
     }
-    
-    // Localize script
-    wp_localize_script('disyl-poc-script', 'disylData', [
-        'ajaxurl' => admin_url('admin-ajax.php'),
-        'nonce'   => wp_create_nonce('disyl-nonce'),
-    ]);
 }
 add_action('wp_enqueue_scripts', 'disyl_theme_scripts');
 
