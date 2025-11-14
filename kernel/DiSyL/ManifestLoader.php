@@ -241,14 +241,31 @@ class ManifestLoader
         // Replace placeholders
         $phpCode = str_replace('{value}', var_export($value, true), $phpCode);
         foreach ($params as $key => $paramValue) {
-            $phpCode = str_replace("{{$key}}", var_export($paramValue, true), $phpCode);
+            // Check if the placeholder is already quoted in the template
+            // e.g., '{format}' in date('{format}', ...)
+            $placeholder = "{{$key}}";
+            if (strpos($phpCode, "'{$placeholder}'") !== false || strpos($phpCode, "\"{$placeholder}\"") !== false) {
+                // Placeholder is already quoted, just replace with raw value
+                $phpCode = str_replace("'{$placeholder}'", var_export($paramValue, true), $phpCode);
+                $phpCode = str_replace("\"{$placeholder}\"", var_export($paramValue, true), $phpCode);
+            } else {
+                // Placeholder is not quoted, use var_export
+                $phpCode = str_replace($placeholder, var_export($paramValue, true), $phpCode);
+            }
         }
         
         // Evaluate (be careful with this in production!)
         try {
-            return eval("return {$phpCode};");
+            // Debug log
+            if (strpos($phpCode, 'date(') !== false) {
+                error_log("[DiSyL] Date filter code: " . $phpCode);
+            }
+            
+            $result = eval("return {$phpCode};");
+            return $result;
         } catch (\Throwable $e) {
-            error_log("Filter '{$filterName}' failed: " . $e->getMessage());
+            error_log("[DiSyL] Filter error: " . $e->getMessage());
+            error_log("[DiSyL] Filter code: " . $phpCode);
             return $value;
         }
     }

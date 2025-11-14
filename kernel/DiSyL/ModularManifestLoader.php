@@ -176,7 +176,16 @@ class ModularManifestLoader
         
         // Replace parameters
         foreach ($params as $key => $val) {
-            $phpCode = str_replace('{' . $key . '}', var_export($val, true), $phpCode);
+            $placeholder = '{' . $key . '}';
+            // Check if the placeholder is already quoted in the template
+            if (strpos($phpCode, "'{$placeholder}'") !== false || strpos($phpCode, "\"{$placeholder}\"") !== false) {
+                // Placeholder is already quoted, replace with var_export
+                $phpCode = str_replace("'{$placeholder}'", var_export($val, true), $phpCode);
+                $phpCode = str_replace("\"{$placeholder}\"", var_export($val, true), $phpCode);
+            } else {
+                // Placeholder is not quoted, use var_export
+                $phpCode = str_replace($placeholder, var_export($val, true), $phpCode);
+            }
         }
         
         // Evaluate
@@ -184,6 +193,7 @@ class ModularManifestLoader
             return eval('return ' . $phpCode . ';');
         } catch (\Throwable $e) {
             error_log('[DiSyL] Filter error: ' . $e->getMessage());
+            error_log('[DiSyL] Filter code: ' . $phpCode);
             return $value;
         }
     }

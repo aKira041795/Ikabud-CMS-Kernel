@@ -100,7 +100,14 @@ abstract class BaseRenderer
             if (is_string($value) && preg_match('/^\{(.+)\}$/', $value, $matches)) {
                 // Extract expression and evaluate it
                 $expression = $matches[1];
-                $evaluated[$key] = $this->evaluateExpression($expression);
+                $result = $this->evaluateExpression($expression);
+                
+                // Convert arrays to strings for attributes
+                if (is_array($result)) {
+                    $result = implode(', ', $result);
+                }
+                
+                $evaluated[$key] = $result;
             } else {
                 $evaluated[$key] = $value;
             }
@@ -160,6 +167,12 @@ abstract class BaseRenderer
             $value = '';
         }
         
+        // If value is an array, convert to string first
+        // This handles cases like item.categories which is an array
+        if (is_array($value)) {
+            $value = implode(', ', $value);
+        }
+        
         // Split filter chain by pipe
         $filters = explode('|', $filterChain);
         
@@ -173,9 +186,13 @@ abstract class BaseRenderer
                 list($filterName, $paramStr) = explode(':', $filter, 2);
                 $filterName = trim($filterName);
                 
-                // Parse parameters: format="Y-m-d" or length=100
-                if (preg_match('/(\w+)=(["\']?)([^"\']+)\2/', $paramStr, $matches)) {
+                // Parse parameters: format="Y-m-d" or format='Y-m-d' or length=100
+                // Handle both single and double quotes, or no quotes
+                if (preg_match('/(\w+)=(["\']?)(.+?)\2$/', $paramStr, $matches)) {
                     $params[$matches[1]] = $matches[3];
+                } elseif (preg_match('/(\w+)=(\S+)/', $paramStr, $matches)) {
+                    // No quotes
+                    $params[$matches[1]] = $matches[2];
                 }
             } else {
                 $filterName = $filter;
