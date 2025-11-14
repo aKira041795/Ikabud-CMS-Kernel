@@ -11,8 +11,9 @@
 namespace IkabudKernel\Core\DiSyL\Renderers;
 
 use IkabudKernel\CMS\Adapters\WordPressAdapter;
+use IkabudKernel\Core\DiSyL\ModularManifestLoader;
 
-class WordPressRenderer extends BaseRenderer
+class WordPressRenderer extends ManifestDrivenRenderer
 {
     private WordPressAdapter $cms;
     
@@ -33,40 +34,45 @@ class WordPressRenderer extends BaseRenderer
     
     /**
      * Render ikb_section component
+     * Uses manifest-driven rendering with WordPress-specific enhancements
      */
     protected function renderIkbSection(array $node, array $attrs, array $children): string
     {
-        $type = $attrs['type'] ?? 'content';
-        $title = $attrs['title'] ?? '';
-        $bg = $attrs['bg'] ?? 'transparent';
-        $padding = $attrs['padding'] ?? 'normal';
+        // Get component from manifest
+        $component = ModularManifestLoader::getComponent('ikb_section');
         
-        $paddingMap = [
-            'none' => '0',
-            'small' => '1rem',
-            'normal' => '2rem',
-            'large' => '4rem'
-        ];
+        if (!$component) {
+            // Fallback if manifest not loaded
+            return $this->renderFromManifest('ikb_section', $attrs, $children);
+        }
         
-        $paddingValue = $paddingMap[$padding] ?? '2rem';
+        // Build CSS classes from manifest
+        $classes = $this->buildCssClasses($component, $attrs);
         
-        // WordPress-specific classes
-        $classes = ['ikb-section', 'ikb-section-' . $type];
+        // Build data attributes from manifest
+        $dataAttrs = $this->buildDataAttributes($component, $attrs);
         
         // Allow WordPress filters to modify classes
         if (function_exists('apply_filters')) {
-            $classes = apply_filters('disyl_section_classes', $classes, $type, $attrs);
+            $classes = apply_filters('disyl_section_classes', $classes, $attrs['type'] ?? '', $attrs);
         }
         
-        $html = sprintf(
-            '<section class="%s" style="background: %s; padding: %s;">',
-            esc_attr(implode(' ', $classes)),
-            esc_attr($bg),
-            $paddingValue
-        );
+        // Build HTML
+        $html = '<section';
         
-        if ($title) {
-            $html .= '<h2 class="ikb-section-title">' . esc_html($title) . '</h2>';
+        if (!empty($classes)) {
+            $html .= ' class="' . esc_attr(implode(' ', $classes)) . '"';
+        }
+        
+        foreach ($dataAttrs as $key => $value) {
+            $html .= ' ' . $key . '="' . esc_attr($value) . '"';
+        }
+        
+        $html .= '>';
+        
+        // Add title if provided
+        if (!empty($attrs['title'])) {
+            $html .= '<h2 class="ikb-section-title">' . esc_html($attrs['title']) . '</h2>';
         }
         
         $html .= $this->renderChildren($children);

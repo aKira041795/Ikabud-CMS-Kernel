@@ -63,17 +63,20 @@
       "attributes": {
         "type": {
           "type": "string",
-          "description": "Section variant"
+          "description": "Section variant",
+          "css_modifier": "ikb-section-{value}"
         },
         "bg": {
           "type": "color",
-          "description": "Background color or gradient"
+          "description": "Background color or gradient",
+          "css_data_attr": "data-bg"
         },
         "padding": {
           "type": "string",
-          "enum": ["none", "small", "normal", "large"],
+          "enum": ["none", "small", "normal", "large", "xlarge"],
           "default": "normal",
-          "description": "Padding size"
+          "description": "Padding size",
+          "css_modifier": "padding-{value}"
         }
       }
     }
@@ -97,25 +100,29 @@
       "attributes": {
         "size": {
           "type": "string",
-          "enum": ["xs", "sm", "md", "lg", "xl", "2xl"],
+          "enum": ["xs", "sm", "md", "lg", "xl", "2xl", "3xl", "4xl"],
           "default": "md",
-          "description": "Text size"
+          "description": "Text size",
+          "css_modifier": "ikb-text-{value}"
         },
         "weight": {
           "type": "string",
           "enum": ["normal", "medium", "semibold", "bold"],
           "default": "normal",
-          "description": "Font weight"
+          "description": "Font weight",
+          "css_modifier": "font-{value}"
         },
         "align": {
           "type": "string",
           "enum": ["left", "center", "right", "justify"],
           "default": "left",
-          "description": "Text alignment"
+          "description": "Text alignment",
+          "css_modifier": "text-{value}"
         },
         "color": {
           "type": "color",
-          "description": "Text color"
+          "description": "Text color",
+          "css_data_attr": "data-color"
         }
       }
     },
@@ -136,9 +143,10 @@
       "attributes": {
         "width": {
           "type": "string",
-          "enum": ["sm", "md", "lg", "xl", "full"],
+          "enum": ["sm", "md", "lg", "xl", "xlarge", "full"],
           "default": "lg",
-          "description": "Container max-width"
+          "description": "Container max-width",
+          "css_modifier": "ikb-container-{value}"
         }
       }
     },
@@ -176,14 +184,16 @@
           "min": 1,
           "max": 12,
           "default": 1,
-          "description": "Number of columns"
+          "description": "Number of columns",
+          "css_modifier": "ikb-block-cols-{value}"
         },
         "gap": {
           "type": "integer",
           "min": 0,
           "max": 10,
           "default": 2,
-          "description": "Gap size between items"
+          "description": "Gap size between items",
+          "css_modifier": "gap-{value}"
         }
       }
     },
@@ -206,7 +216,20 @@
           "type": "string",
           "enum": ["default", "outlined", "elevated"],
           "default": "default",
-          "description": "Card style variant"
+          "description": "Card style variant",
+          "css_modifier": "ikb-card-{value}"
+        },
+        "title": {
+          "type": "string",
+          "description": "Card title"
+        },
+        "image": {
+          "type": "string",
+          "description": "Card image URL"
+        },
+        "link": {
+          "type": "string",
+          "description": "Card link URL"
         }
       }
     },
