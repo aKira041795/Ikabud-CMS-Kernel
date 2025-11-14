@@ -1,12 +1,13 @@
 # DiSyL Status Summary
 
-**Date:** November 13, 2025  
-**Version:** 0.1.0  
-**Status:** POC Complete ✅
+**Date:** November 14, 2025  
+**Version:** 0.5.0 Beta  
+**Status:** Beta Ready ✅
 
 ## 📦 Latest Commits
 
 ```
+81e86530 Fix Lexer bugs causing literal {if} tag display
 ff83f55a docs(disyl): Consolidate documentation and add roadmap
 59affa52 feat(disyl): Enhanced Parser and Renderer for robust WordPress integration
 a51b3d41 DiSyL Kernel Integration + WordPress Theme Support
@@ -38,6 +39,8 @@ a51b3d41 DiSyL Kernel Integration + WordPress Theme Support
 
 ### Core Engine
 - ✅ Lexer tokenizes DiSyL syntax (~5ms)
+  - ✅ Fixed: Special chars (/, =, |) only tokenized inside tags
+  - ✅ Fixed: Logical OR (||) vs filter pipe (|) distinction
 - ✅ Parser builds AST with proper nesting (~10ms)
 - ✅ Compiler validates components (~5ms)
 - ✅ Renderer outputs HTML (~20ms)
@@ -169,6 +172,8 @@ tail -f instances/wp-brutus-cli/wp-content/debug.log
 8. **Debug logging invaluable** - Strategic logging accelerates debugging
 9. **Template syntax strictness** - Clear rules prevent ambiguity
 10. **Incremental testing** - Progressive complexity isolates issues
+11. **Lexer context awareness** - Special chars must respect tag boundaries
+12. **Operator disambiguation** - || vs | requires lookahead logic
 
 ## 🎉 Success Criteria Met
 

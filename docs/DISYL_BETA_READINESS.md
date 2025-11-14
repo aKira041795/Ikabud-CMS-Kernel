@@ -67,14 +67,17 @@
 **Target:** WordPress/functions.manifest.json (complete)
 
 ### 3. **Error Handling** ⭐⭐⭐⭐
-**Status:** Partial  
+**Status:** ✅ COMPLETE  
 **Priority:** High
 
-- [ ] Graceful degradation
-- [ ] User-friendly error messages
-- [ ] Error recovery strategies
-- [ ] Debug mode with detailed logs
-- [ ] Production mode (silent errors)
+- [x] Graceful degradation (Lexer + Parser)
+- [x] User-friendly error messages (line/column tracking)
+- [x] Error recovery strategies (Parser stuck detection)
+- [x] Debug mode with detailed logs
+- [x] Production mode (silent errors)
+- [x] **Critical Fix:** Lexer context awareness (Nov 14, 2025)
+  - Fixed special chars (/, =, |) tokenization outside tags
+  - Fixed logical OR (||) vs filter pipe (|) disambiguation
 
 ### 4. **Performance** ⭐⭐⭐⭐
 **Status:** ✅ COMPLETE (9.5/10)  
@@ -179,11 +182,12 @@
 ## 🎯 Beta Success Metrics - ALL ACHIEVED ✅
 
 **Technical:**
-- ✅ 0 critical bugs
+- ✅ 0 critical bugs (Nov 14: Fixed Lexer context bugs)
 - ✅ 2.9ms compilation time (<5ms target)
 - ✅ 98.5% cache hit rate (>95% target)
 - ✅ 100% test pass rate (97/97 tests)
 - ✅ 0 critical security vulnerabilities (9.2/10 score)
+- ✅ Lexer robustness: HTML attributes + complex conditions work
 
 **Adoption:**
 - 5+ production sites
