@@ -10,19 +10,141 @@
       "description": "Get WordPress header template",
       "signature": "get_header(string $name = null): void",
       "usage": "{! get_header() !}",
-      "category": "template_parts"
+      "category": "template_parts",
+      "ikabud_translation": "TemplateService::getHeader"
     },
     "get_footer": {
       "description": "Get WordPress footer template",
       "signature": "get_footer(string $name = null): void",
       "usage": "{! get_footer() !}",
-      "category": "template_parts"
+      "category": "template_parts",
+      "ikabud_translation": "TemplateService::getFooter"
     },
     "get_sidebar": {
       "description": "Get WordPress sidebar template",
       "signature": "get_sidebar(string $name = null): void",
       "usage": "{! get_sidebar() !}",
-      "category": "template_parts"
+      "category": "template_parts",
+      "ikabud_translation": "TemplateService::getSidebar"
+    },
+    "get_template_part": {
+      "description": "Load a template part",
+      "signature": "get_template_part(string $slug, string $name = null, array $args = []): void",
+      "usage": "{! get_template_part('content', 'page') !}",
+      "category": "template_parts",
+      "ikabud_translation": "TemplateService::getTemplatePart"
+    }
+  },
+  
+  "url_functions": {
+    "home_url": {
+      "description": "Get home URL",
+      "signature": "home_url(string $path = '', string $scheme = null): string",
+      "context_var": "site.home_url",
+      "category": "url",
+      "ikabud_translation": "PermalinkService::homeUrl"
+    },
+    "site_url": {
+      "description": "Get site URL",
+      "signature": "site_url(string $path = '', string $scheme = null): string",
+      "context_var": "site.url",
+      "category": "url",
+      "ikabud_translation": "PermalinkService::siteUrl"
+    },
+    "admin_url": {
+      "description": "Get admin URL",
+      "signature": "admin_url(string $path = '', string $scheme = 'admin'): string",
+      "context_var": "site.admin_url",
+      "category": "url",
+      "ikabud_translation": "PermalinkService::adminUrl"
+    },
+    "content_url": {
+      "description": "Get content directory URL",
+      "signature": "content_url(string $path = ''): string",
+      "category": "url",
+      "ikabud_translation": "PermalinkService::contentUrl"
+    },
+    "plugins_url": {
+      "description": "Get plugins directory URL",
+      "signature": "plugins_url(string $path = '', string $plugin = ''): string",
+      "category": "url",
+      "ikabud_translation": "PermalinkService::pluginsUrl"
+    }
+  },
+  
+  "option_functions": {
+    "get_option": {
+      "description": "Get option value",
+      "signature": "get_option(string $option, mixed $default = false): mixed",
+      "category": "options",
+      "ikabud_translation": "SettingsService::get"
+    },
+    "update_option": {
+      "description": "Update option value",
+      "signature": "update_option(string $option, mixed $value, string $autoload = null): bool",
+      "category": "options",
+      "ikabud_translation": "SettingsService::update"
+    },
+    "delete_option": {
+      "description": "Delete option",
+      "signature": "delete_option(string $option): bool",
+      "category": "options",
+      "ikabud_translation": "SettingsService::delete"
+    },
+    "get_bloginfo": {
+      "description": "Get blog information",
+      "signature": "get_bloginfo(string $show = '', string $filter = 'raw'): string",
+      "context_var": "site.info",
+      "category": "options",
+      "ikabud_translation": "SettingsService::getBlogInfo"
+    }
+  },
+  
+  "theme_functions": {
+    "add_theme_support": {
+      "description": "Add theme support for feature",
+      "signature": "add_theme_support(string $feature, mixed ...$args): void|false",
+      "category": "theme",
+      "ikabud_translation": "ThemeService::addSupport"
+    },
+    "current_theme_supports": {
+      "description": "Check if theme supports feature",
+      "signature": "current_theme_supports(string $feature): bool",
+      "category": "theme",
+      "ikabud_translation": "ThemeService::supports"
+    },
+    "get_theme_mod": {
+      "description": "Get theme modification value",
+      "signature": "get_theme_mod(string $name, mixed $default = false): mixed",
+      "category": "theme",
+      "ikabud_translation": "CustomizerService::getMod"
+    },
+    "set_theme_mod": {
+      "description": "Set theme modification value",
+      "signature": "set_theme_mod(string $name, mixed $value): void",
+      "category": "theme",
+      "ikabud_translation": "CustomizerService::setMod"
+    }
+  },
+  
+  "menu_functions": {
+    "wp_nav_menu": {
+      "description": "Display navigation menu",
+      "signature": "wp_nav_menu(array $args = []): void|string|false",
+      "category": "navigation",
+      "ikabud_translation": "MenuService::displayMenu"
+    },
+    "has_nav_menu": {
+      "description": "Check if menu location has menu",
+      "signature": "has_nav_menu(string $location): bool",
+      "category": "navigation",
+      "ikabud_translation": "MenuService::hasMenu"
+    },
+    "get_nav_menu_locations": {
+      "description": "Get all menu locations",
+      "signature": "get_nav_menu_locations(): array",
+      "category": "navigation",
+      "ikabud_translation": "MenuService::getLocations"
     }
   },
   

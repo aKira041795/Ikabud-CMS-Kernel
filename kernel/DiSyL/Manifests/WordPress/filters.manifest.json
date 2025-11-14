@@ -1,0 +1,270 @@
+{
+  "$schema": "../schemas/filters.schema.json",
+  "version": "0.5.0",
+  "type": "filters",
+  "cms": "wordpress",
+  "description": "WordPress-specific expression filters - Top 20% most used",
+  
+  "meta": {
+    "author": "DiSyL WordPress Team",
+    "license": "MIT",
+    "homepage": "https://disyl.dev/wordpress/filters",
+    "cms_support": ["wordpress"],
+    "tags": ["wordpress", "filters", "sanitization", "formatting"],
+    "requires": {
+      "wordpress": ">=6.0",
+      "php": ">=8.0"
+    }
+  },
+  
+  "filters": {
+    "wp_kses_post": {
+      "description": "Sanitize HTML content for post context",
+      "category": "security",
+      "php": "wp_kses_post({value})",
+      "js": "wpKsesPost({value})",
+      "examples": [
+        "{item.content | wp_kses_post}",
+        "Result: Safe HTML for post content"
+      ]
+    },
+    "esc_html": {
+      "description": "Escape HTML entities",
+      "category": "security",
+      "php": "esc_html({value})",
+      "js": "escapeHtml({value})",
+      "examples": [
+        "{item.title | esc_html}",
+        "Result: &lt;script&gt; becomes safe"
+      ]
+    },
+    "esc_attr": {
+      "description": "Escape HTML attributes",
+      "category": "security",
+      "php": "esc_attr({value})",
+      "js": "escapeAttr({value})",
+      "examples": [
+        "{item.alt | esc_attr}",
+        "Result: Safe for HTML attributes"
+      ]
+    },
+    "esc_url": {
+      "description": "Sanitize and escape URL",
+      "category": "security",
+      "php": "esc_url({value})",
+      "js": "escapeUrl({value})",
+      "examples": [
+        "{item.link | esc_url}",
+        "Result: Safe, validated URL"
+      ]
+    },
+    "wp_trim_words": {
+      "description": "Truncate text by word count",
+      "category": "string",
+      "php": "wp_trim_words({value}, {num_words}, '{more}')",
+      "js": "wpTrimWords({value}, {num_words}, '{more}')",
+      "params": {
+        "num_words": {
+          "type": "integer",
+          "default": 55,
+          "description": "Number of words"
+        },
+        "more": {
+          "type": "string",
+          "default": "...",
+          "description": "More text indicator"
+        }
+      },
+      "examples": [
+        "{item.content | wp_trim_words:num_words=20}",
+        "Result: First 20 words..."
+      ]
+    },
+    "wpautop": {
+      "description": "Auto-add paragraphs to text",
+      "category": "formatting",
+      "php": "wpautop({value})",
+      "js": "wpautop({value})",
+      "examples": [
+        "{item.content | wpautop}",
+        "Result: Text wrapped in <p> tags"
+      ]
+    },
+    "strip_tags": {
+      "description": "Remove all HTML tags",
+      "category": "string",
+      "php": "strip_tags({value})",
+      "js": "{value}.replace(/<[^>]*>/g, '')",
+      "examples": [
+        "{item.content | strip_tags}",
+        "Result: Plain text only"
+      ]
+    },
+    "strip_shortcodes": {
+      "description": "Remove WordPress shortcodes",
+      "category": "wordpress",
+      "php": "strip_shortcodes({value})",
+      "js": "stripShortcodes({value})",
+      "examples": [
+        "{item.content | strip_shortcodes}",
+        "Result: Content without [shortcodes]"
+      ]
+    },
+    "get_the_excerpt": {
+      "description": "Get smart excerpt with more link",
+      "category": "content",
+      "php": "get_the_excerpt({value})",
+      "js": "getTheExcerpt({value})",
+      "examples": [
+        "{item.id | get_the_excerpt}",
+        "Result: Post excerpt"
+      ]
+    },
+    "human_time_diff": {
+      "description": "Convert to relative time (e.g., '2 hours ago')",
+      "category": "date",
+      "php": "human_time_diff(strtotime({value}), current_time('timestamp')) . ' ago'",
+      "js": "humanTimeDiff({value})",
+      "examples": [
+        "{item.date | human_time_diff}",
+        "Result: 2 hours ago"
+      ]
+    },
+    "number_format_i18n": {
+      "description": "Format number with localization",
+      "category": "formatting",
+      "php": "number_format_i18n({value}, {decimals})",
+      "js": "numberFormatI18n({value}, {decimals})",
+      "params": {
+        "decimals": {
+          "type": "integer",
+          "default": 0,
+          "description": "Decimal places"
+        }
+      },
+      "examples": [
+        "{item.price | number_format_i18n:decimals=2}",
+        "Result: 1,234.56"
+      ]
+    },
+    "size_format": {
+      "description": "Format file size (bytes to KB/MB/GB)",
+      "category": "formatting",
+      "php": "size_format({value}, {decimals})",
+      "js": "sizeFormat({value}, {decimals})",
+      "params": {
+        "decimals": {
+          "type": "integer",
+          "default": 0,
+          "description": "Decimal places"
+        }
+      },
+      "examples": [
+        "{item.filesize | size_format}",
+        "Result: 2.5 MB"
+      ]
+    },
+    "sanitize_title": {
+      "description": "Convert to URL-safe slug",
+      "category": "sanitization",
+      "php": "sanitize_title({value})",
+      "js": "sanitizeTitle({value})",
+      "examples": [
+        "{item.title | sanitize_title}",
+        "Result: hello-world"
+      ]
+    },
+    "sanitize_email": {
+      "description": "Sanitize and validate email",
+      "category": "sanitization",
+      "php": "sanitize_email({value})",
+      "js": "sanitizeEmail({value})",
+      "examples": [
+        "{item.email | sanitize_email}",
+        "Result: valid@email.com"
+      ]
+    },
+    "wp_trim_excerpt": {
+      "description": "Smart excerpt with more link",
+      "category": "content",
+      "php": "wp_trim_excerpt({value})",
+      "js": "wpTrimExcerpt({value})",
+      "examples": [
+        "{item.content | wp_trim_excerpt}",
+        "Result: Excerpt with [...]"
+      ]
+    },
+    "make_clickable": {
+      "description": "Convert URLs to clickable links",
+      "category": "formatting",
+      "php": "make_clickable({value})",
+      "js": "makeClickable({value})",
+      "examples": [
+        "{item.text | make_clickable}",
+        "Result: URLs become <a> tags"
+      ]
+    },
+    "convert_chars": {
+      "description": "Convert special characters to HTML entities",
+      "category": "formatting",
+      "php": "convert_chars({value})",
+      "js": "convertChars({value})",
+      "examples": [
+        "{item.text | convert_chars}",
+        "Result: Smart quotes, etc."
+      ]
+    },
+    "balanceTags": {
+      "description": "Balance and fix HTML tags",
+      "category": "formatting",
+      "php": "balanceTags({value}, true)",
+      "js": "balanceTags({value})",
+      "examples": [
+        "{item.html | balanceTags}",
+        "Result: Properly closed tags"
+      ]
+    },
+    "zeroise": {
+      "description": "Add leading zeros to number",
+      "category": "formatting",
+      "php": "zeroise({value}, {threshold})",
+      "js": "zeroise({value}, {threshold})",
+      "params": {
+        "threshold": {
+          "type": "integer",
+          "default": 4,
+          "description": "Minimum length"
+        }
+      },
+      "examples": [
+        "{item.id | zeroise:threshold=5}",
+        "Result: 00123"
+      ]
+    },
+    "antispambot": {
+      "description": "Encode email to prevent spam bots",
+      "category": "security",
+      "php": "antispambot({value})",
+      "js": "antispambot({value})",
+      "examples": [
+        "{item.email | antispambot}",
+        "Result: Encoded email address"
+      ]
+    }
+  },
+  
+  "statistics": {
+    "total_filters": 20,
+    "categories": {
+      "security": 5,
+      "string": 2,
+      "formatting": 7,
+      "content": 2,
+      "date": 1,
+      "sanitization": 2,
+      "wordpress": 1
+    },
+    "usage_coverage": "80%",
+    "description": "Top 20% most used WordPress filters covering 80% of use cases"
+  }
+}
