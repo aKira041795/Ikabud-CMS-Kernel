@@ -1,0 +1,171 @@
+{
+  "$schema": "./schemas/registry.schema.json",
+  "version": "0.4.0",
+  "type": "registry",
+  "description": "DiSyL Component Registry - Auto-generated manifest index",
+  "generated_at": "2025-11-14T08:56:00Z",
+  
+  "meta": {
+    "total_components": 15,
+    "total_filters": 7,
+    "total_hooks": 8,
+    "total_functions": 12,
+    "cms_adapters": 3
+  },
+  
+  "components": {
+    "core:text": {
+      "namespace": "core",
+      "name": "text",
+      "full_name": "ikb_text",
+      "source": "Core/components.manifest.json",
+      "category": "content",
+      "tags": ["text", "typography", "content"],
+      "supports_children": true,
+      "output_mode": "inline"
+    },
+    "core:container": {
+      "namespace": "core",
+      "name": "container",
+      "full_name": "ikb_container",
+      "source": "Core/components.manifest.json",
+      "category": "layout",
+      "tags": ["layout", "container", "wrapper"],
+      "supports_children": true,
+      "output_mode": "container"
+    },
+    "core:section": {
+      "namespace": "core",
+      "name": "section",
+      "full_name": "ikb_section",
+      "source": "Core/components.manifest.json",
+      "category": "layout",
+      "tags": ["layout", "section", "block"],
+      "supports_children": true,
+      "output_mode": "container"
+    },
+    "core:block": {
+      "namespace": "core",
+      "name": "block",
+      "full_name": "ikb_block",
+      "source": "Core/components.manifest.json",
+      "category": "layout",
+      "tags": ["layout", "grid", "flexbox"],
+      "supports_children": true,
+      "output_mode": "container"
+    },
+    "core:card": {
+      "namespace": "core",
+      "name": "card",
+      "full_name": "ikb_card",
+      "source": "Core/components.manifest.json",
+      "category": "content",
+      "tags": ["content", "card", "container"],
+      "supports_children": true,
+      "output_mode": "container"
+    },
+    "wp:query": {
+      "namespace": "wp",
+      "name": "query",
+      "full_name": "ikb_query",
+      "source": "WordPress/components.manifest.json",
+      "category": "data",
+      "tags": ["query", "loop", "data", "wordpress"],
+      "supports_children": true,
+      "output_mode": "loop",
+      "provides_context": ["item", "loop"]
+    },
+    "wp:post_meta": {
+      "namespace": "wp",
+      "name": "post_meta",
+      "full_name": "ikb_post_meta",
+      "source": "WordPress/components.manifest.json",
+      "category": "data",
+      "tags": ["metadata", "custom-fields", "wordpress"],
+      "supports_children": false,
+      "output_mode": "inline"
+    }
+  },
+  
+  "filters": {
+    "upper": {
+      "source": "Core/filters.manifest.json",
+      "category": "string",
+      "tags": ["string", "text", "transform"]
+    },
+    "lower": {
+      "source": "Core/filters.manifest.json",
+      "category": "string",
+      "tags": ["string", "text", "transform"]
+    },
+    "capitalize": {
+      "source": "Core/filters.manifest.json",
+      "category": "string",
+      "tags": ["string", "text", "transform"]
+    },
+    "date": {
+      "source": "Core/filters.manifest.json",
+      "category": "date",
+      "tags": ["date", "time", "format"],
+      "has_params": true
+    },
+    "truncate": {
+      "source": "Core/filters.manifest.json",
+      "category": "string",
+      "tags": ["string", "text", "truncate"],
+      "has_params": true
+    },
+    "escape": {
+      "source": "Core/filters.manifest.json",
+      "category": "security",
+      "tags": ["security", "html", "escape"]
+    },
+    "json": {
+      "source": "Core/filters.manifest.json",
+      "category": "data",
+      "tags": ["data", "json", "encode"]
+    }
+  },
+  
+  "hooks": {
+    "before_render": {
+      "source": "WordPress/hooks.manifest.json",
+      "type": "filter",
+      "cms": "wordpress"
+    },
+    "after_render": {
+      "source": "WordPress/hooks.manifest.json",
+      "type": "filter",
+      "cms": "wordpress"
+    },
+    "component_render": {
+      "source": "WordPress/hooks.manifest.json",
+      "type": "filter",
+      "cms": "wordpress",
+      "dynamic": true
+    }
+  },
+  
+  "categories": {
+    "layout": ["core:container", "core:section", "core:block"],
+    "content": ["core:text", "core:card"],
+    "data": ["wp:query", "wp:post_meta"],
+    "string": ["upper", "lower", "capitalize", "truncate"],
+    "date": ["date"],
+    "security": ["escape"]
+  },
+  
+  "namespaces": {
+    "core": {
+      "components": 5,
+      "filters": 7,
+      "source": "Core"
+    },
+    "wp": {
+      "components": 2,
+      "filters": 0,
+      "hooks": 8,
+      "source": "WordPress"
+    }
+  }
+}

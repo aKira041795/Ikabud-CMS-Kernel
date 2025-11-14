@@ -1,13 +1,41 @@
 {
   "$schema": "./schemas/config.schema.json",
-  "version": "0.3.0",
-  "description": "DiSyL Modular Manifest Configuration",
+  "version": "0.4.0",
+  "description": "DiSyL Modular Manifest Configuration with Profiles & Mount Points",
   
   "manifest_structure": {
     "type": "modular",
     "base_path": "./Manifests",
     "auto_discovery": true,
     "lazy_loading": true
+  },
+  
+  "mount_points": {
+    "Core": "./Manifests/Core",
+    "WordPress": "./Manifests/WordPress",
+    "Drupal": "./Manifests/Drupal",
+    "Joomla": "./Manifests/Joomla",
+    "Plugins": "../../plugins/*/manifests",
+    "Themes": "../../themes/*/manifests",
+    "Vendor": "../../vendor/disyl/*/manifests"
+  },
+  
+  "profiles": {
+    "default": "full",
+    "available": ["minimal", "full", "headless", "static"],
+    "path": "./Manifests/profiles"
+  },
+  
+  "namespaces": {
+    "enabled": true,
+    "separator": ":",
+    "registry": {
+      "core": "Core",
+      "wp": "WordPress",
+      "drupal": "Drupal",
+      "joomla": "Joomla"
+    },
+    "auto_register_plugins": true
   },
   
   "load_order": [

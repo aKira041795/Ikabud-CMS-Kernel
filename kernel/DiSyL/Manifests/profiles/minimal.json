@@ -1,0 +1,43 @@
+{
+  "$schema": "../schemas/profile.schema.json",
+  "version": "0.4.0",
+  "type": "profile",
+  "name": "minimal",
+  "description": "Minimal DiSyL profile - Core components and filters only",
+  
+  "meta": {
+    "author": "DiSyL Core Team",
+    "license": "MIT",
+    "use_case": "Small projects, prototyping, minimal footprint",
+    "performance": "Fastest load time, smallest memory footprint"
+  },
+  
+  "load": {
+    "manifests": [
+      "Core/filters.manifest.json",
+      "Core/components.manifest.json"
+    ],
+    "exclude_cms": true,
+    "exclude_plugins": true
+  },
+  
+  "features": {
+    "filters": true,
+    "components": ["ikb_text", "ikb_container", "ikb_section"],
+    "hooks": false,
+    "functions": false,
+    "context": false
+  },
+  
+  "optimization": {
+    "cache_strategy": "aggressive",
+    "preload": true,
+    "lazy_load": false
+  },
+  
+  "compatibility": {
+    "cms": ["wordpress", "drupal", "joomla", "native"],
+    "php_version": ">=8.0",
+    "extensions": []
+  }
+}

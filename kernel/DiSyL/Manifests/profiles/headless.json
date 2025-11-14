@@ -1,0 +1,52 @@
+{
+  "$schema": "../schemas/profile.schema.json",
+  "version": "0.4.0",
+  "type": "profile",
+  "name": "headless",
+  "description": "Headless DiSyL profile - Data-only, no HTML rendering",
+  
+  "meta": {
+    "author": "DiSyL Core Team",
+    "license": "MIT",
+    "use_case": "Headless CMS, API-first, JAMstack, mobile apps",
+    "performance": "Optimized for JSON output, no HTML overhead"
+  },
+  
+  "load": {
+    "manifests": [
+      "Core/filters.manifest.json",
+      "{cms}/context.manifest.json",
+      "{cms}/functions.manifest.json"
+    ],
+    "exclude_cms": false,
+    "exclude_plugins": false
+  },
+  
+  "features": {
+    "filters": true,
+    "components": false,
+    "hooks": false,
+    "functions": true,
+    "context": true,
+    "render_mode": "json"
+  },
+  
+  "output": {
+    "format": "json",
+    "include_meta": true,
+    "include_context": true,
+    "exclude_html": true
+  },
+  
+  "optimization": {
+    "cache_strategy": "aggressive",
+    "preload": true,
+    "lazy_load": false
+  },
+  
+  "compatibility": {
+    "cms": ["wordpress", "drupal", "joomla"],
+    "php_version": ">=8.0",
+    "extensions": ["json"]
+  }
+}

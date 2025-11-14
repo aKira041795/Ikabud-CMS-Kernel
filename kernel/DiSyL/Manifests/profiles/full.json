@@ -1,0 +1,52 @@
+{
+  "$schema": "../schemas/profile.schema.json",
+  "version": "0.4.0",
+  "type": "profile",
+  "name": "full",
+  "description": "Full DiSyL profile - All features enabled",
+  
+  "meta": {
+    "author": "DiSyL Core Team",
+    "license": "MIT",
+    "use_case": "Production sites, full-featured applications",
+    "performance": "Balanced performance with full feature set"
+  },
+  
+  "load": {
+    "manifests": [
+      "Core/filters.manifest.json",
+      "Core/components.manifest.json",
+      "Core/capabilities.manifest.json",
+      "{cms}/components.manifest.json",
+      "{cms}/filters.manifest.json",
+      "{cms}/hooks.manifest.json",
+      "{cms}/functions.manifest.json",
+      "{cms}/context.manifest.json"
+    ],
+    "exclude_cms": false,
+    "exclude_plugins": false,
+    "auto_discover_plugins": true
+  },
+  
+  "features": {
+    "filters": true,
+    "components": "*",
+    "hooks": true,
+    "functions": true,
+    "context": true,
+    "capabilities": true,
+    "inheritance": true
+  },
+  
+  "optimization": {
+    "cache_strategy": "balanced",
+    "preload": ["Core/*"],
+    "lazy_load": ["Plugins/*"]
+  },
+  
+  "compatibility": {
+    "cms": ["wordpress", "drupal", "joomla", "native"],
+    "php_version": ">=8.0",
+    "extensions": ["mbstring", "json"]
+  }
+}
