@@ -175,6 +175,58 @@ class Parser
         // If no attributes and immediately closed, treat as expression
         // e.g., {title} or {item.title}
         if (empty($attributes) && !$selfClosing) {
+            // Check if this is a registered component
+            $isComponent = ComponentRegistry::has($tagName);
+            
+            if ($isComponent) {
+                // For registered components without attributes, we need to check if there's
+                // a matching closing tag. If not, treat as expression.
+                // Look ahead to see if there's a closing tag
+                $savedPos = $this->position;
+                $hasClosingTag = false;
+                $depth = 1;
+                $lookAheadLimit = 100; // Don't look too far ahead
+                $lookAheadCount = 0;
+                
+                while (!$this->isAtEnd() && $lookAheadCount < $lookAheadLimit) {
+                    $lookAheadCount++;
+                    $token = $this->peek();
+                    
+                    if ($token === null) break;
+                    
+                    // Check for opening tag with same name
+                    if ($token->type === Token::LBRACE) {
+                        $nextToken = $this->peek(1);
+                        if ($nextToken && $nextToken->type === Token::IDENT && $nextToken->value === $tagName) {
+                            $depth++;
+                        } elseif ($nextToken && $nextToken->type === Token::SLASH) {
+                            $nameToken = $this->peek(2);
+                            if ($nameToken && $nameToken->type === Token::IDENT && $nameToken->value === $tagName) {
+                                $depth--;
+                                if ($depth === 0) {
+                                    $hasClosingTag = true;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    
+                    $this->advance();
+                }
+                
+                // Restore position
+                $this->position = $savedPos;
+                
+                // If no closing tag found, treat as expression
+                if (!$hasClosingTag) {
+                    return [
+                        'type' => 'expression',
+                        'value' => $tagName,
+                        'loc' => $this->getLocation($startToken)
+                    ];
+                }
+            }
+            
             // Check if this looks like an expression (no ikb_ prefix, lowercase, dots allowed)
             if (!str_starts_with($tagName, 'ikb_') && 
                 (ctype_lower($tagName[0]) || strpos($tagName, '.') !== false)) {
