@@ -553,6 +553,8 @@ class WordPressAdapter implements CMSInterface
                     'author' => get_the_author_meta('display_name', $post->post_author),
                     'url' => get_permalink($post),
                     'thumbnail' => get_the_post_thumbnail_url($post, 'full'),
+                    'comments_open' => comments_open($post->ID),
+                    'comment_count' => get_comments_number($post->ID),
                 ];
             }
         }
