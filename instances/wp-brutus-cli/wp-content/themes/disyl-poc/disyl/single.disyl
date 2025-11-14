@@ -1,7 +1,11 @@
-{include template="components/header" /}
+{!-- Single Post Template --}
+{include file="components/header.disyl"}
 
-{ikb_section type="content" padding="large"}
-    {ikb_container width="md"}
+{ikb_section type="post-single" padding="large"}
+    {ikb_container size="xlarge"}
+        <div class="content-with-sidebar">
+            {!-- Main Content --}
+            <main class="main-content">
         {ikb_query type="post" limit=1}
             
             {ikb_text size="2xl" weight="bold"}

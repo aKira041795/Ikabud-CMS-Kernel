@@ -1,0 +1,154 @@
+{!-- Comments Component --}
+{if condition="post.comments_open || post.comment_count > 0"}
+    {ikb_section type="comments" class="comments-area" padding="large"}
+        {!-- Comments Title --}
+        {if condition="post.comment_count > 0"}
+            {ikb_text size="2xl" weight="semibold" margin="bottom-large"}
+                {post.comment_count} Comment{if condition="post.comment_count > 1"}s{/if}
+            {/ikb_text}
+            
+            {!-- Comments List --}
+            {ikb_query type="comment"}
+                <ol class="comment-list">
+                    {ikb_block cols=1 gap=2}
+                        <li class="comment" id="comment-{item.id}">
+                            {ikb_card class="comment-body" padding="large"}
+                                <div class="comment-author-avatar">
+                                    <img src="{item.avatar | esc_url}" alt="{item.author | esc_attr}" class="avatar" />
+                                </div>
+                                
+                                <div class="comment-content-wrap">
+                                    {!-- Comment Meta --}
+                                    <div class="comment-meta">
+                                        {ikb_text size="md" weight="semibold"}
+                                            {item.author | esc_html}
+                                        {/ikb_text}
+                                        {ikb_text size="sm" color="#999"}
+                                            {item.date | date:format='F j, Y \a\t g:i a'}
+                                        {/ikb_text}
+                                    </div>
+                                    
+                                    {!-- Comment Content --}
+                                    {ikb_text margin="top"}
+                                        {item.content | wp_kses_post}
+                                    {/ikb_text}
+                                    
+                                    {!-- Comment Reply Link --}
+                                    {if condition="post.comments_open"}
+                                        <div class="comment-reply">
+                                            <a href="#comment-{item.id}" class="comment-reply-link" data-comment-id="{item.id}">
+                                                Reply
+                                            </a>
+                                        </div>
+                                    {/if}
+                                    
+                                    {!-- Nested Comments --}
+                                    {if condition="item.children"}
+                                        <ol class="children">
+                                            {ikb_query type="comment" parent="{item.id}"}
+                                                <li class="comment" id="comment-{item.id}">
+                                                    {ikb_card class="comment-body" padding="medium"}
+                                                        <div class="comment-author-avatar">
+                                                            <img src="{item.avatar | esc_url}" alt="{item.author | esc_attr}" class="avatar" />
+                                                        </div>
+                                                        
+                                                        <div class="comment-content-wrap">
+                                                            <div class="comment-meta">
+                                                                {ikb_text size="sm" weight="semibold"}
+                                                                    {item.author | esc_html}
+                                                                {/ikb_text}
+                                                                {ikb_text size="xs" color="#999"}
+                                                                    {item.date | date:format='F j, Y'}
+                                                                {/ikb_text}
+                                                            </div>
+                                                            
+                                                            {ikb_text size="sm" margin="top"}
+                                                                {item.content | wp_kses_post}
+                                                            {/ikb_text}
+                                                        </div>
+                                                    {/ikb_card}
+                                                </li>
+                                            {/ikb_query}
+                                        </ol>
+                                    {/if}
+                                </div>
+                            {/ikb_card}
+                        </li>
+                    {/ikb_block}
+                </ol>
+            {/ikb_query}
+            
+            {!-- Comment Pagination --}
+            {if condition="comments.pagination"}
+                <div class="comment-pagination">
+                    {if condition="comments.prev"}
+                        <a href="{comments.prev | esc_url}" class="prev-comments">← Older Comments</a>
+                    {/if}
+                    {if condition="comments.next"}
+                        <a href="{comments.next | esc_url}" class="next-comments">Newer Comments →</a>
+                    {/if}
+                </div>
+            {/if}
+        {/if}
+        
+        {!-- Comment Form --}
+        {if condition="post.comments_open"}
+            {ikb_card class="comment-respond" padding="xlarge" margin="top-xlarge"}
+                {ikb_text size="2xl" weight="semibold" margin="bottom-large"}
+                    Leave a Comment
+                {/ikb_text}
+                
+                {if condition="user.logged_in"}
+                    {ikb_text margin="bottom"}
+                        Logged in as <a href="{user.profile_url | esc_url}">{user.name | esc_html}</a>. 
+                        <a href="{site.logout_url | esc_url}">Log out?</a>
+                    {/ikb_text}
+                {/if}
+                
+                <form action="{site.url}/wp-comments-post.php" method="post" class="comment-form">
+                    {if condition="!user.logged_in"}
+                        <div class="comment-form-fields">
+                            <div class="form-field">
+                                <label for="author">Name <span class="required">*</span></label>
+                                <input type="text" id="author" name="author" required />
+                            </div>
+                            
+                            <div class="form-field">
+                                <label for="email">Email <span class="required">*</span></label>
+                                <input type="email" id="email" name="email" required />
+                            </div>
+                            
+                            <div class="form-field">
+                                <label for="url">Website</label>
+                                <input type="url" id="url" name="url" />
+                            </div>
+                        </div>
+                        
+                        <div class="form-field">
+                            <label>
+                                <input type="checkbox" name="wp-comment-cookies-consent" value="yes" />
+                                Save my name, email, and website in this browser for the next time I comment.
+                            </label>
+                        </div>
+                    {/if}
+                    
+                    <div class="form-field">
+                        <label for="comment">Comment <span class="required">*</span></label>
+                        <textarea id="comment" name="comment" rows="8" required></textarea>
+                    </div>
+                    
+                    <input type="hidden" name="comment_post_ID" value="{post.id}" />
+                    <input type="hidden" name="comment_parent" id="comment_parent" value="0" />
+                    
+                    <button type="submit" class="submit-comment">Post Comment</button>
+                </form>
+            {/ikb_card}
+        {else}
+            {ikb_card class="comments-closed" padding="large" align="center"}
+                {ikb_text size="lg" color="#999"}
+                    Comments are closed.
+                {/ikb_text}
+            {/ikb_card}
+        {/if}
+    {/ikb_section}
+{/if}

@@ -1,0 +1,136 @@
+{!-- Sidebar Component --}
+{ikb_section type="sidebar" class="widget-area"}
+    {!-- Search Widget --}
+    {ikb_card class="widget widget-search" padding="large"}
+        {ikb_text size="lg" weight="semibold" margin="bottom"}
+            Search
+        {/ikb_text}
+        <form role="search" method="get" class="search-form" action="{site.url}">
+            <input type="search" class="search-field" placeholder="Search..." name="s" />
+            <button type="submit" class="search-submit">
+                <span>Search</span>
+            </button>
+        </form>
+    {/ikb_card}
+    
+    {!-- Recent Posts Widget --}
+    {ikb_card class="widget widget-recent-posts" padding="large"}
+        {ikb_text size="lg" weight="semibold" margin="bottom"}
+            Recent Posts
+        {/ikb_text}
+        {ikb_query type="post" limit=5}
+            <ul class="recent-posts-list">
+                {ikb_block cols=1 gap=1}
+                    <li class="recent-post-item">
+                        {if condition="item.thumbnail"}
+                            <div class="post-thumbnail">
+                                <a href="{item.url | esc_url}">
+                                    <img src="{item.thumbnail | esc_url}" alt="{item.title | esc_attr}" />
+                                </a>
+                            </div>
+                        {/if}
+                        <div class="post-content">
+                            {ikb_text size="sm" weight="medium"}
+                                <a href="{item.url | esc_url}">{item.title | esc_html}</a>
+                            {/ikb_text}
+                            {ikb_text size="xs" color="#999"}
+                                {item.date | date:format='M j, Y'}
+                            {/ikb_text}
+                        </div>
+                    </li>
+                {/ikb_block}
+            </ul>
+        {/ikb_query}
+    {/ikb_card}
+    
+    {!-- Categories Widget --}
+    {ikb_card class="widget widget-categories" padding="large"}
+        {ikb_text size="lg" weight="semibold" margin="bottom"}
+            Categories
+        {/ikb_text}
+        <ul class="categories-list">
+            {ikb_query type="category"}
+                <li class="category-item">
+                    <a href="{item.url | esc_url}">
+                        {item.name | esc_html}
+                        <span class="count">({item.count})</span>
+                    </a>
+                </li>
+            {/ikb_query}
+        </ul>
+    {/ikb_card}
+    
+    {!-- Tags Widget --}
+    {ikb_card class="widget widget-tags" padding="large"}
+        {ikb_text size="lg" weight="semibold" margin="bottom"}
+            Popular Tags
+        {/ikb_text}
+        <div class="tag-cloud">
+            {ikb_query type="tag" limit=20}
+                <a href="{item.url | esc_url}" class="tag-link">
+                    {item.name | esc_html}
+                </a>
+            {/ikb_query}
+        </div>
+    {/ikb_card}
+    
+    {!-- Archives Widget --}
+    {ikb_card class="widget widget-archives" padding="large"}
+        {ikb_text size="lg" weight="semibold" margin="bottom"}
+            Archives
+        {/ikb_text}
+        <ul class="archives-list">
+            {ikb_query type="archive" limit=12}
+                <li class="archive-item">
+                    <a href="{item.url | esc_url}">
+                        {item.label | esc_html}
+                        <span class="count">({item.count})</span>
+                    </a>
+                </li>
+            {/ikb_query}
+        </ul>
+    {/ikb_card}
+    
+    {!-- Social Links Widget --}
+    {ikb_card class="widget widget-social" padding="large"}
+        {ikb_text size="lg" weight="semibold" margin="bottom"}
+            Follow Us
+        {/ikb_text}
+        <div class="social-links">
+            {if condition="site.social.facebook"}
+                <a href="{site.social.facebook | esc_url}" class="social-link facebook" target="_blank" rel="noopener">
+                    <span>Facebook</span>
+                </a>
+            {/if}
+            {if condition="site.social.twitter"}
+                <a href="{site.social.twitter | esc_url}" class="social-link twitter" target="_blank" rel="noopener">
+                    <span>Twitter</span>
+                </a>
+            {/if}
+            {if condition="site.social.instagram"}
+                <a href="{site.social.instagram | esc_url}" class="social-link instagram" target="_blank" rel="noopener">
+                    <span>Instagram</span>
+                </a>
+            {/if}
+            {if condition="site.social.linkedin"}
+                <a href="{site.social.linkedin | esc_url}" class="social-link linkedin" target="_blank" rel="noopener">
+                    <span>LinkedIn</span>
+                </a>
+            {/if}
+        </div>
+    {/ikb_card}
+    
+    {!-- Newsletter Widget --}
+    {ikb_card class="widget widget-newsletter" padding="large" bg="#667eea"}
+        {ikb_text size="lg" weight="semibold" color="#fff" margin="bottom"}
+            Newsletter
+        {/ikb_text}
+        {ikb_text size="sm" color="#fff" margin="bottom"}
+            Subscribe to get the latest posts delivered to your inbox.
+        {/ikb_text}
+        <form class="newsletter-form" method="post">
+            <input type="email" class="newsletter-email" placeholder="Your email..." required />
+            <button type="submit" class="newsletter-submit">Subscribe</button>
+        </form>
+    {/ikb_card}
+{/ikb_section}
