@@ -222,6 +222,9 @@ function disyl_theme_scripts() {
     // Main stylesheet
     wp_enqueue_style('disyl-poc-style', get_stylesheet_uri(), [], '1.0.0');
     
+    // DiSyL components CSS (always load)
+    wp_enqueue_style('disyl-components', get_template_directory_uri() . '/css/disyl-components.css', ['disyl-poc-style'], '1.0.0');
+    
     // Enhanced header/footer CSS
     wp_enqueue_style('disyl-header-footer', get_template_directory_uri() . '/css/header-footer.css', ['disyl-poc-style'], '1.0.0');
     
