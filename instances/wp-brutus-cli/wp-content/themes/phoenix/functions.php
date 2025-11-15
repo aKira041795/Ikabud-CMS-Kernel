@@ -182,6 +182,11 @@ function phoenix_disyl_render($template) {
         // Build context
         $context = phoenix_build_context();
         
+        // Debug: Log full AST
+        $ast_json = json_encode($ast, JSON_PRETTY_PRINT);
+        error_log("DiSyL Full AST:");
+        error_log(substr($ast_json, 0, 3000)); // First 3000 chars
+        
         // Render
         $html = $renderer->render($compiled, $context);
         
@@ -312,38 +317,27 @@ function phoenix_get_menu_items($location) {
         return phoenix_get_fallback_menu($location);
     }
     
+    // For now, return flat array (submenu support coming in next version)
+    // The hierarchical structure with children breaks PHP array serialization
     $items = array();
-    $menu_tree = array();
     
-    // First pass: create all items
     foreach ($menu_items as $item) {
-        $items[$item->ID] = array(
-            'id' => $item->ID,
-            'title' => $item->title,
-            'url' => $item->url,
-            'target' => $item->target,
-            'classes' => implode(' ', $item->classes),
-            'active' => ($item->url === home_url($_SERVER['REQUEST_URI'])),
-            'parent_id' => $item->menu_item_parent,
-            'order' => $item->menu_order,
-            'children' => array(),
-        );
-    }
-    
-    // Second pass: build tree structure
-    foreach ($items as $id => $item) {
-        if ($item['parent_id'] == 0) {
-            // Top-level item
-            $menu_tree[] = &$items[$id];
-        } else {
-            // Child item - add to parent's children
-            if (isset($items[$item['parent_id']])) {
-                $items[$item['parent_id']]['children'][] = &$items[$id];
-            }
+        // Only include top-level items for now
+        if ($item->menu_item_parent == 0) {
+            $items[] = array(
+                'id' => $item->ID,
+                'title' => $item->title,
+                'url' => $item->url,
+                'target' => $item->target,
+                'classes' => implode(' ', $item->classes),
+                'active' => ($item->url === home_url($_SERVER['REQUEST_URI'])),
+                'parent_id' => $item->menu_item_parent,
+                'order' => $item->menu_order,
+            );
         }
     }
     
-    return $menu_tree;
+    return $items;
 }
 
 /**

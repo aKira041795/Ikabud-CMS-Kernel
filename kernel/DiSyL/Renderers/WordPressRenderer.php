@@ -430,7 +430,18 @@ class WordPressRenderer extends ManifestDrivenRenderer
         // Get items from context
         $itemsArray = $this->evaluateExpression($items);
         
+        // Debug logging
+        error_log("DiSyL For Loop Debug:");
+        error_log("  Items path: " . $items);
+        error_log("  As variable: " . $as);
+        error_log("  Items array type: " . gettype($itemsArray));
+        if (is_array($itemsArray)) {
+            error_log("  Items count: " . count($itemsArray));
+            error_log("  Items: " . print_r($itemsArray, true));
+        }
+        
         if (!is_array($itemsArray)) {
+            error_log("  ERROR: Items is not an array!");
             return '';
         }
         
