@@ -517,6 +517,14 @@ class WordPressRenderer extends ManifestDrivenRenderer
         // Evaluate condition
         $result = $this->evaluateCondition($condition);
         
+        // Debug: Log children structure
+        error_log("IF Children Count: " . count($children));
+        foreach ($children as $i => $child) {
+            $childType = $child['type'] ?? 'unknown';
+            $childName = $child['name'] ?? 'N/A';
+            error_log("  Child $i: type=$childType, name=$childName");
+        }
+        
         // Split children into if-block and else-block
         $ifChildren = [];
         $elseChildren = [];
@@ -527,6 +535,7 @@ class WordPressRenderer extends ManifestDrivenRenderer
             if (isset($child['type']) && $child['type'] === 'tag' && 
                 isset($child['name']) && $child['name'] === 'else') {
                 $inElseBlock = true;
+                error_log("Found {else} tag - switching to else block");
                 continue; // Skip the {else} tag itself
             }
             
@@ -536,6 +545,9 @@ class WordPressRenderer extends ManifestDrivenRenderer
                 $ifChildren[] = $child;
             }
         }
+        
+        error_log("IF block children: " . count($ifChildren) . " | ELSE block children: " . count($elseChildren));
+        error_log("Rendering: " . ($result ? 'IF block' : 'ELSE block'));
         
         if ($result) {
             // Render if block

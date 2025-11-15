@@ -197,6 +197,20 @@ class Parser
         // If no attributes and immediately closed, treat as expression
         // e.g., {title} or {item.title}
         if (empty($attributes) && !$selfClosing) {
+            // Special handling for control structure keywords
+            $controlKeywords = ['else', 'elseif'];
+            if (in_array($tagName, $controlKeywords)) {
+                // Treat as a tag node (control structure marker)
+                return [
+                    'type' => 'tag',
+                    'name' => $tagName,
+                    'attrs' => [],
+                    'children' => [],
+                    'self_closing' => true,
+                    'loc' => $this->getLocation($startToken)
+                ];
+            }
+            
             // Check if this is a registered component
             $isComponent = ComponentRegistry::has($tagName);
             
