@@ -1,0 +1,85 @@
+{
+  "name": "disyl",
+  "displayName": "DiSyL - Declarative Ikabud Syntax Language",
+  "description": "Syntax highlighting, snippets, and language support for DiSyL templates",
+  "version": "0.3.0",
+  "publisher": "ikabud",
+  "icon": "images/icon.png",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Snippets",
+    "Formatters"
+  ],
+  "keywords": [
+    "disyl",
+    "template",
+    "cms",
+    "wordpress",
+    "ikabud"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ikabud/disyl"
+  },
+  "license": "MIT",
+  "contributes": {
+    "languages": [
+      {
+        "id": "disyl",
+        "aliases": [
+          "DiSyL",
+          "disyl"
+        ],
+        "extensions": [
+          ".disyl"
+        ],
+        "configuration": "./language-configuration.json",
+        "icon": {
+          "light": "./images/file-icon.svg",
+          "dark": "./images/file-icon.svg"
+        }
+      }
+    ],
+    "grammars": [
+      {
+        "language": "disyl",
+        "scopeName": "text.html.disyl",
+        "path": "./syntaxes/disyl.tmLanguage.json",
+        "embeddedLanguages": {
+          "text.html": "html",
+          "source.css": "css",
+          "source.js": "javascript"
+        }
+      }
+    ],
+    "snippets": [
+      {
+        "language": "disyl",
+        "path": "./snippets/disyl.json"
+      }
+    ],
+    "configurationDefaults": {
+      "[disyl]": {
+        "editor.tabSize": 4,
+        "editor.insertSpaces": true,
+        "editor.wordWrap": "on",
+        "editor.quickSuggestions": {
+          "other": true,
+          "comments": false,
+          "strings": true
+        }
+      }
+    }
+  },
+  "scripts": {
+    "package": "vsce package",
+    "publish": "vsce publish"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.80.0",
+    "vsce": "^2.15.0"
+  }
+}

@@ -1,0 +1,254 @@
+{
+  "DiSyL Comment": {
+    "prefix": "comment",
+    "body": [
+      "{!-- $1 --}"
+    ],
+    "description": "DiSyL block comment"
+  },
+  "DiSyL Expression": {
+    "prefix": "expr",
+    "body": [
+      "{$1}"
+    ],
+    "description": "DiSyL expression"
+  },
+  "DiSyL Expression with Filter": {
+    "prefix": "exprfilter",
+    "body": [
+      "{$1 | $2}"
+    ],
+    "description": "DiSyL expression with filter"
+  },
+  "ikb_section": {
+    "prefix": "section",
+    "body": [
+      "{ikb_section type=\"$1\" ${2:padding=\"large\"}}",
+      "\t$0",
+      "{/ikb_section}"
+    ],
+    "description": "DiSyL section component"
+  },
+  "ikb_container": {
+    "prefix": "container",
+    "body": [
+      "{ikb_container size=\"$1\"}",
+      "\t$0",
+      "{/ikb_container}"
+    ],
+    "description": "DiSyL container component"
+  },
+  "ikb_text": {
+    "prefix": "text",
+    "body": [
+      "{ikb_text size=\"$1\" ${2:weight=\"normal\"}}",
+      "\t$0",
+      "{/ikb_text}"
+    ],
+    "description": "DiSyL text component"
+  },
+  "ikb_button": {
+    "prefix": "button",
+    "body": [
+      "{ikb_button variant=\"$1\" ${2:size=\"medium\"}}",
+      "\t$0",
+      "{/ikb_button}"
+    ],
+    "description": "DiSyL button component"
+  },
+  "ikb_card": {
+    "prefix": "card",
+    "body": [
+      "{ikb_card ${1:shadow=\"medium\"}}",
+      "\t$0",
+      "{/ikb_card}"
+    ],
+    "description": "DiSyL card component"
+  },
+  "ikb_image": {
+    "prefix": "image",
+    "body": [
+      "{ikb_image src=\"$1\" alt=\"$2\" ${3:responsive=true} /}"
+    ],
+    "description": "DiSyL image component"
+  },
+  "ikb_grid": {
+    "prefix": "grid",
+    "body": [
+      "{ikb_grid columns=\"$1\" ${2:gap=\"medium\"}}",
+      "\t$0",
+      "{/ikb_grid}"
+    ],
+    "description": "DiSyL grid component"
+  },
+  "ikb_query": {
+    "prefix": "query",
+    "body": [
+      "{ikb_query type=\"$1\" ${2:limit=10}}",
+      "\t$0",
+      "{/ikb_query}"
+    ],
+    "description": "DiSyL query component"
+  },
+  "if statement": {
+    "prefix": "if",
+    "body": [
+      "{if condition=\"{$1}\"}",
+      "\t$0",
+      "{/if}"
+    ],
+    "description": "DiSyL if statement"
+  },
+  "if-else statement": {
+    "prefix": "ifelse",
+    "body": [
+      "{if condition=\"{$1}\"}",
+      "\t$2",
+      "{else}",
+      "\t$3",
+      "{/if}"
+    ],
+    "description": "DiSyL if-else statement"
+  },
+  "for loop": {
+    "prefix": "for",
+    "body": [
+      "{for items=\"{$1}\" as=\"$2\"}",
+      "\t$0",
+      "{/for}"
+    ],
+    "description": "DiSyL for loop"
+  },
+  "include": {
+    "prefix": "include",
+    "body": [
+      "{include file=\"$1\" /}"
+    ],
+    "description": "DiSyL include directive"
+  },
+  "Filter: esc_html": {
+    "prefix": "fesc_html",
+    "body": [
+      "{$1 | esc_html}"
+    ],
+    "description": "Escape HTML entities"
+  },
+  "Filter: esc_url": {
+    "prefix": "fesc_url",
+    "body": [
+      "{$1 | esc_url}"
+    ],
+    "description": "Escape URL"
+  },
+  "Filter: esc_attr": {
+    "prefix": "fesc_attr",
+    "body": [
+      "{$1 | esc_attr}"
+    ],
+    "description": "Escape attribute"
+  },
+  "Filter: upper": {
+    "prefix": "fupper",
+    "body": [
+      "{$1 | upper}"
+    ],
+    "description": "Convert to uppercase"
+  },
+  "Filter: lower": {
+    "prefix": "flower",
+    "body": [
+      "{$1 | lower}"
+    ],
+    "description": "Convert to lowercase"
+  },
+  "Filter: truncate": {
+    "prefix": "ftruncate",
+    "body": [
+      "{$1 | truncate:length=$2,append=\"...\"}"
+    ],
+    "description": "Truncate text with length and append"
+  },
+  "Filter: strip_tags": {
+    "prefix": "fstrip",
+    "body": [
+      "{$1 | strip_tags}"
+    ],
+    "description": "Strip HTML tags"
+  },
+  "Filter: date": {
+    "prefix": "fdate",
+    "body": [
+      "{$1 | date:format=\"$2\"}"
+    ],
+    "description": "Format date"
+  },
+  "Filter: number_format": {
+    "prefix": "fnumber",
+    "body": [
+      "{$1 | number_format:decimals=$2}"
+    ],
+    "description": "Format number"
+  },
+  "Filter: raw": {
+    "prefix": "fraw",
+    "body": [
+      "{$1 | raw}"
+    ],
+    "description": "Output raw HTML (already sanitized)"
+  },
+  "Filter Chain": {
+    "prefix": "fchain",
+    "body": [
+      "{$1 | $2 | $3}"
+    ],
+    "description": "Filter chain"
+  },
+  "DiSyL Template Header": {
+    "prefix": "template",
+    "body": [
+      "{!-- ${1:Template Name} --}",
+      "{include file=\"components/header.disyl\" /}",
+      "",
+      "{ikb_section type=\"${2:main}\" padding=\"${3:large}\"}",
+      "\t{ikb_container size=\"${4:large}\"}",
+      "\t\t$0",
+      "\t{/ikb_container}",
+      "{/ikb_section}",
+      "",
+      "{include file=\"components/footer.disyl\" /}"
+    ],
+    "description": "Complete DiSyL template structure"
+  },
+  "Post Loop": {
+    "prefix": "postloop",
+    "body": [
+      "{ikb_query type=\"post\" limit=${1:10}}",
+      "\t<article>",
+      "\t\t<h2>{item.title | esc_html}</h2>",
+      "\t\t<p>{item.excerpt | strip_tags | truncate:length=150}</p>",
+      "\t\t<a href=\"{item.url | esc_url}\">Read more</a>",
+      "\t</article>",
+      "{/ikb_query}"
+    ],
+    "description": "Common post loop pattern"
+  },
+  "Hero Section": {
+    "prefix": "hero",
+    "body": [
+      "{ikb_section type=\"hero\" bg=\"gradient\" padding=\"xlarge\"}",
+      "\t{ikb_container size=\"large\"}",
+      "\t\t{ikb_text size=\"3xl\" weight=\"bold\" class=\"gradient-text\"}",
+      "\t\t\t${1:Hero Title}",
+      "\t\t{/ikb_text}",
+      "\t\t{ikb_text size=\"xl\"}",
+      "\t\t\t${2:Hero subtitle}",
+      "\t\t{/ikb_text}",
+      "\t\t{ikb_button variant=\"primary\" size=\"large\"}",
+      "\t\t\t${3:Call to Action}",
+      "\t\t{/ikb_button}",
+      "\t{/ikb_container}",
+      "{/ikb_section}"
+    ],
+    "description": "Hero section with title, subtitle, and CTA"
+  }
+}
