@@ -27,12 +27,15 @@
         {!-- Primary Navigation --}
         <nav class="main-nav" role="navigation" aria-label="Primary navigation">
             <ul>
-                <li><a href="{site.url | esc_url}" class="active">Home</a></li>
-                <li><a href="{site.url | esc_url}/blog">Blog</a></li>
-                <li><a href="{site.url | esc_url}/about">About</a></li>
-                <li><a href="{site.url | esc_url}/services">Services</a></li>
-                <li><a href="{site.url | esc_url}/portfolio">Portfolio</a></li>
-                <li><a href="{site.url | esc_url}/contact">Contact</a></li>
+                {for items="{menu.primary}" as="item"}
+                    <li class="{item.classes}">
+                        <a href="{item.url | esc_url}" 
+                           {if condition="{item.target}"}target="{item.target | esc_attr}"{/if}
+                           {if condition="{item.active}"}class="active"{/if}>
+                            {item.title | esc_html}
+                        </a>
+                    </li>
+                {/for}
             </ul>
         </nav>
     </div>

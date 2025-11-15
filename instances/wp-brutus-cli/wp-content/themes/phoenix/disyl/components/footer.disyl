@@ -37,12 +37,14 @@
                     Quick Links
                 {/ikb_text}
                 <ul>
-                    <li><a href="{site.url | esc_url}">Home</a></li>
-                    <li><a href="{site.url | esc_url}/about">About Us</a></li>
-                    <li><a href="{site.url | esc_url}/services">Services</a></li>
-                    <li><a href="{site.url | esc_url}/portfolio">Portfolio</a></li>
-                    <li><a href="{site.url | esc_url}/blog">Blog</a></li>
-                    <li><a href="{site.url | esc_url}/contact">Contact</a></li>
+                    {for items="{menu.footer}" as="item"}
+                        <li>
+                            <a href="{item.url | esc_url}"
+                               {if condition="{item.target}"}target="{item.target | esc_attr}"{/if}>
+                                {item.title | esc_html}
+                            </a>
+                        </li>
+                    {/for}
                 </ul>
             </div>
             
