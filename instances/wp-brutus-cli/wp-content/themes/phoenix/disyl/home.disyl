@@ -7,7 +7,7 @@
         {!-- Custom Hero Widget --}
         {widgets.homepage_hero.content | raw}
     {else}
-        {!-- Default Hero Content --}
+        {!-- Default Hero Content (Fallback) --}
         <div class="hero-content animate-fade-in">
             {ikb_text size="4xl" weight="black" class="hero-title"}
                 Rise Like a Phoenix
