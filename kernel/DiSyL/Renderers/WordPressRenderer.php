@@ -518,7 +518,13 @@ class WordPressRenderer extends ManifestDrivenRenderer
         $result = $this->evaluateCondition($condition);
         
         if ($result) {
+            // Render if block (children)
             return $this->renderChildren($children);
+        } else {
+            // Render else block if it exists
+            if (isset($node['elseBlock']) && is_array($node['elseBlock'])) {
+                return $this->renderChildren($node['elseBlock']);
+            }
         }
         
         return '';
