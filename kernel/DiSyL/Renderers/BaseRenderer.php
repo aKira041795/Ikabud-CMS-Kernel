@@ -156,7 +156,8 @@ abstract class BaseRenderer
                 
                 // Convert arrays to strings for attributes
                 if (is_array($result)) {
-                    $result = implode(', ', $result);
+                    // Flatten nested arrays and convert to string
+                    $result = $this->arrayToString($result);
                 }
                 
                 $evaluated[$key] = $result;
@@ -493,6 +494,28 @@ abstract class BaseRenderer
         }
         
         return $html;
+    }
+    
+    /**
+     * Convert array to string for attribute values
+     * 
+     * @param array $array Array to convert
+     * @return string String representation
+     */
+    protected function arrayToString(array $array): string {
+        $result = [];
+        
+        foreach ($array as $value) {
+            if (is_array($value)) {
+                // Recursively flatten nested arrays
+                $result[] = $this->arrayToString($value);
+            } elseif (is_scalar($value)) {
+                // Only add scalar values (string, int, float, bool)
+                $result[] = (string)$value;
+            }
+        }
+        
+        return implode(', ', $result);
     }
     
     /**
