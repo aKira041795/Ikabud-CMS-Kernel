@@ -405,6 +405,114 @@ add_filter('disyl_context', 'phoenix_events_context');
 
 ---
 
+### 9. WordPress Menus
+
+WordPress navigation menus can be rendered dynamically in DiSyL templates.
+
+**functions.php:**
+```php
+function theme_get_menu_items($location) {
+    $locations = get_nav_menu_locations();
+    
+    if (!isset($locations[$location])) {
+        return array();
+    }
+    
+    $menu = wp_get_nav_menu_object($locations[$location]);
+    
+    if (!$menu) {
+        return array();
+    }
+    
+    $menu_items = wp_get_nav_menu_items($menu->term_id);
+    
+    if (!$menu_items) {
+        return array();
+    }
+    
+    $items = array();
+    
+    foreach ($menu_items as $item) {
+        $items[] = array(
+            'id' => $item->ID,
+            'title' => $item->title,
+            'url' => $item->url,
+            'target' => $item->target,
+            'classes' => implode(' ', $item->classes),
+            'active' => ($item->url === home_url($_SERVER['REQUEST_URI'])),
+            'parent_id' => $item->menu_item_parent,
+            'order' => $item->menu_order,
+        );
+    }
+    
+    return $items;
+}
+
+// Add to context
+function theme_context($context) {
+    $context['menu'] = [
+        'primary' => theme_get_menu_items('primary'),
+        'footer' => theme_get_menu_items('footer'),
+        'social' => theme_get_menu_items('social'),
+    ];
+    return $context;
+}
+add_filter('disyl_context', 'theme_context');
+```
+
+**DiSyL Template:**
+```disyl
+{!-- Primary Navigation --}
+<nav class="main-nav">
+    <ul>
+        {for items="{menu.primary}" as="item"}
+            <li class="{item.classes}">
+                <a href="{item.url | esc_url}" 
+                   {if condition="{item.target}"}target="{item.target | esc_attr}"{/if}
+                   {if condition="{item.active}"}class="active"{/if}>
+                    {item.title | esc_html}
+                </a>
+            </li>
+        {/for}
+    </ul>
+</nav>
+
+{!-- Footer Menu --}
+<nav class="footer-nav">
+    <ul>
+        {for items="{menu.footer}" as="item"}
+            <li>
+                <a href="{item.url | esc_url}">
+                    {item.title | esc_html}
+                </a>
+            </li>
+        {/for}
+    </ul>
+</nav>
+
+{!-- Social Links --}
+<div class="social-links">
+    {for items="{menu.social}" as="item"}
+        <a href="{item.url | esc_url}" 
+           target="_blank" 
+           rel="noopener noreferrer"
+           class="social-link {item.classes}">
+            {item.title | esc_html}
+        </a>
+    {/for}
+</div>
+```
+
+**Features:**
+- ✅ Dynamic menu rendering from WordPress admin
+- ✅ Active state detection for current page
+- ✅ Support for external links (target attribute)
+- ✅ Custom CSS classes from WordPress
+- ✅ Multiple menu locations
+- ✅ Graceful fallback if menu not assigned
+
+---
+
 ## Common Patterns
 
 ### Pattern 1: Shortcode in Content
@@ -576,6 +684,7 @@ add_filter('disyl_context', 'theme_context');
 | **BuddyPress** | ✅ Full | `{post.content \| raw}` | Social features work |
 | **bbPress** | ✅ Full | `{post.content \| raw}` | Forums work |
 | **Jetpack** | ✅ Full | `{post.content \| raw}` | All modules work |
+| **WordPress Menus** | ✅ Full | Context + `{for}` loop | Dynamic menu rendering |
 
 **Compatibility:** If it works in WordPress, it works in DiSyL.
 
