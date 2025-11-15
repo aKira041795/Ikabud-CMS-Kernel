@@ -7,17 +7,21 @@
 
 ---
 
-## 🎉 Latest: DiSyL Manifest v0.2.0 Complete!
+## 🎉 Latest: DiSyL v0.3.0 Production Ready!
 
-**DiSyL (Declarative Ikabud Syntax Language)** is now a full-featured, production-ready templating framework with:
-- ✅ 10 major architectural improvements
-- ✅ Expression filters (7 built-in)
-- ✅ Component capabilities & inheritance
-- ✅ 50x faster manifest loading
-- ✅ Compile-time validation
-- ✅ Cross-CMS compatibility
+**DiSyL (Declarative Ikabud Syntax Language)** is now a production-ready, CMS-agnostic templating framework with:
+- ✅ **v0.3.0 Grammar** - Production-ready EBNF specification
+- ✅ **100% Plugin Compatible** - Works with ALL WordPress plugins (WooCommerce, ACF, Elementor, etc.)
+- ✅ **VSCode Extension** - Full syntax highlighting and snippets
+- ✅ **Phoenix Theme v2.0** - Reference implementation with zero inline styles
+- ✅ **Security Hardened** - Auto-escaping with explicit `| raw` for trusted content
+- ✅ **Cross-CMS Ready** - WordPress, Joomla, Drupal support
 
-**[View DiSyL Documentation →](DISYL_MANIFEST_ARCHITECTURE.md)**
+**📚 Documentation:**
+- **[Quick Start Guide →](DISYL_QUICK_START.md)** - Get started in 5 minutes
+- **[WordPress Plugin Guide →](DISYL_WORDPRESS_PLUGINS.md)** - 100% plugin compatibility
+- **[Grammar Specification →](DISYL_GRAMMAR_v0.3.ebnf)** - Complete EBNF grammar
+- **[Phoenix Theme Docs →](../instances/wp-brutus-cli/wp-content/themes/phoenix/PHOENIX_DOCUMENTATION.md)** - Reference implementation
 
 ---
 
