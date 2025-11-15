@@ -4,7 +4,6 @@
   "description": "Syntax highlighting, snippets, and language support for DiSyL templates",
   "version": "0.3.0",
   "publisher": "ikabud",
-  "icon": "images/icon.png",
   "engines": {
     "vscode": "^1.80.0"
   },
@@ -36,11 +35,7 @@
         "extensions": [
           ".disyl"
         ],
-        "configuration": "./language-configuration.json",
-        "icon": {
-          "light": "./images/file-icon.svg",
-          "dark": "./images/file-icon.svg"
-        }
+        "configuration": "./language-configuration.json"
       }
     ],
     "grammars": [
