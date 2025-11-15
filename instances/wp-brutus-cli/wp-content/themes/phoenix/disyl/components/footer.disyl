@@ -77,7 +77,7 @@
         
         {!-- Footer Bottom --}
         <div class="footer-bottom">
-            {ikb_text}
+            {ikb_text align="center"}
                 © 2025 {site.name | esc_html}. All rights reserved. Powered by <a href="https://ikabud.com" target="_blank">DiSyL</a>.
             {/ikb_text}
         </div>
@@ -90,5 +90,6 @@
 </button>
 
 <script src="{site.theme_url | esc_url}/assets/js/phoenix.js"></script>
+{wp_footer | raw}
 </body>
 </html>

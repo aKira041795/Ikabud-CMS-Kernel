@@ -123,9 +123,10 @@ function phoenix_scripts() {
     // Custom JavaScript
     wp_enqueue_script('phoenix-scripts', get_template_directory_uri() . '/assets/js/phoenix.js', array(), '1.0.0', true);
     
-    // Localize script
+    // Localize script - use current domain for AJAX to avoid CORS
+    $current_domain = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'];
     wp_localize_script('phoenix-scripts', 'phoenixData', array(
-        'ajaxurl' => admin_url('admin-ajax.php'),
+        'ajaxurl' => $current_domain . '/wp-admin/admin-ajax.php',
         'nonce'   => wp_create_nonce('phoenix-nonce'),
     ));
     
@@ -135,6 +136,66 @@ function phoenix_scripts() {
     }
 }
 add_action('wp_enqueue_scripts', 'phoenix_scripts');
+
+/**
+ * Filter admin_url to use current domain on frontend
+ * Prevents CORS issues with AJAX requests from plugins like WPForms
+ */
+function phoenix_fix_admin_url_for_frontend($url, $path, $blog_id) {
+    // Only filter on frontend (not in admin)
+    if (!is_admin()) {
+        $current_domain = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'];
+        $backend_domain = get_option('siteurl');
+        
+        // Replace backend domain with current domain
+        if ($backend_domain) {
+            $url = str_replace($backend_domain, $current_domain, $url);
+        }
+    }
+    return $url;
+}
+add_filter('admin_url', 'phoenix_fix_admin_url_for_frontend', 10, 3);
+
+/**
+ * Output buffer to rewrite backend URLs in final HTML
+ * This catches URLs that bypass WordPress filters
+ */
+function phoenix_start_output_buffer() {
+    if (!is_admin()) {
+        ob_start('phoenix_rewrite_backend_urls');
+    }
+}
+add_action('template_redirect', 'phoenix_start_output_buffer', 1);
+
+function phoenix_rewrite_backend_urls($html) {
+    $backend_domain = get_option('siteurl');
+    $current_domain = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'];
+    
+    if ($backend_domain && $current_domain) {
+        // Replace all instances of backend domain with current domain
+        $html = str_replace($backend_domain, $current_domain, $html);
+    }
+    
+    return $html;
+}
+
+/**
+ * Add ajaxurl to frontend for plugins like WPForms
+ * WordPress only provides this in admin by default
+ * 
+ * IMPORTANT: Use current domain instead of backend domain to avoid CORS
+ * The kernel architecture routes frontend through brutus.test and backend through backend.brutus.test
+ */
+function phoenix_add_ajaxurl_to_frontend() {
+    // Use current domain for AJAX to avoid cross-origin issues
+    $current_domain = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'];
+    $ajax_url = $current_domain . '/wp-admin/admin-ajax.php';
+    
+    echo '<script type="text/javascript">
+        var ajaxurl = "' . esc_js($ajax_url) . '";
+    </script>';
+}
+add_action('wp_head', 'phoenix_add_ajaxurl_to_frontend');
 
 /**
  * DiSyL Integration
@@ -199,6 +260,13 @@ function phoenix_disyl_render($template) {
         // Render
         $html = $renderer->render($compiled, $context);
         
+        // Rewrite backend URLs to current domain (fix CORS issues)
+        $backend_domain = get_option('siteurl');
+        $current_domain = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'];
+        if ($backend_domain && $current_domain) {
+            $html = str_replace($backend_domain, $current_domain, $html);
+        }
+        
         // Output
         echo $html;
         
@@ -210,6 +278,24 @@ function phoenix_disyl_render($template) {
     }
 }
 add_filter('template_include', 'phoenix_disyl_render', 99);
+
+/**
+ * Capture wp_head() output
+ */
+function phoenix_capture_wp_head() {
+    ob_start();
+    wp_head();
+    return ob_get_clean();
+}
+
+/**
+ * Capture wp_footer() output
+ */
+function phoenix_capture_wp_footer() {
+    ob_start();
+    wp_footer();
+    return ob_get_clean();
+}
 
 /**
  * Build DiSyL Context
@@ -258,10 +344,18 @@ function phoenix_build_context() {
     
     // Add post data if available
     if ($post) {
+        // CRITICAL: Process content FIRST to allow shortcodes to enqueue scripts
+        $processed_content = apply_filters('the_content', $post->post_content);
+        
+        // NOW capture wp_head and wp_footer AFTER content processing
+        // This ensures WPForms and other plugins can enqueue their scripts
+        $context['wp_head'] = phoenix_capture_wp_head();
+        $context['wp_footer'] = phoenix_capture_wp_footer();
+        
         $context['post'] = array(
             'id' => $post->ID,
             'title' => get_the_title(),
-            'content' => apply_filters('the_content', $post->post_content),
+            'content' => $processed_content,
             'excerpt' => get_the_excerpt(),
             'date' => get_the_date(),
             'author' => get_the_author(),
@@ -294,6 +388,14 @@ function phoenix_build_context() {
     
     // Add pagination data
     $context['pagination'] = phoenix_get_pagination_context();
+    
+    // Fallback: If wp_head/wp_footer not set yet (no post), capture them now
+    if (!isset($context['wp_head'])) {
+        $context['wp_head'] = phoenix_capture_wp_head();
+    }
+    if (!isset($context['wp_footer'])) {
+        $context['wp_footer'] = phoenix_capture_wp_footer();
+    }
     
     return $context;
 }

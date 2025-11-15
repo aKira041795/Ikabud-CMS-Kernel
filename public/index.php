@@ -141,6 +141,31 @@ $app->any('[/{path:.*}]', function (Request $request, Response $response, array 
     $host = $request->getUri()->getHost();
     $requestUri = $request->getUri()->getPath();
     
+    // CRITICAL: Handle WordPress admin-ajax.php BEFORE any kernel processing
+    // This prevents WordPress from being loaded multiple times (function redeclaration errors)
+    if ($requestUri === '/wp-admin/admin-ajax.php' || strpos($requestUri, '/wp-admin/admin-ajax.php') !== false) {
+        // Look up instance by domain
+        $kernel = \IkabudKernel\Core\Kernel::getInstance();
+        $db = $kernel->getDatabase();
+        $stmt = $db->prepare("SELECT instance_id, cms_type FROM instances WHERE domain = ? LIMIT 1");
+        $stmt->execute([$host]);
+        $result = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        if ($result && $result['cms_type'] === 'wordpress') {
+            $instanceDir = __DIR__ . '/../instances/' . $result['instance_id'];
+            $ajaxFile = $instanceDir . '/wp-admin/admin-ajax.php';
+            
+            if (file_exists($ajaxFile)) {
+                chdir($instanceDir);
+                $_SERVER['DOCUMENT_ROOT'] = $instanceDir;
+                $_SERVER['SCRIPT_FILENAME'] = $ajaxFile;
+                $_SERVER['SCRIPT_NAME'] = '/wp-admin/admin-ajax.php';
+                require $ajaxFile;
+                exit;
+            }
+        }
+    }
+    
     // Handle admin panel BEFORE instance lookup (no database entry needed)
     if (strpos($requestUri, '/admin') === 0) {
         $adminPath = __DIR__ . '/admin';
