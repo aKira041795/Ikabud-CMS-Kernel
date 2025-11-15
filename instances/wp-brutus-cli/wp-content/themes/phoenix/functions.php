@@ -317,24 +317,20 @@ function phoenix_get_menu_items($location) {
         return phoenix_get_fallback_menu($location);
     }
     
-    // For now, return flat array (submenu support coming in next version)
-    // The hierarchical structure with children breaks PHP array serialization
+    // Return ALL items as flat array (no hierarchy for now)
     $items = array();
     
     foreach ($menu_items as $item) {
-        // Only include top-level items for now
-        if ($item->menu_item_parent == 0) {
-            $items[] = array(
-                'id' => $item->ID,
-                'title' => $item->title,
-                'url' => $item->url,
-                'target' => $item->target,
-                'classes' => implode(' ', $item->classes),
-                'active' => ($item->url === home_url($_SERVER['REQUEST_URI'])),
-                'parent_id' => $item->menu_item_parent,
-                'order' => $item->menu_order,
-            );
-        }
+        $items[] = array(
+            'id' => $item->ID,
+            'title' => $item->title,
+            'url' => $item->url,
+            'target' => $item->target,
+            'classes' => implode(' ', $item->classes),
+            'active' => ($item->url === home_url($_SERVER['REQUEST_URI'])),
+            'parent_id' => $item->menu_item_parent,
+            'order' => $item->menu_order,
+        );
     }
     
     return $items;
