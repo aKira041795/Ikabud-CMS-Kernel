@@ -1,4 +1,4 @@
-a:6:{s:7:"headers";a:9:{i:0;s:27:"X-Frame-Options: SAMEORIGIN";i:1;s:31:"X-Content-Type-Options: nosniff";i:2;s:31:"X-XSS-Protection: 1; mode=block";i:3;s:341:"Content-Security-Policy: default-src 'self' https: http:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https: http: blob:; style-src 'self' 'unsafe-inline' https: http:; img-src 'self' data: https: http:; font-src 'self' data: https: http:; connect-src 'self' https: http: wss: ws:; frame-src 'self' https: http:; worker-src 'self' blob:;";i:4;s:48:"Referrer-Policy: strict-origin-when-cross-origin";i:5;s:60:"Permissions-Policy: geolocation=(), microphone=(), camera=()";i:6;s:38:"Content-Type: text/html; charset=UTF-8";i:7;s:61:"Link: <http://brutus.test/wp-json/>; rel="https://api.w.org/"";i:8;s:109:"Link: <http://brutus.test/wp-json/wp/v2/categories/9>; rel="alternate"; title="JSON"; type="application/json"";}s:4:"body";s:24953:"
+a:6:{s:7:"headers";a:8:{i:0;s:27:"X-Frame-Options: SAMEORIGIN";i:1;s:31:"X-Content-Type-Options: nosniff";i:2;s:31:"X-XSS-Protection: 1; mode=block";i:3;s:341:"Content-Security-Policy: default-src 'self' https: http:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https: http: blob:; style-src 'self' 'unsafe-inline' https: http:; img-src 'self' data: https: http:; font-src 'self' data: https: http:; connect-src 'self' https: http: wss: ws:; frame-src 'self' https: http:; worker-src 'self' blob:;";i:4;s:48:"Referrer-Policy: strict-origin-when-cross-origin";i:5;s:60:"Permissions-Policy: geolocation=(), microphone=(), camera=()";i:6;s:38:"Content-Type: text/html; charset=UTF-8";i:7;s:61:"Link: <http://brutus.test/wp-json/>; rel="https://api.w.org/"";}s:4:"body";s:35730:"
 <!DOCTYPE html>
 <html lang="en-US">
 <head>
@@ -209,82 +209,224 @@ a:6:{s:7:"headers";a:9:{i:0;s:27:"X-Frame-Options: SAMEORIGIN";i:1;s:31:"X-Conte
 </header>
 
 <main class="site-content">
-
-<section class="section-gradient" style="padding: 4rem 0;">
-    <div class="ikb-container ikb-container-lg">
-        <div class="category-header-content">
-            
-            <div class="text-center">
-                <div class="ikb-text ikb-text-4xl font-bold category-title">
-                    <h1>Tips &amp; Tricks</h1>
-                </div>
-                
-                
-                <div class="category-meta">
-                    <span class="category-count">
-                        1Post
-                    </span>
-                    
-                    
-                </div>
+<section><div class="ikb-container ikb-container-lg">
+        <div class="text-center">
+            <div class="ikb-text ikb-text-3xl font-bold text-left">
+                Our Blog
+            </div><div class="ikb-text ikb-text-lg font-normal text-left">
+                Insights, tutorials, and updates from our team
             </div>
         </div>
-    </div>
-</section>
-
-
-<section style="padding: 4rem 0;">
-    <div class="ikb-container ikb-container-xlarge">
-        <div class="archive-layout">
+    </div></section><section><div class="ikb-container ikb-container-lg">
+        <div class="blog-layout">
             
             <div>
-                
-                <div class="filter-bar">
-                    <div class="ikb-text ikb-text-lg font-semibold">
-                        Latest Posts
-                    </div>
-                    
-                    <div class="filter-actions">
-                        <span class="post-count">1 total</span>
-                    </div>
-                </div>
-                
-                
                 <div class="post-grid">
                     
                         <article class="post-card reveal">
                             
                             
                             <div class="post-content">
-                                
                                 <div class="post-meta">
-                                    <span class="post-date">Jan 1, 1970</span>
+                                    <span>Jan 1, 1970</span>
                                     <span class="separator">•</span>
-                                    <span class="post-author">brutus</span>
+                                    <span>brutus</span>
                                 </div>
                                 
-                                
-                                <div class="ikb-text ikb-text-xl font-semibold post-title">
-                                    <a href="http://brutus.test/2024/05/14/how-to-create-adjustment-layers-based-on-color-in-capture-one-9/">How to Create Adjustment Layers Based on Color</a>
-                                </div>
-                                
-                                
-                                <div class="ikb-text post-excerpt">
+                                <div class="ikb-text ikb-text-xl font-semibold text-left">
+                                    <a href="http://brutus.test/2025/11/10/hello-world/">Hello world!</a>
+                                </div><div class="ikb-text ikb-text-md font-normal text-left">
                                     ...
                                 </div>
                                 
-                                
-                                <div class="post-footer">
-                                    <a href="http://brutus.test/2024/05/14/how-to-create-adjustment-layers-based-on-color-in-capture-one-9/" class="read-more">
-                                        Read More →
-                                    </a>
+                                <a href="http://brutus.test/2025/11/10/hello-world/" class="read-more">
+                                    Read More →
+                                </a>
+                            </div>
+                        </article>
+                    
+                        <article class="post-card reveal">
+                            
+                            
+                            <div class="post-content">
+                                <div class="post-meta">
+                                    <span>Jan 1, 1970</span>
+                                    <span class="separator">•</span>
+                                    <span>brutus</span>
                                 </div>
+                                
+                                <div class="ikb-text ikb-text-xl font-semibold text-left">
+                                    <a href="http://brutus.test/2024/05/14/this-new-aerie-collection-was-designed-by-aly-raisman-and-iskra-lawrence/">Aerie Collection&#8217;s Originally By Iskra</a>
+                                </div><div class="ikb-text ikb-text-md font-normal text-left">
+                                    ...
+                                </div>
+                                
+                                <a href="http://brutus.test/2024/05/14/this-new-aerie-collection-was-designed-by-aly-raisman-and-iskra-lawrence/" class="read-more">
+                                    Read More →
+                                </a>
+                            </div>
+                        </article>
+                    
+                        <article class="post-card reveal">
+                            
+                            
+                            <div class="post-content">
+                                <div class="post-meta">
+                                    <span>Jan 1, 1970</span>
+                                    <span class="separator">•</span>
+                                    <span>brutus</span>
+                                </div>
+                                
+                                <div class="ikb-text ikb-text-xl font-semibold text-left">
+                                    <a href="http://brutus.test/2024/05/14/dont-call-demi-lovato-a-bad-girl-shes-just-speaking-out/">Don’t Call Demi A “Bad Girl” — Speaking Out</a>
+                                </div><div class="ikb-text ikb-text-md font-normal text-left">
+                                    ...
+                                </div>
+                                
+                                <a href="http://brutus.test/2024/05/14/dont-call-demi-lovato-a-bad-girl-shes-just-speaking-out/" class="read-more">
+                                    Read More →
+                                </a>
+                            </div>
+                        </article>
+                    
+                        <article class="post-card reveal">
+                            
+                            
+                            <div class="post-content">
+                                <div class="post-meta">
+                                    <span>Jan 1, 1970</span>
+                                    <span class="separator">•</span>
+                                    <span>brutus</span>
+                                </div>
+                                
+                                <div class="ikb-text ikb-text-xl font-semibold text-left">
+                                    <a href="http://brutus.test/2024/05/14/perms-are-coming-back-but-theyre-getting-a-modern-makeover/">Perms Are Coming Back—but Getting a Modern</a>
+                                </div><div class="ikb-text ikb-text-md font-normal text-left">
+                                    ...
+                                </div>
+                                
+                                <a href="http://brutus.test/2024/05/14/perms-are-coming-back-but-theyre-getting-a-modern-makeover/" class="read-more">
+                                    Read More →
+                                </a>
+                            </div>
+                        </article>
+                    
+                        <article class="post-card reveal">
+                            
+                            
+                            <div class="post-content">
+                                <div class="post-meta">
+                                    <span>Jan 1, 1970</span>
+                                    <span class="separator">•</span>
+                                    <span>brutus</span>
+                                </div>
+                                
+                                <div class="ikb-text ikb-text-xl font-semibold text-left">
+                                    <a href="http://brutus.test/2024/05/14/gisele-bundchen-cant-stop-wearing-these-retro-jeans-to-the-airport/">Gisele Bündchen Can’t Stop Wearing Retro Jeans</a>
+                                </div><div class="ikb-text ikb-text-md font-normal text-left">
+                                    ...
+                                </div>
+                                
+                                <a href="http://brutus.test/2024/05/14/gisele-bundchen-cant-stop-wearing-these-retro-jeans-to-the-airport/" class="read-more">
+                                    Read More →
+                                </a>
+                            </div>
+                        </article>
+                    
+                        <article class="post-card reveal">
+                            
+                            
+                            <div class="post-content">
+                                <div class="post-meta">
+                                    <span>Jan 1, 1970</span>
+                                    <span class="separator">•</span>
+                                    <span>brutus</span>
+                                </div>
+                                
+                                <div class="ikb-text ikb-text-xl font-semibold text-left">
+                                    <a href="http://brutus.test/2024/05/14/how-to-create-adjustment-layers-based-on-color-in-capture-one-9/">How to Create Adjustment Layers Based on Color</a>
+                                </div><div class="ikb-text ikb-text-md font-normal text-left">
+                                    ...
+                                </div>
+                                
+                                <a href="http://brutus.test/2024/05/14/how-to-create-adjustment-layers-based-on-color-in-capture-one-9/" class="read-more">
+                                    Read More →
+                                </a>
+                            </div>
+                        </article>
+                    
+                        <article class="post-card reveal">
+                            
+                            
+                            <div class="post-content">
+                                <div class="post-meta">
+                                    <span>Jan 1, 1970</span>
+                                    <span class="separator">•</span>
+                                    <span>brutus</span>
+                                </div>
+                                
+                                <div class="ikb-text ikb-text-xl font-semibold text-left">
+                                    <a href="http://brutus.test/2024/05/14/finlands-downs-model-maija-mattila-makes-strides-on-catwalk/">Finland&#8217;s Down&#8217;s model Maija makes strides on catwalk</a>
+                                </div><div class="ikb-text ikb-text-md font-normal text-left">
+                                    ...
+                                </div>
+                                
+                                <a href="http://brutus.test/2024/05/14/finlands-downs-model-maija-mattila-makes-strides-on-catwalk/" class="read-more">
+                                    Read More →
+                                </a>
+                            </div>
+                        </article>
+                    
+                        <article class="post-card reveal">
+                            
+                            
+                            <div class="post-content">
+                                <div class="post-meta">
+                                    <span>Jan 1, 1970</span>
+                                    <span class="separator">•</span>
+                                    <span>brutus</span>
+                                </div>
+                                
+                                <div class="ikb-text ikb-text-xl font-semibold text-left">
+                                    <a href="http://brutus.test/2024/05/14/meet-jo-jo-body-positive-model-and-cousin-of-gigi-and-bella/">Meet Jo Jo, Body Positive Model and Cousin of Gigi</a>
+                                </div><div class="ikb-text ikb-text-md font-normal text-left">
+                                    ...
+                                </div>
+                                
+                                <a href="http://brutus.test/2024/05/14/meet-jo-jo-body-positive-model-and-cousin-of-gigi-and-bella/" class="read-more">
+                                    Read More →
+                                </a>
+                            </div>
+                        </article>
+                    
+                        <article class="post-card reveal">
+                            
+                            
+                            <div class="post-content">
+                                <div class="post-meta">
+                                    <span>Jan 1, 1970</span>
+                                    <span class="separator">•</span>
+                                    <span>brutus</span>
+                                </div>
+                                
+                                <div class="ikb-text ikb-text-xl font-semibold text-left">
+                                    <a href="http://brutus.test/2024/05/14/valentino-goes-deliberately-feminine-for-fall-2018/">Valentino Goes Deliberately Feminine for Fall 2018</a>
+                                </div><div class="ikb-text ikb-text-md font-normal text-left">
+                                    ...
+                                </div>
+                                
+                                <a href="http://brutus.test/2024/05/14/valentino-goes-deliberately-feminine-for-fall-2018/" class="read-more">
+                                    Read More →
+                                </a>
                             </div>
                         </article>
                     
                 </div>
                 
                 
+                <div class="text-center mt-large">
+                    <button class="btn btn-primary load-more-posts">Load More Posts</button>
+                </div>
             </div>
             
             
@@ -308,8 +450,36 @@ a:6:{s:7:"headers";a:9:{i:0;s:27:"X-Frame-Options: SAMEORIGIN";i:1;s:31:"X-Conte
         <ul>
             
                 <li>
-                    <a href="http://brutus.test/2024/05/14/how-to-create-adjustment-layers-based-on-color-in-capture-one-9/">
-                        <span>How to Create Adjustment Layers Based on Color</span>
+                    <a href="http://brutus.test/2025/11/10/hello-world/">
+                        <span>Hello world!</span>
+                        <span class="post-date">Nov 14</span>
+                    </a>
+                </li>
+            
+                <li>
+                    <a href="http://brutus.test/2024/05/14/this-new-aerie-collection-was-designed-by-aly-raisman-and-iskra-lawrence/">
+                        <span>Aerie Collection&#8217;s Originally By Iskra</span>
+                        <span class="post-date">Nov 14</span>
+                    </a>
+                </li>
+            
+                <li>
+                    <a href="http://brutus.test/2024/05/14/dont-call-demi-lovato-a-bad-girl-shes-just-speaking-out/">
+                        <span>Don’t Call Demi A “Bad Girl” — Speaking Out</span>
+                        <span class="post-date">Nov 14</span>
+                    </a>
+                </li>
+            
+                <li>
+                    <a href="http://brutus.test/2024/05/14/perms-are-coming-back-but-theyre-getting-a-modern-makeover/">
+                        <span>Perms Are Coming Back—but Getting a Modern</span>
+                        <span class="post-date">Nov 14</span>
+                    </a>
+                </li>
+            
+                <li>
+                    <a href="http://brutus.test/2024/05/14/gisele-bundchen-cant-stop-wearing-these-retro-jeans-to-the-airport/">
+                        <span>Gisele Bündchen Can’t Stop Wearing Retro Jeans</span>
                         <span class="post-date">Nov 14</span>
                     </a>
                 </li>
@@ -452,10 +622,7 @@ a:6:{s:7:"headers";a:9:{i:0;s:27:"X-Frame-Options: SAMEORIGIN";i:1;s:31:"X-Conte
 </aside>
 
         </div>
-    </div>
-</section>
-
-
+    </div></section>
 </main>
 
 <footer class="site-footer">
@@ -541,4 +708,4 @@ a:6:{s:7:"headers";a:9:{i:0;s:27:"X-Frame-Options: SAMEORIGIN";i:1;s:31:"X-Conte
 <script src="http://brutus.test/wp-content/themes/phoenix/assets/js/phoenix.js"></script>
 </body>
 </html>
-";s:9:"timestamp";i:1763190538;s:8:"cms_type";s:9:"wordpress";s:17:"extensions_loaded";a:0:{}s:15:"extension_count";i:0;}
+";s:9:"timestamp";i:1763190737;s:8:"cms_type";s:9:"wordpress";s:17:"extensions_loaded";a:0:{}s:15:"extension_count";i:0;}

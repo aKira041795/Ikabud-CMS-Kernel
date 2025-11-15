@@ -423,6 +423,18 @@ class WordPressRenderer extends ManifestDrivenRenderer
             while ($query->have_posts()) {
                 $query->the_post();
                 
+                // Get thumbnail with fallback sizes
+                $thumbnail = get_the_post_thumbnail_url('large');
+                if (!$thumbnail) {
+                    $thumbnail = get_the_post_thumbnail_url('medium');
+                }
+                if (!$thumbnail) {
+                    $thumbnail = get_the_post_thumbnail_url('thumbnail');
+                }
+                if (!$thumbnail) {
+                    $thumbnail = get_the_post_thumbnail_url('full');
+                }
+                
                 // Set item context with WordPress post data
                 $this->context['item'] = [
                     'id' => get_the_ID(),
@@ -432,7 +444,7 @@ class WordPressRenderer extends ManifestDrivenRenderer
                     'url' => get_permalink(),
                     'date' => get_the_date(),
                     'author' => get_the_author(),
-                    'thumbnail' => get_the_post_thumbnail_url('medium'),
+                    'thumbnail' => $thumbnail,
                     'categories' => wp_get_post_categories(get_the_ID(), ['fields' => 'names'])
                 ];
                 

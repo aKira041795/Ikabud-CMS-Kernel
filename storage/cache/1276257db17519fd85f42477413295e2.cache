@@ -1,4 +1,4 @@
-a:6:{s:7:"headers";a:9:{i:0;s:27:"X-Frame-Options: SAMEORIGIN";i:1;s:31:"X-Content-Type-Options: nosniff";i:2;s:31:"X-XSS-Protection: 1; mode=block";i:3;s:341:"Content-Security-Policy: default-src 'self' https: http:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https: http: blob:; style-src 'self' 'unsafe-inline' https: http:; img-src 'self' data: https: http:; font-src 'self' data: https: http:; connect-src 'self' https: http: wss: ws:; frame-src 'self' https: http:; worker-src 'self' blob:;";i:4;s:48:"Referrer-Policy: strict-origin-when-cross-origin";i:5;s:60:"Permissions-Policy: geolocation=(), microphone=(), camera=()";i:6;s:38:"Content-Type: text/html; charset=UTF-8";i:7;s:61:"Link: <http://brutus.test/wp-json/>; rel="https://api.w.org/"";i:8;s:109:"Link: <http://brutus.test/wp-json/wp/v2/categories/2>; rel="alternate"; title="JSON"; type="application/json"";}s:4:"body";s:26887:"
+a:6:{s:7:"headers";a:10:{i:0;s:27:"X-Frame-Options: SAMEORIGIN";i:1;s:31:"X-Content-Type-Options: nosniff";i:2;s:31:"X-XSS-Protection: 1; mode=block";i:3;s:341:"Content-Security-Policy: default-src 'self' https: http:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https: http: blob:; style-src 'self' 'unsafe-inline' https: http:; img-src 'self' data: https: http:; font-src 'self' data: https: http:; connect-src 'self' https: http: wss: ws:; frame-src 'self' https: http:; worker-src 'self' blob:;";i:4;s:48:"Referrer-Policy: strict-origin-when-cross-origin";i:5;s:60:"Permissions-Policy: geolocation=(), microphone=(), camera=()";i:6;s:38:"Content-Type: text/html; charset=UTF-8";i:7;s:61:"Link: <http://brutus.test/wp-json/>; rel="https://api.w.org/"";i:8;s:105:"Link: <http://brutus.test/wp-json/wp/v2/pages/17>; rel="alternate"; title="JSON"; type="application/json"";i:9;s:42:"Link: <http://brutus.test/>; rel=shortlink";}s:4:"body";s:30687:"
 <!DOCTYPE html>
 <html lang="en-US">
 <head>
@@ -209,290 +209,325 @@ a:6:{s:7:"headers";a:9:{i:0;s:27:"X-Frame-Options: SAMEORIGIN";i:1;s:31:"X-Conte
 </header>
 
 <main class="site-content">
-
-<section class="section-gradient" style="padding: 4rem 0;">
-    <div class="ikb-container ikb-container-lg">
-        <div class="category-header-content">
+<section>
+    <div class="hero-content animate-fade-in">
+        <div class="ikb-text ikb-text-4xl font-black text-left">
+            Rise Like a Phoenix
+        </div><div class="ikb-text ikb-text-xl font-normal text-left">
+            A stunning, modern WordPress theme powered by DiSyL. Beautiful gradients, smooth animations, and endless possibilities.
+        </div>
+        
+        <div class="hero-cta">
+            <a href="#features" class="btn btn-primary">Explore Features</a>
+            <a href="#blog" class="btn btn-outline">Read Blog</a>
+        </div>
+    </div>
+</section><section><div class="ikb-container ikb-container-lg">
+        <div class="section-header reveal">
+            <div class="ikb-text ikb-text-3xl font-bold text-left">
+                <h3>Powerful Features</h3>
+            </div><div class="ikb-text ikb-text-lg font-normal text-left">
+                <h4>Everything you need to build a stunning website</h4>
+            </div>
+        </div>
+        
+        <div class="card-grid">
             
-            <div class="text-center">
-                <div class="ikb-text ikb-text-4xl font-bold category-title">
-                    <h1>Artist</h1>
+            <div class="card reveal">
+                <div class="card-icon">
+                    ⚡
                 </div>
-                
-                
-                <div class="category-meta">
-                    <span class="category-count">
-                        2Posts
-                    </span>
-                    
-                    
+                <div class="ikb-text ikb-text-xl font-semibold text-left">
+                    Lightning Fast
+                </div><div class="ikb-text ikb-text-md font-normal text-left">
+                    Optimized for performance with DiSyL's efficient rendering engine. Pages load in milliseconds.
+                </div>
+            </div>
+            
+            
+            <div class="card reveal">
+                <div class="card-icon">
+                    🎨
+                </div>
+                <div class="ikb-text ikb-text-xl font-semibold text-left">
+                    Beautiful Design
+                </div><div class="ikb-text ikb-text-md font-normal text-left">
+                    Modern gradients, smooth animations, and a clean interface that captivates your visitors.
+                </div>
+            </div>
+            
+            
+            <div class="card reveal">
+                <div class="card-icon">
+                    📱
+                </div>
+                <div class="ikb-text ikb-text-xl font-semibold text-left">
+                    Fully Responsive
+                </div><div class="ikb-text ikb-text-md font-normal text-left">
+                    Looks perfect on all devices - from mobile phones to large desktop screens.
+                </div>
+            </div>
+            
+            
+            <div class="card reveal">
+                <div class="card-icon">
+                    🔒
+                </div>
+                <div class="ikb-text ikb-text-xl font-semibold text-left">
+                    Secure & Safe
+                </div><div class="ikb-text ikb-text-md font-normal text-left">
+                    Built with security best practices. XSS prevention, sanitization, and WordPress standards.
+                </div>
+            </div>
+            
+            
+            <div class="card reveal">
+                <div class="card-icon">
+                    🎯
+                </div>
+                <div class="ikb-text ikb-text-xl font-semibold text-left">
+                    SEO Optimized
+                </div><div class="ikb-text ikb-text-md font-normal text-left">
+                    Clean semantic HTML, fast loading times, and proper meta tags for better search rankings.
+                </div>
+            </div>
+            
+            
+            <div class="card reveal">
+                <div class="card-icon">
+                    🧩
+                </div>
+                <div class="ikb-text ikb-text-xl font-semibold text-left">
+                    Widget Ready
+                </div><div class="ikb-text ikb-text-md font-normal text-left">
+                    Multiple widget areas for sidebars, footers, and homepage sections. Fully customizable.
+                </div>
+            </div>
+        </div>
+    </div></section><section><div class="ikb-container ikb-container-lg">
+        <div class="section-header reveal">
+            <div class="ikb-text ikb-text-3xl font-bold text-left">
+                Featured Content
+            </div>
+        </div>
+        
+        
+<div class="slider-container reveal">
+    <div class="slider-track">
+        
+        <div class="slide">
+            <img src="http://brutus.test/wp-content/themes/phoenix/assets/images/slide-1.jpg" alt="Slide 1" class="slide-image">
+            <div class="slide-content">
+                <div class="ikb-text ikb-text-3xl font-bold text-left">
+                    Welcome to Phoenix
+                </div><div class="ikb-text ikb-text-lg font-normal text-left">
+                    Experience the power of modern web design with beautiful gradients and smooth animations.
+                </div>
+                <div class="slide-actions">
+                    <a href="#" class="btn btn-primary">Learn More</a>
+                </div>
+            </div>
+        </div>
+        
+        
+        <div class="slide">
+            <img src="http://brutus.test/wp-content/themes/phoenix/assets/images/slide-2.jpg" alt="Slide 2" class="slide-image">
+            <div class="slide-content">
+                <div class="ikb-text ikb-text-3xl font-bold text-left">
+                    Built for Performance
+                </div><div class="ikb-text ikb-text-lg font-normal text-left">
+                    Lightning-fast loading times and optimized rendering for the best user experience.
+                </div>
+                <div class="slide-actions">
+                    <a href="#" class="btn btn-primary">View Features</a>
+                </div>
+            </div>
+        </div>
+        
+        
+        <div class="slide">
+            <img src="http://brutus.test/wp-content/themes/phoenix/assets/images/slide-3.jpg" alt="Slide 3" class="slide-image">
+            <div class="slide-content">
+                <div class="ikb-text ikb-text-3xl font-bold text-left">
+                    Fully Customizable
+                </div><div class="ikb-text ikb-text-lg font-normal text-left">
+                    Endless possibilities with widgets, custom layouts, and advanced theme options.
+                </div>
+                <div class="slide-actions">
+                    <a href="#" class="btn btn-primary">Get Started</a>
                 </div>
             </div>
         </div>
     </div>
-</section>
-
-
-<section style="padding: 4rem 0;">
-    <div class="ikb-container ikb-container-xlarge">
-        <div class="archive-layout">
+    
+    
+    <button class="slider-arrow slider-arrow-prev" aria-label="Previous slide">‹</button>
+    <button class="slider-arrow slider-arrow-next" aria-label="Next slide">›</button>
+    
+    <div class="slider-controls"></div>
+</div>
+</div></section><section><div class="ikb-container ikb-container-lg">
+        <div class="section-header reveal">
+            <div class="ikb-text ikb-text-3xl font-bold text-left">
+                Latest Articles
+            </div><div class="ikb-text ikb-text-lg font-normal text-left">
+                Insights, tutorials, and updates from our blog
+            </div>
+        </div>
+        
+        <div class="post-grid">
             
-            <div>
-                
-                <div class="filter-bar">
-                    <div class="ikb-text ikb-text-lg font-semibold">
-                        Latest Posts
+                <article class="post-card reveal">
+                    
+                    
+                    <div class="post-content">
+                        <div class="post-meta">
+                            <span class="post-date">Jan 1, 1970</span>
+                            <span class="separator">•</span>
+                            <span class="post-author">brutus</span>
+                        </div>
+                        
+                        <div class="ikb-text ikb-text-xl font-semibold text-left">
+                            <a href="http://brutus.test/2025/11/10/hello-world/">Hello world!</a>
+                        </div><div class="ikb-text ikb-text-md font-normal text-left">
+                            ...
+                        </div>
+                        
+                        <a href="http://brutus.test/2025/11/10/hello-world/" class="read-more">
+                            Read More →
+                        </a>
                     </div>
+                </article>
+            
+                <article class="post-card reveal">
                     
-                    <div class="filter-actions">
-                        <span class="post-count">2 total</span>
+                    
+                    <div class="post-content">
+                        <div class="post-meta">
+                            <span class="post-date">Jan 1, 1970</span>
+                            <span class="separator">•</span>
+                            <span class="post-author">brutus</span>
+                        </div>
+                        
+                        <div class="ikb-text ikb-text-xl font-semibold text-left">
+                            <a href="http://brutus.test/2024/05/14/this-new-aerie-collection-was-designed-by-aly-raisman-and-iskra-lawrence/">Aerie Collection&#8217;s Originally By Iskra</a>
+                        </div><div class="ikb-text ikb-text-md font-normal text-left">
+                            ...
+                        </div>
+                        
+                        <a href="http://brutus.test/2024/05/14/this-new-aerie-collection-was-designed-by-aly-raisman-and-iskra-lawrence/" class="read-more">
+                            Read More →
+                        </a>
                     </div>
-                </div>
-                
-                
-                <div class="post-grid">
+                </article>
+            
+                <article class="post-card reveal">
                     
-                        <article class="post-card reveal">
-                            
-                            
-                            <div class="post-content">
-                                
-                                <div class="post-meta">
-                                    <span class="post-date">Jan 1, 1970</span>
-                                    <span class="separator">•</span>
-                                    <span class="post-author">brutus</span>
-                                </div>
-                                
-                                
-                                <div class="ikb-text ikb-text-xl font-semibold post-title">
-                                    <a href="http://brutus.test/2024/05/14/perms-are-coming-back-but-theyre-getting-a-modern-makeover/">Perms Are Coming Back—but Getting a Modern</a>
-                                </div>
-                                
-                                
-                                <div class="ikb-text post-excerpt">
-                                    ...
-                                </div>
-                                
-                                
-                                <div class="post-footer">
-                                    <a href="http://brutus.test/2024/05/14/perms-are-coming-back-but-theyre-getting-a-modern-makeover/" class="read-more">
-                                        Read More →
-                                    </a>
-                                </div>
-                            </div>
-                        </article>
                     
-                        <article class="post-card reveal">
-                            
-                            
-                            <div class="post-content">
-                                
-                                <div class="post-meta">
-                                    <span class="post-date">Jan 1, 1970</span>
-                                    <span class="separator">•</span>
-                                    <span class="post-author">brutus</span>
-                                </div>
-                                
-                                
-                                <div class="ikb-text ikb-text-xl font-semibold post-title">
-                                    <a href="http://brutus.test/2024/05/14/the-beauty-products-chrissy-teigen-cant-travel-without/">The Beauty Products Chrissy Can’t Go Without</a>
-                                </div>
-                                
-                                
-                                <div class="ikb-text post-excerpt">
-                                    ...
-                                </div>
-                                
-                                
-                                <div class="post-footer">
-                                    <a href="http://brutus.test/2024/05/14/the-beauty-products-chrissy-teigen-cant-travel-without/" class="read-more">
-                                        Read More →
-                                    </a>
-                                </div>
-                            </div>
-                        </article>
+                    <div class="post-content">
+                        <div class="post-meta">
+                            <span class="post-date">Jan 1, 1970</span>
+                            <span class="separator">•</span>
+                            <span class="post-author">brutus</span>
+                        </div>
+                        
+                        <div class="ikb-text ikb-text-xl font-semibold text-left">
+                            <a href="http://brutus.test/2024/05/14/dont-call-demi-lovato-a-bad-girl-shes-just-speaking-out/">Don’t Call Demi A “Bad Girl” — Speaking Out</a>
+                        </div><div class="ikb-text ikb-text-md font-normal text-left">
+                            ...
+                        </div>
+                        
+                        <a href="http://brutus.test/2024/05/14/dont-call-demi-lovato-a-bad-girl-shes-just-speaking-out/" class="read-more">
+                            Read More →
+                        </a>
+                    </div>
+                </article>
+            
+                <article class="post-card reveal">
                     
-                </div>
-                
-                
+                    
+                    <div class="post-content">
+                        <div class="post-meta">
+                            <span class="post-date">Jan 1, 1970</span>
+                            <span class="separator">•</span>
+                            <span class="post-author">brutus</span>
+                        </div>
+                        
+                        <div class="ikb-text ikb-text-xl font-semibold text-left">
+                            <a href="http://brutus.test/2024/05/14/perms-are-coming-back-but-theyre-getting-a-modern-makeover/">Perms Are Coming Back—but Getting a Modern</a>
+                        </div><div class="ikb-text ikb-text-md font-normal text-left">
+                            ...
+                        </div>
+                        
+                        <a href="http://brutus.test/2024/05/14/perms-are-coming-back-but-theyre-getting-a-modern-makeover/" class="read-more">
+                            Read More →
+                        </a>
+                    </div>
+                </article>
+            
+                <article class="post-card reveal">
+                    
+                    
+                    <div class="post-content">
+                        <div class="post-meta">
+                            <span class="post-date">Jan 1, 1970</span>
+                            <span class="separator">•</span>
+                            <span class="post-author">brutus</span>
+                        </div>
+                        
+                        <div class="ikb-text ikb-text-xl font-semibold text-left">
+                            <a href="http://brutus.test/2024/05/14/gisele-bundchen-cant-stop-wearing-these-retro-jeans-to-the-airport/">Gisele Bündchen Can’t Stop Wearing Retro Jeans</a>
+                        </div><div class="ikb-text ikb-text-md font-normal text-left">
+                            ...
+                        </div>
+                        
+                        <a href="http://brutus.test/2024/05/14/gisele-bundchen-cant-stop-wearing-these-retro-jeans-to-the-airport/" class="read-more">
+                            Read More →
+                        </a>
+                    </div>
+                </article>
+            
+                <article class="post-card reveal">
+                    
+                    
+                    <div class="post-content">
+                        <div class="post-meta">
+                            <span class="post-date">Jan 1, 1970</span>
+                            <span class="separator">•</span>
+                            <span class="post-author">brutus</span>
+                        </div>
+                        
+                        <div class="ikb-text ikb-text-xl font-semibold text-left">
+                            <a href="http://brutus.test/2024/05/14/how-to-create-adjustment-layers-based-on-color-in-capture-one-9/">How to Create Adjustment Layers Based on Color</a>
+                        </div><div class="ikb-text ikb-text-md font-normal text-left">
+                            ...
+                        </div>
+                        
+                        <a href="http://brutus.test/2024/05/14/how-to-create-adjustment-layers-based-on-color-in-capture-one-9/" class="read-more">
+                            Read More →
+                        </a>
+                    </div>
+                </article>
+            
+        </div>
+        
+        <div class="text-center mt-large">
+            <a href="/blog" class="btn btn-primary">View All Posts</a>
+        </div>
+    </div></section><section><div class="ikb-container ikb-container-lg">
+        <div class="text-center reveal">
+            <div class="ikb-text ikb-text-3xl font-bold text-left">
+                <h3>Ready to Get Started?</h3>
+            </div><div class="ikb-text ikb-text-xl font-normal text-left">
+                <h4>Join thousands of users who have transformed their websites with Phoenix</h4>
             </div>
             
-            
-<aside class="sidebar widget-area">
-    
-    <div class="widget">
-        <div class="ikb-text ikb-text-lg font-semibold text-left">
-            Search
+            <div class="flex-center gap-medium flex-wrap">
+                <a href="/contact" class="btn btn-primary">Get in Touch</a>
+                <a href="/documentation" class="btn btn-outline">View Documentation</a>
+            </div>
         </div>
-        <form class="search-form" role="search" method="get" action="http://brutus.test">
-            <input type="search" class="search-input" placeholder="Search..." name="s" required>
-            <button type="submit" class="search-submit">Search</button>
-        </form>
-    </div>
-    
-    
-    <div class="widget">
-        <div class="ikb-text ikb-text-lg font-semibold text-left">
-            Recent Posts
-        </div>
-        <ul>
-            
-                <li>
-                    <a href="http://brutus.test/2024/05/14/perms-are-coming-back-but-theyre-getting-a-modern-makeover/">
-                        <span>Perms Are Coming Back—but Getting a Modern</span>
-                        <span class="post-date">Nov 14</span>
-                    </a>
-                </li>
-            
-                <li>
-                    <a href="http://brutus.test/2024/05/14/the-beauty-products-chrissy-teigen-cant-travel-without/">
-                        <span>The Beauty Products Chrissy Can’t Go Without</span>
-                        <span class="post-date">Nov 14</span>
-                    </a>
-                </li>
-            
-        </ul>
-    </div>
-    
-    
-    <div class="widget">
-        <div class="ikb-text ikb-text-lg font-semibold text-left">
-            Categories
-        </div>
-        <ul>
-            
-                <li>
-                    <a href="http://brutus.test/category/uncategorized/">
-                        <span>Uncategorized</span>
-                        <span class="category-count">(1)</span>
-                    </a>
-                </li>
-            
-                <li>
-                    <a href="http://brutus.test/category/trends/">
-                        <span>Trends</span>
-                        <span class="category-count">(4)</span>
-                    </a>
-                </li>
-            
-                <li>
-                    <a href="http://brutus.test/category/tips-tricks/">
-                        <span>Tips &amp; Tricks</span>
-                        <span class="category-count">(1)</span>
-                    </a>
-                </li>
-            
-                <li>
-                    <a href="http://brutus.test/category/ramp/">
-                        <span>Ramp</span>
-                        <span class="category-count">(1)</span>
-                    </a>
-                </li>
-            
-                <li>
-                    <a href="http://brutus.test/category/photography/">
-                        <span>Photography</span>
-                        <span class="category-count">(3)</span>
-                    </a>
-                </li>
-            
-                <li>
-                    <a href="http://brutus.test/category/music/">
-                        <span>Music</span>
-                        <span class="category-count">(1)</span>
-                    </a>
-                </li>
-            
-                <li>
-                    <a href="http://brutus.test/category/model/">
-                        <span>Model</span>
-                        <span class="category-count">(5)</span>
-                    </a>
-                </li>
-            
-                <li>
-                    <a href="http://brutus.test/category/life-style/">
-                        <span>Life style</span>
-                        <span class="category-count">(2)</span>
-                    </a>
-                </li>
-            
-                <li>
-                    <a href="http://brutus.test/category/beauty/">
-                        <span>Beauty</span>
-                        <span class="category-count">(4)</span>
-                    </a>
-                </li>
-            
-                <li>
-                    <a href="http://brutus.test/category/artist/">
-                        <span>Artist</span>
-                        <span class="category-count">(2)</span>
-                    </a>
-                </li>
-            
-        </ul>
-    </div>
-    
-    
-    <div class="widget">
-        <div class="ikb-text ikb-text-lg font-semibold text-left">
-            Popular Tags
-        </div>
-        <div class="tag-cloud">
-            
-                <a href="http://brutus.test/tag/trends/" class="tag">
-                    Trends
-                </a>
-            
-                <a href="http://brutus.test/tag/iskra-lawrence/" class="tag">
-                    Iskra Lawrence
-                </a>
-            
-                <a href="http://brutus.test/tag/collection/" class="tag">
-                    Collection
-                </a>
-            
-                <a href="http://brutus.test/tag/beauty/" class="tag">
-                    Beauty
-                </a>
-            
-        </div>
-    </div>
-    
-    
-    <div class="widget">
-        <div class="ikb-text ikb-text-lg font-semibold text-left">
-            Archives
-        </div>
-        <ul>
-            <li><a href="#"><span>November 2025</span><span style="font-size: 0.875rem; color: #999;">(12)</span></a></li>
-            <li><a href="#"><span>October 2025</span><span style="font-size: 0.875rem; color: #999;">(18)</span></a></li>
-            <li><a href="#"><span>September 2025</span><span style="font-size: 0.875rem; color: #999;">(15)</span></a></li>
-            <li><a href="#"><span>August 2025</span><span style="font-size: 0.875rem; color: #999;">(22)</span></a></li>
-            <li><a href="#"><span>July 2025</span><span style="font-size: 0.875rem; color: #999;">(19)</span></a></li>
-        </ul>
-    </div>
-    
-    
-    <div class="widget" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
-        <div class="ikb-text ikb-text-lg font-semibold text-left">
-            Newsletter
-        </div><div class="ikb-text ikb-text-md font-normal text-left">
-            Get the latest updates delivered to your inbox.
-        </div>
-        <form class="search-form" action="#" method="post">
-            <input type="email" class="search-input" placeholder="Your email" required style="background: rgba(255,255,255,0.2); border-color: rgba(255,255,255,0.3); color: white;">
-            <button type="submit" class="search-submit" style="background: white; color: #667eea;">Subscribe</button>
-        </form>
-    </div>
-</aside>
-
-        </div>
-    </div>
-</section>
-
-
+    </div></section>
 </main>
 
 <footer class="site-footer">
@@ -578,4 +613,4 @@ a:6:{s:7:"headers";a:9:{i:0;s:27:"X-Frame-Options: SAMEORIGIN";i:1;s:31:"X-Conte
 <script src="http://brutus.test/wp-content/themes/phoenix/assets/js/phoenix.js"></script>
 </body>
 </html>
-";s:9:"timestamp";i:1763190733;s:8:"cms_type";s:9:"wordpress";s:17:"extensions_loaded";a:0:{}s:15:"extension_count";i:0;}
+";s:9:"timestamp";i:1763190764;s:8:"cms_type";s:9:"wordpress";s:17:"extensions_loaded";a:0:{}s:15:"extension_count";i:0;}

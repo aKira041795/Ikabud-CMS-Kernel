@@ -1,4 +1,4 @@
-a:6:{s:7:"headers";a:9:{i:0;s:27:"X-Frame-Options: SAMEORIGIN";i:1;s:31:"X-Content-Type-Options: nosniff";i:2;s:31:"X-XSS-Protection: 1; mode=block";i:3;s:341:"Content-Security-Policy: default-src 'self' https: http:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https: http: blob:; style-src 'self' 'unsafe-inline' https: http:; img-src 'self' data: https: http:; font-src 'self' data: https: http:; connect-src 'self' https: http: wss: ws:; frame-src 'self' https: http:; worker-src 'self' blob:;";i:4;s:48:"Referrer-Policy: strict-origin-when-cross-origin";i:5;s:60:"Permissions-Policy: geolocation=(), microphone=(), camera=()";i:6;s:38:"Content-Type: text/html; charset=UTF-8";i:7;s:61:"Link: <http://brutus.test/wp-json/>; rel="https://api.w.org/"";i:8;s:109:"Link: <http://brutus.test/wp-json/wp/v2/categories/2>; rel="alternate"; title="JSON"; type="application/json"";}s:4:"body";s:26887:"
+a:6:{s:7:"headers";a:9:{i:0;s:27:"X-Frame-Options: SAMEORIGIN";i:1;s:31:"X-Content-Type-Options: nosniff";i:2;s:31:"X-XSS-Protection: 1; mode=block";i:3;s:341:"Content-Security-Policy: default-src 'self' https: http:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https: http: blob:; style-src 'self' 'unsafe-inline' https: http:; img-src 'self' data: https: http:; font-src 'self' data: https: http:; connect-src 'self' https: http: wss: ws:; frame-src 'self' https: http:; worker-src 'self' blob:;";i:4;s:48:"Referrer-Policy: strict-origin-when-cross-origin";i:5;s:60:"Permissions-Policy: geolocation=(), microphone=(), camera=()";i:6;s:38:"Content-Type: text/html; charset=UTF-8";i:7;s:61:"Link: <http://brutus.test/wp-json/>; rel="https://api.w.org/"";i:8;s:109:"Link: <http://brutus.test/wp-json/wp/v2/categories/7>; rel="alternate"; title="JSON"; type="application/json"";}s:4:"body";s:28920:"
 <!DOCTYPE html>
 <html lang="en-US">
 <head>
@@ -216,13 +216,13 @@ a:6:{s:7:"headers";a:9:{i:0;s:27:"X-Frame-Options: SAMEORIGIN";i:1;s:31:"X-Conte
             
             <div class="text-center">
                 <div class="ikb-text ikb-text-4xl font-bold category-title">
-                    <h1>Artist</h1>
+                    <h1>Photography</h1>
                 </div>
                 
                 
                 <div class="category-meta">
                     <span class="category-count">
-                        2Posts
+                        3Posts
                     </span>
                     
                     
@@ -245,7 +245,7 @@ a:6:{s:7:"headers";a:9:{i:0;s:27:"X-Frame-Options: SAMEORIGIN";i:1;s:31:"X-Conte
                     </div>
                     
                     <div class="filter-actions">
-                        <span class="post-count">2 total</span>
+                        <span class="post-count">3 total</span>
                     </div>
                 </div>
                 
@@ -265,7 +265,7 @@ a:6:{s:7:"headers";a:9:{i:0;s:27:"X-Frame-Options: SAMEORIGIN";i:1;s:31:"X-Conte
                                 
                                 
                                 <div class="ikb-text ikb-text-xl font-semibold post-title">
-                                    <a href="http://brutus.test/2024/05/14/perms-are-coming-back-but-theyre-getting-a-modern-makeover/">Perms Are Coming Back—but Getting a Modern</a>
+                                    <a href="http://brutus.test/2024/05/14/this-new-aerie-collection-was-designed-by-aly-raisman-and-iskra-lawrence/">Aerie Collection&#8217;s Originally By Iskra</a>
                                 </div>
                                 
                                 
@@ -275,7 +275,7 @@ a:6:{s:7:"headers";a:9:{i:0;s:27:"X-Frame-Options: SAMEORIGIN";i:1;s:31:"X-Conte
                                 
                                 
                                 <div class="post-footer">
-                                    <a href="http://brutus.test/2024/05/14/perms-are-coming-back-but-theyre-getting-a-modern-makeover/" class="read-more">
+                                    <a href="http://brutus.test/2024/05/14/this-new-aerie-collection-was-designed-by-aly-raisman-and-iskra-lawrence/" class="read-more">
                                         Read More →
                                     </a>
                                 </div>
@@ -295,7 +295,7 @@ a:6:{s:7:"headers";a:9:{i:0;s:27:"X-Frame-Options: SAMEORIGIN";i:1;s:31:"X-Conte
                                 
                                 
                                 <div class="ikb-text ikb-text-xl font-semibold post-title">
-                                    <a href="http://brutus.test/2024/05/14/the-beauty-products-chrissy-teigen-cant-travel-without/">The Beauty Products Chrissy Can’t Go Without</a>
+                                    <a href="http://brutus.test/2024/05/14/how-to-create-adjustment-layers-based-on-color-in-capture-one-9/">How to Create Adjustment Layers Based on Color</a>
                                 </div>
                                 
                                 
@@ -305,7 +305,37 @@ a:6:{s:7:"headers";a:9:{i:0;s:27:"X-Frame-Options: SAMEORIGIN";i:1;s:31:"X-Conte
                                 
                                 
                                 <div class="post-footer">
-                                    <a href="http://brutus.test/2024/05/14/the-beauty-products-chrissy-teigen-cant-travel-without/" class="read-more">
+                                    <a href="http://brutus.test/2024/05/14/how-to-create-adjustment-layers-based-on-color-in-capture-one-9/" class="read-more">
+                                        Read More →
+                                    </a>
+                                </div>
+                            </div>
+                        </article>
+                    
+                        <article class="post-card reveal">
+                            
+                            
+                            <div class="post-content">
+                                
+                                <div class="post-meta">
+                                    <span class="post-date">Jan 1, 1970</span>
+                                    <span class="separator">•</span>
+                                    <span class="post-author">brutus</span>
+                                </div>
+                                
+                                
+                                <div class="ikb-text ikb-text-xl font-semibold post-title">
+                                    <a href="http://brutus.test/2024/05/14/valentino-goes-deliberately-feminine-for-fall-2018/">Valentino Goes Deliberately Feminine for Fall 2018</a>
+                                </div>
+                                
+                                
+                                <div class="ikb-text post-excerpt">
+                                    ...
+                                </div>
+                                
+                                
+                                <div class="post-footer">
+                                    <a href="http://brutus.test/2024/05/14/valentino-goes-deliberately-feminine-for-fall-2018/" class="read-more">
                                         Read More →
                                     </a>
                                 </div>
@@ -338,15 +368,22 @@ a:6:{s:7:"headers";a:9:{i:0;s:27:"X-Frame-Options: SAMEORIGIN";i:1;s:31:"X-Conte
         <ul>
             
                 <li>
-                    <a href="http://brutus.test/2024/05/14/perms-are-coming-back-but-theyre-getting-a-modern-makeover/">
-                        <span>Perms Are Coming Back—but Getting a Modern</span>
+                    <a href="http://brutus.test/2024/05/14/this-new-aerie-collection-was-designed-by-aly-raisman-and-iskra-lawrence/">
+                        <span>Aerie Collection&#8217;s Originally By Iskra</span>
                         <span class="post-date">Nov 14</span>
                     </a>
                 </li>
             
                 <li>
-                    <a href="http://brutus.test/2024/05/14/the-beauty-products-chrissy-teigen-cant-travel-without/">
-                        <span>The Beauty Products Chrissy Can’t Go Without</span>
+                    <a href="http://brutus.test/2024/05/14/how-to-create-adjustment-layers-based-on-color-in-capture-one-9/">
+                        <span>How to Create Adjustment Layers Based on Color</span>
+                        <span class="post-date">Nov 14</span>
+                    </a>
+                </li>
+            
+                <li>
+                    <a href="http://brutus.test/2024/05/14/valentino-goes-deliberately-feminine-for-fall-2018/">
+                        <span>Valentino Goes Deliberately Feminine for Fall 2018</span>
                         <span class="post-date">Nov 14</span>
                     </a>
                 </li>
@@ -578,4 +615,4 @@ a:6:{s:7:"headers";a:9:{i:0;s:27:"X-Frame-Options: SAMEORIGIN";i:1;s:31:"X-Conte
 <script src="http://brutus.test/wp-content/themes/phoenix/assets/js/phoenix.js"></script>
 </body>
 </html>
-";s:9:"timestamp";i:1763190733;s:8:"cms_type";s:9:"wordpress";s:17:"extensions_loaded";a:0:{}s:15:"extension_count";i:0;}
+";s:9:"timestamp";i:1763190745;s:8:"cms_type";s:9:"wordpress";s:17:"extensions_loaded";a:0:{}s:15:"extension_count";i:0;}
