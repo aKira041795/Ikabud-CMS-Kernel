@@ -423,6 +423,22 @@ img {
     animation: slideUp 1s ease-out 0.4s both;
 }
 
+.cta-header {
+    text-align: center;
+    margin-top: 50px;
+    margin-bottom: 15px;
+}
+
+.cta-text {
+    text-align: center;
+    margin-top: 25px;
+    margin-bottom: 15px;
+}
+
+.cta-bottom {
+    margin-bottom: 15px;
+}
+
 .btn {
     display: inline-block;
     padding: var(--space-md) var(--space-xl);
@@ -483,6 +499,7 @@ img {
 .section-header {
     text-align: center;
     margin-bottom: var(--space-3xl);
+    margin-top: var(--space-2xl);
 }
 
 .section-title {
@@ -636,8 +653,8 @@ img {
    WIDGETS
    ============================================ */
 .widget-area {
-    display: grid;
-    gap: var(--space-xl);
+    /*display: grid;
+    gap: var(--space-xl);*/
 }
 
 .widget {

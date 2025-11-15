@@ -115,7 +115,6 @@
         "align": {
           "type": "string",
           "enum": ["left", "center", "right", "justify"],
-          "default": "left",
           "description": "Text alignment",
           "css_modifier": "text-{value}"
         },
