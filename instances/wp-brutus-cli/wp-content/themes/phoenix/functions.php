@@ -146,6 +146,10 @@ function phoenix_disyl_render($template) {
         $disyl_template = 'single.disyl';
     } elseif (is_page()) {
         $disyl_template = 'page.disyl';
+    } elseif (is_category()) {
+        $disyl_template = 'category.disyl';
+    } elseif (is_tag()) {
+        $disyl_template = 'tag.disyl';
     } elseif (is_archive()) {
         $disyl_template = 'archive.disyl';
     } elseif (is_search()) {
@@ -254,6 +258,19 @@ function phoenix_build_context() {
         );
     }
     
+    // Add category data if on category page
+    if (is_category()) {
+        $context['category'] = phoenix_get_category_context();
+    }
+    
+    // Add tag data if on tag page
+    if (is_tag()) {
+        $context['tag'] = phoenix_get_tag_context();
+    }
+    
+    // Add pagination data
+    $context['pagination'] = phoenix_get_pagination_context();
+    
     return $context;
 }
 
@@ -355,6 +372,166 @@ function phoenix_build_menu_tree($menu_items, $parent_id = 0) {
     }
     
     return $branch;
+}
+
+/**
+ * Get Category Context for DiSyL
+ * CMS-agnostic structure for category/taxonomy pages
+ */
+function phoenix_get_category_context() {
+    $category = get_queried_object();
+    
+    if (!$category || !isset($category->term_id)) {
+        return array();
+    }
+    
+    // Get parent category if exists
+    $parent = null;
+    if ($category->parent) {
+        $parent_cat = get_category($category->parent);
+        $parent = array(
+            'id' => $parent_cat->term_id,
+            'name' => $parent_cat->name,
+            'slug' => $parent_cat->slug,
+            'url' => get_category_link($parent_cat->term_id),
+            'count' => $parent_cat->count,
+        );
+    }
+    
+    // Get child categories
+    $children = array();
+    $child_cats = get_categories(array(
+        'parent' => $category->term_id,
+        'hide_empty' => false,
+    ));
+    
+    foreach ($child_cats as $child) {
+        $children[] = array(
+            'id' => $child->term_id,
+            'name' => $child->name,
+            'slug' => $child->slug,
+            'url' => get_category_link($child->term_id),
+            'description' => $child->description,
+            'count' => $child->count,
+            'image' => phoenix_get_term_image($child->term_id),
+        );
+    }
+    
+    // Get related categories (siblings)
+    $related = array();
+    if ($category->parent) {
+        $siblings = get_categories(array(
+            'parent' => $category->parent,
+            'exclude' => $category->term_id,
+            'hide_empty' => false,
+            'number' => 5,
+        ));
+        
+        foreach ($siblings as $sibling) {
+            $related[] = array(
+                'id' => $sibling->term_id,
+                'name' => $sibling->name,
+                'slug' => $sibling->slug,
+                'url' => get_category_link($sibling->term_id),
+                'count' => $sibling->count,
+            );
+        }
+    }
+    
+    return array(
+        'id' => $category->term_id,
+        'name' => $category->name,
+        'slug' => $category->slug,
+        'description' => $category->description,
+        'url' => get_category_link($category->term_id),
+        'count' => $category->count,
+        'image' => phoenix_get_term_image($category->term_id),
+        'parent' => $parent,
+        'children' => $children,
+        'related' => $related,
+    );
+}
+
+/**
+ * Get Tag Context for DiSyL
+ * CMS-agnostic structure for tag pages
+ */
+function phoenix_get_tag_context() {
+    $tag = get_queried_object();
+    
+    if (!$tag || !isset($tag->term_id)) {
+        return array();
+    }
+    
+    // Get related tags (by post overlap)
+    $related = array();
+    $related_tags = get_tags(array(
+        'exclude' => $tag->term_id,
+        'number' => 10,
+        'orderby' => 'count',
+        'order' => 'DESC',
+    ));
+    
+    foreach ($related_tags as $rtag) {
+        $related[] = array(
+            'id' => $rtag->term_id,
+            'name' => $rtag->name,
+            'slug' => $rtag->slug,
+            'url' => get_tag_link($rtag->term_id),
+            'count' => $rtag->count,
+        );
+    }
+    
+    return array(
+        'id' => $tag->term_id,
+        'name' => $tag->name,
+        'slug' => $tag->slug,
+        'description' => $tag->description,
+        'url' => get_tag_link($tag->term_id),
+        'count' => $tag->count,
+        'related' => $related,
+    );
+}
+
+/**
+ * Get Pagination Context for DiSyL
+ * CMS-agnostic pagination structure
+ */
+function phoenix_get_pagination_context() {
+    global $wp_query;
+    
+    $current_page = max(1, get_query_var('paged'));
+    $total_pages = $wp_query->max_num_pages;
+    
+    return array(
+        'current_page' => $current_page,
+        'total_pages' => $total_pages,
+        'prev_url' => get_previous_posts_page_link(),
+        'next_url' => get_next_posts_page_link(),
+        'has_prev' => $current_page > 1,
+        'has_next' => $current_page < $total_pages,
+    );
+}
+
+/**
+ * Get Term Image (for category/tag images)
+ * Uses WordPress term meta or returns null
+ */
+function phoenix_get_term_image($term_id) {
+    // Check for common term meta keys
+    $image_keys = array('thumbnail_id', 'image', 'category_image');
+    
+    foreach ($image_keys as $key) {
+        $image_id = get_term_meta($term_id, $key, true);
+        if ($image_id) {
+            $image_url = wp_get_attachment_image_url($image_id, 'medium');
+            if ($image_url) {
+                return $image_url;
+            }
+        }
+    }
+    
+    return null;
 }
 
 /**
