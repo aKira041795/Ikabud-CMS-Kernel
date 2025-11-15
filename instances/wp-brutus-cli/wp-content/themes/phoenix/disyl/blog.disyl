@@ -4,7 +4,7 @@
 {!-- Page Header --}
 {ikb_section type="page-header" class="section-gradient" padding="large"}
     {ikb_container size="large"}
-        <div style="text-align: center;">
+        <div class="text-center">
             {ikb_text size="3xl" weight="bold"}
                 Our Blog
             {/ikb_text}
@@ -18,7 +18,7 @@
 {!-- Blog Posts --}
 {ikb_section type="blog-archive" padding="xlarge"}
     {ikb_container size="xlarge"}
-        <div style="display: grid; grid-template-columns: 1fr 350px; gap: 3rem;">
+        <div class="blog-layout">
             {!-- Posts Grid --}
             <div>
                 <div class="post-grid">
@@ -37,7 +37,7 @@
                             
                             <div class="post-content">
                                 <div class="post-meta">
-                                    <span>{item.date | date:format='M j, Y'}</span>
+                                    <span>{item.date | date:format="M j, Y"}</span>
                                     <span class="separator">•</span>
                                     <span>{item.author | esc_html}</span>
                                 </div>
@@ -47,7 +47,7 @@
                                 {/ikb_text}
                                 
                                 {ikb_text class="post-excerpt"}
-                                    {item.excerpt | wp_trim_words:num_words=25}
+                                    {item.excerpt | strip_tags | truncate:length=180,append="..."}
                                 {/ikb_text}
                                 
                                 <a href="{item.url | esc_url}" class="read-more">
@@ -59,7 +59,7 @@
                 </div>
                 
                 {!-- Load More Button --}
-                <div style="text-align: center; margin-top: 3rem;">
+                <div class="text-center mt-large">
                     <button class="btn btn-primary load-more-posts">Load More Posts</button>
                 </div>
             </div>

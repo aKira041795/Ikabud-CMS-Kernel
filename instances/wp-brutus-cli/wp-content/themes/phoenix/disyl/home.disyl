@@ -154,7 +154,7 @@
                     
                     <div class="post-content">
                         <div class="post-meta">
-                            <span class="post-date">{item.date | date:format='M j, Y'}</span>
+                            <span class="post-date">{item.date | date:format="M j, Y"}</span>
                             <span class="separator">•</span>
                             <span class="post-author">{item.author | esc_html}</span>
                         </div>
@@ -164,7 +164,7 @@
                         {/ikb_text}
                         
                         {ikb_text class="post-excerpt"}
-                            {item.excerpt | wp_trim_words:num_words=20}
+                            {item.excerpt | strip_tags | truncate:length=150,append="..."}
                         {/ikb_text}
                         
                         <a href="{item.url | esc_url}" class="read-more">
@@ -175,7 +175,7 @@
             {/ikb_query}
         </div>
         
-        <div style="text-align: center; margin-top: 3rem;">
+        <div class="text-center mt-large">
             <a href="/blog" class="btn btn-primary">View All Posts</a>
         </div>
     {/ikb_container}
@@ -184,7 +184,7 @@
 {!-- Call to Action Section --}
 {ikb_section type="cta" class="section-gradient" padding="xlarge"}
     {ikb_container size="large"}
-        <div style="text-align: center;" class="reveal">
+        <div class="text-center reveal">
             {ikb_text size="3xl" weight="bold" margin="bottom-large"}
                 Ready to Get Started?
             {/ikb_text}
@@ -193,7 +193,7 @@
                 Join thousands of users who have transformed their websites with Phoenix
             {/ikb_text}
             
-            <div style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;">
+            <div class="flex-center gap-medium flex-wrap">
                 <a href="/contact" class="btn btn-primary">Get in Touch</a>
                 <a href="/documentation" class="btn btn-outline">View Documentation</a>
             </div>

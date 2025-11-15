@@ -3,9 +3,9 @@
 
 {ikb_section type="error-404" padding="xlarge"}
     {ikb_container size="large"}
-        <div style="text-align: center; padding: 4rem 0;">
+        <div class="error-404-content">
             {!-- 404 Illustration --}
-            <div style="font-size: 10rem; font-weight: 900; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; line-height: 1;">
+            <div class="error-404-number">
                 404
             </div>
             
@@ -13,38 +13,38 @@
                 Oops! Page Not Found
             {/ikb_text}
             
-            {ikb_text size="lg" color="#718096" margin="bottom-xlarge"}
+            {ikb_text size="lg" class="error-message" margin="bottom-xlarge"}
                 The page you're looking for doesn't exist or has been moved.
             {/ikb_text}
             
             {!-- Search Form --}
-            <div style="max-width: 600px; margin: 0 auto 3rem;">
+            <div class="search-form-wrapper">
                 <form class="search-form" role="search" method="get" action="{site.url | esc_url}">
-                    <input type="search" class="search-input" placeholder="Search for content..." name="s" style="flex: 1;">
+                    <input type="search" class="search-input" placeholder="Search for content..." name="s">
                     <button type="submit" class="search-submit">Search</button>
                 </form>
             </div>
             
             {!-- Action Buttons --}
-            <div style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;">
+            <div class="flex-center gap-medium flex-wrap">
                 <a href="{site.url | esc_url}" class="btn btn-primary">Go to Homepage</a>
-                <a href="{site.url}/blog" | esc_url} class="btn btn-outline">View Blog</a>
+                <a href="{site.url | esc_url}/blog" class="btn btn-outline">View Blog</a>
             </div>
             
             {!-- Popular Pages --}
-            <div style="margin-top: 4rem;">
+            <div class="popular-pages">
                 {ikb_text size="xl" weight="semibold" margin="bottom-large"}
                     Popular Pages
                 {/ikb_text}
                 
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1.5rem; max-width: 900px; margin: 0 auto;">
+                <div class="popular-pages-grid">
                     {ikb_query type="post" limit=3}
-                        <a href="{item.url | esc_url}" style="padding: 1.5rem; background: white; border-radius: 1rem; box-shadow: 0 4px 6px rgba(0,0,0,0.1); transition: all 0.3s;">
+                        <a href="{item.url | esc_url}" class="popular-page-card">
                             {ikb_text size="lg" weight="semibold" margin="bottom"}
                                 {item.title | esc_html}
                             {/ikb_text}
-                            {ikb_text size="sm" color="#718096"}
-                                {item.excerpt | wp_trim_words:num_words=12}
+                            {ikb_text size="sm" class="page-excerpt"}
+                                {item.excerpt | strip_tags | truncate:length=80,append="..."}
                             {/ikb_text}
                         </a>
                     {/ikb_query}

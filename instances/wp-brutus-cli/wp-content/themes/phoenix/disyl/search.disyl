@@ -4,7 +4,7 @@
 {!-- Search Header --}
 {ikb_section type="search-header" class="section-gradient" padding="large"}
     {ikb_container size="large"}
-        <div style="text-align: center;">
+        <div class="text-center">
             {ikb_text size="3xl" weight="bold"}
                 Search Results
             {/ikb_text}
@@ -13,7 +13,7 @@
             {/ikb_text}
             
             {!-- Search Form --}
-            <div style="max-width: 600px; margin: 2rem auto 0;">
+            <div class="search-form-wrapper">
                 <form class="search-form" role="search" method="get" action="{site.url | esc_url}">
                     <input type="search" class="search-input" placeholder="Search..." name="s" required>
                     <button type="submit" class="search-submit">Search</button>
@@ -26,7 +26,7 @@
 {!-- Search Results --}
 {ikb_section type="search-results" padding="xlarge"}
     {ikb_container size="xlarge"}
-        <div style="display: grid; grid-template-columns: 1fr 350px; gap: 3rem;">
+        <div class="search-layout">
             {!-- Results --}
             <div>
                 <div class="post-grid">
@@ -45,7 +45,7 @@
                             
                             <div class="post-content">
                                 <div class="post-meta">
-                                    <span>{item.date | date:format='M j, Y'}</span>
+                                    <span>{item.date | date:format="M j, Y"}</span>
                                     <span class="separator">•</span>
                                     <span>{item.author | esc_html}</span>
                                 </div>
@@ -55,7 +55,7 @@
                                 {/ikb_text}
                                 
                                 {ikb_text class="post-excerpt"}
-                                    {item.excerpt | wp_trim_words:num_words=25}
+                                    {item.excerpt | strip_tags | truncate:length=180,append="..."}
                                 {/ikb_text}
                                 
                                 <a href="{item.url | esc_url}" class="read-more">

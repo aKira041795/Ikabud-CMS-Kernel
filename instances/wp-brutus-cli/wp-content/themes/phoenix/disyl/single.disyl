@@ -3,24 +3,24 @@
 
 {ikb_section type="post-single" padding="xlarge"}
     {ikb_container size="xlarge"}
-        <div style="display: grid; grid-template-columns: 1fr 350px; gap: 3rem; align-items: start;">
+        <div class="post-layout">
             {!-- Main Content --}
             <article class="post-single">
                 {!-- Breadcrumbs --}
-                <nav class="breadcrumbs" style="margin-bottom: 2rem; font-size: 0.875rem; color: #718096;">
+                <nav class="breadcrumbs">
                     <a href="{site.url | esc_url}">Home</a> / 
-                    <a href="{site.url}/blog" | esc_url}>Blog</a> / 
+                    <a href="{site.url | esc_url}/blog">Blog</a> / 
                     <span>{post.title | esc_html}</span>
                 </nav>
                 
                 {!-- Post Header --}
-                <header class="post-header" style="margin-bottom: 2rem;">
+                <header class="post-header">
                     {ikb_text size="3xl" weight="bold" class="gradient-text"}
                         {post.title | esc_html}
                     {/ikb_text}
                     
-                    <div class="post-meta" style="display: flex; gap: 1rem; margin-top: 1rem; font-size: 0.875rem; color: #718096;">
-                        <span>📅 {post.date | date:format='F j, Y'}</span>
+                    <div class="post-meta">
+                        <span>📅 {post.date | date:format="F j, Y"}</span>
                         <span>•</span>
                         <span>✍️ By <a href="{post.author_url | esc_url}">{post.author | esc_html}</a></span>
                         <span>•</span>
@@ -30,7 +30,7 @@
                 
                 {!-- Featured Image --}
                 {if condition="post.thumbnail"}
-                    <figure class="featured-image" style="margin-bottom: 2rem; border-radius: 1rem; overflow: hidden; box-shadow: 0 10px 25px rgba(0,0,0,0.15);">
+                    <figure class="featured-image">
                         {ikb_image 
                             src="{post.thumbnail | esc_url}"
                             alt="{post.title | esc_attr}"
@@ -41,21 +41,21 @@
                 {/if}
                 
                 {!-- Post Content --}
-                <div class="post-content" style="font-size: 1.125rem; line-height: 1.8; color: #2d3748;">
-                    {post.content | wp_kses_post}
+                <div class="post-content">
+                    {post.content | raw}
                 </div>
                 
                 {!-- Post Footer --}
-                <footer class="post-footer" style="margin-top: 3rem; padding-top: 2rem; border-top: 2px solid #e2e8f0;">
+                <footer class="post-footer">
                     {!-- Tags --}
                     {if condition="post.tags"}
-                        <div class="post-tags" style="margin-bottom: 2rem;">
+                        <div class="post-tags">
                             {ikb_text size="sm" weight="medium" margin="bottom"}
                                 Tags:
                             {/ikb_text}
-                            <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
+                            <div class="tag-list">
                                 {ikb_query type="tag" post="{post.id}"}
-                                    <a href="{item.url | esc_url}" style="padding: 0.5rem 1rem; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border-radius: 9999px; font-size: 0.875rem;">
+                                    <a href="{item.url | esc_url}" class="tag">
                                         {item.name | esc_html}
                                     </a>
                                 {/ikb_query}
@@ -64,18 +64,18 @@
                     {/if}
                     
                     {!-- Share Buttons --}
-                    <div class="share-buttons" style="display: flex; gap: 1rem; align-items: center;">
+                    <div class="share-buttons">
                         {ikb_text size="sm" weight="medium"}
                             Share:
                         {/ikb_text}
-                        <div style="display: flex; gap: 0.5rem;">
-                            <a href="https://twitter.com/intent/tweet?url={post.url | esc_url}&text={post.title | esc_attr}" target="_blank" style="width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; background: #1DA1F2; color: white; border-radius: 50%; transition: transform 0.2s;">
+                        <div class="share-icons">
+                            <a href="https://twitter.com/intent/tweet?url={post.url | esc_url}&text={post.title | esc_attr}" target="_blank" class="share-icon share-twitter" aria-label="Share on Twitter">
                                 𝕏
                             </a>
-                            <a href="https://www.facebook.com/sharer/sharer.php?u={post.url | esc_url}" target="_blank" style="width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; background: #1877F2; color: white; border-radius: 50%; transition: transform 0.2s;">
+                            <a href="https://www.facebook.com/sharer/sharer.php?u={post.url | esc_url}" target="_blank" class="share-icon share-facebook" aria-label="Share on Facebook">
                                 f
                             </a>
-                            <a href="https://www.linkedin.com/shareArticle?url={post.url | esc_url}&title={post.title | esc_attr}" target="_blank" style="width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; background: #0A66C2; color: white; border-radius: 50%; transition: transform 0.2s;">
+                            <a href="https://www.linkedin.com/shareArticle?url={post.url | esc_url}&title={post.title | esc_attr}" target="_blank" class="share-icon share-linkedin" aria-label="Share on LinkedIn">
                                 in
                             </a>
                         </div>
@@ -83,17 +83,17 @@
                 </footer>
                 
                 {!-- Author Bio --}
-                <div class="author-bio" style="margin-top: 3rem; padding: 2rem; background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%); border-radius: 1rem;">
-                    <div style="display: flex; gap: 1.5rem; align-items: start;">
-                        <img src="{post.author_avatar | esc_url}" alt="{post.author | esc_attr}" style="width: 80px; height: 80px; border-radius: 50%; border: 3px solid white; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
-                        <div style="flex: 1;">
+                <div class="author-bio">
+                    <div class="author-bio-content">
+                        <img src="{post.author_avatar | esc_url}" alt="{post.author | esc_attr}" class="author-avatar">
+                        <div class="author-info">
                             {ikb_text size="lg" weight="semibold" margin="bottom"}
                                 About {post.author | esc_html}
                             {/ikb_text}
-                            {ikb_text color="#718096"}
+                            {ikb_text class="author-description"}
                                 Passionate writer and developer sharing insights about web development, design, and technology.
                             {/ikb_text}
-                            <a href="{post.author_url | esc_url}" style="display: inline-block; margin-top: 1rem; color: #667eea; font-weight: 600;">
+                            <a href="{post.author_url | esc_url}" class="author-link">
                                 View all posts by {post.author | esc_html} →
                             </a>
                         </div>
@@ -102,7 +102,7 @@
                 
                 {!-- Comments Section --}
                 {if condition="post.comments_open || post.comment_count > 0"}
-                    <div class="comments-section" style="margin-top: 3rem;">
+                    <div class="comments-section">
                         {include file="components/comments.disyl"}
                     </div>
                 {/if}
@@ -123,7 +123,7 @@
             {/ikb_text}
         </div>
         
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 2rem;">
+        <div class="related-posts-grid">
             {ikb_query type="post" limit=3 related="current"}
                 <article class="post-card">
                     {if condition="item.thumbnail"}
@@ -143,7 +143,7 @@
                         {/ikb_text}
                         
                         {ikb_text class="post-excerpt"}
-                            {item.excerpt | wp_trim_words:num_words=15}
+                            {item.excerpt | strip_tags | truncate:length=100,append="..."}
                         {/ikb_text}
                         
                         <a href="{item.url | esc_url}" class="read-more">

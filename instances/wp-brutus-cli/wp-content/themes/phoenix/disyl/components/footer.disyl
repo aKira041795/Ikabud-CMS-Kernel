@@ -38,11 +38,11 @@
                 {/ikb_text}
                 <ul>
                     <li><a href="{site.url | esc_url}">Home</a></li>
-                    <li><a href="{site.url}/about" | esc_url}>About Us</a></li>
-                    <li><a href="{site.url}/services" | esc_url}>Services</a></li>
-                    <li><a href="{site.url}/portfolio" | esc_url}>Portfolio</a></li>
-                    <li><a href="{site.url}/blog" | esc_url}>Blog</a></li>
-                    <li><a href="{site.url}/contact" | esc_url}>Contact</a></li>
+                    <li><a href="{site.url | esc_url}/about">About Us</a></li>
+                    <li><a href="{site.url | esc_url}/services">Services</a></li>
+                    <li><a href="{site.url | esc_url}/portfolio">Portfolio</a></li>
+                    <li><a href="{site.url | esc_url}/blog">Blog</a></li>
+                    <li><a href="{site.url | esc_url}/contact">Contact</a></li>
                 </ul>
             </div>
             
@@ -52,12 +52,12 @@
                     Resources
                 {/ikb_text}
                 <ul>
-                    <li><a href="{site.url}/documentation" | esc_url}>Documentation</a></li>
-                    <li><a href="{site.url}/support" | esc_url}>Support</a></li>
-                    <li><a href="{site.url}/faq" | esc_url}>FAQ</a></li>
-                    <li><a href="{site.url}/changelog" | esc_url}>Changelog</a></li>
-                    <li><a href="{site.url}/privacy" | esc_url}>Privacy Policy</a></li>
-                    <li><a href="{site.url}/terms" | esc_url}>Terms of Service</a></li>
+                    <li><a href="{site.url | esc_url}/documentation">Documentation</a></li>
+                    <li><a href="{site.url | esc_url}/support">Support</a></li>
+                    <li><a href="{site.url | esc_url}/faq">FAQ</a></li>
+                    <li><a href="{site.url | esc_url}/changelog">Changelog</a></li>
+                    <li><a href="{site.url | esc_url}/privacy">Privacy Policy</a></li>
+                    <li><a href="{site.url | esc_url}/terms">Terms of Service</a></li>
                 </ul>
             </div>
             
@@ -87,10 +87,10 @@
 </footer>
 
 {!-- Back to Top Button --}
-<button class="back-to-top" aria-label="Back to top" style="position: fixed; bottom: 2rem; right: 2rem; width: 50px; height: 50px; border-radius: 50%; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; cursor: pointer; opacity: 0; transition: opacity 0.3s; box-shadow: 0 4px 12px rgba(0,0,0,0.15); z-index: 999;">
+<button class="back-to-top" aria-label="Back to top">
     ↑
 </button>
 
-<script src="{site.theme_url}/assets/js/phoenix.js"></script>
+<script src="{site.theme_url | esc_url}/assets/js/phoenix.js"></script>
 </body>
 </html>

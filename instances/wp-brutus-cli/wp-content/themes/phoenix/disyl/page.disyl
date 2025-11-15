@@ -5,15 +5,15 @@
     {ikb_container size="large"}
         <article class="page-content">
             {!-- Page Header --}
-            <header class="page-header" style="text-align: center; margin-bottom: 3rem;">
+            <header class="page-header">
                 {ikb_text size="3xl" weight="bold" class="gradient-text"}
                     {post.title | esc_html}
                 {/ikb_text}
             </header>
             
             {!-- Page Content --}
-            <div class="content" style="font-size: 1.125rem; line-height: 1.8; max-width: 800px; margin: 0 auto;">
-                {post.content | wp_kses_post}
+            <div class="content">
+                {post.content | raw}
             </div>
         </article>
     {/ikb_container}

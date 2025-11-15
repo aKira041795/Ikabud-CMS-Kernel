@@ -326,11 +326,17 @@ All components adapt gracefully to different screen sizes.
 
 ## 📚 Documentation
 
-For more information:
+### Phoenix Theme Documentation
+- **[Complete Documentation](PHOENIX_DOCUMENTATION.md)** - ⭐ NEW: Full testing results & multi-CMS roadmap
+- **[Feature List](THEME_FEATURES.md)** - Complete list of all features
+- **[This README](README.md)** - Quick start guide
 
-- **DiSyL Documentation:** `/docs/DISYL_COMPLETE_GUIDE.md`
-- **Component Reference:** `/docs/DISYL_COMPONENT_CATALOG.md`
-- **API Reference:** `/docs/DISYL_API_REFERENCE.md`
+### DiSyL Documentation
+- **[DiSyL Complete Guide](/docs/DISYL_COMPLETE_GUIDE.md)** - Comprehensive DiSyL guide
+- **[Component Reference](/docs/DISYL_COMPONENT_CATALOG.md)** - Available components
+- **[API Reference](/docs/DISYL_API_REFERENCE.md)** - API documentation
+- **[Conversion Examples](/docs/DISYL_CONVERSION_EXAMPLES.md)** - Real-world examples
+- **[Future Vision](/DISYL_FUTURE_VISION.md)** - Strategic roadmap
 
 ---
 
