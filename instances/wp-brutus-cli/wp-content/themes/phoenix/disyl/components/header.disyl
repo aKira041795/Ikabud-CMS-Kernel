@@ -27,11 +27,9 @@
         {!-- Primary Navigation --}
         <nav class="main-nav" role="navigation" aria-label="Primary navigation">
             <ul>
-                {for items="{menu.primary}" as="item"}
+                {for items="menu.primary" as="item"}
                     <li class="{item.classes}">
-                        <a href="{item.url | esc_url}" 
-                           {if condition="{item.target}"}target="{item.target | esc_attr}"{/if}
-                           {if condition="{item.active}"}class="active"{/if}>
+                        <a href="{item.url | esc_url}">
                             {item.title | esc_html}
                         </a>
                     </li>

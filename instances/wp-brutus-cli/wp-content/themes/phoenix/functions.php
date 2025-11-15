@@ -295,33 +295,22 @@ add_filter('body_class', 'phoenix_body_classes');
 function phoenix_get_menu_items($location) {
     $locations = get_nav_menu_locations();
     
-    // Debug logging
-    error_log("Phoenix Menu Debug - Location: $location");
-    error_log("Phoenix Menu Debug - All locations: " . print_r($locations, true));
-    
     // Check if menu location has a menu assigned
     if (!isset($locations[$location])) {
-        error_log("Phoenix Menu Debug - Location not set, using fallback");
         return phoenix_get_fallback_menu($location);
     }
     
     $menu = wp_get_nav_menu_object($locations[$location]);
     
     if (!$menu) {
-        error_log("Phoenix Menu Debug - Menu object not found, using fallback");
         return phoenix_get_fallback_menu($location);
     }
-    
-    error_log("Phoenix Menu Debug - Menu found: " . $menu->name);
     
     $menu_items = wp_get_nav_menu_items($menu->term_id);
     
     if (!$menu_items) {
-        error_log("Phoenix Menu Debug - No menu items found, using fallback");
         return phoenix_get_fallback_menu($location);
     }
-    
-    error_log("Phoenix Menu Debug - Found " . count($menu_items) . " menu items");
     
     $items = array();
     
@@ -337,9 +326,6 @@ function phoenix_get_menu_items($location) {
             'order' => $item->menu_order,
         );
     }
-    
-    error_log("Phoenix Menu Debug - Returning " . count($items) . " items");
-    error_log("Phoenix Menu Debug - Items: " . print_r($items, true));
     
     return $items;
 }

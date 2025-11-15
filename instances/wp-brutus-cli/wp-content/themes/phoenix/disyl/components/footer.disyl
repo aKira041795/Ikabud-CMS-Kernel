@@ -37,10 +37,9 @@
                     Quick Links
                 {/ikb_text}
                 <ul>
-                    {for items="{menu.footer}" as="item"}
+                    {for items="menu.footer" as="item"}
                         <li>
-                            <a href="{item.url | esc_url}"
-                               {if condition="{item.target}"}target="{item.target | esc_attr}"{/if}>
+                            <a href="{item.url | esc_url}">
                                 {item.title | esc_html}
                             </a>
                         </li>
