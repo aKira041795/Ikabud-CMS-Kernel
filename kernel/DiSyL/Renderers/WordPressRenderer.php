@@ -384,7 +384,40 @@ class WordPressRenderer extends ManifestDrivenRenderer
         
         $html = '';
         
-        if ($query->have_posts()) {
+        // Handle taxonomy queries (category, tag)
+        if ($type === 'category' || $type === 'tag') {
+            $taxonomy = $type === 'category' ? 'category' : 'post_tag';
+            $terms = get_terms([
+                'taxonomy' => $taxonomy,
+                'number' => $limit,
+                'orderby' => $orderby,
+                'order' => strtoupper($order),
+                'hide_empty' => true
+            ]);
+            
+            if (!empty($terms) && !is_wp_error($terms)) {
+                $originalContext = $this->context;
+                
+                foreach ($terms as $term) {
+                    // Set item context with taxonomy term data
+                    $this->context['item'] = [
+                        'id' => $term->term_id,
+                        'name' => $term->name,
+                        'slug' => $term->slug,
+                        'description' => $term->description,
+                        'count' => $term->count,
+                        'url' => get_term_link($term)
+                    ];
+                    
+                    error_log('[DiSyL] ikb_query rendering ' . count($children) . ' children');
+                    $html .= $this->renderChildren($children);
+                }
+                
+                $this->context = $originalContext;
+            }
+        }
+        // Handle post queries
+        elseif ($query->have_posts()) {
             $originalContext = $this->context;
             
             while ($query->have_posts()) {
