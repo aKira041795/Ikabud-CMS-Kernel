@@ -18,6 +18,14 @@ if (defined('DOING_AJAX') && DOING_AJAX) {
     @ini_set('display_errors', 0);
 }
 
+// Remove CSP headers for admin/customizer to prevent widget save errors
+add_action('admin_init', 'phoenix_remove_csp_headers');
+add_action('customize_controls_init', 'phoenix_remove_csp_headers');
+function phoenix_remove_csp_headers() {
+    header_remove('Content-Security-Policy');
+    header_remove('X-Frame-Options');
+}
+
 /**
  * Theme Setup
  */

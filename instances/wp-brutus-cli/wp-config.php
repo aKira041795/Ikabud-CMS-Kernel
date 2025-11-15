@@ -29,7 +29,8 @@ $table_prefix = 'bru_';
 // WordPress Debugging
 define('WP_DEBUG', true);
 define('WP_DEBUG_LOG', true);
-define('WP_DEBUG_DISPLAY', true);
+define('WP_DEBUG_DISPLAY', false);
+@ini_set('display_errors', 0);
 
 // Force direct filesystem method (no FTP needed)
 define('FS_METHOD', 'direct');
