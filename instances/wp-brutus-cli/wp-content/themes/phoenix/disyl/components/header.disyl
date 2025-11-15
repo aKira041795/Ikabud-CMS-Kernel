@@ -32,6 +32,17 @@
                         <a href="{item.url | esc_url}">
                             {item.title | esc_html}
                         </a>
+                        {if condition="item.children"}
+                            <ul class="submenu">
+                                {for items="item.children" as="child"}
+                                    <li class="{child.classes}">
+                                        <a href="{child.url | esc_url}">
+                                            {child.title | esc_html}
+                                        </a>
+                                    </li>
+                                {/for}
+                            </ul>
+                        {/if}
                     </li>
                 {/for}
             </ul>

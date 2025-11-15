@@ -76,13 +76,6 @@ abstract class BaseRenderer
         $attrs = $node['attrs'] ?? [];
         $children = $node['children'] ?? [];
         
-        // Debug logging
-        if ($tagName === 'for') {
-            error_log("DiSyL renderTag called for 'for' tag");
-            error_log("  Attrs: " . print_r($attrs, true));
-            error_log("  Children count: " . count($children));
-        }
-        
         // Evaluate expressions in attribute values
         $attrs = $this->evaluateAttributes($attrs);
         
@@ -94,7 +87,6 @@ abstract class BaseRenderer
         // Try to call component-specific method
         $method = 'render' . $this->toPascalCase($tagName);
         if (method_exists($this, $method)) {
-            error_log("DiSyL calling method: $method");
             return $this->$method($node, $attrs, $children);
         }
         

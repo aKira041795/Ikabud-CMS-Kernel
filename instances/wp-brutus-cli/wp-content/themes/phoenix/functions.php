@@ -182,11 +182,6 @@ function phoenix_disyl_render($template) {
         // Build context
         $context = phoenix_build_context();
         
-        // Debug: Log full AST
-        $ast_json = json_encode($ast, JSON_PRETTY_PRINT);
-        error_log("DiSyL Full AST:");
-        error_log(substr($ast_json, 0, 3000)); // First 3000 chars
-        
         // Render
         $html = $renderer->render($compiled, $context);
         
@@ -317,23 +312,49 @@ function phoenix_get_menu_items($location) {
         return phoenix_get_fallback_menu($location);
     }
     
-    // Return ALL items as flat array (no hierarchy for now)
-    $items = array();
+    // Build hierarchical menu structure properly
+    return phoenix_build_menu_tree($menu_items, 0);
+}
+
+/**
+ * Build hierarchical menu tree recursively
+ * CMS-agnostic approach using pure value copying (no references)
+ */
+function phoenix_build_menu_tree($menu_items, $parent_id = 0) {
+    $branch = array();
     
     foreach ($menu_items as $item) {
-        $items[] = array(
-            'id' => $item->ID,
-            'title' => $item->title,
-            'url' => $item->url,
-            'target' => $item->target,
-            'classes' => implode(' ', $item->classes),
-            'active' => ($item->url === home_url($_SERVER['REQUEST_URI'])),
-            'parent_id' => $item->menu_item_parent,
-            'order' => $item->menu_order,
-        );
+        // WordPress stores parent as string, convert for comparison
+        $item_parent = (int)$item->menu_item_parent;
+        
+        if ($item_parent == $parent_id) {
+            // Create menu item array
+            $menu_item = array(
+                'id' => $item->ID,
+                'title' => $item->title,
+                'url' => $item->url,
+                'target' => $item->target,
+                'classes' => implode(' ', $item->classes),
+                'active' => ($item->url === home_url($_SERVER['REQUEST_URI'])),
+                'parent_id' => $item->menu_item_parent,
+                'order' => $item->menu_order,
+            );
+            
+            // Recursively get children
+            $children = phoenix_build_menu_tree($menu_items, $item->ID);
+            
+            // Only add children array if there are children
+            if (!empty($children)) {
+                $menu_item['children'] = $children;
+            } else {
+                $menu_item['children'] = array();
+            }
+            
+            $branch[] = $menu_item;
+        }
     }
     
-    return $items;
+    return $branch;
 }
 
 /**
