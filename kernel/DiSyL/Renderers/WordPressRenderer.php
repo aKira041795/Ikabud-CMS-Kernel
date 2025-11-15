@@ -341,6 +341,19 @@ class WordPressRenderer extends ManifestDrivenRenderer
         if ($limit == 1 && function_exists('is_singular') && is_singular()) {
             global $wp_query;
             $query = $wp_query;
+        }
+        // Special case: On category/tag/archive pages, use main query to respect filtering
+        elseif (function_exists('is_category') && is_category() && !$category) {
+            global $wp_query;
+            $query = $wp_query;
+        }
+        elseif (function_exists('is_tag') && is_tag() && !$category) {
+            global $wp_query;
+            $query = $wp_query;
+        }
+        elseif (function_exists('is_archive') && is_archive() && !$category) {
+            global $wp_query;
+            $query = $wp_query;
         } else {
             // Build WP_Query args
             $args = [

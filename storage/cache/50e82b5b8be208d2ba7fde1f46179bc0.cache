@@ -1,4 +1,4 @@
-a:6:{s:7:"headers";a:9:{i:0;s:27:"X-Frame-Options: SAMEORIGIN";i:1;s:31:"X-Content-Type-Options: nosniff";i:2;s:31:"X-XSS-Protection: 1; mode=block";i:3;s:341:"Content-Security-Policy: default-src 'self' https: http:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https: http: blob:; style-src 'self' 'unsafe-inline' https: http:; img-src 'self' data: https: http:; font-src 'self' data: https: http:; connect-src 'self' https: http: wss: ws:; frame-src 'self' https: http:; worker-src 'self' blob:;";i:4;s:48:"Referrer-Policy: strict-origin-when-cross-origin";i:5;s:60:"Permissions-Policy: geolocation=(), microphone=(), camera=()";i:6;s:38:"Content-Type: text/html; charset=UTF-8";i:7;s:61:"Link: <http://brutus.test/wp-json/>; rel="https://api.w.org/"";i:8;s:109:"Link: <http://brutus.test/wp-json/wp/v2/categories/5>; rel="alternate"; title="JSON"; type="application/json"";}s:4:"body";s:21486:"
+a:6:{s:7:"headers";a:9:{i:0;s:27:"X-Frame-Options: SAMEORIGIN";i:1;s:31:"X-Content-Type-Options: nosniff";i:2;s:31:"X-XSS-Protection: 1; mode=block";i:3;s:341:"Content-Security-Policy: default-src 'self' https: http:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https: http: blob:; style-src 'self' 'unsafe-inline' https: http:; img-src 'self' data: https: http:; font-src 'self' data: https: http:; connect-src 'self' https: http: wss: ws:; frame-src 'self' https: http:; worker-src 'self' blob:;";i:4;s:48:"Referrer-Policy: strict-origin-when-cross-origin";i:5;s:60:"Permissions-Policy: geolocation=(), microphone=(), camera=()";i:6;s:38:"Content-Type: text/html; charset=UTF-8";i:7;s:61:"Link: <http://brutus.test/wp-json/>; rel="https://api.w.org/"";i:8;s:109:"Link: <http://brutus.test/wp-json/wp/v2/categories/5>; rel="alternate"; title="JSON"; type="application/json"";}s:4:"body";s:32180:"
 <!DOCTYPE html>
 <html lang="en-US">
 <head>
@@ -252,6 +252,156 @@ a:6:{s:7:"headers";a:9:{i:0;s:27:"X-Frame-Options: SAMEORIGIN";i:1;s:31:"X-Conte
                 
                 <div class="post-grid">
                     
+                        <article class="post-card reveal">
+                            
+                            
+                            <div class="post-content">
+                                
+                                <div class="post-meta">
+                                    <span class="post-date">Jan 1, 1970</span>
+                                    <span class="separator">•</span>
+                                    <span class="post-author">brutus</span>
+                                </div>
+                                
+                                
+                                <div class="ikb-text ikb-text-xl font-semibold post-title">
+                                    <a href="http://brutus.test/2024/05/14/perms-are-coming-back-but-theyre-getting-a-modern-makeover/">Perms Are Coming Back—but Getting a Modern</a>
+                                </div>
+                                
+                                
+                                <div class="ikb-text post-excerpt">
+                                    ...
+                                </div>
+                                
+                                
+                                <div class="post-footer">
+                                    <a href="http://brutus.test/2024/05/14/perms-are-coming-back-but-theyre-getting-a-modern-makeover/" class="read-more">
+                                        Read More →
+                                    </a>
+                                </div>
+                            </div>
+                        </article>
+                    
+                        <article class="post-card reveal">
+                            
+                            
+                            <div class="post-content">
+                                
+                                <div class="post-meta">
+                                    <span class="post-date">Jan 1, 1970</span>
+                                    <span class="separator">•</span>
+                                    <span class="post-author">brutus</span>
+                                </div>
+                                
+                                
+                                <div class="ikb-text ikb-text-xl font-semibold post-title">
+                                    <a href="http://brutus.test/2024/05/14/gisele-bundchen-cant-stop-wearing-these-retro-jeans-to-the-airport/">Gisele Bündchen Can’t Stop Wearing Retro Jeans</a>
+                                </div>
+                                
+                                
+                                <div class="ikb-text post-excerpt">
+                                    ...
+                                </div>
+                                
+                                
+                                <div class="post-footer">
+                                    <a href="http://brutus.test/2024/05/14/gisele-bundchen-cant-stop-wearing-these-retro-jeans-to-the-airport/" class="read-more">
+                                        Read More →
+                                    </a>
+                                </div>
+                            </div>
+                        </article>
+                    
+                        <article class="post-card reveal">
+                            
+                            
+                            <div class="post-content">
+                                
+                                <div class="post-meta">
+                                    <span class="post-date">Jan 1, 1970</span>
+                                    <span class="separator">•</span>
+                                    <span class="post-author">brutus</span>
+                                </div>
+                                
+                                
+                                <div class="ikb-text ikb-text-xl font-semibold post-title">
+                                    <a href="http://brutus.test/2024/05/14/finlands-downs-model-maija-mattila-makes-strides-on-catwalk/">Finland&#8217;s Down&#8217;s model Maija makes strides on catwalk</a>
+                                </div>
+                                
+                                
+                                <div class="ikb-text post-excerpt">
+                                    ...
+                                </div>
+                                
+                                
+                                <div class="post-footer">
+                                    <a href="http://brutus.test/2024/05/14/finlands-downs-model-maija-mattila-makes-strides-on-catwalk/" class="read-more">
+                                        Read More →
+                                    </a>
+                                </div>
+                            </div>
+                        </article>
+                    
+                        <article class="post-card reveal">
+                            
+                            
+                            <div class="post-content">
+                                
+                                <div class="post-meta">
+                                    <span class="post-date">Jan 1, 1970</span>
+                                    <span class="separator">•</span>
+                                    <span class="post-author">brutus</span>
+                                </div>
+                                
+                                
+                                <div class="ikb-text ikb-text-xl font-semibold post-title">
+                                    <a href="http://brutus.test/2024/05/14/meet-jo-jo-body-positive-model-and-cousin-of-gigi-and-bella/">Meet Jo Jo, Body Positive Model and Cousin of Gigi</a>
+                                </div>
+                                
+                                
+                                <div class="ikb-text post-excerpt">
+                                    ...
+                                </div>
+                                
+                                
+                                <div class="post-footer">
+                                    <a href="http://brutus.test/2024/05/14/meet-jo-jo-body-positive-model-and-cousin-of-gigi-and-bella/" class="read-more">
+                                        Read More →
+                                    </a>
+                                </div>
+                            </div>
+                        </article>
+                    
+                        <article class="post-card reveal">
+                            
+                            
+                            <div class="post-content">
+                                
+                                <div class="post-meta">
+                                    <span class="post-date">Jan 1, 1970</span>
+                                    <span class="separator">•</span>
+                                    <span class="post-author">brutus</span>
+                                </div>
+                                
+                                
+                                <div class="ikb-text ikb-text-xl font-semibold post-title">
+                                    <a href="http://brutus.test/2024/05/14/valentino-goes-deliberately-feminine-for-fall-2018/">Valentino Goes Deliberately Feminine for Fall 2018</a>
+                                </div>
+                                
+                                
+                                <div class="ikb-text post-excerpt">
+                                    ...
+                                </div>
+                                
+                                
+                                <div class="post-footer">
+                                    <a href="http://brutus.test/2024/05/14/valentino-goes-deliberately-feminine-for-fall-2018/" class="read-more">
+                                        Read More →
+                                    </a>
+                                </div>
+                            </div>
+                        </article>
+                    
                 </div>
                 
                 
@@ -278,27 +428,6 @@ a:6:{s:7:"headers";a:9:{i:0;s:27:"X-Frame-Options: SAMEORIGIN";i:1;s:31:"X-Conte
         <ul>
             
                 <li>
-                    <a href="http://brutus.test/2025/11/10/hello-world/">
-                        <span>Hello world!</span>
-                        <span class="post-date">Nov 14</span>
-                    </a>
-                </li>
-            
-                <li>
-                    <a href="http://brutus.test/2024/05/14/this-new-aerie-collection-was-designed-by-aly-raisman-and-iskra-lawrence/">
-                        <span>Aerie Collection&#8217;s Originally By Iskra</span>
-                        <span class="post-date">Nov 14</span>
-                    </a>
-                </li>
-            
-                <li>
-                    <a href="http://brutus.test/2024/05/14/dont-call-demi-lovato-a-bad-girl-shes-just-speaking-out/">
-                        <span>Don’t Call Demi A “Bad Girl” — Speaking Out</span>
-                        <span class="post-date">Nov 14</span>
-                    </a>
-                </li>
-            
-                <li>
                     <a href="http://brutus.test/2024/05/14/perms-are-coming-back-but-theyre-getting-a-modern-makeover/">
                         <span>Perms Are Coming Back—but Getting a Modern</span>
                         <span class="post-date">Nov 14</span>
@@ -308,6 +437,27 @@ a:6:{s:7:"headers";a:9:{i:0;s:27:"X-Frame-Options: SAMEORIGIN";i:1;s:31:"X-Conte
                 <li>
                     <a href="http://brutus.test/2024/05/14/gisele-bundchen-cant-stop-wearing-these-retro-jeans-to-the-airport/">
                         <span>Gisele Bündchen Can’t Stop Wearing Retro Jeans</span>
+                        <span class="post-date">Nov 14</span>
+                    </a>
+                </li>
+            
+                <li>
+                    <a href="http://brutus.test/2024/05/14/finlands-downs-model-maija-mattila-makes-strides-on-catwalk/">
+                        <span>Finland&#8217;s Down&#8217;s model Maija makes strides on catwalk</span>
+                        <span class="post-date">Nov 14</span>
+                    </a>
+                </li>
+            
+                <li>
+                    <a href="http://brutus.test/2024/05/14/meet-jo-jo-body-positive-model-and-cousin-of-gigi-and-bella/">
+                        <span>Meet Jo Jo, Body Positive Model and Cousin of Gigi</span>
+                        <span class="post-date">Nov 14</span>
+                    </a>
+                </li>
+            
+                <li>
+                    <a href="http://brutus.test/2024/05/14/valentino-goes-deliberately-feminine-for-fall-2018/">
+                        <span>Valentino Goes Deliberately Feminine for Fall 2018</span>
                         <span class="post-date">Nov 14</span>
                     </a>
                 </li>
@@ -322,6 +472,41 @@ a:6:{s:7:"headers";a:9:{i:0;s:27:"X-Frame-Options: SAMEORIGIN";i:1;s:31:"X-Conte
         </div>
         <ul>
             
+                <li>
+                    <a href="http://brutus.test/2024/05/14/perms-are-coming-back-but-theyre-getting-a-modern-makeover/">
+                        <span></span>
+                        <span class="category-count">()</span>
+                    </a>
+                </li>
+            
+                <li>
+                    <a href="http://brutus.test/2024/05/14/gisele-bundchen-cant-stop-wearing-these-retro-jeans-to-the-airport/">
+                        <span></span>
+                        <span class="category-count">()</span>
+                    </a>
+                </li>
+            
+                <li>
+                    <a href="http://brutus.test/2024/05/14/finlands-downs-model-maija-mattila-makes-strides-on-catwalk/">
+                        <span></span>
+                        <span class="category-count">()</span>
+                    </a>
+                </li>
+            
+                <li>
+                    <a href="http://brutus.test/2024/05/14/meet-jo-jo-body-positive-model-and-cousin-of-gigi-and-bella/">
+                        <span></span>
+                        <span class="category-count">()</span>
+                    </a>
+                </li>
+            
+                <li>
+                    <a href="http://brutus.test/2024/05/14/valentino-goes-deliberately-feminine-for-fall-2018/">
+                        <span></span>
+                        <span class="category-count">()</span>
+                    </a>
+                </li>
+            
         </ul>
     </div>
     
@@ -331,6 +516,26 @@ a:6:{s:7:"headers";a:9:{i:0;s:27:"X-Frame-Options: SAMEORIGIN";i:1;s:31:"X-Conte
             Popular Tags
         </div>
         <div class="tag-cloud">
+            
+                <a href="http://brutus.test/2024/05/14/perms-are-coming-back-but-theyre-getting-a-modern-makeover/" class="tag">
+                    
+                </a>
+            
+                <a href="http://brutus.test/2024/05/14/gisele-bundchen-cant-stop-wearing-these-retro-jeans-to-the-airport/" class="tag">
+                    
+                </a>
+            
+                <a href="http://brutus.test/2024/05/14/finlands-downs-model-maija-mattila-makes-strides-on-catwalk/" class="tag">
+                    
+                </a>
+            
+                <a href="http://brutus.test/2024/05/14/meet-jo-jo-body-positive-model-and-cousin-of-gigi-and-bella/" class="tag">
+                    
+                </a>
+            
+                <a href="http://brutus.test/2024/05/14/valentino-goes-deliberately-feminine-for-fall-2018/" class="tag">
+                    
+                </a>
             
         </div>
     </div>
@@ -453,4 +658,4 @@ a:6:{s:7:"headers";a:9:{i:0;s:27:"X-Frame-Options: SAMEORIGIN";i:1;s:31:"X-Conte
 <script src="http://brutus.test/wp-content/themes/phoenix/assets/js/phoenix.js"></script>
 </body>
 </html>
-";s:9:"timestamp";i:1763190038;s:8:"cms_type";s:9:"wordpress";s:17:"extensions_loaded";a:0:{}s:15:"extension_count";i:0;}
+";s:9:"timestamp";i:1763190250;s:8:"cms_type";s:9:"wordpress";s:17:"extensions_loaded";a:0:{}s:15:"extension_count";i:0;}

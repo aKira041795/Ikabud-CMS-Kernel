@@ -89,7 +89,7 @@
                 
                 {!-- Posts Grid --}
                 <div class="post-grid">
-                    {ikb_query type="post" limit=12 category="{category.id}"}
+                    {ikb_query type="post" limit=12}
                         <article class="post-card reveal">
                             {!-- Featured Image --}
                             {if condition="item.thumbnail"}
