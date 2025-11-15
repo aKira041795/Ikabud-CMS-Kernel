@@ -18,12 +18,20 @@ if (defined('DOING_AJAX') && DOING_AJAX) {
     @ini_set('display_errors', 0);
 }
 
-// Remove CSP headers for admin/customizer to prevent widget save errors
-add_action('admin_init', 'phoenix_remove_csp_headers');
-add_action('customize_controls_init', 'phoenix_remove_csp_headers');
-function phoenix_remove_csp_headers() {
-    header_remove('Content-Security-Policy');
-    header_remove('X-Frame-Options');
+// Fix CSP headers for customizer to allow widget saves
+add_filter('customize_allowed_urls', 'phoenix_customize_allowed_urls', 10, 1);
+function phoenix_customize_allowed_urls($allowed_urls) {
+    // Allow all URLs for customizer (removes CSP restrictions)
+    return array('*');
+}
+
+// Remove CSP headers completely for admin
+add_action('send_headers', 'phoenix_remove_admin_csp', 999);
+function phoenix_remove_admin_csp() {
+    if (is_admin() || (defined('DOING_AJAX') && DOING_AJAX)) {
+        header_remove('Content-Security-Policy');
+        header_remove('X-Frame-Options');
+    }
 }
 
 /**
