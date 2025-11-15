@@ -221,6 +221,12 @@ function phoenix_build_context() {
             'footer' => phoenix_get_menu_items('footer'),
             'social' => phoenix_get_menu_items('social'),
         ),
+        'widgets' => array(
+            'footer_1' => phoenix_get_widget_area('footer-1'),
+            'footer_2' => phoenix_get_widget_area('footer-2'),
+            'footer_3' => phoenix_get_widget_area('footer-3'),
+            'footer_4' => phoenix_get_widget_area('footer-4'),
+        ),
         'user' => array(
             'logged_in' => is_user_logged_in(),
             'id' => get_current_user_id(),
@@ -648,7 +654,29 @@ add_action('wp_ajax_phoenix_load_more', 'phoenix_load_more_posts');
 add_action('wp_ajax_nopriv_phoenix_load_more', 'phoenix_load_more_posts');
 
 /**
- * Customizer Settings
+ * Get widget area content
+ */
+function phoenix_get_widget_area($sidebar_id) {
+    if (!is_active_sidebar($sidebar_id)) {
+        return array(
+            'active' => false,
+            'content' => ''
+        );
+    }
+    
+    // Capture widget output
+    ob_start();
+    dynamic_sidebar($sidebar_id);
+    $content = ob_get_clean();
+    
+    return array(
+        'active' => true,
+        'content' => $content
+    );
+}
+
+/**
+ * Customizer additions
  */
 function phoenix_customize_register($wp_customize) {
     // Hero Section

@@ -20,9 +20,6 @@
                 
                 {!-- Category Meta --}
                 <div class="category-meta">
-                    <span class="category-count">
-                        {category.count} {if condition="category.count == 1"}Post{/if}{if condition="category.count != 1"}Posts{/if}
-                    </span>
                     
                     {!-- Parent Category Breadcrumb --}
                     {if condition="category.parent"}
@@ -75,18 +72,7 @@
     <div class="ikb-container ikb-container-xlarge">
         <div class="archive-layout">
             {!-- Posts Grid --}
-            <div>
-                {!-- Filter Bar --}
-                <div class="filter-bar">
-                    <div class="ikb-text ikb-text-lg font-semibold">
-                        Latest Posts
-                    </div>
-                    
-                    <div class="filter-actions">
-                        <span class="post-count">{category.count} total</span>
-                    </div>
-                </div>
-                
+            <div>                
                 {!-- Posts Grid --}
                 <div class="post-grid">
                     {ikb_query type="post" limit=12}
