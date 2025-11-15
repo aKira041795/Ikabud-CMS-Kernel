@@ -424,15 +424,16 @@ class WordPressRenderer extends ManifestDrivenRenderer
                 $query->the_post();
                 
                 // Get thumbnail with fallback sizes
-                $thumbnail = get_the_post_thumbnail_url('large');
+                $post_id = get_the_ID();
+                $thumbnail = get_the_post_thumbnail_url($post_id, 'large');
                 if (!$thumbnail) {
-                    $thumbnail = get_the_post_thumbnail_url('medium');
+                    $thumbnail = get_the_post_thumbnail_url($post_id, 'medium');
                 }
                 if (!$thumbnail) {
-                    $thumbnail = get_the_post_thumbnail_url('thumbnail');
+                    $thumbnail = get_the_post_thumbnail_url($post_id, 'thumbnail');
                 }
                 if (!$thumbnail) {
-                    $thumbnail = get_the_post_thumbnail_url('full');
+                    $thumbnail = get_the_post_thumbnail_url($post_id, 'full');
                 }
                 
                 // Set item context with WordPress post data
