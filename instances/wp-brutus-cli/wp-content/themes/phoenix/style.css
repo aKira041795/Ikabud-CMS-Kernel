@@ -235,12 +235,19 @@ img {
     gap: var(--space-lg);
 }
 
+.main-nav > ul > li {
+    position: relative;
+}
+
 .main-nav a {
     font-weight: 500;
     color: var(--color-dark);
     padding: var(--space-xs) var(--space-sm);
     border-radius: var(--radius-md);
     transition: all var(--transition-base);
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
 }
 
 .main-nav a:hover,
@@ -248,6 +255,51 @@ img {
     background: var(--gradient-primary);
     color: var(--color-white);
     transform: translateY(-2px);
+}
+
+/* Submenu Styles */
+.main-nav .submenu {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    min-width: 200px;
+    background: var(--color-white);
+    box-shadow: var(--shadow-lg);
+    border-radius: var(--radius-md);
+    padding: var(--space-sm);
+    display: none;
+    flex-direction: column;
+    gap: 0;
+    z-index: 1000;
+}
+
+.main-nav .has-submenu:hover .submenu {
+    display: flex;
+}
+
+.main-nav .submenu li {
+    width: 100%;
+}
+
+.main-nav .submenu a {
+    width: 100%;
+    padding: var(--space-sm) var(--space-md);
+    border-radius: var(--radius-sm);
+}
+
+.main-nav .submenu a:hover {
+    background: var(--color-light);
+    color: var(--color-primary);
+    transform: translateX(4px);
+}
+
+.submenu-arrow {
+    font-size: 0.7em;
+    transition: transform var(--transition-base);
+}
+
+.has-submenu:hover .submenu-arrow {
+    transform: rotate(180deg);
 }
 
 /* Mobile Menu Toggle */
@@ -276,6 +328,7 @@ img {
         box-shadow: var(--shadow-xl);
         transition: right var(--transition-slow);
         padding: var(--space-3xl) var(--space-lg);
+        overflow-y: auto;
     }
     
     .main-nav.active {
@@ -285,6 +338,28 @@ img {
     .main-nav ul {
         flex-direction: column;
         gap: var(--space-md);
+    }
+    
+    /* Mobile submenu styles */
+    .main-nav .submenu {
+        position: static;
+        display: none;
+        padding-left: var(--space-lg);
+        margin-top: var(--space-xs);
+        box-shadow: none;
+        background: transparent;
+    }
+    
+    .main-nav .has-submenu:hover .submenu {
+        display: none; /* Disable hover on mobile */
+    }
+    
+    .main-nav .has-submenu.active .submenu {
+        display: flex;
+    }
+    
+    .submenu-arrow {
+        margin-left: auto;
     }
 }
 

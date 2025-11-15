@@ -28,10 +28,24 @@
         <nav class="main-nav" role="navigation" aria-label="Primary navigation">
             <ul>
                 {for items="menu.primary" as="item"}
-                    <li class="{item.classes}">
+                    <li class="{item.classes} {if condition="item.children"}has-submenu{/if}">
                         <a href="{item.url | esc_url}">
                             {item.title | esc_html}
+                            {if condition="item.children"}
+                                <span class="submenu-arrow">▼</span>
+                            {/if}
                         </a>
+                        {if condition="item.children"}
+                            <ul class="submenu">
+                                {for items="item.children" as="child"}
+                                    <li class="{child.classes}">
+                                        <a href="{child.url | esc_url}">
+                                            {child.title | esc_html}
+                                        </a>
+                                    </li>
+                                {/for}
+                            </ul>
+                        {/if}
                     </li>
                 {/for}
             </ul>

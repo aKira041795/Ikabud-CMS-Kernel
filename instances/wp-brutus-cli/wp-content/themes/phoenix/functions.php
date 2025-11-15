@@ -313,9 +313,11 @@ function phoenix_get_menu_items($location) {
     }
     
     $items = array();
+    $menu_tree = array();
     
+    // First pass: create all items
     foreach ($menu_items as $item) {
-        $items[] = array(
+        $items[$item->ID] = array(
             'id' => $item->ID,
             'title' => $item->title,
             'url' => $item->url,
@@ -324,10 +326,24 @@ function phoenix_get_menu_items($location) {
             'active' => ($item->url === home_url($_SERVER['REQUEST_URI'])),
             'parent_id' => $item->menu_item_parent,
             'order' => $item->menu_order,
+            'children' => array(),
         );
     }
     
-    return $items;
+    // Second pass: build tree structure
+    foreach ($items as $id => $item) {
+        if ($item['parent_id'] == 0) {
+            // Top-level item
+            $menu_tree[] = &$items[$id];
+        } else {
+            // Child item - add to parent's children
+            if (isset($items[$item['parent_id']])) {
+                $items[$item['parent_id']]['children'][] = &$items[$id];
+            }
+        }
+    }
+    
+    return $menu_tree;
 }
 
 /**
