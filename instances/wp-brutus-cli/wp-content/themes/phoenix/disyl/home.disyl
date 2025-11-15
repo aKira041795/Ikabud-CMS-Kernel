@@ -1,19 +1,6 @@
 {!-- Phoenix Theme - Homepage Template --}
 {include file="components/header.disyl"}
 
-{!-- Featured Slider Section --}
-{ikb_section type="slider" class="section-gradient" padding="xlarge"}
-    {ikb_container size="xlarge"}
-        <div class="section-header reveal">
-            {ikb_text size="3xl" weight="bold" class="section-title"}
-                Featured Content
-            {/ikb_text}
-        </div>
-        
-        {include file="components/slider.disyl"}
-    {/ikb_container}
-{/ikb_section}
-
 {!-- Hero Section with Animated Gradient (Only show when no hero widget) --}
 {if condition="!widgets.homepage_hero.active"}
 {ikb_section type="hero" class="hero-section" padding="none"}
@@ -139,6 +126,19 @@
 {if condition="widgets.homepage_features.active"}
     {widgets.homepage_features.content | raw}
 {/if}
+
+{!-- Featured Slider Section --}
+{ikb_section type="slider" class="section-gradient" padding="xlarge"}
+    {ikb_container size="xlarge"}
+        <div class="section-header reveal">
+            {ikb_text size="3xl" weight="bold" class="section-title"}
+                Featured Content
+            {/ikb_text}
+        </div>
+        
+        {include file="components/slider.disyl"}
+    {/ikb_container}
+{/ikb_section}
 
 {!-- Latest Blog Posts --}
 {ikb_section type="blog" id="blog" padding="xlarge"}
