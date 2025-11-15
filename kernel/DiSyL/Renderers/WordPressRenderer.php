@@ -602,6 +602,9 @@ class WordPressRenderer extends ManifestDrivenRenderer
      */
     private function evaluateCondition(string $condition): bool
     {
+        // Debug logging
+        error_log("DiSyL Condition: $condition");
+        
         // Check for WordPress conditional tags (simple function calls)
         if (function_exists($condition) && strpos($condition, ' ') === false) {
             return call_user_func($condition);
@@ -657,7 +660,12 @@ class WordPressRenderer extends ManifestDrivenRenderer
         
         // Simple evaluation (truthy check)
         $value = $this->evaluateExpression($condition);
-        return (bool)$value;
+        $result = (bool)$value;
+        
+        // Debug logging
+        error_log("DiSyL Condition Value: " . var_export($value, true) . " | Result: " . ($result ? 'TRUE' : 'FALSE'));
+        
+        return $result;
     }
     
     /**

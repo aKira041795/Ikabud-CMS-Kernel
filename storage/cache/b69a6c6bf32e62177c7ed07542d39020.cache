@@ -1,0 +1,795 @@
+a:6:{s:7:"headers";a:8:{i:0;s:27:"X-Frame-Options: SAMEORIGIN";i:1;s:31:"X-Content-Type-Options: nosniff";i:2;s:31:"X-XSS-Protection: 1; mode=block";i:3;s:408:"Content-Security-Policy: default-src 'self' https: http:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https: http: blob:; style-src 'self' 'unsafe-inline' https: http:; img-src 'self' data: https: http:; font-src 'self' data: https: http:; connect-src 'self' https: http: wss: ws:; frame-src 'self' https: http:; frame-ancestors 'self' http://*.brutus.test https://*.brutus.test; worker-src 'self' blob:;";i:4;s:48:"Referrer-Policy: strict-origin-when-cross-origin";i:5;s:60:"Permissions-Policy: geolocation=(), microphone=(), camera=()";i:6;s:38:"Content-Type: text/html; charset=UTF-8";i:7;s:61:"Link: <http://brutus.test/wp-json/>; rel="https://api.w.org/"";}s:4:"body";s:40162:"
+<!DOCTYPE html>
+<html lang="en-US">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <title>Brutus Cli</title>
+    <link rel="stylesheet" href="http://brutus.test/wp-content/themes/phoenix/style.css">
+</head>
+<body>
+
+<header class="site-header">
+    <div class="header-container">
+        
+        <div class="site-branding">
+            <a href="http://brutus.test" class="site-logo">
+                Phoenix
+            </a>
+        </div>
+        
+        
+        <button class="menu-toggle" aria-label="Toggle navigation" aria-expanded="false">
+            ☰
+        </button>
+        
+        
+        <nav class="main-nav" role="navigation" aria-label="Primary navigation">
+            <ul>
+                
+                    <li class="">
+                        <a href="https://demos.afthemes.com/morenews/classic">
+                            Home
+                        </a>
+                        
+                    </li>
+                
+                    <li class="">
+                        <a href="http://brutus.test/blog/">
+                            Blog
+                        </a>
+                        
+                    </li>
+                
+                    <li class=" has-submenu">
+                        <a href="http://brutus.test/category/beauty/">
+                            Beauty
+                        </a>
+                        
+                            <ul class="submenu">
+                                
+                                    <li class="">
+                                        <a href="http://brutus.test/category/model/">
+                                            Model
+                                        </a>
+                                    </li>
+                                
+                                    <li class="">
+                                        <a href="http://brutus.test/category/trends/">
+                                            Trends
+                                        </a>
+                                    </li>
+                                
+                            </ul>
+                        
+                    </li>
+                
+                    <li class="">
+                        <a href="http://brutus.test/category/photography/">
+                            Photography
+                        </a>
+                        
+                    </li>
+                
+                    <li class=" has-submenu">
+                        <a href="https://afthemes.com/products/morenews/#aft-view-starter-sites">
+                            All Demos
+                        </a>
+                        
+                            <ul class="submenu">
+                                
+                                    <li class="">
+                                        <a href="https://demos.afthemes.com/morenews/">
+                                            Morenews
+                                        </a>
+                                    </li>
+                                
+                                    <li class="">
+                                        <a href="https://demos.afthemes.com/morenews/sport/">
+                                            Sport
+                                        </a>
+                                    </li>
+                                
+                                    <li class="">
+                                        <a href="https://demos.afthemes.com/morenews/fashion/">
+                                            Fashion
+                                        </a>
+                                    </li>
+                                
+                                    <li class="">
+                                        <a href="https://demos.afthemes.com/morenews/classic/">
+                                            Classic
+                                        </a>
+                                    </li>
+                                
+                                    <li class="">
+                                        <a href="https://demos.afthemes.com/morenews/food-recipe/">
+                                            Food Recipe
+                                        </a>
+                                    </li>
+                                
+                                    <li class="">
+                                        <a href="https://demos.afthemes.com/morenews/travel/">
+                                            Travel
+                                        </a>
+                                    </li>
+                                
+                                    <li class="">
+                                        <a href="https://demos.afthemes.com/morenews/real-estate/">
+                                            Real Estate
+                                        </a>
+                                    </li>
+                                
+                                    <li class="">
+                                        <a href="https://demos.afthemes.com/morenews/local-business/">
+                                            Local Business
+                                        </a>
+                                    </li>
+                                
+                                    <li class="">
+                                        <a href="https://demos.afthemes.com/morenews/beauty-studio/">
+                                            Beauty Studio
+                                        </a>
+                                    </li>
+                                
+                                    <li class="">
+                                        <a href="https://demos.afthemes.com/morenews/architecture-blog/">
+                                            Architecture Blog
+                                        </a>
+                                    </li>
+                                
+                                    <li class="">
+                                        <a href="https://demos.afthemes.com/morenews/esports/">
+                                            Esports
+                                        </a>
+                                    </li>
+                                
+                                    <li class="">
+                                        <a href="https://demos.afthemes.com/morenews/crypto-news/">
+                                            Crypto News
+                                        </a>
+                                    </li>
+                                
+                                    <li class="">
+                                        <a href="https://demos.afthemes.com/morenews/arabic-news/">
+                                            Arabic News
+                                        </a>
+                                    </li>
+                                
+                                    <li class="">
+                                        <a href="https://demos.afthemes.com/morenews/china-today/">
+                                            China Today
+                                        </a>
+                                    </li>
+                                
+                            </ul>
+                        
+                    </li>
+                
+                    <li class=" has-submenu">
+                        <a href="https://docs.afthemes.com/morenews/">
+                            Docs
+                        </a>
+                        
+                            <ul class="submenu">
+                                
+                                    <li class="">
+                                        <a href="https://afthemes.com/blog/">
+                                            Blog
+                                        </a>
+                                    </li>
+                                
+                                    <li class="">
+                                        <a href="https://www.youtube.com/watch?v=Z5MdDCRhxz4&#038;list=PL8nUD79gscmgfXEtuVz1as47b6RcSXPr6">
+                                            Youtube
+                                        </a>
+                                    </li>
+                                
+                                    <li class="">
+                                        <a href="https://www.youtube.com/@gowithwp">
+                                            Podcast
+                                        </a>
+                                    </li>
+                                
+                            </ul>
+                        
+                    </li>
+                
+                    <li class="">
+                        <a href="https://afthemes.com/products/morenews-pro/">
+                            Upgrade
+                        </a>
+                        
+                    </li>
+                
+            </ul>
+        </nav>
+    </div>
+</header>
+
+<main class="site-content">
+<section><div class="ikb-container ikb-container-lg">
+        <div class="text-center">
+            <div class="ikb-text ikb-text-3xl font-bold text-left">
+                Our Blog
+            </div><div class="ikb-text ikb-text-lg font-normal text-left">
+                Insights, tutorials, and updates from our team
+            </div>
+        </div>
+    </div></section><section><div class="ikb-container ikb-container-lg">
+        <div class="blog-layout">
+            
+            <div>
+                <div class="post-grid">
+                    
+                        <article class="post-card reveal">
+                            
+                            
+                            <div class="post-content">
+                                <div class="post-meta">
+                                    <span>Jan 1, 1970</span>
+                                    <span class="separator">•</span>
+                                    <span>brutus</span>
+                                </div>
+                                
+                                <div class="ikb-text ikb-text-xl font-semibold text-left">
+                                    <a href="http://brutus.test/2025/11/10/hello-world/">Hello world!</a>
+                                </div><div class="ikb-text ikb-text-md font-normal text-left">
+                                    ...
+                                </div>
+                                
+                                <a href="http://brutus.test/2025/11/10/hello-world/" class="read-more">
+                                    Read More →
+                                </a>
+                            </div>
+                        </article>
+                    
+                        <article class="post-card reveal">
+                            
+                                <a href="http://brutus.test/2024/05/14/this-new-aerie-collection-was-designed-by-aly-raisman-and-iskra-lawrence/">
+                                    <img src="http://brutus.test/wp-content/uploads/2018/03/pexels-david-bartus-295884-1024x740.jpg" alt="Aerie Collection&#8217;s Originally By Iskra" loading="lazy" class="ikb-image-responsive">
+                                </a>
+                            
+                            
+                            <div class="post-content">
+                                <div class="post-meta">
+                                    <span>Jan 1, 1970</span>
+                                    <span class="separator">•</span>
+                                    <span>brutus</span>
+                                </div>
+                                
+                                <div class="ikb-text ikb-text-xl font-semibold text-left">
+                                    <a href="http://brutus.test/2024/05/14/this-new-aerie-collection-was-designed-by-aly-raisman-and-iskra-lawrence/">Aerie Collection&#8217;s Originally By Iskra</a>
+                                </div><div class="ikb-text ikb-text-md font-normal text-left">
+                                    ...
+                                </div>
+                                
+                                <a href="http://brutus.test/2024/05/14/this-new-aerie-collection-was-designed-by-aly-raisman-and-iskra-lawrence/" class="read-more">
+                                    Read More →
+                                </a>
+                            </div>
+                        </article>
+                    
+                        <article class="post-card reveal">
+                            
+                                <a href="http://brutus.test/2024/05/14/dont-call-demi-lovato-a-bad-girl-shes-just-speaking-out/">
+                                    <img src="http://brutus.test/wp-content/uploads/2018/03/pexels-cottonbro-7322150-1024x682.jpg" alt="Don’t Call Demi A “Bad Girl” — Speaking Out" loading="lazy" class="ikb-image-responsive">
+                                </a>
+                            
+                            
+                            <div class="post-content">
+                                <div class="post-meta">
+                                    <span>Jan 1, 1970</span>
+                                    <span class="separator">•</span>
+                                    <span>brutus</span>
+                                </div>
+                                
+                                <div class="ikb-text ikb-text-xl font-semibold text-left">
+                                    <a href="http://brutus.test/2024/05/14/dont-call-demi-lovato-a-bad-girl-shes-just-speaking-out/">Don’t Call Demi A “Bad Girl” — Speaking Out</a>
+                                </div><div class="ikb-text ikb-text-md font-normal text-left">
+                                    ...
+                                </div>
+                                
+                                <a href="http://brutus.test/2024/05/14/dont-call-demi-lovato-a-bad-girl-shes-just-speaking-out/" class="read-more">
+                                    Read More →
+                                </a>
+                            </div>
+                        </article>
+                    
+                        <article class="post-card reveal">
+                            
+                                <a href="http://brutus.test/2024/05/14/perms-are-coming-back-but-theyre-getting-a-modern-makeover/">
+                                    <img src="http://brutus.test/wp-content/uploads/2018/03/pexels-ekrulila-4014943-1024x678.jpg" alt="Perms Are Coming Back—but Getting a Modern" loading="lazy" class="ikb-image-responsive">
+                                </a>
+                            
+                            
+                            <div class="post-content">
+                                <div class="post-meta">
+                                    <span>Jan 1, 1970</span>
+                                    <span class="separator">•</span>
+                                    <span>brutus</span>
+                                </div>
+                                
+                                <div class="ikb-text ikb-text-xl font-semibold text-left">
+                                    <a href="http://brutus.test/2024/05/14/perms-are-coming-back-but-theyre-getting-a-modern-makeover/">Perms Are Coming Back—but Getting a Modern</a>
+                                </div><div class="ikb-text ikb-text-md font-normal text-left">
+                                    ...
+                                </div>
+                                
+                                <a href="http://brutus.test/2024/05/14/perms-are-coming-back-but-theyre-getting-a-modern-makeover/" class="read-more">
+                                    Read More →
+                                </a>
+                            </div>
+                        </article>
+                    
+                        <article class="post-card reveal">
+                            
+                                <a href="http://brutus.test/2024/05/14/gisele-bundchen-cant-stop-wearing-these-retro-jeans-to-the-airport/">
+                                    <img src="http://brutus.test/wp-content/uploads/2018/03/pexels-raka-miftah-4335774-1024x640.jpg" alt="Gisele Bündchen Can’t Stop Wearing Retro Jeans" loading="lazy" class="ikb-image-responsive">
+                                </a>
+                            
+                            
+                            <div class="post-content">
+                                <div class="post-meta">
+                                    <span>Jan 1, 1970</span>
+                                    <span class="separator">•</span>
+                                    <span>brutus</span>
+                                </div>
+                                
+                                <div class="ikb-text ikb-text-xl font-semibold text-left">
+                                    <a href="http://brutus.test/2024/05/14/gisele-bundchen-cant-stop-wearing-these-retro-jeans-to-the-airport/">Gisele Bündchen Can’t Stop Wearing Retro Jeans</a>
+                                </div><div class="ikb-text ikb-text-md font-normal text-left">
+                                    ...
+                                </div>
+                                
+                                <a href="http://brutus.test/2024/05/14/gisele-bundchen-cant-stop-wearing-these-retro-jeans-to-the-airport/" class="read-more">
+                                    Read More →
+                                </a>
+                            </div>
+                        </article>
+                    
+                        <article class="post-card reveal">
+                            
+                                <a href="http://brutus.test/2024/05/14/how-to-create-adjustment-layers-based-on-color-in-capture-one-9/">
+                                    <img src="http://brutus.test/wp-content/uploads/2018/03/pexels-alina-vilchenko-3363098-1024x682.jpg" alt="How to Create Adjustment Layers Based on Color" loading="lazy" class="ikb-image-responsive">
+                                </a>
+                            
+                            
+                            <div class="post-content">
+                                <div class="post-meta">
+                                    <span>Jan 1, 1970</span>
+                                    <span class="separator">•</span>
+                                    <span>brutus</span>
+                                </div>
+                                
+                                <div class="ikb-text ikb-text-xl font-semibold text-left">
+                                    <a href="http://brutus.test/2024/05/14/how-to-create-adjustment-layers-based-on-color-in-capture-one-9/">How to Create Adjustment Layers Based on Color</a>
+                                </div><div class="ikb-text ikb-text-md font-normal text-left">
+                                    ...
+                                </div>
+                                
+                                <a href="http://brutus.test/2024/05/14/how-to-create-adjustment-layers-based-on-color-in-capture-one-9/" class="read-more">
+                                    Read More →
+                                </a>
+                            </div>
+                        </article>
+                    
+                        <article class="post-card reveal">
+                            
+                                <a href="http://brutus.test/2024/05/14/finlands-downs-model-maija-mattila-makes-strides-on-catwalk/">
+                                    <img src="http://brutus.test/wp-content/uploads/2018/03/pexels-cottonbro-7319361-1024x682.jpg" alt="Finland&#8217;s Down&#8217;s model Maija makes strides on catwalk" loading="lazy" class="ikb-image-responsive">
+                                </a>
+                            
+                            
+                            <div class="post-content">
+                                <div class="post-meta">
+                                    <span>Jan 1, 1970</span>
+                                    <span class="separator">•</span>
+                                    <span>brutus</span>
+                                </div>
+                                
+                                <div class="ikb-text ikb-text-xl font-semibold text-left">
+                                    <a href="http://brutus.test/2024/05/14/finlands-downs-model-maija-mattila-makes-strides-on-catwalk/">Finland&#8217;s Down&#8217;s model Maija makes strides on catwalk</a>
+                                </div><div class="ikb-text ikb-text-md font-normal text-left">
+                                    ...
+                                </div>
+                                
+                                <a href="http://brutus.test/2024/05/14/finlands-downs-model-maija-mattila-makes-strides-on-catwalk/" class="read-more">
+                                    Read More →
+                                </a>
+                            </div>
+                        </article>
+                    
+                        <article class="post-card reveal">
+                            
+                                <a href="http://brutus.test/2024/05/14/meet-jo-jo-body-positive-model-and-cousin-of-gigi-and-bella/">
+                                    <img src="http://brutus.test/wp-content/uploads/2018/05/pexels-photo-428340-1-1-1-1024x683.jpg" alt="Meet Jo Jo, Body Positive Model and Cousin of Gigi" loading="lazy" class="ikb-image-responsive">
+                                </a>
+                            
+                            
+                            <div class="post-content">
+                                <div class="post-meta">
+                                    <span>Jan 1, 1970</span>
+                                    <span class="separator">•</span>
+                                    <span>brutus</span>
+                                </div>
+                                
+                                <div class="ikb-text ikb-text-xl font-semibold text-left">
+                                    <a href="http://brutus.test/2024/05/14/meet-jo-jo-body-positive-model-and-cousin-of-gigi-and-bella/">Meet Jo Jo, Body Positive Model and Cousin of Gigi</a>
+                                </div><div class="ikb-text ikb-text-md font-normal text-left">
+                                    ...
+                                </div>
+                                
+                                <a href="http://brutus.test/2024/05/14/meet-jo-jo-body-positive-model-and-cousin-of-gigi-and-bella/" class="read-more">
+                                    Read More →
+                                </a>
+                            </div>
+                        </article>
+                    
+                        <article class="post-card reveal">
+                            
+                                <a href="http://brutus.test/2024/05/14/valentino-goes-deliberately-feminine-for-fall-2018/">
+                                    <img src="http://brutus.test/wp-content/uploads/2018/03/pexels-koolshooters-6977378-1024x682.jpg" alt="Valentino Goes Deliberately Feminine for Fall 2018" loading="lazy" class="ikb-image-responsive">
+                                </a>
+                            
+                            
+                            <div class="post-content">
+                                <div class="post-meta">
+                                    <span>Jan 1, 1970</span>
+                                    <span class="separator">•</span>
+                                    <span>brutus</span>
+                                </div>
+                                
+                                <div class="ikb-text ikb-text-xl font-semibold text-left">
+                                    <a href="http://brutus.test/2024/05/14/valentino-goes-deliberately-feminine-for-fall-2018/">Valentino Goes Deliberately Feminine for Fall 2018</a>
+                                </div><div class="ikb-text ikb-text-md font-normal text-left">
+                                    ...
+                                </div>
+                                
+                                <a href="http://brutus.test/2024/05/14/valentino-goes-deliberately-feminine-for-fall-2018/" class="read-more">
+                                    Read More →
+                                </a>
+                            </div>
+                        </article>
+                    
+                </div>
+                
+                
+                <div class="text-center mt-large">
+                    <button class="btn btn-primary load-more-posts">Load More Posts</button>
+                </div>
+            </div>
+            
+            
+<aside class="sidebar widget-area">
+    
+        <div id="recent-comments-2" class="widget widget_recent_comments"><h3 class="widget-title">Views</h3><ul id="recentcomments"><li class="recentcomments"><span class="comment-author-link"><a href="https://wordpress.org/" class="url" rel="ugc external nofollow">A WordPress Commenter</a></span> on <a href="http://brutus.test/2025/11/10/hello-world/#comment-1">Hello world!</a></li></ul></div>
+    
+        <div class="widget">
+            <div class="ikb-text ikb-text-lg font-semibold text-left">
+                Search
+            </div>
+            <form class="search-form" role="search" method="get" action="http://brutus.test">
+                <input type="search" class="search-input" placeholder="Search..." name="s" required>
+                <button type="submit" class="search-submit">Search</button>
+            </form>
+        </div>
+        
+        
+        <div class="widget">
+            <div class="ikb-text ikb-text-lg font-semibold text-left">
+                Recent Posts
+            </div>
+            <ul>
+                
+                    <li>
+                        <a href="http://brutus.test/2025/11/10/hello-world/">
+                            <span>Hello world!</span>
+                            <span class="post-date">Nov 15</span>
+                        </a>
+                    </li>
+                
+                    <li>
+                        <a href="http://brutus.test/2024/05/14/this-new-aerie-collection-was-designed-by-aly-raisman-and-iskra-lawrence/">
+                            <span>Aerie Collection&#8217;s Originally By Iskra</span>
+                            <span class="post-date">Nov 15</span>
+                        </a>
+                    </li>
+                
+                    <li>
+                        <a href="http://brutus.test/2024/05/14/dont-call-demi-lovato-a-bad-girl-shes-just-speaking-out/">
+                            <span>Don’t Call Demi A “Bad Girl” — Speaking Out</span>
+                            <span class="post-date">Nov 15</span>
+                        </a>
+                    </li>
+                
+                    <li>
+                        <a href="http://brutus.test/2024/05/14/perms-are-coming-back-but-theyre-getting-a-modern-makeover/">
+                            <span>Perms Are Coming Back—but Getting a Modern</span>
+                            <span class="post-date">Nov 15</span>
+                        </a>
+                    </li>
+                
+                    <li>
+                        <a href="http://brutus.test/2024/05/14/gisele-bundchen-cant-stop-wearing-these-retro-jeans-to-the-airport/">
+                            <span>Gisele Bündchen Can’t Stop Wearing Retro Jeans</span>
+                            <span class="post-date">Nov 15</span>
+                        </a>
+                    </li>
+                
+            </ul>
+        </div>
+        
+        
+        <div class="widget">
+            <div class="ikb-text ikb-text-lg font-semibold text-left">
+                Categories
+            </div>
+            <ul>
+                
+                    <li>
+                        <a href="http://brutus.test/category/uncategorized/">
+                            <span>Uncategorized</span>
+                            <span class="category-count">(1)</span>
+                        </a>
+                    </li>
+                
+                    <li>
+                        <a href="http://brutus.test/category/trends/">
+                            <span>Trends</span>
+                            <span class="category-count">(4)</span>
+                        </a>
+                    </li>
+                
+                    <li>
+                        <a href="http://brutus.test/category/tips-tricks/">
+                            <span>Tips &amp; Tricks</span>
+                            <span class="category-count">(1)</span>
+                        </a>
+                    </li>
+                
+                    <li>
+                        <a href="http://brutus.test/category/ramp/">
+                            <span>Ramp</span>
+                            <span class="category-count">(1)</span>
+                        </a>
+                    </li>
+                
+                    <li>
+                        <a href="http://brutus.test/category/photography/">
+                            <span>Photography</span>
+                            <span class="category-count">(3)</span>
+                        </a>
+                    </li>
+                
+                    <li>
+                        <a href="http://brutus.test/category/music/">
+                            <span>Music</span>
+                            <span class="category-count">(1)</span>
+                        </a>
+                    </li>
+                
+                    <li>
+                        <a href="http://brutus.test/category/model/">
+                            <span>Model</span>
+                            <span class="category-count">(5)</span>
+                        </a>
+                    </li>
+                
+                    <li>
+                        <a href="http://brutus.test/category/life-style/">
+                            <span>Life style</span>
+                            <span class="category-count">(2)</span>
+                        </a>
+                    </li>
+                
+                    <li>
+                        <a href="http://brutus.test/category/beauty/">
+                            <span>Beauty</span>
+                            <span class="category-count">(4)</span>
+                        </a>
+                    </li>
+                
+                    <li>
+                        <a href="http://brutus.test/category/artist/">
+                            <span>Artist</span>
+                            <span class="category-count">(2)</span>
+                        </a>
+                    </li>
+                
+            </ul>
+        </div>
+        
+        
+        <div class="widget">
+            <div class="ikb-text ikb-text-lg font-semibold text-left">
+                Popular Tags
+            </div>
+            <div class="tag-cloud">
+                
+                    <a href="http://brutus.test/tag/trends/" class="tag">
+                        Trends
+                    </a>
+                
+                    <a href="http://brutus.test/tag/iskra-lawrence/" class="tag">
+                        Iskra Lawrence
+                    </a>
+                
+                    <a href="http://brutus.test/tag/collection/" class="tag">
+                        Collection
+                    </a>
+                
+                    <a href="http://brutus.test/tag/beauty/" class="tag">
+                        Beauty
+                    </a>
+                
+            </div>
+        </div>
+        
+        
+        <div class="widget">
+            <div class="ikb-text ikb-text-lg font-semibold text-left">
+                Archives
+            </div>
+            <ul>
+                
+                    <li>
+                        <a href="http://brutus.test/2025/11/">
+                            <span>November 2025</span>
+                            <span class="archive-count">(1)</span>
+                        </a>
+                    </li>
+                
+                    <li>
+                        <a href="http://brutus.test/2024/05/">
+                            <span>May 2024</span>
+                            <span class="archive-count">(9)</span>
+                        </a>
+                    </li>
+                
+            </ul>
+        </div>
+        
+        
+        <div class="widget" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+            <div class="ikb-text ikb-text-lg font-semibold text-left">
+                Newsletter
+            </div><div class="ikb-text ikb-text-md font-normal text-left">
+                Get the latest updates delivered to your inbox.
+            </div>
+            <form class="search-form" action="#" method="post">
+                <input type="email" class="search-input" placeholder="Your email" required style="background: rgba(255,255,255,0.2); border-color: rgba(255,255,255,0.3); color: white;">
+                <button type="submit" class="search-submit" style="background: white; color: #667eea;">Subscribe</button>
+            </form>
+        </div>
+    
+</aside>
+
+        </div>
+    </div></section>
+</main>
+
+<footer class="site-footer">
+    <div class="ikb-container ikb-container-lg">
+        <div class="footer-widgets">
+            
+            <div class="footer-widget">
+                
+                    <div id="text-2" class="footer-widget widget_text"><h3 class="widget-title">About Phoenix</h3>			<div class="textwidget"><p><!-- wp:heading --></p>
+<p>DiSyL WP theme. Revolutionary. Disruptive. Amazing.</p>
+<p><!-- /wp:paragraph --></p>
+</div>
+		</div>
+                <div class="ikb-text ikb-text-lg font-semibold text-left">
+                        About Phoenix
+                    </div><div class="ikb-text ikb-text-md font-normal text-left">
+                        A modern WordPress theme powered by DiSyL. Beautiful design, lightning-fast performance, and endless customization possibilities.
+                    </div>
+            </div>
+            
+            
+            <div class="footer-widget">
+                
+                    <div id="nav_menu-2" class="footer-widget widget_nav_menu"><h3 class="widget-title">Quick Links</h3><div class="menu-footer-menu-items-container"><ul id="menu-footer-menu-items" class="menu"><li id="menu-item-429" class="menu-item menu-item-type-post_type menu-item-object-page menu-item-home menu-item-429"><a href="http://brutus.test/">Home</a></li>
+<li id="menu-item-737" class="menu-item menu-item-type-taxonomy menu-item-object-category menu-item-737"><a href="http://brutus.test/category/model/">Model</a></li>
+<li id="menu-item-738" class="menu-item menu-item-type-taxonomy menu-item-object-category menu-item-738"><a href="http://brutus.test/category/beauty/">Beauty</a></li>
+<li id="menu-item-426" class="menu-item menu-item-type-post_type menu-item-object-page current-menu-item page_item page-item-20 current_page_item current_page_parent menu-item-426"><a href="http://brutus.test/blog/" aria-current="page">Blog</a></li>
+<li id="menu-item-739" class="menu-item menu-item-type-taxonomy menu-item-object-category menu-item-739"><a href="http://brutus.test/category/trends/">Trends</a></li>
+<li id="menu-item-740" class="menu-item menu-item-type-taxonomy menu-item-object-category menu-item-740"><a href="http://brutus.test/category/photography/">Photography</a></li>
+</ul></div></div>
+                <div class="ikb-text ikb-text-lg font-semibold text-left">
+                        Quick Links
+                    </div>
+                    <ul>
+                        <li><a href="/">Home</a></li>
+                        <li><a href="/blog">Blog</a></li>
+                        <li><a href="/about">About</a></li>
+                        <li><a href="/contact">Contact</a></li>
+                    </ul>
+                
+            </div>
+            
+            
+            <div class="footer-widget">
+                
+                    
+		<div id="recent-posts-2" class="footer-widget widget_recent_entries">
+		<h3 class="widget-title">Recent Posts</h3>
+		<ul>
+											<li>
+					<a href="http://brutus.test/2025/11/10/hello-world/">Hello world!</a>
+									</li>
+											<li>
+					<a href="http://brutus.test/2024/05/14/this-new-aerie-collection-was-designed-by-aly-raisman-and-iskra-lawrence/">Aerie Collection&#8217;s Originally By Iskra</a>
+									</li>
+											<li>
+					<a href="http://brutus.test/2024/05/14/dont-call-demi-lovato-a-bad-girl-shes-just-speaking-out/">Don’t Call Demi A “Bad Girl” — Speaking Out</a>
+									</li>
+											<li>
+					<a href="http://brutus.test/2024/05/14/perms-are-coming-back-but-theyre-getting-a-modern-makeover/">Perms Are Coming Back—but Getting a Modern</a>
+									</li>
+											<li>
+					<a href="http://brutus.test/2024/05/14/gisele-bundchen-cant-stop-wearing-these-retro-jeans-to-the-airport/">Gisele Bündchen Can’t Stop Wearing Retro Jeans</a>
+									</li>
+					</ul>
+
+		</div>
+                <div class="ikb-text ikb-text-lg font-semibold text-left">
+                        Recent Posts
+                    </div>
+                    <ul>
+                        
+                            <li>
+                                <a href="http://brutus.test/2025/11/10/hello-world/">Hello world!</a>
+                            </li>
+                        
+                            <li>
+                                <a href="http://brutus.test/2024/05/14/this-new-aerie-collection-was-designed-by-aly-raisman-and-iskra-lawrence/">Aerie Collection&#8217;s Originally By Iskra</a>
+                            </li>
+                        
+                            <li>
+                                <a href="http://brutus.test/2024/05/14/dont-call-demi-lovato-a-bad-girl-shes-just-speaking-out/">Don’t Call Demi A “Bad Girl” — Speaking Out</a>
+                            </li>
+                        
+                    </ul>
+                
+            </div>
+            
+            
+            <div class="footer-widget">
+                
+                    <div id="media_image-2" class="footer-widget widget_media_image"><h3 class="widget-title">Food!</h3><img width="275" height="183" src="http://brutus.test/wp-content/uploads/2025/11/apple-crumble.jpeg" class="image wp-image-741  attachment-full size-full" alt="" style="max-width: 100%; height: auto;" decoding="async" /></div>
+                <div class="ikb-text ikb-text-lg font-semibold text-left">
+                        Connect
+                    </div><div class="ikb-text ikb-text-md font-normal text-left">
+                        Follow us on social media for updates and news.
+                    </div>
+                    <div class="social-links">
+                        <a href="#" aria-label="Twitter">🐦</a>
+                        <a href="#" aria-label="Facebook">📘</a>
+                        <a href="#" aria-label="Instagram">📷</a>
+                        <a href="#" aria-label="LinkedIn">💼</a>
+                    </div>
+                
+            </div>
+        </div>
+        
+        
+        <div class="footer-bottom">
+            <div class="ikb-text ikb-text-md font-normal text-left">
+                © 2025 Brutus Cli. All rights reserved. Powered by <a href="https://ikabud.com" target="_blank">DiSyL</a>.
+            </div>
+        </div>
+    </div>
+</footer>
+
+
+<button class="back-to-top" aria-label="Back to top">
+    ↑
+</button>
+
+<script src="http://brutus.test/wp-content/themes/phoenix/assets/js/phoenix.js"></script>
+</body>
+</html>
+";s:9:"timestamp";i:1763211144;s:8:"cms_type";s:9:"wordpress";s:17:"extensions_loaded";a:0:{}s:15:"extension_count";i:0;}

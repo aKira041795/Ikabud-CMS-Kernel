@@ -670,7 +670,12 @@ add_action('wp_ajax_nopriv_phoenix_load_more', 'phoenix_load_more_posts');
  * Get widget area content
  */
 function phoenix_get_widget_area($sidebar_id) {
-    if (!is_active_sidebar($sidebar_id)) {
+    $is_active = is_active_sidebar($sidebar_id);
+    
+    // Debug: Log widget status
+    error_log("Widget Area: $sidebar_id | Active: " . ($is_active ? 'YES' : 'NO'));
+    
+    if (!$is_active) {
         return array(
             'active' => false,
             'content' => ''
@@ -681,6 +686,9 @@ function phoenix_get_widget_area($sidebar_id) {
     ob_start();
     dynamic_sidebar($sidebar_id);
     $content = ob_get_clean();
+    
+    // Debug: Log content length
+    error_log("Widget Area: $sidebar_id | Content Length: " . strlen($content));
     
     return array(
         'active' => true,
