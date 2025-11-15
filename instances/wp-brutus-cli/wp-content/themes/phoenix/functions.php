@@ -328,27 +328,27 @@ function phoenix_build_menu_tree($menu_items, $parent_id = 0) {
         $item_parent = (int)$item->menu_item_parent;
         
         if ($item_parent == $parent_id) {
+            // Recursively get children first
+            $children = phoenix_build_menu_tree($menu_items, $item->ID);
+            
+            // Build classes array
+            $classes = $item->classes;
+            if (!empty($children)) {
+                $classes[] = 'has-submenu';
+            }
+            
             // Create menu item array
             $menu_item = array(
                 'id' => $item->ID,
                 'title' => $item->title,
                 'url' => $item->url,
                 'target' => $item->target,
-                'classes' => implode(' ', $item->classes),
+                'classes' => implode(' ', $classes),
                 'active' => ($item->url === home_url($_SERVER['REQUEST_URI'])),
                 'parent_id' => $item->menu_item_parent,
                 'order' => $item->menu_order,
+                'children' => $children,
             );
-            
-            // Recursively get children
-            $children = phoenix_build_menu_tree($menu_items, $item->ID);
-            
-            // Only add children array if there are children
-            if (!empty($children)) {
-                $menu_item['children'] = $children;
-            } else {
-                $menu_item['children'] = array();
-            }
             
             $branch[] = $menu_item;
         }
