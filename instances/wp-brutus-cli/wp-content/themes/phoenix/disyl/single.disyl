@@ -16,7 +16,7 @@
                 {!-- Post Header --}
                 <header class="post-header">
                     {ikb_text size="3xl" weight="bold" class="gradient-text"}
-                        {post.title | esc_html}
+                        <h2>{post.title | esc_html}
                     {/ikb_text}
                     
                     <div class="post-meta">

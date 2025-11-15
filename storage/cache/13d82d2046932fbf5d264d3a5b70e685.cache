@@ -1,4 +1,4 @@
-a:6:{s:7:"headers";a:10:{i:0;s:27:"X-Frame-Options: SAMEORIGIN";i:1;s:31:"X-Content-Type-Options: nosniff";i:2;s:31:"X-XSS-Protection: 1; mode=block";i:3;s:341:"Content-Security-Policy: default-src 'self' https: http:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https: http: blob:; style-src 'self' 'unsafe-inline' https: http:; img-src 'self' data: https: http:; font-src 'self' data: https: http:; connect-src 'self' https: http: wss: ws:; frame-src 'self' https: http:; worker-src 'self' blob:;";i:4;s:48:"Referrer-Policy: strict-origin-when-cross-origin";i:5;s:60:"Permissions-Policy: geolocation=(), microphone=(), camera=()";i:6;s:38:"Expires: Wed, 11 Jan 1984 05:00:00 GMT";i:7;s:70:"Cache-Control: no-cache, must-revalidate, max-age=0, no-store, private";i:8;s:38:"Content-Type: text/html; charset=UTF-8";i:9;s:61:"Link: <http://brutus.test/wp-json/>; rel="https://api.w.org/"";}s:4:"body";s:12895:"
+a:6:{s:7:"headers";a:10:{i:0;s:27:"X-Frame-Options: SAMEORIGIN";i:1;s:31:"X-Content-Type-Options: nosniff";i:2;s:31:"X-XSS-Protection: 1; mode=block";i:3;s:341:"Content-Security-Policy: default-src 'self' https: http:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https: http: blob:; style-src 'self' 'unsafe-inline' https: http:; img-src 'self' data: https: http:; font-src 'self' data: https: http:; connect-src 'self' https: http: wss: ws:; frame-src 'self' https: http:; worker-src 'self' blob:;";i:4;s:48:"Referrer-Policy: strict-origin-when-cross-origin";i:5;s:60:"Permissions-Policy: geolocation=(), microphone=(), camera=()";i:6;s:38:"Expires: Wed, 11 Jan 1984 05:00:00 GMT";i:7;s:70:"Cache-Control: no-cache, must-revalidate, max-age=0, no-store, private";i:8;s:38:"Content-Type: text/html; charset=UTF-8";i:9;s:61:"Link: <http://brutus.test/wp-json/>; rel="https://api.w.org/"";}s:4:"body";s:11412:"
 <!DOCTYPE html>
 <html lang="en-US">
 <head>
@@ -14,7 +14,7 @@ a:6:{s:7:"headers";a:10:{i:0;s:27:"X-Frame-Options: SAMEORIGIN";i:1;s:31:"X-Cont
     <div class="header-container">
         
         <div class="site-branding">
-            <a href="http://brutus.test/" class="site-logo">
+            <a href="http://brutus.test" class="site-logo">
                 Phoenix
             </a>
         </div>
@@ -27,12 +27,12 @@ a:6:{s:7:"headers";a:10:{i:0;s:27:"X-Frame-Options: SAMEORIGIN";i:1;s:31:"X-Cont
         
         <nav class="main-nav" role="navigation" aria-label="Primary navigation">
             <ul>
-                <li><a href="http://brutus.test/" class="active">Home</a></li>
-                <li><a href="http://brutus.test//blog" | esc_url}>Blog</a></li>
-                <li><a href="http://brutus.test//about" | esc_url}>About</a></li>
-                <li><a href="http://brutus.test//services" | esc_url}>Services</a></li>
-                <li><a href="http://brutus.test//portfolio" | esc_url}>Portfolio</a></li>
-                <li><a href="http://brutus.test//contact" | esc_url}>Contact</a></li>
+                <li><a href="http://brutus.test" class="active">Home</a></li>
+                <li><a href="http://brutus.test/blog">Blog</a></li>
+                <li><a href="http://brutus.test/about">About</a></li>
+                <li><a href="http://brutus.test/services">Services</a></li>
+                <li><a href="http://brutus.test/portfolio">Portfolio</a></li>
+                <li><a href="http://brutus.test/contact">Contact</a></li>
             </ul>
         </nav>
     </div>
@@ -40,59 +40,59 @@ a:6:{s:7:"headers";a:10:{i:0;s:27:"X-Frame-Options: SAMEORIGIN";i:1;s:31:"X-Cont
 
 <main class="site-content">
 <section><div class="ikb-container ikb-container-lg">
-        <div style="text-align: center; padding: 4rem 0;">
+        <div class="error-404-content">
             
-            <div style="font-size: 10rem; font-weight: 900; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; line-height: 1;">
+            <div class="error-404-number">
                 404
             </div>
             
             <div class="ikb-text ikb-text-3xl font-bold text-left">
                 Oops! Page Not Found
-            </div><div class="ikb-text ikb-text-lg font-normal text-left" data-color="#718096">
+            </div><div class="ikb-text ikb-text-lg font-normal text-left">
                 The page you're looking for doesn't exist or has been moved.
             </div>
-            <div style="max-width: 600px; margin: 0 auto 3rem;">
-                <form class="search-form" role="search" method="get" action="http://brutus.test/">
-                    <input type="search" class="search-input" placeholder="Search for content..." name="s" style="flex: 1;">
+            <div class="search-form-wrapper">
+                <form class="search-form" role="search" method="get" action="http://brutus.test">
+                    <input type="search" class="search-input" placeholder="Search for content..." name="s">
                     <button type="submit" class="search-submit">Search</button>
                 </form>
             </div>
             
             
-            <div style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;">
-                <a href="http://brutus.test/" class="btn btn-primary">Go to Homepage</a>
-                <a href="http://brutus.test//blog" | esc_url} class="btn btn-outline">View Blog</a>
+            <div class="flex-center gap-medium flex-wrap">
+                <a href="http://brutus.test" class="btn btn-primary">Go to Homepage</a>
+                <a href="http://brutus.test/blog" class="btn btn-outline">View Blog</a>
             </div>
             
             
-            <div style="margin-top: 4rem;">
+            <div class="popular-pages">
                 <div class="ikb-text ikb-text-xl font-semibold text-left">
                     Popular Pages
                 </div>
                 
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1.5rem; max-width: 900px; margin: 0 auto;">
+                <div class="popular-pages-grid">
                     
-                        <a href="http://brutus.test/2025/11/10/hello-world/" style="padding: 1.5rem; background: white; border-radius: 1rem; box-shadow: 0 4px 6px rgba(0,0,0,0.1); transition: all 0.3s;">
+                        <a href="http://brutus.test/2025/11/10/hello-world/" class="popular-page-card">
                             <div class="ikb-text ikb-text-lg font-semibold text-left">
                                 Hello world!
-                            </div><div class="ikb-text ikb-text-sm font-normal text-left" data-color="#718096">
-                                Welcome to WordPress. This is your first post. Edit or delete it,
+                            </div><div class="ikb-text ikb-text-sm font-normal text-left">
+                                ...
                             </div>
                         </a>
                     
-                        <a href="http://brutus.test/2024/05/14/this-new-aerie-collection-was-designed-by-aly-raisman-and-iskra-lawrence/" style="padding: 1.5rem; background: white; border-radius: 1rem; box-shadow: 0 4px 6px rgba(0,0,0,0.1); transition: all 0.3s;">
+                        <a href="http://brutus.test/2024/05/14/this-new-aerie-collection-was-designed-by-aly-raisman-and-iskra-lawrence/" class="popular-page-card">
                             <div class="ikb-text ikb-text-lg font-semibold text-left">
                                 Aerie Collection&#8217;s Originally By Iskra
-                            </div><div class="ikb-text ikb-text-sm font-normal text-left" data-color="#718096">
-                                Build Your Website in Minutes with One-Click Import – No Coding Hassle!
+                            </div><div class="ikb-text ikb-text-sm font-normal text-left">
+                                ...
                             </div>
                         </a>
                     
-                        <a href="http://brutus.test/2024/05/14/dont-call-demi-lovato-a-bad-girl-shes-just-speaking-out/" style="padding: 1.5rem; background: white; border-radius: 1rem; box-shadow: 0 4px 6px rgba(0,0,0,0.1); transition: all 0.3s;">
+                        <a href="http://brutus.test/2024/05/14/dont-call-demi-lovato-a-bad-girl-shes-just-speaking-out/" class="popular-page-card">
                             <div class="ikb-text ikb-text-lg font-semibold text-left">
                                 Don’t Call Demi A “Bad Girl” — Speaking Out
-                            </div><div class="ikb-text ikb-text-sm font-normal text-left" data-color="#718096">
-                                Build Your Website in Minutes with One-Click Import – No Coding Hassle!
+                            </div><div class="ikb-text ikb-text-sm font-normal text-left">
+                                ...
                             </div>
                         </a>
                     
@@ -134,12 +134,12 @@ a:6:{s:7:"headers";a:10:{i:0;s:27:"X-Frame-Options: SAMEORIGIN";i:1;s:31:"X-Cont
                     Quick Links
                 </div>
                 <ul>
-                    <li><a href="http://brutus.test/">Home</a></li>
-                    <li><a href="http://brutus.test//about" | esc_url}>About Us</a></li>
-                    <li><a href="http://brutus.test//services" | esc_url}>Services</a></li>
-                    <li><a href="http://brutus.test//portfolio" | esc_url}>Portfolio</a></li>
-                    <li><a href="http://brutus.test//blog" | esc_url}>Blog</a></li>
-                    <li><a href="http://brutus.test//contact" | esc_url}>Contact</a></li>
+                    <li><a href="http://brutus.test">Home</a></li>
+                    <li><a href="http://brutus.test/about">About Us</a></li>
+                    <li><a href="http://brutus.test/services">Services</a></li>
+                    <li><a href="http://brutus.test/portfolio">Portfolio</a></li>
+                    <li><a href="http://brutus.test/blog">Blog</a></li>
+                    <li><a href="http://brutus.test/contact">Contact</a></li>
                 </ul>
             </div>
             
@@ -149,12 +149,12 @@ a:6:{s:7:"headers";a:10:{i:0;s:27:"X-Frame-Options: SAMEORIGIN";i:1;s:31:"X-Cont
                     Resources
                 </div>
                 <ul>
-                    <li><a href="http://brutus.test//documentation" | esc_url}>Documentation</a></li>
-                    <li><a href="http://brutus.test//support" | esc_url}>Support</a></li>
-                    <li><a href="http://brutus.test//faq" | esc_url}>FAQ</a></li>
-                    <li><a href="http://brutus.test//changelog" | esc_url}>Changelog</a></li>
-                    <li><a href="http://brutus.test//privacy" | esc_url}>Privacy Policy</a></li>
-                    <li><a href="http://brutus.test//terms" | esc_url}>Terms of Service</a></li>
+                    <li><a href="http://brutus.test/documentation">Documentation</a></li>
+                    <li><a href="http://brutus.test/support">Support</a></li>
+                    <li><a href="http://brutus.test/faq">FAQ</a></li>
+                    <li><a href="http://brutus.test/changelog">Changelog</a></li>
+                    <li><a href="http://brutus.test/privacy">Privacy Policy</a></li>
+                    <li><a href="http://brutus.test/terms">Terms of Service</a></li>
                 </ul>
             </div>
             
@@ -183,11 +183,11 @@ a:6:{s:7:"headers";a:10:{i:0;s:27:"X-Frame-Options: SAMEORIGIN";i:1;s:31:"X-Cont
 </footer>
 
 
-<button class="back-to-top" aria-label="Back to top" style="position: fixed; bottom: 2rem; right: 2rem; width: 50px; height: 50px; border-radius: 50%; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; cursor: pointer; opacity: 0; transition: opacity 0.3s; box-shadow: 0 4px 12px rgba(0,0,0,0.15); z-index: 999;">
+<button class="back-to-top" aria-label="Back to top">
     ↑
 </button>
 
 <script src="http://brutus.test/wp-content/themes/phoenix/assets/js/phoenix.js"></script>
 </body>
 </html>
-";s:9:"timestamp";i:1763105075;s:8:"cms_type";s:9:"wordpress";s:17:"extensions_loaded";a:0:{}s:15:"extension_count";i:0;}
+";s:9:"timestamp";i:1763171305;s:8:"cms_type";s:9:"wordpress";s:17:"extensions_loaded";a:0:{}s:15:"extension_count";i:0;}

@@ -10,6 +10,12 @@
 
 ## 🎉 Latest Updates
 
+**DiSyL Future Vision Released!** (November 14, 2025)
+- 🚀 AI-powered conversion roadmap (13 weeks)
+- 🎯 Multi-CMS expansion plan (Joomla, Drupal)
+- 🤖 Natural language theme generation
+- 🌍 Universal CMS templating strategy
+
 **DiSyL v0.5.0 Beta Released!** (November 14, 2025)
 - ✅ 100% test pass rate (97/97 tests)
 - ✅ Complete WordPress integration (148+ integrations)
@@ -33,6 +39,9 @@
 - **[Security Audit](DISYL_SECURITY_AUDIT.md)** - ⭐ NEW: 9.2/10 score
 - **[Performance Benchmarks](DISYL_PERFORMANCE_BENCHMARKS.md)** - ⭐ NEW: 9.5/10 score
 - **[Manifest Architecture v0.4](DISYL_MANIFEST_V0.4_ARCHITECTURE.md)** - ⭐ NEW: Modular architecture
+- **[🚀 Conversion Roadmap](DISYL_CONVERSION_ROADMAP.md)** - ⭐ NEW: AI-powered conversion & multi-CMS (13 weeks)
+- **[Conversion Examples](DISYL_CONVERSION_EXAMPLES.md)** - ⭐ NEW: WP/Joomla/Drupal → DiSyL examples
+- **[📖 Best Practices & Style Guide](DISYL_BEST_PRACTICES.md)** - ⭐ NEW: Official guidelines for DiSyL development
 - **[Complete Guide](DISYL_COMPLETE_GUIDE.md)** - Comprehensive DiSyL guide (20KB)
 - **[Grammar Specification](DISYL_GRAMMAR_SPECIFICATION.md)** - Formal grammar documentation
 - **[Grammar EBNF](DISYL_GRAMMAR_v0.1.ebnf)** - EBNF grammar definition
@@ -79,14 +88,22 @@ Historical and implementation documents moved to `archive/` directory:
 3. Explore [DiSyL Complete Guide](DISYL_COMPLETE_GUIDE.md)
 
 ### For Theme Developers
-1. [DiSyL Complete Guide](DISYL_COMPLETE_GUIDE.md)
-2. [WordPress Theme Example](DISYL_WORDPRESS_THEME_EXAMPLE.md)
-3. [Component Catalog](DISYL_COMPONENT_CATALOG.md)
+1. [Best Practices & Style Guide](DISYL_BEST_PRACTICES.md) - ⭐ NEW: Start here!
+2. [DiSyL Complete Guide](DISYL_COMPLETE_GUIDE.md)
+3. [WordPress Theme Example](DISYL_WORDPRESS_THEME_EXAMPLE.md)
+4. [Component Catalog](DISYL_COMPONENT_CATALOG.md)
+5. [Conversion Examples](DISYL_CONVERSION_EXAMPLES.md)
+
+### For Theme Converters
+1. [Conversion Roadmap](DISYL_CONVERSION_ROADMAP.md) - ⭐ NEW
+2. [Conversion Examples](DISYL_CONVERSION_EXAMPLES.md) - ⭐ NEW
+3. [DiSyL Language Reference](DISYL_LANGUAGE_REFERENCE.md)
 
 ### For Core Contributors
 1. [Hybrid Kernel Architecture](HYBRID_KERNEL_ARCHITECTURE.md)
 2. [DiSyL Next Steps](DISYL_NEXT_STEPS.md)
 3. [Manifest Architecture](DISYL_MANIFEST_ARCHITECTURE.md)
+4. [Conversion Roadmap](DISYL_CONVERSION_ROADMAP.md) - ⭐ NEW
 
 ### For DevOps/Architects
 1. [Final Architecture](FINAL_ARCHITECTURE.md)
@@ -99,12 +116,12 @@ Historical and implementation documents moved to `archive/` directory:
 
 | Category | Files | Total Size |
 |----------|-------|------------|
-| **DiSyL** | 12 | ~120KB |
+| **DiSyL** | 15 | ~210KB |
 | **Architecture** | 3 | ~60KB |
 | **Performance** | 3 | ~22KB |
 | **Configuration** | 5 | ~45KB |
 | **Core** | 2 | ~15KB |
-| **Total** | 25 | ~262KB |
+| **Total** | 28 | ~352KB |
 
 ---
 
@@ -116,6 +133,8 @@ Historical and implementation documents moved to `archive/` directory:
 - ✅ **Multi-CMS Support** - WordPress, Drupal, Joomla
 - ✅ **Performance Optimized** - Smart caching, lazy loading
 - 🔄 **Phase 2 Next** - Component Library Expansion
+- 🚀 **NEW: Conversion Roadmap** - AI-powered theme conversion (13 weeks)
+- 🎯 **NEW: Multi-CMS Expansion** - Joomla & Drupal renderers planned
 
 ---
 

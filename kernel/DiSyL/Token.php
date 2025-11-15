@@ -4,7 +4,7 @@
  * 
  * Represents a single token in the DiSyL lexical analysis
  * 
- * @version 0.1.0
+ * @version 0.3.0
  */
 
 namespace IkabudKernel\Core\DiSyL;
@@ -25,7 +25,16 @@ class Token
     public const COMMENT = 'COMMENT';         // {!-- comment --}
     public const PIPE = 'PIPE';               // | (for filters)
     public const COLON = 'COLON';             // : (for filter params)
+    public const COMMA = 'COMMA';             // , (for multiple filter arguments)
+    public const DOT = 'DOT';                 // . (for property access)
+    public const LPAREN = 'LPAREN';           // ( (for method calls)
+    public const RPAREN = 'RPAREN';           // ) (for method calls)
     public const EOF = 'EOF';                 // end of file
+    
+    // Whitespace context (v0.3)
+    public const WS_ATTR = 'WS_ATTR';         // Whitespace in attributes (ignored)
+    public const WS_EXPR = 'WS_EXPR';         // Whitespace in expressions (ignored)
+    public const WS_TEXT = 'WS_TEXT';         // Whitespace in text (preserved)
     
     public string $type;
     public mixed $value;

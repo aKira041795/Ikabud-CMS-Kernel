@@ -3,9 +3,15 @@
  * DiSyL Lexer (Tokenizer)
  * 
  * Converts DiSyL template string into tokens for parsing
- * Implements DiSyL v0.1 grammar specification
+ * Implements DiSyL v0.2 grammar specification
  * 
- * @version 0.1.0
+ * Features:
+ * - Filter pipeline syntax with pipe operator
+ * - Multiple filter arguments with comma separator
+ * - Named and positional filter arguments
+ * - Unicode support
+ * 
+ * @version 0.3.0
  */
 
 namespace IkabudKernel\Core\DiSyL;
@@ -102,6 +108,11 @@ class Lexer
         // Handle colon (for filter params)
         if ($char === ':' && $this->inTag) {
             return $this->handleColon();
+        }
+        
+        // Handle comma (for multiple filter arguments)
+        if ($char === ',' && $this->inTag) {
+            return $this->handleComma();
         }
         
         // Handle string (double or single quotes) - only inside DiSyL tags
@@ -244,6 +255,26 @@ class Lexer
         return new Token(
             Token::COLON,
             ':',
+            $startLine,
+            $startColumn,
+            $startPosition
+        );
+    }
+    
+    /**
+     * Handle comma: , (for multiple filter arguments)
+     */
+    private function handleComma(): Token
+    {
+        $startLine = $this->line;
+        $startColumn = $this->column;
+        $startPosition = $this->position;
+        
+        $this->advance(); // consume ,
+        
+        return new Token(
+            Token::COMMA,
+            ',',
             $startLine,
             $startColumn,
             $startPosition

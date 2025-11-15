@@ -3,9 +3,15 @@
  * DiSyL Parser
  * 
  * Converts tokens into Abstract Syntax Tree (AST)
- * Implements recursive descent parsing for DiSyL v0.1 grammar
+ * Implements recursive descent parsing for DiSyL v0.2 grammar
  * 
- * @version 0.1.0
+ * Features:
+ * - Filter pipeline syntax with pipe operator
+ * - Multiple filter arguments (named and positional)
+ * - Formalized control structure attributes
+ * - Enhanced expression parsing
+ * 
+ * @version 0.3.0
  */
 
 namespace IkabudKernel\Core\DiSyL;
@@ -36,7 +42,7 @@ class Parser
         
         $ast = [
             'type' => 'document',
-            'version' => '0.1',
+            'version' => '0.2',
             'children' => [],
             'errors' => []
         ];

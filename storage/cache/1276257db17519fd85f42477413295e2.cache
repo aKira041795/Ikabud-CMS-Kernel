@@ -1,4 +1,4 @@
-a:6:{s:7:"headers";a:10:{i:0;s:27:"X-Frame-Options: SAMEORIGIN";i:1;s:31:"X-Content-Type-Options: nosniff";i:2;s:31:"X-XSS-Protection: 1; mode=block";i:3;s:341:"Content-Security-Policy: default-src 'self' https: http:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https: http: blob:; style-src 'self' 'unsafe-inline' https: http:; img-src 'self' data: https: http:; font-src 'self' data: https: http:; connect-src 'self' https: http: wss: ws:; frame-src 'self' https: http:; worker-src 'self' blob:;";i:4;s:48:"Referrer-Policy: strict-origin-when-cross-origin";i:5;s:60:"Permissions-Policy: geolocation=(), microphone=(), camera=()";i:6;s:38:"Content-Type: text/html; charset=UTF-8";i:7;s:61:"Link: <http://brutus.test/wp-json/>; rel="https://api.w.org/"";i:8;s:105:"Link: <http://brutus.test/wp-json/wp/v2/pages/17>; rel="alternate"; title="JSON"; type="application/json"";i:9;s:42:"Link: <http://brutus.test/>; rel=shortlink";}s:4:"body";s:24269:"
+a:6:{s:7:"headers";a:10:{i:0;s:27:"X-Frame-Options: SAMEORIGIN";i:1;s:31:"X-Content-Type-Options: nosniff";i:2;s:31:"X-XSS-Protection: 1; mode=block";i:3;s:341:"Content-Security-Policy: default-src 'self' https: http:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https: http: blob:; style-src 'self' 'unsafe-inline' https: http:; img-src 'self' data: https: http:; font-src 'self' data: https: http:; connect-src 'self' https: http: wss: ws:; frame-src 'self' https: http:; worker-src 'self' blob:;";i:4;s:48:"Referrer-Policy: strict-origin-when-cross-origin";i:5;s:60:"Permissions-Policy: geolocation=(), microphone=(), camera=()";i:6;s:38:"Content-Type: text/html; charset=UTF-8";i:7;s:61:"Link: <http://brutus.test/wp-json/>; rel="https://api.w.org/"";i:8;s:105:"Link: <http://brutus.test/wp-json/wp/v2/pages/17>; rel="alternate"; title="JSON"; type="application/json"";i:9;s:42:"Link: <http://brutus.test/>; rel=shortlink";}s:4:"body";s:23286:"
 <!DOCTYPE html>
 <html lang="en-US">
 <head>
@@ -14,7 +14,7 @@ a:6:{s:7:"headers";a:10:{i:0;s:27:"X-Frame-Options: SAMEORIGIN";i:1;s:31:"X-Cont
     <div class="header-container">
         
         <div class="site-branding">
-            <a href="http://brutus.test/" class="site-logo">
+            <a href="http://brutus.test" class="site-logo">
                 Phoenix
             </a>
         </div>
@@ -27,12 +27,12 @@ a:6:{s:7:"headers";a:10:{i:0;s:27:"X-Frame-Options: SAMEORIGIN";i:1;s:31:"X-Cont
         
         <nav class="main-nav" role="navigation" aria-label="Primary navigation">
             <ul>
-                <li><a href="http://brutus.test/" class="active">Home</a></li>
-                <li><a href="http://brutus.test//blog" | esc_url}>Blog</a></li>
-                <li><a href="http://brutus.test//about" | esc_url}>About</a></li>
-                <li><a href="http://brutus.test//services" | esc_url}>Services</a></li>
-                <li><a href="http://brutus.test//portfolio" | esc_url}>Portfolio</a></li>
-                <li><a href="http://brutus.test//contact" | esc_url}>Contact</a></li>
+                <li><a href="http://brutus.test" class="active">Home</a></li>
+                <li><a href="http://brutus.test/blog">Blog</a></li>
+                <li><a href="http://brutus.test/about">About</a></li>
+                <li><a href="http://brutus.test/services">Services</a></li>
+                <li><a href="http://brutus.test/portfolio">Portfolio</a></li>
+                <li><a href="http://brutus.test/contact">Contact</a></li>
             </ul>
         </nav>
     </div>
@@ -55,9 +55,9 @@ a:6:{s:7:"headers";a:10:{i:0;s:27:"X-Frame-Options: SAMEORIGIN";i:1;s:31:"X-Cont
 </section><section><div class="ikb-container ikb-container-lg">
         <div class="section-header reveal">
             <div class="ikb-text ikb-text-3xl font-bold text-left">
-                Powerful Features
+                <h3>Powerful Features</h3>
             </div><div class="ikb-text ikb-text-lg font-normal text-left">
-                Everything you need to build a stunning website
+                <h4>Everything you need to build a stunning website</h4>
             </div>
         </div>
         
@@ -153,7 +153,7 @@ a:6:{s:7:"headers";a:10:{i:0;s:27:"X-Frame-Options: SAMEORIGIN";i:1;s:31:"X-Cont
                 </div><div class="ikb-text ikb-text-lg font-normal text-left">
                     Experience the power of modern web design with beautiful gradients and smooth animations.
                 </div>
-                <div style="margin-top: 1.5rem;">
+                <div class="slide-actions">
                     <a href="#" class="btn btn-primary">Learn More</a>
                 </div>
             </div>
@@ -168,7 +168,7 @@ a:6:{s:7:"headers";a:10:{i:0;s:27:"X-Frame-Options: SAMEORIGIN";i:1;s:31:"X-Cont
                 </div><div class="ikb-text ikb-text-lg font-normal text-left">
                     Lightning-fast loading times and optimized rendering for the best user experience.
                 </div>
-                <div style="margin-top: 1.5rem;">
+                <div class="slide-actions">
                     <a href="#" class="btn btn-primary">View Features</a>
                 </div>
             </div>
@@ -183,7 +183,7 @@ a:6:{s:7:"headers";a:10:{i:0;s:27:"X-Frame-Options: SAMEORIGIN";i:1;s:31:"X-Cont
                 </div><div class="ikb-text ikb-text-lg font-normal text-left">
                     Endless possibilities with widgets, custom layouts, and advanced theme options.
                 </div>
-                <div style="margin-top: 1.5rem;">
+                <div class="slide-actions">
                     <a href="#" class="btn btn-primary">Get Started</a>
                 </div>
             </div>
@@ -212,7 +212,7 @@ a:6:{s:7:"headers";a:10:{i:0;s:27:"X-Frame-Options: SAMEORIGIN";i:1;s:31:"X-Cont
                     
                     <div class="post-content">
                         <div class="post-meta">
-                            <span class="post-date">Nov 10, 2025</span>
+                            <span class="post-date">Jan 1, 1970</span>
                             <span class="separator">•</span>
                             <span class="post-author">brutus</span>
                         </div>
@@ -220,7 +220,7 @@ a:6:{s:7:"headers";a:10:{i:0;s:27:"X-Frame-Options: SAMEORIGIN";i:1;s:31:"X-Cont
                         <div class="ikb-text ikb-text-xl font-semibold text-left">
                             <a href="http://brutus.test/2025/11/10/hello-world/">Hello world!</a>
                         </div><div class="ikb-text ikb-text-md font-normal text-left">
-                            Welcome to WordPress. This is your first post. Edit or delete it, then start writing!
+                            ...
                         </div>
                         
                         <a href="http://brutus.test/2025/11/10/hello-world/" class="read-more">
@@ -234,7 +234,7 @@ a:6:{s:7:"headers";a:10:{i:0;s:27:"X-Frame-Options: SAMEORIGIN";i:1;s:31:"X-Cont
                     
                     <div class="post-content">
                         <div class="post-meta">
-                            <span class="post-date">May 14, 2024</span>
+                            <span class="post-date">Jan 1, 1970</span>
                             <span class="separator">•</span>
                             <span class="post-author">brutus</span>
                         </div>
@@ -242,7 +242,7 @@ a:6:{s:7:"headers";a:10:{i:0;s:27:"X-Frame-Options: SAMEORIGIN";i:1;s:31:"X-Cont
                         <div class="ikb-text ikb-text-xl font-semibold text-left">
                             <a href="http://brutus.test/2024/05/14/this-new-aerie-collection-was-designed-by-aly-raisman-and-iskra-lawrence/">Aerie Collection&#8217;s Originally By Iskra</a>
                         </div><div class="ikb-text ikb-text-md font-normal text-left">
-                            Build Your Website in Minutes with One-Click Import – No Coding Hassle!
+                            ...
                         </div>
                         
                         <a href="http://brutus.test/2024/05/14/this-new-aerie-collection-was-designed-by-aly-raisman-and-iskra-lawrence/" class="read-more">
@@ -256,7 +256,7 @@ a:6:{s:7:"headers";a:10:{i:0;s:27:"X-Frame-Options: SAMEORIGIN";i:1;s:31:"X-Cont
                     
                     <div class="post-content">
                         <div class="post-meta">
-                            <span class="post-date">May 14, 2024</span>
+                            <span class="post-date">Jan 1, 1970</span>
                             <span class="separator">•</span>
                             <span class="post-author">brutus</span>
                         </div>
@@ -264,7 +264,7 @@ a:6:{s:7:"headers";a:10:{i:0;s:27:"X-Frame-Options: SAMEORIGIN";i:1;s:31:"X-Cont
                         <div class="ikb-text ikb-text-xl font-semibold text-left">
                             <a href="http://brutus.test/2024/05/14/dont-call-demi-lovato-a-bad-girl-shes-just-speaking-out/">Don’t Call Demi A “Bad Girl” — Speaking Out</a>
                         </div><div class="ikb-text ikb-text-md font-normal text-left">
-                            Build Your Website in Minutes with One-Click Import – No Coding Hassle!
+                            ...
                         </div>
                         
                         <a href="http://brutus.test/2024/05/14/dont-call-demi-lovato-a-bad-girl-shes-just-speaking-out/" class="read-more">
@@ -278,7 +278,7 @@ a:6:{s:7:"headers";a:10:{i:0;s:27:"X-Frame-Options: SAMEORIGIN";i:1;s:31:"X-Cont
                     
                     <div class="post-content">
                         <div class="post-meta">
-                            <span class="post-date">May 14, 2024</span>
+                            <span class="post-date">Jan 1, 1970</span>
                             <span class="separator">•</span>
                             <span class="post-author">brutus</span>
                         </div>
@@ -286,7 +286,7 @@ a:6:{s:7:"headers";a:10:{i:0;s:27:"X-Frame-Options: SAMEORIGIN";i:1;s:31:"X-Cont
                         <div class="ikb-text ikb-text-xl font-semibold text-left">
                             <a href="http://brutus.test/2024/05/14/perms-are-coming-back-but-theyre-getting-a-modern-makeover/">Perms Are Coming Back—but Getting a Modern</a>
                         </div><div class="ikb-text ikb-text-md font-normal text-left">
-                            Build Your Website in Minutes with One-Click Import – No Coding Hassle!
+                            ...
                         </div>
                         
                         <a href="http://brutus.test/2024/05/14/perms-are-coming-back-but-theyre-getting-a-modern-makeover/" class="read-more">
@@ -300,7 +300,7 @@ a:6:{s:7:"headers";a:10:{i:0;s:27:"X-Frame-Options: SAMEORIGIN";i:1;s:31:"X-Cont
                     
                     <div class="post-content">
                         <div class="post-meta">
-                            <span class="post-date">May 14, 2024</span>
+                            <span class="post-date">Jan 1, 1970</span>
                             <span class="separator">•</span>
                             <span class="post-author">brutus</span>
                         </div>
@@ -308,7 +308,7 @@ a:6:{s:7:"headers";a:10:{i:0;s:27:"X-Frame-Options: SAMEORIGIN";i:1;s:31:"X-Cont
                         <div class="ikb-text ikb-text-xl font-semibold text-left">
                             <a href="http://brutus.test/2024/05/14/gisele-bundchen-cant-stop-wearing-these-retro-jeans-to-the-airport/">Gisele Bündchen Can’t Stop Wearing Retro Jeans</a>
                         </div><div class="ikb-text ikb-text-md font-normal text-left">
-                            Build Your Website in Minutes with One-Click Import – No Coding Hassle!
+                            ...
                         </div>
                         
                         <a href="http://brutus.test/2024/05/14/gisele-bundchen-cant-stop-wearing-these-retro-jeans-to-the-airport/" class="read-more">
@@ -322,7 +322,7 @@ a:6:{s:7:"headers";a:10:{i:0;s:27:"X-Frame-Options: SAMEORIGIN";i:1;s:31:"X-Cont
                     
                     <div class="post-content">
                         <div class="post-meta">
-                            <span class="post-date">May 14, 2024</span>
+                            <span class="post-date">Jan 1, 1970</span>
                             <span class="separator">•</span>
                             <span class="post-author">brutus</span>
                         </div>
@@ -330,7 +330,7 @@ a:6:{s:7:"headers";a:10:{i:0;s:27:"X-Frame-Options: SAMEORIGIN";i:1;s:31:"X-Cont
                         <div class="ikb-text ikb-text-xl font-semibold text-left">
                             <a href="http://brutus.test/2024/05/14/how-to-create-adjustment-layers-based-on-color-in-capture-one-9/">How to Create Adjustment Layers Based on Color</a>
                         </div><div class="ikb-text ikb-text-md font-normal text-left">
-                            Build Your Website in Minutes with One-Click Import – No Coding Hassle!
+                            ...
                         </div>
                         
                         <a href="http://brutus.test/2024/05/14/how-to-create-adjustment-layers-based-on-color-in-capture-one-9/" class="read-more">
@@ -341,18 +341,18 @@ a:6:{s:7:"headers";a:10:{i:0;s:27:"X-Frame-Options: SAMEORIGIN";i:1;s:31:"X-Cont
             
         </div>
         
-        <div style="text-align: center; margin-top: 3rem;">
+        <div class="text-center mt-large">
             <a href="/blog" class="btn btn-primary">View All Posts</a>
         </div>
     </div></section><section><div class="ikb-container ikb-container-lg">
-        <div style="text-align: center;" class="reveal">
+        <div class="text-center reveal">
             <div class="ikb-text ikb-text-3xl font-bold text-left">
-                Ready to Get Started?
+                <h3>Ready to Get Started?</h3>
             </div><div class="ikb-text ikb-text-xl font-normal text-left">
-                Join thousands of users who have transformed their websites with Phoenix
+                <h4>Join thousands of users who have transformed their websites with Phoenix</h4>
             </div>
             
-            <div style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;">
+            <div class="flex-center gap-medium flex-wrap">
                 <a href="/contact" class="btn btn-primary">Get in Touch</a>
                 <a href="/documentation" class="btn btn-outline">View Documentation</a>
             </div>
@@ -392,12 +392,12 @@ a:6:{s:7:"headers";a:10:{i:0;s:27:"X-Frame-Options: SAMEORIGIN";i:1;s:31:"X-Cont
                     Quick Links
                 </div>
                 <ul>
-                    <li><a href="http://brutus.test/">Home</a></li>
-                    <li><a href="http://brutus.test//about" | esc_url}>About Us</a></li>
-                    <li><a href="http://brutus.test//services" | esc_url}>Services</a></li>
-                    <li><a href="http://brutus.test//portfolio" | esc_url}>Portfolio</a></li>
-                    <li><a href="http://brutus.test//blog" | esc_url}>Blog</a></li>
-                    <li><a href="http://brutus.test//contact" | esc_url}>Contact</a></li>
+                    <li><a href="http://brutus.test">Home</a></li>
+                    <li><a href="http://brutus.test/about">About Us</a></li>
+                    <li><a href="http://brutus.test/services">Services</a></li>
+                    <li><a href="http://brutus.test/portfolio">Portfolio</a></li>
+                    <li><a href="http://brutus.test/blog">Blog</a></li>
+                    <li><a href="http://brutus.test/contact">Contact</a></li>
                 </ul>
             </div>
             
@@ -407,12 +407,12 @@ a:6:{s:7:"headers";a:10:{i:0;s:27:"X-Frame-Options: SAMEORIGIN";i:1;s:31:"X-Cont
                     Resources
                 </div>
                 <ul>
-                    <li><a href="http://brutus.test//documentation" | esc_url}>Documentation</a></li>
-                    <li><a href="http://brutus.test//support" | esc_url}>Support</a></li>
-                    <li><a href="http://brutus.test//faq" | esc_url}>FAQ</a></li>
-                    <li><a href="http://brutus.test//changelog" | esc_url}>Changelog</a></li>
-                    <li><a href="http://brutus.test//privacy" | esc_url}>Privacy Policy</a></li>
-                    <li><a href="http://brutus.test//terms" | esc_url}>Terms of Service</a></li>
+                    <li><a href="http://brutus.test/documentation">Documentation</a></li>
+                    <li><a href="http://brutus.test/support">Support</a></li>
+                    <li><a href="http://brutus.test/faq">FAQ</a></li>
+                    <li><a href="http://brutus.test/changelog">Changelog</a></li>
+                    <li><a href="http://brutus.test/privacy">Privacy Policy</a></li>
+                    <li><a href="http://brutus.test/terms">Terms of Service</a></li>
                 </ul>
             </div>
             
@@ -441,11 +441,11 @@ a:6:{s:7:"headers";a:10:{i:0;s:27:"X-Frame-Options: SAMEORIGIN";i:1;s:31:"X-Cont
 </footer>
 
 
-<button class="back-to-top" aria-label="Back to top" style="position: fixed; bottom: 2rem; right: 2rem; width: 50px; height: 50px; border-radius: 50%; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; cursor: pointer; opacity: 0; transition: opacity 0.3s; box-shadow: 0 4px 12px rgba(0,0,0,0.15); z-index: 999;">
+<button class="back-to-top" aria-label="Back to top">
     ↑
 </button>
 
 <script src="http://brutus.test/wp-content/themes/phoenix/assets/js/phoenix.js"></script>
 </body>
 </html>
-";s:9:"timestamp";i:1763105073;s:8:"cms_type";s:9:"wordpress";s:17:"extensions_loaded";a:0:{}s:15:"extension_count";i:0;}
+";s:9:"timestamp";i:1763171304;s:8:"cms_type";s:9:"wordpress";s:17:"extensions_loaded";a:0:{}s:15:"extension_count";i:0;}

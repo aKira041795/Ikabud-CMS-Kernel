@@ -2,9 +2,15 @@
 /**
  * DiSyL Grammar
  * 
- * Defines validation rules and parameter schemas for DiSyL v0.1
+ * Defines validation rules and parameter schemas for DiSyL v0.2
  * 
- * @version 0.1.0
+ * Features:
+ * - Filter pipeline validation
+ * - Named and positional argument validation
+ * - Control structure attribute validation
+ * - Unicode character support
+ * 
+ * @version 0.3.0
  */
 
 namespace IkabudKernel\Core\DiSyL;

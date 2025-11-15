@@ -1,4 +1,4 @@
-a:6:{s:7:"headers";a:8:{i:0;s:27:"X-Frame-Options: SAMEORIGIN";i:1;s:31:"X-Content-Type-Options: nosniff";i:2;s:31:"X-XSS-Protection: 1; mode=block";i:3;s:341:"Content-Security-Policy: default-src 'self' https: http:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https: http: blob:; style-src 'self' 'unsafe-inline' https: http:; img-src 'self' data: https: http:; font-src 'self' data: https: http:; connect-src 'self' https: http: wss: ws:; frame-src 'self' https: http:; worker-src 'self' blob:;";i:4;s:48:"Referrer-Policy: strict-origin-when-cross-origin";i:5;s:60:"Permissions-Policy: geolocation=(), microphone=(), camera=()";i:6;s:38:"Content-Type: text/html; charset=UTF-8";i:7;s:61:"Link: <http://brutus.test/wp-json/>; rel="https://api.w.org/"";}s:4:"body";s:25181:"
+a:6:{s:7:"headers";a:8:{i:0;s:27:"X-Frame-Options: SAMEORIGIN";i:1;s:31:"X-Content-Type-Options: nosniff";i:2;s:31:"X-XSS-Protection: 1; mode=block";i:3;s:341:"Content-Security-Policy: default-src 'self' https: http:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https: http: blob:; style-src 'self' 'unsafe-inline' https: http:; img-src 'self' data: https: http:; font-src 'self' data: https: http:; connect-src 'self' https: http: wss: ws:; frame-src 'self' https: http:; worker-src 'self' blob:;";i:4;s:48:"Referrer-Policy: strict-origin-when-cross-origin";i:5;s:60:"Permissions-Policy: geolocation=(), microphone=(), camera=()";i:6;s:38:"Content-Type: text/html; charset=UTF-8";i:7;s:61:"Link: <http://brutus.test/wp-json/>; rel="https://api.w.org/"";}s:4:"body";s:26645:"
 <!DOCTYPE html>
 <html lang="en-US">
 <head>
@@ -42,13 +42,19 @@ a:6:{s:7:"headers";a:8:{i:0;s:27:"X-Frame-Options: SAMEORIGIN";i:1;s:31:"X-Conte
 <section><div class="ikb-container ikb-container-lg">
         <div class="text-center">
             <div class="ikb-text ikb-text-3xl font-bold text-left">
-                Our Blog
+                Search Results
             </div><div class="ikb-text ikb-text-lg font-normal text-left">
-                Insights, tutorials, and updates from our team
+                Showing results for your search query
+            </div>
+            <div class="search-form-wrapper">
+                <form class="search-form" role="search" method="get" action="http://brutus.test">
+                    <input type="search" class="search-input" placeholder="Search..." name="s" required>
+                    <button type="submit" class="search-submit">Search</button>
+                </form>
             </div>
         </div>
     </div></section><section><div class="ikb-container ikb-container-lg">
-        <div class="blog-layout">
+        <div class="search-layout">
             
             <div>
                 <div class="post-grid">
@@ -251,11 +257,28 @@ a:6:{s:7:"headers";a:8:{i:0;s:27:"X-Frame-Options: SAMEORIGIN";i:1;s:31:"X-Conte
                             </div>
                         </article>
                     
-                </div>
-                
-                
-                <div class="text-center mt-large">
-                    <button class="btn btn-primary load-more-posts">Load More Posts</button>
+                        <article class="post-card reveal">
+                            
+                            
+                            <div class="post-content">
+                                <div class="post-meta">
+                                    <span>Jan 1, 1970</span>
+                                    <span class="separator">•</span>
+                                    <span>brutus</span>
+                                </div>
+                                
+                                <div class="ikb-text ikb-text-xl font-semibold text-left">
+                                    <a href="http://brutus.test/2024/05/14/the-beauty-products-chrissy-teigen-cant-travel-without/">The Beauty Products Chrissy Can’t Go Without</a>
+                                </div><div class="ikb-text ikb-text-md font-normal text-left">
+                                    ...
+                                </div>
+                                
+                                <a href="http://brutus.test/2024/05/14/the-beauty-products-chrissy-teigen-cant-travel-without/" class="read-more">
+                                    Read More →
+                                </a>
+                            </div>
+                        </article>
+                    
                 </div>
             </div>
             
@@ -457,4 +480,4 @@ a:6:{s:7:"headers";a:8:{i:0;s:27:"X-Frame-Options: SAMEORIGIN";i:1;s:31:"X-Conte
 <script src="http://brutus.test/wp-content/themes/phoenix/assets/js/phoenix.js"></script>
 </body>
 </html>
-";s:9:"timestamp";i:1763171345;s:8:"cms_type";s:9:"wordpress";s:17:"extensions_loaded";a:0:{}s:15:"extension_count";i:0;}
+";s:9:"timestamp";i:1763171358;s:8:"cms_type";s:9:"wordpress";s:17:"extensions_loaded";a:0:{}s:15:"extension_count";i:0;}

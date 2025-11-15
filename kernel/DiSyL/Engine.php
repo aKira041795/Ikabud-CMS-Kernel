@@ -7,7 +7,13 @@
  * 
  * This is the main entry point for DiSyL template processing.
  * 
- * @version 1.0.0
+ * Supports DiSyL v0.2 grammar:
+ * - Filter pipelines with multiple arguments
+ * - Named and positional filter arguments
+ * - Enhanced expression evaluation
+ * - Unicode support
+ * 
+ * @version 0.3.0
  */
 
 namespace IkabudKernel\Core\DiSyL;

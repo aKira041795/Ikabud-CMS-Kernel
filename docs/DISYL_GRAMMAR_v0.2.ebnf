@@ -1,5 +1,5 @@
 (*
- * DiSyL Grammar Specification v0.1
+ * DiSyL Grammar Specification v0.2
  * Extended Backus-Naur Form (EBNF)
  * 
  * Notation:
@@ -10,6 +10,7 @@
  * - {} repetition (0 or more)
  * - "" literal strings
  * - (* *) comments
+ * - [#xHHHH] Unicode code point ranges
  *)
 
 (* ============================================================================
@@ -49,7 +50,7 @@ control_structure_name ::= "if" | "for" | "include"
    ATTRIBUTES
    ============================================================================ *)
 
-attributes ::= attribute { attribute }
+attributes ::= attribute { whitespace attribute }
 
 attribute ::= identifier "=" attribute_value
 
@@ -73,15 +74,34 @@ number_literal ::= [ "-" ] digit { digit } [ "." digit { digit } ]
 
 expression_node ::= "{" expression "}"
 
-expression ::= simple_expression
-             | property_access
-             | method_call
+(* Enhanced Expression Grammar with Filter Pipeline *)
+expression ::= pipe_expression
+
+pipe_expression ::= primary_expression { "|" filter_call }
+
+primary_expression ::= simple_expression
+                     | property_access
+                     | method_call
+                     | "(" expression ")"
 
 simple_expression ::= identifier
 
 property_access ::= identifier { "." identifier }
 
 method_call ::= identifier "(" [ argument_list ] ")"
+
+(* Filter Syntax *)
+filter_call ::= filter_name [ filter_arguments ]
+
+filter_name ::= identifier
+
+filter_arguments ::= ":" argument { "," argument }
+
+argument ::= named_argument | positional_argument
+
+named_argument ::= identifier "=" argument_value
+
+positional_argument ::= quoted_string | number_literal | boolean_literal
 
 argument_list ::= expression { "," expression }
 
@@ -91,11 +111,11 @@ argument_list ::= expression { "," expression }
 
 text_node ::= text_content
 
-text_content ::= { text_char | interpolated_expression }
+text_content ::= { text_char | interpolated_expression | significant_whitespace }
 
 interpolated_expression ::= "{" expression "}"
 
-text_char ::= any_char - ( "{" | "}" )
+text_char ::= unicode_char - ( "{" | "}" )
 
 (* ============================================================================
    COMMENT NODES
@@ -109,20 +129,52 @@ comment_content ::= { any_char - "--}" }
    LEXICAL ELEMENTS
    ============================================================================ *)
 
-identifier ::= letter { letter | digit | "_" }
+identifier ::= letter { identifier_char }
 
-letter ::= "a" | "b" | ... | "z" | "A" | "B" | ... | "Z"
+identifier_char ::= letter | digit | "_"
 
-digit ::= "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9"
+letter ::= [a-zA-Z]
 
-string_char ::= any_char - ( '"' | "'" | "\\" )
+digit ::= [0-9]
+
+string_char ::= unicode_char - ( '"' | "'" | "\\" )
               | escape_sequence
 
-escape_sequence ::= "\\" ( "\\" | '"' | "'" | "n" | "r" | "t" | "{" | "}" )
+escape_sequence ::= "\\" ( "\\" | '"' | "'" | "n" | "r" | "t" | "{" | "}" 
+                  | "u" hex_digit hex_digit hex_digit hex_digit )
 
-any_char ::= (* any Unicode character *)
+hex_digit ::= [0-9a-fA-F]
 
-whitespace ::= " " | "\t" | "\n" | "\r"
+(* Unicode Support *)
+unicode_char ::= #x0009 | #x000A | #x000D | [#x0020-#xD7FF] | [#xE000-#xFFFD]
+
+any_char ::= unicode_char
+
+(* Whitespace Handling *)
+whitespace ::= ( " " | "\t" | "\n" | "\r" )+
+
+significant_whitespace ::= ( "\n" | "\r" | "\t" | " " )+
+
+(* ============================================================================
+   CONTROL STRUCTURE SPECIFICS
+   ============================================================================ *)
+
+(* If Statement *)
+if_statement ::= "{" "if" if_condition "}" document 
+                 [ "{" "else" "}" document ] 
+                 "{" "/" "if" "}"
+
+if_condition ::= "condition" "=" expression_string
+
+(* For Loop *)
+for_loop ::= "{" "for" for_spec "}" document "{" "/" "for" "}"
+
+for_spec ::= "items" "=" expression_string "as" "=" quoted_string
+
+(* Include Directive *)
+include_directive ::= "{" "include" include_spec "/" "}"
+
+include_spec ::= "template" "=" quoted_string
 
 (* ============================================================================
    RESERVED KEYWORDS
@@ -191,9 +243,16 @@ reserved_prefix ::= "ikb_"
  * - Can span multiple lines
  *
  * Rule 6: Whitespace
- * - Whitespace is preserved in text nodes
- * - Whitespace is ignored in tag definitions
+ * - Whitespace is preserved in text nodes (significant_whitespace)
+ * - Whitespace between attributes is ignored
+ * - Whitespace between tags is insignificant
  * - Indentation is recommended for readability
+ *
+ * Rule 7: Filter Pipelines
+ * - Use pipe operator | to chain filters
+ * - Filters can have named or positional arguments
+ * - Arguments separated by commas
+ * - Example: {item.title | upper | truncate:length=50}
  *)
 
 (* ============================================================================
@@ -244,6 +303,15 @@ reserved_prefix ::= "ikb_"
  *     Multi-line comment
  *     Can span multiple lines
  * --}
+ *
+ * Example 10: Filter Pipelines
+ * {ikb_text}{item.title | upper}{/ikb_text}
+ * {ikb_text}{item.content | truncate:length=100,append="..."}{/ikb_text}
+ * {ikb_text}{item.date | date:format="F j, Y" | esc_html}{/ikb_text}
+ *
+ * Example 11: Complex Filter Chains
+ * {ikb_text}{item.description | strip_tags | truncate:50 | upper}{/ikb_text}
+ * {ikb_link href="{item.url | esc_url}"}{item.title | esc_html}{/ikb_link}
  *)
 
 (* ============================================================================
@@ -280,6 +348,18 @@ reserved_prefix ::= "ikb_"
  * 7. Reserved keyword as identifier
  *    {if}content{/if}
  *    Error: 'if' is a control structure, requires condition attribute
+ *
+ * 8. Invalid filter syntax
+ *    {item.title | }
+ *    Error: Expected filter name after pipe operator
+ *
+ * 9. Missing filter argument value
+ *    {item.content | truncate:length=}
+ *    Error: Expected value after =
+ *
+ * 10. Unclosed filter expression
+ *    {item.title | upper
+ *    Error: Expected }
  *)
 
 (* ============================================================================
@@ -287,6 +367,16 @@ reserved_prefix ::= "ikb_"
    ============================================================================ *)
 
 (*
+ * v0.2 (November 2025) - PEER REVIEW REVISION
+ * - Added filter pipeline syntax with pipe operator
+ * - Formalized control structure attributes (if/for/include)
+ * - Enhanced whitespace handling (significant vs insignificant)
+ * - Added Unicode support with code point ranges
+ * - Improved character class definitions
+ * - Added named and positional filter arguments
+ * - Enhanced escape sequences with Unicode escapes
+ * - Added error productions for filter syntax
+ *
  * v0.1 (November 2025)
  * - Initial grammar specification
  * - Basic components and control structures

@@ -5,7 +5,13 @@
  * Abstract base class for DiSyL renderers
  * Provides common rendering logic that can be extended by CMS-specific renderers
  * 
- * @version 0.1.0
+ * Features:
+ * - Filter pipeline with multiple arguments
+ * - Named and positional filter arguments
+ * - Enhanced expression evaluation
+ * - Unicode support
+ * 
+ * @version 0.3.0
  */
 
 namespace IkabudKernel\Core\DiSyL\Renderers;
@@ -227,35 +233,57 @@ abstract class BaseRenderer
             $filter = trim($filter);
             if (empty($filter)) continue;
             
-            // Parse filter name and parameters
+            // Parse filter name and parameters (v0.2 enhanced)
             $params = [];
             if (strpos($filter, ':') !== false) {
                 list($filterName, $paramStr) = explode(':', $filter, 2);
                 $filterName = trim($filterName);
                 $paramStr = trim($paramStr);
                 
-                // Parse parameters: format="Y-m-d" or format='Y-m-d' or length=100
-                // Handle both single and double quotes, or no quotes
-                if (preg_match('/(\w+)=(["\']?)(.+?)\2$/', $paramStr, $matches)) {
-                    // Named parameter: length=100
-                    $params[$matches[1]] = $matches[3];
-                } elseif (preg_match('/(\w+)=(\S+)/', $paramStr, $matches)) {
-                    // Named parameter without quotes: length=100
-                    $params[$matches[1]] = $matches[2];
-                } elseif (is_numeric($paramStr)) {
-                    // Positional parameter (number only): truncate:60
-                    // Use 'length' as default parameter name for truncate filter
-                    $params['length'] = $paramStr;
-                } else {
-                    // Positional parameter (string): could be format or other
-                    // Try to infer parameter name based on filter
-                    if ($filterName === 'truncate') {
-                        $params['length'] = $paramStr;
-                    } elseif ($filterName === 'date') {
-                        $params['format'] = $paramStr;
+                // Parse multiple arguments separated by commas
+                // Format: length=100,append="..." or just 100,"..."
+                $args = $this->parseFilterArguments($paramStr);
+                
+                // Process each argument
+                $positionalIndex = 0;
+                foreach ($args as $arg) {
+                    $arg = trim($arg);
+                    
+                    // Check if it's a named argument (key=value)
+                    if (preg_match('/^(\w+)=(.+)$/', $arg, $matches)) {
+                        $key = $matches[1];
+                        $value = $matches[2];
+                        
+                        // Remove quotes if present
+                        if ((substr($value, 0, 1) === '"' && substr($value, -1) === '"') ||
+                            (substr($value, 0, 1) === "'" && substr($value, -1) === "'")) {
+                            $value = substr($value, 1, -1);
+                        }
+                        
+                        $params[$key] = $value;
                     } else {
-                        // Generic: use first parameter name from manifest
-                        $params['value'] = $paramStr;
+                        // Positional argument
+                        // Remove quotes if present
+                        if ((substr($arg, 0, 1) === '"' && substr($arg, -1) === '"') ||
+                            (substr($arg, 0, 1) === "'" && substr($arg, -1) === "'")) {
+                            $arg = substr($arg, 1, -1);
+                        }
+                        
+                        // Map positional arguments to parameter names based on filter
+                        if ($filterName === 'truncate') {
+                            if ($positionalIndex === 0) $params['length'] = $arg;
+                            elseif ($positionalIndex === 1) $params['append'] = $arg;
+                        } elseif ($filterName === 'date') {
+                            if ($positionalIndex === 0) $params['format'] = $arg;
+                        } elseif ($filterName === 'number_format') {
+                            if ($positionalIndex === 0) $params['decimals'] = $arg;
+                            elseif ($positionalIndex === 1) $params['dec_point'] = $arg;
+                            elseif ($positionalIndex === 2) $params['thousands_sep'] = $arg;
+                        } else {
+                            // Generic: use numeric index
+                            $params[$positionalIndex] = $arg;
+                        }
+                        $positionalIndex++;
                     }
                 }
             } else {
@@ -271,6 +299,55 @@ abstract class BaseRenderer
         }
         
         return $value;
+    }
+    
+    /**
+     * Parse filter arguments (v0.2 enhanced)
+     * 
+     * Handles comma-separated arguments with proper quote handling
+     * Example: length=100,append="..." becomes ['length=100', 'append="..."']
+     */
+    protected function parseFilterArguments(string $paramStr): array
+    {
+        $args = [];
+        $current = '';
+        $inQuotes = false;
+        $quoteChar = null;
+        $length = strlen($paramStr);
+        
+        for ($i = 0; $i < $length; $i++) {
+            $char = $paramStr[$i];
+            
+            // Handle quotes
+            if (($char === '"' || $char === "'") && ($i === 0 || $paramStr[$i-1] !== '\\')) {
+                if (!$inQuotes) {
+                    $inQuotes = true;
+                    $quoteChar = $char;
+                } elseif ($char === $quoteChar) {
+                    $inQuotes = false;
+                    $quoteChar = null;
+                }
+                $current .= $char;
+            }
+            // Handle comma separator (only outside quotes)
+            elseif ($char === ',' && !$inQuotes) {
+                if ($current !== '') {
+                    $args[] = $current;
+                    $current = '';
+                }
+            }
+            // Regular character
+            else {
+                $current .= $char;
+            }
+        }
+        
+        // Add last argument
+        if ($current !== '') {
+            $args[] = $current;
+        }
+        
+        return $args;
     }
     
     /**

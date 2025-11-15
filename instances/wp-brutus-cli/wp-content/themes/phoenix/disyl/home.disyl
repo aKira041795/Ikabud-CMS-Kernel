@@ -24,10 +24,10 @@
     {ikb_container size="xlarge"}
         <div class="section-header reveal">
             {ikb_text size="3xl" weight="bold" class="section-title gradient-text"}
-                Powerful Features
+                <h3>Powerful Features</h3>
             {/ikb_text}
             {ikb_text size="lg" class="section-subtitle"}
-                Everything you need to build a stunning website
+                <h4>Everything you need to build a stunning website</h4>
             {/ikb_text}
         </div>
         
@@ -186,11 +186,11 @@
     {ikb_container size="large"}
         <div class="text-center reveal">
             {ikb_text size="3xl" weight="bold" margin="bottom-large"}
-                Ready to Get Started?
+                <h3>Ready to Get Started?</h3>
             {/ikb_text}
             
             {ikb_text size="xl" margin="bottom-xlarge"}
-                Join thousands of users who have transformed their websites with Phoenix
+                <h4>Join thousands of users who have transformed their websites with Phoenix</h4>
             {/ikb_text}
             
             <div class="flex-center gap-medium flex-wrap">
