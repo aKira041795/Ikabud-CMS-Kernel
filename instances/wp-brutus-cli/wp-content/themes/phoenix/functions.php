@@ -13,6 +13,11 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
+// Disable debug display for AJAX requests to prevent JSON errors
+if (defined('DOING_AJAX') && DOING_AJAX) {
+    @ini_set('display_errors', 0);
+}
+
 /**
  * Theme Setup
  */
@@ -657,10 +662,7 @@ add_action('wp_ajax_nopriv_phoenix_load_more', 'phoenix_load_more_posts');
  * Get widget area content
  */
 function phoenix_get_widget_area($sidebar_id) {
-    $is_active = is_active_sidebar($sidebar_id);
-    error_log("[Phoenix] Widget area {$sidebar_id} active: " . ($is_active ? 'YES' : 'NO'));
-    
-    if (!$is_active) {
+    if (!is_active_sidebar($sidebar_id)) {
         return array(
             'active' => false,
             'content' => ''
@@ -671,8 +673,6 @@ function phoenix_get_widget_area($sidebar_id) {
     ob_start();
     dynamic_sidebar($sidebar_id);
     $content = ob_get_clean();
-    
-    error_log("[Phoenix] Widget area {$sidebar_id} content length: " . strlen($content));
     
     return array(
         'active' => true,
