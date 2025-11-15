@@ -3,7 +3,7 @@
  * Plugin Name:       WP Post Author
  * Plugin URI:        https://afthemes.com/plugins/wp-post-author/
  * Description:       Display author boxes, social links, co-authors, guest authors, post rating system, and user registration forms.
- * Version:           3.8.5
+ * Version:           3.8.6
  * Author:            AF themes
  * Author URI:        https://afthemes.com
  * Text Domain:       wp-post-author
@@ -23,7 +23,7 @@ if (!class_exists('WP_Post_Author')):
          *
          * @var string
          */
-        const VERSION = '3.8.5';
+        const VERSION = '3.8.6';
 
         /**
          * Instance of this class.

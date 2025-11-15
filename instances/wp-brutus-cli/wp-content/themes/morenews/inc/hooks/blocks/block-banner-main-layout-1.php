@@ -52,13 +52,6 @@ if ($morenews_banner_posts_filter_by == 'cat') {
             <?php morenews_get_block('carousel', 'banner'); ?>
         </div>
     </div>
-
-    <div class="aft-trending-part col-4 pad">
-        <div class="morenews-customizer">
-        <?php morenews_get_block('tabs', 'banner'); ?>
-        </div>
-    </div>
-
     <div class="aft-thumb-part col-4 pad">
         <div class="morenews-customizer">
         <?php if (!empty($morenews_editors_picks_posts_title)): ?>
@@ -66,6 +59,12 @@ if ($morenews_banner_posts_filter_by == 'cat') {
         <?php endif; ?>
 
         <?php morenews_get_block('thumb', 'banner'); ?>
+        </div>
+    </div>
+
+    <div class="aft-trending-part col-4 pad">
+        <div class="morenews-customizer">
+        <?php morenews_get_block('tabs', 'banner'); ?>
         </div>
     </div>
 

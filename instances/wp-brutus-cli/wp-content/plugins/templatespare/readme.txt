@@ -3,7 +3,7 @@ Contributors: templatespare, afthemes
 Tags: gutenberg import, elemetor import, demo import, theme import, widget import, customizer import, 
 Requires at least: 4.0
 Tested up to: 6.8
-Stable tag: 3.2.0.1
+Stable tag: 3.2.1
 License: GPLv3 or later
 
 == Description ==

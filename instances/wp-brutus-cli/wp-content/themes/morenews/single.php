@@ -23,7 +23,7 @@ get_header();
             } else {
                 $wrap_class = 'social-after-title';
             }
-            while (have_posts()) : the_post(); global $post; ?>
+            while (have_posts()) : the_post(); ?>
                 <article id="post-<?php the_ID(); ?>" <?php post_class('af-single-article'); ?>>
 
                     <div class="entry-content-wrap read-single <?php echo esc_attr($wrap_class); ?>">

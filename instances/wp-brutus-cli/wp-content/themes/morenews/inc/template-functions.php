@@ -791,8 +791,8 @@ function morenews_get_comments_views_share($post_id)
     <?php
     $show_comment_count = morenews_get_option('global_show_comment_count');
     if ($show_comment_count == 'yes') :
-      $comment_count = get_comments_number($post_id);
-      if (absint($comment_count) > 1) :
+      // $comment_count = get_comments_number($post_id);
+      // if (absint($comment_count) > 1) :
     ?>
         <span class="aft-comment-count">
           <a href="<?php the_permalink(); ?>">
@@ -803,7 +803,7 @@ function morenews_get_comments_views_share($post_id)
           </a>
         </span>
     <?php endif;
-    endif;
+    // endif;
 
 
     ?>

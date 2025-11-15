@@ -7,7 +7,7 @@ Tags: blog, news, magazine, gutenberg blocks, starter templates
 Requires at least: 4.9
 Tested up to: 6.8
 Requires PHP: 5.3
-Stable tag: 3.2.14
+Stable tag: 3.2.15
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 

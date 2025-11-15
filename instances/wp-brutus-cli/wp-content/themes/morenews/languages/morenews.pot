@@ -2,14 +2,14 @@
 # This file is distributed under the GNU General Public License v2 or later.
 msgid ""
 msgstr ""
-"Project-Id-Version: MoreNews 3.8.0\n"
+"Project-Id-Version: MoreNews 3.8.3\n"
 "Report-Msgid-Bugs-To: https://wordpress.org/support/theme/morenews\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2025-10-29T05:30:30+00:00\n"
+"POT-Creation-Date: 2025-11-13T07:31:07+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.6.0\n"
 "X-Domain: morenews\n"
@@ -255,14 +255,14 @@ msgstr ""
 msgid "%1$s by %2$s."
 msgstr ""
 
-#: functions.php:84
+#: functions.php:83
 #: inc/class-amp-compatible.php:152
 #: inc/customizer/builder/builder-structure.php:199
 #: inc/hooks/hook-header-section.php:68
 msgid "Primary Menu"
 msgstr ""
 
-#: functions.php:85
+#: functions.php:84
 #: inc/customizer/builder/options.php:266
 #: inc/customizer/builder/options.php:271
 #: inc/customizer/builder/options.php:392
@@ -270,7 +270,7 @@ msgstr ""
 msgid "Social Menu"
 msgstr ""
 
-#: functions.php:86
+#: functions.php:85
 msgid "Footer Menu"
 msgstr ""
 
@@ -586,7 +586,7 @@ msgid "Prime News"
 msgstr ""
 
 #: inc/customizer/customizer-default.php:78
-#: inc/customizer/customizer-default.php:303
+#: inc/customizer/customizer-default.php:274
 msgid "Related Stories"
 msgstr ""
 
@@ -642,7 +642,6 @@ msgid "Trending"
 msgstr ""
 
 #: inc/customizer/customizer-default.php:138
-#: inc/customizer/customizer-default.php:273
 msgid "Trending Now"
 msgstr ""
 
@@ -691,27 +690,14 @@ msgid "Read More"
 msgstr ""
 
 #: inc/customizer/customizer-default.php:283
-#: inc/widgets/widget-social-contacts.php:41
-msgid "Connect with Us"
-msgstr ""
-
-#: inc/customizer/customizer-default.php:289
-msgid "Instagram"
-msgstr ""
-
-#: inc/customizer/customizer-default.php:295
-msgid "Popular News"
-msgstr ""
-
-#: inc/customizer/customizer-default.php:312
 msgid "Subscribe To  Our Newsletter"
 msgstr ""
 
-#: inc/customizer/customizer-default.php:321
+#: inc/customizer/customizer-default.php:292
 msgid "You may have missed"
 msgstr ""
 
-#: inc/customizer/customizer-default.php:325
+#: inc/customizer/customizer-default.php:296
 msgid "Copyright &copy; All rights reserved."
 msgstr ""
 
@@ -1988,6 +1974,10 @@ msgstr ""
 
 #: inc/widgets/widget-social-contacts.php:24
 msgid "AFTMN Social Contacts"
+msgstr ""
+
+#: inc/widgets/widget-social-contacts.php:41
+msgid "Connect with Us"
 msgstr ""
 
 #: inc/widgets/widget-social-contacts.php:67

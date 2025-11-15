@@ -580,7 +580,7 @@ class WordPressRenderer extends ManifestDrivenRenderer
         
         // Convert value to string
         if (is_array($value)) {
-            $str = implode(', ', $value);
+            $str = $this->arrayToString($value);
         } elseif (is_object($value)) {
             $str = method_exists($value, '__toString') ? (string)$value : '';
         } else {

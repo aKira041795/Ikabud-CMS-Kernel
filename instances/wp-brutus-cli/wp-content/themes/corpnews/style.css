@@ -5,7 +5,7 @@ Author:     AF themes
 Author URI: https://afthemes.com/
 Description: CorpNews is a professional, enterprise-style dark WordPress child theme built on MoreNews for online newspapers, editorial organizations, magazines and high-traffic publishing platforms; it bundles pre-built starter templates and 1-click demo import, flexible header/footer builder options, block patterns and template kits, multiple banner layouts, and deep page-builder support (Gutenberg, Elementor, Beaver Builder, Divi, Brizy) so editorial teams can deploy complex sections, category hubs and custom homepages without code; CorpNews is responsive, AMP-ready, SEO and Core Web Vitals optimized for speed and ranking, integrates with WooCommerce for paywalls or stores and supports Jetpack, Contact Form 7 and Yoast SEO, plus multilingual and RTL demos (English, Spanish, French, Japanese, Arabic) — choose CorpNews for newspaper-grade layouts, template kit flexibility, and professional publishing workflows. https://afthemes.com/products/corpnews/
 Template: morenews
-Version: 1.0.5
+Version: 1.0.6
 Requires at least: 5.0
 Requires PHP: 5.0
 Tested up to: 6.8
@@ -59,7 +59,7 @@ div#main-navigation-bar {
 .aft-default-mode .entry-content>.wp-block-heading a:not(.has-link-color) {
     border-color: #F04901;
 }
-
+.aft-default-mode .entry-content .wp-block-heading:not(.has-link-color):not(.wp-block-post-title) a,
 .entry-content > p:not(.has-link-color) a, .entry-content > p:not(.has-link-color) a:visited{
     color: #F04901;
 }

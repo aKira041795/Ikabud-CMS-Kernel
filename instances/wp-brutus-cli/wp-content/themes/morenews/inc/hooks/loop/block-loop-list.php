@@ -63,7 +63,7 @@ if (!function_exists('morenews_loop_list')) :
           <?php if ($show_meta != false): ?>
             <div class="post-item-metadata entry-meta author-links">
               <?php morenews_post_item_meta($morenews_post_display); ?>
-              <?php //morenews_get_comments_views_share($morenews_post_id); 
+              <?php morenews_get_comments_views_share($morenews_post_id); 
               ?>
             </div>
           <?php endif; ?>

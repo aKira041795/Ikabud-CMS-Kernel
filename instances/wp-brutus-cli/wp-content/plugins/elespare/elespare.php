@@ -9,9 +9,9 @@
  * Description: EleSpare provides pre-designed templates, header/footer builders, and various post layouts for creating stunning news, magazine, and blog sites with Elementor.
 
  * Plugin URI:  https://elespare.com/
- * Version:     3.3.8
- * Elementor tested up to:  3.32.2
- * Elementor Pro tested up to:  3.32.2
+ * Version:     3.3.9
+ * Elementor tested up to:  3.33.0
+ * Elementor Pro tested up to:  3.33.0
  * Author:      Elespare
  * Author URI:  https://elespare.com/
  * Text Domain: elespare
@@ -23,7 +23,7 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-defined('ELESPARE_VERSION') or define('ELESPARE_VERSION', '3.3.8');
+defined('ELESPARE_VERSION') or define('ELESPARE_VERSION', '3.3.9');
 defined('ELESPARE') or define('ELESPARE', __FILE__);
 defined('ELESPARE_PLUGIN_BASE') or define('ELESPARE_PLUGIN_BASE', plugin_basename(ELESPARE));
 defined('ELESPARE_DIR_PATH') or define('ELESPARE_DIR_PATH', plugin_dir_path(ELESPARE));

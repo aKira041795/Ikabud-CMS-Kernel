@@ -382,7 +382,7 @@ function morenews_get_default_theme_options() {
     $defaults['site_title_uppercase']    = true;
 
     //font size
-    $defaults['site_title_font_size']    = 59;
+    $defaults['site_title_font_size']    = 50;
     $defaults['title_font_weight']    = 700;
     $defaults['letter_spacing']    = 0;
     $defaults['title_line_height']  = 1.3;

@@ -1,10 +1,10 @@
-﻿=== WP Post Author ===
+﻿=== WP Post Author - Author Box, Co-Authors & Guest Authors ===
 Contributors: afthemes
 Tags: author, author bio, author box, multiple authors, users
 Donate link: https://afthemes.com/plugins/wp-post-author
 Requires at least: 3.0
 Tested up to: 6.8
-Stable tag: 3.8.5
+Stable tag: 3.8.6
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 

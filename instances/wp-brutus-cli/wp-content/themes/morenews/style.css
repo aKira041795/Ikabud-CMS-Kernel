@@ -4,7 +4,7 @@ Theme URI: https://afthemes.com/products/morenews/
 Author: AF themes
 Author URI: https://www.afthemes.com/
 Description: MoreNews is a dynamic, ultra-fast, and highly versatile WordPress theme built not only for News, Magazines, and Blogs but also for Business, eCommerce, and any kind of Website thanks to its new HEADER & FOOTER BUILDER that works seamlessly with the Block Editor, GUTENBERG, ELEMENTOR, Brizy, Divi, and other popular Page Builders, giving you complete drag-and-drop freedom to design unique layouts without touching code. With 100+ ready-to-import Starter Sites, 30+ Custom Widgets, Advanced Block Patterns, Flexible Banner and Layout Options, AMP support, and full WOOCOMMERCE integration, MoreNews makes it easy to launch anything from a simple Blog to a professional Online Store or a complex Content Hub in minutes. It is fully optimized for SEO, CORE WEB VITALS, Speed, and Responsive Design, ensuring excellent performance on all devices, and is built with WCAG Accessibility, GDPR Compliance, and clean, Lightweight Code for long-term reliability. Multilingual and RTL Ready, with Demo Content available in multiple languages including English, Spanish, German, French, Japanese, Chinese, and Arabic, MoreNews is a future-proof theme designed for creators who value Style, Scalability, and a smooth User Experience across the globe. Explore all features at https://afthemes.com/products/morenews.
-Version: 3.8.3
+Version: 3.8.4
 Requires at least: 5.0
 Requires PHP: 5.0
 Tested up to: 6.8
@@ -1285,14 +1285,14 @@ a:hover, a:active {
     clear: both;
 }
 .container-wrapper {
-    max-width: 1400px;
+    max-width: 1440px;
     margin: 0 auto;
     padding-left: 20px;
     padding-right: 20px;
 }
 
 .af-boxed-layout .af-whole-wrapper{
-    max-width: 1400px;
+    max-width: 1440px;
     margin: 0 auto;
 }
 .aft-enable-top-bottom-gaps.af-boxed-layout .af-whole-wrapper {
@@ -1304,7 +1304,7 @@ a:hover, a:active {
 }
 
 .af-banner-wrapper{
-    max-width: 1400px;
+    max-width: 1440px;
     margin: 0 auto;
     padding-left: 15px;
     padding-right: 15px;
@@ -2620,7 +2620,7 @@ div.custom-menu-link:not(.aft-custom-fa-icon) i::after {
     -webkit-animation: fadeInDown 0.3s ease forwards;
 }
 .af-boxed-layout #main-navigation-bar.aft-sticky-navigation {
-    max-width: 1400px;
+    max-width: 1440px;
 }
 
 @media screen and (min-width: 782px) {
@@ -2792,7 +2792,7 @@ div#main-navigation-bar {
 .header-layout-compressed:not(.header-layout-compressed-centered) .compress-bar-logo .logo{padding: 10px;text-align: left;padding-left: 0;}
 .header-layout-compressed:not(.header-layout-compressed-centered) .center-burger > span{display: none;}
 
-@media (max-width: 1400px) and (min-width: 1025px){
+@media (max-width: 1440px) and (min-width: 1025px){
     .header-layout-compressed:not(.header-layout-compressed-centered) .compress-bar-mid {
         max-width: 600px;
     }
@@ -3528,11 +3528,11 @@ body.aft-default-mode footer.site-footer.data-bg .primary-footer .morenews-widge
     padding-left: 0;
 }
 .af-wide-layout .af-main-banner-latest-posts.grid-layout.morenews-customizer .container-wrapper {
-    max-width: 1360px;
+    max-width: 1400px;
     box-sizing: border-box;
 }
 .af-wide-layout[class*="elementor-"] .af-main-banner-latest-posts.grid-layout.morenews-customizer .container-wrapper {
-    max-width: 1400px;
+    max-width: 1440px;
 }
 .af-wide-layout .aft-frontpage-feature-section-wrapper section,
 .af-wide-layout .aft-main-banner-section.morenews-customizer {
@@ -6648,7 +6648,7 @@ span.post-page-numbers.current,
     text-align: center;
     margin: 20px auto 0;
     width: 100%;
-    max-width: 1400px;
+    max-width: 1440px;
     padding: 0 20px;
 }
 /*advertisement*/
@@ -9679,7 +9679,7 @@ article.latest-posts-grid .read-title h3,
 /*--------------------------------------------------------------
 # media queries------------------------------------------------
 --------------------------------------------------------------*/
-@media screen and (max-width: 1400px) {
+@media screen and (max-width: 1440px) {
     body.single.align-content-right .entry-content-wrap.social-vertical-share .vertical-left-right,
     body.single .entry-content-wrap.social-vertical-share .vertical-left-right{
         position: inherit;
@@ -10949,13 +10949,13 @@ body .above-footer-widget-section > div:not(:first-child) {
 }
 .af-wide-layout .elementor-section.elementor-section-boxed > .elementor-container,
 .af-boxed-layout .elementor-section.elementor-section-boxed > .elementor-container{
-    max-width: 1400px;
+    max-width: 1440px;
 }
 .af-boxed-layout.elementor-page #content.container-wrapper .af-breadcrumbs,
 .af-boxed-layout.elementor-default #content.container-wrapper .af-breadcrumbs,
 .af-wide-layout.elementor-page #content.container-wrapper .af-breadcrumbs,
 .af-wide-layout.elementor-default #content.container-wrapper .af-breadcrumbs {
-    max-width: 1400px;
+    max-width: 1440px;
     margin-left: auto;
     margin-right: auto;
 }
@@ -10964,7 +10964,7 @@ body .above-footer-widget-section > div:not(:first-child) {
     -webkit-box-sizing: content-box;
     -moz-box-sizing: content-box;
     box-sizing: content-box;
-    max-width: 1400px;
+    max-width: 1440px;
 }
 .elementor-page .container-wrapper > *,
 .elementor-default .container-wrapper > * {
@@ -10979,7 +10979,7 @@ body .above-footer-widget-section > div:not(:first-child) {
 .elementor-default.af-boxed-layout .elespare-site-footer .elementor-section-wrap > section.elementor-section > .elementor-container,
 .elementor-page.af-boxed-layout .elespare-site-header .elementor-section-wrap > section.elementor-section > .elementor-container,
 .elementor-default.af-boxed-layout .elespare-site-header .elementor-section-wrap > section.elementor-section > .elementor-container{
-    max-width: 1400px;
+    max-width: 1440px;
 }
 /* for elespare */
 
@@ -10996,7 +10996,7 @@ body .above-footer-widget-section > div:not(:first-child) {
 	padding-bottom: 0;
 }
 .blockspare-blank-canvas .blockspare-page-section>.alignwide {
-    max-width: 1400px;
+    max-width: 1440px;
 }
 .is-layout-constrained > .alignwide {
     /* padding: 0 20px; */
@@ -11005,7 +11005,7 @@ body .above-footer-widget-section > div:not(:first-child) {
 /* Full width adjustments for the specific template */
 body.full-width-content .aft-pagebuilder-full-width-content .site-main>.alignwide ,
 .aft-pagebuilder-full-width-content .site-main>.alignwide {
-    max-width: 1400px; /* Same as blank canvas */
+    max-width: 1440px; /* Same as blank canvas */
     margin-left: auto;
     margin-right: auto;
     padding-left: 20px;
@@ -11021,7 +11021,7 @@ body.full-width-content .aft-pagebuilder-full-width-content .site-main>.alignwid
     width: 100%;
 }
 body .aft-pagebuilder-page-section > .vce-row-container{
-    max-width: 1400px;
+    max-width: 1440px;
 }
 
 body.aft-pagebuilder-blank-canvas .aft-pagebuilder-page-section div#et-boc {
@@ -11050,7 +11050,7 @@ body.aft-pagebuilder-blank-canvas .aft-pagebuilder-page-section div#et-boc {
 .elementor-default .aft-pagebuilder-full-width-content .site-main>.alignwide,
 body.full-width-content.aft-pagebuilder-blank-canvas .aft-pagebuilder-page-section>.alignwide,
 .aft-pagebuilder-blank-canvas .aft-pagebuilder-page-section>.alignwide {
-    max-width: 1400px;
+    max-width: 1440px;
     margin-left: auto;
     margin-right: auto;
     padding-left: 20px;

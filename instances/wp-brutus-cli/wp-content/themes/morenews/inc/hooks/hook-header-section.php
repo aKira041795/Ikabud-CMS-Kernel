@@ -62,8 +62,8 @@ if (!function_exists('morenews_main_menu_nav_section')) :
     <div class="navigation-container">
       <nav class="main-navigation clearfix">
 
-        <span class="toggle-menu" aria-controls="primary-menu" aria-expanded="false">
-          <a href="#" role="button" class="aft-void-menu" aria-expanded="false">
+        <span class="toggle-menu" >
+          <a href="#" role="button" class="aft-void-menu" aria-controls="primary-menu" aria-expanded="false">
             <span class="screen-reader-text">
               <?php esc_html_e('Primary Menu', 'morenews'); ?>
             </span>
