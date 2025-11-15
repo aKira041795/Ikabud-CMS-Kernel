@@ -6,9 +6,46 @@
  * Author: Ikabud Kernel
  */
 
-// Handle CORS - must run VERY early, at send_headers
+// Handle CORS and CSP - must run VERY early, at send_headers
 add_action('send_headers', 'ikabud_handle_cors', 1);
 function ikabud_handle_cors() {
+    $current_host = $_SERVER['HTTP_HOST'] ?? '';
+    $request_uri = $_SERVER['REQUEST_URI'] ?? '';
+    
+    // Get base domain for cross-subdomain support
+    $host_parts = explode('.', $current_host);
+    $base_domain = implode('.', array_slice($host_parts, -2)); // e.g., "brutus.test"
+    
+    // Detect if this is customizer preview (frontend being framed)
+    $is_customizer_preview = isset($_GET['customize_changeset_uuid']) || 
+                             isset($_POST['customize_changeset_uuid']) ||
+                             isset($_GET['customize_theme']) ||
+                             isset($_GET['customize_messenger_channel']);
+    
+    // For customizer preview, override CSP to allow framing from backend subdomain
+    if ($is_customizer_preview) {
+        header_remove('Content-Security-Policy');
+        header_remove('X-Frame-Options');
+        
+        // Set CSP that allows framing from same domain and subdomains
+        $csp = "default-src 'self' https: http: data: blob:; " .
+               "script-src 'self' 'unsafe-inline' 'unsafe-eval' https: http: blob:; " .
+               "style-src 'self' 'unsafe-inline' https: http:; " .
+               "img-src 'self' data: https: http:; " .
+               "font-src 'self' data: https: http:; " .
+               "connect-src 'self' https: http: wss: ws:; " .
+               "frame-src 'self' https: http:; " .
+               "frame-ancestors 'self' http://*." . $base_domain . " https://*." . $base_domain . "; " .
+               "worker-src 'self' blob:;";
+        header("Content-Security-Policy: " . $csp);
+        return;
+    }
+    
+    // Skip CORS for admin (Kernel already skips CSP for these)
+    if (is_admin() || (defined('DOING_AJAX') && DOING_AJAX)) {
+        return;
+    }
+    
     $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
     
     if (!$origin) {

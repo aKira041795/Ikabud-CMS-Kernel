@@ -13,26 +13,15 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-// Disable debug display for AJAX requests to prevent JSON errors
+// Disable error display for AJAX to prevent JSON corruption
 if (defined('DOING_AJAX') && DOING_AJAX) {
     @ini_set('display_errors', 0);
+    @error_reporting(0);
 }
 
-// Fix CSP headers for customizer to allow widget saves
-add_filter('customize_allowed_urls', 'phoenix_customize_allowed_urls', 10, 1);
-function phoenix_customize_allowed_urls($allowed_urls) {
-    // Allow all URLs for customizer (removes CSP restrictions)
-    return array('*');
-}
-
-// Remove CSP headers completely for admin
-add_action('send_headers', 'phoenix_remove_admin_csp', 999);
-function phoenix_remove_admin_csp() {
-    if (is_admin() || (defined('DOING_AJAX') && DOING_AJAX)) {
-        header_remove('Content-Security-Policy');
-        header_remove('X-Frame-Options');
-    }
-}
+// ROOT CAUSE FIX: Disable block-based widget editor to use classic editor
+// The block editor conflicts with classic widgets that use wp_enqueue_editor() (like Text widget)
+add_filter('use_widgets_block_editor', '__return_false');
 
 /**
  * Theme Setup

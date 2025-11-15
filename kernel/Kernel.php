@@ -576,12 +576,39 @@ class Kernel
     
     private function initializeSecuritySandbox(): void
     {
+        // Detect WordPress admin and get current host for cross-subdomain support
+        $request_uri = $_SERVER['REQUEST_URI'] ?? '';
+        $current_host = $_SERVER['HTTP_HOST'] ?? '';
+        $is_wp_admin = strpos($request_uri, '/wp-admin/') !== false || 
+                       strpos($request_uri, '/wp-login.php') !== false;
+        
+        // Get base domain for frame-ancestors (e.g., "brutus.test" from "backend.brutus.test")
+        $host_parts = explode('.', $current_host);
+        $base_domain = implode('.', array_slice($host_parts, -2)); // Last 2 parts
+        
         // Set security headers
-        header('X-Frame-Options: SAMEORIGIN');
+        if (!$is_wp_admin) {
+            header('X-Frame-Options: SAMEORIGIN');
+        }
         header('X-Content-Type-Options: nosniff');
         header('X-XSS-Protection: 1; mode=block');
+        
         // More permissive CSP for CMS compatibility (allows CDNs, external resources, workers, mixed content)
-        header("Content-Security-Policy: default-src 'self' https: http:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https: http: blob:; style-src 'self' 'unsafe-inline' https: http:; img-src 'self' data: https: http:; font-src 'self' data: https: http:; connect-src 'self' https: http: wss: ws:; frame-src 'self' https: http:; worker-src 'self' blob:;");
+        // Skip CSP entirely for WordPress admin to prevent customizer iframe issues
+        if (!$is_wp_admin) {
+            // Allow framing from same domain and subdomains (for WordPress customizer cross-subdomain support)
+            $csp = "default-src 'self' https: http:; " .
+                   "script-src 'self' 'unsafe-inline' 'unsafe-eval' https: http: blob:; " .
+                   "style-src 'self' 'unsafe-inline' https: http:; " .
+                   "img-src 'self' data: https: http:; " .
+                   "font-src 'self' data: https: http:; " .
+                   "connect-src 'self' https: http: wss: ws:; " .
+                   "frame-src 'self' https: http:; " .
+                   "frame-ancestors 'self' http://*." . $base_domain . " https://*." . $base_domain . "; " .
+                   "worker-src 'self' blob:;";
+            header("Content-Security-Policy: " . $csp);
+        }
+        
         header('Referrer-Policy: strict-origin-when-cross-origin');
         header('Permissions-Policy: geolocation=(), microphone=(), camera=()');
         
