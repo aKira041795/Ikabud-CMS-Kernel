@@ -65,11 +65,14 @@
             Archives
         {/ikb_text}
         <ul>
-            <li><a href="#"><span>November 2025</span><span style="font-size: 0.875rem; color: #999;">(12)</span></a></li>
-            <li><a href="#"><span>October 2025</span><span style="font-size: 0.875rem; color: #999;">(18)</span></a></li>
-            <li><a href="#"><span>September 2025</span><span style="font-size: 0.875rem; color: #999;">(15)</span></a></li>
-            <li><a href="#"><span>August 2025</span><span style="font-size: 0.875rem; color: #999;">(22)</span></a></li>
-            <li><a href="#"><span>July 2025</span><span style="font-size: 0.875rem; color: #999;">(19)</span></a></li>
+            {ikb_query type="archive" limit=12}
+                <li>
+                    <a href="{item.url | esc_url}">
+                        <span>{item.name | esc_html}</span>
+                        <span class="archive-count">({item.count})</span>
+                    </a>
+                </li>
+            {/ikb_query}
         </ul>
     </div>
     

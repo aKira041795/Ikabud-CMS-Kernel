@@ -1,4 +1,4 @@
-a:6:{s:7:"headers";a:9:{i:0;s:27:"X-Frame-Options: SAMEORIGIN";i:1;s:31:"X-Content-Type-Options: nosniff";i:2;s:31:"X-XSS-Protection: 1; mode=block";i:3;s:341:"Content-Security-Policy: default-src 'self' https: http:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https: http: blob:; style-src 'self' 'unsafe-inline' https: http:; img-src 'self' data: https: http:; font-src 'self' data: https: http:; connect-src 'self' https: http: wss: ws:; frame-src 'self' https: http:; worker-src 'self' blob:;";i:4;s:48:"Referrer-Policy: strict-origin-when-cross-origin";i:5;s:60:"Permissions-Policy: geolocation=(), microphone=(), camera=()";i:6;s:38:"Content-Type: text/html; charset=UTF-8";i:7;s:61:"Link: <http://brutus.test/wp-json/>; rel="https://api.w.org/"";i:8;s:109:"Link: <http://brutus.test/wp-json/wp/v2/categories/3>; rel="alternate"; title="JSON"; type="application/json"";}s:4:"body";s:32738:"
+a:6:{s:7:"headers";a:9:{i:0;s:27:"X-Frame-Options: SAMEORIGIN";i:1;s:31:"X-Content-Type-Options: nosniff";i:2;s:31:"X-XSS-Protection: 1; mode=block";i:3;s:341:"Content-Security-Policy: default-src 'self' https: http:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https: http: blob:; style-src 'self' 'unsafe-inline' https: http:; img-src 'self' data: https: http:; font-src 'self' data: https: http:; connect-src 'self' https: http: wss: ws:; frame-src 'self' https: http:; worker-src 'self' blob:;";i:4;s:48:"Referrer-Policy: strict-origin-when-cross-origin";i:5;s:60:"Permissions-Policy: geolocation=(), microphone=(), camera=()";i:6;s:38:"Content-Type: text/html; charset=UTF-8";i:7;s:61:"Link: <http://brutus.test/wp-json/>; rel="https://api.w.org/"";i:8;s:109:"Link: <http://brutus.test/wp-json/wp/v2/categories/3>; rel="alternate"; title="JSON"; type="application/json"";}s:4:"body";s:32645:"
 <!DOCTYPE html>
 <html lang="en-US">
 <head>
@@ -556,11 +556,21 @@ a:6:{s:7:"headers";a:9:{i:0;s:27:"X-Frame-Options: SAMEORIGIN";i:1;s:31:"X-Conte
             Archives
         </div>
         <ul>
-            <li><a href="#"><span>November 2025</span><span style="font-size: 0.875rem; color: #999;">(12)</span></a></li>
-            <li><a href="#"><span>October 2025</span><span style="font-size: 0.875rem; color: #999;">(18)</span></a></li>
-            <li><a href="#"><span>September 2025</span><span style="font-size: 0.875rem; color: #999;">(15)</span></a></li>
-            <li><a href="#"><span>August 2025</span><span style="font-size: 0.875rem; color: #999;">(22)</span></a></li>
-            <li><a href="#"><span>July 2025</span><span style="font-size: 0.875rem; color: #999;">(19)</span></a></li>
+            
+                <li>
+                    <a href="http://brutus.test/2025/11/">
+                        <span>November 2025</span>
+                        <span class="archive-count">(1)</span>
+                    </a>
+                </li>
+            
+                <li>
+                    <a href="http://brutus.test/2024/05/">
+                        <span>May 2024</span>
+                        <span class="archive-count">(9)</span>
+                    </a>
+                </li>
+            
         </ul>
     </div>
     
@@ -668,4 +678,4 @@ a:6:{s:7:"headers";a:9:{i:0;s:27:"X-Frame-Options: SAMEORIGIN";i:1;s:31:"X-Conte
 <script src="http://brutus.test/wp-content/themes/phoenix/assets/js/phoenix.js"></script>
 </body>
 </html>
-";s:9:"timestamp";i:1763190946;s:8:"cms_type";s:9:"wordpress";s:17:"extensions_loaded";a:0:{}s:15:"extension_count";i:0;}
+";s:9:"timestamp";i:1763191451;s:8:"cms_type";s:9:"wordpress";s:17:"extensions_loaded";a:0:{}s:15:"extension_count";i:0;}

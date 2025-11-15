@@ -416,6 +416,52 @@ class WordPressRenderer extends ManifestDrivenRenderer
                 $this->context = $originalContext;
             }
         }
+        // Handle archive queries (monthly archives)
+        elseif ($type === 'archive') {
+            global $wpdb;
+            
+            // Get monthly archives
+            $archives = $wpdb->get_results("
+                SELECT YEAR(post_date) as year, MONTH(post_date) as month, COUNT(*) as count
+                FROM {$wpdb->posts}
+                WHERE post_type = 'post' 
+                AND post_status = 'publish'
+                GROUP BY year, month
+                ORDER BY year DESC, month DESC
+                LIMIT {$limit}
+            ");
+            
+            if (!empty($archives)) {
+                $originalContext = $this->context;
+                
+                foreach ($archives as $archive) {
+                    $year = $archive->year;
+                    $month = $archive->month;
+                    $count = $archive->count;
+                    
+                    // Format month name
+                    $month_name = date('F', mktime(0, 0, 0, $month, 1));
+                    
+                    // Generate archive URL
+                    $archive_url = get_month_link($year, $month);
+                    
+                    // Set item context with archive data
+                    $this->context['item'] = [
+                        'year' => $year,
+                        'month' => $month,
+                        'month_name' => $month_name,
+                        'name' => "{$month_name} {$year}",
+                        'count' => $count,
+                        'url' => $archive_url
+                    ];
+                    
+                    error_log('[DiSyL] ikb_query rendering ' . count($children) . ' children');
+                    $html .= $this->renderChildren($children);
+                }
+                
+                $this->context = $originalContext;
+            }
+        }
         // Handle post queries
         elseif ($query->have_posts()) {
             $originalContext = $this->context;
