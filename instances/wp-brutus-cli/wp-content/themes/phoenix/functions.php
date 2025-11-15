@@ -295,20 +295,21 @@ add_filter('body_class', 'phoenix_body_classes');
 function phoenix_get_menu_items($location) {
     $locations = get_nav_menu_locations();
     
+    // Check if menu location has a menu assigned
     if (!isset($locations[$location])) {
-        return array();
+        return phoenix_get_fallback_menu($location);
     }
     
     $menu = wp_get_nav_menu_object($locations[$location]);
     
     if (!$menu) {
-        return array();
+        return phoenix_get_fallback_menu($location);
     }
     
     $menu_items = wp_get_nav_menu_items($menu->term_id);
     
     if (!$menu_items) {
-        return array();
+        return phoenix_get_fallback_menu($location);
     }
     
     $items = array();
@@ -327,6 +328,40 @@ function phoenix_get_menu_items($location) {
     }
     
     return $items;
+}
+
+/**
+ * Get Fallback Menu Items (when no menu is assigned)
+ */
+function phoenix_get_fallback_menu($location) {
+    // Only provide fallback for primary menu
+    if ($location !== 'primary') {
+        return array();
+    }
+    
+    // Default menu items
+    return array(
+        array(
+            'id' => 0,
+            'title' => 'Home',
+            'url' => home_url('/'),
+            'target' => '',
+            'classes' => 'menu-item',
+            'active' => is_front_page(),
+            'parent_id' => 0,
+            'order' => 1,
+        ),
+        array(
+            'id' => 0,
+            'title' => 'Blog',
+            'url' => home_url('/blog'),
+            'target' => '',
+            'classes' => 'menu-item',
+            'active' => is_home(),
+            'parent_id' => 0,
+            'order' => 2,
+        ),
+    );
 }
 
 /**
