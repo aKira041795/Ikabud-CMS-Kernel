@@ -1,14 +1,23 @@
 {!-- Phoenix Theme - Homepage Template --}
 {include file="components/header.disyl"}
 
-{!-- Hero Section with Animated Gradient --}
+{!-- Featured Slider Section --}
+{ikb_section type="slider" class="section-gradient" padding="xlarge"}
+    {ikb_container size="xlarge"}
+        <div class="section-header reveal">
+            {ikb_text size="3xl" weight="bold" class="section-title"}
+                Featured Content
+            {/ikb_text}
+        </div>
+        
+        {include file="components/slider.disyl"}
+    {/ikb_container}
+{/ikb_section}
+
+{!-- Hero Section with Animated Gradient (Only show when no hero widget) --}
+{if condition="!widgets.homepage_hero.active"}
 {ikb_section type="hero" class="hero-section" padding="none"}
-    {if condition="widgets.homepage_hero.active"}
-        {!-- Custom Hero Widget --}
-        {widgets.homepage_hero.content | raw}
-    {else}
-        {!-- Default Hero Content (Fallback) --}
-        <div class="hero-content animate-fade-in">
+    <div class="hero-content animate-fade-in">
         {ikb_text size="4xl" weight="black" class="hero-title"}
             Rise Like a Phoenix
         {/ikb_text}
@@ -21,19 +30,20 @@
             <a href="#features" class="btn btn-primary">Explore Features</a>
             <a href="#blog" class="btn btn-outline">Read Blog</a>
         </div>
-        </div>
-    {/if}
+    </div>
 {/ikb_section}
+{/if}
 
-{!-- Features Section --}
+{!-- Custom Hero Widget (When set) --}
+{if condition="widgets.homepage_hero.active"}
+    {widgets.homepage_hero.content | raw}
+{/if}
+
+{!-- Features Section (Only show when no features widget) --}
+{if condition="!widgets.homepage_features.active"}
 {ikb_section type="features" id="features" padding="xlarge"}
     {ikb_container size="xlarge"}
-        {if condition="widgets.homepage_features.active"}
-            {!-- Custom Features Widget --}
-            {widgets.homepage_features.content | raw}
-        {else}
-            {!-- Default Features Content (Fallback) --}
-            <div class="section-header reveal">
+        <div class="section-header reveal">
             {ikb_text size="3xl" weight="bold" class="section-title gradient-text"}
                 <h3>Powerful Features</h3>
             {/ikb_text}
@@ -121,22 +131,14 @@
                 {/ikb_text}
             </div>
         </div>
-        {/if}
     {/ikb_container}
 {/ikb_section}
+{/if}
 
-{!-- Featured Slider Section --}
-{ikb_section type="slider" class="section-gradient" padding="xlarge"}
-    {ikb_container size="xlarge"}
-        <div class="section-header reveal">
-            {ikb_text size="3xl" weight="bold" class="section-title"}
-                Featured Content
-            {/ikb_text}
-        </div>
-        
-        {include file="components/slider.disyl"}
-    {/ikb_container}
-{/ikb_section}
+{!-- Custom Features Widget (When set) --}
+{if condition="widgets.homepage_features.active"}
+    {widgets.homepage_features.content | raw}
+{/if}
 
 {!-- Latest Blog Posts --}
 {ikb_section type="blog" id="blog" padding="xlarge"}
