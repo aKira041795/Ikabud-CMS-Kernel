@@ -260,7 +260,12 @@ function phoenix_build_context() {
     
     // Add category data if on category page
     if (is_category()) {
-        $context['category'] = phoenix_get_category_context();
+        try {
+            $context['category'] = phoenix_get_category_context();
+        } catch (Exception $e) {
+            error_log('Phoenix Category Context Error: ' . $e->getMessage());
+            $context['category'] = array();
+        }
     }
     
     // Add tag data if on tag page

@@ -1,4 +1,4 @@
-a:6:{s:7:"headers";a:9:{i:0;s:27:"X-Frame-Options: SAMEORIGIN";i:1;s:31:"X-Content-Type-Options: nosniff";i:2;s:31:"X-XSS-Protection: 1; mode=block";i:3;s:341:"Content-Security-Policy: default-src 'self' https: http:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https: http: blob:; style-src 'self' 'unsafe-inline' https: http:; img-src 'self' data: https: http:; font-src 'self' data: https: http:; connect-src 'self' https: http: wss: ws:; frame-src 'self' https: http:; worker-src 'self' blob:;";i:4;s:48:"Referrer-Policy: strict-origin-when-cross-origin";i:5;s:60:"Permissions-Policy: geolocation=(), microphone=(), camera=()";i:6;s:38:"Content-Type: text/html; charset=UTF-8";i:7;s:61:"Link: <http://brutus.test/wp-json/>; rel="https://api.w.org/"";i:8;s:109:"Link: <http://brutus.test/wp-json/wp/v2/categories/5>; rel="alternate"; title="JSON"; type="application/json"";}s:4:"body";s:21314:"
+a:6:{s:7:"headers";a:9:{i:0;s:27:"X-Frame-Options: SAMEORIGIN";i:1;s:31:"X-Content-Type-Options: nosniff";i:2;s:31:"X-XSS-Protection: 1; mode=block";i:3;s:341:"Content-Security-Policy: default-src 'self' https: http:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https: http: blob:; style-src 'self' 'unsafe-inline' https: http:; img-src 'self' data: https: http:; font-src 'self' data: https: http:; connect-src 'self' https: http: wss: ws:; frame-src 'self' https: http:; worker-src 'self' blob:;";i:4;s:48:"Referrer-Policy: strict-origin-when-cross-origin";i:5;s:60:"Permissions-Policy: geolocation=(), microphone=(), camera=()";i:6;s:38:"Content-Type: text/html; charset=UTF-8";i:7;s:61:"Link: <http://brutus.test/wp-json/>; rel="https://api.w.org/"";i:8;s:109:"Link: <http://brutus.test/wp-json/wp/v2/categories/5>; rel="alternate"; title="JSON"; type="application/json"";}s:4:"body";s:21486:"
 <!DOCTYPE html>
 <html lang="en-US">
 <head>
@@ -209,30 +209,42 @@ a:6:{s:7:"headers";a:9:{i:0;s:27:"X-Frame-Options: SAMEORIGIN";i:1;s:31:"X-Conte
 </header>
 
 <main class="site-content">
-<section><div class="ikb-container ikb-container-lg">
+
+<section class="section-gradient" style="padding: 4rem 0;">
+    <div class="ikb-container ikb-container-lg">
         <div class="category-header-content">
             
             <div class="text-center">
-                <div class="ikb-text ikb-text-4xl font-bold text-left">
-                    Model
+                <div class="ikb-text ikb-text-4xl font-bold category-title">
+                    <h1>Model</h1>
                 </div>
+                
+                
                 <div class="category-meta">
-                    <div class="ikb-text ikb-text-sm font-normal text-left">5Posts</div>
+                    <span class="category-count">
+                        5Posts
+                    </span>
+                    
+                    
                 </div>
             </div>
         </div>
-    </div></section><section><div class="ikb-container ikb-container-lg">
+    </div>
+</section>
+
+
+<section style="padding: 4rem 0;">
+    <div class="ikb-container ikb-container-xlarge">
         <div class="archive-layout">
             
             <div>
                 
                 <div class="filter-bar">
-                    <div class="ikb-text ikb-text-lg font-semibold text-left">
+                    <div class="ikb-text ikb-text-lg font-semibold">
                         Latest Posts
                     </div>
                     
                     <div class="filter-actions">
-                        
                         <span class="post-count">5 total</span>
                     </div>
                 </div>
@@ -352,7 +364,10 @@ a:6:{s:7:"headers";a:9:{i:0;s:27:"X-Frame-Options: SAMEORIGIN";i:1;s:31:"X-Conte
 </aside>
 
         </div>
-    </div></section>
+    </div>
+</section>
+
+
 </main>
 
 <footer class="site-footer">
@@ -438,4 +453,4 @@ a:6:{s:7:"headers";a:9:{i:0;s:27:"X-Frame-Options: SAMEORIGIN";i:1;s:31:"X-Conte
 <script src="http://brutus.test/wp-content/themes/phoenix/assets/js/phoenix.js"></script>
 </body>
 </html>
-";s:9:"timestamp";i:1763189580;s:8:"cms_type";s:9:"wordpress";s:17:"extensions_loaded";a:0:{}s:15:"extension_count";i:0;}
+";s:9:"timestamp";i:1763190038;s:8:"cms_type";s:9:"wordpress";s:17:"extensions_loaded";a:0:{}s:15:"extension_count";i:0;}

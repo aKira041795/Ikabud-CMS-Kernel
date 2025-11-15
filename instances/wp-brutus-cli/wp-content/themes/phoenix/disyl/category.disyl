@@ -2,107 +2,87 @@
 {include file="components/header.disyl"}
 
 {!-- Category Header --}
-{ikb_section type="category-header" class="section-gradient" padding="large"}
-    {ikb_container size="large"}
+<section class="section-gradient" style="padding: 4rem 0;">
+    <div class="ikb-container ikb-container-lg">
         <div class="category-header-content">
-            {!-- Category Icon/Image --}
-            {if condition="category.image"}
-                <div class="category-image">
-                    {ikb_image 
-                        src="{category.image | esc_url}"
-                        alt="{category.name | esc_attr}"
-                        class="category-icon"
-                    /}
-                </div>
-            {/if}
-            
             {!-- Category Title --}
             <div class="text-center">
-                {ikb_text size="4xl" weight="bold" class="category-title"}
-                    {category.name | esc_html}
-                {/ikb_text}
+                <div class="ikb-text ikb-text-4xl font-bold category-title">
+                    <h1>{category.name | esc_html}</h1>
+                </div>
                 
                 {!-- Category Description --}
                 {if condition="category.description"}
-                    {ikb_text size="lg" margin="top" class="category-description"}
+                    <div class="ikb-text ikb-text-lg category-description" style="margin-top: 1rem;">
                         {category.description | wp_kses_post}
-                    {/ikb_text}
+                    </div>
                 {/if}
                 
                 {!-- Category Meta --}
                 <div class="category-meta">
-                    {ikb_text size="sm" class="category-count"}
+                    <span class="category-count">
                         {category.count} {if condition="category.count == 1"}Post{/if}{if condition="category.count != 1"}Posts{/if}
-                    {/ikb_text}
+                    </span>
                     
                     {!-- Parent Category Breadcrumb --}
                     {if condition="category.parent"}
                         <span class="separator">•</span>
-                        {ikb_text size="sm"}
+                        <span>
                             in <a href="{category.parent.url | esc_url}" class="parent-category">{category.parent.name | esc_html}</a>
-                        {/ikb_text}
+                        </span>
                     {/if}
                 </div>
             </div>
         </div>
-    {/ikb_container}
-{/ikb_section}
+    </div>
+</section>
 
 {!-- Subcategories (if any) --}
 {if condition="category.children"}
-    {ikb_section type="subcategories" padding="large" class="bg-light"}
-        {ikb_container size="large"}
-            {ikb_text size="2xl" weight="semibold" margin="bottom-large"}
-                Explore Subcategories
-            {/ikb_text}
+    <section style="padding: 3rem 0; background: #f8f9fa;">
+        <div class="ikb-container ikb-container-lg">
+            <div class="ikb-text ikb-text-2xl font-semibold" style="margin-bottom: 2rem;">
+                <h2>Explore Subcategories</h2>
+            </div>
             
             <div class="subcategory-grid">
                 {for items="category.children" as="child"}
                     <a href="{child.url | esc_url}" class="subcategory-card">
-                        {if condition="child.image"}
-                            {ikb_image 
-                                src="{child.image | esc_url}"
-                                alt="{child.name | esc_attr}"
-                                class="subcategory-image"
-                            /}
-                        {/if}
-                        
                         <div class="subcategory-content">
-                            {ikb_text size="lg" weight="semibold"}
+                            <div class="ikb-text ikb-text-lg font-semibold">
                                 {child.name | esc_html}
-                            {/ikb_text}
+                            </div>
                             
                             {if condition="child.description"}
-                                {ikb_text size="sm" class="subcategory-desc"}
+                                <div class="ikb-text ikb-text-sm subcategory-desc">
                                     {child.description | strip_tags | truncate:length=80,append="..."}
-                                {/ikb_text}
+                                </div>
                             {/if}
                             
-                            {ikb_text size="xs" class="subcategory-count"}
+                            <div class="ikb-text ikb-text-xs subcategory-count">
                                 {child.count} posts
-                            {/ikb_text}
+                            </div>
                         </div>
                     </a>
                 {/for}
             </div>
-        {/ikb_container}
-    {/ikb_section}
+        </div>
+    </section>
 {/if}
 
 {!-- Category Posts --}
-{ikb_section type="category-content" padding="xlarge"}
-    {ikb_container size="xlarge"}
+<section style="padding: 4rem 0;">
+    <div class="ikb-container ikb-container-xlarge">
         <div class="archive-layout">
             {!-- Posts Grid --}
             <div>
-                {!-- Filter/Sort Bar --}
+                {!-- Filter Bar --}
                 <div class="filter-bar">
-                    {ikb_text size="lg" weight="semibold"}
+                    <div class="ikb-text ikb-text-lg font-semibold">
                         Latest Posts
-                    {/ikb_text}
+                    </div>
                     
                     <div class="filter-actions">
-                        {!-- Could add sorting options here --}
                         <span class="post-count">{category.count} total</span>
                     </div>
                 </div>
@@ -114,12 +94,7 @@
                             {!-- Featured Image --}
                             {if condition="item.thumbnail"}
                                 <a href="{item.url | esc_url}" class="post-thumbnail-link">
-                                    {ikb_image 
-                                        src="{item.thumbnail | esc_url}"
-                                        alt="{item.title | esc_attr}"
-                                        class="post-thumbnail"
-                                        lazy=true
-                                    /}
+                                    <img src="{item.thumbnail | esc_url}" alt="{item.title | esc_attr}" class="post-thumbnail" loading="lazy">
                                 </a>
                             {/if}
                             
@@ -129,38 +104,23 @@
                                     <span class="post-date">{item.date | date:format="M j, Y"}</span>
                                     <span class="separator">•</span>
                                     <span class="post-author">{item.author | esc_html}</span>
-                                    {if condition="item.comment_count"}
-                                        <span class="separator">•</span>
-                                        <span class="post-comments">{item.comment_count} comments</span>
-                                    {/if}
                                 </div>
                                 
                                 {!-- Post Title --}
-                                {ikb_text size="xl" weight="semibold" class="post-title"}
+                                <div class="ikb-text ikb-text-xl font-semibold post-title">
                                     <a href="{item.url | esc_url}">{item.title | esc_html}</a>
-                                {/ikb_text}
+                                </div>
                                 
                                 {!-- Post Excerpt --}
-                                {ikb_text class="post-excerpt"}
+                                <div class="ikb-text post-excerpt">
                                     {item.excerpt | strip_tags | truncate:length=150,append="..."}
-                                {/ikb_text}
+                                </div>
                                 
                                 {!-- Post Footer --}
                                 <div class="post-footer">
                                     <a href="{item.url | esc_url}" class="read-more">
                                         Read More →
                                     </a>
-                                    
-                                    {!-- Post Tags --}
-                                    {if condition="item.tags"}
-                                        <div class="post-tags-mini">
-                                            {for items="item.tags" as="tag"}
-                                                <a href="{tag.url | esc_url}" class="tag-mini">
-                                                    {tag.name | esc_html}
-                                                </a>
-                                            {/for}
-                                        </div>
-                                    {/if}
                                 </div>
                             </div>
                         </article>
@@ -192,31 +152,31 @@
             {!-- Sidebar --}
             {include file="components/sidebar.disyl"}
         </div>
-    {/ikb_container}
-{/ikb_section}
+    </div>
+</section>
 
 {!-- Related Categories --}
 {if condition="category.related"}
-    {ikb_section type="related-categories" padding="large" class="bg-light"}
-        {ikb_container size="large"}
-            {ikb_text size="2xl" weight="semibold" margin="bottom-large"}
-                Related Categories
-            {/ikb_text}
+    <section style="padding: 3rem 0; background: #f8f9fa;">
+        <div class="ikb-container ikb-container-lg">
+            <div class="ikb-text ikb-text-2xl font-semibold" style="margin-bottom: 2rem;">
+                <h2>Related Categories</h2>
+            </div>
             
             <div class="related-categories-grid">
                 {for items="category.related" as="related"}
                     <a href="{related.url | esc_url}" class="related-category-card">
-                        {ikb_text size="lg" weight="semibold"}
+                        <div class="ikb-text ikb-text-lg font-semibold">
                             {related.name | esc_html}
-                        {/ikb_text}
-                        {ikb_text size="sm"}
+                        </div>
+                        <div class="ikb-text ikb-text-sm">
                             {related.count} posts
-                        {/ikb_text}
+                        </div>
                     </a>
                 {/for}
             </div>
-        {/ikb_container}
-    {/ikb_section}
+        </div>
+    </section>
 {/if}
 
 {include file="components/footer.disyl"}
