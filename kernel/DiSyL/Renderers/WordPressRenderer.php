@@ -517,17 +517,33 @@ class WordPressRenderer extends ManifestDrivenRenderer
         // Evaluate condition
         $result = $this->evaluateCondition($condition);
         
-        if ($result) {
-            // Render if block (children)
-            return $this->renderChildren($children);
-        } else {
-            // Render else block if it exists
-            if (isset($node['elseBlock']) && is_array($node['elseBlock'])) {
-                return $this->renderChildren($node['elseBlock']);
+        // Split children into if-block and else-block
+        $ifChildren = [];
+        $elseChildren = [];
+        $inElseBlock = false;
+        
+        foreach ($children as $child) {
+            // Check if this is an {else} tag
+            if (isset($child['type']) && $child['type'] === 'tag' && 
+                isset($child['name']) && $child['name'] === 'else') {
+                $inElseBlock = true;
+                continue; // Skip the {else} tag itself
+            }
+            
+            if ($inElseBlock) {
+                $elseChildren[] = $child;
+            } else {
+                $ifChildren[] = $child;
             }
         }
         
-        return '';
+        if ($result) {
+            // Render if block
+            return $this->renderChildren($ifChildren);
+        } else {
+            // Render else block
+            return $this->renderChildren($elseChildren);
+        }
     }
     
     /**
