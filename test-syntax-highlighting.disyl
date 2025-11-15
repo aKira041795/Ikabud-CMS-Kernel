@@ -1,0 +1,159 @@
+{!-- DiSyL Syntax Highlighting Test File --}
+{!-- This file demonstrates all DiSyL v0.3 features --}
+
+{include file="components/header.disyl" /}
+
+{!-- Hero Section --}
+{ikb_section type="hero" bg="gradient" padding="xlarge"}
+    {ikb_container size="large"}
+        {ikb_text size="3xl" weight="bold" class="gradient-text"}
+            Welcome to DiSyL v0.3
+        {/ikb_text}
+        
+        {ikb_text size="xl" margin="top"}
+            The CMS-agnostic templating language
+        {/ikb_text}
+        
+        {ikb_button variant="primary" size="large"}
+            Get Started
+        {/ikb_button}
+    {/ikb_container}
+{/ikb_section}
+
+{!-- Main Content --}
+{ikb_section type="main" padding="large"}
+    {ikb_container size="large"}
+        
+        {!-- Expressions and Filters --}
+        <h1>{site.name | esc_html}</h1>
+        <p>{site.description | esc_html}</p>
+        
+        {!-- Filter Pipelines --}
+        <h2>{post.title | strip_tags | upper | esc_html}</h2>
+        <p>{post.excerpt | strip_tags | truncate:length=150,append="..." | esc_html}</p>
+        
+        {!-- Date Formatting --}
+        <time>{post.date | date:format="F j, Y"}</time>
+        
+        {!-- Number Formatting --}
+        <span>{item.price | number_format:decimals=2,dec_point=".",thousands_sep=","}</span>
+        
+        {!-- If Statement --}
+        {if condition="{user.logged_in}"}
+            <p>Welcome back, {user.name | esc_html}!</p>
+            
+            {if condition="{user.is_admin}"}
+                <a href="/admin">Admin Panel</a>
+            {else}
+                <a href="/dashboard">Dashboard</a>
+            {/if}
+        {else}
+            <p>Please <a href="/login">log in</a> to continue.</p>
+        {/if}
+        
+        {!-- For Loop with Query --}
+        {ikb_query type="post" limit=10}
+            {for items="{query.results}" as="post"}
+                <article class="post-card">
+                    {!-- Post Thumbnail --}
+                    {if condition="{post.thumbnail}"}
+                        {ikb_image 
+                            src="{post.thumbnail | esc_url}" 
+                            alt="{post.title | esc_attr}"
+                            responsive=true
+                            lazy=true
+                        /}
+                    {/if}
+                    
+                    {!-- Post Title --}
+                    <h3>
+                        <a href="{post.url | esc_url}">
+                            {post.title | esc_html}
+                        </a>
+                    </h3>
+                    
+                    {!-- Post Meta --}
+                    <div class="post-meta">
+                        <span class="author">By {post.author | esc_html}</span>
+                        <span class="date">{post.date | date:format="M j, Y"}</span>
+                        <span class="comments">{post.comment_count} comments</span>
+                    </div>
+                    
+                    {!-- Post Excerpt --}
+                    <p>{post.excerpt | strip_tags | truncate:150}</p>
+                    
+                    {!-- Post Tags --}
+                    {if condition="{post.tags}"}
+                        <div class="tags">
+                            {for items="{post.tags}" as="tag"}
+                                <a href="{tag.url | esc_url}" class="tag">
+                                    {tag.name | esc_html}
+                                </a>
+                            {/for}
+                        </div>
+                    {/if}
+                    
+                    {!-- Read More --}
+                    {ikb_button variant="secondary" size="small"}
+                        <a href="{post.url | esc_url}">Read More</a>
+                    {/ikb_button}
+                </article>
+            {/for}
+        {/ikb_query}
+        
+        {!-- Grid Layout --}
+        {ikb_grid columns="3" gap="large"}
+            {for items="{features}" as="feature"}
+                {ikb_card shadow="medium" padding="large"}
+                    <h3>{feature.title | esc_html}</h3>
+                    <p>{feature.description | esc_html}</p>
+                {/ikb_card}
+            {/for}
+        {/ikb_grid}
+        
+        {!-- Raw HTML Content --}
+        <div class="content">
+            {post.content | raw}
+        </div>
+        
+        {!-- Complex Filter Chain --}
+        <p class="summary">
+            {article.body | strip_tags | truncate:length=200,append="..." | upper | esc_html}
+        </p>
+        
+        {!-- Property Access --}
+        <span>{user.profile.avatar.url | esc_url}</span>
+        <span>{site.settings.theme.color}</span>
+        
+        {!-- Boolean and Numeric Literals --}
+        {ikb_image src="/logo.png" responsive=true lazy=false width=300 height=200 /}
+        
+        {!-- Nested Components --}
+        {ikb_section type="cta" bg="primary"}
+            {ikb_container size="medium"}
+                {ikb_text size="2xl" weight="bold" align="center"}
+                    Ready to get started?
+                {/ikb_text}
+                {ikb_button variant="white" size="large"}
+                    Sign Up Now
+                {/ikb_button}
+            {/ikb_container}
+        {/ikb_section}
+        
+    {/ikb_container}
+{/ikb_section}
+
+{!-- Include Footer --}
+{include file="components/footer.disyl" /}
+
+{!-- HTML Integration --}
+<footer class="site-footer">
+    <div class="container">
+        <p>&copy; 2025 {site.name | esc_html}. All rights reserved.</p>
+        <nav>
+            <a href="/about">About</a>
+            <a href="/contact">Contact</a>
+            <a href="/privacy">Privacy</a>
+        </nav>
+    </div>
+</footer>
