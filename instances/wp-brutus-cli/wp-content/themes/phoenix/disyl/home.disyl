@@ -3,113 +3,125 @@
 
 {!-- Hero Section with Animated Gradient --}
 {ikb_section type="hero" class="hero-section" padding="none"}
-    <div class="hero-content animate-fade-in">
-        {ikb_text size="4xl" weight="black" class="hero-title"}
-            Rise Like a Phoenix
-        {/ikb_text}
-        
-        {ikb_text size="xl" class="hero-subtitle"}
-            A stunning, modern WordPress theme powered by DiSyL. Beautiful gradients, smooth animations, and endless possibilities.
-        {/ikb_text}
-        
-        <div class="hero-cta">
-            <a href="#features" class="btn btn-primary">Explore Features</a>
-            <a href="#blog" class="btn btn-outline">Read Blog</a>
+    {if condition="widgets.homepage_hero.active"}
+        {!-- Custom Hero Widget --}
+        {widgets.homepage_hero.content | raw}
+    {else}
+        {!-- Default Hero Content --}
+        <div class="hero-content animate-fade-in">
+            {ikb_text size="4xl" weight="black" class="hero-title"}
+                Rise Like a Phoenix
+            {/ikb_text}
+            
+            {ikb_text size="xl" class="hero-subtitle"}
+                A stunning, modern WordPress theme powered by DiSyL. Beautiful gradients, smooth animations, and endless possibilities.
+            {/ikb_text}
+            
+            <div class="hero-cta">
+                <a href="#features" class="btn btn-primary">Explore Features</a>
+                <a href="#blog" class="btn btn-outline">Read Blog</a>
+            </div>
         </div>
-    </div>
+    {/if}
 {/ikb_section}
 
 {!-- Features Section --}
 {ikb_section type="features" id="features" padding="xlarge"}
     {ikb_container size="xlarge"}
-        <div class="section-header reveal">
-            {ikb_text size="3xl" weight="bold" class="section-title gradient-text"}
-                <h3>Powerful Features</h3>
-            {/ikb_text}
-            {ikb_text size="lg" class="section-subtitle"}
-                <h4>Everything you need to build a stunning website</h4>
-            {/ikb_text}
-        </div>
-        
-        <div class="card-grid">
-            {!-- Feature Card 1 --}
-            <div class="card reveal">
-                <div class="card-icon">
-                    ⚡
-                </div>
-                {ikb_text size="xl" weight="semibold" class="card-title"}
-                    Lightning Fast
+        {if condition="widgets.homepage_features.active"}
+            {!-- Custom Features Widget --}
+            {widgets.homepage_features.content | raw}
+        {else}
+            {!-- Default Features Content --}
+            <div class="section-header reveal">
+                {ikb_text size="3xl" weight="bold" class="section-title gradient-text"}
+                    <h3>Powerful Features</h3>
                 {/ikb_text}
-                {ikb_text class="card-text"}
-                    Optimized for performance with DiSyL's efficient rendering engine. Pages load in milliseconds.
+                {ikb_text size="lg" class="section-subtitle"}
+                    <h4>Everything you need to build a stunning website</h4>
                 {/ikb_text}
             </div>
             
-            {!-- Feature Card 2 --}
-            <div class="card reveal">
-                <div class="card-icon">
-                    🎨
+            <div class="card-grid">
+                {!-- Feature Card 1 --}
+                <div class="card reveal">
+                    <div class="card-icon">
+                        ⚡
+                    </div>
+                    {ikb_text size="xl" weight="semibold" class="card-title"}
+                        Lightning Fast
+                    {/ikb_text}
+                    {ikb_text class="card-text"}
+                        Optimized for performance with DiSyL's efficient rendering engine. Pages load in milliseconds.
+                    {/ikb_text}
                 </div>
-                {ikb_text size="xl" weight="semibold" class="card-title"}
-                    Beautiful Design
-                {/ikb_text}
-                {ikb_text class="card-text"}
-                    Modern gradients, smooth animations, and a clean interface that captivates your visitors.
-                {/ikb_text}
-            </div>
-            
-            {!-- Feature Card 3 --}
-            <div class="card reveal">
-                <div class="card-icon">
-                    📱
+                
+                {!-- Feature Card 2 --}
+                <div class="card reveal">
+                    <div class="card-icon">
+                        🎨
+                    </div>
+                    {ikb_text size="xl" weight="semibold" class="card-title"}
+                        Beautiful Design
+                    {/ikb_text}
+                    {ikb_text class="card-text"}
+                        Modern gradients, smooth animations, and a clean interface that captivates your visitors.
+                    {/ikb_text}
                 </div>
-                {ikb_text size="xl" weight="semibold" class="card-title"}
-                    Fully Responsive
-                {/ikb_text}
-                {ikb_text class="card-text"}
-                    Looks perfect on all devices - from mobile phones to large desktop screens.
-                {/ikb_text}
-            </div>
-            
-            {!-- Feature Card 4 --}
-            <div class="card reveal">
-                <div class="card-icon">
-                    🔒
+                
+                {!-- Feature Card 3 --}
+                <div class="card reveal">
+                    <div class="card-icon">
+                        📱
+                    </div>
+                    {ikb_text size="xl" weight="semibold" class="card-title"}
+                        Fully Responsive
+                    {/ikb_text}
+                    {ikb_text class="card-text"}
+                        Looks perfect on all devices - from mobile phones to large desktop screens.
+                    {/ikb_text}
                 </div>
-                {ikb_text size="xl" weight="semibold" class="card-title"}
-                    Secure & Safe
-                {/ikb_text}
-                {ikb_text class="card-text"}
-                    Built with security best practices. XSS prevention, sanitization, and WordPress standards.
-                {/ikb_text}
-            </div>
-            
-            {!-- Feature Card 5 --}
-            <div class="card reveal">
-                <div class="card-icon">
-                    🎯
+                
+                {!-- Feature Card 4 --}
+                <div class="card reveal">
+                    <div class="card-icon">
+                        🔒
+                    </div>
+                    {ikb_text size="xl" weight="semibold" class="card-title"}
+                        Secure & Safe
+                    {/ikb_text}
+                    {ikb_text class="card-text"}
+                        Built with security best practices. XSS prevention, sanitization, and WordPress standards.
+                    {/ikb_text}
                 </div>
-                {ikb_text size="xl" weight="semibold" class="card-title"}
-                    SEO Optimized
-                {/ikb_text}
-                {ikb_text class="card-text"}
-                    Clean semantic HTML, fast loading times, and proper meta tags for better search rankings.
-                {/ikb_text}
-            </div>
-            
-            {!-- Feature Card 6 --}
-            <div class="card reveal">
-                <div class="card-icon">
-                    🧩
+                
+                {!-- Feature Card 5 --}
+                <div class="card reveal">
+                    <div class="card-icon">
+                        🎯
+                    </div>
+                    {ikb_text size="xl" weight="semibold" class="card-title"}
+                        SEO Optimized
+                    {/ikb_text}
+                    {ikb_text class="card-text"}
+                        Clean semantic HTML, fast loading times, and proper meta tags for better search rankings.
+                    {/ikb_text}
                 </div>
-                {ikb_text size="xl" weight="semibold" class="card-title"}
-                    Widget Ready
-                {/ikb_text}
-                {ikb_text class="card-text"}
-                    Multiple widget areas for sidebars, footers, and homepage sections. Fully customizable.
-                {/ikb_text}
+                
+                {!-- Feature Card 6 --}
+                <div class="card reveal">
+                    <div class="card-icon">
+                        🧩
+                    </div>
+                    {ikb_text size="xl" weight="semibold" class="card-title"}
+                        Widget Ready
+                    {/ikb_text}
+                    {ikb_text class="card-text"}
+                        Multiple widget areas for sidebars, footers, and homepage sections. Fully customizable.
+                    {/ikb_text}
+                </div>
             </div>
-        </div>
+        {/if}
     {/ikb_container}
 {/ikb_section}
 

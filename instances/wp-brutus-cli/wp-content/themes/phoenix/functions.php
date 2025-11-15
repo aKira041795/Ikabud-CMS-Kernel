@@ -232,10 +232,13 @@ function phoenix_build_context() {
             'social' => phoenix_get_menu_items('social'),
         ),
         'widgets' => array(
+            'main_sidebar' => phoenix_get_widget_area('sidebar-1'),
             'footer_1' => phoenix_get_widget_area('footer-1'),
             'footer_2' => phoenix_get_widget_area('footer-2'),
             'footer_3' => phoenix_get_widget_area('footer-3'),
             'footer_4' => phoenix_get_widget_area('footer-4'),
+            'homepage_hero' => phoenix_get_widget_area('homepage-hero'),
+            'homepage_features' => phoenix_get_widget_area('homepage-features'),
         ),
         'user' => array(
             'logged_in' => is_user_logged_in(),

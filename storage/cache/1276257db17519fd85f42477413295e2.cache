@@ -1,4 +1,4 @@
-a:6:{s:7:"headers";a:10:{i:0;s:27:"X-Frame-Options: SAMEORIGIN";i:1;s:31:"X-Content-Type-Options: nosniff";i:2;s:31:"X-XSS-Protection: 1; mode=block";i:3;s:408:"Content-Security-Policy: default-src 'self' https: http:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https: http: blob:; style-src 'self' 'unsafe-inline' https: http:; img-src 'self' data: https: http:; font-src 'self' data: https: http:; connect-src 'self' https: http: wss: ws:; frame-src 'self' https: http:; frame-ancestors 'self' http://*.brutus.test https://*.brutus.test; worker-src 'self' blob:;";i:4;s:48:"Referrer-Policy: strict-origin-when-cross-origin";i:5;s:60:"Permissions-Policy: geolocation=(), microphone=(), camera=()";i:6;s:38:"Content-Type: text/html; charset=UTF-8";i:7;s:61:"Link: <http://brutus.test/wp-json/>; rel="https://api.w.org/"";i:8;s:105:"Link: <http://brutus.test/wp-json/wp/v2/pages/17>; rel="alternate"; title="JSON"; type="application/json"";i:9;s:42:"Link: <http://brutus.test/>; rel=shortlink";}s:4:"body";s:30007:"
+a:6:{s:7:"headers";a:10:{i:0;s:27:"X-Frame-Options: SAMEORIGIN";i:1;s:31:"X-Content-Type-Options: nosniff";i:2;s:31:"X-XSS-Protection: 1; mode=block";i:3;s:408:"Content-Security-Policy: default-src 'self' https: http:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https: http: blob:; style-src 'self' 'unsafe-inline' https: http:; img-src 'self' data: https: http:; font-src 'self' data: https: http:; connect-src 'self' https: http: wss: ws:; frame-src 'self' https: http:; frame-ancestors 'self' http://*.brutus.test https://*.brutus.test; worker-src 'self' blob:;";i:4;s:48:"Referrer-Policy: strict-origin-when-cross-origin";i:5;s:60:"Permissions-Policy: geolocation=(), microphone=(), camera=()";i:6;s:38:"Content-Type: text/html; charset=UTF-8";i:7;s:61:"Link: <http://brutus.test/wp-json/>; rel="https://api.w.org/"";i:8;s:105:"Link: <http://brutus.test/wp-json/wp/v2/pages/17>; rel="alternate"; title="JSON"; type="application/json"";i:9;s:42:"Link: <http://brutus.test/>; rel=shortlink";}s:4:"body";s:28622:"
 <!DOCTYPE html>
 <html lang="en-US">
 <head>
@@ -209,102 +209,7 @@ a:6:{s:7:"headers";a:10:{i:0;s:27:"X-Frame-Options: SAMEORIGIN";i:1;s:31:"X-Cont
 </header>
 
 <main class="site-content">
-<section>
-    <div class="hero-content animate-fade-in">
-        <div class="ikb-text ikb-text-4xl font-black text-left">
-            Rise Like a Phoenix
-        </div><div class="ikb-text ikb-text-xl font-normal text-left">
-            A stunning, modern WordPress theme powered by DiSyL. Beautiful gradients, smooth animations, and endless possibilities.
-        </div>
-        
-        <div class="hero-cta">
-            <a href="#features" class="btn btn-primary">Explore Features</a>
-            <a href="#blog" class="btn btn-outline">Read Blog</a>
-        </div>
-    </div>
-</section><section><div class="ikb-container ikb-container-lg">
-        <div class="section-header reveal">
-            <div class="ikb-text ikb-text-3xl font-bold text-left">
-                <h3>Powerful Features</h3>
-            </div><div class="ikb-text ikb-text-lg font-normal text-left">
-                <h4>Everything you need to build a stunning website</h4>
-            </div>
-        </div>
-        
-        <div class="card-grid">
-            
-            <div class="card reveal">
-                <div class="card-icon">
-                    ⚡
-                </div>
-                <div class="ikb-text ikb-text-xl font-semibold text-left">
-                    Lightning Fast
-                </div><div class="ikb-text ikb-text-md font-normal text-left">
-                    Optimized for performance with DiSyL's efficient rendering engine. Pages load in milliseconds.
-                </div>
-            </div>
-            
-            
-            <div class="card reveal">
-                <div class="card-icon">
-                    🎨
-                </div>
-                <div class="ikb-text ikb-text-xl font-semibold text-left">
-                    Beautiful Design
-                </div><div class="ikb-text ikb-text-md font-normal text-left">
-                    Modern gradients, smooth animations, and a clean interface that captivates your visitors.
-                </div>
-            </div>
-            
-            
-            <div class="card reveal">
-                <div class="card-icon">
-                    📱
-                </div>
-                <div class="ikb-text ikb-text-xl font-semibold text-left">
-                    Fully Responsive
-                </div><div class="ikb-text ikb-text-md font-normal text-left">
-                    Looks perfect on all devices - from mobile phones to large desktop screens.
-                </div>
-            </div>
-            
-            
-            <div class="card reveal">
-                <div class="card-icon">
-                    🔒
-                </div>
-                <div class="ikb-text ikb-text-xl font-semibold text-left">
-                    Secure & Safe
-                </div><div class="ikb-text ikb-text-md font-normal text-left">
-                    Built with security best practices. XSS prevention, sanitization, and WordPress standards.
-                </div>
-            </div>
-            
-            
-            <div class="card reveal">
-                <div class="card-icon">
-                    🎯
-                </div>
-                <div class="ikb-text ikb-text-xl font-semibold text-left">
-                    SEO Optimized
-                </div><div class="ikb-text ikb-text-md font-normal text-left">
-                    Clean semantic HTML, fast loading times, and proper meta tags for better search rankings.
-                </div>
-            </div>
-            
-            
-            <div class="card reveal">
-                <div class="card-icon">
-                    🧩
-                </div>
-                <div class="ikb-text ikb-text-xl font-semibold text-left">
-                    Widget Ready
-                </div><div class="ikb-text ikb-text-md font-normal text-left">
-                    Multiple widget areas for sidebars, footers, and homepage sections. Fully customizable.
-                </div>
-            </div>
-        </div>
-    </div></section><section><div class="ikb-container ikb-container-lg">
+<section></section><section><div class="ikb-container ikb-container-lg"></div></section><section><div class="ikb-container ikb-container-lg">
         <div class="section-header reveal">
             <div class="ikb-text ikb-text-3xl font-bold text-left">
                 Featured Content
@@ -554,15 +459,23 @@ a:6:{s:7:"headers";a:10:{i:0;s:27:"X-Frame-Options: SAMEORIGIN";i:1;s:31:"X-Cont
     <div class="ikb-container ikb-container-lg">
         <div class="footer-widgets">
             
-                <div class="footer-widget">
+            <div class="footer-widget">
+                
                     <div id="text-2" class="footer-widget widget_text"><h3 class="widget-title">About Phoenix</h3>			<div class="textwidget"><p><!-- wp:heading --></p>
 <p>DiSyL WP theme. Revolutionary. Disruptive. Amazing.</p>
 <p><!-- /wp:paragraph --></p>
 </div>
 		</div>
-                </div>
+                <div class="ikb-text ikb-text-lg font-semibold text-left">
+                        About Phoenix
+                    </div><div class="ikb-text ikb-text-md font-normal text-left">
+                        A modern WordPress theme powered by DiSyL. Beautiful design, lightning-fast performance, and endless customization possibilities.
+                    </div>
+            </div>
             
-                <div class="footer-widget">
+            
+            <div class="footer-widget">
+                
                     <div id="nav_menu-2" class="footer-widget widget_nav_menu"><h3 class="widget-title">Quick Links</h3><div class="menu-footer-menu-items-container"><ul id="menu-footer-menu-items" class="menu"><li id="menu-item-429" class="menu-item menu-item-type-post_type menu-item-object-page menu-item-home current-menu-item page_item page-item-17 current_page_item menu-item-429"><a href="http://brutus.test/" aria-current="page">Home</a></li>
 <li id="menu-item-737" class="menu-item menu-item-type-taxonomy menu-item-object-category menu-item-737"><a href="http://brutus.test/category/model/">Model</a></li>
 <li id="menu-item-738" class="menu-item menu-item-type-taxonomy menu-item-object-category menu-item-738"><a href="http://brutus.test/category/beauty/">Beauty</a></li>
@@ -570,9 +483,21 @@ a:6:{s:7:"headers";a:10:{i:0;s:27:"X-Frame-Options: SAMEORIGIN";i:1;s:31:"X-Cont
 <li id="menu-item-739" class="menu-item menu-item-type-taxonomy menu-item-object-category menu-item-739"><a href="http://brutus.test/category/trends/">Trends</a></li>
 <li id="menu-item-740" class="menu-item menu-item-type-taxonomy menu-item-object-category menu-item-740"><a href="http://brutus.test/category/photography/">Photography</a></li>
 </ul></div></div>
-                </div>
+                <div class="ikb-text ikb-text-lg font-semibold text-left">
+                        Quick Links
+                    </div>
+                    <ul>
+                        <li><a href="/">Home</a></li>
+                        <li><a href="/blog">Blog</a></li>
+                        <li><a href="/about">About</a></li>
+                        <li><a href="/contact">Contact</a></li>
+                    </ul>
+                
+            </div>
             
-                <div class="footer-widget">
+            
+            <div class="footer-widget">
+                
                     
 		<div id="recent-posts-2" class="footer-widget widget_recent_entries">
 		<h3 class="widget-title">Recent Posts</h3>
@@ -595,12 +520,44 @@ a:6:{s:7:"headers";a:10:{i:0;s:27:"X-Frame-Options: SAMEORIGIN";i:1;s:31:"X-Cont
 					</ul>
 
 		</div>
-                </div>
+                <div class="ikb-text ikb-text-lg font-semibold text-left">
+                        Recent Posts
+                    </div>
+                    <ul>
+                        
+                            <li>
+                                <a href="http://brutus.test/2025/11/10/hello-world/">Hello world!</a>
+                            </li>
+                        
+                            <li>
+                                <a href="http://brutus.test/2024/05/14/this-new-aerie-collection-was-designed-by-aly-raisman-and-iskra-lawrence/">Aerie Collection&#8217;s Originally By Iskra</a>
+                            </li>
+                        
+                            <li>
+                                <a href="http://brutus.test/2024/05/14/dont-call-demi-lovato-a-bad-girl-shes-just-speaking-out/">Don’t Call Demi A “Bad Girl” — Speaking Out</a>
+                            </li>
+                        
+                    </ul>
+                
+            </div>
             
-                <div class="footer-widget">
+            
+            <div class="footer-widget">
+                
                     <div id="media_image-2" class="footer-widget widget_media_image"><h3 class="widget-title">Food!</h3><img width="275" height="183" src="http://brutus.test/wp-content/uploads/2025/11/apple-crumble.jpeg" class="image wp-image-741  attachment-full size-full" alt="" style="max-width: 100%; height: auto;" decoding="async" /></div>
-                </div>
-            
+                <div class="ikb-text ikb-text-lg font-semibold text-left">
+                        Connect
+                    </div><div class="ikb-text ikb-text-md font-normal text-left">
+                        Follow us on social media for updates and news.
+                    </div>
+                    <div class="social-links">
+                        <a href="#" aria-label="Twitter">🐦</a>
+                        <a href="#" aria-label="Facebook">📘</a>
+                        <a href="#" aria-label="Instagram">📷</a>
+                        <a href="#" aria-label="LinkedIn">💼</a>
+                    </div>
+                
+            </div>
         </div>
         
         
@@ -620,4 +577,4 @@ a:6:{s:7:"headers";a:10:{i:0;s:27:"X-Frame-Options: SAMEORIGIN";i:1;s:31:"X-Cont
 <script src="http://brutus.test/wp-content/themes/phoenix/assets/js/phoenix.js"></script>
 </body>
 </html>
-";s:9:"timestamp";i:1763196268;s:8:"cms_type";s:9:"wordpress";s:17:"extensions_loaded";a:0:{}s:15:"extension_count";i:0;}
+";s:9:"timestamp";i:1763198981;s:8:"cms_type";s:9:"wordpress";s:17:"extensions_loaded";a:0:{}s:15:"extension_count";i:0;}

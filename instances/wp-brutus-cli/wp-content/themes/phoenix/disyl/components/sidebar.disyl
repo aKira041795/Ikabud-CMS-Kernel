@@ -1,92 +1,98 @@
 {!-- Phoenix Theme - Sidebar Component --}
 <aside class="sidebar widget-area">
-    {!-- Search Widget --}
-    <div class="widget">
-        {ikb_text size="lg" weight="semibold" class="widget-title"}
-            Search
-        {/ikb_text}
-        <form class="search-form" role="search" method="get" action="{site.url | esc_url}">
-            <input type="search" class="search-input" placeholder="Search..." name="s" required>
-            <button type="submit" class="search-submit">Search</button>
-        </form>
-    </div>
-    
-    {!-- Recent Posts Widget --}
-    <div class="widget">
-        {ikb_text size="lg" weight="semibold" class="widget-title"}
-            Recent Posts
-        {/ikb_text}
-        <ul>
-            {ikb_query type="post" limit=5}
-                <li>
-                    <a href="{item.url | esc_url}">
-                        <span>{item.title | esc_html}</span>
-                        <span class="post-date">{item.date | date:format="M j"}</span>
-                    </a>
-                </li>
-            {/ikb_query}
-        </ul>
-    </div>
-    
-    {!-- Categories Widget --}
-    <div class="widget">
-        {ikb_text size="lg" weight="semibold" class="widget-title"}
-            Categories
-        {/ikb_text}
-        <ul>
-            {ikb_query type="category" limit=10}
-                <li>
-                    <a href="{item.url | esc_url}">
-                        <span>{item.name | esc_html}</span>
-                        <span class="category-count">({item.count})</span>
-                    </a>
-                </li>
-            {/ikb_query}
-        </ul>
-    </div>
-    
-    {!-- Tags Cloud Widget --}
-    <div class="widget">
-        {ikb_text size="lg" weight="semibold" class="widget-title"}
-            Popular Tags
-        {/ikb_text}
-        <div class="tag-cloud">
-            {ikb_query type="tag" limit=15}
-                <a href="{item.url | esc_url}" class="tag">
-                    {item.name | esc_html}
-                </a>
-            {/ikb_query}
+    {if condition="widgets.main_sidebar.active"}
+        {!-- Custom Widgets --}
+        {widgets.main_sidebar.content | raw}
+    {else}
+        {!-- Default Fallback Widgets --}
+        {!-- Search Widget --}
+        <div class="widget">
+            {ikb_text size="lg" weight="semibold" class="widget-title"}
+                Search
+            {/ikb_text}
+            <form class="search-form" role="search" method="get" action="{site.url | esc_url}">
+                <input type="search" class="search-input" placeholder="Search..." name="s" required>
+                <button type="submit" class="search-submit">Search</button>
+            </form>
         </div>
-    </div>
-    
-    {!-- Archives Widget --}
-    <div class="widget">
-        {ikb_text size="lg" weight="semibold" class="widget-title"}
-            Archives
-        {/ikb_text}
-        <ul>
-            {ikb_query type="archive" limit=12}
-                <li>
-                    <a href="{item.url | esc_url}">
-                        <span>{item.name | esc_html}</span>
-                        <span class="archive-count">({item.count})</span>
+        
+        {!-- Recent Posts Widget --}
+        <div class="widget">
+            {ikb_text size="lg" weight="semibold" class="widget-title"}
+                Recent Posts
+            {/ikb_text}
+            <ul>
+                {ikb_query type="post" limit=5}
+                    <li>
+                        <a href="{item.url | esc_url}">
+                            <span>{item.title | esc_html}</span>
+                            <span class="post-date">{item.date | date:format="M j"}</span>
+                        </a>
+                    </li>
+                {/ikb_query}
+            </ul>
+        </div>
+        
+        {!-- Categories Widget --}
+        <div class="widget">
+            {ikb_text size="lg" weight="semibold" class="widget-title"}
+                Categories
+            {/ikb_text}
+            <ul>
+                {ikb_query type="category" limit=10}
+                    <li>
+                        <a href="{item.url | esc_url}">
+                            <span>{item.name | esc_html}</span>
+                            <span class="category-count">({item.count})</span>
+                        </a>
+                    </li>
+                {/ikb_query}
+            </ul>
+        </div>
+        
+        {!-- Tags Cloud Widget --}
+        <div class="widget">
+            {ikb_text size="lg" weight="semibold" class="widget-title"}
+                Popular Tags
+            {/ikb_text}
+            <div class="tag-cloud">
+                {ikb_query type="tag" limit=15}
+                    <a href="{item.url | esc_url}" class="tag">
+                        {item.name | esc_html}
                     </a>
-                </li>
-            {/ikb_query}
-        </ul>
-    </div>
-    
-    {!-- Newsletter Widget --}
-    <div class="widget" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
-        {ikb_text size="lg" weight="semibold" class="widget-title" style="color: white; border-color: rgba(255,255,255,0.3)"}
-            Newsletter
-        {/ikb_text}
-        {ikb_text margin="bottom"}
-            Get the latest updates delivered to your inbox.
-        {/ikb_text}
-        <form class="search-form" action="#" method="post">
-            <input type="email" class="search-input" placeholder="Your email" required style="background: rgba(255,255,255,0.2); border-color: rgba(255,255,255,0.3); color: white;">
-            <button type="submit" class="search-submit" style="background: white; color: #667eea;">Subscribe</button>
-        </form>
-    </div>
+                {/ikb_query}
+            </div>
+        </div>
+        
+        {!-- Archives Widget --}
+        <div class="widget">
+            {ikb_text size="lg" weight="semibold" class="widget-title"}
+                Archives
+            {/ikb_text}
+            <ul>
+                {ikb_query type="archive" limit=12}
+                    <li>
+                        <a href="{item.url | esc_url}">
+                            <span>{item.name | esc_html}</span>
+                            <span class="archive-count">({item.count})</span>
+                        </a>
+                    </li>
+                {/ikb_query}
+            </ul>
+        </div>
+        
+        {!-- Newsletter Widget --}
+        <div class="widget" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+            {ikb_text size="lg" weight="semibold" class="widget-title" style="color: white; border-color: rgba(255,255,255,0.3)"}
+                Newsletter
+            {/ikb_text}
+            {ikb_text margin="bottom"}
+                Get the latest updates delivered to your inbox.
+            {/ikb_text}
+            <form class="search-form" action="#" method="post">
+                <input type="email" class="search-input" placeholder="Your email" required style="background: rgba(255,255,255,0.2); border-color: rgba(255,255,255,0.3); color: white;">
+                <button type="submit" class="search-submit" style="background: white; color: #667eea;">Subscribe</button>
+            </form>
+        </div>
+    {/if}
 </aside>
