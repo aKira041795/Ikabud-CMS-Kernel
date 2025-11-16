@@ -117,8 +117,11 @@ add_action('widgets_init', 'phoenix_widgets_init');
  * Enqueue Scripts and Styles
  */
 function phoenix_scripts() {
+    // DiSyL components stylesheet (load first)
+    wp_enqueue_style('disyl-components', get_template_directory_uri() . '/assets/css/disyl-components.css', array(), '0.4.0');
+    
     // Theme stylesheet
-    wp_enqueue_style('phoenix-style', get_stylesheet_uri(), array(), '1.0.0');
+    wp_enqueue_style('phoenix-style', get_stylesheet_uri(), array('disyl-components'), '1.0.0');
     
     // Custom JavaScript
     wp_enqueue_script('phoenix-scripts', get_template_directory_uri() . '/assets/js/phoenix.js', array(), '1.0.0', true);
@@ -137,241 +140,38 @@ function phoenix_scripts() {
 }
 add_action('wp_enqueue_scripts', 'phoenix_scripts');
 
-/**
- * Filter admin_url to use current domain on frontend
- * Prevents CORS issues with AJAX requests from plugins like WPForms
- */
-function phoenix_fix_admin_url_for_frontend($url, $path, $blog_id) {
-    // Only filter on frontend (not in admin)
-    if (!is_admin()) {
-        $current_domain = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'];
-        $backend_domain = get_option('siteurl');
-        
-        // Replace backend domain with current domain
-        if ($backend_domain) {
-            $url = str_replace($backend_domain, $current_domain, $url);
-        }
-    }
-    return $url;
-}
-add_filter('admin_url', 'phoenix_fix_admin_url_for_frontend', 10, 3);
+// CORS and domain fixes moved to /wp-content/mu-plugins/ikabud-disyl-integration.php
 
 /**
- * Output buffer to rewrite backend URLs in final HTML
- * This catches URLs that bypass WordPress filters
+ * Enable DiSyL support for this theme
+ * Core DiSyL rendering handled by /wp-content/mu-plugins/ikabud-disyl-integration.php
  */
-function phoenix_start_output_buffer() {
-    if (!is_admin()) {
-        ob_start('phoenix_rewrite_backend_urls');
-    }
-}
-add_action('template_redirect', 'phoenix_start_output_buffer', 1);
-
-function phoenix_rewrite_backend_urls($html) {
-    $backend_domain = get_option('siteurl');
-    $current_domain = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'];
-    
-    if ($backend_domain && $current_domain) {
-        // Replace all instances of backend domain with current domain
-        $html = str_replace($backend_domain, $current_domain, $html);
-    }
-    
-    return $html;
-}
+add_theme_support('ikabud-disyl');
 
 /**
- * Add ajaxurl to frontend for plugins like WPForms
- * WordPress only provides this in admin by default
- * 
- * IMPORTANT: Use current domain instead of backend domain to avoid CORS
- * The kernel architecture routes frontend through brutus.test and backend through backend.brutus.test
+ * Extend DiSyL context with theme-specific data
+ * Hook into the base context provided by the MU plugin
  */
-function phoenix_add_ajaxurl_to_frontend() {
-    // Use current domain for AJAX to avoid cross-origin issues
-    $current_domain = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'];
-    $ajax_url = $current_domain . '/wp-admin/admin-ajax.php';
-    
-    echo '<script type="text/javascript">
-        var ajaxurl = "' . esc_js($ajax_url) . '";
-    </script>';
-}
-add_action('wp_head', 'phoenix_add_ajaxurl_to_frontend');
-
-/**
- * DiSyL Integration
- */
-function phoenix_disyl_render($template) {
-    // Only process if DiSyL engine is available
-    if (!class_exists('\\IkabudKernel\\Core\\DiSyL\\Lexer')) {
-        return $template;
-    }
-    
-    // Map WordPress template hierarchy to DiSyL templates
-    $disyl_template = null;
-    
-    if (is_front_page()) {
-        $disyl_template = 'home.disyl';
-    } elseif (is_home()) {
-        $disyl_template = 'blog.disyl';
-    } elseif (is_single()) {
-        $disyl_template = 'single.disyl';
-    } elseif (is_page()) {
-        $disyl_template = 'page.disyl';
-    } elseif (is_category()) {
-        $disyl_template = 'category.disyl';
-    } elseif (is_tag()) {
-        $disyl_template = 'tag.disyl';
-    } elseif (is_archive()) {
-        $disyl_template = 'archive.disyl';
-    } elseif (is_search()) {
-        $disyl_template = 'search.disyl';
-    } elseif (is_404()) {
-        $disyl_template = '404.disyl';
-    }
-    
-    if (!$disyl_template) {
-        return $template;
-    }
-    
-    $disyl_path = get_template_directory() . '/disyl/' . $disyl_template;
-    
-    if (!file_exists($disyl_path)) {
-        return $template;
-    }
-    
-    try {
-        // Load DiSyL classes
-        $lexer = new \IkabudKernel\Core\DiSyL\Lexer();
-        $parser = new \IkabudKernel\Core\DiSyL\Parser();
-        $compiler = new \IkabudKernel\Core\DiSyL\Compiler();
-        $renderer = new \IkabudKernel\Core\DiSyL\Renderers\WordPressRenderer();
-        
-        // Read template
-        $template_content = file_get_contents($disyl_path);
-        
-        // Process DiSyL
-        $tokens = $lexer->tokenize($template_content);
-        $ast = $parser->parse($tokens);
-        $compiled = $compiler->compile($ast);
-        
-        // Build context
-        $context = phoenix_build_context();
-        
-        // Render
-        $html = $renderer->render($compiled, $context);
-        
-        // Rewrite backend URLs to current domain (fix CORS issues)
-        $backend_domain = get_option('siteurl');
-        $current_domain = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'];
-        if ($backend_domain && $current_domain) {
-            $html = str_replace($backend_domain, $current_domain, $html);
-        }
-        
-        // Output
-        echo $html;
-        
-        return false; // Prevent WordPress from loading default template
-        
-    } catch (\Exception $e) {
-        error_log('Phoenix DiSyL Error: ' . $e->getMessage());
-        return $template; // Fallback to default template
-    }
-}
-add_filter('template_include', 'phoenix_disyl_render', 99);
-
-/**
- * Capture wp_head() output
- */
-function phoenix_capture_wp_head() {
-    ob_start();
-    wp_head();
-    return ob_get_clean();
-}
-
-/**
- * Capture wp_footer() output
- */
-function phoenix_capture_wp_footer() {
-    ob_start();
-    wp_footer();
-    return ob_get_clean();
-}
-
-/**
- * Build DiSyL Context
- */
-function phoenix_build_context() {
-    global $post, $wp_query;
-    
-    $context = array(
-        'site' => array(
-            'name' => get_bloginfo('name'),
-            'description' => get_bloginfo('description'),
-            'url' => home_url(),
-            'theme_url' => get_template_directory_uri(),
-            'charset' => get_bloginfo('charset'),
-            'language' => get_bloginfo('language'),
-        ),
-        'menu' => array(
-            'primary' => phoenix_get_menu_items('primary'),
-            'footer' => phoenix_get_menu_items('footer'),
-            'social' => phoenix_get_menu_items('social'),
-        ),
-        'widgets' => array(
-            'main_sidebar' => phoenix_get_widget_area('sidebar-1'),
-            'footer_1' => phoenix_get_widget_area('footer-1'),
-            'footer_2' => phoenix_get_widget_area('footer-2'),
-            'footer_3' => phoenix_get_widget_area('footer-3'),
-            'footer_4' => phoenix_get_widget_area('footer-4'),
-            'homepage_hero' => phoenix_get_widget_area('homepage-hero'),
-            'homepage_features' => phoenix_get_widget_area('homepage-features'),
-        ),
-        'user' => array(
-            'logged_in' => is_user_logged_in(),
-            'id' => get_current_user_id(),
-            'name' => wp_get_current_user()->display_name,
-        ),
-        'query' => array(
-            'is_home' => is_home(),
-            'is_front_page' => is_front_page(),
-            'is_single' => is_single(),
-            'is_page' => is_page(),
-            'is_archive' => is_archive(),
-            'is_search' => is_search(),
-            'is_404' => is_404(),
-        ),
+function phoenix_extend_disyl_context($context) {
+    // Add menu data
+    $context['menu'] = array(
+        'primary' => phoenix_get_menu_items('primary'),
+        'footer' => phoenix_get_menu_items('footer'),
+        'social' => phoenix_get_menu_items('social'),
     );
     
-    // Add post data if available
-    if ($post) {
-        // CRITICAL: Process content FIRST to allow shortcodes to enqueue scripts
-        $processed_content = apply_filters('the_content', $post->post_content);
-        
-        // NOW capture wp_head and wp_footer AFTER content processing
-        // This ensures WPForms and other plugins can enqueue their scripts
-        $context['wp_head'] = phoenix_capture_wp_head();
-        $context['wp_footer'] = phoenix_capture_wp_footer();
-        
-        $context['post'] = array(
-            'id' => $post->ID,
-            'title' => get_the_title(),
-            'content' => $processed_content,
-            'excerpt' => get_the_excerpt(),
-            'date' => get_the_date(),
-            'author' => get_the_author(),
-            'author_id' => $post->post_author,
-            'author_url' => get_author_posts_url($post->post_author),
-            'author_avatar' => get_avatar_url($post->post_author),
-            'url' => get_permalink(),
-            'thumbnail' => get_the_post_thumbnail_url($post, 'full'),
-            'categories' => wp_get_post_categories($post->ID, array('fields' => 'names')),
-            'tags' => wp_get_post_tags($post->ID, array('fields' => 'names')),
-            'comment_count' => $post->comment_count,
-            'comments_open' => comments_open(),
-        );
-    }
+    // Add widget areas
+    $context['widgets'] = array(
+        'main_sidebar' => phoenix_get_widget_area('sidebar-1'),
+        'footer_1' => phoenix_get_widget_area('footer-1'),
+        'footer_2' => phoenix_get_widget_area('footer-2'),
+        'footer_3' => phoenix_get_widget_area('footer-3'),
+        'footer_4' => phoenix_get_widget_area('footer-4'),
+        'homepage_hero' => phoenix_get_widget_area('homepage-hero'),
+        'homepage_features' => phoenix_get_widget_area('homepage-features'),
+    );
     
-    // Add category data if on category page
+    // Add category context if on category page
     if (is_category()) {
         try {
             $context['category'] = phoenix_get_category_context();
@@ -381,24 +181,17 @@ function phoenix_build_context() {
         }
     }
     
-    // Add tag data if on tag page
+    // Add tag context if on tag page
     if (is_tag()) {
         $context['tag'] = phoenix_get_tag_context();
     }
     
-    // Add pagination data
-    $context['pagination'] = phoenix_get_pagination_context();
-    
-    // Fallback: If wp_head/wp_footer not set yet (no post), capture them now
-    if (!isset($context['wp_head'])) {
-        $context['wp_head'] = phoenix_capture_wp_head();
-    }
-    if (!isset($context['wp_footer'])) {
-        $context['wp_footer'] = phoenix_capture_wp_footer();
-    }
-    
     return $context;
 }
+add_filter('ikabud_disyl_context', 'phoenix_extend_disyl_context');
+
+// Base context building moved to /wp-content/mu-plugins/ikabud-disyl-integration.php
+// Theme extends context via 'ikabud_disyl_context' filter (see phoenix_extend_disyl_context above)
 
 /**
  * Custom Excerpt Length
@@ -619,25 +412,7 @@ function phoenix_get_tag_context() {
     );
 }
 
-/**
- * Get Pagination Context for DiSyL
- * CMS-agnostic pagination structure
- */
-function phoenix_get_pagination_context() {
-    global $wp_query;
-    
-    $current_page = max(1, get_query_var('paged'));
-    $total_pages = $wp_query->max_num_pages;
-    
-    return array(
-        'current_page' => $current_page,
-        'total_pages' => $total_pages,
-        'prev_url' => get_previous_posts_page_link(),
-        'next_url' => get_next_posts_page_link(),
-        'has_prev' => $current_page > 1,
-        'has_next' => $current_page < $total_pages,
-    );
-}
+// Pagination context moved to MU plugin base context
 
 /**
  * Get Term Image (for category/tag images)

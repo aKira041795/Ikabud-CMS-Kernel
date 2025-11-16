@@ -287,6 +287,15 @@ if (file_exists($cachePlugin)) {
     echo YELLOW . "⚠" . NC . " Cache invalidation plugin template not found (skipping)\n";
 }
 
+// Copy DiSyL integration plugin to mu-plugins
+$disylPlugin = "$rootPath/templates/ikabud-disyl-integration.php";
+if (file_exists($disylPlugin)) {
+    copy($disylPlugin, "$instancePath/wp-content/mu-plugins/ikabud-disyl-integration.php");
+    echo GREEN . "✓" . NC . " Installed DiSyL integration plugin (mu-plugins)\n";
+} else {
+    echo YELLOW . "⚠" . NC . " DiSyL integration plugin template not found (skipping)\n";
+}
+
 // Step 5: Create instance manifest
 echo YELLOW . "[5/6]" . NC . " Creating instance manifest...\n";
 $manifest = [

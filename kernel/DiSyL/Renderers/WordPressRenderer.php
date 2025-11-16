@@ -306,10 +306,18 @@ class WordPressRenderer extends ManifestDrivenRenderer
             return $this->renderFromManifest('ikb_text', $attrs, $children);
         }
         
+        // Get HTML tag from manifest (defaults to 'p')
+        $htmlTag = $component['html_tag'] ?? 'p';
+        
         $classes = $this->buildCssClasses($component, $attrs);
         $dataAttrs = $this->buildDataAttributes($component, $attrs);
         
-        $html = '<div';
+        // Add custom class if provided
+        if (!empty($attrs['class'])) {
+            $classes[] = $attrs['class'];
+        }
+        
+        $html = '<' . $htmlTag;
         
         if (!empty($classes)) {
             $html .= ' class="' . esc_attr(implode(' ', $classes)) . '"';
@@ -321,7 +329,7 @@ class WordPressRenderer extends ManifestDrivenRenderer
         
         $html .= '>';
         $html .= $this->renderChildren($children);
-        $html .= '</div>';
+        $html .= '</' . $htmlTag . '>';
         
         return $html;
     }
