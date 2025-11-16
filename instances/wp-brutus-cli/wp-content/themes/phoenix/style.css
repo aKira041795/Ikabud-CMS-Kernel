@@ -893,11 +893,17 @@ img {
 /* ============================================
    SLIDER
    ============================================ */
+/* Full-width slider section */
+.ikb-section[type="slider"],
+section[data-type="slider"] {
+    padding: 0 !important;
+}
+
 .slider-container {
     position: relative;
     overflow: hidden;
-    border-radius: var(--radius-2xl);
-    box-shadow: var(--shadow-xl);
+    width: 100%;
+    margin: 0;
 }
 
 .slider-track {
@@ -984,7 +990,6 @@ img {
    CONTENT
    ============================================ */
 .site-content {
-    max-width: 1440px;
     margin: 0 auto;
     padding-top: 90px;
 }

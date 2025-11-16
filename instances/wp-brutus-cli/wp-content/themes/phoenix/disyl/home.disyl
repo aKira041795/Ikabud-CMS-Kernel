@@ -1,6 +1,11 @@
 {!-- Phoenix Theme - Homepage Template --}
 {include file="components/header.disyl"}
 
+{!-- Featured Slider Section --}
+{ikb_section type="slider" class="section-gradient" padding="large"}
+    {include file="components/slider.disyl"}
+{/ikb_section}
+
 {!-- Hero Section with Animated Gradient (Only show when no hero widget) --}
 {if condition="!widgets.homepage_hero.active"}
 {ikb_section type="hero" class="hero-section" padding="none"}
@@ -127,21 +132,15 @@
     {widgets.homepage_features.content | raw}
 {/if}
 
-{!-- Featured Slider Section --}
-{ikb_section type="slider" class="section-gradient" padding="large"}    
-        {include file="components/slider.disyl"}
-    {/ikb_container}
-{/ikb_section}
-
 {!-- Latest Blog Posts --}
 {ikb_section type="blog" id="blog" padding="xlarge"}
     {ikb_container size="xlarge"}
         <div class="section-header reveal">
-            {ikb_text size="3xl" weight="bold" class="section-title gradient-text"}
-                <h3>Latest Articles</h3>
+            {ikb_text size="3xl" weight="bold" class="section-title gradient-text" align="center"}
+                <h2>Latest Articles</h2>
             {/ikb_text}
-            {ikb_text size="lg" class="section-subtitle"}
-                Insights, tutorials, and updates from our blog
+            {ikb_text size="lg" class="section-subtitle" align="center"}
+                <h4>Insights, tutorials, and updates from our blog</h4>
             {/ikb_text}
         </div>
         
@@ -190,7 +189,7 @@
 
 {!-- Call to Action Section --}
 {ikb_section type="cta" class="section-gradient" padding="xlarge"}
-    {ikb_container size="large"}
+    {ikb_container size="xlarge"}
         <div class="text-center reveal">
             {ikb_text size="3xl" weight="bold" margin="bottom-large"}
                 <h3 class="cta-header">Ready to Get Started?</h3>
