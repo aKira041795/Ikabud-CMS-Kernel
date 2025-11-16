@@ -11,13 +11,19 @@
 </head>
 <body>
 
-<header class="site-header">
+<header class="site-header{if condition="components.header.sticky"} sticky-header{/if}">
     <div class="header-container">
-        {!-- Logo --}
+        {!-- Logo (from customizer or site name) --}
         <div class="site-branding">
-            <a href="{site.url | esc_url}" class="site-logo">
-                Phoenix
-            </a>
+            {if condition="components.header.logo"}
+                <a href="{site.url | esc_url}" class="site-logo">
+                    <img src="{components.header.logo | esc_url}" alt="{site.name | esc_attr}" />
+                </a>
+            {else}
+                <a href="{site.url | esc_url}" class="site-logo">
+                    {site.name | esc_html}
+                </a>
+            {/if}
         </div>
         
         {!-- Mobile Menu Toggle --}
@@ -47,6 +53,13 @@
                     </li>
                 {/for}
             </ul>
+            
+            {!-- Search Icon (if enabled in customizer) --}
+            {if condition="components.header.show_search"}
+                <li class="search-icon">
+                    <a href="#search" aria-label="Search">🔍</a>
+                </li>
+            {/if}
         </nav>
     </div>
 </header>

@@ -1,0 +1,96 @@
+/**
+ * Phoenix Theme - Dynamic Customizer CSS
+ * 
+ * Additional CSS for customizer-controlled features
+ * This file provides CSS for dynamic layouts and features
+ * 
+ * @package Phoenix
+ * @version 1.0.0
+ */
+
+/* ============================================
+   SIDEBAR POSITIONING
+   ============================================ */
+.sidebar-left {
+    order: -1; /* Move sidebar before content */
+}
+
+.sidebar-right {
+    order: 1; /* Keep sidebar after content (default) */
+}
+
+/* Sidebar width is controlled via inline style from customizer */
+
+/* ============================================
+   FOOTER COLUMN LAYOUTS
+   ============================================ */
+/* Dynamic footer columns - responsive */
+@media (max-width: 768px) {
+    .footer-columns-1,
+    .footer-columns-2,
+    .footer-columns-3,
+    .footer-columns-4,
+    .footer-columns-5,
+    .footer-columns-6 {
+        grid-template-columns: 1fr !important;
+    }
+}
+
+@media (min-width: 769px) and (max-width: 1024px) {
+    .footer-columns-3,
+    .footer-columns-4,
+    .footer-columns-5,
+    .footer-columns-6 {
+        grid-template-columns: repeat(2, 1fr) !important;
+    }
+}
+
+/* ============================================
+   HEADER LOGO
+   ============================================ */
+.site-logo img {
+    max-height: 60px;
+    width: auto;
+    display: block;
+}
+
+/* ============================================
+   SLIDER TRANSITIONS
+   ============================================ */
+.slider-container[data-transition="fade"] .slide {
+    transition: opacity 0.5s ease-in-out;
+}
+
+.slider-container[data-transition="slide"] .slide {
+    transition: transform 0.5s ease-in-out;
+}
+
+.slider-container[data-transition="zoom"] .slide {
+    transition: transform 0.5s ease-in-out, opacity 0.5s ease-in-out;
+}
+
+/* ============================================
+   WIDGET VISIBILITY
+   ============================================ */
+/* Hidden widgets (controlled by customizer) */
+[data-widget-hidden="true"] {
+    display: none !important;
+}
+
+/* ============================================
+   RESPONSIVE CONTAINER WIDTHS
+   ============================================ */
+/* Container width is controlled via dynamic CSS in head */
+/* See Phoenix_Customizer::output_custom_css() */
+
+/* ============================================
+   COLOR CUSTOMIZATION
+   ============================================ */
+/* Colors are controlled via CSS variables in dynamic CSS */
+/* See Phoenix_Customizer::generate_custom_css() */
+
+/* ============================================
+   TYPOGRAPHY CUSTOMIZATION
+   ============================================ */
+/* Typography is controlled via dynamic CSS in head */
+/* Font family and sizes are applied to :root and body */

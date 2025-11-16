@@ -1,5 +1,6 @@
 {!-- Phoenix Theme - Sidebar Component --}
-<aside class="sidebar widget-area">
+{if condition="widget_visibility.sidebar-1"}
+<aside class="sidebar widget-area sidebar-{components.sidebar.position}" style="width: {components.sidebar.width}">
     {if condition="widgets.main_sidebar.active"}
         {!-- Custom Widgets --}
         {widgets.main_sidebar.content | raw}
@@ -96,3 +97,4 @@
         </div>
     {/if}
 </aside>
+{/if}

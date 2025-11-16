@@ -3,9 +3,10 @@
 
 <footer class="site-footer">
     {ikb_container size="xlarge"}
-        {!-- Footer Widgets --}
-        <div class="footer-widgets">
+        {!-- Footer Widgets (dynamic columns from customizer) --}
+        <div class="footer-widgets footer-columns-{components.footer.columns}">
             {!-- Footer Widget 1 --}
+            {if condition="widget_visibility.footer-1"}
             <div class="footer-widget">
                 {if condition="widgets.footer_1.active"}
                     {widgets.footer_1.content | raw}
@@ -18,8 +19,10 @@
                     {/ikb_text}
                 {/if}
             </div>
+            {/if}
             
             {!-- Footer Widget 2 --}
+            {if condition="widget_visibility.footer-2"}
             <div class="footer-widget">
                 {if condition="widgets.footer_2.active"}
                     {widgets.footer_2.content | raw}
@@ -35,8 +38,10 @@
                     </ul>
                 {/if}
             </div>
+            {/if}
             
             {!-- Footer Widget 3 --}
+            {if condition="widget_visibility.footer-3"}
             <div class="footer-widget">
                 {if condition="widgets.footer_3.active"}
                     {widgets.footer_3.content | raw}
@@ -53,8 +58,10 @@
                     </ul>
                 {/if}
             </div>
+            {/if}
             
             {!-- Footer Widget 4 --}
+            {if condition="widget_visibility.footer-4"}
             <div class="footer-widget">
                 {if condition="widgets.footer_4.active"}
                     {widgets.footer_4.content | raw}
@@ -65,20 +72,23 @@
                     {ikb_text}
                         Follow us on social media for updates and news.
                     {/ikb_text}
+                    {if condition="components.footer.show_social"}
                     <div class="social-links">
                         <a href="#" aria-label="Twitter">🐦</a>
                         <a href="#" aria-label="Facebook">📘</a>
                         <a href="#" aria-label="Instagram">📷</a>
                         <a href="#" aria-label="LinkedIn">💼</a>
                     </div>
+                    {/if}
                 {/if}
             </div>
+            {/if}
         </div>
         
         {!-- Footer Bottom --}
         <div class="footer-bottom">
             {ikb_text align="center"}
-                © 2025 {site.name | esc_html}. All rights reserved. Powered by <a href="https://ikabud.com" target="_blank">DiSyL</a>.
+                {components.footer.copyright_text | esc_html}
             {/ikb_text}
         </div>
     {/ikb_container}
