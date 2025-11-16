@@ -11,11 +11,11 @@
 {ikb_section type="hero" class="hero-section" padding="none"}
     <div class="hero-content animate-fade-in">
         {ikb_text size="4xl" weight="black" class="hero-title"}
-            Rise Like a Phoenix
+            {theme.hero.title | esc_html}
         {/ikb_text}
         
         {ikb_text size="xl" class="hero-subtitle"}
-            A stunning, modern WordPress theme powered by DiSyL. Beautiful gradients, smooth animations, and endless possibilities.
+            {theme.hero.subtitle | esc_html}
         {/ikb_text}
         
         <div class="hero-cta">

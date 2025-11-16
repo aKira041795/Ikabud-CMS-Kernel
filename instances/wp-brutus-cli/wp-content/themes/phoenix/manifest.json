@@ -475,6 +475,26 @@
         }
       },
       
+      "hero_section": {
+        "title": "Hero Section",
+        "priority": 28,
+        "description": "Configure homepage hero section",
+        "settings": {
+          "hero_title": {
+            "type": "text",
+            "default": "Welcome to Phoenix",
+            "label": "Hero Title",
+            "description": "Main hero section title"
+          },
+          "hero_subtitle": {
+            "type": "textarea",
+            "default": "A beautiful DiSyL-powered WordPress theme",
+            "label": "Hero Subtitle",
+            "description": "Hero section subtitle"
+          }
+        }
+      },
+      
       "header_settings": {
         "title": "Header Settings",
         "priority": 30,

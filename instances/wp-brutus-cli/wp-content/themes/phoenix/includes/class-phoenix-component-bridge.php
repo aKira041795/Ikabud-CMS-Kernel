@@ -44,6 +44,12 @@ class Phoenix_Component_Bridge {
         // Add widget visibility
         $context['widget_visibility'] = $this->get_widget_visibility_context();
         
+        // Debug: Log context extension
+        if (defined('WP_DEBUG') && WP_DEBUG) {
+            error_log('Phoenix Bridge: Context extended with ' . count($context['components']) . ' components');
+            error_log('Phoenix Bridge: Hero title = ' . ($context['theme']['hero']['title'] ?? 'NOT SET'));
+        }
+        
         return $context;
     }
     
@@ -92,8 +98,8 @@ class Phoenix_Component_Bridge {
                 'sidebar_width' => get_theme_mod('phoenix_sidebar_width', '25%'),
             ],
             'hero' => [
-                'title' => get_theme_mod('phoenix_hero_title', 'Welcome to Phoenix'),
-                'subtitle' => get_theme_mod('phoenix_hero_subtitle', 'A beautiful DiSyL-powered WordPress theme'),
+                'title' => get_theme_mod('phoenix_hero_title', get_theme_mod('phoenix_hero_title', 'Welcome to Phoenix')),
+                'subtitle' => get_theme_mod('phoenix_hero_subtitle', get_theme_mod('phoenix_hero_subtitle', 'A beautiful DiSyL-powered WordPress theme')),
             ],
         ];
     }
