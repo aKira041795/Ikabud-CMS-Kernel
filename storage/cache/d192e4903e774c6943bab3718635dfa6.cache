@@ -1,0 +1,462 @@
+a:6:{s:7:"headers";a:13:{i:0;s:31:"X-Content-Type-Options: nosniff";i:1;s:31:"X-XSS-Protection: 1; mode=block";i:2;s:410:"Content-Security-Policy: default-src 'self' https: http:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https: http: blob:; style-src 'self' 'unsafe-inline' https: http:; img-src 'self' data: https: http:; font-src 'self' data: https: http:; connect-src 'self' https: http: wss: ws:; frame-src 'self' https: http:; frame-ancestors 'self' http://*.phoenix.test https://*.phoenix.test; worker-src 'self' blob:;";i:3;s:60:"Permissions-Policy: geolocation=(), microphone=(), camera=()";i:4;s:114:"Set-Cookie: c3dcb113ba9b9f02a522f7a4de3a81b6=5b7erae791j5posuqrdt7o87nk; path=/; secure; HttpOnly; SameSite=Strict";i:5;s:27:"x-frame-options: SAMEORIGIN";i:6;s:48:"referrer-policy: strict-origin-when-cross-origin";i:7;s:39:"cross-origin-opener-policy: same-origin";i:8;s:38:"Content-Type: text/html; charset=utf-8";i:9;s:38:"Expires: Wed, 17 Aug 2005 00:00:00 GMT";i:10;s:44:"Last-Modified: Sun, 16 Nov 2025 16:15:26 GMT";i:11;s:77:"Cache-Control: no-store, no-cache, must-revalidate, post-check=0, pre-check=0";i:12;s:16:"Pragma: no-cache";}s:4:"body";s:20218:"<!DOCTYPE html>
+<html lang="en-gb" dir="ltr">
+<head>
+    <meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<meta name="generator" content="Joomla! - Open Source Content Management">
+	<title>Home</title>
+	<link href="/?format=feed&amp;type=rss" rel="alternate" type="application/rss+xml" title="Home">
+	<link href="/?format=feed&amp;type=atom" rel="alternate" type="application/atom+xml" title="Home">
+
+    
+    <script type="application/json" class="joomla-script-options new">{"joomla.jtext":{"JSHOWPASSWORD":"Show Password","JHIDEPASSWORD":"Hide Password"},"system.paths":{"root":"","rootFull":"http:\/\/phoenix.test\/","base":"","baseFull":"http:\/\/phoenix.test\/"},"csrf.token":"d5a4ac024c00b33b6c29e5d5266edbed","system.keepalive":{"interval":840000,"uri":"\/component\/ajax\/?format=json"},"plg_system_schedulerunner":{"interval":300}}</script>
+	<script src="/media/system/js/core.min.js?2cb912"></script>
+	<script src="/media/system/js/keepalive.min.js?08e025" type="module"></script>
+	<script src="/media/system/js/fields/passwordview.min.js?d2a409" defer></script>
+	<script src="/media/plg_system_schedulerunner/js/run-schedule.min.js?229d3b" type="module"></script>
+
+    
+    <!-- Phoenix Template Styles - Direct Load for Testing -->
+    <link rel="stylesheet" href="/templates/phoenix/assets/css/style.css">
+    <link rel="stylesheet" href="/templates/phoenix/assets/css/disyl-components.css">
+    <script src="/templates/phoenix/assets/js/phoenix.js" defer></script>
+</head>
+<body class="site phoenix-template com_content wrapper-static view-featured no-layout no-task itemid-101 has-sidebar-right color-scheme-default">
+<!-- DEBUG: DiSyL Rendered = YES -->
+<!-- DEBUG: Content Length = 18191 bytes -->
+
+
+    <!-- DiSyL Rendered Content START -->
+    
+<header class="site-header sticky-header">
+    <div class="header-container">
+        
+        <div class="site-branding">
+            <a href="http://phoenix.test/" class="site-logo">
+                Phoenix
+            </a>
+        </div>
+        
+        
+        <button class="menu-toggle" aria-label="Toggle navigation" aria-expanded="false">
+            ☰
+        </button>
+        
+        
+        <nav class="main-nav" role="navigation" aria-label="Primary navigation">
+            <ul>
+                
+                    <li class="menu-item">
+                        <a href="/component/content/?view=category&amp;id=8&amp;Itemid=102">
+                            DiSyL Docs
+                        </a>
+                        
+                    </li>
+                
+                    <li class="menu-item">
+                        <a href="/component/content/?view=category&amp;id=9&amp;Itemid=103">
+                            Kernel Docs
+                        </a>
+                        
+                    </li>
+                
+                    <li class="menu-item">
+                        <a href="/component/content/?view=article&amp;id=6&amp;Itemid=104">
+                            Getting Started
+                        </a>
+                        
+                    </li>
+                
+                    <li class="menu-item">
+                        <a href="/">
+                            Home
+                        </a>
+                        
+                    </li>
+                
+            </ul>
+            
+            
+                <li class="search-icon">
+                    <a href="#search" aria-label="Search">🔍</a>
+                </li>
+            
+        </nav>
+    </div>
+</header>
+<section class="ikb-section section-slider padding-large section-gradient">
+<div class="slider-container reveal" 
+     data-autoplay="1" 
+     data-interval="5000" 
+     data-transition="fade">
+    <div class="slider-track">
+        
+        <div class="slide">
+            <img src="http://phoenix.test/templates/phoenix/assets/images/slide-1.png" alt="Slide 1" class="slide-image">
+            <div class="slide-content">
+                <p class="ikb-text text-3xl font-bold text-left slide-title">
+                    Welcome to Phoenix
+                </p><p class="ikb-text text-lg font-normal text-left">
+                    Experience the power of modern web design with beautiful gradients and smooth animations.
+                </p>
+                <div class="slide-actions">
+                    <a href="#" class="btn btn-primary">Learn More</a>
+                </div>
+            </div>
+        </div>
+        
+        
+        <div class="slide">
+            <img src="http://phoenix.test/templates/phoenix/assets/images/slide-2.png" alt="Slide 2" class="slide-image">
+            <div class="slide-content">
+                <p class="ikb-text text-3xl font-bold text-left slide-title">
+                    Built for Performance
+                </p><p class="ikb-text text-lg font-normal text-left">
+                    Lightning-fast loading times and optimized rendering for the best user experience.
+                </p>
+                <div class="slide-actions">
+                    <a href="#" class="btn btn-primary">View Features</a>
+                </div>
+            </div>
+        </div>
+        
+        
+        <div class="slide">
+            <img src="http://phoenix.test/templates/phoenix/assets/images/slide-3.png" alt="Slide 3" class="slide-image">
+            <div class="slide-content">
+                <p class="ikb-text text-3xl font-bold text-left slide-title">
+                    Fully Customizable
+                </p><p class="ikb-text text-lg font-normal text-left">
+                    Endless possibilities with widgets, custom layouts, and advanced theme options.
+                </p>
+                <div class="slide-actions">
+                    <a href="#" class="btn btn-primary">Get Started</a>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    
+    <button class="slider-arrow slider-arrow-prev" aria-label="Previous slide">‹</button>
+    <button class="slider-arrow slider-arrow-next" aria-label="Next slide">›</button>
+    
+    <div class="slider-controls"></div>
+    
+</div>
+</section><section class="ikb-section section-hero padding-none hero-section">
+    <div class="hero-content animate-fade-in">
+        <p class="ikb-text text-4xl font-black text-left hero-title">
+            
+        </p><p class="ikb-text text-xl font-normal text-left hero-subtitle">
+            
+        </p>
+        
+        <div class="hero-cta">
+            <a href="#features" class="btn btn-primary">Explore Features</a>
+            <a href="#blog" class="btn btn-outline">Read Blog</a>
+        </div>
+    </div>
+</section><section class="ikb-section section-features padding-xlarge"><div class="ikb-container container-xlarge">
+        <div class="section-header reveal">
+            <p class="ikb-text text-3xl font-bold text-left section-title gradient-text">
+                <h3>Powerful Features</h3>
+            </p><p class="ikb-text text-lg font-normal text-left section-subtitle">
+                <h4>Everything you need to build a stunning website</h4>
+            </p>
+        </div>
+        
+        <div class="card-grid">
+            
+            <div class="card reveal">
+                <div class="card-icon">
+                    ⚡
+                </div>
+                <p class="ikb-text text-xl font-semibold text-left card-title">
+                    Lightning Fast
+                </p><p class="ikb-text text-md font-normal text-left card-text">
+                    Optimized for performance with DiSyL's efficient rendering engine. Pages load in milliseconds.
+                </p>
+            </div>
+            
+            
+            <div class="card reveal">
+                <div class="card-icon">
+                    🎨
+                </div>
+                <p class="ikb-text text-xl font-semibold text-left card-title">
+                    Beautiful Design
+                </p><p class="ikb-text text-md font-normal text-left card-text">
+                    Modern gradients, smooth animations, and a clean interface that captivates your visitors.
+                </p>
+            </div>
+            
+            
+            <div class="card reveal">
+                <div class="card-icon">
+                    📱
+                </div>
+                <p class="ikb-text text-xl font-semibold text-left card-title">
+                    Fully Responsive
+                </p><p class="ikb-text text-md font-normal text-left card-text">
+                    Looks perfect on all devices - from mobile phones to large desktop screens.
+                </p>
+            </div>
+            
+            
+            <div class="card reveal">
+                <div class="card-icon">
+                    🔒
+                </div>
+                <p class="ikb-text text-xl font-semibold text-left card-title">
+                    Secure & Safe
+                </p><p class="ikb-text text-md font-normal text-left card-text">
+                    Built with security best practices. XSS prevention, sanitization, and WordPress standards.
+                </p>
+            </div>
+            
+            
+            <div class="card reveal">
+                <div class="card-icon">
+                    🎯
+                </div>
+                <p class="ikb-text text-xl font-semibold text-left card-title">
+                    SEO Optimized
+                </p><p class="ikb-text text-md font-normal text-left card-text">
+                    Clean semantic HTML, fast loading times, and proper meta tags for better search rankings.
+                </p>
+            </div>
+            
+            
+            <div class="card reveal">
+                <div class="card-icon">
+                    🧩
+                </div>
+                <p class="ikb-text text-xl font-semibold text-left card-title">
+                    Widget Ready
+                </p><p class="ikb-text text-md font-normal text-left card-text">
+                    Multiple widget areas for sidebars, footers, and homepage sections. Fully customizable.
+                </p>
+            </div>
+        </div>
+    </div></section><section class="ikb-section section-blog padding-xlarge"><div class="ikb-container container-xlarge">
+        <div class="section-header reveal">
+            <p class="ikb-text text-3xl font-bold text-center section-title gradient-text">
+                <h2>Latest Articles</h2>
+            </p><p class="ikb-text text-lg font-normal text-center section-subtitle">
+                <h4>Insights, tutorials, and updates from our blog</h4>
+            </p>
+        </div>
+        
+        <div class="post-grid">
+            
+                <article class="post-card reveal">
+                    
+                        <a href="/?view=article&amp;id=1&amp;catid=8">
+                            <img src="http://phoenix.test/" alt="What is DiSyL?" class="ikb-image post-thumbnail" loading="lazy" />
+                        </a>
+                    
+                    
+                    <div class="post-content">
+                        <div class="post-meta">
+                            <span class="post-date">Jan 1, 1970</span>
+                            <span class="separator">•</span>
+                            <span class="post-author">Noah O</span>
+                        </div>
+                        
+                        <p class="ikb-text text-xl font-semibold text-left post-title">
+                            <a href="/?view=article&amp;id=1&amp;catid=8">What is DiSyL?</a>
+                        </p><p class="ikb-text text-md font-normal text-left post-excerpt">
+                            ...
+                        </p>
+                        
+                        <a href="/?view=article&amp;id=1&amp;catid=8" class="read-more">
+                            Read More →
+                        </a>
+                    </div>
+                </article>
+            
+                <article class="post-card reveal">
+                    
+                        <a href="/?view=article&amp;id=2&amp;catid=8">
+                            <img src="http://phoenix.test/" alt="DiSyL Components Guide" class="ikb-image post-thumbnail" loading="lazy" />
+                        </a>
+                    
+                    
+                    <div class="post-content">
+                        <div class="post-meta">
+                            <span class="post-date">Jan 1, 1970</span>
+                            <span class="separator">•</span>
+                            <span class="post-author">Noah O</span>
+                        </div>
+                        
+                        <p class="ikb-text text-xl font-semibold text-left post-title">
+                            <a href="/?view=article&amp;id=2&amp;catid=8">DiSyL Components Guide</a>
+                        </p><p class="ikb-text text-md font-normal text-left post-excerpt">
+                            ...
+                        </p>
+                        
+                        <a href="/?view=article&amp;id=2&amp;catid=8" class="read-more">
+                            Read More →
+                        </a>
+                    </div>
+                </article>
+            
+                <article class="post-card reveal">
+                    
+                        <a href="/?view=article&amp;id=3&amp;catid=8">
+                            <img src="http://phoenix.test/" alt="DiSyL Filters Reference" class="ikb-image post-thumbnail" loading="lazy" />
+                        </a>
+                    
+                    
+                    <div class="post-content">
+                        <div class="post-meta">
+                            <span class="post-date">Jan 1, 1970</span>
+                            <span class="separator">•</span>
+                            <span class="post-author">Noah O</span>
+                        </div>
+                        
+                        <p class="ikb-text text-xl font-semibold text-left post-title">
+                            <a href="/?view=article&amp;id=3&amp;catid=8">DiSyL Filters Reference</a>
+                        </p><p class="ikb-text text-md font-normal text-left post-excerpt">
+                            ...
+                        </p>
+                        
+                        <a href="/?view=article&amp;id=3&amp;catid=8" class="read-more">
+                            Read More →
+                        </a>
+                    </div>
+                </article>
+            
+                <article class="post-card reveal">
+                    
+                        <a href="/?view=article&amp;id=4&amp;catid=9">
+                            <img src="http://phoenix.test/" alt="Ikabud Kernel Overview" class="ikb-image post-thumbnail" loading="lazy" />
+                        </a>
+                    
+                    
+                    <div class="post-content">
+                        <div class="post-meta">
+                            <span class="post-date">Jan 1, 1970</span>
+                            <span class="separator">•</span>
+                            <span class="post-author">Noah O</span>
+                        </div>
+                        
+                        <p class="ikb-text text-xl font-semibold text-left post-title">
+                            <a href="/?view=article&amp;id=4&amp;catid=9">Ikabud Kernel Overview</a>
+                        </p><p class="ikb-text text-md font-normal text-left post-excerpt">
+                            ...
+                        </p>
+                        
+                        <a href="/?view=article&amp;id=4&amp;catid=9" class="read-more">
+                            Read More →
+                        </a>
+                    </div>
+                </article>
+            
+                <article class="post-card reveal">
+                    
+                        <a href="/?view=article&amp;id=5&amp;catid=9">
+                            <img src="http://phoenix.test/" alt="Phoenix Theme Features" class="ikb-image post-thumbnail" loading="lazy" />
+                        </a>
+                    
+                    
+                    <div class="post-content">
+                        <div class="post-meta">
+                            <span class="post-date">Jan 1, 1970</span>
+                            <span class="separator">•</span>
+                            <span class="post-author">Noah O</span>
+                        </div>
+                        
+                        <p class="ikb-text text-xl font-semibold text-left post-title">
+                            <a href="/?view=article&amp;id=5&amp;catid=9">Phoenix Theme Features</a>
+                        </p><p class="ikb-text text-md font-normal text-left post-excerpt">
+                            ...
+                        </p>
+                        
+                        <a href="/?view=article&amp;id=5&amp;catid=9" class="read-more">
+                            Read More →
+                        </a>
+                    </div>
+                </article>
+            
+                <article class="post-card reveal">
+                    
+                        <a href="/?view=article&amp;id=6&amp;catid=8">
+                            <img src="http://phoenix.test/" alt="Getting Started with DiSyL" class="ikb-image post-thumbnail" loading="lazy" />
+                        </a>
+                    
+                    
+                    <div class="post-content">
+                        <div class="post-meta">
+                            <span class="post-date">Jan 1, 1970</span>
+                            <span class="separator">•</span>
+                            <span class="post-author">Noah O</span>
+                        </div>
+                        
+                        <p class="ikb-text text-xl font-semibold text-left post-title">
+                            <a href="/?view=article&amp;id=6&amp;catid=8">Getting Started with DiSyL</a>
+                        </p><p class="ikb-text text-md font-normal text-left post-excerpt">
+                            ...
+                        </p>
+                        
+                        <a href="/?view=article&amp;id=6&amp;catid=8" class="read-more">
+                            Read More →
+                        </a>
+                    </div>
+                </article>
+            
+        </div>
+        
+        <div class="text-center mt-large">
+            <a href="/blog" class="btn btn-primary">View All Posts</a>
+        </div>
+    </div></section><section class="ikb-section section-cta padding-xlarge section-gradient"><div class="ikb-container container-xlarge">
+        <div class="text-center reveal">
+            <p class="ikb-text text-3xl font-bold text-left">
+                <h3 class="cta-header">Ready to Get Started?</h3>
+            </p><p class="ikb-text text-xl font-normal text-left">
+                <h4 class="cta-text">Join thousands of users who have transformed their websites with Phoenix</h4>
+            </p>
+            
+            <div class="flex-center gap-medium flex-wrap cta-bottom">
+                <a href="/contact" class="btn btn-primary">Get in Touch</a>
+                <a href="/documentation" class="btn btn-outline">View Documentation</a>
+            </div>
+        </div>
+    </div></section>
+</main>
+
+<footer class="site-footer">
+    <div class="ikb-container container-xlarge">
+        <div class="footer-widgets footer-columns-">
+            
+        </div>
+        
+        
+        <div class="footer-bottom">
+            <p class="ikb-text text-md font-normal text-center">
+                
+            </p>
+        </div>
+    </div>
+</footer>
+
+
+<button class="back-to-top" aria-label="Back to top">
+    ↑
+</button>
+
+<script src="http://phoenix.test/templates/phoenix/assets/js/phoenix.js"></script>
+
+</body>
+</html>
+    <!-- DiSyL Rendered Content END -->
+
+    <a href="#top" id="back-top" class="back-to-top-link" aria-label="Back to Top">
+        <span class="icon-arrow-up" aria-hidden="true">↑</span>
+    </a>
+
+
+</body>
+</html>
+";s:9:"timestamp";i:1763309726;s:8:"cms_type";s:6:"joomla";s:17:"extensions_loaded";a:0:{}s:15:"extension_count";i:0;}

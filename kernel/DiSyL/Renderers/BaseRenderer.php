@@ -22,6 +22,14 @@ abstract class BaseRenderer
     protected array $components = [];
     
     /**
+     * Constructor - Initialize CMS-specific setup
+     */
+    public function __construct()
+    {
+        $this->initializeCMS();
+    }
+    
+    /**
      * Render AST to HTML
      * 
      * @param array $ast Compiled DiSyL AST

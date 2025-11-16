@@ -1,0 +1,68 @@
+{!-- Phoenix Theme - Archive Template --}
+{ikb_include template="components/header.disyl" /}
+
+{!-- Archive Header --}
+{ikb_section type="archive-header" class="section-gradient" padding="large"}
+    {ikb_container size="large"}
+        <div class="text-center">
+            {ikb_text size="3xl" weight="bold"}
+                Archive
+            {/ikb_text}
+            {ikb_text size="lg" margin="top"}
+                Browse our content archive
+            {/ikb_text}
+        </div>
+    {/ikb_container}
+{/ikb_section}
+
+{!-- Archive Content --}
+{ikb_section type="archive-content" padding="xlarge"}
+    {ikb_container size="xlarge"}
+        <div class="archive-layout">
+            {!-- Posts --}
+            <div>
+                <div class="post-grid">
+                    {ikb_query type="post" limit=12}
+                        <article class="post-card reveal">
+                            {if condition="item.thumbnail"}
+                                <a href="{item.url | esc_url}">
+                                    {ikb_image 
+                                        src="{item.thumbnail | esc_url}"
+                                        alt="{item.title | esc_attr}"
+                                        class="post-thumbnail"
+                                        lazy=true
+                                    /}
+                                </a>
+                            {/if}
+                            
+                            <div class="post-content">
+                                <div class="post-meta">
+                                    <span>{item.date | date:format="M j, Y"}</span>
+                                    <span class="separator">•</span>
+                                    <span>{item.author | esc_html}</span>
+                                </div>
+                                
+                                {ikb_text size="xl" weight="semibold" class="post-title"}
+                                    <a href="{item.url | esc_url}">{item.title | esc_html}</a>
+                                {/ikb_text}
+                                
+                                {ikb_text class="post-excerpt"}
+                                    {item.excerpt | strip_tags | truncate:length=150,append="..."}
+                                {/ikb_text}
+                                
+                                <a href="{item.url | esc_url}" class="read-more">
+                                    Read More →
+                                </a>
+                            </div>
+                        </article>
+                    {/ikb_query}
+                </div>
+            </div>
+            
+            {!-- Sidebar --}
+            {include file="components/sidebar.disyl"}
+        </div>
+    {/ikb_container}
+{/ikb_section}
+
+{ikb_include template="components/footer.disyl" /}

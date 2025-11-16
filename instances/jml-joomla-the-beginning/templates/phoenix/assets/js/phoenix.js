@@ -1,0 +1,411 @@
+/**
+ * Phoenix Theme JavaScript
+ * 
+ * Handles all interactive features including:
+ * - Mobile menu toggle
+ * - Smooth scrolling
+ * - Scroll reveal animations
+ * - Header scroll effects
+ * - Slider functionality
+ * - Load more posts
+ * 
+ * @package Phoenix
+ * @version 1.0.0
+ */
+
+(function() {
+    'use strict';
+    
+    // Wait for DOM to be ready
+    document.addEventListener('DOMContentLoaded', function() {
+        initMobileMenu();
+        initScrollEffects();
+        initScrollReveal();
+        initSlider();
+        initLoadMore();
+        initSmoothScroll();
+    });
+    
+    /**
+     * Mobile Menu Toggle
+     */
+    function initMobileMenu() {
+        const menuToggle = document.querySelector('.menu-toggle');
+        const mainNav = document.querySelector('.main-nav');
+        const body = document.body;
+        
+        if (!menuToggle || !mainNav) return;
+        
+        menuToggle.addEventListener('click', function() {
+            mainNav.classList.toggle('active');
+            body.classList.toggle('menu-open');
+            
+            // Update aria-expanded
+            const isExpanded = mainNav.classList.contains('active');
+            menuToggle.setAttribute('aria-expanded', isExpanded);
+        });
+        
+        // Close menu when clicking outside
+        document.addEventListener('click', function(e) {
+            if (!mainNav.contains(e.target) && !menuToggle.contains(e.target)) {
+                mainNav.classList.remove('active');
+                body.classList.remove('menu-open');
+                menuToggle.setAttribute('aria-expanded', 'false');
+            }
+        });
+        
+        // Close menu on escape key
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape' && mainNav.classList.contains('active')) {
+                mainNav.classList.remove('active');
+                body.classList.remove('menu-open');
+                menuToggle.setAttribute('aria-expanded', 'false');
+            }
+        });
+    }
+    
+    /**
+     * Header Scroll Effects
+     */
+    function initScrollEffects() {
+        const header = document.querySelector('.site-header');
+        if (!header) return;
+        
+        let lastScroll = 0;
+        
+        window.addEventListener('scroll', function() {
+            const currentScroll = window.pageYOffset;
+            
+            // Add scrolled class when scrolled down
+            if (currentScroll > 100) {
+                header.classList.add('scrolled');
+            } else {
+                header.classList.remove('scrolled');
+            }
+            
+            // Hide header on scroll down, show on scroll up
+            if (currentScroll > lastScroll && currentScroll > 500) {
+                header.style.transform = 'translateY(-100%)';
+            } else {
+                header.style.transform = 'translateY(0)';
+            }
+            
+            lastScroll = currentScroll;
+        });
+    }
+    
+    /**
+     * Scroll Reveal Animations
+     */
+    function initScrollReveal() {
+        const reveals = document.querySelectorAll('.reveal');
+        if (!reveals.length) return;
+        
+        const revealObserver = new IntersectionObserver(function(entries) {
+            entries.forEach(function(entry) {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('active');
+                    revealObserver.unobserve(entry.target);
+                }
+            });
+        }, {
+            threshold: 0.15,
+            rootMargin: '0px 0px -50px 0px'
+        });
+        
+        reveals.forEach(function(reveal) {
+            revealObserver.observe(reveal);
+        });
+    }
+    
+    /**
+     * Slider Functionality
+     */
+    function initSlider() {
+        const sliders = document.querySelectorAll('.slider-container');
+        
+        sliders.forEach(function(slider) {
+            const track = slider.querySelector('.slider-track');
+            const slides = slider.querySelectorAll('.slide');
+            const prevBtn = slider.querySelector('.slider-arrow-prev');
+            const nextBtn = slider.querySelector('.slider-arrow-next');
+            const dotsContainer = slider.querySelector('.slider-controls');
+            
+            if (!track || !slides.length) return;
+            
+            let currentSlide = 0;
+            const totalSlides = slides.length;
+            let autoplayInterval;
+            
+            // Create dots
+            if (dotsContainer) {
+                slides.forEach(function(_, index) {
+                    const dot = document.createElement('button');
+                    dot.classList.add('slider-dot');
+                    dot.setAttribute('aria-label', 'Go to slide ' + (index + 1));
+                    if (index === 0) dot.classList.add('active');
+                    
+                    dot.addEventListener('click', function() {
+                        goToSlide(index);
+                    });
+                    
+                    dotsContainer.appendChild(dot);
+                });
+            }
+            
+            // Update slider position
+            function updateSlider() {
+                track.style.transform = 'translateX(-' + (currentSlide * 100) + '%)';
+                
+                // Update dots
+                const dots = slider.querySelectorAll('.slider-dot');
+                dots.forEach(function(dot, index) {
+                    dot.classList.toggle('active', index === currentSlide);
+                });
+            }
+            
+            // Go to specific slide
+            function goToSlide(index) {
+                currentSlide = index;
+                updateSlider();
+                resetAutoplay();
+            }
+            
+            // Next slide
+            function nextSlide() {
+                currentSlide = (currentSlide + 1) % totalSlides;
+                updateSlider();
+            }
+            
+            // Previous slide
+            function prevSlide() {
+                currentSlide = (currentSlide - 1 + totalSlides) % totalSlides;
+                updateSlider();
+            }
+            
+            // Autoplay
+            function startAutoplay() {
+                autoplayInterval = setInterval(nextSlide, 5000);
+            }
+            
+            function resetAutoplay() {
+                clearInterval(autoplayInterval);
+                startAutoplay();
+            }
+            
+            // Event listeners
+            if (nextBtn) {
+                nextBtn.addEventListener('click', function() {
+                    nextSlide();
+                    resetAutoplay();
+                });
+            }
+            
+            if (prevBtn) {
+                prevBtn.addEventListener('click', function() {
+                    prevSlide();
+                    resetAutoplay();
+                });
+            }
+            
+            // Keyboard navigation
+            slider.addEventListener('keydown', function(e) {
+                if (e.key === 'ArrowLeft') {
+                    prevSlide();
+                    resetAutoplay();
+                } else if (e.key === 'ArrowRight') {
+                    nextSlide();
+                    resetAutoplay();
+                }
+            });
+            
+            // Touch/swipe support
+            let touchStartX = 0;
+            let touchEndX = 0;
+            
+            slider.addEventListener('touchstart', function(e) {
+                touchStartX = e.changedTouches[0].screenX;
+            });
+            
+            slider.addEventListener('touchend', function(e) {
+                touchEndX = e.changedTouches[0].screenX;
+                handleSwipe();
+            });
+            
+            function handleSwipe() {
+                if (touchEndX < touchStartX - 50) {
+                    nextSlide();
+                    resetAutoplay();
+                }
+                if (touchEndX > touchStartX + 50) {
+                    prevSlide();
+                    resetAutoplay();
+                }
+            }
+            
+            // Pause autoplay on hover
+            slider.addEventListener('mouseenter', function() {
+                clearInterval(autoplayInterval);
+            });
+            
+            slider.addEventListener('mouseleave', function() {
+                startAutoplay();
+            });
+            
+            // Start autoplay
+            startAutoplay();
+        });
+    }
+    
+    /**
+     * Load More Posts (AJAX)
+     */
+    function initLoadMore() {
+        const loadMoreBtn = document.querySelector('.load-more-posts');
+        if (!loadMoreBtn) return;
+        
+        let page = 2;
+        let loading = false;
+        
+        loadMoreBtn.addEventListener('click', function() {
+            if (loading) return;
+            
+            loading = true;
+            loadMoreBtn.textContent = 'Loading...';
+            loadMoreBtn.disabled = true;
+            
+            // Make AJAX request
+            fetch(phoenixData.ajaxurl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: new URLSearchParams({
+                    action: 'phoenix_load_more',
+                    nonce: phoenixData.nonce,
+                    page: page
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Append new posts
+                    const postsContainer = document.querySelector('.post-grid');
+                    if (postsContainer) {
+                        postsContainer.insertAdjacentHTML('beforeend', data.data.html);
+                    }
+                    
+                    // Update page number
+                    page++;
+                    
+                    // Hide button if no more posts
+                    if (!data.data.has_more) {
+                        loadMoreBtn.style.display = 'none';
+                    }
+                    
+                    // Trigger scroll reveal for new posts
+                    initScrollReveal();
+                } else {
+                    loadMoreBtn.textContent = 'No more posts';
+                }
+            })
+            .catch(error => {
+                console.error('Error loading posts:', error);
+                loadMoreBtn.textContent = 'Error loading posts';
+            })
+            .finally(() => {
+                loading = false;
+                loadMoreBtn.disabled = false;
+                if (loadMoreBtn.textContent === 'Loading...') {
+                    loadMoreBtn.textContent = 'Load More';
+                }
+            });
+        });
+    }
+    
+    /**
+     * Smooth Scrolling
+     */
+    function initSmoothScroll() {
+        const links = document.querySelectorAll('a[href^="#"]');
+        
+        links.forEach(function(link) {
+            link.addEventListener('click', function(e) {
+                const href = this.getAttribute('href');
+                if (href === '#') return;
+                
+                const target = document.querySelector(href);
+                if (!target) return;
+                
+                e.preventDefault();
+                
+                const headerHeight = document.querySelector('.site-header')?.offsetHeight || 0;
+                const targetPosition = target.offsetTop - headerHeight - 20;
+                
+                window.scrollTo({
+                    top: targetPosition,
+                    behavior: 'smooth'
+                });
+                
+                // Update URL
+                history.pushState(null, null, href);
+            });
+        });
+    }
+    
+    /**
+     * Back to Top Button
+     */
+    function initBackToTop() {
+        const backToTop = document.querySelector('.back-to-top');
+        if (!backToTop) return;
+        
+        window.addEventListener('scroll', function() {
+            if (window.pageYOffset > 500) {
+                backToTop.classList.add('visible');
+            } else {
+                backToTop.classList.remove('visible');
+            }
+        });
+        
+        backToTop.addEventListener('click', function(e) {
+            e.preventDefault();
+            window.scrollTo({
+                top: 0,
+                behavior: 'smooth'
+            });
+        });
+    }
+    
+    /**
+     * Form Validation
+     */
+    function initFormValidation() {
+        const forms = document.querySelectorAll('.validate-form');
+        
+        forms.forEach(function(form) {
+            form.addEventListener('submit', function(e) {
+                const inputs = form.querySelectorAll('[required]');
+                let valid = true;
+                
+                inputs.forEach(function(input) {
+                    if (!input.value.trim()) {
+                        valid = false;
+                        input.classList.add('error');
+                    } else {
+                        input.classList.remove('error');
+                    }
+                });
+                
+                if (!valid) {
+                    e.preventDefault();
+                }
+            });
+        });
+    }
+    
+    // Initialize additional features
+    initBackToTop();
+    initFormValidation();
+    
+})();

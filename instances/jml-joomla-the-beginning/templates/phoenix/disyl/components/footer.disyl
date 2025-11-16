@@ -1,0 +1,105 @@
+{!-- Phoenix Theme - Footer Component --}
+</main>
+
+<footer class="site-footer">
+    {ikb_container size="xlarge"}
+        {!-- Footer Widgets (dynamic columns from customizer) --}
+        <div class="footer-widgets footer-columns-{components.footer.columns}">
+            {!-- Footer Widget 1 --}
+            {if condition="widget_visibility.footer-1"}
+            <div class="footer-widget">
+                {if condition="widgets.footer_1.active"}
+                    {widgets.footer_1.content | raw}
+                {else}
+                    {ikb_text size="lg" weight="semibold" class="widget-title"}
+                        About Phoenix
+                    {/ikb_text}
+                    {ikb_text}
+                        A modern WordPress theme powered by DiSyL. Beautiful design, lightning-fast performance, and endless customization possibilities.
+                    {/ikb_text}
+                {/if}
+            </div>
+            {/if}
+            
+            {!-- Footer Widget 2 --}
+            {if condition="widget_visibility.footer-2"}
+            <div class="footer-widget">
+                {if condition="widgets.footer_2.active"}
+                    {widgets.footer_2.content | raw}
+                {else}
+                    {ikb_text size="lg" weight="semibold" class="widget-title"}
+                        Quick Links
+                    {/ikb_text}
+                    <ul>
+                        <li><a href="/">Home</a></li>
+                        <li><a href="/blog">Blog</a></li>
+                        <li><a href="/about">About</a></li>
+                        <li><a href="/contact">Contact</a></li>
+                    </ul>
+                {/if}
+            </div>
+            {/if}
+            
+            {!-- Footer Widget 3 --}
+            {if condition="widget_visibility.footer-3"}
+            <div class="footer-widget">
+                {if condition="widgets.footer_3.active"}
+                    {widgets.footer_3.content | raw}
+                {else}
+                    {ikb_text size="lg" weight="semibold" class="widget-title"}
+                        Recent Posts
+                    {/ikb_text}
+                    <ul>
+                        {ikb_query type="post" limit=3}
+                            <li>
+                                <a href="{item.url | esc_url}">{item.title | esc_html}</a>
+                            </li>
+                        {/ikb_query}
+                    </ul>
+                {/if}
+            </div>
+            {/if}
+            
+            {!-- Footer Widget 4 --}
+            {if condition="widget_visibility.footer-4"}
+            <div class="footer-widget">
+                {if condition="widgets.footer_4.active"}
+                    {widgets.footer_4.content | raw}
+                {else}
+                    {ikb_text size="lg" weight="semibold" class="widget-title"}
+                        Connect
+                    {/ikb_text}
+                    {ikb_text}
+                        Follow us on social media for updates and news.
+                    {/ikb_text}
+                    {if condition="components.footer.show_social"}
+                    <div class="social-links">
+                        <a href="#" aria-label="Twitter">🐦</a>
+                        <a href="#" aria-label="Facebook">📘</a>
+                        <a href="#" aria-label="Instagram">📷</a>
+                        <a href="#" aria-label="LinkedIn">💼</a>
+                    </div>
+                    {/if}
+                {/if}
+            </div>
+            {/if}
+        </div>
+        
+        {!-- Footer Bottom --}
+        <div class="footer-bottom">
+            {ikb_text align="center"}
+                {components.footer.copyright_text | esc_html}
+            {/ikb_text}
+        </div>
+    {/ikb_container}
+</footer>
+
+{!-- Back to Top Button --}
+<button class="back-to-top" aria-label="Back to top">
+    ↑
+</button>
+
+<script src="{site.theme_url | esc_url}/assets/js/phoenix.js"></script>
+{wp_footer | raw}
+</body>
+</html>

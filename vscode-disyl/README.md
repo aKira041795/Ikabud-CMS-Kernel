@@ -1,8 +1,25 @@
 # DiSyL Language Support for VS Code / Windsurf
 
-**Syntax highlighting, snippets, and language support for DiSyL (Declarative Ikabud Syntax Language) templates.**
+**Full-featured Language Server Protocol (LSP) extension for DiSyL (Declarative Ikabud Syntax Language) with IntelliSense, validation, formatting, and more.**
 
-## Features
+[![Version](https://img.shields.io/badge/version-0.5.0-blue.svg)](https://github.com/ikabud/disyl)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![Windsurf](https://img.shields.io/badge/Windsurf-Compatible-purple.svg)](https://codeium.com/windsurf)
+[![LSP](https://img.shields.io/badge/LSP-Enabled-brightgreen.svg)](LSP_FEATURES.md)
+
+## ✨ Features
+
+### 🚀 Language Server Protocol (LSP) - NEW in v0.5.0!
+
+- **IntelliSense**: Smart auto-completion for components, filters, and control structures
+- **Real-time Validation**: Instant error detection for unclosed tags, mismatched components, and invalid filters
+- **Hover Documentation**: Detailed docs for components and filters on hover
+- **Document Formatting**: Auto-format with proper indentation (`Shift+Alt+F`)
+- **Signature Help**: Parameter hints while typing
+- **Go to Definition**: Jump to included files
+- **Document Symbols**: Navigate your template structure
+
+[📖 See full LSP features documentation](LSP_FEATURES.md)
 
 ### 🎨 Syntax Highlighting
 
@@ -63,22 +80,47 @@ Optimized editor settings for DiSyL files:
 
 ## Installation
 
-### From VSIX (Local Installation)
+### 🚀 Quick Install (Recommended)
 
-1. Download the `.vsix` file
-2. Open VS Code / Windsurf
-3. Go to Extensions (Ctrl+Shift+X / Cmd+Shift+X)
+```bash
+cd vscode-disyl
+./install.sh
+```
+
+The script will:
+- Install dependencies
+- Package the extension
+- Auto-detect Windsurf/VS Code
+- Install to all detected IDEs
+
+### Manual Installation
+
+#### From VSIX
+
+1. Download or build the `.vsix` file
+2. Open Windsurf or VS Code
+3. Go to Extensions (`Ctrl+Shift+X` / `Cmd+Shift+X`)
 4. Click the "..." menu → "Install from VSIX..."
-5. Select the downloaded `.vsix` file
+5. Select the `.vsix` file
 
-### From Source
+#### From Source
 
 ```bash
 cd vscode-disyl
 npm install
 npm run package
-code --install-extension disyl-0.3.0.vsix
+# For VS Code:
+code --install-extension disyl-0.4.0.vsix
+# For Windsurf:
+windsurf --install-extension disyl-0.4.0.vsix
 ```
+
+### Windsurf-Specific Notes
+
+- Extension is fully compatible with Windsurf IDE
+- Syntax highlighting works out of the box
+- All snippets and auto-completion features supported
+- File association for `.disyl` files automatic
 
 ## Usage
 
@@ -179,13 +221,16 @@ DiSyL syntax highlighting works with all VS Code themes. Recommended themes for 
 
 ## Roadmap
 
-- [ ] IntelliSense / Autocomplete
-- [ ] Hover documentation
-- [ ] Go to definition for components
-- [ ] Linting / Error detection
-- [ ] Code formatting
-- [ ] Refactoring support
+- [x] IntelliSense / Autocomplete ✅ v0.5.0
+- [x] Hover documentation ✅ v0.5.0
+- [x] Go to definition for components ✅ v0.5.0
+- [x] Linting / Error detection ✅ v0.5.0
+- [x] Code formatting ✅ v0.5.0
+- [ ] Code actions and quick fixes
+- [ ] Refactoring support (rename, extract)
+- [ ] Semantic highlighting
 - [ ] Debugging support
+- [ ] Live preview with hot reload
 
 ## Contributing
 
@@ -202,8 +247,9 @@ MIT License - see LICENSE file for details
 **DiSyL** is developed by the Ikabud team as a universal, CMS-agnostic templating language.
 
 - **Grammar**: DiSyL v0.3 (Production-ready)
-- **Extension Version**: 0.3.0
-- **Last Updated**: November 15, 2025
+- **Extension Version**: 0.5.0 (LSP-enabled)
+- **Last Updated**: November 16, 2025
+- **Architecture**: TypeScript + Language Server Protocol
 
 ---
 

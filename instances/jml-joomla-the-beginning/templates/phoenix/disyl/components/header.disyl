@@ -1,0 +1,47 @@
+{!-- Phoenix Theme - Header Component --}
+<header class="site-header{if condition="components.header.sticky"} sticky-header{/if}">
+    <div class="header-container">
+        {!-- Logo (from template params or site name) --}
+        <div class="site-branding">
+            <a href="{site.url | esc_url}" class="site-logo">
+                {sitename | esc_html}
+            </a>
+        </div>
+        
+        {!-- Mobile Menu Toggle --}
+        <button class="menu-toggle" aria-label="Toggle navigation" aria-expanded="false">
+            ☰
+        </button>
+        
+        {!-- Primary Navigation --}
+        <nav class="main-nav" role="navigation" aria-label="Primary navigation">
+            <ul>
+                {for items="menu.primary" as="item"}
+                    <li class="menu-item">
+                        <a href="{item.url | esc_url}">
+                            {item.title | esc_html}
+                        </a>
+                        {if condition="item.children"}
+                            <ul class="submenu">
+                                {for items="item.children" as="child"}
+                                    <li>
+                                        <a href="{child.url | esc_url}">
+                                            {child.title | esc_html}
+                                        </a>
+                                    </li>
+                                {/for}
+                            </ul>
+                        {/if}
+                    </li>
+                {/for}
+            </ul>
+            
+            {!-- Search Icon (if enabled in customizer) --}
+            {if condition="components.header.show_search"}
+                <li class="search-icon">
+                    <a href="#search" aria-label="Search">🔍</a>
+                </li>
+            {/if}
+        </nav>
+    </div>
+</header>

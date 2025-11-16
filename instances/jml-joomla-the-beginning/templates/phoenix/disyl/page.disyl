@@ -1,0 +1,22 @@
+{!-- Phoenix Theme - Page Template --}
+{ikb_include template="components/header.disyl" /}
+
+{ikb_section type="page" padding="xlarge"}
+    {ikb_container size="large"}
+        <article class="page-content">
+            {!-- Page Header --}
+            <header class="page-header">
+                {ikb_text size="3xl" weight="bold" class="gradient-text"}
+                    {post.title | esc_html}
+                {/ikb_text}
+            </header>
+            
+            {!-- Page Content --}
+            <div class="content">
+                {post.content | raw}
+            </div>
+        </article>
+    {/ikb_container}
+{/ikb_section}
+
+{ikb_include template="components/footer.disyl" /}

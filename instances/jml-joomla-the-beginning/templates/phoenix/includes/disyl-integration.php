@@ -1,0 +1,382 @@
+<?php
+/**
+ * Phoenix DiSyL Integration for Joomla
+ * 
+ * Integrates DiSyL rendering engine with Joomla CMS
+ * 
+ * @package     Phoenix
+ * @version     1.0.0
+ */
+
+defined('_JEXEC') or die;
+
+use Joomla\CMS\Factory;
+use Joomla\CMS\Router\Route;
+use Joomla\CMS\Uri\Uri;
+use Joomla\Component\Content\Site\Helper\RouteHelper as ContentHelperRoute;
+use IkabudKernel\Core\DiSyL\Engine;
+use IkabudKernel\Core\DiSyL\Renderers\JoomlaRenderer;
+
+/**
+ * Phoenix DiSyL Integration Class
+ */
+class PhoenixDisylIntegration
+{
+    private $document;
+    private $app;
+    private $engine;
+    private $renderer;
+    private $templatePath;
+    
+    /**
+     * Constructor
+     */
+    public function __construct($document, $app)
+    {
+        $this->document = $document;
+        $this->app = $app;
+        $this->templatePath = JPATH_THEMES . '/' . $document->template;
+        
+        // Initialize DiSyL Engine
+        $this->engine = new Engine();
+        
+        // Create Joomla-specific renderer from kernel
+        $this->renderer = new JoomlaRenderer();
+        
+        // Set template path for includes
+        $this->renderer->setTemplatePath($this->templatePath . '/disyl');
+    }
+    
+    /**
+     * Get template file based on Joomla context
+     */
+    public function getTemplateFile($option, $view, $layout)
+    {
+        $disylPath = $this->templatePath . '/disyl/';
+        
+        // Check for specific layout
+        if ($layout && file_exists($disylPath . $layout . '.disyl')) {
+            return $disylPath . $layout . '.disyl';
+        }
+        
+        // Check for view-specific template
+        if ($view && file_exists($disylPath . $view . '.disyl')) {
+            return $disylPath . $view . '.disyl';
+        }
+        
+        // Map Joomla views to DiSyL templates
+        $templateMap = [
+            'featured' => 'home.disyl',
+            'category' => 'category.disyl',
+            'article' => 'single.disyl',
+            'form' => 'page.disyl',
+            'search' => 'search.disyl',
+            'error' => '404.disyl',
+        ];
+        
+        if (isset($templateMap[$view])) {
+            $file = $disylPath . $templateMap[$view];
+            if (file_exists($file)) {
+                return $file;
+            }
+        }
+        
+        // Default to home template for front page
+        if ($this->app->getMenu()->getActive() && $this->app->getMenu()->getActive()->home) {
+            return $disylPath . 'home.disyl';
+        }
+        
+        // Fallback to blog template
+        return $disylPath . 'blog.disyl';
+    }
+    
+    /**
+     * Build context for DiSyL rendering
+     */
+    public function buildContext($params = [])
+    {
+        $context = array_merge($this->getBaseContext(), $params);
+        
+        // Add menu data
+        $context['menu'] = $this->getMenuData();
+        
+        // Add module positions
+        $context['modules'] = $this->getModuleData();
+        
+        // Add articles/posts
+        $context['posts'] = $this->getArticles();
+        
+        // Add components configuration
+        $context['components'] = [
+            'header' => [
+                'logo' => $params['logo'] ?? null,
+                'sticky' => $params['sticky_header'] ?? true,
+                'show_search' => $params['show_search'] ?? true,
+            ],
+            'slider' => [
+                'autoplay' => true,
+                'interval' => 5000,
+                'transition' => 'fade',
+                'show_arrows' => true,
+                'show_dots' => true,
+            ],
+        ];
+        
+        // Add current article if viewing single
+        if ($this->app->input->get('view') === 'article') {
+            $context['post'] = $this->getCurrentArticle();
+        }
+        
+        // Add category data if viewing category
+        if ($this->app->input->get('view') === 'category') {
+            $context['category'] = $this->getCategoryData();
+        }
+        
+        return $context;
+    }
+    
+    /**
+     * Get base context
+     */
+    private function getBaseContext()
+    {
+        $config = Factory::getConfig();
+        $user = Factory::getUser();
+        
+        return [
+            'site' => [
+                'name' => $config->get('sitename'),
+                'url' => Uri::root(),
+                'description' => $config->get('MetaDesc'),
+                'theme_url' => Uri::root() . 'templates/' . $this->document->template,
+            ],
+            'user' => [
+                'logged_in' => !$user->guest,
+                'name' => $user->name,
+                'id' => $user->id,
+            ],
+            'current_url' => Uri::current(),
+            'base_url' => Uri::base(),
+        ];
+    }
+    
+    /**
+     * Get menu data
+     */
+    private function getMenuData()
+    {
+        $menu = $this->app->getMenu();
+        $items = $menu->getItems('menutype', 'mainmenu');
+        
+        $menuData = [];
+        foreach ($items as $item) {
+            $menuData[] = [
+                'id' => $item->id,
+                'title' => $item->title,
+                'url' => htmlspecialchars_decode(Route::_($item->link . '&Itemid=' . $item->id)),
+                'active' => ($menu->getActive() && $menu->getActive()->id == $item->id),
+                'parent_id' => $item->parent_id,
+                'level' => $item->level,
+            ];
+        }
+        
+        return [
+            'primary' => $this->buildMenuTree($menuData, 1),
+            'footer' => [],
+            'social' => [],
+        ];
+    }
+    
+    /**
+     * Build hierarchical menu tree
+     */
+    private function buildMenuTree($items, $parent_id = 1)
+    {
+        $branch = [];
+        
+        foreach ($items as $item) {
+            if ($item['parent_id'] == $parent_id) {
+                $children = $this->buildMenuTree($items, $item['id']);
+                $item['children'] = $children;
+                $branch[] = $item;
+            }
+        }
+        
+        return $branch;
+    }
+    
+    /**
+     * Get module data
+     */
+    private function getModuleData()
+    {
+        $modules = [];
+        $positions = ['sidebar-left', 'sidebar-right', 'footer-1', 'footer-2', 'footer-3', 'footer-4', 'hero', 'features'];
+        
+        foreach ($positions as $position) {
+            $modules[$position] = [
+                'active' => $this->document->countModules($position, true) > 0,
+                'content' => $this->renderModulePosition($position),
+            ];
+        }
+        
+        return $modules;
+    }
+    
+    /**
+     * Render module position
+     */
+    private function renderModulePosition($position)
+    {
+        if (!$this->document->countModules($position, true)) {
+            return '';
+        }
+        
+        ob_start();
+        echo '<jdoc:include type="modules" name="' . $position . '" style="none" />';
+        return ob_get_clean();
+    }
+    
+    /**
+     * Get articles
+     */
+    private function getArticles($limit = 10)
+    {
+        $db = Factory::getDbo();
+        $query = $db->getQuery(true);
+        
+        $query->select('a.id, a.title, a.alias, a.introtext, a.fulltext, a.created, a.images')
+            ->select('a.catid, c.title AS category_title, c.alias AS category_alias')
+            ->select('u.name AS author_name')
+            ->from('#__content AS a')
+            ->join('LEFT', '#__categories AS c ON c.id = a.catid')
+            ->join('LEFT', '#__users AS u ON u.id = a.created_by')
+            ->where('a.state = 1')
+            ->order('a.created DESC')
+            ->setLimit($limit);
+        
+        $db->setQuery($query);
+        $articles = $db->loadObjectList();
+        
+        $posts = [];
+        foreach ($articles as $article) {
+            $images = json_decode($article->images);
+            
+            // Generate proper SEF URLs using ContentHelperRoute
+            $articleUrl = ContentHelperRoute::getArticleRoute($article->id, $article->catid);
+            $categoryUrl = ContentHelperRoute::getCategoryRoute($article->catid);
+            
+            $posts[] = [
+                'id' => $article->id,
+                'title' => $article->title,
+                'url' => htmlspecialchars_decode(Route::_($articleUrl)),
+                'excerpt' => strip_tags($article->introtext),
+                'content' => $article->fulltext,
+                'date' => $article->created,
+                'author' => $article->author_name,
+                'category' => [
+                    'name' => $article->category_title,
+                    'url' => htmlspecialchars_decode(Route::_($categoryUrl)),
+                ],
+                'thumbnail' => isset($images->image_intro) ? Uri::root() . $images->image_intro : null,
+            ];
+        }
+        
+        return $posts;
+    }
+    
+    /**
+     * Get current article
+     */
+    private function getCurrentArticle()
+    {
+        $articleId = $this->app->input->getInt('id');
+        
+        if (!$articleId) {
+            return null;
+        }
+        
+        $db = Factory::getDbo();
+        $query = $db->getQuery(true);
+        
+        $query->select('a.*, c.title AS category_title, u.name AS author_name')
+            ->from('#__content AS a')
+            ->join('LEFT', '#__categories AS c ON c.id = a.catid')
+            ->join('LEFT', '#__users AS u ON u.id = a.created_by')
+            ->where('a.id = ' . $articleId);
+        
+        $db->setQuery($query);
+        $article = $db->loadObject();
+        
+        if (!$article) {
+            return null;
+        }
+        
+        $images = json_decode($article->images);
+        
+        return [
+            'id' => $article->id,
+            'title' => $article->title,
+            'content' => $article->introtext . $article->fulltext,
+            'date' => $article->created,
+            'author' => $article->author_name,
+            'category' => [
+                'name' => $article->category_title,
+            ],
+            'thumbnail' => isset($images->image_fulltext) ? Uri::root() . $images->image_fulltext : null,
+        ];
+    }
+    
+    /**
+     * Get category data
+     */
+    private function getCategoryData()
+    {
+        $categoryId = $this->app->input->getInt('id');
+        
+        if (!$categoryId) {
+            return null;
+        }
+        
+        $db = Factory::getDbo();
+        $query = $db->getQuery(true);
+        
+        $query->select('*')
+            ->from('#__categories')
+            ->where('id = ' . $categoryId);
+        
+        $db->setQuery($query);
+        $category = $db->loadObject();
+        
+        if (!$category) {
+            return null;
+        }
+        
+        return [
+            'id' => $category->id,
+            'name' => $category->title,
+            'description' => $category->description,
+            'url' => Route::_('index.php?option=com_content&view=category&id=' . $category->id),
+        ];
+    }
+    
+    /**
+     * Render template with DiSyL
+     */
+    public function render($templateFile, $context)
+    {
+        return $this->engine->renderFile($templateFile, $this->renderer, $context);
+    }
+}
+
+/**
+ * Note: This template now uses the kernel's JoomlaRenderer
+ * located at /kernel/DiSyL/Renderers/JoomlaRenderer.php
+ * 
+ * The kernel renderer provides:
+ * - All DiSyL components (ikb_section, ikb_container, ikb_grid, etc.)
+ * - Joomla-specific components (joomla_module, joomla_component, joomla_message)
+ * - Query support for articles
+ * - Menu rendering
+ * - Conditional logic
+ */

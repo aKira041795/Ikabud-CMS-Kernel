@@ -1,11 +1,10 @@
 <?php
-class JConfig
-{
+class JConfig {
 	public $offline = false;
-	public $offline_message = 'This site is down for maintenance.<br>Please check back again soon.';
+	public $offline_message = 'This site is down for maintenance.<br />Please check back again soon.';
 	public $display_offline_message = 1;
 	public $offline_image = '';
-	public $sitename = 'Joomla Site - jml-joomla-the-beginning';
+	public $sitename = 'Phoenix';
 	public $editor = 'tinymce';
 	public $captcha = '0';
 	public $list_limit = 20;
@@ -84,5 +83,25 @@ class JConfig
 	public $sitename_pagetitles = 0;
 	public $cookie_domain = '';
 	public $cookie_path = '';
-	public $asset_id = 1;
+	public $asset_id = '1';
+	public $memcached_persist = true;
+	public $memcached_compress = false;
+	public $memcached_server_host = 'localhost';
+	public $memcached_server_port = 11211;
+	public $redis_persist = true;
+	public $redis_server_host = 'localhost';
+	public $redis_server_port = 6379;
+	public $redis_server_db = 0;
+	public $cors = false;
+	public $cors_allow_origin = '*';
+	public $cors_allow_headers = 'Content-Type,X-Joomla-Token';
+	public $cors_allow_methods = '';
+	public $behind_loadbalancer = false;
+	public $session_metadata_for_guest = true;
+	public $log_everything = 0;
+	public $log_deprecated = 0;
+	public $log_priorities = array('0' => 'all');
+	public $log_categories = '';
+	public $log_category_mode = 0;
+	public $redis_server_auth = '';
 }

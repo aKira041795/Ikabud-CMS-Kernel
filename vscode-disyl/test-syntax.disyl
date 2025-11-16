@@ -1,0 +1,133 @@
+{!-- DiSyL Syntax Highlighting Test File --}
+{!-- This file tests all DiSyL syntax features --}
+
+{!-- Test 1: Components --}
+{ikb_section type="hero" padding="large"}
+    {ikb_container size="xlarge"}
+        {ikb_text size="3xl" weight="bold" class="title"}
+            Welcome to DiSyL
+        {/ikb_text}
+        
+        {ikb_button variant="primary" size="large"}
+            Get Started
+        {/ikb_button}
+    {/ikb_container}
+{/ikb_section}
+
+{!-- Test 2: Expressions --}
+<h1>{page.title}</h1>
+<p>{user.name}</p>
+<span>{item.price}</span>
+
+{!-- Test 3: Filter Pipelines --}
+{post.title | esc_html}
+{post.excerpt | strip_tags | truncate:length=150,append="..."}
+{post.date | date:format="F j, Y"}
+{item.price | number_format:decimals=2}
+{content | upper | lower | esc_html}
+
+{!-- Test 4: Control Structures - If Statement --}
+{if condition="{user.logged_in}"}
+    <p>Welcome back, {user.name | esc_html}!</p>
+{else}
+    <p>Please log in.</p>
+{/if}
+
+{!-- Test 5: Control Structures - For Loop --}
+{for items="{posts}" as="post"}
+    <article>
+        <h2>{post.title | esc_html}</h2>
+        <p>{post.excerpt | strip_tags | truncate:150}</p>
+        <a href="{post.url | esc_url}">Read more</a>
+    </article>
+{/for}
+
+{!-- Test 6: Nested Structures --}
+{ikb_section type="blog"}
+    {ikb_container}
+        {if condition="{posts}"}
+            {for items="{posts}" as="post"}
+                {ikb_card shadow="medium"}
+                    {if condition="{post.thumbnail}"}
+                        {ikb_image 
+                            src="{post.thumbnail | esc_url}" 
+                            alt="{post.title | esc_attr}"
+                            lazy=true
+                        /}
+                    {/if}
+                    
+                    {ikb_text size="xl" weight="semibold"}
+                        {post.title | esc_html}
+                    {/ikb_text}
+                    
+                    {ikb_text}
+                        {post.excerpt | strip_tags | truncate:length=100}
+                    {/ikb_text}
+                {/ikb_card}
+            {/for}
+        {else}
+            <p>No posts found.</p>
+        {/if}
+    {/ikb_container}
+{/ikb_section}
+
+{!-- Test 7: Include Directive --}
+{include file="components/header.disyl" /}
+{include file="components/footer.disyl"}
+
+{!-- Test 8: Query Component --}
+{ikb_query type="post" limit=10 category="news"}
+    <article>
+        <h2>{item.title | esc_html}</h2>
+        <time>{item.date | date:format="M j, Y"}</time>
+        <p>{item.excerpt | strip_tags | truncate:length=200,append="..."}</p>
+    </article>
+{/ikb_query}
+
+{!-- Test 9: HTML Integration --}
+<div class="wrapper">
+    <header>
+        <nav>
+            <ul>
+                <li><a href="/">Home</a></li>
+                <li><a href="/about">About</a></li>
+            </ul>
+        </nav>
+    </header>
+    
+    <main>
+        {ikb_section type="content"}
+            <h1>{page.title | esc_html}</h1>
+            <div class="content">
+                {page.content | raw}
+            </div>
+        {/ikb_section}
+    </main>
+</div>
+
+{!-- Test 10: Complex Filter Chains --}
+{post.title | upper | truncate:50 | esc_html}
+{user.bio | strip_tags | truncate:length=200,append="..." | esc_html}
+{price | number_format:decimals=2,dec_point=".",thousands_sep="," | esc_html}
+
+{!-- Test 11: Attribute Expressions --}
+{ikb_image 
+    src="{post.thumbnail | esc_url}" 
+    alt="{post.title | esc_attr}"
+    width="{settings.image_width}"
+    height="{settings.image_height}"
+    class="responsive {post.featured ? 'featured' : 'regular'}"
+    lazy=true
+/}
+
+{!-- Test 12: Boolean and Numeric Values --}
+{ikb_button 
+    variant="primary" 
+    disabled=false
+    size="large"
+    tabindex=0
+}
+    Click Me
+{/ikb_button}
+
+{!-- End of test file --}

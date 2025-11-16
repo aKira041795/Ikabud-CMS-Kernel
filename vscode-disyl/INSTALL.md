@@ -1,5 +1,32 @@
 # DiSyL Extension Installation Guide
 
+## For Windsurf IDE Users
+
+### Quick Start
+
+1. **Navigate to the extension directory:**
+   ```bash
+   cd /var/www/html/ikabud-kernel/vscode-disyl
+   ```
+
+2. **Run the automated installer:**
+   ```bash
+   ./install.sh
+   ```
+
+3. **Reload Windsurf:**
+   - Press `Ctrl+Shift+P` (or `Cmd+Shift+P` on Mac)
+   - Type "Reload Window" and press Enter
+
+4. **Verify installation:**
+   - Open any `.disyl` file
+   - Check if syntax highlighting is active
+   - Try typing `section` and press Tab to test snippets
+
+---
+
+## DiSyL Extension Installation Guide (Original)
+
 ## For Windsurf / VS Code
 
 ### Method 1: Install from VSIX (Recommended)
@@ -126,20 +153,48 @@ Type these prefixes and press `Tab`:
 
 ### Syntax highlighting not working
 
-1. Verify file extension is `.disyl`
-2. Check language mode (bottom right corner)
-3. Manually set language:
-   - Click language mode
-   - Select "DiSyL" from the list
+1. **Verify file extension is `.disyl`**
+2. **Check language mode** (bottom right corner of editor)
+3. **Manually set language:**
+   - Click language mode indicator
+   - Type "DiSyL" and select it from the list
+4. **For Windsurf specifically:**
+   - Ensure the file is saved (unsaved files may not trigger language detection)
+   - Try closing and reopening the file
+   - Check if the extension appears in Extensions panel
 
 ### Snippets not working
 
-1. Verify snippets are enabled:
+1. **Verify snippets are enabled:**
    - `File` → `Preferences` → `Settings`
    - Search for "snippets"
    - Ensure "Editor: Snippet Suggestions" is not "none"
 
-2. Try pressing `Ctrl+Space` after typing the prefix
+2. **Try pressing `Ctrl+Space` after typing the prefix**
+
+3. **For Windsurf:**
+   - Snippets work the same as VS Code
+   - Make sure the file is recognized as DiSyL (check bottom right)
+   - Try typing the full prefix before pressing Tab
+
+### Windsurf-Specific Issues
+
+1. **Extension not appearing:**
+   ```bash
+   # Check Windsurf extensions directory
+   ls ~/.config/Windsurf/User/extensions/ || ls ~/.windsurf/extensions/
+   ```
+
+2. **Manual installation for Windsurf:**
+   - If auto-install fails, manually copy the .vsix file
+   - Open Windsurf → Extensions → "..." → Install from VSIX
+   - Select the packaged .vsix file
+
+3. **Language not detected:**
+   - Open Command Palette (`Ctrl+Shift+P`)
+   - Type "Change Language Mode"
+   - Select "DiSyL" from the list
+   - This should persist for future .disyl files
 
 ## Uninstall
 

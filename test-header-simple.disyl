@@ -1,0 +1,18 @@
+{!-- Test Simple Header --}
+<header class="site-header">
+    <div class="header-container">
+        <div class="site-branding">
+            <a href="{site.url | esc_url}">Test Site</a>
+        </div>
+        
+        <nav class="main-nav">
+            <ul>
+                {for items="menu.primary" as="item"}
+                    <li>
+                        <a href="{item.url | esc_url}">{item.title | esc_html}</a>
+                    </li>
+                {/for}
+            </ul>
+        </nav>
+    </div>
+</header>

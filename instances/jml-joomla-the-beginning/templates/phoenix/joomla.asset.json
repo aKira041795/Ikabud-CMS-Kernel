@@ -1,0 +1,92 @@
+{
+  "$schema": "https://developer.joomla.org/schemas/json-schema/web_assets.json",
+  "name": "phoenix",
+  "version": "1.0.0",
+  "description": "Phoenix Template Assets",
+  "license": "GPL-2.0-or-later",
+  "assets": [
+    {
+      "name": "template.phoenix.ltr",
+      "description": "Phoenix template main stylesheet (LTR)",
+      "type": "style",
+      "uri": "assets/css/style.css"
+    },
+    {
+      "name": "template.phoenix.rtl",
+      "description": "Phoenix template main stylesheet (RTL)",
+      "type": "style",
+      "uri": "assets/css/style.css"
+    },
+    {
+      "name": "template.phoenix.disyl",
+      "description": "DiSyL component styles",
+      "type": "style",
+      "uri": "assets/css/disyl-components.css"
+    },
+    {
+      "name": "template.phoenix",
+      "description": "Phoenix template JavaScript",
+      "type": "script",
+      "uri": "assets/js/phoenix.js",
+      "attributes": {
+        "defer": true
+      }
+    },
+    {
+      "name": "template.active",
+      "description": "Dummy asset for active template",
+      "type": "script",
+      "uri": "",
+      "dependencies": [
+        "template.phoenix"
+      ]
+    },
+    {
+      "name": "template.active.language",
+      "description": "Language specific CSS",
+      "type": "style",
+      "uri": "",
+      "class": "LangActiveAssetItem",
+      "dependencies": [
+        "template.active"
+      ]
+    },
+    {
+      "name": "template.user",
+      "description": "User custom stylesheet",
+      "type": "style",
+      "uri": "user.css",
+      "dependencies": [
+        "template.active",
+        "template.active.language"
+      ]
+    },
+    {
+      "name": "template.user",
+      "description": "User custom JavaScript",
+      "type": "script",
+      "uri": "user.js",
+      "dependencies": [
+        "template.active"
+      ]
+    },
+    {
+      "name": "template.phoenix.ltr",
+      "type": "preset",
+      "dependencies": [
+        "template.phoenix.ltr#style",
+        "template.phoenix.disyl#style",
+        "template.phoenix#script"
+      ]
+    },
+    {
+      "name": "template.phoenix.rtl",
+      "type": "preset",
+      "dependencies": [
+        "template.phoenix.rtl#style",
+        "template.phoenix.disyl#style",
+        "template.phoenix#script"
+      ]
+    }
+  ]
+}

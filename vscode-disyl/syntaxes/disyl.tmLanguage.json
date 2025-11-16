@@ -5,23 +5,25 @@
   "fileTypes": ["disyl"],
   "patterns": [
     { "include": "#disyl-comment" },
-    { "include": "#disyl-component" },
     { "include": "#disyl-control-structure" },
+    { "include": "#disyl-component" },
     { "include": "#disyl-expression" },
+    { "include": "#html-tags" },
     { "include": "#html-content" }
   ],
   "repository": {
     "disyl-comment": {
       "name": "comment.block.disyl",
-      "begin": "\\{!--",
+      "begin": "\\{\!--",
       "end": "--\\}",
-      "patterns": [
-        {
-          "name": "comment.block.disyl",
-          "match": "."
-        }
-      ]
+      "beginCaptures": {
+        "0": { "name": "punctuation.definition.comment.begin.disyl" }
+      },
+      "endCaptures": {
+        "0": { "name": "punctuation.definition.comment.end.disyl" }
+      }
     },
+    
     "disyl-component": {
       "patterns": [
         {
@@ -29,7 +31,7 @@
           "begin": "(\\{)(ikb_[a-z_][a-z0-9_]*)",
           "beginCaptures": {
             "1": { "name": "punctuation.definition.tag.begin.disyl" },
-            "2": { "name": "entity.name.tag.component.disyl" }
+            "2": { "name": "entity.name.tag.component.disyl support.class.component.disyl" }
           },
           "end": "(/)?(\\})",
           "endCaptures": {
@@ -46,12 +48,13 @@
           "captures": {
             "1": { "name": "punctuation.definition.tag.begin.disyl" },
             "2": { "name": "punctuation.definition.tag.closing.disyl" },
-            "3": { "name": "entity.name.tag.component.disyl" },
+            "3": { "name": "entity.name.tag.component.disyl support.class.component.disyl" },
             "4": { "name": "punctuation.definition.tag.end.disyl" }
           }
         }
       ]
     },
+    
     "disyl-control-structure": {
       "patterns": [
         {
@@ -59,7 +62,7 @@
           "begin": "(\\{)(if)\\b",
           "beginCaptures": {
             "1": { "name": "punctuation.definition.tag.begin.disyl" },
-            "2": { "name": "keyword.control.if.disyl" }
+            "2": { "name": "keyword.control.conditional.if.disyl" }
           },
           "end": "(\\})",
           "endCaptures": {
@@ -74,7 +77,7 @@
           "match": "(\\{)(else)(\\})",
           "captures": {
             "1": { "name": "punctuation.definition.tag.begin.disyl" },
-            "2": { "name": "keyword.control.else.disyl" },
+            "2": { "name": "keyword.control.conditional.else.disyl" },
             "3": { "name": "punctuation.definition.tag.end.disyl" }
           }
         },
@@ -84,7 +87,7 @@
           "captures": {
             "1": { "name": "punctuation.definition.tag.begin.disyl" },
             "2": { "name": "punctuation.definition.tag.closing.disyl" },
-            "3": { "name": "keyword.control.if.disyl" },
+            "3": { "name": "keyword.control.conditional.if.disyl" },
             "4": { "name": "punctuation.definition.tag.end.disyl" }
           }
         },
@@ -93,7 +96,7 @@
           "begin": "(\\{)(for)\\b",
           "beginCaptures": {
             "1": { "name": "punctuation.definition.tag.begin.disyl" },
-            "2": { "name": "keyword.control.for.disyl" }
+            "2": { "name": "keyword.control.loop.for.disyl" }
           },
           "end": "(\\})",
           "endCaptures": {
@@ -109,7 +112,7 @@
           "captures": {
             "1": { "name": "punctuation.definition.tag.begin.disyl" },
             "2": { "name": "punctuation.definition.tag.closing.disyl" },
-            "3": { "name": "keyword.control.for.disyl" },
+            "3": { "name": "keyword.control.loop.for.disyl" },
             "4": { "name": "punctuation.definition.tag.end.disyl" }
           }
         },
@@ -118,7 +121,7 @@
           "begin": "(\\{)(include)\\b",
           "beginCaptures": {
             "1": { "name": "punctuation.definition.tag.begin.disyl" },
-            "2": { "name": "keyword.control.include.disyl" }
+            "2": { "name": "keyword.control.import.include.disyl" }
           },
           "end": "(/)?(\\})",
           "endCaptures": {
@@ -131,9 +134,10 @@
         }
       ]
     },
+    
     "disyl-expression": {
       "name": "meta.expression.disyl",
-      "begin": "\\{(?![!-])",
+      "begin": "\\{(?\![\!-/]|ikb_|if\\b|for\\b|else\\b|include\\b)",
       "end": "\\}",
       "beginCaptures": {
         "0": { "name": "punctuation.definition.expression.begin.disyl" }
@@ -146,6 +150,7 @@
         { "include": "#disyl-expression-content" }
       ]
     },
+    
     "disyl-expression-content": {
       "patterns": [
         {
@@ -188,6 +193,7 @@
         }
       ]
     },
+    
     "disyl-filter-pipeline": {
       "patterns": [
         {
@@ -195,7 +201,7 @@
           "match": "(\\|)\\s*([a-z_][a-z0-9_]*)",
           "captures": {
             "1": { "name": "keyword.operator.pipe.disyl" },
-            "2": { "name": "entity.name.function.filter.disyl" }
+            "2": { "name": "entity.name.function.filter.disyl support.function.disyl" }
           }
         },
         {
@@ -211,13 +217,14 @@
         }
       ]
     },
+    
     "disyl-filter-argument": {
       "patterns": [
         {
           "name": "meta.filter.argument.named.disyl",
           "match": "([a-z_][a-z0-9_]*)\\s*(=)\\s*",
           "captures": {
-            "1": { "name": "variable.parameter.disyl" },
+            "1": { "name": "variable.parameter.disyl entity.other.attribute-name.disyl" },
             "2": { "name": "keyword.operator.assignment.disyl" }
           }
         },
@@ -246,6 +253,7 @@
         }
       ]
     },
+    
     "disyl-attributes": {
       "patterns": [
         {
@@ -259,9 +267,14 @@
           "patterns": [
             { "include": "#disyl-attribute-value" }
           ]
+        },
+        {
+          "name": "entity.other.attribute-name.disyl",
+          "match": "\\b[a-z][a-z0-9_-]*\\b"
         }
       ]
     },
+    
     "disyl-attribute-value": {
       "patterns": [
         {
@@ -269,6 +282,7 @@
           "begin": "\"",
           "end": "\"",
           "patterns": [
+            { "include": "#disyl-expression" },
             {
               "name": "constant.character.escape.disyl",
               "match": "\\\\."
@@ -280,6 +294,7 @@
           "begin": "'",
           "end": "'",
           "patterns": [
+            { "include": "#disyl-expression" },
             {
               "name": "constant.character.escape.disyl",
               "match": "\\\\."
@@ -305,7 +320,8 @@
         }
       ]
     },
-    "html-content": {
+    
+    "html-tags": {
       "patterns": [
         {
           "name": "meta.tag.any.html",
@@ -321,18 +337,35 @@
           },
           "patterns": [
             {
+              "name": "meta.attribute.html",
+              "begin": "\\b([a-z][a-z0-9_-]*)\\s*(=)\\s*",
+              "beginCaptures": {
+                "1": { "name": "entity.other.attribute-name.html" },
+                "2": { "name": "punctuation.separator.key-value.html" }
+              },
+              "end": "(?=[\\s/>])",
+              "patterns": [
+                {
+                  "name": "string.quoted.double.html",
+                  "begin": "\"",
+                  "end": "\"",
+                  "patterns": [
+                    { "include": "#disyl-expression" }
+                  ]
+                },
+                {
+                  "name": "string.quoted.single.html",
+                  "begin": "'",
+                  "end": "'",
+                  "patterns": [
+                    { "include": "#disyl-expression" }
+                  ]
+                }
+              ]
+            },
+            {
               "name": "entity.other.attribute-name.html",
               "match": "\\b[a-z][a-z0-9_-]*\\b"
-            },
-            {
-              "name": "string.quoted.double.html",
-              "begin": "\"",
-              "end": "\""
-            },
-            {
-              "name": "string.quoted.single.html",
-              "begin": "'",
-              "end": "'"
             }
           ]
         },
@@ -344,6 +377,15 @@
             "2": { "name": "entity.name.tag.html" },
             "3": { "name": "punctuation.definition.tag.end.html" }
           }
+        }
+      ]
+    },
+    
+    "html-content": {
+      "patterns": [
+        {
+          "name": "text.html.basic",
+          "match": "[^<{]+"
         }
       ]
     }

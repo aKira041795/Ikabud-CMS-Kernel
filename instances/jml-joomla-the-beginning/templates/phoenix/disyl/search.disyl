@@ -1,0 +1,96 @@
+{!-- Phoenix Theme - Search Results Template --}
+{ikb_include template="components/header.disyl" /}
+
+{!-- Search Header --}
+{ikb_section type="search-header" class="section-gradient" padding="large"}
+    {ikb_container size="large"}
+        <div class="text-center">
+            {ikb_text size="3xl" weight="bold"}
+                Search Results
+            {/ikb_text}
+            {if condition="query.search_query"}
+                {ikb_text size="lg" margin="top"}
+                    Showing results for: <strong>"{query.search_query | esc_html}"</strong>
+                {/ikb_text}
+            {/if}
+            
+            {!-- Search Form --}
+            <div class="search-form-wrapper">
+                <form class="search-form" role="search" method="get" action="{site.url | esc_url}">
+                    <input type="search" class="search-input" placeholder="Search..." name="s" value="{query.search_query | esc_attr}" required>
+                    <button type="submit" class="search-submit">Search</button>
+                </form>
+            </div>
+        </div>
+    {/ikb_container}
+{/ikb_section}
+
+{!-- Search Results --}
+{ikb_section type="search-results" padding="xlarge"}
+    {ikb_container size="xlarge"}
+        <div class="search-layout">
+            {!-- Results --}
+            <div>
+                {if condition="query.found_posts > 0"}
+                    <div class="post-grid">
+                        {ikb_query type="post" limit=12}
+                            <article class="post-card reveal">
+                            {if condition="item.thumbnail"}
+                                <a href="{item.url | esc_url}">
+                                    {ikb_image 
+                                        src="{item.thumbnail | esc_url}"
+                                        alt="{item.title | esc_attr}"
+                                        class="post-thumbnail"
+                                        lazy=true
+                                    /}
+                                </a>
+                            {/if}
+                            
+                            <div class="post-content">
+                                <div class="post-meta">
+                                    <span>{item.date | date:format="M j, Y"}</span>
+                                    <span class="separator">•</span>
+                                    <span>{item.author | esc_html}</span>
+                                </div>
+                                
+                                {ikb_text size="xl" weight="semibold" class="post-title"}
+                                    <a href="{item.url | esc_url}">{item.title | esc_html}</a>
+                                {/ikb_text}
+                                
+                                {ikb_text class="post-excerpt"}
+                                    {item.excerpt | strip_tags | truncate:length=180,append="..."}
+                                {/ikb_text}
+                                
+                                <a href="{item.url | esc_url}" class="read-more">
+                                    Read More →
+                                </a>
+                            </div>
+                        </article>
+                    {/ikb_query}
+                </div>
+                {else}
+                    {!-- No Results Found --}
+                    <div class="no-results text-center">
+                        {ikb_text size="2xl" weight="bold" margin="bottom"}
+                            No Results Found
+                        {/ikb_text}
+                        {ikb_text size="lg" margin="bottom"}
+                            Sorry, we couldn't find any results for "{query.search_query | esc_html}".
+                        {/ikb_text}
+                        {ikb_text}
+                            Try searching with different keywords or browse our categories.
+                        {/ikb_text}
+                        <div class="mt-large">
+                            <a href="{site.url | esc_url}" class="btn btn-primary">Back to Home</a>
+                        </div>
+                    </div>
+                {/if}
+            </div>
+            
+            {!-- Sidebar --}
+            {include file="components/sidebar.disyl"}
+        </div>
+    {/ikb_container}
+{/ikb_section}
+
+{ikb_include template="components/footer.disyl" /}

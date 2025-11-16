@@ -1,0 +1,140 @@
+{
+  "manifest_version": "0.5.0",
+  "type": "filters",
+  "cms": "joomla",
+  "namespace": "joomla",
+  "description": "Joomla-compatible filters (WordPress compatibility layer)",
+  "filters": {
+    "esc_html": {
+      "description": "Escape HTML entities",
+      "category": "security",
+      "php": "esc_html({value})",
+      "js": "escapeHtml({value})",
+      "examples": [
+        "{item.title | esc_html}",
+        "Result: &lt;script&gt; becomes safe"
+      ]
+    },
+    "esc_attr": {
+      "description": "Escape HTML attributes",
+      "category": "security",
+      "php": "esc_attr({value})",
+      "js": "escapeAttr({value})",
+      "examples": [
+        "{item.alt | esc_attr}",
+        "Result: Safe for HTML attributes"
+      ]
+    },
+    "esc_url": {
+      "description": "Sanitize and escape URL",
+      "category": "security",
+      "php": "esc_url({value})",
+      "js": "escapeUrl({value})",
+      "examples": [
+        "{item.link | esc_url}",
+        "Result: Safe, validated URL"
+      ]
+    },
+    "wp_trim_words": {
+      "description": "Truncate text by word count (WordPress compatibility)",
+      "category": "string",
+      "php": "wp_trim_words({value}, {num_words}, '{more}')",
+      "js": "wpTrimWords({value}, {num_words}, '{more}')",
+      "params": {
+        "num_words": {
+          "type": "integer",
+          "default": 55,
+          "description": "Number of words to keep"
+        },
+        "more": {
+          "type": "string",
+          "default": "&hellip;",
+          "description": "Text to append when truncated"
+        }
+      },
+      "examples": [
+        "{item.content | wp_trim_words:num_words=20}",
+        "Result: First 20 words..."
+      ]
+    },
+    "strip_tags": {
+      "description": "Remove HTML tags",
+      "category": "string",
+      "php": "strip_tags({value})",
+      "js": "stripTags({value})",
+      "examples": [
+        "{item.content | strip_tags}",
+        "Result: Plain text only"
+      ]
+    },
+    "truncate": {
+      "description": "Truncate text by character length",
+      "category": "string",
+      "php": "(strlen({value}) > {length} ? substr({value}, 0, {length}) . '{append}' : {value})",
+      "js": "({value}.length > {length} ? {value}.substring(0, {length}) + '{append}' : {value})",
+      "params": {
+        "length": {
+          "type": "integer",
+          "default": 100,
+          "description": "Maximum character length"
+        },
+        "append": {
+          "type": "string",
+          "default": "...",
+          "description": "Text to append when truncated"
+        }
+      },
+      "examples": [
+        "{item.excerpt | truncate:length=150,append='...'}",
+        "Result: First 150 characters..."
+      ]
+    },
+    "date": {
+      "description": "Format date",
+      "category": "formatting",
+      "php": "date('{format}', strtotime({value}))",
+      "js": "formatDate({value}, '{format}')",
+      "params": {
+        "format": {
+          "type": "string",
+          "default": "F j, Y",
+          "description": "PHP date format string"
+        }
+      },
+      "examples": [
+        "{item.date | date:format='M j, Y'}",
+        "Result: Nov 16, 2025"
+      ]
+    },
+    "upper": {
+      "description": "Convert to uppercase",
+      "category": "string",
+      "php": "strtoupper({value})",
+      "js": "{value}.toUpperCase()",
+      "examples": [
+        "{item.title | upper}",
+        "Result: UPPERCASE TEXT"
+      ]
+    },
+    "lower": {
+      "description": "Convert to lowercase",
+      "category": "string",
+      "php": "strtolower({value})",
+      "js": "{value}.toLowerCase()",
+      "examples": [
+        "{item.title | lower}",
+        "Result: lowercase text"
+      ]
+    },
+    "raw": {
+      "description": "Output raw HTML without escaping",
+      "category": "security",
+      "php": "{value}",
+      "js": "{value}",
+      "examples": [
+        "{post.content | raw}",
+        "Result: Unescaped HTML content"
+      ]
+    }
+  }
+}
