@@ -1,13 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <extension type="template" client="site">
 	<name>phoenix</name>
-	<version>1.0.0</version>
+	<version>2.0.0</version>
 	<creationDate>November 2025</creationDate>
 	<author>Ikabud Team</author>
 	<authorEmail>support@ikabud.com</authorEmail>
 	<copyright>(C) 2025 Ikabud. All rights reserved.</copyright>
 	<license>GPL-2.0-or-later</license>
-	<description>TPL_PHOENIX_XML_DESCRIPTION</description>
+	<description>TPL_PHOENIX_V2_XML_DESCRIPTION</description>
 	<inheritable>1</inheritable>
 	
 	<files>
@@ -189,6 +189,103 @@
 				>
 					<option value="0">JNO</option>
 					<option value="1">JYES</option>
+				</field>
+			</fieldset>
+			
+			<fieldset name="slider" label="TPL_PHOENIX_SLIDER_SETTINGS">
+				<!-- Slider Settings -->
+				<field
+					name="sliderAutoplay"
+					type="radio"
+					label="TPL_PHOENIX_SLIDER_AUTOPLAY_LABEL"
+					description="TPL_PHOENIX_SLIDER_AUTOPLAY_DESC"
+					layout="joomla.form.field.radio.switcher"
+					default="1"
+					filter="integer"
+				>
+					<option value="0">JNO</option>
+					<option value="1">JYES</option>
+				</field>
+				
+				<field
+					name="sliderInterval"
+					type="number"
+					label="TPL_PHOENIX_SLIDER_INTERVAL_LABEL"
+					description="TPL_PHOENIX_SLIDER_INTERVAL_DESC"
+					default="5000"
+					min="1000"
+					max="30000"
+					step="1000"
+					filter="integer"
+				/>
+				
+				<field
+					name="sliderTransition"
+					type="list"
+					label="TPL_PHOENIX_SLIDER_TRANSITION_LABEL"
+					description="TPL_PHOENIX_SLIDER_TRANSITION_DESC"
+					default="fade"
+					validate="options"
+				>
+					<option value="fade">TPL_PHOENIX_SLIDER_FADE</option>
+					<option value="slide">TPL_PHOENIX_SLIDER_SLIDE</option>
+					<option value="zoom">TPL_PHOENIX_SLIDER_ZOOM</option>
+				</field>
+				
+				<field
+					name="sliderShowArrows"
+					type="radio"
+					label="TPL_PHOENIX_SLIDER_ARROWS_LABEL"
+					description="TPL_PHOENIX_SLIDER_ARROWS_DESC"
+					layout="joomla.form.field.radio.switcher"
+					default="1"
+					filter="integer"
+				>
+					<option value="0">JNO</option>
+					<option value="1">JYES</option>
+				</field>
+				
+				<field
+					name="sliderShowDots"
+					type="radio"
+					label="TPL_PHOENIX_SLIDER_DOTS_LABEL"
+					description="TPL_PHOENIX_SLIDER_DOTS_DESC"
+					layout="joomla.form.field.radio.switcher"
+					default="1"
+					filter="integer"
+				>
+					<option value="0">JNO</option>
+					<option value="1">JYES</option>
+				</field>
+			</fieldset>
+			
+			<fieldset name="layout" label="TPL_PHOENIX_LAYOUT_SETTINGS">
+				<!-- Layout Settings -->
+				<field
+					name="layoutStyle"
+					type="list"
+					label="TPL_PHOENIX_LAYOUT_STYLE_LABEL"
+					description="TPL_PHOENIX_LAYOUT_STYLE_DESC"
+					default="boxed"
+					validate="options"
+				>
+					<option value="boxed">TPL_PHOENIX_LAYOUT_BOXED</option>
+					<option value="full">TPL_PHOENIX_LAYOUT_FULL</option>
+					<option value="wide">TPL_PHOENIX_LAYOUT_WIDE</option>
+				</field>
+				
+				<field
+					name="moduleChrome"
+					type="list"
+					label="TPL_PHOENIX_MODULE_CHROME_LABEL"
+					description="TPL_PHOENIX_MODULE_CHROME_DESC"
+					default="card"
+					validate="options"
+				>
+					<option value="none">TPL_PHOENIX_CHROME_NONE</option>
+					<option value="card">TPL_PHOENIX_CHROME_CARD</option>
+					<option value="well">TPL_PHOENIX_CHROME_WELL</option>
+					<option value="xhtml">TPL_PHOENIX_CHROME_XHTML</option>
 				</field>
 			</fieldset>
 		</fields>

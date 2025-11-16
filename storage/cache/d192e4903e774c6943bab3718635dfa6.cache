@@ -1,4 +1,4 @@
-a:6:{s:7:"headers";a:13:{i:0;s:31:"X-Content-Type-Options: nosniff";i:1;s:31:"X-XSS-Protection: 1; mode=block";i:2;s:410:"Content-Security-Policy: default-src 'self' https: http:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https: http: blob:; style-src 'self' 'unsafe-inline' https: http:; img-src 'self' data: https: http:; font-src 'self' data: https: http:; connect-src 'self' https: http: wss: ws:; frame-src 'self' https: http:; frame-ancestors 'self' http://*.phoenix.test https://*.phoenix.test; worker-src 'self' blob:;";i:3;s:60:"Permissions-Policy: geolocation=(), microphone=(), camera=()";i:4;s:114:"Set-Cookie: c3dcb113ba9b9f02a522f7a4de3a81b6=5b7erae791j5posuqrdt7o87nk; path=/; secure; HttpOnly; SameSite=Strict";i:5;s:27:"x-frame-options: SAMEORIGIN";i:6;s:48:"referrer-policy: strict-origin-when-cross-origin";i:7;s:39:"cross-origin-opener-policy: same-origin";i:8;s:38:"Content-Type: text/html; charset=utf-8";i:9;s:38:"Expires: Wed, 17 Aug 2005 00:00:00 GMT";i:10;s:44:"Last-Modified: Sun, 16 Nov 2025 16:15:26 GMT";i:11;s:77:"Cache-Control: no-store, no-cache, must-revalidate, post-check=0, pre-check=0";i:12;s:16:"Pragma: no-cache";}s:4:"body";s:20218:"<!DOCTYPE html>
+a:6:{s:7:"headers";a:13:{i:0;s:31:"X-Content-Type-Options: nosniff";i:1;s:31:"X-XSS-Protection: 1; mode=block";i:2;s:410:"Content-Security-Policy: default-src 'self' https: http:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https: http: blob:; style-src 'self' 'unsafe-inline' https: http:; img-src 'self' data: https: http:; font-src 'self' data: https: http:; connect-src 'self' https: http: wss: ws:; frame-src 'self' https: http:; frame-ancestors 'self' http://*.phoenix.test https://*.phoenix.test; worker-src 'self' blob:;";i:3;s:60:"Permissions-Policy: geolocation=(), microphone=(), camera=()";i:4;s:114:"Set-Cookie: c3dcb113ba9b9f02a522f7a4de3a81b6=lhn3ft5b8msvojuq26e0n141op; path=/; secure; HttpOnly; SameSite=Strict";i:5;s:27:"x-frame-options: SAMEORIGIN";i:6;s:48:"referrer-policy: strict-origin-when-cross-origin";i:7;s:39:"cross-origin-opener-policy: same-origin";i:8;s:38:"Content-Type: text/html; charset=utf-8";i:9;s:38:"Expires: Wed, 17 Aug 2005 00:00:00 GMT";i:10;s:44:"Last-Modified: Sun, 16 Nov 2025 23:40:03 GMT";i:11;s:77:"Cache-Control: no-store, no-cache, must-revalidate, post-check=0, pre-check=0";i:12;s:16:"Pragma: no-cache";}s:4:"body";s:20286:"<!DOCTYPE html>
 <html lang="en-gb" dir="ltr">
 <head>
     <meta charset="utf-8">
@@ -9,7 +9,7 @@ a:6:{s:7:"headers";a:13:{i:0;s:31:"X-Content-Type-Options: nosniff";i:1;s:31:"X-
 	<link href="/?format=feed&amp;type=atom" rel="alternate" type="application/atom+xml" title="Home">
 
     
-    <script type="application/json" class="joomla-script-options new">{"joomla.jtext":{"JSHOWPASSWORD":"Show Password","JHIDEPASSWORD":"Hide Password"},"system.paths":{"root":"","rootFull":"http:\/\/phoenix.test\/","base":"","baseFull":"http:\/\/phoenix.test\/"},"csrf.token":"d5a4ac024c00b33b6c29e5d5266edbed","system.keepalive":{"interval":840000,"uri":"\/component\/ajax\/?format=json"},"plg_system_schedulerunner":{"interval":300}}</script>
+    <script type="application/json" class="joomla-script-options new">{"joomla.jtext":{"JSHOWPASSWORD":"Show Password","JHIDEPASSWORD":"Hide Password"},"system.paths":{"root":"","rootFull":"http:\/\/phoenix.test\/","base":"","baseFull":"http:\/\/phoenix.test\/"},"csrf.token":"53f43c80abbebb339c34f9a091c9a3fc","system.keepalive":{"interval":840000,"uri":"\/component\/ajax\/?format=json"},"plg_system_schedulerunner":{"interval":300}}</script>
 	<script src="/media/system/js/core.min.js?2cb912"></script>
 	<script src="/media/system/js/keepalive.min.js?08e025" type="module"></script>
 	<script src="/media/system/js/fields/passwordview.min.js?d2a409" defer></script>
@@ -23,7 +23,7 @@ a:6:{s:7:"headers";a:13:{i:0;s:31:"X-Content-Type-Options: nosniff";i:1;s:31:"X-
 </head>
 <body class="site phoenix-template com_content wrapper-static view-featured no-layout no-task itemid-101 has-sidebar-right color-scheme-default">
 <!-- DEBUG: DiSyL Rendered = YES -->
-<!-- DEBUG: Content Length = 18191 bytes -->
+<!-- DEBUG: Content Length = 18259 bytes -->
 
 
     <!-- DiSyL Rendered Content START -->
@@ -47,15 +47,15 @@ a:6:{s:7:"headers";a:13:{i:0;s:31:"X-Content-Type-Options: nosniff";i:1;s:31:"X-
             <ul>
                 
                     <li class="menu-item">
-                        <a href="/component/content/?view=category&amp;id=8&amp;Itemid=102">
-                            DiSyL Docs
+                        <a href="/">
+                            Home
                         </a>
                         
                     </li>
                 
                     <li class="menu-item">
-                        <a href="/component/content/?view=category&amp;id=9&amp;Itemid=103">
-                            Kernel Docs
+                        <a href="/component/content/?view=category&amp;id=8&amp;Itemid=102">
+                            DiSyL Docs
                         </a>
                         
                     </li>
@@ -68,8 +68,8 @@ a:6:{s:7:"headers";a:13:{i:0;s:31:"X-Content-Type-Options: nosniff";i:1;s:31:"X-
                     </li>
                 
                     <li class="menu-item">
-                        <a href="/">
-                            Home
+                        <a href="/Banners/Clients/kernel-docs">
+                            Kernel Docs
                         </a>
                         
                     </li>
@@ -329,7 +329,7 @@ a:6:{s:7:"headers";a:13:{i:0;s:31:"X-Content-Type-Options: nosniff";i:1;s:31:"X-
             
                 <article class="post-card reveal">
                     
-                        <a href="/?view=article&amp;id=4&amp;catid=9">
+                        <a href="/Banners/Clients/kernel-docs/ikabud-kernel-overview">
                             <img src="http://phoenix.test/" alt="Ikabud Kernel Overview" class="ikb-image post-thumbnail" loading="lazy" />
                         </a>
                     
@@ -342,12 +342,12 @@ a:6:{s:7:"headers";a:13:{i:0;s:31:"X-Content-Type-Options: nosniff";i:1;s:31:"X-
                         </div>
                         
                         <p class="ikb-text text-xl font-semibold text-left post-title">
-                            <a href="/?view=article&amp;id=4&amp;catid=9">Ikabud Kernel Overview</a>
+                            <a href="/Banners/Clients/kernel-docs/ikabud-kernel-overview">Ikabud Kernel Overview</a>
                         </p><p class="ikb-text text-md font-normal text-left post-excerpt">
                             ...
                         </p>
                         
-                        <a href="/?view=article&amp;id=4&amp;catid=9" class="read-more">
+                        <a href="/Banners/Clients/kernel-docs/ikabud-kernel-overview" class="read-more">
                             Read More →
                         </a>
                     </div>
@@ -355,7 +355,7 @@ a:6:{s:7:"headers";a:13:{i:0;s:31:"X-Content-Type-Options: nosniff";i:1;s:31:"X-
             
                 <article class="post-card reveal">
                     
-                        <a href="/?view=article&amp;id=5&amp;catid=9">
+                        <a href="/Banners/Clients/kernel-docs/phoenix-theme-features">
                             <img src="http://phoenix.test/" alt="Phoenix Theme Features" class="ikb-image post-thumbnail" loading="lazy" />
                         </a>
                     
@@ -368,12 +368,12 @@ a:6:{s:7:"headers";a:13:{i:0;s:31:"X-Content-Type-Options: nosniff";i:1;s:31:"X-
                         </div>
                         
                         <p class="ikb-text text-xl font-semibold text-left post-title">
-                            <a href="/?view=article&amp;id=5&amp;catid=9">Phoenix Theme Features</a>
+                            <a href="/Banners/Clients/kernel-docs/phoenix-theme-features">Phoenix Theme Features</a>
                         </p><p class="ikb-text text-md font-normal text-left post-excerpt">
                             ...
                         </p>
                         
-                        <a href="/?view=article&amp;id=5&amp;catid=9" class="read-more">
+                        <a href="/Banners/Clients/kernel-docs/phoenix-theme-features" class="read-more">
                             Read More →
                         </a>
                     </div>
@@ -428,7 +428,7 @@ a:6:{s:7:"headers";a:13:{i:0;s:31:"X-Content-Type-Options: nosniff";i:1;s:31:"X-
 
 <footer class="site-footer">
     <div class="ikb-container container-xlarge">
-        <div class="footer-widgets footer-columns-">
+        <div class="footer-widgets footer-columns-4">
             
         </div>
         
@@ -459,4 +459,4 @@ a:6:{s:7:"headers";a:13:{i:0;s:31:"X-Content-Type-Options: nosniff";i:1;s:31:"X-
 
 </body>
 </html>
-";s:9:"timestamp";i:1763309726;s:8:"cms_type";s:6:"joomla";s:17:"extensions_loaded";a:0:{}s:15:"extension_count";i:0;}
+";s:9:"timestamp";i:1763336403;s:8:"cms_type";s:6:"joomla";s:17:"extensions_loaded";a:0:{}s:15:"extension_count";i:0;}

@@ -1,0 +1,149 @@
+{
+  "manifest_version": "2.0",
+  "cms": "joomla",
+  "type": "components",
+  "description": "Joomla-native DiSyL components for Phoenix v2",
+  "components": {
+    "joomla_module": {
+      "namespace": "joomla",
+      "category": "layout",
+      "tags": ["joomla", "module", "position"],
+      "description": "Render Joomla modules from a specific position",
+      "capabilities": {
+        "supports_children": false,
+        "output_mode": "html",
+        "provides_context": [],
+        "async": false,
+        "cacheable": true
+      },
+      "attributes": {
+        "position": {
+          "required": true,
+          "type": "string",
+          "description": "Module position name (e.g., 'header', 'sidebar-left')"
+        },
+        "style": {
+          "required": false,
+          "type": "string",
+          "default": "none",
+          "description": "Module chrome style (none, card, well, xhtml)"
+        },
+        "limit": {
+          "required": false,
+          "type": "integer",
+          "default": 0,
+          "description": "Maximum number of modules to render (0 = all)"
+        }
+      },
+      "examples": [
+        "{joomla_module position=\"header\" style=\"card\" /}",
+        "{joomla_module position=\"sidebar-left\" limit=3 /}"
+      ]
+    },
+    "joomla_params": {
+      "namespace": "joomla",
+      "category": "utility",
+      "tags": ["joomla", "params", "template", "settings"],
+      "description": "Access template parameters from templateDetails.xml",
+      "capabilities": {
+        "supports_children": false,
+        "output_mode": "text",
+        "provides_context": [],
+        "async": false,
+        "cacheable": true
+      },
+      "attributes": {
+        "name": {
+          "required": true,
+          "type": "string",
+          "description": "Parameter name from templateDetails.xml"
+        },
+        "default": {
+          "required": false,
+          "type": "string",
+          "default": "",
+          "description": "Default value if parameter not set"
+        }
+      },
+      "examples": [
+        "{joomla_params name=\"logoFile\" /}",
+        "{joomla_params name=\"colorScheme\" default=\"default\" /}"
+      ]
+    },
+    "joomla_field": {
+      "namespace": "joomla",
+      "category": "content",
+      "tags": ["joomla", "fields", "custom-fields"],
+      "description": "Access Joomla custom field values",
+      "capabilities": {
+        "supports_children": false,
+        "output_mode": "text",
+        "provides_context": [],
+        "async": false,
+        "cacheable": true
+      },
+      "attributes": {
+        "name": {
+          "required": true,
+          "type": "string",
+          "description": "Custom field name"
+        },
+        "context": {
+          "required": false,
+          "type": "string",
+          "default": "com_content.article",
+          "description": "Field context (com_content.article, com_content.category, etc.)"
+        },
+        "id": {
+          "required": true,
+          "type": "integer",
+          "description": "Item ID (article ID, category ID, etc.)"
+        }
+      },
+      "examples": [
+        "{joomla_field name=\"hero_image\" id=1 /}",
+        "{joomla_field name=\"subtitle\" context=\"com_content.category\" id=8 /}"
+      ]
+    },
+    "joomla_route": {
+      "namespace": "joomla",
+      "category": "utility",
+      "tags": ["joomla", "routing", "url", "sef"],
+      "description": "Generate SEF URLs using Joomla routing helpers",
+      "capabilities": {
+        "supports_children": false,
+        "output_mode": "text",
+        "provides_context": [],
+        "async": false,
+        "cacheable": true
+      },
+      "attributes": {
+        "view": {
+          "required": false,
+          "type": "string",
+          "description": "View type (article, category, etc.)"
+        },
+        "id": {
+          "required": false,
+          "type": "integer",
+          "description": "Article or item ID"
+        },
+        "catid": {
+          "required": false,
+          "type": "integer",
+          "description": "Category ID"
+        },
+        "url": {
+          "required": false,
+          "type": "string",
+          "description": "Generic URL to route"
+        }
+      },
+      "examples": [
+        "{joomla_route view=\"article\" id=1 catid=8 /}",
+        "{joomla_route view=\"category\" catid=8 /}",
+        "{joomla_route url=\"index.php?option=com_content&view=featured\" /}"
+      ]
+    }
+  }
+}

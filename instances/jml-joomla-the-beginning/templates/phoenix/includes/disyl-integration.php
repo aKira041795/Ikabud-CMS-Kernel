@@ -106,19 +106,31 @@ class PhoenixDisylIntegration
         // Add articles/posts
         $context['posts'] = $this->getArticles();
         
-        // Add components configuration
+        // Add components configuration from template params
+        $template = $this->app->getTemplate(true);
         $context['components'] = [
             'header' => [
-                'logo' => $params['logo'] ?? null,
-                'sticky' => $params['sticky_header'] ?? true,
-                'show_search' => $params['show_search'] ?? true,
+                'logo' => $template->params->get('logoFile', ''),
+                'sticky' => (bool)$template->params->get('stickyHeader', 1),
+                'show_search' => (bool)$template->params->get('showSearch', 1),
             ],
             'slider' => [
-                'autoplay' => true,
-                'interval' => 5000,
-                'transition' => 'fade',
-                'show_arrows' => true,
-                'show_dots' => true,
+                'autoplay' => (bool)$template->params->get('sliderAutoplay', 1),
+                'interval' => (int)$template->params->get('sliderInterval', 5000),
+                'transition' => $template->params->get('sliderTransition', 'fade'),
+                'show_arrows' => (bool)$template->params->get('sliderShowArrows', 1),
+                'show_dots' => (bool)$template->params->get('sliderShowDots', 1),
+            ],
+            'footer' => [
+                'columns' => (int)$template->params->get('footerColumns', 4),
+                'show_social' => (bool)$template->params->get('showSocial', 1),
+                'copyright' => $template->params->get('copyrightText', '© 2025 All rights reserved.'),
+            ],
+            'layout' => [
+                'style' => $template->params->get('layoutStyle', 'boxed'),
+                'fluid' => (bool)$template->params->get('fluidContainer', 0),
+                'back_top' => (bool)$template->params->get('backTop', 1),
+                'color_scheme' => $template->params->get('colorScheme', 'default'),
             ],
         ];
         
@@ -142,6 +154,7 @@ class PhoenixDisylIntegration
     {
         $config = Factory::getConfig();
         $user = Factory::getUser();
+        $template = $this->app->getTemplate(true);
         
         return [
             'site' => [
@@ -149,15 +162,45 @@ class PhoenixDisylIntegration
                 'url' => Uri::root(),
                 'description' => $config->get('MetaDesc'),
                 'theme_url' => Uri::root() . 'templates/' . $this->document->template,
+                'logo' => $template->params->get('logoFile', ''),
+                'template_version' => '2.0.0',
             ],
             'user' => [
                 'logged_in' => !$user->guest,
                 'name' => $user->name,
                 'id' => $user->id,
+                'guest' => $user->guest,
+                'groups' => $user->getAuthorisedGroups(),
             ],
             'current_url' => Uri::current(),
             'base_url' => Uri::base(),
+            'joomla' => [
+                'params' => json_decode($template->params->toString(), true),
+                'module_positions' => $this->getModulePositions(),
+                'fields' => [], // Will be populated per-article/category
+            ],
         ];
+    }
+    
+    /**
+     * Get available module positions with module counts
+     */
+    private function getModulePositions()
+    {
+        $positions = [
+            'topbar', 'header', 'menu', 'search', 'banner', 'hero', 'features',
+            'top-a', 'top-b', 'main-top', 'main-bottom', 'breadcrumbs',
+            'sidebar-left', 'sidebar-right', 'bottom-a', 'bottom-b',
+            'footer-1', 'footer-2', 'footer-3', 'footer-4', 'footer', 'debug'
+        ];
+        
+        $result = [];
+        foreach ($positions as $position) {
+            $modules = \Joomla\CMS\Helper\ModuleHelper::getModules($position);
+            $result[$position] = count($modules);
+        }
+        
+        return $result;
     }
     
     /**

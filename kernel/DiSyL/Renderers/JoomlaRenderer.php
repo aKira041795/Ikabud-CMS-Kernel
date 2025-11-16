@@ -13,11 +13,20 @@
 namespace IkabudKernel\Core\DiSyL\Renderers;
 
 use IkabudKernel\Core\DiSyL\Renderers\BaseRenderer;
+use Joomla\CMS\Factory;
+use Joomla\CMS\Helper\ModuleHelper;
+use Joomla\CMS\Router\Route;
+use Joomla\Component\Content\Site\Helper\RouteHelper as ContentHelperRoute;
+use Joomla\Component\Fields\Administrator\Helper\FieldsHelper;
 
 // Load WordPress-compatible filter functions for Joomla
 // These are defined in global namespace so they're available in eval() scope
 require_once __DIR__ . '/joomla-compat-functions.php';
 
+/**
+ * Joomla-specific DiSyL renderer (v2)
+ * Provides Joomla-native components and context
+ */
 class JoomlaRenderer extends BaseRenderer
 {
     private $templatePath = '';
@@ -332,24 +341,6 @@ class JoomlaRenderer extends BaseRenderer
         return "<div class=\"{$widgetClasses}\">{$widgets['content']}</div>";
     }
     
-    /**
-     * Render joomla_module component
-     */
-    protected function renderJoomlaModule(array $node, array $attrs, array $children): string
-    {
-        $position = $attrs['position'] ?? 'main';
-        $style = $attrs['style'] ?? 'none';
-        
-        return '<jdoc:include type="modules" name="' . htmlspecialchars($position) . '" style="' . htmlspecialchars($style) . '" />';
-    }
-    
-    /**
-     * Render joomla_component
-     */
-    protected function renderJoomlaComponent(array $node, array $attrs, array $children): string
-    {
-        return '<jdoc:include type="component" />';
-    }
     
     /**
      * Render joomla_message
@@ -451,5 +442,136 @@ class JoomlaRenderer extends BaseRenderer
         }
         
         return $value;
+    }
+    
+    /**
+     * Render joomla_module component
+     * Usage: {joomla_module position="header" style="card" /}
+     */
+    protected function renderJoomlaModule(array $node, array $attrs, array $children): string
+    {
+        $position = $attrs['position'] ?? '';
+        $style = $attrs['style'] ?? 'none';
+        $limit = isset($attrs['limit']) ? (int)$attrs['limit'] : 0;
+        
+        if (empty($position)) {
+            return '<!-- joomla_module: no position specified -->';
+        }
+        
+        try {
+            $modules = ModuleHelper::getModules($position);
+            
+            if ($limit > 0) {
+                $modules = array_slice($modules, 0, $limit);
+            }
+            
+            if (empty($modules)) {
+                return '';
+            }
+            
+            $output = '';
+            foreach ($modules as $module) {
+                $output .= ModuleHelper::renderModule($module, ['style' => $style]);
+            }
+            
+            return $output;
+        } catch (\Exception $e) {
+            return '<!-- joomla_module error: ' . htmlspecialchars($e->getMessage()) . ' -->';
+        }
+    }
+    
+    /**
+     * Render joomla_params component
+     * Usage: {joomla_params name="logoFile" default="" /}
+     */
+    protected function renderJoomlaParams(array $node, array $attrs, array $children): string
+    {
+        $name = $attrs['name'] ?? '';
+        $default = $attrs['default'] ?? '';
+        
+        if (empty($name)) {
+            return $default;
+        }
+        
+        // Get from context first (already loaded in disyl-integration.php)
+        $value = $this->getContextValue('joomla.params.' . $name);
+        
+        if ($value !== null) {
+            return (string)$value;
+        }
+        
+        return $default;
+    }
+    
+    /**
+     * Render joomla_field component
+     * Usage: {joomla_field name="hero_image" context="com_content.article" id=1 /}
+     */
+    protected function renderJoomlaField(array $node, array $attrs, array $children): string
+    {
+        $name = $attrs['name'] ?? '';
+        $context = $attrs['context'] ?? 'com_content.article';
+        $itemId = $attrs['id'] ?? 0;
+        
+        if (empty($name) || empty($itemId)) {
+            return '';
+        }
+        
+        try {
+            // Check if already in context
+            $contextKey = 'joomla.fields.' . $context . '.' . $itemId . '.' . $name;
+            $value = $this->getContextValue($contextKey);
+            
+            if ($value !== null) {
+                return (string)$value;
+            }
+            
+            // Fallback: load from Joomla fields API
+            if (class_exists('\\Joomla\\Component\\Fields\\Administrator\\Helper\\FieldsHelper')) {
+                $fields = FieldsHelper::getFields($context, (object)['id' => $itemId]);
+                
+                foreach ($fields as $field) {
+                    if ($field->name === $name) {
+                        return (string)$field->rawvalue;
+                    }
+                }
+            }
+            
+            return '';
+        } catch (\Exception $e) {
+            return '<!-- joomla_field error: ' . htmlspecialchars($e->getMessage()) . ' -->';
+        }
+    }
+    
+    /**
+     * Render joomla_route component
+     * Usage: {joomla_route view="article" id=1 catid=8 /}
+     */
+    protected function renderJoomlaRoute(array $node, array $attrs, array $children): string
+    {
+        $view = $attrs['view'] ?? '';
+        $id = $attrs['id'] ?? 0;
+        $catid = $attrs['catid'] ?? 0;
+        
+        try {
+            $url = '';
+            
+            if ($view === 'article' && $id) {
+                $url = ContentHelperRoute::getArticleRoute($id, $catid);
+            } elseif ($view === 'category' && $catid) {
+                $url = ContentHelperRoute::getCategoryRoute($catid);
+            } else {
+                // Generic route
+                $url = $attrs['url'] ?? '';
+            }
+            
+            if (!empty($url)) {
+                return htmlspecialchars_decode(Route::_($url));
+            }
+            
+            return '';
+        } catch (\Exception $e) {
+            return '<!-- joomla_route error: ' . htmlspecialchars($e->getMessage()) . ' -->';
+        }
     }
 }
