@@ -24,6 +24,15 @@ if (defined('DOING_AJAX') && DOING_AJAX) {
 add_filter('use_widgets_block_editor', '__return_false');
 
 /**
+ * Load Phoenix Bridge Layer
+ * Connects DiSyL components with WordPress Customizer
+ */
+require_once get_template_directory() . '/includes/class-phoenix-manifest.php';
+require_once get_template_directory() . '/includes/class-phoenix-customizer.php';
+require_once get_template_directory() . '/includes/class-phoenix-component-bridge.php';
+require_once get_template_directory() . '/includes/phoenix-template-functions.php';
+
+/**
  * Theme Setup
  */
 function phoenix_setup() {
@@ -545,6 +554,9 @@ add_action('wp_ajax_nopriv_phoenix_load_more', 'phoenix_load_more_posts');
 
 /**
  * Get widget area content
+ * 
+ * NOTE: For visibility-aware widget areas, use phoenix_get_widget_area_safe()
+ * from includes/phoenix-template-functions.php
  */
 function phoenix_get_widget_area($sidebar_id) {
     $is_active = is_active_sidebar($sidebar_id);
@@ -555,7 +567,8 @@ function phoenix_get_widget_area($sidebar_id) {
     if (!$is_active) {
         return array(
             'active' => false,
-            'content' => ''
+            'content' => '',
+            'visible' => true, // Default visible if not controlled by customizer
         );
     }
     
@@ -569,51 +582,25 @@ function phoenix_get_widget_area($sidebar_id) {
     
     return array(
         'active' => true,
-        'content' => $content
+        'content' => $content,
+        'visible' => true, // Default visible if not controlled by customizer
     );
 }
 
 /**
- * Customizer additions
+ * Legacy Customizer additions (kept for backward compatibility)
+ * 
+ * NOTE: Most customizer controls are now auto-generated from manifest.json
+ * via the Phoenix_Customizer class. This function only adds legacy settings
+ * that existed before the bridge layer was implemented.
  */
 function phoenix_customize_register($wp_customize) {
-    // Hero Section
-    $wp_customize->add_section('phoenix_hero', array(
-        'title' => __('Hero Section', 'phoenix'),
-        'priority' => 30,
-    ));
+    // Legacy settings are now handled by Phoenix_Customizer class
+    // This function is kept for backward compatibility only
     
-    $wp_customize->add_setting('phoenix_hero_title', array(
-        'default' => 'Welcome to Phoenix',
-        'sanitize_callback' => 'sanitize_text_field',
-    ));
+    // Hero section settings are now in manifest.json under customizer.sections.colors
+    // Color settings are now in manifest.json under customizer.sections.colors
     
-    $wp_customize->add_control('phoenix_hero_title', array(
-        'label' => __('Hero Title', 'phoenix'),
-        'section' => 'phoenix_hero',
-        'type' => 'text',
-    ));
-    
-    $wp_customize->add_setting('phoenix_hero_subtitle', array(
-        'default' => 'A beautiful DiSyL-powered WordPress theme',
-        'sanitize_callback' => 'sanitize_textarea_field',
-    ));
-    
-    $wp_customize->add_control('phoenix_hero_subtitle', array(
-        'label' => __('Hero Subtitle', 'phoenix'),
-        'section' => 'phoenix_hero',
-        'type' => 'textarea',
-    ));
-    
-    // Colors
-    $wp_customize->add_setting('phoenix_primary_color', array(
-        'default' => '#667eea',
-        'sanitize_callback' => 'sanitize_hex_color',
-    ));
-    
-    $wp_customize->add_control(new WP_Customize_Color_Control($wp_customize, 'phoenix_primary_color', array(
-        'label' => __('Primary Color', 'phoenix'),
-        'section' => 'colors',
-    )));
+    // If you need to add custom settings not in manifest.json, add them here
 }
-add_action('customize_register', 'phoenix_customize_register');
+add_action('customize_register', 'phoenix_customize_register', 30);

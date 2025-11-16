@@ -1,0 +1,578 @@
+{
+  "$schema": "https://ikabud.com/schemas/theme-manifest-v1.json",
+  "name": "Phoenix Theme",
+  "version": "1.0.0",
+  "description": "A stunning, modern DiSyL-powered WordPress theme",
+  "author": "Ikabud Team",
+  "license": "GPL-2.0-or-later",
+  "disyl_version": "0.5.0",
+  "cms_support": ["wordpress", "joomla", "drupal"],
+  
+  "components": {
+    "header": {
+      "file": "disyl/components/header.disyl",
+      "type": "layout",
+      "version": "1.0.0",
+      "description": "Site header with logo, navigation, and mobile menu",
+      "props": {
+        "logo": {
+          "type": "image",
+          "default": null,
+          "description": "Site logo image",
+          "customizer": {
+            "enabled": true,
+            "section": "header_settings",
+            "control_type": "image",
+            "label": "Logo",
+            "priority": 10
+          }
+        },
+        "sticky": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable sticky header on scroll",
+          "customizer": {
+            "enabled": true,
+            "section": "header_settings",
+            "control_type": "checkbox",
+            "label": "Sticky Header",
+            "priority": 20
+          }
+        },
+        "menu_location": {
+          "type": "string",
+          "default": "primary",
+          "description": "Menu location to display",
+          "customizer": {
+            "enabled": false
+          }
+        },
+        "show_search": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show search icon in header",
+          "customizer": {
+            "enabled": true,
+            "section": "header_settings",
+            "control_type": "checkbox",
+            "label": "Show Search",
+            "priority": 30
+          }
+        }
+      },
+      "dependencies": [],
+      "widget_areas": [],
+      "customizer_section": "header_settings"
+    },
+    
+    "footer": {
+      "file": "disyl/components/footer.disyl",
+      "type": "layout",
+      "version": "1.0.0",
+      "description": "Site footer with widget areas and copyright",
+      "props": {
+        "columns": {
+          "type": "number",
+          "default": 4,
+          "min": 1,
+          "max": 6,
+          "description": "Number of footer columns",
+          "customizer": {
+            "enabled": true,
+            "section": "footer_settings",
+            "control_type": "number",
+            "label": "Footer Columns",
+            "priority": 10
+          }
+        },
+        "show_social": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show social media icons",
+          "customizer": {
+            "enabled": true,
+            "section": "footer_settings",
+            "control_type": "checkbox",
+            "label": "Show Social Icons",
+            "priority": 20
+          }
+        },
+        "copyright_text": {
+          "type": "string",
+          "default": "© 2025 Phoenix Theme. All rights reserved.",
+          "description": "Copyright text",
+          "customizer": {
+            "enabled": true,
+            "section": "footer_settings",
+            "control_type": "text",
+            "label": "Copyright Text",
+            "priority": 30
+          }
+        }
+      },
+      "widget_areas": ["footer-1", "footer-2", "footer-3", "footer-4"],
+      "customizer_section": "footer_settings"
+    },
+    
+    "slider": {
+      "file": "disyl/components/slider.disyl",
+      "type": "content",
+      "version": "1.0.0",
+      "description": "Image slider with autoplay and navigation",
+      "props": {
+        "autoplay": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable autoplay",
+          "customizer": {
+            "enabled": true,
+            "section": "slider_settings",
+            "control_type": "checkbox",
+            "label": "Autoplay",
+            "priority": 10
+          }
+        },
+        "interval": {
+          "type": "number",
+          "default": 5000,
+          "min": 1000,
+          "max": 10000,
+          "step": 500,
+          "description": "Autoplay interval in milliseconds",
+          "customizer": {
+            "enabled": true,
+            "section": "slider_settings",
+            "control_type": "range",
+            "label": "Autoplay Interval (ms)",
+            "priority": 20
+          }
+        },
+        "transition": {
+          "type": "select",
+          "default": "fade",
+          "options": ["fade", "slide", "zoom"],
+          "description": "Transition effect",
+          "customizer": {
+            "enabled": true,
+            "section": "slider_settings",
+            "control_type": "select",
+            "label": "Transition Effect",
+            "priority": 30,
+            "choices": {
+              "fade": "Fade",
+              "slide": "Slide",
+              "zoom": "Zoom"
+            }
+          }
+        },
+        "show_arrows": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show navigation arrows",
+          "customizer": {
+            "enabled": true,
+            "section": "slider_settings",
+            "control_type": "checkbox",
+            "label": "Show Arrows",
+            "priority": 40
+          }
+        },
+        "show_dots": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show dot indicators",
+          "customizer": {
+            "enabled": true,
+            "section": "slider_settings",
+            "control_type": "checkbox",
+            "label": "Show Dots",
+            "priority": 50
+          }
+        }
+      },
+      "dependencies": [],
+      "customizer_section": "slider_settings"
+    },
+    
+    "sidebar": {
+      "file": "disyl/components/sidebar.disyl",
+      "type": "layout",
+      "version": "1.0.0",
+      "description": "Sidebar with widget area",
+      "props": {
+        "position": {
+          "type": "select",
+          "default": "right",
+          "options": ["left", "right"],
+          "description": "Sidebar position",
+          "customizer": {
+            "enabled": true,
+            "section": "layout_settings",
+            "control_type": "radio",
+            "label": "Sidebar Position",
+            "priority": 10,
+            "choices": {
+              "left": "Left",
+              "right": "Right"
+            }
+          }
+        },
+        "width": {
+          "type": "select",
+          "default": "25%",
+          "options": ["20%", "25%", "30%", "33%"],
+          "description": "Sidebar width",
+          "customizer": {
+            "enabled": true,
+            "section": "layout_settings",
+            "control_type": "select",
+            "label": "Sidebar Width",
+            "priority": 20,
+            "choices": {
+              "20%": "Narrow (20%)",
+              "25%": "Default (25%)",
+              "30%": "Wide (30%)",
+              "33%": "Extra Wide (33%)"
+            }
+          }
+        }
+      },
+      "widget_areas": ["sidebar-1"],
+      "customizer_section": "layout_settings"
+    },
+    
+    "comments": {
+      "file": "disyl/components/comments.disyl",
+      "type": "content",
+      "version": "1.0.0",
+      "description": "Comments section with form and list",
+      "props": {
+        "show_avatars": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show user avatars",
+          "customizer": {
+            "enabled": true,
+            "section": "comments_settings",
+            "control_type": "checkbox",
+            "label": "Show Avatars",
+            "priority": 10
+          }
+        },
+        "nested_depth": {
+          "type": "number",
+          "default": 3,
+          "min": 1,
+          "max": 10,
+          "description": "Maximum nesting depth for replies",
+          "customizer": {
+            "enabled": true,
+            "section": "comments_settings",
+            "control_type": "number",
+            "label": "Reply Nesting Depth",
+            "priority": 20
+          }
+        }
+      },
+      "dependencies": [],
+      "customizer_section": "comments_settings"
+    }
+  },
+  
+  "templates": {
+    "home": {
+      "file": "disyl/home.disyl",
+      "description": "Homepage template",
+      "components": ["header", "slider", "footer"],
+      "widget_areas": ["homepage-hero", "homepage-features"]
+    },
+    "single": {
+      "file": "disyl/single.disyl",
+      "description": "Single post template",
+      "components": ["header", "sidebar", "comments", "footer"],
+      "widget_areas": ["sidebar-1"]
+    },
+    "page": {
+      "file": "disyl/page.disyl",
+      "description": "Static page template",
+      "components": ["header", "footer"],
+      "widget_areas": []
+    },
+    "blog": {
+      "file": "disyl/blog.disyl",
+      "description": "Blog archive template",
+      "components": ["header", "sidebar", "footer"],
+      "widget_areas": ["sidebar-1"]
+    },
+    "archive": {
+      "file": "disyl/archive.disyl",
+      "description": "Archive template",
+      "components": ["header", "sidebar", "footer"],
+      "widget_areas": ["sidebar-1"]
+    },
+    "search": {
+      "file": "disyl/search.disyl",
+      "description": "Search results template",
+      "components": ["header", "sidebar", "footer"],
+      "widget_areas": ["sidebar-1"]
+    },
+    "404": {
+      "file": "disyl/404.disyl",
+      "description": "404 error page template",
+      "components": ["header", "footer"],
+      "widget_areas": []
+    }
+  },
+  
+  "widget_areas": {
+    "sidebar-1": {
+      "name": "Main Sidebar",
+      "description": "Main sidebar widget area",
+      "templates": ["single", "blog", "archive", "search"],
+      "customizer": {
+        "visibility_control": true,
+        "section": "widget_areas",
+        "priority": 10
+      }
+    },
+    "footer-1": {
+      "name": "Footer Column 1",
+      "description": "First footer column",
+      "templates": ["*"],
+      "customizer": {
+        "visibility_control": true,
+        "section": "widget_areas",
+        "priority": 20
+      }
+    },
+    "footer-2": {
+      "name": "Footer Column 2",
+      "description": "Second footer column",
+      "templates": ["*"],
+      "customizer": {
+        "visibility_control": true,
+        "section": "widget_areas",
+        "priority": 30
+      }
+    },
+    "footer-3": {
+      "name": "Footer Column 3",
+      "description": "Third footer column",
+      "templates": ["*"],
+      "customizer": {
+        "visibility_control": true,
+        "section": "widget_areas",
+        "priority": 40
+      }
+    },
+    "footer-4": {
+      "name": "Footer Column 4",
+      "description": "Fourth footer column",
+      "templates": ["*"],
+      "customizer": {
+        "visibility_control": true,
+        "section": "widget_areas",
+        "priority": 50
+      }
+    },
+    "homepage-hero": {
+      "name": "Homepage Hero",
+      "description": "Homepage hero section widgets",
+      "templates": ["home"],
+      "customizer": {
+        "visibility_control": true,
+        "section": "widget_areas",
+        "priority": 60
+      }
+    },
+    "homepage-features": {
+      "name": "Homepage Features",
+      "description": "Homepage features section widgets",
+      "templates": ["home"],
+      "customizer": {
+        "visibility_control": true,
+        "section": "widget_areas",
+        "priority": 70
+      }
+    }
+  },
+  
+  "customizer": {
+    "sections": {
+      "colors": {
+        "title": "Colors & Branding",
+        "priority": 20,
+        "settings": {
+          "primary_color": {
+            "type": "color",
+            "default": "#667eea",
+            "label": "Primary Color",
+            "description": "Main brand color"
+          },
+          "secondary_color": {
+            "type": "color",
+            "default": "#764ba2",
+            "label": "Secondary Color",
+            "description": "Secondary brand color"
+          },
+          "accent_color": {
+            "type": "color",
+            "default": "#4facfe",
+            "label": "Accent Color",
+            "description": "Accent/highlight color"
+          },
+          "text_color": {
+            "type": "color",
+            "default": "#2d3748",
+            "label": "Text Color",
+            "description": "Main text color"
+          },
+          "background_color": {
+            "type": "color",
+            "default": "#ffffff",
+            "label": "Background Color",
+            "description": "Page background color"
+          }
+        }
+      },
+      
+      "typography": {
+        "title": "Typography",
+        "priority": 25,
+        "settings": {
+          "heading_font": {
+            "type": "select",
+            "default": "Poppins",
+            "label": "Heading Font",
+            "choices": {
+              "Poppins": "Poppins",
+              "Inter": "Inter",
+              "Roboto": "Roboto",
+              "Open Sans": "Open Sans",
+              "Montserrat": "Montserrat"
+            }
+          },
+          "body_font": {
+            "type": "select",
+            "default": "Inter",
+            "label": "Body Font",
+            "choices": {
+              "Inter": "Inter",
+              "Poppins": "Poppins",
+              "Roboto": "Roboto",
+              "Open Sans": "Open Sans",
+              "Lato": "Lato"
+            }
+          },
+          "base_font_size": {
+            "type": "range",
+            "default": 16,
+            "min": 14,
+            "max": 20,
+            "step": 1,
+            "label": "Base Font Size (px)"
+          }
+        }
+      },
+      
+      "header_settings": {
+        "title": "Header Settings",
+        "priority": 30,
+        "description": "Configure header appearance and behavior"
+      },
+      
+      "footer_settings": {
+        "title": "Footer Settings",
+        "priority": 40,
+        "description": "Configure footer layout and content"
+      },
+      
+      "slider_settings": {
+        "title": "Slider Settings",
+        "priority": 50,
+        "description": "Configure image slider behavior"
+      },
+      
+      "layout_settings": {
+        "title": "Layout Settings",
+        "priority": 35,
+        "settings": {
+          "container_width": {
+            "type": "select",
+            "default": "1200px",
+            "label": "Container Width",
+            "choices": {
+              "1140px": "Narrow (1140px)",
+              "1200px": "Default (1200px)",
+              "1320px": "Wide (1320px)",
+              "100%": "Full Width"
+            }
+          }
+        }
+      },
+      
+      "comments_settings": {
+        "title": "Comments Settings",
+        "priority": 55,
+        "description": "Configure comments display"
+      },
+      
+      "widget_areas": {
+        "title": "Widget Areas",
+        "priority": 60,
+        "description": "Control widget area visibility"
+      }
+    }
+  },
+  
+  "menus": {
+    "primary": {
+      "name": "Primary Menu",
+      "description": "Main navigation menu",
+      "location": "header"
+    },
+    "footer": {
+      "name": "Footer Menu",
+      "description": "Footer navigation menu",
+      "location": "footer"
+    },
+    "social": {
+      "name": "Social Links",
+      "description": "Social media links",
+      "location": "footer"
+    }
+  },
+  
+  "image_sizes": {
+    "phoenix-hero": {
+      "width": 1920,
+      "height": 1080,
+      "crop": true,
+      "description": "Hero section images"
+    },
+    "phoenix-featured": {
+      "width": 800,
+      "height": 600,
+      "crop": true,
+      "description": "Featured post images"
+    },
+    "phoenix-thumbnail": {
+      "width": 400,
+      "height": 300,
+      "crop": true,
+      "description": "Post thumbnails"
+    },
+    "phoenix-slider": {
+      "width": 1600,
+      "height": 900,
+      "crop": true,
+      "description": "Slider images"
+    }
+  },
+  
+  "_meta": {
+    "generated_at": "2025-11-16T04:52:00Z",
+    "generator": "Phoenix Theme Manifest Generator v1.0",
+    "schema_version": "1.0.0"
+  }
+}
