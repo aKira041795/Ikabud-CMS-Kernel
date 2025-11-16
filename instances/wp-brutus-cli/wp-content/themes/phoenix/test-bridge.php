@@ -7,7 +7,34 @@
  */
 
 // Load WordPress
-require_once('../../../../../wp-load.php');
+// Try multiple possible paths
+$possible_paths = [
+    dirname(dirname(dirname(dirname(__DIR__)))) . '/wp-load.php',
+    dirname(dirname(dirname(__DIR__))) . '/wp-load.php',
+    __DIR__ . '/../../../../../wp-load.php',
+];
+
+$wp_load_path = null;
+foreach ($possible_paths as $path) {
+    if (file_exists($path)) {
+        $wp_load_path = $path;
+        break;
+    }
+}
+
+if (!$wp_load_path) {
+    echo "<h1>WordPress Not Found</h1>";
+    echo "<p>Tried paths:</p><ul>";
+    foreach ($possible_paths as $path) {
+        echo "<li>" . htmlspecialchars($path) . "</li>";
+    }
+    echo "</ul>";
+    echo "<p><strong>Current directory:</strong> " . __DIR__ . "</p>";
+    echo "<p><strong>Access this file via web browser:</strong> http://your-domain/wp-content/themes/phoenix/test-bridge.php</p>";
+    die();
+}
+
+require_once($wp_load_path);
 
 // Check if bridge classes are loaded
 echo "<h1>Phoenix Bridge Test</h1>\n";
