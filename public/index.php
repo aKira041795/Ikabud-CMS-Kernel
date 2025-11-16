@@ -371,6 +371,13 @@ $app->any('[/{path:.*}]', function (Request $request, Response $response, array 
             }
             $_SERVER['SCRIPT_FILENAME'] = $requestedFile;
             require $requestedFile;
+            
+            // Handle Drupal response if stored in globals
+            if ($cmsType === 'drupal' && isset($GLOBALS['ikabud_drupal_response'])) {
+                $drupalResponse = $GLOBALS['ikabud_drupal_response'];
+                $drupalResponse->send();
+                exit;
+            }
         } else {
             // Static file - use proper MIME type map
             $mimeTypes = [
@@ -416,6 +423,13 @@ $app->any('[/{path:.*}]', function (Request $request, Response $response, array 
         
         $_SERVER['SCRIPT_FILENAME'] = $requestedFile . '/index.php';
         require $requestedFile . '/index.php';
+        
+        // Handle Drupal response if stored in globals
+        if ($cmsType === 'drupal' && isset($GLOBALS['ikabud_drupal_response'])) {
+            $drupalResponse = $GLOBALS['ikabud_drupal_response'];
+            $drupalResponse->send();
+            exit;
+        }
     } else {
         // Use CMS index.php for pretty URLs
         if (!defined('IKABUD_CONDITIONAL_LOADING') && $conditionalLoader) {
@@ -437,6 +451,39 @@ $app->any('[/{path:.*}]', function (Request $request, Response $response, array 
         
         $_SERVER['SCRIPT_FILENAME'] = $instanceDir . '/index.php';
         require $instanceDir . '/index.php';
+        
+        // Handle Drupal response if stored in globals
+        if ($cmsType === 'drupal' && isset($GLOBALS['ikabud_drupal_response'])) {
+            $drupalResponse = $GLOBALS['ikabud_drupal_response'];
+            
+            // If caching is enabled, capture the response
+            if ($shouldCacheResponse) {
+                $responseBody = $drupalResponse->getContent();
+                $responseHeaders = [];
+                
+                // Get headers from Symfony response
+                foreach ($drupalResponse->headers->all() as $name => $values) {
+                    foreach ($values as $value) {
+                        $responseHeaders[] = "{$name}: {$value}";
+                    }
+                }
+                
+                // Cache the response
+                if (!preg_match('/<b>(Warning|Error|Notice|Fatal error)<\/b>/', $responseBody)) {
+                    $cacheData = [
+                        'headers' => $responseHeaders,
+                        'body' => $responseBody,
+                        'timestamp' => time(),
+                        'cms_type' => 'drupal'
+                    ];
+                    $cache->set($instanceId, $requestUri, $cacheData);
+                }
+            }
+            
+            // Send the Drupal response
+            $drupalResponse->send();
+            exit;
+        }
     }
     
     // Capture and cache if needed
