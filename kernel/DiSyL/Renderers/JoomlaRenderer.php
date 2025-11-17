@@ -528,9 +528,16 @@ class JoomlaRenderer extends BaseRenderer
                 return '';
             }
             
+            // Get current template to ensure chrome is loaded from correct template
+            $app = \Joomla\CMS\Factory::getApplication();
+            $template = $app->getTemplate();
+            
             $output = '';
             foreach ($modules as $module) {
-                $output .= ModuleHelper::renderModule($module, ['style' => $style]);
+                // Joomla's renderModule with attribs array for chrome style
+                $attribs = ['style' => $style];
+                $rendered = ModuleHelper::renderModule($module, $attribs);
+                $output .= $rendered;
             }
             
             return $output;
