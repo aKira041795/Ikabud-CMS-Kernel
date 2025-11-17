@@ -6,3 +6,8 @@
  */
 
 /* Your custom styles here */
+
+/* Example: Slider container custom spacing */
+.slider-container.reveal.active {
+    margin-top: 50px;
+}

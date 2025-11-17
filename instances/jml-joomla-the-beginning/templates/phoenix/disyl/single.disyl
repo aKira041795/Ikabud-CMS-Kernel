@@ -109,7 +109,8 @@
                         {ikb_include template="components/comments.disyl"}
                     </div>
                 {/if}
-            </article>
+                </article>
+            </main>
             
             {!-- Sidebar (Joomla Module Positions) --}
             {ikb_include template="components/sidebar.disyl" /}

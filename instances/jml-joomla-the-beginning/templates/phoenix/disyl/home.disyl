@@ -112,21 +112,12 @@
 {/ikb_section}
 {/if}
 
-{!-- Features Module Content --}
-{ikb_section type="features" id="features" padding="xlarge"}
-    {joomla_module position="features" style="card" /}
-{/ikb_section}
-{else}
-    {!-- Fallback: Default features display --}
-    {!-- (Keep existing hardcoded features as fallback) --}
-{/if}
-
 {!-- Top Content Modules --}
 {joomla_module position="top-a" style="card" /}
 {joomla_module position="top-b" style="card" /}
 
 {!-- Latest Blog Posts --}
-{ikb_section type="blog" id="blog" padding="xlarge"}
+{ikb_section type="blog" id="blog" padding="xlarge" class="blog-section"}
     {ikb_container size="xlarge"}
         {!-- Main Top Module Position --}
         {joomla_module position="main-top" style="none" /}

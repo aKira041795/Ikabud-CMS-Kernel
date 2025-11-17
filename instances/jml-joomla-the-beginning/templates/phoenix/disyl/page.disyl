@@ -1,21 +1,32 @@
-{!-- Phoenix Theme - Page Template --}
+{!-- Phoenix Theme v2 - Page Template (Joomla-Native) --}
 {ikb_include template="components/header.disyl" /}
 
+{!-- Breadcrumbs Module Position --}
+{joomla_module position="breadcrumbs" style="none" /}
+
 {ikb_section type="page" padding="xlarge"}
-    {ikb_container size="large"}
-        <article class="page-content">
-            {!-- Page Header --}
-            <header class="page-header">
-                {ikb_text size="3xl" weight="bold" class="gradient-text"}
-                    {post.title | esc_html}
-                {/ikb_text}
-            </header>
+    {ikb_container size="xlarge"}
+        <div class="content-layout">
+            {!-- Main Content --}
+            <main class="main-content">
+                <article class="page-content">
+                    {!-- Page Header --}
+                    <header class="page-header">
+                        {ikb_text size="3xl" weight="bold" class="gradient-text"}
+                            <h1>{post.title | esc_html}</h1>
+                        {/ikb_text}
+                    </header>
+                    
+                    {!-- Page Content --}
+                    <div class="content">
+                        {post.content | raw}
+                    </div>
+                </article>
+            </main>
             
-            {!-- Page Content --}
-            <div class="content">
-                {post.content | raw}
-            </div>
-        </article>
+            {!-- Sidebar (Joomla Module Positions) --}
+            {ikb_include template="components/sidebar.disyl" /}
+        </div>
     {/ikb_container}
 {/ikb_section}
 

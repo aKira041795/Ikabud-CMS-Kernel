@@ -2,4 +2,4 @@ a:6:{s:7:"headers";a:7:{i:0;s:27:"X-Frame-Options: SAMEORIGIN";i:1;s:31:"X-Conte
  * @copyright   (C) 2018 Open Source Matters, Inc. <https://www.joomla.org>
  * @license     GNU General Public License version 2 or later; see LICENSE.txt
  */if(!window.Joomla)throw new Error("Joomla API was not properly initialised");const keepAliveOptions=Joomla.getOptions("system.keepalive"),keepAliveInterval=keepAliveOptions&&keepAliveOptions.interval?parseInt(keepAliveOptions.interval,10):45*1e3;let keepAliveUri=keepAliveOptions&&keepAliveOptions.uri?keepAliveOptions.uri.replace(/&amp;/g,"&"):"";if(keepAliveUri===""){const e=Joomla.getOptions("system.paths");keepAliveUri=`${e?`${e.root}/index.php`:window.location.pathname}?option=com_ajax&format=json`}setInterval(()=>fetch(keepAliveUri,{method:"POST"}),keepAliveInterval);
-";s:9:"timestamp";i:1763343105;s:8:"cms_type";s:6:"joomla";s:17:"extensions_loaded";a:0:{}s:15:"extension_count";i:0;}
+";s:9:"timestamp";i:1763345983;s:8:"cms_type";s:6:"joomla";s:17:"extensions_loaded";a:0:{}s:15:"extension_count";i:0;}

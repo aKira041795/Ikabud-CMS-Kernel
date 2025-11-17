@@ -1,9 +1,12 @@
-{!-- Phoenix Theme - Category Template --}
+{!-- Phoenix Theme v2 - Category Template (Joomla-Native) --}
 {ikb_include template="components/header.disyl" /}
 
+{!-- Breadcrumbs Module Position --}
+{joomla_module position="breadcrumbs" style="none" /}
+
 {!-- Category Header --}
-<section class="section-gradient" style="padding: 4rem 0;">
-    <div class="ikb-container ikb-container-lg">
+{ikb_section type="category-header" class="section-gradient" padding="xlarge"}
+    {ikb_container size="large"}
         <div class="category-header-content">
             {!-- Category Title --}
             <div class="text-center">
@@ -31,13 +34,13 @@
                 </div>
             </div>
         </div>
-    </div>
-</section>
+    {/ikb_container}
+{/ikb_section}
 
 {!-- Subcategories (if any) --}
 {if condition="category.children"}
-    <section style="padding: 3rem 0; background: #f8f9fa;">
-        <div class="ikb-container ikb-container-lg">
+{ikb_section type="subcategories" background="light" padding="large"}
+    {ikb_container size="large"}
             <div class="ikb-text ikb-text-2xl font-semibold" style="margin-bottom: 2rem;">
                 <h2>Explore Subcategories</h2>
             </div>
@@ -63,17 +66,16 @@
                     </a>
                 {/for}
             </div>
-        </div>
-    </section>
+        {/ikb_container}
+    {/ikb_section}
 {/if}
 
 {!-- Category Posts --}
-<section style="padding: 4rem 0;">
-    <div class="ikb-container ikb-container-xlarge">
-        <div class="archive-layout">
-            {!-- Posts Grid --}
-            <div>                
-                {!-- Posts Grid --}
+{ikb_section type="category-posts" padding="xlarge"}
+    {ikb_container size="xlarge"}
+        <div class="content-layout">
+            {!-- Main Content --}
+            <main class="main-content">
                 <div class="post-grid">
                     {ikb_query type="post" limit=12}
                         <article class="post-card reveal">
@@ -133,18 +135,18 @@
                         {/if}
                     </div>
                 {/if}
-            </div>
+            </main>
             
             {!-- Sidebar --}
-            {ikb_include template="components/sidebar.disyl"}
+            {ikb_include template="components/sidebar.disyl" /}
         </div>
-    </div>
-</section>
+    {/ikb_container}
+{/ikb_section}
 
 {!-- Related Categories --}
 {if condition="category.related"}
-    <section style="padding: 3rem 0; background: #f8f9fa;">
-        <div class="ikb-container ikb-container-lg">
+{ikb_section type="related-categories" background="light" padding="large"}
+    {ikb_container size="large"}
             <div class="ikb-text ikb-text-2xl font-semibold" style="margin-bottom: 2rem;">
                 <h2>Related Categories</h2>
             </div>
@@ -161,8 +163,8 @@
                     </a>
                 {/for}
             </div>
-        </div>
-    </section>
+        {/ikb_container}
+    {/ikb_section}
 {/if}
 
 {ikb_include template="components/footer.disyl" /}

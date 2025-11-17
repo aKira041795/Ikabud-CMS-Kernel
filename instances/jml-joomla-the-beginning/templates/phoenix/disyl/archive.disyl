@@ -1,15 +1,18 @@
-{!-- Phoenix Theme - Archive Template --}
+{!-- Phoenix Theme v2 - Archive Template (Joomla-Native) --}
 {ikb_include template="components/header.disyl" /}
+
+{!-- Breadcrumbs Module Position --}
+{joomla_module position="breadcrumbs" style="none" /}
 
 {!-- Archive Header --}
 {ikb_section type="archive-header" class="section-gradient" padding="large"}
     {ikb_container size="large"}
         <div class="text-center">
             {ikb_text size="3xl" weight="bold"}
-                Archive
+                <h1>Archive</h1>
             {/ikb_text}
             {ikb_text size="lg" margin="top"}
-                Browse our content archive
+                <h2>Browse our content archive</h2>
             {/ikb_text}
         </div>
     {/ikb_container}
@@ -18,9 +21,9 @@
 {!-- Archive Content --}
 {ikb_section type="archive-content" padding="xlarge"}
     {ikb_container size="xlarge"}
-        <div class="archive-layout">
-            {!-- Posts --}
-            <div>
+        <div class="content-layout">
+            {!-- Main Content --}
+            <main class="main-content">
                 <div class="post-grid">
                     {ikb_query type="post" limit=12}
                         <article class="post-card reveal">
@@ -57,10 +60,10 @@
                         </article>
                     {/ikb_query}
                 </div>
-            </div>
+            </main>
             
-            {!-- Sidebar --}
-            {ikb_include template="components/sidebar.disyl"}
+            {!-- Sidebar (Joomla Module Positions) --}
+            {ikb_include template="components/sidebar.disyl" /}
         </div>
     {/ikb_container}
 {/ikb_section}
