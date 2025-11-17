@@ -1,4 +1,5 @@
 {!-- Phoenix Theme v2 - Sidebar Component (Joomla-Native) --}
+<!-- DEBUG: Sidebar component loaded -->
 
 {!-- Left Sidebar --}
 {if condition="joomla.module_positions.sidebar_left > 0"}
@@ -8,8 +9,12 @@
 {/if}
 
 {!-- Right Sidebar --}
+<!-- DEBUG: sidebar_right value = {joomla.module_positions.sidebar_right} -->
 {if condition="joomla.module_positions.sidebar_right > 0"}
 <aside class="sidebar sidebar-right">
+    <!-- DEBUG: Sidebar condition TRUE, rendering modules -->
     {joomla_module position="sidebar-right" style="card" /}
 </aside>
+{else}
+<!-- DEBUG: Sidebar condition FALSE, sidebar_right = {joomla.module_positions.sidebar_right} -->
 {/if}

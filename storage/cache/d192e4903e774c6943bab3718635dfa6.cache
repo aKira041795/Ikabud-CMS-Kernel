@@ -1,4 +1,4 @@
-a:6:{s:7:"headers";a:13:{i:0;s:31:"X-Content-Type-Options: nosniff";i:1;s:31:"X-XSS-Protection: 1; mode=block";i:2;s:410:"Content-Security-Policy: default-src 'self' https: http:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https: http: blob:; style-src 'self' 'unsafe-inline' https: http:; img-src 'self' data: https: http:; font-src 'self' data: https: http:; connect-src 'self' https: http: wss: ws:; frame-src 'self' https: http:; frame-ancestors 'self' http://*.phoenix.test https://*.phoenix.test; worker-src 'self' blob:;";i:3;s:60:"Permissions-Policy: geolocation=(), microphone=(), camera=()";i:4;s:114:"Set-Cookie: c3dcb113ba9b9f02a522f7a4de3a81b6=birhhmm7e78ae16rhtq2mkoidm; path=/; secure; HttpOnly; SameSite=Strict";i:5;s:27:"x-frame-options: SAMEORIGIN";i:6;s:48:"referrer-policy: strict-origin-when-cross-origin";i:7;s:39:"cross-origin-opener-policy: same-origin";i:8;s:38:"Content-Type: text/html; charset=utf-8";i:9;s:38:"Expires: Wed, 17 Aug 2005 00:00:00 GMT";i:10;s:44:"Last-Modified: Mon, 17 Nov 2025 04:59:35 GMT";i:11;s:77:"Cache-Control: no-store, no-cache, must-revalidate, post-check=0, pre-check=0";i:12;s:16:"Pragma: no-cache";}s:4:"body";s:17523:"<!DOCTYPE html>
+a:6:{s:7:"headers";a:13:{i:0;s:31:"X-Content-Type-Options: nosniff";i:1;s:31:"X-XSS-Protection: 1; mode=block";i:2;s:410:"Content-Security-Policy: default-src 'self' https: http:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https: http: blob:; style-src 'self' 'unsafe-inline' https: http:; img-src 'self' data: https: http:; font-src 'self' data: https: http:; connect-src 'self' https: http: wss: ws:; frame-src 'self' https: http:; frame-ancestors 'self' http://*.phoenix.test https://*.phoenix.test; worker-src 'self' blob:;";i:3;s:60:"Permissions-Policy: geolocation=(), microphone=(), camera=()";i:4;s:114:"Set-Cookie: c3dcb113ba9b9f02a522f7a4de3a81b6=bl5499cpqvbugo7outdt9bmbuj; path=/; secure; HttpOnly; SameSite=Strict";i:5;s:27:"x-frame-options: SAMEORIGIN";i:6;s:48:"referrer-policy: strict-origin-when-cross-origin";i:7;s:39:"cross-origin-opener-policy: same-origin";i:8;s:38:"Content-Type: text/html; charset=utf-8";i:9;s:38:"Expires: Wed, 17 Aug 2005 00:00:00 GMT";i:10;s:44:"Last-Modified: Mon, 17 Nov 2025 05:02:55 GMT";i:11;s:77:"Cache-Control: no-store, no-cache, must-revalidate, post-check=0, pre-check=0";i:12;s:16:"Pragma: no-cache";}s:4:"body";s:17523:"<!DOCTYPE html>
 <html lang="en-gb" dir="ltr">
 <head>
     <meta charset="utf-8">
@@ -9,7 +9,7 @@ a:6:{s:7:"headers";a:13:{i:0;s:31:"X-Content-Type-Options: nosniff";i:1;s:31:"X-
 	<link href="/?format=feed&amp;type=atom" rel="alternate" type="application/atom+xml" title="Home">
 
     
-    <script type="application/json" class="joomla-script-options new">{"joomla.jtext":{"JSHOWPASSWORD":"Show Password","JHIDEPASSWORD":"Hide Password"},"system.paths":{"root":"","rootFull":"http:\/\/phoenix.test\/","base":"","baseFull":"http:\/\/phoenix.test\/"},"csrf.token":"fb327cf22afde9b2571ce04a28f98542","system.keepalive":{"interval":840000,"uri":"\/component\/ajax\/?format=json"},"plg_system_schedulerunner":{"interval":300}}</script>
+    <script type="application/json" class="joomla-script-options new">{"joomla.jtext":{"JSHOWPASSWORD":"Show Password","JHIDEPASSWORD":"Hide Password"},"system.paths":{"root":"","rootFull":"http:\/\/phoenix.test\/","base":"","baseFull":"http:\/\/phoenix.test\/"},"csrf.token":"4da6ffd54c2ab87109feae0f6c26d413","system.keepalive":{"interval":840000,"uri":"\/component\/ajax\/?format=json"},"plg_system_schedulerunner":{"interval":300}}</script>
 	<script src="/media/system/js/core.min.js?2cb912"></script>
 	<script src="/media/vendor/webcomponentsjs/js/webcomponents-bundle.min.js?2.8.0" nomodule defer></script>
 	<script src="/media/system/js/keepalive.min.js?08e025" type="module"></script>
@@ -360,4 +360,4 @@ a:6:{s:7:"headers";a:13:{i:0;s:31:"X-Content-Type-Options: nosniff";i:1;s:31:"X-
 
 </body>
 </html>
-";s:9:"timestamp";i:1763355575;s:8:"cms_type";s:6:"joomla";s:17:"extensions_loaded";a:0:{}s:15:"extension_count";i:0;}
+";s:9:"timestamp";i:1763355775;s:8:"cms_type";s:6:"joomla";s:17:"extensions_loaded";a:0:{}s:15:"extension_count";i:0;}
