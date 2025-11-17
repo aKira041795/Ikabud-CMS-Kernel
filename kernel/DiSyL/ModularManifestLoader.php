@@ -18,17 +18,32 @@ class ModularManifestLoader
     private static string $currentProfile = 'full';
     private static ?string $cmsType = null;
     private static ?array $cachedComponents = null;
+    private static bool $initialized = false;
     
     /**
      * Initialize with profile and CMS type
      */
     public static function init(string $profile = 'full', ?string $cmsType = null): void
     {
+        // Prevent re-initialization
+        if (self::$initialized) {
+            error_log('[DiSyL] ModularManifestLoader already initialized, skipping');
+            return;
+        }
+        
         self::$currentProfile = $profile;
         self::$cmsType = $cmsType;
         self::loadConfig();
         self::loadProfile($profile);
         self::buildRegistry();
+        self::$initialized = true;
+        
+        error_log(sprintf(
+            '[DiSyL] ModularManifestLoader initialized: profile=%s, cms=%s, manifests=%d',
+            $profile,
+            $cmsType ?? 'none',
+            count(self::$loadedManifests)
+        ));
     }
     
     /**
@@ -160,7 +175,7 @@ class ModularManifestLoader
         $filter = self::getFilter($filterName);
         
         if (!$filter) {
-            error_log('[DiSyL] Unknown filter: ' . $filterName);
+            error_log('[DiSyL] Unknown filter: ' . $filterName . ' (available: ' . implode(', ', array_keys(self::getFilters())) . ')');
             return $value;
         }
         
@@ -168,8 +183,11 @@ class ModularManifestLoader
         $phpCode = $filter['php'] ?? null;
         
         if (!$phpCode) {
+            error_log('[DiSyL] Filter ' . $filterName . ' has no PHP implementation');
             return $value;
         }
+        
+        error_log('[DiSyL] Applying filter: ' . $filterName . ' to value: ' . substr(var_export($value, true), 0, 50));
         
         // Replace placeholders
         $phpCode = str_replace('{value}', '$value', $phpCode);

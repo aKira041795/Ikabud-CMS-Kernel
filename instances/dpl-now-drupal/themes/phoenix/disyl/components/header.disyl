@@ -2,13 +2,25 @@
 
 <header class="site-header sticky-header">
     <div class="header-container">
-        {!-- Site Branding Block --}
+        {!-- Site Branding --}
         <div class="site-branding">
-            {drupal_block id="phoenix_site_branding" /}
+            {if condition="site.logo"}
+                <a href="{site.base_url}" class="site-logo">
+                    {ikb_image src="{site.logo | esc_url}" alt="{site.name | esc_attr}" /}
+                </a>
+            {else}
+                <a href="{site.base_url}" class="site-title-link">
+                    {ikb_text size="2xl" weight="bold" class="site-title"}
+                        {site.name | esc_html}
+                    {/ikb_text}
+                </a>
+            {/if}
+            {if condition="site.slogan"}
+                {ikb_text size="sm" class="site-slogan"}
+                    {site.slogan | esc_html}
+                {/ikb_text}
+            {/if}
         </div>
-        
-        {!-- Header Region (for custom blocks) --}
-        {drupal_region name="header" /}
         
         {!-- Mobile Menu Toggle --}
         <button class="menu-toggle" aria-label="Toggle navigation" aria-expanded="false">
@@ -19,10 +31,5 @@
         <nav class="main-nav" role="navigation" aria-label="Primary navigation">
             {drupal_region name="primary_menu" /}
         </nav>
-        
-        {!-- Search Block --}
-        <div class="header-search">
-            {drupal_block id="phoenix_search_form_narrow" /}
-        </div>
     </div>
 </header>

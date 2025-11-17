@@ -3,8 +3,9 @@ global:
   css:
     theme:
       assets/css/style.css: {}
+      assets/css/disyl-components.css: {}
   js:
-    assets/js/main.js: {}
+    assets/js/phoenix.js: {}
   dependencies:
     - core/drupal
     - core/jquery

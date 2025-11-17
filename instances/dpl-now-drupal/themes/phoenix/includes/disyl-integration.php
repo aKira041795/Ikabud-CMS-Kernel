@@ -48,10 +48,14 @@ function phoenix_render_disyl($template_name, array $context = []) {
     return '';
   }
   
-  // Require all necessary DiSyL files
+  // Require all necessary DiSyL files (order matters!)
   require_once $kernel_path . '/Token.php';
   require_once $kernel_path . '/Lexer.php';
   require_once $kernel_path . '/ParserError.php';
+  require_once $kernel_path . '/Grammar.php';
+  require_once $kernel_path . '/ComponentRegistry.php';
+  require_once $kernel_path . '/ManifestLoader.php';
+  require_once $kernel_path . '/ModularManifestLoader.php';
   require_once $kernel_path . '/Parser.php';
   require_once $kernel_path . '/Compiler.php';
   require_once $kernel_path . '/Renderers/BaseRenderer.php';
@@ -59,6 +63,9 @@ function phoenix_render_disyl($template_name, array $context = []) {
   require_once $kernel_path . '/Engine.php';
   
   try {
+    // Initialize ModularManifestLoader with Drupal profile
+    \IkabudKernel\Core\DiSyL\ModularManifestLoader::init('full', 'drupal');
+    
     // Create DiSyL engine and renderer
     $engine = new \IkabudKernel\Core\DiSyL\Engine();
     $renderer = new \IkabudKernel\Core\DiSyL\Renderers\DrupalRenderer();
@@ -100,12 +107,18 @@ function phoenix_get_drupal_context() {
   $current_user = \Drupal::currentUser();
   $route_match = \Drupal::routeMatch();
   
+  // Get theme logo if configured
+  $theme_config = \Drupal::config('phoenix.settings');
+  $logo_path = theme_get_setting('logo.path', 'phoenix');
+  
   $context = [
     'site' => [
       'name' => $config->get('name'),
       'slogan' => $config->get('slogan'),
       'theme_url' => '/' . $theme_path,
       'base_url' => \Drupal::request()->getSchemeAndHttpHost(),
+      'logo' => $logo_path ? '/' . $logo_path : '',
+      'show_features' => FALSE, // Hide features section by default
     ],
     'user' => [
       'is_logged_in' => $current_user->isAuthenticated(),

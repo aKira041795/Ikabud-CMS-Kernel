@@ -4,128 +4,21 @@
 {!-- Breadcrumb Region --}
 {drupal_region name="breadcrumb" /}
 
-{!-- Slider Section (region or default component) --}
+{!-- Slider Section --}
 {ikb_section type="slider" class="section-gradient" padding="none"}
-    {drupal_region name="slider" /}
-    {!-- Fallback: Default slider component --}
     {ikb_include template="components/slider.disyl" /}
 {/ikb_section}
 
-{!-- Hero Region (primary hero content) --}
-{ikb_section type="hero" class="hero-section" padding="large"}
-    {drupal_region name="hero" /}
-{/ikb_section}
-
-{!-- Highlighted Region --}
-{drupal_region name="highlighted" /}
-
-{!-- Features Section --}
-{ikb_section type="features" id="features" padding="large"}
-    {ikb_container size="xlarge"}
-        <div class="section-header reveal">
-            {ikb_text size="3xl" weight="bold" class="section-title gradient-text"}
-                <h3>Powerful Features</h3>
-            {/ikb_text}
-            {ikb_text size="lg" class="section-subtitle"}
-                <h4>Everything you need to build a stunning website</h4>
-            {/ikb_text}
-        </div>
-        
-        <div class="card-grid">
-            {!-- Feature Card 1 --}
-            <div class="card reveal">
-                <div class="card-icon">
-                    ⚡
-                </div>
-                {ikb_text size="xl" weight="semibold" class="card-title"}
-                    Lightning Fast
-                {/ikb_text}
-                {ikb_text class="card-text"}
-                    Optimized for performance with DiSyL's efficient rendering engine. Pages load in milliseconds.
-                {/ikb_text}
-            </div>
-            
-            {!-- Feature Card 2 --}
-            <div class="card reveal">
-                <div class="card-icon">
-                    🎨
-                </div>
-                {ikb_text size="xl" weight="semibold" class="card-title"}
-                    Beautiful Design
-                {/ikb_text}
-                {ikb_text class="card-text"}
-                    Modern gradients, smooth animations, and a clean interface that captivates your visitors.
-                {/ikb_text}
-            </div>
-            
-            {!-- Feature Card 3 --}
-            <div class="card reveal">
-                <div class="card-icon">
-                    📱
-                </div>
-                {ikb_text size="xl" weight="semibold" class="card-title"}
-                    Fully Responsive
-                {/ikb_text}
-                {ikb_text class="card-text"}
-                    Looks perfect on all devices - from mobile phones to large desktop screens.
-                {/ikb_text}
-            </div>
-            
-            {!-- Feature Card 4 --}
-            <div class="card reveal">
-                <div class="card-icon">
-                    🔒
-                </div>
-                {ikb_text size="xl" weight="semibold" class="card-title"}
-                    Secure & Safe
-                {/ikb_text}
-                {ikb_text class="card-text"}
-                    Built with security best practices. XSS prevention, sanitization, and Drupal standards.
-                {/ikb_text}
-            </div>
-            
-            {!-- Feature Card 5 --}
-            <div class="card reveal">
-                <div class="card-icon">
-                    🎯
-                </div>
-                {ikb_text size="xl" weight="semibold" class="card-title"}
-                    SEO Optimized
-                {/ikb_text}
-                {ikb_text class="card-text"}
-                    Clean semantic HTML, fast loading times, and proper meta tags for better search rankings.
-                {/ikb_text}
-            </div>
-            
-            {!-- Feature Card 6 --}
-            <div class="card reveal">
-                <div class="card-icon">
-                    🧩
-                </div>
-                {ikb_text size="xl" weight="semibold" class="card-title"}
-                    Widget Ready
-                {/ikb_text}
-                {ikb_text class="card-text"}
-                    Multiple block regions for sidebars, footers, and homepage sections. Fully customizable.
-                {/ikb_text}
-            </div>
-        </div>
-    {/ikb_container}
-{/ikb_section}
-
-{!-- Content Bottom Region --}
-{drupal_region name="content_bottom" /}
-
 {!-- Latest Blog Posts --}
-{ikb_section type="blog" id="blog" padding="xlarge" class="blog-section"}
-    {ikb_container size="xlarge"}
+<section class="ikb-section ikb-section-blog padding-xlarge blog-section" id="blog">
+    <div class="ikb-container ikb-container-xlarge">
         <div class="section-header reveal">
-            {ikb_text size="3xl" weight="bold" class="section-title gradient-text" align="center"}
+            <div class="ikb-text ikb-text-3xl font-bold text-center section-title gradient-text">
                 <h2>Latest Articles</h2>
-            {/ikb_text}
-            {ikb_text size="lg" class="section-subtitle" align="center"}
+            </div>
+            <div class="ikb-text ikb-text-lg text-center section-subtitle">
                 <h4>Insights, tutorials, and updates from our blog</h4>
-            {/ikb_text}
+            </div>
         </div>
         
         <div class="post-grid">
@@ -133,12 +26,7 @@
                 <article class="post-card reveal">
                     {if condition="item.thumbnail"}
                         <a href="{item.url | esc_url}">
-                            {ikb_image 
-                                src="{item.thumbnail | esc_url}"
-                                alt="{item.title | esc_attr}"
-                                class="post-thumbnail"
-                                lazy=true
-                            /}
+                            <img src="{item.thumbnail | esc_url}" alt="{item.title | esc_attr}" class="ikb-image post-thumbnail" loading="lazy" />
                         </a>
                     {/if}
                     
@@ -149,13 +37,13 @@
                             <span class="post-author">{item.author | esc_html}</span>
                         </div>
                         
-                        {ikb_text size="xl" weight="semibold" class="post-title"}
+                        <div class="ikb-text ikb-text-xl font-semibold post-title">
                             <a href="{item.url | esc_url}">{item.title | esc_html}</a>
-                        {/ikb_text}
+                        </div>
                         
-                        {ikb_text class="post-excerpt"}
+                        <div class="ikb-text post-excerpt">
                             {item.excerpt | strip_tags | truncate:length=150,append="..."}
-                        {/ikb_text}
+                        </div>
                         
                         <a href="{item.url | esc_url}" class="read-more">
                             Read More →
@@ -166,10 +54,10 @@
         </div>
         
         <div class="text-center mt-large">
-            <a href="{site.base_url}/blog" class="btn btn-primary">View All Posts</a>
+            <p class="ikb-text">No articles found. <a href="{site.base_url}/node/add/article">Create your first article</a> to get started!</p>
         </div>
-    {/ikb_container}
-{/ikb_section}
+    </div>
+</section>
 
 {!-- Call to Action Section --}
 {ikb_section type="cta" class="section-gradient" padding="xlarge"}

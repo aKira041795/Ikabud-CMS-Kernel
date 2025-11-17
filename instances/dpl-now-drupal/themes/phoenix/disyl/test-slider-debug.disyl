@@ -1,0 +1,17 @@
+{!-- Debug Template for Slider Images --}
+<div class="debug-output" style="background: #f0f0f0; padding: 20px; margin: 20px; border: 2px solid #333;">
+    <h2>Slider Image Debug</h2>
+    
+    <p><strong>site.theme_url value:</strong> {site.theme_url}</p>
+    <p><strong>site.theme_url with esc_url:</strong> {site.theme_url | esc_url}</p>
+    <p><strong>Full path (no filter):</strong> {site.theme_url}/assets/images/slide-1.png</p>
+    <p><strong>Full path (with filter):</strong> {site.theme_url | esc_url}/assets/images/slide-1.png</p>
+    
+    <h3>Test Image 1 (no filter):</h3>
+    <img src="{site.theme_url}/assets/images/slide-1.png" alt="Test 1" style="max-width: 200px; border: 2px solid red;">
+    
+    <h3>Test Image 2 (with esc_url):</h3>
+    <img src="{site.theme_url | esc_url}/assets/images/slide-1.png" alt="Test 2" style="max-width: 200px; border: 2px solid green;">
+    
+    <h3>View Page Source to see actual HTML output</h3>
+</div>

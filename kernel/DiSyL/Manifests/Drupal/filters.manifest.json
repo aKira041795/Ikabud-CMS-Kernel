@@ -1,54 +1,98 @@
 {
+  "$schema": "../schemas/filters.schema.json",
+  "version": "0.2.0",
+  "type": "filters",
+  "description": "Drupal-specific DiSyL expression filters",
+  
   "filters": {
     "esc_html": {
-      "description": "Escape HTML entities for safe output",
+      "description": "Escape HTML entities for safe output using Drupal's Html::escape()",
+      "category": "security",
       "parameters": ["value"],
-      "returns": "string"
+      "returns": "string",
+      "php": "\\Drupal\\Component\\Utility\\Html::escape({value})"
     },
     "esc_url": {
-      "description": "Sanitize URL for safe output",
+      "description": "Sanitize URL for safe output (passthrough for valid URLs)",
+      "category": "security",
       "parameters": ["value"],
-      "returns": "string"
+      "returns": "string",
+      "php": "{value}"
     },
     "esc_attr": {
-      "description": "Escape HTML attribute value",
+      "description": "Escape HTML attribute value using Drupal's Html::escape()",
+      "category": "security",
       "parameters": ["value"],
-      "returns": "string"
+      "returns": "string",
+      "php": "\\Drupal\\Component\\Utility\\Html::escape({value})"
     },
     "date": {
-      "description": "Format timestamp as date",
+      "description": "Format timestamp as date using Drupal's date formatter",
+      "category": "date",
       "parameters": ["value", "format"],
-      "returns": "string"
+      "returns": "string",
+      "php": "is_numeric({value}) ? (strpos('{format}', ' ') !== false || strlen('{format}') > 10 ? date('{format}', {value}) : \\Drupal::service('date.formatter')->format({value}, '{format}')) : {value}",
+      "params": {
+        "format": {
+          "type": "string",
+          "default": "medium",
+          "description": "Drupal date format type or PHP date format string"
+        }
+      }
     },
     "truncate": {
       "description": "Truncate text to specified length",
+      "category": "string",
       "parameters": ["value", "length", "append"],
-      "returns": "string"
+      "returns": "string",
+      "php": "mb_strlen({value}) > {length} ? mb_substr({value}, 0, {length}) . '{append}' : {value}",
+      "params": {
+        "length": {
+          "type": "integer",
+          "default": 100,
+          "description": "Maximum string length"
+        },
+        "append": {
+          "type": "string",
+          "default": "...",
+          "description": "String to append when truncated"
+        }
+      }
     },
     "strip_tags": {
       "description": "Remove HTML tags from string",
+      "category": "string",
       "parameters": ["value"],
-      "returns": "string"
+      "returns": "string",
+      "php": "strip_tags({value})"
     },
     "t": {
-      "description": "Translate string",
+      "description": "Translate string using Drupal's t() function",
+      "category": "i18n",
       "parameters": ["value"],
-      "returns": "string"
+      "returns": "string",
+      "php": "t({value})"
     },
     "upper": {
       "description": "Convert string to uppercase",
+      "category": "string",
       "parameters": ["value"],
-      "returns": "string"
+      "returns": "string",
+      "php": "strtoupper({value})"
     },
     "lower": {
       "description": "Convert string to lowercase",
+      "category": "string",
       "parameters": ["value"],
-      "returns": "string"
+      "returns": "string",
+      "php": "strtolower({value})"
     },
     "capitalize": {
-      "description": "Capitalize first letter",
+      "description": "Capitalize first letter of each word",
+      "category": "string",
       "parameters": ["value"],
-      "returns": "string"
+      "returns": "string",
+      "php": "ucwords({value})"
     }
   }
 }
