@@ -622,10 +622,21 @@ img {
 
 .post-meta {
     display: flex;
-    gap: var(--space-md);
+    align-items: center;
+    gap: var(--space-sm);
     margin-bottom: var(--space-sm);
     font-size: 0.875rem;
     color: var(--color-text-light);
+}
+
+.post-date,
+.post-author {
+    color: var(--color-text-light);
+}
+
+.post-meta .separator {
+    color: var(--color-text-light);
+    opacity: 0.5;
 }
 
 .post-title {
