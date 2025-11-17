@@ -7,7 +7,9 @@
 </aside>
 {/if}
 
-{!-- Right Sidebar - Always show for testing --}
+{!-- Right Sidebar --}
+{if condition="joomla.module_positions.sidebar_right > 0"}
 <aside class="sidebar sidebar-right">
     {joomla_module position="sidebar-right" style="card" /}
 </aside>
+{/if}
