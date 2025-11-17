@@ -121,7 +121,7 @@
 {ikb_section type="related-posts" class="section-gradient" padding="xlarge"}
     {ikb_container size="xlarge"}
         <div class="section-header">
-            {ikb_text size="2xl" weight="bold" align="center" margin="bottom-large"}
+            {ikb_text size="3xl" weight="bold" align="center" margin="bottom-large"}
                 Related Posts
             {/ikb_text}
         </div>

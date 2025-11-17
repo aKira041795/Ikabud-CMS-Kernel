@@ -1,4 +1,4 @@
-a:6:{s:7:"headers";a:7:{i:0;s:27:"X-Frame-Options: SAMEORIGIN";i:1;s:31:"X-Content-Type-Options: nosniff";i:2;s:31:"X-XSS-Protection: 1; mode=block";i:3;s:410:"Content-Security-Policy: default-src 'self' https: http:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https: http: blob:; style-src 'self' 'unsafe-inline' https: http:; img-src 'self' data: https: http:; font-src 'self' data: https: http:; connect-src 'self' https: http: wss: ws:; frame-src 'self' https: http:; frame-ancestors 'self' http://*.phoenix.test https://*.phoenix.test; worker-src 'self' blob:;";i:4;s:48:"Referrer-Policy: strict-origin-when-cross-origin";i:5;s:60:"Permissions-Policy: geolocation=(), microphone=(), camera=()";i:6;s:36:"Content-type: text/css;charset=UTF-8";}s:4:"body";s:38853:"/*
+a:6:{s:7:"headers";a:7:{i:0;s:27:"X-Frame-Options: SAMEORIGIN";i:1;s:31:"X-Content-Type-Options: nosniff";i:2;s:31:"X-XSS-Protection: 1; mode=block";i:3;s:410:"Content-Security-Policy: default-src 'self' https: http:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https: http: blob:; style-src 'self' 'unsafe-inline' https: http:; img-src 'self' data: https: http:; font-src 'self' data: https: http:; connect-src 'self' https: http: wss: ws:; frame-src 'self' https: http:; frame-ancestors 'self' http://*.phoenix.test https://*.phoenix.test; worker-src 'self' blob:;";i:4;s:48:"Referrer-Policy: strict-origin-when-cross-origin";i:5;s:60:"Permissions-Policy: geolocation=(), microphone=(), camera=()";i:6;s:36:"Content-type: text/css;charset=UTF-8";}s:4:"body";s:40011:"/*
 Theme Name: Phoenix
 Theme URI: https://ikabud.com/themes/phoenix
 Description: A stunning, modern DiSyL theme with advanced features, beautiful gradients, smooth animations, and comprehensive widget support. Built for WordPress with DiSyL v0.5.0.
@@ -1850,4 +1850,74 @@ section[data-type="slider"] {
 .back-to-top:hover {
     transform: translateY(-4px);
 }
-";s:9:"timestamp";i:1763361012;s:8:"cms_type";s:6:"joomla";s:17:"extensions_loaded";a:0:{}s:15:"extension_count";i:0;}
+
+/* ============================================
+   UTILITY CLASSES
+   ============================================ */
+
+/* Text Size Utilities */
+.text-xs {
+    font-size: 0.75rem;      /* 12px */
+    line-height: 1rem;
+}
+
+.text-sm {
+    font-size: 0.875rem;     /* 14px */
+    line-height: 1.25rem;
+}
+
+.text-base {
+    font-size: 1rem;         /* 16px */
+    line-height: 1.5rem;
+}
+
+.text-lg {
+    font-size: 1.125rem;     /* 18px */
+    line-height: 1.75rem;
+}
+
+.text-xl {
+    font-size: 1.25rem;      /* 20px */
+    line-height: 1.75rem;
+}
+
+.text-2xl {
+    font-size: 1.5rem;       /* 24px */
+    line-height: 2rem;
+}
+
+.text-3xl {
+    font-size: 1.875rem;     /* 30px */
+    line-height: 2.25rem;
+}
+
+.text-4xl {
+    font-size: 2.25rem;      /* 36px */
+    line-height: 2.5rem;
+}
+
+.text-5xl {
+    font-size: 3rem;         /* 48px */
+    line-height: 1;
+}
+
+.text-6xl {
+    font-size: 3.75rem;      /* 60px */
+    line-height: 1;
+}
+
+.text-7xl {
+    font-size: 4.5rem;       /* 72px */
+    line-height: 1;
+}
+
+.text-8xl {
+    font-size: 6rem;         /* 96px */
+    line-height: 1;
+}
+
+.text-9xl {
+    font-size: 8rem;         /* 128px */
+    line-height: 1;
+}
+";s:9:"timestamp";i:1763361226;s:8:"cms_type";s:6:"joomla";s:17:"extensions_loaded";a:0:{}s:15:"extension_count";i:0;}
