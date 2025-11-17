@@ -213,8 +213,18 @@ class PhoenixDisylIntegration
         
         $menuData = [];
         foreach ($items as $item) {
-            // Use the proper menu item route
-            $url = $item->type === 'url' ? $item->link : Route::_('index.php?Itemid=' . $item->id);
+            // Generate proper URL based on menu item type
+            if ($item->type === 'url') {
+                // External URL - use as-is
+                $url = $item->link;
+            } elseif ($item->type === 'alias') {
+                // Menu alias - get the aliased item
+                $aliasItem = $menu->getItem($item->params->get('aliasoptions'));
+                $url = $aliasItem ? Route::_($aliasItem->link . '&Itemid=' . $aliasItem->id) : '#';
+            } else {
+                // Component link - use full link with Itemid for proper SEF routing
+                $url = Route::_($item->link . '&Itemid=' . $item->id);
+            }
             
             $menuData[] = [
                 'id' => $item->id,
