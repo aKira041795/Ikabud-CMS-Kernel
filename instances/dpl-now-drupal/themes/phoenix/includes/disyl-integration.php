@@ -115,8 +115,8 @@ function phoenix_get_drupal_context() {
   $logo_path = theme_get_setting('logo.path', 'phoenix');
   
   // Check if sidebar regions have content
-  $has_sidebar_first = phoenix_has_region_content('sidebar_first');
-  $has_sidebar_second = phoenix_has_region_content('sidebar_second');
+  $has_sidebar_first = phoenix_region_has_content('sidebar_first');
+  $has_sidebar_second = phoenix_region_has_content('sidebar_second');
   
   $context = [
     'site' => [
