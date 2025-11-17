@@ -616,20 +616,53 @@ class JoomlaRenderer extends BaseRenderer
             $url = '';
             
             if ($view === 'article' && $id) {
-                $url = ContentHelperRoute::getArticleRoute($id, $catid);
+                // Check if article has a menu item before attempting SEF routing
+                $menu = \Joomla\CMS\Factory::getApplication()->getMenu();
+                $needles = [
+                    'article' => [(int) $id],
+                    'category' => $catid ? [(int) $catid] : [],
+                ];
+                
+                // Try to find menu item for this article
+                $menuItem = $menu->getItems('link', 'index.php?option=com_content&view=article&id=' . $id, true);
+                
+                if ($menuItem) {
+                    // Has menu item - use SEF routing
+                    $url = ContentHelperRoute::getArticleRoute($id, $catid);
+                    return htmlspecialchars_decode(Route::_($url));
+                } else {
+                    // No menu item - use direct URL with article ID
+                    return '/?option=com_content&view=article&id=' . $id . ($catid ? '&catid=' . $catid : '');
+                }
             } elseif ($view === 'category' && $catid) {
-                $url = ContentHelperRoute::getCategoryRoute($catid);
+                // Check if category has a menu item
+                $menu = \Joomla\CMS\Factory::getApplication()->getMenu();
+                $menuItem = $menu->getItems('link', 'index.php?option=com_content&view=category&id=' . $catid, true);
+                
+                if ($menuItem) {
+                    // Has menu item - use SEF routing
+                    $url = ContentHelperRoute::getCategoryRoute($catid);
+                    return htmlspecialchars_decode(Route::_($url));
+                } else {
+                    // No menu item - use direct URL
+                    return '/?option=com_content&view=category&id=' . $catid;
+                }
             } else {
                 // Generic route
                 $url = $attrs['url'] ?? '';
-            }
-            
-            if (!empty($url)) {
-                return htmlspecialchars_decode(Route::_($url));
+                if (!empty($url)) {
+                    return htmlspecialchars_decode(Route::_($url));
+                }
             }
             
             return '';
         } catch (\Exception $e) {
+            // Fallback to direct URL on any error
+            if ($view === 'article' && $id) {
+                return '/?option=com_content&view=article&id=' . $id;
+            } elseif ($view === 'category' && $catid) {
+                return '/?option=com_content&view=category&id=' . $catid;
+            }
             return '<!-- joomla_route error: ' . htmlspecialchars($e->getMessage()) . ' -->';
         }
     }

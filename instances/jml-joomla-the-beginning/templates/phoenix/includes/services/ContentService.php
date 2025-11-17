@@ -94,46 +94,42 @@ class PhoenixContentService
     {
         $images = json_decode($article->images ?? '{}');
         
-        // Generate article URL safely (suppress warnings from Joomla router)
+        // Generate article URL - check for menu item first to avoid warnings
         $articleUrl = '#';
         if (!empty($article->id)) {
-            // Temporarily disable error reporting to suppress Joomla router warnings
-            $errorReporting = error_reporting();
-            error_reporting(0);
+            $menu = $this->app->getMenu();
+            $menuItem = $menu->getItems('link', 'index.php?option=com_content&view=article&id=' . $article->id, true);
             
-            try {
-                $articleUrl = Route::_(ContentHelperRoute::getArticleRoute($article->id, $article->catid ?? 0));
-                if (empty($articleUrl)) {
+            if ($menuItem) {
+                // Has menu item - safe to use SEF routing
+                try {
+                    $articleUrl = Route::_(ContentHelperRoute::getArticleRoute($article->id, $article->catid ?? 0));
+                } catch (\Exception $e) {
                     $articleUrl = '/?option=com_content&view=article&id=' . $article->id;
                 }
-            } catch (\Exception $e) {
-                // Article route failed, use fallback with Itemid
+            } else {
+                // No menu item - use direct URL to avoid routing warnings
                 $articleUrl = '/?option=com_content&view=article&id=' . $article->id;
             }
-            
-            // Restore error reporting
-            error_reporting($errorReporting);
         }
         
-        // Generate category URL safely (suppress warnings from Joomla router)
+        // Generate category URL - check for menu item first to avoid warnings
         $categoryUrl = '#';
         if (!empty($article->catid) && $article->catid > 0) {
-            // Temporarily disable error reporting to suppress Joomla router warnings
-            $errorReporting = error_reporting();
-            error_reporting(0);
+            $menu = $this->app->getMenu();
+            $menuItem = $menu->getItems('link', 'index.php?option=com_content&view=category&id=' . $article->catid, true);
             
-            try {
-                $categoryUrl = Route::_(ContentHelperRoute::getCategoryRoute($article->catid));
-                if (empty($categoryUrl)) {
+            if ($menuItem) {
+                // Has menu item - safe to use SEF routing
+                try {
+                    $categoryUrl = Route::_(ContentHelperRoute::getCategoryRoute($article->catid));
+                } catch (\Exception $e) {
                     $categoryUrl = '#';
                 }
-            } catch (\Exception $e) {
-                // Category route failed, use fallback
-                $categoryUrl = '#';
+            } else {
+                // No menu item - use direct URL to avoid routing warnings
+                $categoryUrl = '/?option=com_content&view=category&id=' . $article->catid;
             }
-            
-            // Restore error reporting
-            error_reporting($errorReporting);
         }
         
         return [
