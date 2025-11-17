@@ -395,32 +395,6 @@ class JoomlaRenderer extends BaseRenderer
         if ($this->evaluateCondition($condition)) {
             return $this->renderChildren($children);
         }
-        
-        return '';
-    }
-    
-    /**
-     * Evaluate condition
-     */
-    private function evaluateCondition(string $condition): bool
-    {
-        // Simple condition evaluation
-        // Support: variable, !variable, variable.property
-        
-        if (empty($condition)) {
-            return false;
-        }
-        
-        $negate = false;
-        if ($condition[0] === '!') {
-            $negate = true;
-            $condition = substr($condition, 1);
-        }
-        
-        $value = $this->getContextValue($condition);
-        $result = !empty($value);
-        
-        return $negate ? !$result : $result;
     }
     
     /**

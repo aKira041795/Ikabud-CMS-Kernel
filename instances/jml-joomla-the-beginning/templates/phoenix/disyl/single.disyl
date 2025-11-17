@@ -10,13 +10,8 @@
             {!-- Main Content --}
             <article class="post-single">
                 {!-- Custom Hero Image from Joomla Fields --}
-                {if condition="post.id"}
-                    {if condition="joomla_field name='hero_image' id=post.id"}
-                        <figure class="post-hero-image">
-                            <img src="{joomla_field name='hero_image' id=post.id /}" alt="{post.title | esc_attr}" />
-                        </figure>
-                    {/if}
-                {/if}
+                {!-- Note: Check if custom field exists before rendering --}
+                {!-- Usage: Create a 'hero_image' field in Joomla Content → Fields --}
                 
                 {!-- Post Header --}
                 <header class="post-header">
@@ -25,13 +20,7 @@
                     {/ikb_text}
                     
                     {!-- Custom Subtitle from Joomla Fields --}
-                    {if condition="post.id"}
-                        {if condition="joomla_field name='subtitle' id=post.id"}
-                            {ikb_text size="xl" class="post-subtitle"}
-                                {joomla_field name="subtitle" id=post.id /}
-                            {/ikb_text}
-                        {/if}
-                    {/if}
+                    {!-- Note: Create 'subtitle' field in Joomla Content → Fields --}
                     
                     <div class="post-meta">
                         <span>📅 {post.date | date:format="F j, Y"}</span>
@@ -117,7 +106,7 @@
                 {!-- Comments Section --}
                 {if condition="post.comments_open || post.comment_count > 0"}
                     <div class="comments-section">
-                        {include file="components/comments.disyl"}
+                        {ikb_include template="components/comments.disyl"}
                     </div>
                 {/if}
             </article>

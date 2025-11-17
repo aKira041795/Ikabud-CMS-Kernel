@@ -88,7 +88,7 @@
             </div>
             
             {!-- Sidebar --}
-            {include file="components/sidebar.disyl"}
+            {ikb_include template="components/sidebar.disyl"}
         </div>
     {/ikb_container}
 {/ikb_section}
