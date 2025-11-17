@@ -288,6 +288,29 @@
 					<option value="xhtml">TPL_PHOENIX_CHROME_XHTML</option>
 				</field>
 			</fieldset>
+			
+			<fieldset name="sidebar" label="TPL_PHOENIX_SIDEBAR_SETTINGS">
+				<!-- Sidebar About Widget -->
+				<field
+					name="sidebarAboutTitle"
+					type="text"
+					default="About Phoenix"
+					label="TPL_PHOENIX_SIDEBAR_ABOUT_TITLE"
+					description="Title for the sidebar about widget"
+					filter="string"
+				/>
+				
+				<field
+					name="sidebarAboutContent"
+					type="textarea"
+					default="A modern, DiSyL-powered Joomla template with clean design and powerful features."
+					label="TPL_PHOENIX_SIDEBAR_ABOUT_CONTENT"
+					description="Content for the sidebar about widget"
+					rows="5"
+					cols="40"
+					filter="raw"
+				/>
+			</fieldset>
 		</fields>
 	</config>
 </extension>

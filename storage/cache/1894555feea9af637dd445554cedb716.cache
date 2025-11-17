@@ -1,4 +1,4 @@
-a:6:{s:7:"headers";a:13:{i:0;s:31:"X-Content-Type-Options: nosniff";i:1;s:31:"X-XSS-Protection: 1; mode=block";i:2;s:410:"Content-Security-Policy: default-src 'self' https: http:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https: http: blob:; style-src 'self' 'unsafe-inline' https: http:; img-src 'self' data: https: http:; font-src 'self' data: https: http:; connect-src 'self' https: http: wss: ws:; frame-src 'self' https: http:; frame-ancestors 'self' http://*.phoenix.test https://*.phoenix.test; worker-src 'self' blob:;";i:3;s:60:"Permissions-Policy: geolocation=(), microphone=(), camera=()";i:4;s:114:"Set-Cookie: c3dcb113ba9b9f02a522f7a4de3a81b6=ifs58c0p7dg66v2qdg1en6061e; path=/; secure; HttpOnly; SameSite=Strict";i:5;s:27:"x-frame-options: SAMEORIGIN";i:6;s:48:"referrer-policy: strict-origin-when-cross-origin";i:7;s:39:"cross-origin-opener-policy: same-origin";i:8;s:38:"Content-Type: text/html; charset=utf-8";i:9;s:38:"Expires: Wed, 17 Aug 2005 00:00:00 GMT";i:10;s:44:"Last-Modified: Mon, 17 Nov 2025 05:39:09 GMT";i:11;s:77:"Cache-Control: no-store, no-cache, must-revalidate, post-check=0, pre-check=0";i:12;s:16:"Pragma: no-cache";}s:4:"body";s:20062:"<!DOCTYPE html>
+a:6:{s:7:"headers";a:13:{i:0;s:31:"X-Content-Type-Options: nosniff";i:1;s:31:"X-XSS-Protection: 1; mode=block";i:2;s:410:"Content-Security-Policy: default-src 'self' https: http:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https: http: blob:; style-src 'self' 'unsafe-inline' https: http:; img-src 'self' data: https: http:; font-src 'self' data: https: http:; connect-src 'self' https: http: wss: ws:; frame-src 'self' https: http:; frame-ancestors 'self' http://*.phoenix.test https://*.phoenix.test; worker-src 'self' blob:;";i:3;s:60:"Permissions-Policy: geolocation=(), microphone=(), camera=()";i:4;s:114:"Set-Cookie: c3dcb113ba9b9f02a522f7a4de3a81b6=949rdc6u6bh385inpfbsv0kvip; path=/; secure; HttpOnly; SameSite=Strict";i:5;s:27:"x-frame-options: SAMEORIGIN";i:6;s:48:"referrer-policy: strict-origin-when-cross-origin";i:7;s:39:"cross-origin-opener-policy: same-origin";i:8;s:38:"Content-Type: text/html; charset=utf-8";i:9;s:38:"Expires: Wed, 17 Aug 2005 00:00:00 GMT";i:10;s:44:"Last-Modified: Mon, 17 Nov 2025 05:44:40 GMT";i:11;s:77:"Cache-Control: no-store, no-cache, must-revalidate, post-check=0, pre-check=0";i:12;s:16:"Pragma: no-cache";}s:4:"body";s:17247:"<!DOCTYPE html>
 <html lang="en-gb" dir="ltr">
 <head>
     <meta charset="utf-8">
@@ -9,7 +9,7 @@ a:6:{s:7:"headers";a:13:{i:0;s:31:"X-Content-Type-Options: nosniff";i:1;s:31:"X-
 	<title>Getting Started with DiSyL</title>
 
     
-    <script type="application/json" class="joomla-script-options new">{"system.paths":{"root":"","rootFull":"http:\/\/phoenix.test\/","base":"","baseFull":"http:\/\/phoenix.test\/"},"csrf.token":"2cbfca59ca36e6e965cab8e987ec3fbf","plg_system_schedulerunner":{"interval":300}}</script>
+    <script type="application/json" class="joomla-script-options new">{"system.paths":{"root":"","rootFull":"http:\/\/phoenix.test\/","base":"","baseFull":"http:\/\/phoenix.test\/"},"csrf.token":"9686b87b4bcc2e67b24327b9a5c964ae","plg_system_schedulerunner":{"interval":300}}</script>
 	<script src="/media/system/js/core.min.js?2cb912"></script>
 	<script src="/media/vendor/webcomponentsjs/js/webcomponents-bundle.min.js?2.8.0" nomodule defer></script>
 	<script src="/media/system/js/joomla-hidden-mail.min.js?80d9c7" type="module"></script>
@@ -206,55 +206,17 @@ echo $html;</code></pre>
 <aside class="sidebar sidebar-right">
     
 <div id="mod-custom111" class="mod-custom custom">
-    <div class="sidebar-widget about-widget">
-        <h3 style="font-size: 1.5rem; font-weight: 700; margin-bottom: 1rem; color: #1a1a2e;">About Us</h3>
-        <p style="color: #718096; line-height: 1.6;">Phoenix is a modern, feature-rich Joomla template powered by DiSyL rendering engine. Built for performance and flexibility.</p>
-        <a href="/about" style="color: #667eea; text-decoration: none; font-weight: 600;">Learn More →</a>
-    </div></div>
-
-<div id="mod-custom112" class="mod-custom custom">
-    <div class="sidebar-widget recent-posts-widget">
-        <h3 style="font-size: 1.5rem; font-weight: 700; margin-bottom: 1rem; color: #1a1a2e;">Recent Posts</h3>
-        <ul style="list-style: none; padding: 0; margin: 0;">
-            <li style="padding: 0.75rem 0; border-bottom: 1px solid #e2e8f0;">
-                <a href="#" style="color: #2d3748; text-decoration: none; font-weight: 500;">Getting Started with Phoenix</a>
-                <span style="display: block; font-size: 0.875rem; color: #718096; margin-top: 0.25rem;">Nov 15, 2025</span>
-            </li>
-            <li style="padding: 0.75rem 0; border-bottom: 1px solid #e2e8f0;">
-                <a href="#" style="color: #2d3748; text-decoration: none; font-weight: 500;">DiSyL Template System</a>
-                <span style="display: block; font-size: 0.875rem; color: #718096; margin-top: 0.25rem;">Nov 14, 2025</span>
-            </li>
-            <li style="padding: 0.75rem 0;">
-                <a href="#" style="color: #2d3748; text-decoration: none; font-weight: 500;">Modern Web Design Tips</a>
-                <span style="display: block; font-size: 0.875rem; color: #718096; margin-top: 0.25rem;">Nov 13, 2025</span>
-            </li>
-        </ul>
-    </div></div>
-
-<div id="mod-custom113" class="mod-custom custom">
-    <div class="sidebar-widget categories-widget">
-        <h3 style="font-size: 1.5rem; font-weight: 700; margin-bottom: 1rem; color: #1a1a2e;">Categories</h3>
-        <ul style="list-style: none; padding: 0; margin: 0;">
-            <li style="padding: 0.5rem 0;">
-                <a href="#" style="color: #667eea; text-decoration: none; display: flex; justify-content: space-between;">
-                    <span>Tutorials</span>
-                    <span style="background: #f0f4ff; color: #667eea; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.875rem;">12</span>
-                </a>
-            </li>
-            <li style="padding: 0.5rem 0;">
-                <a href="#" style="color: #667eea; text-decoration: none; display: flex; justify-content: space-between;">
-                    <span>News</span>
-                    <span style="background: #f0f4ff; color: #667eea; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.875rem;">8</span>
-                </a>
-            </li>
-            <li style="padding: 0.5rem 0;">
-                <a href="#" style="color: #667eea; text-decoration: none; display: flex; justify-content: space-between;">
-                    <span>Updates</span>
-                    <span style="background: #f0f4ff; color: #667eea; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.875rem;">5</span>
-                </a>
-            </li>
-        </ul>
-    </div></div>
+    <?php
+$app = JFactory::getApplication();
+$template = $app->getTemplate(true);
+$params = $template->params;
+$title = $params->get("sidebarAboutTitle", "About Phoenix");
+$content = $params->get("sidebarAboutContent", "A modern, DiSyL-powered Joomla template.");
+?>
+<div class="sidebar-widget about-widget">
+    <h3><?php echo htmlspecialchars($title); ?></h3>
+    <p><?php echo nl2br(htmlspecialchars($content)); ?></p>
+</div></div>
 
 </aside>
 
@@ -418,4 +380,4 @@ echo $html;</code></pre>
 
 </body>
 </html>
-";s:9:"timestamp";i:1763357949;s:8:"cms_type";s:6:"joomla";s:17:"extensions_loaded";a:0:{}s:15:"extension_count";i:0;}
+";s:9:"timestamp";i:1763358280;s:8:"cms_type";s:6:"joomla";s:17:"extensions_loaded";a:0:{}s:15:"extension_count";i:0;}
