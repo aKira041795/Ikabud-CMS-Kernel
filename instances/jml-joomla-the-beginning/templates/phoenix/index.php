@@ -177,12 +177,6 @@ try {
 <!-- DEBUG: DiSyL Rendered = <?php echo $disylRendered ? 'YES' : 'NO'; ?> -->
 <!-- DEBUG: Content Length = <?php echo strlen($disylContent); ?> bytes -->
 
-<?php 
-// Output debug info if any
-if ($debugInfo) {
-    echo $debugInfo;
-}
-?>
 
 <?php if ($disylRendered): ?>
     <!-- DiSyL Rendered Content START -->

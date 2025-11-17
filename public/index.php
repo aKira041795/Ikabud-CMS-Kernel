@@ -353,7 +353,11 @@ $app->any('[/{path:.*}]', function (Request $request, Response $response, array 
                     Kernel::initCMSIntegrations('wordpress');
                 } elseif ($cmsType === 'joomla') {
                     define('_JEXEC', 1);
-                    require_once $instanceDir . '/includes/defines.php';
+                    // Load instance-specific defines first (sets JPATH_BASE, etc.)
+                    if (file_exists($instanceDir . '/defines.php')) {
+                        require_once $instanceDir . '/defines.php';
+                    }
+                    // Then load framework from shared core
                     require_once $instanceDir . '/includes/framework.php';
                     Kernel::initCMSIntegrations('joomla');
                 } elseif ($cmsType === 'drupal') {

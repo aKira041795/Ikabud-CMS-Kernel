@@ -61,3 +61,32 @@ RewriteBase /
 
 # CMS-specific rewrite rules will be added here by InstanceBootstrapper
 # WordPress, Joomla, Drupal each have their own rules
+
+##
+# Joomla SEF URL Rewrite Rules
+##
+<IfModule mod_rewrite.c>
+RewriteEngine On
+
+# Redirect to https (optional, comment out if not using SSL)
+# RewriteCond %{HTTPS} off
+# RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
+# Block access to specific directories
+RewriteRule ^administrator/components/com_joomlaupdate/restore\.php$ - [L]
+RewriteRule ^administrator/components/com_admintools/restore\.php$ - [L]
+RewriteRule ^(\.git|cache|includes|language|logs|log|tmp)/ - [F]
+
+# Block access to configuration.php
+RewriteRule ^configuration\.php - [F]
+
+# Block access to htaccess.txt and web.config
+RewriteRule ^(htaccess\.txt|web\.config)$ - [F]
+
+# SEF URLs - Rewrite all requests to index.php unless they are actual files/directories
+RewriteCond %{REQUEST_URI} \!^/index\.php
+RewriteCond %{REQUEST_URI} (/|\.php|\.html|\.htm|\.feed|\.pdf|\.raw|/[^.]*)$  [NC]
+RewriteCond %{REQUEST_FILENAME} \!-f
+RewriteCond %{REQUEST_FILENAME} \!-d
+RewriteRule .* index.php [L]
+</IfModule>

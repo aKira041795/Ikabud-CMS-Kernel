@@ -24,9 +24,9 @@ class PhoenixDisylIntegration
 {
     private $document;
     private $app;
+    private $templatePath;
     private $engine;
     private $renderer;
-    private $templatePath;
     
     /**
      * Constructor
@@ -218,12 +218,17 @@ class PhoenixDisylIntegration
                 // External URL - use as-is
                 $url = $item->link;
             } elseif ($item->type === 'alias') {
-                // Menu alias - get the aliased item
-                $aliasItem = $menu->getItem($item->params->get('aliasoptions'));
-                $url = $aliasItem ? Route::_($aliasItem->link . '&Itemid=' . $aliasItem->id) : '#';
+                // Menu alias - route to the aliased item
+                $aliasItemId = $item->params->get('aliasoptions');
+                $url = '/?Itemid=' . $aliasItemId;
             } else {
-                // Component link - use full link with Itemid for proper SEF routing
-                $url = Route::_($item->link . '&Itemid=' . $item->id);
+                // Component link - use Itemid parameter (works reliably)
+                if ($item->home == 1) {
+                    $url = '/';
+                } else {
+                    // Use simple Itemid parameter - most reliable routing method
+                    $url = '/?Itemid=' . $item->id;
+                }
             }
             
             $menuData[] = [
