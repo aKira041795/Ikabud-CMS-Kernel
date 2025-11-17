@@ -3,13 +3,13 @@
 {!-- Left Sidebar --}
 {if condition="joomla.module_positions.sidebar_left > 0"}
 <aside class="sidebar sidebar-left">
-    {joomla_module position="sidebar-left" style="xhtml" /}
+    {joomla_module position="sidebar-left" style="sidebar" /}
 </aside>
 {/if}
 
 {!-- Right Sidebar --}
 {if condition="joomla.module_positions.sidebar_right > 0"}
 <aside class="sidebar sidebar-right">
-    {joomla_module position="sidebar-right" style="xhtml" /}
+    {joomla_module position="sidebar-right" style="sidebar" /}
 </aside>
 {/if}

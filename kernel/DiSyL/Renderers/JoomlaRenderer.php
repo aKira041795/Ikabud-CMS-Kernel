@@ -533,17 +533,36 @@ class JoomlaRenderer extends BaseRenderer
             $template = $app->getTemplate();
             $chromePath = JPATH_THEMES . '/' . $template . '/html/modules.php';
             
-            // Include chrome file if it exists and hasn't been loaded
-            if (file_exists($chromePath) && !function_exists('modChrome_xhtml')) {
+            // Include chrome file if it exists
+            $chromeFunction = 'modChrome_' . $style;
+            if (file_exists($chromePath) && !function_exists($chromeFunction)) {
                 include_once $chromePath;
             }
             
             $output = '';
             foreach ($modules as $module) {
-                // Joomla's renderModule with attribs array for chrome style
-                $attribs = ['style' => $style];
-                $rendered = ModuleHelper::renderModule($module, $attribs);
-                $output .= $rendered;
+                // Use Joomla's module rendering with chrome style
+                ob_start();
+                
+                // If chrome function exists, use it directly
+                if (function_exists($chromeFunction)) {
+                    // Ensure params is a Registry object
+                    $params = $module->params;
+                    if (is_string($params)) {
+                        $params = new \Joomla\Registry\Registry($params);
+                    } elseif (!is_object($params)) {
+                        $params = new \Joomla\Registry\Registry();
+                    }
+                    
+                    $attribs = [];
+                    call_user_func($chromeFunction, $module, $params, $attribs);
+                } else {
+                    // Fallback to default rendering
+                    $attribs = ['style' => $style];
+                    echo ModuleHelper::renderModule($module, $attribs);
+                }
+                
+                $output .= ob_get_clean();
             }
             
             return $output;

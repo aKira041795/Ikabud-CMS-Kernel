@@ -1,4 +1,4 @@
-a:6:{s:7:"headers";a:13:{i:0;s:31:"X-Content-Type-Options: nosniff";i:1;s:31:"X-XSS-Protection: 1; mode=block";i:2;s:410:"Content-Security-Policy: default-src 'self' https: http:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https: http: blob:; style-src 'self' 'unsafe-inline' https: http:; img-src 'self' data: https: http:; font-src 'self' data: https: http:; connect-src 'self' https: http: wss: ws:; frame-src 'self' https: http:; frame-ancestors 'self' http://*.phoenix.test https://*.phoenix.test; worker-src 'self' blob:;";i:3;s:60:"Permissions-Policy: geolocation=(), microphone=(), camera=()";i:4;s:114:"Set-Cookie: c3dcb113ba9b9f02a522f7a4de3a81b6=44lq759ia000a7q8nqpvf61t4l; path=/; secure; HttpOnly; SameSite=Strict";i:5;s:27:"x-frame-options: SAMEORIGIN";i:6;s:48:"referrer-policy: strict-origin-when-cross-origin";i:7;s:39:"cross-origin-opener-policy: same-origin";i:8;s:38:"Content-Type: text/html; charset=utf-8";i:9;s:38:"Expires: Wed, 17 Aug 2005 00:00:00 GMT";i:10;s:44:"Last-Modified: Mon, 17 Nov 2025 06:10:33 GMT";i:11;s:77:"Cache-Control: no-store, no-cache, must-revalidate, post-check=0, pre-check=0";i:12;s:16:"Pragma: no-cache";}s:4:"body";s:17591:"<!DOCTYPE html>
+a:6:{s:7:"headers";a:13:{i:0;s:31:"X-Content-Type-Options: nosniff";i:1;s:31:"X-XSS-Protection: 1; mode=block";i:2;s:410:"Content-Security-Policy: default-src 'self' https: http:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https: http: blob:; style-src 'self' 'unsafe-inline' https: http:; img-src 'self' data: https: http:; font-src 'self' data: https: http:; connect-src 'self' https: http: wss: ws:; frame-src 'self' https: http:; frame-ancestors 'self' http://*.phoenix.test https://*.phoenix.test; worker-src 'self' blob:;";i:3;s:60:"Permissions-Policy: geolocation=(), microphone=(), camera=()";i:4;s:114:"Set-Cookie: c3dcb113ba9b9f02a522f7a4de3a81b6=4oi7c0fp5bsj4vlqvp5qf0talh; path=/; secure; HttpOnly; SameSite=Strict";i:5;s:27:"x-frame-options: SAMEORIGIN";i:6;s:48:"referrer-policy: strict-origin-when-cross-origin";i:7;s:39:"cross-origin-opener-policy: same-origin";i:8;s:38:"Content-Type: text/html; charset=utf-8";i:9;s:38:"Expires: Wed, 17 Aug 2005 00:00:00 GMT";i:10;s:44:"Last-Modified: Mon, 17 Nov 2025 06:20:29 GMT";i:11;s:77:"Cache-Control: no-store, no-cache, must-revalidate, post-check=0, pre-check=0";i:12;s:16:"Pragma: no-cache";}s:4:"body";s:16840:"<!DOCTYPE html>
 <html lang="en-gb" dir="ltr">
 <head>
     <meta charset="utf-8">
@@ -9,12 +9,10 @@ a:6:{s:7:"headers";a:13:{i:0;s:31:"X-Content-Type-Options: nosniff";i:1;s:31:"X-
 	<link href="/?format=feed&amp;type=atom" rel="alternate" type="application/atom+xml" title="Home">
 
     
-    <script type="application/json" class="joomla-script-options new">{"joomla.jtext":{"JSHOWPASSWORD":"Show Password","JHIDEPASSWORD":"Hide Password"},"system.paths":{"root":"","rootFull":"http:\/\/phoenix.test\/","base":"","baseFull":"http:\/\/phoenix.test\/"},"csrf.token":"a78a1d816338c2304d7df15e1fcef9b0","system.keepalive":{"interval":840000,"uri":"\/component\/ajax\/?format=json"},"plg_system_schedulerunner":{"interval":300}}</script>
+    <script type="application/json" class="joomla-script-options new">{"joomla.jtext":{"JSHOWPASSWORD":"Show Password","JHIDEPASSWORD":"Hide Password"},"system.paths":{"root":"","rootFull":"http:\/\/phoenix.test\/","base":"","baseFull":"http:\/\/phoenix.test\/"},"csrf.token":"bd9307659073a695665c0a54ba02b82f","system.keepalive":{"interval":840000,"uri":"\/component\/ajax\/?format=json"},"plg_system_schedulerunner":{"interval":300}}</script>
 	<script src="/media/system/js/core.min.js?2cb912"></script>
-	<script src="/media/vendor/webcomponentsjs/js/webcomponents-bundle.min.js?2.8.0" nomodule defer></script>
 	<script src="/media/system/js/keepalive.min.js?08e025" type="module"></script>
 	<script src="/media/system/js/fields/passwordview.min.js?d2a409" defer></script>
-	<script src="/media/system/js/joomla-hidden-mail.min.js?80d9c7" type="module"></script>
 	<script src="/media/plg_system_schedulerunner/js/run-schedule.min.js?229d3b" type="module"></script>
 
     
@@ -86,17 +84,14 @@ a:6:{s:7:"headers";a:13:{i:0;s:31:"X-Content-Type-Options: nosniff";i:1;s:31:"X-
 </header>
 
 <main class="site-main">
-<section class="ikb-section section-hero padding-none hero-section">
-<div id="mod-custom110" class="mod-custom custom">
-    <div class="hero-content" style="text-align: center; padding: 4rem 2rem; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border-radius: 8px;">
+<section class="ikb-section section-hero padding-none hero-section"><div class="hero-content" style="text-align: center; padding: 4rem 2rem; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border-radius: 8px;">
         <h1 style="font-size: 3rem; font-weight: 900; margin-bottom: 1rem;">Welcome to Phoenix</h1>
         <p style="font-size: 1.5rem; margin-bottom: 2rem; opacity: 0.9;">A stunning DiSyL-powered Joomla template with modern design</p>
         <div style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;">
             <a href="#features" class="btn btn-primary" style="padding: 1rem 2rem; background: white; color: #667eea; text-decoration: none; border-radius: 4px; font-weight: 600;">Explore Features</a>
             <a href="#blog" class="btn btn-secondary" style="padding: 1rem 2rem; background: rgba(255,255,255,0.2); color: white; text-decoration: none; border-radius: 4px; font-weight: 600;">Read Blog</a>
         </div>
-    </div></div>
-</section><section class="ikb-section section-blog padding-xlarge blog-section"><div class="ikb-container container-xlarge">
+    </div></section><section class="ikb-section section-blog padding-xlarge blog-section"><div class="ikb-container container-xlarge">
         
         <div class="section-header reveal">
             <p class="ikb-text text-3xl font-bold text-center section-title gradient-text">
@@ -267,9 +262,7 @@ a:6:{s:7:"headers";a:13:{i:0;s:31:"X-Content-Type-Options: nosniff";i:1;s:31:"X-
         <div class="footer-widgets footer-columns-">
             
             <div class="footer-widget">
-                
-<div id="mod-custom114" class="mod-custom custom">
-    <div class="footer-widget">
+                <div class="footer-widget">
         <h4 style="color: white; font-size: 1.25rem; font-weight: 700; margin-bottom: 1rem;">Phoenix Template</h4>
         <p style="color: rgba(255,255,255,0.8); line-height: 1.6; margin-bottom: 1rem;">A modern, powerful Joomla template built with DiSyL rendering engine for maximum flexibility and performance.</p>
         <div style="display: flex; gap: 1rem;">
@@ -278,14 +271,11 @@ a:6:{s:7:"headers";a:13:{i:0;s:31:"X-Content-Type-Options: nosniff";i:1;s:31:"X-
             <a href="#" style="color: white; font-size: 1.5rem;">📷</a>
             <a href="#" style="color: white; font-size: 1.5rem;">💼</a>
         </div>
-    </div></div>
-
+    </div>
             </div>
             
             <div class="footer-widget">
-                
-<div id="mod-custom115" class="mod-custom custom">
-    <div class="footer-widget">
+                <div class="footer-widget">
         <h4 style="color: white; font-size: 1.25rem; font-weight: 700; margin-bottom: 1rem;">Quick Links</h4>
         <ul style="list-style: none; padding: 0; margin: 0;">
             <li style="margin-bottom: 0.5rem;"><a href="/" style="color: rgba(255,255,255,0.8); text-decoration: none;">Home</a></li>
@@ -294,14 +284,11 @@ a:6:{s:7:"headers";a:13:{i:0;s:31:"X-Content-Type-Options: nosniff";i:1;s:31:"X-
             <li style="margin-bottom: 0.5rem;"><a href="/blog" style="color: rgba(255,255,255,0.8); text-decoration: none;">Blog</a></li>
             <li style="margin-bottom: 0.5rem;"><a href="/contact" style="color: rgba(255,255,255,0.8); text-decoration: none;">Contact</a></li>
         </ul>
-    </div></div>
-
+    </div>
             </div>
             
             <div class="footer-widget">
-                
-<div id="mod-custom116" class="mod-custom custom">
-    <div class="footer-widget">
+                <div class="footer-widget">
         <h4 style="color: white; font-size: 1.25rem; font-weight: 700; margin-bottom: 1rem;">Resources</h4>
         <ul style="list-style: none; padding: 0; margin: 0;">
             <li style="margin-bottom: 0.5rem;"><a href="/docs" style="color: rgba(255,255,255,0.8); text-decoration: none;">Documentation</a></li>
@@ -310,14 +297,11 @@ a:6:{s:7:"headers";a:13:{i:0;s:31:"X-Content-Type-Options: nosniff";i:1;s:31:"X-
             <li style="margin-bottom: 0.5rem;"><a href="/changelog" style="color: rgba(255,255,255,0.8); text-decoration: none;">Changelog</a></li>
             <li style="margin-bottom: 0.5rem;"><a href="/license" style="color: rgba(255,255,255,0.8); text-decoration: none;">License</a></li>
         </ul>
-    </div></div>
-
+    </div>
             </div>
             
             <div class="footer-widget">
-                
-<div id="mod-custom117" class="mod-custom custom">
-    <div class="footer-widget">
+                <div class="footer-widget">
         <h4 style="color: white; font-size: 1.25rem; font-weight: 700; margin-bottom: 1rem;">Contact Us</h4>
         <ul style="list-style: none; padding: 0; margin: 0; color: rgba(255,255,255,0.8);">
             <li style="margin-bottom: 0.75rem; display: flex; gap: 0.5rem;">
@@ -326,15 +310,14 @@ a:6:{s:7:"headers";a:13:{i:0;s:31:"X-Content-Type-Options: nosniff";i:1;s:31:"X-
             </li>
             <li style="margin-bottom: 0.75rem; display: flex; gap: 0.5rem;">
                 <span>📧</span>
-                <span><joomla-hidden-mail  is-link="1" is-email="1" first="aW5mbw==" last="cGhvZW5peC10ZW1wbGF0ZS5jb20=" text="aW5mb0BwaG9lbml4LXRlbXBsYXRlLmNvbQ==" base="" >This email address is being protected from spambots. You need JavaScript enabled to view it.</joomla-hidden-mail></span>
+                <span>info@phoenix-template.com</span>
             </li>
             <li style="margin-bottom: 0.75rem; display: flex; gap: 0.5rem;">
                 <span>📞</span>
                 <span>+1 (555) 123-4567</span>
             </li>
         </ul>
-    </div></div>
-
+    </div>
             </div>
             
         </div>
@@ -360,4 +343,4 @@ a:6:{s:7:"headers";a:13:{i:0;s:31:"X-Content-Type-Options: nosniff";i:1;s:31:"X-
 
 </body>
 </html>
-";s:9:"timestamp";i:1763359833;s:8:"cms_type";s:6:"joomla";s:17:"extensions_loaded";a:0:{}s:15:"extension_count";i:0;}
+";s:9:"timestamp";i:1763360429;s:8:"cms_type";s:6:"joomla";s:17:"extensions_loaded";a:0:{}s:15:"extension_count";i:0;}
