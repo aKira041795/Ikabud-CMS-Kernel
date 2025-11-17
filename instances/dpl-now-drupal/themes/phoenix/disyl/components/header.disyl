@@ -4,17 +4,11 @@
     <div class="header-container">
         {!-- Site Branding --}
         <div class="site-branding">
-            {if condition="site.logo"}
-                <a href="{site.base_url}" class="site-logo">
-                    {ikb_image src="{site.logo | esc_url}" alt="{site.name | esc_attr}" /}
-                </a>
-            {else}
-                <a href="{site.base_url}" class="site-title-link">
-                    {ikb_text size="2xl" weight="bold" class="site-title"}
-                        {site.name | esc_html}
-                    {/ikb_text}
-                </a>
-            {/if}
+            <a href="{site.base_url}" class="site-title-link">
+                {ikb_text size="2xl" weight="bold" class="site-title"}
+                    {site.name | esc_html}
+                {/ikb_text}
+            </a>
             {if condition="site.slogan"}
                 {ikb_text size="sm" class="site-slogan"}
                     {site.slogan | esc_html}
