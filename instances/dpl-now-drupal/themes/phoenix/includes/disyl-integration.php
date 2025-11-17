@@ -114,6 +114,10 @@ function phoenix_get_drupal_context() {
   $theme_config = \Drupal::config('phoenix.settings');
   $logo_path = theme_get_setting('logo.path', 'phoenix');
   
+  // Check if sidebar regions have content
+  $has_sidebar_first = phoenix_has_region_content('sidebar_first');
+  $has_sidebar_second = phoenix_has_region_content('sidebar_second');
+  
   $context = [
     'site' => [
       'name' => $config->get('name'),
@@ -132,6 +136,8 @@ function phoenix_get_drupal_context() {
       'version' => \Drupal::VERSION,
       'route_name' => $route_match->getRouteName(),
     ],
+    'has_sidebar_first' => $has_sidebar_first,
+    'has_sidebar_second' => $has_sidebar_second,
   ];
   
   // Add node context if available
