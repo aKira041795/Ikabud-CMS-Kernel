@@ -1277,7 +1277,9 @@ section[data-type="slider"] {
 .sidebar h3,
 .sidebar h4,
 .sidebar .card-header,
-.sidebar .module-title {
+.sidebar .module-title,
+.sidebar > div > h3:first-child,
+.sidebar .moduletable > h3:first-child {
     font-size: 1.25rem;
     font-weight: 700;
     margin-bottom: 1rem;
