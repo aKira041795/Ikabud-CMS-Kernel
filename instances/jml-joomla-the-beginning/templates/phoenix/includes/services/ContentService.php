@@ -94,6 +94,17 @@ class PhoenixContentService
     {
         $images = json_decode($article->images ?? '{}');
         
+        // Generate article URL safely
+        $articleUrl = '#';
+        if (!empty($article->id)) {
+            try {
+                $articleUrl = Route::_(ContentHelperRoute::getArticleRoute($article->id, $article->catid ?? 0));
+            } catch (\Exception $e) {
+                // Article route failed, use fallback with Itemid
+                $articleUrl = '/?option=com_content&view=article&id=' . $article->id;
+            }
+        }
+        
         // Generate category URL safely
         $categoryUrl = '#';
         if (!empty($article->catid) && $article->catid > 0) {
@@ -110,7 +121,7 @@ class PhoenixContentService
             'title' => $article->title,
             'content' => $article->introtext . ($article->fulltext ?? ''),
             'excerpt' => strip_tags($article->introtext),
-            'url' => Route::_(ContentHelperRoute::getArticleRoute($article->id, $article->catid)),
+            'url' => $articleUrl,
             'thumbnail' => $images->image_intro ?? '',
             'featured_image' => $images->image_fulltext ?? '',
             'date' => $article->created,
