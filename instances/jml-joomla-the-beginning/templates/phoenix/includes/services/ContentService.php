@@ -94,42 +94,16 @@ class PhoenixContentService
     {
         $images = json_decode($article->images ?? '{}');
         
-        // Generate article URL - check for menu item first to avoid warnings
+        // Use direct URLs (non-SEF) to avoid routing warnings
+        // SEF routing can be enabled later once properly configured
         $articleUrl = '#';
         if (!empty($article->id)) {
-            $menu = $this->app->getMenu();
-            $menuItem = $menu->getItems('link', 'index.php?option=com_content&view=article&id=' . $article->id, true);
-            
-            if ($menuItem) {
-                // Has menu item - safe to use SEF routing
-                try {
-                    $articleUrl = Route::_(ContentHelperRoute::getArticleRoute($article->id, $article->catid ?? 0));
-                } catch (\Exception $e) {
-                    $articleUrl = '/?option=com_content&view=article&id=' . $article->id;
-                }
-            } else {
-                // No menu item - use direct URL to avoid routing warnings
-                $articleUrl = '/?option=com_content&view=article&id=' . $article->id;
-            }
+            $articleUrl = '/?option=com_content&view=article&id=' . $article->id;
         }
         
-        // Generate category URL - check for menu item first to avoid warnings
         $categoryUrl = '#';
         if (!empty($article->catid) && $article->catid > 0) {
-            $menu = $this->app->getMenu();
-            $menuItem = $menu->getItems('link', 'index.php?option=com_content&view=category&id=' . $article->catid, true);
-            
-            if ($menuItem) {
-                // Has menu item - safe to use SEF routing
-                try {
-                    $categoryUrl = Route::_(ContentHelperRoute::getCategoryRoute($article->catid));
-                } catch (\Exception $e) {
-                    $categoryUrl = '#';
-                }
-            } else {
-                // No menu item - use direct URL to avoid routing warnings
-                $categoryUrl = '/?option=com_content&view=category&id=' . $article->catid;
-            }
+            $categoryUrl = '/?option=com_content&view=category&id=' . $article->catid;
         }
         
         return [
