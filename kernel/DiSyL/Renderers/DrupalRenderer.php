@@ -135,24 +135,43 @@ class DrupalRenderer extends BaseRenderer
         $this->registerComponent('ikb_query', function($node, $context) {
             $attrs = $node['attrs'] ?? [];
             $children = $node['children'] ?? [];
+            
+            error_log('[DiSyL ikb_query] Raw attrs: ' . json_encode($attrs));
+            
             $type = $attrs['type'] ?? 'post';
             $limit = isset($attrs['limit']) ? (int)$attrs['limit'] : 10;
-            $orderby = $attrs['orderby'] ?? 'created';
+            $orderby = $attrs['orderby'] ?? 'nid';  // Changed from 'created' to 'nid' to test
             $order = $attrs['order'] ?? 'DESC';
+            
+            error_log('[DiSyL ikb_query] Query params - type: ' . $type . ', orderby: ' . $orderby . ', order: ' . $order . ', limit: ' . $limit);
             
             try {
                 // Map type to Drupal content type
                 $bundle = $type === 'post' ? 'article' : $type;
                 
+                error_log('[DiSyL ikb_query] Querying bundle: ' . $bundle);
+                
+                // First, check if ANY nodes of this type exist
+                $testQuery = \Drupal::entityTypeManager()->getStorage('node')->getQuery()
+                    ->condition('type', $bundle)
+                    ->accessCheck(FALSE);
+                $allNodes = $testQuery->execute();
+                error_log('[DiSyL ikb_query] Total nodes of type ' . $bundle . ': ' . count($allNodes) . ' (IDs: ' . implode(', ', $allNodes) . ')');
+                
                 // Query Drupal nodes
                 $query = \Drupal::entityTypeManager()->getStorage('node')->getQuery()
                     ->condition('type', $bundle)
                     ->condition('status', 1)
-                    ->sort($orderby, $order)
+                    // ->sort($orderby, $order)  // TEMPORARILY DISABLED TO TEST
                     ->range(0, $limit)
-                    ->accessCheck(TRUE);
+                    ->accessCheck(FALSE);  // TEMPORARILY DISABLED TO TEST
                 
                 $nids = $query->execute();
+                
+                error_log('[DiSyL ikb_query] Query executed. Found ' . count($nids) . ' published nodes: ' . implode(', ', $nids));
+                
+                // DEBUG: Output query results directly
+                $debugOutput = '<!-- DEBUG: Found ' . count($nids) . ' nodes: ' . implode(', ', $nids) . ' -->';
                 
                 // Split children into query-block and empty-block
                 $queryChildren = [];
@@ -177,13 +196,13 @@ class DrupalRenderer extends BaseRenderer
                 // If no results found, render empty block
                 if (empty($nids)) {
                     if (!empty($emptyChildren)) {
-                        return $this->renderChildren($emptyChildren);
+                        return $debugOutput . $this->renderChildren($emptyChildren);
                     }
-                    return '<!-- No posts found -->';
+                    return $debugOutput . '<!-- No posts found -->';
                 }
                 
                 $nodes = \Drupal::entityTypeManager()->getStorage('node')->loadMultiple($nids);
-                $output = '';
+                $output = $debugOutput;
                 
                 // Render children for each node
                 foreach ($nodes as $node_entity) {
@@ -259,6 +278,9 @@ class DrupalRenderer extends BaseRenderer
         
         // Register raw HTML output component
         $this->registerComponent('raw_html', [$this, 'renderRawHtml']);
+        
+        // Register simple Drupal articles list component
+        $this->registerComponent('drupal_articles', [$this, 'renderDrupalArticles']);
     }
 
     /**
@@ -550,6 +572,91 @@ class DrupalRenderer extends BaseRenderer
         
         // Return raw HTML without escaping
         return $content ?? '';
+    }
+    
+    /**
+     * Render Drupal articles list (simple, direct approach).
+     * 
+     * @param array $node
+     * @param array $context
+     * @return string
+     */
+    protected function renderDrupalArticles(array $node, array $context): string
+    {
+        $attrs = $node['attrs'] ?? [];
+        $limit = isset($attrs['limit']) ? (int)$attrs['limit'] : 6;
+        
+        try {
+            // Direct query for published articles
+            $query = \Drupal::entityQuery('node')
+                ->condition('type', 'article')
+                ->condition('status', 1)
+                ->sort('created', 'DESC')
+                ->range(0, $limit)
+                ->accessCheck(FALSE);
+            
+            $nids = $query->execute();
+            
+            if (empty($nids)) {
+                return '<div class="text-center mt-large"><p class="ikb-text">No articles found. <a href="' . $context['site']['base_url'] . '/node/add/article">Create your first article</a> to get started!</p></div>';
+            }
+            
+            $nodes = \Drupal::entityTypeManager()->getStorage('node')->loadMultiple($nids);
+            $output = '';
+            
+            foreach ($nodes as $node) {
+                $title = Html::escape($node->getTitle());
+                $url = $node->toUrl()->toString();
+                $author = Html::escape($node->getOwner()->getDisplayName());
+                
+                // Get excerpt
+                $excerpt = '';
+                if ($node->hasField('body') && !$node->get('body')->isEmpty()) {
+                    $body = strip_tags($node->get('body')->value);
+                    $excerpt = substr($body, 0, 150) . '...';
+                }
+                
+                // Get thumbnail
+                $thumbnail = '';
+                if ($node->hasField('field_image') && !$node->get('field_image')->isEmpty()) {
+                    $image = $node->get('field_image')->entity;
+                    if ($image) {
+                        $thumbnail = \Drupal::service('file_url_generator')->generateAbsoluteString($image->getFileUri());
+                    }
+                }
+                
+                // Build article card HTML
+                $output .= '<article class="post-card reveal">';
+                
+                if ($thumbnail) {
+                    $output .= '<a href="' . $url . '">';
+                    $output .= '<img src="' . $thumbnail . '" alt="' . $title . '" class="ikb-image post-thumbnail" loading="lazy" />';
+                    $output .= '</a>';
+                }
+                
+                $output .= '<div class="post-content">';
+                $output .= '<div class="post-meta">';
+                $output .= '<span class="post-date">Article Date</span>';
+                $output .= '<span class="separator">•</span>';
+                $output .= '<span class="post-author">' . $author . '</span>';
+                $output .= '</div>';
+                
+                $output .= '<div class="ikb-text ikb-text-xl font-semibold post-title">';
+                $output .= '<a href="' . $url . '">' . $title . '</a>';
+                $output .= '</div>';
+                
+                $output .= '<div class="ikb-text post-excerpt">' . Html::escape($excerpt) . '</div>';
+                
+                $output .= '<a href="' . $url . '" class="read-more">Read More →</a>';
+                $output .= '</div>';
+                $output .= '</article>';
+            }
+            
+            return $output;
+        }
+        catch (\Exception $e) {
+            return '<!-- drupal_articles error: ' . Html::escape($e->getMessage()) . ' -->';
+        }
     }
     
     /**

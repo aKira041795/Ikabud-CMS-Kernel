@@ -22,39 +22,7 @@
         </div>
         
         <div class="post-grid">
-            {ikb_query type="post" limit=6}
-                <article class="post-card reveal">
-                    {if condition="item.thumbnail"}
-                        <a href="{item.url | esc_url}">
-                            <img src="{item.thumbnail | esc_url}" alt="{item.title | esc_attr}" class="ikb-image post-thumbnail" loading="lazy" />
-                        </a>
-                    {/if}
-                    
-                    <div class="post-content">
-                        <div class="post-meta">
-                            <span class="post-date">Article Date</span>
-                            <span class="separator">•</span>
-                            <span class="post-author">{item.author | esc_html}</span>
-                        </div>
-                        
-                        <div class="ikb-text ikb-text-xl font-semibold post-title">
-                            <a href="{item.url | esc_url}">{item.title | esc_html}</a>
-                        </div>
-                        
-                        <div class="ikb-text post-excerpt">
-                            {item.excerpt | strip_tags | truncate:length=150,append="..."}
-                        </div>
-                        
-                        <a href="{item.url | esc_url}" class="read-more">
-                            Read More →
-                        </a>
-                    </div>
-                </article>
-            {empty}
-                <div class="text-center mt-large">
-                    <p class="ikb-text">No articles found. <a href="{site.base_url}/node/add/article">Create your first article</a> to get started!</p>
-                </div>
-            {/ikb_query}
+            {drupal_articles limit=6 /}
         </div>
     </div>
 </section>

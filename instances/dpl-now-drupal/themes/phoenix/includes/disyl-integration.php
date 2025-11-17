@@ -63,6 +63,9 @@ function phoenix_render_disyl($template_name, array $context = []) {
   require_once $kernel_path . '/Engine.php';
   
   try {
+    // Disable Drupal page cache for DiSyL rendering
+    \Drupal::service('page_cache_kill_switch')->trigger();
+    
     // Initialize ModularManifestLoader with Drupal profile
     \IkabudKernel\Core\DiSyL\ModularManifestLoader::init('full', 'drupal');
     

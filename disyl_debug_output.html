@@ -57,96 +57,94 @@
         </nav>
     </div>
 </header>
-<div id="block-phoenix-breadcrumbs">
-  
-    
-        <nav role="navigation" aria-labelledby="system-breadcrumb">
-    <h2 id="system-breadcrumb" class="visually-hidden">Breadcrumb</h2>
-    <ol>
-          <li>
-                  <a href="/">Home</a>
-              </li>
-        </ol>
-  </nav>
-
-  </div>
-<section class="ikb-section ikb-section-post-single padding-xlarge"><div class="ikb-container ikb-container-xlarge">
-        <div class="content-layout">
-            
-            <main class="main-content">
-                <article class="post-single">
-                
-                <header class="post-header">
-                    <div class="ikb-text ikb-text-3xl font-bold text-left gradient-text">
-                        <h1>DiSyL Filters Reference</h1>
-                    </div>
-                    
-                    <div class="post-meta">
-                        <span>📅 Article Date</span>
-                        <span>•</span>
-                        <span>✍️ By <a href="/user/1">admin</a></span>
-                    </div>
-                </header>
-                
-                
-                <div class="post-content">
-                    <p>Filters transform data in DiSyL templates. Learn about all available filters and how to use them effectively.</p><h2>Security Filters</h2><h3>esc_html</h3><p>Escape HTML entities to prevent XSS attacks.</p><p><code>{item.title | esc_html}</code></p><h3>esc_url</h3><p>Sanitize and escape URLs.</p><p><code>{item.link | esc_url}</code></p><h3>esc_attr</h3><p>Escape HTML attributes.</p><p><code>{item.alt | esc_attr}</code></p><h2>String Filters</h2><h3>truncate</h3><p>Truncate text by character length.</p><p><code>{item.excerpt | truncate:length=150,append="..."}</code></p><h3>wp_trim_words</h3><p>Truncate text by word count.</p><p><code>{item.content | wp_trim_words:num_words=20}</code></p><h3>strip_tags</h3><p>Remove HTML tags.</p><p><code>{item.content | strip_tags}</code></p><h3>upper / lower</h3><p>Convert case.</p><p><code>{item.title | upper}
-{item.title | lower}</code></p><h2>Formatting Filters</h2><h3>date</h3><p>Format dates.</p><p><code>{item.date | date:format="F j, Y"}</code></p><h2>Filter Chaining</h2><p>Combine multiple filters:</p><p><code>{item.content | strip_tags | truncate:length=100 | upper}</code></p>
+<section class="ikb-section ikb-section-slider padding-none section-gradient">
+<div class="slider-container reveal" 
+     data-autoplay="true" 
+     data-interval="5000" 
+     data-transition="fade">
+    <div class="slider-track">
+        
+        <div class="slide">
+            <img src="/themes/phoenix/assets/images/slide-1.png" alt="Slide 1" class="slide-image">
+            <div class="slide-content">
+                <div class="ikb-text ikb-text-3xl font-bold text-left slide-title">
+                    Welcome to Now Drupal
+                </div><div class="ikb-text ikb-text-lg font-normal text-left">
+                    Experience the power of modern web design with beautiful gradients and smooth animations.
                 </div>
-                
-                
-                <footer class="post-footer">
-                    
-                    <div class="share-buttons">
-                        <div class="ikb-text ikb-text-sm font-medium text-left">
-                            Share:
-                        </div>
-                        <div class="share-icons">
-                            <a href="https://twitter.com/intent/tweet?url=/disyl-filters-reference&text=DiSyL Filters Reference" target="_blank" class="share-icon share-twitter" aria-label="Share on Twitter">
-                                𝕏
-                            </a>
-                            <a href="https://www.facebook.com/sharer/sharer.php?u=/disyl-filters-reference" target="_blank" class="share-icon share-facebook" aria-label="Share on Facebook">
-                                f
-                            </a>
-                            <a href="https://www.linkedin.com/shareArticle?url=/disyl-filters-reference&title=DiSyL Filters Reference" target="_blank" class="share-icon share-linkedin" aria-label="Share on LinkedIn">
-                                in
-                            </a>
-                        </div>
-                    </div>
-                </footer>
-                
-                
-                <div class="author-bio">
-                    <div class="author-bio-content">
-                        <img src="" alt="admin" class="author-avatar">
-                        <div class="author-info">
-                            <div class="ikb-text ikb-text-lg font-semibold text-left margin-bottom">
-                                About admin
-                            </div><div class="ikb-text ikb-text-md font-normal text-left author-description">
-                                Passionate writer and developer sharing insights about web development, design, and technology.
-                            </div>
-                            <a href="/user/1" class="author-link">
-                                View all posts by admin →
-                            </a>
-                        </div>
-                    </div>
+                <div class="slide-actions">
+                    <a href="http://genesis.test" class="btn btn-primary">Learn More</a>
                 </div>
-                
-                
-                </article>
-            </main>
-            
-            
-        </div>
-    </div></section><section class="ikb-section ikb-section-related-posts padding-xlarge section-gradient"><div class="ikb-container ikb-container-xlarge">
-        <div class="section-header">
-            <div class="ikb-text ikb-text-3xl font-bold text-center margin-bottom-large">
-                Related Posts
             </div>
         </div>
         
-        <div class="related-posts-grid">
-            <!-- ikb_query error: &#039;date&#039; not found | File: /var/www/html/ikabud-kernel/shared-cores/drupal/core/lib/Drupal/Core/Entity/Query/Sql/Tables.php:369 -->
+        
+        <div class="slide">
+            <img src="/themes/phoenix/assets/images/slide-2.png" alt="Slide 2" class="slide-image">
+            <div class="slide-content">
+                <div class="ikb-text ikb-text-3xl font-bold text-left slide-title">
+                    Built for Performance
+                </div><div class="ikb-text ikb-text-lg font-normal text-left">
+                    Lightning-fast loading times and optimized rendering for the best user experience.
+                </div>
+                <div class="slide-actions">
+                    <a href="http://genesis.test/features" class="btn btn-primary">View Features</a>
+                </div>
+            </div>
+        </div>
+        
+        
+        <div class="slide">
+            <img src="/themes/phoenix/assets/images/slide-3.png" alt="Slide 3" class="slide-image">
+            <div class="slide-content">
+                <div class="ikb-text ikb-text-3xl font-bold text-left slide-title">
+                    Fully Customizable
+                </div><div class="ikb-text ikb-text-lg font-normal text-left">
+                    Endless possibilities with blocks, custom layouts, and advanced theme options.
+                </div>
+                <div class="slide-actions">
+                    <a href="http://genesis.test/getting-started" class="btn btn-primary">Get Started</a>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    
+    <button class="slider-arrow slider-arrow-prev" aria-label="Previous slide">‹</button>
+    <button class="slider-arrow slider-arrow-next" aria-label="Next slide">›</button>
+    
+    <div class="slider-controls"></div>
+</div>
+</section>
+<section class="ikb-section ikb-section-blog padding-xlarge blog-section" id="blog">
+    <div class="ikb-container ikb-container-xlarge">
+        <div class="section-header reveal">
+            <div class="ikb-text ikb-text-3xl font-bold text-center section-title gradient-text">
+                <h2>Latest Articles</h2>
+            </div>
+            <div class="ikb-text ikb-text-lg text-center section-subtitle">
+                <h4>Insights, tutorials, and updates from our blog</h4>
+            </div>
+        </div>
+        
+        <div class="post-grid">
+            <article class="post-card reveal"><div class="post-content"><div class="post-meta"><span class="post-date">Article Date</span><span class="separator">•</span><span class="post-author">admin</span></div><div class="ikb-text ikb-text-xl font-semibold post-title"><a href="/disyl-filters-reference">DiSyL Filters Reference</a></div><div class="ikb-text post-excerpt">Filters transform data in DiSyL templates. Learn about all available filters and how to use them effectively.Security Filtersesc_htmlEscape HTML entit...</div><a href="/disyl-filters-reference" class="read-more">Read More →</a></div></article><article class="post-card reveal"><div class="post-content"><div class="post-meta"><span class="post-date">Article Date</span><span class="separator">•</span><span class="post-author">admin</span></div><div class="ikb-text ikb-text-xl font-semibold post-title"><a href="/phoenix-theme-features">Phoenix Theme Features</a></div><div class="ikb-text post-excerpt">Phoenix is a stunning, modern theme powered by DiSyL. It demonstrates the full power of cross-CMS template development.Design FeaturesModern Gradients...</div><a href="/phoenix-theme-features" class="read-more">Read More →</a></div></article>
+        </div>
+    </div>
+</section>
+
+<section class="ikb-section ikb-section-cta padding-xlarge section-gradient"><div class="ikb-container ikb-container-xlarge">
+        <div class="text-center reveal">
+            <div class="ikb-text ikb-text-3xl font-bold text-left margin-bottom-large">
+                <h3 class="cta-header">Ready to Get Started?</h3>
+            </div><div class="ikb-text ikb-text-xl font-normal text-left margin-bottom-xlarge">
+                <h4 class="cta-text">Join thousands of users who have transformed their websites with Phoenix</h4>
+            </div>
+            
+            <div class="flex-center gap-medium flex-wrap cta-bottom">
+                <a href="http://genesis.test/contact" class="btn btn-primary">Get in Touch</a>
+                <a href="http://genesis.test/documentation" class="btn btn-outline">View Documentation</a>
+            </div>
         </div>
     </div></section>
 
