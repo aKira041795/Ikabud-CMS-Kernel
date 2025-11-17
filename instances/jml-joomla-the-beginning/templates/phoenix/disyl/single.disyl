@@ -114,7 +114,9 @@
             </main>
             
             {!-- Sidebar (Joomla Module Positions) --}
+            <!-- DEBUG: About to include sidebar component -->
             {ikb_include template="components/sidebar.disyl" /}
+            <!-- DEBUG: After sidebar include -->
         </div>
     {/ikb_container}
 {/ikb_section}
@@ -163,5 +165,7 @@
         </div>
     {/ikb_container}
 {/ikb_section}
+<!-- DEBUG: About to include footer -->
 
 {ikb_include template="components/footer.disyl" /}
+<!-- DEBUG: After footer include -->
