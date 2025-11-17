@@ -27,8 +27,6 @@
                         <span>📅 {post.date | date:format="F j, Y"}</span>
                         <span>•</span>
                         <span>✍️ By <a href="{post.author_url | esc_url}">{post.author | esc_html}</a></span>
-                        <span>•</span>
-                        <span>💬 {post.comment_count} Comments</span>
                     </div>
                 </header>
                 
@@ -105,7 +103,8 @@
                 </div>
                 
                 {!-- Comments Section --}
-                {!-- Temporarily disabled to debug rendering --}
+                {!-- Note: Joomla comments handled by extensions (JComments, etc.) --}
+                {!-- Use joomla_module position for comments if needed --}
                 </article>
             </main>
             
