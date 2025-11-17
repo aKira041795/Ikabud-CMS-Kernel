@@ -1,8 +1,17 @@
 # DiSyL Status Summary
 
-**Date:** November 14, 2025  
-**Version:** 0.5.0 Beta  
-**Status:** Beta Ready ✅
+**Date:** November 18, 2025  
+**Version:** 0.6.0 Beta  
+**Status:** Production Ready - CMS-Specific Architecture ✅
+
+## 🎯 Core Philosophy
+
+**DiSyL is an extensible declarative syntax language that maintains simplicity yet produces elegant code.**
+
+- **Extensible**: Each CMS can define its own components and filters via manifests
+- **Declarative**: Write what you want, not how to do it
+- **Simple**: Clean, readable syntax that's easy to learn
+- **Elegant**: Produces maintainable, beautiful code
 
 ## 📦 Latest Commits
 
@@ -35,6 +44,36 @@ a51b3d41 DiSyL Kernel Integration + WordPress Theme Support
 - Decision analysis and changelog
 - POC setup and options evaluation
 
+## 🏗️ Architecture Evolution
+
+### Layered Component System
+
+DiSyL now uses a **two-tier architecture** that balances portability with power:
+
+```
+┌─────────────────────────────────────────┐
+│   Core DiSyL (Universal Components)    │
+│   - ikb_text, ikb_section, ikb_container│
+│   - if, include (control flow)          │
+│   - Basic filters (esc_html, strip_tags)│
+└─────────────────────────────────────────┘
+                    ↓
+┌─────────────────────────────────────────┐
+│    CMS-Specific Extensions (Manifests) │
+│                                         │
+│  Drupal:  drupal_articles, drupal_menu  │
+│  WordPress: wp_posts, wp_menu           │
+│  Joomla:  joomla_articles, joomla_menu  │
+└─────────────────────────────────────────┘
+```
+
+### Key Insights
+
+1. **Generic abstractions** (`ikb_query`) work across CMSs but can be complex
+2. **CMS-specific components** (`drupal_articles`) are simpler and more reliable
+3. **Manifest-driven development** enables rich ecosystem without core changes
+4. **Adaptation strategy**: Use direct CMS integration when generic approach is too complex
+
 ## ✅ What Works
 
 ### Core Engine
@@ -45,6 +84,13 @@ a51b3d41 DiSyL Kernel Integration + WordPress Theme Support
 - ✅ Compiler validates components (~5ms)
 - ✅ Renderer outputs HTML (~20ms)
 - ✅ **Total: ~40ms** (acceptable)
+
+### Drupal Integration (NEW!)
+- ✅ Full Phoenix theme implementation
+- ✅ CMS-specific components (drupal_articles, drupal_menu, drupal_region)
+- ✅ Raw HTML rendering for node content
+- ✅ Manifest-based component registration
+- ✅ Direct entity query integration
 
 ### WordPress Integration
 - ✅ Theme-level initialization (maintainable)
