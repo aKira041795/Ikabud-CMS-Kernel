@@ -94,22 +94,30 @@ class PhoenixContentService
     {
         $images = json_decode($article->images ?? '{}');
         
-        // Generate article URL safely
+        // Generate article URL safely (suppress warnings from Joomla router)
         $articleUrl = '#';
         if (!empty($article->id)) {
             try {
-                $articleUrl = Route::_(ContentHelperRoute::getArticleRoute($article->id, $article->catid ?? 0));
+                // Suppress warnings from StandardRules when menu items don't exist
+                $articleUrl = @Route::_(ContentHelperRoute::getArticleRoute($article->id, $article->catid ?? 0));
+                if (empty($articleUrl)) {
+                    $articleUrl = '/?option=com_content&view=article&id=' . $article->id;
+                }
             } catch (\Exception $e) {
                 // Article route failed, use fallback with Itemid
                 $articleUrl = '/?option=com_content&view=article&id=' . $article->id;
             }
         }
         
-        // Generate category URL safely
+        // Generate category URL safely (suppress warnings from Joomla router)
         $categoryUrl = '#';
         if (!empty($article->catid) && $article->catid > 0) {
             try {
-                $categoryUrl = Route::_(ContentHelperRoute::getCategoryRoute($article->catid));
+                // Suppress warnings from StandardRules when menu items don't exist
+                $categoryUrl = @Route::_(ContentHelperRoute::getCategoryRoute($article->catid));
+                if (empty($categoryUrl)) {
+                    $categoryUrl = '#';
+                }
             } catch (\Exception $e) {
                 // Category route failed, use fallback
                 $categoryUrl = '#';
