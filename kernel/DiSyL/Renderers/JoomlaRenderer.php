@@ -528,9 +528,15 @@ class JoomlaRenderer extends BaseRenderer
                 return '';
             }
             
-            // Get current template to ensure chrome is loaded from correct template
+            // Get current template and load chrome file
             $app = \Joomla\CMS\Factory::getApplication();
             $template = $app->getTemplate();
+            $chromePath = JPATH_THEMES . '/' . $template . '/html/modules.php';
+            
+            // Include chrome file if it exists and hasn't been loaded
+            if (file_exists($chromePath) && !function_exists('modChrome_xhtml')) {
+                include_once $chromePath;
+            }
             
             $output = '';
             foreach ($modules as $module) {
