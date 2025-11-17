@@ -5,14 +5,16 @@
 {joomla_module position="banner" style="none" /}
 
 {!-- Hero Module Position (primary hero content) --}
-{if condition="joomla.module_positions.hero"}
+{if condition="joomla.module_positions.hero > 0"}
     {ikb_section type="hero" class="hero-section" padding="none"}
         {joomla_module position="hero" style="none" /}
     {/ikb_section}
-{else}
-    {!-- Fallback: Featured Slider --}
+{/if}
+
+{!-- Slider Module Position (featured slider) --}
+{if condition="joomla.module_positions.slider > 0"}
     {ikb_section type="slider" class="section-gradient" padding="large"}
-        {ikb_include template="components/slider.disyl" /}
+        {joomla_module position="slider" style="none" /}
     {/ikb_section}
 {/if}
 
