@@ -1216,16 +1216,41 @@ section[data-type="slider"] {
 /* Standardized Content Layout (v2 - All Templates) */
 .content-layout {
     display: grid;
-    grid-template-columns: 1fr 320px;
     gap: 2rem;
     align-items: start;
     max-width: 1366px;
     margin: 0 auto;
 }
 
-/* Main Content Area */
+/* Layout with right sidebar (sidebar-second) */
+.content-layout:has(.sidebar-second:only-of-type) {
+    grid-template-columns: 1fr 320px;
+}
+
+/* Layout with left sidebar (sidebar-first) */
+.content-layout:has(.sidebar-first:only-of-type) {
+    grid-template-columns: 320px 1fr;
+}
+
+/* Layout with both sidebars */
+.content-layout:has(.sidebar-first):has(.sidebar-second) {
+    grid-template-columns: 280px 1fr 280px;
+}
+
+/* Ensure left sidebar comes first in grid order */
+.sidebar-first {
+    order: -1;
+}
+
+/* Main content in the middle */
 .main-content {
     min-width: 0; /* Prevent grid blowout */
+    order: 0;
+}
+
+/* Right sidebar last */
+.sidebar-second {
+    order: 1;
 }
 
 /* Legacy Layout Classes (kept for backward compatibility) */

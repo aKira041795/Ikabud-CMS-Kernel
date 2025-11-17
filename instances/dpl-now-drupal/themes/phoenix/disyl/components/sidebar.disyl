@@ -1,11 +1,14 @@
 {!-- Phoenix Theme v2 - Sidebar Component (Drupal-Native) --}
 
-{!-- Left Sidebar (Sidebar First) --}
-<aside class="sidebar sidebar-first" role="complementary">
-    {drupal_region name="sidebar_first" /}
-</aside>
+{!-- Render sidebar based on which regions have content --}
+{if condition="has_sidebar_first"}
+    <aside class="sidebar sidebar-first" role="complementary">
+        {drupal_region name="sidebar_first" /}
+    </aside>
+{/if}
 
-{!-- Right Sidebar (Sidebar Second) --}
-<aside class="sidebar sidebar-second" role="complementary">
-    {drupal_region name="sidebar_second" /}
-</aside>
+{if condition="has_sidebar_second"}
+    <aside class="sidebar sidebar-second" role="complementary">
+        {drupal_region name="sidebar_second" /}
+    </aside>
+{/if}
