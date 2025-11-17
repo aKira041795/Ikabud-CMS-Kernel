@@ -4,13 +4,6 @@
 {!-- Banner Module Position (for announcements, alerts) --}
 {joomla_module position="banner" style="none" /}
 
-{!-- Hero Module Position (primary hero content) --}
-{if condition="joomla.module_positions.hero > 0"}
-    {ikb_section type="hero" class="hero-section" padding="none"}
-        {joomla_module position="hero" style="none" /}
-    {/ikb_section}
-{/if}
-
 {!-- Slider Section (module or default component) --}
 {ikb_section type="slider" class="section-gradient" padding="large"}
     {if condition="joomla.module_positions.slider > 0"}
@@ -21,9 +14,16 @@
     {/if}
 {/ikb_section}
 
+{!-- Hero Module Position (primary hero content) --}
+{if condition="joomla.module_positions.hero > 0"}
+    {ikb_section type="hero" class="hero-section" padding="none"}
+        {joomla_module position="hero" style="none" /}
+    {/ikb_section}
+{/if}
+
 {!-- Features Module Position --}
 {if condition="joomla.module_positions.features"}
-{ikb_section type="features" id="features" padding="xlarge"}
+{ikb_section type="features" id="features" padding="large"}
     {ikb_container size="xlarge"}
         <div class="section-header reveal">
             {ikb_text size="3xl" weight="bold" class="section-title gradient-text"}
