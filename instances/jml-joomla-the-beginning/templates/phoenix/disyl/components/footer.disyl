@@ -6,28 +6,28 @@
         {!-- Footer Widgets (dynamic columns from template params) --}
         <div class="footer-widgets footer-columns-{joomla.params.footerColumns}">
             {!-- Footer Module Position 1 --}
-            {if condition="joomla.module_positions.footer-1"}
+            {if condition="joomla.module_positions.footer_1"}
             <div class="footer-widget">
                 {joomla_module position="footer-1" style="none" /}
             </div>
             {/if}
             
             {!-- Footer Module Position 2 --}
-            {if condition="joomla.module_positions.footer-2"}
+            {if condition="joomla.module_positions.footer_2"}
             <div class="footer-widget">
                 {joomla_module position="footer-2" style="none" /}
             </div>
             {/if}
             
             {!-- Footer Module Position 3 --}
-            {if condition="joomla.module_positions.footer-3"}
+            {if condition="joomla.module_positions.footer_3"}
             <div class="footer-widget">
                 {joomla_module position="footer-3" style="none" /}
             </div>
             {/if}
             
             {!-- Footer Module Position 4 --}
-            {if condition="joomla.module_positions.footer-4"}
+            {if condition="joomla.module_positions.footer_4"}
             <div class="footer-widget">
                 {joomla_module position="footer-4" style="none" /}
             </div>

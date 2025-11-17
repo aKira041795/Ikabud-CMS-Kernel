@@ -32,7 +32,9 @@ class PhoenixModuleService
         $result = [];
         foreach ($positions as $position) {
             $modules = ModuleHelper::getModules($position);
+            // Use both hyphenated and underscored keys for compatibility
             $result[$position] = count($modules);
+            $result[str_replace('-', '_', $position)] = count($modules);
         }
         
         return $result;
