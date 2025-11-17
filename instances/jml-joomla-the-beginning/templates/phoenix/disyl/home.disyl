@@ -11,12 +11,15 @@
     {/ikb_section}
 {/if}
 
-{!-- Slider Module Position (featured slider) --}
-{if condition="joomla.module_positions.slider > 0"}
-    {ikb_section type="slider" class="section-gradient" padding="large"}
+{!-- Slider Section (module or default component) --}
+{ikb_section type="slider" class="section-gradient" padding="large"}
+    {if condition="joomla.module_positions.slider > 0"}
         {joomla_module position="slider" style="none" /}
-    {/ikb_section}
-{/if}
+    {else}
+        {!-- Fallback: Default slider component --}
+        {ikb_include template="components/slider.disyl" /}
+    {/if}
+{/ikb_section}
 
 {!-- Features Module Position --}
 {if condition="joomla.module_positions.features"}
