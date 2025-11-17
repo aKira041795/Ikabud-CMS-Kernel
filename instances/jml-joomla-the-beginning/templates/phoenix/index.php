@@ -14,10 +14,6 @@
 
 defined('_JEXEC') or die;
 
-// Enable error display for debugging
-error_reporting(E_ALL);
-ini_set('display_errors', 1);
-
 use Joomla\CMS\Factory;
 use Joomla\CMS\HTML\HTMLHelper;
 use Joomla\CMS\Language\Text;
@@ -25,17 +21,20 @@ use Joomla\CMS\Uri\Uri;
 
 /** @var Joomla\CMS\Document\HtmlDocument $this */
 
-// Load DiSyL Kernel Autoloader
-$autoloadPath = '/var/www/html/ikabud-kernel/vendor/autoload.php';
-if (file_exists($autoloadPath)) {
-    require_once $autoloadPath;
-} else {
-    error_log('Phoenix Template: DiSyL autoloader not found at ' . $autoloadPath);
-}
-
-// Load Phoenix helper functions
+// Load Phoenix configuration and helpers
+require_once __DIR__ . '/includes/config.php';
 require_once __DIR__ . '/includes/helper.php';
 require_once __DIR__ . '/includes/disyl-integration.php';
+
+// Load DiSyL Kernel Autoloader
+$autoloadPath = PhoenixConfig::getAutoloaderPath();
+if ($autoloadPath && file_exists($autoloadPath)) {
+    require_once $autoloadPath;
+} else {
+    if (PhoenixConfig::isDebugMode()) {
+        error_log('Phoenix Template: DiSyL autoloader not found');
+    }
+}
 
 $app   = Factory::getApplication();
 $input = $app->getInput();
@@ -111,8 +110,6 @@ try {
     // Determine which template to use
     $templateFile = $disylRenderer->getTemplateFile($option, $view, $layout);
     
-    error_log("Phoenix: Template file selected: " . ($templateFile ?: 'none'));
-    
     if ($templateFile && file_exists($templateFile)) {
         // Build context for DiSyL
         $context = $disylRenderer->buildContext([
@@ -130,22 +127,19 @@ try {
         // Render with DiSyL
         $disylContent = $disylRenderer->render($templateFile, $context);
         $disylRendered = true;
-        
-        error_log("Phoenix: DiSyL rendering successful - " . strlen($disylContent) . " bytes");
-    } else {
-        error_log("Phoenix: Template file not found or doesn't exist: " . $templateFile);
     }
 } catch (Exception $e) {
     // Log error and fall back to standard rendering
-    error_log('Phoenix DiSyL Error: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
-    error_log('Phoenix DiSyL Stack trace: ' . $e->getTraceAsString());
-    
-    $debugInfo = '<div style="background: #f44; color: white; padding: 20px; margin: 20px; border-radius: 5px;">';
-    $debugInfo .= '<h2>DiSyL Error (Debug Mode)</h2>';
-    $debugInfo .= '<p><strong>Message:</strong> ' . htmlspecialchars($e->getMessage()) . '</p>';
-    $debugInfo .= '<p><strong>File:</strong> ' . htmlspecialchars($e->getFile()) . ':' . $e->getLine() . '</p>';
-    $debugInfo .= '<pre>' . htmlspecialchars($e->getTraceAsString()) . '</pre>';
-    $debugInfo .= '</div>';
+    if (PhoenixConfig::isDebugMode()) {
+        error_log('Phoenix DiSyL Error: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
+        
+        $debugInfo = '<div style="background: #f44; color: white; padding: 20px; margin: 20px; border-radius: 5px;">';
+        $debugInfo .= '<h2>DiSyL Error (Debug Mode)</h2>';
+        $debugInfo .= '<p><strong>Message:</strong> ' . htmlspecialchars($e->getMessage()) . '</p>';
+        $debugInfo .= '<p><strong>File:</strong> ' . htmlspecialchars($e->getFile()) . ':' . $e->getLine() . '</p>';
+        $debugInfo .= '<pre>' . htmlspecialchars($e->getTraceAsString()) . '</pre>';
+        $debugInfo .= '</div>';
+    }
     
     $disylRendered = false;
 }
@@ -174,9 +168,6 @@ try {
     . ' color-scheme-' . $colorScheme
     . ($this->direction == 'rtl' ? ' rtl' : '');
 ?>">
-<!-- DEBUG: DiSyL Rendered = <?php echo $disylRendered ? 'YES' : 'NO'; ?> -->
-<!-- DEBUG: Content Length = <?php echo strlen($disylContent); ?> bytes -->
-
 
 <?php if ($disylRendered): ?>
     <!-- DiSyL Rendered Content START -->

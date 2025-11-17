@@ -11,11 +11,15 @@
 defined('_JEXEC') or die;
 
 use Joomla\CMS\Factory;
-use Joomla\CMS\Router\Route;
 use Joomla\CMS\Uri\Uri;
-use Joomla\Component\Content\Site\Helper\RouteHelper as ContentHelperRoute;
 use IkabudKernel\Core\DiSyL\Engine;
 use IkabudKernel\Core\DiSyL\Renderers\JoomlaRenderer;
+
+// Load service classes
+require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/services/MenuService.php';
+require_once __DIR__ . '/services/ContentService.php';
+require_once __DIR__ . '/services/ModuleService.php';
 
 /**
  * Phoenix DiSyL Integration Class
@@ -27,6 +31,9 @@ class PhoenixDisylIntegration
     private $templatePath;
     private $engine;
     private $renderer;
+    private $menuService;
+    private $contentService;
+    private $moduleService;
     
     /**
      * Constructor
@@ -45,6 +52,11 @@ class PhoenixDisylIntegration
         
         // Set template path for includes
         $this->renderer->setTemplatePath($this->templatePath . '/disyl');
+        
+        // Initialize services
+        $this->menuService = new PhoenixMenuService();
+        $this->contentService = new PhoenixContentService();
+        $this->moduleService = new PhoenixModuleService();
     }
     
     /**
@@ -98,13 +110,13 @@ class PhoenixDisylIntegration
         $context = array_merge($this->getBaseContext(), $params);
         
         // Add menu data
-        $context['menu'] = $this->getMenuData();
+        $context['menu'] = $this->menuService->getMenuData();
         
         // Add module positions
-        $context['modules'] = $this->getModuleData();
+        $context['modules'] = $this->moduleService->getModulePositions();
         
         // Add articles/posts
-        $context['posts'] = $this->getArticles();
+        $context['posts'] = $this->contentService->getArticles(10);
         
         // Add components configuration from template params
         $template = $this->app->getTemplate(true);
@@ -136,7 +148,7 @@ class PhoenixDisylIntegration
         
         // Add current article if viewing single
         if ($this->app->input->get('view') === 'article') {
-            $context['post'] = $this->getCurrentArticle();
+            $context['post'] = $this->contentService->getCurrentArticle();
         }
         
         // Add category data if viewing category
@@ -176,7 +188,7 @@ class PhoenixDisylIntegration
             'base_url' => Uri::base(),
             'joomla' => [
                 'params' => json_decode($template->params->toString(), true),
-                'module_positions' => $this->getModulePositions(),
+                'module_positions' => $this->moduleService->getModulePositions(),
                 'fields' => [], // Will be populated per-article/category
             ],
         ];
