@@ -1,0 +1,39 @@
+{!-- Debug Context Template --}
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Debug Context</title>
+    <style>
+        body { font-family: monospace; padding: 20px; }
+        pre { background: #f5f5f5; padding: 10px; border: 1px solid #ddd; }
+        h2 { color: #333; border-bottom: 2px solid #667eea; }
+    </style>
+</head>
+<body>
+    <h1>Phoenix Template Debug Context</h1>
+    
+    <h2>Module Positions</h2>
+    <pre>
+sidebar-left: {joomla.module_positions.sidebar-left}
+sidebar-right: {joomla.module_positions.sidebar-right}
+footer-1: {joomla.module_positions.footer-1}
+footer-2: {joomla.module_positions.footer-2}
+footer-3: {joomla.module_positions.footer-3}
+footer-4: {joomla.module_positions.footer-4}
+hero: {joomla.module_positions.hero}
+    </pre>
+    
+    <h2>Conditional Test</h2>
+    {if condition="joomla.module_positions.sidebar-right"}
+        <p style="color: green;">✓ sidebar-right condition is TRUE (value: {joomla.module_positions.sidebar-right})</p>
+    {else}
+        <p style="color: red;">✗ sidebar-right condition is FALSE</p>
+    {/if}
+    
+    {if condition="joomla.module_positions.footer-1"}
+        <p style="color: green;">✓ footer-1 condition is TRUE (value: {joomla.module_positions.footer-1})</p>
+    {else}
+        <p style="color: red;">✗ footer-1 condition is FALSE</p>
+    {/if}
+</body>
+</html>

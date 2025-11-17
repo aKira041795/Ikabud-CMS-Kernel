@@ -1,0 +1,58 @@
+{!-- Phoenix Theme v2 - Footer Component (Joomla-Native) --}
+</main>
+
+<footer class="site-footer">
+    {ikb_container size="xlarge"}
+        {!-- Footer Widgets (dynamic columns from template params) --}
+        <div class="footer-widgets footer-columns-{joomla.params.footerColumns}">
+            {!-- Footer Module Position 1 --}
+            {if condition="joomla.module_positions.footer_1 > 0"}
+            <div class="footer-widget">
+                {joomla_module position="footer-1" style="none" /}
+            </div>
+            {/if}
+            
+            {!-- Footer Module Position 2 --}
+            {if condition="joomla.module_positions.footer_2 > 0"}
+            <div class="footer-widget">
+                {joomla_module position="footer-2" style="none" /}
+            </div>
+            {/if}
+            
+            {!-- Footer Module Position 3 --}
+            {if condition="joomla.module_positions.footer_3 > 0"}
+            <div class="footer-widget">
+                {joomla_module position="footer-3" style="none" /}
+            </div>
+            {/if}
+            
+            {!-- Footer Module Position 4 --}
+            {if condition="joomla.module_positions.footer_4 > 0"}
+            <div class="footer-widget">
+                {joomla_module position="footer-4" style="none" /}
+            </div>
+            {/if}
+        </div>
+        
+        {!-- Additional Footer Module Position --}
+        {joomla_module position="footer" style="none" /}
+        
+        {!-- Footer Bottom --}
+        <div class="footer-bottom">
+            {ikb_text align="center"}
+                {joomla_params name="copyrightText" default="© 2025 All rights reserved." /}
+            {/ikb_text}
+        </div>
+    {/ikb_container}
+</footer>
+
+{!-- Back to Top Button (from template params) --}
+{if condition="joomla.params.backTop"}
+<button class="back-to-top" aria-label="Back to top">
+    ↑
+</button>
+{/if}
+
+<script src="{site.theme_url | esc_url}/assets/js/phoenix.js"></script>
+</body>
+</html>

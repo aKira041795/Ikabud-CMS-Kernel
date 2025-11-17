@@ -1,0 +1,206 @@
+{!-- Phoenix Theme v2 - Homepage Template (Drupal-Native) --}
+{ikb_include template="components/header.disyl" /}
+
+{!-- Page Top Region (for announcements, alerts) --}
+{drupal_region name="page_top" /}
+
+{!-- Slider Section (region or default component) --}
+{ikb_section type="slider" class="section-gradient" padding="none"}
+    {drupal_region name="slider" /}
+    {!-- Fallback: Default slider component --}
+    {ikb_include template="components/slider.disyl" /}
+{/ikb_section}
+
+{!-- Hero Region (primary hero content) --}
+{ikb_section type="hero" class="hero-section" padding="large"}
+    {drupal_region name="hero" /}
+{/ikb_section}
+
+{!-- Highlighted Region --}
+{drupal_region name="highlighted" /}
+
+{!-- Features Section --}
+{ikb_section type="features" id="features" padding="large"}
+    {ikb_container size="xlarge"}
+        <div class="section-header reveal">
+            {ikb_text size="3xl" weight="bold" class="section-title gradient-text"}
+                <h3>Powerful Features</h3>
+            {/ikb_text}
+            {ikb_text size="lg" class="section-subtitle"}
+                <h4>Everything you need to build a stunning website</h4>
+            {/ikb_text}
+        </div>
+        
+        <div class="card-grid">
+            {!-- Feature Card 1 --}
+            <div class="card reveal">
+                <div class="card-icon">
+                    ⚡
+                </div>
+                {ikb_text size="xl" weight="semibold" class="card-title"}
+                    Lightning Fast
+                {/ikb_text}
+                {ikb_text class="card-text"}
+                    Optimized for performance with DiSyL's efficient rendering engine. Pages load in milliseconds.
+                {/ikb_text}
+            </div>
+            
+            {!-- Feature Card 2 --}
+            <div class="card reveal">
+                <div class="card-icon">
+                    🎨
+                </div>
+                {ikb_text size="xl" weight="semibold" class="card-title"}
+                    Beautiful Design
+                {/ikb_text}
+                {ikb_text class="card-text"}
+                    Modern gradients, smooth animations, and a clean interface that captivates your visitors.
+                {/ikb_text}
+            </div>
+            
+            {!-- Feature Card 3 --}
+            <div class="card reveal">
+                <div class="card-icon">
+                    📱
+                </div>
+                {ikb_text size="xl" weight="semibold" class="card-title"}
+                    Fully Responsive
+                {/ikb_text}
+                {ikb_text class="card-text"}
+                    Looks perfect on all devices - from mobile phones to large desktop screens.
+                {/ikb_text}
+            </div>
+            
+            {!-- Feature Card 4 --}
+            <div class="card reveal">
+                <div class="card-icon">
+                    🔒
+                </div>
+                {ikb_text size="xl" weight="semibold" class="card-title"}
+                    Secure & Safe
+                {/ikb_text}
+                {ikb_text class="card-text"}
+                    Built with security best practices. XSS prevention, sanitization, and WordPress standards.
+                {/ikb_text}
+            </div>
+            
+            {!-- Feature Card 5 --}
+            <div class="card reveal">
+                <div class="card-icon">
+                    🎯
+                </div>
+                {ikb_text size="xl" weight="semibold" class="card-title"}
+                    SEO Optimized
+                {/ikb_text}
+                {ikb_text class="card-text"}
+                    Clean semantic HTML, fast loading times, and proper meta tags for better search rankings.
+                {/ikb_text}
+            </div>
+            
+            {!-- Feature Card 6 --}
+            <div class="card reveal">
+                <div class="card-icon">
+                    🧩
+                </div>
+                {ikb_text size="xl" weight="semibold" class="card-title"}
+                    Widget Ready
+                {/ikb_text}
+                {ikb_text class="card-text"}
+                    Multiple widget areas for sidebars, footers, and homepage sections. Fully customizable.
+                {/ikb_text}
+            </div>
+        </div>
+    {/ikb_container}
+{/ikb_section}
+{/if}
+
+{!-- Top Content Modules --}
+{joomla_module position="top-a" style="card" /}
+{joomla_module position="top-b" style="card" /}
+
+{!-- Latest Blog Posts --}
+{ikb_section type="blog" id="blog" padding="xlarge" class="blog-section"}
+    {ikb_container size="xlarge"}
+        {!-- Main Top Module Position --}
+        {joomla_module position="main-top" style="none" /}
+        
+        <div class="section-header reveal">
+            {ikb_text size="3xl" weight="bold" class="section-title gradient-text" align="center"}
+                <h2>Latest Articles</h2>
+            {/ikb_text}
+            {ikb_text size="lg" class="section-subtitle" align="center"}
+                <h4>Insights, tutorials, and updates from our blog</h4>
+            {/ikb_text}
+        </div>
+        
+        <div class="post-grid">
+            {ikb_query type="post" limit=6}
+                <article class="post-card reveal">
+                    {if condition="item.thumbnail"}
+                        <a href="{item.url | esc_url}">
+                            {ikb_image 
+                                src="{item.thumbnail | esc_url}"
+                                alt="{item.title | esc_attr}"
+                                class="post-thumbnail"
+                                lazy=true
+                            /}
+                        </a>
+                    {/if}
+                    
+                    <div class="post-content">
+                        <div class="post-meta">
+                            <span class="post-date">{item.date | date:format="M j, Y"}</span>
+                            <span class="separator">•</span>
+                            <span class="post-author">{item.author | esc_html}</span>
+                        </div>
+                        
+                        {ikb_text size="xl" weight="semibold" class="post-title"}
+                            <a href="{item.url | esc_url}">{item.title | esc_html}</a>
+                        {/ikb_text}
+                        
+                        {ikb_text class="post-excerpt"}
+                            {item.excerpt | strip_tags | truncate:length=150,append="..."}
+                        {/ikb_text}
+                        
+                        <a href="{item.url | esc_url}" class="read-more">
+                            Read More →
+                        </a>
+                    </div>
+                </article>
+            {/ikb_query}
+        </div>
+        
+        <div class="text-center mt-large">
+            <a href="/blog" class="btn btn-primary">View All Posts</a>
+        </div>
+        
+        {!-- Main Bottom Module Position --}
+        {joomla_module position="main-bottom" style="none" /}
+    {/ikb_container}
+{/ikb_section}
+
+{!-- Bottom Content Modules --}
+{joomla_module position="bottom-a" style="card" /}
+{joomla_module position="bottom-b" style="card" /}
+
+{!-- Call to Action Section --}
+{ikb_section type="cta" class="section-gradient" padding="xlarge"}
+    {ikb_container size="xlarge"}
+        <div class="text-center reveal">
+            {ikb_text size="3xl" weight="bold" margin="bottom-large"}
+                <h3 class="cta-header">Ready to Get Started?</h3>
+            {/ikb_text}
+            
+            {ikb_text size="xl" margin="bottom-xlarge"}
+                <h4 class="cta-text">Join thousands of users who have transformed their websites with Phoenix</h4>
+            {/ikb_text}
+            
+            <div class="flex-center gap-medium flex-wrap cta-bottom">
+                <a href="/contact" class="btn btn-primary">Get in Touch</a>
+                <a href="/documentation" class="btn btn-outline">View Documentation</a>
+            </div>
+        </div>
+    {/ikb_container}
+{/ikb_section}
+
+{ikb_include template="components/footer.disyl" /}

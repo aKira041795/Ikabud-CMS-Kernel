@@ -1,0 +1,69 @@
+{!-- Phoenix Theme v2 - Header Component (Joomla-Native) --}
+
+{!-- Topbar Module Position --}
+{joomla_module position="topbar" style="none" /}
+
+<header class="site-header{if condition="joomla.params.stickyHeader"} sticky-header{/if}">
+    <div class="header-container">
+        {!-- Logo from template params or site name --}
+        <div class="site-branding">
+            <a href="{site.url | esc_url}" class="site-logo">
+                {if condition="joomla.params.logoFile"}
+                    <img src="{joomla_params name="logoFile" /}" alt="{site.name | esc_attr}" class="site-logo-img" />
+                {else}
+                    <span class="site-title">{site.name | esc_html}</span>
+                {/if}
+                {if condition="joomla.params.siteDescription"}
+                    <span class="site-tagline">{joomla_params name="siteDescription" /}</span>
+                {/if}
+            </a>
+        </div>
+        
+        {!-- Header Module Position (for custom modules) --}
+        {joomla_module position="header" style="none" /}
+        
+        {!-- Mobile Menu Toggle --}
+        <button class="menu-toggle" aria-label="Toggle navigation" aria-expanded="false">
+            <span class="menu-icon">☰</span>
+        </button>
+        
+        {!-- Primary Navigation --}
+        <nav class="main-nav" role="navigation" aria-label="Primary navigation">
+            {!-- Menu Module Position (alternative to hardcoded menu) --}
+            {joomla_module position="menu" style="none" limit=1 /}
+            
+            {!-- Fallback: Hardcoded menu if no module published --}
+            {if condition="!joomla.module_positions.menu"}
+                <ul class="nav-menu">
+                    {for items="menu.primary" as="item"}
+                        <li class="menu-item{if condition="item.active"} active{/if}">
+                            <a href="{item.url | esc_url}">
+                                {item.title | esc_html}
+                            </a>
+                            {if condition="item.children"}
+                                <ul class="submenu">
+                                    {for items="item.children" as="child"}
+                                        <li class="submenu-item">
+                                            <a href="{child.url | esc_url}">
+                                                {child.title | esc_html}
+                                            </a>
+                                        </li>
+                                    {/for}
+                                </ul>
+                            {/if}
+                        </li>
+                    {/for}
+                </ul>
+            {/if}
+        </nav>
+        
+        {!-- Search Module Position --}
+        {if condition="joomla.params.showSearch"}
+            <div class="header-search">
+                {joomla_module position="search" style="none" limit=1 /}
+            </div>
+        {/if}
+    </div>
+</header>
+
+<main class="site-main">

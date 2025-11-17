@@ -1,0 +1,5 @@
+services:
+  phoenix.twig_extension:
+    class: Drupal\phoenix\TwigExtension\PhoenixTwigExtension
+    tags:
+      - { name: twig.extension }

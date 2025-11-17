@@ -1,0 +1,38 @@
+global:
+  version: 1.0.0
+  css:
+    theme:
+      assets/css/style.css: {}
+  js:
+    assets/js/main.js: {}
+  dependencies:
+    - core/drupal
+    - core/jquery
+    - core/once
+
+animations:
+  version: 1.0.0
+  css:
+    theme:
+      assets/css/animations.css: {}
+  js:
+    assets/js/animations.js: {}
+  dependencies:
+    - phoenix/global
+
+# Component-specific libraries
+components:
+  version: 1.0.0
+  css:
+    theme:
+      assets/css/components.css: {}
+
+slider:
+  version: 1.0.0
+  css:
+    theme:
+      assets/css/slider.css: {}
+  js:
+    assets/js/slider.js: {}
+  dependencies:
+    - phoenix/global
