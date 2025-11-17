@@ -1,0 +1,363 @@
+a:6:{s:7:"headers";a:13:{i:0;s:31:"X-Content-Type-Options: nosniff";i:1;s:31:"X-XSS-Protection: 1; mode=block";i:2;s:410:"Content-Security-Policy: default-src 'self' https: http:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https: http: blob:; style-src 'self' 'unsafe-inline' https: http:; img-src 'self' data: https: http:; font-src 'self' data: https: http:; connect-src 'self' https: http: wss: ws:; frame-src 'self' https: http:; frame-ancestors 'self' http://*.phoenix.test https://*.phoenix.test; worker-src 'self' blob:;";i:3;s:60:"Permissions-Policy: geolocation=(), microphone=(), camera=()";i:4;s:114:"Set-Cookie: c3dcb113ba9b9f02a522f7a4de3a81b6=58n44dhbl6gv529n817dss6hcp; path=/; secure; HttpOnly; SameSite=Strict";i:5;s:27:"x-frame-options: SAMEORIGIN";i:6;s:48:"referrer-policy: strict-origin-when-cross-origin";i:7;s:39:"cross-origin-opener-policy: same-origin";i:8;s:38:"Content-Type: text/html; charset=utf-8";i:9;s:38:"Expires: Wed, 17 Aug 2005 00:00:00 GMT";i:10;s:44:"Last-Modified: Mon, 17 Nov 2025 05:51:37 GMT";i:11;s:77:"Cache-Control: no-store, no-cache, must-revalidate, post-check=0, pre-check=0";i:12;s:16:"Pragma: no-cache";}s:4:"body";s:17591:"<!DOCTYPE html>
+<html lang="en-gb" dir="ltr">
+<head>
+    <meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<meta name="generator" content="Joomla! - Open Source Content Management">
+	<title>Home</title>
+	<link href="/?format=feed&amp;type=rss" rel="alternate" type="application/rss+xml" title="Home">
+	<link href="/?format=feed&amp;type=atom" rel="alternate" type="application/atom+xml" title="Home">
+
+    
+    <script type="application/json" class="joomla-script-options new">{"joomla.jtext":{"JSHOWPASSWORD":"Show Password","JHIDEPASSWORD":"Hide Password"},"system.paths":{"root":"","rootFull":"http:\/\/phoenix.test\/","base":"","baseFull":"http:\/\/phoenix.test\/"},"csrf.token":"f337e57da26d1fdf7613ee88a4f4a3df","system.keepalive":{"interval":840000,"uri":"\/component\/ajax\/?format=json"},"plg_system_schedulerunner":{"interval":300}}</script>
+	<script src="/media/system/js/core.min.js?2cb912"></script>
+	<script src="/media/vendor/webcomponentsjs/js/webcomponents-bundle.min.js?2.8.0" nomodule defer></script>
+	<script src="/media/system/js/keepalive.min.js?08e025" type="module"></script>
+	<script src="/media/system/js/fields/passwordview.min.js?d2a409" defer></script>
+	<script src="/media/system/js/joomla-hidden-mail.min.js?80d9c7" type="module"></script>
+	<script src="/media/plg_system_schedulerunner/js/run-schedule.min.js?229d3b" type="module"></script>
+
+    
+    <!-- Phoenix Template Styles - Direct Load for Testing -->
+    <link rel="stylesheet" href="/templates/phoenix/assets/css/style.css">
+    <link rel="stylesheet" href="/templates/phoenix/assets/css/disyl-components.css">
+    <script src="/templates/phoenix/assets/js/phoenix.js" defer></script>
+</head>
+<body class="site phoenix-template com_content wrapper-static view-featured no-layout no-task itemid-101 has-sidebar-right color-scheme-default">
+
+    <!-- DiSyL Rendered Content START -->
+    
+
+<header class="site-header">
+    <div class="header-container">
+        
+        <div class="site-branding">
+            <a href="http://phoenix.test/" class="site-logo">
+                
+                    <span class="site-title">Phoenix</span>
+                
+            </a>
+        </div>
+        
+        
+        <button class="menu-toggle" aria-label="Toggle navigation" aria-expanded="false">
+            <span class="menu-icon">☰</span>
+        </button>
+        
+        
+        <nav class="main-nav" role="navigation" aria-label="Primary navigation">
+            
+                <ul class="nav-menu">
+                    
+                        <li class="menu-item active">
+                            <a href="/">
+                                Home
+                            </a>
+                            
+                        </li>
+                    
+                        <li class="menu-item">
+                            <a href="/?Itemid=102">
+                                DiSyL Docs
+                            </a>
+                            
+                        </li>
+                    
+                        <li class="menu-item">
+                            <a href="/?Itemid=104">
+                                Getting Started
+                            </a>
+                            
+                        </li>
+                    
+                        <li class="menu-item">
+                            <a href="/?Itemid=103">
+                                Kernel Docs
+                            </a>
+                            
+                        </li>
+                    
+                </ul>
+            
+        </nav>
+        
+        
+    </div>
+</header>
+
+<main class="site-main">
+<section class="ikb-section section-hero padding-none hero-section">
+<div id="mod-custom110" class="mod-custom custom">
+    <div class="hero-content" style="text-align: center; padding: 4rem 2rem; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border-radius: 8px;">
+        <h1 style="font-size: 3rem; font-weight: 900; margin-bottom: 1rem;">Welcome to Phoenix</h1>
+        <p style="font-size: 1.5rem; margin-bottom: 2rem; opacity: 0.9;">A stunning DiSyL-powered Joomla template with modern design</p>
+        <div style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;">
+            <a href="#features" class="btn btn-primary" style="padding: 1rem 2rem; background: white; color: #667eea; text-decoration: none; border-radius: 4px; font-weight: 600;">Explore Features</a>
+            <a href="#blog" class="btn btn-secondary" style="padding: 1rem 2rem; background: rgba(255,255,255,0.2); color: white; text-decoration: none; border-radius: 4px; font-weight: 600;">Read Blog</a>
+        </div>
+    </div></div>
+</section><section class="ikb-section section-blog padding-xlarge blog-section"><div class="ikb-container container-xlarge">
+        
+        <div class="section-header reveal">
+            <p class="ikb-text text-3xl font-bold text-center section-title gradient-text">
+                <h2>Latest Articles</h2>
+            </p><p class="ikb-text text-lg font-normal text-center section-subtitle">
+                <h4>Insights, tutorials, and updates from our blog</h4>
+            </p>
+        </div>
+        
+        <div class="post-grid">
+            
+                <article class="post-card reveal">
+                    
+                    
+                    <div class="post-content">
+                        <div class="post-meta">
+                            <span class="post-date">Jan 1, 1970</span>
+                            <span class="separator">•</span>
+                            <span class="post-author">Noah O</span>
+                        </div>
+                        
+                        <p class="ikb-text text-xl font-semibold text-left post-title">
+                            <a href="/?option=com_content&amp;view=article&amp;id=1">What is DiSyL?</a>
+                        </p><p class="ikb-text text-md font-normal text-left post-excerpt">
+                            ...
+                        </p>
+                        
+                        <a href="/?option=com_content&amp;view=article&amp;id=1" class="read-more">
+                            Read More →
+                        </a>
+                    </div>
+                </article>
+            
+                <article class="post-card reveal">
+                    
+                    
+                    <div class="post-content">
+                        <div class="post-meta">
+                            <span class="post-date">Jan 1, 1970</span>
+                            <span class="separator">•</span>
+                            <span class="post-author">Noah O</span>
+                        </div>
+                        
+                        <p class="ikb-text text-xl font-semibold text-left post-title">
+                            <a href="/?option=com_content&amp;view=article&amp;id=2">DiSyL Components Guide</a>
+                        </p><p class="ikb-text text-md font-normal text-left post-excerpt">
+                            ...
+                        </p>
+                        
+                        <a href="/?option=com_content&amp;view=article&amp;id=2" class="read-more">
+                            Read More →
+                        </a>
+                    </div>
+                </article>
+            
+                <article class="post-card reveal">
+                    
+                    
+                    <div class="post-content">
+                        <div class="post-meta">
+                            <span class="post-date">Jan 1, 1970</span>
+                            <span class="separator">•</span>
+                            <span class="post-author">Noah O</span>
+                        </div>
+                        
+                        <p class="ikb-text text-xl font-semibold text-left post-title">
+                            <a href="/?option=com_content&amp;view=article&amp;id=3">DiSyL Filters Reference</a>
+                        </p><p class="ikb-text text-md font-normal text-left post-excerpt">
+                            ...
+                        </p>
+                        
+                        <a href="/?option=com_content&amp;view=article&amp;id=3" class="read-more">
+                            Read More →
+                        </a>
+                    </div>
+                </article>
+            
+                <article class="post-card reveal">
+                    
+                    
+                    <div class="post-content">
+                        <div class="post-meta">
+                            <span class="post-date">Jan 1, 1970</span>
+                            <span class="separator">•</span>
+                            <span class="post-author">Noah O</span>
+                        </div>
+                        
+                        <p class="ikb-text text-xl font-semibold text-left post-title">
+                            <a href="/?option=com_content&amp;view=article&amp;id=4">Ikabud Kernel Overview</a>
+                        </p><p class="ikb-text text-md font-normal text-left post-excerpt">
+                            ...
+                        </p>
+                        
+                        <a href="/?option=com_content&amp;view=article&amp;id=4" class="read-more">
+                            Read More →
+                        </a>
+                    </div>
+                </article>
+            
+                <article class="post-card reveal">
+                    
+                    
+                    <div class="post-content">
+                        <div class="post-meta">
+                            <span class="post-date">Jan 1, 1970</span>
+                            <span class="separator">•</span>
+                            <span class="post-author">Noah O</span>
+                        </div>
+                        
+                        <p class="ikb-text text-xl font-semibold text-left post-title">
+                            <a href="/?option=com_content&amp;view=article&amp;id=5">Phoenix Theme Features</a>
+                        </p><p class="ikb-text text-md font-normal text-left post-excerpt">
+                            ...
+                        </p>
+                        
+                        <a href="/?option=com_content&amp;view=article&amp;id=5" class="read-more">
+                            Read More →
+                        </a>
+                    </div>
+                </article>
+            
+                <article class="post-card reveal">
+                    
+                    
+                    <div class="post-content">
+                        <div class="post-meta">
+                            <span class="post-date">Jan 1, 1970</span>
+                            <span class="separator">•</span>
+                            <span class="post-author">Noah O</span>
+                        </div>
+                        
+                        <p class="ikb-text text-xl font-semibold text-left post-title">
+                            <a href="/?option=com_content&amp;view=article&amp;id=6">Getting Started with DiSyL</a>
+                        </p><p class="ikb-text text-md font-normal text-left post-excerpt">
+                            ...
+                        </p>
+                        
+                        <a href="/?option=com_content&amp;view=article&amp;id=6" class="read-more">
+                            Read More →
+                        </a>
+                    </div>
+                </article>
+            
+        </div>
+        
+        <div class="text-center mt-large">
+            <a href="/blog" class="btn btn-primary">View All Posts</a>
+        </div>
+        
+        </div></section><section class="ikb-section section-cta padding-xlarge section-gradient"><div class="ikb-container container-xlarge">
+        <div class="text-center reveal">
+            <p class="ikb-text text-3xl font-bold text-left">
+                <h3 class="cta-header">Ready to Get Started?</h3>
+            </p><p class="ikb-text text-xl font-normal text-left">
+                <h4 class="cta-text">Join thousands of users who have transformed their websites with Phoenix</h4>
+            </p>
+            
+            <div class="flex-center gap-medium flex-wrap cta-bottom">
+                <a href="/contact" class="btn btn-primary">Get in Touch</a>
+                <a href="/documentation" class="btn btn-outline">View Documentation</a>
+            </div>
+        </div>
+    </div></section>
+</main>
+
+<footer class="site-footer">
+    <div class="ikb-container container-xlarge">
+        <div class="footer-widgets footer-columns-">
+            
+            <div class="footer-widget">
+                
+<div id="mod-custom114" class="mod-custom custom">
+    <div class="footer-widget">
+        <h4 style="color: white; font-size: 1.25rem; font-weight: 700; margin-bottom: 1rem;">Phoenix Template</h4>
+        <p style="color: rgba(255,255,255,0.8); line-height: 1.6; margin-bottom: 1rem;">A modern, powerful Joomla template built with DiSyL rendering engine for maximum flexibility and performance.</p>
+        <div style="display: flex; gap: 1rem;">
+            <a href="#" style="color: white; font-size: 1.5rem;">📘</a>
+            <a href="#" style="color: white; font-size: 1.5rem;">🐦</a>
+            <a href="#" style="color: white; font-size: 1.5rem;">📷</a>
+            <a href="#" style="color: white; font-size: 1.5rem;">💼</a>
+        </div>
+    </div></div>
+
+            </div>
+            
+            <div class="footer-widget">
+                
+<div id="mod-custom115" class="mod-custom custom">
+    <div class="footer-widget">
+        <h4 style="color: white; font-size: 1.25rem; font-weight: 700; margin-bottom: 1rem;">Quick Links</h4>
+        <ul style="list-style: none; padding: 0; margin: 0;">
+            <li style="margin-bottom: 0.5rem;"><a href="/" style="color: rgba(255,255,255,0.8); text-decoration: none;">Home</a></li>
+            <li style="margin-bottom: 0.5rem;"><a href="/about" style="color: rgba(255,255,255,0.8); text-decoration: none;">About Us</a></li>
+            <li style="margin-bottom: 0.5rem;"><a href="/services" style="color: rgba(255,255,255,0.8); text-decoration: none;">Services</a></li>
+            <li style="margin-bottom: 0.5rem;"><a href="/blog" style="color: rgba(255,255,255,0.8); text-decoration: none;">Blog</a></li>
+            <li style="margin-bottom: 0.5rem;"><a href="/contact" style="color: rgba(255,255,255,0.8); text-decoration: none;">Contact</a></li>
+        </ul>
+    </div></div>
+
+            </div>
+            
+            <div class="footer-widget">
+                
+<div id="mod-custom116" class="mod-custom custom">
+    <div class="footer-widget">
+        <h4 style="color: white; font-size: 1.25rem; font-weight: 700; margin-bottom: 1rem;">Resources</h4>
+        <ul style="list-style: none; padding: 0; margin: 0;">
+            <li style="margin-bottom: 0.5rem;"><a href="/docs" style="color: rgba(255,255,255,0.8); text-decoration: none;">Documentation</a></li>
+            <li style="margin-bottom: 0.5rem;"><a href="/tutorials" style="color: rgba(255,255,255,0.8); text-decoration: none;">Tutorials</a></li>
+            <li style="margin-bottom: 0.5rem;"><a href="/support" style="color: rgba(255,255,255,0.8); text-decoration: none;">Support</a></li>
+            <li style="margin-bottom: 0.5rem;"><a href="/changelog" style="color: rgba(255,255,255,0.8); text-decoration: none;">Changelog</a></li>
+            <li style="margin-bottom: 0.5rem;"><a href="/license" style="color: rgba(255,255,255,0.8); text-decoration: none;">License</a></li>
+        </ul>
+    </div></div>
+
+            </div>
+            
+            <div class="footer-widget">
+                
+<div id="mod-custom117" class="mod-custom custom">
+    <div class="footer-widget">
+        <h4 style="color: white; font-size: 1.25rem; font-weight: 700; margin-bottom: 1rem;">Contact Us</h4>
+        <ul style="list-style: none; padding: 0; margin: 0; color: rgba(255,255,255,0.8);">
+            <li style="margin-bottom: 0.75rem; display: flex; gap: 0.5rem;">
+                <span>📍</span>
+                <span>123 Phoenix Street<br>Digital City, DC 12345</span>
+            </li>
+            <li style="margin-bottom: 0.75rem; display: flex; gap: 0.5rem;">
+                <span>📧</span>
+                <span><joomla-hidden-mail  is-link="1" is-email="1" first="aW5mbw==" last="cGhvZW5peC10ZW1wbGF0ZS5jb20=" text="aW5mb0BwaG9lbml4LXRlbXBsYXRlLmNvbQ==" base="" >This email address is being protected from spambots. You need JavaScript enabled to view it.</joomla-hidden-mail></span>
+            </li>
+            <li style="margin-bottom: 0.75rem; display: flex; gap: 0.5rem;">
+                <span>📞</span>
+                <span>+1 (555) 123-4567</span>
+            </li>
+        </ul>
+    </div></div>
+
+            </div>
+            
+        </div>
+        
+        
+        <div class="footer-bottom">
+            <p class="ikb-text text-md font-normal text-center">© 2025 All rights reserved.</p>
+        </div>
+    </div>
+</footer>
+
+
+
+<script src="http://phoenix.test/templates/phoenix/assets/js/phoenix.js"></script>
+</body>
+</html>
+    <!-- DiSyL Rendered Content END -->
+
+    <a href="#top" id="back-top" class="back-to-top-link" aria-label="Back to Top">
+        <span class="icon-arrow-up" aria-hidden="true">↑</span>
+    </a>
+
+
+</body>
+</html>
+";s:9:"timestamp";i:1763358697;s:8:"cms_type";s:6:"joomla";s:17:"extensions_loaded";a:0:{}s:15:"extension_count";i:0;}

@@ -1258,8 +1258,13 @@ section[data-type="slider"] {
     top: 120px; /* Account for fixed header */
 }
 
-/* Sidebar Widgets */
+/* Sidebar Widgets - Global Module Styling */
+.sidebar > div,
 .sidebar .moduletable,
+.sidebar .mod-custom,
+.sidebar .mod-articles-latest,
+.sidebar .mod-articles-categories,
+.sidebar .mod-login,
 .sidebar .custom {
     background: white;
     border-radius: 8px;
@@ -1268,16 +1273,21 @@ section[data-type="slider"] {
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
 }
 
-.sidebar .moduletable h3,
-.sidebar .custom h3 {
+/* Module Titles */
+.sidebar h3,
+.sidebar h4,
+.sidebar .card-header,
+.sidebar .module-title {
     font-size: 1.25rem;
     font-weight: 700;
     margin-bottom: 1rem;
+    margin-top: 0;
     color: #1a1a2e;
     border-bottom: 2px solid #667eea;
     padding-bottom: 0.5rem;
 }
 
+/* Lists */
 .sidebar ul {
     list-style: none;
     padding: 0;
@@ -1293,14 +1303,60 @@ section[data-type="slider"] {
     border-bottom: none;
 }
 
+/* Links */
 .sidebar a {
     color: #2d3748;
     text-decoration: none;
     transition: color 0.2s;
+    font-weight: 500;
 }
 
 .sidebar a:hover {
     color: #667eea;
+}
+
+/* Login Form Styling */
+.sidebar .mod-login input[type="text"],
+.sidebar .mod-login input[type="password"] {
+    width: 100%;
+    padding: 0.5rem;
+    margin-bottom: 0.75rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 4px;
+    font-size: 0.875rem;
+}
+
+.sidebar .mod-login button,
+.sidebar .mod-login input[type="submit"] {
+    width: 100%;
+    padding: 0.625rem 1rem;
+    background: #667eea;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.sidebar .mod-login button:hover,
+.sidebar .mod-login input[type="submit"]:hover {
+    background: #5568d3;
+}
+
+/* Article Metadata (for Recent Posts) */
+.sidebar .mod-articles-latest .mod-articles-latest-date,
+.sidebar .article-info {
+    font-size: 0.75rem;
+    color: #718096;
+    margin-top: 0.25rem;
+}
+
+/* Category Count */
+.sidebar .mod-articles-categories .item-count {
+    font-size: 0.875rem;
+    color: #718096;
+    margin-left: 0.5rem;
 }
 
 /* Breadcrumbs Spacing - Fix overlap with fixed header */
