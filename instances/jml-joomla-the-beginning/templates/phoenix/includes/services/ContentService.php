@@ -94,6 +94,17 @@ class PhoenixContentService
     {
         $images = json_decode($article->images ?? '{}');
         
+        // Generate category URL safely
+        $categoryUrl = '#';
+        if (!empty($article->catid) && $article->catid > 0) {
+            try {
+                $categoryUrl = Route::_(ContentHelperRoute::getCategoryRoute($article->catid));
+            } catch (\Exception $e) {
+                // Category route failed, use fallback
+                $categoryUrl = '#';
+            }
+        }
+        
         return [
             'id' => $article->id,
             'title' => $article->title,
@@ -107,7 +118,7 @@ class PhoenixContentService
             'author' => $article->author ?? '',
             'category' => [
                 'title' => $article->category_title ?? '',
-                'url' => Route::_(ContentHelperRoute::getCategoryRoute($article->catid)),
+                'url' => $categoryUrl,
             ],
         ];
     }
