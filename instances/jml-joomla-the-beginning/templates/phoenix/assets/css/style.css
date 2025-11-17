@@ -1256,8 +1256,6 @@ section[data-type="slider"] {
 .sidebar {
     position: sticky;
     top: 120px; /* Account for fixed header */
-    max-height: calc(100vh - 140px);
-    overflow-y: auto;
 }
 
 /* Sidebar Widgets */
