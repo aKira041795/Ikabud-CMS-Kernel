@@ -395,6 +395,65 @@ class JoomlaRenderer extends BaseRenderer
         if ($this->evaluateCondition($condition)) {
             return $this->renderChildren($children);
         }
+        
+        return '';
+    }
+    
+    /**
+     * Evaluate condition expression
+     * Enhanced to handle complex conditions like ||, &&, comparisons
+     */
+    private function evaluateCondition(string $condition): bool
+    {
+        // Handle OR conditions
+        if (strpos($condition, '||') !== false) {
+            $parts = explode('||', $condition);
+            foreach ($parts as $part) {
+                if ($this->evaluateCondition(trim($part))) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        
+        // Handle AND conditions
+        if (strpos($condition, '&&') !== false) {
+            $parts = explode('&&', $condition);
+            foreach ($parts as $part) {
+                if (!$this->evaluateCondition(trim($part))) {
+                    return false;
+                }
+            }
+            return true;
+        }
+        
+        // Handle comparison operators
+        $operators = ['>=', '<=', '==', '!=', '>', '<'];
+        foreach ($operators as $op) {
+            if (strpos($condition, $op) !== false) {
+                list($left, $right) = explode($op, $condition, 2);
+                $left = $this->evaluateExpression(trim($left));
+                $right = $this->evaluateExpression(trim($right));
+                
+                switch ($op) {
+                    case '>=': return $left >= $right;
+                    case '<=': return $left <= $right;
+                    case '==': return $left == $right;
+                    case '!=': return $left != $right;
+                    case '>': return $left > $right;
+                    case '<': return $left < $right;
+                }
+            }
+        }
+        
+        // Handle negation
+        if (strpos($condition, '!') === 0) {
+            return !$this->evaluateCondition(substr($condition, 1));
+        }
+        
+        // Simple truthy check
+        $value = $this->evaluateExpression($condition);
+        return !empty($value);
     }
     
     /**
