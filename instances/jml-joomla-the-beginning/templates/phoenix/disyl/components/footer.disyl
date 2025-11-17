@@ -30,7 +30,9 @@
             {if condition="joomla.module_positions.footer-4"}
             <div class="footer-widget">
                 {joomla_module position="footer-4" style="none" /}
+            </div>
             {/if}
+        </div>
         
         {!-- Additional Footer Module Position --}
         {joomla_module position="footer" style="none" /}

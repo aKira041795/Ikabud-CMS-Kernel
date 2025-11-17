@@ -1,13 +1,13 @@
-{\!-- Phoenix Theme v2 - Sidebar Component (Joomla-Native) --}
+{!-- Phoenix Theme v2 - Sidebar Component (Joomla-Native) --}
 
-{\!-- Left Sidebar --}
+{!-- Left Sidebar --}
 {if condition="joomla.module_positions.sidebar-left"}
 <aside class="sidebar sidebar-left">
     {joomla_module position="sidebar-left" style="card" /}
 </aside>
 {/if}
 
-{\!-- Right Sidebar --}
+{!-- Right Sidebar --}
 {if condition="joomla.module_positions.sidebar-right"}
 <aside class="sidebar sidebar-right">
     {joomla_module position="sidebar-right" style="card" /}
