@@ -609,6 +609,10 @@ class DrupalRenderer extends BaseRenderer
                 $url = $node->toUrl()->toString();
                 $author = Html::escape($node->getOwner()->getDisplayName());
                 
+                // Format date
+                $created = $node->getCreatedTime();
+                $date = date('M j, Y', $created);
+                
                 // Get excerpt
                 $excerpt = '';
                 if ($node->hasField('body') && !$node->get('body')->isEmpty()) {
@@ -636,7 +640,7 @@ class DrupalRenderer extends BaseRenderer
                 
                 $output .= '<div class="post-content">';
                 $output .= '<div class="post-meta">';
-                $output .= '<span class="post-date">Article Date</span>';
+                $output .= '<span class="post-date">' . $date . '</span>';
                 $output .= '<span class="separator">•</span>';
                 $output .= '<span class="post-author">' . $author . '</span>';
                 $output .= '</div>';

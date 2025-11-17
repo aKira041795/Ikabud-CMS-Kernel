@@ -17,7 +17,7 @@
                     {/ikb_text}
                     
                     <div class="post-meta">
-                        <span>📅 Article Date</span>
+                        <span>📅 {post.date}</span>
                         <span>•</span>
                         <span>✍️ By <a href="{post.author_url | esc_url}">{post.author | esc_html}</a></span>
                     </div>
