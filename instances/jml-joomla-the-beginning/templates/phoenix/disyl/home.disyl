@@ -16,7 +16,7 @@
 
 {!-- Hero Module Position (primary hero content) --}
 {if condition="joomla.module_positions.hero > 0"}
-    {ikb_section type="hero" class="hero-section" padding="none"}
+    {ikb_section type="hero" class="hero-section" padding="large"}
         {joomla_module position="hero" style="none" /}
     {/ikb_section}
 {/if}
