@@ -73,6 +73,17 @@
         }
       },
       "example": "{drupal_form id=\"Drupal\\search\\Form\\SearchBlockForm\" /}"
+    },
+    "raw_html": {
+      "description": "Output raw HTML without escaping (use with caution)",
+      "attributes": {
+        "content": {
+          "type": "string",
+          "required": true,
+          "description": "Variable name or expression containing HTML content"
+        }
+      },
+      "example": "{raw_html content=\"node.content\" /}"
     }
   }
 }

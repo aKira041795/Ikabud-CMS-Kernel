@@ -142,6 +142,32 @@ function phoenix_get_drupal_context() {
       'author' => $node->getOwner()->getDisplayName(),
       'published' => $node->isPublished(),
     ];
+    
+    // Add content/body
+    if ($node->hasField('body') && !$node->get('body')->isEmpty()) {
+      $body = $node->get('body')->first();
+      $context['node']['content'] = $body->getValue()['value'];
+      $context['node']['summary'] = $body->getValue()['summary'] ?? '';
+      \Drupal::logger('phoenix')->notice('Node content added: ' . substr($context['node']['content'], 0, 100));
+    } else {
+      \Drupal::logger('phoenix')->warning('Node has no body field or is empty');
+    }
+    
+    // Add featured image
+    if ($node->hasField('field_image') && !$node->get('field_image')->isEmpty()) {
+      $image = $node->get('field_image')->entity;
+      if ($image) {
+        $context['node']['thumbnail'] = \Drupal::service('file_url_generator')->generateAbsoluteString($image->getFileUri());
+      }
+    }
+    
+    // Add post-specific context for articles
+    if ($node->bundle() === 'article') {
+      $context['post'] = $context['node'];
+      $context['post']['date'] = $node->getCreatedTime();
+      $context['post']['url'] = $node->toUrl()->toString();
+      $context['post']['author_url'] = '/user/' . $node->getOwnerId();
+    }
   }
   
   return $context;

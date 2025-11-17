@@ -31,7 +31,7 @@
         {!-- Footer Bottom --}
         <div class="footer-bottom">
             {ikb_text align="center"}
-                <p>© {date format="Y" /} {site.name | esc_html}. All rights reserved. Powered by <a href="https://www.drupal.org">Drupal</a></p>
+                <p>© 2024 {site.name | esc_html}. All rights reserved. Powered by <a href="https://www.drupal.org">Drupal</a></p>
             {/ikb_text}
         </div>
     {/ikb_container}

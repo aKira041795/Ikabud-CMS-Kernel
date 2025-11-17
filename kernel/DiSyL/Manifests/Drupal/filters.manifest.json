@@ -93,6 +93,13 @@
       "parameters": ["value"],
       "returns": "string",
       "php": "ucwords({value})"
+    },
+    "raw": {
+      "description": "Output raw HTML without escaping (use with caution)",
+      "category": "security",
+      "parameters": ["value"],
+      "returns": "string",
+      "php": "{value}"
     }
   }
 }

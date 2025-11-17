@@ -1,4 +1,30 @@
+a:4:{s:7:"headers";a:11:{i:0;s:38:"content-type: text/html; charset=UTF-8";i:1;s:49:"cache-control: must-revalidate, no-cache, private";i:2;s:35:"date: Mon, 17 Nov 2025 16:02:55 GMT";i:3;s:28:"x-drupal-dynamic-cache: MISS";i:4;s:20:"content-language: en";i:5;s:31:"x-content-type-options: nosniff";i:6;s:27:"x-frame-options: SAMEORIGIN";i:7;s:38:"expires: Sun, 19 Nov 1978 05:00:00 GMT";i:8;s:47:"x-generator: Drupal 10 (https://www.drupal.org)";i:9;s:21:"content-length: 10322";i:10;s:20:"x-drupal-cache: MISS";}s:4:"body";s:10322:"<!DOCTYPE html>
+<html lang="en" dir="ltr">
+  <head>
+    <meta charset="utf-8" />
+<meta name="Generator" content="Drupal 10 (https://www.drupal.org)" />
+<meta name="MobileOptimized" content="width" />
+<meta name="HandheldFriendly" content="true" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<link rel="icon" href="/core/misc/favicon.ico" type="image/vnd.microsoft.icon" />
 
+    <title>DiSyL Filters Reference | Now Drupal</title>
+    <link rel="stylesheet" media="all" href="/sites/default/files/css/css_azu0vAomWMq8jKYsrGdd5LdSwqN9waxat8jsOAAeGGI.css?delta=0&amp;language=en&amp;theme=phoenix&amp;include=eJwrriwuSc3VT0osTtUpyMhPzcus0E_My8xNLMnMzysGALh9C_k" />
+<link rel="stylesheet" media="all" href="/sites/default/files/css/css_wt4MiZtV8LXpra66ErHpiyWhIUJjGa4ctocUc0Xrwm4.css?delta=1&amp;language=en&amp;theme=phoenix&amp;include=eJwrriwuSc3VT0osTtUpyMhPzcus0E_My8xNLMnMzysGALh9C_k" />
+
+    
+  </head>
+  <body class="phoenix-theme">
+        <a href="#main-content" class="visually-hidden focusable">
+      Skip to main content
+    </a>
+    
+      <div class="dialog-off-canvas-main-canvas" data-off-canvas-main-canvas>
+    <div class="layout-container phoenix-page">
+    
+              <main role="main" id="main-content" class="site-main">
+        <a id="main-content" tabindex="-1"></a>
+        
 
 <header class="site-header sticky-header">
     <div class="header-container">
@@ -31,7 +57,7 @@
         <a href="/phoenix-theme-features" data-drupal-link-system-path="node/2">Phoenix Theme Features</a>
               </li>
           <li>
-        <a href="/disyl-filters-reference" data-drupal-link-system-path="node/3">DiSyL Filters Reference</a>
+        <a href="/disyl-filters-reference" data-drupal-link-system-path="node/3" class="is-active" aria-current="page">DiSyL Filters Reference</a>
               </li>
         </ul>
   
@@ -187,3 +213,16 @@
 <button class="back-to-top" aria-label="Back to top">
     ↑
 </button>
+
+      </main>
+    </div>
+
+  </div>
+
+    
+    <script type="application/json" data-drupal-selector="drupal-settings-json">{"path":{"baseUrl":"\/","pathPrefix":"","currentPath":"node\/3","currentPathIsAdmin":false,"isFront":false,"currentLanguage":"en"},"pluralDelimiter":"\u0003","suppressDeprecationErrors":true,"user":{"uid":0,"permissionsHash":"dda27dab8cef08d8260a1c4f37235e6a41c384e34a918729f246f6780338ed41"}}</script>
+<script src="/sites/default/files/js/js_ABDLoWPEudIxtp5dHNASb5Iwh1Ns2nmXpqhwGaqFhOk.js?scope=footer&amp;delta=0&amp;language=en&amp;theme=phoenix&amp;include=eJwryMhPzcus0E_My8xNLMnMzysGAEVoB14"></script>
+
+  </body>
+</html>
+";s:9:"timestamp";i:1763395375;s:8:"cms_type";s:6:"drupal";}

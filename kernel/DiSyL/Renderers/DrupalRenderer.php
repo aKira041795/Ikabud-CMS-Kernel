@@ -154,7 +154,31 @@ class DrupalRenderer extends BaseRenderer
                 
                 $nids = $query->execute();
                 
+                // Split children into query-block and empty-block
+                $queryChildren = [];
+                $emptyChildren = [];
+                $inEmptyBlock = false;
+                
+                foreach ($children as $child) {
+                    // Check if this is an {empty} tag
+                    if (isset($child['type']) && $child['type'] === 'tag' && 
+                        isset($child['name']) && $child['name'] === 'empty') {
+                        $inEmptyBlock = true;
+                        continue; // Skip the {empty} tag itself
+                    }
+                    
+                    if ($inEmptyBlock) {
+                        $emptyChildren[] = $child;
+                    } else {
+                        $queryChildren[] = $child;
+                    }
+                }
+                
+                // If no results found, render empty block
                 if (empty($nids)) {
+                    if (!empty($emptyChildren)) {
+                        return $this->renderChildren($emptyChildren);
+                    }
                     return '<!-- No posts found -->';
                 }
                 
@@ -176,6 +200,9 @@ class DrupalRenderer extends BaseRenderer
                         'published' => $node_entity->isPublished(),
                     ];
                     
+                    error_log('[DiSyL ikb_query] Processing node: ' . $node_entity->id() . ' - ' . $node_entity->getTitle());
+                    error_log('[DiSyL ikb_query] Item context: ' . json_encode($item_context));
+                    
                     // Get thumbnail if available
                     if ($node_entity->hasField('field_image') && !$node_entity->get('field_image')->isEmpty()) {
                         $image = $node_entity->get('field_image')->entity;
@@ -194,8 +221,8 @@ class DrupalRenderer extends BaseRenderer
                     // Merge with parent context and add item
                     $loop_context = array_merge($context, ['item' => $item_context]);
                     
-                    // Render children with item context
-                    foreach ($children as $child) {
+                    // Render query children with item context
+                    foreach ($queryChildren as $child) {
                         $output .= $this->renderNode($child, $loop_context);
                     }
                 }
@@ -203,7 +230,9 @@ class DrupalRenderer extends BaseRenderer
                 return $output;
             }
             catch (\Exception $e) {
-                return '<!-- ikb_query error: ' . Html::escape($e->getMessage()) . ' -->';
+                error_log('[DiSyL ikb_query] Exception: ' . $e->getMessage());
+                error_log('[DiSyL ikb_query] Trace: ' . $e->getTraceAsString());
+                return '<!-- ikb_query error: ' . Html::escape($e->getMessage()) . ' | File: ' . $e->getFile() . ':' . $e->getLine() . ' -->';
             }
         });
     }
@@ -227,6 +256,9 @@ class DrupalRenderer extends BaseRenderer
         
         // Register Drupal form rendering
         $this->registerComponent('drupal_form', [$this, 'renderDrupalForm']);
+        
+        // Register raw HTML output component
+        $this->registerComponent('raw_html', [$this, 'renderRawHtml']);
     }
 
     /**
@@ -495,6 +527,31 @@ class DrupalRenderer extends BaseRenderer
         }
     }
 
+    /**
+     * Render raw HTML without escaping.
+     * 
+     * @param array $node
+     * @param array $context
+     * @return string
+     */
+    protected function renderRawHtml(array $node, array $context): string
+    {
+        $attrs = $node['attrs'] ?? [];
+        $content = $attrs['content'] ?? '';
+        
+        error_log('[DiSyL raw_html] Received content attribute: ' . $content);
+        
+        // Evaluate expression if it's a variable reference
+        if (preg_match('/^[a-zA-Z0-9_.]+$/', $content)) {
+            $evaluated = $this->evaluateExpression($content);
+            error_log('[DiSyL raw_html] Evaluated to: ' . substr($evaluated ?? 'NULL', 0, 100));
+            $content = $evaluated;
+        }
+        
+        // Return raw HTML without escaping
+        return $content ?? '';
+    }
+    
     /**
      * Render conditional (if) statement
      */

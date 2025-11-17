@@ -17,7 +17,7 @@
                     {/ikb_text}
                     
                     <div class="post-meta">
-                        <span>📅 {post.date | date:format="F j, Y"}</span>
+                        <span>📅 Article Date</span>
                         <span>•</span>
                         <span>✍️ By <a href="{post.author_url | esc_url}">{post.author | esc_html}</a></span>
                     </div>
@@ -37,7 +37,7 @@
                 
                 {!-- Post Content --}
                 <div class="post-content">
-                    {post.content | raw}
+                    {raw_html content="post.content" /}
                 </div>
                 
                 {!-- Post Footer --}

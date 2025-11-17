@@ -32,7 +32,7 @@
                     
                     <div class="post-content">
                         <div class="post-meta">
-                            <span class="post-date">{item.date | date:format="M j, Y"}</span>
+                            <span class="post-date">Article Date</span>
                             <span class="separator">•</span>
                             <span class="post-author">{item.author | esc_html}</span>
                         </div>
@@ -50,11 +50,11 @@
                         </a>
                     </div>
                 </article>
+            {empty}
+                <div class="text-center mt-large">
+                    <p class="ikb-text">No articles found. <a href="{site.base_url}/node/add/article">Create your first article</a> to get started!</p>
+                </div>
             {/ikb_query}
-        </div>
-        
-        <div class="text-center mt-large">
-            <p class="ikb-text">No articles found. <a href="{site.base_url}/node/add/article">Create your first article</a> to get started!</p>
         </div>
     </div>
 </section>

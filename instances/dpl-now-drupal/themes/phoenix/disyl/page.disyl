@@ -22,8 +22,7 @@
                     
                     {!-- Page Content --}
                     <div class="content">
-                        {!-- Drupal content region for page content --}
-                        {drupal_region name="content" /}
+                        {raw_html content="node.content" /}
                     </div>
                 </article>
             </main>
