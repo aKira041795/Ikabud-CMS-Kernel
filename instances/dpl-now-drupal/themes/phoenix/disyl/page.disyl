@@ -1,12 +1,6 @@
 {!-- Phoenix Theme v2 - Page Template (Drupal-Native) --}
 {ikb_include template="components/header.disyl" /}
 
-{!-- Breadcrumb Region --}
-{drupal_region name="breadcrumb" /}
-
-{!-- Highlighted Region --}
-{drupal_region name="highlighted" /}
-
 {ikb_section type="page" padding="xlarge"}
     {ikb_container size="xlarge"}
         <div class="content-layout">

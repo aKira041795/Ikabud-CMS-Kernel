@@ -1,9 +1,6 @@
 {!-- Phoenix Theme v2 - Single Post Template (Drupal-Native) --}
 {ikb_include template="components/header.disyl" /}
 
-{!-- Breadcrumb Region --}
-{drupal_region name="breadcrumb" /}
-
 {ikb_section type="post-single" padding="xlarge"}
     {ikb_container size="xlarge"}
         <div class="content-layout">
