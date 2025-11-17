@@ -213,10 +213,13 @@ class PhoenixDisylIntegration
         
         $menuData = [];
         foreach ($items as $item) {
+            // Use the proper menu item route
+            $url = $item->type === 'url' ? $item->link : Route::_('index.php?Itemid=' . $item->id);
+            
             $menuData[] = [
                 'id' => $item->id,
                 'title' => $item->title,
-                'url' => htmlspecialchars_decode(Route::_($item->link . '&Itemid=' . $item->id)),
+                'url' => htmlspecialchars_decode($url),
                 'active' => ($menu->getActive() && $menu->getActive()->id == $item->id),
                 'parent_id' => $item->parent_id,
                 'level' => $item->level,

@@ -387,16 +387,42 @@ class JoomlaRenderer extends BaseRenderer
     
     /**
      * Render conditional blocks
+     * Properly handles {if}...{else}...{/if} structure
      */
     protected function renderIf(array $node, array $attrs, array $children): string
     {
         $condition = $attrs['condition'] ?? '';
         
-        if ($this->evaluateCondition($condition)) {
-            return $this->renderChildren($children);
+        // Evaluate condition
+        $result = $this->evaluateCondition($condition);
+        
+        // Split children into if-block and else-block
+        $ifChildren = [];
+        $elseChildren = [];
+        $inElseBlock = false;
+        
+        foreach ($children as $child) {
+            // Check if this is an {else} tag
+            if (isset($child['type']) && $child['type'] === 'tag' && 
+                isset($child['name']) && $child['name'] === 'else') {
+                $inElseBlock = true;
+                continue; // Skip the {else} tag itself
+            }
+            
+            if ($inElseBlock) {
+                $elseChildren[] = $child;
+            } else {
+                $ifChildren[] = $child;
+            }
         }
         
-        return '';
+        if ($result) {
+            // Render if block
+            return $this->renderChildren($ifChildren);
+        } else {
+            // Render else block
+            return $this->renderChildren($elseChildren);
+        }
     }
     
     /**
