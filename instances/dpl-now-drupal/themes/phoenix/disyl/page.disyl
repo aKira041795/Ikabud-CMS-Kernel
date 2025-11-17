@@ -1,8 +1,11 @@
-{!-- Phoenix Theme v2 - Page Template (Joomla-Native) --}
+{!-- Phoenix Theme v2 - Page Template (Drupal-Native) --}
 {ikb_include template="components/header.disyl" /}
 
-{!-- Breadcrumbs Module Position --}
-{joomla_module position="breadcrumbs" style="none" /}
+{!-- Breadcrumb Region --}
+{drupal_region name="breadcrumb" /}
+
+{!-- Highlighted Region --}
+{drupal_region name="highlighted" /}
 
 {ikb_section type="page" padding="xlarge"}
     {ikb_container size="xlarge"}
@@ -13,21 +16,27 @@
                     {!-- Page Header --}
                     <header class="page-header">
                         {ikb_text size="3xl" weight="bold" class="gradient-text"}
-                            <h1>{post.title | esc_html}</h1>
+                            <h1>{node.title | esc_html}</h1>
                         {/ikb_text}
                     </header>
                     
                     {!-- Page Content --}
                     <div class="content">
-                        {post.content | raw}
+                        {!-- Drupal content region for page content --}
+                        {drupal_region name="content" /}
                     </div>
                 </article>
             </main>
             
-            {!-- Sidebar (Joomla Module Positions) --}
-            {ikb_include template="components/sidebar.disyl" /}
+            {!-- Sidebar (Drupal Regions) --}
+            {if condition="has_sidebar_first || has_sidebar_second"}
+                {ikb_include template="components/sidebar.disyl" /}
+            {/if}
         </div>
     {/ikb_container}
 {/ikb_section}
+
+{!-- Content Bottom Region --}
+{drupal_region name="content_bottom" /}
 
 {ikb_include template="components/footer.disyl" /}

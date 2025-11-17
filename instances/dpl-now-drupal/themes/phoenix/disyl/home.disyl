@@ -1,8 +1,8 @@
 {!-- Phoenix Theme v2 - Homepage Template (Drupal-Native) --}
 {ikb_include template="components/header.disyl" /}
 
-{!-- Page Top Region (for announcements, alerts) --}
-{drupal_region name="page_top" /}
+{!-- Breadcrumb Region --}
+{drupal_region name="breadcrumb" /}
 
 {!-- Slider Section (region or default component) --}
 {ikb_section type="slider" class="section-gradient" padding="none"}
@@ -80,7 +80,7 @@
                     Secure & Safe
                 {/ikb_text}
                 {ikb_text class="card-text"}
-                    Built with security best practices. XSS prevention, sanitization, and WordPress standards.
+                    Built with security best practices. XSS prevention, sanitization, and Drupal standards.
                 {/ikb_text}
             </div>
             
@@ -106,24 +106,19 @@
                     Widget Ready
                 {/ikb_text}
                 {ikb_text class="card-text"}
-                    Multiple widget areas for sidebars, footers, and homepage sections. Fully customizable.
+                    Multiple block regions for sidebars, footers, and homepage sections. Fully customizable.
                 {/ikb_text}
             </div>
         </div>
     {/ikb_container}
 {/ikb_section}
-{/if}
 
-{!-- Top Content Modules --}
-{joomla_module position="top-a" style="card" /}
-{joomla_module position="top-b" style="card" /}
+{!-- Content Bottom Region --}
+{drupal_region name="content_bottom" /}
 
 {!-- Latest Blog Posts --}
 {ikb_section type="blog" id="blog" padding="xlarge" class="blog-section"}
     {ikb_container size="xlarge"}
-        {!-- Main Top Module Position --}
-        {joomla_module position="main-top" style="none" /}
-        
         <div class="section-header reveal">
             {ikb_text size="3xl" weight="bold" class="section-title gradient-text" align="center"}
                 <h2>Latest Articles</h2>
@@ -171,17 +166,10 @@
         </div>
         
         <div class="text-center mt-large">
-            <a href="/blog" class="btn btn-primary">View All Posts</a>
+            <a href="{site.base_url}/blog" class="btn btn-primary">View All Posts</a>
         </div>
-        
-        {!-- Main Bottom Module Position --}
-        {joomla_module position="main-bottom" style="none" /}
     {/ikb_container}
 {/ikb_section}
-
-{!-- Bottom Content Modules --}
-{joomla_module position="bottom-a" style="card" /}
-{joomla_module position="bottom-b" style="card" /}
 
 {!-- Call to Action Section --}
 {ikb_section type="cta" class="section-gradient" padding="xlarge"}
@@ -196,8 +184,8 @@
             {/ikb_text}
             
             <div class="flex-center gap-medium flex-wrap cta-bottom">
-                <a href="/contact" class="btn btn-primary">Get in Touch</a>
-                <a href="/documentation" class="btn btn-outline">View Documentation</a>
+                <a href="{site.base_url}/contact" class="btn btn-primary">Get in Touch</a>
+                <a href="{site.base_url}/documentation" class="btn btn-outline">View Documentation</a>
             </div>
         </div>
     {/ikb_container}

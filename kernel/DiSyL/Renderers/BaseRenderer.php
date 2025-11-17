@@ -20,6 +20,7 @@ abstract class BaseRenderer
 {
     protected array $context = [];
     protected array $components = [];
+    protected array $filters = [];
     
     /**
      * Constructor - Initialize CMS-specific setup
@@ -433,6 +434,33 @@ abstract class BaseRenderer
     public function registerComponent(string $componentName, callable $renderer): void
     {
         $this->components[$componentName] = $renderer;
+    }
+    
+    /**
+     * Register a custom filter
+     * 
+     * @param string $filterName Filter name (e.g., 'esc_html')
+     * @param callable $filter Filter function
+     */
+    public function registerFilter(string $filterName, callable $filter): void
+    {
+        $this->filters[$filterName] = $filter;
+    }
+    
+    /**
+     * Apply filter to value
+     * 
+     * @param string $filterName Filter name
+     * @param mixed $value Value to filter
+     * @param array $args Additional filter arguments
+     * @return mixed Filtered value
+     */
+    protected function applyFilter(string $filterName, mixed $value, array $args = []): mixed
+    {
+        if (isset($this->filters[$filterName])) {
+            return call_user_func($this->filters[$filterName], $value, ...$args);
+        }
+        return $value;
     }
     
     /**

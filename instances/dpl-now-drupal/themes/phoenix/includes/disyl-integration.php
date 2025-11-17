@@ -23,7 +23,9 @@ use Drupal\Core\Render\Markup;
  */
 function phoenix_render_disyl($template_name, array $context = []) {
   $theme_path = \Drupal::service('extension.list.theme')->getPath('phoenix');
-  $template_path = $theme_path . '/disyl/' . $template_name . '.disyl';
+  $drupal_root = \Drupal::root();
+  $theme_path_absolute = $drupal_root . '/' . $theme_path;
+  $template_path = $theme_path_absolute . '/disyl/' . $template_name . '.disyl';
   
   if (!file_exists($template_path)) {
     \Drupal::logger('phoenix')->error('DiSyL template not found: @template', [
@@ -32,32 +34,55 @@ function phoenix_render_disyl($template_name, array $context = []) {
     return '';
   }
   
-  // Load DiSyL renderer
-  $renderer_path = DRUPAL_ROOT . '/../kernel/DiSyL/Renderers/DrupalRenderer.php';
-  if (!file_exists($renderer_path)) {
-    \Drupal::logger('phoenix')->error('DrupalRenderer not found at: @path', [
-      '@path' => $renderer_path,
+  // Load DiSyL classes
+  // Use absolute theme path to find kernel
+  // theme_path_absolute is /var/www/html/ikabud-kernel/instances/dpl-now-drupal/themes/phoenix
+  // Go up 4 levels: phoenix -> themes -> dpl-now-drupal -> instances -> ikabud-kernel
+  $ikabud_root = dirname(dirname(dirname(dirname($theme_path_absolute))));
+  $kernel_path = $ikabud_root . '/kernel/DiSyL';
+  if (!file_exists($kernel_path)) {
+    \Drupal::logger('phoenix')->error('DiSyL kernel not found at: @path (theme_path: @theme)', [
+      '@path' => $kernel_path,
+      '@theme' => $theme_path,
     ]);
     return '';
   }
   
-  require_once $renderer_path;
+  // Require all necessary DiSyL files
+  require_once $kernel_path . '/Token.php';
+  require_once $kernel_path . '/Lexer.php';
+  require_once $kernel_path . '/ParserError.php';
+  require_once $kernel_path . '/Parser.php';
+  require_once $kernel_path . '/Compiler.php';
+  require_once $kernel_path . '/Renderers/BaseRenderer.php';
+  require_once $kernel_path . '/Renderers/DrupalRenderer.php';
+  require_once $kernel_path . '/Engine.php';
   
   try {
+    // Create DiSyL engine and renderer
+    $engine = new \IkabudKernel\Core\DiSyL\Engine();
     $renderer = new \IkabudKernel\Core\DiSyL\Renderers\DrupalRenderer();
-    $template_content = file_get_contents($template_path);
     
     // Merge context with Drupal-specific data
     $drupal_context = phoenix_get_drupal_context();
     $merged_context = array_merge($drupal_context, $context);
     
-    $output = $renderer->render($template_content, $merged_context);
+    // Compile and render the template
+    $output = $engine->renderFile($template_path, $renderer, $merged_context);
+    
+    // Debug: Save output to file
+    $debug_file = '/var/www/html/ikabud-kernel/disyl_debug_output.html';
+    file_put_contents($debug_file, $output);
+    \Drupal::logger('phoenix')->notice('DiSyL output saved to: @file', ['@file' => $debug_file]);
     
     return Markup::create($output);
   }
   catch (\Exception $e) {
-    \Drupal::logger('phoenix')->error('DiSyL rendering error: @message', [
+    \Drupal::logger('phoenix')->error('DiSyL rendering error: @message in @file:@line. Trace: @trace', [
       '@message' => $e->getMessage(),
+      '@file' => $e->getFile(),
+      '@line' => $e->getLine(),
+      '@trace' => $e->getTraceAsString(),
     ]);
     return '';
   }

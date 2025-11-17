@@ -1,4 +1,6 @@
-{!-- Phoenix Theme - Comments Component --}
+{!-- Phoenix Theme - Comments Component (Drupal-Native) --}
+{!-- Note: Drupal handles comments through the content region --}
+{!-- This component is for custom comment styling if needed --}
 {if condition="post.comments_open || post.comment_count > 0"}
     <div class="comments-area" style="margin-top: 3rem; padding: 2rem; background: white; border-radius: 1rem; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
         {!-- Comments Title --}

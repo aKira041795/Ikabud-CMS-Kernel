@@ -17,6 +17,8 @@ require_once __DIR__ . '/includes/disyl-integration.php';
  * Implements hook_preprocess_page().
  */
 function phoenix_preprocess_page(&$variables) {
+  \Drupal::logger('phoenix')->notice('PREPROCESS PAGE CALLED');
+  
   // Add theme path for DiSyL templates
   $variables['theme_path'] = \Drupal::service('extension.list.theme')->getPath('phoenix');
   
@@ -35,6 +37,30 @@ function phoenix_preprocess_page(&$variables) {
   if ($variables['has_sidebar_second']) $sidebar_count++;
   
   $variables['layout_class'] = 'layout-' . ($sidebar_count > 0 ? 'sidebar-' . $sidebar_count : 'no-sidebar');
+  
+  // Render DiSyL content based on route
+  $route_match = \Drupal::routeMatch();
+  try {
+    $is_front = \Drupal::service('path.matcher')->isFrontPage();
+  }
+  catch (\Exception $e) {
+    $is_front = FALSE;
+  }
+  
+  if ($is_front) {
+    $variables['disyl_content'] = phoenix_render_disyl('home');
+  }
+  elseif ($node = $route_match->getParameter('node')) {
+    if ($node->bundle() == 'article') {
+      $variables['disyl_content'] = phoenix_render_disyl('single');
+    }
+    else {
+      $variables['disyl_content'] = phoenix_render_disyl('page');
+    }
+  }
+  else {
+    $variables['disyl_content'] = NULL;
+  }
 }
 
 /**

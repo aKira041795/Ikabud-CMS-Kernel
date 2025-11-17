@@ -22,9 +22,190 @@ class DrupalRenderer extends BaseRenderer
     protected function initializeCMS(): void
     {
         $this->cms = 'drupal';
-        $this->loadManifests();
+        $this->registerCoreComponents();
         $this->registerDrupalComponents();
         $this->registerDrupalFilters();
+    }
+    
+    /**
+     * Register core DiSyL components.
+     */
+    protected function registerCoreComponents(): void
+    {
+        // ikb_text - Text with typography
+        $this->registerComponent('ikb_text', function($node, $context) {
+            $attrs = $node['attrs'] ?? [];
+            $children = $this->renderChildren($node['children'] ?? []);
+            
+            $size = $attrs['size'] ?? 'md';
+            $weight = $attrs['weight'] ?? 'normal';
+            $align = $attrs['align'] ?? '';
+            $class = $attrs['class'] ?? '';
+            $margin = $attrs['margin'] ?? '';
+            
+            $classes = ['ikb-text', "ikb-text-{$size}", "font-{$weight}"];
+            if ($align) $classes[] = "text-{$align}";
+            if ($class) $classes[] = $class;
+            if ($margin) $classes[] = "margin-{$margin}";
+            
+            return '<div class="' . implode(' ', $classes) . '">' . $children . '</div>';
+        });
+        
+        // ikb_container - Container with max-width
+        $this->registerComponent('ikb_container', function($node, $context) {
+            $attrs = $node['attrs'] ?? [];
+            $children = $this->renderChildren($node['children'] ?? []);
+            
+            $size = $attrs['size'] ?? 'lg';
+            $class = $attrs['class'] ?? '';
+            
+            $classes = ['ikb-container', "ikb-container-{$size}"];
+            if ($class) $classes[] = $class;
+            
+            return '<div class="' . implode(' ', $classes) . '">' . $children . '</div>';
+        });
+        
+        // ikb_section - Section with background and padding
+        $this->registerComponent('ikb_section', function($node, $context) {
+            $attrs = $node['attrs'] ?? [];
+            $children = $this->renderChildren($node['children'] ?? []);
+            
+            $type = $attrs['type'] ?? '';
+            $padding = $attrs['padding'] ?? 'normal';
+            $class = $attrs['class'] ?? '';
+            $id = $attrs['id'] ?? '';
+            
+            $classes = ['ikb-section'];
+            if ($type) $classes[] = "ikb-section-{$type}";
+            $classes[] = "padding-{$padding}";
+            if ($class) $classes[] = $class;
+            
+            $idAttr = $id ? " id=\"{$id}\"" : '';
+            
+            return "<section class=\"" . implode(' ', $classes) . "\"{$idAttr}>" . $children . '</section>';
+        });
+        
+        // ikb_image - Responsive image
+        $this->registerComponent('ikb_image', function($node, $context) {
+            $attrs = $node['attrs'] ?? [];
+            
+            $src = $attrs['src'] ?? '';
+            $alt = $attrs['alt'] ?? '';
+            $class = $attrs['class'] ?? '';
+            $lazy = isset($attrs['lazy']) && $attrs['lazy'] === 'true';
+            
+            $classes = ['ikb-image'];
+            if ($class) $classes[] = $class;
+            
+            $loading = $lazy ? ' loading="lazy"' : '';
+            
+            return "<img src=\"{$src}\" alt=\"{$alt}\" class=\"" . implode(' ', $classes) . "\"{$loading} />";
+        });
+        
+        // ikb_include - Include template
+        $this->registerComponent('ikb_include', function($node, $context) {
+            $attrs = $node['attrs'] ?? [];
+            $template = $attrs['template'] ?? '';
+            
+            if (empty($template)) {
+                return '<!-- ikb_include: no template specified -->';
+            }
+            
+            $theme_path = \Drupal::service('extension.list.theme')->getPath('phoenix');
+            $drupal_root = \Drupal::root();
+            $theme_path_absolute = $drupal_root . '/' . $theme_path;
+            $template_path = $theme_path_absolute . '/disyl/' . $template;
+            
+            if (!file_exists($template_path)) {
+                return "<!-- ikb_include: template not found: {$template} -->";
+            }
+            
+            // Recursively render the included template
+            try {
+                $engine = new \IkabudKernel\Core\DiSyL\Engine();
+                $renderer = new self();
+                return $engine->renderFile($template_path, $renderer, $context);
+            }
+            catch (\Exception $e) {
+                return '<!-- ikb_include error: ' . Html::escape($e->getMessage()) . ' -->';
+            }
+        });
+        
+        // ikb_query - Data query/loop
+        $this->registerComponent('ikb_query', function($node, $context) {
+            $attrs = $node['attrs'] ?? [];
+            $children = $node['children'] ?? [];
+            $type = $attrs['type'] ?? 'post';
+            $limit = isset($attrs['limit']) ? (int)$attrs['limit'] : 10;
+            $orderby = $attrs['orderby'] ?? 'created';
+            $order = $attrs['order'] ?? 'DESC';
+            
+            try {
+                // Map type to Drupal content type
+                $bundle = $type === 'post' ? 'article' : $type;
+                
+                // Query Drupal nodes
+                $query = \Drupal::entityTypeManager()->getStorage('node')->getQuery()
+                    ->condition('type', $bundle)
+                    ->condition('status', 1)
+                    ->sort($orderby, $order)
+                    ->range(0, $limit)
+                    ->accessCheck(TRUE);
+                
+                $nids = $query->execute();
+                
+                if (empty($nids)) {
+                    return '<!-- No posts found -->';
+                }
+                
+                $nodes = \Drupal::entityTypeManager()->getStorage('node')->loadMultiple($nids);
+                $output = '';
+                
+                // Render children for each node
+                foreach ($nodes as $node_entity) {
+                    // Create item context
+                    $item_context = [
+                        'id' => $node_entity->id(),
+                        'title' => $node_entity->getTitle(),
+                        'url' => $node_entity->toUrl()->toString(),
+                        'date' => $node_entity->getCreatedTime(),
+                        'changed' => $node_entity->getChangedTime(),
+                        'author' => $node_entity->getOwner()->getDisplayName(),
+                        'author_id' => $node_entity->getOwnerId(),
+                        'type' => $node_entity->bundle(),
+                        'published' => $node_entity->isPublished(),
+                    ];
+                    
+                    // Get thumbnail if available
+                    if ($node_entity->hasField('field_image') && !$node_entity->get('field_image')->isEmpty()) {
+                        $image = $node_entity->get('field_image')->entity;
+                        if ($image) {
+                            $item_context['thumbnail'] = \Drupal::service('file_url_generator')->generateAbsoluteString($image->getFileUri());
+                        }
+                    }
+                    
+                    // Get excerpt/body
+                    if ($node_entity->hasField('body') && !$node_entity->get('body')->isEmpty()) {
+                        $body = $node_entity->get('body')->value;
+                        $item_context['excerpt'] = strip_tags($body);
+                        $item_context['content'] = $body;
+                    }
+                    
+                    // Merge with parent context and add item
+                    $loop_context = array_merge($context, ['item' => $item_context]);
+                    
+                    // Render children with item context
+                    foreach ($children as $child) {
+                        $output .= $this->renderNode($child, $loop_context);
+                    }
+                }
+                
+                return $output;
+            }
+            catch (\Exception $e) {
+                return '<!-- ikb_query error: ' . Html::escape($e->getMessage()) . ' -->';
+            }
+        });
     }
 
     /**
@@ -69,15 +250,45 @@ class DrupalRenderer extends BaseRenderer
         });
         
         // Date formatting
-        $this->registerFilter('date', function($value, $format = 'medium') {
+        $this->registerFilter('date', function($value, ...$args) {
+            // Handle both positional and named parameters
+            $format = 'medium';
+            if (!empty($args)) {
+                // Check if first arg is an array (named params)
+                if (is_array($args[0])) {
+                    $format = $args[0]['format'] ?? 'medium';
+                } else {
+                    $format = $args[0];
+                }
+            }
+            
             if (is_numeric($value)) {
+                // If format is a PHP date format (not Drupal format type)
+                if (strpos($format, ' ') !== false || strlen($format) > 10) {
+                    return date($format, $value);
+                }
                 return \Drupal::service('date.formatter')->format($value, $format);
             }
             return $value;
         });
         
         // Truncate text
-        $this->registerFilter('truncate', function($value, $length = 100, $append = '...') {
+        $this->registerFilter('truncate', function($value, ...$args) {
+            $length = 100;
+            $append = '...';
+            
+            if (!empty($args)) {
+                if (is_array($args[0])) {
+                    // Named parameters
+                    $length = $args[0]['length'] ?? 100;
+                    $append = $args[0]['append'] ?? '...';
+                } else {
+                    // Positional parameters
+                    $length = $args[0] ?? 100;
+                    $append = $args[1] ?? '...';
+                }
+            }
+            
             if (mb_strlen($value) > $length) {
                 return mb_substr($value, 0, $length) . $append;
             }
@@ -103,8 +314,9 @@ class DrupalRenderer extends BaseRenderer
      * @param array $children
      * @return string
      */
-    protected function renderDrupalBlock(array $node, array $attrs, array $children): string
+    protected function renderDrupalBlock(array $node, array $context): string
     {
+        $attrs = $node['attrs'] ?? [];
         $block_id = $attrs['id'] ?? '';
         
         if (empty($block_id)) {
@@ -139,8 +351,9 @@ class DrupalRenderer extends BaseRenderer
      * @param array $children
      * @return string
      */
-    protected function renderDrupalRegion(array $node, array $attrs, array $children): string
+    protected function renderDrupalRegion(array $node, array $context): string
     {
+        $attrs = $node['attrs'] ?? [];
         $region = $attrs['name'] ?? '';
         
         if (empty($region)) {
@@ -184,8 +397,9 @@ class DrupalRenderer extends BaseRenderer
      * @param array $children
      * @return string
      */
-    protected function renderDrupalMenu(array $node, array $attrs, array $children): string
+    protected function renderDrupalMenu(array $node, array $context): string
     {
+        $attrs = $node['attrs'] ?? [];
         $menu_name = $attrs['name'] ?? 'main';
         $level = isset($attrs['level']) ? (int)$attrs['level'] : 1;
         $depth = isset($attrs['depth']) ? (int)$attrs['depth'] : 0;
@@ -225,8 +439,9 @@ class DrupalRenderer extends BaseRenderer
      * @param array $children
      * @return string
      */
-    protected function renderDrupalView(array $node, array $attrs, array $children): string
+    protected function renderDrupalView(array $node, array $context): string
     {
+        $attrs = $node['attrs'] ?? [];
         $view_id = $attrs['id'] ?? '';
         $display_id = $attrs['display'] ?? 'default';
         
@@ -262,8 +477,9 @@ class DrupalRenderer extends BaseRenderer
      * @param array $children
      * @return string
      */
-    protected function renderDrupalForm(array $node, array $attrs, array $children): string
+    protected function renderDrupalForm(array $node, array $context): string
     {
+        $attrs = $node['attrs'] ?? [];
         $form_id = $attrs['id'] ?? '';
         
         if (empty($form_id)) {
@@ -280,14 +496,79 @@ class DrupalRenderer extends BaseRenderer
     }
 
     /**
-     * {@inheritdoc}
+     * Render conditional (if) statement
      */
-    protected function evaluateCondition(string $condition, array $context): bool
+    protected function renderIf(array $node, array $attrs, array $children): string
     {
-        // Add Drupal-specific condition helpers
-        $context['drupal_user_logged_in'] = \Drupal::currentUser()->isAuthenticated();
-        $context['drupal_is_front'] = \Drupal::service('path.matcher')->isFrontPage();
+        $condition = $attrs['condition'] ?? '';
         
-        return parent::evaluateCondition($condition, $context);
+        // Evaluate condition
+        $result = $this->evaluateCondition($condition);
+        
+        if ($result) {
+            return $this->renderChildren($children);
+        }
+        
+        return '';
+    }
+    
+    /**
+     * Evaluate condition expression
+     * Supports: ||, &&, >, <, >=, <=, ==, !=
+     */
+    protected function evaluateCondition(string $condition): bool
+    {
+        // Handle OR operator (||)
+        if (strpos($condition, '||') !== false) {
+            $parts = explode('||', $condition);
+            foreach ($parts as $part) {
+                if ($this->evaluateCondition(trim($part))) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        
+        // Handle AND operator (&&)
+        if (strpos($condition, '&&') !== false) {
+            $parts = explode('&&', $condition);
+            foreach ($parts as $part) {
+                if (!$this->evaluateCondition(trim($part))) {
+                    return false;
+                }
+            }
+            return true;
+        }
+        
+        // Handle comparison operators
+        $operators = ['>=', '<=', '==', '!=', '>', '<'];
+        foreach ($operators as $op) {
+            if (strpos($condition, $op) !== false) {
+                $parts = explode($op, $condition, 2);
+                if (count($parts) === 2) {
+                    $left = trim($parts[0]);
+                    $right = trim($parts[1]);
+                    
+                    // Evaluate both sides
+                    $leftVal = $this->evaluateExpression($left);
+                    $rightVal = $this->evaluateExpression($right);
+                    
+                    // Perform comparison
+                    return match($op) {
+                        '>=' => $leftVal >= $rightVal,
+                        '<=' => $leftVal <= $rightVal,
+                        '==' => $leftVal == $rightVal,
+                        '!=' => $leftVal != $rightVal,
+                        '>' => $leftVal > $rightVal,
+                        '<' => $leftVal < $rightVal,
+                        default => false
+                    };
+                }
+            }
+        }
+        
+        // Simple evaluation (truthy check)
+        $value = $this->evaluateExpression($condition);
+        return (bool)$value;
     }
 }

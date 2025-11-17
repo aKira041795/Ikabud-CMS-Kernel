@@ -1,15 +1,11 @@
-{!-- Phoenix Theme v2 - Sidebar Component (Joomla-Native) --}
+{!-- Phoenix Theme v2 - Sidebar Component (Drupal-Native) --}
 
-{!-- Left Sidebar --}
-{if condition="joomla.module_positions.sidebar_left > 0"}
-<aside class="sidebar sidebar-left">
-    {joomla_module position="sidebar-left" style="sidebar" /}
+{!-- Left Sidebar (Sidebar First) --}
+<aside class="sidebar sidebar-first" role="complementary">
+    {drupal_region name="sidebar_first" /}
 </aside>
-{/if}
 
-{!-- Right Sidebar --}
-{if condition="joomla.module_positions.sidebar_right > 0"}
-<aside class="sidebar sidebar-right">
-    {joomla_module position="sidebar-right" style="sidebar" /}
+{!-- Right Sidebar (Sidebar Second) --}
+<aside class="sidebar sidebar-second" role="complementary">
+    {drupal_region name="sidebar_second" /}
 </aside>
-{/if}

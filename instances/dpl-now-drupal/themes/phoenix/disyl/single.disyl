@@ -1,8 +1,8 @@
-{!-- Phoenix Theme v2 - Single Post Template (Joomla-Native) --}
+{!-- Phoenix Theme v2 - Single Post Template (Drupal-Native) --}
 {ikb_include template="components/header.disyl" /}
 
-{!-- Breadcrumbs Module Position --}
-{joomla_module position="breadcrumbs" style="none" /}
+{!-- Breadcrumb Region --}
+{drupal_region name="breadcrumb" /}
 
 {ikb_section type="post-single" padding="xlarge"}
     {ikb_container size="xlarge"}
@@ -10,18 +10,11 @@
             {!-- Main Content --}
             <main class="main-content">
                 <article class="post-single">
-                {!-- Custom Hero Image from Joomla Fields --}
-                {!-- Note: Check if custom field exists before rendering --}
-                {!-- Usage: Create a 'hero_image' field in Joomla Content → Fields --}
-                
                 {!-- Post Header --}
                 <header class="post-header">
                     {ikb_text size="3xl" weight="bold" class="gradient-text"}
                         <h1>{post.title | esc_html}</h1>
                     {/ikb_text}
-                    
-                    {!-- Custom Subtitle from Joomla Fields --}
-                    {!-- Note: Create 'subtitle' field in Joomla Content → Fields --}
                     
                     <div class="post-meta">
                         <span>📅 {post.date | date:format="F j, Y"}</span>
@@ -103,19 +96,21 @@
                 </div>
                 
                 {!-- Comments Section --}
-                {!-- Note: Joomla comments handled by extensions (JComments, etc.) --}
-                {!-- Use joomla_module position for comments if needed --}
+                {!-- Drupal comments rendered via content region --}
+                {drupal_region name="content" /}
                 </article>
             </main>
             
-            {!-- Sidebar (Joomla Module Positions) --}
-            {ikb_include template="components/sidebar.disyl" /}
+            {!-- Sidebar (Drupal Regions) --}
+            {if condition="has_sidebar_first || has_sidebar_second"}
+                {ikb_include template="components/sidebar.disyl" /}
+            {/if}
         </div>
     {/ikb_container}
 {/ikb_section}
 
-{!-- Related Posts / Bottom Modules --}
-{joomla_module position="main-bottom" style="card" /}
+{!-- Content Bottom Region --}
+{drupal_region name="content_bottom" /}
 
 {!-- Related Posts --}
 {ikb_section type="related-posts" class="section-gradient" padding="xlarge"}

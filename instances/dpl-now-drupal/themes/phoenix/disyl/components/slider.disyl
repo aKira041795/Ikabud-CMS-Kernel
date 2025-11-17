@@ -1,28 +1,28 @@
-{!-- Phoenix Theme - Slider Component --}
+{!-- Phoenix Theme - Slider Component (Drupal-Native) --}
 <div class="slider-container reveal" 
-     data-autoplay="{components.slider.autoplay}" 
-     data-interval="{components.slider.interval}" 
-     data-transition="{components.slider.transition | esc_attr}">
+     data-autoplay="true" 
+     data-interval="5000" 
+     data-transition="fade">
     <div class="slider-track">
         {!-- Slide 1 --}
         <div class="slide">
-            <img src="{site.theme_url | esc_url}/assets/images/slide-1.png" alt="Slide 1" class="slide-image">
+            <img src="{site.theme_url}/assets/images/slide-1.png" alt="Slide 1" class="slide-image">
             <div class="slide-content">
                 {ikb_text size="3xl" weight="bold" class="slide-title"}
-                    Welcome to Phoenix
+                    Welcome to {site.name | esc_html}
                 {/ikb_text}
                 {ikb_text size="lg"}
                     Experience the power of modern web design with beautiful gradients and smooth animations.
                 {/ikb_text}
                 <div class="slide-actions">
-                    <a href="#" class="btn btn-primary">Learn More</a>
+                    <a href="{site.base_url}" class="btn btn-primary">Learn More</a>
                 </div>
             </div>
         </div>
         
         {!-- Slide 2 --}
         <div class="slide">
-            <img src="{site.theme_url | esc_url}/assets/images/slide-2.png" alt="Slide 2" class="slide-image">
+            <img src="{site.theme_url}/assets/images/slide-2.png" alt="Slide 2" class="slide-image">
             <div class="slide-content">
                 {ikb_text size="3xl" weight="bold" class="slide-title"}
                     Built for Performance
@@ -31,35 +31,31 @@
                     Lightning-fast loading times and optimized rendering for the best user experience.
                 {/ikb_text}
                 <div class="slide-actions">
-                    <a href="#" class="btn btn-primary">View Features</a>
+                    <a href="{site.base_url}/features" class="btn btn-primary">View Features</a>
                 </div>
             </div>
         </div>
         
         {!-- Slide 3 --}
         <div class="slide">
-            <img src="{site.theme_url | esc_url}/assets/images/slide-3.png" alt="Slide 3" class="slide-image">
+            <img src="{site.theme_url}/assets/images/slide-3.png" alt="Slide 3" class="slide-image">
             <div class="slide-content">
                 {ikb_text size="3xl" weight="bold" class="slide-title"}
                     Fully Customizable
                 {/ikb_text}
                 {ikb_text size="lg"}
-                    Endless possibilities with widgets, custom layouts, and advanced theme options.
+                    Endless possibilities with blocks, custom layouts, and advanced theme options.
                 {/ikb_text}
                 <div class="slide-actions">
-                    <a href="#" class="btn btn-primary">Get Started</a>
+                    <a href="{site.base_url}/getting-started" class="btn btn-primary">Get Started</a>
                 </div>
             </div>
         </div>
     </div>
     
     {!-- Slider Controls --}
-    {if condition="components.slider.show_arrows"}
     <button class="slider-arrow slider-arrow-prev" aria-label="Previous slide">‹</button>
     <button class="slider-arrow slider-arrow-next" aria-label="Next slide">›</button>
-    {/if}
     
-    {if condition="components.slider.show_dots"}
     <div class="slider-controls"></div>
-    {/if}
 </div>
