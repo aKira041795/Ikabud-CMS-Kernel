@@ -1317,13 +1317,13 @@ section[data-type="slider"] {
 .sidebar .module-title,
 .sidebar > div > h3:first-child,
 .sidebar .moduletable > h3:first-child {
-    font-size: 1.25rem;
+    font-size: 0.875rem;
     font-weight: 700;
-    margin-bottom: 1rem;
+    margin-bottom: 0.75rem;
     margin-top: 0;
     color: #1a1a2e;
     border-bottom: 2px solid #667eea;
-    padding-bottom: 0.5rem;
+    padding-bottom: 0.375rem;
 }
 
 /* Lists */
