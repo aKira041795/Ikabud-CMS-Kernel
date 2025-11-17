@@ -29,7 +29,7 @@
         
         {!-- Primary Navigation --}
         <nav class="main-nav" role="navigation" aria-label="Primary navigation">
-            {drupal_region name="primary_menu" /}
+            {drupal_menu name="main" /}
         </nav>
     </div>
 </header>
