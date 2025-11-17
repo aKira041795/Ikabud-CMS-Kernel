@@ -38,16 +38,7 @@
                 {/ikb_text}
                 
                 <div class="popular-pages-grid">
-                    {ikb_query type="post" limit=3}
-                        <a href="{item.url | esc_url}" class="popular-page-card">
-                            {ikb_text size="lg" weight="semibold" margin="bottom"}
-                                {item.title | esc_html}
-                            {/ikb_text}
-                            {ikb_text size="sm" class="page-excerpt"}
-                                {item.excerpt | strip_tags | truncate:length=80,append="..."}
-                            {/ikb_text}
-                        </a>
-                    {/ikb_query}
+                    {drupal_articles limit=3 /}
                 </div>
             </div>
         </div>

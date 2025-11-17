@@ -77,50 +77,8 @@
             {!-- Main Content --}
             <main class="main-content">
                 <div class="post-grid">
-                    {ikb_query type="post" limit=12}
-                        <article class="post-card reveal">
-                            {!-- Featured Image --}
-                            {if condition="item.thumbnail"}
-                                <a href="{item.url | esc_url}" class="post-thumbnail-link">
-                                    <img src="{item.thumbnail | esc_url}" alt="{item.title | esc_attr}" class="post-thumbnail" loading="lazy">
-                                </a>
-                            {/if}
-                            
-                            <div class="post-content">
-                                {!-- Post Meta --}
-                                <div class="post-meta">
-                                    <span class="post-date">{item.date | date:format="M j, Y"}</span>
-                                    <span class="separator">•</span>
-                                    <span class="post-author">{item.author | esc_html}</span>
-                                </div>
-                                
-                                {!-- Post Title --}
-                                <div class="ikb-text ikb-text-xl font-semibold post-title">
-                                    <a href="{item.url | esc_url}">{item.title | esc_html}</a>
-                                </div>
-                                
-                                {!-- Post Excerpt --}
-                                <div class="ikb-text post-excerpt">
-                                    {item.excerpt | strip_tags | truncate:length=150,append="..."}
-                                </div>
-                                
-                                {!-- Post Footer --}
-                                <div class="post-footer">
-                                    <a href="{item.url | esc_url}" class="read-more">
-                                        Read More →
-                                    </a>
-                                </div>
-                            </div>
-                        </article>
-                    {/ikb_query}
+                    {drupal_articles limit=12 /}
                 </div>
-                
-                {!-- Pagination --}
-                {if condition="pagination.total_pages > 1"}
-                    <div class="pagination">
-                        {if condition="pagination.prev_url"}
-                            <a href="{pagination.prev_url | esc_url}" class="pagination-prev">
-                                ← Previous
                             </a>
                         {/if}
                         

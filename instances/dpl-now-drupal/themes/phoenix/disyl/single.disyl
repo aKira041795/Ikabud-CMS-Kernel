@@ -122,34 +122,7 @@
         </div>
         
         <div class="related-posts-grid">
-            {ikb_query type="post" limit=3 related="current"}
-                <article class="post-card">
-                    {if condition="item.thumbnail"}
-                        <a href="{item.url | esc_url}">
-                            {ikb_image 
-                                src="{item.thumbnail | esc_url}"
-                                alt="{item.title | esc_attr}"
-                                class="post-thumbnail"
-                                lazy=true
-                            /}
-                        </a>
-                    {/if}
-                    
-                    <div class="post-content">
-                        {ikb_text size="xl" weight="semibold" class="post-title"}
-                            <a href="{item.url | esc_url}">{item.title | esc_html}</a>
-                        {/ikb_text}
-                        
-                        {ikb_text class="post-excerpt"}
-                            {item.excerpt | strip_tags | truncate:length=100,append="..."}
-                        {/ikb_text}
-                        
-                        <a href="{item.url | esc_url}" class="read-more">
-                            Read More →
-                        </a>
-                    </div>
-                </article>
-            {/ikb_query}
+            {drupal_articles limit=3 /}
         </div>
     {/ikb_container}
 {/ikb_section}
