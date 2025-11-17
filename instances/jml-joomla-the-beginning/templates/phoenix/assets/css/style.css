@@ -372,7 +372,7 @@ img {
    HERO SECTION
    ============================================ */
 .hero-section {
-    min-height: 100vh;
+    min-height: auto;
     display: flex;
     align-items: center;
     position: relative;
@@ -380,6 +380,7 @@ img {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     background-size: 200% 200%;
     animation: gradientShift 15s ease infinite;
+    padding: var(--space-xl) 0;
 }
 
 .hero-section::before {
@@ -400,7 +401,7 @@ img {
     z-index: 1;
     max-width: 1440px;
     margin: 0 auto;
-    padding: var(--space-3xl) var(--space-lg);
+    padding: var(--space-lg) var(--space-lg);
     text-align: center;
     color: var(--color-white);
 }
@@ -1116,7 +1117,7 @@ section[data-type="slider"] {
     }
     
     .hero-section {
-        min-height: 80vh;
+        padding: var(--space-lg) 0;
     }
     
     .card-grid,

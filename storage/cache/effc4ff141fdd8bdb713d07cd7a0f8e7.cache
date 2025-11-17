@@ -1,4 +1,4 @@
-a:6:{s:7:"headers";a:7:{i:0;s:27:"X-Frame-Options: SAMEORIGIN";i:1;s:31:"X-Content-Type-Options: nosniff";i:2;s:31:"X-XSS-Protection: 1; mode=block";i:3;s:410:"Content-Security-Policy: default-src 'self' https: http:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https: http: blob:; style-src 'self' 'unsafe-inline' https: http:; img-src 'self' data: https: http:; font-src 'self' data: https: http:; connect-src 'self' https: http: wss: ws:; frame-src 'self' https: http:; frame-ancestors 'self' http://*.phoenix.test https://*.phoenix.test; worker-src 'self' blob:;";i:4;s:48:"Referrer-Policy: strict-origin-when-cross-origin";i:5;s:60:"Permissions-Policy: geolocation=(), microphone=(), camera=()";i:6;s:36:"Content-type: text/css;charset=UTF-8";}s:4:"body";s:40011:"/*
+a:6:{s:7:"headers";a:7:{i:0;s:27:"X-Frame-Options: SAMEORIGIN";i:1;s:31:"X-Content-Type-Options: nosniff";i:2;s:31:"X-XSS-Protection: 1; mode=block";i:3;s:410:"Content-Security-Policy: default-src 'self' https: http:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https: http: blob:; style-src 'self' 'unsafe-inline' https: http:; img-src 'self' data: https: http:; font-src 'self' data: https: http:; connect-src 'self' https: http: wss: ws:; frame-src 'self' https: http:; frame-ancestors 'self' http://*.phoenix.test https://*.phoenix.test; worker-src 'self' blob:;";i:4;s:48:"Referrer-Policy: strict-origin-when-cross-origin";i:5;s:60:"Permissions-Policy: geolocation=(), microphone=(), camera=()";i:6;s:36:"Content-type: text/css;charset=UTF-8";}s:4:"body";s:40051:"/*
 Theme Name: Phoenix
 Theme URI: https://ikabud.com/themes/phoenix
 Description: A stunning, modern DiSyL theme with advanced features, beautiful gradients, smooth animations, and comprehensive widget support. Built for WordPress with DiSyL v0.5.0.
@@ -372,7 +372,7 @@ img {
    HERO SECTION
    ============================================ */
 .hero-section {
-    min-height: 100vh;
+    min-height: auto;
     display: flex;
     align-items: center;
     position: relative;
@@ -380,6 +380,7 @@ img {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     background-size: 200% 200%;
     animation: gradientShift 15s ease infinite;
+    padding: var(--space-xl) 0;
 }
 
 .hero-section::before {
@@ -400,7 +401,7 @@ img {
     z-index: 1;
     max-width: 1440px;
     margin: 0 auto;
-    padding: var(--space-3xl) var(--space-lg);
+    padding: var(--space-lg) var(--space-lg);
     text-align: center;
     color: var(--color-white);
 }
@@ -1116,7 +1117,7 @@ section[data-type="slider"] {
     }
     
     .hero-section {
-        min-height: 80vh;
+        padding: var(--space-lg) 0;
     }
     
     .card-grid,
@@ -1920,4 +1921,4 @@ section[data-type="slider"] {
     font-size: 8rem;         /* 128px */
     line-height: 1;
 }
-";s:9:"timestamp";i:1763361852;s:8:"cms_type";s:6:"joomla";s:17:"extensions_loaded";a:0:{}s:15:"extension_count";i:0;}
+";s:9:"timestamp";i:1763362108;s:8:"cms_type";s:6:"joomla";s:17:"extensions_loaded";a:0:{}s:15:"extension_count";i:0;}

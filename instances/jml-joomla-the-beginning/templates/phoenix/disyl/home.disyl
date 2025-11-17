@@ -5,7 +5,7 @@
 {joomla_module position="banner" style="none" /}
 
 {!-- Slider Section (module or default component) --}
-{ikb_section type="slider" class="section-gradient" padding="large"}
+{ikb_section type="slider" class="section-gradient" padding="none"}
     {if condition="joomla.module_positions.slider > 0"}
         {joomla_module position="slider" style="none" /}
     {else}
