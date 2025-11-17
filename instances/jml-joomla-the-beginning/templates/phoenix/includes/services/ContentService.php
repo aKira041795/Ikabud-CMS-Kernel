@@ -99,7 +99,8 @@ class PhoenixContentService
         if (!empty($article->id)) {
             try {
                 // Suppress warnings from StandardRules when menu items don't exist
-                $articleUrl = @Route::_(ContentHelperRoute::getArticleRoute($article->id, $article->catid ?? 0));
+                // @ suppresses both getArticleRoute() and Route::_() warnings
+                $articleUrl = @Route::_(@ContentHelperRoute::getArticleRoute($article->id, $article->catid ?? 0));
                 if (empty($articleUrl)) {
                     $articleUrl = '/?option=com_content&view=article&id=' . $article->id;
                 }
@@ -114,7 +115,8 @@ class PhoenixContentService
         if (!empty($article->catid) && $article->catid > 0) {
             try {
                 // Suppress warnings from StandardRules when menu items don't exist
-                $categoryUrl = @Route::_(ContentHelperRoute::getCategoryRoute($article->catid));
+                // @ suppresses both getCategoryRoute() and Route::_() warnings
+                $categoryUrl = @Route::_(@ContentHelperRoute::getCategoryRoute($article->catid));
                 if (empty($categoryUrl)) {
                     $categoryUrl = '#';
                 }
