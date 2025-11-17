@@ -1,6 +1,5 @@
 {!-- Phoenix Theme v2 - Footer Component (Joomla-Native) --}
 </main>
-<!-- DEBUG: Footer component loaded -->
 
 <footer class="site-footer">
     {ikb_container size="xlarge"}
