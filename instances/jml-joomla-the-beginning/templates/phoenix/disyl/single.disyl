@@ -1,23 +1,37 @@
-{!-- Phoenix Theme - Single Post Template --}
+{!-- Phoenix Theme v2 - Single Post Template (Joomla-Native) --}
 {ikb_include template="components/header.disyl" /}
+
+{!-- Breadcrumbs Module Position --}
+{joomla_module position="breadcrumbs" style="none" /}
 
 {ikb_section type="post-single" padding="xlarge"}
     {ikb_container size="xlarge"}
         <div class="post-layout">
             {!-- Main Content --}
             <article class="post-single">
-                {!-- Breadcrumbs --}
-                <nav class="breadcrumbs">
-                    <a href="{site.url | esc_url}">Home</a> / 
-                    <a href="{site.url | esc_url}/blog">Blog</a> / 
-                    <span>{post.title | esc_html}</span>
-                </nav>
+                {!-- Custom Hero Image from Joomla Fields --}
+                {if condition="post.id"}
+                    {if condition="joomla_field name='hero_image' id=post.id"}
+                        <figure class="post-hero-image">
+                            <img src="{joomla_field name='hero_image' id=post.id /}" alt="{post.title | esc_attr}" />
+                        </figure>
+                    {/if}
+                {/if}
                 
                 {!-- Post Header --}
                 <header class="post-header">
                     {ikb_text size="3xl" weight="bold" class="gradient-text"}
-                        <h2>{post.title | esc_html}
+                        <h1>{post.title | esc_html}</h1>
                     {/ikb_text}
+                    
+                    {!-- Custom Subtitle from Joomla Fields --}
+                    {if condition="post.id"}
+                        {if condition="joomla_field name='subtitle' id=post.id"}
+                            {ikb_text size="xl" class="post-subtitle"}
+                                {joomla_field name="subtitle" id=post.id /}
+                            {/ikb_text}
+                        {/if}
+                    {/if}
                     
                     <div class="post-meta">
                         <span>📅 {post.date | date:format="F j, Y"}</span>
@@ -28,7 +42,7 @@
                     </div>
                 </header>
                 
-                {!-- Featured Image --}
+                {!-- Featured Image (fallback if no hero_image field) --}
                 {if condition="post.thumbnail"}
                     <figure class="featured-image">
                         {ikb_image 
@@ -108,11 +122,14 @@
                 {/if}
             </article>
             
-            {!-- Sidebar --}
-            {include file="components/sidebar.disyl"}
+            {!-- Sidebar (Joomla Module Positions) --}
+            {ikb_include template="components/sidebar.disyl" /}
         </div>
     {/ikb_container}
 {/ikb_section}
+
+{!-- Related Posts / Bottom Modules --}
+{joomla_module position="main-bottom" style="card" /}
 
 {!-- Related Posts --}
 {ikb_section type="related-posts" class="section-gradient" padding="xlarge"}

@@ -1,4 +1,4 @@
-a:6:{s:7:"headers";a:13:{i:0;s:31:"X-Content-Type-Options: nosniff";i:1;s:31:"X-XSS-Protection: 1; mode=block";i:2;s:410:"Content-Security-Policy: default-src 'self' https: http:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https: http: blob:; style-src 'self' 'unsafe-inline' https: http:; img-src 'self' data: https: http:; font-src 'self' data: https: http:; connect-src 'self' https: http: wss: ws:; frame-src 'self' https: http:; frame-ancestors 'self' http://*.phoenix.test https://*.phoenix.test; worker-src 'self' blob:;";i:3;s:60:"Permissions-Policy: geolocation=(), microphone=(), camera=()";i:4;s:114:"Set-Cookie: c3dcb113ba9b9f02a522f7a4de3a81b6=lhn3ft5b8msvojuq26e0n141op; path=/; secure; HttpOnly; SameSite=Strict";i:5;s:27:"x-frame-options: SAMEORIGIN";i:6;s:48:"referrer-policy: strict-origin-when-cross-origin";i:7;s:39:"cross-origin-opener-policy: same-origin";i:8;s:38:"Content-Type: text/html; charset=utf-8";i:9;s:38:"Expires: Wed, 17 Aug 2005 00:00:00 GMT";i:10;s:44:"Last-Modified: Sun, 16 Nov 2025 23:40:03 GMT";i:11;s:77:"Cache-Control: no-store, no-cache, must-revalidate, post-check=0, pre-check=0";i:12;s:16:"Pragma: no-cache";}s:4:"body";s:20286:"<!DOCTYPE html>
+a:6:{s:7:"headers";a:13:{i:0;s:31:"X-Content-Type-Options: nosniff";i:1;s:31:"X-XSS-Protection: 1; mode=block";i:2;s:410:"Content-Security-Policy: default-src 'self' https: http:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https: http: blob:; style-src 'self' 'unsafe-inline' https: http:; img-src 'self' data: https: http:; font-src 'self' data: https: http:; connect-src 'self' https: http: wss: ws:; frame-src 'self' https: http:; frame-ancestors 'self' http://*.phoenix.test https://*.phoenix.test; worker-src 'self' blob:;";i:3;s:60:"Permissions-Policy: geolocation=(), microphone=(), camera=()";i:4;s:114:"Set-Cookie: c3dcb113ba9b9f02a522f7a4de3a81b6=ioinbto44b5ju2i108c2590ka2; path=/; secure; HttpOnly; SameSite=Strict";i:5;s:27:"x-frame-options: SAMEORIGIN";i:6;s:48:"referrer-policy: strict-origin-when-cross-origin";i:7;s:39:"cross-origin-opener-policy: same-origin";i:8;s:38:"Content-Type: text/html; charset=utf-8";i:9;s:38:"Expires: Wed, 17 Aug 2005 00:00:00 GMT";i:10;s:44:"Last-Modified: Mon, 17 Nov 2025 00:18:43 GMT";i:11;s:77:"Cache-Control: no-store, no-cache, must-revalidate, post-check=0, pre-check=0";i:12;s:16:"Pragma: no-cache";}s:4:"body";s:13739:"<!DOCTYPE html>
 <html lang="en-gb" dir="ltr">
 <head>
     <meta charset="utf-8">
@@ -9,7 +9,7 @@ a:6:{s:7:"headers";a:13:{i:0;s:31:"X-Content-Type-Options: nosniff";i:1;s:31:"X-
 	<link href="/?format=feed&amp;type=atom" rel="alternate" type="application/atom+xml" title="Home">
 
     
-    <script type="application/json" class="joomla-script-options new">{"joomla.jtext":{"JSHOWPASSWORD":"Show Password","JHIDEPASSWORD":"Hide Password"},"system.paths":{"root":"","rootFull":"http:\/\/phoenix.test\/","base":"","baseFull":"http:\/\/phoenix.test\/"},"csrf.token":"53f43c80abbebb339c34f9a091c9a3fc","system.keepalive":{"interval":840000,"uri":"\/component\/ajax\/?format=json"},"plg_system_schedulerunner":{"interval":300}}</script>
+    <script type="application/json" class="joomla-script-options new">{"joomla.jtext":{"JSHOWPASSWORD":"Show Password","JHIDEPASSWORD":"Hide Password"},"system.paths":{"root":"","rootFull":"http:\/\/phoenix.test\/","base":"","baseFull":"http:\/\/phoenix.test\/"},"csrf.token":"a67ef086447b37f7380449d01d87b8e7","system.keepalive":{"interval":840000,"uri":"\/component\/ajax\/?format=json"},"plg_system_schedulerunner":{"interval":300}}</script>
 	<script src="/media/system/js/core.min.js?2cb912"></script>
 	<script src="/media/system/js/keepalive.min.js?08e025" type="module"></script>
 	<script src="/media/system/js/fields/passwordview.min.js?d2a409" defer></script>
@@ -23,222 +23,68 @@ a:6:{s:7:"headers";a:13:{i:0;s:31:"X-Content-Type-Options: nosniff";i:1;s:31:"X-
 </head>
 <body class="site phoenix-template com_content wrapper-static view-featured no-layout no-task itemid-101 has-sidebar-right color-scheme-default">
 <!-- DEBUG: DiSyL Rendered = YES -->
-<!-- DEBUG: Content Length = 18259 bytes -->
+<!-- DEBUG: Content Length = 11712 bytes -->
 
 
     <!-- DiSyL Rendered Content START -->
     
-<header class="site-header sticky-header">
+
+<header class="site-header">
     <div class="header-container">
         
         <div class="site-branding">
             <a href="http://phoenix.test/" class="site-logo">
-                Phoenix
+                
             </a>
         </div>
         
         
         <button class="menu-toggle" aria-label="Toggle navigation" aria-expanded="false">
-            ☰
+            <span class="menu-icon">☰</span>
         </button>
         
         
         <nav class="main-nav" role="navigation" aria-label="Primary navigation">
-            <ul>
-                
-                    <li class="menu-item">
-                        <a href="/">
-                            Home
-                        </a>
-                        
-                    </li>
-                
-                    <li class="menu-item">
-                        <a href="/component/content/?view=category&amp;id=8&amp;Itemid=102">
-                            DiSyL Docs
-                        </a>
-                        
-                    </li>
-                
-                    <li class="menu-item">
-                        <a href="/component/content/?view=article&amp;id=6&amp;Itemid=104">
-                            Getting Started
-                        </a>
-                        
-                    </li>
-                
-                    <li class="menu-item">
-                        <a href="/Banners/Clients/kernel-docs">
-                            Kernel Docs
-                        </a>
-                        
-                    </li>
-                
-            </ul>
             
-            
-                <li class="search-icon">
-                    <a href="#search" aria-label="Search">🔍</a>
-                </li>
+                <ul class="nav-menu">
+                    
+                        <li class="menu-item active">
+                            <a href="/">
+                                Home
+                            </a>
+                            
+                        </li>
+                    
+                        <li class="menu-item">
+                            <a href="/component/content/?view=category&amp;id=8&amp;Itemid=102">
+                                DiSyL Docs
+                            </a>
+                            
+                        </li>
+                    
+                        <li class="menu-item">
+                            <a href="/component/content/?view=article&amp;id=6&amp;Itemid=104">
+                                Getting Started
+                            </a>
+                            
+                        </li>
+                    
+                        <li class="menu-item">
+                            <a href="/Banners/Clients/kernel-docs">
+                                Kernel Docs
+                            </a>
+                            
+                        </li>
+                    
+                </ul>
             
         </nav>
+        
+        
     </div>
 </header>
-<section class="ikb-section section-slider padding-large section-gradient">
-<div class="slider-container reveal" 
-     data-autoplay="1" 
-     data-interval="5000" 
-     data-transition="fade">
-    <div class="slider-track">
+<section class="ikb-section section-features padding-xlarge"></section><div data-disyl-component="else"></div><section class="ikb-section section-blog padding-xlarge"><div class="ikb-container container-xlarge">
         
-        <div class="slide">
-            <img src="http://phoenix.test/templates/phoenix/assets/images/slide-1.png" alt="Slide 1" class="slide-image">
-            <div class="slide-content">
-                <p class="ikb-text text-3xl font-bold text-left slide-title">
-                    Welcome to Phoenix
-                </p><p class="ikb-text text-lg font-normal text-left">
-                    Experience the power of modern web design with beautiful gradients and smooth animations.
-                </p>
-                <div class="slide-actions">
-                    <a href="#" class="btn btn-primary">Learn More</a>
-                </div>
-            </div>
-        </div>
-        
-        
-        <div class="slide">
-            <img src="http://phoenix.test/templates/phoenix/assets/images/slide-2.png" alt="Slide 2" class="slide-image">
-            <div class="slide-content">
-                <p class="ikb-text text-3xl font-bold text-left slide-title">
-                    Built for Performance
-                </p><p class="ikb-text text-lg font-normal text-left">
-                    Lightning-fast loading times and optimized rendering for the best user experience.
-                </p>
-                <div class="slide-actions">
-                    <a href="#" class="btn btn-primary">View Features</a>
-                </div>
-            </div>
-        </div>
-        
-        
-        <div class="slide">
-            <img src="http://phoenix.test/templates/phoenix/assets/images/slide-3.png" alt="Slide 3" class="slide-image">
-            <div class="slide-content">
-                <p class="ikb-text text-3xl font-bold text-left slide-title">
-                    Fully Customizable
-                </p><p class="ikb-text text-lg font-normal text-left">
-                    Endless possibilities with widgets, custom layouts, and advanced theme options.
-                </p>
-                <div class="slide-actions">
-                    <a href="#" class="btn btn-primary">Get Started</a>
-                </div>
-            </div>
-        </div>
-    </div>
-    
-    
-    <button class="slider-arrow slider-arrow-prev" aria-label="Previous slide">‹</button>
-    <button class="slider-arrow slider-arrow-next" aria-label="Next slide">›</button>
-    
-    <div class="slider-controls"></div>
-    
-</div>
-</section><section class="ikb-section section-hero padding-none hero-section">
-    <div class="hero-content animate-fade-in">
-        <p class="ikb-text text-4xl font-black text-left hero-title">
-            
-        </p><p class="ikb-text text-xl font-normal text-left hero-subtitle">
-            
-        </p>
-        
-        <div class="hero-cta">
-            <a href="#features" class="btn btn-primary">Explore Features</a>
-            <a href="#blog" class="btn btn-outline">Read Blog</a>
-        </div>
-    </div>
-</section><section class="ikb-section section-features padding-xlarge"><div class="ikb-container container-xlarge">
-        <div class="section-header reveal">
-            <p class="ikb-text text-3xl font-bold text-left section-title gradient-text">
-                <h3>Powerful Features</h3>
-            </p><p class="ikb-text text-lg font-normal text-left section-subtitle">
-                <h4>Everything you need to build a stunning website</h4>
-            </p>
-        </div>
-        
-        <div class="card-grid">
-            
-            <div class="card reveal">
-                <div class="card-icon">
-                    ⚡
-                </div>
-                <p class="ikb-text text-xl font-semibold text-left card-title">
-                    Lightning Fast
-                </p><p class="ikb-text text-md font-normal text-left card-text">
-                    Optimized for performance with DiSyL's efficient rendering engine. Pages load in milliseconds.
-                </p>
-            </div>
-            
-            
-            <div class="card reveal">
-                <div class="card-icon">
-                    🎨
-                </div>
-                <p class="ikb-text text-xl font-semibold text-left card-title">
-                    Beautiful Design
-                </p><p class="ikb-text text-md font-normal text-left card-text">
-                    Modern gradients, smooth animations, and a clean interface that captivates your visitors.
-                </p>
-            </div>
-            
-            
-            <div class="card reveal">
-                <div class="card-icon">
-                    📱
-                </div>
-                <p class="ikb-text text-xl font-semibold text-left card-title">
-                    Fully Responsive
-                </p><p class="ikb-text text-md font-normal text-left card-text">
-                    Looks perfect on all devices - from mobile phones to large desktop screens.
-                </p>
-            </div>
-            
-            
-            <div class="card reveal">
-                <div class="card-icon">
-                    🔒
-                </div>
-                <p class="ikb-text text-xl font-semibold text-left card-title">
-                    Secure & Safe
-                </p><p class="ikb-text text-md font-normal text-left card-text">
-                    Built with security best practices. XSS prevention, sanitization, and WordPress standards.
-                </p>
-            </div>
-            
-            
-            <div class="card reveal">
-                <div class="card-icon">
-                    🎯
-                </div>
-                <p class="ikb-text text-xl font-semibold text-left card-title">
-                    SEO Optimized
-                </p><p class="ikb-text text-md font-normal text-left card-text">
-                    Clean semantic HTML, fast loading times, and proper meta tags for better search rankings.
-                </p>
-            </div>
-            
-            
-            <div class="card reveal">
-                <div class="card-icon">
-                    🧩
-                </div>
-                <p class="ikb-text text-xl font-semibold text-left card-title">
-                    Widget Ready
-                </p><p class="ikb-text text-md font-normal text-left card-text">
-                    Multiple widget areas for sidebars, footers, and homepage sections. Fully customizable.
-                </p>
-            </div>
-        </div>
-    </div></section><section class="ikb-section section-blog padding-xlarge"><div class="ikb-container container-xlarge">
         <div class="section-header reveal">
             <p class="ikb-text text-3xl font-bold text-center section-title gradient-text">
                 <h2>Latest Articles</h2>
@@ -410,7 +256,8 @@ a:6:{s:7:"headers";a:13:{i:0;s:31:"X-Content-Type-Options: nosniff";i:1;s:31:"X-
         <div class="text-center mt-large">
             <a href="/blog" class="btn btn-primary">View All Posts</a>
         </div>
-    </div></section><section class="ikb-section section-cta padding-xlarge section-gradient"><div class="ikb-container container-xlarge">
+        
+        </div></section><section class="ikb-section section-cta padding-xlarge section-gradient"><div class="ikb-container container-xlarge">
         <div class="text-center reveal">
             <p class="ikb-text text-3xl font-bold text-left">
                 <h3 class="cta-header">Ready to Get Started?</h3>
@@ -428,26 +275,17 @@ a:6:{s:7:"headers";a:13:{i:0;s:31:"X-Content-Type-Options: nosniff";i:1;s:31:"X-
 
 <footer class="site-footer">
     <div class="ikb-container container-xlarge">
-        <div class="footer-widgets footer-columns-4">
+        <div class="footer-widgets footer-columns-">
             
-        </div>
-        
-        
         <div class="footer-bottom">
-            <p class="ikb-text text-md font-normal text-center">
-                
-            </p>
+            <p class="ikb-text text-md font-normal text-center">© 2025 All rights reserved.</p>
         </div>
     </div>
 </footer>
 
 
-<button class="back-to-top" aria-label="Back to top">
-    ↑
-</button>
 
 <script src="http://phoenix.test/templates/phoenix/assets/js/phoenix.js"></script>
-
 </body>
 </html>
     <!-- DiSyL Rendered Content END -->
@@ -459,4 +297,4 @@ a:6:{s:7:"headers";a:13:{i:0;s:31:"X-Content-Type-Options: nosniff";i:1;s:31:"X-
 
 </body>
 </html>
-";s:9:"timestamp";i:1763336403;s:8:"cms_type";s:6:"joomla";s:17:"extensions_loaded";a:0:{}s:15:"extension_count";i:0;}
+";s:9:"timestamp";i:1763338723;s:8:"cms_type";s:6:"joomla";s:17:"extensions_loaded";a:0:{}s:15:"extension_count";i:0;}

@@ -1,38 +1,23 @@
-{!-- Phoenix Theme - Homepage Template --}
+{!-- Phoenix Theme v2 - Homepage Template (Joomla-Native) --}
 {ikb_include template="components/header.disyl" /}
 
-{!-- Featured Slider Section --}
-{ikb_section type="slider" class="section-gradient" padding="large"}
-    {ikb_include template="components/slider.disyl" /}
-{/ikb_section}
+{!-- Banner Module Position (for announcements, alerts) --}
+{joomla_module position="banner" style="none" /}
 
-{!-- Hero Section with Animated Gradient (Only show when no hero widget) --}
-{if condition="!widgets.homepage_hero.active"}
-{ikb_section type="hero" class="hero-section" padding="none"}
-    <div class="hero-content animate-fade-in">
-        {ikb_text size="4xl" weight="black" class="hero-title"}
-            {theme.hero.title | esc_html}
-        {/ikb_text}
-        
-        {ikb_text size="xl" class="hero-subtitle"}
-            {theme.hero.subtitle | esc_html}
-        {/ikb_text}
-        
-        <div class="hero-cta">
-            <a href="#features" class="btn btn-primary">Explore Features</a>
-            <a href="#blog" class="btn btn-outline">Read Blog</a>
-        </div>
-    </div>
-{/ikb_section}
+{!-- Hero Module Position (primary hero content) --}
+{if condition="joomla.module_positions.hero"}
+    {ikb_section type="hero" class="hero-section" padding="none"}
+        {joomla_module position="hero" style="none" /}
+    {/ikb_section}
+{else}
+    {!-- Fallback: Featured Slider --}
+    {ikb_section type="slider" class="section-gradient" padding="large"}
+        {ikb_include template="components/slider.disyl" /}
+    {/ikb_section}
 {/if}
 
-{!-- Custom Hero Widget (When set) --}
-{if condition="widgets.homepage_hero.active"}
-    {widgets.homepage_hero.content | raw}
-{/if}
-
-{!-- Features Section (Only show when no features widget) --}
-{if condition="!widgets.homepage_features.active"}
+{!-- Features Module Position --}
+{if condition="joomla.module_positions.features"}
 {ikb_section type="features" id="features" padding="xlarge"}
     {ikb_container size="xlarge"}
         <div class="section-header reveal">
@@ -127,14 +112,25 @@
 {/ikb_section}
 {/if}
 
-{!-- Custom Features Widget (When set) --}
-{if condition="widgets.homepage_features.active"}
-    {widgets.homepage_features.content | raw}
+{!-- Features Module Content --}
+{ikb_section type="features" id="features" padding="xlarge"}
+    {joomla_module position="features" style="card" /}
+{/ikb_section}
+{else}
+    {!-- Fallback: Default features display --}
+    {!-- (Keep existing hardcoded features as fallback) --}
 {/if}
+
+{!-- Top Content Modules --}
+{joomla_module position="top-a" style="card" /}
+{joomla_module position="top-b" style="card" /}
 
 {!-- Latest Blog Posts --}
 {ikb_section type="blog" id="blog" padding="xlarge"}
     {ikb_container size="xlarge"}
+        {!-- Main Top Module Position --}
+        {joomla_module position="main-top" style="none" /}
+        
         <div class="section-header reveal">
             {ikb_text size="3xl" weight="bold" class="section-title gradient-text" align="center"}
                 <h2>Latest Articles</h2>
@@ -184,8 +180,15 @@
         <div class="text-center mt-large">
             <a href="/blog" class="btn btn-primary">View All Posts</a>
         </div>
+        
+        {!-- Main Bottom Module Position --}
+        {joomla_module position="main-bottom" style="none" /}
     {/ikb_container}
 {/ikb_section}
+
+{!-- Bottom Content Modules --}
+{joomla_module position="bottom-a" style="card" /}
+{joomla_module position="bottom-b" style="card" /}
 
 {!-- Call to Action Section --}
 {ikb_section type="cta" class="section-gradient" padding="xlarge"}
