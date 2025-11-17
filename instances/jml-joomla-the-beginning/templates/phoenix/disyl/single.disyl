@@ -6,9 +6,10 @@
 
 {ikb_section type="post-single" padding="xlarge"}
     {ikb_container size="xlarge"}
-        <div class="post-layout">
+        <div class="content-layout">
             {!-- Main Content --}
-            <article class="post-single">
+            <main class="main-content">
+                <article class="post-single">
                 {!-- Custom Hero Image from Joomla Fields --}
                 {!-- Note: Check if custom field exists before rendering --}
                 {!-- Usage: Create a 'hero_image' field in Joomla Content → Fields --}

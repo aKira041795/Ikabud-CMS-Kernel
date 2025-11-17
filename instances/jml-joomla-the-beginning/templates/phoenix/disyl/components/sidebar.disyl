@@ -1,7 +1,7 @@
 {!-- Phoenix Theme v2 - Sidebar Component (Joomla-Native) --}
 
 {!-- Left Sidebar --}
-{if condition="joomla.module_positions.sidebar_left"}
+{if condition="joomla.module_positions.sidebar_left > 0"}
 <aside class="sidebar sidebar-left">
     {joomla_module position="sidebar-left" style="card" /}
 </aside>
