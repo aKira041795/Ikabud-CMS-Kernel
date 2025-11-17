@@ -1,0 +1,42 @@
+{
+  "context": {
+    "site": {
+      "description": "Site-wide information",
+      "properties": {
+        "name": "Site name from configuration",
+        "slogan": "Site slogan",
+        "theme_url": "Current theme URL path",
+        "base_url": "Base URL of the site"
+      }
+    },
+    "user": {
+      "description": "Current user information",
+      "properties": {
+        "is_logged_in": "Boolean indicating if user is authenticated",
+        "name": "User display name",
+        "uid": "User ID"
+      }
+    },
+    "node": {
+      "description": "Current node information (if viewing a node)",
+      "properties": {
+        "id": "Node ID",
+        "title": "Node title",
+        "type": "Content type machine name",
+        "created": "Creation timestamp",
+        "changed": "Last modified timestamp",
+        "author": "Author display name",
+        "published": "Boolean indicating if published"
+      }
+    },
+    "drupal": {
+      "description": "Drupal-specific information",
+      "properties": {
+        "version": "Drupal version",
+        "route_name": "Current route name",
+        "user_logged_in": "Boolean for conditional checks",
+        "is_front": "Boolean indicating if on front page"
+      }
+    }
+  }
+}

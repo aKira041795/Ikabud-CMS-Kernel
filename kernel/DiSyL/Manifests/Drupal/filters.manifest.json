@@ -1,0 +1,54 @@
+{
+  "filters": {
+    "esc_html": {
+      "description": "Escape HTML entities for safe output",
+      "parameters": ["value"],
+      "returns": "string"
+    },
+    "esc_url": {
+      "description": "Sanitize URL for safe output",
+      "parameters": ["value"],
+      "returns": "string"
+    },
+    "esc_attr": {
+      "description": "Escape HTML attribute value",
+      "parameters": ["value"],
+      "returns": "string"
+    },
+    "date": {
+      "description": "Format timestamp as date",
+      "parameters": ["value", "format"],
+      "returns": "string"
+    },
+    "truncate": {
+      "description": "Truncate text to specified length",
+      "parameters": ["value", "length", "append"],
+      "returns": "string"
+    },
+    "strip_tags": {
+      "description": "Remove HTML tags from string",
+      "parameters": ["value"],
+      "returns": "string"
+    },
+    "t": {
+      "description": "Translate string",
+      "parameters": ["value"],
+      "returns": "string"
+    },
+    "upper": {
+      "description": "Convert string to uppercase",
+      "parameters": ["value"],
+      "returns": "string"
+    },
+    "lower": {
+      "description": "Convert string to lowercase",
+      "parameters": ["value"],
+      "returns": "string"
+    },
+    "capitalize": {
+      "description": "Capitalize first letter",
+      "parameters": ["value"],
+      "returns": "string"
+    }
+  }
+}

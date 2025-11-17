@@ -1,0 +1,96 @@
+{!-- Phoenix Theme - Comments Component --}
+{if condition="post.comments_open || post.comment_count > 0"}
+    <div class="comments-area" style="margin-top: 3rem; padding: 2rem; background: white; border-radius: 1rem; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
+        {!-- Comments Title --}
+        {if condition="post.comment_count > 0"}
+            {ikb_text size="2xl" weight="semibold" margin="bottom-large"}
+                {post.comment_count} Comment{if condition="post.comment_count > 1"}s{/if}
+            {/ikb_text}
+            
+            {!-- Comments List --}
+            <div class="comment-list" style="margin-bottom: 3rem;">
+                {ikb_query type="comment"}
+                    <div class="comment" style="padding: 1.5rem; background: #f8f9fa; border-radius: 0.75rem; margin-bottom: 1rem;">
+                        <div style="display: flex; gap: 1rem;">
+                            <img src="{item.avatar | esc_url}" alt="{item.author | esc_attr}" style="width: 50px; height: 50px; border-radius: 50%;">
+                            
+                            <div style="flex: 1;">
+                                <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 0.5rem;">
+                                    {ikb_text weight="semibold"}
+                                        {item.author | esc_html}
+                                    {/ikb_text}
+                                    {ikb_text size="sm" color="#999"}
+                                        {item.date | date:format='M j, Y'}
+                                    {/ikb_text}
+                                </div>
+                                
+                                {ikb_text}
+                                    {item.content | wp_kses_post}
+                                {/ikb_text}
+                                
+                                {if condition="post.comments_open"}
+                                    <a href="#comment-{item.id}" style="font-size: 0.875rem; color: #667eea; margin-top: 0.5rem; display: inline-block;">
+                                        Reply
+                                    </a>
+                                {/if}
+                            </div>
+                        </div>
+                    </div>
+                {/ikb_query}
+            </div>
+        {/if}
+        
+        {!-- Comment Form --}
+        {if condition="post.comments_open"}
+            <div class="comment-form-wrapper">
+                {ikb_text size="xl" weight="semibold" margin="bottom-large"}
+                    Leave a Comment
+                {/ikb_text}
+                
+                {if condition="user.logged_in"}
+                    {ikb_text margin="bottom"}
+                        Logged in as <a href="{user.profile_url | esc_url}">{user.name | esc_html}</a>. 
+                        <a href="{site.url}/wp-login.php?action=logout" | esc_url}>Log out?</a>
+                    {/ikb_text}
+                {/if}
+                
+                <form action="{site.url}/wp-comments-post.php" method="post" class="comment-form validate-form">
+                    {if condition="!user.logged_in"}
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1rem;">
+                            <div>
+                                <label for="author" style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Name *</label>
+                                <input type="text" id="author" name="author" required style="width: 100%; padding: 0.75rem; border: 2px solid #e2e8f0; border-radius: 0.5rem; font-size: 1rem;">
+                            </div>
+                            
+                            <div>
+                                <label for="email" style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Email *</label>
+                                <input type="email" id="email" name="email" required style="width: 100%; padding: 0.75rem; border: 2px solid #e2e8f0; border-radius: 0.5rem; font-size: 1rem;">
+                            </div>
+                            
+                            <div>
+                                <label for="url" style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Website</label>
+                                <input type="url" id="url" name="url" style="width: 100%; padding: 0.75rem; border: 2px solid #e2e8f0; border-radius: 0.5rem; font-size: 1rem;">
+                            </div>
+                        </div>
+                    {/if}
+                    
+                    <div style="margin-bottom: 1rem;">
+                        <label for="comment" style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Comment *</label>
+                        <textarea id="comment" name="comment" rows="6" required style="width: 100%; padding: 0.75rem; border: 2px solid #e2e8f0; border-radius: 0.5rem; font-size: 1rem; resize: vertical;"></textarea>
+                    </div>
+                    
+                    <input type="hidden" name="comment_post_ID" value="{post.id}">
+                    <input type="hidden" name="comment_parent" value="0">
+                    
+                    <button type="submit" class="btn btn-primary">Post Comment</button>
+                </form>
+            </div>
+        {else}
+            <div style="text-align: center; padding: 2rem; background: #f8f9fa; border-radius: 0.75rem;">
+                {ikb_text size="lg" color="#718096"}
+                    Comments are closed.
+                {/ikb_text}
+            </div>
+        {/if}
+    </div>
+{/if}

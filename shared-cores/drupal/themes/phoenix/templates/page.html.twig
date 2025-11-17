@@ -1,0 +1,79 @@
+{#
+/**
+ * @file
+ * Phoenix theme implementation to display a single page.
+ *
+ * Available variables:
+ * - page: The page content regions
+ * - node: The node entity (if viewing a node)
+ * - logged_in: Whether the user is logged in
+ * - is_admin: Whether the user has admin privileges
+ */
+#}
+<!DOCTYPE html>
+<html{{ html_attributes }}>
+  <head>
+    <head-placeholder token="{{ placeholder_token }}">
+    <title>{{ head_title|safe_join(' | ') }}</title>
+    <css-placeholder token="{{ placeholder_token }}">
+    <js-placeholder token="{{ placeholder_token }}">
+  </head>
+  <body{{ attributes.addClass(layout_class) }}>
+    <a href="#main-content" class="visually-hidden focusable skip-link">
+      {{ 'Skip to main content'|t }}
+    </a>
+    {{ page_top }}
+    
+    {# Render DiSyL template based on route #}
+    {% if is_front %}
+      {{ phoenix_disyl_render('home') }}
+    {% elseif node %}
+      {% if node.bundle == 'article' %}
+        {{ phoenix_disyl_render('single') }}
+      {% else %}
+        {{ phoenix_disyl_render('page') }}
+      {% endif %}
+    {% else %}
+      {# Fallback to standard Drupal rendering #}
+      <div class="layout-container">
+        {{ page.header }}
+        
+        {{ page.primary_menu }}
+        {{ page.secondary_menu }}
+        
+        {{ page.breadcrumb }}
+        
+        {{ page.highlighted }}
+        
+        <main role="main" id="main-content" class="main-content">
+          <a id="main-content" tabindex="-1"></a>
+          
+          <div class="layout-content">
+            {{ page.content }}
+          </div>
+          
+          {% if page.sidebar_first %}
+            <aside class="layout-sidebar-first" role="complementary">
+              {{ page.sidebar_first }}
+            </aside>
+          {% endif %}
+          
+          {% if page.sidebar_second %}
+            <aside class="layout-sidebar-second" role="complementary">
+              {{ page.sidebar_second }}
+            </aside>
+          {% endif %}
+        </main>
+        
+        {% if page.footer %}
+          <footer role="contentinfo">
+            {{ page.footer }}
+          </footer>
+        {% endif %}
+      </div>
+    {% endif %}
+    
+    {{ page_bottom }}
+    <js-bottom-placeholder token="{{ placeholder_token }}">
+  </body>
+</html>

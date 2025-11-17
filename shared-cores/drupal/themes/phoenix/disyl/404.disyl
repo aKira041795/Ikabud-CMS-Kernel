@@ -1,0 +1,57 @@
+{!-- Phoenix Theme - 404 Error Template --}
+{ikb_include template="components/header.disyl" /}
+
+{ikb_section type="error-404" padding="xlarge"}
+    {ikb_container size="large"}
+        <div class="error-404-content">
+            {!-- 404 Illustration --}
+            <div class="error-404-number">
+                404
+            </div>
+            
+            {ikb_text size="3xl" weight="bold" margin="top-large bottom"}
+                Oops! Page Not Found
+            {/ikb_text}
+            
+            {ikb_text size="lg" class="error-message" margin="bottom-xlarge"}
+                The page you're looking for doesn't exist or has been moved.
+            {/ikb_text}
+            
+            {!-- Search Form --}
+            <div class="search-form-wrapper">
+                <form class="search-form" role="search" method="get" action="{site.url | esc_url}">
+                    <input type="search" class="search-input" placeholder="Search for content..." name="s">
+                    <button type="submit" class="search-submit">Search</button>
+                </form>
+            </div>
+            
+            {!-- Action Buttons --}
+            <div class="flex-center gap-medium flex-wrap">
+                <a href="{site.url | esc_url}" class="btn btn-primary">Go to Homepage</a>
+                <a href="{site.url | esc_url}/blog" class="btn btn-outline">View Blog</a>
+            </div>
+            
+            {!-- Popular Pages --}
+            <div class="popular-pages">
+                {ikb_text size="xl" weight="semibold" margin="bottom-large"}
+                    Popular Pages
+                {/ikb_text}
+                
+                <div class="popular-pages-grid">
+                    {ikb_query type="post" limit=3}
+                        <a href="{item.url | esc_url}" class="popular-page-card">
+                            {ikb_text size="lg" weight="semibold" margin="bottom"}
+                                {item.title | esc_html}
+                            {/ikb_text}
+                            {ikb_text size="sm" class="page-excerpt"}
+                                {item.excerpt | strip_tags | truncate:length=80,append="..."}
+                            {/ikb_text}
+                        </a>
+                    {/ikb_query}
+                </div>
+            </div>
+        </div>
+    {/ikb_container}
+{/ikb_section}
+
+{ikb_include template="components/footer.disyl" /}

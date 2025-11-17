@@ -1,0 +1,133 @@
+<?php
+
+/**
+ * @file
+ * Phoenix theme functions and preprocess hooks.
+ * 
+ * This theme uses DiSyL (Declarative Ikabud Syntax Language) for templating,
+ * providing cross-CMS compatibility while respecting Drupal's architecture.
+ */
+
+use Drupal\Core\Template\Attribute;
+
+// Include DiSyL integration
+require_once __DIR__ . '/includes/disyl-integration.php';
+
+/**
+ * Implements hook_preprocess_page().
+ */
+function phoenix_preprocess_page(&$variables) {
+  // Add theme path for DiSyL templates
+  $variables['theme_path'] = \Drupal::service('extension.list.theme')->getPath('phoenix');
+  
+  // Add site information
+  $config = \Drupal::config('system.site');
+  $variables['site_name'] = $config->get('name');
+  $variables['site_slogan'] = $config->get('slogan');
+  
+  // Check if regions have content
+  $variables['has_sidebar_first'] = !empty($variables['page']['sidebar_first']);
+  $variables['has_sidebar_second'] = !empty($variables['page']['sidebar_second']);
+  
+  // Determine layout class
+  $sidebar_count = 0;
+  if ($variables['has_sidebar_first']) $sidebar_count++;
+  if ($variables['has_sidebar_second']) $sidebar_count++;
+  
+  $variables['layout_class'] = 'layout-' . ($sidebar_count > 0 ? 'sidebar-' . $sidebar_count : 'no-sidebar');
+}
+
+/**
+ * Implements hook_preprocess_node().
+ */
+function phoenix_preprocess_node(&$variables) {
+  $node = $variables['node'];
+  
+  // Add node metadata for DiSyL
+  $variables['node_date'] = $node->getCreatedTime();
+  $variables['node_author'] = $node->getOwner()->getDisplayName();
+  $variables['node_type'] = $node->bundle();
+  
+  // Add view mode class
+  $variables['attributes']['class'][] = 'node--view-mode-' . $variables['view_mode'];
+}
+
+/**
+ * Implements hook_preprocess_block().
+ */
+function phoenix_preprocess_block(&$variables) {
+  // Add block region class
+  if (isset($variables['elements']['#configuration']['region'])) {
+    $variables['attributes']['class'][] = 'block--region-' . $variables['elements']['#configuration']['region'];
+  }
+}
+
+/**
+ * Implements hook_preprocess_region().
+ */
+function phoenix_preprocess_region(&$variables) {
+  // Add region-specific classes
+  $region = $variables['elements']['#region'];
+  $variables['attributes']['class'][] = 'region';
+  $variables['attributes']['class'][] = 'region--' . str_replace('_', '-', $region);
+}
+
+/**
+ * Implements hook_preprocess_html().
+ */
+function phoenix_preprocess_html(&$variables) {
+  // Add body classes
+  $variables['attributes']['class'][] = 'phoenix-theme';
+  
+  // Add viewport meta tag
+  $viewport = [
+    '#tag' => 'meta',
+    '#attributes' => [
+      'name' => 'viewport',
+      'content' => 'width=device-width, initial-scale=1.0',
+    ],
+  ];
+  $variables['page']['#attached']['html_head'][] = [$viewport, 'viewport'];
+}
+
+/**
+ * Implements hook_theme_suggestions_page_alter().
+ */
+function phoenix_theme_suggestions_page_alter(array &$suggestions, array $variables) {
+  // Add template suggestions based on node type
+  if ($node = \Drupal::routeMatch()->getParameter('node')) {
+    $suggestions[] = 'page__node__' . $node->bundle();
+  }
+}
+
+/**
+ * Implements hook_preprocess_menu().
+ */
+function phoenix_preprocess_menu(&$variables) {
+  // Add menu name class
+  if (isset($variables['menu_name'])) {
+    $variables['attributes']['class'][] = 'menu--' . $variables['menu_name'];
+  }
+}
+
+/**
+ * Implements hook_preprocess_field().
+ */
+function phoenix_preprocess_field(&$variables) {
+  // Add field type class
+  $variables['attributes']['class'][] = 'field--type-' . $variables['field_type'];
+}
+
+/**
+ * Implements hook_theme().
+ */
+function phoenix_theme($existing, $type, $theme, $path) {
+  return [
+    'disyl_page' => [
+      'variables' => [
+        'content' => NULL,
+        'attributes' => [],
+      ],
+    ],
+  ];
+}

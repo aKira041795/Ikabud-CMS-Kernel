@@ -1,0 +1,170 @@
+{!-- Phoenix Theme v2 - Category Template (Joomla-Native) --}
+{ikb_include template="components/header.disyl" /}
+
+{!-- Breadcrumbs Module Position --}
+{joomla_module position="breadcrumbs" style="none" /}
+
+{!-- Category Header --}
+{ikb_section type="category-header" class="section-gradient" padding="xlarge"}
+    {ikb_container size="large"}
+        <div class="category-header-content">
+            {!-- Category Title --}
+            <div class="text-center">
+                <div class="ikb-text ikb-text-4xl font-bold category-title">
+                    <h1>{category.name | esc_html}</h1>
+                </div>
+                
+                {!-- Category Description --}
+                {if condition="category.description"}
+                    <div class="ikb-text ikb-text-lg category-description" style="margin-top: 1rem;">
+                        {category.description | wp_kses_post}
+                    </div>
+                {/if}
+                
+                {!-- Category Meta --}
+                <div class="category-meta">
+                    
+                    {!-- Parent Category Breadcrumb --}
+                    {if condition="category.parent"}
+                        <span class="separator">•</span>
+                        <span>
+                            in <a href="{category.parent.url | esc_url}" class="parent-category">{category.parent.name | esc_html}</a>
+                        </span>
+                    {/if}
+                </div>
+            </div>
+        </div>
+    {/ikb_container}
+{/ikb_section}
+
+{!-- Subcategories (if any) --}
+{if condition="category.children"}
+{ikb_section type="subcategories" background="light" padding="large"}
+    {ikb_container size="large"}
+            <div class="ikb-text ikb-text-2xl font-semibold" style="margin-bottom: 2rem;">
+                <h2>Explore Subcategories</h2>
+            </div>
+            
+            <div class="subcategory-grid">
+                {for items="category.children" as="child"}
+                    <a href="{child.url | esc_url}" class="subcategory-card">
+                        <div class="subcategory-content">
+                            <div class="ikb-text ikb-text-lg font-semibold">
+                                {child.name | esc_html}
+                            </div>
+                            
+                            {if condition="child.description"}
+                                <div class="ikb-text ikb-text-sm subcategory-desc">
+                                    {child.description | strip_tags | truncate:length=80,append="..."}
+                                </div>
+                            {/if}
+                            
+                            <div class="ikb-text ikb-text-xs subcategory-count">
+                                {child.count} posts
+                            </div>
+                        </div>
+                    </a>
+                {/for}
+            </div>
+        {/ikb_container}
+    {/ikb_section}
+{/if}
+
+{!-- Category Posts --}
+{ikb_section type="category-posts" padding="xlarge"}
+    {ikb_container size="xlarge"}
+        <div class="content-layout">
+            {!-- Main Content --}
+            <main class="main-content">
+                <div class="post-grid">
+                    {ikb_query type="post" limit=12}
+                        <article class="post-card reveal">
+                            {!-- Featured Image --}
+                            {if condition="item.thumbnail"}
+                                <a href="{item.url | esc_url}" class="post-thumbnail-link">
+                                    <img src="{item.thumbnail | esc_url}" alt="{item.title | esc_attr}" class="post-thumbnail" loading="lazy">
+                                </a>
+                            {/if}
+                            
+                            <div class="post-content">
+                                {!-- Post Meta --}
+                                <div class="post-meta">
+                                    <span class="post-date">{item.date | date:format="M j, Y"}</span>
+                                    <span class="separator">•</span>
+                                    <span class="post-author">{item.author | esc_html}</span>
+                                </div>
+                                
+                                {!-- Post Title --}
+                                <div class="ikb-text ikb-text-xl font-semibold post-title">
+                                    <a href="{item.url | esc_url}">{item.title | esc_html}</a>
+                                </div>
+                                
+                                {!-- Post Excerpt --}
+                                <div class="ikb-text post-excerpt">
+                                    {item.excerpt | strip_tags | truncate:length=150,append="..."}
+                                </div>
+                                
+                                {!-- Post Footer --}
+                                <div class="post-footer">
+                                    <a href="{item.url | esc_url}" class="read-more">
+                                        Read More →
+                                    </a>
+                                </div>
+                            </div>
+                        </article>
+                    {/ikb_query}
+                </div>
+                
+                {!-- Pagination --}
+                {if condition="pagination.total_pages > 1"}
+                    <div class="pagination">
+                        {if condition="pagination.prev_url"}
+                            <a href="{pagination.prev_url | esc_url}" class="pagination-prev">
+                                ← Previous
+                            </a>
+                        {/if}
+                        
+                        <span class="pagination-info">
+                            Page {pagination.current_page} of {pagination.total_pages}
+                        </span>
+                        
+                        {if condition="pagination.next_url"}
+                            <a href="{pagination.next_url | esc_url}" class="pagination-next">
+                                Next →
+                            </a>
+                        {/if}
+                    </div>
+                {/if}
+            </main>
+            
+            {!-- Sidebar --}
+            {ikb_include template="components/sidebar.disyl" /}
+        </div>
+    {/ikb_container}
+{/ikb_section}
+
+{!-- Related Categories --}
+{if condition="category.related"}
+{ikb_section type="related-categories" background="light" padding="large"}
+    {ikb_container size="large"}
+            <div class="ikb-text ikb-text-2xl font-semibold" style="margin-bottom: 2rem;">
+                <h2>Related Categories</h2>
+            </div>
+            
+            <div class="related-categories-grid">
+                {for items="category.related" as="related"}
+                    <a href="{related.url | esc_url}" class="related-category-card">
+                        <div class="ikb-text ikb-text-lg font-semibold">
+                            {related.name | esc_html}
+                        </div>
+                        <div class="ikb-text ikb-text-sm">
+                            {related.count} posts
+                        </div>
+                    </a>
+                {/for}
+            </div>
+        {/ikb_container}
+    {/ikb_section}
+{/if}
+
+{ikb_include template="components/footer.disyl" /}

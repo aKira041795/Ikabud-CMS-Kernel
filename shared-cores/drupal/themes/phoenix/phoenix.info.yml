@@ -1,0 +1,49 @@
+name: Phoenix
+type: theme
+description: 'Modern, gradient-rich theme powered by DiSyL (Declarative Ikabud Syntax Language) for cross-CMS compatibility.'
+package: Custom
+core_version_requirement: ^10 || ^11
+base theme: false
+
+# Theme libraries
+libraries:
+  - phoenix/global
+  - phoenix/animations
+
+# Library overrides
+libraries-override:
+  system/base:
+    css:
+      component:
+        css/components/ajax-progress.module.css: assets/css/components/ajax-progress.css
+
+# Regions
+regions:
+  header: 'Header'
+  primary_menu: 'Primary Menu'
+  secondary_menu: 'Secondary Menu'
+  page_top: 'Page Top'
+  page_bottom: 'Page Bottom'
+  hero: 'Hero'
+  slider: 'Slider'
+  highlighted: 'Highlighted'
+  breadcrumb: 'Breadcrumb'
+  content: 'Content'
+  sidebar_first: 'Left Sidebar'
+  sidebar_second: 'Right Sidebar'
+  content_bottom: 'Content Bottom'
+  footer_first: 'Footer First'
+  footer_second: 'Footer Second'
+  footer_third: 'Footer Third'
+  footer_fourth: 'Footer Fourth'
+  footer: 'Footer'
+
+# Theme settings
+features:
+  - comment_user_picture
+  - comment_user_verification
+  - favicon
+  - node_user_picture
+
+# Screenshot
+screenshot: screenshot.png

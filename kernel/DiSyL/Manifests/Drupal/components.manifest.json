@@ -1,0 +1,78 @@
+{
+  "components": {
+    "drupal_block": {
+      "description": "Render a Drupal block by ID",
+      "attributes": {
+        "id": {
+          "type": "string",
+          "required": true,
+          "description": "Block machine name or ID"
+        }
+      },
+      "example": "{drupal_block id=\"system_branding_block\" /}"
+    },
+    "drupal_region": {
+      "description": "Render all blocks in a Drupal region",
+      "attributes": {
+        "name": {
+          "type": "string",
+          "required": true,
+          "description": "Region machine name"
+        }
+      },
+      "example": "{drupal_region name=\"sidebar_first\" /}"
+    },
+    "drupal_menu": {
+      "description": "Render a Drupal menu",
+      "attributes": {
+        "name": {
+          "type": "string",
+          "required": false,
+          "default": "main",
+          "description": "Menu machine name"
+        },
+        "level": {
+          "type": "integer",
+          "required": false,
+          "default": 1,
+          "description": "Starting level"
+        },
+        "depth": {
+          "type": "integer",
+          "required": false,
+          "default": 0,
+          "description": "Maximum depth (0 = unlimited)"
+        }
+      },
+      "example": "{drupal_menu name=\"main\" level=1 depth=2 /}"
+    },
+    "drupal_view": {
+      "description": "Render a Drupal view",
+      "attributes": {
+        "id": {
+          "type": "string",
+          "required": true,
+          "description": "View machine name"
+        },
+        "display": {
+          "type": "string",
+          "required": false,
+          "default": "default",
+          "description": "Display ID"
+        }
+      },
+      "example": "{drupal_view id=\"frontpage\" display=\"page_1\" /}"
+    },
+    "drupal_form": {
+      "description": "Render a Drupal form",
+      "attributes": {
+        "id": {
+          "type": "string",
+          "required": true,
+          "description": "Form ID"
+        }
+      },
+      "example": "{drupal_form id=\"Drupal\\search\\Form\\SearchBlockForm\" /}"
+    }
+  }
+}
