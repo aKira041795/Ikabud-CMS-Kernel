@@ -89,6 +89,24 @@
         "{item.meta | json}",
         "Result: {\"key\":\"value\"}"
       ]
+    },
+    "default": {
+      "description": "Return default value if input is empty, null, or undefined",
+      "category": "utility",
+      "php": "(empty({value}) && {value} !== '0' && {value} !== 0) ? {fallback} : {value}",
+      "js": "({value} === null || {value} === undefined || {value} === '') ? {fallback} : {value}",
+      "params": {
+        "fallback": {
+          "type": "string",
+          "required": true,
+          "description": "Default value to return if input is empty"
+        }
+      },
+      "examples": [
+        "{title | default:\"Untitled\"}",
+        "{author_name | default:\"{post.author}\"}",
+        "Result: Returns fallback if value is empty"
+      ]
     }
   }
 }

@@ -279,6 +279,12 @@ abstract class BaseRenderer
                             $arg = substr($arg, 1, -1);
                         }
                         
+                        // Check if argument contains an expression (for default filter)
+                        if ($filterName === 'default' && preg_match('/^\{([a-zA-Z0-9_.]+)\}$/', $arg, $matches)) {
+                            // Evaluate the expression
+                            $arg = $this->evaluateExpression($matches[1]);
+                        }
+                        
                         // Map positional arguments to parameter names based on filter
                         if ($filterName === 'truncate') {
                             if ($positionalIndex === 0) $params['length'] = $arg;
@@ -289,6 +295,8 @@ abstract class BaseRenderer
                             if ($positionalIndex === 0) $params['decimals'] = $arg;
                             elseif ($positionalIndex === 1) $params['dec_point'] = $arg;
                             elseif ($positionalIndex === 2) $params['thousands_sep'] = $arg;
+                        } elseif ($filterName === 'default') {
+                            if ($positionalIndex === 0) $params['fallback'] = $arg;
                         } else {
                             // Generic: use numeric index
                             $params[$positionalIndex] = $arg;
