@@ -59,12 +59,14 @@ Ikabud Kernel v3.0 is a **production-ready enterprise CMS hyperkernel** that rev
 - ✅ **Drupal** - Native support with module management
 - ✅ **Native CMS** - Built-in lightweight CMS
 
-### Management Tools
+### Management Tools (CLI & API available, UI rolling out)
 - **CLI Tool** (`ikabud`) - Command-line interface for instance management
 - **REST API** - Comprehensive API for programmatic control
-- **Admin UI** - React-based dashboard (in development)
+- **Admin UI** - React-based dashboard (at `/login`, in active development)
 - **Instance Manager** - Create, start, stop, and monitor instances
 - **Theme Builder** - Visual theme editor with DSL support
+
+> **Status:** The CLI tool and REST API are available today. The React Admin UI at `/login`, instance management UI, and visual theme builder are in active development and will be released soon.
 
 ### DiSyL Templating Engine (v0.5.0 Beta)
 - **🎨 Universal Templates** - Write once, deploy to WordPress, Joomla, or Drupal
@@ -198,6 +200,8 @@ phoenix/
 
 Perfect for Bluehost, SiteGround, HostGator, and other cPanel-based hosts.
 
+**Download (current build)**: https://wpdemo.zdnorte.net/wp-content/uploads/2025/11/ikabud-cms-shared-hosting.tar.gz
+
 **What's Included**:
 - ✅ Complete kernel with DiSyL engine
 - ✅ Pre-built admin panel
@@ -212,7 +216,7 @@ Perfect for Bluehost, SiteGround, HostGator, and other cPanel-based hosts.
 - ❌ `/dsl` - Development files
 
 **Deployment Steps**:
-1. Upload `ikabud-cms-shared-hosting.tar.gz` to your hosting
+1. Download `ikabud-cms-shared-hosting.tar.gz` from the URL above and upload it to your hosting
 2. Extract via cPanel File Manager or SSH
 3. Navigate to `https://yourdomain.com/install.php`
 4. Follow the installation wizard
@@ -269,11 +273,18 @@ mysql -u root -p
 CREATE DATABASE ikabud_kernel CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 EXIT;
 
-# Import schema
+# Import database
+
+# Option A: schema only (empty system)
 mysql -u root -p ikabud_kernel < database/schema.sql
+
+# Option B: schema + initial admin user (recommended for quick start)
+# Includes schema + basic admin user data (no instances)
+mysql -u root -p ikabud_kernel < database/basic-data.sql
 
 # Set permissions
 sudo chown -R www-data:www-data .
+sudo chmod +x ikabud bin/*
 sudo chmod -R 775 storage instances themes logs
 
 # Install CLI tool
@@ -326,7 +337,24 @@ Open your browser and navigate to:
 http://localhost/wp-site-001
 ```
 
-### 4. Manage Instances
+### 4. Access React Admin Dashboard
+
+Open your browser and navigate to:
+```
+http://ikabud-kernel.test/login
+```
+
+Or, for a generic deployment:
+```
+http://yourdomain.com/login
+```
+
+From the React admin you can:
+
+- Create CMS instances (WordPress, Joomla, Drupal) via UI
+- View basic instance status and health information
+
+### 5. Manage Instances via CLI
 
 ```bash
 # List all instances
