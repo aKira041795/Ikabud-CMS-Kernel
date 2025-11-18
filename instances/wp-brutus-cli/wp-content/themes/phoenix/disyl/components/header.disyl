@@ -1,4 +1,6 @@
 {!-- Phoenix Theme - Header Component --}
+{ikb_cms type="wordpress" set="components,filters" /}
+
 <!DOCTYPE html>
 <html lang="{site.language | esc_attr}">
 <head>

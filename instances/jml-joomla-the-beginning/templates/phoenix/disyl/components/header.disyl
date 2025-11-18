@@ -1,4 +1,5 @@
 {!-- Phoenix Theme v2 - Header Component (Joomla-Native) --}
+{ikb_cms type="joomla" set="components,filters" /}
 
 {!-- Topbar Module Position --}
 {joomla_module position="topbar" style="none" /}
