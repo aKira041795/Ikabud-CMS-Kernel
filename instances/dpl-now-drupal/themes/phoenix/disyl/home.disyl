@@ -12,14 +12,7 @@
 {!-- Latest Blog Posts --}
 <section class="ikb-section ikb-section-blog padding-xlarge blog-section" id="blog">
     <div class="ikb-container ikb-container-xlarge">
-        <div class="section-header reveal">
-            <div class="ikb-text ikb-text-3xl font-bold text-center section-title gradient-text">
-                <h2>Latest Articles</h2>
-            </div>
-            <div class="ikb-text ikb-text-lg text-center section-subtitle">
-                <h4>Insights, tutorials, and updates from our blog</h4>
-            </div>
-        </div>
+        {ikb_include template="components/blog-header.disyl" /}
         
         <div class="post-grid">
             {drupal_articles limit=6 /}
@@ -28,23 +21,6 @@
 </section>
 
 {!-- Call to Action Section --}
-{ikb_section type="cta" class="section-gradient" padding="xlarge"}
-    {ikb_container size="xlarge"}
-        <div class="text-center reveal">
-            {ikb_text size="3xl" weight="bold" margin="bottom-large"}
-                <h3 class="cta-header">Ready to Get Started?</h3>
-            {/ikb_text}
-            
-            {ikb_text size="xl" margin="bottom-xlarge"}
-                <h4 class="cta-text">Join thousands of users who have transformed their websites with Phoenix</h4>
-            {/ikb_text}
-            
-            <div class="flex-center gap-medium flex-wrap cta-bottom">
-                <a href="{site.base_url}/contact" class="btn btn-primary">Get in Touch</a>
-                <a href="{site.base_url}/documentation" class="btn btn-outline">View Documentation</a>
-            </div>
-        </div>
-    {/ikb_container}
-{/ikb_section}
+{ikb_include template="components/cta-section.disyl" /}
 
 {ikb_include template="components/footer.disyl" /}

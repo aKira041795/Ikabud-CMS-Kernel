@@ -20,7 +20,7 @@
     {ikb_container size="xlarge"}
         <div class="blog-layout">
             {!-- Posts Grid --}
-            <div>
+            <main class="main-content">
                 <div class="post-grid">
                     {drupal_articles limit=9 /}
                 </div>
@@ -31,8 +31,10 @@
                 </div>
             </main>
             
-            {!-- Sidebar (Joomla Module Positions) --}
-            {ikb_include template="components/sidebar.disyl" /}
+            {!-- Sidebar (Drupal Regions) --}
+            {if condition="has_sidebar_first || has_sidebar_second"}
+                {ikb_include template="components/sidebar.disyl" /}
+            {/if}
         </div>
     {/ikb_container}
 {/ikb_section}

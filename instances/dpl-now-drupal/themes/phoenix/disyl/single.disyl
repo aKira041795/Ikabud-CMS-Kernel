@@ -75,22 +75,7 @@
                 </footer>
                 
                 {!-- Author Bio --}
-                <div class="author-bio">
-                    <div class="author-bio-content">
-                        <img src="{post.author_avatar | esc_url}" alt="{post.author | esc_attr}" class="author-avatar">
-                        <div class="author-info">
-                            {ikb_text size="lg" weight="semibold" margin="bottom"}
-                                About {post.author | esc_html}
-                            {/ikb_text}
-                            {ikb_text class="author-description"}
-                                Passionate writer and developer sharing insights about web development, design, and technology.
-                            {/ikb_text}
-                            <a href="{post.author_url | esc_url}" class="author-link">
-                                View all posts by {post.author | esc_html} →
-                            </a>
-                        </div>
-                    </div>
-                </div>
+                {ikb_include template="components/author-bio.disyl" /}
                 
                 {!-- Comments Section --}
                 {!-- Drupal comments rendered via content region --}

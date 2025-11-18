@@ -1,8 +1,8 @@
 {!-- Phoenix Theme v2 - Archive Template (Drupal-Native) --}
 {ikb_include template="components/header.disyl" /}
 
-{!-- Breadcrumbs Module Position --}
-{joomla_module position="breadcrumbs" style="none" /}
+{!-- Breadcrumb Region --}
+{drupal_region name="breadcrumb" /}
 
 {!-- Archive Header --}
 {ikb_section type="archive-header" class="section-gradient" padding="large"}
@@ -29,8 +29,10 @@
                 </div>
             </main>
             
-            {!-- Sidebar (Joomla Module Positions) --}
-            {ikb_include template="components/sidebar.disyl" /}
+            {!-- Sidebar (Drupal Regions) --}
+            {if condition="has_sidebar_first || has_sidebar_second"}
+                {ikb_include template="components/sidebar.disyl" /}
+            {/if}
         </div>
     {/ikb_container}
 {/ikb_section}

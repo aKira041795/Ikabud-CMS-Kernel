@@ -1,0 +1,20 @@
+{!-- Phoenix Theme v2 - Author Bio Component --}
+
+<div class="author-bio">
+    <div class="author-bio-content">
+        <img src="{author_avatar | default:"{post.author_avatar}" | esc_url}" 
+             alt="{author_name | default:"{post.author}" | esc_attr}" 
+             class="author-avatar">
+        <div class="author-info">
+            {ikb_text size="lg" weight="semibold" margin="bottom"}
+                About {author_name | default:"{post.author}" | esc_html}
+            {/ikb_text}
+            {ikb_text class="author-description"}
+                {bio | default:"Passionate writer and developer sharing insights about web development, design, and technology."}
+            {/ikb_text}
+            <a href="{author_url | default:"{post.author_url}" | esc_url}" class="author-link">
+                View all posts by {author_name | default:"{post.author}" | esc_html} →
+            </a>
+        </div>
+    </div>
+</div>

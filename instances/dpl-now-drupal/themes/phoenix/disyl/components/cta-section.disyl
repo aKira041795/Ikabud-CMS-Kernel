@@ -1,0 +1,24 @@
+{!-- Phoenix Theme v2 - Call to Action Component --}
+
+{ikb_section type="cta" class="section-gradient" padding="xlarge"}
+    {ikb_container size="xlarge"}
+        <div class="text-center reveal">
+            {ikb_text size="3xl" weight="bold" margin="bottom-large"}
+                <h3 class="cta-header">{heading | default:"Ready to Get Started?"}</h3>
+            {/ikb_text}
+            
+            {ikb_text size="xl" margin="bottom-xlarge"}
+                <h4 class="cta-text">{text | default:"Join thousands of users who have transformed their websites with Phoenix"}</h4>
+            {/ikb_text}
+            
+            <div class="flex-center gap-medium flex-wrap cta-bottom">
+                <a href="{primary_url | default:"{site.base_url}/contact"}" class="btn btn-primary">
+                    {primary_label | default:"Get in Touch"}
+                </a>
+                <a href="{secondary_url | default:"{site.base_url}/documentation"}" class="btn btn-outline">
+                    {secondary_label | default:"View Documentation"}
+                </a>
+            </div>
+        </div>
+    {/ikb_container}
+{/ikb_section}
