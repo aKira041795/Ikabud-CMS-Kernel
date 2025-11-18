@@ -192,6 +192,35 @@ phoenix/
 
 ## 📦 Installation
 
+### Shared Hosting Package (Bluehost, cPanel)
+
+**Production-Ready Package**: `ikabud-cms-shared-hosting.tar.gz` (187 MB)
+
+Perfect for Bluehost, SiteGround, HostGator, and other cPanel-based hosts.
+
+**What's Included**:
+- ✅ Complete kernel with DiSyL engine
+- ✅ Pre-built admin panel
+- ✅ WordPress, Joomla, Drupal adapters
+- ✅ All dependencies (vendor, node_modules)
+- ✅ Phoenix theme
+- ✅ Web installer
+
+**What's Excluded** (created during installation):
+- ❌ `/storage` - Created fresh on deployment
+- ❌ `/instances` - Site-specific instances
+- ❌ `/dsl` - Development files
+
+**Deployment Steps**:
+1. Upload `ikabud-cms-shared-hosting.tar.gz` to your hosting
+2. Extract via cPanel File Manager or SSH
+3. Navigate to `https://yourdomain.com/install.php`
+4. Follow the installation wizard
+
+📖 **[Complete Shared Hosting Guide](docs/SHARED_HOSTING_PACKAGE.md)** - Detailed deployment instructions
+
+---
+
 ### Quick Install (Recommended)
 
 **Option 1: PHP Installer (Shared Hosting)**
@@ -323,6 +352,7 @@ ikabud health wp-site-001
 ### 🎯 Getting Started
 - **[Quick Start Guide](QUICK_START.md)** - Get up and running in 5 minutes
 - **[Installation Guide](INSTALL.md)** - Detailed installation instructions
+- **[Shared Hosting Package](docs/SHARED_HOSTING_PACKAGE.md)** - ⭐ Bluehost/cPanel deployment guide
 - **[System Requirements](REQUIREMENTS.md)** - Hardware and software requirements
 - **[Documentation Index](docs/INDEX.md)** - Complete documentation catalog
 - **[Contributing Guide](CONTRIBUTING.md)** - How to contribute to the project
