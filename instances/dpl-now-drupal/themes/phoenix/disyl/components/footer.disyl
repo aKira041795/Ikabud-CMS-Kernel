@@ -1,7 +1,7 @@
 {!-- Phoenix Theme v2 - Footer Component (Drupal-Native) --}
 
 <footer class="site-footer">
-    {ikb_container size="xlarge"}
+    <div class="footer-container">
         {!-- Footer Widgets (4 column layout) --}
         <div class="footer-widgets footer-columns-4">
             {!-- Footer First Region --}
@@ -30,11 +30,9 @@
         
         {!-- Footer Bottom --}
         <div class="footer-bottom">
-            {ikb_text align="center"}
-                <p>© 2024 {site.name | esc_html}. All rights reserved. Powered by <a href="https://www.drupal.org">Drupal</a></p>
-            {/ikb_text}
+            <p>© 2024 {site.name | esc_html}. All rights reserved. Powered by <a href="https://www.drupal.org">Drupal</a></p>
         </div>
-    {/ikb_container}
+    </div>
 </footer>
 
 {!-- Page Bottom Region --}

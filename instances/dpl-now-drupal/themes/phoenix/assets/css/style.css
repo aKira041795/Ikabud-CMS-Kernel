@@ -1051,8 +1051,17 @@ section[data-type="slider"] {
 
 .footer-widget h3,
 .footer-widget .widget-title,
-.footer-widget .widgettitle {
-    color: var(--color-white);
+.footer-widget .widgettitle,
+.site-footer .block h2,
+.site-footer .block h3,
+.site-footer .block-title,
+.site-footer .block__title,
+.site-footer h2,
+.site-footer h3,
+.site-footer .field--name-field-title,
+.footer-widget .block h2,
+.footer-widget .block h3 {
+    color: #d1d5db !important; /* Light gray - more visible than pure white */
     margin-bottom: var(--space-lg);
     border-bottom-color: rgba(255, 255, 255, 0.2);
 }
