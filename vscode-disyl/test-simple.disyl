@@ -1,9 +1,0 @@
-{!-- Simple DiSyL Test --}
-
-{ikb_section type="hero"}
-    <h1>{page.title | esc_html}</h1>
-{/ikb_section}
-
-{if condition="{user.logged_in}"}
-    <p>Welcome, {user.name}!</p>
-{/if}
