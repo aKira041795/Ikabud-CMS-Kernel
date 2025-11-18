@@ -224,8 +224,12 @@ $app->any('[/{path:.*}]', function (Request $request, Response $response, array 
     $instance = $stmt->fetch(PDO::FETCH_ASSOC);
     
     if (!$instance || $instance['status'] !== 'active') {
-        $response->getBody()->write("Instance is not active: {$instanceId}");
-        return $response->withStatus(503);
+        // Show maintenance page when instance is stopped or not found
+        $maintenanceHtml = file_get_contents(__DIR__ . '/../templates/maintenance.html');
+        $response->getBody()->write($maintenanceHtml);
+        return $response->withStatus(503)
+                        ->withHeader('Content-Type', 'text/html')
+                        ->withHeader('Retry-After', '300');
     }
     
     // Handle native kernel instance (no CMS to load)
@@ -332,6 +336,37 @@ $app->any('[/{path:.*}]', function (Request $request, Response $response, array 
     $shouldCacheResponse = $cache->shouldCache($requestUri);
     if ($shouldCacheResponse) {
         ob_start();
+        
+        // Register shutdown function to handle output buffering
+        // This ensures buffered content is flushed even if CMS exits early
+        register_shutdown_function(function() use ($cache, $instanceId, $requestUri, $cmsType, &$conditionalLoader) {
+            if (ob_get_level() > 0) {
+                $body = ob_get_contents();
+                ob_end_clean();
+                
+                // Only cache if there were no errors
+                if ($body !== false && is_string($body) && !empty($body) && !preg_match('/<b>(Warning|Error|Notice|Fatal error)<\/b>/', $body)) {
+                    $headers = headers_list();
+                    $cacheData = [
+                        'headers' => $headers,
+                        'body' => $body,
+                        'timestamp' => time(),
+                        'cms_type' => $cmsType
+                    ];
+                    
+                    // Add extension loading stats if available
+                    if (isset($conditionalLoader)) {
+                        $cacheData['extensions_loaded'] = $conditionalLoader->getLoadedExtensions();
+                        $cacheData['extension_count'] = count($conditionalLoader->getLoadedExtensions());
+                    }
+                    
+                    $cache->set($instanceId, $requestUri, $cacheData);
+                }
+                
+                // Output the captured content
+                echo $body;
+            }
+        });
     }
     
     // Serve file if it exists

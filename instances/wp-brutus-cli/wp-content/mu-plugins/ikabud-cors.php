@@ -38,6 +38,10 @@ function ikabud_handle_cors() {
                "frame-ancestors 'self' http://*." . $base_domain . " https://*." . $base_domain . "; " .
                "worker-src 'self' blob:;";
         header("Content-Security-Policy: " . $csp);
+        
+        // Set cookie domain to allow sharing between subdomains
+        @ini_set('session.cookie_domain', '.' . $base_domain);
+        
         return;
     }
     
@@ -105,4 +109,55 @@ function ikabud_rest_cors_headers($served, $result, $request, $server) {
     }
     
     return $served;
+}
+
+/**
+ * Fix WordPress Customizer cookies to work across subdomains
+ * This prevents "Non-existent changeset UUID" errors
+ */
+add_action('init', 'ikabud_fix_customizer_cookies', 1);
+function ikabud_fix_customizer_cookies() {
+    // Only run if in customizer context
+    if (!is_customize_preview() && !isset($_GET['customize_changeset_uuid'])) {
+        return;
+    }
+    
+    $current_host = $_SERVER['HTTP_HOST'] ?? '';
+    $host_parts = explode('.', $current_host);
+    
+    // Get base domain (e.g., "brutus.test" from "backend.brutus.test")
+    if (count($host_parts) >= 2) {
+        $base_domain = '.' . implode('.', array_slice($host_parts, -2));
+        
+        // Set WordPress cookie constants if not already defined
+        if (!defined('COOKIE_DOMAIN')) {
+            define('COOKIE_DOMAIN', $base_domain);
+        }
+        
+        // Update PHP session cookie domain
+        @ini_set('session.cookie_domain', $base_domain);
+    }
+}
+
+/**
+ * Clean up stale customizer changesets on admin init
+ * Prevents accumulation of auto-draft changesets
+ */
+add_action('admin_init', 'ikabud_cleanup_stale_changesets');
+function ikabud_cleanup_stale_changesets() {
+    // Only run occasionally (1% of admin page loads)
+    if (rand(1, 100) !== 1) {
+        return;
+    }
+    
+    global $wpdb;
+    
+    // Delete auto-draft changesets older than 7 days
+    $wpdb->query(
+        "DELETE FROM {$wpdb->posts} 
+        WHERE post_type = 'customize_changeset' 
+        AND post_status = 'auto-draft' 
+        AND post_modified < DATE_SUB(NOW(), INTERVAL 7 DAY)
+        LIMIT 50"
+    );
 }
