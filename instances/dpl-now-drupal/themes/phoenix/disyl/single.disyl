@@ -10,22 +10,22 @@
                 {!-- Post Header --}
                 <header class="post-header">
                     {ikb_text size="3xl" weight="bold" class="gradient-text"}
-                        <h1>{post.title | esc_html}</h1>
+                        <h1>{node.title | esc_html}</h1>
                     {/ikb_text}
                     
                     <div class="post-meta">
-                        <span>📅 {post.date}</span>
+                        <span>📅 {node.date}</span>
                         <span>•</span>
-                        <span>✍️ By <a href="{post.author_url | esc_url}">{post.author | esc_html}</a></span>
+                        <span>✍️ By <a href="/user/{node.author_id}">{node.author | esc_html}</a></span>
                     </div>
                 </header>
                 
                 {!-- Featured Image (fallback if no hero_image field) --}
-                {if condition="post.thumbnail"}
+                {if condition="node.thumbnail"}
                     <figure class="featured-image">
                         {ikb_image 
-                            src="{post.thumbnail | esc_url}"
-                            alt="{post.title | esc_attr}"
+                            src="{node.thumbnail | esc_url}"
+                            alt="{node.title | esc_attr}"
                             responsive=true
                             lazy=true
                         /}
@@ -34,19 +34,19 @@
                 
                 {!-- Post Content --}
                 <div class="post-content">
-                    {raw_html content="post.content" /}
+                    {raw_html content="node.content" /}
                 </div>
                 
                 {!-- Post Footer --}
                 <footer class="post-footer">
                     {!-- Tags --}
-                    {if condition="post.tags"}
+                    {if condition="node.tags"}
                         <div class="post-tags">
                             {ikb_text size="sm" weight="medium" margin="bottom"}
                                 Tags:
                             {/ikb_text}
                             <div class="tag-list">
-                                {ikb_query type="tag" post="{post.id}"}
+                                {ikb_query type="tag" post="{node.id}"}
                                     <a href="{item.url | esc_url}" class="tag">
                                         {item.name | esc_html}
                                     </a>
@@ -61,13 +61,13 @@
                             Share:
                         {/ikb_text}
                         <div class="share-icons">
-                            <a href="https://twitter.com/intent/tweet?url={post.url | esc_url}&text={post.title | esc_attr}" target="_blank" class="share-icon share-twitter" aria-label="Share on Twitter">
+                            <a href="https://twitter.com/intent/tweet?url={node.url | esc_url}&text={node.title | esc_attr}" target="_blank" class="share-icon share-twitter" aria-label="Share on Twitter">
                                 𝕏
                             </a>
-                            <a href="https://www.facebook.com/sharer/sharer.php?u={post.url | esc_url}" target="_blank" class="share-icon share-facebook" aria-label="Share on Facebook">
+                            <a href="https://www.facebook.com/sharer/sharer.php?u={node.url | esc_url}" target="_blank" class="share-icon share-facebook" aria-label="Share on Facebook">
                                 f
                             </a>
-                            <a href="https://www.linkedin.com/shareArticle?url={post.url | esc_url}&title={post.title | esc_attr}" target="_blank" class="share-icon share-linkedin" aria-label="Share on LinkedIn">
+                            <a href="https://www.linkedin.com/shareArticle?url={node.url | esc_url}&title={node.title | esc_attr}" target="_blank" class="share-icon share-linkedin" aria-label="Share on LinkedIn">
                                 in
                             </a>
                         </div>

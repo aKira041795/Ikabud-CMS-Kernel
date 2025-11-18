@@ -149,6 +149,7 @@ function phoenix_get_drupal_context() {
       'created' => $node->getCreatedTime(),
       'changed' => $node->getChangedTime(),
       'author' => $node->getOwner()->getDisplayName(),
+      'author_id' => $node->getOwnerId(),
       'published' => $node->isPublished(),
     ];
     
@@ -170,11 +171,13 @@ function phoenix_get_drupal_context() {
       }
     }
     
-    // Add post-specific context for articles
+    // Add formatted date
+    $context['node']['date'] = date('M j, Y', $node->getCreatedTime());
+    $context['node']['url'] = $node->toUrl()->toString();
+    
+    // Add post-specific context for articles (backward compatibility)
     if ($node->bundle() === 'article') {
       $context['post'] = $context['node'];
-      $context['post']['date'] = date('M j, Y', $node->getCreatedTime());
-      $context['post']['url'] = $node->toUrl()->toString();
       $context['post']['author_url'] = '/user/' . $node->getOwnerId();
     }
   }

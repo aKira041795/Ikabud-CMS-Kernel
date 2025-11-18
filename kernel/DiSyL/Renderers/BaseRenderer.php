@@ -191,10 +191,11 @@ abstract class BaseRenderer
     {
         $text = $node['value'];
         
-        // First, handle filter expressions: {item.title | upper}
-        $text = preg_replace_callback('/\{([a-zA-Z0-9_.]+)\s*\|\s*([^}]+)\}/', function($matches) {
+        // First, handle filter expressions with potential nested braces: {item.title | default:"{other.value}" | upper}
+        // Pattern matches: {expression | filters} where filters can contain {nested} expressions
+        $text = preg_replace_callback('/\{([a-zA-Z0-9_.]+)\s*\|((?:[^{}]|\{[^}]*\})*)\}/', function($matches) {
             $expr = $matches[1];
-            $filterChain = $matches[2];
+            $filterChain = trim($matches[2]);
             
             // Evaluate base expression
             $value = $this->evaluateExpression($expr);
