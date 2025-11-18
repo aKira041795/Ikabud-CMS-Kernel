@@ -15,6 +15,7 @@
 namespace IkabudKernel\Core\DiSyL;
 
 use IkabudKernel\Core\DiSyL\Exceptions\CompilerException;
+use IkabudKernel\Core\DiSyL\Exceptions\CMSLoaderException;
 use IkabudKernel\Core\Cache;
 
 class Compiler
@@ -56,7 +57,12 @@ class Compiler
         $this->errors = [];
         $this->warnings = [];
         
-        // Extract CMS type from context
+        // Process CMS header declaration if present
+        if (isset($ast['cms_header']) && $ast['cms_header'] !== null) {
+            $this->processCMSHeader($ast['cms_header']);
+        }
+        
+        // Extract CMS type from context (can be overridden by header)
         $this->cmsType = $context['cms_type'] ?? null;
         
         // Check cache first
@@ -484,6 +490,62 @@ class Compiler
             if (isset($node['children'])) {
                 $this->checkDeprecations(['children' => $node['children']]);
             }
+        }
+    }
+    
+    /**
+     * Process CMS header declaration and load manifests
+     */
+    private function processCMSHeader(array $cmsHeader): void
+    {
+        $cmsType = $cmsHeader['type'] ?? null;
+        $sets = $cmsHeader['sets'] ?? [];
+        
+        if (!$cmsType) {
+            $this->addError('CMS header missing type attribute');
+            return;
+        }
+        
+        // Validate CMS type
+        if (!CMSLoader::isValidCMSType($cmsType)) {
+            $this->addError(
+                sprintf(
+                    'Invalid CMS type "%s". Valid types: %s',
+                    $cmsType,
+                    implode(', ', CMSLoader::getValidCMSTypes())
+                )
+            );
+            return;
+        }
+        
+        // Validate sets
+        foreach ($sets as $set) {
+            if (!CMSLoader::isValidSet($set)) {
+                $this->addWarning(
+                    sprintf(
+                        'Invalid set "%s". Valid sets: %s',
+                        $set,
+                        implode(', ', CMSLoader::getValidSets())
+                    )
+                );
+            }
+        }
+        
+        // Load CMS manifests
+        try {
+            $manifestData = CMSLoader::load($cmsType, $sets);
+            $this->cmsType = $cmsType;
+            
+            // Log successful load
+            error_log(sprintf(
+                '[DiSyL] Loaded CMS manifests: type=%s, sets=%s, components=%d, filters=%d',
+                $cmsType,
+                implode(',', $sets),
+                count($manifestData['components']),
+                count($manifestData['filters'])
+            ));
+        } catch (CMSLoaderException $e) {
+            $this->addError('Failed to load CMS manifests: ' . $e->getMessage());
         }
     }
 }

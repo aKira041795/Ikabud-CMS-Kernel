@@ -1,4 +1,5 @@
 {!-- Phoenix Theme v2 - Header Component (Drupal-Native) --}
+{ikb_cms type="drupal" set="components,filters" /}
 
 <header class="site-header sticky-header">
     <div class="header-container">

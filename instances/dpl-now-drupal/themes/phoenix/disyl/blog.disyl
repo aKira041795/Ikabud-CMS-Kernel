@@ -1,4 +1,4 @@
-{!-- Phoenix Theme - Blog Archive Template --}
+{!-- Phoenix Theme v2 - Blog Template (Drupal-Native) --}
 {ikb_include template="components/header.disyl" /}
 
 {!-- Page Header --}

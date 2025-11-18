@@ -1,0 +1,10 @@
+{!-- Example Drupal Template with CMS Header Declaration --}
+{ikb_cms type="drupal" set="components,filters" /}
+
+{!-- This template now has access to Drupal-specific components --}
+
+{drupal_articles limit=6 /}
+
+{drupal_menu name="main" /}
+
+{drupal_block region="sidebar" /}

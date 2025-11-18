@@ -1,4 +1,4 @@
-{!-- Phoenix Theme v2 - Archive Template (Joomla-Native) --}
+{!-- Phoenix Theme v2 - Archive Template (Drupal-Native) --}
 {ikb_include template="components/header.disyl" /}
 
 {!-- Breadcrumbs Module Position --}

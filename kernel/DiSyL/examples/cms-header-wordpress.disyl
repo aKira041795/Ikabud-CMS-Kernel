@@ -1,0 +1,10 @@
+{!-- Example WordPress Template with CMS Header Declaration --}
+{ikb_cms type="wordpress" set="components,filters,functions" /}
+
+{!-- This template now has access to WordPress-specific components --}
+
+{wp_posts limit=5 /}
+
+{wp_menu location="primary" /}
+
+{wp_sidebar id="main-sidebar" /}

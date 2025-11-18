@@ -25,6 +25,7 @@ class Parser
     private int $length = 0;
     private array $errors = [];
     private array $tagStack = []; // Track open tags for better error messages
+    private ?array $cmsHeader = null; // Store CMS header declaration
     
     /**
      * Parse tokens into AST
@@ -44,8 +45,12 @@ class Parser
             'type' => 'document',
             'version' => '0.2',
             'children' => [],
-            'errors' => []
+            'errors' => [],
+            'cms_header' => null
         ];
+        
+        // Check for CMS header declaration at the beginning
+        $this->parseCMSHeader($ast);
         
         // Parse all nodes until EOF
         $maxIterations = 10000; // Safety limit
@@ -752,5 +757,106 @@ class Parser
             'column' => $token->column,
             'position' => $token->position
         ];
+    }
+    
+    /**
+     * Parse CMS header declaration: {ikb_cms type="drupal" set="filters,components"}
+     * Must be at the beginning of the file (first non-comment, non-whitespace node)
+     */
+    private function parseCMSHeader(array &$ast): void
+    {
+        // Skip any leading whitespace or comments
+        $savedPos = $this->position;
+        $foundNonWhitespace = false;
+        
+        while (!$this->isAtEnd()) {
+            $current = $this->peek();
+            
+            if ($current === null) {
+                break;
+            }
+            
+            // Skip text that is only whitespace
+            if ($current->type === Token::TEXT) {
+                if (trim($current->value) === '') {
+                    $this->advance();
+                    continue;
+                }
+                // Found non-whitespace text, not a CMS header
+                $this->position = $savedPos;
+                return;
+            }
+            
+            // Skip comments
+            if ($current->type === Token::COMMENT) {
+                $this->advance();
+                continue;
+            }
+            
+            // Check for {ikb_cms ...}
+            if ($current->type === Token::LBRACE) {
+                $nextToken = $this->peek(1);
+                if ($nextToken && $nextToken->type === Token::IDENT && $nextToken->value === 'ikb_cms') {
+                    // Found CMS header, parse it
+                    $this->advance(); // consume {
+                    $this->advance(); // consume ikb_cms
+                    
+                    // Parse attributes
+                    $attributes = $this->parseAttributes();
+                    
+                    // Validate required 'type' attribute
+                    if (!isset($attributes['type'])) {
+                        $this->addError(
+                            'CMS header declaration requires "type" attribute',
+                            $current
+                        );
+                        $this->position = $savedPos;
+                        return;
+                    }
+                    
+                    // Check for self-closing or regular closing
+                    if ($this->check(Token::SLASH)) {
+                        $this->advance(); // consume /
+                    }
+                    
+                    // Expect closing brace
+                    if (!$this->check(Token::RBRACE)) {
+                        $this->addError(
+                            'Expected closing brace for CMS header declaration',
+                            $this->peek()
+                        );
+                        $this->position = $savedPos;
+                        return;
+                    }
+                    $this->advance(); // consume }
+                    
+                    // Parse 'set' attribute if present
+                    $sets = [];
+                    if (isset($attributes['set'])) {
+                        $sets = array_map('trim', explode(',', $attributes['set']));
+                    }
+                    
+                    // Store CMS header in AST
+                    $ast['cms_header'] = [
+                        'type' => $attributes['type'],
+                        'sets' => $sets,
+                        'raw_attributes' => $attributes
+                    ];
+                    
+                    $this->cmsHeader = $ast['cms_header'];
+                    return;
+                }
+                // Not a CMS header, restore position
+                $this->position = $savedPos;
+                return;
+            }
+            
+            // Any other token means no CMS header
+            $this->position = $savedPos;
+            return;
+        }
+        
+        // Reached end without finding CMS header
+        $this->position = $savedPos;
     }
 }

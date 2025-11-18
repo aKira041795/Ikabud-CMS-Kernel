@@ -1,0 +1,209 @@
+a:4:{s:7:"headers";a:9:{i:0;s:38:"content-type: text/html; charset=UTF-8";i:1;s:49:"cache-control: must-revalidate, no-cache, private";i:2;s:35:"date: Tue, 18 Nov 2025 01:26:21 GMT";i:3;s:20:"content-language: en";i:4;s:31:"x-content-type-options: nosniff";i:5;s:27:"x-frame-options: SAMEORIGIN";i:6;s:38:"expires: Sun, 19 Nov 1978 05:00:00 GMT";i:7;s:47:"x-generator: Drupal 10 (https://www.drupal.org)";i:8;s:21:"content-length: 10567";}s:4:"body";s:10567:"<!DOCTYPE html>
+<html lang="en" dir="ltr">
+  <head>
+    <meta charset="utf-8" />
+<meta name="Generator" content="Drupal 10 (https://www.drupal.org)" />
+<meta name="MobileOptimized" content="width" />
+<meta name="HandheldFriendly" content="true" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<link rel="icon" href="/core/misc/favicon.ico" type="image/vnd.microsoft.icon" />
+
+    <title>Phoenix Theme Features | Now Drupal</title>
+    <link rel="stylesheet" media="all" href="/sites/default/files/css/css_azu0vAomWMq8jKYsrGdd5LdSwqN9waxat8jsOAAeGGI.css?delta=0&amp;language=en&amp;theme=phoenix&amp;include=eJwrriwuSc3VT0osTtUpyMhPzcus0E_My8xNLMnMzysGALh9C_k" />
+<link rel="stylesheet" media="all" href="/sites/default/files/css/css_wt4MiZtV8LXpra66ErHpiyWhIUJjGa4ctocUc0Xrwm4.css?delta=1&amp;language=en&amp;theme=phoenix&amp;include=eJwrriwuSc3VT0osTtUpyMhPzcus0E_My8xNLMnMzysGALh9C_k" />
+
+    
+  </head>
+  <body class="phoenix-theme">
+        <a href="#main-content" class="visually-hidden focusable">
+      Skip to main content
+    </a>
+    
+      <div class="dialog-off-canvas-main-canvas" data-off-canvas-main-canvas>
+    <div class="layout-container phoenix-page">
+    
+              <main role="main" id="main-content" class="site-main">
+        <a id="main-content" tabindex="-1"></a>
+        
+
+<header class="site-header sticky-header">
+    <div class="header-container">
+        
+        <div class="site-branding">
+            <a href="http://genesis.test" class="site-title-link">
+                <div class="ikb-text ikb-text-2xl font-bold text-left site-title">
+                    Now Drupal
+                </div>
+            </a>
+            
+        </div>
+        
+        
+        <button class="menu-toggle" aria-label="Toggle navigation" aria-expanded="false">
+            <span class="menu-icon">☰</span>
+        </button>
+        
+        
+        <nav class="main-nav" role="navigation" aria-label="Primary navigation">
+            
+              <ul class="menu--main">
+              <li>
+        <a href="/" data-drupal-link-system-path="&lt;front&gt;">Home</a>
+              </li>
+          <li>
+        <a href="/getting-started" data-drupal-link-system-path="node/1">Getting Started</a>
+              </li>
+          <li>
+        <a href="/phoenix-theme-features" data-drupal-link-system-path="node/2" class="is-active" aria-current="page">Phoenix Theme Features</a>
+              </li>
+          <li>
+        <a href="/disyl-filters-reference" data-drupal-link-system-path="node/3">DiSyL Filters Reference</a>
+              </li>
+        </ul>
+  
+
+
+        </nav>
+    </div>
+</header>
+<section class="ikb-section ikb-section-post-single padding-xlarge"><div class="ikb-container ikb-container-xlarge">
+        <div class="content-layout">
+            
+            <main class="main-content">
+                <article class="post-single">
+                
+                <header class="post-header">
+                    <div class="ikb-text ikb-text-3xl font-bold text-left gradient-text">
+                        <h1>Phoenix Theme Features</h1>
+                    </div>
+                    
+                    <div class="post-meta">
+                        <span>📅 Nov 17, 2025</span>
+                        <span>•</span>
+                        <span>✍️ By <a href="/user/1">admin</a></span>
+                    </div>
+                </header>
+                
+                
+                <div class="post-content">
+                    <p>Phoenix is a stunning, modern theme powered by DiSyL. It demonstrates the full power of cross-CMS template development.</p><h2>Design Features</h2><h3>Modern Gradients</h3><p>Beautiful gradient backgrounds that captivate visitors.</p><h3>Smooth Animations</h3><p>Reveal animations and smooth transitions for a polished experience.</p><h3>Fully Responsive</h3><p>Looks perfect on all devices from mobile to desktop.</p><h2>Technical Features</h2><h3>DiSyL-Powered</h3><p>Built entirely with DiSyL templates for maximum flexibility.</p><h3>Lightning Fast</h3><p>Optimized for performance with efficient rendering.</p><h3>SEO Optimized</h3><p>Clean semantic HTML and proper meta tags.</p><h3>Secure</h3><p>Built-in XSS prevention and sanitization.</p><h2>Cross-CMS Compatibility</h2><p>The same Phoenix theme works on:</p><ul><li>WordPress</li><li>Joomla</li><li>Drupal (coming soon)</li></ul><h2>Customization</h2><p>Phoenix offers extensive customization options:</p><ul><li>Multiple color schemes</li><li>Flexible layouts</li><li>Widget/module areas</li><li>Custom logo and branding</li><li>Typography options</li></ul>
+                </div>
+                
+                
+                <footer class="post-footer">
+                    
+                    <div class="share-buttons">
+                        <div class="ikb-text ikb-text-sm font-medium text-left">
+                            Share:
+                        </div>
+                        <div class="share-icons">
+                            <a href="https://twitter.com/intent/tweet?url=/phoenix-theme-features&text=Phoenix Theme Features" target="_blank" class="share-icon share-twitter" aria-label="Share on Twitter">
+                                𝕏
+                            </a>
+                            <a href="https://www.facebook.com/sharer/sharer.php?u=/phoenix-theme-features" target="_blank" class="share-icon share-facebook" aria-label="Share on Facebook">
+                                f
+                            </a>
+                            <a href="https://www.linkedin.com/shareArticle?url=/phoenix-theme-features&title=Phoenix Theme Features" target="_blank" class="share-icon share-linkedin" aria-label="Share on LinkedIn">
+                                in
+                            </a>
+                        </div>
+                    </div>
+                </footer>
+                
+                
+                <div class="author-bio">
+                    <div class="author-bio-content">
+                        <img src="" alt="admin" class="author-avatar">
+                        <div class="author-info">
+                            <div class="ikb-text ikb-text-lg font-semibold text-left margin-bottom">
+                                About admin
+                            </div><div class="ikb-text ikb-text-md font-normal text-left author-description">
+                                Passionate writer and developer sharing insights about web development, design, and technology.
+                            </div>
+                            <a href="/user/1" class="author-link">
+                                View all posts by admin →
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                
+                
+                </article>
+            </main>
+            
+            
+    <aside class="sidebar sidebar-second" role="complementary">
+        <div id="block-phoenix-sidebar1">
+  
+      <h2>About DiSyL</h2>
+    
+      
+            <div class="field--type-text_with_summary"><p>A modern, DiSyL-powered Joomla template with clean design and powerful features. Built with separation of concerns and full Joomla integration.</p></div>
+      
+  </div>
+
+    </aside>
+
+        </div>
+    </div></section><section class="ikb-section ikb-section-related-posts padding-xlarge section-gradient"><div class="ikb-container ikb-container-xlarge">
+        <div class="section-header">
+            <div class="ikb-text ikb-text-3xl font-bold text-center margin-bottom-large">
+                Related Posts
+            </div>
+        </div>
+        
+        <div class="related-posts-grid">
+            <article class="post-card reveal"><div class="post-content"><div class="post-meta"><span class="post-date">Nov 17, 2025</span><span class="separator">•</span><span class="post-author">admin</span></div><div class="ikb-text ikb-text-xl font-semibold post-title"><a href="/disyl-filters-reference">DiSyL Filters Reference</a></div><div class="ikb-text post-excerpt">Filters transform data in DiSyL templates. Learn about all available filters and how to use them effectively.Security Filtersesc_htmlEscape HTML entit...</div><a href="/disyl-filters-reference" class="read-more">Read More →</a></div></article><article class="post-card reveal"><div class="post-content"><div class="post-meta"><span class="post-date">Nov 17, 2025</span><span class="separator">•</span><span class="post-author">admin</span></div><div class="ikb-text ikb-text-xl font-semibold post-title"><a href="/phoenix-theme-features">Phoenix Theme Features</a></div><div class="ikb-text post-excerpt">Phoenix is a stunning, modern theme powered by DiSyL. It demonstrates the full power of cross-CMS template development.Design FeaturesModern Gradients...</div><a href="/phoenix-theme-features" class="read-more">Read More →</a></div></article>
+        </div>
+    </div></section>
+
+<footer class="site-footer">
+    <div class="ikb-container ikb-container-xlarge">
+        <div class="footer-widgets footer-columns-4">
+            
+            <div class="footer-widget">
+                
+            </div>
+            
+            
+            <div class="footer-widget">
+                
+            </div>
+            
+            
+            <div class="footer-widget">
+                
+            </div>
+            
+            
+            <div class="footer-widget">
+                
+            </div>
+        </div>
+        
+        
+        <div class="footer-bottom">
+            <div class="ikb-text ikb-text-md font-normal text-center">
+                <p>© 2024 Now Drupal. All rights reserved. Powered by <a href="https://www.drupal.org">Drupal</a></p>
+            </div>
+        </div>
+    </div>
+</footer>
+
+
+<button class="back-to-top" aria-label="Back to top">
+    ↑
+</button>
+
+      </main>
+    </div>
+
+  </div>
+
+    
+    <script type="application/json" data-drupal-selector="drupal-settings-json">{"path":{"baseUrl":"\/","pathPrefix":"","currentPath":"node\/2","currentPathIsAdmin":false,"isFront":false,"currentLanguage":"en"},"pluralDelimiter":"\u0003","suppressDeprecationErrors":true,"user":{"uid":0,"permissionsHash":"dda27dab8cef08d8260a1c4f37235e6a41c384e34a918729f246f6780338ed41"}}</script>
+<script src="/sites/default/files/js/js_ABDLoWPEudIxtp5dHNASb5Iwh1Ns2nmXpqhwGaqFhOk.js?scope=footer&amp;delta=0&amp;language=en&amp;theme=phoenix&amp;include=eJwryMhPzcus0E_My8xNLMnMzysGAEVoB14"></script>
+
+  </body>
+</html>
+";s:9:"timestamp";i:1763429181;s:8:"cms_type";s:6:"drupal";}

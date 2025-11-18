@@ -29,31 +29,35 @@ class Engine
     private Parser $parser;
     private Compiler $compiler;
     private $cache; // Mixed type for compatibility
+    private ?string $defaultCMSType = null; // Default CMS type if no header present
     
     /**
      * Constructor
      * 
      * @param mixed $cache Optional cache instance
+     * @param string|null $defaultCMSType Default CMS type for templates without header
      */
-    public function __construct($cache = null)
+    public function __construct($cache = null, ?string $defaultCMSType = null)
     {
         $this->lexer = new Lexer();
         $this->parser = new Parser();
         $this->compiler = new Compiler($cache);
         $this->cache = $cache;
+        $this->defaultCMSType = $defaultCMSType;
     }
     
     /**
      * Compile a DiSyL template to AST
      * 
      * @param string $template Template content
+     * @param array $context Optional compilation context
      * @return array Compiled AST
      */
-    public function compile(string $template): array
+    public function compile(string $template, array $context = []): array
     {
         // Check cache first
         if ($this->cache !== null) {
-            $cacheKey = 'disyl_ast_' . md5($template);
+            $cacheKey = 'disyl_ast_' . md5($template . json_encode($context));
             $cached = $this->cache->get($cacheKey);
             if ($cached !== null) {
                 return $cached;
@@ -66,8 +70,13 @@ class Engine
         // Syntax analysis
         $ast = $this->parser->parse($tokens);
         
+        // Add default CMS type to context if no header present
+        if (!isset($ast['cms_header']) && $this->defaultCMSType !== null) {
+            $context['cms_type'] = $context['cms_type'] ?? $this->defaultCMSType;
+        }
+        
         // Semantic analysis and optimization
-        $compiled = $this->compiler->compile($ast);
+        $compiled = $this->compiler->compile($ast, $context);
         
         // Cache result
         if ($this->cache !== null) {
@@ -96,11 +105,12 @@ class Engine
      * @param string $template Template content
      * @param BaseRenderer $renderer Renderer instance
      * @param array $context Rendering context
+     * @param array $compileContext Optional compilation context
      * @return string Rendered HTML
      */
-    public function compileAndRender(string $template, BaseRenderer $renderer, array $context = []): string
+    public function compileAndRender(string $template, BaseRenderer $renderer, array $context = [], array $compileContext = []): string
     {
-        $ast = $this->compile($template);
+        $ast = $this->compile($template, $compileContext);
         return $this->render($ast, $renderer, $context);
     }
     
@@ -108,17 +118,18 @@ class Engine
      * Load and compile a template file
      * 
      * @param string $templatePath Path to template file
+     * @param array $context Optional compilation context
      * @return array Compiled AST
      * @throws \Exception If template file not found
      */
-    public function compileFile(string $templatePath): array
+    public function compileFile(string $templatePath, array $context = []): array
     {
         if (!file_exists($templatePath)) {
             throw new \Exception("Template file not found: {$templatePath}");
         }
         
         $template = file_get_contents($templatePath);
-        return $this->compile($template);
+        return $this->compile($template, $context);
     }
     
     /**
@@ -127,11 +138,32 @@ class Engine
      * @param string $templatePath Path to template file
      * @param BaseRenderer $renderer Renderer instance
      * @param array $context Rendering context
+     * @param array $compileContext Optional compilation context
      * @return string Rendered HTML
      */
-    public function renderFile(string $templatePath, BaseRenderer $renderer, array $context = []): string
+    public function renderFile(string $templatePath, BaseRenderer $renderer, array $context = [], array $compileContext = []): string
     {
-        $ast = $this->compileFile($templatePath);
+        $ast = $this->compileFile($templatePath, $compileContext);
         return $this->render($ast, $renderer, $context);
+    }
+    
+    /**
+     * Set default CMS type
+     * 
+     * @param string|null $cmsType CMS type (wordpress, drupal, joomla, generic)
+     */
+    public function setDefaultCMSType(?string $cmsType): void
+    {
+        $this->defaultCMSType = $cmsType;
+    }
+    
+    /**
+     * Get default CMS type
+     * 
+     * @return string|null Current default CMS type
+     */
+    public function getDefaultCMSType(): ?string
+    {
+        return $this->defaultCMSType;
     }
 }
