@@ -28,3 +28,8 @@ Thumbs.db
 tmp/
 temp/
 *.tmp
+
+# Build artifacts and archives
+*.tar.gz
+*.zip
+*.tar
