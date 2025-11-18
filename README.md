@@ -11,7 +11,7 @@
 
 **A GNU/Linux-inspired microkernel for managing multiple CMS instances with enterprise-grade security, transaction integrity, and DiSyL templating engine**
 
-[Features](#-features) • [Quick Start](#-quick-start) • [DiSyL](#-disyl-templating-engine) • [Documentation](#-documentation) • [Installation](#-installation) • [Contributing](#-contributing)
+[Features](#-features) • [Quick Start](#-quick-start) • [Demo Sites](#-live-demo-sites) • [Phoenix Theme](#-phoenix-theme) • [DiSyL](#-disyl-templating-engine) • [Documentation](#-documentation) • [Installation](#-installation) • [Contributing](#-contributing)
 
 </div>
 
@@ -81,6 +81,112 @@ Ikabud Kernel v3.0 is a **production-ready enterprise CMS hyperkernel** that rev
 - **Cache Optimization** - Multi-layer caching (OPcache, Redis, Memcached)
 - **Multi-Tenant Ready** - Isolated resource management per tenant
 - **Scalability** - Designed for multi-tenant and high-traffic scenarios
+
+---
+
+## 🌐 Live Demo Sites
+
+Experience Phoenix theme powered by DiSyL across all three CMS platforms:
+
+### Production Demos
+
+- **WordPress Demo**: [https://wpdemo.zdnorte.net/](https://wpdemo.zdnorte.net/)
+  - Full WordPress site with Phoenix theme
+  - DiSyL-powered templates
+  - Complete blog functionality
+
+- **Joomla Demo**: [https://itsolutions.zdnorte.net/](https://itsolutions.zdnorte.net/)
+  - Joomla 4.x with Phoenix template
+  - Same DiSyL templates as WordPress
+  - Native Joomla integration
+
+- **Drupal Demo**: [https://drupaldemo.zdnorte.net/](https://drupaldemo.zdnorte.net/)
+  - Drupal 10/11 with Phoenix theme
+  - Cross-CMS compatible templates
+  - Full Drupal features
+
+### What You'll See
+
+✅ **Same Templates** - All three sites use identical `.disyl` template files  
+✅ **Platform-Specific Rendering** - Optimized for each CMS  
+✅ **Modern Design** - Gradient-rich, responsive design  
+✅ **Full Functionality** - Posts, pages, navigation, search  
+✅ **Production Ready** - Real-world implementation
+
+---
+
+## 🎨 Phoenix Theme
+
+**Phoenix** is a universal theme that demonstrates DiSyL's true cross-CMS power. Write your theme once, deploy it everywhere.
+
+### Key Features
+
+- **🌐 Universal Compatibility** - One codebase for WordPress, Joomla, and Drupal
+- **🎨 Modern Design** - Gradient-rich, responsive, accessible
+- **⚡ High Performance** - Fast loading with lazy loading and caching
+- **🧩 Component-Based** - Modular, reusable components
+- **🔒 Security First** - XSS prevention, input sanitization
+- **📱 Mobile Optimized** - Perfect on all devices
+
+### Template Structure
+
+```
+phoenix/
+├── disyl/
+│   ├── home.disyl              # Homepage
+│   ├── single.disyl            # Single post/article
+│   ├── page.disyl              # Static pages
+│   ├── archive.disyl           # Archive listings
+│   └── components/
+│       ├── header.disyl        # Site header
+│       ├── footer.disyl        # Site footer
+│       ├── slider.disyl        # Homepage slider
+│       └── sidebar.disyl       # Sidebar
+├── assets/
+│   ├── css/style.css
+│   ├── js/theme.js
+│   └── images/
+└── includes/
+    └── disyl-integration.php   # CMS integration
+```
+
+### Quick Example
+
+```disyl
+{!-- Same template works in WordPress, Joomla, and Drupal --}
+{ikb_include template="components/header.disyl" /}
+
+{ikb_section type="blog" padding="large"}
+    {ikb_container size="xlarge"}
+        <div class="post-grid">
+            {ikb_query type="post" limit=6}
+                <article class="post-card">
+                    {if condition="item.thumbnail"}
+                        {ikb_image 
+                            src="{item.thumbnail | esc_url}"
+                            alt="{item.title | esc_attr}"
+                            lazy=true
+                        /}
+                    {/if}
+                    
+                    <h3>{item.title | esc_html}</h3>
+                    <p>{item.excerpt | truncate:length=150}</p>
+                    <a href="{item.url | esc_url}">Read More →</a>
+                </article>
+            {/ikb_query}
+        </div>
+    {/ikb_container}
+{/ikb_section}
+
+{ikb_include template="components/footer.disyl" /}
+```
+
+### Learn More
+
+- **[Phoenix Theme Documentation](docs/PHOENIX_THEME.md)** - Complete guide
+- **[Live WordPress Demo](https://wpdemo.zdnorte.net/)** - See it in action
+- **[Live Joomla Demo](https://itsolutions.zdnorte.net/)** - Joomla implementation
+- **[Live Drupal Demo](https://drupaldemo.zdnorte.net/)** - Drupal implementation
 
 ---
 
@@ -219,8 +325,14 @@ ikabud health wp-site-001
 - **[Installation Guide](INSTALL.md)** - Detailed installation instructions
 - **[System Requirements](REQUIREMENTS.md)** - Hardware and software requirements
 - **[Documentation Index](docs/INDEX.md)** - Complete documentation catalog
+- **[Contributing Guide](CONTRIBUTING.md)** - How to contribute to the project
+- **[License](LICENSE)** - MIT License details
 
-### 🎨 DiSyL Templating
+### 🎨 DiSyL Templating & Phoenix Theme
+- **[Phoenix Theme Documentation](docs/PHOENIX_THEME.md)** - ⭐ Universal theme for WordPress/Joomla/Drupal
+- **[Live WordPress Demo](https://wpdemo.zdnorte.net/)** - See Phoenix in action
+- **[Live Joomla Demo](https://itsolutions.zdnorte.net/)** - Joomla implementation
+- **[Live Drupal Demo](https://drupaldemo.zdnorte.net/)** - Drupal implementation
 - **[DiSyL Complete Guide](docs/DISYL_COMPLETE_GUIDE.md)** - Comprehensive DiSyL documentation (20KB)
 - **[DiSyL Best Practices](docs/DISYL_BEST_PRACTICES.md)** - Official style guide and conventions
 - **[DiSyL Beta Release v0.5.0](docs/DISYL_BETA_RELEASE_v0.5.0.md)** - Latest release notes
@@ -455,13 +567,27 @@ composer test
 
 ## 🤝 Contributing
 
-We welcome contributions! Here's how you can help:
+We welcome contributions from developers of all skill levels! Whether you're fixing bugs, adding features, improving documentation, or creating themes, your help is appreciated.
 
-1. **Fork the repository**
+### Quick Start
+
+1. **Fork the repository** on GitHub
 2. **Create a feature branch** (`git checkout -b feature/amazing-feature`)
-3. **Commit your changes** (`git commit -m 'Add amazing feature'`)
-4. **Push to the branch** (`git push origin feature/amazing-feature`)
-5. **Open a Pull Request**
+3. **Make your changes** following our coding standards
+4. **Test your changes** thoroughly
+5. **Commit your changes** (`git commit -m 'feat: add amazing feature'`)
+6. **Push to the branch** (`git push origin feature/amazing-feature`)
+7. **Open a Pull Request** with a clear description
+
+### Contribution Areas
+
+- 🐛 **Bug Fixes** - Help squash bugs
+- ✨ **New Features** - Add new capabilities
+- 📝 **Documentation** - Improve guides and examples
+- 🎨 **Themes** - Create DiSyL themes
+- 🧩 **Components** - Build reusable components
+- 🔧 **CMS Adapters** - Improve CMS integrations
+- 🧪 **Testing** - Add tests and improve coverage
 
 ### Development Setup
 
@@ -568,24 +694,29 @@ See **[CHANGELOG.md](CHANGELOG.md)** for a detailed history of changes.
 - [ ] Container orchestration (Docker/Kubernetes)
 - [ ] Distributed caching across nodes
 - [ ] GraphQL API alongside REST
-- [ ] Advanced monitoring and alerting
-- [ ] Multi-CMS DiSyL renderer (Joomla, Drupal)
-
----
-
-## 📄 License
 
 Ikabud Kernel is open-source software licensed under the **[MIT License](LICENSE)**.
+
+### MIT License Summary
+
+✅ **Commercial Use** - Use in commercial projects  
+✅ **Modification** - Modify the source code  
+✅ **Distribution** - Distribute copies  
+✅ **Private Use** - Use privately  
+⚠️ **Liability** - No warranty provided  
+⚠️ **License Notice** - Include license and copyright notice
 
 ```
 Copyright (c) 2025 Ikabud Kernel Contributors
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction...
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software...
 ```
 
-See **[LICENSE](LICENSE)** for the full license text.
+See **[LICENSE](LICENSE)** for the complete license text including third-party licenses.
 
 ---
 
