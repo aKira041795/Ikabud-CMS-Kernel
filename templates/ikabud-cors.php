@@ -6,6 +6,59 @@
  * Author: Ikabud Kernel
  */
 
+// Set cookie domain BEFORE WordPress loads (must be very early)
+$current_host = $_SERVER['HTTP_HOST'] ?? '';
+$host_parts = explode('.', $current_host);
+if (count($host_parts) >= 2) {
+    $base_domain = '.' . implode('.', array_slice($host_parts, -2));
+    
+    // Define cookie constants before WordPress loads
+    if (!defined('COOKIE_DOMAIN')) {
+        define('COOKIE_DOMAIN', $base_domain);
+    }
+    if (!defined('ADMIN_COOKIE_PATH')) {
+        define('ADMIN_COOKIE_PATH', '/');
+    }
+    if (!defined('COOKIEPATH')) {
+        define('COOKIEPATH', '/');
+    }
+    if (!defined('SITECOOKIEPATH')) {
+        define('SITECOOKIEPATH', '/');
+    }
+}
+
+// Set CORS headers immediately for REST API requests (before WordPress loads)
+if (isset($_SERVER['REQUEST_URI']) && strpos($_SERVER['REQUEST_URI'], '/wp-json/') !== false) {
+    $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
+    
+    if ($origin) {
+        $origin_host = parse_url($origin, PHP_URL_HOST);
+        $current_host = $_SERVER['HTTP_HOST'] ?? '';
+        
+        if ($origin_host && $current_host && $origin_host !== $current_host) {
+            $origin_parts = explode('.', $origin_host);
+            $current_parts = explode('.', $current_host);
+            
+            $origin_base = implode('.', array_slice($origin_parts, -2));
+            $current_base = implode('.', array_slice($current_parts, -2));
+            
+            // Allow if same base domain
+            if ($origin_base === $current_base) {
+                header('Access-Control-Allow-Origin: ' . $origin);
+                header('Access-Control-Allow-Methods: POST, GET, OPTIONS, PUT, DELETE, PATCH');
+                header('Access-Control-Allow-Credentials: true');
+                header('Access-Control-Allow-Headers: Origin, X-Requested-With, X-WP-Nonce, Content-Type, Accept, Authorization, X-HTTP-Method-Override');
+                
+                // Handle OPTIONS preflight
+                if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+                    http_response_code(200);
+                    exit;
+                }
+            }
+        }
+    }
+}
+
 // Handle CORS and CSP - must run VERY early, at send_headers
 add_action('send_headers', 'ikabud_handle_cors', 1);
 function ikabud_handle_cors() {
@@ -45,11 +98,6 @@ function ikabud_handle_cors() {
         return;
     }
     
-    // Skip CORS for admin (Kernel already skips CSP for these)
-    if (is_admin() || (defined('DOING_AJAX') && DOING_AJAX)) {
-        return;
-    }
-    
     $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
     
     if (!$origin) {
@@ -59,6 +107,11 @@ function ikabud_handle_cors() {
     // Extract domain from origin and current request
     $origin_host = parse_url($origin, PHP_URL_HOST);
     $current_host = $_SERVER['HTTP_HOST'] ?? '';
+    
+    // Skip CORS only if origin matches current host (same-origin request)
+    if ($origin_host === $current_host) {
+        return;
+    }
     
     // Get base domain (e.g., "magic.test" from "dashboard.magic.test")
     $origin_parts = explode('.', $origin_host);
@@ -80,6 +133,42 @@ function ikabud_handle_cors() {
             status_header(200);
             exit();
         }
+    }
+}
+
+// Hook into REST API init to set headers early
+add_action('rest_api_init', 'ikabud_rest_api_cors_headers', 1);
+function ikabud_rest_api_cors_headers() {
+    $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
+    
+    if (!$origin) {
+        return;
+    }
+    
+    $origin_host = parse_url($origin, PHP_URL_HOST);
+    $current_host = $_SERVER['HTTP_HOST'] ?? '';
+    
+    // Skip if same origin
+    if ($origin_host === $current_host) {
+        return;
+    }
+    
+    $origin_parts = explode('.', $origin_host);
+    $current_parts = explode('.', $current_host);
+    
+    $origin_base = implode('.', array_slice($origin_parts, -2));
+    $current_base = implode('.', array_slice($current_parts, -2));
+    
+    // Allow if same base domain
+    if ($origin_base === $current_base) {
+        remove_filter('rest_pre_serve_request', 'rest_send_cors_headers');
+        add_filter('rest_pre_serve_request', function($value) use ($origin) {
+            header('Access-Control-Allow-Origin: ' . $origin);
+            header('Access-Control-Allow-Methods: POST, GET, OPTIONS, PUT, DELETE, PATCH');
+            header('Access-Control-Allow-Credentials: true');
+            header('Access-Control-Allow-Headers: Origin, X-Requested-With, X-WP-Nonce, Content-Type, Accept, Authorization, X-HTTP-Method-Override');
+            return $value;
+        });
     }
 }
 
@@ -112,20 +201,15 @@ function ikabud_rest_cors_headers($served, $result, $request, $server) {
 }
 
 /**
- * Fix WordPress Customizer cookies to work across subdomains
- * This prevents "Non-existent changeset UUID" errors
+ * Fix WordPress cookies to work across subdomains
+ * This allows authentication to work between admin.domain.com and domain.com
  */
-add_action('init', 'ikabud_fix_customizer_cookies', 1);
-function ikabud_fix_customizer_cookies() {
-    // Only run if in customizer context
-    if (!is_customize_preview() && !isset($_GET['customize_changeset_uuid'])) {
-        return;
-    }
-    
+add_action('plugins_loaded', 'ikabud_fix_subdomain_cookies', 1);
+function ikabud_fix_subdomain_cookies() {
     $current_host = $_SERVER['HTTP_HOST'] ?? '';
     $host_parts = explode('.', $current_host);
     
-    // Get base domain (e.g., "brutus.test" from "backend.brutus.test")
+    // Get base domain (e.g., "zdnorte.net" from "adminwpdemo.zdnorte.net")
     if (count($host_parts) >= 2) {
         $base_domain = '.' . implode('.', array_slice($host_parts, -2));
         
@@ -134,8 +218,21 @@ function ikabud_fix_customizer_cookies() {
             define('COOKIE_DOMAIN', $base_domain);
         }
         
+        if (!defined('ADMIN_COOKIE_PATH')) {
+            define('ADMIN_COOKIE_PATH', '/');
+        }
+        
+        if (!defined('COOKIEPATH')) {
+            define('COOKIEPATH', '/');
+        }
+        
+        if (!defined('SITECOOKIEPATH')) {
+            define('SITECOOKIEPATH', '/');
+        }
+        
         // Update PHP session cookie domain
         @ini_set('session.cookie_domain', $base_domain);
+        @ini_set('session.cookie_path', '/');
     }
 }
 

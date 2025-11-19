@@ -222,16 +222,22 @@ if (\$db_siteurl && \$db_home) {
     }
 }
 
-// Define admin cookie path
-define('ADMIN_COOKIE_PATH', '/wp-admin');
-
 // ** CRITICAL: Cookie Configuration **
 // Ensure cookies work correctly when served through Kernel
-// Use base domain for cookie sharing across subdomains
-\$base_domain = preg_replace('/^(backend|admin|dashboard)\./', '', \$current_host);
-define('COOKIE_DOMAIN', '.' . \$base_domain);
+// Extract base domain for cookie sharing across subdomains
+// Works with patterns like: admin.domain.com, backend.domain.com, domain.com
+\$host_parts = explode('.', \$current_host);
+if (count(\$host_parts) >= 2) {
+    // Get last two parts (domain.tld) for cookie domain
+    \$base_domain = '.' . implode('.', array_slice(\$host_parts, -2));
+} else {
+    \$base_domain = \$current_host;
+}
+
+define('COOKIE_DOMAIN', \$base_domain);
 define('COOKIEPATH', '/');
 define('SITECOOKIEPATH', '/');
+define('ADMIN_COOKIE_PATH', '/');
 
 // ** CRITICAL: Instance-specific wp-content paths **
 // This ensures themes, plugins, and uploads are stored in the instance folder
