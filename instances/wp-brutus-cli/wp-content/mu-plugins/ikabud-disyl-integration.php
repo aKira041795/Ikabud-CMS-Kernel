@@ -275,3 +275,83 @@ function ikabud_disyl_build_base_context() {
     
     return $context;
 }
+
+/**
+ * Parse DiSyL code in widget content
+ * Allows widgets (Text, HTML, Custom HTML) to use DiSyL syntax
+ * 
+ * Usage in widgets:
+ * {ikb_text size="lg" color="primary"}Hello {site.name}!{/ikb_text}
+ * {ikb_query type="post" limit="3"}
+ *   <h3>{item.title | esc_html}</h3>
+ * {/ikb_query}
+ */
+function ikabud_disyl_parse_widget_content($content) {
+    // Only parse if content contains DiSyL syntax
+    if (strpos($content, '{') === false || strpos($content, '}') === false) {
+        return $content;
+    }
+    
+    // Check if content has DiSyL tags
+    if (!preg_match('/\{(ikb_|if |\/|site\.|post\.|user\.|query\.)/', $content)) {
+        return $content;
+    }
+    
+    try {
+        // Use the same rendering pipeline as templates
+        $parser = new \IkabudKernel\Core\DiSyL\Parser();
+        $compiler = new \IkabudKernel\Core\DiSyL\Compiler();
+        $renderer = new \IkabudKernel\Core\DiSyL\Renderers\WordPressRenderer();
+        
+        // Parse and compile
+        $ast = $parser->parse($content);
+        $compiled = $compiler->compile($ast);
+        
+        // Build context
+        $context = ikabud_disyl_build_base_context();
+        $context = apply_filters('ikabud_disyl_context', $context);
+        
+        // Render
+        $rendered = $renderer->render($compiled, $context);
+        
+        return $rendered;
+    } catch (\Exception $e) {
+        // If parsing fails, return original content
+        error_log('[DiSyL Widget] Parse error: ' . $e->getMessage());
+        return $content;
+    }
+}
+
+// Hook into widget content filters
+add_filter('widget_text', 'ikabud_disyl_parse_widget_content', 9); // Before wpautop (priority 10)
+add_filter('widget_custom_html_content', 'ikabud_disyl_parse_widget_content', 9);
+add_filter('widget_block_content', 'ikabud_disyl_parse_widget_content', 9);
+
+// Also hook into dynamic_sidebar_params to process widget content
+add_filter('dynamic_sidebar_params', function($params) {
+    global $wp_registered_widgets;
+    
+    $widget_id = $params[0]['widget_id'];
+    
+    if (isset($wp_registered_widgets[$widget_id])) {
+        $widget = $wp_registered_widgets[$widget_id];
+        
+        // Wrap the callback to parse DiSyL in widget output
+        if (isset($widget['callback'])) {
+            $original_callback = $widget['callback'];
+            
+            $wp_registered_widgets[$widget_id]['callback'] = function() use ($original_callback, $params) {
+                ob_start();
+                call_user_func_array($original_callback, func_get_args());
+                $output = ob_get_clean();
+                
+                // Parse DiSyL in the output
+                $output = ikabud_disyl_parse_widget_content($output);
+                
+                echo $output;
+            };
+        }
+    }
+    
+    return $params;
+});
