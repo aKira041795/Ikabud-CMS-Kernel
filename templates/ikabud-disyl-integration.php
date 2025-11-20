@@ -299,12 +299,14 @@ function ikabud_disyl_parse_widget_content($content) {
     
     try {
         // Use the same rendering pipeline as templates
+        $lexer = new \IkabudKernel\Core\DiSyL\Lexer();
         $parser = new \IkabudKernel\Core\DiSyL\Parser();
         $compiler = new \IkabudKernel\Core\DiSyL\Compiler();
         $renderer = new \IkabudKernel\Core\DiSyL\Renderers\WordPressRenderer();
         
-        // Parse and compile
-        $ast = $parser->parse($content);
+        // Tokenize, parse and compile
+        $tokens = $lexer->tokenize($content);
+        $ast = $parser->parse($tokens);
         $compiled = $compiler->compile($ast);
         
         // Build context
