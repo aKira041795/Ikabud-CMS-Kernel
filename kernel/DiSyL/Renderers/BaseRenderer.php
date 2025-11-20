@@ -263,15 +263,15 @@ abstract class BaseRenderer
                     // Check if it's a named argument (key=value)
                     if (preg_match('/^(\w+)=(.+)$/', $arg, $matches)) {
                         $key = $matches[1];
-                        $value = $matches[2];
+                        $paramValue = $matches[2];
                         
                         // Remove quotes if present
-                        if ((substr($value, 0, 1) === '"' && substr($value, -1) === '"') ||
-                            (substr($value, 0, 1) === "'" && substr($value, -1) === "'")) {
-                            $value = substr($value, 1, -1);
+                        if ((substr($paramValue, 0, 1) === '"' && substr($paramValue, -1) === '"') ||
+                            (substr($paramValue, 0, 1) === "'" && substr($paramValue, -1) === "'")) {
+                            $paramValue = substr($paramValue, 1, -1);
                         }
                         
-                        $params[$key] = $value;
+                        $params[$key] = $paramValue;
                     } else {
                         // Positional argument
                         // Remove quotes if present

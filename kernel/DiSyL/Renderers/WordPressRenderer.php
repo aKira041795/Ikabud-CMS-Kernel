@@ -491,13 +491,16 @@ class WordPressRenderer extends ManifestDrivenRenderer
                 }
                 
                 // Set item context with WordPress post data
+                $date_timestamp = get_the_time('U');
+                error_log('[DiSyL CONTEXT] Setting item.date = ' . $date_timestamp . ' (type: ' . gettype($date_timestamp) . ') for post ID: ' . get_the_ID());
+                
                 $this->context['item'] = [
                     'id' => get_the_ID(),
                     'title' => get_the_title(),
                     'content' => apply_filters('the_content', get_the_content()), // Apply WordPress filters
                     'excerpt' => get_the_excerpt(),
                     'url' => get_permalink(),
-                    'date' => get_the_time('U'), // Unix timestamp for date filter compatibility
+                    'date' => $date_timestamp, // Unix timestamp for date filter compatibility
                     'date_formatted' => get_the_date(), // Pre-formatted date string
                     'author' => get_the_author(),
                     'author_url' => get_author_posts_url(get_the_author_meta('ID')),
