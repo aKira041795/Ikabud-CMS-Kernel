@@ -293,7 +293,7 @@ function ikabud_disyl_parse_widget_content($content) {
     }
     
     // Check if content has DiSyL tags
-    if (!preg_match('/\{(ikb_|if |\/|site\.|post\.|user\.|query\.)/', $content)) {
+    if (!preg_match('/\{(ikb_|if |else|\/|site\.|post\.|user\.|query\.|item\.)/', $content)) {
         return $content;
     }
     
