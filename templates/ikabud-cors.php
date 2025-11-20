@@ -2,12 +2,12 @@
 /**
  * Plugin Name: Ikabud CORS Handler
  * Description: Handles CORS headers for cross-domain API requests between dashboard and frontend domains
- * Version: 1.2.0
+ * Version: 1.3.0
  * Author: Ikabud Kernel
  * 
  * BLUEHOST SHARED HOSTING FIXES:
  * ===============================
- * This plugin includes 5 critical fixes for Bluehost/shared hosting environments
+ * This plugin includes 6 critical fixes for Bluehost/shared hosting environments
  * where frontend is on main domain (e.g., ikabudkernel.com) and backend is on 
  * subdomain (e.g., admin.ikabudkernel.com):
  * 
@@ -16,12 +16,13 @@
  * 3. Early CORS Headers - Sets headers before WordPress can override them
  * 4. REST API Override - Removes WordPress default CORS and sets custom headers
  * 5. REST URL Fix - Forces admin to use backend domain for API calls (NOT frontend)
+ * 6. Mixed Content Fix - Forces all URLs to HTTPS to prevent mixed content errors
  * 
- * These fixes address the most common CORS issues in subdomain headless setups.
+ * These fixes address the most common CORS and HTTPS issues in subdomain headless setups.
  * 
- * IMPORTANT: Fix #5 prevents WordPress admin from trying to fetch REST API from
- * the frontend domain (which doesn't have WordPress) and forces it to use the
- * backend domain where WordPress actually lives.
+ * IMPORTANT: 
+ * - Fix #5 prevents WordPress admin from trying to fetch REST API from the frontend
+ * - Fix #6 prevents "Mixed Content" errors when database has HTTP URLs but site uses HTTPS
  */
 
 // ============================================================================
@@ -318,6 +319,31 @@ function ikabud_fix_subdomain_cookies() {
         @ini_set('session.cookie_domain', $base_domain);
         @ini_set('session.cookie_path', '/');
     }
+}
+
+/**
+ * FIX #6: Force HTTPS for all URLs to prevent Mixed Content errors
+ * Bluehost serves pages over HTTPS but database may have HTTP URLs
+ */
+add_filter('option_siteurl', 'ikabud_force_https_url');
+add_filter('option_home', 'ikabud_force_https_url');
+add_filter('wp_get_attachment_url', 'ikabud_force_https_url');
+add_filter('the_content', 'ikabud_force_https_content');
+add_filter('script_loader_src', 'ikabud_force_https_url');
+add_filter('style_loader_src', 'ikabud_force_https_url');
+
+function ikabud_force_https_url($url) {
+    if (is_string($url) && strpos($url, 'http://') === 0) {
+        return str_replace('http://', 'https://', $url);
+    }
+    return $url;
+}
+
+function ikabud_force_https_content($content) {
+    if (is_string($content)) {
+        return str_replace('http://', 'https://', $content);
+    }
+    return $content;
 }
 
 /**
