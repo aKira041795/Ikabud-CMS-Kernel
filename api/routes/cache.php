@@ -70,11 +70,13 @@ $app->post('/api/v1/cache/{instance_id}/clear-pattern', function (Request $reque
 // Clear all cache
 $app->delete('/api/v1/cache', function (Request $request, Response $response) {
     $cache = new Cache();
-    $cache->clearAll();
+    $result = $cache->clearAll();
     
     $response->getBody()->write(json_encode([
         'success' => true,
-        'message' => 'All cache cleared'
+        'message' => "Cleared {$result['cleared']} cache files",
+        'cleared' => $result['cleared'],
+        'errors' => $result['errors']
     ]));
     return $response->withHeader('Content-Type', 'application/json');
 })->add(new JWTMiddleware());

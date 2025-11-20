@@ -172,17 +172,19 @@ export default function Dashboard() {
                 </div>
                 <div className="ml-3">
                   <dt className="text-sm font-medium text-gray-500">
-                    Cache
+                    Cache Files
                   </dt>
                   <dd className="text-lg font-semibold text-gray-900">
-                    {cacheStats?.hit_rate || '0%'}
+                    {cacheStats?.cached_files || 0}
                   </dd>
                 </div>
               </div>
             </div>
             <div className="text-xs text-gray-500 space-y-1 mb-3">
-              <div>Hits: {cacheStats?.hits || 0}</div>
-              <div>Misses: {cacheStats?.misses || 0}</div>
+              <div>Active: {cacheStats?.active_files || 0}</div>
+              <div>Expired: {cacheStats?.expired_files || 0}</div>
+              <div>Size: {cacheStats?.total_size_mb || 0} MB</div>
+              {cacheStats?.hit_rate && <div>Hit Rate: {cacheStats.hit_rate}</div>}
             </div>
             <button
               onClick={() => {
@@ -190,7 +192,7 @@ export default function Dashboard() {
                   clearAllCacheMutation.mutate();
                 }
               }}
-              disabled={clearAllCacheMutation.isPending}
+              disabled={clearAllCacheMutation.isPending || (cacheStats?.cached_files || 0) === 0}
               className="w-full inline-flex items-center justify-center px-3 py-1.5 border border-red-300 text-xs font-medium rounded text-red-700 bg-white hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Trash2 className="w-3 h-3 mr-1" />

@@ -230,6 +230,14 @@ class Cache
     }
     
     /**
+     * Clear cache by pattern (alias for clearByUrlPattern for API compatibility)
+     */
+    public function clearByPattern(string $instanceId, string $pattern): int
+    {
+        return $this->clearByUrlPattern($instanceId, $pattern);
+    }
+    
+    /**
      * Clear cache by URL pattern (e.g., '/blog/*', '/category/*')
      */
     public function clearByUrlPattern(string $instanceId, string $urlPattern): int
@@ -300,14 +308,46 @@ class Cache
     }
     
     /**
-     * Clear all cache
+     * Clear all cache (including tag indexes)
      */
-    public function clearAll(): void
+    public function clearAll(): array
     {
-        $pattern = $this->cacheDir . '/*.cache';
-        foreach (glob($pattern) as $file) {
-            unlink($file);
+        $cleared = 0;
+        $errors = [];
+        
+        // Clear cache files
+        $cachePattern = $this->cacheDir . '/*.cache';
+        $cacheFiles = glob($cachePattern);
+        
+        if ($cacheFiles === false) {
+            $errors[] = 'Failed to read cache directory';
+        } else {
+            foreach ($cacheFiles as $file) {
+                if (@unlink($file)) {
+                    $cleared++;
+                } else {
+                    $errors[] = "Failed to delete: " . basename($file);
+                }
+            }
         }
+        
+        // Clear tag index files
+        $tagPattern = $this->cacheDir . '/.tags_*.idx';
+        $tagFiles = glob($tagPattern);
+        
+        if ($tagFiles !== false) {
+            foreach ($tagFiles as $file) {
+                @unlink($file);
+            }
+        }
+        
+        error_log("Ikabud Cache: Cleared $cleared cache files" . 
+                  (count($errors) > 0 ? " with " . count($errors) . " errors" : ""));
+        
+        return [
+            'cleared' => $cleared,
+            'errors' => $errors
+        ];
     }
     
     /**
@@ -354,17 +394,58 @@ class Cache
     }
     
     /**
-     * Get cache statistics
+     * Get all cached files with metadata
+     */
+    private function getAllCachedFiles(): array
+    {
+        $files = [];
+        $cachePattern = $this->cacheDir . '/*.cache';
+        $cacheFiles = glob($cachePattern);
+        
+        if ($cacheFiles === false) {
+            return [];
+        }
+        
+        foreach ($cacheFiles as $file) {
+            $files[] = [
+                'file' => $file,
+                'size' => filesize($file),
+                'age' => time() - filemtime($file),
+                'expired' => (time() - filemtime($file)) > $this->ttl
+            ];
+        }
+        
+        return $files;
+    }
+    
+    /**
+     * Get cache statistics (scans actual cache files)
      */
     public function getStats(): array
     {
+        $files = $this->getAllCachedFiles();
+        $totalFiles = count($files);
+        $totalSize = array_sum(array_column($files, 'size'));
+        $expiredFiles = count(array_filter($files, fn($f) => $f['expired']));
+        $activeFiles = $totalFiles - $expiredFiles;
+        
+        // Calculate hit rate from in-memory stats
         $total = $this->stats['hits'] + $this->stats['misses'] + $this->stats['bypasses'];
         $hitRate = $total > 0 ? round(($this->stats['hits'] / $total) * 100, 2) : 0;
         
-        return array_merge($this->stats, [
+        return [
+            'hits' => $this->stats['hits'],
+            'misses' => $this->stats['misses'],
+            'bypasses' => $this->stats['bypasses'],
+            'errors' => $this->stats['errors'],
             'total_requests' => $total,
-            'hit_rate' => $hitRate . '%'
-        ]);
+            'hit_rate' => $hitRate . '%',
+            'cached_files' => $totalFiles,
+            'active_files' => $activeFiles,
+            'expired_files' => $expiredFiles,
+            'total_size_bytes' => $totalSize,
+            'total_size_mb' => round($totalSize / 1024 / 1024, 2)
+        ];
     }
     
     /**
