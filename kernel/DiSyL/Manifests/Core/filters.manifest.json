@@ -107,6 +107,18 @@
         "{author_name | default:\"{post.author}\"}",
         "Result: Returns fallback if value is empty"
       ]
+    },
+    "raw": {
+      "description": "Output raw HTML without escaping - USE WITH CAUTION on trusted content only",
+      "category": "security",
+      "php": "{value}",
+      "js": "{value}",
+      "security_warning": "This filter bypasses all HTML escaping. Only use with trusted, sanitized content to prevent XSS attacks.",
+      "examples": [
+        "{custom_html | raw}",
+        "{item.content | sanitize | raw}",
+        "Result: HTML rendered as-is without escaping"
+      ]
     }
   }
 }

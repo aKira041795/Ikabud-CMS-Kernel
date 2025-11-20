@@ -250,19 +250,42 @@
         "{item.email | antispambot}",
         "Result: Encoded email address"
       ]
+    },
+    "raw": {
+      "description": "Output raw HTML without escaping - USE WITH CAUTION on trusted content only",
+      "category": "security",
+      "php": "{value}",
+      "js": "{value}",
+      "security_warning": "This filter bypasses all HTML escaping. Only use with trusted, sanitized content to prevent XSS attacks.",
+      "examples": [
+        "{widgets.homepage_hero.content | raw}",
+        "{item.content | wp_kses_post | raw}",
+        "Result: HTML rendered as-is without escaping"
+      ]
+    },
+    "disyl": {
+      "description": "Process embedded DiSyL code within content - recursively renders DiSyL templates",
+      "category": "wordpress",
+      "php": "\\IkabudKernel\\Core\\DiSyL\\Renderers\\WordPressRenderer::processEmbeddedDisyl({value})",
+      "js": "processEmbeddedDisyl({value})",
+      "examples": [
+        "{widgets.homepage_hero.content | disyl}",
+        "{custom_content | disyl}",
+        "Result: DiSyL code within content is parsed and rendered"
+      ]
     }
   },
   
   "statistics": {
-    "total_filters": 20,
+    "total_filters": 22,
     "categories": {
-      "security": 5,
+      "security": 6,
       "string": 2,
       "formatting": 7,
       "content": 2,
       "date": 1,
       "sanitization": 2,
-      "wordpress": 1
+      "wordpress": 2
     },
     "usage_coverage": "80%",
     "description": "Top 20% most used WordPress filters covering 80% of use cases"

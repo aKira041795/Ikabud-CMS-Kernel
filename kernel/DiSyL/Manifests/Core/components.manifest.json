@@ -251,6 +251,21 @@
           "description": "Template path to include"
         }
       }
+    },
+    "ikb_content": {
+      "namespace": "core",
+      "category": "content",
+      "tags": ["content", "html", "raw"],
+      "description": "Raw HTML content container - outputs content without escaping. USE WITH CAUTION on trusted content only.",
+      "capabilities": {
+        "supports_children": true,
+        "output_mode": "raw",
+        "provides_context": [],
+        "async": false,
+        "cacheable": true
+      },
+      "security_warning": "This component outputs raw HTML without escaping. Only use with trusted, sanitized content to prevent XSS attacks.",
+      "attributes": {}
     }
   }
 }

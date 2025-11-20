@@ -28,7 +28,7 @@
 
 {!-- Custom Hero Widget (When set) --}
 {if condition="widgets.homepage_hero.active"}
-    {widgets.homepage_hero.content | raw}
+    {widgets.homepage_hero.content | disyl}
 {/if}
 
 {!-- Features Section (Only show when no features widget) --}
@@ -129,7 +129,7 @@
 
 {!-- Custom Features Widget (When set) --}
 {if condition="widgets.homepage_features.active"}
-    {widgets.homepage_features.content | raw}
+    {widgets.homepage_features.content | disyl}
 {/if}
 
 {!-- Latest Blog Posts --}

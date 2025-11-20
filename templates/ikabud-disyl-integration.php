@@ -146,6 +146,11 @@ function ikabud_disyl_render($template) {
     }
     
     try {
+        // Initialize ModularManifestLoader with WordPress profile
+        if (class_exists('\\IkabudKernel\\Core\\DiSyL\\ModularManifestLoader')) {
+            \IkabudKernel\Core\DiSyL\ModularManifestLoader::init('full', 'wordpress');
+        }
+        
         // Load DiSyL classes
         $lexer = new \IkabudKernel\Core\DiSyL\Lexer();
         $parser = new \IkabudKernel\Core\DiSyL\Parser();
@@ -275,57 +280,3 @@ function ikabud_disyl_build_base_context() {
     
     return $context;
 }
-
-/**
- * Parse DiSyL code in widget content
- * Allows widgets (Text, HTML, Custom HTML) to use DiSyL syntax
- * 
- * Usage in widgets:
- * {ikb_text size="lg" color="primary"}Hello {site.name}!{/ikb_text}
- * {ikb_query type="post" limit="3"}
- *   <h3>{item.title | esc_html}</h3>
- * {/ikb_query}
- */
-function ikabud_disyl_parse_widget_content($content) {
-    // Only parse if content contains DiSyL syntax
-    if (strpos($content, '{') === false || strpos($content, '}') === false) {
-        return $content;
-    }
-    
-    // Check if content has DiSyL tags
-    if (!preg_match('/\{(ikb_|if |else|\/|site\.|post\.|user\.|query\.|item\.)/', $content)) {
-        return $content;
-    }
-    
-    try {
-        // Use the same rendering pipeline as templates
-        $lexer = new \IkabudKernel\Core\DiSyL\Lexer();
-        $parser = new \IkabudKernel\Core\DiSyL\Parser();
-        $compiler = new \IkabudKernel\Core\DiSyL\Compiler();
-        $renderer = new \IkabudKernel\Core\DiSyL\Renderers\WordPressRenderer();
-        
-        // Tokenize, parse and compile
-        $tokens = $lexer->tokenize($content);
-        $ast = $parser->parse($tokens);
-        $compiled = $compiler->compile($ast);
-        
-        // Build context
-        $context = ikabud_disyl_build_base_context();
-        $context = apply_filters('ikabud_disyl_context', $context);
-        
-        // Render
-        $rendered = $renderer->render($compiled, $context);
-        
-        return $rendered;
-    } catch (\Exception $e) {
-        // If parsing fails, return original content
-        error_log('[DiSyL Widget] Parse error: ' . $e->getMessage());
-        return $content;
-    }
-}
-
-// Hook into widget content filters
-// These filters are sufficient for most widgets (Text, Custom HTML, Block widgets)
-add_filter('widget_text', 'ikabud_disyl_parse_widget_content', 9); // Before wpautop (priority 10)
-add_filter('widget_custom_html_content', 'ikabud_disyl_parse_widget_content', 9);
-add_filter('widget_block_content', 'ikabud_disyl_parse_widget_content', 9);

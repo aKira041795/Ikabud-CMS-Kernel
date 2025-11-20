@@ -754,4 +754,69 @@ class WordPressRenderer extends ManifestDrivenRenderer
         
         return htmlspecialchars($str, ENT_QUOTES, 'UTF-8');
     }
+    
+    /**
+     * Process embedded DiSyL code within content (for disyl filter)
+     * This allows widgets and other content to contain DiSyL code that gets rendered
+     * 
+     * @param string $content Content that may contain DiSyL code
+     * @return string Rendered content with DiSyL processed
+     */
+    public static function processEmbeddedDisyl($content) {
+        // Quick check if content contains DiSyL syntax
+        if (strpos($content, '{ikb_') === false && strpos($content, '{item.') === false && strpos($content, '{if ') === false) {
+            return $content; // No DiSyL code, return as-is
+        }
+        
+        try {
+            // Initialize ModularManifestLoader if not already done
+            if (class_exists('\\IkabudKernel\\Core\\DiSyL\\ModularManifestLoader')) {
+                \IkabudKernel\Core\DiSyL\ModularManifestLoader::init('full', 'wordpress');
+            }
+            
+            // Create DiSyL processor
+            $lexer = new \IkabudKernel\Core\DiSyL\Lexer();
+            $parser = new \IkabudKernel\Core\DiSyL\Parser();
+            $compiler = new \IkabudKernel\Core\DiSyL\Compiler();
+            $renderer = new self();
+            
+            // Process DiSyL
+            $tokens = $lexer->tokenize($content);
+            $ast = $parser->parse($tokens);
+            $compiled = $compiler->compile($ast);
+            
+            // Build context - use global WordPress context
+            global $post, $wp_query;
+            $context = array(
+                'site' => array(
+                    'name' => get_bloginfo('name'),
+                    'description' => get_bloginfo('description'),
+                    'url' => home_url(),
+                    'theme_url' => get_template_directory_uri(),
+                ),
+            );
+            
+            // Add post context if available
+            if ($post) {
+                $context['post'] = array(
+                    'id' => $post->ID,
+                    'title' => get_the_title(),
+                    'content' => apply_filters('the_content', $post->post_content),
+                    'excerpt' => get_the_excerpt(),
+                    'url' => get_permalink(),
+                    'date' => get_the_time('U'),
+                    'author' => get_the_author(),
+                );
+            }
+            
+            // Render
+            $rendered = $renderer->render($compiled, $context);
+            
+            return $rendered;
+            
+        } catch (\Exception $e) {
+            error_log('DiSyL embedded processing error: ' . $e->getMessage());
+            return $content; // Return original content on error
+        }
+    }
 }

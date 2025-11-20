@@ -11,6 +11,15 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
+// Load Ikabud Kernel autoloader
+$kernel_autoload = dirname(dirname(dirname(dirname(dirname(__FILE__))))) . '/vendor/autoload.php';
+if (file_exists($kernel_autoload)) {
+    require_once $kernel_autoload;
+} else {
+    error_log('Ikabud Kernel autoloader not found at: ' . $kernel_autoload);
+    return;
+}
+
 /**
  * Filter admin_url to use current domain on frontend
  * Prevents CORS issues with AJAX requests from plugins like WPForms
@@ -146,6 +155,11 @@ function ikabud_disyl_render($template) {
     }
     
     try {
+        // Initialize ModularManifestLoader with WordPress profile
+        if (class_exists('\\IkabudKernel\\Core\\DiSyL\\ModularManifestLoader')) {
+            \IkabudKernel\Core\DiSyL\ModularManifestLoader::init('full', 'wordpress');
+        }
+        
         // Load DiSyL classes
         $lexer = new \IkabudKernel\Core\DiSyL\Lexer();
         $parser = new \IkabudKernel\Core\DiSyL\Parser();
