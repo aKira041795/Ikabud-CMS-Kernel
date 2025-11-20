@@ -36,9 +36,9 @@
       ]
     },
     "date": {
-      "description": "Format date string",
+      "description": "Format date string or Unix timestamp",
       "category": "date",
-      "php": "date('{format}', strtotime({value}))",
+      "php": "date('{format}', is_numeric({value}) ? {value} : strtotime({value}))",
       "js": "new Date({value}).toLocaleDateString('{format}')",
       "params": {
         "format": {
