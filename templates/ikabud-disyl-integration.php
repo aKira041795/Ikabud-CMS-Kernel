@@ -329,11 +329,22 @@ add_filter('widget_text', 'ikabud_disyl_parse_widget_content', 9); // Before wpa
 add_filter('widget_custom_html_content', 'ikabud_disyl_parse_widget_content', 9);
 add_filter('widget_block_content', 'ikabud_disyl_parse_widget_content', 9);
 
-// Also hook into dynamic_sidebar_params to process widget content
+// Track which widgets have been wrapped to prevent infinite loops
+global $ikabud_disyl_wrapped_widgets;
+if (!isset($ikabud_disyl_wrapped_widgets)) {
+    $ikabud_disyl_wrapped_widgets = array();
+}
+
+// Hook into dynamic_sidebar_params to process widget content
 add_filter('dynamic_sidebar_params', function($params) {
-    global $wp_registered_widgets;
+    global $wp_registered_widgets, $ikabud_disyl_wrapped_widgets;
     
     $widget_id = $params[0]['widget_id'];
+    
+    // Skip if already wrapped
+    if (isset($ikabud_disyl_wrapped_widgets[$widget_id])) {
+        return $params;
+    }
     
     if (isset($wp_registered_widgets[$widget_id])) {
         $widget = $wp_registered_widgets[$widget_id];
@@ -342,7 +353,10 @@ add_filter('dynamic_sidebar_params', function($params) {
         if (isset($widget['callback'])) {
             $original_callback = $widget['callback'];
             
-            $wp_registered_widgets[$widget_id]['callback'] = function() use ($original_callback, $params) {
+            // Mark as wrapped BEFORE modifying
+            $ikabud_disyl_wrapped_widgets[$widget_id] = true;
+            
+            $wp_registered_widgets[$widget_id]['callback'] = function() use ($original_callback) {
                 ob_start();
                 call_user_func_array($original_callback, func_get_args());
                 $output = ob_get_clean();
