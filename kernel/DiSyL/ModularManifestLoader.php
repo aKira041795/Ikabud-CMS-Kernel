@@ -204,9 +204,20 @@ class ModularManifestLoader
             $phpCode = str_replace($placeholder, var_export($val, true), $phpCode);
         }
         
+        // DEBUG: Log date filter details
+        if ($filterName === 'date') {
+            error_log('[DiSyL DATE DEBUG] Value type: ' . gettype($value) . ', Value: ' . var_export($value, true));
+            error_log('[DiSyL DATE DEBUG] PHP Code: ' . $phpCode);
+            error_log('[DiSyL DATE DEBUG] is_numeric: ' . (is_numeric($value) ? 'true' : 'false'));
+        }
+        
         // Evaluate
         try {
-            return eval('return ' . $phpCode . ';');
+            $result = eval('return ' . $phpCode . ';');
+            if ($filterName === 'date') {
+                error_log('[DiSyL DATE DEBUG] Result: ' . $result);
+            }
+            return $result;
         } catch (\Throwable $e) {
             error_log('[DiSyL] Filter error: ' . $e->getMessage());
             error_log('[DiSyL] Filter code: ' . $phpCode);
