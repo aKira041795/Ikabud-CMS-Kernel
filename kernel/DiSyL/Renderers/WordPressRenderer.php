@@ -497,8 +497,10 @@ class WordPressRenderer extends ManifestDrivenRenderer
                     'content' => apply_filters('the_content', get_the_content()), // Apply WordPress filters
                     'excerpt' => get_the_excerpt(),
                     'url' => get_permalink(),
-                    'date' => get_the_date(),
+                    'date' => get_the_time('U'), // Unix timestamp for date filter compatibility
+                    'date_formatted' => get_the_date(), // Pre-formatted date string
                     'author' => get_the_author(),
+                    'author_url' => get_author_posts_url(get_the_author_meta('ID')),
                     'thumbnail' => $thumbnail,
                     'categories' => wp_get_post_categories(get_the_ID(), ['fields' => 'names'])
                 ];

@@ -237,7 +237,8 @@ function ikabud_disyl_build_base_context() {
             'title' => get_the_title(),
             'content' => $processed_content,
             'excerpt' => get_the_excerpt(),
-            'date' => get_the_date(),
+            'date' => get_the_time('U'), // Unix timestamp for date filter compatibility
+            'date_formatted' => get_the_date(), // Pre-formatted date string
             'author' => get_the_author(),
             'author_id' => $post->post_author,
             'author_url' => get_author_posts_url($post->post_author),
