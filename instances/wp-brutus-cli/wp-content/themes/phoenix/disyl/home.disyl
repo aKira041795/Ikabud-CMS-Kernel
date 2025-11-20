@@ -145,7 +145,7 @@
         </div>
         
         <div class="post-grid">
-            {ikb_query type="post" limit=6}
+            {ikb_query type="post" limit=6 exclude_category="theme-updates"}
                 <article class="post-card reveal">
                     {if condition="item.thumbnail"}
                         <a href="{item.url | esc_url}">

@@ -344,6 +344,7 @@ class WordPressRenderer extends ManifestDrivenRenderer
         $orderby = $attrs['orderby'] ?? 'date';
         $order = $attrs['order'] ?? 'desc';
         $category = $attrs['category'] ?? null;
+        $exclude_category = $attrs['exclude_category'] ?? null;
         
         // Special case: On single post/page, use the main query if limit=1
         if ($limit == 1 && function_exists('is_singular') && is_singular()) {
@@ -374,6 +375,21 @@ class WordPressRenderer extends ManifestDrivenRenderer
             
             if ($category) {
                 $args['category_name'] = $category;
+            }
+            
+            if ($exclude_category) {
+                // Get category IDs from slugs (supports comma-separated list)
+                $exclude_slugs = array_map('trim', explode(',', $exclude_category));
+                $exclude_ids = [];
+                foreach ($exclude_slugs as $slug) {
+                    $cat = get_category_by_slug($slug);
+                    if ($cat) {
+                        $exclude_ids[] = $cat->term_id;
+                    }
+                }
+                if (!empty($exclude_ids)) {
+                    $args['category__not_in'] = $exclude_ids;
+                }
             }
             
             // Allow WordPress filters
