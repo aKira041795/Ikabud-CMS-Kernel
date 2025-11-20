@@ -325,49 +325,7 @@ function ikabud_disyl_parse_widget_content($content) {
 }
 
 // Hook into widget content filters
+// These filters are sufficient for most widgets (Text, Custom HTML, Block widgets)
 add_filter('widget_text', 'ikabud_disyl_parse_widget_content', 9); // Before wpautop (priority 10)
 add_filter('widget_custom_html_content', 'ikabud_disyl_parse_widget_content', 9);
 add_filter('widget_block_content', 'ikabud_disyl_parse_widget_content', 9);
-
-// Track which widgets have been wrapped to prevent infinite loops
-global $ikabud_disyl_wrapped_widgets;
-if (!isset($ikabud_disyl_wrapped_widgets)) {
-    $ikabud_disyl_wrapped_widgets = array();
-}
-
-// Hook into dynamic_sidebar_params to process widget content
-add_filter('dynamic_sidebar_params', function($params) {
-    global $wp_registered_widgets, $ikabud_disyl_wrapped_widgets;
-    
-    $widget_id = $params[0]['widget_id'];
-    
-    // Skip if already wrapped
-    if (isset($ikabud_disyl_wrapped_widgets[$widget_id])) {
-        return $params;
-    }
-    
-    if (isset($wp_registered_widgets[$widget_id])) {
-        $widget = $wp_registered_widgets[$widget_id];
-        
-        // Wrap the callback to parse DiSyL in widget output
-        if (isset($widget['callback'])) {
-            $original_callback = $widget['callback'];
-            
-            // Mark as wrapped BEFORE modifying
-            $ikabud_disyl_wrapped_widgets[$widget_id] = true;
-            
-            $wp_registered_widgets[$widget_id]['callback'] = function() use ($original_callback) {
-                ob_start();
-                call_user_func_array($original_callback, func_get_args());
-                $output = ob_get_clean();
-                
-                // Parse DiSyL in the output
-                $output = ikabud_disyl_parse_widget_content($output);
-                
-                echo $output;
-            };
-        }
-    }
-    
-    return $params;
-});
