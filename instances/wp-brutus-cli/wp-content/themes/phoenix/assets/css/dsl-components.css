@@ -399,3 +399,440 @@
         color: #d1d5db;
     }
 }
+
+/* ===========================
+   Timeline Component
+   =========================== */
+
+.ikb-timeline {
+    position: relative;
+    padding: 2rem 0;
+}
+
+.ikb-timeline::before {
+    content: '';
+    position: absolute;
+    left: 20px;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: linear-gradient(to bottom, #3b82f6, #8b5cf6);
+}
+
+.ikb-timeline-item {
+    position: relative;
+    padding-left: 60px;
+    margin-bottom: 2rem;
+}
+
+.ikb-timeline-marker {
+    position: absolute;
+    left: 12px;
+    top: 0;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: #3b82f6;
+    border: 3px solid #ffffff;
+    box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1);
+}
+
+.ikb-timeline-content {
+    background: #ffffff;
+    border-radius: 0.5rem;
+    padding: 1.5rem;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.ikb-timeline-date {
+    display: block;
+    font-size: 0.875rem;
+    color: #6b7280;
+    margin-bottom: 0.5rem;
+}
+
+.ikb-timeline-title {
+    margin: 0 0 0.75rem 0;
+    font-size: 1.25rem;
+    font-weight: 600;
+}
+
+.ikb-timeline-title a {
+    color: inherit;
+    text-decoration: none;
+}
+
+.ikb-timeline-title a:hover {
+    color: #3b82f6;
+}
+
+.ikb-timeline-excerpt {
+    margin: 0;
+    color: #4b5563;
+    line-height: 1.6;
+}
+
+/* ===========================
+   Carousel Component
+   =========================== */
+
+.ikb-carousel {
+    position: relative;
+    overflow: hidden;
+    border-radius: 0.5rem;
+}
+
+.ikb-carousel-track {
+    display: flex;
+    transition: transform 0.3s ease-in-out;
+}
+
+.ikb-carousel-slide {
+    min-width: 100%;
+    position: relative;
+}
+
+.ikb-carousel-image {
+    width: 100%;
+    height: 400px;
+    object-fit: cover;
+    display: block;
+}
+
+.ikb-carousel-caption {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: linear-gradient(to top, rgba(0, 0, 0, 0.8), transparent);
+    color: #ffffff;
+    padding: 2rem;
+}
+
+.ikb-carousel-title {
+    margin: 0 0 0.5rem 0;
+    font-size: 1.5rem;
+    font-weight: 600;
+}
+
+.ikb-carousel-title a {
+    color: #ffffff;
+    text-decoration: none;
+}
+
+.ikb-carousel-title a:hover {
+    color: #93c5fd;
+}
+
+.ikb-carousel-excerpt {
+    margin: 0;
+    font-size: 0.95rem;
+    opacity: 0.9;
+}
+
+.ikb-carousel-prev,
+.ikb-carousel-next {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    background: rgba(0, 0, 0, 0.5);
+    color: #ffffff;
+    border: none;
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    font-size: 1.5rem;
+    cursor: pointer;
+    transition: background 0.2s;
+    z-index: 10;
+}
+
+.ikb-carousel-prev:hover,
+.ikb-carousel-next:hover {
+    background: rgba(0, 0, 0, 0.7);
+}
+
+.ikb-carousel-prev {
+    left: 1rem;
+}
+
+.ikb-carousel-next {
+    right: 1rem;
+}
+
+.ikb-carousel-indicators {
+    position: absolute;
+    bottom: 1rem;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 0.5rem;
+    z-index: 10;
+}
+
+.ikb-carousel-indicator {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.5);
+    border: none;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.ikb-carousel-indicator.active,
+.ikb-carousel-indicator:hover {
+    background: rgba(255, 255, 255, 0.9);
+}
+
+/* ===========================
+   Table Component
+   =========================== */
+
+.ikb-table-wrapper {
+    overflow-x: auto;
+    border-radius: 0.5rem;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.ikb-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: #ffffff;
+}
+
+.ikb-table thead {
+    background: #f9fafb;
+    border-bottom: 2px solid #e5e7eb;
+}
+
+.ikb-table th {
+    padding: 1rem;
+    text-align: left;
+    font-weight: 600;
+    color: #374151;
+    font-size: 0.875rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.ikb-table tbody tr {
+    border-bottom: 1px solid #e5e7eb;
+    transition: background 0.2s;
+}
+
+.ikb-table tbody tr:hover {
+    background: #f9fafb;
+}
+
+.ikb-table td {
+    padding: 1rem;
+    color: #4b5563;
+}
+
+.ikb-table-title a {
+    color: #3b82f6;
+    text-decoration: none;
+    font-weight: 500;
+}
+
+.ikb-table-title a:hover {
+    text-decoration: underline;
+}
+
+.ikb-table-date,
+.ikb-table-author {
+    font-size: 0.875rem;
+}
+
+.ikb-table-categories {
+    font-size: 0.875rem;
+    color: #6b7280;
+}
+
+/* ===========================
+   Accordion Component
+   =========================== */
+
+.ikb-accordion {
+    border-radius: 0.5rem;
+    overflow: hidden;
+}
+
+.ikb-accordion-item {
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.ikb-accordion-item:last-child {
+    border-bottom: none;
+}
+
+.ikb-accordion-header {
+    width: 100%;
+    padding: 1.25rem;
+    background: #ffffff;
+    border: none;
+    text-align: left;
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: #1f2937;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: background 0.2s;
+}
+
+.ikb-accordion-header:hover {
+    background: #f9fafb;
+}
+
+.ikb-accordion-icon {
+    font-size: 1.5rem;
+    color: #6b7280;
+    transition: transform 0.2s;
+}
+
+.ikb-accordion-header[aria-expanded="true"] .ikb-accordion-icon {
+    transform: rotate(45deg);
+}
+
+.ikb-accordion-content {
+    padding: 0 1.25rem 1.25rem;
+    background: #ffffff;
+}
+
+.ikb-accordion-content[hidden] {
+    display: none;
+}
+
+.ikb-accordion-image {
+    width: 100%;
+    max-width: 300px;
+    height: auto;
+    border-radius: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+.ikb-accordion-content p {
+    margin: 0 0 1rem 0;
+    color: #4b5563;
+    line-height: 1.6;
+}
+
+.ikb-accordion-link {
+    display: inline-block;
+    color: #3b82f6;
+    text-decoration: none;
+    font-weight: 500;
+}
+
+.ikb-accordion-link:hover {
+    text-decoration: underline;
+}
+
+/* ===========================
+   Dark Mode - New Components
+   =========================== */
+
+@media (prefers-color-scheme: dark) {
+    .ikb-timeline-content {
+        background: #1f2937;
+        color: #f3f4f6;
+    }
+    
+    .ikb-timeline-date {
+        color: #9ca3af;
+    }
+    
+    .ikb-timeline-excerpt {
+        color: #d1d5db;
+    }
+    
+    .ikb-table {
+        background: #1f2937;
+    }
+    
+    .ikb-table thead {
+        background: #111827;
+    }
+    
+    .ikb-table th {
+        color: #f3f4f6;
+    }
+    
+    .ikb-table tbody tr {
+        border-bottom-color: #374151;
+    }
+    
+    .ikb-table tbody tr:hover {
+        background: #111827;
+    }
+    
+    .ikb-table td {
+        color: #d1d5db;
+    }
+    
+    .ikb-accordion-header {
+        background: #1f2937;
+        color: #f3f4f6;
+    }
+    
+    .ikb-accordion-header:hover {
+        background: #111827;
+    }
+    
+    .ikb-accordion-content {
+        background: #1f2937;
+    }
+    
+    .ikb-accordion-content p {
+        color: #d1d5db;
+    }
+}
+
+/* ===========================
+   Responsive Design - New Components
+   =========================== */
+
+@media (max-width: 768px) {
+    .ikb-timeline::before {
+        left: 10px;
+    }
+    
+    .ikb-timeline-item {
+        padding-left: 40px;
+    }
+    
+    .ikb-timeline-marker {
+        left: 2px;
+    }
+    
+    .ikb-carousel-image {
+        height: 250px;
+    }
+    
+    .ikb-carousel-caption {
+        padding: 1rem;
+    }
+    
+    .ikb-carousel-title {
+        font-size: 1.125rem;
+    }
+    
+    .ikb-carousel-prev,
+    .ikb-carousel-next {
+        width: 36px;
+        height: 36px;
+        font-size: 1.25rem;
+    }
+    
+    .ikb-table {
+        font-size: 0.875rem;
+    }
+    
+    .ikb-table th,
+    .ikb-table td {
+        padding: 0.75rem 0.5rem;
+    }
+}

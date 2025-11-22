@@ -110,13 +110,17 @@ class RuntimeResolver
         }
         
         if (is_string($value)) {
-            // Remove HTML tags
-            $value = strip_tags($value);
-            
-            // Remove special characters
-            $value = preg_replace('/[^\w\s\-_.,]/', '', $value);
-            
-            return trim($value);
+            // Use htmlspecialchars for proper escaping
+            // Preserves valid characters while preventing XSS
+            return htmlspecialchars($value, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        }
+        
+        if (is_numeric($value)) {
+            return $value;
+        }
+        
+        if (is_bool($value)) {
+            return $value;
         }
         
         return $value;

@@ -28,6 +28,10 @@ class FormatRenderer
             'hero' => $this->renderHero($data),
             'minimal' => $this->renderMinimal($data),
             'full' => $this->renderFull($data),
+            'timeline' => $this->renderTimeline($data),
+            'carousel' => $this->renderCarousel($data),
+            'table' => $this->renderTable($data),
+            'accordion' => $this->renderAccordion($data),
             default => $this->renderCard($data)
         };
     }
@@ -207,6 +211,222 @@ class FormatRenderer
             $html .= '</article>';
         }
         
+        return $html;
+    }
+    
+    /**
+     * Render as timeline
+     */
+    private function renderTimeline(array $data): string
+    {
+        $html = '<div class="ikb-timeline">';
+        
+        foreach ($data as $item) {
+            $html .= '<div class="ikb-timeline-item">';
+            $html .= '<div class="ikb-timeline-marker"></div>';
+            $html .= '<div class="ikb-timeline-content">';
+            
+            if (!empty($item['date'])) {
+                $html .= sprintf(
+                    '<time class="ikb-timeline-date">%s</time>',
+                    htmlspecialchars($item['date'])
+                );
+            }
+            
+            if (!empty($item['title'])) {
+                $html .= sprintf(
+                    '<h3 class="ikb-timeline-title"><a href="%s">%s</a></h3>',
+                    htmlspecialchars($item['permalink'] ?? '#'),
+                    htmlspecialchars($item['title'])
+                );
+            }
+            
+            if (!empty($item['excerpt'])) {
+                $html .= sprintf(
+                    '<p class="ikb-timeline-excerpt">%s</p>',
+                    htmlspecialchars($item['excerpt'])
+                );
+            }
+            
+            $html .= '</div></div>';
+        }
+        
+        $html .= '</div>';
+        return $html;
+    }
+    
+    /**
+     * Render as carousel
+     */
+    private function renderCarousel(array $data): string
+    {
+        $html = '<div class="ikb-carousel">';
+        $html .= '<div class="ikb-carousel-track">';
+        
+        foreach ($data as $index => $item) {
+            $html .= sprintf('<div class="ikb-carousel-slide" data-index="%d">', $index);
+            
+            if (!empty($item['thumbnail'])) {
+                $html .= sprintf(
+                    '<img src="%s" alt="%s" class="ikb-carousel-image">',
+                    htmlspecialchars($item['thumbnail']),
+                    htmlspecialchars($item['title'] ?? '')
+                );
+            }
+            
+            $html .= '<div class="ikb-carousel-caption">';
+            
+            if (!empty($item['title'])) {
+                $html .= sprintf(
+                    '<h3 class="ikb-carousel-title"><a href="%s">%s</a></h3>',
+                    htmlspecialchars($item['permalink'] ?? '#'),
+                    htmlspecialchars($item['title'])
+                );
+            }
+            
+            if (!empty($item['excerpt'])) {
+                $html .= sprintf(
+                    '<p class="ikb-carousel-excerpt">%s</p>',
+                    htmlspecialchars($item['excerpt'])
+                );
+            }
+            
+            $html .= '</div></div>';
+        }
+        
+        $html .= '</div>';
+        
+        // Add navigation
+        $html .= '<button class="ikb-carousel-prev" aria-label="Previous">&lsaquo;</button>';
+        $html .= '<button class="ikb-carousel-next" aria-label="Next">&rsaquo;</button>';
+        
+        // Add indicators
+        $html .= '<div class="ikb-carousel-indicators">';
+        foreach ($data as $index => $item) {
+            $active = $index === 0 ? ' active' : '';
+            $html .= sprintf(
+                '<button class="ikb-carousel-indicator%s" data-index="%d" aria-label="Slide %d"></button>',
+                $active,
+                $index,
+                $index + 1
+            );
+        }
+        $html .= '</div>';
+        
+        $html .= '</div>';
+        return $html;
+    }
+    
+    /**
+     * Render as table
+     */
+    private function renderTable(array $data): string
+    {
+        $html = '<div class="ikb-table-wrapper">';
+        $html .= '<table class="ikb-table">';
+        $html .= '<thead><tr>';
+        $html .= '<th>Title</th>';
+        $html .= '<th>Date</th>';
+        $html .= '<th>Author</th>';
+        $html .= '<th>Categories</th>';
+        $html .= '</tr></thead>';
+        $html .= '<tbody>';
+        
+        foreach ($data as $item) {
+            $html .= '<tr>';
+            
+            // Title
+            $html .= '<td class="ikb-table-title">';
+            if (!empty($item['title'])) {
+                $html .= sprintf(
+                    '<a href="%s">%s</a>',
+                    htmlspecialchars($item['permalink'] ?? '#'),
+                    htmlspecialchars($item['title'])
+                );
+            }
+            $html .= '</td>';
+            
+            // Date
+            $html .= '<td class="ikb-table-date">';
+            if (!empty($item['date'])) {
+                $html .= htmlspecialchars($item['date']);
+            }
+            $html .= '</td>';
+            
+            // Author
+            $html .= '<td class="ikb-table-author">';
+            if (!empty($item['author'])) {
+                $html .= htmlspecialchars($item['author']);
+            }
+            $html .= '</td>';
+            
+            // Categories
+            $html .= '<td class="ikb-table-categories">';
+            if (!empty($item['categories']) && is_array($item['categories'])) {
+                $html .= htmlspecialchars(implode(', ', $item['categories']));
+            }
+            $html .= '</td>';
+            
+            $html .= '</tr>';
+        }
+        
+        $html .= '</tbody></table>';
+        $html .= '</div>';
+        return $html;
+    }
+    
+    /**
+     * Render as accordion
+     */
+    private function renderAccordion(array $data): string
+    {
+        $html = '<div class="ikb-accordion">';
+        
+        foreach ($data as $index => $item) {
+            $html .= sprintf('<div class="ikb-accordion-item" data-index="%d">', $index);
+            
+            // Header
+            $html .= sprintf(
+                '<button class="ikb-accordion-header" aria-expanded="false" aria-controls="accordion-content-%d">',
+                $index
+            );
+            
+            if (!empty($item['title'])) {
+                $html .= htmlspecialchars($item['title']);
+            }
+            
+            $html .= '<span class="ikb-accordion-icon">+</span>';
+            $html .= '</button>';
+            
+            // Content
+            $html .= sprintf(
+                '<div class="ikb-accordion-content" id="accordion-content-%d" hidden>',
+                $index
+            );
+            
+            if (!empty($item['thumbnail'])) {
+                $html .= sprintf(
+                    '<img src="%s" alt="%s" class="ikb-accordion-image">',
+                    htmlspecialchars($item['thumbnail']),
+                    htmlspecialchars($item['title'] ?? '')
+                );
+            }
+            
+            if (!empty($item['excerpt'])) {
+                $html .= sprintf('<p>%s</p>', htmlspecialchars($item['excerpt']));
+            }
+            
+            if (!empty($item['permalink'])) {
+                $html .= sprintf(
+                    '<a href="%s" class="ikb-accordion-link">Read more &rarr;</a>',
+                    htmlspecialchars($item['permalink'])
+                );
+            }
+            
+            $html .= '</div></div>';
+        }
+        
+        $html .= '</div>';
         return $html;
     }
 }
