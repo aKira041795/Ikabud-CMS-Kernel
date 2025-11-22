@@ -20,6 +20,9 @@ node_modules/
 *.swp
 *.swo
 
+# VS Code extension dev
+vscode-disyl/
+
 # OS
 .DS_Store
 Thumbs.db
@@ -29,7 +32,55 @@ tmp/
 temp/
 *.tmp
 
-# Build artifacts and archives
-*.tar.gz
-*.zip
-*.tar
+# Build artifacts and archives (root level only)
+/*.tar.gz
+/*.zip
+/*.tar
+/*.rar
+/*.7z
+/*.gz
+/*.bz2
+/*.xz
+ikabud-*.zip
+ikabud-*.tar.gz
+ikabud-*.tar
+
+# Test files (root level only)
+/test-*.php
+/test_*.php
+/test/
+/tests/
+
+# Analysis and documentation files
+*ANALYSIS*.md
+*analysis*.md
+*SUMMARY*.md
+*summary*.md
+ROOT_CAUSE_ANALYSIS.md
+QUICK_FIX_GUIDE.md
+SHARED_HOSTING_GUIDE.md
+
+# Backup files
+*.bak
+*.backup
+*.old
+*~
+
+# Cache files
+storage/cache/*.cache
+storage/cache/*.compiled
+*.cache
+
+# Database dumps
+*.sql
+*.sqlite
+*.db
+
+# Package files
+*.deb
+*.rpm
+
+# Compiled files
+*.pyc
+*.pyo
+*.class
