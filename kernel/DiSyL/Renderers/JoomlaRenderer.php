@@ -240,12 +240,16 @@ class JoomlaRenderer extends BaseRenderer
     
     /**
      * Render ikb_query component (Joomla articles)
+     * Supports both DSL auto-rendering (with format attribute) and manual rendering (with children)
      */
     protected function renderIkbQuery(array $node, array $attrs, array $children): string
     {
         $type = $attrs['type'] ?? 'article';
         $limit = $attrs['limit'] ?? 10;
         $category = $attrs['category'] ?? null;
+        
+        // Check if DSL rendering should be used
+        $useDSL = $this->shouldUseDSLRendering($attrs);
         
         // Get items from context
         $items = $this->context['posts'] ?? [];
@@ -258,6 +262,12 @@ class JoomlaRenderer extends BaseRenderer
         
         $items = array_slice($items, 0, (int)$limit);
         
+        // If using DSL rendering, render with DSL
+        if ($useDSL) {
+            return $this->renderWithDSL($items, $attrs);
+        }
+        
+        // Traditional rendering with children
         $output = '';
         foreach ($items as $item) {
             // Set item context

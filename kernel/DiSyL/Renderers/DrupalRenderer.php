@@ -131,7 +131,7 @@ class DrupalRenderer extends BaseRenderer
             }
         });
         
-        // ikb_query - Data query/loop
+        // ikb_query - Data query/loop with DSL support
         $this->registerComponent('ikb_query', function($node, $context) {
             $attrs = $node['attrs'] ?? [];
             $children = $node['children'] ?? [];
@@ -140,10 +140,13 @@ class DrupalRenderer extends BaseRenderer
             
             $type = $attrs['type'] ?? 'post';
             $limit = isset($attrs['limit']) ? (int)$attrs['limit'] : 10;
-            $orderby = $attrs['orderby'] ?? 'nid';  // Changed from 'created' to 'nid' to test
+            $orderby = $attrs['orderby'] ?? 'nid';
             $order = $attrs['order'] ?? 'DESC';
             
-            error_log('[DiSyL ikb_query] Query params - type: ' . $type . ', orderby: ' . $orderby . ', order: ' . $order . ', limit: ' . $limit);
+            // Check if DSL rendering should be used
+            $useDSL = $this->shouldUseDSLRendering($attrs);
+            
+            error_log('[DiSyL ikb_query] Query params - type: ' . $type . ', orderby: ' . $orderby . ', order: ' . $order . ', limit: ' . $limit . ', useDSL: ' . ($useDSL ? 'yes' : 'no'));
             
             try {
                 // Map type to Drupal content type
@@ -151,76 +154,53 @@ class DrupalRenderer extends BaseRenderer
                 
                 error_log('[DiSyL ikb_query] Querying bundle: ' . $bundle);
                 
-                // First, check if ANY nodes of this type exist
-                $testQuery = \Drupal::entityTypeManager()->getStorage('node')->getQuery()
-                    ->condition('type', $bundle)
-                    ->accessCheck(FALSE);
-                $allNodes = $testQuery->execute();
-                error_log('[DiSyL ikb_query] Total nodes of type ' . $bundle . ': ' . count($allNodes) . ' (IDs: ' . implode(', ', $allNodes) . ')');
-                
                 // Query Drupal nodes
                 $query = \Drupal::entityTypeManager()->getStorage('node')->getQuery()
                     ->condition('type', $bundle)
                     ->condition('status', 1)
-                    // ->sort($orderby, $order)  // TEMPORARILY DISABLED TO TEST
                     ->range(0, $limit)
-                    ->accessCheck(FALSE);  // TEMPORARILY DISABLED TO TEST
+                    ->accessCheck(FALSE);
                 
                 $nids = $query->execute();
                 
                 error_log('[DiSyL ikb_query] Query executed. Found ' . count($nids) . ' published nodes: ' . implode(', ', $nids));
                 
-                // DEBUG: Output query results directly
-                $debugOutput = '<!-- DEBUG: Found ' . count($nids) . ' nodes: ' . implode(', ', $nids) . ' -->';
-                
-                // Split children into query-block and empty-block
-                $queryChildren = [];
-                $emptyChildren = [];
-                $inEmptyBlock = false;
-                
-                foreach ($children as $child) {
-                    // Check if this is an {empty} tag
-                    if (isset($child['type']) && $child['type'] === 'tag' && 
-                        isset($child['name']) && $child['name'] === 'empty') {
-                        $inEmptyBlock = true;
-                        continue; // Skip the {empty} tag itself
+                // If no results found
+                if (empty($nids)) {
+                    // Split children to check for empty block
+                    $emptyChildren = [];
+                    $inEmptyBlock = false;
+                    
+                    foreach ($children as $child) {
+                        if (isset($child['type']) && $child['type'] === 'tag' && 
+                            isset($child['name']) && $child['name'] === 'empty') {
+                            $inEmptyBlock = true;
+                            continue;
+                        }
+                        if ($inEmptyBlock) {
+                            $emptyChildren[] = $child;
+                        }
                     }
                     
-                    if ($inEmptyBlock) {
-                        $emptyChildren[] = $child;
-                    } else {
-                        $queryChildren[] = $child;
-                    }
-                }
-                
-                // If no results found, render empty block
-                if (empty($nids)) {
                     if (!empty($emptyChildren)) {
-                        return $debugOutput . $this->renderChildren($emptyChildren);
+                        return $this->renderChildren($emptyChildren);
                     }
-                    return $debugOutput . '<!-- No posts found -->';
+                    return '<!-- No posts found -->';
                 }
                 
                 $nodes = \Drupal::entityTypeManager()->getStorage('node')->loadMultiple($nids);
-                $output = $debugOutput;
                 
-                // Render children for each node
+                // Collect items
+                $items = [];
                 foreach ($nodes as $node_entity) {
-                    // Create item context
                     $item_context = [
                         'id' => $node_entity->id(),
                         'title' => $node_entity->getTitle(),
                         'url' => $node_entity->toUrl()->toString(),
-                        'date' => $node_entity->getCreatedTime(),
-                        'changed' => $node_entity->getChangedTime(),
+                        'permalink' => $node_entity->toUrl()->toString(),
+                        'date' => date('M j, Y', $node_entity->getCreatedTime()),
                         'author' => $node_entity->getOwner()->getDisplayName(),
-                        'author_id' => $node_entity->getOwnerId(),
-                        'type' => $node_entity->bundle(),
-                        'published' => $node_entity->isPublished(),
                     ];
-                    
-                    error_log('[DiSyL ikb_query] Processing node: ' . $node_entity->id() . ' - ' . $node_entity->getTitle());
-                    error_log('[DiSyL ikb_query] Item context: ' . json_encode($item_context));
                     
                     // Get thumbnail if available
                     if ($node_entity->hasField('field_image') && !$node_entity->get('field_image')->isEmpty()) {
@@ -237,10 +217,33 @@ class DrupalRenderer extends BaseRenderer
                         $item_context['content'] = $body;
                     }
                     
-                    // Merge with parent context and add item
-                    $loop_context = array_merge($context, ['item' => $item_context]);
+                    $items[] = $item_context;
+                }
+                
+                // If using DSL rendering
+                if ($useDSL) {
+                    return $this->renderWithDSL($items, $attrs);
+                }
+                
+                // Traditional rendering with children
+                $output = '';
+                $queryChildren = [];
+                $inEmptyBlock = false;
+                
+                foreach ($children as $child) {
+                    if (isset($child['type']) && $child['type'] === 'tag' && 
+                        isset($child['name']) && $child['name'] === 'empty') {
+                        $inEmptyBlock = true;
+                        continue;
+                    }
+                    if (!$inEmptyBlock) {
+                        $queryChildren[] = $child;
+                    }
+                }
+                
+                foreach ($items as $item) {
+                    $loop_context = array_merge($context, ['item' => $item]);
                     
-                    // Render query children with item context
                     foreach ($queryChildren as $child) {
                         $output .= $this->renderNode($child, $loop_context);
                     }

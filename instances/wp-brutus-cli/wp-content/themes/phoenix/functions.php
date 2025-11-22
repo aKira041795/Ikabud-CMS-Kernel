@@ -129,8 +129,11 @@ function phoenix_scripts() {
     // DiSyL components stylesheet (load first)
     wp_enqueue_style('disyl-components', get_template_directory_uri() . '/assets/css/disyl-components.css', array(), '0.4.0');
     
+    // DSL components stylesheet (auto-rendered components)
+    wp_enqueue_style('dsl-components', get_template_directory_uri() . '/assets/css/dsl-components.css', array('disyl-components'), '1.0.0');
+    
     // Theme stylesheet
-    wp_enqueue_style('phoenix-style', get_stylesheet_uri(), array('disyl-components'), '1.0.0');
+    wp_enqueue_style('phoenix-style', get_stylesheet_uri(), array('disyl-components', 'dsl-components'), '1.0.0');
     
     // Custom JavaScript
     wp_enqueue_script('phoenix-scripts', get_template_directory_uri() . '/assets/js/phoenix.js', array(), '1.0.0', true);

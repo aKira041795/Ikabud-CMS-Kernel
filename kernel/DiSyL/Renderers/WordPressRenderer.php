@@ -336,6 +336,7 @@ class WordPressRenderer extends ManifestDrivenRenderer
     
     /**
      * Render ikb_query component
+     * Supports both DSL auto-rendering (with format attribute) and manual rendering (with children)
      */
     protected function renderIkbQuery(array $node, array $attrs, array $children): string
     {
@@ -345,6 +346,9 @@ class WordPressRenderer extends ManifestDrivenRenderer
         $order = $attrs['order'] ?? 'desc';
         $category = $attrs['category'] ?? null;
         $exclude_category = $attrs['exclude_category'] ?? null;
+        
+        // Check if DSL rendering should be used (format attribute present)
+        $useDSL = $this->shouldUseDSLRendering($attrs);
         
         // Special case: On single post/page, use the main query if limit=1
         if ($limit == 1 && function_exists('is_singular') && is_singular()) {
@@ -490,6 +494,48 @@ class WordPressRenderer extends ManifestDrivenRenderer
         elseif ($query->have_posts()) {
             $originalContext = $this->context;
             
+            // If using DSL rendering, collect all items first
+            if ($useDSL) {
+                $items = [];
+                
+                while ($query->have_posts()) {
+                    $query->the_post();
+                    
+                    // Get thumbnail with fallback sizes
+                    $post_id = get_the_ID();
+                    $thumbnail = get_the_post_thumbnail_url($post_id, 'large');
+                    if (!$thumbnail) {
+                        $thumbnail = get_the_post_thumbnail_url($post_id, 'medium');
+                    }
+                    if (!$thumbnail) {
+                        $thumbnail = get_the_post_thumbnail_url($post_id, 'thumbnail');
+                    }
+                    if (!$thumbnail) {
+                        $thumbnail = get_the_post_thumbnail_url($post_id, 'full');
+                    }
+                    
+                    $items[] = [
+                        'id' => get_the_ID(),
+                        'title' => get_the_title(),
+                        'content' => apply_filters('the_content', get_the_content()),
+                        'excerpt' => get_the_excerpt(),
+                        'url' => get_permalink(),
+                        'permalink' => get_permalink(),
+                        'date' => get_the_date(),
+                        'author' => get_the_author(),
+                        'thumbnail' => $thumbnail,
+                        'categories' => wp_get_post_categories(get_the_ID(), ['fields' => 'names'])
+                    ];
+                }
+                
+                wp_reset_postdata();
+                $this->context = $originalContext;
+                
+                // Render with DSL
+                return $this->renderWithDSL($items, $attrs);
+            }
+            
+            // Traditional rendering with children
             while ($query->have_posts()) {
                 $query->the_post();
                 

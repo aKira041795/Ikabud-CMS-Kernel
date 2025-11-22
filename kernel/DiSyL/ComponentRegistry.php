@@ -197,7 +197,7 @@ class ComponentRegistry
         // Data: ikb_query
         self::register('ikb_query', [
             'category' => self::CATEGORY_DATA,
-            'description' => 'Query and loop over content items',
+            'description' => 'Query and loop over content items with optional auto-rendering',
             'attributes' => [
                 'type' => [
                     'type' => Grammar::TYPE_STRING,
@@ -227,6 +227,39 @@ class ComponentRegistry
                     'type' => Grammar::TYPE_STRING,
                     'required' => false,
                     'description' => 'Filter by category'
+                ],
+                'exclude_category' => [
+                    'type' => Grammar::TYPE_STRING,
+                    'required' => false,
+                    'description' => 'Exclude category (comma-separated)'
+                ],
+                'format' => [
+                    'type' => Grammar::TYPE_STRING,
+                    'required' => false,
+                    'enum' => ['card', 'list', 'grid', 'hero', 'minimal', 'full', 'timeline', 'carousel', 'table', 'accordion'],
+                    'description' => 'Auto-render format (enables DSL rendering)'
+                ],
+                'layout' => [
+                    'type' => Grammar::TYPE_STRING,
+                    'required' => false,
+                    'enum' => ['vertical', 'horizontal', 'grid-2', 'grid-3', 'grid-4', 'masonry', 'slider'],
+                    'default' => 'vertical',
+                    'description' => 'Layout wrapper (used with format)'
+                ],
+                'columns' => [
+                    'type' => Grammar::TYPE_INTEGER,
+                    'required' => false,
+                    'default' => 3,
+                    'min' => 1,
+                    'max' => 6,
+                    'description' => 'Number of columns for grid layouts'
+                ],
+                'gap' => [
+                    'type' => Grammar::TYPE_STRING,
+                    'required' => false,
+                    'enum' => ['none', 'small', 'medium', 'large'],
+                    'default' => 'medium',
+                    'description' => 'Gap between items'
                 ]
             ],
             'leaf' => false

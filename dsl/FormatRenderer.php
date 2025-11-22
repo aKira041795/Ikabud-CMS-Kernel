@@ -40,21 +40,21 @@ class FormatRenderer
         $html = '';
         
         foreach ($data as $item) {
-            $html .= '<article class="ikb-card">';
+            $html .= '<article class="ikb-dsl-card">';
             
             if (!empty($item['thumbnail'])) {
                 $html .= sprintf(
-                    '<img src="%s" alt="%s" class="ikb-card-image">',
+                    '<img src="%s" alt="%s" class="ikb-dsl-card-image">',
                     htmlspecialchars($item['thumbnail']),
                     htmlspecialchars($item['title'] ?? '')
                 );
             }
             
-            $html .= '<div class="ikb-card-content">';
+            $html .= '<div class="ikb-dsl-card-content">';
             
             if (!empty($item['title'])) {
                 $html .= sprintf(
-                    '<h3 class="ikb-card-title"><a href="%s">%s</a></h3>',
+                    '<h3 class="ikb-dsl-card-title"><a href="%s">%s</a></h3>',
                     htmlspecialchars($item['permalink'] ?? '#'),
                     htmlspecialchars($item['title'])
                 );
@@ -62,14 +62,14 @@ class FormatRenderer
             
             if (!empty($item['excerpt'])) {
                 $html .= sprintf(
-                    '<p class="ikb-card-excerpt">%s</p>',
+                    '<p class="ikb-dsl-card-excerpt">%s</p>',
                     htmlspecialchars($item['excerpt'])
                 );
             }
             
             if (!empty($item['date'])) {
                 $html .= sprintf(
-                    '<time class="ikb-card-date">%s</time>',
+                    '<time class="ikb-dsl-card-date">%s</time>',
                     htmlspecialchars($item['date'])
                 );
             }

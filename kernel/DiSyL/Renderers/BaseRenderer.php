@@ -564,6 +564,79 @@ abstract class BaseRenderer
     }
     
     /**
+     * Normalize item data for DSL rendering
+     * Converts CMS-specific data to universal format
+     * 
+     * @param array $item CMS-specific item data
+     * @return array Normalized item data
+     */
+    protected function normalizeItemForDSL(array $item): array
+    {
+        return [
+            'id' => $item['id'] ?? null,
+            'title' => $item['title'] ?? '',
+            'excerpt' => $item['excerpt'] ?? '',
+            'content' => $item['content'] ?? '',
+            'permalink' => $item['url'] ?? $item['permalink'] ?? '',
+            'date' => $item['date'] ?? '',
+            'author' => $item['author'] ?? '',
+            'thumbnail' => $item['thumbnail'] ?? '',
+            'categories' => $item['categories'] ?? []
+        ];
+    }
+    
+    /**
+     * Render items using DSL format and layout engines
+     * 
+     * @param array $items Array of normalized items
+     * @param array $attrs Query attributes (format, layout, columns, gap)
+     * @return string Rendered HTML
+     */
+    protected function renderWithDSL(array $items, array $attrs): string
+    {
+        // Check if DSL classes are available
+        if (!class_exists('\\IkabudKernel\\DSL\\FormatRenderer')) {
+            // Fallback: DSL not available, return empty
+            return '<!-- DSL rendering unavailable: FormatRenderer class not found -->';
+        }
+        
+        try {
+            // Import DSL classes
+            $formatter = new \IkabudKernel\DSL\FormatRenderer();
+            $layoutEngine = new \IkabudKernel\DSL\LayoutEngine();
+            
+            // Normalize items for DSL
+            $normalizedItems = array_map([$this, 'normalizeItemForDSL'], $items);
+            
+            // Render with format
+            $format = $attrs['format'] ?? 'card';
+            $content = $formatter->render($normalizedItems, $format);
+            
+            // Wrap with layout
+            $layout = $attrs['layout'] ?? 'vertical';
+            $layoutOptions = [
+                'columns' => $attrs['columns'] ?? 3,
+                'gap' => $attrs['gap'] ?? 'medium'
+            ];
+            
+            return $layoutEngine->wrap($content, $layout, $layoutOptions);
+        } catch (\Exception $e) {
+            return '<!-- DSL rendering error: ' . htmlspecialchars($e->getMessage()) . ' -->';
+        }
+    }
+    
+    /**
+     * Check if DSL rendering should be used
+     * 
+     * @param array $attrs Query attributes
+     * @return bool True if format attribute is set
+     */
+    protected function shouldUseDSLRendering(array $attrs): bool
+    {
+        return isset($attrs['format']) && !empty($attrs['format']);
+    }
+    
+    /**
      * Abstract method: CMS-specific initialization
      * 
      * Override this in CMS-specific renderers to set up CMS context
