@@ -11,7 +11,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Planned Features
 - Full React Admin UI implementation
-- Enhanced DSL compiler with nested queries
 - Multi-tenant support with resource quotas
 - Real-time process monitoring dashboard
 - Automated backup and restore system
@@ -19,6 +18,126 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Advanced caching strategies
 - Load balancing support
 - Container orchestration (Docker/Kubernetes)
+
+---
+
+## [1.1.0] - 2025-11-22
+
+### 🚀 DSL Auto-Rendering Integration
+
+Major enhancement to DiSyL templating system with seamless DSL auto-rendering capabilities.
+
+### Added
+
+#### DSL Auto-Rendering System
+- **Format-based rendering** - Auto-render content with pre-built formats
+  - `format="card"` - Card-based layouts with thumbnails
+  - `format="list"` - Simple list views
+  - `format="grid"` - Grid layouts
+  - `format="hero"` - Hero sections
+  - `format="minimal"` - Title-only views
+  - `format="full"` - Full content display
+  - `format="timeline"` - Timeline views
+  - `format="carousel"` - Slider/carousel
+  - `format="table"` - Table layouts
+  - `format="accordion"` - Accordion layouts
+
+- **Layout engine integration** - Automatic layout wrapping
+  - `layout="vertical"` - Vertical stacking
+  - `layout="horizontal"` - Horizontal flex layout
+  - `layout="grid-2/3/4"` - Multi-column grids
+  - `layout="masonry"` - Pinterest-style masonry
+  - `layout="slider"` - Carousel slider
+
+- **Enhanced ikb_query attributes**
+  - `format` - Enable DSL auto-rendering
+  - `layout` - Layout wrapper type
+  - `columns` - Number of columns (1-6)
+  - `gap` - Spacing between items (none, small, medium, large)
+  - `exclude_category` - Exclude categories from query
+
+#### Cross-CMS Support
+- **WordPress integration** - Full DSL rendering in WordPressRenderer
+- **Joomla integration** - Full DSL rendering in JoomlaRenderer
+- **Drupal integration** - Full DSL rendering in DrupalRenderer
+- **Unified data normalization** - CMS-agnostic data format
+
+#### Styling & Assets
+- **dsl-components.css** - Complete DSL component styles
+  - Responsive design with mobile-first approach
+  - Dark mode support via `prefers-color-scheme`
+  - Conflict-free class names (`.ikb-dsl-*`)
+  - Smooth transitions and hover effects
+  - Grid and flexbox layouts
+  - Gap utilities
+
+#### Developer Experience
+- **100% backward compatible** - Existing templates work unchanged
+- **Opt-in enhancement** - Use `format` attribute to enable DSL rendering
+- **Graceful degradation** - Falls back if DSL classes unavailable
+- **Clear separation** - Manual components use `.ikb-card`, auto-rendered use `.ikb-dsl-card`
+
+### Changed
+- **ComponentRegistry** - Extended with DSL-specific attributes
+- **BaseRenderer** - Added shared DSL rendering methods
+  - `normalizeItemForDSL()` - Universal data format converter
+  - `renderWithDSL()` - DSL format and layout rendering
+  - `shouldUseDSLRendering()` - Format detection helper
+- **FormatRenderer** - Updated class names to avoid conflicts
+- **Phoenix theme** - Enqueued DSL CSS with proper dependencies
+
+### Enhanced
+- **ikb_query component** - Now supports both rendering modes:
+  - Traditional: `{ikb_query type="post"}<div>{item.title}</div>{/ikb_query}`
+  - DSL Auto: `{ikb_query type="post" format="card" layout="grid-3"}`
+
+### Repository Management
+- **Updated .gitignore** - Comprehensive exclusion patterns
+  - Root-level archive files (*.zip, *.tar.gz, *.tar)
+  - Root-level test files (test-*.php)
+  - Analysis and summary documentation
+  - Backup files (*.bak, *.backup, *.old)
+  - Cache files (storage/cache/*.cache)
+  - Database dumps (*.sql, *.sqlite, *.db)
+  - Package files (*.deb, *.rpm)
+  - Compiled files (*.pyc, *.pyo, *.class)
+
+### Technical Details
+
+**Files Modified:**
+- `kernel/DiSyL/ComponentRegistry.php` (+52 lines)
+- `kernel/DiSyL/Renderers/BaseRenderer.php` (+73 lines)
+- `kernel/DiSyL/Renderers/WordPressRenderer.php` (+67 lines)
+- `kernel/DiSyL/Renderers/JoomlaRenderer.php` (+14 lines)
+- `kernel/DiSyL/Renderers/DrupalRenderer.php` (+95 lines)
+- `dsl/FormatRenderer.php` (+10 lines)
+- `instances/wp-brutus-cli/wp-content/themes/phoenix/functions.php` (+3 lines)
+
+**Files Created:**
+- `instances/wp-brutus-cli/wp-content/themes/phoenix/assets/css/dsl-components.css` (401 lines)
+
+**Total Changes:** 8 files changed, 628 insertions(+), 59 deletions(-)
+
+### Usage Examples
+
+```disyl
+{!-- Simple card grid --}
+{ikb_query type="post" limit=6 format="card" layout="grid-3"}
+
+{!-- Hero section --}
+{ikb_query type="post" limit=1 format="hero"}
+
+{!-- Masonry layout --}
+{ikb_query type="post" limit=9 format="card" layout="masonry" columns=3 gap="large"}
+
+{!-- Horizontal slider --}
+{ikb_query type="post" limit=10 format="minimal" layout="slider"}
+
+{!-- Traditional (still works) --}
+{ikb_query type="post" limit=6}
+    <article>{item.title}</article>
+{/ikb_query}
+```
 
 ---
 
@@ -232,6 +351,7 @@ The first stable release of Ikabud Kernel - a GNU/Linux-inspired CMS Operating S
 
 | Version | Release Date | Status | Notes |
 |---------|--------------|--------|-------|
+| 1.1.0 | 2025-11-22 | Stable | DSL auto-rendering integration |
 | 1.0.0 | 2025-11-10 | Stable | First production release |
 | 0.9.0-beta | 2025-10-15 | Beta | Testing phase |
 | 0.1.0-alpha | 2025-09-01 | Alpha | Proof of concept |
@@ -239,6 +359,36 @@ The first stable release of Ikabud Kernel - a GNU/Linux-inspired CMS Operating S
 ---
 
 ## Upgrade Guide
+
+### From 1.0.0 to 1.1.0
+
+1. **Pull latest changes**
+   ```bash
+   cd /var/www/html/ikabud-kernel
+   git pull origin master
+   ```
+
+2. **No database changes required** - This is a feature enhancement release
+
+3. **Clear cache** (recommended)
+   ```bash
+   rm -rf storage/cache/*.cache
+   rm -rf storage/cache/*.compiled
+   ```
+
+4. **Restart instances** (optional, for immediate effect)
+   ```bash
+   ikabud restart <instance-id>
+   ```
+
+5. **Update templates** (optional)
+   - Existing templates work unchanged
+   - Add `format` and `layout` attributes to `ikb_query` for auto-rendering
+   - See usage examples in changelog
+
+**Breaking Changes:** None  
+**Backward Compatible:** Yes (100%)  
+**Migration Required:** No
 
 ### From 0.9.0-beta to 1.0.0
 
