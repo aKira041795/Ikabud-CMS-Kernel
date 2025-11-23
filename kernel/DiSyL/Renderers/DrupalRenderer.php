@@ -393,7 +393,29 @@ class DrupalRenderer extends BaseRenderer
                 ->getViewBuilder('block')
                 ->view($block);
             
-            return \Drupal::service('renderer')->renderPlain($render);
+            $rendered_output = \Drupal::service('renderer')->renderPlain($render);
+            
+            // Process DiSyL codes in block content if present
+            if (is_string($rendered_output) && 
+                (strpos($rendered_output, '{ikb_') !== false || 
+                 strpos($rendered_output, '{drupal_') !== false || 
+                 strpos($rendered_output, '{if ') !== false || 
+                 strpos($rendered_output, '{for ') !== false)) {
+                
+                try {
+                    // Create a new engine instance to compile and render DiSyL content
+                    $engine = new \IkabudKernel\Core\DiSyL\Engine();
+                    $compiledAst = $engine->compile($rendered_output);
+                    
+                    // Render with current context
+                    $rendered_output = $this->renderChildren($compiledAst['children'] ?? []);
+                } catch (\Exception $e) {
+                    // Log error but continue with original content
+                    error_log('DiSyL Block Rendering Error (Block ID: ' . $block_id . '): ' . $e->getMessage());
+                }
+            }
+            
+            return $rendered_output;
         }
         catch (\Exception $e) {
             return '<!-- drupal_block error: ' . Html::escape($e->getMessage()) . ' -->';
@@ -435,7 +457,29 @@ class DrupalRenderer extends BaseRenderer
                     $render = \Drupal::entityTypeManager()
                         ->getViewBuilder('block')
                         ->view($block);
-                    $output .= \Drupal::service('renderer')->renderPlain($render);
+                    $block_output = \Drupal::service('renderer')->renderPlain($render);
+                    
+                    // Process DiSyL codes in block content if present
+                    if (is_string($block_output) && 
+                        (strpos($block_output, '{ikb_') !== false || 
+                         strpos($block_output, '{drupal_') !== false || 
+                         strpos($block_output, '{if ') !== false || 
+                         strpos($block_output, '{for ') !== false)) {
+                        
+                        try {
+                            // Create a new engine instance to compile and render DiSyL content
+                            $engine = new \IkabudKernel\Core\DiSyL\Engine();
+                            $compiledAst = $engine->compile($block_output);
+                            
+                            // Render with current context
+                            $block_output = $this->renderChildren($compiledAst['children'] ?? []);
+                        } catch (\Exception $e) {
+                            // Log error but continue with original content
+                            error_log('DiSyL Region Block Rendering Error (Region: ' . $region . ', Block ID: ' . $block->id() . '): ' . $e->getMessage());
+                        }
+                    }
+                    
+                    $output .= $block_output;
                 }
             }
             

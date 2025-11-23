@@ -21,6 +21,94 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.2.0] - 2025-11-23
+
+### 🎨 DiSyL Module/Block Content Processing
+
+Major enhancement enabling DiSyL code processing in CMS custom modules and blocks at the renderer level.
+
+### Added
+
+#### DiSyL Processing in Custom Content
+- **JoomlaRenderer Enhancement** - Process DiSyL codes in Joomla custom modules
+  - Automatic detection of DiSyL syntax in module content
+  - Full DiSyL compilation and rendering with context
+  - Error handling with fallback to original content
+  - Works with all module chrome styles (none, card, xhtml, etc.)
+  - Supports all DiSyL components, filters, conditionals, and loops
+
+- **DrupalRenderer Enhancement** - Process DiSyL codes in Drupal custom blocks
+  - Automatic detection of DiSyL syntax in block content
+  - Full DiSyL compilation and rendering with context
+  - Processing for individual blocks (`drupal_block`)
+  - Processing for all blocks in regions (`drupal_region`)
+  - Error handling with fallback to original content
+  - Supports all DiSyL components, filters, conditionals, and loops
+
+#### Supported DiSyL Syntax in Modules/Blocks
+- **Universal Components**: `ikb_section`, `ikb_container`, `ikb_grid`, `ikb_text`, `ikb_button`, `ikb_image`, `ikb_card`
+- **CMS-Specific Components**: 
+  - Joomla: `joomla_module`, `joomla_component`, `joomla_message`, `joomla_params`
+  - Drupal: `drupal_block`, `drupal_region`, `drupal_menu`, `drupal_view`
+- **Query Components**: `ikb_query` for dynamic content loops
+- **Conditionals**: `{if condition="..."}...{else}...{/if}`
+- **Loops**: `{for items="..." as="item"}...{/for}`
+- **Filters**: `esc_html`, `esc_url`, `esc_attr`, `strip_tags`, `truncate`, `date`, etc.
+
+### Documentation
+
+#### DiSyL Syntax Reference PDF
+- **Complete PDF Documentation** - Comprehensive 50+ page reference guide
+  - Organized by CMS platform (WordPress, Joomla, Drupal)
+  - 100+ code examples
+  - 14 component definitions with full attribute references
+  - 11+ filter definitions with usage examples
+  - Complete working template examples
+  - Quick reference cheat sheets
+  - Best practices and security guidelines
+
+- **Files Created**:
+  - `DISYL_SYNTAX_REFERENCE.pdf` - Main PDF documentation (13MB)
+  - `DISYL_SYNTAX_REFERENCE.md` - Markdown source
+  - `DISYL_PDF_README.md` - Documentation guide
+
+### Changed
+
+#### Mobile Menu Improvements (Phoenix Template)
+- Enhanced mobile menu toggle functionality for both Joomla and WordPress
+- Added proper event handling with `preventDefault()` and `stopPropagation()`
+- Improved mobile submenu toggle behavior
+- Added overlay effect for better UX
+- Console logging for debugging
+- Better accessibility with ARIA attributes
+
+### Technical Details
+
+#### Implementation Approach
+- **Renderer-Level Processing** - No template overrides required
+- **Performance Optimized** - Only processes content containing DiSyL syntax
+- **Context-Aware** - Full access to CMS context (posts, menus, params, etc.)
+- **Error Resilient** - Graceful fallback with error logging
+- **CMS-Agnostic** - Consistent behavior across Joomla and Drupal
+
+#### Files Modified
+- `kernel/DiSyL/Renderers/JoomlaRenderer.php` - Added module content processing
+- `kernel/DiSyL/Renderers/DrupalRenderer.php` - Added block/region content processing
+- `instances/jml-joomla-the-beginning/templates/phoenix/assets/js/phoenix.js` - Mobile menu fixes
+- `instances/jml-joomla-the-beginning/templates/phoenix/assets/css/style.css` - Mobile menu styles
+- `instances/wp-brutus-cli/wp-content/themes/phoenix/assets/js/phoenix.js` - Mobile menu fixes
+- `instances/wp-brutus-cli/wp-content/themes/phoenix/style.css` - Mobile menu styles
+
+### Benefits
+
+- ✅ **Write Once, Deploy Everywhere** - Same DiSyL code works in modules/blocks across CMSs
+- ✅ **No Template Overrides** - Processing happens at renderer level
+- ✅ **Full Feature Support** - All DiSyL features available in custom content
+- ✅ **Developer Friendly** - Comprehensive documentation with examples
+- ✅ **Production Ready** - Error handling and performance optimization
+
+---
+
 ## [1.1.0] - 2025-11-22
 
 ### 🚀 DSL Auto-Rendering Integration

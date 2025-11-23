@@ -34,23 +34,46 @@
         const mainNav = document.querySelector('.main-nav');
         const body = document.body;
         
-        if (!menuToggle || !mainNav) return;
+        if (!menuToggle) {
+            console.warn('Phoenix: Menu toggle button not found');
+            return;
+        }
         
-        menuToggle.addEventListener('click', function() {
-            mainNav.classList.toggle('active');
-            body.classList.toggle('menu-open');
+        if (!mainNav) {
+            console.warn('Phoenix: Main navigation not found');
+            return;
+        }
+        
+        console.log('Phoenix: Mobile menu initialized');
+        
+        menuToggle.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
             
-            // Update aria-expanded
-            const isExpanded = mainNav.classList.contains('active');
-            menuToggle.setAttribute('aria-expanded', isExpanded);
+            const isActive = mainNav.classList.contains('active');
+            
+            if (isActive) {
+                mainNav.classList.remove('active');
+                body.classList.remove('menu-open');
+                menuToggle.setAttribute('aria-expanded', 'false');
+                console.log('Phoenix: Menu closed');
+            } else {
+                mainNav.classList.add('active');
+                body.classList.add('menu-open');
+                menuToggle.setAttribute('aria-expanded', 'true');
+                console.log('Phoenix: Menu opened');
+            }
         });
         
         // Close menu when clicking outside
         document.addEventListener('click', function(e) {
             if (!mainNav.contains(e.target) && !menuToggle.contains(e.target)) {
-                mainNav.classList.remove('active');
-                body.classList.remove('menu-open');
-                menuToggle.setAttribute('aria-expanded', 'false');
+                if (mainNav.classList.contains('active')) {
+                    mainNav.classList.remove('active');
+                    body.classList.remove('menu-open');
+                    menuToggle.setAttribute('aria-expanded', 'false');
+                    console.log('Phoenix: Menu closed (outside click)');
+                }
             }
         });
         
@@ -60,7 +83,20 @@
                 mainNav.classList.remove('active');
                 body.classList.remove('menu-open');
                 menuToggle.setAttribute('aria-expanded', 'false');
+                console.log('Phoenix: Menu closed (escape key)');
             }
+        });
+        
+        // Handle submenu toggles on mobile
+        const submenuToggles = document.querySelectorAll('.main-nav .has-submenu > a');
+        submenuToggles.forEach(function(toggle) {
+            toggle.addEventListener('click', function(e) {
+                if (window.innerWidth <= 768) {
+                    e.preventDefault();
+                    const parent = this.parentElement;
+                    parent.classList.toggle('active');
+                }
+            });
         });
     }
     

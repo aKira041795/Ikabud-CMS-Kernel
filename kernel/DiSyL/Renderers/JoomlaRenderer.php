@@ -551,6 +551,31 @@ class JoomlaRenderer extends BaseRenderer
             
             $output = '';
             foreach ($modules as $module) {
+                // Process DiSyL codes in module content if present
+                $moduleContent = $module->content;
+                
+                // Check if content contains DiSyL syntax
+                if (strpos($moduleContent, '{ikb_') !== false || 
+                    strpos($moduleContent, '{joomla_') !== false || 
+                    strpos($moduleContent, '{if ') !== false || 
+                    strpos($moduleContent, '{for ') !== false) {
+                    
+                    try {
+                        // Create a new engine instance to compile and render DiSyL content
+                        $engine = new \IkabudKernel\Core\DiSyL\Engine();
+                        $compiledAst = $engine->compile($moduleContent);
+                        
+                        // Render with current context
+                        $moduleContent = $this->renderChildren($compiledAst['children'] ?? []);
+                        
+                        // Update module content with rendered DiSyL
+                        $module->content = $moduleContent;
+                    } catch (\Exception $e) {
+                        // Log error but continue with original content
+                        error_log('DiSyL Module Rendering Error (Module ID: ' . $module->id . '): ' . $e->getMessage());
+                    }
+                }
+                
                 // Use Joomla's module rendering with chrome style
                 ob_start();
                 
