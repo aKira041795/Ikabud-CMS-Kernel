@@ -7,7 +7,12 @@ namespace IkabudKernel\Core;
  * Manages resource limits, quotas, and usage tracking for multi-tenant instances
  * Provides isolation and fair resource allocation across CMS instances
  * 
- * @version 1.0.0
+ * Performance optimizations (v1.1.0):
+ * - Batch saves with dirty flag (reduces file I/O)
+ * - Deferred persistence until flush() or destruct
+ * - Atomic file writes
+ * 
+ * @version 1.1.0
  */
 class ResourceManager
 {
@@ -16,10 +21,38 @@ class ResourceManager
     private array $usage = [];
     private array $stats = [];
     
-    public function __construct(string $configFile = null)
+    /** @var bool Whether limits have been modified since last save */
+    private bool $dirty = false;
+    
+    /** @var bool Whether to auto-save on destruct */
+    private bool $autoSave = true;
+    
+    public function __construct(string $configFile = null, bool $autoSave = true)
     {
         $this->configFile = $configFile ?? __DIR__ . '/../storage/resource-limits.json';
+        $this->autoSave = $autoSave;
         $this->loadLimits();
+    }
+    
+    /**
+     * Destructor - auto-save if dirty
+     */
+    public function __destruct()
+    {
+        if ($this->autoSave) {
+            $this->flush();
+        }
+    }
+    
+    /**
+     * Flush pending changes to disk
+     */
+    public function flush(): void
+    {
+        if ($this->dirty) {
+            $this->saveLimits();
+            $this->dirty = false;
+        }
     }
     
     /**
@@ -35,9 +68,7 @@ class ResourceManager
         }
         
         $this->limits[$instanceId]['memory_mb'] = $megabytes;
-        $this->saveLimits();
-        
-        error_log("ResourceManager: Set memory limit for {$instanceId}: {$megabytes}MB");
+        $this->dirty = true;
     }
     
     /**
@@ -54,9 +85,7 @@ class ResourceManager
         
         $percentage = max(0, min(100, $percentage));
         $this->limits[$instanceId]['cpu_percent'] = $percentage;
-        $this->saveLimits();
-        
-        error_log("ResourceManager: Set CPU limit for {$instanceId}: {$percentage}%");
+        $this->dirty = true;
     }
     
     /**
@@ -72,9 +101,7 @@ class ResourceManager
         }
         
         $this->limits[$instanceId]['requests_per_minute'] = $requestsPerMinute;
-        $this->saveLimits();
-        
-        error_log("ResourceManager: Set rate limit for {$instanceId}: {$requestsPerMinute} req/min");
+        $this->dirty = true;
     }
     
     /**
@@ -90,9 +117,7 @@ class ResourceManager
         }
         
         $this->limits[$instanceId]['storage_mb'] = $megabytes;
-        $this->saveLimits();
-        
-        error_log("ResourceManager: Set storage quota for {$instanceId}: {$megabytes}MB");
+        $this->dirty = true;
     }
     
     /**
@@ -108,9 +133,30 @@ class ResourceManager
         }
         
         $this->limits[$instanceId]['cache_mb'] = $megabytes;
-        $this->saveLimits();
+        $this->dirty = true;
+    }
+    
+    /**
+     * Set multiple limits at once (batch operation)
+     * 
+     * @param string $instanceId Instance identifier
+     * @param array $limits Array of limits (memory_mb, cpu_percent, etc.)
+     */
+    public function setLimits(string $instanceId, array $limits): void
+    {
+        if (!isset($this->limits[$instanceId])) {
+            $this->limits[$instanceId] = [];
+        }
         
-        error_log("ResourceManager: Set cache quota for {$instanceId}: {$megabytes}MB");
+        $allowedKeys = ['memory_mb', 'cpu_percent', 'requests_per_minute', 'storage_mb', 'cache_mb'];
+        
+        foreach ($limits as $key => $value) {
+            if (in_array($key, $allowedKeys)) {
+                $this->limits[$instanceId][$key] = $value;
+            }
+        }
+        
+        $this->dirty = true;
     }
     
     /**
@@ -411,12 +457,12 @@ class ResourceManager
     }
     
     /**
-     * Save limits to config file
+     * Save limits to config file (atomic write)
      */
     private function saveLimits(): void
     {
         $data = [
-            'version' => '1.0.0',
+            'version' => '1.1.0',
             'updated' => date('Y-m-d H:i:s'),
             'limits' => $this->limits
         ];
@@ -426,7 +472,16 @@ class ResourceManager
             mkdir($dir, 0755, true);
         }
         
-        file_put_contents($this->configFile, json_encode($data, JSON_PRETTY_PRINT));
+        // Atomic write: write to temp file, then rename
+        $tempFile = $this->configFile . '.tmp.' . getmypid();
+        $json = json_encode($data, JSON_PRETTY_PRINT);
+        
+        if (file_put_contents($tempFile, $json, LOCK_EX) !== false) {
+            rename($tempFile, $this->configFile);
+        } else {
+            @unlink($tempFile);
+            error_log("ResourceManager: Failed to save limits to {$this->configFile}");
+        }
     }
     
     /**

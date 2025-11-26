@@ -49,9 +49,16 @@ $errorMiddleware = $app->addErrorMiddleware(
     true
 );
 
-// API Response Cache Middleware - Caches GET responses for performance
-// Only applied to API routes, bypasses authenticated requests
+// API Middleware Stack - Only applied to API routes
 if (strpos($_SERVER['REQUEST_URI'] ?? '', '/api/') === 0) {
+    // Rate Limiting Middleware - Protects against abuse
+    require_once __DIR__ . '/../api/middleware/RateLimitMiddleware.php';
+    $app->add(new \IkabudKernel\Api\Middleware\RateLimitMiddleware(
+        __DIR__ . '/../storage/rate-limits',
+        true // Use user ID for authenticated requests
+    ));
+    
+    // Response Cache Middleware - Caches GET responses for performance
     require_once __DIR__ . '/../api/middleware/ResponseCacheMiddleware.php';
     $app->add(new \IkabudKernel\Api\Middleware\ResponseCacheMiddleware(
         __DIR__ . '/../storage/api-cache',

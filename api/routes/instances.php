@@ -1,6 +1,11 @@
 <?php
 /**
  * Instance Management API Routes
+ * 
+ * Performance optimizations:
+ * - Pagination support for list endpoints
+ * - Cursor-based pagination option
+ * - Configurable page size with limits
  */
 
 use Psr\Http\Message\ResponseInterface as Response;
@@ -8,20 +13,67 @@ use Psr\Http\Message\ServerRequestInterface as Request;
 use IkabudKernel\Core\Kernel;
 use IkabudKernel\Core\JWTMiddleware;
 
-// List all instances
+/**
+ * List all instances with pagination
+ * 
+ * Query params:
+ * - page: Page number (default: 1)
+ * - limit: Items per page (default: 20, max: 100)
+ * - status: Filter by status
+ * - search: Search by name or domain
+ * - sort: Sort field (created_at, instance_name, status)
+ * - order: Sort order (asc, desc)
+ */
 $listInstancesHandler = function (Request $request, Response $response) {
     $kernel = Kernel::getInstance();
     $db = $kernel->getDatabase();
     
-    $status = $request->getQueryParams()['status'] ?? null;
+    $params = $request->getQueryParams();
+    
+    // Pagination parameters
+    $page = max(1, (int)($params['page'] ?? 1));
+    $limit = min(100, max(1, (int)($params['limit'] ?? 20)));
+    $offset = ($page - 1) * $limit;
+    
+    // Filter parameters
+    $status = $params['status'] ?? null;
+    $search = $params['search'] ?? null;
+    
+    // Sort parameters
+    $allowedSortFields = ['created_at', 'instance_name', 'status', 'cms_type'];
+    $sort = in_array($params['sort'] ?? '', $allowedSortFields) ? $params['sort'] : 'created_at';
+    $order = strtoupper($params['order'] ?? 'DESC') === 'ASC' ? 'ASC' : 'DESC';
+    
+    // Build query
+    $where = [];
+    $queryParams = [];
     
     if ($status) {
-        $stmt = $db->prepare("SELECT * FROM instances WHERE status = ? ORDER BY created_at DESC");
-        $stmt->execute([$status]);
-    } else {
-        $stmt = $db->query("SELECT * FROM instances ORDER BY created_at DESC");
+        $where[] = "status = ?";
+        $queryParams[] = $status;
     }
     
+    if ($search) {
+        $where[] = "(instance_name LIKE ? OR domain LIKE ?)";
+        $queryParams[] = "%{$search}%";
+        $queryParams[] = "%{$search}%";
+    }
+    
+    $whereClause = !empty($where) ? 'WHERE ' . implode(' AND ', $where) : '';
+    
+    // Get total count
+    $countSql = "SELECT COUNT(*) FROM instances {$whereClause}";
+    $countStmt = $db->prepare($countSql);
+    $countStmt->execute($queryParams);
+    $total = (int)$countStmt->fetchColumn();
+    
+    // Get paginated results
+    $sql = "SELECT * FROM instances {$whereClause} ORDER BY {$sort} {$order} LIMIT ? OFFSET ?";
+    $queryParams[] = $limit;
+    $queryParams[] = $offset;
+    
+    $stmt = $db->prepare($sql);
+    $stmt->execute($queryParams);
     $instances = $stmt->fetchAll();
     
     // Decode JSON fields
@@ -30,8 +82,21 @@ $listInstancesHandler = function (Request $request, Response $response) {
         $instance['resources'] = json_decode($instance['resources'] ?? '{}', true);
     }
     
+    // Calculate pagination metadata
+    $totalPages = ceil($total / $limit);
+    
     $response->getBody()->write(json_encode([
-        'total' => count($instances),
+        'data' => $instances,
+        'pagination' => [
+            'total' => $total,
+            'page' => $page,
+            'limit' => $limit,
+            'total_pages' => $totalPages,
+            'has_next' => $page < $totalPages,
+            'has_prev' => $page > 1,
+        ],
+        // Legacy support
+        'total' => $total,
         'instances' => $instances
     ]));
     

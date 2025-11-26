@@ -5,7 +5,12 @@
  * GNU/Linux-inspired CMS Operating System
  * Boots first, supervises all CMS as userland processes
  * 
- * @version 1.0.0
+ * Performance optimizations (v1.1.0):
+ * - Lazy manager initialization
+ * - On-demand resource loading
+ * - Reduced boot time overhead
+ * 
+ * @version 1.1.0
  * @author Ikabud Development Team
  */
 
@@ -16,7 +21,7 @@ use Exception;
 
 class Kernel
 {
-    const VERSION = '1.0.0';
+    const VERSION = '1.1.0';
     const BOOT_PHASES = 5;
     
     private static ?self $instance = null;
@@ -30,11 +35,13 @@ class Kernel
     private array $processes = [];
     private array $bootLog = [];
     
-    // New managers
+    // Lazy-loaded managers (initialized on first access)
     private ?TransactionManager $transactionManager = null;
     private ?SecurityManager $securityManager = null;
     private ?SyscallHandlers $syscallHandlers = null;
     private ?HealthMonitor $healthMonitor = null;
+    private ?ResourceManager $resourceManager = null;
+    private ?Cache $cache = null;
     
     /**
      * Get singleton instance
@@ -53,6 +60,77 @@ class Kernel
     public function getDatabase(): PDO
     {
         return $this->db;
+    }
+    
+    /**
+     * Get Cache instance (lazy-loaded)
+     */
+    public function getCache(): Cache
+    {
+        if ($this->cache === null) {
+            $this->cache = new Cache();
+        }
+        return $this->cache;
+    }
+    
+    /**
+     * Get ResourceManager instance (lazy-loaded)
+     */
+    public function getResourceManager(): ResourceManager
+    {
+        if ($this->resourceManager === null) {
+            $this->resourceManager = new ResourceManager();
+        }
+        return $this->resourceManager;
+    }
+    
+    /**
+     * Get TransactionManager instance (lazy-loaded)
+     */
+    public function getTransactionManager(): TransactionManager
+    {
+        if ($this->transactionManager === null) {
+            $this->transactionManager = new TransactionManager($this->db);
+        }
+        return $this->transactionManager;
+    }
+    
+    /**
+     * Get SecurityManager instance (lazy-loaded)
+     */
+    public function getSecurityManager(): SecurityManager
+    {
+        if ($this->securityManager === null) {
+            $this->securityManager = new SecurityManager($this->db);
+        }
+        return $this->securityManager;
+    }
+    
+    /**
+     * Get HealthMonitor instance (lazy-loaded)
+     */
+    public function getHealthMonitor(): HealthMonitor
+    {
+        if ($this->healthMonitor === null) {
+            $this->healthMonitor = new HealthMonitor(
+                $this->db,
+                $this->getResourceManager(),
+                $this->getCache(),
+                self::$bootStartTime
+            );
+        }
+        return $this->healthMonitor;
+    }
+    
+    /**
+     * Get SyscallHandlers instance (lazy-loaded)
+     */
+    public function getSyscallHandlers(): SyscallHandlers
+    {
+        if ($this->syscallHandlers === null) {
+            $this->syscallHandlers = new SyscallHandlers($this->db, $this->getCache());
+        }
+        return $this->syscallHandlers;
     }
     
     /**
@@ -327,22 +405,22 @@ class Kernel
             throw new Exception("Syscall not found: {$name}");
         }
         
-        // Security checks
-        if ($kernel->securityManager) {
-            // Check permission
-            if (!$kernel->securityManager->checkPermission($name, $role)) {
-                throw new Exception("Permission denied for syscall: {$name}");
-            }
-            
-            // Check rate limit
-            $identifier = $role ?? ($_SERVER['REMOTE_ADDR'] ?? 'unknown');
-            if (!$kernel->securityManager->checkRateLimit($name, $identifier)) {
-                throw new Exception("Rate limit exceeded for syscall: {$name}");
-            }
-            
-            // Validate arguments
-            $args = $kernel->securityManager->validateArgs($name, $args);
+        // Security checks (lazy-load security manager only when needed)
+        $securityManager = $kernel->getSecurityManager();
+        
+        // Check permission
+        if (!$securityManager->checkPermission($name, $role)) {
+            throw new Exception("Permission denied for syscall: {$name}");
         }
+        
+        // Check rate limit
+        $identifier = $role ?? ($_SERVER['REMOTE_ADDR'] ?? 'unknown');
+        if (!$securityManager->checkRateLimit($name, $identifier)) {
+            throw new Exception("Rate limit exceeded for syscall: {$name}");
+        }
+        
+        // Validate arguments
+        $args = $securityManager->validateArgs($name, $args);
         
         $startTime = microtime(true);
         $memoryBefore = memory_get_usage();
@@ -386,55 +464,42 @@ class Kernel
     }
     
     /**
-     * Execute transaction with optional context metadata
+     * Execute transaction with optional context metadata (lazy-loads TransactionManager)
      */
     public static function transaction(callable $callback, array $context = []): mixed
     {
         $kernel = self::getInstance();
-        
-        if (!$kernel->transactionManager) {
-            throw new Exception("TransactionManager not initialized");
-        }
+        $transactionManager = $kernel->getTransactionManager();
         
         $txId = uniqid('tx_', true);
-        $kernel->transactionManager->begin($txId, $context);
+        $transactionManager->begin($txId, $context);
         
         try {
-            $result = $callback($txId, $kernel->transactionManager);
-            $kernel->transactionManager->commit($txId);
+            $result = $callback($txId, $transactionManager);
+            $transactionManager->commit($txId);
             return $result;
         } catch (Exception $e) {
-            $kernel->transactionManager->rollback($txId);
+            $transactionManager->rollback($txId);
             throw $e;
         }
     }
     
     /**
-     * Get health status
+     * Get health status (lazy-loads HealthMonitor)
      */
     public static function health(): array
     {
         $kernel = self::getInstance();
-        
-        if (!$kernel->healthMonitor) {
-            return ['status' => 'unknown', 'error' => 'HealthMonitor not initialized'];
-        }
-        
-        return $kernel->healthMonitor->check();
+        return $kernel->getHealthMonitor()->check();
     }
     
     /**
-     * Get quick health status
+     * Get quick health status (lazy-loads HealthMonitor)
      */
     public static function healthQuick(): array
     {
         $kernel = self::getInstance();
-        
-        if (!$kernel->healthMonitor) {
-            return ['status' => 'unknown'];
-        }
-        
-        return $kernel->healthMonitor->getQuickStatus();
+        return $kernel->getHealthMonitor()->getQuickStatus();
     }
     
     /**
@@ -499,9 +564,8 @@ class Kernel
             PDO::ATTR_EMULATE_PREPARES => false,
         ]);
         
-        // Initialize managers that depend on database
-        $this->transactionManager = new TransactionManager($this->db);
-        $this->securityManager = new SecurityManager($this->db);
+        // Managers are now lazy-loaded via getters
+        // No eager initialization needed here
     }
     
     private function loadKernelConfig(): void
@@ -532,38 +596,33 @@ class Kernel
     
     private function registerCoreSyscalls(): void
     {
-        // Initialize syscall handlers
-        $cache = new Cache();
-        $this->syscallHandlers = new SyscallHandlers($this->db, $cache);
-        
-        // Initialize health monitor
-        $resourceManager = new ResourceManager();
-        $this->healthMonitor = new HealthMonitor($this->db, $resourceManager, $cache, self::$bootStartTime);
+        // Syscall handlers are lazy-loaded - register closures that resolve on first call
+        // This defers initialization until syscalls are actually used
         
         // Content syscalls
-        self::registerSyscall('content.fetch', [$this->syscallHandlers, 'contentFetch']);
-        self::registerSyscall('content.create', [$this->syscallHandlers, 'contentCreate']);
-        self::registerSyscall('content.update', [$this->syscallHandlers, 'contentUpdate']);
-        self::registerSyscall('content.delete', [$this->syscallHandlers, 'contentDelete']);
+        self::registerSyscall('content.fetch', fn($args) => $this->getSyscallHandlers()->contentFetch($args));
+        self::registerSyscall('content.create', fn($args) => $this->getSyscallHandlers()->contentCreate($args));
+        self::registerSyscall('content.update', fn($args) => $this->getSyscallHandlers()->contentUpdate($args));
+        self::registerSyscall('content.delete', fn($args) => $this->getSyscallHandlers()->contentDelete($args));
         
         // Database syscalls
-        self::registerSyscall('db.query', [$this->syscallHandlers, 'dbQuery']);
-        self::registerSyscall('db.insert', [$this->syscallHandlers, 'dbInsert']);
+        self::registerSyscall('db.query', fn($args) => $this->getSyscallHandlers()->dbQuery($args));
+        self::registerSyscall('db.insert', fn($args) => $this->getSyscallHandlers()->dbInsert($args));
         
         // HTTP syscalls
-        self::registerSyscall('http.get', [$this->syscallHandlers, 'httpGet']);
-        self::registerSyscall('http.post', [$this->syscallHandlers, 'httpPost']);
+        self::registerSyscall('http.get', fn($args) => $this->getSyscallHandlers()->httpGet($args));
+        self::registerSyscall('http.post', fn($args) => $this->getSyscallHandlers()->httpPost($args));
         
         // Asset syscalls
-        self::registerSyscall('asset.enqueue', [$this->syscallHandlers, 'assetEnqueue']);
+        self::registerSyscall('asset.enqueue', fn($args) => $this->getSyscallHandlers()->assetEnqueue($args));
         
         // Theme syscalls
-        self::registerSyscall('theme.render', [$this->syscallHandlers, 'themeRender']);
+        self::registerSyscall('theme.render', fn($args) => $this->getSyscallHandlers()->themeRender($args));
         
         // Image optimization syscalls
-        self::registerSyscall('image.optimize', [$this->syscallHandlers, 'imageOptimize']);
-        self::registerSyscall('image.responsive', [$this->syscallHandlers, 'imageResponsive']);
-        self::registerSyscall('image.picture', [$this->syscallHandlers, 'imagePictureTag']);
+        self::registerSyscall('image.optimize', fn($args) => $this->getSyscallHandlers()->imageOptimize($args));
+        self::registerSyscall('image.responsive', fn($args) => $this->getSyscallHandlers()->imageResponsive($args));
+        self::registerSyscall('image.picture', fn($args) => $this->getSyscallHandlers()->imagePictureTag($args));
     }
     
     private function initializeErrorHandling(): void
