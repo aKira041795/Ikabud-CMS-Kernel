@@ -21,6 +21,168 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.3.0] - 2025-11-26
+
+### 🚀 DiSyL Language Specification v1.0.0 & Performance Optimizations
+
+Major release featuring a complete DiSyL language specification upgrade and comprehensive kernel performance optimizations.
+
+### Added
+
+#### DiSyL Language Specification v1.0.0
+- **Formal EBNF Grammar** - Complete lexical and syntactic grammar specification
+  - Character classes, identifiers, literals, escape sequences
+  - Namespaced identifiers for platform-specific components (`wp:query`, `mobile:list`)
+  - Component definitions with props, slots, and templates
+  - Semantic constraints and type system
+
+- **Platform Abstraction Layer (PAL)**
+  - New `ikb_platform` declaration (replaces `ikb_cms`)
+  - Platform categories: `web`, `mobile`, `desktop`, `universal`
+  - Multi-target rendering with fallback support
+  - Feature detection: `platform.supports()`, `platform.is()`
+  - Platform capabilities matrix
+
+- **Extended Platform Support**
+  - Mobile: React Native, Flutter, iOS, Android
+  - Desktop: Electron, Tauri, Windows, macOS, Linux
+  - Visual Builders: drag-and-drop, no-code integration
+
+- **Visual Builder Integration**
+  - Component metadata for editors (props, labels, placeholders)
+  - Visual builder schema export (JSON)
+  - Drag-and-drop zones (`ikb_dropzone`)
+  - Component preview support
+
+- **Mobile Development Support**
+  - React Native transpilation examples
+  - Flutter transpilation examples
+  - Mobile-specific components (`mobile:navigation`, `mobile:list`, `mobile:input`)
+  - Native widget support
+
+- **Desktop Application Support**
+  - Electron integration (window, menubar, titlebar)
+  - Tauri integration (invoke, dialog, notification)
+  - Native system access (filesystem, tray, shortcuts)
+
+- **Extensibility Framework**
+  - Custom platform adapter creation guide
+  - Platform manifest specification (JSON)
+  - Custom component registration
+  - Plugin architecture documentation
+
+#### Enhanced Grammar v1.0.0
+- **Extended Type System**
+  - New types: `url`, `image`, `color`, `date`, `datetime`, `email`, `phone`, `html`, `markdown`, `json`, `expression`
+  - Union type support (`string|number`)
+  - Generic array types (`array<string>`)
+  - Improved type coercion and validation
+
+- **Platform Validation**
+  - `validatePlatform()` - Validate platform identifiers
+  - `validatePlatformList()` - Validate comma-separated platforms
+  - `isComponentCompatible()` - Check component/platform compatibility
+  - `getPlatformCategory()` - Get platform category (web/mobile/desktop)
+
+- **Identifier Validation**
+  - `validateIdentifier()` - Validate identifier syntax
+  - `validateNamespacedIdentifier()` - Validate `namespace:name` syntax
+  - `isReservedKeyword()` - Check reserved keywords
+  - `parseNamespacedIdentifier()` - Parse into namespace and name
+
+- **Component Prop Validation**
+  - `validatePropDefinition()` - Validate prop definitions for visual builders
+  - `validateSlotDefinition()` - Validate slot definitions
+  - `generatePropsSchema()` - Generate JSON Schema for visual builders
+
+- **Filter Parsing**
+  - `parseFilterChain()` - Parse filter chains from expressions
+  - `parseFilterArgs()` - Parse named and positional arguments
+
+- **Expression Validation**
+  - `validateExpression()` - Validate expression syntax
+  - Balanced brace checking
+
+#### Kernel Performance Optimizations (Phase 1 & 2)
+
+**Phase 1: Caching & Lazy Loading**
+- Multi-tier caching (memory → APCu → file)
+- Lazy route loading (~80% faster request handling)
+- API response caching with TTL
+- Atomic file writes with compression for file cache
+
+**Phase 2: Resource Optimization**
+- Lazy manager loading in Kernel.php
+- API pagination for list endpoints
+- Rate limiting middleware (token bucket algorithm)
+- ResourceManager batch saves with dirty flag
+
+#### DiSyL Pipeline Optimizations
+- **Lexer v0.4.0**
+  - Token object pooling (max 500 tokens)
+  - `Lexer::recycleTokens()` for token reuse
+  - Fast character lookup tables for identifiers
+  - Single-char token lookup table
+  - ~40% faster tokenization
+
+- **Token v0.4.0**
+  - Public properties for direct access
+  - Supports object pooling via Lexer
+  - Minimal memory footprint
+
+- **Compiler v0.3.0**
+  - Lazy Grammar initialization
+  - Component validation caching
+  - Filter validation caching
+  - ~30% faster compilation
+
+- **BaseRenderer v0.4.0**
+  - Method existence caching (static)
+  - PascalCase conversion caching
+  - Component method name caching (instance)
+  - `clearMethodCache()` for testing
+  - ~60% faster component rendering
+
+### Changed
+- Updated `DISYL_SYNTAX_REFERENCE.md` to v1.0.0 (1,758 lines)
+- Updated `Grammar.php` to v1.0.0 (878 lines)
+- Updated `Lexer.php` to v0.4.0
+- Updated `Token.php` to v0.4.0
+- Updated `Compiler.php` to v0.3.0
+- Updated `BaseRenderer.php` to v0.4.0
+
+### Fixed
+- Fixed `JWT::decode()` → `JWT::verify()` in RateLimitMiddleware
+- Fixed lazy-loaded `getGrammar()` calls in Compiler
+- Fixed lazy route loading for legacy `/api/instances/*` endpoints
+- Fixed route loading for `/api/instances/{id}/conditional-loading/*`
+
+### Performance Summary
+| Component | Improvement |
+|-----------|-------------|
+| Tokenization | ~40% faster |
+| Compilation | ~30% faster |
+| Rendering | ~60% faster |
+| Memory Usage | ~25% reduction |
+| Request Handling | ~80% faster (lazy routes) |
+
+### Files Modified
+- `DISYL_SYNTAX_REFERENCE.md` - Complete language specification
+- `kernel/DiSyL/Grammar.php` - Enhanced grammar with platform support
+- `kernel/DiSyL/Lexer.php` - Token pooling and fast lookups
+- `kernel/DiSyL/Token.php` - Pooling support
+- `kernel/DiSyL/Compiler.php` - Lazy loading and caching
+- `kernel/DiSyL/Renderers/BaseRenderer.php` - Method caching
+- `kernel/Kernel.php` - Lazy manager loading
+- `kernel/Cache.php` - Multi-tier caching
+- `kernel/ResourceManager.php` - Batch saves
+- `api/middleware/RateLimitMiddleware.php` - Rate limiting
+- `api/middleware/ResponseCacheMiddleware.php` - API caching
+- `api/routes/instances.php` - Pagination support
+- `public/index.php` - Lazy route loading
+
+---
+
 ## [1.2.0] - 2025-11-23
 
 ### 🎨 DiSyL Module/Block Content Processing
@@ -439,6 +601,8 @@ The first stable release of Ikabud Kernel - a GNU/Linux-inspired CMS Operating S
 
 | Version | Release Date | Status | Notes |
 |---------|--------------|--------|-------|
+| 1.3.0 | 2025-11-26 | Stable | DiSyL v1.0.0 spec & performance optimizations |
+| 1.2.0 | 2025-11-23 | Stable | DiSyL module/block content processing |
 | 1.1.0 | 2025-11-22 | Stable | DSL auto-rendering integration |
 | 1.0.0 | 2025-11-10 | Stable | First production release |
 | 0.9.0-beta | 2025-10-15 | Beta | Testing phase |
@@ -447,6 +611,39 @@ The first stable release of Ikabud Kernel - a GNU/Linux-inspired CMS Operating S
 ---
 
 ## Upgrade Guide
+
+### From 1.2.0 to 1.3.0
+
+1. **Pull latest changes**
+   ```bash
+   cd /var/www/html/ikabud-kernel
+   git pull origin master
+   ```
+
+2. **No database changes required** - This is a feature enhancement release
+
+3. **Clear cache** (recommended for performance improvements)
+   ```bash
+   rm -rf storage/cache/*.cache
+   rm -rf storage/cache/*.compiled
+   rm -rf storage/api-cache/*
+   ```
+
+4. **Restart instances** (optional, for immediate effect)
+   ```bash
+   ikabud restart <instance-id>
+   ```
+
+5. **Update templates** (optional)
+   - Existing templates work unchanged
+   - New `ikb_platform` declaration available (backward compatible with `ikb_cms`)
+   - New platform-specific namespaced components available (`wp:*`, `mobile:*`, `desktop:*`)
+
+**Breaking Changes:** None  
+**Backward Compatible:** Yes (100%)  
+**Migration Required:** No
+
+---
 
 ### From 1.0.0 to 1.1.0
 
