@@ -11,7 +11,13 @@
  * - Enhanced expression evaluation
  * - Unicode support
  * 
- * @version 0.3.0
+ * Performance optimizations (v0.4.0):
+ * - Method existence caching
+ * - PascalCase conversion caching
+ * - Optimized string building
+ * - Reduced reflection calls
+ * 
+ * @version 0.4.0
  */
 
 namespace IkabudKernel\Core\DiSyL\Renderers;
@@ -21,6 +27,15 @@ abstract class BaseRenderer
     protected array $context = [];
     protected array $components = [];
     protected array $filters = [];
+    
+    /** @var array Cache for method existence checks */
+    private static array $methodCache = [];
+    
+    /** @var array Cache for PascalCase conversions */
+    private static array $pascalCaseCache = [];
+    
+    /** @var array Cache for component method names */
+    private array $componentMethodCache = [];
     
     /**
      * Constructor - Initialize CMS-specific setup
@@ -93,9 +108,9 @@ abstract class BaseRenderer
             return $this->components[$tagName]($node, $this->context);
         }
         
-        // Try to call component-specific method
-        $method = 'render' . $this->toPascalCase($tagName);
-        if (method_exists($this, $method)) {
+        // Try to call component-specific method (with caching)
+        $method = $this->getComponentMethod($tagName);
+        if ($method !== null) {
             return $this->$method($node, $attrs, $children);
         }
         
@@ -634,6 +649,64 @@ abstract class BaseRenderer
     protected function shouldUseDSLRendering(array $attrs): bool
     {
         return isset($attrs['format']) && !empty($attrs['format']);
+    }
+    
+    /**
+     * Get component render method with caching
+     * 
+     * @param string $tagName Component tag name
+     * @return string|null Method name or null if not found
+     */
+    private function getComponentMethod(string $tagName): ?string
+    {
+        // Check instance cache first
+        if (isset($this->componentMethodCache[$tagName])) {
+            return $this->componentMethodCache[$tagName];
+        }
+        
+        // Get PascalCase version (cached)
+        $pascalCase = $this->toPascalCaseCached($tagName);
+        $method = 'render' . $pascalCase;
+        
+        // Check method existence (cached per class)
+        $class = static::class;
+        $cacheKey = $class . '::' . $method;
+        
+        if (!isset(self::$methodCache[$cacheKey])) {
+            self::$methodCache[$cacheKey] = method_exists($this, $method);
+        }
+        
+        $result = self::$methodCache[$cacheKey] ? $method : null;
+        $this->componentMethodCache[$tagName] = $result;
+        
+        return $result;
+    }
+    
+    /**
+     * Convert to PascalCase with caching
+     * 
+     * @param string $tagName Tag name (e.g., 'ikb_section')
+     * @return string PascalCase version (e.g., 'IkbSection')
+     */
+    private function toPascalCaseCached(string $tagName): string
+    {
+        if (isset(self::$pascalCaseCache[$tagName])) {
+            return self::$pascalCaseCache[$tagName];
+        }
+        
+        $result = $this->toPascalCase($tagName);
+        self::$pascalCaseCache[$tagName] = $result;
+        
+        return $result;
+    }
+    
+    /**
+     * Clear method caches (useful for testing)
+     */
+    public static function clearMethodCache(): void
+    {
+        self::$methodCache = [];
+        self::$pascalCaseCache = [];
     }
     
     /**

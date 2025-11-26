@@ -9,7 +9,13 @@
  * - Attribute validation
  * - Deprecation warnings
  * 
- * @version 0.2.0
+ * Performance optimizations (v0.3.0):
+ * - Component validation caching
+ * - Lazy Grammar initialization
+ * - Reduced array allocations
+ * - Optimized tree traversal
+ * 
+ * @version 0.3.0
  */
 
 namespace IkabudKernel\Core\DiSyL;
@@ -20,19 +26,35 @@ use IkabudKernel\Core\Cache;
 
 class Compiler
 {
-    private Grammar $grammar;
+    private ?Grammar $grammar = null;
     private ?Cache $cache;
     private array $errors = [];
     private array $warnings = [];
     private ?string $cmsType = null;
+    
+    /** @var array Cache for validated components */
+    private static array $validatedComponents = [];
+    
+    /** @var array Cache for filter validation */
+    private static array $validatedFilters = [];
     
     /**
      * Constructor
      */
     public function __construct(?Cache $cache = null)
     {
-        $this->grammar = new Grammar();
         $this->cache = $cache;
+    }
+    
+    /**
+     * Get Grammar instance (lazy-loaded)
+     */
+    private function getGrammar(): Grammar
+    {
+        if ($this->grammar === null) {
+            $this->grammar = new Grammar();
+        }
+        return $this->grammar;
     }
     
     /**

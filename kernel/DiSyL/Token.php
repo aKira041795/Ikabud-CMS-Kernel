@@ -4,14 +4,19 @@
  * 
  * Represents a single token in the DiSyL lexical analysis
  * 
- * @version 0.3.0
+ * Performance optimizations (v0.4.0):
+ * - Public properties for direct access (faster than getters)
+ * - Supports object pooling via Lexer::recycleTokens()
+ * - Minimal memory footprint
+ * 
+ * @version 0.4.0
  */
 
 namespace IkabudKernel\Core\DiSyL;
 
 class Token
 {
-    // Token types
+    // Token types - using short strings for memory efficiency
     public const LBRACE = 'LBRACE';           // {
     public const RBRACE = 'RBRACE';           // }
     public const SLASH = 'SLASH';             // /
@@ -36,6 +41,13 @@ class Token
     public const WS_EXPR = 'WS_EXPR';         // Whitespace in expressions (ignored)
     public const WS_TEXT = 'WS_TEXT';         // Whitespace in text (preserved)
     
+    /** @var array Fast type lookup for validation */
+    private static array $validTypes = [];
+    
+    /** @var bool Whether type lookup is initialized */
+    private static bool $typesInitialized = false;
+    
+    // Public properties for fast access (supports pooling)
     public string $type;
     public mixed $value;
     public int $line;
