@@ -36,10 +36,14 @@ class Cache
     /** @var bool Whether APCu is available */
     private static ?bool $apcuAvailable = null;
     
+    /** @var string Stats file path */
+    private string $statsFile;
+    
     public function __construct(string $cacheDir = null, int $maxCacheSizeMB = 0)
     {
         $this->cacheDir = $cacheDir ?? dirname(__DIR__) . '/storage/cache';
         $this->maxCacheSizeMB = $maxCacheSizeMB;
+        $this->statsFile = $this->cacheDir . '/.cache_stats.json';
         
         // Ensure cache directory exists
         if (!is_dir($this->cacheDir)) {
@@ -49,6 +53,64 @@ class Cache
         // Check APCu availability once
         if (self::$apcuAvailable === null) {
             self::$apcuAvailable = function_exists('apcu_fetch') && apcu_enabled();
+        }
+        
+        // Load persisted stats
+        $this->loadStats();
+    }
+    
+    /**
+     * Load persisted stats from file or APCu
+     */
+    private function loadStats(): void
+    {
+        // Try APCu first (faster)
+        if (self::$apcuAvailable) {
+            $stats = apcu_fetch('ikabud_cache_stats', $success);
+            if ($success && is_array($stats)) {
+                $this->stats = array_merge($this->stats, $stats);
+                return;
+            }
+        }
+        
+        // Fall back to file
+        if (file_exists($this->statsFile)) {
+            $data = @file_get_contents($this->statsFile);
+            if ($data) {
+                $stats = @json_decode($data, true);
+                if (is_array($stats)) {
+                    $this->stats = array_merge($this->stats, $stats);
+                }
+            }
+        }
+    }
+    
+    /**
+     * Persist stats to file and APCu
+     */
+    private function saveStats(): void
+    {
+        // Save to APCu (fast, shared across requests)
+        if (self::$apcuAvailable) {
+            apcu_store('ikabud_cache_stats', $this->stats, 86400); // 24 hours
+        }
+        
+        // Also save to file (persistent across restarts)
+        @file_put_contents($this->statsFile, json_encode($this->stats), LOCK_EX);
+    }
+    
+    /**
+     * Increment a stat counter and persist
+     */
+    private function incrementStat(string $key): void
+    {
+        $this->stats[$key]++;
+        
+        // Persist every 10 operations to reduce I/O
+        static $opCount = 0;
+        $opCount++;
+        if ($opCount % 10 === 0) {
+            $this->saveStats();
         }
     }
     
@@ -110,14 +172,14 @@ class Cache
         if (self::$apcuAvailable) {
             $cached = apcu_fetch('cache_' . $key, $success);
             if ($success && is_array($cached)) {
-                $this->stats['hits']++;
+                $this->incrementStat('hits');
                 return $cached;
             }
         }
         
         // Tier 2: Check file cache
         if (!$this->has($instanceId, $uri)) {
-            $this->stats['misses']++;
+            $this->incrementStat('misses');
             return null;
         }
         
@@ -128,7 +190,7 @@ class Cache
             if (!$data) {
                 // Corrupted cache file
                 @unlink($file);
-                $this->stats['errors']++;
+                $this->incrementStat('errors');
                 return null;
             }
             
@@ -137,17 +199,17 @@ class Cache
                 $data = @gzuncompress(substr($data, 3));
                 if ($data === false) {
                     @unlink($file);
-                    $this->stats['errors']++;
+                    $this->incrementStat('errors');
                     return null;
                 }
-                $this->stats['compressed']++;
+                $this->incrementStat('compressed');
             }
             
             $result = @unserialize($data);
             if ($result === false && $data !== serialize(false)) {
                 // Unserialize failed - corrupted data
                 @unlink($file);
-                $this->stats['errors']++;
+                $this->incrementStat('errors');
                 return null;
             }
             
@@ -156,11 +218,11 @@ class Cache
                 apcu_store('cache_' . $key, $result, $this->ttl);
             }
             
-            $this->stats['hits']++;
+            $this->incrementStat('hits');
             return $result;
         } catch (\Exception $e) {
             error_log("Cache read error: " . $e->getMessage());
-            $this->stats['errors']++;
+            $this->incrementStat('errors');
             return null;
         }
     }
@@ -198,7 +260,7 @@ class Cache
             
             if ($result === false) {
                 error_log("Cache write error: Failed to write to $tempFile");
-                $this->stats['errors']++;
+                $this->incrementStat('errors');
                 return;
             }
             
@@ -206,7 +268,7 @@ class Cache
             if (!rename($tempFile, $file)) {
                 error_log("Cache write error: Failed to rename $tempFile to $file");
                 @unlink($tempFile);
-                $this->stats['errors']++;
+                $this->incrementStat('errors');
                 return;
             }
             
@@ -218,7 +280,7 @@ class Cache
         } catch (\Exception $e) {
             error_log("Cache write error: " . $e->getMessage());
             @unlink($tempFile);
-            $this->stats['errors']++;
+            $this->incrementStat('errors');
         }
     }
     
@@ -459,6 +521,9 @@ class Cache
             }
         }
         
+        // Reset stats
+        $this->resetStats();
+        
         error_log("Ikabud Cache: Cleared $cleared cache files" . 
                   (count($errors) > 0 ? " with " . count($errors) . " errors" : ""));
         
@@ -466,6 +531,26 @@ class Cache
             'cleared' => $cleared,
             'errors' => $errors
         ];
+    }
+    
+    /**
+     * Reset cache statistics
+     */
+    public function resetStats(): void
+    {
+        $this->stats = [
+            'hits' => 0,
+            'misses' => 0,
+            'bypasses' => 0,
+            'errors' => 0,
+            'compressed' => 0
+        ];
+        
+        // Clear persisted stats
+        if (self::$apcuAvailable) {
+            apcu_delete('ikabud_cache_stats');
+        }
+        @unlink($this->statsFile);
     }
     
     /**
@@ -482,7 +567,7 @@ class Cache
             str_contains($uri, 'preview=') ||
             $_SERVER['REQUEST_METHOD'] !== 'GET'
         ) {
-            $this->stats['bypasses']++;
+            $this->incrementStat('bypasses');
             return false;
         }
         
@@ -495,7 +580,7 @@ class Cache
                 str_starts_with($name, 'SESS') ||                   // Drupal 7
                 str_starts_with($name, 'SSESS') ||                  // Drupal 8/9/10/11
                 str_starts_with($name, 'PHPSESSID')) {              // Generic PHP session
-                $this->stats['bypasses']++;
+                $this->incrementStat('bypasses');
                 return false;
             }
         }
