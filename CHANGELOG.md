@@ -21,6 +21,157 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.4.0] - 2025-11-26
+
+### 🎯 Grammar v1.2.0 - Production Hardening & Kernel Alignment
+
+Major release featuring Grammar v1.2.0 with rich validation, security features, and full kernel component alignment.
+
+### Added
+
+#### Grammar v1.2.0 - Rich Validation Layer
+- **ValidationError Class** - Structured error objects with source mapping
+  - `message`, `code`, `nodeType`, `tagName`
+  - `line`, `column`, `snippet` for precise error location
+  - `severity` (error/warning) for flexible handling
+  - `JsonSerializable` for API responses
+
+- **ValidationResult Class** - Aggregate validation results
+  - `addError()`, `addWarning()` methods
+  - `isValid()`, `hasWarnings()` checks
+  - `merge()` for combining results
+  - `getErrors()`, `getWarnings()` accessors
+
+- **Schema Versioning**
+  - `Grammar::SCHEMA_VERSION` constant (1.2.0)
+  - Version included in JSON Schema export
+  - Cache keys include version for invalidation
+
+- **Validation Modes**
+  - `Grammar::MODE_STRICT` - Errors block compilation
+  - `Grammar::MODE_LENIENT` - Warnings only (migration-friendly)
+  - `setMode()`, `getMode()`, `isStrict()` methods
+
+- **Filter Type Chain Validation**
+  - `isTypeCompatible()` - Check type compatibility between filters
+  - `validateFilterChain()` now validates type flow
+  - Positional vs named argument disambiguation
+  - Platform-specific filter availability
+
+- **Expression Caching**
+  - `parseExpression()` results cached
+  - FIFO eviction with `MAX_CACHE_SIZE` (1000)
+  - `clearCache()` static method
+  - `hasEscaping` flag for security checks
+
+- **Security Validation**
+  - `validateSecureOutput()` - Check for escaping filters
+  - `validateHtmlProp()` - Warn on unescaped HTML props
+  - Context-aware escaping recommendations
+
+- **Rich Validation API**
+  - `validateFilterChainRich()` - Returns ValidationResult
+  - `validateTemplateRich()` - Full template validation
+  - `validateNodesRich()` - Recursive node validation
+  - `validateComponentPropsRich()` - Component prop validation
+
+- **Visual Builder API**
+  - `getAvailableComponents()` - List components by platform/category
+  - `getAvailableFilters()` - List filters by platform
+  - `exportJsonSchema()` - Export full grammar as JSON Schema
+
+#### Compiler v0.4.0
+- Integrated with Grammar v1.2.0 for rich validation
+- `setStrictMode()` - Toggle strict/lenient mode
+- `getValidationResult()` - Access ValidationResult
+- Platform compatibility checking for components
+- Expression security validation (escaping warnings)
+- Filter chain validation with type checking
+- CMS declaration validation via Grammar
+- `clearCache()` static method
+
+#### Engine v0.5.0
+- `setStrictMode()` - Propagates to Compiler
+- `getValidationResult()` - Expose validation results
+- `hasErrors()`, `hasWarnings()` convenience methods
+- `getErrors()`, `getWarnings()` accessors
+- `clearCache()` now clears Grammar and Compiler caches
+
+#### ComponentRegistry v0.2.0
+- New categories: `layout`, `content`, `interactive`, `navigation`, `form`
+- Platform support in component definitions
+- Slot definitions for components
+- Version field for components
+- `list()` - List components for Visual Builder
+- `getSlots()` - Get slot definitions
+- `supportsPlatform()` - Check platform compatibility
+
+#### Cache Stats Persistence
+- Stats now persist across requests
+- File-based persistence (`.cache_stats.json`)
+- APCu persistence for faster access
+- Batched writes (every 10 operations)
+- `resetStats()` method
+- Accurate hit rate tracking in dashboard
+
+### Changed
+
+#### Lexer v0.5.0
+- Updated to reference DiSyL v1.2.0 grammar
+- Added safe navigation operator (?.) to features
+
+#### Parser v0.4.0
+- Updated to reference DiSyL v1.2.0 grammar
+- AST version now outputs '1.2.0'
+- Source location tracking for rich error reporting
+
+#### CMSHeaderValidator v0.7.0
+- Now uses `Grammar::validateCMSDeclaration()`
+- Maintains backward compatibility with CMSLoader
+- Removes duplicate errors
+
+#### Kernel
+- Initializes ComponentRegistry with core components on boot
+- Logs Grammar version alongside DiSyL version
+
+### Fixed
+
+- **PHP 8.x Deprecation Warnings** - Fixed null parameter issues in Renderers
+  - `JoomlaRenderer.php` - Null coalescing for module content
+  - `WordPressRenderer.php` - is_string check before strpos
+  - `DrupalRenderer.php` - Null coalescing in filters
+
+- **Grammar Tests** - All 101 tests passing with 196 assertions
+  - Fixed `validateType()` visibility (now public)
+  - Fixed test expectations for type coercion behavior
+  - Fixed schema test to use `minLength`/`maxLength` for strings
+
+- **PHPUnit Configuration** - Updated for PHPUnit 10 compatibility
+  - Removed deprecated `verbose` attribute
+  - Changed `coverage` to `source` element
+
+### Documentation
+
+- **THE_FUTURE_OF_DISYL.md** - Comprehensive vision document
+  - Developer guide: Architecture, extensibility, roadmap
+  - Investor section: Market opportunity, business model, growth strategy
+  - Vision: DiSyL as "SQL of UI" - universal interface language
+
+### Version Summary
+
+```
+DiSyL Stack v1.2.0
+├── Grammar v1.2.0      ← Rich validation, security, Visual Builder API
+├── Lexer v0.5.0        ← Safe navigation operator
+├── Parser v0.4.0       ← AST v1.2.0, source locations
+├── Compiler v0.4.0     ← Grammar integration, strict mode
+├── Engine v0.5.0       ← Validation exposure, cache coordination
+├── ComponentRegistry v0.2.0 ← Platform support, Visual Builder
+└── CMSHeaderValidator v0.7.0 ← Grammar validation
+```
+
+---
+
 ## [1.3.0] - 2025-11-26
 
 ### 🚀 DiSyL Language Specification v1.0.0 & Performance Optimizations
@@ -601,6 +752,7 @@ The first stable release of Ikabud Kernel - a GNU/Linux-inspired CMS Operating S
 
 | Version | Release Date | Status | Notes |
 |---------|--------------|--------|-------|
+| 1.4.0 | 2025-11-26 | Stable | Grammar v1.2.0, rich validation, kernel alignment |
 | 1.3.0 | 2025-11-26 | Stable | DiSyL v1.0.0 spec & performance optimizations |
 | 1.2.0 | 2025-11-23 | Stable | DiSyL module/block content processing |
 | 1.1.0 | 2025-11-22 | Stable | DSL auto-rendering integration |
@@ -611,6 +763,44 @@ The first stable release of Ikabud Kernel - a GNU/Linux-inspired CMS Operating S
 ---
 
 ## Upgrade Guide
+
+### From 1.3.0 to 1.4.0
+
+1. **Pull latest changes**
+   ```bash
+   cd /var/www/html/ikabud-kernel
+   git pull origin master
+   ```
+
+2. **No database changes required** - This is a feature enhancement release
+
+3. **Clear all caches** (recommended for Grammar changes)
+   ```bash
+   rm -rf storage/cache/*.cache
+   rm -rf storage/cache/.cache_stats.json
+   rm -rf storage/api-cache/*
+   # Or use the dashboard "Clear All Cache" button
+   ```
+
+4. **Restart instances** (optional, for immediate effect)
+   ```bash
+   ikabud restart <instance-id>
+   ```
+
+5. **Update code** (optional)
+   - Use `setStrictMode(false)` for lenient validation during migration
+   - Access `getValidationResult()` for rich error details
+   - Use `Grammar::getAvailableComponents()` for Visual Builder integration
+
+6. **Review deprecation warnings**
+   - Check logs for escaping warnings on expressions
+   - Add `| esc_html` filter to unescaped output
+
+**Breaking Changes:** None  
+**Backward Compatible:** Yes (100%)  
+**Migration Required:** No
+
+---
 
 ### From 1.2.0 to 1.3.0
 
