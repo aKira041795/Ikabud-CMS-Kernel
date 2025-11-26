@@ -1,21 +1,23 @@
 <?php
 /**
- * DiSyL Compiler v0.2
+ * DiSyL Compiler v0.4.0
  * 
  * Validates and optimizes AST from Parser
- * Integrates with Manifest v0.2 for:
+ * Integrates with Grammar v1.2.0 for:
  * - Component capabilities validation
- * - Filter validation
- * - Attribute validation
+ * - Filter validation with type chain checking
+ * - Attribute validation with rich errors
+ * - Platform compatibility checking
+ * - Security validation (escaping warnings)
  * - Deprecation warnings
  * 
- * Performance optimizations (v0.3.0):
+ * Performance optimizations:
  * - Component validation caching
  * - Lazy Grammar initialization
  * - Reduced array allocations
  * - Optimized tree traversal
  * 
- * @version 0.3.0
+ * @version 0.4.0
  */
 
 namespace IkabudKernel\Core\DiSyL;
@@ -31,12 +33,16 @@ class Compiler
     private array $errors = [];
     private array $warnings = [];
     private ?string $cmsType = null;
+    private bool $strictMode = true;
     
     /** @var array Cache for validated components */
     private static array $validatedComponents = [];
     
     /** @var array Cache for filter validation */
     private static array $validatedFilters = [];
+    
+    /** @var ValidationResult|null Rich validation result */
+    private ?ValidationResult $validationResult = null;
     
     /**
      * Constructor
@@ -53,8 +59,30 @@ class Compiler
     {
         if ($this->grammar === null) {
             $this->grammar = new Grammar();
+            // Sync validation mode
+            $this->grammar->setMode($this->strictMode ? Grammar::MODE_STRICT : Grammar::MODE_LENIENT);
         }
         return $this->grammar;
+    }
+    
+    /**
+     * Set validation mode (strict or lenient)
+     */
+    public function setStrictMode(bool $strict): self
+    {
+        $this->strictMode = $strict;
+        if ($this->grammar !== null) {
+            $this->grammar->setMode($strict ? Grammar::MODE_STRICT : Grammar::MODE_LENIENT);
+        }
+        return $this;
+    }
+    
+    /**
+     * Get rich validation result
+     */
+    public function getValidationResult(): ?ValidationResult
+    {
+        return $this->validationResult;
     }
     
     /**
@@ -78,6 +106,7 @@ class Compiler
         
         $this->errors = [];
         $this->warnings = [];
+        $this->validationResult = new ValidationResult();
         
         // Process CMS header declaration if present
         if (isset($ast['cms_header']) && $ast['cms_header'] !== null) {
@@ -85,7 +114,12 @@ class Compiler
         }
         
         // Extract CMS type from context (can be overridden by header)
-        $this->cmsType = $context['cms_type'] ?? null;
+        $this->cmsType = $context['cms_type'] ?? $this->cmsType ?? null;
+        
+        // Validate platform if specified
+        if ($this->cmsType !== null && !$this->getGrammar()->validatePlatform($this->cmsType)) {
+            $this->addWarning(sprintf('Unknown platform: %s', $this->cmsType));
+        }
         
         // Check cache first
         $cacheKey = $this->generateCacheKey($ast, $context);
@@ -121,10 +155,14 @@ class Compiler
         $ast['metadata'] = [
             'compilation_time_ms' => (microtime(true) - $startTime) * 1000,
             'cache_key' => $cacheKey,
-            'version' => '0.1',
+            'compiler_version' => '0.4.0',
+            'grammar_version' => Grammar::SCHEMA_VERSION,
+            'platform' => $this->cmsType,
             'compiled_at' => time(),
+            'strict_mode' => $this->strictMode,
             'errors' => $this->errors,
-            'warnings' => $this->warnings
+            'warnings' => $this->warnings,
+            'validation' => $this->validationResult->jsonSerialize(),
         ];
         
         // Cache compiled AST
@@ -173,10 +211,30 @@ class Compiler
     {
         // Only validate tag nodes
         if ($node['type'] !== 'tag') {
+            // Validate expressions for security
+            if ($node['type'] === 'expression' && isset($node['value'])) {
+                $this->validateExpressionSecurity($node);
+            }
             return $node;
         }
         
         $tagName = $node['name'];
+        $line = $node['loc']['line'] ?? $node['line'] ?? null;
+        $column = $node['loc']['column'] ?? $node['column'] ?? null;
+        
+        // Validate tag name syntax
+        if (!$this->getGrammar()->validateNamespacedIdentifier($tagName)) {
+            $this->addError(sprintf('Invalid component name: %s', $tagName), $node);
+            return $node;
+        }
+        
+        // Check platform compatibility
+        if ($this->cmsType !== null && !$this->getGrammar()->isComponentCompatible($tagName, $this->cmsType)) {
+            $this->addWarning(
+                sprintf('Component "%s" may not be compatible with platform "%s"', $tagName, $this->cmsType),
+                $node
+            );
+        }
         
         // Check if component is registered
         if (!ComponentRegistry::has($tagName)) {
@@ -190,22 +248,26 @@ class Compiler
         // Get component definition
         $component = ComponentRegistry::get($tagName);
         
-        // Validate attributes
-        $schemas = $component['attributes'] ?? [];
+        // Use Grammar's rich validation for props
         $attrs = $node['attrs'] ?? [];
+        $result = $this->getGrammar()->validateComponentPropsRich($tagName, $attrs, $line, $column);
         
-        $validationErrors = $this->getGrammar()->validateAttributes($attrs, $schemas);
+        // Merge validation results
+        $this->validationResult->merge($result);
         
-        foreach ($validationErrors as $error) {
-            $this->addError($error, $node);
+        // Also add to legacy error/warning arrays
+        foreach ($result->getErrors() as $error) {
+            $this->addError($error->message, $node);
+        }
+        foreach ($result->getWarnings() as $warning) {
+            $this->addWarning($warning->message, $node);
         }
         
-        // Check if leaf component has children
-        if ($component['leaf'] === true && !empty($node['children'])) {
-            $this->addWarning(
-                sprintf('Component "%s" is a leaf and should not have children', $tagName),
-                $node
-            );
+        // Validate slots
+        $slots = isset($node['children']) && !empty($node['children']) ? ['default' => true] : [];
+        $slotErrors = $this->getGrammar()->validateSlots($tagName, $slots);
+        foreach ($slotErrors as $error) {
+            $this->addWarning($error, $node);
         }
         
         // Recursively validate children
@@ -217,6 +279,38 @@ class Compiler
         }
         
         return $node;
+    }
+    
+    /**
+     * Validate expression for security (escaping)
+     */
+    private function validateExpressionSecurity(array $node): void
+    {
+        $expr = $node['value'] ?? '';
+        if (empty($expr)) {
+            return;
+        }
+        
+        // Parse and check for escaping
+        $parsed = $this->getGrammar()->parseExpression('{' . $expr . '}');
+        
+        if (!$parsed['hasEscaping'] && $this->strictMode) {
+            $this->addWarning(
+                sprintf('Expression "{%s}" has no escaping filter - consider using esc_html', $expr),
+                $node
+            );
+            
+            $this->validationResult->addError(new ValidationError(
+                sprintf('Expression has no escaping filter', $expr),
+                'MISSING_ESCAPING',
+                'expression',
+                null,
+                $node['loc']['line'] ?? $node['line'] ?? null,
+                $node['loc']['column'] ?? $node['column'] ?? null,
+                $expr,
+                'warning'
+            ));
+        }
     }
     
     /**
@@ -440,7 +534,7 @@ class Compiler
     }
     
     /**
-     * Validate filters in expressions (v0.2)
+     * Validate filters in expressions (v0.4 - uses Grammar filter registry)
      */
     private function validateFilters(array $ast): array
     {
@@ -452,23 +546,34 @@ class Compiler
             if ($node['type'] === 'tag' && isset($node['attrs'])) {
                 foreach ($node['attrs'] as $attrName => &$attrValue) {
                     if (is_array($attrValue) && ($attrValue['type'] ?? '') === 'filtered_expression') {
-                        // Validate each filter
-                        foreach ($attrValue['filters'] as $filter) {
-                            $filterName = $filter['name'];
-                            
-                            // Get filter definition (v0.4 or v0.2)
-                            if (class_exists('\\IkabudKernel\\Core\\DiSyL\\ModularManifestLoader')) {
-                                $filterDef = \IkabudKernel\Core\DiSyL\ModularManifestLoader::getFilter($filterName);
-                            } else {
-                                $filterDef = ManifestLoader::getFilter($filterName);
-                            }
-                            
-                            if (!$filterDef) {
-                                $this->addError(
-                                    "Unknown filter '{$filterName}' in attribute '{$attrName}'",
-                                    $node
-                                );
-                            }
+                        // Build filter chain string for validation
+                        $filterChain = '|' . implode('|', array_map(
+                            fn($f) => $f['name'] . (isset($f['args']) ? ':' . implode(',', $f['args']) : ''),
+                            $attrValue['filters']
+                        ));
+                        
+                        // Use Grammar's filter chain validation with platform check
+                        $result = $this->getGrammar()->validateFilterChainRich(
+                            $filterChain,
+                            $this->cmsType
+                        );
+                        
+                        // Merge results
+                        $this->validationResult->merge($result);
+                        
+                        foreach ($result->getErrors() as $error) {
+                            $this->addError($error->message, $node);
+                        }
+                        foreach ($result->getWarnings() as $warning) {
+                            $this->addWarning($warning->message, $node);
+                        }
+                    }
+                    
+                    // Also check string attributes that might contain expressions
+                    if (is_string($attrValue) && preg_match('/\{[^}]+\|[^}]+\}/', $attrValue)) {
+                        $errors = $this->getGrammar()->validateFilterChain($attrValue, $this->cmsType);
+                        foreach ($errors as $error) {
+                            $this->addWarning($error, $node);
                         }
                     }
                 }
@@ -523,12 +628,21 @@ class Compiler
         $cmsType = $cmsHeader['type'] ?? null;
         $sets = $cmsHeader['sets'] ?? [];
         
-        if (!$cmsType) {
-            $this->addError('CMS header missing type attribute');
+        // Use Grammar's CMS declaration validation
+        $errors = $this->getGrammar()->validateCMSDeclaration([
+            'type' => $cmsType,
+            'set' => implode(',', $sets),
+        ]);
+        
+        foreach ($errors as $error) {
+            $this->addError($error);
+        }
+        
+        if (!empty($errors)) {
             return;
         }
         
-        // Validate CMS type
+        // Also validate with CMSLoader for backward compatibility
         if (!CMSLoader::isValidCMSType($cmsType)) {
             $this->addError(
                 sprintf(
@@ -569,5 +683,15 @@ class Compiler
         } catch (CMSLoaderException $e) {
             $this->addError('Failed to load CMS manifests: ' . $e->getMessage());
         }
+    }
+    
+    /**
+     * Clear validation caches
+     */
+    public static function clearCache(): void
+    {
+        self::$validatedComponents = [];
+        self::$validatedFilters = [];
+        Grammar::clearCache();
     }
 }

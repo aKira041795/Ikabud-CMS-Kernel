@@ -1,24 +1,27 @@
 <?php
 /**
- * DiSyL Engine
+ * DiSyL Engine v0.5.0
  * 
  * Orchestrates the DiSyL compilation and rendering pipeline:
  * Template → Lexer → Parser → Compiler → Renderer → HTML
  * 
  * This is the main entry point for DiSyL template processing.
  * 
- * Supports DiSyL v0.2 grammar:
- * - Filter pipelines with multiple arguments
+ * Supports DiSyL v1.2.0 Grammar:
+ * - Filter pipelines with type chain validation
  * - Named and positional filter arguments
- * - Enhanced expression evaluation
- * - Unicode support
+ * - Platform compatibility checking
+ * - Rich validation with source mapping
+ * - Security validation (escaping warnings)
+ * - Strict/lenient validation modes
  * 
- * Performance optimizations (v0.4.0):
+ * Performance optimizations:
  * - APCu caching for compiled AST (fastest)
  * - In-memory LRU cache fallback
  * - File-based cache as last resort
+ * - Grammar expression caching
  * 
- * @version 0.4.0
+ * @version 0.5.0
  */
 
 namespace IkabudKernel\Core\DiSyL;
@@ -35,6 +38,7 @@ class Engine
     private Compiler $compiler;
     private $cache; // Mixed type for compatibility
     private ?string $defaultCMSType = null; // Default CMS type if no header present
+    private bool $strictMode = true;
     
     /** @var array In-memory LRU cache for compiled ASTs */
     private static array $memoryCache = [];
@@ -53,19 +57,87 @@ class Engine
      * 
      * @param mixed $cache Optional cache instance
      * @param string|null $defaultCMSType Default CMS type for templates without header
+     * @param bool $strictMode Whether to use strict validation mode
      */
-    public function __construct($cache = null, ?string $defaultCMSType = null)
+    public function __construct($cache = null, ?string $defaultCMSType = null, bool $strictMode = true)
     {
         $this->lexer = new Lexer();
         $this->parser = new Parser();
         $this->compiler = new Compiler($cache);
         $this->cache = $cache;
         $this->defaultCMSType = $defaultCMSType;
+        $this->strictMode = $strictMode;
+        
+        // Set compiler strict mode
+        $this->compiler->setStrictMode($strictMode);
         
         // Check APCu availability once
         if (self::$apcuAvailable === null) {
             self::$apcuAvailable = function_exists('apcu_fetch') && apcu_enabled();
         }
+    }
+    
+    /**
+     * Set validation mode
+     * 
+     * @param bool $strict True for strict mode (errors block), false for lenient (warnings only)
+     * @return self
+     */
+    public function setStrictMode(bool $strict): self
+    {
+        $this->strictMode = $strict;
+        $this->compiler->setStrictMode($strict);
+        return $this;
+    }
+    
+    /**
+     * Get validation result from last compilation
+     * 
+     * @return ValidationResult|null
+     */
+    public function getValidationResult(): ?ValidationResult
+    {
+        return $this->compiler->getValidationResult();
+    }
+    
+    /**
+     * Check if last compilation had errors
+     * 
+     * @return bool
+     */
+    public function hasErrors(): bool
+    {
+        return $this->compiler->hasErrors();
+    }
+    
+    /**
+     * Check if last compilation had warnings
+     * 
+     * @return bool
+     */
+    public function hasWarnings(): bool
+    {
+        return $this->compiler->hasWarnings();
+    }
+    
+    /**
+     * Get errors from last compilation
+     * 
+     * @return array
+     */
+    public function getErrors(): array
+    {
+        return $this->compiler->getErrors();
+    }
+    
+    /**
+     * Get warnings from last compilation
+     * 
+     * @return array
+     */
+    public function getWarnings(): array
+    {
+        return $this->compiler->getWarnings();
     }
     
     /**
@@ -191,6 +263,10 @@ class Engine
     public static function clearCache(bool $includeApcu = true): void
     {
         self::$memoryCache = [];
+        
+        // Clear Grammar and Compiler caches
+        Grammar::clearCache();
+        Compiler::clearCache();
         
         if ($includeApcu && self::$apcuAvailable) {
             // Clear only DiSyL keys

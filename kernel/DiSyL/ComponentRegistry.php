@@ -1,10 +1,14 @@
 <?php
 /**
- * DiSyL Component Registry
+ * DiSyL Component Registry v0.2.0
  * 
- * Manages component definitions and schemas for DiSyL v0.1
+ * Manages component definitions and schemas for DiSyL v1.2.0
+ * Aligned with Grammar v1.2.0 for:
+ * - Platform compatibility
+ * - Slot definitions
+ * - Rich prop schemas
  * 
- * @version 0.1.0
+ * @version 0.2.0
  */
 
 namespace IkabudKernel\Core\DiSyL;
@@ -12,13 +16,18 @@ namespace IkabudKernel\Core\DiSyL;
 class ComponentRegistry
 {
     /**
-     * Component categories
+     * Component categories (aligned with Grammar::COMPONENT_CATEGORIES)
      */
     public const CATEGORY_STRUCTURAL = 'structural';
     public const CATEGORY_DATA = 'data';
     public const CATEGORY_UI = 'ui';
     public const CATEGORY_CONTROL = 'control';
     public const CATEGORY_MEDIA = 'media';
+    public const CATEGORY_LAYOUT = 'layout';
+    public const CATEGORY_CONTENT = 'content';
+    public const CATEGORY_INTERACTIVE = 'interactive';
+    public const CATEGORY_NAVIGATION = 'navigation';
+    public const CATEGORY_FORM = 'form';
     
     /**
      * Registered components
@@ -38,8 +47,11 @@ class ComponentRegistry
             'category' => self::CATEGORY_UI,
             'description' => '',
             'attributes' => [],
+            'slots' => [],
             'leaf' => false,
-            'renderer' => null
+            'renderer' => null,
+            'platforms' => [Grammar::PLATFORM_UNIVERSAL], // Default: works everywhere
+            'version' => '1.0.0',
         ], $definition);
     }
     
@@ -107,6 +119,76 @@ class ComponentRegistry
     public static function clear(): void
     {
         self::$components = [];
+    }
+    
+    /**
+     * List all components (for Visual Builder)
+     * 
+     * @param string|null $platform Filter by platform
+     * @param string|null $category Filter by category
+     * @return array Component list with metadata
+     */
+    public static function list(?string $platform = null, ?string $category = null): array
+    {
+        $result = [];
+        
+        foreach (self::$components as $name => $def) {
+            // Filter by category
+            if ($category !== null && ($def['category'] ?? '') !== $category) {
+                continue;
+            }
+            
+            // Filter by platform
+            if ($platform !== null && isset($def['platforms'])) {
+                $platforms = $def['platforms'];
+                if (!in_array(Grammar::PLATFORM_UNIVERSAL, $platforms, true) &&
+                    !in_array($platform, $platforms, true)) {
+                    continue;
+                }
+            }
+            
+            $result[] = [
+                'name' => $name,
+                'category' => $def['category'] ?? 'ui',
+                'description' => $def['description'] ?? '',
+                'leaf' => $def['leaf'] ?? false,
+                'platforms' => $def['platforms'] ?? [Grammar::PLATFORM_UNIVERSAL],
+                'version' => $def['version'] ?? '1.0.0',
+            ];
+        }
+        
+        return $result;
+    }
+    
+    /**
+     * Get component slots
+     * 
+     * @param string $name Component name
+     * @return array Slot definitions
+     */
+    public static function getSlots(string $name): array
+    {
+        $component = self::get($name);
+        return $component ? ($component['slots'] ?? []) : [];
+    }
+    
+    /**
+     * Check if component supports platform
+     * 
+     * @param string $name Component name
+     * @param string $platform Platform identifier
+     * @return bool
+     */
+    public static function supportsPlatform(string $name, string $platform): bool
+    {
+        $component = self::get($name);
+        if (!$component) {
+            return false;
+        }
+        
+        $platforms = $component['platforms'] ?? [Grammar::PLATFORM_UNIVERSAL];
+        return in_array(Grammar::PLATFORM_UNIVERSAL, $platforms, true) ||
+               in_array($platform, $platforms, true);
     }
     
     /**
