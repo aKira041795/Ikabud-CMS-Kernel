@@ -321,12 +321,13 @@ class DrupalRenderer extends BaseRenderer
             
             if (is_numeric($value)) {
                 // If format is a PHP date format (not Drupal format type)
+                $format = $format ?? '';
                 if (strpos($format, ' ') !== false || strlen($format) > 10) {
                     return date($format, $value);
                 }
                 return \Drupal::service('date.formatter')->format($value, $format);
             }
-            return $value;
+            return $value ?? '';
         });
         
         // Truncate text
@@ -346,6 +347,7 @@ class DrupalRenderer extends BaseRenderer
                 }
             }
             
+            $value = $value ?? '';
             if (mb_strlen($value) > $length) {
                 return mb_substr($value, 0, $length) . $append;
             }
@@ -354,7 +356,7 @@ class DrupalRenderer extends BaseRenderer
         
         // Strip tags
         $this->registerFilter('strip_tags', function($value) {
-            return strip_tags($value);
+            return strip_tags($value ?? '');
         });
         
         // Translate

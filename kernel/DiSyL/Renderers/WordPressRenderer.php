@@ -825,6 +825,11 @@ class WordPressRenderer extends ManifestDrivenRenderer
      * @return string Rendered content with DiSyL processed
      */
     public static function processEmbeddedDisyl($content) {
+        // Ensure content is a string
+        if (!is_string($content) || $content === '') {
+            return $content ?? '';
+        }
+        
         // Quick check if content contains DiSyL syntax
         if (strpos($content, '{ikb_') === false && strpos($content, '{item.') === false && strpos($content, '{if ') === false) {
             return $content; // No DiSyL code, return as-is

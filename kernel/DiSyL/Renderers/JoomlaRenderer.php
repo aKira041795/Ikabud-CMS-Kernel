@@ -552,13 +552,14 @@ class JoomlaRenderer extends BaseRenderer
             $output = '';
             foreach ($modules as $module) {
                 // Process DiSyL codes in module content if present
-                $moduleContent = $module->content;
+                $moduleContent = $module->content ?? '';
                 
                 // Check if content contains DiSyL syntax
-                if (strpos($moduleContent, '{ikb_') !== false || 
+                if ($moduleContent !== '' && (
+                    strpos($moduleContent, '{ikb_') !== false || 
                     strpos($moduleContent, '{joomla_') !== false || 
                     strpos($moduleContent, '{if ') !== false || 
-                    strpos($moduleContent, '{for ') !== false) {
+                    strpos($moduleContent, '{for ') !== false)) {
                     
                     try {
                         // Create a new engine instance to compile and render DiSyL content
