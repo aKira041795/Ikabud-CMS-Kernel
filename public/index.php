@@ -129,9 +129,16 @@ $requestPath = $_SERVER['REQUEST_URI'] ?? '/';
 
 // Check if this is an API request
 if (strpos($requestPath, '/api/') === 0) {
-    // Extract the API endpoint prefix (e.g., /api/v1/instances -> instances)
+    // Extract the API endpoint prefix
+    // Handles both /api/v1/instances and /api/instances (legacy)
     $pathParts = explode('/', trim($requestPath, '/'));
-    $apiPrefix = $pathParts[2] ?? ''; // Skip 'api' and 'v1'
+    
+    // Determine prefix: skip 'api' and optionally 'v1'
+    if (isset($pathParts[1]) && $pathParts[1] === 'v1') {
+        $apiPrefix = $pathParts[2] ?? ''; // /api/v1/instances -> instances
+    } else {
+        $apiPrefix = $pathParts[1] ?? ''; // /api/instances -> instances (legacy)
+    }
     
     // Load only matching route files
     $routesLoaded = false;

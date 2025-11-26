@@ -71,6 +71,7 @@ $monitorHandler = function (Request $request, Response $response) {
     }
 };
 
+// Legacy route (without v1 prefix to avoid conflict with /api/v1/instances/{id})
 $app->get('/api/instances/monitor', $monitorHandler)->add(new JWTMiddleware());
 
 // Start instance
