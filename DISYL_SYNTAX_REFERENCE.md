@@ -1,8 +1,9 @@
-# DiSyL Syntax Reference Guide
-## Complete Documentation for All Supported CMS Platforms
+# DiSyL Language Specification
+## Universal Declarative Template Language for Multi-Platform Development
 
-**Version:** 0.6.0  
-**Last Updated:** November 23, 2025  
+**Version:** 1.0.0  
+**Last Updated:** November 26, 2025  
+**Specification Level:** Formal  
 **License:** MIT
 
 ---
@@ -10,39 +11,225 @@
 ## Table of Contents
 
 1. [Introduction](#introduction)
-2. [Core Syntax](#core-syntax)
-3. [Universal Components](#universal-components)
-4. [WordPress-Specific Syntax](#wordpress-specific-syntax)
-5. [Joomla-Specific Syntax](#joomla-specific-syntax)
-6. [Drupal-Specific Syntax](#drupal-specific-syntax)
-7. [Filters Reference](#filters-reference)
-8. [Conditional Logic](#conditional-logic)
-9. [Loops & Queries](#loops--queries)
-10. [Best Practices](#best-practices)
+2. [Formal Grammar (EBNF)](#formal-grammar-ebnf)
+3. [Core Language Constructs](#core-language-constructs)
+4. [Platform Abstraction Layer](#platform-abstraction-layer)
+5. [Universal Components](#universal-components)
+6. [Platform-Specific Extensions](#platform-specific-extensions)
+7. [Filter System](#filter-system)
+8. [Control Flow](#control-flow)
+9. [Data Binding & Queries](#data-binding--queries)
+10. [Visual Builder Integration](#visual-builder-integration)
+11. [Mobile & App Development](#mobile--app-development)
+12. [Desktop Application Support](#desktop-application-support)
+13. [Extensibility & Custom Platforms](#extensibility--custom-platforms)
+14. [Best Practices](#best-practices)
+15. [Appendix](#appendix)
 
 ---
 
 ## Introduction
 
-DiSyL (Declarative Ikabud Syntax Language) is a universal, CMS-agnostic template language that enables developers to write templates once and deploy them across multiple CMS platforms.
+DiSyL (Declarative Ikabud Syntax Language) is a **universal, platform-agnostic declarative language** designed for building user interfaces across any platform: web CMSs, mobile applications, desktop software, visual builders, and custom rendering targets.
 
-### Key Features
+### Design Philosophy
 
-- **Write Once, Deploy Everywhere** - Single template syntax for all CMSs
-- **High Performance** - Compiled AST with caching
-- **Security First** - Built-in XSS prevention
-- **Rich Component Library** - 50+ components and filters
+1. **Platform Independence** - Write once, render anywhere
+2. **Declarative First** - Describe *what* you want, not *how* to build it
+3. **Progressive Enhancement** - Core features work everywhere; platform-specific features enhance
+4. **Type Safety** - Optional strong typing for enterprise applications
+5. **Extensibility** - Plugin architecture for custom platforms and components
 
-### Supported CMS Platforms
+### Supported Platforms
 
+#### Web CMS
 - ✅ WordPress
 - ✅ Joomla
-- ✅ Drupal (in development)
+- ✅ Drupal
 - ✅ Ikabud CMS (native)
+- 🔌 Custom CMS (via adapter)
+
+#### Mobile & Apps
+- 📱 React Native (via transpiler)
+- 📱 Flutter (via transpiler)
+- 📱 Native iOS/Android (via code generation)
+
+#### Desktop
+- 🖥️ Electron
+- 🖥️ Tauri
+- 🖥️ Native (via code generation)
+
+#### Visual Builders
+- 🎨 Drag-and-drop editors
+- 🎨 No-code platforms
+- 🎨 Design system integration
 
 ---
 
-## Core Syntax
+## Formal Grammar (EBNF)
+
+The following Extended Backus-Naur Form (EBNF) defines the complete DiSyL grammar.
+
+### Lexical Grammar
+
+```ebnf
+(* Character Classes *)
+letter          = "A" | "B" | ... | "Z" | "a" | "b" | ... | "z" ;
+digit           = "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" ;
+unicode_char    = ? any Unicode character except control characters ? ;
+whitespace      = " " | "\t" | "\n" | "\r" ;
+
+(* Identifiers *)
+identifier_start = letter | "_" ;
+identifier_char  = letter | digit | "_" | "-" | "." ;
+identifier       = identifier_start , { identifier_char } ;
+
+(* Namespaced Identifiers - for platform-specific components *)
+namespace        = identifier ;
+namespaced_id    = [ namespace , ":" ] , identifier ;
+
+(* Literals *)
+integer_literal  = [ "-" ] , digit , { digit } ;
+float_literal    = integer_literal , "." , digit , { digit } ;
+number_literal   = float_literal | integer_literal ;
+
+string_char      = unicode_char - ( '"' | "'" | "\\" ) | escape_sequence ;
+escape_sequence  = "\\" , ( '"' | "'" | "\\" | "n" | "r" | "t" | "{" | "}" | "0" ) ;
+string_literal   = ( '"' , { string_char } , '"' ) 
+                 | ( "'" , { string_char } , "'" ) ;
+
+boolean_literal  = "true" | "false" ;
+null_literal     = "null" ;
+
+literal          = string_literal | number_literal | boolean_literal | null_literal ;
+```
+
+### Syntactic Grammar
+
+```ebnf
+(* Document Structure *)
+document         = [ platform_header ] , { node } ;
+platform_header  = "{" , "ikb_platform" , platform_attrs , "/" , "}" ;
+platform_attrs   = { platform_attr } ;
+platform_attr    = identifier , "=" , ( string_literal | identifier ) ;
+
+(* Nodes *)
+node             = text_node | comment_node | tag_node | expression_node ;
+
+text_node        = { unicode_char - "{" } ;
+
+comment_node     = "{!--" , { unicode_char } , "--}" ;
+
+(* Tags *)
+tag_node         = opening_tag | self_closing_tag ;
+opening_tag      = "{" , namespaced_id , attributes , "}" , 
+                   { node } , 
+                   "{/" , namespaced_id , "}" ;
+self_closing_tag = "{" , namespaced_id , attributes , "/" , "}" ;
+
+(* Attributes *)
+attributes       = { attribute } ;
+attribute        = identifier , [ "=" , attribute_value ] ;
+attribute_value  = literal | expression | typed_value ;
+typed_value      = "(" , type_annotation , ")" , literal ;
+type_annotation  = "string" | "number" | "boolean" | "array" | "object" | custom_type ;
+custom_type      = identifier ;
+
+(* Expressions *)
+expression_node  = "{" , expression , "}" ;
+expression       = primary_expr , { filter_chain } ;
+primary_expr     = property_access | literal | function_call | grouped_expr ;
+property_access  = identifier , { "." , identifier } , { "[" , expression , "]" } ;
+function_call    = identifier , "(" , [ argument_list ] , ")" ;
+grouped_expr     = "(" , expression , ")" ;
+
+(* Filter Chain *)
+filter_chain     = "|" , filter_expr , { "|" , filter_expr } ;
+filter_expr      = identifier , [ ":" , filter_args ] ;
+filter_args      = filter_arg , { "," , filter_arg } ;
+filter_arg       = [ identifier , "=" ] , ( literal | expression ) ;
+
+(* Argument List *)
+argument_list    = argument , { "," , argument } ;
+argument         = [ identifier , "=" ] , expression ;
+
+(* Control Structures *)
+if_statement     = "{if" , condition_attr , "}" , 
+                   { node } ,
+                   [ else_clause ] ,
+                   "{/if}" ;
+else_clause      = "{else}" , { node } 
+                 | "{elseif" , condition_attr , "}" , { node } , [ else_clause ] ;
+condition_attr   = "condition" , "=" , string_literal ;
+
+for_statement    = "{for" , for_attrs , "}" , 
+                   { node } , 
+                   [ empty_clause ] ,
+                   "{/for}" ;
+for_attrs        = "items" , "=" , expression , "as" , "=" , identifier , 
+                   [ "," , "key" , "=" , identifier ] ;
+empty_clause     = "{empty}" , { node } ;
+
+(* Query Statement - Universal Data Fetching *)
+query_statement  = "{" , query_component , query_attrs , "}" ,
+                   { node } ,
+                   "{/" , query_component , "}" ;
+query_component  = "ikb_query" | platform_query ;
+platform_query   = namespace , ":" , "query" ;
+query_attrs      = { query_attr } ;
+query_attr       = identifier , "=" , ( literal | expression ) ;
+
+(* Slot System - For Component Composition *)
+slot_definition  = "{slot" , [ slot_attrs ] , "/" , "}" 
+                 | "{slot" , [ slot_attrs ] , "}" , { node } , "{/slot}" ;
+slot_attrs       = "name" , "=" , string_literal , [ "," , "fallback" , "=" , string_literal ] ;
+
+(* Template Inclusion *)
+include_stmt     = "{ikb_include" , include_attrs , "/" , "}" ;
+include_attrs    = "template" , "=" , string_literal , { "," , attribute } ;
+
+(* Component Definition - For Reusable Components *)
+component_def    = "{ikb_component" , component_attrs , "}" ,
+                   [ props_def ] ,
+                   [ slots_def ] ,
+                   template_body ,
+                   "{/ikb_component}" ;
+component_attrs  = "name" , "=" , string_literal , { "," , attribute } ;
+props_def        = "{props}" , { prop_def } , "{/props}" ;
+prop_def         = "{prop" , prop_attrs , "/" , "}" ;
+prop_attrs       = "name" , "=" , string_literal , 
+                   [ "," , "type" , "=" , type_annotation ]
+                   [ "," , "default" , "=" , literal ]
+                   [ "," , "required" , "=" , boolean_literal ] ;
+slots_def        = "{slots}" , { slot_def } , "{/slots}" ;
+slot_def         = "{slot" , slot_def_attrs , "/" , "}" ;
+slot_def_attrs   = "name" , "=" , string_literal , [ "," , "required" , "=" , boolean_literal ] ;
+template_body    = "{template}" , { node } , "{/template}" ;
+```
+
+### Semantic Constraints
+
+```ebnf
+(* Platform Compatibility Rules *)
+platform_rule    = "PLATFORM" , "(" , platform_list , ")" , ":" , rule_body ;
+platform_list    = platform_id , { "," , platform_id } ;
+platform_id      = "wordpress" | "joomla" | "drupal" | "react_native" 
+                 | "flutter" | "electron" | "tauri" | "native" | "*" ;
+rule_body        = component_rule | filter_rule | attribute_rule ;
+
+(* Type Constraints *)
+type_constraint  = "TYPE" , "(" , identifier , ")" , ":" , type_spec ;
+type_spec        = primitive_type | array_type | object_type | union_type ;
+primitive_type   = "string" | "number" | "boolean" | "null" ;
+array_type       = "array" , "<" , type_spec , ">" ;
+object_type      = "object" , "<" , { prop_type } , ">" ;
+prop_type        = identifier , ":" , type_spec ;
+union_type       = type_spec , "|" , type_spec , { "|" , type_spec } ;
+```
+
+---
+
+## Core Language Constructs
 
 ### Comments
 
@@ -54,9 +241,93 @@ DiSyL (Declarative Ikabud Syntax Language) is a universal, CMS-agnostic template
 --}
 ```
 
-### CMS Header Declaration
+---
 
-Declare which CMS your template targets (optional but recommended):
+## Platform Abstraction Layer
+
+DiSyL uses a **Platform Abstraction Layer (PAL)** to enable cross-platform compatibility while allowing platform-specific optimizations.
+
+### Platform Declaration
+
+Every DiSyL document can declare its target platform(s):
+
+```disyl
+{ikb_platform 
+    type="web"
+    targets="wordpress,joomla,drupal"
+    fallback="generic"
+    version="1.0"
+/}
+```
+
+**Attributes:**
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `type` | string | Platform category: `web`, `mobile`, `desktop`, `universal` |
+| `targets` | string | Comma-separated target platforms |
+| `fallback` | string | Fallback platform if target unavailable |
+| `version` | string | DiSyL version requirement |
+| `strict` | boolean | Fail on unsupported features (default: false) |
+| `features` | string | Required features: `components`, `filters`, `queries`, `slots` |
+
+### Platform Categories
+
+#### Web Platforms
+
+```disyl
+{!-- WordPress --}
+{ikb_platform type="web" targets="wordpress" /}
+
+{!-- Joomla --}
+{ikb_platform type="web" targets="joomla" /}
+
+{!-- Drupal --}
+{ikb_platform type="web" targets="drupal" /}
+
+{!-- Multi-CMS (renders on any) --}
+{ikb_platform type="web" targets="wordpress,joomla,drupal" fallback="generic" /}
+```
+
+#### Mobile Platforms
+
+```disyl
+{!-- React Native --}
+{ikb_platform type="mobile" targets="react_native" /}
+
+{!-- Flutter --}
+{ikb_platform type="mobile" targets="flutter" /}
+
+{!-- Native iOS/Android --}
+{ikb_platform type="mobile" targets="ios,android" /}
+
+{!-- Cross-platform mobile --}
+{ikb_platform type="mobile" targets="react_native,flutter" /}
+```
+
+#### Desktop Platforms
+
+```disyl
+{!-- Electron --}
+{ikb_platform type="desktop" targets="electron" /}
+
+{!-- Tauri --}
+{ikb_platform type="desktop" targets="tauri" /}
+
+{!-- Native desktop --}
+{ikb_platform type="desktop" targets="windows,macos,linux" /}
+```
+
+#### Universal (All Platforms)
+
+```disyl
+{!-- Works everywhere --}
+{ikb_platform type="universal" /}
+```
+
+### Legacy CMS Declaration (Backward Compatible)
+
+For backward compatibility, the legacy `ikb_cms` syntax is still supported:
 
 ```disyl
 {ikb_cms type="wordpress" set="components,filters" /}
@@ -66,18 +337,36 @@ Declare which CMS your template targets (optional but recommended):
 - `type` - CMS type: `wordpress`, `joomla`, `drupal`, or `generic`
 - `set` - Comma-separated list: `filters`, `components`, `hooks`, `functions`
 
-**Examples:**
+### Platform Feature Detection
 
 ```disyl
-{!-- WordPress template --}
-{ikb_cms type="wordpress" /}
+{!-- Check if platform supports a feature --}
+{if condition="platform.supports('slots')"}
+    {slot name="header" /}
+{else}
+    {ikb_include template="header.disyl" /}
+{/if}
 
-{!-- Joomla template --}
-{ikb_cms type="joomla" set="components,filters" /}
-
-{!-- Generic template --}
-{ikb_cms type="generic" /}
+{!-- Platform-specific rendering --}
+{if condition="platform.is('wordpress')"}
+    {wp:sidebar id="main" /}
+{elseif condition="platform.is('joomla')"}
+    {joomla:module position="sidebar" /}
+{else}
+    <aside class="sidebar">Default sidebar</aside>
+{/if}
 ```
+
+### Platform Capabilities Matrix
+
+| Feature | WordPress | Joomla | Drupal | React Native | Flutter | Electron |
+|---------|-----------|--------|--------|--------------|---------|----------|
+| `ikb_section` | ✅ | ✅ | ✅ | ✅ (View) | ✅ (Container) | ✅ |
+| `ikb_grid` | ✅ | ✅ | ✅ | ✅ (FlatList) | ✅ (GridView) | ✅ |
+| `ikb_query` | ✅ | ✅ | ✅ | ✅ (API) | ✅ (API) | ✅ (API) |
+| `ikb_button` | ✅ | ✅ | ✅ | ✅ (Pressable) | ✅ (ElevatedButton) | ✅ |
+| `slots` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `native_widgets` | ❌ | ❌ | ❌ | ✅ | ✅ | ✅ |
 
 ### Variables & Expressions
 
@@ -1048,36 +1337,421 @@ theme/
 
 ---
 
-## Appendix: Quick Reference
+## Visual Builder Integration
 
-### Component Cheat Sheet
+DiSyL is designed to work seamlessly with visual/drag-and-drop builders.
 
-| Component | Purpose | Example |
-|-----------|---------|---------|
-| `ikb_section` | Page section | `{ikb_section type="hero"}...{/ikb_section}` |
-| `ikb_container` | Centered container | `{ikb_container size="large"}...{/ikb_container}` |
-| `ikb_grid` | Grid layout | `{ikb_grid columns="3"}...{/ikb_grid}` |
-| `ikb_text` | Styled text | `{ikb_text size="xl"}...{/ikb_text}` |
-| `ikb_button` | Button/link | `{ikb_button href="/link"}...{/ikb_button}` |
-| `ikb_image` | Image | `{ikb_image src="..." alt="..." /}` |
-| `ikb_card` | Card container | `{ikb_card variant="elevated"}...{/ikb_card}` |
-| `ikb_query` | Content loop | `{ikb_query type="post" limit=6}...{/ikb_query}` |
+### Component Metadata for Builders
 
-### Filter Cheat Sheet
+Every DiSyL component can include metadata for visual editors:
 
-| Filter | Purpose | Example |
-|--------|---------|---------|
-| `esc_html` | Escape HTML | `{text | esc_html}` |
-| `esc_url` | Escape URL | `{url | esc_url}` |
-| `esc_attr` | Escape attribute | `{text | esc_attr}` |
-| `strip_tags` | Remove HTML | `{html | strip_tags}` |
-| `upper` | Uppercase | `{text | upper}` |
-| `lower` | Lowercase | `{text | lower}` |
-| `truncate` | Truncate text | `{text | truncate:length=150}` |
-| `date` | Format date | `{date | date:format="F j, Y"}` |
+```disyl
+{ikb_component name="hero-section"}
+    {props}
+        {prop name="title" type="string" label="Hero Title" 
+              placeholder="Enter title..." required=true /}
+        {prop name="subtitle" type="string" label="Subtitle" /}
+        {prop name="background" type="image" label="Background Image" /}
+        {prop name="cta_text" type="string" label="Button Text" default="Learn More" /}
+        {prop name="cta_url" type="url" label="Button URL" /}
+    {/props}
+    
+    {template}
+        {ikb_section type="hero" background="{props.background}"}
+            {ikb_container size="large"}
+                {ikb_text tag="h1" size="4xl"}{props.title}{/ikb_text}
+                {ikb_text tag="p" size="xl"}{props.subtitle}{/ikb_text}
+                {ikb_button href="{props.cta_url}" variant="primary"}
+                    {props.cta_text}
+                {/ikb_button}
+            {/ikb_container}
+        {/ikb_section}
+    {/template}
+{/ikb_component}
+```
+
+### Visual Builder Schema Export
+
+```json
+{
+  "component": "hero-section",
+  "category": "sections",
+  "icon": "layout-hero",
+  "props": [
+    {
+      "name": "title",
+      "type": "string",
+      "label": "Hero Title",
+      "required": true,
+      "ui": "text-input"
+    },
+    {
+      "name": "background",
+      "type": "image",
+      "label": "Background Image",
+      "ui": "image-picker"
+    }
+  ],
+  "slots": ["content", "actions"],
+  "preview": "hero-section-preview.png"
+}
+```
+
+### Drag-and-Drop Zones
+
+```disyl
+{ikb_dropzone id="main-content" accepts="section,card,text,image"}
+    {slot name="content" /}
+{/ikb_dropzone}
+```
 
 ---
 
-**DiSyL v0.6.0 - Write Once, Deploy Everywhere** 🚀
+## Mobile & App Development
+
+DiSyL can be transpiled to native mobile code.
+
+### React Native Output
+
+```disyl
+{!-- DiSyL Source --}
+{ikb_platform type="mobile" targets="react_native" /}
+
+{ikb_section padding="large"}
+    {ikb_text size="xl" weight="bold"}Welcome{/ikb_text}
+    {ikb_button onPress="handlePress" variant="primary"}
+        Get Started
+    {/ikb_button}
+{/ikb_section}
+```
+
+**Transpiles to:**
+
+```jsx
+// React Native Output
+import { View, Text, Pressable, StyleSheet } from 'react-native';
+
+export default function Section() {
+  return (
+    <View style={styles.section}>
+      <Text style={styles.heading}>Welcome</Text>
+      <Pressable style={styles.button} onPress={handlePress}>
+        <Text style={styles.buttonText}>Get Started</Text>
+      </Pressable>
+    </View>
+  );
+}
+```
+
+### Flutter Output
+
+```disyl
+{!-- DiSyL Source --}
+{ikb_platform type="mobile" targets="flutter" /}
+
+{ikb_section padding="large"}
+    {ikb_text size="xl" weight="bold"}Welcome{/ikb_text}
+    {ikb_button onTap="handleTap" variant="primary"}
+        Get Started
+    {/ikb_button}
+{/ikb_section}
+```
+
+**Transpiles to:**
+
+```dart
+// Flutter Output
+import 'package:flutter/material.dart';
+
+class Section extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: EdgeInsets.all(24),
+      child: Column(
+        children: [
+          Text('Welcome', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+          ElevatedButton(
+            onPressed: handleTap,
+            child: Text('Get Started'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+```
+
+### Mobile-Specific Components
+
+```disyl
+{!-- Navigation --}
+{mobile:navigation type="bottom-tabs"}
+    {mobile:tab icon="home" label="Home" screen="HomeScreen" /}
+    {mobile:tab icon="search" label="Search" screen="SearchScreen" /}
+    {mobile:tab icon="profile" label="Profile" screen="ProfileScreen" /}
+{/mobile:navigation}
+
+{!-- Native List --}
+{mobile:list data="{items}" renderItem="ItemComponent" keyExtractor="id" /}
+
+{!-- Pull to Refresh --}
+{mobile:refresh onRefresh="handleRefresh"}
+    {ikb_query type="post" limit=10}
+        {!-- Content --}
+    {/ikb_query}
+{/mobile:refresh}
+
+{!-- Native Input --}
+{mobile:input 
+    type="text" 
+    placeholder="Enter name..."
+    onChangeText="handleChange"
+    autoCapitalize="words"
+/}
+```
+
+---
+
+## Desktop Application Support
+
+DiSyL supports desktop application development via Electron and Tauri.
+
+### Electron Integration
+
+```disyl
+{ikb_platform type="desktop" targets="electron" /}
+
+{desktop:window title="My App" width=1200 height=800}
+    {desktop:menubar}
+        {desktop:menu label="File"}
+            {desktop:menuitem label="New" accelerator="CmdOrCtrl+N" onClick="handleNew" /}
+            {desktop:menuitem label="Open" accelerator="CmdOrCtrl+O" onClick="handleOpen" /}
+            {desktop:separator /}
+            {desktop:menuitem label="Exit" onClick="handleExit" /}
+        {/desktop:menu}
+    {/desktop:menubar}
+    
+    {desktop:titlebar draggable=true}
+        {ikb_text size="sm"}{app.name}{/ikb_text}
+        {desktop:window-controls /}
+    {/desktop:titlebar}
+    
+    {ikb_section class="main-content"}
+        {slot name="content" /}
+    {/ikb_section}
+{/desktop:window}
+```
+
+### Tauri Integration
+
+```disyl
+{ikb_platform type="desktop" targets="tauri" /}
+
+{desktop:invoke command="greet" args="{name}" onSuccess="handleGreeting" /}
+
+{desktop:dialog type="open" filters="*.txt,*.md" onSelect="handleFileSelect" /}
+
+{desktop:notification title="Update Available" body="A new version is ready." /}
+```
+
+### Native System Access
+
+```disyl
+{!-- File System --}
+{desktop:fs action="read" path="{filePath}" onData="handleFileData" /}
+
+{!-- System Tray --}
+{desktop:tray icon="icon.png" tooltip="My App"}
+    {desktop:tray-menu}
+        {desktop:menuitem label="Show" onClick="showWindow" /}
+        {desktop:menuitem label="Quit" onClick="quitApp" /}
+    {/desktop:tray-menu}
+{/desktop:tray}
+
+{!-- Keyboard Shortcuts --}
+{desktop:shortcut keys="CmdOrCtrl+Shift+P" onTrigger="openCommandPalette" /}
+```
+
+---
+
+## Extensibility & Custom Platforms
+
+### Creating a Custom Platform Adapter
+
+```php
+<?php
+namespace MyCompany\DiSyL\Platforms;
+
+use IkabudKernel\Core\DiSyL\Renderers\BaseRenderer;
+
+class MyCustomRenderer extends BaseRenderer
+{
+    protected function initializeCMS(): void
+    {
+        // Register platform-specific components
+        $this->registerComponent('myplatform:widget', [$this, 'renderWidget']);
+        
+        // Register platform-specific filters
+        $this->registerFilter('myformat', [$this, 'applyMyFormat']);
+    }
+    
+    protected function renderWidget(array $node, array $attrs): string
+    {
+        // Custom rendering logic
+        return '<my-widget>' . $this->renderChildren($node['children']) . '</my-widget>';
+    }
+}
+```
+
+### Platform Manifest
+
+```json
+{
+  "platform": {
+    "id": "myplatform",
+    "name": "My Custom Platform",
+    "version": "1.0.0",
+    "type": "web",
+    "renderer": "MyCompany\\DiSyL\\Platforms\\MyCustomRenderer"
+  },
+  "components": {
+    "myplatform:widget": {
+      "description": "Custom widget component",
+      "attributes": {
+        "type": { "type": "string", "required": true },
+        "data": { "type": "object" }
+      }
+    }
+  },
+  "filters": {
+    "myformat": {
+      "description": "Custom formatting filter",
+      "params": ["style"]
+    }
+  },
+  "capabilities": ["components", "filters", "queries"]
+}
+```
+
+### Registering Custom Components
+
+```disyl
+{!-- Define a reusable component --}
+{ikb_component name="pricing-card" platforms="*"}
+    {props}
+        {prop name="plan" type="string" required=true /}
+        {prop name="price" type="number" required=true /}
+        {prop name="features" type="array" default="[]" /}
+        {prop name="highlighted" type="boolean" default=false /}
+    {/props}
+    
+    {template}
+        {ikb_card variant="{props.highlighted ? 'elevated' : 'outlined'}" padding="large"}
+            {ikb_text tag="h3" size="xl" weight="bold"}
+                {props.plan}
+            {/ikb_text}
+            
+            {ikb_text tag="p" size="3xl" weight="bold"}
+                ${props.price}/mo
+            {/ikb_text}
+            
+            <ul class="features">
+                {for items="props.features" as="feature"}
+                    <li>{feature | esc_html}</li>
+                {/for}
+            </ul>
+            
+            {ikb_button variant="primary" class="full-width"}
+                Choose Plan
+            {/ikb_button}
+        {/ikb_card}
+    {/template}
+{/ikb_component}
+
+{!-- Use the component --}
+{pricing-card plan="Pro" price=29 features="['Unlimited projects', '24/7 support']" highlighted=true /}
+```
+
+---
+
+## Appendix
+
+### A. Component Reference
+
+| Component | Category | Platforms | Description |
+|-----------|----------|-----------|-------------|
+| `ikb_section` | Layout | All | Semantic page section |
+| `ikb_container` | Layout | All | Centered container |
+| `ikb_grid` | Layout | All | Responsive grid |
+| `ikb_text` | Content | All | Styled text |
+| `ikb_button` | Interactive | All | Button/link |
+| `ikb_image` | Media | All | Optimized image |
+| `ikb_card` | Content | All | Card container |
+| `ikb_query` | Data | All | Content query |
+| `wp:*` | CMS | WordPress | WordPress-specific |
+| `joomla:*` | CMS | Joomla | Joomla-specific |
+| `drupal:*` | CMS | Drupal | Drupal-specific |
+| `mobile:*` | Mobile | React Native, Flutter | Mobile-specific |
+| `desktop:*` | Desktop | Electron, Tauri | Desktop-specific |
+
+### B. Filter Reference
+
+| Filter | Category | Platforms | Description |
+|--------|----------|-----------|-------------|
+| `esc_html` | Security | All | Escape HTML entities |
+| `esc_url` | Security | All | Escape/validate URLs |
+| `esc_attr` | Security | All | Escape HTML attributes |
+| `strip_tags` | Text | All | Remove HTML tags |
+| `upper` | Text | All | Uppercase |
+| `lower` | Text | All | Lowercase |
+| `capitalize` | Text | All | Capitalize first letter |
+| `truncate` | Text | All | Truncate to length |
+| `date` | Date | All | Format date/time |
+| `json` | Data | All | JSON encode |
+| `default` | Logic | All | Default value |
+| `wp_trim_words` | Text | WordPress | Trim to word count |
+| `wp_kses_post` | Security | WordPress | Sanitize HTML |
+| `t` | i18n | Drupal | Translation |
+
+### C. Type System
+
+| Type | Description | Example |
+|------|-------------|---------|
+| `string` | Text value | `"Hello"` |
+| `number` | Numeric value | `42`, `3.14` |
+| `boolean` | True/false | `true`, `false` |
+| `null` | Null value | `null` |
+| `array` | List of values | `[1, 2, 3]` |
+| `object` | Key-value pairs | `{name: "John"}` |
+| `url` | URL string | `"https://..."` |
+| `image` | Image URL/path | `"/images/hero.jpg"` |
+| `color` | Color value | `"#ff0000"` |
+| `date` | Date/time | `"2025-01-01"` |
+
+### D. Platform Identifiers
+
+| ID | Platform | Type |
+|----|----------|------|
+| `wordpress` | WordPress | Web CMS |
+| `joomla` | Joomla | Web CMS |
+| `drupal` | Drupal | Web CMS |
+| `ikabud` | Ikabud CMS | Web CMS |
+| `generic` | Generic HTML | Web |
+| `react_native` | React Native | Mobile |
+| `flutter` | Flutter | Mobile |
+| `ios` | Native iOS | Mobile |
+| `android` | Native Android | Mobile |
+| `electron` | Electron | Desktop |
+| `tauri` | Tauri | Desktop |
+| `windows` | Native Windows | Desktop |
+| `macos` | Native macOS | Desktop |
+| `linux` | Native Linux | Desktop |
+
+---
+
+**DiSyL v1.0.0 - Universal Declarative Template Language** 🚀
+
+*Write Once, Render Anywhere*
 
 © 2025 Ikabud Team | MIT License
