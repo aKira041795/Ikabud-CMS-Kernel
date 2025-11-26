@@ -49,7 +49,7 @@ ikabud-*.tar
 /test-*.php
 /test_*.php
 /test/
-/tests/
+# /tests/
 
 # Analysis and documentation files
 *ANALYSIS*.md
