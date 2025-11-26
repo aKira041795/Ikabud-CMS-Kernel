@@ -785,7 +785,7 @@ class Kernel
     }
     
     /**
-     * Initialize DiSyL Manifest v0.4
+     * Initialize DiSyL Grammar v1.2.0 and Manifest system
      * Loads modular manifests with profiles, mount points, and namespaces
      */
     private function initializeDisylManifest(): void
@@ -797,7 +797,12 @@ class Kernel
         }
         
         try {
-            // Try ModularManifestLoader first (v0.4)
+            // Initialize ComponentRegistry with core components
+            if (class_exists('\\IkabudKernel\\Core\\DiSyL\\ComponentRegistry')) {
+                \IkabudKernel\Core\DiSyL\ComponentRegistry::registerCoreComponents();
+            }
+            
+            // Try ModularManifestLoader first (v0.4+)
             if (class_exists('\\IkabudKernel\\Core\\DiSyL\\ModularManifestLoader')) {
                 // Detect CMS type
                 $cmsType = 'WordPress'; // Default, can be detected dynamically
@@ -810,9 +815,15 @@ class Kernel
                 $filterCount = count(\IkabudKernel\Core\DiSyL\ModularManifestLoader::getFilters());
                 $manifestCount = count(\IkabudKernel\Core\DiSyL\ModularManifestLoader::getLoadedManifests());
                 
+                // Also log Grammar version
+                $grammarVersion = class_exists('\\IkabudKernel\\Core\\DiSyL\\Grammar') 
+                    ? \IkabudKernel\Core\DiSyL\Grammar::SCHEMA_VERSION 
+                    : 'unknown';
+                
                 error_log(sprintf(
-                    '[Ikabud] DiSyL v%s loaded: profile "%s", %d manifests, %d filters, CMS: %s',
+                    '[Ikabud] DiSyL v%s loaded: Grammar v%s, profile "%s", %d manifests, %d filters, CMS: %s',
                     $version,
+                    $grammarVersion,
                     $profile,
                     $manifestCount,
                     $filterCount,

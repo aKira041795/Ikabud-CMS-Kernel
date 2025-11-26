@@ -1,23 +1,24 @@
 <?php
 /**
- * DiSyL Lexer (Tokenizer)
+ * DiSyL Lexer (Tokenizer) v0.5.0
  * 
  * Converts DiSyL template string into tokens for parsing
- * Implements DiSyL v0.2 grammar specification
+ * Implements DiSyL v1.2.0 grammar specification
  * 
  * Features:
  * - Filter pipeline syntax with pipe operator
  * - Multiple filter arguments with comma separator
  * - Named and positional filter arguments
  * - Unicode support
+ * - Safe navigation operator (?.)
  * 
- * Performance optimizations (v0.4.0):
+ * Performance optimizations:
  * - Pre-compiled regex patterns (static)
  * - Token object pooling
  * - Reduced string allocations
  * - Fast character lookup tables
  * 
- * @version 0.4.0
+ * @version 0.5.0
  */
 
 namespace IkabudKernel\Core\DiSyL;

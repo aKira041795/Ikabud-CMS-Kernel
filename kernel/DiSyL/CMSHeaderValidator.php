@@ -1,10 +1,11 @@
 <?php
 /**
- * DiSyL CMS Header Validator
+ * DiSyL CMS Header Validator v0.7.0
  * 
  * Validates {ikb_cms} header declarations
+ * Integrates with Grammar v1.2.0 for validation
  * 
- * @version 0.6.0
+ * @version 0.7.0
  */
 
 namespace IkabudKernel\Core\DiSyL;
@@ -27,18 +28,24 @@ class CMSHeaderValidator
             return $errors;
         }
         
-        // Validate required 'type' attribute
+        // Use Grammar's CMS declaration validation
+        $grammar = new Grammar();
+        $grammarErrors = $grammar->validateCMSDeclaration([
+            'type' => $cmsHeader['type'] ?? null,
+            'set' => isset($cmsHeader['sets']) ? implode(',', $cmsHeader['sets']) : null,
+        ]);
+        
+        $errors = array_merge($errors, $grammarErrors);
+        
+        // Also validate with CMSLoader for backward compatibility
         if (!isset($cmsHeader['type']) || empty($cmsHeader['type'])) {
-            $errors[] = 'CMS header declaration requires "type" attribute';
-        } else {
-            // Validate CMS type value
-            if (!CMSLoader::isValidCMSType($cmsHeader['type'])) {
-                $errors[] = sprintf(
-                    'Invalid CMS type "%s". Valid types: %s',
-                    $cmsHeader['type'],
-                    implode(', ', CMSLoader::getValidCMSTypes())
-                );
-            }
+            // Already handled by Grammar
+        } elseif (!CMSLoader::isValidCMSType($cmsHeader['type'])) {
+            $errors[] = sprintf(
+                'Invalid CMS type "%s". Valid types: %s',
+                $cmsHeader['type'],
+                implode(', ', CMSLoader::getValidCMSTypes())
+            );
         }
         
         // Validate 'set' attribute if present
@@ -57,7 +64,8 @@ class CMSHeaderValidator
         // Validate position: must be first non-comment, non-whitespace node
         $errors = array_merge($errors, self::validatePosition($ast));
         
-        return $errors;
+        // Remove duplicates
+        return array_unique($errors);
     }
     
     /**
