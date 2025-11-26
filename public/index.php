@@ -116,10 +116,9 @@ $lazyRouteMap = [
     'auth'        => ['auth.php'],
     'users'       => ['users.php'],
     'kernel'      => ['kernel.php'],
-    'instances'   => ['instances.php', 'instances-actions.php', 'instance-logs.php'],
+    'instances'   => ['instances.php', 'instances-actions.php', 'instance-logs.php', 'conditional-loading.php'],
     'themes'      => ['themes.php'],
     'dsl'         => ['dsl.php'],
-    'conditional' => ['conditional-loading.php'],
     'cache'       => ['cache.php'],
     'tenants'     => ['tenants.php'],
 ];
