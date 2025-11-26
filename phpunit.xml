@@ -3,7 +3,6 @@
          xsi:noNamespaceSchemaLocation="https://schema.phpunit.de/10.0/phpunit.xsd"
          bootstrap="vendor/autoload.php"
          colors="true"
-         verbose="true"
          failOnWarning="false"
          failOnRisky="false"
          beStrictAboutOutputDuringTests="true"
@@ -16,7 +15,7 @@
         </testsuite>
     </testsuites>
     
-    <coverage>
+    <source>
         <include>
             <directory suffix=".php">kernel/DiSyL</directory>
         </include>
@@ -24,11 +23,7 @@
             <directory>kernel/DiSyL/Legacy</directory>
             <directory>kernel/DiSyL/Manifests</directory>
         </exclude>
-        <report>
-            <html outputDirectory="tests/coverage"/>
-            <text outputFile="php://stdout" showUncoveredFiles="false"/>
-        </report>
-    </coverage>
+    </source>
     
     <php>
         <env name="APP_ENV" value="testing"/>

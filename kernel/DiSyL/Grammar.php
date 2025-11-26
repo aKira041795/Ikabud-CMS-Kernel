@@ -417,7 +417,7 @@ class Grammar
      * @param string $type Type specification (can be union: "string|number")
      * @return bool True if valid
      */
-    private function validateType(mixed $value, string $type): bool
+    public function validateType(mixed $value, string $type): bool
     {
         // Handle union types (e.g., "string|number")
         if (str_contains($type, '|')) {
