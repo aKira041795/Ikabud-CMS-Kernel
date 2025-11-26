@@ -6,6 +6,14 @@ namespace IkabudKernel\Core;
  * 
  * Caches rendered pages to avoid loading WordPress for repeat requests.
  * Uses file-based caching for simplicity and shared hosting compatibility.
+ * 
+ * Performance optimizations (v1.1.0):
+ * - Atomic writes to prevent race conditions
+ * - Compression for large cache entries (>1KB)
+ * - APCu integration for faster reads
+ * - LRU eviction when cache is full
+ * 
+ * @version 1.1.0
  */
 class Cache
 {
@@ -15,16 +23,32 @@ class Cache
         'hits' => 0,
         'misses' => 0,
         'bypasses' => 0,
-        'errors' => 0
+        'errors' => 0,
+        'compressed' => 0
     ];
     
-    public function __construct(string $cacheDir = null)
+    /** @var int Compression threshold in bytes */
+    private const COMPRESSION_THRESHOLD = 1024;
+    
+    /** @var int Maximum cache size in MB (0 = unlimited) */
+    private int $maxCacheSizeMB = 0;
+    
+    /** @var bool Whether APCu is available */
+    private static ?bool $apcuAvailable = null;
+    
+    public function __construct(string $cacheDir = null, int $maxCacheSizeMB = 0)
     {
         $this->cacheDir = $cacheDir ?? dirname(__DIR__) . '/storage/cache';
+        $this->maxCacheSizeMB = $maxCacheSizeMB;
         
         // Ensure cache directory exists
         if (!is_dir($this->cacheDir)) {
             mkdir($this->cacheDir, 0755, true);
+        }
+        
+        // Check APCu availability once
+        if (self::$apcuAvailable === null) {
+            self::$apcuAvailable = function_exists('apcu_fetch') && apcu_enabled();
         }
     }
     
@@ -75,32 +99,61 @@ class Cache
     
     /**
      * Get cached response
+     * 
+     * Uses multi-tier lookup: APCu (fastest) -> File cache
      */
     public function get(string $instanceId, string $uri): ?array
     {
+        $key = $this->getCacheKey($instanceId, $uri);
+        
+        // Tier 1: Try APCu first (fastest)
+        if (self::$apcuAvailable) {
+            $cached = apcu_fetch('cache_' . $key, $success);
+            if ($success && is_array($cached)) {
+                $this->stats['hits']++;
+                return $cached;
+            }
+        }
+        
+        // Tier 2: Check file cache
         if (!$this->has($instanceId, $uri)) {
             $this->stats['misses']++;
             return null;
         }
         
         try {
-            $key = $this->getCacheKey($instanceId, $uri);
             $file = $this->getCacheFile($key);
             
             $data = file_get_contents($file);
             if (!$data) {
                 // Corrupted cache file
-                unlink($file);
+                @unlink($file);
                 $this->stats['errors']++;
                 return null;
+            }
+            
+            // Check if data is compressed (starts with GZ:)
+            if (strpos($data, 'GZ:') === 0) {
+                $data = @gzuncompress(substr($data, 3));
+                if ($data === false) {
+                    @unlink($file);
+                    $this->stats['errors']++;
+                    return null;
+                }
+                $this->stats['compressed']++;
             }
             
             $result = @unserialize($data);
             if ($result === false && $data !== serialize(false)) {
                 // Unserialize failed - corrupted data
-                unlink($file);
+                @unlink($file);
                 $this->stats['errors']++;
                 return null;
+            }
+            
+            // Promote to APCu for faster subsequent reads
+            if (self::$apcuAvailable) {
+                apcu_store('cache_' . $key, $result, $this->ttl);
             }
             
             $this->stats['hits']++;
@@ -114,23 +167,88 @@ class Cache
     
     /**
      * Store response in cache
+     * 
+     * Uses atomic writes and compression for reliability and performance.
+     * Also stores in APCu for faster subsequent reads.
      */
     public function set(string $instanceId, string $uri, array $response): void
     {
+        $key = $this->getCacheKey($instanceId, $uri);
+        $file = $this->getCacheFile($key);
+        $tempFile = $file . '.tmp.' . getmypid();
+        
         try {
-            $key = $this->getCacheKey($instanceId, $uri);
-            $file = $this->getCacheFile($key);
+            // Check cache size limit before writing
+            if ($this->maxCacheSizeMB > 0) {
+                $this->enforceCacheLimit();
+            }
             
             $data = serialize($response);
-            $result = file_put_contents($file, $data, LOCK_EX);
+            
+            // Compress if data is large
+            if (strlen($data) > self::COMPRESSION_THRESHOLD) {
+                $compressed = @gzcompress($data, 6);
+                if ($compressed !== false) {
+                    $data = 'GZ:' . $compressed;
+                }
+            }
+            
+            // Atomic write: write to temp file, then rename
+            $result = file_put_contents($tempFile, $data, LOCK_EX);
             
             if ($result === false) {
-                error_log("Cache write error: Failed to write to $file");
+                error_log("Cache write error: Failed to write to $tempFile");
                 $this->stats['errors']++;
+                return;
             }
+            
+            // Atomic rename
+            if (!rename($tempFile, $file)) {
+                error_log("Cache write error: Failed to rename $tempFile to $file");
+                @unlink($tempFile);
+                $this->stats['errors']++;
+                return;
+            }
+            
+            // Also store in APCu for faster reads
+            if (self::$apcuAvailable) {
+                apcu_store('cache_' . $key, $response, $this->ttl);
+            }
+            
         } catch (\Exception $e) {
             error_log("Cache write error: " . $e->getMessage());
+            @unlink($tempFile);
             $this->stats['errors']++;
+        }
+    }
+    
+    /**
+     * Enforce cache size limit using LRU eviction
+     */
+    private function enforceCacheLimit(): void
+    {
+        $maxBytes = $this->maxCacheSizeMB * 1024 * 1024;
+        $files = $this->getAllCachedFiles();
+        
+        // Calculate current size
+        $currentSize = array_sum(array_column($files, 'size'));
+        
+        if ($currentSize <= $maxBytes) {
+            return;
+        }
+        
+        // Sort by age (oldest first) for LRU eviction
+        usort($files, fn($a, $b) => $b['age'] - $a['age']);
+        
+        // Delete oldest files until under limit
+        foreach ($files as $fileInfo) {
+            if ($currentSize <= $maxBytes * 0.9) { // Leave 10% headroom
+                break;
+            }
+            
+            if (@unlink($fileInfo['file'])) {
+                $currentSize -= $fileInfo['size'];
+            }
         }
     }
     
@@ -433,19 +551,31 @@ class Cache
         $total = $this->stats['hits'] + $this->stats['misses'] + $this->stats['bypasses'];
         $hitRate = $total > 0 ? round(($this->stats['hits'] / $total) * 100, 2) : 0;
         
-        return [
+        $stats = [
             'hits' => $this->stats['hits'],
             'misses' => $this->stats['misses'],
             'bypasses' => $this->stats['bypasses'],
             'errors' => $this->stats['errors'],
+            'compressed_reads' => $this->stats['compressed'],
             'total_requests' => $total,
             'hit_rate' => $hitRate . '%',
             'cached_files' => $totalFiles,
             'active_files' => $activeFiles,
             'expired_files' => $expiredFiles,
             'total_size_bytes' => $totalSize,
-            'total_size_mb' => round($totalSize / 1024 / 1024, 2)
+            'total_size_mb' => round($totalSize / 1024 / 1024, 2),
+            'max_size_mb' => $this->maxCacheSizeMB,
+            'apcu_available' => self::$apcuAvailable ?? false,
         ];
+        
+        // Add APCu stats if available
+        if (self::$apcuAvailable) {
+            $apcuInfo = apcu_cache_info(true);
+            $stats['apcu_entries'] = $apcuInfo['num_entries'] ?? 0;
+            $stats['apcu_memory_bytes'] = $apcuInfo['mem_size'] ?? 0;
+        }
+        
+        return $stats;
     }
     
     /**

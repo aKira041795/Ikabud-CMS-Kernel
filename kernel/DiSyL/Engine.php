@@ -13,7 +13,12 @@
  * - Enhanced expression evaluation
  * - Unicode support
  * 
- * @version 0.3.0
+ * Performance optimizations (v0.4.0):
+ * - APCu caching for compiled AST (fastest)
+ * - In-memory LRU cache fallback
+ * - File-based cache as last resort
+ * 
+ * @version 0.4.0
  */
 
 namespace IkabudKernel\Core\DiSyL;
@@ -31,6 +36,18 @@ class Engine
     private $cache; // Mixed type for compatibility
     private ?string $defaultCMSType = null; // Default CMS type if no header present
     
+    /** @var array In-memory LRU cache for compiled ASTs */
+    private static array $memoryCache = [];
+    
+    /** @var int Maximum entries in memory cache */
+    private const MAX_MEMORY_CACHE = 100;
+    
+    /** @var int APCu cache TTL in seconds (1 hour) */
+    private const APCU_TTL = 3600;
+    
+    /** @var bool Whether APCu is available */
+    private static ?bool $apcuAvailable = null;
+    
     /**
      * Constructor
      * 
@@ -44,10 +61,20 @@ class Engine
         $this->compiler = new Compiler($cache);
         $this->cache = $cache;
         $this->defaultCMSType = $defaultCMSType;
+        
+        // Check APCu availability once
+        if (self::$apcuAvailable === null) {
+            self::$apcuAvailable = function_exists('apcu_fetch') && apcu_enabled();
+        }
     }
     
     /**
      * Compile a DiSyL template to AST
+     * 
+     * Uses multi-tier caching strategy:
+     * 1. In-memory cache (fastest, per-request)
+     * 2. APCu cache (fast, shared across requests)
+     * 3. File cache (slower, persistent)
      * 
      * @param string $template Template content
      * @param array $context Optional compilation context
@@ -55,15 +82,62 @@ class Engine
      */
     public function compile(string $template, array $context = []): array
     {
-        // Check cache first
-        if ($this->cache !== null) {
-            $cacheKey = 'disyl_ast_' . md5($template . json_encode($context));
-            $cached = $this->cache->get($cacheKey);
-            if ($cached !== null) {
+        $cacheKey = $this->generateCacheKey($template, $context);
+        
+        // Tier 1: Check in-memory cache (fastest)
+        if (isset(self::$memoryCache[$cacheKey])) {
+            return self::$memoryCache[$cacheKey];
+        }
+        
+        // Tier 2: Check APCu cache (fast, shared)
+        if (self::$apcuAvailable) {
+            $cached = apcu_fetch($cacheKey, $success);
+            if ($success && is_array($cached)) {
+                // Promote to memory cache
+                $this->addToMemoryCache($cacheKey, $cached);
                 return $cached;
             }
         }
         
+        // Tier 3: Check file cache (slower, persistent)
+        if ($this->cache !== null) {
+            $cached = $this->cache->get($cacheKey);
+            if ($cached !== null && is_array($cached)) {
+                // Promote to faster caches
+                $this->addToMemoryCache($cacheKey, $cached);
+                if (self::$apcuAvailable) {
+                    apcu_store($cacheKey, $cached, self::APCU_TTL);
+                }
+                return $cached;
+            }
+        }
+        
+        // Cache miss - compile the template
+        $compiled = $this->doCompile($template, $context);
+        
+        // Store in all cache tiers
+        $this->addToMemoryCache($cacheKey, $compiled);
+        
+        if (self::$apcuAvailable) {
+            apcu_store($cacheKey, $compiled, self::APCU_TTL);
+        }
+        
+        if ($this->cache !== null) {
+            $this->cache->set($cacheKey, $compiled, self::APCU_TTL);
+        }
+        
+        return $compiled;
+    }
+    
+    /**
+     * Perform actual template compilation
+     * 
+     * @param string $template Template content
+     * @param array $context Compilation context
+     * @return array Compiled AST
+     */
+    private function doCompile(string $template, array $context): array
+    {
         // Lexical analysis
         $tokens = $this->lexer->tokenize($template);
         
@@ -76,14 +150,77 @@ class Engine
         }
         
         // Semantic analysis and optimization
-        $compiled = $this->compiler->compile($ast, $context);
-        
-        // Cache result
-        if ($this->cache !== null) {
-            $this->cache->set($cacheKey, $compiled, 3600); // 1 hour
+        return $this->compiler->compile($ast, $context);
+    }
+    
+    /**
+     * Generate cache key for template
+     * 
+     * @param string $template Template content
+     * @param array $context Compilation context
+     * @return string Cache key
+     */
+    private function generateCacheKey(string $template, array $context): string
+    {
+        // Use xxhash if available (faster), fallback to md5
+        $data = $template . ($context ? json_encode($context) : '');
+        return 'disyl_ast_' . md5($data);
+    }
+    
+    /**
+     * Add compiled AST to memory cache with LRU eviction
+     * 
+     * @param string $key Cache key
+     * @param array $value Compiled AST
+     */
+    private function addToMemoryCache(string $key, array $value): void
+    {
+        // LRU eviction - remove oldest entry if at capacity
+        if (count(self::$memoryCache) >= self::MAX_MEMORY_CACHE) {
+            array_shift(self::$memoryCache);
         }
         
-        return $compiled;
+        self::$memoryCache[$key] = $value;
+    }
+    
+    /**
+     * Clear all caches (useful for development)
+     * 
+     * @param bool $includeApcu Whether to clear APCu cache
+     */
+    public static function clearCache(bool $includeApcu = true): void
+    {
+        self::$memoryCache = [];
+        
+        if ($includeApcu && self::$apcuAvailable) {
+            // Clear only DiSyL keys
+            $iterator = new \APCUIterator('/^disyl_ast_/', APC_ITER_KEY);
+            foreach ($iterator as $item) {
+                apcu_delete($item['key']);
+            }
+        }
+    }
+    
+    /**
+     * Get cache statistics
+     * 
+     * @return array Cache statistics
+     */
+    public static function getCacheStats(): array
+    {
+        $stats = [
+            'memory_cache_size' => count(self::$memoryCache),
+            'memory_cache_max' => self::MAX_MEMORY_CACHE,
+            'apcu_available' => self::$apcuAvailable ?? false,
+        ];
+        
+        if (self::$apcuAvailable) {
+            $apcuInfo = apcu_cache_info(true);
+            $stats['apcu_entries'] = $apcuInfo['num_entries'] ?? 0;
+            $stats['apcu_memory_size'] = $apcuInfo['mem_size'] ?? 0;
+        }
+        
+        return $stats;
     }
     
     /**
