@@ -874,4 +874,719 @@ class Grammar
             default => 'string',
         };
     }
+    
+    // =========================================================================
+    // COMPONENT VALIDATION (Registry Integration)
+    // =========================================================================
+    
+    /**
+     * Validate component props against registry schema
+     * 
+     * @param string $componentName Component name (e.g., 'ikb_card', 'wp:query')
+     * @param array $attributes Provided attributes
+     * @return array Validation errors (empty if valid)
+     */
+    public function validateComponentProps(string $componentName, array $attributes): array
+    {
+        $errors = [];
+        
+        // Parse namespaced component
+        $parsed = $this->parseNamespacedIdentifier($componentName);
+        $lookupName = $parsed['namespace'] ? $componentName : $componentName;
+        
+        // Get component schema from registry
+        if (!ComponentRegistry::has($lookupName)) {
+            // Try without namespace prefix for universal components
+            if ($parsed['namespace'] && ComponentRegistry::has($parsed['name'])) {
+                $lookupName = $parsed['name'];
+            } else {
+                // Unknown component - not necessarily an error (could be custom)
+                return [];
+            }
+        }
+        
+        $schema = ComponentRegistry::getAttributeSchemas($lookupName);
+        
+        // Check required props
+        foreach ($schema as $propName => $propSchema) {
+            if (isset($propSchema['required']) && $propSchema['required'] === true) {
+                if (!isset($attributes[$propName]) || $attributes[$propName] === null) {
+                    $errors[] = sprintf(
+                        'Component "%s" requires prop "%s"',
+                        $componentName,
+                        $propName
+                    );
+                }
+            }
+        }
+        
+        // Validate provided props
+        foreach ($attributes as $propName => $value) {
+            if (isset($schema[$propName])) {
+                if (!$this->validate($value, $schema[$propName])) {
+                    $errors[] = $this->getValidationError($value, $schema[$propName], $propName);
+                }
+            }
+            // Unknown props are allowed (for extensibility)
+        }
+        
+        return $errors;
+    }
+    
+    /**
+     * Validate component slots
+     * 
+     * @param string $componentName Component name
+     * @param array $slots Provided slots ['name' => content]
+     * @return array Validation errors
+     */
+    public function validateSlots(string $componentName, array $slots): array
+    {
+        $errors = [];
+        
+        $component = ComponentRegistry::get($componentName);
+        if (!$component) {
+            return [];
+        }
+        
+        // Check if component allows children (not a leaf)
+        if (isset($component['leaf']) && $component['leaf'] === true) {
+            if (!empty($slots)) {
+                $errors[] = sprintf(
+                    'Component "%s" is a leaf component and cannot have children/slots',
+                    $componentName
+                );
+            }
+        }
+        
+        // Check required slots if defined
+        if (isset($component['slots'])) {
+            foreach ($component['slots'] as $slotName => $slotDef) {
+                if (isset($slotDef['required']) && $slotDef['required'] === true) {
+                    if (!isset($slots[$slotName])) {
+                        $errors[] = sprintf(
+                            'Component "%s" requires slot "%s"',
+                            $componentName,
+                            $slotName
+                        );
+                    }
+                }
+            }
+        }
+        
+        return $errors;
+    }
+    
+    // =========================================================================
+    // CMS/PLATFORM DECLARATION VALIDATION
+    // =========================================================================
+    
+    /**
+     * Validate CMS declaration attributes
+     * 
+     * @param array $attrs Declaration attributes
+     * @return array Validation errors
+     */
+    public function validateCMSDeclaration(array $attrs): array
+    {
+        $errors = [];
+        
+        // Type is required
+        if (!isset($attrs['type']) || empty($attrs['type'])) {
+            $errors[] = 'CMS declaration requires "type" attribute';
+        } elseif (!$this->validatePlatform($attrs['type'])) {
+            $errors[] = sprintf('Invalid CMS type: "%s"', $attrs['type']);
+        }
+        
+        // Validate 'set' attribute if present
+        if (isset($attrs['set'])) {
+            $validSets = ['components', 'filters', 'hooks', 'functions', 'all'];
+            $sets = array_map('trim', explode(',', $attrs['set']));
+            foreach ($sets as $set) {
+                if (!in_array($set, $validSets, true)) {
+                    $errors[] = sprintf('Invalid set value: "%s"', $set);
+                }
+            }
+        }
+        
+        return $errors;
+    }
+    
+    /**
+     * Validate platform declaration attributes (new ikb_platform syntax)
+     * 
+     * @param array $attrs Platform declaration attributes
+     * @return array Validation errors
+     */
+    public function validatePlatformDeclaration(array $attrs): array
+    {
+        $errors = [];
+        
+        // Type is required
+        if (!isset($attrs['type']) || empty($attrs['type'])) {
+            $errors[] = 'Platform declaration requires "type" attribute';
+        } else {
+            $validTypes = ['web', 'mobile', 'desktop', 'universal'];
+            if (!in_array($attrs['type'], $validTypes, true)) {
+                $errors[] = sprintf('Invalid platform type: "%s". Must be one of: %s', 
+                    $attrs['type'], implode(', ', $validTypes));
+            }
+        }
+        
+        // Validate targets if present
+        if (isset($attrs['targets'])) {
+            $invalidPlatforms = $this->validatePlatformList($attrs['targets']);
+            foreach ($invalidPlatforms as $invalid) {
+                $errors[] = sprintf('Invalid target platform: "%s"', $invalid);
+            }
+        }
+        
+        // Validate fallback if present
+        if (isset($attrs['fallback']) && !$this->validatePlatform($attrs['fallback'])) {
+            $errors[] = sprintf('Invalid fallback platform: "%s"', $attrs['fallback']);
+        }
+        
+        // Validate version if present
+        if (isset($attrs['version']) && !preg_match('/^\d+\.\d+(\.\d+)?$/', $attrs['version'])) {
+            $errors[] = sprintf('Invalid version format: "%s". Expected: X.Y or X.Y.Z', $attrs['version']);
+        }
+        
+        // Validate features if present
+        if (isset($attrs['features'])) {
+            $validFeatures = ['components', 'filters', 'queries', 'slots', 'expressions'];
+            $features = array_map('trim', explode(',', $attrs['features']));
+            foreach ($features as $feature) {
+                if (!in_array($feature, $validFeatures, true)) {
+                    $errors[] = sprintf('Invalid feature: "%s"', $feature);
+                }
+            }
+        }
+        
+        return $errors;
+    }
+    
+    // =========================================================================
+    // STRUCTURAL VALIDATION (Tags, Templates)
+    // =========================================================================
+    
+    /**
+     * Validate tag structure
+     * 
+     * @param array $tag Tag node from AST
+     * @return array Validation errors
+     */
+    public function validateTag(array $tag): array
+    {
+        $errors = [];
+        
+        // Must have a name
+        if (!isset($tag['name']) || empty($tag['name'])) {
+            $errors[] = 'Tag must have a name';
+            return $errors;
+        }
+        
+        $tagName = $tag['name'];
+        
+        // Validate tag name syntax
+        if (!$this->validateNamespacedIdentifier($tagName)) {
+            $errors[] = sprintf('Invalid tag name: "%s"', $tagName);
+        }
+        
+        // Check for reserved keywords used as tag names
+        $parsed = $this->parseNamespacedIdentifier($tagName);
+        if ($parsed['namespace'] === null && $this->isReservedKeyword($tagName)) {
+            // Control structures are allowed
+            if (!in_array($tagName, self::KEYWORDS_CONTROL, true)) {
+                $errors[] = sprintf('Cannot use reserved keyword "%s" as tag name', $tagName);
+            }
+        }
+        
+        // Validate attributes if present
+        if (isset($tag['attrs']) && is_array($tag['attrs'])) {
+            $propErrors = $this->validateComponentProps($tagName, $tag['attrs']);
+            $errors = array_merge($errors, $propErrors);
+        }
+        
+        // Validate self-closing vs block tags
+        if (isset($tag['selfClosing']) && $tag['selfClosing'] === true) {
+            // Self-closing tags should not have children
+            if (isset($tag['children']) && !empty($tag['children'])) {
+                $errors[] = sprintf('Self-closing tag "%s" cannot have children', $tagName);
+            }
+        }
+        
+        return $errors;
+    }
+    
+    /**
+     * Validate template structure
+     * 
+     * @param array $ast Full AST
+     * @return array Validation errors
+     */
+    public function validateStructure(array $ast): array
+    {
+        $errors = [];
+        
+        // Must be a document node
+        if (!isset($ast['type']) || $ast['type'] !== 'document') {
+            $errors[] = 'AST root must be a document node';
+            return $errors;
+        }
+        
+        // Track open tags for matching
+        $tagStack = [];
+        
+        // Validate children recursively
+        if (isset($ast['children'])) {
+            $errors = array_merge($errors, $this->validateNodes($ast['children'], $tagStack));
+        }
+        
+        // Check for unclosed tags
+        if (!empty($tagStack)) {
+            foreach ($tagStack as $unclosed) {
+                $errors[] = sprintf('Unclosed tag: "%s" at line %d', 
+                    $unclosed['name'], $unclosed['line'] ?? 0);
+            }
+        }
+        
+        return $errors;
+    }
+    
+    /**
+     * Validate array of nodes recursively
+     */
+    private function validateNodes(array $nodes, array &$tagStack): array
+    {
+        $errors = [];
+        
+        foreach ($nodes as $node) {
+            if (!isset($node['type'])) {
+                continue;
+            }
+            
+            switch ($node['type']) {
+                case 'tag':
+                    $errors = array_merge($errors, $this->validateTag($node));
+                    
+                    // Recurse into children
+                    if (isset($node['children'])) {
+                        $errors = array_merge($errors, $this->validateNodes($node['children'], $tagStack));
+                    }
+                    break;
+                    
+                case 'expression':
+                    if (isset($node['value'])) {
+                        $exprErrors = $this->validateExpression('{' . $node['value'] . '}');
+                        $errors = array_merge($errors, $exprErrors);
+                    }
+                    break;
+                    
+                case 'text':
+                    // Text nodes are always valid
+                    break;
+                    
+                case 'comment':
+                    // Comments are always valid
+                    break;
+            }
+        }
+        
+        return $errors;
+    }
+    
+    // =========================================================================
+    // FILTER REGISTRY & VALIDATION
+    // =========================================================================
+    
+    /** @var array Registered filters with their schemas */
+    private static array $filters = [];
+    
+    /** @var bool Whether core filters are registered */
+    private static bool $filtersInitialized = false;
+    
+    /**
+     * Register a filter
+     * 
+     * @param string $name Filter name
+     * @param array $definition Filter definition
+     */
+    public static function registerFilter(string $name, array $definition): void
+    {
+        self::$filters[$name] = array_merge([
+            'name' => $name,
+            'description' => '',
+            'params' => [],
+            'returnType' => self::TYPE_STRING,
+            'platforms' => [self::PLATFORM_UNIVERSAL],
+        ], $definition);
+    }
+    
+    /**
+     * Check if filter exists
+     */
+    public static function hasFilter(string $name): bool
+    {
+        self::initializeFilters();
+        return isset(self::$filters[$name]);
+    }
+    
+    /**
+     * Get filter definition
+     */
+    public static function getFilter(string $name): ?array
+    {
+        self::initializeFilters();
+        return self::$filters[$name] ?? null;
+    }
+    
+    /**
+     * Initialize core filters
+     */
+    private static function initializeFilters(): void
+    {
+        if (self::$filtersInitialized) {
+            return;
+        }
+        
+        // Security filters
+        self::registerFilter('esc_html', [
+            'description' => 'Escape HTML entities',
+            'params' => [],
+            'returnType' => self::TYPE_STRING,
+            'platforms' => [self::PLATFORM_UNIVERSAL],
+        ]);
+        
+        self::registerFilter('esc_url', [
+            'description' => 'Escape and validate URL',
+            'params' => [],
+            'returnType' => self::TYPE_URL,
+            'platforms' => [self::PLATFORM_UNIVERSAL],
+        ]);
+        
+        self::registerFilter('esc_attr', [
+            'description' => 'Escape HTML attribute',
+            'params' => [],
+            'returnType' => self::TYPE_STRING,
+            'platforms' => [self::PLATFORM_UNIVERSAL],
+        ]);
+        
+        self::registerFilter('strip_tags', [
+            'description' => 'Remove HTML tags',
+            'params' => [
+                'allowed' => ['type' => self::TYPE_STRING, 'required' => false],
+            ],
+            'returnType' => self::TYPE_STRING,
+            'platforms' => [self::PLATFORM_UNIVERSAL],
+        ]);
+        
+        // Text manipulation
+        self::registerFilter('upper', [
+            'description' => 'Convert to uppercase',
+            'params' => [],
+            'returnType' => self::TYPE_STRING,
+        ]);
+        
+        self::registerFilter('lower', [
+            'description' => 'Convert to lowercase',
+            'params' => [],
+            'returnType' => self::TYPE_STRING,
+        ]);
+        
+        self::registerFilter('capitalize', [
+            'description' => 'Capitalize first letter',
+            'params' => [],
+            'returnType' => self::TYPE_STRING,
+        ]);
+        
+        self::registerFilter('truncate', [
+            'description' => 'Truncate text to length',
+            'params' => [
+                'length' => ['type' => self::TYPE_INTEGER, 'required' => true, 'min' => 1],
+                'append' => ['type' => self::TYPE_STRING, 'required' => false, 'default' => '...'],
+            ],
+            'returnType' => self::TYPE_STRING,
+        ]);
+        
+        self::registerFilter('trim', [
+            'description' => 'Trim whitespace',
+            'params' => [],
+            'returnType' => self::TYPE_STRING,
+        ]);
+        
+        // Date formatting
+        self::registerFilter('date', [
+            'description' => 'Format date',
+            'params' => [
+                'format' => ['type' => self::TYPE_STRING, 'required' => true],
+            ],
+            'returnType' => self::TYPE_STRING,
+        ]);
+        
+        // Number formatting
+        self::registerFilter('number_format', [
+            'description' => 'Format number',
+            'params' => [
+                'decimals' => ['type' => self::TYPE_INTEGER, 'required' => false, 'default' => 0],
+                'dec_point' => ['type' => self::TYPE_STRING, 'required' => false, 'default' => '.'],
+                'thousands_sep' => ['type' => self::TYPE_STRING, 'required' => false, 'default' => ','],
+            ],
+            'returnType' => self::TYPE_STRING,
+        ]);
+        
+        // Logic
+        self::registerFilter('default', [
+            'description' => 'Default value if empty',
+            'params' => [
+                'value' => ['type' => self::TYPE_ANY, 'required' => true],
+            ],
+            'returnType' => self::TYPE_ANY,
+        ]);
+        
+        // JSON
+        self::registerFilter('json', [
+            'description' => 'JSON encode',
+            'params' => [],
+            'returnType' => self::TYPE_STRING,
+        ]);
+        
+        // WordPress-specific
+        self::registerFilter('wp_trim_words', [
+            'description' => 'Trim to word count (WordPress)',
+            'params' => [
+                'num_words' => ['type' => self::TYPE_INTEGER, 'required' => true, 'min' => 1],
+                'more' => ['type' => self::TYPE_STRING, 'required' => false, 'default' => '...'],
+            ],
+            'returnType' => self::TYPE_STRING,
+            'platforms' => [self::PLATFORM_WORDPRESS],
+        ]);
+        
+        self::registerFilter('wp_kses_post', [
+            'description' => 'Sanitize allowing safe HTML (WordPress)',
+            'params' => [],
+            'returnType' => self::TYPE_HTML,
+            'platforms' => [self::PLATFORM_WORDPRESS],
+        ]);
+        
+        // Drupal-specific
+        self::registerFilter('t', [
+            'description' => 'Translation (Drupal)',
+            'params' => [
+                'args' => ['type' => self::TYPE_ARRAY, 'required' => false],
+            ],
+            'returnType' => self::TYPE_STRING,
+            'platforms' => [self::PLATFORM_DRUPAL],
+        ]);
+        
+        self::$filtersInitialized = true;
+    }
+    
+    /**
+     * Validate a complete filter chain
+     * 
+     * @param string $expression Expression with filters
+     * @param string|null $platform Target platform for compatibility check
+     * @return array Validation errors
+     */
+    public function validateFilterChain(string $expression, ?string $platform = null): array
+    {
+        $errors = [];
+        $filters = $this->parseFilterChain($expression);
+        
+        foreach ($filters as $filter) {
+            $filterName = $filter['name'];
+            
+            // Check if filter exists
+            if (!self::hasFilter($filterName)) {
+                $errors[] = sprintf('Unknown filter: "%s"', $filterName);
+                continue;
+            }
+            
+            $filterDef = self::getFilter($filterName);
+            
+            // Check platform compatibility
+            if ($platform !== null && $platform !== self::PLATFORM_UNIVERSAL) {
+                $supportedPlatforms = $filterDef['platforms'] ?? [self::PLATFORM_UNIVERSAL];
+                if (!in_array(self::PLATFORM_UNIVERSAL, $supportedPlatforms, true) &&
+                    !in_array($platform, $supportedPlatforms, true)) {
+                    $errors[] = sprintf(
+                        'Filter "%s" is not available on platform "%s"',
+                        $filterName,
+                        $platform
+                    );
+                }
+            }
+            
+            // Validate filter arguments
+            $args = $filter['args'];
+            $params = $filterDef['params'] ?? [];
+            
+            foreach ($params as $paramName => $paramSchema) {
+                $value = $args[$paramName] ?? null;
+                
+                // Check required params
+                if (isset($paramSchema['required']) && $paramSchema['required'] === true) {
+                    if ($value === null && !isset($args[0])) { // Also check positional
+                        $errors[] = sprintf(
+                            'Filter "%s" requires parameter "%s"',
+                            $filterName,
+                            $paramName
+                        );
+                    }
+                }
+                
+                // Validate param value if provided
+                if ($value !== null && !$this->validate($value, $paramSchema)) {
+                    $errors[] = sprintf(
+                        'Invalid value for filter "%s" parameter "%s"',
+                        $filterName,
+                        $paramName
+                    );
+                }
+            }
+        }
+        
+        return $errors;
+    }
+    
+    // =========================================================================
+    // EXPRESSION PARSING (AST-level)
+    // =========================================================================
+    
+    /**
+     * Parse expression into components
+     * 
+     * @param string $expression Expression string (with or without braces)
+     * @return array Parsed expression structure
+     */
+    public function parseExpression(string $expression): array
+    {
+        // Remove braces if present
+        $expr = trim($expression);
+        if (str_starts_with($expr, '{') && str_ends_with($expr, '}')) {
+            $expr = substr($expr, 1, -1);
+        }
+        $expr = trim($expr);
+        
+        $result = [
+            'raw' => $expression,
+            'variable' => null,
+            'path' => [],
+            'filters' => [],
+            'errors' => [],
+        ];
+        
+        // Split by pipe to separate variable from filters
+        $parts = preg_split('/\s*\|\s*/', $expr, 2);
+        $variablePart = trim($parts[0]);
+        $filterPart = $parts[1] ?? null;
+        
+        // Parse variable path (e.g., "user.profile.name" or "items[0].title")
+        $result['path'] = $this->parseVariablePath($variablePart);
+        $result['variable'] = $result['path'][0] ?? null;
+        
+        // Parse filters if present
+        if ($filterPart !== null) {
+            $result['filters'] = $this->parseFilterChain('|' . $filterPart);
+        }
+        
+        return $result;
+    }
+    
+    /**
+     * Parse variable path with dot notation and array access
+     * 
+     * @param string $path Variable path (e.g., "user.profile.name", "items[0].title")
+     * @return array Path segments
+     */
+    public function parseVariablePath(string $path): array
+    {
+        $segments = [];
+        $current = '';
+        $inBracket = false;
+        
+        for ($i = 0; $i < strlen($path); $i++) {
+            $char = $path[$i];
+            
+            if ($char === '[') {
+                if ($current !== '') {
+                    $segments[] = ['type' => 'property', 'name' => $current];
+                    $current = '';
+                }
+                $inBracket = true;
+            } elseif ($char === ']') {
+                if ($inBracket) {
+                    // Array access - could be index or key
+                    $index = trim($current, '"\'');
+                    $segments[] = [
+                        'type' => is_numeric($index) ? 'index' : 'key',
+                        'value' => is_numeric($index) ? (int)$index : $index,
+                    ];
+                    $current = '';
+                    $inBracket = false;
+                }
+            } elseif ($char === '.' && !$inBracket) {
+                if ($current !== '') {
+                    $segments[] = ['type' => 'property', 'name' => $current];
+                    $current = '';
+                }
+            } elseif ($char === '?' && isset($path[$i + 1]) && $path[$i + 1] === '.') {
+                // Safe navigation operator (?.)
+                if ($current !== '') {
+                    $segments[] = ['type' => 'property', 'name' => $current, 'safe' => true];
+                    $current = '';
+                }
+                $i++; // Skip the dot
+            } else {
+                $current .= $char;
+            }
+        }
+        
+        // Add final segment
+        if ($current !== '') {
+            $segments[] = ['type' => 'property', 'name' => $current];
+        }
+        
+        return $segments;
+    }
+    
+    /**
+     * Validate parsed expression
+     * 
+     * @param array $parsedExpr Parsed expression from parseExpression()
+     * @param string|null $platform Target platform
+     * @return array Validation errors
+     */
+    public function validateParsedExpression(array $parsedExpr, ?string $platform = null): array
+    {
+        $errors = [];
+        
+        // Must have a variable
+        if (empty($parsedExpr['variable'])) {
+            $errors[] = 'Expression must reference a variable';
+        }
+        
+        // Validate variable name
+        if ($parsedExpr['variable'] && !$this->validateIdentifier($parsedExpr['variable'])) {
+            $errors[] = sprintf('Invalid variable name: "%s"', $parsedExpr['variable']);
+        }
+        
+        // Validate each path segment
+        foreach ($parsedExpr['path'] as $segment) {
+            if ($segment['type'] === 'property') {
+                if (!$this->validateIdentifier($segment['name'])) {
+                    $errors[] = sprintf('Invalid property name: "%s"', $segment['name']);
+                }
+            }
+        }
+        
+        // Validate filters
+        if (!empty($parsedExpr['filters'])) {
+            $filterExpr = '|' . implode('|', array_map(fn($f) => $f['name'], $parsedExpr['filters']));
+            $filterErrors = $this->validateFilterChain($filterExpr, $platform);
+            $errors = array_merge($errors, $filterErrors);
+        }
+        
+        return $errors;
+    }
 }
