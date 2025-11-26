@@ -194,7 +194,7 @@ class Compiler
         $schemas = $component['attributes'] ?? [];
         $attrs = $node['attrs'] ?? [];
         
-        $validationErrors = $this->grammar->validateAttributes($attrs, $schemas);
+        $validationErrors = $this->getGrammar()->validateAttributes($attrs, $schemas);
         
         foreach ($validationErrors as $error) {
             $this->addError($error, $node);
@@ -249,7 +249,7 @@ class Compiler
         // Get component schemas
         if (ComponentRegistry::has($tagName)) {
             $schemas = ComponentRegistry::getAttributeSchemas($tagName);
-            $node['attrs'] = $this->grammar->normalizeAttributes(
+            $node['attrs'] = $this->getGrammar()->normalizeAttributes(
                 $node['attrs'] ?? [],
                 $schemas
             );
