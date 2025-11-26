@@ -1,6 +1,6 @@
 <?php
 /**
- * DiSyL Grammar v1.0.0
+ * DiSyL Grammar v1.2.0
  * 
  * Formal grammar definitions and validation rules for DiSyL Language Specification.
  * Implements the EBNF grammar defined in DISYL_SYNTAX_REFERENCE.md
@@ -13,15 +13,200 @@
  * - Component prop validation
  * - Slot definition validation
  * - Expression syntax validation
+ * - Rich error objects with source mapping
+ * - Strict/lenient validation modes
+ * - Expression caching for performance
+ * - Filter type chain validation
  * 
- * @version 1.0.0
+ * @version 1.2.0
  * @see DISYL_SYNTAX_REFERENCE.md
  */
 
 namespace IkabudKernel\Core\DiSyL;
 
+/**
+ * Validation error with source mapping
+ */
+class ValidationError implements \JsonSerializable
+{
+    public function __construct(
+        public readonly string $message,
+        public readonly string $code,
+        public readonly ?string $nodeType = null,
+        public readonly ?string $tagName = null,
+        public readonly ?int $line = null,
+        public readonly ?int $column = null,
+        public readonly ?string $snippet = null,
+        public readonly string $severity = 'error' // 'error', 'warning', 'info'
+    ) {}
+    
+    public function jsonSerialize(): array
+    {
+        return array_filter([
+            'message' => $this->message,
+            'code' => $this->code,
+            'nodeType' => $this->nodeType,
+            'tagName' => $this->tagName,
+            'line' => $this->line,
+            'column' => $this->column,
+            'snippet' => $this->snippet,
+            'severity' => $this->severity,
+        ], fn($v) => $v !== null);
+    }
+    
+    public function __toString(): string
+    {
+        $loc = $this->line ? " at line {$this->line}" : '';
+        $loc .= $this->column ? ":{$this->column}" : '';
+        return "[{$this->code}] {$this->message}{$loc}";
+    }
+}
+
+/**
+ * Validation result container
+ */
+class ValidationResult implements \JsonSerializable
+{
+    /** @var ValidationError[] */
+    private array $errors = [];
+    
+    /** @var ValidationError[] */
+    private array $warnings = [];
+    
+    public function addError(ValidationError $error): self
+    {
+        if ($error->severity === 'warning') {
+            $this->warnings[] = $error;
+        } else {
+            $this->errors[] = $error;
+        }
+        return $this;
+    }
+    
+    public function addErrorFromArray(array $data): self
+    {
+        return $this->addError(new ValidationError(
+            $data['message'] ?? 'Unknown error',
+            $data['code'] ?? 'UNKNOWN',
+            $data['nodeType'] ?? null,
+            $data['tagName'] ?? null,
+            $data['line'] ?? null,
+            $data['column'] ?? null,
+            $data['snippet'] ?? null,
+            $data['severity'] ?? 'error'
+        ));
+    }
+    
+    public function merge(ValidationResult $other): self
+    {
+        $this->errors = array_merge($this->errors, $other->errors);
+        $this->warnings = array_merge($this->warnings, $other->warnings);
+        return $this;
+    }
+    
+    public function isValid(): bool
+    {
+        return empty($this->errors);
+    }
+    
+    public function hasWarnings(): bool
+    {
+        return !empty($this->warnings);
+    }
+    
+    /** @return ValidationError[] */
+    public function getErrors(): array
+    {
+        return $this->errors;
+    }
+    
+    /** @return ValidationError[] */
+    public function getWarnings(): array
+    {
+        return $this->warnings;
+    }
+    
+    /** @return string[] Simple error messages */
+    public function getErrorMessages(): array
+    {
+        return array_map(fn($e) => $e->message, $this->errors);
+    }
+    
+    public function jsonSerialize(): array
+    {
+        return [
+            'valid' => $this->isValid(),
+            'errorCount' => count($this->errors),
+            'warningCount' => count($this->warnings),
+            'errors' => $this->errors,
+            'warnings' => $this->warnings,
+        ];
+    }
+}
+
 class Grammar
 {
+    // =========================================================================
+    // SCHEMA VERSION & VALIDATION MODES
+    // =========================================================================
+    
+    /** Schema version for component/filter manifests */
+    public const SCHEMA_VERSION = '1.2.0';
+    
+    /** Validation mode: strict (blocks on errors) */
+    public const MODE_STRICT = 'strict';
+    
+    /** Validation mode: lenient (warnings only, allows publishing) */
+    public const MODE_LENIENT = 'lenient';
+    
+    /** @var string Current validation mode */
+    private string $mode = self::MODE_STRICT;
+    
+    /** @var array Expression parse cache */
+    private static array $expressionCache = [];
+    
+    /** @var array Component schema cache */
+    private static array $componentSchemaCache = [];
+    
+    /** @var int Max cache size */
+    private const MAX_CACHE_SIZE = 1000;
+    
+    /**
+     * Set validation mode
+     */
+    public function setMode(string $mode): self
+    {
+        if (!in_array($mode, [self::MODE_STRICT, self::MODE_LENIENT], true)) {
+            throw new \InvalidArgumentException("Invalid mode: {$mode}");
+        }
+        $this->mode = $mode;
+        return $this;
+    }
+    
+    /**
+     * Get current validation mode
+     */
+    public function getMode(): string
+    {
+        return $this->mode;
+    }
+    
+    /**
+     * Check if in strict mode
+     */
+    public function isStrict(): bool
+    {
+        return $this->mode === self::MODE_STRICT;
+    }
+    
+    /**
+     * Clear all caches
+     */
+    public static function clearCache(): void
+    {
+        self::$expressionCache = [];
+        self::$componentSchemaCache = [];
+    }
     // =========================================================================
     // PRIMITIVE TYPES (as per EBNF specification)
     // =========================================================================
@@ -1386,14 +1571,16 @@ class Grammar
      * 
      * @param string $expression Expression with filters
      * @param string|null $platform Target platform for compatibility check
+     * @param string|null $inputType Initial input type for type chain validation
      * @return array Validation errors
      */
-    public function validateFilterChain(string $expression, ?string $platform = null): array
+    public function validateFilterChain(string $expression, ?string $platform = null, ?string $inputType = null): array
     {
         $errors = [];
         $filters = $this->parseFilterChain($expression);
+        $currentType = $inputType ?? self::TYPE_ANY;
         
-        foreach ($filters as $filter) {
+        foreach ($filters as $index => $filter) {
             $filterName = $filter['name'];
             
             // Check if filter exists
@@ -1417,16 +1604,35 @@ class Grammar
                 }
             }
             
-            // Validate filter arguments
+            // Type chain validation: check if current type is compatible with filter input
+            if ($currentType !== self::TYPE_ANY && isset($filterDef['inputType'])) {
+                $expectedInput = $filterDef['inputType'];
+                if ($expectedInput !== self::TYPE_ANY && !$this->isTypeCompatible($currentType, $expectedInput)) {
+                    $errors[] = sprintf(
+                        'Filter "%s" expects input type "%s" but received "%s" from previous filter',
+                        $filterName,
+                        $expectedInput,
+                        $currentType
+                    );
+                }
+            }
+            
+            // Update current type for next filter in chain
+            $currentType = $filterDef['returnType'] ?? self::TYPE_ANY;
+            
+            // Validate filter arguments (positional and named)
             $args = $filter['args'];
             $params = $filterDef['params'] ?? [];
+            $paramNames = array_keys($params);
+            $positionalIndex = 0;
             
             foreach ($params as $paramName => $paramSchema) {
-                $value = $args[$paramName] ?? null;
+                // Try named argument first, then positional
+                $value = $args[$paramName] ?? $args[$positionalIndex] ?? null;
                 
                 // Check required params
                 if (isset($paramSchema['required']) && $paramSchema['required'] === true) {
-                    if ($value === null && !isset($args[0])) { // Also check positional
+                    if ($value === null) {
                         $errors[] = sprintf(
                             'Filter "%s" requires parameter "%s"',
                             $filterName,
@@ -1443,10 +1649,106 @@ class Grammar
                         $paramName
                     );
                 }
+                
+                $positionalIndex++;
             }
         }
         
         return $errors;
+    }
+    
+    /**
+     * Check if two types are compatible
+     */
+    private function isTypeCompatible(string $sourceType, string $targetType): bool
+    {
+        // ANY accepts anything
+        if ($targetType === self::TYPE_ANY || $sourceType === self::TYPE_ANY) {
+            return true;
+        }
+        
+        // Exact match
+        if ($sourceType === $targetType) {
+            return true;
+        }
+        
+        // String-like types are compatible
+        $stringLike = [self::TYPE_STRING, self::TYPE_HTML, self::TYPE_MARKDOWN, self::TYPE_URL, self::TYPE_EMAIL];
+        if (in_array($sourceType, $stringLike, true) && in_array($targetType, $stringLike, true)) {
+            return true;
+        }
+        
+        // Number types are compatible
+        $numberLike = [self::TYPE_NUMBER, self::TYPE_INTEGER, self::TYPE_FLOAT];
+        if (in_array($sourceType, $numberLike, true) && in_array($targetType, $numberLike, true)) {
+            return true;
+        }
+        
+        return false;
+    }
+    
+    /**
+     * Validate filter chain with rich error objects
+     * 
+     * @param string $expression Expression with filters
+     * @param string|null $platform Target platform
+     * @param string|null $inputType Initial input type
+     * @return ValidationResult
+     */
+    public function validateFilterChainRich(string $expression, ?string $platform = null, ?string $inputType = null): ValidationResult
+    {
+        $result = new ValidationResult();
+        $filters = $this->parseFilterChain($expression);
+        $currentType = $inputType ?? self::TYPE_ANY;
+        
+        foreach ($filters as $index => $filter) {
+            $filterName = $filter['name'];
+            
+            if (!self::hasFilter($filterName)) {
+                $result->addError(new ValidationError(
+                    sprintf('Unknown filter: "%s"', $filterName),
+                    'UNKNOWN_FILTER',
+                    'filter',
+                    $filterName
+                ));
+                continue;
+            }
+            
+            $filterDef = self::getFilter($filterName);
+            
+            // Platform check
+            if ($platform !== null && $platform !== self::PLATFORM_UNIVERSAL) {
+                $supportedPlatforms = $filterDef['platforms'] ?? [self::PLATFORM_UNIVERSAL];
+                if (!in_array(self::PLATFORM_UNIVERSAL, $supportedPlatforms, true) &&
+                    !in_array($platform, $supportedPlatforms, true)) {
+                    $result->addError(new ValidationError(
+                        sprintf('Filter "%s" is not available on platform "%s"', $filterName, $platform),
+                        'PLATFORM_INCOMPATIBLE',
+                        'filter',
+                        $filterName,
+                        severity: $this->isStrict() ? 'error' : 'warning'
+                    ));
+                }
+            }
+            
+            // Type chain validation
+            if ($currentType !== self::TYPE_ANY && isset($filterDef['inputType'])) {
+                $expectedInput = $filterDef['inputType'];
+                if ($expectedInput !== self::TYPE_ANY && !$this->isTypeCompatible($currentType, $expectedInput)) {
+                    $result->addError(new ValidationError(
+                        sprintf('Filter "%s" expects type "%s" but received "%s"', $filterName, $expectedInput, $currentType),
+                        'TYPE_MISMATCH',
+                        'filter',
+                        $filterName,
+                        severity: $this->isStrict() ? 'error' : 'warning'
+                    ));
+                }
+            }
+            
+            $currentType = $filterDef['returnType'] ?? self::TYPE_ANY;
+        }
+        
+        return $result;
     }
     
     // =========================================================================
@@ -1454,13 +1756,20 @@ class Grammar
     // =========================================================================
     
     /**
-     * Parse expression into components
+     * Parse expression into components (with caching)
      * 
      * @param string $expression Expression string (with or without braces)
+     * @param bool $useCache Whether to use cache (default: true)
      * @return array Parsed expression structure
      */
-    public function parseExpression(string $expression): array
+    public function parseExpression(string $expression, bool $useCache = true): array
     {
+        // Check cache first
+        $cacheKey = self::SCHEMA_VERSION . ':' . $expression;
+        if ($useCache && isset(self::$expressionCache[$cacheKey])) {
+            return self::$expressionCache[$cacheKey];
+        }
+        
         // Remove braces if present
         $expr = trim($expression);
         if (str_starts_with($expr, '{') && str_ends_with($expr, '}')) {
@@ -1474,6 +1783,7 @@ class Grammar
             'path' => [],
             'filters' => [],
             'errors' => [],
+            'hasEscaping' => false, // Security flag
         ];
         
         // Split by pipe to separate variable from filters
@@ -1483,11 +1793,29 @@ class Grammar
         
         // Parse variable path (e.g., "user.profile.name" or "items[0].title")
         $result['path'] = $this->parseVariablePath($variablePart);
-        $result['variable'] = $result['path'][0] ?? null;
+        $result['variable'] = $result['path'][0]['name'] ?? null;
         
         // Parse filters if present
         if ($filterPart !== null) {
             $result['filters'] = $this->parseFilterChain('|' . $filterPart);
+            
+            // Check for escaping filters (security)
+            $escapingFilters = ['esc_html', 'esc_attr', 'esc_url', 'strip_tags', 'wp_kses_post'];
+            foreach ($result['filters'] as $filter) {
+                if (in_array($filter['name'], $escapingFilters, true)) {
+                    $result['hasEscaping'] = true;
+                    break;
+                }
+            }
+        }
+        
+        // Cache result (with size limit)
+        if ($useCache) {
+            if (count(self::$expressionCache) >= self::MAX_CACHE_SIZE) {
+                // Evict oldest entries (simple FIFO)
+                self::$expressionCache = array_slice(self::$expressionCache, (int)(self::MAX_CACHE_SIZE / 2), null, true);
+            }
+            self::$expressionCache[$cacheKey] = $result;
         }
         
         return $result;
@@ -1588,5 +1916,370 @@ class Grammar
         }
         
         return $errors;
+    }
+    
+    // =========================================================================
+    // SECURITY VALIDATION
+    // =========================================================================
+    
+    /** @var array Types that require explicit escaping */
+    private const UNSAFE_OUTPUT_TYPES = [self::TYPE_HTML, self::TYPE_STRING, self::TYPE_ANY];
+    
+    /** @var array Escaping filters */
+    private const ESCAPING_FILTERS = ['esc_html', 'esc_attr', 'esc_url', 'strip_tags', 'wp_kses_post', 'htmlspecialchars'];
+    
+    /**
+     * Check if expression has proper escaping for output context
+     * 
+     * @param string $expression Expression to check
+     * @param string $context Output context ('html', 'attr', 'url', 'js')
+     * @return ValidationResult
+     */
+    public function validateSecureOutput(string $expression, string $context = 'html'): ValidationResult
+    {
+        $result = new ValidationResult();
+        $parsed = $this->parseExpression($expression);
+        
+        // Check if expression has escaping
+        if (!$parsed['hasEscaping']) {
+            $requiredFilter = match($context) {
+                'html' => 'esc_html',
+                'attr' => 'esc_attr',
+                'url' => 'esc_url',
+                'js' => 'json',
+                default => 'esc_html',
+            };
+            
+            $result->addError(new ValidationError(
+                sprintf('Expression "%s" should use %s filter for %s context', 
+                    $expression, $requiredFilter, $context),
+                'MISSING_ESCAPING',
+                'expression',
+                null,
+                severity: $this->isStrict() ? 'error' : 'warning'
+            ));
+        }
+        
+        return $result;
+    }
+    
+    /**
+     * Validate TYPE_HTML prop has explicit safe marking
+     * 
+     * @param string $propName Property name
+     * @param array $schema Property schema
+     * @param mixed $value Property value
+     * @return ValidationResult
+     */
+    public function validateHtmlProp(string $propName, array $schema, mixed $value): ValidationResult
+    {
+        $result = new ValidationResult();
+        
+        $type = $schema['type'] ?? self::TYPE_STRING;
+        
+        if ($type === self::TYPE_HTML) {
+            // Check if explicitly marked safe
+            if (!isset($schema['safe']) || $schema['safe'] !== true) {
+                $result->addError(new ValidationError(
+                    sprintf('HTML prop "%s" should be marked as safe: true or use wp_kses_post filter', $propName),
+                    'UNSAFE_HTML_PROP',
+                    'prop',
+                    $propName,
+                    severity: 'warning'
+                ));
+            }
+        }
+        
+        return $result;
+    }
+    
+    // =========================================================================
+    // RICH VALIDATION API (for Visual Builder & IDE integration)
+    // =========================================================================
+    
+    /**
+     * Validate full template with rich error reporting
+     * 
+     * @param array $ast Full AST
+     * @param string|null $platform Target platform
+     * @return ValidationResult
+     */
+    public function validateTemplateRich(array $ast, ?string $platform = null): ValidationResult
+    {
+        $result = new ValidationResult();
+        
+        // Validate structure
+        $structureErrors = $this->validateStructure($ast);
+        foreach ($structureErrors as $error) {
+            $result->addError(new ValidationError(
+                $error,
+                'STRUCTURE_ERROR',
+                'document'
+            ));
+        }
+        
+        // Validate nodes recursively with rich errors
+        if (isset($ast['children'])) {
+            $this->validateNodesRich($ast['children'], $result, $platform);
+        }
+        
+        return $result;
+    }
+    
+    /**
+     * Validate nodes with rich error reporting
+     */
+    private function validateNodesRich(array $nodes, ValidationResult $result, ?string $platform): void
+    {
+        foreach ($nodes as $node) {
+            if (!isset($node['type'])) {
+                continue;
+            }
+            
+            $line = $node['line'] ?? null;
+            $column = $node['column'] ?? null;
+            
+            switch ($node['type']) {
+                case 'tag':
+                    $tagName = $node['name'] ?? 'unknown';
+                    
+                    // Validate tag
+                    $tagErrors = $this->validateTag($node);
+                    foreach ($tagErrors as $error) {
+                        $result->addError(new ValidationError(
+                            $error,
+                            'TAG_ERROR',
+                            'tag',
+                            $tagName,
+                            $line,
+                            $column
+                        ));
+                    }
+                    
+                    // Check platform compatibility
+                    if ($platform && !$this->isComponentCompatible($tagName, $platform)) {
+                        $result->addError(new ValidationError(
+                            sprintf('Component "%s" is not compatible with platform "%s"', $tagName, $platform),
+                            'PLATFORM_INCOMPATIBLE',
+                            'tag',
+                            $tagName,
+                            $line,
+                            $column,
+                            severity: $this->isStrict() ? 'error' : 'warning'
+                        ));
+                    }
+                    
+                    // Recurse into children
+                    if (isset($node['children'])) {
+                        $this->validateNodesRich($node['children'], $result, $platform);
+                    }
+                    break;
+                    
+                case 'expression':
+                    $exprValue = $node['value'] ?? '';
+                    $parsed = $this->parseExpression('{' . $exprValue . '}');
+                    
+                    // Validate expression
+                    $exprErrors = $this->validateParsedExpression($parsed, $platform);
+                    foreach ($exprErrors as $error) {
+                        $result->addError(new ValidationError(
+                            $error,
+                            'EXPRESSION_ERROR',
+                            'expression',
+                            null,
+                            $line,
+                            $column,
+                            $exprValue
+                        ));
+                    }
+                    
+                    // Security warning for unescaped output
+                    if (!$parsed['hasEscaping'] && $this->isStrict()) {
+                        $result->addError(new ValidationError(
+                            sprintf('Expression "%s" has no escaping filter', $exprValue),
+                            'MISSING_ESCAPING',
+                            'expression',
+                            null,
+                            $line,
+                            $column,
+                            $exprValue,
+                            'warning'
+                        ));
+                    }
+                    break;
+            }
+        }
+    }
+    
+    /**
+     * Validate component props with rich error reporting
+     * 
+     * @param string $componentName Component name
+     * @param array $attributes Provided attributes
+     * @param int|null $line Line number
+     * @param int|null $column Column number
+     * @return ValidationResult
+     */
+    public function validateComponentPropsRich(
+        string $componentName, 
+        array $attributes, 
+        ?int $line = null, 
+        ?int $column = null
+    ): ValidationResult {
+        $result = new ValidationResult();
+        
+        $errors = $this->validateComponentProps($componentName, $attributes);
+        foreach ($errors as $error) {
+            $result->addError(new ValidationError(
+                $error,
+                'PROP_ERROR',
+                'tag',
+                $componentName,
+                $line,
+                $column
+            ));
+        }
+        
+        // Check for HTML props without safe marking
+        $schema = $this->getComponentSchema($componentName);
+        foreach ($schema as $propName => $propSchema) {
+            if (isset($attributes[$propName])) {
+                $htmlResult = $this->validateHtmlProp($propName, $propSchema, $attributes[$propName]);
+                $result->merge($htmlResult);
+            }
+        }
+        
+        return $result;
+    }
+    
+    /**
+     * Get component schema (cached)
+     */
+    private function getComponentSchema(string $componentName): array
+    {
+        if (isset(self::$componentSchemaCache[$componentName])) {
+            return self::$componentSchemaCache[$componentName];
+        }
+        
+        $schema = ComponentRegistry::getAttributeSchemas($componentName);
+        
+        // Cache with size limit
+        if (count(self::$componentSchemaCache) >= self::MAX_CACHE_SIZE) {
+            self::$componentSchemaCache = array_slice(self::$componentSchemaCache, (int)(self::MAX_CACHE_SIZE / 2), null, true);
+        }
+        self::$componentSchemaCache[$componentName] = $schema;
+        
+        return $schema;
+    }
+    
+    // =========================================================================
+    // VISUAL BUILDER API
+    // =========================================================================
+    
+    /**
+     * Get all available components for Visual Builder
+     * 
+     * @param string|null $platform Filter by platform
+     * @param string|null $category Filter by category
+     * @return array Component list with metadata
+     */
+    public static function getAvailableComponents(?string $platform = null, ?string $category = null): array
+    {
+        $components = ComponentRegistry::all();
+        $result = [];
+        
+        foreach ($components as $name => $def) {
+            // Filter by category
+            if ($category !== null && ($def['category'] ?? '') !== $category) {
+                continue;
+            }
+            
+            // Filter by platform (if component has platform restrictions)
+            if ($platform !== null && isset($def['platforms'])) {
+                if (!in_array(self::PLATFORM_UNIVERSAL, $def['platforms'], true) &&
+                    !in_array($platform, $def['platforms'], true)) {
+                    continue;
+                }
+            }
+            
+            $result[] = [
+                'name' => $name,
+                'category' => $def['category'] ?? 'ui',
+                'description' => $def['description'] ?? '',
+                'props' => array_map(fn($schema, $propName) => [
+                    'name' => $propName,
+                    'type' => $schema['type'] ?? 'string',
+                    'required' => $schema['required'] ?? false,
+                    'default' => $schema['default'] ?? null,
+                    'enum' => $schema['enum'] ?? null,
+                    'description' => $schema['description'] ?? '',
+                ], $def['attributes'] ?? [], array_keys($def['attributes'] ?? [])),
+                'leaf' => $def['leaf'] ?? false,
+                'slots' => $def['slots'] ?? [],
+            ];
+        }
+        
+        return $result;
+    }
+    
+    /**
+     * Get all available filters for Visual Builder
+     * 
+     * @param string|null $platform Filter by platform
+     * @return array Filter list with metadata
+     */
+    public static function getAvailableFilters(?string $platform = null): array
+    {
+        self::initializeFilters();
+        $result = [];
+        
+        foreach (self::$filters as $name => $def) {
+            // Filter by platform
+            if ($platform !== null) {
+                $supportedPlatforms = $def['platforms'] ?? [self::PLATFORM_UNIVERSAL];
+                if (!in_array(self::PLATFORM_UNIVERSAL, $supportedPlatforms, true) &&
+                    !in_array($platform, $supportedPlatforms, true)) {
+                    continue;
+                }
+            }
+            
+            $result[] = [
+                'name' => $name,
+                'description' => $def['description'] ?? '',
+                'params' => array_map(fn($schema, $paramName) => [
+                    'name' => $paramName,
+                    'type' => $schema['type'] ?? 'string',
+                    'required' => $schema['required'] ?? false,
+                    'default' => $schema['default'] ?? null,
+                ], $def['params'] ?? [], array_keys($def['params'] ?? [])),
+                'returnType' => $def['returnType'] ?? 'string',
+                'platforms' => $def['platforms'] ?? [self::PLATFORM_UNIVERSAL],
+            ];
+        }
+        
+        return $result;
+    }
+    
+    /**
+     * Export JSON Schema for Visual Builder integration
+     * 
+     * @return array JSON Schema compatible structure
+     */
+    public static function exportJsonSchema(): array
+    {
+        return [
+            '$schema' => 'https://json-schema.org/draft/2020-12/schema',
+            'title' => 'DiSyL Component Schema',
+            'version' => self::SCHEMA_VERSION,
+            'components' => self::getAvailableComponents(),
+            'filters' => self::getAvailableFilters(),
+            'platforms' => self::VALID_PLATFORMS,
+            'platformCategories' => self::PLATFORM_CATEGORIES,
+            'types' => [
+                'primitive' => [self::TYPE_STRING, self::TYPE_NUMBER, self::TYPE_INTEGER, self::TYPE_FLOAT, self::TYPE_BOOLEAN, self::TYPE_NULL],
+                'complex' => [self::TYPE_ARRAY, self::TYPE_OBJECT],
+                'extended' => [self::TYPE_URL, self::TYPE_IMAGE, self::TYPE_COLOR, self::TYPE_DATE, self::TYPE_DATETIME, self::TYPE_EMAIL, self::TYPE_PHONE, self::TYPE_HTML, self::TYPE_MARKDOWN, self::TYPE_JSON, self::TYPE_EXPRESSION],
+            ],
+        ];
     }
 }
