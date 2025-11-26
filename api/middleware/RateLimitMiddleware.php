@@ -159,8 +159,9 @@ class RateLimitMiddleware implements MiddlewareInterface
             $authHeader = $request->getHeaderLine('Authorization');
             if (preg_match('/Bearer\s+(.+)$/i', $authHeader, $matches)) {
                 try {
-                    $payload = \IkabudKernel\Core\JWT::decode($matches[1]);
-                    if (isset($payload['user_id'])) {
+                    $jwt = new \IkabudKernel\Core\JWT();
+                    $payload = $jwt->verify($matches[1]);
+                    if ($payload && isset($payload['user_id'])) {
                         return 'user_' . $payload['user_id'];
                     }
                 } catch (\Exception $e) {
