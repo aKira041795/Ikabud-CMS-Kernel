@@ -1,0 +1,65 @@
+{
+  "name": "disyl",
+  "displayName": "DiSyL - Declarative Ikabud Syntax Language",
+  "description": "Syntax highlighting, snippets, and language support for DiSyL templates",
+  "version": "0.8.0",
+  "publisher": "ikabud",
+  "icon": "icon.png",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Snippets"
+  ],
+  "keywords": [
+    "disyl",
+    "template",
+    "cms",
+    "wordpress",
+    "drupal",
+    "joomla",
+    "ikabud",
+    "windsurf",
+    "codeium"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ikabud/disyl"
+  },
+  "license": "MIT",
+  "contributes": {
+    "languages": [
+      {
+        "id": "disyl",
+        "aliases": [
+          "DiSyL",
+          "disyl",
+          "DISYL"
+        ],
+        "extensions": [
+          ".disyl"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "disyl",
+        "scopeName": "text.html.disyl",
+        "path": "./syntaxes/disyl.tmLanguage.json",
+        "embeddedLanguages": {
+          "text.html.basic": "html",
+          "source.css": "css",
+          "source.js": "javascript"
+        }
+      }
+    ],
+    "snippets": [
+      {
+        "language": "disyl",
+        "path": "./snippets/disyl.json"
+      }
+    ]
+  }
+}

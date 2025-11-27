@@ -20,8 +20,11 @@ node_modules/
 *.swp
 *.swo
 
-# VS Code extension dev
-vscode-disyl/
+# VS Code extension dev (keep source, ignore build artifacts)
+vscode-disyl/node_modules/
+vscode-disyl/out/
+vscode-disyl/*.vsix
+vscode-disyl/.vsix-package/
 
 # OS
 .DS_Store
