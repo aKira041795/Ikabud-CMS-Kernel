@@ -6,7 +6,7 @@ import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
 import Instances from './pages/Instances'
 import Themes from './pages/Themes'
-import DSLBuilder from './pages/DSLBuilder'
+import UpdateCores from './pages/UpdateCores'
 import ProcessMonitor from './pages/ProcessMonitor'
 import Settings from './pages/Settings'
 import CreateInstance from './pages/CreateInstance'
@@ -53,10 +53,10 @@ function App() {
             </Layout>
           </ProtectedRoute>
         } />
-        <Route path="/dsl" element={
+        <Route path="/update-cores" element={
           <ProtectedRoute>
             <Layout>
-              <DSLBuilder />
+              <UpdateCores />
             </Layout>
           </ProtectedRoute>
         } />
