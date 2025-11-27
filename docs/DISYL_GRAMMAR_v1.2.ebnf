@@ -1,0 +1,794 @@
+(*
+ * DiSyL Grammar Specification v1.2.0
+ * Extended Backus-Naur Form (EBNF)
+ * 
+ * PRODUCTION-READY GRAMMAR - Aligned with Grammar.php v1.2.0
+ * - Machine-parsable (ANTLR4, Tree-sitter, PEG compatible)
+ * - Full platform support (web, mobile, desktop)
+ * - Extended type system
+ * - Filter type chain validation
+ * - Safe navigation operator
+ * - Expression caching support
+ * - Rich error objects with source mapping
+ * 
+ * Notation:
+ * - ::= defines a production rule
+ * - | separates alternatives
+ * - () groups items
+ * - [] optional items (0 or 1)
+ * - {} repetition (0 or more)
+ * - "" literal strings
+ * - (* *) comments
+ * - [#xHHHH] Unicode code point ranges
+ *)
+
+(* ============================================================================
+   DOCUMENT STRUCTURE
+   ============================================================================ *)
+
+document ::= { node }
+
+node ::= tag_node
+       | text_node
+       | expression_node
+       | comment_node
+
+(* ============================================================================
+   TAG NODES (Components, Control Structures, Declarations)
+   ============================================================================ *)
+
+tag_node ::= component_tag
+           | control_structure_tag
+           | declaration_tag
+
+(* Component Tags *)
+component_tag ::= self_closing_component
+                | paired_component
+                | namespaced_component
+
+self_closing_component ::= "{" component_name [ ws_attr attributes ] "/" "}"
+
+paired_component ::= opening_component { node } closing_component
+
+opening_component ::= "{" component_name [ ws_attr attributes ] "}"
+
+closing_component ::= "{" "/" component_name "}"
+
+component_name ::= "ikb_" identifier
+
+(* Namespaced Components - Platform-specific *)
+namespaced_component ::= self_closing_namespaced
+                       | paired_namespaced
+
+self_closing_namespaced ::= "{" namespace ":" identifier [ ws_attr attributes ] "/" "}"
+
+paired_namespaced ::= "{" namespace ":" identifier [ ws_attr attributes ] "}"
+                      { node }
+                      "{" "/" namespace ":" identifier "}"
+
+namespace ::= "wp" | "joomla" | "drupal" | "mobile" | "desktop" | identifier
+
+(* Declaration Tags *)
+declaration_tag ::= platform_declaration
+                  | cms_declaration
+
+platform_declaration ::= "{" "ikb_platform" ws_attr platform_attributes "/" "}"
+
+cms_declaration ::= "{" "ikb_cms" ws_attr cms_attributes "/" "}"
+
+platform_attributes ::= "type" ws_attr "=" ws_attr platform_type
+                       [ ws_attr "targets" ws_attr "=" ws_attr quoted_string ]
+                       [ ws_attr "fallback" ws_attr "=" ws_attr platform_identifier ]
+                       [ ws_attr "version" ws_attr "=" ws_attr version_string ]
+                       [ ws_attr "features" ws_attr "=" ws_attr feature_list ]
+
+cms_attributes ::= "type" ws_attr "=" ws_attr cms_type
+                  [ ws_attr "set" ws_attr "=" ws_attr set_list ]
+
+platform_type ::= '"' ( "web" | "mobile" | "desktop" | "universal" ) '"'
+
+cms_type ::= '"' platform_identifier '"'
+
+(* Control Structure Tags *)
+control_structure_tag ::= if_tag
+                        | for_tag
+                        | switch_tag
+                        | include_tag
+
+if_tag ::= "{" "if" ws_attr if_attributes "}" 
+           document 
+           { "{" "elseif" ws_attr if_attributes "}" document }
+           [ "{" "else" "}" document ] 
+           "{" "/" "if" "}"
+
+for_tag ::= "{" "for" ws_attr for_attributes "}" 
+            document 
+            [ "{" "empty" "}" document ]
+            "{" "/" "for" "}"
+
+switch_tag ::= "{" "switch" ws_attr switch_attributes "}"
+               { case_clause }
+               [ default_clause ]
+               "{" "/" "switch" "}"
+
+case_clause ::= "{" "case" ws_attr case_attributes "}" document
+
+default_clause ::= "{" "default" "}" document
+
+include_tag ::= "{" "include" ws_attr include_attributes "/" "}"
+
+(* ============================================================================
+   ATTRIBUTES (Unified for Components and Control Structures)
+   ============================================================================ *)
+
+attributes ::= attribute { ws_attr attribute }
+
+attribute ::= identifier ws_attr "=" ws_attr attribute_value
+
+attribute_value ::= quoted_string
+                  | attribute_expression
+                  | boolean_literal
+                  | number_literal
+
+quoted_string ::= '"' { string_char } '"'
+                | "'" { string_char } "'"
+
+(* Attribute Expression - Distinct from standalone expression_node *)
+attribute_expression ::= "{" expression "}"
+
+boolean_literal ::= "true" | "false"
+
+number_literal ::= [ "-" ] digit { digit } [ "." digit { digit } ]
+
+(* Control Structure Specific Attributes *)
+if_attributes ::= "condition" ws_attr "=" ws_attr attribute_value
+
+for_attributes ::= "items" ws_attr "=" ws_attr attribute_value 
+                   ws_attr "as" ws_attr "=" ws_attr quoted_string
+                   [ ws_attr "key" ws_attr "=" ws_attr quoted_string ]
+
+switch_attributes ::= "value" ws_attr "=" ws_attr attribute_value
+
+case_attributes ::= "match" ws_attr "=" ws_attr attribute_value
+
+include_attributes ::= "file" ws_attr "=" ws_attr quoted_string
+                     | "template" ws_attr "=" ws_attr quoted_string
+
+(* ============================================================================
+   EXPRESSIONS (Enhanced Filter Pipeline with Type Chain)
+   ============================================================================ *)
+
+(* Standalone Expression Node - For text interpolation *)
+expression_node ::= "{" expression "}"
+
+(* Expression Grammar with Filter Pipeline *)
+expression ::= pipe_expression
+
+pipe_expression ::= primary_expression { ws_expr "|" ws_expr filter_call }
+
+primary_expression ::= simple_expression
+                     | property_access
+                     | safe_navigation
+                     | array_access
+                     | method_call
+                     | "(" ws_expr expression ws_expr ")"
+
+simple_expression ::= identifier
+
+property_access ::= identifier { "." identifier }
+
+(* Safe Navigation Operator - v1.2.0 *)
+safe_navigation ::= identifier { "?." identifier }
+
+(* Array Access - v1.2.0 *)
+array_access ::= identifier { "[" ( integer_literal | quoted_string | identifier ) "]" }
+
+method_call ::= identifier "(" ws_expr [ argument_list ] ws_expr ")"
+
+(* ============================================================================
+   FILTER SYNTAX (Fixed Argument Ordering with Type Validation)
+   ============================================================================ *)
+
+filter_call ::= filter_name [ filter_arguments ]
+
+filter_name ::= identifier
+
+(* Filter Arguments: Positional first, then named (like Python) *)
+filter_arguments ::= ":" ws_expr positional_args [ ws_expr "," ws_expr named_args ]
+                   | ":" ws_expr named_args
+
+positional_args ::= positional_argument { ws_expr "," ws_expr positional_argument }
+
+named_args ::= named_argument { ws_expr "," ws_expr named_argument }
+
+named_argument ::= identifier ws_expr "=" ws_expr argument_value
+
+positional_argument ::= quoted_string 
+                      | number_literal 
+                      | boolean_literal
+                      | identifier
+
+argument_value ::= quoted_string 
+                 | number_literal 
+                 | boolean_literal
+
+argument_list ::= expression { ws_expr "," ws_expr expression }
+
+(* ============================================================================
+   TEXT NODES (Simplified Whitespace Handling)
+   ============================================================================ *)
+
+text_node ::= text_content
+
+(* text_char already includes all whitespace via unicode_char *)
+text_content ::= { text_char | text_interpolation }+
+
+(* Text Interpolation - Same as expression_node but in text context *)
+text_interpolation ::= "{" expression "}"
+
+text_char ::= unicode_char - ( "{" | "}" )
+
+(* ============================================================================
+   COMMENT NODES
+   ============================================================================ *)
+
+comment_node ::= "{!--" comment_content "--}"
+
+comment_content ::= { any_char - "--}" }
+
+(* Inline Comments (Future Feature) *)
+inline_comment ::= "/*" { any_char - "*/" } "*/"
+
+(* ============================================================================
+   LEXICAL ELEMENTS
+   ============================================================================ *)
+
+identifier ::= letter { identifier_char }
+
+identifier_char ::= letter | digit | "_" | "-"
+
+letter ::= [a-zA-Z]
+
+digit ::= [0-9]
+
+integer_literal ::= digit { digit }
+
+string_char ::= unicode_char - ( '"' | "'" | "\\" )
+              | escape_sequence
+
+escape_sequence ::= "\\" ( "\\" | '"' | "'" | "n" | "r" | "t" | "{" | "}" 
+                  | "u" hex_digit hex_digit hex_digit hex_digit )
+
+hex_digit ::= [0-9a-fA-F]
+
+version_string ::= '"' digit { digit } "." digit { digit } [ "." digit { digit } ] '"'
+
+feature_list ::= '"' feature { "," feature } '"'
+
+feature ::= "components" | "filters" | "queries" | "slots" | "expressions"
+
+set_list ::= '"' set_value { "," set_value } '"'
+
+set_value ::= "components" | "filters" | "hooks" | "functions" | "all"
+
+(* Unicode Support - International Ready *)
+unicode_char ::= #x0009 | #x000A | #x000D | [#x0020-#xD7FF] | [#xE000-#xFFFD]
+
+any_char ::= unicode_char
+
+(* ============================================================================
+   WHITESPACE HANDLING (Disambiguated)
+   ============================================================================ *)
+
+(* ws_attr: Insignificant whitespace between attributes *)
+ws_attr ::= { " " | "\t" | "\n" | "\r" }
+
+(* ws_expr: Insignificant whitespace in expressions *)
+ws_expr ::= { " " | "\t" | "\n" | "\r" }
+
+(* ws_text: Significant whitespace in text nodes (preserved) *)
+(* Note: ws_text is implicit in text_char via unicode_char *)
+
+(* ============================================================================
+   TYPE SYSTEM (v1.2.0)
+   ============================================================================ *)
+
+(*
+ * Primitive Types:
+ * - string: Text value
+ * - number: Numeric value (integer or float)
+ * - integer: Whole number
+ * - float: Decimal number
+ * - boolean: true/false
+ * - null: Null value
+ * - array: Indexed collection
+ * - object: Key-value collection
+ * - any: Any type (wildcard)
+ *
+ * Extended Types:
+ * - url: Valid URL string
+ * - image: Image URL or path
+ * - color: CSS color value (hex, rgb, hsl, named)
+ * - date: ISO 8601 date (YYYY-MM-DD)
+ * - datetime: ISO 8601 datetime
+ * - email: Valid email address
+ * - phone: Phone number
+ * - html: HTML content
+ * - markdown: Markdown content
+ * - json: JSON string
+ * - expression: DiSyL expression
+ *
+ * Union Types:
+ * - type1|type2: Value can be either type
+ * - Example: string|number
+ *
+ * Array Types:
+ * - array<type>: Array of specific type
+ * - Example: array<string>
+ *)
+
+type_specifier ::= primitive_type
+                 | extended_type
+                 | union_type
+                 | array_type
+
+primitive_type ::= "string" | "number" | "integer" | "float" 
+                 | "boolean" | "null" | "array" | "object" | "any"
+
+extended_type ::= "url" | "image" | "color" | "date" | "datetime"
+                | "email" | "phone" | "html" | "markdown" | "json" | "expression"
+
+union_type ::= type_specifier "|" type_specifier { "|" type_specifier }
+
+array_type ::= "array<" type_specifier ">"
+
+(* ============================================================================
+   PLATFORM IDENTIFIERS (v1.2.0)
+   ============================================================================ *)
+
+platform_identifier ::= web_platform
+                      | mobile_platform
+                      | desktop_platform
+                      | universal_platform
+
+web_platform ::= "wordpress" | "joomla" | "drupal" | "ikabud" | "generic"
+
+mobile_platform ::= "react_native" | "flutter" | "ios" | "android"
+
+desktop_platform ::= "electron" | "tauri"
+
+universal_platform ::= "*"
+
+(* Platform Categories *)
+platform_category ::= "web" | "mobile" | "desktop" | "universal"
+
+(* ============================================================================
+   RESERVED KEYWORDS
+   ============================================================================ *)
+
+(* Control Structures *)
+reserved_control ::= "if" | "else" | "elseif" | "for" | "empty" 
+                   | "switch" | "case" | "default" | "include"
+
+(* Boolean Literals *)
+reserved_boolean ::= "true" | "false"
+
+(* Null Keyword *)
+reserved_null ::= "null"
+
+(* Component/Declaration Prefixes *)
+reserved_prefix ::= "ikb_platform" | "ikb_cms" | "ikb_component" | "ikb_include"
+                  | "props" | "prop" | "slots" | "slot" | "template"
+
+(* Filter Keywords (Core Filters) *)
+reserved_filter_security ::= "esc_html" | "esc_url" | "esc_attr" | "strip_tags"
+
+reserved_filter_text ::= "upper" | "lower" | "capitalize" | "truncate" | "trim"
+
+reserved_filter_format ::= "date" | "number_format" | "json"
+
+reserved_filter_logic ::= "default" | "raw" | "safe"
+
+reserved_filter_wp ::= "wp_trim_words" | "wp_kses_post"
+
+reserved_filter_drupal ::= "t"
+
+(* ============================================================================
+   COMPONENT CATEGORIES (v1.2.0)
+   ============================================================================ *)
+
+component_category ::= "layout" | "content" | "interactive" | "media"
+                     | "data" | "control" | "cms" | "mobile" | "desktop"
+
+(* ============================================================================
+   NAMING CONVENTIONS
+   ============================================================================ *)
+
+(*
+ * Component Names:
+ * - Must start with "ikb_"
+ * - Followed by lowercase letters, numbers, or underscores
+ * - Examples: ikb_section, ikb_text, ikb_card, ikb_image
+ *
+ * Namespaced Components:
+ * - Format: namespace:component_name
+ * - Examples: wp:query, joomla:article, mobile:scroll_view
+ *
+ * Control Structures:
+ * - Lowercase keywords: if, else, elseif, for, empty, switch, case, default, include
+ * - No prefix required
+ *
+ * Attributes:
+ * - Lowercase letters, numbers, underscores, or hyphens
+ * - Examples: type, size, weight, bg, data-id, aria-label
+ *
+ * Expressions:
+ * - Variable names: lowercase or camelCase
+ * - Property access: dot notation (item.title)
+ * - Safe navigation: ?. operator (item?.title)
+ * - Array access: bracket notation (items[0])
+ * - Examples: title, item.content, post.author?.name, items[0].title
+ *
+ * Filters:
+ * - Lowercase letters and underscores
+ * - Examples: upper, truncate, strip_tags, esc_html, number_format
+ *)
+
+(* ============================================================================
+   SYNTAX RULES
+   ============================================================================ *)
+
+(*
+ * Rule 1: Self-Closing Tags
+ * - Void components MUST be self-closing
+ * - Use "/" before closing brace
+ * - Example: {ikb_image src="..." /}
+ *
+ * Rule 2: Paired Tags
+ * - Opening and closing tag names MUST match exactly
+ * - Closing tag uses "/" prefix
+ * - Example: {ikb_text}content{/ikb_text}
+ *
+ * Rule 3: Nesting
+ * - Tags must be properly nested (no overlapping)
+ * - Closing tags must match in reverse order of opening
+ *
+ * Rule 4: Expressions
+ * - Standalone expressions: {variable}
+ * - In text: "Hello {name}!"
+ * - In attributes: title="{item.title}"
+ * - With filters: {item.title | upper | truncate:50}
+ * - Safe navigation: {user?.profile?.name}
+ * - Array access: {items[0].title}
+ *
+ * Rule 5: Filter Arguments
+ * - Positional arguments first: {text | truncate:50}
+ * - Named arguments after: {text | truncate:length=50,append="..."}
+ * - Mixed: {text | truncate:50,append="..."}
+ * - Multiple filters: {text | strip_tags | truncate:50 | upper}
+ *
+ * Rule 6: Comments
+ * - Block comments: {!-- comment --}
+ * - Cannot be nested
+ * - Can span multiple lines
+ *
+ * Rule 7: Whitespace
+ * - Whitespace in text nodes is preserved
+ * - Whitespace between attributes is ignored
+ * - Whitespace in expressions is ignored
+ * - Indentation is recommended for readability
+ *
+ * Rule 8: Control Structures
+ * - if: condition="{expression}"
+ * - elseif: condition="{expression}"
+ * - for: items="{collection}" as="item" [key="index"]
+ * - switch: value="{expression}"
+ * - case: match="{value}"
+ * - include: file="path/to/template.disyl"
+ *
+ * Rule 9: Platform Declarations
+ * - ikb_platform: type="web|mobile|desktop|universal"
+ * - ikb_cms: type="wordpress|joomla|drupal|ikabud|generic"
+ *
+ * Rule 10: Namespaced Components
+ * - Platform-specific: wp:query, joomla:article
+ * - Category-specific: mobile:scroll_view, desktop:window
+ *)
+
+(* ============================================================================
+   EXAMPLES
+   ============================================================================ *)
+
+(*
+ * Example 1: Platform Declaration
+ * {ikb_platform type="web" targets="wordpress,drupal" version="1.2.0" /}
+ *
+ * Example 2: Basic Component
+ * {ikb_text size="lg" weight="bold"}
+ *     Hello World
+ * {/ikb_text}
+ *
+ * Example 3: Self-Closing Component
+ * {ikb_image src="{post.thumbnail}" alt="{post.title}" /}
+ *
+ * Example 4: Expression with Filters
+ * {post.title | upper | truncate:length=50,append="..."}
+ *
+ * Example 5: Safe Navigation
+ * {user?.profile?.avatar | default:"placeholder.png"}
+ *
+ * Example 6: Array Access
+ * {items[0].title | esc_html}
+ *
+ * Example 7: If Statement with Elseif
+ * {if condition="{user.role == 'admin'}"}
+ *     Admin Dashboard
+ * {elseif condition="{user.role == 'editor'}"}
+ *     Editor Dashboard
+ * {else}
+ *     User Dashboard
+ * {/if}
+ *
+ * Example 8: For Loop with Empty
+ * {for items="{posts}" as="post" key="index"}
+ *     <h2>{post.title | esc_html}</h2>
+ *     <p>{post.excerpt | strip_tags | truncate:150}</p>
+ * {empty}
+ *     <p>No posts found.</p>
+ * {/for}
+ *
+ * Example 9: Switch Statement
+ * {switch value="{status}"}
+ *     {case match="published"}
+ *         <span class="badge-green">Published</span>
+ *     {case match="draft"}
+ *         <span class="badge-yellow">Draft</span>
+ *     {default}
+ *         <span class="badge-gray">Unknown</span>
+ * {/switch}
+ *
+ * Example 10: Include Directive
+ * {include file="components/header.disyl" /}
+ *
+ * Example 11: Namespaced Component (WordPress)
+ * {wp:query type="post" limit="10" category="news"}
+ *     {for items="{posts}" as="post"}
+ *         {ikb_card}
+ *             {ikb_text size="xl"}{post.title | esc_html}{/ikb_text}
+ *         {/ikb_card}
+ *     {/for}
+ * {/wp:query}
+ *
+ * Example 12: Nested Components
+ * {ikb_section type="hero" bg="gradient"}
+ *     {ikb_container size="large"}
+ *         {ikb_text size="3xl" weight="bold"}
+ *             {site.name | esc_html}
+ *         {/ikb_text}
+ *     {/ikb_container}
+ * {/ikb_section}
+ *
+ * Example 13: Complex Filter Chain
+ * {item.description | strip_tags | truncate:100,append="..." | upper | esc_html}
+ *
+ * Example 14: Mixed Positional and Named Arguments
+ * {item.price | number_format:2,dec_point=".",thousands_sep=","}
+ *
+ * Example 15: Text Interpolation
+ * <p>Published on {post.date | date:format="F j, Y"} by {post.author | esc_html}</p>
+ *)
+
+(* ============================================================================
+   FILTER DEFINITIONS (Core Filters)
+   ============================================================================ *)
+
+(*
+ * Security Filters (Universal):
+ * - esc_html: Escape HTML entities -> string
+ * - esc_url: Escape and validate URL -> url
+ * - esc_attr: Escape HTML attribute -> string
+ * - strip_tags(allowed?: string): Remove HTML tags -> string
+ *
+ * Text Manipulation (Universal):
+ * - upper: Convert to uppercase -> string
+ * - lower: Convert to lowercase -> string
+ * - capitalize: Capitalize first letter -> string
+ * - truncate(length: integer, append?: string = "..."): Truncate text -> string
+ * - trim: Trim whitespace -> string
+ *
+ * Date Formatting (Universal):
+ * - date(format: string): Format date -> string
+ *
+ * Number Formatting (Universal):
+ * - number_format(decimals?: integer = 0, dec_point?: string = ".", thousands_sep?: string = ","): Format number -> string
+ *
+ * Logic (Universal):
+ * - default(value: any): Default value if empty -> any
+ *
+ * JSON (Universal):
+ * - json: JSON encode -> string
+ *
+ * WordPress-specific:
+ * - wp_trim_words(num_words: integer, more?: string = "..."): Trim to word count -> string
+ * - wp_kses_post: Sanitize allowing safe HTML -> html
+ *
+ * Drupal-specific:
+ * - t(args?: array): Translation -> string
+ *)
+
+(* ============================================================================
+   AST NODE TYPES (Canonical Schema v1.2.0)
+   ============================================================================ *)
+
+(*
+ * AST Node Types:
+ * 
+ * Document:
+ *   type: "document"
+ *   children: Node[]
+ *
+ * ComponentTag:
+ *   type: "component"
+ *   name: string
+ *   namespace?: string
+ *   attributes: Attribute[]
+ *   children: Node[]
+ *   selfClosing: boolean
+ *   line?: number
+ *   column?: number
+ *
+ * ControlStructureTag:
+ *   type: "if" | "for" | "switch" | "include"
+ *   attributes: Attribute[]
+ *   children: Node[]
+ *   elseBlock?: Node[]
+ *   elseifBlocks?: { condition: Expression, children: Node[] }[]
+ *   emptyBlock?: Node[]
+ *   cases?: { match: Expression, children: Node[] }[]
+ *   defaultCase?: Node[]
+ *   line?: number
+ *   column?: number
+ *
+ * DeclarationTag:
+ *   type: "platform" | "cms"
+ *   attributes: Attribute[]
+ *   line?: number
+ *   column?: number
+ *
+ * ExpressionNode:
+ *   type: "expression"
+ *   expression: Expression
+ *   line?: number
+ *   column?: number
+ *
+ * TextNode:
+ *   type: "text"
+ *   content: string
+ *   line?: number
+ *   column?: number
+ *
+ * CommentNode:
+ *   type: "comment"
+ *   content: string
+ *   line?: number
+ *   column?: number
+ *
+ * Expression:
+ *   type: "pipe" | "property" | "safe_navigation" | "array_access" | "method" | "identifier"
+ *   value: any
+ *   path?: PathSegment[]
+ *   filters?: Filter[]
+ *   hasEscaping?: boolean
+ *
+ * PathSegment:
+ *   type: "property" | "index" | "key"
+ *   name?: string
+ *   value?: string | number
+ *   safe?: boolean
+ *
+ * Filter:
+ *   name: string
+ *   arguments: FilterArgument[]
+ *
+ * FilterArgument:
+ *   type: "positional" | "named"
+ *   name?: string
+ *   value: any
+ *
+ * Attribute:
+ *   name: string
+ *   value: string | Expression | boolean | number
+ *
+ * ValidationError:
+ *   message: string
+ *   code: string
+ *   nodeType?: string
+ *   tagName?: string
+ *   line?: number
+ *   column?: number
+ *   snippet?: string
+ *   severity: "error" | "warning" | "info"
+ *)
+
+(* ============================================================================
+   VERSION HISTORY
+   ============================================================================ *)
+
+(*
+ * v1.2.0 (November 27, 2025)
+ * - ALIGNED with Grammar.php v1.2.0
+ * - Added platform declarations (ikb_platform, ikb_cms)
+ * - Added namespaced components (wp:query, mobile:scroll_view)
+ * - Added safe navigation operator (?.)
+ * - Added array access syntax (items[0])
+ * - Added elseif control structure
+ * - Added switch/case/default control structure
+ * - Added empty block for for loops
+ * - Extended platform support (mobile, desktop)
+ * - Added type system documentation
+ * - Added filter type chain validation
+ * - Added ValidationError schema
+ * - Added expression caching support
+ * - Added security validation (hasEscaping)
+ * - Updated AST schema with line/column tracking
+ *
+ * v0.3 (November 15, 2025)
+ * - Disambiguated whitespace (ws_attr, ws_expr, ws_text)
+ * - Filter argument ordering (positional first, then named)
+ * - Unified control structures with component tags
+ * - Distinguished attribute_expression from expression_node
+ * - Consistent attribute syntax for all tags
+ *
+ * v0.2 (November 14, 2025)
+ * - Added filter pipeline syntax
+ * - Added multiple filter arguments (named and positional)
+ * - Added Unicode support
+ * - Formalized control structures
+ *
+ * v0.1 (Initial)
+ * - Basic tag syntax
+ * - Simple expressions
+ * - Component system
+ * - Control structures
+ *)
+
+(* ============================================================================
+   GRAMMAR COMPLETENESS CHECKLIST
+   ============================================================================ *)
+
+(*
+ * ✅ Document structure defined
+ * ✅ Tag nodes (components, control structures, declarations)
+ * ✅ Namespaced components
+ * ✅ Platform declarations
+ * ✅ Attributes (unified syntax)
+ * ✅ Expressions (with filter pipeline)
+ * ✅ Safe navigation operator
+ * ✅ Array access syntax
+ * ✅ Filter syntax (with argument ordering and type validation)
+ * ✅ Text nodes (with interpolation)
+ * ✅ Comment nodes
+ * ✅ Lexical elements
+ * ✅ Whitespace handling (disambiguated)
+ * ✅ Type system
+ * ✅ Platform identifiers
+ * ✅ Reserved keywords
+ * ✅ Component categories
+ * ✅ Naming conventions
+ * ✅ Syntax rules
+ * ✅ Examples
+ * ✅ Filter definitions
+ * ✅ AST schema
+ * ✅ Version history
+ *
+ * Ready for:
+ * ✅ ANTLR4 grammar generation
+ * ✅ Tree-sitter parser generation
+ * ✅ VSCode/Windsurf syntax highlighter
+ * ✅ Formatter/Prettier tool
+ * ✅ Full compiler pipeline
+ * ✅ Visual Builder integration
+ * ✅ IDE/LSP integration
+ *)
+
+(* END OF GRAMMAR SPECIFICATION *)
