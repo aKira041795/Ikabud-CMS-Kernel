@@ -134,8 +134,9 @@ function getLatestVersion(string $cmsType): ?array {
                     foreach ($data['branches'] as $branch) {
                         if (isset($branch['branch']) && $branch['branch'] === $branchName) {
                             $version = $branch['version'];
-                            // Construct download URL
-                            $downloadUrl = "https://downloads.joomla.org/cms/joomla{$majorVersion}/{$version}/Joomla_{$version}-Stable-Full_Package.zip";
+                            // Construct download URL - version in path uses dashes (5-4-1), filename uses dots (5.4.1)
+                            $versionPath = str_replace('.', '-', $version);
+                            $downloadUrl = "https://downloads.joomla.org/cms/joomla{$majorVersion}/{$versionPath}/Joomla_{$version}-Stable-Full_Package.zip";
                             return [
                                 'version' => $version,
                                 'download_url' => $downloadUrl,
@@ -475,35 +476,65 @@ $app->post('/api/v1/cores/{coreId}/update', function (Request $request, Response
         return $response->withStatus(500)->withHeader('Content-Type', 'application/json');
     }
     
-    // Find the extracted directory (usually one level deep)
+    // Find the extracted directory (usually one level deep for Drupal/WP, flat for Joomla)
     $extractedDirs = glob($tempExtract . '/*', GLOB_ONLYDIR);
-    $sourceDir = count($extractedDirs) === 1 ? $extractedDirs[0] : $tempExtract;
+    $extractedFiles = glob($tempExtract . '/*');
     
-    // Verify extraction worked
-    if (!is_dir($sourceDir) || count(scandir($sourceDir)) <= 2) {
+    // Determine source directory
+    // If there's exactly one directory and few/no files at root, use that directory
+    // Otherwise use the temp extract directory itself (flat extraction like Joomla)
+    $rootFiles = array_filter($extractedFiles, fn($f) => is_file($f));
+    if (count($extractedDirs) === 1 && count($rootFiles) <= 2) {
+        $sourceDir = $extractedDirs[0];
+    } else {
+        $sourceDir = $tempExtract;
+    }
+    
+    // Verify extraction worked - check for expected CMS files
+    $verifyFiles = [
+        'wordpress' => ['wp-includes/version.php', 'wp-admin', 'wp-content'],
+        'drupal' => ['core/lib/Drupal.php', 'autoload.php'],
+        'drupal11' => ['core/lib/Drupal.php', 'autoload.php'],
+        'joomla' => ['libraries/src/Version.php', 'administrator'],
+        'joomla5' => ['libraries/src/Version.php', 'administrator']
+    ];
+    
+    $filesToCheck = $verifyFiles[$coreId] ?? [];
+    $extractionValid = true;
+    foreach ($filesToCheck as $checkFile) {
+        if (!file_exists($sourceDir . '/' . $checkFile) && !is_dir($sourceDir . '/' . $checkFile)) {
+            $extractionValid = false;
+            break;
+        }
+    }
+    
+    if (!$extractionValid) {
         exec("rm -rf " . escapeshellarg($tempExtract));
         $response->getBody()->write(json_encode([
             'success' => false,
-            'error' => 'Extraction produced empty directory'
+            'error' => 'Extraction verification failed - expected CMS files not found'
         ]));
         return $response->withStatus(500)->withHeader('Content-Type', 'application/json');
     }
     
+    // For Drupal, preserve the sites directory (contains site-specific configs)
+    $preservedSites = null;
+    if (($coreId === 'drupal' || $coreId === 'drupal11') && is_dir($corePath . '/sites')) {
+        $preservedSites = sys_get_temp_dir() . '/ikabud-preserved-sites-' . $coreId;
+        exec("rm -rf " . escapeshellarg($preservedSites));
+        exec("cp -a " . escapeshellarg($corePath . '/sites') . " " . escapeshellarg($preservedSites));
+    }
+    
     // Remove old core and move new one
-    // Use sudo if available, otherwise try direct commands
     $rmResult = 0;
     $mvResult = 0;
     
     // Try removing old core
     exec("rm -rf " . escapeshellarg($corePath) . " 2>&1", $rmOutput, $rmResult);
     
-    if ($rmResult !== 0) {
-        // Try with sudo
-        exec("sudo rm -rf " . escapeshellarg($corePath) . " 2>&1", $rmOutput, $rmResult);
-    }
-    
     if ($rmResult !== 0 && is_dir($corePath)) {
         exec("rm -rf " . escapeshellarg($tempExtract));
+        if ($preservedSites) exec("rm -rf " . escapeshellarg($preservedSites));
         $response->getBody()->write(json_encode([
             'success' => false,
             'error' => 'Failed to remove old core directory. Permission denied. Run: sudo chown -R www-data:www-data ' . $coresPath
@@ -514,21 +545,23 @@ $app->post('/api/v1/cores/{coreId}/update', function (Request $request, Response
     // Move new core
     exec("mv " . escapeshellarg($sourceDir) . " " . escapeshellarg($corePath) . " 2>&1", $mvOutput, $mvResult);
     
-    if ($mvResult !== 0) {
-        // Try with sudo
-        exec("sudo mv " . escapeshellarg($sourceDir) . " " . escapeshellarg($corePath) . " 2>&1", $mvOutput, $mvResult);
-    }
-    
     exec("rm -rf " . escapeshellarg($tempExtract));
     
     if ($mvResult !== 0 || !is_dir($corePath)) {
         // Restore from backup
         exec("cd " . escapeshellarg($coresPath) . " && tar -xzf " . escapeshellarg($backupFile));
+        if ($preservedSites) exec("rm -rf " . escapeshellarg($preservedSites));
         $response->getBody()->write(json_encode([
             'success' => false,
             'error' => 'Failed to move new core. Restored from backup.'
         ]));
         return $response->withStatus(500)->withHeader('Content-Type', 'application/json');
+    }
+    
+    // Restore preserved sites directory for Drupal
+    if ($preservedSites && is_dir($preservedSites)) {
+        exec("rm -rf " . escapeshellarg($corePath . '/sites'));
+        exec("mv " . escapeshellarg($preservedSites) . " " . escapeshellarg($corePath . '/sites'));
     }
     
     // Verify update
