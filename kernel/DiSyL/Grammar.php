@@ -1535,6 +1535,39 @@ class Grammar
             'returnType' => self::TYPE_STRING,
         ]);
         
+        // Raw output (use with caution - for pre-sanitized content)
+        self::registerFilter('raw', [
+            'description' => 'Output without escaping (use only with pre-sanitized content)',
+            'params' => [],
+            'returnType' => self::TYPE_HTML,
+            'platforms' => [self::PLATFORM_UNIVERSAL],
+        ]);
+        
+        // DiSyL nested parsing
+        self::registerFilter('disyl', [
+            'description' => 'Parse nested DiSyL content',
+            'params' => [],
+            'returnType' => self::TYPE_HTML,
+            'platforms' => [self::PLATFORM_UNIVERSAL],
+        ]);
+        
+        // Numeric output (safe for numbers)
+        self::registerFilter('int', [
+            'description' => 'Cast to integer (safe output)',
+            'params' => [],
+            'returnType' => self::TYPE_INTEGER,
+            'platforms' => [self::PLATFORM_UNIVERSAL],
+        ]);
+        
+        self::registerFilter('float', [
+            'description' => 'Cast to float (safe output)',
+            'params' => [
+                'decimals' => ['type' => self::TYPE_INTEGER, 'required' => false, 'default' => 2],
+            ],
+            'returnType' => self::TYPE_FLOAT,
+            'platforms' => [self::PLATFORM_UNIVERSAL],
+        ]);
+        
         // WordPress-specific
         self::registerFilter('wp_trim_words', [
             'description' => 'Trim to word count (WordPress)',
@@ -1800,9 +1833,8 @@ class Grammar
             $result['filters'] = $this->parseFilterChain('|' . $filterPart);
             
             // Check for escaping filters (security)
-            $escapingFilters = ['esc_html', 'esc_attr', 'esc_url', 'strip_tags', 'wp_kses_post'];
             foreach ($result['filters'] as $filter) {
-                if (in_array($filter['name'], $escapingFilters, true)) {
+                if (in_array($filter['name'], self::ESCAPING_FILTERS, true)) {
                     $result['hasEscaping'] = true;
                     break;
                 }
@@ -1926,7 +1958,7 @@ class Grammar
     private const UNSAFE_OUTPUT_TYPES = [self::TYPE_HTML, self::TYPE_STRING, self::TYPE_ANY];
     
     /** @var array Escaping filters */
-    private const ESCAPING_FILTERS = ['esc_html', 'esc_attr', 'esc_url', 'strip_tags', 'wp_kses_post', 'htmlspecialchars'];
+    private const ESCAPING_FILTERS = ['esc_html', 'esc_attr', 'esc_url', 'strip_tags', 'wp_kses_post', 'htmlspecialchars', 'int', 'float', 'json'];
     
     /**
      * Check if expression has proper escaping for output context

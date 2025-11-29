@@ -1,4 +1,5 @@
 {!-- Phoenix Theme - Single Post Template --}
+{ikb_platform type="web" targets="wordpress" /}
 {include file="components/header.disyl"}
 
 {ikb_section type="post-single" padding="xlarge"}
@@ -16,7 +17,7 @@
                 {!-- Post Header --}
                 <header class="post-header">
                     {ikb_text size="3xl" weight="bold" class="gradient-text"}
-                        <h2>{post.title | esc_html}
+                        <h2>{post.title | esc_html}</h2>
                     {/ikb_text}
                     
                     <div class="post-meta">
@@ -24,7 +25,7 @@
                         <span>•</span>
                         <span>✍️ By <a href="{post.author_url | esc_url}">{post.author | esc_html}</a></span>
                         <span>•</span>
-                        <span>💬 {post.comment_count} Comments</span>
+                        <span>💬 {post.comment_count | int} Comments</span>
                     </div>
                 </header>
                 

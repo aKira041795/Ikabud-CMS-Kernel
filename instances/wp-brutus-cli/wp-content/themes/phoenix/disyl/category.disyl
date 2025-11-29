@@ -1,4 +1,5 @@
 {!-- Phoenix Theme - Category Template --}
+{ikb_platform type="web" targets="wordpress" /}
 {include file="components/header.disyl"}
 
 {!-- Category Header --}
@@ -57,7 +58,7 @@
                             {/if}
                             
                             <div class="ikb-text ikb-text-xs subcategory-count">
-                                {child.count} posts
+                                {child.count | int} posts
                             </div>
                         </div>
                     </a>
@@ -123,7 +124,7 @@
                         {/if}
                         
                         <span class="pagination-info">
-                            Page {pagination.current_page} of {pagination.total_pages}
+                            Page {pagination.current_page | int} of {pagination.total_pages | int}
                         </span>
                         
                         {if condition="pagination.next_url"}
@@ -156,7 +157,7 @@
                             {related.name | esc_html}
                         </div>
                         <div class="ikb-text ikb-text-sm">
-                            {related.count} posts
+                            {related.count | int} posts
                         </div>
                     </a>
                 {/for}

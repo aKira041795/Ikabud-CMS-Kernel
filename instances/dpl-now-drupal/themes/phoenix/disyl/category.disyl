@@ -1,8 +1,9 @@
-{!-- Phoenix Theme v2 - Category Template (Joomla-Native) --}
+{!-- Phoenix Theme v2 - Category Template (Drupal-Native) --}
+{ikb_platform type="web" targets="drupal" /}
 {ikb_include template="components/header.disyl" /}
 
-{!-- Breadcrumbs Module Position --}
-{joomla_module position="breadcrumbs" style="none" /}
+{!-- Breadcrumb Region --}
+{drupal_region name="breadcrumb" /}
 
 {!-- Category Header --}
 {ikb_section type="category-header" class="section-gradient" padding="xlarge"}
@@ -17,7 +18,7 @@
                 {!-- Category Description --}
                 {if condition="category.description"}
                     <div class="ikb-text ikb-text-lg category-description" style="margin-top: 1rem;">
-                        {category.description | wp_kses_post}
+                        {category.description | raw}
                     </div>
                 {/if}
                 
@@ -60,7 +61,7 @@
                             {/if}
                             
                             <div class="ikb-text ikb-text-xs subcategory-count">
-                                {child.count} posts
+                                {child.count | int} posts
                             </div>
                         </div>
                     </a>
@@ -83,7 +84,7 @@
                         {/if}
                         
                         <span class="pagination-info">
-                            Page {pagination.current_page} of {pagination.total_pages}
+                            Page {pagination.current_page | int} of {pagination.total_pages | int}
                         </span>
                         
                         {if condition="pagination.next_url"}
@@ -116,7 +117,7 @@
                             {related.name | esc_html}
                         </div>
                         <div class="ikb-text ikb-text-sm">
-                            {related.count} posts
+                            {related.count | int} posts
                         </div>
                     </a>
                 {/for}

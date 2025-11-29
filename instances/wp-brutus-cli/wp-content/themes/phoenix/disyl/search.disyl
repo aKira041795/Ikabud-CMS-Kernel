@@ -1,4 +1,5 @@
 {!-- Phoenix Theme - Search Results Template --}
+{ikb_platform type="web" targets="wordpress" /}
 {include file="components/header.disyl"}
 
 {!-- Search Header --}

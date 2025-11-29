@@ -1,4 +1,5 @@
 {!-- Phoenix Theme v2 - Blog Template (Drupal-Native) --}
+{ikb_platform type="web" targets="drupal" /}
 {ikb_include template="components/header.disyl" /}
 
 {!-- Page Header --}

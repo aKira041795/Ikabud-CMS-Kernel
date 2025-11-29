@@ -1,4 +1,5 @@
 {!-- Phoenix Theme v2 - Archive Template (Joomla-Native) --}
+{ikb_platform type="web" targets="joomla" /}
 {ikb_include template="components/header.disyl" /}
 
 {!-- Breadcrumbs Module Position --}

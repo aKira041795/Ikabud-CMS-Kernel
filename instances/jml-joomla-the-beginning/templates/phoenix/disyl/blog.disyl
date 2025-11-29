@@ -1,4 +1,5 @@
-{!-- Phoenix Theme - Blog Archive Template --}
+{!-- Phoenix Theme v2 - Blog Archive Template (Joomla-Native) --}
+{ikb_platform type="web" targets="joomla" /}
 {ikb_include template="components/header.disyl" /}
 
 {!-- Page Header --}
@@ -62,7 +63,7 @@
                 <div class="text-center mt-large">
                     <button class="btn btn-primary load-more-posts">Load More Posts</button>
                 </div>
-            </main>
+            </div>
             
             {!-- Sidebar (Joomla Module Positions) --}
             {ikb_include template="components/sidebar.disyl" /}
