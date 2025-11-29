@@ -6,6 +6,7 @@ import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
 import Instances from './pages/Instances'
 import Themes from './pages/Themes'
+import VisualBuilder from './pages/VisualBuilder'
 import UpdateCores from './pages/UpdateCores'
 import ProcessMonitor from './pages/ProcessMonitor'
 import Settings from './pages/Settings'
@@ -50,6 +51,13 @@ function App() {
           <ProtectedRoute>
             <Layout>
               <Themes />
+            </Layout>
+          </ProtectedRoute>
+        } />
+        <Route path="/themes/visual-builder" element={
+          <ProtectedRoute>
+            <Layout>
+              <VisualBuilder />
             </Layout>
           </ProtectedRoute>
         } />
