@@ -21,6 +21,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.4.1] - 2025-11-29
+
+### 🔧 DiSyL Filter & Platform Declaration Improvements
+
+Minor release adding missing filters to Grammar and standardizing platform declarations across all Phoenix themes.
+
+### Added
+
+#### Grammar.php - New Filters
+- **`raw` filter** - Output without escaping for pre-sanitized content (use with caution)
+- **`disyl` filter** - Parse nested DiSyL content within widgets/templates
+- **`int` filter** - Cast to integer with safe numeric output
+- **`float` filter** - Cast to float with optional decimal precision
+
+#### Safe Output Filters
+- Added `int`, `float`, `json` to `ESCAPING_FILTERS` constant
+- Updated `parseExpression()` to use `ESCAPING_FILTERS` constant for consistency
+
+### Changed
+
+#### WordPress Phoenix Theme
+- Added `{ikb_platform type="web" targets="wordpress" /}` to all templates
+- Fixed missing `</h2>` closing tag in `single.disyl`
+- Added `| int` filter to `post.comment_count` and pagination outputs
+
+#### Drupal Phoenix Theme
+- Added `{ikb_platform type="web" targets="drupal" /}` to all templates
+- Fixed `category.disyl` incorrectly labeled as "Joomla-Native"
+- Fixed `category.disyl` using `joomla_module` instead of `drupal_region`
+- Replaced `wp_kses_post` with `raw` filter for Drupal compatibility
+- Added `| int` filter to count and pagination outputs
+
+#### Joomla Phoenix Theme
+- Added `{ikb_platform type="web" targets="joomla" /}` to all templates
+- Fixed `blog.disyl` broken HTML structure (`</main>` → `</div>`)
+- Replaced `wp_kses_post` with `raw` filter for Joomla compatibility
+- Added `| int` filter to count and pagination outputs
+
+### Fixed
+- Consistent platform declarations enable Grammar's platform compatibility checking
+- Numeric outputs now use explicit `| int` filter for strict mode compliance
+- Cross-platform filter compatibility (removed WordPress-specific filters from Drupal/Joomla)
+
+---
+
 ## [1.4.0] - 2025-11-26
 
 ### 🎯 Grammar v1.2.0 - Production Hardening & Kernel Alignment
