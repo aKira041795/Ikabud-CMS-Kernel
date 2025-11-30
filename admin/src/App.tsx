@@ -7,6 +7,7 @@ import Dashboard from './pages/Dashboard'
 import Instances from './pages/Instances'
 import Themes from './pages/Themes'
 import VisualBuilder from './pages/VisualBuilder'
+import CodeEditor from './pages/CodeEditor'
 import UpdateCores from './pages/UpdateCores'
 import ProcessMonitor from './pages/ProcessMonitor'
 import Settings from './pages/Settings'
@@ -58,6 +59,13 @@ function App() {
           <ProtectedRoute>
             <Layout>
               <VisualBuilder />
+            </Layout>
+          </ProtectedRoute>
+        } />
+        <Route path="/themes/editor" element={
+          <ProtectedRoute>
+            <Layout>
+              <CodeEditor />
             </Layout>
           </ProtectedRoute>
         } />

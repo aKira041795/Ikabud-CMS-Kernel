@@ -8,6 +8,9 @@
  * @version 1.0.0
  */
 
+use Psr\Http\Message\ResponseInterface as Response;
+use Psr\Http\Message\ServerRequestInterface as Request;
+
 // Load the theme generator system
 require_once __DIR__ . '/../../kernel/ThemeGenerator/ThemeGeneratorFactory.php';
 
@@ -17,41 +20,22 @@ use IkabudKernel\ThemeGenerator\ThemeGeneratorFactory;
  * POST /api/theme/generate
  * 
  * Generate a complete theme package for the specified CMS
- * 
- * Request body:
- * {
- *   "cms": "wordpress|joomla|drupal|native",
- *   "themeName": "My Theme",
- *   "themeSlug": "my-theme",
- *   "author": "Developer Name",
- *   "description": "Theme description",
- *   "version": "1.0.0",
- *   "templates": {
- *     "home": "{ikb_section...}",
- *     "single": "...",
- *     "components/header": "..."
- *   },
- *   "options": {
- *     "includeCustomizer": true,
- *     "includeWidgetAreas": true,
- *     "menuLocations": ["primary", "footer"],
- *     "colorScheme": {...}
- *   }
- * }
  */
-$router->post('/theme/generate', function($request) {
+$app->post('/api/theme/generate', function (Request $request, Response $response) {
     try {
-        $data = json_decode(file_get_contents('php://input'), true);
+        $data = json_decode($request->getBody()->getContents(), true);
         
         if (!$data) {
-            return jsonResponse(['error' => 'Invalid JSON payload'], 400);
+            $response->getBody()->write(json_encode(['error' => 'Invalid JSON payload']));
+            return $response->withStatus(400)->withHeader('Content-Type', 'application/json');
         }
         
         // Validate required fields
         $required = ['cms', 'themeName', 'templates'];
         foreach ($required as $field) {
             if (empty($data[$field])) {
-                return jsonResponse(['error' => "Missing required field: {$field}"], 400);
+                $response->getBody()->write(json_encode(['error' => "Missing required field: {$field}"]));
+                return $response->withStatus(400)->withHeader('Content-Type', 'application/json');
             }
         }
         
@@ -59,22 +43,25 @@ $router->post('/theme/generate', function($request) {
         $generator = ThemeGeneratorFactory::create($data['cms']);
         
         if (!$generator) {
-            return jsonResponse(['error' => "Unsupported CMS: {$data['cms']}"], 400);
+            $response->getBody()->write(json_encode(['error' => "Unsupported CMS: {$data['cms']}"]));
+            return $response->withStatus(400)->withHeader('Content-Type', 'application/json');
         }
         
         // Generate the theme
         $result = $generator->generate($data);
         
-        return jsonResponse([
+        $response->getBody()->write(json_encode([
             'success' => true,
             'theme' => $result['theme'],
             'files' => $result['files'],
             'downloadUrl' => $result['downloadUrl'] ?? null
-        ]);
+        ]));
+        return $response->withHeader('Content-Type', 'application/json');
         
     } catch (Exception $e) {
         error_log("Theme Generator Error: " . $e->getMessage());
-        return jsonResponse(['error' => $e->getMessage()], 500);
+        $response->getBody()->write(json_encode(['error' => $e->getMessage()]));
+        return $response->withStatus(500)->withHeader('Content-Type', 'application/json');
     }
 });
 
@@ -83,66 +70,64 @@ $router->post('/theme/generate', function($request) {
  * 
  * Get available base templates for a CMS
  */
-$router->get('/theme/templates', function($request) {
-    $cms = $_GET['cms'] ?? 'wordpress';
+$app->get('/api/theme/templates', function (Request $request, Response $response) {
+    $params = $request->getQueryParams();
+    $cms = $params['cms'] ?? 'wordpress';
     
     try {
         $generator = ThemeGeneratorFactory::create($cms);
         
         if (!$generator) {
-            return jsonResponse(['error' => "Unsupported CMS: {$cms}"], 400);
+            $response->getBody()->write(json_encode(['error' => "Unsupported CMS: {$cms}"]));
+            return $response->withStatus(400)->withHeader('Content-Type', 'application/json');
         }
         
-        return jsonResponse([
+        $response->getBody()->write(json_encode([
             'cms' => $cms,
             'templates' => $generator->getBaseTemplates(),
             'components' => $generator->getBaseComponents(),
             'features' => $generator->getSupportedFeatures()
-        ]);
+        ]));
+        return $response->withHeader('Content-Type', 'application/json');
         
     } catch (Exception $e) {
-        return jsonResponse(['error' => $e->getMessage()], 500);
+        $response->getBody()->write(json_encode(['error' => $e->getMessage()]));
+        return $response->withStatus(500)->withHeader('Content-Type', 'application/json');
     }
 });
 
 /**
- * GET /api/theme/preview
+ * POST /api/theme/preview
  * 
  * Preview generated files without creating the package
  */
-$router->post('/theme/preview', function($request) {
+$app->post('/api/theme/preview', function (Request $request, Response $response) {
     try {
-        $data = json_decode(file_get_contents('php://input'), true);
+        $data = json_decode($request->getBody()->getContents(), true);
         
         if (!$data || empty($data['cms']) || empty($data['templates'])) {
-            return jsonResponse(['error' => 'Invalid request'], 400);
+            $response->getBody()->write(json_encode(['error' => 'Invalid request']));
+            return $response->withStatus(400)->withHeader('Content-Type', 'application/json');
         }
         
         $generator = ThemeGeneratorFactory::create($data['cms']);
         
         if (!$generator) {
-            return jsonResponse(['error' => "Unsupported CMS: {$data['cms']}"], 400);
+            $response->getBody()->write(json_encode(['error' => "Unsupported CMS: {$data['cms']}"]));
+            return $response->withStatus(400)->withHeader('Content-Type', 'application/json');
         }
         
         // Generate preview (files content without saving)
         $preview = $generator->preview($data);
         
-        return jsonResponse([
+        $response->getBody()->write(json_encode([
             'success' => true,
             'files' => $preview
-        ]);
+        ]));
+        return $response->withHeader('Content-Type', 'application/json');
         
     } catch (Exception $e) {
-        return jsonResponse(['error' => $e->getMessage()], 500);
+        $response->getBody()->write(json_encode(['error' => $e->getMessage()]));
+        return $response->withStatus(500)->withHeader('Content-Type', 'application/json');
     }
 });
-
-/**
- * Helper function for JSON responses
- */
-function jsonResponse($data, $status = 200) {
-    http_response_code($status);
-    header('Content-Type: application/json');
-    echo json_encode($data, JSON_PRETTY_PRINT);
-    exit;
-}

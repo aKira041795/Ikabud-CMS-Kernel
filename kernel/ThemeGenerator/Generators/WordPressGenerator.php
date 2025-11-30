@@ -977,8 +977,14 @@ PHP;
     
     protected function generateDisylComponentsCss(): string
     {
-        // Load from templates or generate basic styles
-        return file_get_contents(dirname(__DIR__, 2) . '/templates/disyl-components.css') ?? '';
+        // Load from templates or use default styles
+        $cssPath = dirname(__DIR__, 2) . '/templates/disyl-components.css';
+        if (file_exists($cssPath)) {
+            return file_get_contents($cssPath);
+        }
+        
+        // Return default CSS if file doesn't exist
+        return $this->getDefaultDisylComponentsCss();
     }
     
     protected function generateThemeJs(array $config): string
