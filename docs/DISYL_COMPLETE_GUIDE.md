@@ -1,9 +1,9 @@
 # DiSyL Complete Guide
 **Declarative Ikabud Syntax Language**
 
-**Version:** 0.1.0  
-**Status:** POC Complete  
-**Last Updated:** November 13, 2025
+**Version:** 0.5.1  
+**Status:** Production Ready  
+**Last Updated:** November 30, 2025
 
 ---
 
@@ -14,11 +14,12 @@
 3. [Getting Started](#getting-started)
 4. [Syntax Reference](#syntax-reference)
 5. [Component Library](#component-library)
-6. [WordPress Integration](#wordpress-integration)
-7. [Performance](#performance)
-8. [Troubleshooting](#troubleshooting)
-9. [API Reference](#api-reference)
-10. [Contributing](#contributing)
+6. [Cross-Instance Federation](#cross-instance-federation) *(NEW)*
+7. [WordPress Integration](#wordpress-integration)
+8. [Performance](#performance)
+9. [Troubleshooting](#troubleshooting)
+10. [API Reference](#api-reference)
+11. [Contributing](#contributing)
 
 ---
 
@@ -34,6 +35,7 @@ DiSyL (Declarative Ikabud Syntax Language) is a declarative templating language 
 - ⚡ **Fast** - Compiled templates with caching support
 - 🔒 **Secure** - HTML escaping by default, controlled raw output
 - 🌐 **Cross-CMS** - Works with WordPress, Drupal, Joomla (adapters)
+- 🔗 **Cross-Instance Federation** - Query content from any CMS instance *(NEW)*
 - 📱 **Responsive** - Built-in responsive design utilities
 
 ### Why DiSyL?
@@ -530,6 +532,141 @@ Include another template.
 - `template` - Template path (relative to `disyl/` directory)
 
 **Note:** Must be self-closing!
+
+---
+
+## Cross-Instance Federation
+
+*(New in v0.5.1)*
+
+Cross-instance federation allows you to query content from any registered CMS instance within your DiSyL templates. This enables true multi-CMS content aggregation.
+
+### Basic Usage
+
+```disyl
+{!-- Query from a specific instance --}
+{ikb_query instance="joomla-content" type="article" limit="5"}
+    <article>
+        <h2>{title | esc_html}</h2>
+        <p>{excerpt | truncate(150)}</p>
+    </article>
+{/ikb_query}
+
+{!-- Query by CMS type (uses first matching instance) --}
+{ikb_query cms="joomla" type="article" limit="5"}
+    <article>
+        <h2>{article.title | esc_html}</h2>
+    </article>
+{/ikb_query}
+```
+
+### Attributes
+
+| Attribute | Description | Example |
+|-----------|-------------|---------|
+| `instance` | Instance ID to query from | `instance="joomla-content"` |
+| `cms` | CMS type (finds first matching instance) | `cms="joomla"` |
+| `type` | Content type | `type="article"` |
+| `limit` | Number of items | `limit="10"` |
+| `orderby` | Sort field | `orderby="date"` |
+| `order` | Sort direction | `order="DESC"` |
+| `category` | Category filter | `category="news"` |
+
+### Common Fields
+
+These fields work across all CMS types:
+
+| Field | Description |
+|-------|-------------|
+| `title` | Content title |
+| `content` | Full content |
+| `excerpt` | Summary/intro text |
+| `date` | Publish date |
+| `modified` | Last modified date |
+| `author` | Author name |
+| `slug` | URL slug |
+| `id` | Content ID |
+
+### CMS-Specific Fields
+
+**WordPress:**
+```disyl
+{post.ID}
+{post.title}
+{post.content}
+{post.excerpt}
+{post.thumbnail}
+{post.permalink}
+{post.categories}
+{post.tags}
+```
+
+**Joomla:**
+```disyl
+{article.id}
+{article.title}
+{article.introtext}
+{article.fulltext}
+{article.alias}
+{article.hits}
+{article.category}
+{article.images}
+```
+
+**Drupal:**
+```disyl
+{node.nid}
+{node.title}
+{node.body}
+{node.type}
+{node.created}
+{node.changed}
+{node.author}
+```
+
+### Real-World Example
+
+```disyl
+{!-- WordPress site with WooCommerce products and Joomla news --}
+
+{ikb_section type="products" padding="large"}
+    {ikb_container size="large"}
+        {ikb_text tag="h2" size="2xl"}Our Products{/ikb_text}
+        {ikb_grid columns="4" gap="medium"}
+            {ikb_query type="product" limit="8"}
+                {ikb_card}
+                    {ikb_image src="{post.thumbnail | esc_url}" /}
+                    {ikb_text tag="h3"}{post.title | esc_html}{/ikb_text}
+                {/ikb_card}
+            {/ikb_query}
+        {/ikb_grid}
+    {/ikb_container}
+{/ikb_section}
+
+{ikb_section type="news" padding="large"}
+    {ikb_container size="large"}
+        {ikb_text tag="h2" size="2xl"}Latest News from Joomla{/ikb_text}
+        {ikb_grid columns="3" gap="medium"}
+            {ikb_query cms="joomla" instance="joomla-news" type="article" limit="6"}
+                {ikb_card}
+                    {ikb_text tag="h3"}{article.title | esc_html}{/ikb_text}
+                    {ikb_text}{article.introtext | truncate(120)}{/ikb_text}
+                    <small>Views: {article.hits}</small>
+                {/ikb_card}
+            {/ikb_query}
+        {/ikb_grid}
+    {/ikb_container}
+{/ikb_section}
+```
+
+### How It Works
+
+1. **Detection** - When `instance=""` or `cms=""` is present, the renderer detects a cross-instance query
+2. **Config Parsing** - `CrossInstanceDataProvider` reads the target instance's database config (wp-config.php, configuration.php, etc.)
+3. **Connection** - A PDO connection is established (connections are pooled and cached)
+4. **Query Execution** - CMS-specific SQL queries are executed
+5. **Normalization** - Results are normalized to common field names
+6. **Rendering** - Children are rendered with the cross-instance data in context
 
 ---
 

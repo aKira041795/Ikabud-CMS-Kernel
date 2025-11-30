@@ -6,7 +6,7 @@
 ![PHP](https://img.shields.io/badge/PHP-8.1+-purple.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
 ![Status](https://img.shields.io/badge/status-production--ready-success.svg)
-![DiSyL](https://img.shields.io/badge/DiSyL-0.5.0--beta-orange.svg)
+![DiSyL](https://img.shields.io/badge/DiSyL-0.5.1--beta-orange.svg)
 ![Tests](https://img.shields.io/badge/tests-97%2F97%20passing-success.svg)
 
 **A GNU/Linux-inspired microkernel for managing multiple CMS instances with enterprise-grade security, transaction integrity, and DiSyL templating engine**
@@ -68,8 +68,9 @@ Ikabud Kernel v3.0 is a **production-ready enterprise CMS hyperkernel** that rev
 
 > **Status:** The CLI tool and REST API are available today. The React Admin UI at `/login`, instance management UI, and visual theme builder are in active development and will be released soon.
 
-### DiSyL Templating Engine (v0.5.0 Beta)
+### DiSyL Templating Engine (v0.5.1 Beta)
 - **🎨 Universal Templates** - Write once, deploy to WordPress, Joomla, or Drupal
+- **🔗 Cross-Instance Federation** - Query content from any CMS instance in one template *(NEW)*
 - **⚡ High Performance** - ~0.2ms compilation time, 9.5/10 performance score
 - **🔒 Security Audited** - 9.2/10 security score, XSS prevention, input sanitization
 - **📦 148+ Integrations** - Complete WordPress integration with all major functions
@@ -548,28 +549,174 @@ ikabud health wp-site-001
     <section class="posts">
         {ikb_query type=post limit=6 format=card layout=grid-3}
     </section>
-</main>
-
-{ikb_include file="footer.disyl"}
 ```
 
-### DiSyL Features
+#### Manifest-Driven Development
 
-- **📝 Expressions** - `{variable}`, `{function()}`, `{GET:param}`
-- **🔧 Filters** - `{value | filter:arg}` for data transformation
-- **📦 Components** - Reusable UI components with props
-- **🔄 Includes** - Template composition with `{ikb_include}`
-- **🎯 Conditionals** - `if="condition"` for dynamic content
-- **📊 Layouts** - Pre-built layouts (grid, list, masonry)
-- **🎨 Formats** - Card, list, table, custom formats
+Each CMS provides manifests that define available components and filters.
 
-### Learn More
+**Component Manifest Structure:**
 
-- **[DiSyL Complete Guide](docs/DISYL_COMPLETE_GUIDE.md)** - Comprehensive documentation
-- **[DiSyL Best Practices](docs/DISYL_BEST_PRACTICES.md)** - Official style guide
-- **[Component Catalog](docs/DISYL_COMPONENT_CATALOG.md)** - Available components
-- **[Conversion Examples](docs/DISYL_CONVERSION_EXAMPLES.md)** - WordPress/Joomla/Drupal → DiSyL
-- **[API Reference](docs/DISYL_API_REFERENCE.md)** - Complete API docs
+```json
+{
+  "components": {
+    "drupal_articles": {
+      "description": "Render a list of Drupal articles",
+      "attributes": {
+        "limit": {
+          "type": "integer",
+          "required": false,
+          "default": 6
+        }
+      },
+      "example": "{drupal_articles limit=6 /}"
+    }
+  }
+}
+```
+
+**Filter Manifest Structure:**
+
+```json
+{
+  "filters": {
+    "raw": {
+      "description": "Output raw HTML without escaping",
+      "category": "security",
+      "parameters": ["value"],
+      "returns": "string",
+      "php": "{value}"
+    }
+  }
+}
+```
+
+#### Implementation Strategy
+
+1. **Start Generic** – Begin with core components for maximum portability:
+
+```disyl
+{ikb_query type="post" limit=6}
+    <article>
+        <h2>{item.title | esc_html}</h2>
+        <p>{item.excerpt | strip_tags}</p>
+    </article>
+{/ikb_query}
+```
+
+2. **Identify Pain Points** – If the generic approach becomes complex or fragile (edge cases, performance, maintenance burden, frequent bugs), switch strategy.
+
+3. **Create CMS-Specific Component** – Build direct integration:
+
+```php
+protected function renderDrupalArticles(array $node, array $context): string
+{
+    // Direct Drupal entity query
+    $query = \Drupal::entityQuery('node')
+        ->condition('type', 'article')
+        ->condition('status', 1)
+        ->sort('created', 'DESC')
+        ->range(0, $limit);
+    
+    $nids = $query->execute();
+    $nodes = \Drupal::entityTypeManager()
+        ->getStorage('node')
+        ->loadMultiple($nids);
+    
+    // Direct HTML rendering
+    $output = '';
+    foreach ($nodes as $node) {
+        $output .= $this->renderArticleCard($node);
+    }
+    
+    return $output;
+}
+```
+
+4. **Register in Manifest** – Make it discoverable:
+
+```json
+{
+  "components": {
+    "drupal_articles": {
+      "description": "Render Drupal articles with optimized query",
+      "attributes": {
+        "limit": {"type": "integer", "default": 6}
+      }
+    }
+  }
+}
+```
+
+5. **Use in Templates** – Simple, elegant syntax:
+
+```disyl
+{drupal_articles limit=6 /}
+```
+
+#### Benefits of This Architecture
+
+**For Theme Developers**
+- **Choice**: Use portable or optimized components
+- **Simplicity**: Clean syntax regardless of approach
+- **Power**: Direct CMS access when needed
+- **Gradual Migration**: Start generic, optimize later
+
+**For CMS Integrators**
+- **Extensibility**: Add components without core changes
+- **Maintainability**: Isolated, testable components
+- **Performance**: Optimize critical paths
+- **Documentation**: Self-documenting via manifests
+
+**For End Users**
+- **Reliability**: Components work as expected
+- **Performance**: Fast page loads
+- **Flexibility**: Choose themes that fit needs
+- **Consistency**: Familiar syntax across themes
+
+#### Real-World Example: Article Listing
+
+**Attempt 1: Generic `ikb_query`**
+```disyl
+{ikb_query type="post" limit=6}
+    {!-- Complex template with filters --}
+    <span>{item.date | date:format="M j, Y"}</span>
+{/ikb_query}
+```
+**Result**: ❌ Filter system issues, cache problems, access control conflicts
+
+**Attempt 2: CMS-Specific `drupal_articles`**
+```disyl
+{drupal_articles limit=6 /}
+```
+**Result**: ✅ Works immediately, simple, fast, maintainable
+
+**Lesson Learned:**
+
+> When abstractions become more complex than the problem they solve, go direct.
+
+This is not a failure of the generic approach—it's the **strength** of an extensible architecture that allows adaptation.
+
+#### Future: Rich DiSyL Ecosystem
+
+As more CMS-specific components are created, DiSyL becomes a **rich lexer** with:
+
+1. **Universal Syntax**: Same learning curve everywhere
+2. **CMS Optimization**: Best-in-class performance per platform
+3. **Community Extensions**: Developers share manifests
+4. **Visual Builder**: Drag-drop components from any manifest
+5. **Type Safety**: Manifest validation at compile time
+
+#### Conclusion
+
+**DiSyL is not just a templating language—it's an extensible ecosystem.**
+
+- Core provides simplicity and portability
+- Manifests enable power and optimization
+- Adaptation strategy ensures real-world success
+- Result: Elegant code that actually works
+
+This architecture positions DiSyL as a true "write once, adapt anywhere" language that doesn't sacrifice pragmatism for purity.
 
 ---
 

@@ -1,7 +1,7 @@
 # DiSyL Quick Start Guide
 
-**Version:** 0.3.0  
-**Last Updated:** November 15, 2025
+**Version:** 0.5.1  
+**Last Updated:** November 30, 2025
 
 ---
 
@@ -12,10 +12,11 @@
 ### Key Features
 
 - ✅ **CMS-Agnostic** - Works with WordPress, Joomla, Drupal, or any PHP CMS
+- ✅ **Cross-Instance Federation** - Query content from any CMS instance *(NEW in v0.5.1)*
 - ✅ **100% Plugin Compatible** - Works with ALL WordPress plugins (WooCommerce, ACF, Elementor, etc.)
 - ✅ **Secure by Default** - Auto-escaping with explicit `| raw` for trusted content
 - ✅ **Modern Syntax** - Clean, readable, component-based templates
-- ✅ **Production Ready** - v0.3.0 grammar specification complete
+- ✅ **Production Ready** - v0.5.1 grammar specification complete
 
 ---
 
@@ -95,6 +96,23 @@
     <article>
         <h3>{item.title | esc_html}</h3>
         <time>{item.date | date:'M j, Y'}</time>
+    </article>
+{/ikb_query}
+
+{!-- Cross-Instance Query (NEW in v0.5.1) --}
+{!-- Pull Joomla articles into a WordPress site --}
+{ikb_query cms="joomla" instance="joomla-content" type="article" limit=5}
+    <article>
+        <h3>{article.title | esc_html}</h3>
+        <p>{article.introtext | truncate:150}</p>
+    </article>
+{/ikb_query}
+
+{!-- Pull Drupal nodes --}
+{ikb_query cms="drupal" instance="drupal-blog" type="article" limit=3}
+    <article>
+        <h3>{node.title | esc_html}</h3>
+        <p>{node.body | strip_tags | truncate:200}</p>
     </article>
 {/ikb_query}
 ```

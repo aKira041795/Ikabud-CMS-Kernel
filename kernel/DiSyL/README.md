@@ -1,6 +1,6 @@
 # DiSyL - Declarative Ikabud Syntax Language
 
-**Version:** 0.5.0  
+**Version:** 0.5.1  
 **Namespace:** `IkabudKernel\Core\DiSyL`  
 **License:** MIT
 
@@ -17,10 +17,16 @@ DiSyL (Declarative Ikabud Syntax Language) is a universal, CMS-agnostic template
 - CMS-agnostic component system
 - Consistent syntax across platforms
 
+🔗 **Cross-Instance Content Federation** *(New in v0.5.1)*
+- Query content from any CMS instance
+- Mix WordPress, Joomla, Drupal content in one template
+- Automatic data normalization across CMS types
+
 ⚡ **High Performance**
 - Compiled AST with caching
 - Optimized rendering pipeline
 - Lazy loading support
+- Connection pooling for cross-instance queries
 
 🎨 **Rich Component Library**
 - Layout components (sections, containers, grids)
@@ -68,10 +74,12 @@ kernel/DiSyL/
 ├── ManifestLoader.php           # Manifest loading
 ├── ModularManifestLoader.php    # Modular manifests
 ├── ComponentRegistry.php        # Component registry
+├── CrossInstanceDataProvider.php # Cross-instance content federation (NEW)
 ├── Renderers/
-│   ├── BaseRenderer.php         # Base renderer
+│   ├── BaseRenderer.php         # Base renderer (with cross-instance support)
 │   ├── WordPressRenderer.php    # WordPress renderer
 │   ├── JoomlaRenderer.php       # Joomla renderer
+│   ├── DrupalRenderer.php       # Drupal renderer
 │   ├── NativeRenderer.php       # Native renderer
 │   └── ManifestDrivenRenderer.php
 ├── Exceptions/
@@ -214,6 +222,52 @@ class PhoenixDisylIntegration {
     </article>
 {/ikb_query}
 ```
+
+#### Cross-Instance Queries *(New in v0.5.1)*
+
+Query content from other CMS instances:
+
+```disyl
+{!-- Pull Joomla articles into a WordPress site --}
+{ikb_query cms="joomla" instance="joomla-content" type="article" limit="5"}
+    <article>
+        <h2>{article.title | esc_html}</h2>
+        <p>{article.introtext | truncate(150)}</p>
+    </article>
+{/ikb_query}
+
+{!-- Pull Drupal nodes into any site --}
+{ikb_query cms="drupal" instance="drupal-blog" type="article" limit="3"}
+    <article>
+        <h2>{node.title | esc_html}</h2>
+        <p>{node.body | strip_tags | truncate(200)}</p>
+    </article>
+{/ikb_query}
+
+{!-- Common fields work across all CMS types --}
+{ikb_query instance="any-instance" type="post" limit="5"}
+    <article>
+        <h2>{title | esc_html}</h2>      {!-- Common field --}
+        <p>{excerpt | truncate(100)}</p>  {!-- Common field --}
+        <span>By {author}</span>          {!-- Common field --}
+    </article>
+{/ikb_query}
+```
+
+**Common Fields** (work across all CMS types):
+- `title` - Content title
+- `content` - Full content
+- `excerpt` - Summary/intro text
+- `date` - Publish date
+- `modified` - Last modified date
+- `author` - Author name
+- `slug` - URL slug
+- `id` - Content ID
+
+**CMS-Specific Fields**:
+- WordPress: `post.ID`, `post.title`, `post.content`, `post.thumbnail`, `post.permalink`
+- Joomla: `article.id`, `article.title`, `article.introtext`, `article.fulltext`, `article.hits`
+- Drupal: `node.nid`, `node.title`, `node.body`, `node.type`, `node.created`
 
 #### Menu Components
 
@@ -424,18 +478,21 @@ See the Phoenix theme for complete implementation:
 
 ## 🛣️ Roadmap
 
-### Current Version (0.5.0)
+### Current Version (0.5.1)
 - ✅ Core engine with lexer, parser, compiler
 - ✅ WordPress renderer
 - ✅ Joomla renderer
+- ✅ Drupal renderer
 - ✅ Component registry
 - ✅ Manifest system
+- ✅ Cross-instance content federation
+- ✅ Connection pooling for multi-instance queries
 
 ### Upcoming (0.6.0)
-- 🔄 Drupal renderer
 - 🔄 Enhanced caching
 - 🔄 Visual builder integration
 - 🔄 Component marketplace
+- 🔄 Real-time cross-instance sync
 
 ### Future (1.0.0)
 - 📋 WebAssembly parser for client-side rendering
