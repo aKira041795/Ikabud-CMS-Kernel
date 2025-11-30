@@ -5,12 +5,18 @@
  * GNU/Linux-inspired CMS Operating System
  * Boots first, supervises all CMS as userland processes
  * 
- * Performance optimizations (v1.1.0):
+ * Performance optimizations (v1.2.0):
  * - Lazy manager initialization
  * - On-demand resource loading
  * - Reduced boot time overhead
+ * - APCu config caching
+ * - Async boot logging queue
+ * - Connection pooling for instances
+ * - Prometheus-compatible metrics
+ * - Graceful shutdown hooks
+ * - Hot reload capability
  * 
- * @version 1.1.0
+ * @version 1.2.0
  * @author Ikabud Development Team
  */
 
@@ -21,8 +27,10 @@ use Exception;
 
 class Kernel
 {
-    const VERSION = '1.1.0';
+    const VERSION = '1.2.0';
     const BOOT_PHASES = 5;
+    const APCU_CONFIG_TTL = 300; // 5 minutes
+    const APCU_ENV_TTL = 3600; // 1 hour
     
     private static ?self $instance = null;
     private static bool $booted = false;
@@ -42,6 +50,27 @@ class Kernel
     private ?HealthMonitor $healthMonitor = null;
     private ?ResourceManager $resourceManager = null;
     private ?Cache $cache = null;
+    
+    // Connection pool for instances
+    private array $connectionPool = [];
+    
+    // Instance routing table
+    private array $routingTable = [];
+    
+    // Async log queue
+    private array $logQueue = [];
+    
+    // Metrics collector
+    private array $metrics = [];
+    
+    // Shutdown handlers
+    private array $shutdownHandlers = [];
+    
+    // Current instance context
+    private ?array $currentInstance = null;
+    
+    // APCu availability
+    private static ?bool $apcuAvailable = null;
     
     /**
      * Get singleton instance
@@ -139,6 +168,161 @@ class Kernel
     public static function isBooted(): bool
     {
         return self::$booted;
+    }
+    
+    /**
+     * Check if APCu is available
+     */
+    private static function isApcuAvailable(): bool
+    {
+        if (self::$apcuAvailable === null) {
+            self::$apcuAvailable = function_exists('apcu_fetch') && apcu_enabled();
+        }
+        return self::$apcuAvailable;
+    }
+    
+    /**
+     * Get current instance context
+     */
+    public function getCurrentInstance(): ?array
+    {
+        return $this->currentInstance;
+    }
+    
+    /**
+     * Set current instance context
+     */
+    public function setCurrentInstance(?array $instance): void
+    {
+        $this->currentInstance = $instance;
+    }
+    
+    /**
+     * Register a shutdown handler
+     */
+    public static function onShutdown(callable $handler, int $priority = 10): void
+    {
+        $kernel = self::getInstance();
+        $kernel->shutdownHandlers[$priority][] = $handler;
+    }
+    
+    /**
+     * Trigger graceful shutdown
+     */
+    public static function shutdown(): void
+    {
+        $kernel = self::getInstance();
+        
+        // Sort handlers by priority (lower = earlier)
+        ksort($kernel->shutdownHandlers);
+        
+        foreach ($kernel->shutdownHandlers as $priority => $handlers) {
+            foreach ($handlers as $handler) {
+                try {
+                    call_user_func($handler);
+                } catch (Exception $e) {
+                    error_log("[Kernel Shutdown] Handler error: " . $e->getMessage());
+                }
+            }
+        }
+        
+        // Flush log queue
+        $kernel->flushLogQueue();
+        
+        // Close connection pool
+        $kernel->closeConnectionPool();
+        
+        // Record final metrics
+        $kernel->recordMetric('kernel.shutdown', 1, ['clean' => true]);
+        
+        self::$booted = false;
+    }
+    
+    /**
+     * Hot reload configuration without restart
+     */
+    public static function hotReload(): bool
+    {
+        $kernel = self::getInstance();
+        
+        try {
+            // Clear APCu cache
+            if (self::isApcuAvailable()) {
+                apcu_delete('ikabud_kernel_config');
+                apcu_delete('ikabud_kernel_env');
+            }
+            
+            // Reload environment
+            $kernel->loadEnvironment();
+            
+            // Reload kernel config
+            $kernel->loadKernelConfig();
+            
+            // Re-initialize DiSyL manifest
+            $kernel->initializeDisylManifest();
+            
+            error_log("[Kernel] Hot reload completed successfully");
+            return true;
+            
+        } catch (Exception $e) {
+            error_log("[Kernel] Hot reload failed: " . $e->getMessage());
+            return false;
+        }
+    }
+    
+    /**
+     * Record a metric
+     */
+    public function recordMetric(string $name, $value, array $labels = []): void
+    {
+        $this->metrics[] = [
+            'name' => $name,
+            'value' => $value,
+            'labels' => $labels,
+            'timestamp' => microtime(true)
+        ];
+    }
+    
+    /**
+     * Get all metrics (Prometheus-compatible format)
+     */
+    public static function getMetrics(): array
+    {
+        $kernel = self::getInstance();
+        
+        // Add system metrics
+        $kernel->recordMetric('kernel_memory_usage_bytes', memory_get_usage());
+        $kernel->recordMetric('kernel_memory_peak_bytes', memory_get_peak_usage());
+        $kernel->recordMetric('kernel_uptime_seconds', self::$booted ? microtime(true) - self::$bootStartTime : 0);
+        $kernel->recordMetric('kernel_processes_total', count($kernel->processes));
+        $kernel->recordMetric('kernel_syscalls_registered', count($kernel->syscalls));
+        $kernel->recordMetric('kernel_connections_pooled', count($kernel->connectionPool));
+        
+        return $kernel->metrics;
+    }
+    
+    /**
+     * Export metrics in Prometheus format
+     */
+    public static function exportPrometheusMetrics(): string
+    {
+        $metrics = self::getMetrics();
+        $output = "# HELP ikabud_kernel Ikabud Kernel Metrics\n";
+        $output .= "# TYPE ikabud_kernel gauge\n";
+        
+        foreach ($metrics as $metric) {
+            $labels = '';
+            if (!empty($metric['labels'])) {
+                $labelParts = [];
+                foreach ($metric['labels'] as $k => $v) {
+                    $labelParts[] = "{$k}=\"{$v}\"";
+                }
+                $labels = '{' . implode(',', $labelParts) . '}';
+            }
+            $output .= "ikabud_{$metric['name']}{$labels} {$metric['value']}\n";
+        }
+        
+        return $output;
     }
     
     /**
@@ -527,24 +711,48 @@ class Kernel
     
     private function loadEnvironment(): void
     {
+        // Try APCu cache first
+        if (self::isApcuAvailable()) {
+            $cached = apcu_fetch('ikabud_kernel_env');
+            if ($cached !== false) {
+                foreach ($cached as $key => $value) {
+                    $_ENV[$key] = $value;
+                    putenv("{$key}={$value}");
+                }
+                return;
+            }
+        }
+        
         $envFile = __DIR__ . '/../.env';
         if (!file_exists($envFile)) {
             throw new Exception('.env file not found');
         }
         
+        $envVars = [];
         $lines = file($envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+        
         foreach ($lines as $line) {
-            if (strpos(trim($line), '#') === 0) continue;
+            $line = trim($line);
+            if (empty($line) || strpos($line, '#') === 0) continue;
             
-            list($key, $value) = explode('=', $line, 2);
-            $key = trim($key);
-            $value = trim($value);
+            $parts = explode('=', $line, 2);
+            if (count($parts) !== 2) continue;
+            
+            $key = trim($parts[0]);
+            $value = trim($parts[1]);
             
             // Remove quotes
             $value = trim($value, '"\'');
             
             $_ENV[$key] = $value;
             putenv("{$key}={$value}");
+            $envVars[$key] = $value;
+        }
+        
+        // Cache in APCu (excluding sensitive data)
+        if (self::isApcuAvailable()) {
+            $safeVars = array_diff_key($envVars, array_flip(['DB_PASSWORD', 'APP_KEY', 'JWT_SECRET']));
+            apcu_store('ikabud_kernel_env', $safeVars, self::APCU_ENV_TTL);
         }
     }
     
@@ -562,7 +770,13 @@ class Kernel
             PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
             PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
             PDO::ATTR_EMULATE_PREPARES => false,
+            PDO::ATTR_TIMEOUT => 5, // 5 second connection timeout
+            PDO::ATTR_PERSISTENT => false, // Use connection pooling instead
         ]);
+        
+        // Set session variables for performance
+        $this->db->exec("SET SESSION wait_timeout = 28800");
+        $this->db->exec("SET SESSION interactive_timeout = 28800");
         
         // Managers are now lazy-loaded via getters
         // No eager initialization needed here
@@ -570,6 +784,15 @@ class Kernel
     
     private function loadKernelConfig(): void
     {
+        // Try APCu cache first
+        if (self::isApcuAvailable()) {
+            $cached = apcu_fetch('ikabud_kernel_config');
+            if ($cached !== false) {
+                $this->config = $cached;
+                return;
+            }
+        }
+        
         $stmt = $this->db->query("SELECT `key`, `value`, `type` FROM kernel_config");
         $configs = $stmt->fetchAll();
         
@@ -588,9 +811,17 @@ class Kernel
                 case 'array':
                     $value = json_decode($value, true);
                     break;
+                case 'float':
+                    $value = (float) $value;
+                    break;
             }
             
             $this->config[$config['key']] = $value;
+        }
+        
+        // Cache in APCu
+        if (self::isApcuAvailable()) {
+            apcu_store('ikabud_kernel_config', $this->config, self::APCU_CONFIG_TTL);
         }
     }
     
@@ -702,55 +933,520 @@ class Kernel
     private function prepareIsolationEnvironment(): void
     {
         // Start output buffering for isolation
-        ob_start();
+        if (!ob_get_level()) {
+            ob_start();
+        }
+        
+        // Set memory limit for isolation
+        $memoryLimit = $this->config['isolation_memory_limit'] ?? '256M';
+        ini_set('memory_limit', $memoryLimit);
+        
+        // Set execution time limit
+        $timeLimit = $this->config['isolation_time_limit'] ?? 30;
+        set_time_limit($timeLimit);
     }
     
     private function loadSharedCore(string $cmsType, string $corePath): void
     {
-        // Core loading logic will be implemented per CMS type
-        $this->bootLog[] = "Loaded shared core: {$cmsType}";
+        $startTime = microtime(true);
+        
+        // Validate core path
+        if (!is_dir($corePath)) {
+            $this->bootLog[] = "Shared core not found: {$cmsType} at {$corePath}";
+            return;
+        }
+        
+        // Load core based on CMS type
+        switch (strtolower($cmsType)) {
+            case 'wordpress':
+            case 'wordpress6':
+                $this->loadWordPressCore($corePath);
+                break;
+            case 'joomla':
+            case 'joomla4':
+            case 'joomla5':
+                $this->loadJoomlaCore($corePath);
+                break;
+            case 'drupal':
+            case 'drupal10':
+            case 'drupal11':
+                $this->loadDrupalCore($corePath);
+                break;
+            default:
+                $this->bootLog[] = "Unknown CMS type: {$cmsType}";
+                return;
+        }
+        
+        $duration = (microtime(true) - $startTime) * 1000;
+        $this->bootLog[] = sprintf("Loaded shared core: %s (%.2fms)", $cmsType, $duration);
+        $this->recordMetric('core_load_time_ms', $duration, ['cms' => $cmsType]);
+    }
+    
+    private function loadWordPressCore(string $corePath): void
+    {
+        // Define WordPress constants if not defined
+        if (!defined('ABSPATH')) {
+            define('ABSPATH', $corePath . '/');
+        }
+        
+        // Store core path for later use
+        $this->config['wordpress_core_path'] = $corePath;
+    }
+    
+    private function loadJoomlaCore(string $corePath): void
+    {
+        // Define Joomla constants if not defined
+        if (!defined('JPATH_ROOT')) {
+            define('JPATH_ROOT', $corePath);
+        }
+        
+        // Store core path for later use
+        $this->config['joomla_core_path'] = $corePath;
+    }
+    
+    private function loadDrupalCore(string $corePath): void
+    {
+        // Store core path for later use
+        $this->config['drupal_core_path'] = $corePath;
     }
     
     private function loadActiveInstances(): array
     {
-        $stmt = $this->db->query("SELECT * FROM instances WHERE status = 'active'");
-        return $stmt->fetchAll();
+        // Try cache first
+        if (self::isApcuAvailable()) {
+            $cached = apcu_fetch('ikabud_active_instances');
+            if ($cached !== false) {
+                return $cached;
+            }
+        }
+        
+        $stmt = $this->db->query("
+            SELECT i.*, 
+                   COUNT(DISTINCT p.id) as plugin_count,
+                   t.name as theme_name
+            FROM instances i
+            LEFT JOIN instance_plugins p ON i.id = p.instance_id AND p.status = 'active'
+            LEFT JOIN instance_themes t ON i.id = t.instance_id AND t.is_active = 1
+            WHERE i.status = 'active'
+            GROUP BY i.id
+            ORDER BY i.priority DESC, i.name ASC
+        ");
+        $instances = $stmt->fetchAll();
+        
+        // Cache for 60 seconds
+        if (self::isApcuAvailable()) {
+            apcu_store('ikabud_active_instances', $instances, 60);
+        }
+        
+        return $instances;
     }
     
     private function configureInstanceRouting(array $instance): void
     {
-        // Routing configuration logic
+        $instanceId = $instance['id'] ?? $instance['instance_id'] ?? null;
+        if (!$instanceId) return;
+        
+        // Build routing entry
+        $route = [
+            'instance_id' => $instanceId,
+            'name' => $instance['name'] ?? 'unknown',
+            'cms_type' => $instance['cms_type'] ?? 'wordpress',
+            'domain' => $instance['domain'] ?? null,
+            'path_prefix' => $instance['path_prefix'] ?? '/',
+            'priority' => $instance['priority'] ?? 0,
+            'config' => json_decode($instance['config'] ?? '{}', true),
+        ];
+        
+        // Add to routing table
+        if ($route['domain']) {
+            // Domain-based routing
+            $this->routingTable['domains'][$route['domain']] = $route;
+        }
+        
+        if ($route['path_prefix'] && $route['path_prefix'] !== '/') {
+            // Path-based routing
+            $this->routingTable['paths'][$route['path_prefix']] = $route;
+        }
+        
+        // Store instance config
+        $this->routingTable['instances'][$instanceId] = $route;
     }
     
     private function setupInstanceDatabases(array $instances): void
     {
-        // Database connection pooling logic
+        foreach ($instances as $instance) {
+            $instanceId = $instance['id'] ?? $instance['instance_id'] ?? null;
+            if (!$instanceId) continue;
+            
+            // Parse instance config for DB credentials
+            $config = json_decode($instance['config'] ?? '{}', true);
+            
+            // Skip if no separate database configured
+            if (empty($config['db_name'])) continue;
+            
+            // Create connection config (don't connect yet - lazy loading)
+            $this->connectionPool[$instanceId] = [
+                'config' => [
+                    'host' => $config['db_host'] ?? $_ENV['DB_HOST'],
+                    'port' => $config['db_port'] ?? $_ENV['DB_PORT'],
+                    'database' => $config['db_name'],
+                    'username' => $config['db_user'] ?? $_ENV['DB_USERNAME'],
+                    'password' => $config['db_pass'] ?? $_ENV['DB_PASSWORD'],
+                    'charset' => $config['db_charset'] ?? 'utf8mb4',
+                    'prefix' => $config['db_prefix'] ?? '',
+                ],
+                'connection' => null, // Lazy-loaded
+                'last_used' => null,
+            ];
+        }
+    }
+    
+    /**
+     * Get a pooled database connection for an instance
+     */
+    public function getInstanceConnection(string $instanceId): ?PDO
+    {
+        if (!isset($this->connectionPool[$instanceId])) {
+            return null;
+        }
+        
+        $pool = &$this->connectionPool[$instanceId];
+        
+        // Return existing connection if valid
+        if ($pool['connection'] !== null) {
+            try {
+                $pool['connection']->query('SELECT 1');
+                $pool['last_used'] = time();
+                return $pool['connection'];
+            } catch (Exception $e) {
+                // Connection dead, recreate
+                $pool['connection'] = null;
+            }
+        }
+        
+        // Create new connection
+        $config = $pool['config'];
+        $dsn = sprintf(
+            'mysql:host=%s;port=%s;dbname=%s;charset=%s',
+            $config['host'],
+            $config['port'],
+            $config['database'],
+            $config['charset']
+        );
+        
+        try {
+            $pool['connection'] = new PDO($dsn, $config['username'], $config['password'], [
+                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+                PDO::ATTR_EMULATE_PREPARES => false,
+                PDO::ATTR_TIMEOUT => 5,
+            ]);
+            $pool['last_used'] = time();
+            
+            $this->recordMetric('connection_pool_created', 1, ['instance' => $instanceId]);
+            
+            return $pool['connection'];
+        } catch (Exception $e) {
+            error_log("[Kernel] Failed to create connection for instance {$instanceId}: " . $e->getMessage());
+            return null;
+        }
+    }
+    
+    /**
+     * Close all pooled connections
+     */
+    private function closeConnectionPool(): void
+    {
+        foreach ($this->connectionPool as $instanceId => &$pool) {
+            if ($pool['connection'] !== null) {
+                $pool['connection'] = null;
+            }
+        }
+        $this->connectionPool = [];
+    }
+    
+    /**
+     * Clean up idle connections (call periodically)
+     */
+    public function cleanupIdleConnections(int $maxIdleSeconds = 300): int
+    {
+        $cleaned = 0;
+        $now = time();
+        
+        foreach ($this->connectionPool as $instanceId => &$pool) {
+            if ($pool['connection'] !== null && $pool['last_used'] !== null) {
+                if (($now - $pool['last_used']) > $maxIdleSeconds) {
+                    $pool['connection'] = null;
+                    $cleaned++;
+                }
+            }
+        }
+        
+        if ($cleaned > 0) {
+            $this->recordMetric('connection_pool_cleaned', $cleaned);
+        }
+        
+        return $cleaned;
     }
     
     private function determineRequestedCMS(): ?string
     {
-        // Route matching logic
+        $host = $_SERVER['HTTP_HOST'] ?? '';
+        $uri = $_SERVER['REQUEST_URI'] ?? '/';
+        $path = parse_url($uri, PHP_URL_PATH) ?? '/';
+        
+        // Check domain-based routing first
+        if (!empty($this->routingTable['domains'][$host])) {
+            $route = $this->routingTable['domains'][$host];
+            $this->currentInstance = $route;
+            return $route['cms_type'];
+        }
+        
+        // Check subdomain routing (e.g., wp.example.com)
+        $hostParts = explode('.', $host);
+        if (count($hostParts) > 2) {
+            $subdomain = $hostParts[0];
+            $baseDomain = implode('.', array_slice($hostParts, 1));
+            
+            foreach ($this->routingTable['domains'] ?? [] as $domain => $route) {
+                if ($domain === $baseDomain && isset($route['subdomains'][$subdomain])) {
+                    $this->currentInstance = $route;
+                    return $route['cms_type'];
+                }
+            }
+        }
+        
+        // Check path-based routing
+        foreach ($this->routingTable['paths'] ?? [] as $prefix => $route) {
+            if (strpos($path, $prefix) === 0) {
+                $this->currentInstance = $route;
+                return $route['cms_type'];
+            }
+        }
+        
+        // Default to first instance or null
+        if (!empty($this->routingTable['instances'])) {
+            $firstInstance = reset($this->routingTable['instances']);
+            $this->currentInstance = $firstInstance;
+            return $firstInstance['cms_type'];
+        }
+        
         return null;
     }
     
     private function bootCMSRuntime(?string $cmsType): void
     {
-        // CMS runtime boot logic
+        if (!$cmsType || !$this->currentInstance) {
+            return;
+        }
+        
+        $instanceId = $this->currentInstance['instance_id'] ?? null;
+        $startTime = microtime(true);
+        
+        switch (strtolower($cmsType)) {
+            case 'wordpress':
+                $this->bootWordPressRuntime($instanceId);
+                break;
+            case 'joomla':
+                $this->bootJoomlaRuntime($instanceId);
+                break;
+            case 'drupal':
+                $this->bootDrupalRuntime($instanceId);
+                break;
+            case 'native':
+                $this->bootNativeRuntime($instanceId);
+                break;
+        }
+        
+        $duration = (microtime(true) - $startTime) * 1000;
+        $this->recordMetric('cms_boot_time_ms', $duration, ['cms' => $cmsType, 'instance' => $instanceId]);
+    }
+    
+    private function bootWordPressRuntime(?string $instanceId): void
+    {
+        // WordPress runtime is typically booted via wp-load.php
+        // This sets up the environment for WordPress to load
+        
+        if ($instanceId && isset($this->routingTable['instances'][$instanceId])) {
+            $config = $this->routingTable['instances'][$instanceId]['config'] ?? [];
+            
+            // Set WordPress-specific globals
+            if (!defined('WP_USE_THEMES')) {
+                define('WP_USE_THEMES', true);
+            }
+        }
+    }
+    
+    private function bootJoomlaRuntime(?string $instanceId): void
+    {
+        // Joomla runtime setup
+        if (!defined('_JEXEC')) {
+            define('_JEXEC', 1);
+        }
+    }
+    
+    private function bootDrupalRuntime(?string $instanceId): void
+    {
+        // Drupal runtime setup
+        // Drupal uses autoloading and service containers
+    }
+    
+    private function bootNativeRuntime(?string $instanceId): void
+    {
+        // Native/static site runtime - minimal setup
     }
     
     private function loadActiveTheme(): void
     {
-        // Theme loading logic
+        if (!$this->currentInstance) {
+            return;
+        }
+        
+        $instanceId = $this->currentInstance['instance_id'] ?? null;
+        if (!$instanceId) return;
+        
+        // Get active theme for instance
+        $stmt = $this->db->prepare("
+            SELECT t.*, ts.setting_key, ts.setting_value
+            FROM instance_themes t
+            LEFT JOIN theme_settings ts ON t.id = ts.theme_id
+            WHERE t.instance_id = ? AND t.is_active = 1
+        ");
+        $stmt->execute([$instanceId]);
+        $themeData = $stmt->fetchAll();
+        
+        if (empty($themeData)) {
+            return;
+        }
+        
+        // Build theme config
+        $theme = [
+            'id' => $themeData[0]['id'] ?? null,
+            'name' => $themeData[0]['name'] ?? 'default',
+            'path' => $themeData[0]['path'] ?? null,
+            'settings' => [],
+        ];
+        
+        foreach ($themeData as $row) {
+            if (!empty($row['setting_key'])) {
+                $theme['settings'][$row['setting_key']] = $row['setting_value'];
+            }
+        }
+        
+        $this->currentInstance['theme'] = $theme;
+        $this->recordMetric('theme_loaded', 1, ['theme' => $theme['name'], 'instance' => $instanceId]);
     }
     
     private function loadInstancePlugins(): void
     {
-        // Plugin loading logic
+        if (!$this->currentInstance) {
+            return;
+        }
+        
+        $instanceId = $this->currentInstance['instance_id'] ?? null;
+        if (!$instanceId) return;
+        
+        // Get active plugins for instance
+        $stmt = $this->db->prepare("
+            SELECT name, path, priority, config
+            FROM instance_plugins
+            WHERE instance_id = ? AND status = 'active'
+            ORDER BY priority DESC, name ASC
+        ");
+        $stmt->execute([$instanceId]);
+        $plugins = $stmt->fetchAll();
+        
+        $this->currentInstance['plugins'] = [];
+        
+        foreach ($plugins as $plugin) {
+            $this->currentInstance['plugins'][] = [
+                'name' => $plugin['name'],
+                'path' => $plugin['path'],
+                'priority' => $plugin['priority'],
+                'config' => json_decode($plugin['config'] ?? '{}', true),
+            ];
+        }
+        
+        $this->recordMetric('plugins_loaded', count($plugins), ['instance' => $instanceId]);
     }
     
     private function initializeDSL(): void
     {
-        // DSL system initialization
+        // Initialize DiSyL for the current instance
+        if (!$this->currentInstance) {
+            return;
+        }
+        
+        $cmsType = $this->currentInstance['cms_type'] ?? 'wordpress';
+        
+        // Initialize cross-instance data provider with current instance
+        if (class_exists('\\IkabudKernel\\Core\\DiSyL\\CrossInstanceDataProvider')) {
+            \IkabudKernel\Core\DiSyL\CrossInstanceDataProvider::init(
+                __DIR__ . '/../instances',
+                $this->currentInstance['instance_id'] ?? null
+            );
+        }
+        
+        // Initialize security features
+        if (class_exists('\\IkabudKernel\\Core\\DiSyL\\Security\\InstanceAuthorization')) {
+            \IkabudKernel\Core\DiSyL\Security\InstanceAuthorization::init();
+        }
+        
+        if (class_exists('\\IkabudKernel\\Core\\DiSyL\\Security\\RateLimiter')) {
+            \IkabudKernel\Core\DiSyL\Security\RateLimiter::init();
+        }
+        
+        // Initialize CMS-specific integrations
+        self::initCMSIntegrations($cmsType);
+        
+        $this->recordMetric('dsl_initialized', 1, ['cms' => $cmsType]);
+    }
+    
+    /**
+     * Flush the async log queue to database
+     */
+    private function flushLogQueue(): void
+    {
+        if (empty($this->logQueue)) {
+            return;
+        }
+        
+        try {
+            $stmt = $this->db->prepare("
+                INSERT INTO kernel_async_log (type, message, context, created_at)
+                VALUES (?, ?, ?, NOW())
+            ");
+            
+            foreach ($this->logQueue as $log) {
+                $stmt->execute([
+                    $log['type'],
+                    $log['message'],
+                    json_encode($log['context'] ?? [])
+                ]);
+            }
+            
+            $this->logQueue = [];
+        } catch (Exception $e) {
+            error_log("[Kernel] Failed to flush log queue: " . $e->getMessage());
+        }
+    }
+    
+    /**
+     * Add to async log queue
+     */
+    public function queueLog(string $type, string $message, array $context = []): void
+    {
+        $this->logQueue[] = [
+            'type' => $type,
+            'message' => $message,
+            'context' => $context,
+            'timestamp' => microtime(true)
+        ];
+        
+        // Auto-flush if queue gets too large
+        if (count($this->logQueue) >= 100) {
+            $this->flushLogQueue();
+        }
     }
     
     private function logPhase(int $phase, string $name, string $status, float $duration = 0, ?string $error = null): void
