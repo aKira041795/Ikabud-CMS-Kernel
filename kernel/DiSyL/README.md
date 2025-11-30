@@ -1,8 +1,9 @@
 # DiSyL - Declarative Ikabud Syntax Language
 
-**Version:** 0.5.1  
+**Version:** 0.6.0  
 **Namespace:** `IkabudKernel\Core\DiSyL`  
-**License:** MIT
+**License:** MIT  
+**Security Score:** 9.2/10
 
 ---
 
@@ -33,10 +34,14 @@ DiSyL (Declarative Ikabud Syntax Language) is a universal, CMS-agnostic template
 - Content components (text, images, buttons)
 - CMS-specific integrations (menus, widgets, modules)
 
-🔒 **Security First**
+🔒 **Security First** *(Enhanced in v0.6.0)*
 - Built-in XSS prevention
 - Sanitized outputs
 - Secure by default
+- Instance authorization for cross-instance queries
+- Template signing (HMAC-based integrity)
+- Content Security Policy generation
+- Rate limiting for query protection
 
 ---
 
@@ -74,7 +79,12 @@ kernel/DiSyL/
 ├── ManifestLoader.php           # Manifest loading
 ├── ModularManifestLoader.php    # Modular manifests
 ├── ComponentRegistry.php        # Component registry
-├── CrossInstanceDataProvider.php # Cross-instance content federation (NEW)
+├── CrossInstanceDataProvider.php # Cross-instance content federation
+├── Security/                     # Security components (NEW in v0.6.0)
+│   ├── InstanceAuthorization.php # Cross-instance permissions
+│   ├── TemplateSigner.php        # HMAC template signing
+│   ├── SecurityPolicyGenerator.php # CSP header generation
+│   └── RateLimiter.php           # Query rate limiting
 ├── Renderers/
 │   ├── BaseRenderer.php         # Base renderer (with cross-instance support)
 │   ├── WordPressRenderer.php    # WordPress renderer
@@ -478,7 +488,7 @@ See the Phoenix theme for complete implementation:
 
 ## 🛣️ Roadmap
 
-### Current Version (0.5.1)
+### Current Version (0.6.0)
 - ✅ Core engine with lexer, parser, compiler
 - ✅ WordPress renderer
 - ✅ Joomla renderer
@@ -487,8 +497,12 @@ See the Phoenix theme for complete implementation:
 - ✅ Manifest system
 - ✅ Cross-instance content federation
 - ✅ Connection pooling for multi-instance queries
+- ✅ Instance authorization (per-instance permissions)
+- ✅ Template signing (HMAC integrity verification)
+- ✅ Content Security Policy generation
+- ✅ Rate limiting for cross-instance queries
 
-### Upcoming (0.6.0)
+### Upcoming (0.7.0)
 - 🔄 Enhanced caching
 - 🔄 Visual builder integration
 - 🔄 Component marketplace

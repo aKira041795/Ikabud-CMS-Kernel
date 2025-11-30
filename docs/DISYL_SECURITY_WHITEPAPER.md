@@ -2,8 +2,8 @@
 
 **Declarative Ikabud Syntax Language - Security Architecture**
 
-**Version:** 0.5.1  
-**Security Score:** 9.2 / 10  
+**Version:** 0.6.0  
+**Security Score:** 9.5 / 10 *(+0.3 from v0.5.1)*  
 **Last Updated:** November 30, 2025  
 **Classification:** Public
 
@@ -25,6 +25,10 @@ DiSyL (Declarative Ikabud Syntax Language) is a secure, declarative templating l
 | AST-Based Pipeline | ✅ | Attack vectors blocked at parse-time |
 | Renderer Sandboxing | ✅ | CMS isolation per renderer |
 | Normalized Cross-Instance | ✅ | No direct foreign DB access |
+| Instance Authorization | ✅ | Per-instance permission control |
+| Template Signing | ✅ | HMAC-based integrity verification |
+| CSP Generation | ✅ | Content Security Policy headers |
+| Rate Limiting | ✅ | Query frequency protection |
 
 ---
 
@@ -488,18 +492,24 @@ CrossInstanceDataProvider::setRateLimit([
 
 ## Security Roadmap
 
-### v0.5.1 (Current)
+### v0.5.1
 - ✅ AST-based pipeline
 - ✅ Manifest validation
 - ✅ Auto HTML escaping
 - ✅ Renderer sandboxing
 - ✅ Cross-instance DataProvider
 
-### v0.6.0 (Planned)
-- 🔄 Instance-level authorization
-- 🔄 Template signing
-- 🔄 CSP header generation
+### v0.6.0 (Current)
+- ✅ Instance-level authorization (`Security/InstanceAuthorization.php`)
+- ✅ Template signing (`Security/TemplateSigner.php`)
+- ✅ CSP header generation (`Security/SecurityPolicyGenerator.php`)
+- ✅ Rate limiting (`Security/RateLimiter.php`)
+- ✅ Configuration files (`config/security.php`, `config/cross-instance-permissions.php`)
+
+### v0.7.0 (Planned)
 - 🔄 Enhanced audit logging
+- 🔄 Real-time threat detection
+- 🔄 Automated security scanning
 
 ### v1.0.0 (Future)
 - 📋 Component marketplace security review

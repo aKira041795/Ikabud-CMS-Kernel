@@ -5,19 +5,26 @@
  * Enables fetching data from any registered CMS instance,
  * allowing content federation across WordPress, Joomla, Drupal, etc.
  * 
+ * Security Features (v0.6.0):
+ * - Instance authorization (per-instance permissions)
+ * - Rate limiting (queries per minute)
+ * - Result limit enforcement
+ * 
  * Usage in templates:
  *   {ikb_query cms="joomla" instance="joomla-content" type="article" limit="5"}
  *     {article.title}
  *   {/ikb_query}
  * 
  * @package IkabudKernel\Core\DiSyL
- * @version 1.0.0
+ * @version 0.6.0
  */
 
 namespace IkabudKernel\Core\DiSyL;
 
 use PDO;
 use PDOException;
+use IkabudKernel\Core\DiSyL\Security\InstanceAuthorization;
+use IkabudKernel\Core\DiSyL\Security\RateLimiter;
 
 class CrossInstanceDataProvider
 {
@@ -30,12 +37,57 @@ class CrossInstanceDataProvider
     /** @var string Base path for instances */
     private static string $instancesPath;
     
+    /** @var string|null Current source instance (for authorization) */
+    private static ?string $currentSourceInstance = null;
+    
+    /** @var bool Whether security features are initialized */
+    private static bool $securityInitialized = false;
+    
     /**
      * Initialize the provider
+     * 
+     * @param string|null $instancesPath Path to instances directory
+     * @param string|null $sourceInstance Current instance making queries
      */
-    public static function init(?string $instancesPath = null): void
+    public static function init(?string $instancesPath = null, ?string $sourceInstance = null): void
     {
         self::$instancesPath = $instancesPath ?? dirname(__DIR__, 2) . '/instances';
+        self::$currentSourceInstance = $sourceInstance;
+        
+        // Initialize security features
+        self::initSecurity();
+    }
+    
+    /**
+     * Initialize security features
+     */
+    private static function initSecurity(): void
+    {
+        if (self::$securityInitialized) {
+            return;
+        }
+        
+        // Initialize authorization if class exists
+        if (class_exists(InstanceAuthorization::class)) {
+            InstanceAuthorization::init();
+        }
+        
+        // Initialize rate limiter if class exists
+        if (class_exists(RateLimiter::class)) {
+            RateLimiter::init();
+        }
+        
+        self::$securityInitialized = true;
+    }
+    
+    /**
+     * Set the current source instance
+     * 
+     * @param string $instanceId
+     */
+    public static function setSourceInstance(string $instanceId): void
+    {
+        self::$currentSourceInstance = $instanceId;
     }
     
     /**
@@ -53,34 +105,73 @@ class CrossInstanceDataProvider
      * Execute a cross-instance query
      * 
      * @param array $attrs Query attributes (instance, cms, type, limit, etc.)
+     * @param string|null $sourceInstance Override source instance for authorization
      * @return array Array of items with normalized field names
      */
-    public static function query(array $attrs): array
+    public static function query(array $attrs, ?string $sourceInstance = null): array
     {
-        $instanceId = $attrs['instance'] ?? null;
+        // Ensure security is initialized
+        self::initSecurity();
+        
+        $targetInstanceId = $attrs['instance'] ?? null;
         $cmsType = $attrs['cms'] ?? null;
+        $contentType = $attrs['type'] ?? 'post';
+        $limit = (int)($attrs['limit'] ?? 10);
         
         // If only cms specified, find first matching instance
-        if (!$instanceId && $cmsType) {
-            $instanceId = self::findInstanceByCms($cmsType);
+        if (!$targetInstanceId && $cmsType) {
+            $targetInstanceId = self::findInstanceByCms($cmsType);
         }
         
-        if (!$instanceId) {
+        if (!$targetInstanceId) {
             error_log("[DiSyL CrossInstance] No instance found for query: " . json_encode($attrs));
             return [];
         }
         
+        // Determine source instance
+        $source = $sourceInstance ?? self::$currentSourceInstance ?? 'unknown';
+        
+        // === SECURITY CHECK: Authorization ===
+        if (class_exists(InstanceAuthorization::class)) {
+            $authResult = InstanceAuthorization::authorize($source, $targetInstanceId, $contentType, $limit);
+            
+            if (!$authResult->isAuthorized()) {
+                error_log("[DiSyL CrossInstance] Authorization denied: " . $authResult->getReason());
+                return [];
+            }
+            
+            // Adjust limit if needed
+            if (isset($authResult->getMetadata()['adjusted_limit'])) {
+                $limit = $authResult->getMetadata()['adjusted_limit'];
+                $attrs['limit'] = $limit;
+            }
+        }
+        
+        // === SECURITY CHECK: Rate Limiting ===
+        if (class_exists(RateLimiter::class)) {
+            $rateResult = RateLimiter::check($source, $targetInstanceId);
+            
+            if (!$rateResult->isAllowed()) {
+                error_log("[DiSyL CrossInstance] Rate limit exceeded: " . $rateResult->getMessage());
+                return [];
+            }
+            
+            // Enforce result limit
+            $limit = RateLimiter::enforceResultLimit($limit);
+            $attrs['limit'] = $limit;
+        }
+        
         // Get instance config
-        $config = self::getInstanceConfig($instanceId);
+        $config = self::getInstanceConfig($targetInstanceId);
         if (!$config) {
-            error_log("[DiSyL CrossInstance] Could not load config for instance: {$instanceId}");
+            error_log("[DiSyL CrossInstance] Could not load config for instance: {$targetInstanceId}");
             return [];
         }
         
         // Get database connection
-        $pdo = self::getConnection($instanceId, $config);
+        $pdo = self::getConnection($targetInstanceId, $config);
         if (!$pdo) {
-            error_log("[DiSyL CrossInstance] Could not connect to database for instance: {$instanceId}");
+            error_log("[DiSyL CrossInstance] Could not connect to database for instance: {$targetInstanceId}");
             return [];
         }
         
