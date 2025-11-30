@@ -710,6 +710,71 @@ abstract class BaseRenderer
     }
     
     /**
+     * Check if query is cross-instance and handle accordingly
+     * 
+     * Call this at the start of renderIkbQuery in CMS-specific renderers.
+     * If it returns non-null, use that result instead of local query.
+     * 
+     * @param array $attrs Query attributes
+     * @param array $children Child nodes to render for each item
+     * @return string|null Rendered HTML if cross-instance, null if local query
+     */
+    protected function handleCrossInstanceQuery(array $attrs, array $children): ?string
+    {
+        // Check if this is a cross-instance query
+        if (empty($attrs['instance']) && empty($attrs['cms'])) {
+            return null; // Not cross-instance, use local query
+        }
+        
+        // Initialize CrossInstanceDataProvider if needed
+        if (class_exists('\\IkabudKernel\\Core\\DiSyL\\CrossInstanceDataProvider')) {
+            \IkabudKernel\Core\DiSyL\CrossInstanceDataProvider::init();
+            
+            // Execute cross-instance query
+            $items = \IkabudKernel\Core\DiSyL\CrossInstanceDataProvider::query($attrs);
+            
+            if (empty($items)) {
+                return '<!-- No results from cross-instance query -->';
+            }
+            
+            // Render children for each item
+            $html = '';
+            $originalContext = $this->context;
+            
+            foreach ($items as $item) {
+                // Set item context - make fields available at multiple levels for flexibility
+                $this->context['item'] = $item;
+                
+                // Also set CMS-specific aliases (post, article, node)
+                if (isset($item['post'])) {
+                    $this->context['post'] = $item['post'];
+                }
+                if (isset($item['article'])) {
+                    $this->context['article'] = $item['article'];
+                }
+                if (isset($item['node'])) {
+                    $this->context['node'] = $item['node'];
+                }
+                
+                // Set common fields directly in context for easy access
+                foreach (['id', 'title', 'content', 'excerpt', 'date', 'author', 'slug'] as $field) {
+                    if (isset($item[$field])) {
+                        $this->context[$field] = $item[$field];
+                    }
+                }
+                
+                $html .= $this->renderChildren($children);
+            }
+            
+            $this->context = $originalContext;
+            return $html;
+        }
+        
+        // CrossInstanceDataProvider not available
+        return '<!-- Cross-instance queries require CrossInstanceDataProvider -->';
+    }
+    
+    /**
      * Abstract method: CMS-specific initialization
      * 
      * Override this in CMS-specific renderers to set up CMS context

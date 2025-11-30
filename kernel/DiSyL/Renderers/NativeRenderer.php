@@ -241,9 +241,17 @@ class NativeRenderer extends BaseRenderer
     
     /**
      * Render ikb_query component
+     * Supports cross-instance queries via instance="" or cms="" attributes
      */
     protected function renderIkbQuery(array $node, array $attrs, array $children): string
     {
+        // Check for cross-instance query first
+        $crossInstanceResult = $this->handleCrossInstanceQuery($attrs, $children);
+        if ($crossInstanceResult !== null) {
+            return $crossInstanceResult;
+        }
+        
+        // Local/static query
         $type = $attrs['type'] ?? 'post';
         $limit = $attrs['limit'] ?? 10;
         $orderby = $attrs['orderby'] ?? 'date';

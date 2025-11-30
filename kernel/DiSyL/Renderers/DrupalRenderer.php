@@ -132,9 +132,16 @@ class DrupalRenderer extends BaseRenderer
         });
         
         // ikb_query - Data query/loop with DSL support
+        // Supports cross-instance queries via instance="" or cms="" attributes
         $this->registerComponent('ikb_query', function($node, $context) {
             $attrs = $node['attrs'] ?? [];
             $children = $node['children'] ?? [];
+            
+            // Check for cross-instance query first
+            $crossInstanceResult = $this->handleCrossInstanceQuery($attrs, $children);
+            if ($crossInstanceResult !== null) {
+                return $crossInstanceResult;
+            }
             
             error_log('[DiSyL ikb_query] Raw attrs: ' . json_encode($attrs));
             

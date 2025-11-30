@@ -337,9 +337,17 @@ class WordPressRenderer extends ManifestDrivenRenderer
     /**
      * Render ikb_query component
      * Supports both DSL auto-rendering (with format attribute) and manual rendering (with children)
+     * Supports cross-instance queries via instance="" or cms="" attributes
      */
     protected function renderIkbQuery(array $node, array $attrs, array $children): string
     {
+        // Check for cross-instance query first
+        $crossInstanceResult = $this->handleCrossInstanceQuery($attrs, $children);
+        if ($crossInstanceResult !== null) {
+            return $crossInstanceResult;
+        }
+        
+        // Local WordPress query
         $type = $attrs['type'] ?? 'post';
         $limit = $attrs['limit'] ?? 10;
         $orderby = $attrs['orderby'] ?? 'date';
