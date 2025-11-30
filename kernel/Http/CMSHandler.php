@@ -332,7 +332,24 @@ class CMSHandler
             define('IKABUD_DRUPAL_KERNEL', true);
         }
         
+        // Pre-define WordPress constants to prevent redefinition warnings
+        // Must be defined BEFORE requiring instance's index.php
+        if ($cmsType === 'wordpress' && !defined('WP_USE_THEMES')) {
+            define('WP_USE_THEMES', true);
+        }
+        
         $_SERVER['SCRIPT_FILENAME'] = $indexFile;
+        
+        // For WordPress, load wp-blog-header.php directly to skip instance's index.php
+        // which would redefine WP_USE_THEMES
+        if ($cmsType === 'wordpress') {
+            $wpBlogHeader = dirname($indexFile) . '/wp-blog-header.php';
+            if (file_exists($wpBlogHeader)) {
+                require $wpBlogHeader;
+                return;
+            }
+        }
+        
         require $indexFile;
     }
     

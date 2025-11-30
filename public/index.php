@@ -3,9 +3,8 @@
  * Ikabud Kernel - Entry Point
  * 
  * Single entry point for all HTTP requests
- * Kernel boots first, then routes to appropriate handler
  * 
- * @version 2.0.0 - Refactored for separation of concerns
+ * @version 2.0.0
  */
 
 declare(strict_types=1);
@@ -27,38 +26,17 @@ if (file_exists(__DIR__ . '/../kernel/Middleware/MaintenanceMiddleware.php')) {
 // BOOTSTRAP
 // ============================================================================
 
-use IkabudKernel\Core\Kernel;
-use IkabudKernel\Core\Config;
 use IkabudKernel\Core\Http\Router;
-use IkabudKernel\Core\Http\CorsMiddleware;
-use Slim\Factory\AppFactory;
+use IkabudKernel\Core\Http\Middleware\CorsMiddleware;
 
-// Composer autoloader
-require __DIR__ . '/../vendor/autoload.php';
-
-// Load configuration
-$config = Config::getInstance();
-$debugMode = ($config->get('APP_DEBUG') === 'true');
-
-// Boot kernel
-try {
-    Kernel::boot();
-} catch (Exception $e) {
-    http_response_code(500);
-    if ($debugMode) {
-        die("Kernel boot failed: " . $e->getMessage());
-    }
-    die("Service temporarily unavailable");
-}
+// Bootstrap kernel and create app
+$bootstrap = require __DIR__ . '/bootstrap.php';
+$app = $bootstrap['app'];
+$debugMode = $bootstrap['debugMode'];
 
 // ============================================================================
-// APPLICATION SETUP
+// MIDDLEWARE
 // ============================================================================
-
-$app = AppFactory::create();
-
-// Error middleware
-$app->addErrorMiddleware($debugMode, true, true);
 
 // CORS middleware
 $app->add(new CorsMiddleware());

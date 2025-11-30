@@ -5,6 +5,7 @@ import JoomlaDialog from 'joomla.dialog';
  * @license    GNU General Public License version 2 or later; see LICENSE.txt
  */
 
+
 /**
  * Helper method to set values on the fields, and trigger "change" event
  *
@@ -79,10 +80,8 @@ const updateView = (inputValue, container) => {
   const hasValue = !!inputValue.value;
   container.querySelectorAll('[data-show-when-value]').forEach(el => {
     if (el.dataset.showWhenValue) {
-      // eslint-disable-next-line no-unused-expressions
       hasValue ? el.removeAttribute('hidden') : el.setAttribute('hidden', '');
     } else {
-      // eslint-disable-next-line no-unused-expressions
       hasValue ? el.setAttribute('hidden', '') : el.removeAttribute('hidden');
     }
   });

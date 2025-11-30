@@ -1,4 +1,9 @@
 @charset "UTF-8";
+/*!
+ * Bootstrap  v5.3.8 (https://getbootstrap.com/)
+ * Copyright 2011-2025 The Bootstrap Authors
+ * Licensed under MIT (https://github.com/twbs/bootstrap/blob/main/LICENSE)
+ */
 :root, [data-bs-theme="light"] {
   --card-bg: #ffffffb3;
   --card-color: var(--template-bg-dark-60);
@@ -406,6 +411,11 @@ caption {
   padding-bottom: .75rem;
 }
 
+th {
+  text-align: inherit;
+  text-align: -webkit-match-parent;
+}
+
 thead, tbody, tfoot, tr, td, th {
   border-color: inherit;
   border-style: solid;
@@ -477,11 +487,11 @@ fieldset {
 
 legend {
   float: right;
-  font-size: calc(1.275rem + .3vw);
-  line-height: inherit;
   width: 100%;
+  line-height: inherit;
   margin-bottom: .5rem;
   padding: 0;
+  font-size: calc(1.275rem + .3vw);
 }
 
 @media (width >= 1200px) {
@@ -505,6 +515,15 @@ legend + * {
 [type="search"] {
   -webkit-appearance: textfield;
   outline-offset: -2px;
+}
+
+[type="search"]::-webkit-search-cancel-button {
+  cursor: pointer;
+  filter: grayscale();
+}
+
+[type="tel"], [type="url"], [type="email"], [type="number"] {
+  direction: ltr;
 }
 
 ::-webkit-search-decoration {
@@ -683,9 +702,9 @@ progress {
 .container, .container-fluid, .container-xxl, .container-xl, .container-lg, .container-md, .container-sm {
   --gutter-x: 2rem;
   --gutter-y: 0;
+  width: 100%;
   padding-left: calc(var(--gutter-x) * .5);
   padding-right: calc(var(--gutter-x) * .5);
-  width: 100%;
   margin-left: auto;
   margin-right: auto;
 }
@@ -740,16 +759,16 @@ progress {
 }
 
 .row > * {
+  width: 100%;
+  max-width: 100%;
   padding-left: calc(var(--gutter-x) * .5);
   padding-right: calc(var(--gutter-x) * .5);
   margin-top: var(--gutter-y);
   flex-shrink: 0;
-  width: 100%;
-  max-width: 100%;
 }
 
 .col {
-  flex: 1 0;
+  flex: 1 0 0;
 }
 
 .row-cols-auto > * {
@@ -946,7 +965,7 @@ progress {
 
 @media (width >= 576px) {
   .col-sm {
-    flex: 1 0;
+    flex: 1 0 0;
   }
 
   .row-cols-sm-auto > * {
@@ -1148,7 +1167,7 @@ progress {
 
 @media (width >= 768px) {
   .col-md {
-    flex: 1 0;
+    flex: 1 0 0;
   }
 
   .row-cols-md-auto > * {
@@ -1350,7 +1369,7 @@ progress {
 
 @media (width >= 992px) {
   .col-lg {
-    flex: 1 0;
+    flex: 1 0 0;
   }
 
   .row-cols-lg-auto > * {
@@ -1552,7 +1571,7 @@ progress {
 
 @media (width >= 1200px) {
   .col-xl {
-    flex: 1 0;
+    flex: 1 0 0;
   }
 
   .row-cols-xl-auto > * {
@@ -1754,7 +1773,7 @@ progress {
 
 @media (width >= 1400px) {
   .col-xxl {
-    flex: 1 0;
+    flex: 1 0 0;
   }
 
   .row-cols-xxl-auto > * {
@@ -2217,13 +2236,13 @@ progress {
 }
 
 .form-control {
+  width: 100%;
   color: var(--body-color);
   appearance: none;
   background-color: var(--body-bg);
   border: var(--border-width) solid var(--input-border-color);
   border-radius: var(--border-radius);
   background-clip: padding-box;
-  width: 100%;
   padding: .5rem 1rem;
   font-size: 1rem;
   font-weight: 400;
@@ -2276,6 +2295,7 @@ progress {
 }
 
 .form-control::file-selector-button {
+  margin: -.5rem -1rem;
   color: var(--white);
   background-color: var(--tertiary-bg);
   pointer-events: none;
@@ -2283,7 +2303,6 @@ progress {
   border-style: solid;
   border-width: 0;
   border-inline-end-width: var(--border-width);
-  margin: -.5rem -1rem;
   border-radius: 0;
   margin-inline-end: 1rem;
   padding: .5rem 1rem;
@@ -2301,11 +2320,11 @@ progress {
 }
 
 .form-control-plaintext {
+  width: 100%;
   color: var(--body-color);
   border: solid #0000;
   border-width: var(--border-width) 0;
   background-color: #0000;
-  width: 100%;
   margin-bottom: 0;
   padding: .5rem 0;
   line-height: 1.5;
@@ -2360,8 +2379,8 @@ textarea.form-control-lg {
 }
 
 .form-control-color {
-  height: calc(1.5em + 1rem + calc(var(--border-width) * 2));
   width: 3rem;
+  height: calc(1.5em + 1rem + calc(var(--border-width) * 2));
   padding: .5rem;
 }
 
@@ -2389,6 +2408,7 @@ textarea.form-control-lg {
 
 .form-select, .custom-select {
   --form-select-bg-img: url("../images/select-bg.svg?v=5ebba0");
+  width: 100%;
   color: var(--body-color);
   appearance: none;
   background-color: var(--template-bg-light);
@@ -2398,7 +2418,6 @@ textarea.form-control-lg {
   background-repeat: no-repeat;
   background-size: max(100%, 116rem);
   border-radius: 4px;
-  width: 100%;
   padding: .5rem 1rem .5rem 3rem;
   font-size: 1rem;
   font-weight: 400;
@@ -2568,7 +2587,7 @@ textarea.form-control-lg {
 
 .form-switch .form-check-input:checked {
   --form-switch-bg: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='-4 -4 8 8'%3e%3ccircle r='3' fill='%23fff'/%3e%3c/svg%3e");
-  background-position: 0%;
+  background-position: 0;
 }
 
 .form-switch.form-check-reverse {
@@ -2711,13 +2730,15 @@ textarea.form-control-lg {
 
 .form-floating > label {
   z-index: 2;
+  max-width: 100%;
+  height: 100%;
+  color: rgba(var(--body-color-rgb), .65);
   text-align: start;
   text-overflow: ellipsis;
   white-space: nowrap;
   pointer-events: none;
   border: var(--border-width) solid transparent;
   transform-origin: 100% 0;
-  height: 100%;
   padding: 1rem;
   transition: opacity .1s ease-in-out, transform .1s ease-in-out;
   position: absolute;
@@ -2753,14 +2774,18 @@ textarea.form-control-lg {
 .form-floating > .form-select, .form-floating > .custom-select {
   padding-top: 1.625rem;
   padding-bottom: .625rem;
+  padding-right: 1rem;
 }
 
 .form-floating > .form-control:focus ~ label, .form-floating > .form-control:not(:placeholder-shown) ~ label, .form-floating > .form-control-plaintext ~ label, .form-floating > .form-select ~ label, .form-floating > .custom-select ~ label {
-  color: rgba(var(--body-color-rgb), .65);
   transform: scale(.85)translateY(-.5rem)translateX(-.15rem);
 }
 
-.form-floating > .form-control:focus ~ label:after, .form-floating > .form-control:not(:placeholder-shown) ~ label:after, .form-floating > .form-control-plaintext ~ label:after, .form-floating > .form-select ~ label:after, .form-floating > .custom-select ~ label:after {
+.form-floating > .form-control:-webkit-autofill ~ label {
+  transform: scale(.85)translateY(-.5rem)translateX(-.15rem);
+}
+
+.form-floating > textarea:focus ~ label:after, .form-floating > textarea:not(:placeholder-shown) ~ label:after {
   z-index: -1;
   content: "";
   background-color: var(--body-bg);
@@ -2770,9 +2795,8 @@ textarea.form-control-lg {
   inset: 1rem .5rem;
 }
 
-.form-floating > .form-control:-webkit-autofill ~ label {
-  color: rgba(var(--body-color-rgb), .65);
-  transform: scale(.85)translateY(-.5rem)translateX(-.15rem);
+.form-floating > textarea:disabled ~ label:after {
+  background-color: var(--secondary-bg);
 }
 
 .form-floating > .form-control-plaintext ~ label {
@@ -2781,10 +2805,6 @@ textarea.form-control-lg {
 
 .form-floating > :disabled ~ label, .form-floating > .form-control:disabled ~ label {
   color: #666e76;
-}
-
-.form-floating > :disabled ~ label:after, .form-floating > .form-control:disabled ~ label:after {
-  background-color: var(--secondary-bg);
 }
 
 .input-group {
@@ -2852,7 +2872,7 @@ textarea.form-control-lg {
 }
 
 .input-group > :not(:first-child):not(.dropdown-menu):not(.valid-tooltip):not(.valid-feedback):not(.invalid-tooltip):not(.invalid-feedback) {
-  margin-right: calc(var(--border-width) * -1);
+  margin-right: calc(-1 * var(--border-width));
   border-top-right-radius: 0;
   border-bottom-right-radius: 0;
 }
@@ -2863,8 +2883,8 @@ textarea.form-control-lg {
 }
 
 .valid-feedback {
-  color: var(--form-valid-color);
   width: 100%;
+  color: var(--form-valid-color);
   margin-top: .25rem;
   font-size: .875em;
   display: none;
@@ -2890,7 +2910,7 @@ textarea.form-control-lg {
 
 .was-validated .form-control:valid, .form-control.is-valid {
   border-color: var(--form-valid-border-color);
-  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8'%3e%3cpath fill='%23457d54' d='M2.3 6.73.6 4.53c-.4-1.04.46-1.4 1.1-.8l1.1 1.4 3.4-3.8c.6-.63 1.6-.27 1.2.7l-4 4.6c-.43.5-.8.4-1.1.1z'/%3e%3c/svg%3e");
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8'%3e%3cpath fill='%23457d54' d='M2.3 6.73.6 4.53c-.4-1.04.46-1.4 1.1-.8l1.1 1.4 3.4-3.8c.6-.63 1.6-.27 1.2.7l-4 4.6c-.43.5-.8.4-1.1.1'/%3e%3c/svg%3e");
   background-position: calc(.375em + .25rem) 50%;
   background-repeat: no-repeat;
   background-size: calc(.75em + .5rem) calc(.75em + .5rem);
@@ -2912,7 +2932,7 @@ textarea.form-control-lg {
 }
 
 .was-validated .form-select:valid:not([multiple]):not([size]), .was-validated .custom-select:valid:not([multiple]):not([size]), .was-validated .form-select:valid:not([multiple])[size="1"], .was-validated .custom-select:valid:not([multiple])[size="1"], .form-select.is-valid:not([multiple]):not([size]), .is-valid.custom-select:not([multiple]):not([size]), .form-select.is-valid:not([multiple])[size="1"], .is-valid.custom-select:not([multiple])[size="1"] {
-  --form-select-bg-icon: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8'%3e%3cpath fill='%23457d54' d='M2.3 6.73.6 4.53c-.4-1.04.46-1.4 1.1-.8l1.1 1.4 3.4-3.8c.6-.63 1.6-.27 1.2.7l-4 4.6c-.43.5-.8.4-1.1.1z'/%3e%3c/svg%3e");
+  --form-select-bg-icon: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8'%3e%3cpath fill='%23457d54' d='M2.3 6.73.6 4.53c-.4-1.04.46-1.4 1.1-.8l1.1 1.4 3.4-3.8c.6-.63 1.6-.27 1.2.7l-4 4.6c-.43.5-.8.4-1.1.1'/%3e%3c/svg%3e");
   background-position: 1rem 50%, 3rem 50%;
   background-size: max(100%, 116rem), calc(.75em + .5rem) calc(.75em + .5rem);
   padding-left: 5.5rem;
@@ -2952,8 +2972,8 @@ textarea.form-control-lg {
 }
 
 .invalid-feedback {
-  color: var(--form-invalid-color);
   width: 100%;
+  color: var(--form-invalid-color);
   margin-top: .25rem;
   font-size: .875em;
   display: none;
@@ -3823,14 +3843,15 @@ textarea.form-control-lg {
 }
 
 .dropdown-divider {
+  height: 0;
   margin: var(--dropdown-divider-margin-y) 0;
   border-top: 1px solid var(--dropdown-divider-bg);
   opacity: 1;
-  height: 0;
   overflow: hidden;
 }
 
 .dropdown-item {
+  width: 100%;
   padding: var(--dropdown-item-padding-y) var(--dropdown-item-padding-x);
   clear: both;
   color: var(--dropdown-link-color);
@@ -3839,7 +3860,6 @@ textarea.form-control-lg {
   border-radius: var(--dropdown-item-border-radius, 0);
   background-color: #0000;
   border: 0;
-  width: 100%;
   font-weight: 400;
   display: block;
 }
@@ -3925,7 +3945,7 @@ textarea.form-control-lg {
 }
 
 .btn-group > :not(.btn-check:first-child) + .btn, .btn-group > .btn-group:not(:first-child) {
-  margin-right: calc(var(--border-width) * -1);
+  margin-right: calc(-1 * var(--border-width));
 }
 
 .btn-group > .btn:not(:last-child):not(.dropdown-toggle), .btn-group > .btn.dropdown-toggle-split:first-child, .btn-group > .btn-group:not(:last-child) > .btn {
@@ -3972,7 +3992,7 @@ textarea.form-control-lg {
 }
 
 .btn-group-vertical > .btn:not(:first-child), .btn-group-vertical > .btn-group:not(:first-child) {
-  margin-top: calc(var(--border-width) * -1);
+  margin-top: calc(-1 * var(--border-width));
 }
 
 .btn-group-vertical > .btn:not(:last-child):not(.dropdown-toggle), .btn-group-vertical > .btn-group:not(:last-child) > .btn {
@@ -3980,7 +4000,7 @@ textarea.form-control-lg {
   border-bottom-left-radius: 0;
 }
 
-.btn-group-vertical > .btn ~ .btn, .btn-group-vertical > .btn-group:not(:first-child) > .btn {
+.btn-group-vertical > .btn:nth-child(n+3), .btn-group-vertical > :not(.btn-check) + .btn, .btn-group-vertical > .btn-group:not(:first-child) > .btn {
   border-top-left-radius: 0;
   border-top-right-radius: 0;
 }
@@ -4612,7 +4632,7 @@ textarea.form-control-lg {
   --navbar-toggler-icon-bg: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3e%3cpath stroke='rgba%28255, 255, 255, 0.55%29' stroke-linecap='round' stroke-miterlimit='10' stroke-width='2' d='M4 7h22M4 15h22M4 23h22'/%3e%3c/svg%3e");
 }
 
-.card, .com_users.view-user .com-users-methods-list-method, .com_users.view-methods .com-users-methods-list-method {
+.card, .com_users.view-user .com-users-methods-list-method, .com_users.view-methods .com-users-methods-list-method, .com_users.view-captive .com-users-methods-list-method {
   --card-spacer-y: 1rem;
   --card-spacer-x: 1rem;
   --card-title-spacer-y: .5rem;
@@ -4632,6 +4652,7 @@ textarea.form-control-lg {
   --card-bg: var(--card-bg);
   --card-img-overlay-padding: 1rem;
   --card-group-margin: 1rem;
+  min-width: 0;
   height: var(--card-height);
   color: var(--body-color);
   word-wrap: break-word;
@@ -4640,38 +4661,37 @@ textarea.form-control-lg {
   border-radius: var(--card-border-radius);
   background-clip: border-box;
   flex-direction: column;
-  min-width: 0;
   display: flex;
   position: relative;
 }
 
-.card > hr, .com_users.view-user .com-users-methods-list-method > hr, .com_users.view-methods .com-users-methods-list-method > hr {
+.card > hr, .com_users.view-user .com-users-methods-list-method > hr, .com_users.view-methods .com-users-methods-list-method > hr, .com_users.view-captive .com-users-methods-list-method > hr {
   margin-left: 0;
   margin-right: 0;
 }
 
-.card > .list-group, .com_users.view-user .com-users-methods-list-method > .list-group, .com_users.view-methods .com-users-methods-list-method > .list-group {
+.card > .list-group, .com_users.view-user .com-users-methods-list-method > .list-group, .com_users.view-methods .com-users-methods-list-method > .list-group, .com_users.view-captive .com-users-methods-list-method > .list-group {
   border-top: inherit;
   border-bottom: inherit;
 }
 
-.card > .list-group:first-child, .com_users.view-user .com-users-methods-list-method > .list-group:first-child, .com_users.view-methods .com-users-methods-list-method > .list-group:first-child {
+.card > .list-group:first-child, .com_users.view-user .com-users-methods-list-method > .list-group:first-child, .com_users.view-methods .com-users-methods-list-method > .list-group:first-child, .com_users.view-captive .com-users-methods-list-method > .list-group:first-child {
   border-top-right-radius: var(--card-inner-border-radius);
   border-top-left-radius: var(--card-inner-border-radius);
   border-top-width: 0;
 }
 
-.card > .list-group:last-child, .com_users.view-user .com-users-methods-list-method > .list-group:last-child, .com_users.view-methods .com-users-methods-list-method > .list-group:last-child {
+.card > .list-group:last-child, .com_users.view-user .com-users-methods-list-method > .list-group:last-child, .com_users.view-methods .com-users-methods-list-method > .list-group:last-child, .com_users.view-captive .com-users-methods-list-method > .list-group:last-child {
   border-bottom-left-radius: var(--card-inner-border-radius);
   border-bottom-right-radius: var(--card-inner-border-radius);
   border-bottom-width: 0;
 }
 
-.card > .card-header + .list-group, .com_users.view-user .com-users-methods-list-method .card > .com-users-methods-list-method-header + .list-group, .com_users.view-methods .com-users-methods-list-method .card > .com-users-methods-list-method-header + .list-group, .com_users.view-user .com-users-methods-list-method > .card-header + .list-group, .com_users.view-user .com-users-methods-list-method > .com-users-methods-list-method-header + .list-group, .com_users.view-methods .com-users-methods-list-method > .card-header + .list-group, .com_users.view-methods .com-users-methods-list-method > .com-users-methods-list-method-header + .list-group, .card > .list-group + .card-footer, .com_users.view-user .com-users-methods-list-method > .list-group + .card-footer, .com_users.view-methods .com-users-methods-list-method > .list-group + .card-footer {
+.card > .card-header + .list-group, .com_users.view-user .com-users-methods-list-method .card > .com-users-methods-list-method-header + .list-group, .com_users.view-methods .com-users-methods-list-method .card > .com-users-methods-list-method-header + .list-group, .com_users.view-captive .com-users-methods-list-method .card > .com-users-methods-list-method-header + .list-group, .com_users.view-user .com-users-methods-list-method > .card-header + .list-group, .com_users.view-user .com-users-methods-list-method > .com-users-methods-list-method-header + .list-group, .com_users.view-methods .com-users-methods-list-method > .card-header + .list-group, .com_users.view-methods .com-users-methods-list-method > .com-users-methods-list-method-header + .list-group, .com_users.view-captive .com-users-methods-list-method > .card-header + .list-group, .com_users.view-captive .com-users-methods-list-method > .com-users-methods-list-method-header + .list-group, .card > .list-group + .card-footer, .com_users.view-user .com-users-methods-list-method > .list-group + .card-footer, .com_users.view-methods .com-users-methods-list-method > .list-group + .card-footer, .com_users.view-captive .com-users-methods-list-method > .list-group + .card-footer {
   border-top: 0;
 }
 
-.card-body, .com_users.view-user .com-users-methods-list-method .com-users-methods-list-method-records-container, .com_users.view-methods .com-users-methods-list-method .com-users-methods-list-method-records-container {
+.card-body, .com_users.view-user .com-users-methods-list-method .com-users-methods-list-method-records-container, .com_users.view-methods .com-users-methods-list-method .com-users-methods-list-method-records-container, .com_users.view-captive .com-users-methods-list-method .com-users-methods-list-method-records-container {
   padding: var(--card-spacer-y) var(--card-spacer-x);
   color: var(--card-color);
   flex: auto;
@@ -4696,7 +4716,7 @@ textarea.form-control-lg {
   margin-right: var(--card-spacer-x);
 }
 
-.card-header, .com_users.view-user .com-users-methods-list-method .com-users-methods-list-method-header, .com_users.view-methods .com-users-methods-list-method .com-users-methods-list-method-header {
+.card-header, .com_users.view-user .com-users-methods-list-method .com-users-methods-list-method-header, .com_users.view-methods .com-users-methods-list-method .com-users-methods-list-method-header, .com_users.view-captive .com-users-methods-list-method .com-users-methods-list-method-header {
   padding: var(--card-cap-padding-y) var(--card-cap-padding-x);
   color: var(--card-cap-color);
   background-color: var(--card-cap-bg);
@@ -4704,7 +4724,7 @@ textarea.form-control-lg {
   margin-bottom: 0;
 }
 
-.card-header:first-child, .com_users.view-user .com-users-methods-list-method .com-users-methods-list-method-header:first-child, .com_users.view-methods .com-users-methods-list-method .com-users-methods-list-method-header:first-child {
+.card-header:first-child, .com_users.view-user .com-users-methods-list-method .com-users-methods-list-method-header:first-child, .com_users.view-methods .com-users-methods-list-method .com-users-methods-list-method-header:first-child, .com_users.view-captive .com-users-methods-list-method .com-users-methods-list-method-header:first-child {
   border-radius: var(--card-inner-border-radius) var(--card-inner-border-radius) 0 0;
 }
 
@@ -4757,7 +4777,7 @@ textarea.form-control-lg {
   border-bottom-right-radius: var(--card-inner-border-radius);
 }
 
-.card-group > .card, .com_users.view-user .card-group > .com-users-methods-list-method, .com_users.view-methods .card-group > .com-users-methods-list-method {
+.card-group > .card, .com_users.view-user .card-group > .com-users-methods-list-method, .com_users.view-methods .card-group > .com-users-methods-list-method, .com_users.view-captive .card-group > .com-users-methods-list-method {
   margin-bottom: var(--card-group-margin);
 }
 
@@ -4767,39 +4787,39 @@ textarea.form-control-lg {
     display: flex;
   }
 
-  .card-group > .card, .com_users.view-user .card-group > .com-users-methods-list-method, .com_users.view-methods .card-group > .com-users-methods-list-method {
-    flex: 1 0;
+  .card-group > .card, .com_users.view-user .card-group > .com-users-methods-list-method, .com_users.view-methods .card-group > .com-users-methods-list-method, .com_users.view-captive .card-group > .com-users-methods-list-method {
+    flex: 1 0 0;
     margin-bottom: 0;
   }
 
-  .card-group > .card + .card, .com_users.view-user .card-group > .com-users-methods-list-method + .card, .com_users.view-methods .card-group > .com-users-methods-list-method + .card, .com_users.view-user .card-group > .card + .com-users-methods-list-method, .com_users.view-user .card-group > .com-users-methods-list-method + .com-users-methods-list-method, .com_users.view-methods .card-group > .card + .com-users-methods-list-method, .com_users.view-methods .card-group > .com-users-methods-list-method + .com-users-methods-list-method {
+  .card-group > .card + .card, .com_users.view-user .card-group > .com-users-methods-list-method + .card, .com_users.view-methods .card-group > .com-users-methods-list-method + .card, .com_users.view-captive .card-group > .com-users-methods-list-method + .card, .com_users.view-user .card-group > .card + .com-users-methods-list-method, .com_users.view-user .card-group > .com-users-methods-list-method + .com-users-methods-list-method, .com_users.view-methods .card-group > .card + .com-users-methods-list-method, .com_users.view-methods .card-group > .com-users-methods-list-method + .com-users-methods-list-method, .com_users.view-captive .card-group > .card + .com-users-methods-list-method, .com_users.view-captive .card-group > .com-users-methods-list-method + .com-users-methods-list-method {
     border-right: 0;
     margin-right: 0;
   }
 
-  .card-group > .card:not(:last-child), .com_users.view-user .card-group > .com-users-methods-list-method:not(:last-child), .com_users.view-methods .card-group > .com-users-methods-list-method:not(:last-child) {
+  .card-group > .card:not(:last-child), .com_users.view-user .card-group > .com-users-methods-list-method:not(:last-child), .com_users.view-methods .card-group > .com-users-methods-list-method:not(:last-child), .com_users.view-captive .card-group > .com-users-methods-list-method:not(:last-child) {
     border-top-left-radius: 0;
     border-bottom-left-radius: 0;
   }
 
-  .card-group > .card:not(:last-child) .card-img-top, .com_users.view-user .card-group > .com-users-methods-list-method:not(:last-child) .card-img-top, .com_users.view-methods .card-group > .com-users-methods-list-method:not(:last-child) .card-img-top, .card-group > .card:not(:last-child) .card-header, .card-group > .card:not(:last-child) .com_users.view-user .com-users-methods-list-method .com-users-methods-list-method-header, .com_users.view-user .com-users-methods-list-method .card-group > .card:not(:last-child) .com-users-methods-list-method-header, .card-group > .card:not(:last-child) .com_users.view-methods .com-users-methods-list-method .com-users-methods-list-method-header, .com_users.view-methods .com-users-methods-list-method .card-group > .card:not(:last-child) .com-users-methods-list-method-header, .com_users.view-user .card-group > .com-users-methods-list-method:not(:last-child) .card-header, .com_users.view-user .card-group > .com-users-methods-list-method:not(:last-child) .com-users-methods-list-method-header, .com_users.view-methods .card-group > .com-users-methods-list-method:not(:last-child) .card-header, .com_users.view-methods .card-group > .com-users-methods-list-method:not(:last-child) .com-users-methods-list-method-header {
+  .card-group > .card:not(:last-child) > .card-img-top, .com_users.view-user .card-group > .com-users-methods-list-method:not(:last-child) > .card-img-top, .com_users.view-methods .card-group > .com-users-methods-list-method:not(:last-child) > .card-img-top, .com_users.view-captive .card-group > .com-users-methods-list-method:not(:last-child) > .card-img-top, .card-group > .card:not(:last-child) > .card-header, .com_users.view-user .com-users-methods-list-method .card-group > .card:not(:last-child) > .com-users-methods-list-method-header, .com_users.view-methods .com-users-methods-list-method .card-group > .card:not(:last-child) > .com-users-methods-list-method-header, .com_users.view-captive .com-users-methods-list-method .card-group > .card:not(:last-child) > .com-users-methods-list-method-header, .com_users.view-user .card-group > .com-users-methods-list-method:not(:last-child) > .card-header, .com_users.view-user .card-group > .com-users-methods-list-method:not(:last-child) > .com-users-methods-list-method-header, .com_users.view-methods .card-group > .com-users-methods-list-method:not(:last-child) > .card-header, .com_users.view-methods .card-group > .com-users-methods-list-method:not(:last-child) > .com-users-methods-list-method-header, .com_users.view-captive .card-group > .com-users-methods-list-method:not(:last-child) > .card-header, .com_users.view-captive .card-group > .com-users-methods-list-method:not(:last-child) > .com-users-methods-list-method-header {
     border-top-left-radius: 0;
   }
 
-  .card-group > .card:not(:last-child) .card-img-bottom, .com_users.view-user .card-group > .com-users-methods-list-method:not(:last-child) .card-img-bottom, .com_users.view-methods .card-group > .com-users-methods-list-method:not(:last-child) .card-img-bottom, .card-group > .card:not(:last-child) .card-footer, .com_users.view-user .card-group > .com-users-methods-list-method:not(:last-child) .card-footer, .com_users.view-methods .card-group > .com-users-methods-list-method:not(:last-child) .card-footer {
+  .card-group > .card:not(:last-child) > .card-img-bottom, .com_users.view-user .card-group > .com-users-methods-list-method:not(:last-child) > .card-img-bottom, .com_users.view-methods .card-group > .com-users-methods-list-method:not(:last-child) > .card-img-bottom, .com_users.view-captive .card-group > .com-users-methods-list-method:not(:last-child) > .card-img-bottom, .card-group > .card:not(:last-child) > .card-footer, .com_users.view-user .card-group > .com-users-methods-list-method:not(:last-child) > .card-footer, .com_users.view-methods .card-group > .com-users-methods-list-method:not(:last-child) > .card-footer, .com_users.view-captive .card-group > .com-users-methods-list-method:not(:last-child) > .card-footer {
     border-bottom-left-radius: 0;
   }
 
-  .card-group > .card:not(:first-child), .com_users.view-user .card-group > .com-users-methods-list-method:not(:first-child), .com_users.view-methods .card-group > .com-users-methods-list-method:not(:first-child) {
+  .card-group > .card:not(:first-child), .com_users.view-user .card-group > .com-users-methods-list-method:not(:first-child), .com_users.view-methods .card-group > .com-users-methods-list-method:not(:first-child), .com_users.view-captive .card-group > .com-users-methods-list-method:not(:first-child) {
     border-top-right-radius: 0;
     border-bottom-right-radius: 0;
   }
 
-  .card-group > .card:not(:first-child) .card-img-top, .com_users.view-user .card-group > .com-users-methods-list-method:not(:first-child) .card-img-top, .com_users.view-methods .card-group > .com-users-methods-list-method:not(:first-child) .card-img-top, .card-group > .card:not(:first-child) .card-header, .card-group > .card:not(:first-child) .com_users.view-user .com-users-methods-list-method .com-users-methods-list-method-header, .com_users.view-user .com-users-methods-list-method .card-group > .card:not(:first-child) .com-users-methods-list-method-header, .card-group > .card:not(:first-child) .com_users.view-methods .com-users-methods-list-method .com-users-methods-list-method-header, .com_users.view-methods .com-users-methods-list-method .card-group > .card:not(:first-child) .com-users-methods-list-method-header, .com_users.view-user .card-group > .com-users-methods-list-method:not(:first-child) .card-header, .com_users.view-user .card-group > .com-users-methods-list-method:not(:first-child) .com-users-methods-list-method-header, .com_users.view-methods .card-group > .com-users-methods-list-method:not(:first-child) .card-header, .com_users.view-methods .card-group > .com-users-methods-list-method:not(:first-child) .com-users-methods-list-method-header {
+  .card-group > .card:not(:first-child) > .card-img-top, .com_users.view-user .card-group > .com-users-methods-list-method:not(:first-child) > .card-img-top, .com_users.view-methods .card-group > .com-users-methods-list-method:not(:first-child) > .card-img-top, .com_users.view-captive .card-group > .com-users-methods-list-method:not(:first-child) > .card-img-top, .card-group > .card:not(:first-child) > .card-header, .com_users.view-user .com-users-methods-list-method .card-group > .card:not(:first-child) > .com-users-methods-list-method-header, .com_users.view-methods .com-users-methods-list-method .card-group > .card:not(:first-child) > .com-users-methods-list-method-header, .com_users.view-captive .com-users-methods-list-method .card-group > .card:not(:first-child) > .com-users-methods-list-method-header, .com_users.view-user .card-group > .com-users-methods-list-method:not(:first-child) > .card-header, .com_users.view-user .card-group > .com-users-methods-list-method:not(:first-child) > .com-users-methods-list-method-header, .com_users.view-methods .card-group > .com-users-methods-list-method:not(:first-child) > .card-header, .com_users.view-methods .card-group > .com-users-methods-list-method:not(:first-child) > .com-users-methods-list-method-header, .com_users.view-captive .card-group > .com-users-methods-list-method:not(:first-child) > .card-header, .com_users.view-captive .card-group > .com-users-methods-list-method:not(:first-child) > .com-users-methods-list-method-header {
     border-top-right-radius: 0;
   }
 
-  .card-group > .card:not(:first-child) .card-img-bottom, .com_users.view-user .card-group > .com-users-methods-list-method:not(:first-child) .card-img-bottom, .com_users.view-methods .card-group > .com-users-methods-list-method:not(:first-child) .card-img-bottom, .card-group > .card:not(:first-child) .card-footer, .com_users.view-user .card-group > .com-users-methods-list-method:not(:first-child) .card-footer, .com_users.view-methods .card-group > .com-users-methods-list-method:not(:first-child) .card-footer {
+  .card-group > .card:not(:first-child) > .card-img-bottom, .com_users.view-user .card-group > .com-users-methods-list-method:not(:first-child) > .card-img-bottom, .com_users.view-methods .card-group > .com-users-methods-list-method:not(:first-child) > .card-img-bottom, .com_users.view-captive .card-group > .com-users-methods-list-method:not(:first-child) > .card-img-bottom, .card-group > .card:not(:first-child) > .card-footer, .com_users.view-user .card-group > .com-users-methods-list-method:not(:first-child) > .card-footer, .com_users.view-methods .card-group > .com-users-methods-list-method:not(:first-child) > .card-footer, .com_users.view-captive .card-group > .com-users-methods-list-method:not(:first-child) > .card-footer {
     border-bottom-right-radius: 0;
   }
 }
@@ -4816,11 +4836,11 @@ textarea.form-control-lg {
   --accordion-btn-padding-y: 1rem;
   --accordion-btn-color: var(--body-color);
   --accordion-btn-bg: var(--accordion-bg);
-  --accordion-btn-icon: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23212529' stroke-linecap='round' stroke-linejoin='round'%3e%3cpath d='M2 5L8 11L14 5'/%3e%3c/svg%3e");
+  --accordion-btn-icon: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23212529' stroke-linecap='round' stroke-linejoin='round'%3e%3cpath d='m2 5 6 6 6-6'/%3e%3c/svg%3e");
   --accordion-btn-icon-width: 1.25rem;
   --accordion-btn-icon-transform: rotate(-180deg);
   --accordion-btn-icon-transition: transform .2s ease-in-out;
-  --accordion-btn-active-icon: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='rgb%2816.8, 42, 73.2%29' stroke-linecap='round' stroke-linejoin='round'%3e%3cpath d='M2 5L8 11L14 5'/%3e%3c/svg%3e");
+  --accordion-btn-active-icon: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='rgb%2816.8, 42, 73.2%29' stroke-linecap='round' stroke-linejoin='round'%3e%3cpath d='m2 5 6 6 6-6'/%3e%3c/svg%3e");
   --accordion-btn-focus-box-shadow: 0 0 0 .25rem #2a69b740;
   --accordion-body-padding-x: 1.25rem;
   --accordion-body-padding-y: 1rem;
@@ -4829,6 +4849,7 @@ textarea.form-control-lg {
 }
 
 .accordion-button {
+  width: 100%;
   padding: var(--accordion-btn-padding-y) var(--accordion-btn-padding-x);
   color: var(--accordion-btn-color);
   text-align: right;
@@ -4838,7 +4859,6 @@ textarea.form-control-lg {
   border: 0;
   border-radius: 0;
   align-items: center;
-  width: 100%;
   font-size: 1rem;
   display: flex;
   position: relative;
@@ -4946,13 +4966,13 @@ textarea.form-control-lg {
   border-bottom: 0;
 }
 
-.accordion-flush > .accordion-item > .accordion-header .accordion-button, .accordion-flush > .accordion-item > .accordion-header .accordion-button.collapsed, .accordion-flush > .accordion-item > .accordion-collapse {
+.accordion-flush > .accordion-item > .accordion-collapse, .accordion-flush > .accordion-item > .accordion-header .accordion-button, .accordion-flush > .accordion-item > .accordion-header .accordion-button.collapsed {
   border-radius: 0;
 }
 
 [data-bs-theme="dark"] .accordion-button:after {
-  --accordion-btn-icon: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='rgb%28127.2, 165, 211.8%29'%3e%3cpath fill-rule='evenodd' d='M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z'/%3e%3c/svg%3e");
-  --accordion-btn-active-icon: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='rgb%28127.2, 165, 211.8%29'%3e%3cpath fill-rule='evenodd' d='M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z'/%3e%3c/svg%3e");
+  --accordion-btn-icon: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='rgb%28127.2, 165, 211.8%29'%3e%3cpath fill-rule='evenodd' d='M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708'/%3e%3c/svg%3e");
+  --accordion-btn-active-icon: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='rgb%28127.2, 165, 211.8%29'%3e%3cpath fill-rule='evenodd' d='M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708'/%3e%3c/svg%3e");
 }
 
 .breadcrumb {
@@ -5062,7 +5082,7 @@ textarea.form-control-lg {
 }
 
 .page-item:not(:first-child) .page-link {
-  margin-right: calc(var(--border-width) * -1);
+  margin-right: calc(-1 * var(--border-width));
 }
 
 .page-item:first-child .page-link {
@@ -5229,7 +5249,7 @@ textarea.form-control-lg {
 
 @keyframes progress-bar-stripes {
   0% {
-    background-position-x: 1rem;
+    background-position-x: var(--progress-height);
   }
 }
 
@@ -5326,24 +5346,6 @@ textarea.form-control-lg {
   counter-increment: section;
 }
 
-.list-group-item-action {
-  color: var(--list-group-action-color);
-  text-align: inherit;
-  width: 100%;
-}
-
-.list-group-item-action:hover, .list-group-item-action:focus {
-  z-index: 1;
-  color: var(--list-group-action-hover-color);
-  background-color: var(--list-group-action-hover-bg);
-  text-decoration: none;
-}
-
-.list-group-item-action:active {
-  color: var(--list-group-action-active-color);
-  background-color: var(--list-group-action-active-bg);
-}
-
 .list-group-item {
   padding: var(--list-group-item-padding-y) var(--list-group-item-padding-x);
   color: var(--list-group-color);
@@ -5383,6 +5385,24 @@ textarea.form-control-lg {
 .list-group-item + .list-group-item.active {
   margin-top: calc(-1 * var(--list-group-border-width));
   border-top-width: var(--list-group-border-width);
+}
+
+.list-group-item-action {
+  width: 100%;
+  color: var(--list-group-action-color);
+  text-align: inherit;
+}
+
+.list-group-item-action:not(.active):hover, .list-group-item-action:not(.active):focus {
+  z-index: 1;
+  color: var(--list-group-action-hover-color);
+  background-color: var(--list-group-action-hover-bg);
+  text-decoration: none;
+}
+
+.list-group-item-action:not(.active):active {
+  color: var(--list-group-action-active-color);
+  background-color: var(--list-group-action-active-bg);
 }
 
 .list-group-horizontal {
@@ -5707,21 +5727,21 @@ textarea.form-control-lg {
 
 .btn-close {
   --btn-close-color: #000;
-  --btn-close-bg: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='%23000'%3e%3cpath d='M.293.293a1 1 0 0 1 1.414 0L8 6.586 14.293.293a1 1 0 1 1 1.414 1.414L9.414 8l6.293 6.293a1 1 0 0 1-1.414 1.414L8 9.414l-6.293 6.293a1 1 0 0 1-1.414-1.414L6.586 8 .293 1.707a1 1 0 0 1 0-1.414z'/%3e%3c/svg%3e");
+  --btn-close-bg: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='%23000'%3e%3cpath d='M.293.293a1 1 0 0 1 1.414 0L8 6.586 14.293.293a1 1 0 1 1 1.414 1.414L9.414 8l6.293 6.293a1 1 0 0 1-1.414 1.414L8 9.414l-6.293 6.293a1 1 0 0 1-1.414-1.414L6.586 8 .293 1.707a1 1 0 0 1 0-1.414'/%3e%3c/svg%3e");
   --btn-close-opacity: .5;
   --btn-close-hover-opacity: .75;
   --btn-close-focus-shadow: 0 0 0 .25rem #2a69b740;
   --btn-close-focus-opacity: 1;
   --btn-close-disabled-opacity: .25;
-  --btn-close-white-filter: invert(1) grayscale(100%) brightness(200%);
   box-sizing: content-box;
+  width: 1em;
+  height: 1em;
   color: var(--btn-close-color);
   background: transparent var(--btn-close-bg) center / 1em auto no-repeat;
+  filter: var(--btn-close-filter);
   opacity: var(--btn-close-opacity);
   border: 0;
   border-radius: .25rem;
-  width: 1em;
-  height: 1em;
   padding: .25em;
 }
 
@@ -5743,8 +5763,16 @@ textarea.form-control-lg {
   opacity: var(--btn-close-disabled-opacity);
 }
 
-.btn-close-white, [data-bs-theme="dark"] .btn-close {
-  filter: var(--btn-close-white-filter);
+.btn-close-white {
+  --btn-close-filter: invert(1) grayscale(100%) brightness(200%);
+}
+
+:root, [data-bs-theme="light"] {
+  --btn-close-filter: ;
+}
+
+[data-bs-theme="dark"] {
+  --btn-close-filter: invert(1) grayscale(100%) brightness(200%);
 }
 
 .toast {
@@ -5764,6 +5792,7 @@ textarea.form-control-lg {
   --toast-header-bg: rgba(var(--body-bg-rgb), .85);
   --toast-header-border-color: var(--border-color-translucent);
   width: var(--toast-max-width);
+  max-width: 100%;
   font-size: var(--toast-font-size);
   color: var(--toast-color);
   pointer-events: auto;
@@ -5772,7 +5801,6 @@ textarea.form-control-lg {
   box-shadow: var(--toast-box-shadow);
   border-radius: var(--toast-border-radius);
   background-clip: padding-box;
-  max-width: 100%;
 }
 
 .toast.showing {
@@ -5823,7 +5851,7 @@ textarea.form-control-lg {
   --modal-width: 500px;
   --modal-padding: 1rem;
   --modal-margin: .5rem;
-  --modal-color: ;
+  --modal-color: var(--body-color);
   --modal-bg: var(--body-bg);
   --modal-border-color: var(--border-color-translucent);
   --modal-border-width: var(--border-width);
@@ -5852,9 +5880,9 @@ textarea.form-control-lg {
 }
 
 .modal-dialog {
+  width: auto;
   margin: var(--modal-margin);
   pointer-events: none;
-  width: auto;
   position: relative;
 }
 
@@ -5897,6 +5925,7 @@ textarea.form-control-lg {
 }
 
 .modal-content {
+  width: 100%;
   color: var(--modal-color);
   pointer-events: auto;
   background-color: var(--modal-bg);
@@ -5905,7 +5934,6 @@ textarea.form-control-lg {
   background-clip: padding-box;
   outline: 0;
   flex-direction: column;
-  width: 100%;
   display: flex;
   position: relative;
 }
@@ -5943,7 +5971,10 @@ textarea.form-control-lg {
 
 .modal-header .btn-close {
   padding: calc(var(--modal-header-padding-y) * .5) calc(var(--modal-header-padding-x) * .5);
-  margin: calc(-.5 * var(--modal-header-padding-y)) auto calc(-.5 * var(--modal-header-padding-y)) calc(-.5 * var(--modal-header-padding-x));
+  margin-top: calc(-.5 * var(--modal-header-padding-y));
+  margin-left: calc(-.5 * var(--modal-header-padding-x));
+  margin-bottom: calc(-.5 * var(--modal-header-padding-y));
+  margin-right: auto;
 }
 
 .modal-title {
@@ -6202,15 +6233,15 @@ textarea.form-control-lg {
 }
 
 .bs-tooltip-end .tooltip-arrow, .bs-tooltip-auto[data-popper-placement^="right"] .tooltip-arrow {
-  right: calc(-1 * var(--tooltip-arrow-height));
+  left: calc(-1 * var(--tooltip-arrow-height));
   width: var(--tooltip-arrow-height);
   height: var(--tooltip-arrow-width);
 }
 
 .bs-tooltip-end .tooltip-arrow:before, .bs-tooltip-auto[data-popper-placement^="right"] .tooltip-arrow:before {
-  border-width: calc(var(--tooltip-arrow-width) * .5) 0 calc(var(--tooltip-arrow-width) * .5) var(--tooltip-arrow-height);
-  border-left-color: var(--tooltip-bg);
-  left: -1px;
+  border-width: calc(var(--tooltip-arrow-width) * .5) var(--tooltip-arrow-height) calc(var(--tooltip-arrow-width) * .5) 0;
+  border-right-color: var(--tooltip-bg);
+  right: -1px;
 }
 
 .bs-tooltip-bottom .tooltip-arrow, .bs-tooltip-auto[data-popper-placement^="bottom"] .tooltip-arrow {
@@ -6224,15 +6255,15 @@ textarea.form-control-lg {
 }
 
 .bs-tooltip-start .tooltip-arrow, .bs-tooltip-auto[data-popper-placement^="left"] .tooltip-arrow {
-  left: calc(-1 * var(--tooltip-arrow-height));
+  right: calc(-1 * var(--tooltip-arrow-height));
   width: var(--tooltip-arrow-height);
   height: var(--tooltip-arrow-width);
 }
 
 .bs-tooltip-start .tooltip-arrow:before, .bs-tooltip-auto[data-popper-placement^="left"] .tooltip-arrow:before {
-  border-width: calc(var(--tooltip-arrow-width) * .5) var(--tooltip-arrow-height) calc(var(--tooltip-arrow-width) * .5) 0;
-  border-right-color: var(--tooltip-bg);
-  right: -1px;
+  border-width: calc(var(--tooltip-arrow-width) * .5) 0 calc(var(--tooltip-arrow-width) * .5) var(--tooltip-arrow-height);
+  border-left-color: var(--tooltip-bg);
+  left: -1px;
 }
 
 .tooltip-inner {
@@ -6322,23 +6353,23 @@ textarea.form-control-lg {
 }
 
 .bs-popover-end > .popover-arrow, .bs-popover-auto[data-popper-placement^="right"] > .popover-arrow {
-  right: calc(-1 * (var(--popover-arrow-height))  - var(--popover-border-width));
+  left: calc(-1 * (var(--popover-arrow-height))  - var(--popover-border-width));
   width: var(--popover-arrow-height);
   height: var(--popover-arrow-width);
 }
 
 .bs-popover-end > .popover-arrow:before, .bs-popover-auto[data-popper-placement^="right"] > .popover-arrow:before, .bs-popover-end > .popover-arrow:after, .bs-popover-auto[data-popper-placement^="right"] > .popover-arrow:after {
-  border-width: calc(var(--popover-arrow-width) * .5) 0 calc(var(--popover-arrow-width) * .5) var(--popover-arrow-height);
+  border-width: calc(var(--popover-arrow-width) * .5) var(--popover-arrow-height) calc(var(--popover-arrow-width) * .5) 0;
 }
 
 .bs-popover-end > .popover-arrow:before, .bs-popover-auto[data-popper-placement^="right"] > .popover-arrow:before {
-  border-left-color: var(--popover-arrow-border);
-  right: 0;
+  border-right-color: var(--popover-arrow-border);
+  left: 0;
 }
 
 .bs-popover-end > .popover-arrow:after, .bs-popover-auto[data-popper-placement^="right"] > .popover-arrow:after {
-  right: var(--popover-border-width);
-  border-left-color: var(--popover-bg);
+  left: var(--popover-border-width);
+  border-right-color: var(--popover-bg);
 }
 
 .bs-popover-bottom > .popover-arrow, .bs-popover-auto[data-popper-placement^="bottom"] > .popover-arrow {
@@ -6371,23 +6402,23 @@ textarea.form-control-lg {
 }
 
 .bs-popover-start > .popover-arrow, .bs-popover-auto[data-popper-placement^="left"] > .popover-arrow {
-  left: calc(-1 * (var(--popover-arrow-height))  - var(--popover-border-width));
+  right: calc(-1 * (var(--popover-arrow-height))  - var(--popover-border-width));
   width: var(--popover-arrow-height);
   height: var(--popover-arrow-width);
 }
 
 .bs-popover-start > .popover-arrow:before, .bs-popover-auto[data-popper-placement^="left"] > .popover-arrow:before, .bs-popover-start > .popover-arrow:after, .bs-popover-auto[data-popper-placement^="left"] > .popover-arrow:after {
-  border-width: calc(var(--popover-arrow-width) * .5) var(--popover-arrow-height) calc(var(--popover-arrow-width) * .5) 0;
+  border-width: calc(var(--popover-arrow-width) * .5) 0 calc(var(--popover-arrow-width) * .5) var(--popover-arrow-height);
 }
 
 .bs-popover-start > .popover-arrow:before, .bs-popover-auto[data-popper-placement^="left"] > .popover-arrow:before {
-  border-right-color: var(--popover-arrow-border);
-  left: 0;
+  border-left-color: var(--popover-arrow-border);
+  right: 0;
 }
 
 .bs-popover-start > .popover-arrow:after, .bs-popover-auto[data-popper-placement^="left"] > .popover-arrow:after {
-  left: var(--popover-border-width);
-  border-right-color: var(--popover-bg);
+  right: var(--popover-border-width);
+  border-left-color: var(--popover-bg);
 }
 
 .popover-header {
@@ -6485,12 +6516,13 @@ textarea.form-control-lg {
   z-index: 1;
   color: #fff;
   text-align: center;
+  width: 15%;
+  filter: var(--carousel-control-icon-filter);
   opacity: .5;
   background: none;
   border: 0;
   justify-content: center;
   align-items: center;
-  width: 15%;
   padding: 0;
   transition: opacity .15s;
   display: flex;
@@ -6530,11 +6562,11 @@ textarea.form-control-lg {
 }
 
 .carousel-control-prev-icon {
-  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='%23fff'%3e%3cpath d='M11.354 1.646a.5.5 0 0 1 0 .708L5.707 8l5.647 5.646a.5.5 0 0 1-.708.708l-6-6a.5.5 0 0 1 0-.708l6-6a.5.5 0 0 1 .708 0z'/%3e%3c/svg%3e");
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='%23fff'%3e%3cpath d='M4.646 1.646a.5.5 0 0 1 .708 0l6 6a.5.5 0 0 1 0 .708l-6 6a.5.5 0 0 1-.708-.708L10.293 8 4.646 2.354a.5.5 0 0 1 0-.708'/%3e%3c/svg%3e");
 }
 
 .carousel-control-next-icon {
-  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='%23fff'%3e%3cpath d='M4.646 1.646a.5.5 0 0 1 .708 0l6 6a.5.5 0 0 1 0 .708l-6 6a.5.5 0 0 1-.708-.708L10.293 8 4.646 2.354a.5.5 0 0 1 0-.708z'/%3e%3c/svg%3e");
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='%23fff'%3e%3cpath d='M11.354 1.646a.5.5 0 0 1 0 .708L5.707 8l5.647 5.646a.5.5 0 0 1-.708.708l-6-6a.5.5 0 0 1 0-.708l6-6a.5.5 0 0 1 .708 0'/%3e%3c/svg%3e");
 }
 
 .carousel-indicators {
@@ -6555,8 +6587,8 @@ textarea.form-control-lg {
   box-sizing: content-box;
   text-indent: -999px;
   cursor: pointer;
+  background-color: var(--carousel-indicator-active-bg);
   opacity: .5;
-  background-color: #fff;
   background-clip: padding-box;
   border: 10px solid #0000;
   border-left: 0;
@@ -6581,7 +6613,7 @@ textarea.form-control-lg {
 }
 
 .carousel-caption {
-  color: #fff;
+  color: var(--carousel-caption-color);
   text-align: center;
   padding-top: 1.25rem;
   padding-bottom: 1.25rem;
@@ -6591,28 +6623,22 @@ textarea.form-control-lg {
   right: 15%;
 }
 
-.carousel-dark .carousel-control-prev-icon, .carousel-dark .carousel-control-next-icon {
-  filter: invert() grayscale(100);
+.carousel-dark {
+  --carousel-indicator-active-bg: #000;
+  --carousel-caption-color: #000;
+  --carousel-control-icon-filter: invert(1) grayscale(100);
 }
 
-.carousel-dark .carousel-indicators [data-bs-target] {
-  background-color: #000;
+:root, [data-bs-theme="light"] {
+  --carousel-indicator-active-bg: #fff;
+  --carousel-caption-color: #fff;
+  --carousel-control-icon-filter: ;
 }
 
-.carousel-dark .carousel-caption {
-  color: #000;
-}
-
-[data-bs-theme="dark"] .carousel .carousel-control-prev-icon, [data-bs-theme="dark"] .carousel .carousel-control-next-icon, [data-bs-theme="dark"].carousel .carousel-control-prev-icon, [data-bs-theme="dark"].carousel .carousel-control-next-icon {
-  filter: invert() grayscale(100);
-}
-
-[data-bs-theme="dark"] .carousel .carousel-indicators [data-bs-target], [data-bs-theme="dark"].carousel .carousel-indicators [data-bs-target] {
-  background-color: #000;
-}
-
-[data-bs-theme="dark"] .carousel .carousel-caption, [data-bs-theme="dark"].carousel .carousel-caption {
-  color: #000;
+[data-bs-theme="dark"] {
+  --carousel-indicator-active-bg: #000;
+  --carousel-caption-color: #000;
+  --carousel-control-icon-filter: invert(1) grayscale(100);
 }
 
 .spinner-grow, .spinner-border {
@@ -6621,12 +6647,13 @@ textarea.form-control-lg {
   vertical-align: var(--spinner-vertical-align);
   animation: var(--spinner-animation-speed) linear infinite var(--spinner-animation-name);
   border-radius: 50%;
+  flex-shrink: 0;
   display: inline-block;
 }
 
 @keyframes spinner-border {
   to {
-    transform: rotate(-360deg);
+    transform: rotate(360deg);
   }
 }
 
@@ -6697,6 +6724,7 @@ textarea.form-control-lg {
 @media (width <= 575.98px) {
   .offcanvas-sm {
     z-index: var(--offcanvas-zindex);
+    max-width: 100%;
     color: var(--offcanvas-color);
     visibility: hidden;
     background-color: var(--offcanvas-bg);
@@ -6704,7 +6732,6 @@ textarea.form-control-lg {
     background-clip: padding-box;
     outline: 0;
     flex-direction: column;
-    max-width: 100%;
     display: flex;
     position: fixed;
     bottom: 0;
@@ -6785,6 +6812,7 @@ textarea.form-control-lg {
 @media (width <= 767.98px) {
   .offcanvas-md {
     z-index: var(--offcanvas-zindex);
+    max-width: 100%;
     color: var(--offcanvas-color);
     visibility: hidden;
     background-color: var(--offcanvas-bg);
@@ -6792,7 +6820,6 @@ textarea.form-control-lg {
     background-clip: padding-box;
     outline: 0;
     flex-direction: column;
-    max-width: 100%;
     display: flex;
     position: fixed;
     bottom: 0;
@@ -6873,6 +6900,7 @@ textarea.form-control-lg {
 @media (width <= 991.98px) {
   .offcanvas-lg {
     z-index: var(--offcanvas-zindex);
+    max-width: 100%;
     color: var(--offcanvas-color);
     visibility: hidden;
     background-color: var(--offcanvas-bg);
@@ -6880,7 +6908,6 @@ textarea.form-control-lg {
     background-clip: padding-box;
     outline: 0;
     flex-direction: column;
-    max-width: 100%;
     display: flex;
     position: fixed;
     bottom: 0;
@@ -6961,6 +6988,7 @@ textarea.form-control-lg {
 @media (width <= 1199.98px) {
   .offcanvas-xl {
     z-index: var(--offcanvas-zindex);
+    max-width: 100%;
     color: var(--offcanvas-color);
     visibility: hidden;
     background-color: var(--offcanvas-bg);
@@ -6968,7 +6996,6 @@ textarea.form-control-lg {
     background-clip: padding-box;
     outline: 0;
     flex-direction: column;
-    max-width: 100%;
     display: flex;
     position: fixed;
     bottom: 0;
@@ -7049,6 +7076,7 @@ textarea.form-control-lg {
 @media (width <= 1399.98px) {
   .offcanvas-xxl {
     z-index: var(--offcanvas-zindex);
+    max-width: 100%;
     color: var(--offcanvas-color);
     visibility: hidden;
     background-color: var(--offcanvas-bg);
@@ -7056,7 +7084,6 @@ textarea.form-control-lg {
     background-clip: padding-box;
     outline: 0;
     flex-direction: column;
-    max-width: 100%;
     display: flex;
     position: fixed;
     bottom: 0;
@@ -7136,6 +7163,7 @@ textarea.form-control-lg {
 
 .offcanvas {
   z-index: var(--offcanvas-zindex);
+  max-width: 100%;
   color: var(--offcanvas-color);
   visibility: hidden;
   background-color: var(--offcanvas-bg);
@@ -7143,7 +7171,6 @@ textarea.form-control-lg {
   background-clip: padding-box;
   outline: 0;
   flex-direction: column;
-  max-width: 100%;
   display: flex;
   position: fixed;
   bottom: 0;
@@ -7224,7 +7251,10 @@ textarea.form-control-lg {
 
 .offcanvas-header .btn-close {
   padding: calc(var(--offcanvas-padding-y) * .5) calc(var(--offcanvas-padding-x) * .5);
-  margin: calc(-.5 * var(--offcanvas-padding-y)) auto calc(-.5 * var(--offcanvas-padding-y)) calc(-.5 * var(--offcanvas-padding-x));
+  margin-top: calc(-.5 * var(--offcanvas-padding-y));
+  margin-left: calc(-.5 * var(--offcanvas-padding-x));
+  margin-bottom: calc(-.5 * var(--offcanvas-padding-y));
+  margin-right: auto;
 }
 
 .offcanvas-title {
@@ -7646,6 +7676,10 @@ textarea.form-control-lg {
   position: absolute !important;
 }
 
+.visually-hidden *, .sr-only *, .visually-hidden-focusable:not(:focus):not(:focus-within) * {
+  overflow: hidden !important;
+}
+
 .stretched-link:after {
   z-index: 1;
   content: "";
@@ -7824,7 +7858,7 @@ textarea.form-control-lg {
   display: table-cell !important;
 }
 
-.d-flex, .com_users.view-user .com-users-methods-list-method .com-users-methods-list-method-title h3, .com_users.view-user .com-users-methods-list-method .com-users-methods-list-method-title .h3, .com_users.view-methods .com-users-methods-list-method .com-users-methods-list-method-title h3, .com_users.view-methods .com-users-methods-list-method .com-users-methods-list-method-title .h3, .com_users.view-user .com-users-methods-list-method .com-users-methods-list-method-title, .com_users.view-methods .com-users-methods-list-method .com-users-methods-list-method-title, .com_users.view-user .com-users-methods-list-method .com-users-methods-list-method-header, .com_users.view-methods .com-users-methods-list-method .com-users-methods-list-method-header {
+.d-flex, .com_users.view-user .com-users-methods-list-method .com-users-methods-list-method-title h3, .com_users.view-user .com-users-methods-list-method .com-users-methods-list-method-title .h3, .com_users.view-methods .com-users-methods-list-method .com-users-methods-list-method-title h3, .com_users.view-methods .com-users-methods-list-method .com-users-methods-list-method-title .h3, .com_users.view-captive .com-users-methods-list-method .com-users-methods-list-method-title h3, .com_users.view-captive .com-users-methods-list-method .com-users-methods-list-method-title .h3, .com_users.view-user .com-users-methods-list-method .com-users-methods-list-method-title, .com_users.view-methods .com-users-methods-list-method .com-users-methods-list-method-title, .com_users.view-captive .com-users-methods-list-method .com-users-methods-list-method-title, .com_users.view-user .com-users-methods-list-method .com-users-methods-list-method-header, .com_users.view-methods .com-users-methods-list-method .com-users-methods-list-method-header, .com_users.view-captive .com-users-methods-list-method .com-users-methods-list-method-header {
   display: flex !important;
 }
 
@@ -8017,7 +8051,7 @@ textarea.form-control-lg {
   border-color: rgba(var(--primary-rgb), var(--border-opacity)) !important;
 }
 
-.border-secondary, .com_users.view-user .com-users-methods-list-method.com-users-methods-list-method-active .com-users-methods-list-method-header, .com_users.view-methods .com-users-methods-list-method.com-users-methods-list-method-active .com-users-methods-list-method-header, .com_users.view-user .com-users-methods-list-method.com-users-methods-list-method-active, .com_users.view-methods .com-users-methods-list-method.com-users-methods-list-method-active {
+.border-secondary, .com_users.view-user .com-users-methods-list-method.com-users-methods-list-method-active .com-users-methods-list-method-header, .com_users.view-methods .com-users-methods-list-method.com-users-methods-list-method-active .com-users-methods-list-method-header, .com_users.view-captive .com-users-methods-list-method.com-users-methods-list-method-active .com-users-methods-list-method-header, .com_users.view-user .com-users-methods-list-method.com-users-methods-list-method-active, .com_users.view-methods .com-users-methods-list-method.com-users-methods-list-method-active, .com_users.view-captive .com-users-methods-list-method.com-users-methods-list-method-active {
   --border-opacity: 1;
   border-color: rgba(var(--secondary-rgb), var(--border-opacity)) !important;
 }
@@ -8216,7 +8250,7 @@ textarea.form-control-lg {
   flex-direction: row !important;
 }
 
-.flex-column, .com_users.view-user .com-users-methods-list-method .com-users-methods-list-method-title, .com_users.view-methods .com-users-methods-list-method .com-users-methods-list-method-title {
+.flex-column, .com_users.view-user .com-users-methods-list-method .com-users-methods-list-method-title, .com_users.view-methods .com-users-methods-list-method .com-users-methods-list-method-title, .com_users.view-captive .com-users-methods-list-method .com-users-methods-list-method-title {
   flex-direction: column !important;
 }
 
@@ -8232,7 +8266,7 @@ textarea.form-control-lg {
   flex-grow: 0 !important;
 }
 
-.flex-grow-1, .com_users.view-user .com-users-methods-list-method .com-users-methods-list-method-title, .com_users.view-methods .com-users-methods-list-method .com-users-methods-list-method-title {
+.flex-grow-1, .com_users.view-user .com-users-methods-list-method .com-users-methods-list-method-title, .com_users.view-methods .com-users-methods-list-method .com-users-methods-list-method-title, .com_users.view-captive .com-users-methods-list-method .com-users-methods-list-method-title {
   flex-grow: 1 !important;
 }
 
@@ -8244,7 +8278,7 @@ textarea.form-control-lg {
   flex-shrink: 1 !important;
 }
 
-.flex-wrap, .com_users.view-user .com-users-methods-list-method .com-users-methods-list-method-header, .com_users.view-methods .com-users-methods-list-method .com-users-methods-list-method-header {
+.flex-wrap, .com_users.view-user .com-users-methods-list-method .com-users-methods-list-method-header, .com_users.view-methods .com-users-methods-list-method .com-users-methods-list-method-header, .com_users.view-captive .com-users-methods-list-method .com-users-methods-list-method-header {
   flex-wrap: wrap !important;
 }
 
@@ -8288,7 +8322,7 @@ textarea.form-control-lg {
   align-items: flex-end !important;
 }
 
-.align-items-center, .com_users.view-user .com-users-methods-list-method .com-users-methods-list-method-title h3, .com_users.view-user .com-users-methods-list-method .com-users-methods-list-method-title .h3, .com_users.view-methods .com-users-methods-list-method .com-users-methods-list-method-title h3, .com_users.view-methods .com-users-methods-list-method .com-users-methods-list-method-title .h3, .com_users.view-user .com-users-methods-list-method .com-users-methods-list-method-header, .com_users.view-methods .com-users-methods-list-method .com-users-methods-list-method-header {
+.align-items-center, .com_users.view-user .com-users-methods-list-method .com-users-methods-list-method-title h3, .com_users.view-user .com-users-methods-list-method .com-users-methods-list-method-title .h3, .com_users.view-methods .com-users-methods-list-method .com-users-methods-list-method-title h3, .com_users.view-methods .com-users-methods-list-method .com-users-methods-list-method-title .h3, .com_users.view-captive .com-users-methods-list-method .com-users-methods-list-method-title h3, .com_users.view-captive .com-users-methods-list-method .com-users-methods-list-method-title .h3, .com_users.view-user .com-users-methods-list-method .com-users-methods-list-method-header, .com_users.view-methods .com-users-methods-list-method .com-users-methods-list-method-header, .com_users.view-captive .com-users-methods-list-method .com-users-methods-list-method-header {
   align-items: center !important;
 }
 
@@ -8380,7 +8414,7 @@ textarea.form-control-lg {
   order: 6 !important;
 }
 
-.m-0, .com_users.view-user .com-users-methods-list-method .com-users-methods-list-method-title h3, .com_users.view-user .com-users-methods-list-method .com-users-methods-list-method-title .h3, .com_users.view-methods .com-users-methods-list-method .com-users-methods-list-method-title h3, .com_users.view-methods .com-users-methods-list-method .com-users-methods-list-method-title .h3 {
+.m-0, .com_users.view-user .com-users-methods-list-method .com-users-methods-list-method-title h3, .com_users.view-user .com-users-methods-list-method .com-users-methods-list-method-title .h3, .com_users.view-methods .com-users-methods-list-method .com-users-methods-list-method-title h3, .com_users.view-methods .com-users-methods-list-method .com-users-methods-list-method-title .h3, .com_users.view-captive .com-users-methods-list-method .com-users-methods-list-method-title h3, .com_users.view-captive .com-users-methods-list-method .com-users-methods-list-method-title .h3 {
   margin: 0 !important;
 }
 
@@ -8413,7 +8447,7 @@ textarea.form-control-lg {
   margin-right: 0 !important;
 }
 
-.mx-1, .com_users.view-user .com-users-methods-list-method, .com_users.view-methods .com-users-methods-list-method {
+.mx-1, .com_users.view-user .com-users-methods-list-method, .com_users.view-methods .com-users-methods-list-method, .com_users.view-captive .com-users-methods-list-method {
   margin-left: .25rem !important;
   margin-right: .25rem !important;
 }
@@ -8448,7 +8482,7 @@ textarea.form-control-lg {
   margin-bottom: 0 !important;
 }
 
-.my-1, .com_users.view-user .com-users-methods-list-method .com-users-methods-list-method-info, .com_users.view-methods .com-users-methods-list-method .com-users-methods-list-method-info {
+.my-1, .com_users.view-user .com-users-methods-list-method .com-users-methods-list-method-info, .com_users.view-methods .com-users-methods-list-method .com-users-methods-list-method-info, .com_users.view-captive .com-users-methods-list-method .com-users-methods-list-method-info {
   margin-top: .25rem !important;
   margin-bottom: .25rem !important;
 }
@@ -8490,7 +8524,7 @@ textarea.form-control-lg {
   margin-top: .5rem !important;
 }
 
-.mt-3, .com_users.view-user .com-users-methods-list-method, .com_users.view-methods .com-users-methods-list-method {
+.mt-3, .com_users.view-user .com-users-methods-list-method, .com_users.view-methods .com-users-methods-list-method, .com_users.view-captive .com-users-methods-list-method {
   margin-top: 1rem !important;
 }
 
@@ -8550,7 +8584,7 @@ textarea.form-control-lg {
   margin-bottom: 1rem !important;
 }
 
-.mb-4, .com_users.view-user .com-users-methods-list-method, .com_users.view-methods .com-users-methods-list-method {
+.mb-4, .com_users.view-user .com-users-methods-list-method, .com_users.view-methods .com-users-methods-list-method, .com_users.view-captive .com-users-methods-list-method {
   margin-bottom: 1.5rem !important;
 }
 
@@ -8590,7 +8624,7 @@ textarea.form-control-lg {
   margin-right: auto !important;
 }
 
-.p-0, .com_users.view-user .com-users-methods-list-method .com-users-methods-list-method-title h3, .com_users.view-user .com-users-methods-list-method .com-users-methods-list-method-title .h3, .com_users.view-methods .com-users-methods-list-method .com-users-methods-list-method-title h3, .com_users.view-methods .com-users-methods-list-method .com-users-methods-list-method-title .h3 {
+.p-0, .com_users.view-user .com-users-methods-list-method .com-users-methods-list-method-title h3, .com_users.view-user .com-users-methods-list-method .com-users-methods-list-method-title .h3, .com_users.view-methods .com-users-methods-list-method .com-users-methods-list-method-title h3, .com_users.view-methods .com-users-methods-list-method .com-users-methods-list-method-title .h3, .com_users.view-captive .com-users-methods-list-method .com-users-methods-list-method-title h3, .com_users.view-captive .com-users-methods-list-method .com-users-methods-list-method-title .h3 {
   padding: 0 !important;
 }
 
@@ -8629,7 +8663,7 @@ textarea.form-control-lg {
   padding-right: .5rem !important;
 }
 
-.px-3, .com_users.view-user .com-users-methods-list-method .com-users-methods-list-method-image, .com_users.view-methods .com-users-methods-list-method .com-users-methods-list-method-image {
+.px-3, .com_users.view-user .com-users-methods-list-method .com-users-methods-list-method-image, .com_users.view-methods .com-users-methods-list-method .com-users-methods-list-method-image, .com_users.view-captive .com-users-methods-list-method .com-users-methods-list-method-image {
   padding-left: 1rem !important;
   padding-right: 1rem !important;
 }
@@ -8678,7 +8712,7 @@ textarea.form-control-lg {
   padding-top: 0 !important;
 }
 
-.pt-1, .com_users.view-user .com-users-methods-list-method .com-users-methods-list-method-image, .com_users.view-methods .com-users-methods-list-method .com-users-methods-list-method-image {
+.pt-1, .com_users.view-user .com-users-methods-list-method .com-users-methods-list-method-image, .com_users.view-methods .com-users-methods-list-method .com-users-methods-list-method-image, .com_users.view-captive .com-users-methods-list-method .com-users-methods-list-method-image {
   padding-top: .25rem !important;
 }
 
@@ -8726,11 +8760,11 @@ textarea.form-control-lg {
   padding-bottom: 0 !important;
 }
 
-.pb-1, .com_users.view-user .com-users-methods-list-method .com-users-methods-list-method-info, .com_users.view-methods .com-users-methods-list-method .com-users-methods-list-method-info {
+.pb-1, .com_users.view-user .com-users-methods-list-method .com-users-methods-list-method-info, .com_users.view-methods .com-users-methods-list-method .com-users-methods-list-method-info, .com_users.view-captive .com-users-methods-list-method .com-users-methods-list-method-info {
   padding-bottom: .25rem !important;
 }
 
-.pb-2, .com_users.view-user .com-users-methods-list-method .com-users-methods-list-method-image, .com_users.view-methods .com-users-methods-list-method .com-users-methods-list-method-image {
+.pb-2, .com_users.view-user .com-users-methods-list-method .com-users-methods-list-method-image, .com_users.view-methods .com-users-methods-list-method .com-users-methods-list-method-image, .com_users.view-captive .com-users-methods-list-method .com-users-methods-list-method-image {
   padding-bottom: .5rem !important;
 }
 
@@ -8778,11 +8812,11 @@ textarea.form-control-lg {
   gap: .25rem !important;
 }
 
-.gap-2, .com_users.view-user .com-users-methods-list-method .com-users-methods-list-method-header, .com_users.view-methods .com-users-methods-list-method .com-users-methods-list-method-header {
+.gap-2, .com_users.view-user .com-users-methods-list-method .com-users-methods-list-method-header, .com_users.view-methods .com-users-methods-list-method .com-users-methods-list-method-header, .com_users.view-captive .com-users-methods-list-method .com-users-methods-list-method-header {
   gap: .5rem !important;
 }
 
-.gap-3, .com_users.view-user .com-users-methods-list-method .com-users-methods-list-method-title h3, .com_users.view-user .com-users-methods-list-method .com-users-methods-list-method-title .h3, .com_users.view-methods .com-users-methods-list-method .com-users-methods-list-method-title h3, .com_users.view-methods .com-users-methods-list-method .com-users-methods-list-method-title .h3 {
+.gap-3, .com_users.view-user .com-users-methods-list-method .com-users-methods-list-method-title h3, .com_users.view-user .com-users-methods-list-method .com-users-methods-list-method-title .h3, .com_users.view-methods .com-users-methods-list-method .com-users-methods-list-method-title h3, .com_users.view-methods .com-users-methods-list-method .com-users-methods-list-method-title .h3, .com_users.view-captive .com-users-methods-list-method .com-users-methods-list-method-title h3, .com_users.view-captive .com-users-methods-list-method .com-users-methods-list-method-title .h3 {
   gap: 1rem !important;
 }
 
@@ -8850,7 +8884,7 @@ textarea.form-control-lg {
   font-size: calc(1.29rem + .48vw) !important;
 }
 
-.fs-2, .com_users.view-user .com-users-methods-list-method .com-users-methods-list-method-title h3, .com_users.view-user .com-users-methods-list-method .com-users-methods-list-method-title .h3, .com_users.view-methods .com-users-methods-list-method .com-users-methods-list-method-title h3, .com_users.view-methods .com-users-methods-list-method .com-users-methods-list-method-title .h3 {
+.fs-2, .com_users.view-user .com-users-methods-list-method .com-users-methods-list-method-title h3, .com_users.view-user .com-users-methods-list-method .com-users-methods-list-method-title .h3, .com_users.view-methods .com-users-methods-list-method .com-users-methods-list-method-title h3, .com_users.view-methods .com-users-methods-list-method .com-users-methods-list-method-title .h3, .com_users.view-captive .com-users-methods-list-method .com-users-methods-list-method-title h3, .com_users.view-captive .com-users-methods-list-method .com-users-methods-list-method-title .h3 {
   font-size: calc(1.275rem + .3vw) !important;
 }
 
@@ -8966,11 +9000,6 @@ textarea.form-control-lg {
   white-space: nowrap !important;
 }
 
-.text-break {
-  word-wrap: break-word !important;
-  word-break: break-word !important;
-}
-
 .text-primary {
   --text-opacity: 1;
   color: rgba(var(--primary-rgb), var(--text-opacity)) !important;
@@ -9026,7 +9055,7 @@ textarea.form-control-lg {
   color: rgba(var(--black-rgb), var(--text-opacity)) !important;
 }
 
-.text-white, .com_users.view-user .com-users-methods-list-method.com-users-methods-list-method-active .com-users-methods-list-method-header, .com_users.view-methods .com-users-methods-list-method.com-users-methods-list-method-active .com-users-methods-list-method-header, .com_users.view-user .com-users-methods-list-method.com-users-methods-list-method-active .com-users-methods-list-method-title h3, .com_users.view-user .com-users-methods-list-method.com-users-methods-list-method-active .com-users-methods-list-method-title .h3, .com_users.view-methods .com-users-methods-list-method.com-users-methods-list-method-active .com-users-methods-list-method-title h3, .com_users.view-methods .com-users-methods-list-method.com-users-methods-list-method-active .com-users-methods-list-method-title .h3 {
+.text-white, .com_users.view-user .com-users-methods-list-method.com-users-methods-list-method-active .com-users-methods-list-method-header, .com_users.view-methods .com-users-methods-list-method.com-users-methods-list-method-active .com-users-methods-list-method-header, .com_users.view-captive .com-users-methods-list-method.com-users-methods-list-method-active .com-users-methods-list-method-header, .com_users.view-user .com-users-methods-list-method.com-users-methods-list-method-active .com-users-methods-list-method-title h3, .com_users.view-user .com-users-methods-list-method.com-users-methods-list-method-active .com-users-methods-list-method-title .h3, .com_users.view-methods .com-users-methods-list-method.com-users-methods-list-method-active .com-users-methods-list-method-title h3, .com_users.view-methods .com-users-methods-list-method.com-users-methods-list-method-active .com-users-methods-list-method-title .h3, .com_users.view-captive .com-users-methods-list-method.com-users-methods-list-method-active .com-users-methods-list-method-title h3, .com_users.view-captive .com-users-methods-list-method.com-users-methods-list-method-active .com-users-methods-list-method-title .h3 {
   --text-opacity: 1;
   color: rgba(var(--white-rgb), var(--text-opacity)) !important;
 }
@@ -9036,7 +9065,7 @@ textarea.form-control-lg {
   color: rgba(var(--body-color-rgb), var(--text-opacity)) !important;
 }
 
-.text-muted, .com_users.view-user .com-users-methods-list-method .com-users-methods-list-method-info, .com_users.view-methods .com-users-methods-list-method .com-users-methods-list-method-info {
+.text-muted, .com_users.view-user .com-users-methods-list-method .com-users-methods-list-method-info, .com_users.view-methods .com-users-methods-list-method .com-users-methods-list-method-info, .com_users.view-captive .com-users-methods-list-method .com-users-methods-list-method-info {
   --text-opacity: 1;
   color: var(--secondary-color) !important;
 }
@@ -9235,7 +9264,7 @@ textarea.form-control-lg {
   background-color: rgba(var(--primary-rgb), var(--bg-opacity)) !important;
 }
 
-.bg-secondary, .com_users.view-user .com-users-methods-list-method.com-users-methods-list-method-active .com-users-methods-list-method-header, .com_users.view-methods .com-users-methods-list-method.com-users-methods-list-method-active .com-users-methods-list-method-header {
+.bg-secondary, .com_users.view-user .com-users-methods-list-method.com-users-methods-list-method-active .com-users-methods-list-method-header, .com_users.view-methods .com-users-methods-list-method.com-users-methods-list-method-active .com-users-methods-list-method-header, .com_users.view-captive .com-users-methods-list-method.com-users-methods-list-method-active .com-users-methods-list-method-header {
   --bg-opacity: 1;
   background-color: rgba(var(--secondary-rgb), var(--bg-opacity)) !important;
 }
@@ -9398,7 +9427,7 @@ textarea.form-control-lg {
   border-radius: var(--border-radius-sm) !important;
 }
 
-.rounded-2, .com_users.view-user .com-users-methods-list-method .com-users-methods-list-method-image, .com_users.view-methods .com-users-methods-list-method .com-users-methods-list-method-image {
+.rounded-2, .com_users.view-user .com-users-methods-list-method .com-users-methods-list-method-image, .com_users.view-methods .com-users-methods-list-method .com-users-methods-list-method-image, .com_users.view-captive .com-users-methods-list-method .com-users-methods-list-method-image {
   border-radius: var(--border-radius) !important;
 }
 
@@ -13255,7 +13284,7 @@ textarea.form-control-lg {
     font-size: 1.65rem !important;
   }
 
-  .fs-2, .com_users.view-user .com-users-methods-list-method .com-users-methods-list-method-title h3, .com_users.view-user .com-users-methods-list-method .com-users-methods-list-method-title .h3, .com_users.view-methods .com-users-methods-list-method .com-users-methods-list-method-title h3, .com_users.view-methods .com-users-methods-list-method .com-users-methods-list-method-title .h3 {
+  .fs-2, .com_users.view-user .com-users-methods-list-method .com-users-methods-list-method-title h3, .com_users.view-user .com-users-methods-list-method .com-users-methods-list-method-title .h3, .com_users.view-methods .com-users-methods-list-method .com-users-methods-list-method-title h3, .com_users.view-methods .com-users-methods-list-method .com-users-methods-list-method-title .h3, .com_users.view-captive .com-users-methods-list-method .com-users-methods-list-method-title h3, .com_users.view-captive .com-users-methods-list-method .com-users-methods-list-method-title .h3 {
     font-size: 1.5rem !important;
   }
 }
@@ -13308,146 +13337,146 @@ textarea.form-control-lg {
 
 @font-face {
   font-family: Roboto;
-  src: url("../../../../../media/vendor/roboto-fontface/fonts/roboto/Roboto-Regular.woff2?v=73f0a8") format("woff2"), url("../../../../../media/vendor/roboto-fontface/fonts/roboto/Roboto-Regular.woff?v=35b07e") format("woff");
+  src: url("../../../../../media/vendor/roboto-fontface/fonts/roboto/Roboto-Regular.woff2?v=176349") format("woff2"), url("../../../../../media/vendor/roboto-fontface/fonts/roboto/Roboto-Regular.woff?v=176349") format("woff");
   font-weight: 400;
   font-style: normal;
 }
 
 @font-face {
   font-family: Roboto-Regular;
-  src: url("../../../../../media/vendor/roboto-fontface/fonts/roboto/Roboto-Regular.woff2?v=73f0a8") format("woff2"), url("../../../../../media/vendor/roboto-fontface/fonts/roboto/Roboto-Regular.woff?v=35b07e") format("woff");
+  src: url("../../../../../media/vendor/roboto-fontface/fonts/roboto/Roboto-Regular.woff2?v=176349") format("woff2"), url("../../../../../media/vendor/roboto-fontface/fonts/roboto/Roboto-Regular.woff?v=176349") format("woff");
 }
 
 @font-face {
   font-family: Roboto;
-  src: url("../../../../../media/vendor/roboto-fontface/fonts/roboto/Roboto-RegularItalic.woff2?v=4357be") format("woff2"), url("../../../../../media/vendor/roboto-fontface/fonts/roboto/Roboto-RegularItalic.woff?v=f5902d") format("woff");
+  src: url("../../../../../media/vendor/roboto-fontface/fonts/roboto/Roboto-RegularItalic.woff2?v=176349") format("woff2"), url("../../../../../media/vendor/roboto-fontface/fonts/roboto/Roboto-RegularItalic.woff?v=176349") format("woff");
   font-weight: 400;
   font-style: italic;
 }
 
 @font-face {
   font-family: Roboto-RegularItalic;
-  src: url("../../../../../media/vendor/roboto-fontface/fonts/roboto/Roboto-RegularItalic.woff2?v=4357be") format("woff2"), url("../../../../../media/vendor/roboto-fontface/fonts/roboto/Roboto-RegularItalic.woff?v=f5902d") format("woff");
+  src: url("../../../../../media/vendor/roboto-fontface/fonts/roboto/Roboto-RegularItalic.woff2?v=176349") format("woff2"), url("../../../../../media/vendor/roboto-fontface/fonts/roboto/Roboto-RegularItalic.woff?v=176349") format("woff");
 }
 
 @font-face {
   font-family: Roboto;
-  src: url("../../../../../media/vendor/roboto-fontface/fonts/roboto/Roboto-Light.woff2?v=d26871") format("woff2"), url("../../../../../media/vendor/roboto-fontface/fonts/roboto/Roboto-Light.woff?v=c73eb1") format("woff");
+  src: url("../../../../../media/vendor/roboto-fontface/fonts/roboto/Roboto-Light.woff2?v=176349") format("woff2"), url("../../../../../media/vendor/roboto-fontface/fonts/roboto/Roboto-Light.woff?v=176349") format("woff");
   font-weight: 300;
   font-style: normal;
 }
 
 @font-face {
   font-family: Roboto-Light;
-  src: url("../../../../../media/vendor/roboto-fontface/fonts/roboto/Roboto-Light.woff2?v=d26871") format("woff2"), url("../../../../../media/vendor/roboto-fontface/fonts/roboto/Roboto-Light.woff?v=c73eb1") format("woff");
+  src: url("../../../../../media/vendor/roboto-fontface/fonts/roboto/Roboto-Light.woff2?v=176349") format("woff2"), url("../../../../../media/vendor/roboto-fontface/fonts/roboto/Roboto-Light.woff?v=176349") format("woff");
 }
 
 @font-face {
   font-family: Roboto;
-  src: url("../../../../../media/vendor/roboto-fontface/fonts/roboto/Roboto-LightItalic.woff2?v=e8eaae") format("woff2"), url("../../../../../media/vendor/roboto-fontface/fonts/roboto/Roboto-LightItalic.woff?v=13efe6") format("woff");
+  src: url("../../../../../media/vendor/roboto-fontface/fonts/roboto/Roboto-LightItalic.woff2?v=176349") format("woff2"), url("../../../../../media/vendor/roboto-fontface/fonts/roboto/Roboto-LightItalic.woff?v=176349") format("woff");
   font-weight: 300;
   font-style: italic;
 }
 
 @font-face {
   font-family: Roboto-LightItalic;
-  src: url("../../../../../media/vendor/roboto-fontface/fonts/roboto/Roboto-LightItalic.woff2?v=e8eaae") format("woff2"), url("../../../../../media/vendor/roboto-fontface/fonts/roboto/Roboto-LightItalic.woff?v=13efe6") format("woff");
+  src: url("../../../../../media/vendor/roboto-fontface/fonts/roboto/Roboto-LightItalic.woff2?v=176349") format("woff2"), url("../../../../../media/vendor/roboto-fontface/fonts/roboto/Roboto-LightItalic.woff?v=176349") format("woff");
 }
 
 @font-face {
   font-family: Roboto;
-  src: url("../../../../../media/vendor/roboto-fontface/fonts/roboto/Roboto-Thin.woff2?v=ad538a") format("woff2"), url("../../../../../media/vendor/roboto-fontface/fonts/roboto/Roboto-Thin.woff?v=d3b473") format("woff");
+  src: url("../../../../../media/vendor/roboto-fontface/fonts/roboto/Roboto-Thin.woff2?v=176349") format("woff2"), url("../../../../../media/vendor/roboto-fontface/fonts/roboto/Roboto-Thin.woff?v=176349") format("woff");
   font-weight: 100;
   font-style: normal;
 }
 
 @font-face {
   font-family: Roboto-Thin;
-  src: url("../../../../../media/vendor/roboto-fontface/fonts/roboto/Roboto-Thin.woff2?v=ad538a") format("woff2"), url("../../../../../media/vendor/roboto-fontface/fonts/roboto/Roboto-Thin.woff?v=d3b473") format("woff");
+  src: url("../../../../../media/vendor/roboto-fontface/fonts/roboto/Roboto-Thin.woff2?v=176349") format("woff2"), url("../../../../../media/vendor/roboto-fontface/fonts/roboto/Roboto-Thin.woff?v=176349") format("woff");
 }
 
 @font-face {
   font-family: Roboto;
-  src: url("../../../../../media/vendor/roboto-fontface/fonts/roboto/Roboto-ThinItalic.woff2?v=5b4a33") format("woff2"), url("../../../../../media/vendor/roboto-fontface/fonts/roboto/Roboto-ThinItalic.woff?v=8a96ed") format("woff");
+  src: url("../../../../../media/vendor/roboto-fontface/fonts/roboto/Roboto-ThinItalic.woff2?v=176349") format("woff2"), url("../../../../../media/vendor/roboto-fontface/fonts/roboto/Roboto-ThinItalic.woff?v=176349") format("woff");
   font-weight: 100;
   font-style: italic;
 }
 
 @font-face {
   font-family: Roboto-ThinItalic;
-  src: url("../../../../../media/vendor/roboto-fontface/fonts/roboto/Roboto-ThinItalic.woff2?v=5b4a33") format("woff2"), url("../../../../../media/vendor/roboto-fontface/fonts/roboto/Roboto-ThinItalic.woff?v=8a96ed") format("woff");
+  src: url("../../../../../media/vendor/roboto-fontface/fonts/roboto/Roboto-ThinItalic.woff2?v=176349") format("woff2"), url("../../../../../media/vendor/roboto-fontface/fonts/roboto/Roboto-ThinItalic.woff?v=176349") format("woff");
 }
 
 @font-face {
   font-family: Roboto;
-  src: url("../../../../../media/vendor/roboto-fontface/fonts/roboto/Roboto-Medium.woff2?v=90d167") format("woff2"), url("../../../../../media/vendor/roboto-fontface/fonts/roboto/Roboto-Medium.woff?v=1d6594") format("woff");
+  src: url("../../../../../media/vendor/roboto-fontface/fonts/roboto/Roboto-Medium.woff2?v=176349") format("woff2"), url("../../../../../media/vendor/roboto-fontface/fonts/roboto/Roboto-Medium.woff?v=176349") format("woff");
   font-weight: 500;
   font-style: normal;
 }
 
 @font-face {
   font-family: Roboto-Medium;
-  src: url("../../../../../media/vendor/roboto-fontface/fonts/roboto/Roboto-Medium.woff2?v=90d167") format("woff2"), url("../../../../../media/vendor/roboto-fontface/fonts/roboto/Roboto-Medium.woff?v=1d6594") format("woff");
+  src: url("../../../../../media/vendor/roboto-fontface/fonts/roboto/Roboto-Medium.woff2?v=176349") format("woff2"), url("../../../../../media/vendor/roboto-fontface/fonts/roboto/Roboto-Medium.woff?v=176349") format("woff");
 }
 
 @font-face {
   font-family: Roboto;
-  src: url("../../../../../media/vendor/roboto-fontface/fonts/roboto/Roboto-MediumItalic.woff2?v=13ec0e") format("woff2"), url("../../../../../media/vendor/roboto-fontface/fonts/roboto/Roboto-MediumItalic.woff?v=83e114") format("woff");
+  src: url("../../../../../media/vendor/roboto-fontface/fonts/roboto/Roboto-MediumItalic.woff2?v=176349") format("woff2"), url("../../../../../media/vendor/roboto-fontface/fonts/roboto/Roboto-MediumItalic.woff?v=176349") format("woff");
   font-weight: 500;
   font-style: italic;
 }
 
 @font-face {
   font-family: Roboto-MediumItalic;
-  src: url("../../../../../media/vendor/roboto-fontface/fonts/roboto/Roboto-MediumItalic.woff2?v=13ec0e") format("woff2"), url("../../../../../media/vendor/roboto-fontface/fonts/roboto/Roboto-MediumItalic.woff?v=83e114") format("woff");
+  src: url("../../../../../media/vendor/roboto-fontface/fonts/roboto/Roboto-MediumItalic.woff2?v=176349") format("woff2"), url("../../../../../media/vendor/roboto-fontface/fonts/roboto/Roboto-MediumItalic.woff?v=176349") format("woff");
 }
 
 @font-face {
   font-family: Roboto;
-  src: url("../../../../../media/vendor/roboto-fontface/fonts/roboto/Roboto-Bold.woff2?v=b52fac") format("woff2"), url("../../../../../media/vendor/roboto-fontface/fonts/roboto/Roboto-Bold.woff?v=50d75e") format("woff");
+  src: url("../../../../../media/vendor/roboto-fontface/fonts/roboto/Roboto-Bold.woff2?v=176349") format("woff2"), url("../../../../../media/vendor/roboto-fontface/fonts/roboto/Roboto-Bold.woff?v=176349") format("woff");
   font-weight: 700;
   font-style: normal;
 }
 
 @font-face {
   font-family: Roboto-Bold;
-  src: url("../../../../../media/vendor/roboto-fontface/fonts/roboto/Roboto-Bold.woff2?v=b52fac") format("woff2"), url("../../../../../media/vendor/roboto-fontface/fonts/roboto/Roboto-Bold.woff?v=50d75e") format("woff");
+  src: url("../../../../../media/vendor/roboto-fontface/fonts/roboto/Roboto-Bold.woff2?v=176349") format("woff2"), url("../../../../../media/vendor/roboto-fontface/fonts/roboto/Roboto-Bold.woff?v=176349") format("woff");
 }
 
 @font-face {
   font-family: Roboto;
-  src: url("../../../../../media/vendor/roboto-fontface/fonts/roboto/Roboto-BoldItalic.woff2?v=94008e") format("woff2"), url("../../../../../media/vendor/roboto-fontface/fonts/roboto/Roboto-BoldItalic.woff?v=4fe0f7") format("woff");
+  src: url("../../../../../media/vendor/roboto-fontface/fonts/roboto/Roboto-BoldItalic.woff2?v=176349") format("woff2"), url("../../../../../media/vendor/roboto-fontface/fonts/roboto/Roboto-BoldItalic.woff?v=176349") format("woff");
   font-weight: 700;
   font-style: italic;
 }
 
 @font-face {
   font-family: Roboto-BoldItalic;
-  src: url("../../../../../media/vendor/roboto-fontface/fonts/roboto/Roboto-BoldItalic.woff2?v=94008e") format("woff2"), url("../../../../../media/vendor/roboto-fontface/fonts/roboto/Roboto-BoldItalic.woff?v=4fe0f7") format("woff");
+  src: url("../../../../../media/vendor/roboto-fontface/fonts/roboto/Roboto-BoldItalic.woff2?v=176349") format("woff2"), url("../../../../../media/vendor/roboto-fontface/fonts/roboto/Roboto-BoldItalic.woff?v=176349") format("woff");
 }
 
 @font-face {
   font-family: Roboto;
-  src: url("../../../../../media/vendor/roboto-fontface/fonts/roboto/Roboto-Black.woff2?v=59eb36") format("woff2"), url("../../../../../media/vendor/roboto-fontface/fonts/roboto/Roboto-Black.woff?v=313a65") format("woff");
+  src: url("../../../../../media/vendor/roboto-fontface/fonts/roboto/Roboto-Black.woff2?v=176349") format("woff2"), url("../../../../../media/vendor/roboto-fontface/fonts/roboto/Roboto-Black.woff?v=176349") format("woff");
   font-weight: 900;
   font-style: normal;
 }
 
 @font-face {
   font-family: Roboto-Black;
-  src: url("../../../../../media/vendor/roboto-fontface/fonts/roboto/Roboto-Black.woff2?v=59eb36") format("woff2"), url("../../../../../media/vendor/roboto-fontface/fonts/roboto/Roboto-Black.woff?v=313a65") format("woff");
+  src: url("../../../../../media/vendor/roboto-fontface/fonts/roboto/Roboto-Black.woff2?v=176349") format("woff2"), url("../../../../../media/vendor/roboto-fontface/fonts/roboto/Roboto-Black.woff?v=176349") format("woff");
 }
 
 @font-face {
   font-family: Roboto;
-  src: url("../../../../../media/vendor/roboto-fontface/fonts/roboto/Roboto-BlackItalic.woff2?v=f75569") format("woff2"), url("../../../../../media/vendor/roboto-fontface/fonts/roboto/Roboto-BlackItalic.woff?v=cc2fad") format("woff");
+  src: url("../../../../../media/vendor/roboto-fontface/fonts/roboto/Roboto-BlackItalic.woff2?v=176349") format("woff2"), url("../../../../../media/vendor/roboto-fontface/fonts/roboto/Roboto-BlackItalic.woff?v=176349") format("woff");
   font-weight: 900;
   font-style: italic;
 }
 
 @font-face {
   font-family: Roboto-BlackItalic;
-  src: url("../../../../../media/vendor/roboto-fontface/fonts/roboto/Roboto-BlackItalic.woff2?v=f75569") format("woff2"), url("../../../../../media/vendor/roboto-fontface/fonts/roboto/Roboto-BlackItalic.woff?v=cc2fad") format("woff");
+  src: url("../../../../../media/vendor/roboto-fontface/fonts/roboto/Roboto-BlackItalic.woff2?v=176349") format("woff2"), url("../../../../../media/vendor/roboto-fontface/fonts/roboto/Roboto-BlackItalic.woff?v=176349") format("woff");
 }
 
 html {
@@ -13611,12 +13640,12 @@ a[target="_blank"]:before {
 }
 
 @media (width <= 575.98px) {
-  #wrapper.d-flex, .com_users.view-user .com-users-methods-list-method .com-users-methods-list-method-title h3#wrapper, .com_users.view-user .com-users-methods-list-method .com-users-methods-list-method-title #wrapper.h3, .com_users.view-methods .com-users-methods-list-method .com-users-methods-list-method-title h3#wrapper, .com_users.view-methods .com-users-methods-list-method .com-users-methods-list-method-title #wrapper.h3, .com_users.view-user .com-users-methods-list-method #wrapper.com-users-methods-list-method-title, .com_users.view-methods .com-users-methods-list-method #wrapper.com-users-methods-list-method-title, .com_users.view-user .com-users-methods-list-method #wrapper.com-users-methods-list-method-header, .com_users.view-methods .com-users-methods-list-method #wrapper.com-users-methods-list-method-header {
+  #wrapper.d-flex, .com_users.view-user .com-users-methods-list-method .com-users-methods-list-method-title h3#wrapper, .com_users.view-user .com-users-methods-list-method .com-users-methods-list-method-title #wrapper.h3, .com_users.view-methods .com-users-methods-list-method .com-users-methods-list-method-title h3#wrapper, .com_users.view-methods .com-users-methods-list-method .com-users-methods-list-method-title #wrapper.h3, .com_users.view-captive .com-users-methods-list-method .com-users-methods-list-method-title h3#wrapper, .com_users.view-captive .com-users-methods-list-method .com-users-methods-list-method-title #wrapper.h3, .com_users.view-user .com-users-methods-list-method #wrapper.com-users-methods-list-method-title, .com_users.view-methods .com-users-methods-list-method #wrapper.com-users-methods-list-method-title, .com_users.view-captive .com-users-methods-list-method #wrapper.com-users-methods-list-method-title, .com_users.view-user .com-users-methods-list-method #wrapper.com-users-methods-list-method-header, .com_users.view-methods .com-users-methods-list-method #wrapper.com-users-methods-list-method-header, .com_users.view-captive .com-users-methods-list-method #wrapper.com-users-methods-list-method-header {
     display: block !important;
   }
 }
 
-.text-muted, .com_users.view-user .com-users-methods-list-method .com-users-methods-list-method-info, .com_users.view-methods .com-users-methods-list-method .com-users-methods-list-method-info {
+.text-muted, .com_users.view-user .com-users-methods-list-method .com-users-methods-list-method-info, .com_users.view-methods .com-users-methods-list-method .com-users-methods-list-method-info, .com_users.view-captive .com-users-methods-list-method .com-users-methods-list-method-info {
   color: var(--text-muted-color);
   opacity: .7;
 }
@@ -13718,7 +13747,7 @@ span.minicolors-swatch-color {
   }
 }
 
-.badge.bg-secondary:hover, .com_users.view-user .com-users-methods-list-method.com-users-methods-list-method-active .badge.com-users-methods-list-method-header:hover, .com_users.view-methods .com-users-methods-list-method.com-users-methods-list-method-active .badge.com-users-methods-list-method-header:hover {
+.badge.bg-secondary:hover, .com_users.view-user .com-users-methods-list-method.com-users-methods-list-method-active .badge.com-users-methods-list-method-header:hover, .com_users.view-methods .com-users-methods-list-method.com-users-methods-list-method-active .badge.com-users-methods-list-method-header:hover, .com_users.view-captive .com-users-methods-list-method.com-users-methods-list-method-active .badge.com-users-methods-list-method-header:hover {
   color: #fff;
 }
 
@@ -13774,8 +13803,8 @@ span.minicolors-swatch-color {
 }
 
 .btn-secondary:hover {
-  color: var(--btn-secondary-color-hvr);
-  background: var(--btn-secondary-bg-hvr);
+  color: var(--btn-secondary-color-hvr, var(--btn-secondary-color));
+  background: var(--btn-secondary-bg-hvr, var(--template-bg-dark-70));
 }
 
 .btn-light {
@@ -13820,7 +13849,7 @@ span.minicolors-swatch-color {
   border: var(--btn-info-border);
 }
 
-.card-columns .card, .card-columns .com_users.view-user .com-users-methods-list-method, .com_users.view-user .card-columns .com-users-methods-list-method, .card-columns .com_users.view-methods .com-users-methods-list-method, .com_users.view-methods .card-columns .com-users-methods-list-method {
+.card-columns .card, .card-columns .com_users.view-user .com-users-methods-list-method, .com_users.view-user .card-columns .com-users-methods-list-method, .card-columns .com_users.view-methods .com-users-methods-list-method, .com_users.view-methods .card-columns .com-users-methods-list-method, .card-columns .com_users.view-captive .com-users-methods-list-method, .com_users.view-captive .card-columns .com-users-methods-list-method {
   margin-bottom: 1rem;
 }
 
@@ -13832,18 +13861,18 @@ span.minicolors-swatch-color {
     column-gap: 1.25rem;
   }
 
-  .card-columns .card, .card-columns .com_users.view-user .com-users-methods-list-method, .com_users.view-user .card-columns .com-users-methods-list-method, .card-columns .com_users.view-methods .com-users-methods-list-method, .com_users.view-methods .card-columns .com-users-methods-list-method {
+  .card-columns .card, .card-columns .com_users.view-user .com-users-methods-list-method, .com_users.view-user .card-columns .com-users-methods-list-method, .card-columns .com_users.view-methods .com-users-methods-list-method, .com_users.view-methods .card-columns .com-users-methods-list-method, .card-columns .com_users.view-captive .com-users-methods-list-method, .com_users.view-captive .card-columns .com-users-methods-list-method {
     width: 100%;
     display: inline-block;
   }
 }
 
-.content .card, .content .com_users.view-user .com-users-methods-list-method, .com_users.view-user .content .com-users-methods-list-method, .content .com_users.view-methods .com-users-methods-list-method, .com_users.view-methods .content .com-users-methods-list-method {
+.content .card, .content .com_users.view-user .com-users-methods-list-method, .com_users.view-user .content .com-users-methods-list-method, .content .com_users.view-methods .com-users-methods-list-method, .com_users.view-methods .content .com-users-methods-list-method, .content .com_users.view-captive .com-users-methods-list-method, .com_users.view-captive .content .com-users-methods-list-method {
   background: var(--card-body-bg);
   box-shadow: var(--atum-box-shadow);
 }
 
-.content .card-header, .content .com_users.view-user .com-users-methods-list-method .com-users-methods-list-method-header, .com_users.view-user .com-users-methods-list-method .content .com-users-methods-list-method-header, .content .com_users.view-methods .com-users-methods-list-method .com-users-methods-list-method-header, .com_users.view-methods .com-users-methods-list-method .content .com-users-methods-list-method-header {
+.content .card-header, .content .com_users.view-user .com-users-methods-list-method .com-users-methods-list-method-header, .com_users.view-user .com-users-methods-list-method .content .com-users-methods-list-method-header, .content .com_users.view-methods .com-users-methods-list-method .com-users-methods-list-method-header, .com_users.view-methods .com-users-methods-list-method .content .com-users-methods-list-method-header, .content .com_users.view-captive .com-users-methods-list-method .com-users-methods-list-method-header, .com_users.view-captive .com-users-methods-list-method .content .com-users-methods-list-method-header {
   color: var(--card-header-color);
   background-color: var(--card-bg);
   align-items: center;
@@ -13852,11 +13881,11 @@ span.minicolors-swatch-color {
   display: flex;
 }
 
-.content .card-header a, .content .com_users.view-user .com-users-methods-list-method .com-users-methods-list-method-header a, .com_users.view-user .com-users-methods-list-method .content .com-users-methods-list-method-header a, .content .com_users.view-methods .com-users-methods-list-method .com-users-methods-list-method-header a, .com_users.view-methods .com-users-methods-list-method .content .com-users-methods-list-method-header a {
+.content .card-header a, .content .com_users.view-user .com-users-methods-list-method .com-users-methods-list-method-header a, .com_users.view-user .com-users-methods-list-method .content .com-users-methods-list-method-header a, .content .com_users.view-methods .com-users-methods-list-method .com-users-methods-list-method-header a, .com_users.view-methods .com-users-methods-list-method .content .com-users-methods-list-method-header a, .content .com_users.view-captive .com-users-methods-list-method .com-users-methods-list-method-header a, .com_users.view-captive .com-users-methods-list-method .content .com-users-methods-list-method-header a {
   font-weight: normal;
 }
 
-.content .card-header > [class^="icon-"], .content .com_users.view-user .com-users-methods-list-method .com-users-methods-list-method-header > [class^="icon-"], .com_users.view-user .com-users-methods-list-method .content .com-users-methods-list-method-header > [class^="icon-"], .content .com_users.view-methods .com-users-methods-list-method .com-users-methods-list-method-header > [class^="icon-"], .com_users.view-methods .com-users-methods-list-method .content .com-users-methods-list-method-header > [class^="icon-"], .content .card-header > img, .content .com_users.view-user .com-users-methods-list-method .com-users-methods-list-method-header > img, .com_users.view-user .com-users-methods-list-method .content .com-users-methods-list-method-header > img, .content .com_users.view-methods .com-users-methods-list-method .com-users-methods-list-method-header > img, .com_users.view-methods .com-users-methods-list-method .content .com-users-methods-list-method-header > img {
+.content .card-header > [class^="icon-"], .content .com_users.view-user .com-users-methods-list-method .com-users-methods-list-method-header > [class^="icon-"], .com_users.view-user .com-users-methods-list-method .content .com-users-methods-list-method-header > [class^="icon-"], .content .com_users.view-methods .com-users-methods-list-method .com-users-methods-list-method-header > [class^="icon-"], .com_users.view-methods .com-users-methods-list-method .content .com-users-methods-list-method-header > [class^="icon-"], .content .com_users.view-captive .com-users-methods-list-method .com-users-methods-list-method-header > [class^="icon-"], .com_users.view-captive .com-users-methods-list-method .content .com-users-methods-list-method-header > [class^="icon-"], .content .card-header > img, .content .com_users.view-user .com-users-methods-list-method .com-users-methods-list-method-header > img, .com_users.view-user .com-users-methods-list-method .content .com-users-methods-list-method-header > img, .content .com_users.view-methods .com-users-methods-list-method .com-users-methods-list-method-header > img, .com_users.view-methods .com-users-methods-list-method .content .com-users-methods-list-method-header > img, .content .com_users.view-captive .com-users-methods-list-method .com-users-methods-list-method-header > img, .com_users.view-captive .com-users-methods-list-method .content .com-users-methods-list-method-header > img {
   margin-inline-end: .5rem;
 }
 
@@ -13881,7 +13910,7 @@ span.minicolors-swatch-color {
 
 .form-select[multiple] option:checked, [multiple].custom-select option:checked {
   color: var(--template-text-light);
-  background-color: var(--template-bg-dark) !important;
+  background-color: var(--template-contrast) !important;
 }
 
 .form-select.form-select-success, .form-select-success.custom-select, .form-select.custom-select-success, .custom-select-success.custom-select {
@@ -13928,7 +13957,7 @@ span.minicolors-swatch-color {
   border: 1px solid #ffffff1a;
 }
 
-.accordion .card-header, .accordion .com_users.view-user .com-users-methods-list-method .com-users-methods-list-method-header, .com_users.view-user .com-users-methods-list-method .accordion .com-users-methods-list-method-header, .accordion .com_users.view-methods .com-users-methods-list-method .com-users-methods-list-method-header, .com_users.view-methods .com-users-methods-list-method .accordion .com-users-methods-list-method-header {
+.accordion .card-header, .accordion .com_users.view-user .com-users-methods-list-method .com-users-methods-list-method-header, .com_users.view-user .com-users-methods-list-method .accordion .com-users-methods-list-method-header, .accordion .com_users.view-methods .com-users-methods-list-method .com-users-methods-list-method-header, .com_users.view-methods .com-users-methods-list-method .accordion .com-users-methods-list-method-header, .accordion .com_users.view-captive .com-users-methods-list-method .com-users-methods-list-method-header, .com_users.view-captive .com-users-methods-list-method .accordion .com-users-methods-list-method-header {
   font-size: .9286rem;
   font-weight: 700;
   line-height: 1.2;
@@ -13946,8 +13975,8 @@ span.minicolors-swatch-color {
 
 .btn-group .dropdown-menu {
   background: var(--body-bg);
-  box-shadow: var(--dropdown-box-shadow);
   min-width: 100%;
+  box-shadow: var(--dropdown-box-shadow);
 }
 
 .btn-group .dropdown-menu joomla-toolbar-button {
@@ -14223,7 +14252,6 @@ select.form-control {
 }
 
 th {
-  text-align: inherit;
   text-align: -webkit-match-parent;
 }
 
@@ -14344,6 +14372,7 @@ th {
 
 .alert.alert-info a {
   color: var(--state-info-text);
+  text-decoration: underline;
 }
 
 .alert.alert-warning {
@@ -14354,6 +14383,7 @@ th {
 
 .alert.alert-warning a {
   color: var(--state-warning-text);
+  text-decoration: underline;
 }
 
 .alert.alert-success {
@@ -14364,6 +14394,7 @@ th {
 
 .alert.alert-success a {
   color: var(--state-success-text);
+  text-decoration: underline;
 }
 
 .alert.alert-error {
@@ -14374,6 +14405,7 @@ th {
 
 .alert.alert-error a {
   color: var(--state-error-text);
+  text-decoration: underline;
 }
 
 .alert.alert-danger {
@@ -14384,6 +14416,7 @@ th {
 
 .alert.alert-danger a {
   color: var(--state-danger-text);
+  text-decoration: underline;
 }
 
 fieldset .alert.alert-info {
@@ -14410,7 +14443,7 @@ fieldset .alert.alert-info {
   --calendar-select-color: var(--body-color);
   --calendar-disabled-color: var(--atum-calendar-disabled-color);
   --calendar-disabled-bg: var(--atum-calendar-disabled-bg);
-  --calendar-select-bg-url: var(--atum-calendar-select-bg-url);
+  --calendar-select-bg-url: $ atum-calendar-select-bg-url-rtl;
 }
 
 .calendar-container tr.time:hover, .calendar-container tr.time:focus, .calendar-container tr.time:active {
@@ -14803,15 +14836,14 @@ label.valid {
 }
 
 :focus + [role="tooltip"], :hover + [role="tooltip"] {
+  overflow-wrap: break-word;
+  white-space: normal;
+  max-width: 100%;
   display: block;
   position: absolute;
 }
 
-.filter-search-bar__description {
-  bottom: 100%;
-}
-
-.container-popup .filter-search-bar__description {
+.filter-search-bar__description, .container-popup .filter-search-bar__description {
   top: 100%;
   bottom: auto;
 }
@@ -14917,10 +14949,10 @@ div.subform-repeatable-group > .btn-toolbar .btn.group-move-down {
 }
 
 .tbody-icon .icon-checkedout, .tbody-icon .icon-lock, .tbody-icon .fa-lock {
-  color: var(--icon-checkedout-color);
-  border: 0;
   width: auto;
   height: auto;
+  color: var(--icon-checkedout-color);
+  border: 0;
   font-size: 1.2rem;
   line-height: 1rem;
 }
@@ -14957,19 +14989,19 @@ iframe {
 }
 
 .options-form {
+  width: 100%;
   color: var(--options-form-color);
   background: var(--options-form-bg);
   border: var(--options-form-border);
-  width: 100%;
   margin-bottom: 1rem;
   padding: 1vw 2vw;
 }
 
 .options-form > legend {
   float: none;
+  width: auto;
   color: var(--options-form-legend-color);
   background-color: var(--options-form-legend-bg);
-  width: auto;
   padding: 0 1rem;
   font-weight: 700;
 }
@@ -14994,12 +15026,12 @@ iframe {
 }
 
 .view-login .login, .task-logout .login {
+  width: 100%;
+  max-width: 25rem;
   color: var(--template-text-dark);
   background: var(--body-bg);
   box-shadow: var(--login-box-shadow);
   border-radius: 10px;
-  width: 100%;
-  max-width: 25rem;
   margin: 1rem;
   padding: 30px;
 }
@@ -15052,16 +15084,16 @@ iframe {
 }
 
 .view-login .form-group .form-control-feedback, .task-logout .form-group .form-control-feedback {
-  text-align: end;
   inset-inline-end: 0;
+  text-align: end;
   font-size: .75rem;
   position: absolute;
   bottom: -1.5rem;
 }
 
 .view-login .form-group .form-control-hint, .task-logout .form-group .form-control-hint {
-  text-align: end;
   top: .1rem;
+  text-align: end;
   font-size: .75rem;
   position: absolute;
   inset-inline-end: 0;
@@ -15119,34 +15151,34 @@ iframe {
   font-size: .875rem;
 }
 
-.view-login .sidebar-wrapper .card-header, .view-login .sidebar-wrapper .com_users.view-user .com-users-methods-list-method .com-users-methods-list-method-header, .com_users.view-user .com-users-methods-list-method .view-login .sidebar-wrapper .com-users-methods-list-method-header, .view-login .sidebar-wrapper .com_users.view-methods .com-users-methods-list-method .com-users-methods-list-method-header, .com_users.view-methods .com-users-methods-list-method .view-login .sidebar-wrapper .com-users-methods-list-method-header, .task-logout .sidebar-wrapper .card-header, .task-logout .sidebar-wrapper .com_users.view-user .com-users-methods-list-method .com-users-methods-list-method-header, .com_users.view-user .com-users-methods-list-method .task-logout .sidebar-wrapper .com-users-methods-list-method-header, .task-logout .sidebar-wrapper .com_users.view-methods .com-users-methods-list-method .com-users-methods-list-method-header, .com_users.view-methods .com-users-methods-list-method .task-logout .sidebar-wrapper .com-users-methods-list-method-header {
+.view-login .sidebar-wrapper .card-header, .view-login .sidebar-wrapper .com_users.view-user .com-users-methods-list-method .com-users-methods-list-method-header, .com_users.view-user .com-users-methods-list-method .view-login .sidebar-wrapper .com-users-methods-list-method-header, .view-login .sidebar-wrapper .com_users.view-methods .com-users-methods-list-method .com-users-methods-list-method-header, .com_users.view-methods .com-users-methods-list-method .view-login .sidebar-wrapper .com-users-methods-list-method-header, .view-login .sidebar-wrapper .com_users.view-captive .com-users-methods-list-method .com-users-methods-list-method-header, .com_users.view-captive .com-users-methods-list-method .view-login .sidebar-wrapper .com-users-methods-list-method-header, .task-logout .sidebar-wrapper .card-header, .task-logout .sidebar-wrapper .com_users.view-user .com-users-methods-list-method .com-users-methods-list-method-header, .com_users.view-user .com-users-methods-list-method .task-logout .sidebar-wrapper .com-users-methods-list-method-header, .task-logout .sidebar-wrapper .com_users.view-methods .com-users-methods-list-method .com-users-methods-list-method-header, .com_users.view-methods .com-users-methods-list-method .task-logout .sidebar-wrapper .com-users-methods-list-method-header, .task-logout .sidebar-wrapper .com_users.view-captive .com-users-methods-list-method .com-users-methods-list-method-header, .com_users.view-captive .com-users-methods-list-method .task-logout .sidebar-wrapper .com-users-methods-list-method-header {
   color: #fff;
   font-size: 1.125rem;
 }
 
-.view-login .sidebar-wrapper [data-bs-theme="dark"] .card-header, .view-login .sidebar-wrapper [data-bs-theme="dark"] .com_users.view-user .com-users-methods-list-method .com-users-methods-list-method-header, .com_users.view-user .com-users-methods-list-method .view-login .sidebar-wrapper [data-bs-theme="dark"] .com-users-methods-list-method-header, .view-login .sidebar-wrapper [data-bs-theme="dark"] .com_users.view-methods .com-users-methods-list-method .com-users-methods-list-method-header, .com_users.view-methods .com-users-methods-list-method .view-login .sidebar-wrapper [data-bs-theme="dark"] .com-users-methods-list-method-header, .task-logout .sidebar-wrapper [data-bs-theme="dark"] .card-header, .task-logout .sidebar-wrapper [data-bs-theme="dark"] .com_users.view-user .com-users-methods-list-method .com-users-methods-list-method-header, .com_users.view-user .com-users-methods-list-method .task-logout .sidebar-wrapper [data-bs-theme="dark"] .com-users-methods-list-method-header, .task-logout .sidebar-wrapper [data-bs-theme="dark"] .com_users.view-methods .com-users-methods-list-method .com-users-methods-list-method-header, .com_users.view-methods .com-users-methods-list-method .task-logout .sidebar-wrapper [data-bs-theme="dark"] .com-users-methods-list-method-header {
+.view-login .sidebar-wrapper [data-bs-theme="dark"] .card-header, .view-login .sidebar-wrapper [data-bs-theme="dark"] .com_users.view-user .com-users-methods-list-method .com-users-methods-list-method-header, .com_users.view-user .com-users-methods-list-method .view-login .sidebar-wrapper [data-bs-theme="dark"] .com-users-methods-list-method-header, .view-login .sidebar-wrapper [data-bs-theme="dark"] .com_users.view-methods .com-users-methods-list-method .com-users-methods-list-method-header, .com_users.view-methods .com-users-methods-list-method .view-login .sidebar-wrapper [data-bs-theme="dark"] .com-users-methods-list-method-header, .view-login .sidebar-wrapper [data-bs-theme="dark"] .com_users.view-captive .com-users-methods-list-method .com-users-methods-list-method-header, .com_users.view-captive .com-users-methods-list-method .view-login .sidebar-wrapper [data-bs-theme="dark"] .com-users-methods-list-method-header, .task-logout .sidebar-wrapper [data-bs-theme="dark"] .card-header, .task-logout .sidebar-wrapper [data-bs-theme="dark"] .com_users.view-user .com-users-methods-list-method .com-users-methods-list-method-header, .com_users.view-user .com-users-methods-list-method .task-logout .sidebar-wrapper [data-bs-theme="dark"] .com-users-methods-list-method-header, .task-logout .sidebar-wrapper [data-bs-theme="dark"] .com_users.view-methods .com-users-methods-list-method .com-users-methods-list-method-header, .com_users.view-methods .com-users-methods-list-method .task-logout .sidebar-wrapper [data-bs-theme="dark"] .com-users-methods-list-method-header, .task-logout .sidebar-wrapper [data-bs-theme="dark"] .com_users.view-captive .com-users-methods-list-method .com-users-methods-list-method-header, .com_users.view-captive .com-users-methods-list-method .task-logout .sidebar-wrapper [data-bs-theme="dark"] .com-users-methods-list-method-header {
   background: none;
 }
 
 .view-login #sidebar, .task-logout #sidebar {
   --body-color: var(--template-text-light);
+  width: 100%;
   color: var(--template-text-light);
   text-align: center;
   align-self: flex-end;
-  width: 100%;
   font-size: .875rem;
 }
 
-.view-login #sidebar .card, .view-login #sidebar .com_users.view-user .com-users-methods-list-method, .com_users.view-user .view-login #sidebar .com-users-methods-list-method, .view-login #sidebar .com_users.view-methods .com-users-methods-list-method, .com_users.view-methods .view-login #sidebar .com-users-methods-list-method, .task-logout #sidebar .card, .task-logout #sidebar .com_users.view-user .com-users-methods-list-method, .com_users.view-user .task-logout #sidebar .com-users-methods-list-method, .task-logout #sidebar .com_users.view-methods .com-users-methods-list-method, .com_users.view-methods .task-logout #sidebar .com-users-methods-list-method {
+.view-login #sidebar .card, .view-login #sidebar .com_users.view-user .com-users-methods-list-method, .com_users.view-user .view-login #sidebar .com-users-methods-list-method, .view-login #sidebar .com_users.view-methods .com-users-methods-list-method, .com_users.view-methods .view-login #sidebar .com-users-methods-list-method, .view-login #sidebar .com_users.view-captive .com-users-methods-list-method, .com_users.view-captive .view-login #sidebar .com-users-methods-list-method, .task-logout #sidebar .card, .task-logout #sidebar .com_users.view-user .com-users-methods-list-method, .com_users.view-user .task-logout #sidebar .com-users-methods-list-method, .task-logout #sidebar .com_users.view-methods .com-users-methods-list-method, .com_users.view-methods .task-logout #sidebar .com-users-methods-list-method, .task-logout #sidebar .com_users.view-captive .com-users-methods-list-method, .com_users.view-captive .task-logout #sidebar .com-users-methods-list-method {
   box-shadow: none;
   background: #0000001a;
 }
 
-.view-login #sidebar .card .module-body, .view-login #sidebar .com_users.view-user .com-users-methods-list-method .module-body, .com_users.view-user .view-login #sidebar .com-users-methods-list-method .module-body, .view-login #sidebar .com_users.view-methods .com-users-methods-list-method .module-body, .com_users.view-methods .view-login #sidebar .com-users-methods-list-method .module-body, .task-logout #sidebar .card .module-body, .task-logout #sidebar .com_users.view-user .com-users-methods-list-method .module-body, .com_users.view-user .task-logout #sidebar .com-users-methods-list-method .module-body, .task-logout #sidebar .com_users.view-methods .com-users-methods-list-method .module-body, .com_users.view-methods .task-logout #sidebar .com-users-methods-list-method .module-body {
+.view-login #sidebar .card .module-body, .view-login #sidebar .com_users.view-user .com-users-methods-list-method .module-body, .com_users.view-user .view-login #sidebar .com-users-methods-list-method .module-body, .view-login #sidebar .com_users.view-methods .com-users-methods-list-method .module-body, .com_users.view-methods .view-login #sidebar .com-users-methods-list-method .module-body, .view-login #sidebar .com_users.view-captive .com-users-methods-list-method .module-body, .com_users.view-captive .view-login #sidebar .com-users-methods-list-method .module-body, .task-logout #sidebar .card .module-body, .task-logout #sidebar .com_users.view-user .com-users-methods-list-method .module-body, .com_users.view-user .task-logout #sidebar .com-users-methods-list-method .module-body, .task-logout #sidebar .com_users.view-methods .com-users-methods-list-method .module-body, .com_users.view-methods .task-logout #sidebar .com-users-methods-list-method .module-body, .task-logout #sidebar .com_users.view-captive .com-users-methods-list-method .module-body, .com_users.view-captive .task-logout #sidebar .com-users-methods-list-method .module-body {
   padding: .75rem 1.25rem;
 }
 
-.view-login #sidebar [data-bs-theme="dark"] .card, .view-login #sidebar [data-bs-theme="dark"] .com_users.view-user .com-users-methods-list-method, .com_users.view-user .view-login #sidebar [data-bs-theme="dark"] .com-users-methods-list-method, .view-login #sidebar [data-bs-theme="dark"] .com_users.view-methods .com-users-methods-list-method, .com_users.view-methods .view-login #sidebar [data-bs-theme="dark"] .com-users-methods-list-method, .task-logout #sidebar [data-bs-theme="dark"] .card, .task-logout #sidebar [data-bs-theme="dark"] .com_users.view-user .com-users-methods-list-method, .com_users.view-user .task-logout #sidebar [data-bs-theme="dark"] .com-users-methods-list-method, .task-logout #sidebar [data-bs-theme="dark"] .com_users.view-methods .com-users-methods-list-method, .com_users.view-methods .task-logout #sidebar [data-bs-theme="dark"] .com-users-methods-list-method {
+.view-login #sidebar [data-bs-theme="dark"] .card, .view-login #sidebar [data-bs-theme="dark"] .com_users.view-user .com-users-methods-list-method, .com_users.view-user .view-login #sidebar [data-bs-theme="dark"] .com-users-methods-list-method, .view-login #sidebar [data-bs-theme="dark"] .com_users.view-methods .com-users-methods-list-method, .com_users.view-methods .view-login #sidebar [data-bs-theme="dark"] .com-users-methods-list-method, .view-login #sidebar [data-bs-theme="dark"] .com_users.view-captive .com-users-methods-list-method, .com_users.view-captive .view-login #sidebar [data-bs-theme="dark"] .com-users-methods-list-method, .task-logout #sidebar [data-bs-theme="dark"] .card, .task-logout #sidebar [data-bs-theme="dark"] .com_users.view-user .com-users-methods-list-method, .com_users.view-user .task-logout #sidebar [data-bs-theme="dark"] .com-users-methods-list-method, .task-logout #sidebar [data-bs-theme="dark"] .com_users.view-methods .com-users-methods-list-method, .com_users.view-methods .task-logout #sidebar [data-bs-theme="dark"] .com-users-methods-list-method, .task-logout #sidebar [data-bs-theme="dark"] .com_users.view-captive .com-users-methods-list-method, .com_users.view-captive .task-logout #sidebar [data-bs-theme="dark"] .com-users-methods-list-method {
   background: #0006;
 }
 
@@ -15212,7 +15244,7 @@ label {
 }
 
 @media (width <= 767.98px) {
-  .view-login #wrapper.d-flex, .view-login .com_users.view-user .com-users-methods-list-method .com-users-methods-list-method-title h3#wrapper, .com_users.view-user .com-users-methods-list-method .com-users-methods-list-method-title .view-login h3#wrapper, .view-login .com_users.view-user .com-users-methods-list-method .com-users-methods-list-method-title #wrapper.h3, .com_users.view-user .com-users-methods-list-method .com-users-methods-list-method-title .view-login #wrapper.h3, .view-login .com_users.view-methods .com-users-methods-list-method .com-users-methods-list-method-title h3#wrapper, .com_users.view-methods .com-users-methods-list-method .com-users-methods-list-method-title .view-login h3#wrapper, .view-login .com_users.view-methods .com-users-methods-list-method .com-users-methods-list-method-title #wrapper.h3, .com_users.view-methods .com-users-methods-list-method .com-users-methods-list-method-title .view-login #wrapper.h3, .view-login .com_users.view-user .com-users-methods-list-method #wrapper.com-users-methods-list-method-title, .com_users.view-user .com-users-methods-list-method .view-login #wrapper.com-users-methods-list-method-title, .view-login .com_users.view-methods .com-users-methods-list-method #wrapper.com-users-methods-list-method-title, .com_users.view-methods .com-users-methods-list-method .view-login #wrapper.com-users-methods-list-method-title, .view-login .com_users.view-user .com-users-methods-list-method #wrapper.com-users-methods-list-method-header, .com_users.view-user .com-users-methods-list-method .view-login #wrapper.com-users-methods-list-method-header, .view-login .com_users.view-methods .com-users-methods-list-method #wrapper.com-users-methods-list-method-header, .com_users.view-methods .com-users-methods-list-method .view-login #wrapper.com-users-methods-list-method-header {
+  .view-login #wrapper.d-flex, .view-login .com_users.view-user .com-users-methods-list-method .com-users-methods-list-method-title h3#wrapper, .com_users.view-user .com-users-methods-list-method .com-users-methods-list-method-title .view-login h3#wrapper, .view-login .com_users.view-user .com-users-methods-list-method .com-users-methods-list-method-title #wrapper.h3, .com_users.view-user .com-users-methods-list-method .com-users-methods-list-method-title .view-login #wrapper.h3, .view-login .com_users.view-methods .com-users-methods-list-method .com-users-methods-list-method-title h3#wrapper, .com_users.view-methods .com-users-methods-list-method .com-users-methods-list-method-title .view-login h3#wrapper, .view-login .com_users.view-methods .com-users-methods-list-method .com-users-methods-list-method-title #wrapper.h3, .com_users.view-methods .com-users-methods-list-method .com-users-methods-list-method-title .view-login #wrapper.h3, .view-login .com_users.view-captive .com-users-methods-list-method .com-users-methods-list-method-title h3#wrapper, .com_users.view-captive .com-users-methods-list-method .com-users-methods-list-method-title .view-login h3#wrapper, .view-login .com_users.view-captive .com-users-methods-list-method .com-users-methods-list-method-title #wrapper.h3, .com_users.view-captive .com-users-methods-list-method .com-users-methods-list-method-title .view-login #wrapper.h3, .view-login .com_users.view-user .com-users-methods-list-method #wrapper.com-users-methods-list-method-title, .com_users.view-user .com-users-methods-list-method .view-login #wrapper.com-users-methods-list-method-title, .view-login .com_users.view-methods .com-users-methods-list-method #wrapper.com-users-methods-list-method-title, .com_users.view-methods .com-users-methods-list-method .view-login #wrapper.com-users-methods-list-method-title, .view-login .com_users.view-captive .com-users-methods-list-method #wrapper.com-users-methods-list-method-title, .com_users.view-captive .com-users-methods-list-method .view-login #wrapper.com-users-methods-list-method-title, .view-login .com_users.view-user .com-users-methods-list-method #wrapper.com-users-methods-list-method-header, .com_users.view-user .com-users-methods-list-method .view-login #wrapper.com-users-methods-list-method-header, .view-login .com_users.view-methods .com-users-methods-list-method #wrapper.com-users-methods-list-method-header, .com_users.view-methods .com-users-methods-list-method .view-login #wrapper.com-users-methods-list-method-header, .view-login .com_users.view-captive .com-users-methods-list-method #wrapper.com-users-methods-list-method-header, .com_users.view-captive .com-users-methods-list-method .view-login #wrapper.com-users-methods-list-method-header {
     display: flex !important;
   }
 
@@ -15222,7 +15254,7 @@ label {
 }
 
 .view-login .invalid .form-control-feedback {
-  color: var(--danger);
+  color: var(--danger-text);
 }
 
 .login_message {
@@ -15370,11 +15402,11 @@ label {
 
 joomla-dialog dialog {
   border: 1px solid var(--border-color-translucent);
-  box-shadow: var(--modal-joomla-dialog-box-shadow);
-  border-radius: .3rem;
   width: 96vw;
   max-width: 1700px;
   height: 96vh;
+  box-shadow: var(--modal-joomla-dialog-box-shadow);
+  border-radius: .3rem;
   padding: 0;
 }
 
@@ -15658,8 +15690,8 @@ joomla-dialog.loaded .joomla-dialog-body {
 }
 
 .quick-icons .quickicon a .quickicon-icon {
-  color: var(--icon-color);
   margin-top: .5rem;
+  color: var(--icon-color);
   margin-inline-start: .2rem;
 }
 
@@ -15833,8 +15865,8 @@ joomla-dialog.loaded .joomla-dialog-body {
 .sidebar-wrapper {
   z-index: 1010;
   background-color: var(--sidebarwrapper-bg);
-  box-shadow: var(--atum-box-shadow);
   min-height: calc(100vh - 66px);
+  box-shadow: var(--atum-box-shadow);
   overflow: hidden;
 }
 
@@ -15956,7 +15988,7 @@ joomla-dialog.loaded .joomla-dialog-body {
 }
 
 .main-nav .has-arrow:after {
-  content: "";
+  content: "";
   justify-content: center;
   align-items: center;
   width: 2rem;
@@ -16126,7 +16158,7 @@ joomla-dialog.loaded .joomla-dialog-body {
 }
 
 .sidebar-nav li a:before {
-  content: "";
+  content: "";
   margin-inline-end: .5rem;
   font-family: "Font Awesome 6 Free";
   font-weight: 900;
@@ -16160,12 +16192,12 @@ joomla-dialog.loaded .joomla-dialog-body {
 
 .subhead {
   z-index: 1000;
+  width: auto;
+  min-height: 43px;
   color: var(--atum-subhead-color);
   background: var(--atum-subhead-bg);
   background-image: var(--atum-subhead-bg-img);
   box-shadow: var(--atum-box-shadow);
-  width: auto;
-  min-height: 43px;
   padding: 8px 1rem;
   position: sticky;
   top: 0;
@@ -16408,9 +16440,9 @@ joomla-dialog.loaded .joomla-dialog-body {
 }
 
 .treeselect li:before {
+  top: 14px;
   content: "";
   background-color: var(--treeselect-line-color);
-  top: 14px;
   width: 10px;
   height: 1px;
   margin: auto;
@@ -16419,10 +16451,10 @@ joomla-dialog.loaded .joomla-dialog-body {
 }
 
 .treeselect li:after {
-  content: "";
-  background-color: var(--treeselect-line-color);
   top: 0;
   bottom: 0;
+  content: "";
+  background-color: var(--treeselect-line-color);
   width: 1px;
   height: 100%;
   position: absolute;
@@ -16828,9 +16860,9 @@ joomla-editor-codemirror.fullscreen .cm-editor {
 }
 
 .com_content.layout-edit joomla-tab #attrib-basic[active] .form-group, .com_content.layout-edit joomla-tab #editor[active] .form-group {
+  max-width: 50%;
   box-shadow: none;
   flex: 0 0 50%;
-  max-width: 50%;
 }
 
 .com_content.layout-edit joomla-tab #attrib-basic[active] .form-group:first-child, .com_content.layout-edit joomla-tab #attrib-basic[active] .form-group:nth-child(19), .com_content.layout-edit joomla-tab #editor[active] .form-group:first-child, .com_content.layout-edit joomla-tab #editor[active] .form-group:nth-child(19), .com_content.layout-edit joomla-tab #attrib-basic[active] .field-spacer, .com_content.layout-edit joomla-tab #editor[active] .field-spacer {
@@ -16842,30 +16874,30 @@ joomla-editor-codemirror.fullscreen .cm-editor {
   margin-top: 2rem;
 }
 
-.com_cpanel .card p:last-child, .com_cpanel .com_users.view-user .com-users-methods-list-method p:last-child, .com_users.view-user .com_cpanel .com-users-methods-list-method p:last-child, .com_cpanel .com_users.view-methods .com-users-methods-list-method p:last-child, .com_users.view-methods .com_cpanel .com-users-methods-list-method p:last-child {
+.com_cpanel .card p:last-child, .com_cpanel .com_users.view-user .com-users-methods-list-method p:last-child, .com_users.view-user .com_cpanel .com-users-methods-list-method p:last-child, .com_cpanel .com_users.view-methods .com-users-methods-list-method p:last-child, .com_users.view-methods .com_cpanel .com-users-methods-list-method p:last-child, .com_cpanel .com_users.view-captive .com-users-methods-list-method p:last-child, .com_users.view-captive .com_cpanel .com-users-methods-list-method p:last-child {
   margin-bottom: 0;
 }
 
-.com_cpanel .card .list-group, .com_cpanel .com_users.view-user .com-users-methods-list-method .list-group, .com_users.view-user .com_cpanel .com-users-methods-list-method .list-group, .com_cpanel .com_users.view-methods .com-users-methods-list-method .list-group, .com_users.view-methods .com_cpanel .com-users-methods-list-method .list-group, .com_cpanel .card .table, .com_cpanel .com_users.view-user .com-users-methods-list-method .table, .com_users.view-user .com_cpanel .com-users-methods-list-method .table, .com_cpanel .com_users.view-methods .com-users-methods-list-method .table, .com_users.view-methods .com_cpanel .com-users-methods-list-method .table {
+.com_cpanel .card .list-group, .com_cpanel .com_users.view-user .com-users-methods-list-method .list-group, .com_users.view-user .com_cpanel .com-users-methods-list-method .list-group, .com_cpanel .com_users.view-methods .com-users-methods-list-method .list-group, .com_users.view-methods .com_cpanel .com-users-methods-list-method .list-group, .com_cpanel .com_users.view-captive .com-users-methods-list-method .list-group, .com_users.view-captive .com_cpanel .com-users-methods-list-method .list-group, .com_cpanel .card .table, .com_cpanel .com_users.view-user .com-users-methods-list-method .table, .com_users.view-user .com_cpanel .com-users-methods-list-method .table, .com_cpanel .com_users.view-methods .com-users-methods-list-method .table, .com_users.view-methods .com_cpanel .com-users-methods-list-method .table, .com_cpanel .com_users.view-captive .com-users-methods-list-method .table, .com_users.view-captive .com_cpanel .com-users-methods-list-method .table {
   margin-bottom: unset;
   border-top: 1px solid var(--border-color);
   padding: 0;
 }
 
-.com_cpanel .card-header, .com_cpanel .com_users.view-user .com-users-methods-list-method .com-users-methods-list-method-header, .com_users.view-user .com-users-methods-list-method .com_cpanel .com-users-methods-list-method-header, .com_cpanel .com_users.view-methods .com-users-methods-list-method .com-users-methods-list-method-header, .com_users.view-methods .com-users-methods-list-method .com_cpanel .com-users-methods-list-method-header {
+.com_cpanel .card-header, .com_cpanel .com_users.view-user .com-users-methods-list-method .com-users-methods-list-method-header, .com_users.view-user .com-users-methods-list-method .com_cpanel .com-users-methods-list-method-header, .com_cpanel .com_users.view-methods .com-users-methods-list-method .com-users-methods-list-method-header, .com_users.view-methods .com-users-methods-list-method .com_cpanel .com-users-methods-list-method-header, .com_cpanel .com_users.view-captive .com-users-methods-list-method .com-users-methods-list-method-header, .com_users.view-captive .com-users-methods-list-method .com_cpanel .com-users-methods-list-method-header {
   --card-bg: var(--card-bg);
 }
 
-.com_cpanel .card-header a, .com_cpanel .com_users.view-user .com-users-methods-list-method .com-users-methods-list-method-header a, .com_users.view-user .com-users-methods-list-method .com_cpanel .com-users-methods-list-method-header a, .com_cpanel .com_users.view-methods .com-users-methods-list-method .com-users-methods-list-method-header a, .com_users.view-methods .com-users-methods-list-method .com_cpanel .com-users-methods-list-method-header a {
+.com_cpanel .card-header a, .com_cpanel .com_users.view-user .com-users-methods-list-method .com-users-methods-list-method-header a, .com_users.view-user .com-users-methods-list-method .com_cpanel .com-users-methods-list-method-header a, .com_cpanel .com_users.view-methods .com-users-methods-list-method .com-users-methods-list-method-header a, .com_users.view-methods .com-users-methods-list-method .com_cpanel .com-users-methods-list-method-header a, .com_cpanel .com_users.view-captive .com-users-methods-list-method .com-users-methods-list-method-header a, .com_users.view-captive .com-users-methods-list-method .com_cpanel .com-users-methods-list-method-header a {
   font-weight: normal;
 }
 
-.com_cpanel .card-header .btn, .com_cpanel .com_users.view-user .com-users-methods-list-method .com-users-methods-list-method-header .btn, .com_users.view-user .com-users-methods-list-method .com_cpanel .com-users-methods-list-method-header .btn, .com_cpanel .com_users.view-methods .com-users-methods-list-method .com-users-methods-list-method-header .btn, .com_users.view-methods .com-users-methods-list-method .com_cpanel .com-users-methods-list-method-header .btn {
+.com_cpanel .card-header .btn, .com_cpanel .com_users.view-user .com-users-methods-list-method .com-users-methods-list-method-header .btn, .com_users.view-user .com-users-methods-list-method .com_cpanel .com-users-methods-list-method-header .btn, .com_cpanel .com_users.view-methods .com-users-methods-list-method .com-users-methods-list-method-header .btn, .com_users.view-methods .com-users-methods-list-method .com_cpanel .com-users-methods-list-method-header .btn, .com_cpanel .com_users.view-captive .com-users-methods-list-method .com-users-methods-list-method-header .btn, .com_users.view-captive .com-users-methods-list-method .com_cpanel .com-users-methods-list-method-header .btn {
   margin-top: .25em;
   margin-bottom: .25em;
 }
 
-.com_cpanel .card-body, .com_cpanel .com_users.view-user .com-users-methods-list-method .com-users-methods-list-method-records-container, .com_users.view-user .com-users-methods-list-method .com_cpanel .com-users-methods-list-method-records-container, .com_cpanel .com_users.view-methods .com-users-methods-list-method .com-users-methods-list-method-records-container, .com_users.view-methods .com-users-methods-list-method .com_cpanel .com-users-methods-list-method-records-container {
+.com_cpanel .card-body, .com_cpanel .com_users.view-user .com-users-methods-list-method .com-users-methods-list-method-records-container, .com_users.view-user .com-users-methods-list-method .com_cpanel .com-users-methods-list-method-records-container, .com_cpanel .com_users.view-methods .com-users-methods-list-method .com-users-methods-list-method-records-container, .com_users.view-methods .com-users-methods-list-method .com_cpanel .com-users-methods-list-method-records-container, .com_cpanel .com_users.view-captive .com-users-methods-list-method .com-users-methods-list-method-records-container, .com_users.view-captive .com-users-methods-list-method .com_cpanel .com-users-methods-list-method-records-container {
   background-color: var(--card-body-bg);
   border-bottom-right-radius: .25rem;
   border-bottom-left-radius: .25rem;
@@ -16884,6 +16916,8 @@ joomla-editor-codemirror.fullscreen .cm-editor {
 }
 
 .com_cpanel .cpanel-add-module {
+  width: 100%;
+  min-height: 130px;
   color: var(--template-quickicon-color);
   background-color: var(--body-bg);
   border: 1px solid var(--body-bg);
@@ -16891,8 +16925,6 @@ joomla-editor-codemirror.fullscreen .cm-editor {
   flex-direction: column;
   justify-content: flex-end;
   align-items: flex-start;
-  width: 100%;
-  min-height: 130px;
   padding: 0 1rem;
   font-size: .875rem;
   font-weight: 700;
@@ -17005,17 +17037,17 @@ joomla-editor-codemirror.fullscreen .cm-editor {
   padding-inline-start: 1rem;
 }
 
-[data-bs-theme="dark"] .com_cpanel .card, [data-bs-theme="dark"] .com_cpanel .com_users.view-user .com-users-methods-list-method, .com_users.view-user [data-bs-theme="dark"] .com_cpanel .com-users-methods-list-method, [data-bs-theme="dark"] .com_cpanel .com_users.view-methods .com-users-methods-list-method, .com_users.view-methods [data-bs-theme="dark"] .com_cpanel .com-users-methods-list-method {
+[data-bs-theme="dark"] .com_cpanel .card, [data-bs-theme="dark"] .com_cpanel .com_users.view-user .com-users-methods-list-method, .com_users.view-user [data-bs-theme="dark"] .com_cpanel .com-users-methods-list-method, [data-bs-theme="dark"] .com_cpanel .com_users.view-methods .com-users-methods-list-method, .com_users.view-methods [data-bs-theme="dark"] .com_cpanel .com-users-methods-list-method, [data-bs-theme="dark"] .com_cpanel .com_users.view-captive .com-users-methods-list-method, .com_users.view-captive [data-bs-theme="dark"] .com_cpanel .com-users-methods-list-method {
   border: 1px solid #ffffff1a;
   box-shadow: -1px 1px 2px #0000001a;
 }
 
-[data-bs-theme="dark"] .com_cpanel .card .list-group-item:last-child, [data-bs-theme="dark"] .com_cpanel .com_users.view-user .com-users-methods-list-method .list-group-item:last-child, .com_users.view-user [data-bs-theme="dark"] .com_cpanel .com-users-methods-list-method .list-group-item:last-child, [data-bs-theme="dark"] .com_cpanel .com_users.view-methods .com-users-methods-list-method .list-group-item:last-child, .com_users.view-methods [data-bs-theme="dark"] .com_cpanel .com-users-methods-list-method .list-group-item:last-child {
+[data-bs-theme="dark"] .com_cpanel .card .list-group-item:last-child, [data-bs-theme="dark"] .com_cpanel .com_users.view-user .com-users-methods-list-method .list-group-item:last-child, .com_users.view-user [data-bs-theme="dark"] .com_cpanel .com-users-methods-list-method .list-group-item:last-child, [data-bs-theme="dark"] .com_cpanel .com_users.view-methods .com-users-methods-list-method .list-group-item:last-child, .com_users.view-methods [data-bs-theme="dark"] .com_cpanel .com-users-methods-list-method .list-group-item:last-child, [data-bs-theme="dark"] .com_cpanel .com_users.view-captive .com-users-methods-list-method .list-group-item:last-child, .com_users.view-captive [data-bs-theme="dark"] .com_cpanel .com-users-methods-list-method .list-group-item:last-child {
   border-bottom-left-radius: var(--border-radius);
   border-bottom-right-radius: var(--border-radius);
 }
 
-[data-bs-theme="dark"] .com_cpanel .card .list-group-item:hover, [data-bs-theme="dark"] .com_cpanel .com_users.view-user .com-users-methods-list-method .list-group-item:hover, .com_users.view-user [data-bs-theme="dark"] .com_cpanel .com-users-methods-list-method .list-group-item:hover, [data-bs-theme="dark"] .com_cpanel .com_users.view-methods .com-users-methods-list-method .list-group-item:hover, .com_users.view-methods [data-bs-theme="dark"] .com_cpanel .com-users-methods-list-method .list-group-item:hover {
+[data-bs-theme="dark"] .com_cpanel .card .list-group-item:hover, [data-bs-theme="dark"] .com_cpanel .com_users.view-user .com-users-methods-list-method .list-group-item:hover, .com_users.view-user [data-bs-theme="dark"] .com_cpanel .com-users-methods-list-method .list-group-item:hover, [data-bs-theme="dark"] .com_cpanel .com_users.view-methods .com-users-methods-list-method .list-group-item:hover, .com_users.view-methods [data-bs-theme="dark"] .com_cpanel .com-users-methods-list-method .list-group-item:hover, [data-bs-theme="dark"] .com_cpanel .com_users.view-captive .com-users-methods-list-method .list-group-item:hover, .com_users.view-captive [data-bs-theme="dark"] .com_cpanel .com-users-methods-list-method .list-group-item:hover {
   background: #0000001a;
 }
 
@@ -17395,15 +17427,15 @@ joomla-editor-codemirror.fullscreen .cm-editor {
   max-width: 100%;
 }
 
-.com_users.view-user #com-users-methods-reset-container, .com_users.view-methods #com-users-methods-reset-container {
+.com_users.view-user #com-users-methods-reset-container, .com_users.view-methods #com-users-methods-reset-container, .com_users.view-captive #com-users-methods-reset-container {
   background-color: var(--users-methods-reset-cont-bg);
 }
 
-.com_users.view-user .com-users-methods-list-method:not(.com-users-methods-list-method-active) .com-users-methods-list-method-header, .com_users.view-methods .com-users-methods-list-method:not(.com-users-methods-list-method-active) .com-users-methods-list-method-header {
+.com_users.view-user .com-users-methods-list-method:not(.com-users-methods-list-method-active) .com-users-methods-list-method-header, .com_users.view-methods .com-users-methods-list-method:not(.com-users-methods-list-method-active) .com-users-methods-list-method-header, .com_users.view-captive .com-users-methods-list-method:not(.com-users-methods-list-method-active) .com-users-methods-list-method-header {
   background-color: var(--users-method-header-inact-bg);
 }
 
-.com_users.view-user .com-users-methods-list-method .com-users-methods-list-method-image, .com_users.view-methods .com-users-methods-list-method .com-users-methods-list-method-image {
+.com_users.view-user .com-users-methods-list-method .com-users-methods-list-method-image, .com_users.view-methods .com-users-methods-list-method .com-users-methods-list-method-image, .com_users.view-captive .com-users-methods-list-method .com-users-methods-list-method-image {
   background-color: var(--users-method-image);
 }
 
@@ -17411,7 +17443,11 @@ joomla-editor-codemirror.fullscreen .cm-editor {
   margin-inline-start: 2rem;
 }
 
-[data-bs-theme="dark"] .com-apps-container .grid-container .card:hover, [data-bs-theme="dark"] .com-apps-container .grid-container .com_users.view-user .com-users-methods-list-method:hover, .com_users.view-user [data-bs-theme="dark"] .com-apps-container .grid-container .com-users-methods-list-method:hover, [data-bs-theme="dark"] .com-apps-container .grid-container .com_users.view-methods .com-users-methods-list-method:hover, .com_users.view-methods [data-bs-theme="dark"] .com-apps-container .grid-container .com-users-methods-list-method:hover, [data-bs-theme="dark"] .com-apps-container .list-container .list-group-item:hover {
+.com_users.view-user table thead th {
+  color: var(--bs-body-color);
+}
+
+[data-bs-theme="dark"] .com-apps-container .grid-container .card:hover, [data-bs-theme="dark"] .com-apps-container .grid-container .com_users.view-user .com-users-methods-list-method:hover, .com_users.view-user [data-bs-theme="dark"] .com-apps-container .grid-container .com-users-methods-list-method:hover, [data-bs-theme="dark"] .com-apps-container .grid-container .com_users.view-methods .com-users-methods-list-method:hover, .com_users.view-methods [data-bs-theme="dark"] .com-apps-container .grid-container .com-users-methods-list-method:hover, [data-bs-theme="dark"] .com-apps-container .grid-container .com_users.view-captive .com-users-methods-list-method:hover, .com_users.view-captive [data-bs-theme="dark"] .com-apps-container .grid-container .com-users-methods-list-method:hover, [data-bs-theme="dark"] .com-apps-container .list-container .list-group-item:hover {
   background-color: var(--gray-800);
 }
 
@@ -17599,6 +17635,8 @@ joomla-editor-codemirror.fullscreen .cm-editor {
   --btn-secondary-bg: var(--template-bg-dark-60);
   --btn-secondary-border: 1px solid var(--template-bg-dark-60);
   --btn-secondary-color: var(--template-text-light);
+  --btn-secondary-bg-hvr: var(--template-bg-dark-70);
+  --btn-secondary-color-hvr: var(--template-text-light);
   --btn-info-color: var(--template-text-light);
   --btn-info-bg: #2a69b8;
   --btn-info-border: 1px solid #2a69b8;
@@ -17731,8 +17769,8 @@ joomla-editor-codemirror.fullscreen .cm-editor {
   --atum-calendar-disabled-color: #999;
   --atum-calendar-disabled-bg: #fff;
   --atum-calendar-select-bg: var(--template-bg-light);
-  --atum-calendar-select-bg-url: url("../../images/select-bg.svg?v=173083");
-  --atum-calendar-select-bg-url-rtl: url("../../images/select-bg-rtl.svg?v=173083");
+  --atum-calendar-select-bg-url: url("../../images/select-bg.svg?v=176349");
+  --atum-calendar-select-bg-url-rtl: url("../../images/select-bg-rtl.svg?v=176349");
   --permissions-sliders-oddCol-bg: var(--template-bg-light);
   --respTable-border-bottom: 1em solid var(--template-bg-dark-80);
   --treeselect-line-color: hsl(var(--hue), 40%, 93%);
@@ -17953,6 +17991,7 @@ joomla-editor-codemirror.fullscreen .cm-editor {
   --btn-secondary-bg: #33383f;
   --btn-secondary-border: 1px solid #4a515b;
   --btn-secondary-bg-hvr: #1c1f23;
+  --btn-secondary-color-hvr: var(--template-text-light);
   --btn-secondary-border-hvr: 1px solid #4a515b;
   --btn-dark-border: 1px solid #000000d9;
   --btn-dark-bg: #000000e6;
@@ -18078,8 +18117,8 @@ joomla-editor-codemirror.fullscreen .cm-editor {
   --atum-calendar-disabled-color: #4b4b4b;
   --atum-calendar-disabled-bg: #00000080;
   --atum-calendar-select-bg: #007db0;
-  --atum-calendar-select-bg-url: url("../../images/select-bg-dark.svg?v=173083");
-  --atum-calendar-select-bg-url-rtl: url("../../images/select-bg-dark-rtl.svg?v=173083");
+  --atum-calendar-select-bg-url: url("../../images/select-bg-dark.svg?v=176349");
+  --atum-calendar-select-bg-url-rtl: url("../../images/select-bg-dark-rtl.svg?v=176349");
   --permissions-sliders-oddCol-bg: var(--template-bg-dark);
   --respTable-border-bottom: 1em solid #007db0;
   --treeselect-line-color: #fff6;
@@ -18112,7 +18151,7 @@ joomla-editor-codemirror.fullscreen .cm-editor {
   border-color: var(--primary) !important;
 }
 
-.border-secondary, .com_users.view-user .com-users-methods-list-method.com-users-methods-list-method-active, .com_users.view-methods .com-users-methods-list-method.com-users-methods-list-method-active, .com_users.view-user .com-users-methods-list-method.com-users-methods-list-method-active .com-users-methods-list-method-header, .com_users.view-methods .com-users-methods-list-method.com-users-methods-list-method-active .com-users-methods-list-method-header {
+.border-secondary, .com_users.view-user .com-users-methods-list-method.com-users-methods-list-method-active, .com_users.view-methods .com-users-methods-list-method.com-users-methods-list-method-active, .com_users.view-captive .com-users-methods-list-method.com-users-methods-list-method-active, .com_users.view-user .com-users-methods-list-method.com-users-methods-list-method-active .com-users-methods-list-method-header, .com_users.view-methods .com-users-methods-list-method.com-users-methods-list-method-active .com-users-methods-list-method-header, .com_users.view-captive .com-users-methods-list-method.com-users-methods-list-method-active .com-users-methods-list-method-header {
   border-color: var(--secondary) !important;
 }
 
@@ -18180,7 +18219,7 @@ joomla-editor-codemirror.fullscreen .cm-editor {
   color: var(--black) !important;
 }
 
-.text-white, .com_users.view-user .com-users-methods-list-method.com-users-methods-list-method-active .com-users-methods-list-method-title h3, .com_users.view-user .com-users-methods-list-method.com-users-methods-list-method-active .com-users-methods-list-method-title .h3, .com_users.view-methods .com-users-methods-list-method.com-users-methods-list-method-active .com-users-methods-list-method-title h3, .com_users.view-methods .com-users-methods-list-method.com-users-methods-list-method-active .com-users-methods-list-method-title .h3, .com_users.view-user .com-users-methods-list-method.com-users-methods-list-method-active .com-users-methods-list-method-header, .com_users.view-methods .com-users-methods-list-method.com-users-methods-list-method-active .com-users-methods-list-method-header {
+.text-white, .com_users.view-user .com-users-methods-list-method.com-users-methods-list-method-active .com-users-methods-list-method-title h3, .com_users.view-user .com-users-methods-list-method.com-users-methods-list-method-active .com-users-methods-list-method-title .h3, .com_users.view-methods .com-users-methods-list-method.com-users-methods-list-method-active .com-users-methods-list-method-title h3, .com_users.view-methods .com-users-methods-list-method.com-users-methods-list-method-active .com-users-methods-list-method-title .h3, .com_users.view-captive .com-users-methods-list-method.com-users-methods-list-method-active .com-users-methods-list-method-title h3, .com_users.view-captive .com-users-methods-list-method.com-users-methods-list-method-active .com-users-methods-list-method-title .h3, .com_users.view-user .com-users-methods-list-method.com-users-methods-list-method-active .com-users-methods-list-method-header, .com_users.view-methods .com-users-methods-list-method.com-users-methods-list-method-active .com-users-methods-list-method-header, .com_users.view-captive .com-users-methods-list-method.com-users-methods-list-method-active .com-users-methods-list-method-header {
   color: var(--white) !important;
 }
 
@@ -18192,7 +18231,7 @@ joomla-editor-codemirror.fullscreen .cm-editor {
   background-color: var(--primary) !important;
 }
 
-.bg-secondary, .com_users.view-user .com-users-methods-list-method.com-users-methods-list-method-active .com-users-methods-list-method-header, .com_users.view-methods .com-users-methods-list-method.com-users-methods-list-method-active .com-users-methods-list-method-header {
+.bg-secondary, .com_users.view-user .com-users-methods-list-method.com-users-methods-list-method-active .com-users-methods-list-method-header, .com_users.view-methods .com-users-methods-list-method.com-users-methods-list-method-active .com-users-methods-list-method-header, .com_users.view-captive .com-users-methods-list-method.com-users-methods-list-method-active .com-users-methods-list-method-header {
   background-color: var(--secondary) !important;
 }
 

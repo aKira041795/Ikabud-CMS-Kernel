@@ -1,8 +1,8 @@
 {
     "plugins": {
-        "templatespare/templatespare.php": {
-            "name": "TemplateSpare \u2013 Build Your Website in Minutes, Not Months",
-            "version": "3.2.0.1",
+        "blockspare/blockspare.php": {
+            "name": "BlockSpare - Gutenberg Site Builder Blocks & Starter Sites",
+            "version": "3.2.15",
             "enabled": true,
             "load_on": {
                 "routes": [
@@ -13,12 +13,110 @@
             },
             "priority": 10,
             "dependencies": []
+        },
+        "elementor/elementor.php": {
+            "name": "Elementor",
+            "version": "3.33.0",
+            "enabled": true,
+            "load_on": {
+                "routes": [],
+                "admin": true,
+                "priority": 15,
+                "post_meta": [
+                    "_elementor_edit_mode",
+                    "_fl_builder_enabled"
+                ]
+            },
+            "priority": 15,
+            "dependencies": []
+        },
+        "elespare/elespare.php": {
+            "name": "EleSpare - News, Magazine and Blog Addons for Elementor",
+            "version": "3.3.9",
+            "enabled": true,
+            "load_on": {
+                "routes": [],
+                "admin": true,
+                "priority": 15,
+                "post_meta": [
+                    "_elementor_edit_mode",
+                    "_fl_builder_enabled"
+                ]
+            },
+            "priority": 15,
+            "dependencies": []
+        },
+        "templatespare/templatespare.php": {
+            "name": "TemplateSpare \u2013 Build Your Website in Minutes, Not Months",
+            "version": "3.2.1",
+            "enabled": true,
+            "load_on": {
+                "routes": [
+                    "*"
+                ],
+                "admin": true,
+                "priority": 10
+            },
+            "priority": 10,
+            "dependencies": []
+        },
+        "wp-live-chat-support/wp-live-chat-support.php": {
+            "name": "3CX Live Chat",
+            "version": "10.0.17",
+            "enabled": true,
+            "load_on": {
+                "routes": [
+                    "*"
+                ],
+                "admin": true,
+                "priority": 10
+            },
+            "priority": 10,
+            "dependencies": []
+        },
+        "wp-post-author/aft-wp-post-author.php": {
+            "name": "WP Post Author",
+            "version": "3.8.6",
+            "enabled": true,
+            "load_on": {
+                "routes": [
+                    "/contact"
+                ],
+                "admin": true,
+                "priority": 20,
+                "shortcodes": [
+                    "contact-form-7",
+                    "wpforms",
+                    "gravityform"
+                ]
+            },
+            "priority": 20,
+            "dependencies": []
+        },
+        "wpforms-lite/wpforms.php": {
+            "name": "WPForms Lite",
+            "version": "1.9.8.4",
+            "enabled": true,
+            "load_on": {
+                "routes": [
+                    "/contact"
+                ],
+                "admin": true,
+                "priority": 20,
+                "shortcodes": [
+                    "contact-form-7",
+                    "wpforms",
+                    "gravityform"
+                ]
+            },
+            "priority": 20,
+            "dependencies": []
         }
     },
     "themes": {
-        "morenews": {
-            "name": "MoreNews",
-            "version": "3.8.3",
+        "phoenix": {
+            "name": "Phoenix",
+            "version": "1.0.0",
             "load_on": {
                 "routes": [
                     "*"
@@ -28,7 +126,7 @@
     },
     "_meta": {
         "version": "1.0",
-        "generated_at": "2025-11-10T05:46:16+00:00",
+        "generated_at": "2025-11-22T06:02:59+00:00",
         "instance_id": "wp-brutus-cli",
         "description": "Auto-generated plugin manifest. Edit load_on rules to optimize loading."
     }

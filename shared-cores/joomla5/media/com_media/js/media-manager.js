@@ -1,13 +1,13 @@
 /**
-* @vue/shared v3.4.38
+* @vue/shared v3.5.22
 * (c) 2018-present Yuxi (Evan) You and Vue contributors
 * @license MIT
 **/
-/*! #__NO_SIDE_EFFECTS__ */
 // @__NO_SIDE_EFFECTS__
-function makeMap(str, expectsLowerCase) {
-  const set = new Set(str.split(","));
-  return expectsLowerCase ? val => set.has(val.toLowerCase()) : val => set.has(val);
+function makeMap(str) {
+  const map = /* @__PURE__ */Object.create(null);
+  for (const key of str.split(",")) map[key] = 1;
+  return val => val in map;
 }
 const EMPTY_OBJ = {};
 const EMPTY_ARR = [];
@@ -53,9 +53,9 @@ const cacheStringFunction = fn => {
     return hit || (cache[str] = fn(str));
   };
 };
-const camelizeRE = /-(\w)/g;
+const camelizeRE = /-\w/g;
 const camelize = cacheStringFunction(str => {
-  return str.replace(camelizeRE, (_, c) => c ? c.toUpperCase() : "");
+  return str.replace(camelizeRE, c => c.slice(1).toUpperCase());
 });
 const hyphenateRE = /\B([A-Z])/g;
 const hyphenate = cacheStringFunction(str => str.replace(hyphenateRE, "-$1").toLowerCase());
@@ -154,7 +154,7 @@ function includeBooleanAttr(value) {
   return !!value || value === "";
 }
 const isRef$1 = val => {
-  return !!(val && val.__v_isRef === true);
+  return !!(val && val["__v_isRef"] === true);
 };
 const toDisplayString = val => {
   return isString(val) ? val : val == null ? "" : isArray(val) || isObject$1(val) && (val.toString === objectToString || !isFunction(val.toString)) ? isRef$1(val) ? toDisplayString(val.value) : JSON.stringify(val, replacer, 2) : String(val);
@@ -194,7 +194,7 @@ const stringifySymbol = function stringifySymbol(v, i) {
 };
 
 /**
-* @vue/reactivity v3.4.38
+* @vue/reactivity v3.5.22
 * (c) 2018-present Yuxi (Evan) You and Vue contributors
 * @license MIT
 **/
@@ -210,6 +210,10 @@ class EffectScope {
      */
     this._active = true;
     /**
+     * @internal track `on` calls, allow `on` call multiple times
+     */
+    this._on = 0;
+    /**
      * @internal
      */
     this.effects = [];
@@ -217,6 +221,7 @@ class EffectScope {
      * @internal
      */
     this.cleanups = [];
+    this._isPaused = false;
     this.parent = activeEffectScope;
     if (!detached && activeEffectScope) {
       this.index = (activeEffectScope.scopes || (activeEffectScope.scopes = [])).push(this) - 1;
@@ -224,6 +229,39 @@ class EffectScope {
   }
   get active() {
     return this._active;
+  }
+  pause() {
+    if (this._active) {
+      this._isPaused = true;
+      let i, l;
+      if (this.scopes) {
+        for (i = 0, l = this.scopes.length; i < l; i++) {
+          this.scopes[i].pause();
+        }
+      }
+      for (i = 0, l = this.effects.length; i < l; i++) {
+        this.effects[i].pause();
+      }
+    }
+  }
+  /**
+   * Resumes the effect scope, including all child scopes and effects.
+   */
+  resume() {
+    if (this._active) {
+      if (this._isPaused) {
+        this._isPaused = false;
+        let i, l;
+        if (this.scopes) {
+          for (i = 0, l = this.scopes.length; i < l; i++) {
+            this.scopes[i].resume();
+          }
+        }
+        for (i = 0, l = this.effects.length; i < l; i++) {
+          this.effects[i].resume();
+        }
+      }
+    }
   }
   run(fn) {
     if (this._active) {
@@ -241,28 +279,38 @@ class EffectScope {
    * @internal
    */
   on() {
-    activeEffectScope = this;
+    if (++this._on === 1) {
+      this.prevScope = activeEffectScope;
+      activeEffectScope = this;
+    }
   }
   /**
    * This should only be called on non-detached scopes
    * @internal
    */
   off() {
-    activeEffectScope = this.parent;
+    if (this._on > 0 && --this._on === 0) {
+      activeEffectScope = this.prevScope;
+      this.prevScope = void 0;
+    }
   }
   stop(fromParent) {
     if (this._active) {
+      this._active = false;
       let i, l;
       for (i = 0, l = this.effects.length; i < l; i++) {
         this.effects[i].stop();
       }
+      this.effects.length = 0;
       for (i = 0, l = this.cleanups.length; i < l; i++) {
         this.cleanups[i]();
       }
+      this.cleanups.length = 0;
       if (this.scopes) {
         for (i = 0, l = this.scopes.length; i < l; i++) {
           this.scopes[i].stop(true);
         }
+        this.scopes.length = 0;
       }
       if (!this.detached && this.parent && !fromParent) {
         const last = this.parent.scopes.pop();
@@ -272,132 +320,293 @@ class EffectScope {
         }
       }
       this.parent = void 0;
-      this._active = false;
     }
   }
 }
 function effectScope(detached) {
   return new EffectScope(detached);
 }
-function recordEffectScope(effect, scope) {
-  if (scope === void 0) {
-    scope = activeEffectScope;
-  }
-  if (scope && scope.active) {
-    scope.effects.push(effect);
-  }
-}
 function getCurrentScope() {
   return activeEffectScope;
 }
-let activeEffect;
+let activeSub;
+const pausedQueueEffects = /* @__PURE__ */new WeakSet();
 class ReactiveEffect {
-  constructor(fn, trigger, scheduler, scope) {
+  constructor(fn) {
     this.fn = fn;
-    this.trigger = trigger;
-    this.scheduler = scheduler;
-    this.active = true;
-    this.deps = [];
     /**
      * @internal
      */
-    this._dirtyLevel = 4;
+    this.deps = void 0;
     /**
      * @internal
      */
-    this._trackId = 0;
+    this.depsTail = void 0;
     /**
      * @internal
      */
-    this._runnings = 0;
+    this.flags = 1 | 4;
     /**
      * @internal
      */
-    this._shouldSchedule = false;
+    this.next = void 0;
     /**
      * @internal
      */
-    this._depsLength = 0;
-    recordEffectScope(this, scope);
-  }
-  get dirty() {
-    if (this._dirtyLevel === 2 || this._dirtyLevel === 3) {
-      this._dirtyLevel = 1;
-      pauseTracking();
-      for (let i = 0; i < this._depsLength; i++) {
-        const dep = this.deps[i];
-        if (dep.computed) {
-          triggerComputed(dep.computed);
-          if (this._dirtyLevel >= 4) {
-            break;
-          }
-        }
-      }
-      if (this._dirtyLevel === 1) {
-        this._dirtyLevel = 0;
-      }
-      resetTracking();
+    this.cleanup = void 0;
+    this.scheduler = void 0;
+    if (activeEffectScope && activeEffectScope.active) {
+      activeEffectScope.effects.push(this);
     }
-    return this._dirtyLevel >= 4;
   }
-  set dirty(v) {
-    this._dirtyLevel = v ? 4 : 0;
+  pause() {
+    this.flags |= 64;
+  }
+  resume() {
+    if (this.flags & 64) {
+      this.flags &= -65;
+      if (pausedQueueEffects.has(this)) {
+        pausedQueueEffects.delete(this);
+        this.trigger();
+      }
+    }
+  }
+  /**
+   * @internal
+   */
+  notify() {
+    if (this.flags & 2 && !(this.flags & 32)) {
+      return;
+    }
+    if (!(this.flags & 8)) {
+      batch(this);
+    }
   }
   run() {
-    this._dirtyLevel = 0;
-    if (!this.active) {
+    if (!(this.flags & 1)) {
       return this.fn();
     }
-    let lastShouldTrack = shouldTrack;
-    let lastEffect = activeEffect;
+    this.flags |= 2;
+    cleanupEffect(this);
+    prepareDeps(this);
+    const prevEffect = activeSub;
+    const prevShouldTrack = shouldTrack;
+    activeSub = this;
+    shouldTrack = true;
     try {
-      shouldTrack = true;
-      activeEffect = this;
-      this._runnings++;
-      preCleanupEffect(this);
       return this.fn();
     } finally {
-      postCleanupEffect(this);
-      this._runnings--;
-      activeEffect = lastEffect;
-      shouldTrack = lastShouldTrack;
+      cleanupDeps(this);
+      activeSub = prevEffect;
+      shouldTrack = prevShouldTrack;
+      this.flags &= -3;
     }
   }
   stop() {
-    if (this.active) {
-      preCleanupEffect(this);
-      postCleanupEffect(this);
+    if (this.flags & 1) {
+      for (let link = this.deps; link; link = link.nextDep) {
+        removeSub(link);
+      }
+      this.deps = this.depsTail = void 0;
+      cleanupEffect(this);
       this.onStop && this.onStop();
-      this.active = false;
+      this.flags &= -2;
     }
   }
-}
-function triggerComputed(computed) {
-  return computed.value;
-}
-function preCleanupEffect(effect2) {
-  effect2._trackId++;
-  effect2._depsLength = 0;
-}
-function postCleanupEffect(effect2) {
-  if (effect2.deps.length > effect2._depsLength) {
-    for (let i = effect2._depsLength; i < effect2.deps.length; i++) {
-      cleanupDepEffect(effect2.deps[i], effect2);
+  trigger() {
+    if (this.flags & 64) {
+      pausedQueueEffects.add(this);
+    } else if (this.scheduler) {
+      this.scheduler();
+    } else {
+      this.runIfDirty();
     }
-    effect2.deps.length = effect2._depsLength;
+  }
+  /**
+   * @internal
+   */
+  runIfDirty() {
+    if (isDirty(this)) {
+      this.run();
+    }
+  }
+  get dirty() {
+    return isDirty(this);
   }
 }
-function cleanupDepEffect(dep, effect2) {
-  const trackId = dep.get(effect2);
-  if (trackId !== void 0 && effect2._trackId !== trackId) {
-    dep.delete(effect2);
-    if (dep.size === 0) {
-      dep.cleanup();
+let batchDepth = 0;
+let batchedSub;
+let batchedComputed;
+function batch(sub, isComputed) {
+  if (isComputed === void 0) {
+    isComputed = false;
+  }
+  sub.flags |= 8;
+  if (isComputed) {
+    sub.next = batchedComputed;
+    batchedComputed = sub;
+    return;
+  }
+  sub.next = batchedSub;
+  batchedSub = sub;
+}
+function startBatch() {
+  batchDepth++;
+}
+function endBatch() {
+  if (--batchDepth > 0) {
+    return;
+  }
+  if (batchedComputed) {
+    let e = batchedComputed;
+    batchedComputed = void 0;
+    while (e) {
+      const next = e.next;
+      e.next = void 0;
+      e.flags &= -9;
+      e = next;
     }
+  }
+  let error;
+  while (batchedSub) {
+    let e = batchedSub;
+    batchedSub = void 0;
+    while (e) {
+      const next = e.next;
+      e.next = void 0;
+      e.flags &= -9;
+      if (e.flags & 1) {
+        try {
+          ;
+          e.trigger();
+        } catch (err) {
+          if (!error) error = err;
+        }
+      }
+      e = next;
+    }
+  }
+  if (error) throw error;
+}
+function prepareDeps(sub) {
+  for (let link = sub.deps; link; link = link.nextDep) {
+    link.version = -1;
+    link.prevActiveLink = link.dep.activeLink;
+    link.dep.activeLink = link;
+  }
+}
+function cleanupDeps(sub) {
+  let head;
+  let tail = sub.depsTail;
+  let link = tail;
+  while (link) {
+    const prev = link.prevDep;
+    if (link.version === -1) {
+      if (link === tail) tail = prev;
+      removeSub(link);
+      removeDep(link);
+    } else {
+      head = link;
+    }
+    link.dep.activeLink = link.prevActiveLink;
+    link.prevActiveLink = void 0;
+    link = prev;
+  }
+  sub.deps = head;
+  sub.depsTail = tail;
+}
+function isDirty(sub) {
+  for (let link = sub.deps; link; link = link.nextDep) {
+    if (link.dep.version !== link.version || link.dep.computed && (refreshComputed(link.dep.computed) || link.dep.version !== link.version)) {
+      return true;
+    }
+  }
+  if (sub._dirty) {
+    return true;
+  }
+  return false;
+}
+function refreshComputed(computed) {
+  if (computed.flags & 4 && !(computed.flags & 16)) {
+    return;
+  }
+  computed.flags &= -17;
+  if (computed.globalVersion === globalVersion) {
+    return;
+  }
+  computed.globalVersion = globalVersion;
+  if (!computed.isSSR && computed.flags & 128 && (!computed.deps && !computed._dirty || !isDirty(computed))) {
+    return;
+  }
+  computed.flags |= 2;
+  const dep = computed.dep;
+  const prevSub = activeSub;
+  const prevShouldTrack = shouldTrack;
+  activeSub = computed;
+  shouldTrack = true;
+  try {
+    prepareDeps(computed);
+    const value = computed.fn(computed._value);
+    if (dep.version === 0 || hasChanged(value, computed._value)) {
+      computed.flags |= 128;
+      computed._value = value;
+      dep.version++;
+    }
+  } catch (err) {
+    dep.version++;
+    throw err;
+  } finally {
+    activeSub = prevSub;
+    shouldTrack = prevShouldTrack;
+    cleanupDeps(computed);
+    computed.flags &= -3;
+  }
+}
+function removeSub(link, soft) {
+  if (soft === void 0) {
+    soft = false;
+  }
+  const {
+    dep,
+    prevSub,
+    nextSub
+  } = link;
+  if (prevSub) {
+    prevSub.nextSub = nextSub;
+    link.prevSub = void 0;
+  }
+  if (nextSub) {
+    nextSub.prevSub = prevSub;
+    link.nextSub = void 0;
+  }
+  if (dep.subs === link) {
+    dep.subs = prevSub;
+    if (!prevSub && dep.computed) {
+      dep.computed.flags &= -5;
+      for (let l = dep.computed.deps; l; l = l.nextDep) {
+        removeSub(l, true);
+      }
+    }
+  }
+  if (!soft && ! --dep.sc && dep.map) {
+    dep.map.delete(dep.key);
+  }
+}
+function removeDep(link) {
+  const {
+    prevDep,
+    nextDep
+  } = link;
+  if (prevDep) {
+    prevDep.nextDep = nextDep;
+    link.prevDep = void 0;
+  }
+  if (nextDep) {
+    nextDep.prevDep = prevDep;
+    link.nextDep = void 0;
   }
 }
 let shouldTrack = true;
-let pauseScheduleStack = 0;
 const trackStack = [];
 function pauseTracking() {
   trackStack.push(shouldTrack);
@@ -407,166 +616,421 @@ function resetTracking() {
   const last = trackStack.pop();
   shouldTrack = last === void 0 ? true : last;
 }
-function pauseScheduling() {
-  pauseScheduleStack++;
-}
-function resetScheduling() {
-  pauseScheduleStack--;
-  while (!pauseScheduleStack && queueEffectSchedulers.length) {
-    queueEffectSchedulers.shift()();
+function cleanupEffect(e) {
+  const {
+    cleanup
+  } = e;
+  e.cleanup = void 0;
+  if (cleanup) {
+    const prevSub = activeSub;
+    activeSub = void 0;
+    try {
+      cleanup();
+    } finally {
+      activeSub = prevSub;
+    }
   }
 }
-function trackEffect(effect2, dep, debuggerEventExtraInfo) {
-  if (dep.get(effect2) !== effect2._trackId) {
-    dep.set(effect2, effect2._trackId);
-    const oldDep = effect2.deps[effect2._depsLength];
-    if (oldDep !== dep) {
-      if (oldDep) {
-        cleanupDepEffect(oldDep, effect2);
+let globalVersion = 0;
+class Link {
+  constructor(sub, dep) {
+    this.sub = sub;
+    this.dep = dep;
+    this.version = dep.version;
+    this.nextDep = this.prevDep = this.nextSub = this.prevSub = this.prevActiveLink = void 0;
+  }
+}
+class Dep {
+  // TODO isolatedDeclarations "__v_skip"
+  constructor(computed) {
+    this.computed = computed;
+    this.version = 0;
+    /**
+     * Link between this dep and the current active effect
+     */
+    this.activeLink = void 0;
+    /**
+     * Doubly linked list representing the subscribing effects (tail)
+     */
+    this.subs = void 0;
+    /**
+     * For object property deps cleanup
+     */
+    this.map = void 0;
+    this.key = void 0;
+    /**
+     * Subscriber counter
+     */
+    this.sc = 0;
+    /**
+     * @internal
+     */
+    this.__v_skip = true;
+  }
+  track(debugInfo) {
+    if (!activeSub || !shouldTrack || activeSub === this.computed) {
+      return;
+    }
+    let link = this.activeLink;
+    if (link === void 0 || link.sub !== activeSub) {
+      link = this.activeLink = new Link(activeSub, this);
+      if (!activeSub.deps) {
+        activeSub.deps = activeSub.depsTail = link;
+      } else {
+        link.prevDep = activeSub.depsTail;
+        activeSub.depsTail.nextDep = link;
+        activeSub.depsTail = link;
       }
-      effect2.deps[effect2._depsLength++] = dep;
-    } else {
-      effect2._depsLength++;
-    }
-  }
-}
-const queueEffectSchedulers = [];
-function triggerEffects(dep, dirtyLevel, debuggerEventExtraInfo) {
-  pauseScheduling();
-  for (const effect2 of dep.keys()) {
-    let tracking;
-    if (effect2._dirtyLevel < dirtyLevel && (tracking != null ? tracking : tracking = dep.get(effect2) === effect2._trackId)) {
-      effect2._shouldSchedule || (effect2._shouldSchedule = effect2._dirtyLevel === 0);
-      effect2._dirtyLevel = dirtyLevel;
-    }
-    if (effect2._shouldSchedule && (tracking != null ? tracking : tracking = dep.get(effect2) === effect2._trackId)) {
-      effect2.trigger();
-      if ((!effect2._runnings || effect2.allowRecurse) && effect2._dirtyLevel !== 2) {
-        effect2._shouldSchedule = false;
-        if (effect2.scheduler) {
-          queueEffectSchedulers.push(effect2.scheduler);
+      addSub(link);
+    } else if (link.version === -1) {
+      link.version = this.version;
+      if (link.nextDep) {
+        const next = link.nextDep;
+        next.prevDep = link.prevDep;
+        if (link.prevDep) {
+          link.prevDep.nextDep = next;
+        }
+        link.prevDep = activeSub.depsTail;
+        link.nextDep = void 0;
+        activeSub.depsTail.nextDep = link;
+        activeSub.depsTail = link;
+        if (activeSub.deps === link) {
+          activeSub.deps = next;
         }
       }
     }
+    return link;
   }
-  resetScheduling();
+  trigger(debugInfo) {
+    this.version++;
+    globalVersion++;
+    this.notify(debugInfo);
+  }
+  notify(debugInfo) {
+    startBatch();
+    try {
+      if (!!("production" !== "production")) ;
+      for (let link = this.subs; link; link = link.prevSub) {
+        if (link.sub.notify()) {
+          ;
+          link.sub.dep.notify();
+        }
+      }
+    } finally {
+      endBatch();
+    }
+  }
 }
-const createDep = (cleanup, computed) => {
-  const dep = /* @__PURE__ */new Map();
-  dep.cleanup = cleanup;
-  dep.computed = computed;
-  return dep;
-};
+function addSub(link) {
+  link.dep.sc++;
+  if (link.sub.flags & 4) {
+    const computed = link.dep.computed;
+    if (computed && !link.dep.subs) {
+      computed.flags |= 4 | 16;
+      for (let l = computed.deps; l; l = l.nextDep) {
+        addSub(l);
+      }
+    }
+    const currentTail = link.dep.subs;
+    if (currentTail !== link) {
+      link.prevSub = currentTail;
+      if (currentTail) currentTail.nextSub = link;
+    }
+    link.dep.subs = link;
+  }
+}
 const targetMap = /* @__PURE__ */new WeakMap();
 const ITERATE_KEY = Symbol("");
 const MAP_KEY_ITERATE_KEY = Symbol("");
+const ARRAY_ITERATE_KEY = Symbol("");
 function track(target, type, key) {
-  if (shouldTrack && activeEffect) {
+  if (shouldTrack && activeSub) {
     let depsMap = targetMap.get(target);
     if (!depsMap) {
       targetMap.set(target, depsMap = /* @__PURE__ */new Map());
     }
     let dep = depsMap.get(key);
     if (!dep) {
-      depsMap.set(key, dep = createDep(() => depsMap.delete(key)));
+      depsMap.set(key, dep = new Dep());
+      dep.map = depsMap;
+      dep.key = key;
     }
-    trackEffect(activeEffect, dep);
+    {
+      dep.track();
+    }
   }
 }
 function trigger(target, type, key, newValue, oldValue, oldTarget) {
   const depsMap = targetMap.get(target);
   if (!depsMap) {
+    globalVersion++;
     return;
   }
-  let deps = [];
-  if (type === "clear") {
-    deps = [...depsMap.values()];
-  } else if (key === "length" && isArray(target)) {
-    const newLength = Number(newValue);
-    depsMap.forEach((dep, key2) => {
-      if (key2 === "length" || !isSymbol(key2) && key2 >= newLength) {
-        deps.push(dep);
-      }
-    });
-  } else {
-    if (key !== void 0) {
-      deps.push(depsMap.get(key));
-    }
-    switch (type) {
-      case "add":
-        if (!isArray(target)) {
-          deps.push(depsMap.get(ITERATE_KEY));
-          if (isMap(target)) {
-            deps.push(depsMap.get(MAP_KEY_ITERATE_KEY));
-          }
-        } else if (isIntegerKey(key)) {
-          deps.push(depsMap.get("length"));
-        }
-        break;
-      case "delete":
-        if (!isArray(target)) {
-          deps.push(depsMap.get(ITERATE_KEY));
-          if (isMap(target)) {
-            deps.push(depsMap.get(MAP_KEY_ITERATE_KEY));
-          }
-        }
-        break;
-      case "set":
-        if (isMap(target)) {
-          deps.push(depsMap.get(ITERATE_KEY));
-        }
-        break;
-    }
-  }
-  pauseScheduling();
-  for (const dep of deps) {
+  const run = dep => {
     if (dep) {
-      triggerEffects(dep, 4);
+      {
+        dep.trigger();
+      }
+    }
+  };
+  startBatch();
+  if (type === "clear") {
+    depsMap.forEach(run);
+  } else {
+    const targetIsArray = isArray(target);
+    const isArrayIndex = targetIsArray && isIntegerKey(key);
+    if (targetIsArray && key === "length") {
+      const newLength = Number(newValue);
+      depsMap.forEach((dep, key2) => {
+        if (key2 === "length" || key2 === ARRAY_ITERATE_KEY || !isSymbol(key2) && key2 >= newLength) {
+          run(dep);
+        }
+      });
+    } else {
+      if (key !== void 0 || depsMap.has(void 0)) {
+        run(depsMap.get(key));
+      }
+      if (isArrayIndex) {
+        run(depsMap.get(ARRAY_ITERATE_KEY));
+      }
+      switch (type) {
+        case "add":
+          if (!targetIsArray) {
+            run(depsMap.get(ITERATE_KEY));
+            if (isMap(target)) {
+              run(depsMap.get(MAP_KEY_ITERATE_KEY));
+            }
+          } else if (isArrayIndex) {
+            run(depsMap.get("length"));
+          }
+          break;
+        case "delete":
+          if (!targetIsArray) {
+            run(depsMap.get(ITERATE_KEY));
+            if (isMap(target)) {
+              run(depsMap.get(MAP_KEY_ITERATE_KEY));
+            }
+          }
+          break;
+        case "set":
+          if (isMap(target)) {
+            run(depsMap.get(ITERATE_KEY));
+          }
+          break;
+      }
     }
   }
-  resetScheduling();
+  endBatch();
 }
 function getDepFromReactive(object, key) {
-  const depsMap = targetMap.get(object);
-  return depsMap && depsMap.get(key);
+  const depMap = targetMap.get(object);
+  return depMap && depMap.get(key);
+}
+function reactiveReadArray(array) {
+  const raw = toRaw(array);
+  if (raw === array) return raw;
+  track(raw, "iterate", ARRAY_ITERATE_KEY);
+  return isShallow(array) ? raw : raw.map(toReactive);
+}
+function shallowReadArray(arr) {
+  track(arr = toRaw(arr), "iterate", ARRAY_ITERATE_KEY);
+  return arr;
+}
+const arrayInstrumentations = {
+  __proto__: null,
+  [Symbol.iterator]() {
+    return iterator(this, Symbol.iterator, toReactive);
+  },
+  concat() {
+    for (var _len2 = arguments.length, args = new Array(_len2), _key3 = 0; _key3 < _len2; _key3++) {
+      args[_key3] = arguments[_key3];
+    }
+    return reactiveReadArray(this).concat(...args.map(x => isArray(x) ? reactiveReadArray(x) : x));
+  },
+  entries() {
+    return iterator(this, "entries", value => {
+      value[1] = toReactive(value[1]);
+      return value;
+    });
+  },
+  every(fn, thisArg) {
+    return apply(this, "every", fn, thisArg, void 0, arguments);
+  },
+  filter(fn, thisArg) {
+    return apply(this, "filter", fn, thisArg, v => v.map(toReactive), arguments);
+  },
+  find(fn, thisArg) {
+    return apply(this, "find", fn, thisArg, toReactive, arguments);
+  },
+  findIndex(fn, thisArg) {
+    return apply(this, "findIndex", fn, thisArg, void 0, arguments);
+  },
+  findLast(fn, thisArg) {
+    return apply(this, "findLast", fn, thisArg, toReactive, arguments);
+  },
+  findLastIndex(fn, thisArg) {
+    return apply(this, "findLastIndex", fn, thisArg, void 0, arguments);
+  },
+  // flat, flatMap could benefit from ARRAY_ITERATE but are not straight-forward to implement
+  forEach(fn, thisArg) {
+    return apply(this, "forEach", fn, thisArg, void 0, arguments);
+  },
+  includes() {
+    for (var _len3 = arguments.length, args = new Array(_len3), _key4 = 0; _key4 < _len3; _key4++) {
+      args[_key4] = arguments[_key4];
+    }
+    return searchProxy(this, "includes", args);
+  },
+  indexOf() {
+    for (var _len4 = arguments.length, args = new Array(_len4), _key5 = 0; _key5 < _len4; _key5++) {
+      args[_key5] = arguments[_key5];
+    }
+    return searchProxy(this, "indexOf", args);
+  },
+  join(separator) {
+    return reactiveReadArray(this).join(separator);
+  },
+  // keys() iterator only reads `length`, no optimization required
+  lastIndexOf() {
+    for (var _len5 = arguments.length, args = new Array(_len5), _key6 = 0; _key6 < _len5; _key6++) {
+      args[_key6] = arguments[_key6];
+    }
+    return searchProxy(this, "lastIndexOf", args);
+  },
+  map(fn, thisArg) {
+    return apply(this, "map", fn, thisArg, void 0, arguments);
+  },
+  pop() {
+    return noTracking(this, "pop");
+  },
+  push() {
+    for (var _len6 = arguments.length, args = new Array(_len6), _key7 = 0; _key7 < _len6; _key7++) {
+      args[_key7] = arguments[_key7];
+    }
+    return noTracking(this, "push", args);
+  },
+  reduce(fn) {
+    for (var _len7 = arguments.length, args = new Array(_len7 > 1 ? _len7 - 1 : 0), _key8 = 1; _key8 < _len7; _key8++) {
+      args[_key8 - 1] = arguments[_key8];
+    }
+    return reduce(this, "reduce", fn, args);
+  },
+  reduceRight(fn) {
+    for (var _len8 = arguments.length, args = new Array(_len8 > 1 ? _len8 - 1 : 0), _key9 = 1; _key9 < _len8; _key9++) {
+      args[_key9 - 1] = arguments[_key9];
+    }
+    return reduce(this, "reduceRight", fn, args);
+  },
+  shift() {
+    return noTracking(this, "shift");
+  },
+  // slice could use ARRAY_ITERATE but also seems to beg for range tracking
+  some(fn, thisArg) {
+    return apply(this, "some", fn, thisArg, void 0, arguments);
+  },
+  splice() {
+    for (var _len9 = arguments.length, args = new Array(_len9), _key0 = 0; _key0 < _len9; _key0++) {
+      args[_key0] = arguments[_key0];
+    }
+    return noTracking(this, "splice", args);
+  },
+  toReversed() {
+    return reactiveReadArray(this).toReversed();
+  },
+  toSorted(comparer) {
+    return reactiveReadArray(this).toSorted(comparer);
+  },
+  toSpliced() {
+    return reactiveReadArray(this).toSpliced(...arguments);
+  },
+  unshift() {
+    for (var _len0 = arguments.length, args = new Array(_len0), _key1 = 0; _key1 < _len0; _key1++) {
+      args[_key1] = arguments[_key1];
+    }
+    return noTracking(this, "unshift", args);
+  },
+  values() {
+    return iterator(this, "values", toReactive);
+  }
+};
+function iterator(self, method, wrapValue) {
+  const arr = shallowReadArray(self);
+  const iter = arr[method]();
+  if (arr !== self && !isShallow(self)) {
+    iter._next = iter.next;
+    iter.next = () => {
+      const result = iter._next();
+      if (!result.done) {
+        result.value = wrapValue(result.value);
+      }
+      return result;
+    };
+  }
+  return iter;
+}
+const arrayProto = Array.prototype;
+function apply(self, method, fn, thisArg, wrappedRetFn, args) {
+  const arr = shallowReadArray(self);
+  const needsWrap = arr !== self && !isShallow(self);
+  const methodFn = arr[method];
+  if (methodFn !== arrayProto[method]) {
+    const result2 = methodFn.apply(self, args);
+    return needsWrap ? toReactive(result2) : result2;
+  }
+  let wrappedFn = fn;
+  if (arr !== self) {
+    if (needsWrap) {
+      wrappedFn = function wrappedFn(item, index) {
+        return fn.call(this, toReactive(item), index, self);
+      };
+    } else if (fn.length > 2) {
+      wrappedFn = function wrappedFn(item, index) {
+        return fn.call(this, item, index, self);
+      };
+    }
+  }
+  const result = methodFn.call(arr, wrappedFn, thisArg);
+  return needsWrap && wrappedRetFn ? wrappedRetFn(result) : result;
+}
+function reduce(self, method, fn, args) {
+  const arr = shallowReadArray(self);
+  let wrappedFn = fn;
+  if (arr !== self) {
+    if (!isShallow(self)) {
+      wrappedFn = function wrappedFn(acc, item, index) {
+        return fn.call(this, acc, toReactive(item), index, self);
+      };
+    } else if (fn.length > 3) {
+      wrappedFn = function wrappedFn(acc, item, index) {
+        return fn.call(this, acc, item, index, self);
+      };
+    }
+  }
+  return arr[method](wrappedFn, ...args);
+}
+function searchProxy(self, method, args) {
+  const arr = toRaw(self);
+  track(arr, "iterate", ARRAY_ITERATE_KEY);
+  const res = arr[method](...args);
+  if ((res === -1 || res === false) && isProxy(args[0])) {
+    args[0] = toRaw(args[0]);
+    return arr[method](...args);
+  }
+  return res;
+}
+function noTracking(self, method, args) {
+  if (args === void 0) {
+    args = [];
+  }
+  pauseTracking();
+  startBatch();
+  const res = toRaw(self)[method].apply(self, args);
+  endBatch();
+  resetTracking();
+  return res;
 }
 const isNonTrackableKeys = /* @__PURE__ */makeMap("__proto__,__v_isRef,__isVue");
 const builtInSymbols = new Set(/* @__PURE__ */Object.getOwnPropertyNames(Symbol).filter(key => key !== "arguments" && key !== "caller").map(key => Symbol[key]).filter(isSymbol));
-const arrayInstrumentations = /* @__PURE__ */createArrayInstrumentations();
-function createArrayInstrumentations() {
-  const instrumentations = {};
-  ["includes", "indexOf", "lastIndexOf"].forEach(key => {
-    instrumentations[key] = function () {
-      const arr = toRaw(this);
-      for (let i = 0, l = this.length; i < l; i++) {
-        track(arr, "get", i + "");
-      }
-      for (var _len2 = arguments.length, args = new Array(_len2), _key3 = 0; _key3 < _len2; _key3++) {
-        args[_key3] = arguments[_key3];
-      }
-      const res = arr[key](...args);
-      if (res === -1 || res === false) {
-        return arr[key](...args.map(toRaw));
-      } else {
-        return res;
-      }
-    };
-  });
-  ["push", "pop", "shift", "unshift", "splice"].forEach(key => {
-    instrumentations[key] = function () {
-      pauseTracking();
-      pauseScheduling();
-      for (var _len3 = arguments.length, args = new Array(_len3), _key4 = 0; _key4 < _len3; _key4++) {
-        args[_key4] = arguments[_key4];
-      }
-      const res = toRaw(this)[key].apply(this, args);
-      resetScheduling();
-      resetTracking();
-      return res;
-    };
-  });
-  return instrumentations;
-}
 function hasOwnProperty(key) {
   if (!isSymbol(key)) key = String(key);
   const obj = toRaw(this);
@@ -585,6 +1049,7 @@ class BaseReactiveHandler {
     this._isShallow = _isShallow;
   }
   get(target, key, receiver) {
+    if (key === "__v_skip") return target["__v_skip"];
     const isReadonly2 = this._isReadonly,
       isShallow2 = this._isShallow;
     if (key === "__v_isReactive") {
@@ -604,14 +1069,19 @@ class BaseReactiveHandler {
     }
     const targetIsArray = isArray(target);
     if (!isReadonly2) {
-      if (targetIsArray && hasOwn(arrayInstrumentations, key)) {
-        return Reflect.get(arrayInstrumentations, key, receiver);
+      let fn;
+      if (targetIsArray && (fn = arrayInstrumentations[key])) {
+        return fn;
       }
       if (key === "hasOwnProperty") {
         return hasOwnProperty;
       }
     }
-    const res = Reflect.get(target, key, receiver);
+    const res = Reflect.get(target, key,
+    // if this is a proxy wrapping a ref, return methods using the raw ref
+    // as receiver so that we don't have to call `toRaw` on the ref in all
+    // its class methods
+    isRef(target) ? target : receiver);
     if (isSymbol(key) ? builtInSymbols.has(key) : isNonTrackableKeys(key)) {
       return res;
     }
@@ -622,7 +1092,8 @@ class BaseReactiveHandler {
       return res;
     }
     if (isRef(res)) {
-      return targetIsArray && isIntegerKey(key) ? res : res.value;
+      const value = targetIsArray && isIntegerKey(key) ? res : res.value;
+      return isReadonly2 && isObject$1(value) ? readonly(value) : value;
     }
     if (isObject$1(res)) {
       return isReadonly2 ? readonly(res) : reactive(res);
@@ -647,7 +1118,7 @@ class MutableReactiveHandler extends BaseReactiveHandler {
       }
       if (!isArray(target) && isRef(oldValue) && !isRef(value)) {
         if (isOldValueReadonly) {
-          return false;
+          return true;
         } else {
           oldValue.value = value;
           return true;
@@ -655,7 +1126,7 @@ class MutableReactiveHandler extends BaseReactiveHandler {
       }
     }
     const hadKey = isArray(target) && isIntegerKey(key) ? Number(key) < target.length : hasOwn(target, key);
-    const result = Reflect.set(target, key, value, receiver);
+    const result = Reflect.set(target, key, value, isRef(target) ? target : receiver);
     if (target === toRaw(receiver)) {
       if (!hadKey) {
         trigger(target, "add", key, value);
@@ -706,138 +1177,6 @@ const shallowReactiveHandlers = /* @__PURE__ */new MutableReactiveHandler(true);
 const shallowReadonlyHandlers = /* @__PURE__ */new ReadonlyReactiveHandler(true);
 const toShallow = value => value;
 const getProto = v => Reflect.getPrototypeOf(v);
-function get(target, key, isReadonly2, isShallow2) {
-  if (isReadonly2 === void 0) {
-    isReadonly2 = false;
-  }
-  if (isShallow2 === void 0) {
-    isShallow2 = false;
-  }
-  target = target["__v_raw"];
-  const rawTarget = toRaw(target);
-  const rawKey = toRaw(key);
-  if (!isReadonly2) {
-    if (hasChanged(key, rawKey)) {
-      track(rawTarget, "get", key);
-    }
-    track(rawTarget, "get", rawKey);
-  }
-  const {
-    has: has2
-  } = getProto(rawTarget);
-  const wrap = isShallow2 ? toShallow : isReadonly2 ? toReadonly : toReactive;
-  if (has2.call(rawTarget, key)) {
-    return wrap(target.get(key));
-  } else if (has2.call(rawTarget, rawKey)) {
-    return wrap(target.get(rawKey));
-  } else if (target !== rawTarget) {
-    target.get(key);
-  }
-}
-function has(key, isReadonly2) {
-  if (isReadonly2 === void 0) {
-    isReadonly2 = false;
-  }
-  const target = this["__v_raw"];
-  const rawTarget = toRaw(target);
-  const rawKey = toRaw(key);
-  if (!isReadonly2) {
-    if (hasChanged(key, rawKey)) {
-      track(rawTarget, "has", key);
-    }
-    track(rawTarget, "has", rawKey);
-  }
-  return key === rawKey ? target.has(key) : target.has(key) || target.has(rawKey);
-}
-function size(target, isReadonly2) {
-  if (isReadonly2 === void 0) {
-    isReadonly2 = false;
-  }
-  target = target["__v_raw"];
-  !isReadonly2 && track(toRaw(target), "iterate", ITERATE_KEY);
-  return Reflect.get(target, "size", target);
-}
-function add(value, _isShallow) {
-  if (_isShallow === void 0) {
-    _isShallow = false;
-  }
-  if (!_isShallow && !isShallow(value) && !isReadonly(value)) {
-    value = toRaw(value);
-  }
-  const target = toRaw(this);
-  const proto = getProto(target);
-  const hadKey = proto.has.call(target, value);
-  if (!hadKey) {
-    target.add(value);
-    trigger(target, "add", value, value);
-  }
-  return this;
-}
-function set(key, value, _isShallow) {
-  if (_isShallow === void 0) {
-    _isShallow = false;
-  }
-  if (!_isShallow && !isShallow(value) && !isReadonly(value)) {
-    value = toRaw(value);
-  }
-  const target = toRaw(this);
-  const {
-    has: has2,
-    get: get2
-  } = getProto(target);
-  let hadKey = has2.call(target, key);
-  if (!hadKey) {
-    key = toRaw(key);
-    hadKey = has2.call(target, key);
-  }
-  const oldValue = get2.call(target, key);
-  target.set(key, value);
-  if (!hadKey) {
-    trigger(target, "add", key, value);
-  } else if (hasChanged(value, oldValue)) {
-    trigger(target, "set", key, value);
-  }
-  return this;
-}
-function deleteEntry(key) {
-  const target = toRaw(this);
-  const {
-    has: has2,
-    get: get2
-  } = getProto(target);
-  let hadKey = has2.call(target, key);
-  if (!hadKey) {
-    key = toRaw(key);
-    hadKey = has2.call(target, key);
-  }
-  get2 ? get2.call(target, key) : void 0;
-  const result = target.delete(key);
-  if (hadKey) {
-    trigger(target, "delete", key, void 0);
-  }
-  return result;
-}
-function clear() {
-  const target = toRaw(this);
-  const hadItems = target.size !== 0;
-  const result = target.clear();
-  if (hadItems) {
-    trigger(target, "clear", void 0, void 0);
-  }
-  return result;
-}
-function createForEach(isReadonly2, isShallow2) {
-  return function forEach(callback, thisArg) {
-    const observed = this;
-    const target = observed["__v_raw"];
-    const rawTarget = toRaw(target);
-    const wrap = isShallow2 ? toShallow : isReadonly2 ? toReadonly : toReactive;
-    !isReadonly2 && track(rawTarget, "iterate", ITERATE_KEY);
-    return target.forEach((value, key) => {
-      return callback.call(thisArg, wrap(value), wrap(key), observed);
-    });
-  };
-}
 function createIterableMethod(method, isReadonly2, isShallow2) {
   return function () {
     const target = this["__v_raw"];
@@ -875,83 +1214,136 @@ function createReadonlyMethod(type) {
     return type === "delete" ? false : type === "clear" ? void 0 : this;
   };
 }
-function createInstrumentations() {
-  const mutableInstrumentations2 = {
+function createInstrumentations(readonly, shallow) {
+  const instrumentations = {
     get(key) {
-      return get(this, key);
+      const target = this["__v_raw"];
+      const rawTarget = toRaw(target);
+      const rawKey = toRaw(key);
+      if (!readonly) {
+        if (hasChanged(key, rawKey)) {
+          track(rawTarget, "get", key);
+        }
+        track(rawTarget, "get", rawKey);
+      }
+      const {
+        has
+      } = getProto(rawTarget);
+      const wrap = shallow ? toShallow : readonly ? toReadonly : toReactive;
+      if (has.call(rawTarget, key)) {
+        return wrap(target.get(key));
+      } else if (has.call(rawTarget, rawKey)) {
+        return wrap(target.get(rawKey));
+      } else if (target !== rawTarget) {
+        target.get(key);
+      }
     },
     get size() {
-      return size(this);
+      const target = this["__v_raw"];
+      !readonly && track(toRaw(target), "iterate", ITERATE_KEY);
+      return target.size;
     },
-    has,
-    add,
-    set,
-    delete: deleteEntry,
-    clear,
-    forEach: createForEach(false, false)
+    has(key) {
+      const target = this["__v_raw"];
+      const rawTarget = toRaw(target);
+      const rawKey = toRaw(key);
+      if (!readonly) {
+        if (hasChanged(key, rawKey)) {
+          track(rawTarget, "has", key);
+        }
+        track(rawTarget, "has", rawKey);
+      }
+      return key === rawKey ? target.has(key) : target.has(key) || target.has(rawKey);
+    },
+    forEach(callback, thisArg) {
+      const observed = this;
+      const target = observed["__v_raw"];
+      const rawTarget = toRaw(target);
+      const wrap = shallow ? toShallow : readonly ? toReadonly : toReactive;
+      !readonly && track(rawTarget, "iterate", ITERATE_KEY);
+      return target.forEach((value, key) => {
+        return callback.call(thisArg, wrap(value), wrap(key), observed);
+      });
+    }
   };
-  const shallowInstrumentations2 = {
-    get(key) {
-      return get(this, key, false, true);
-    },
-    get size() {
-      return size(this);
-    },
-    has,
+  extend(instrumentations, readonly ? {
+    add: createReadonlyMethod("add"),
+    set: createReadonlyMethod("set"),
+    delete: createReadonlyMethod("delete"),
+    clear: createReadonlyMethod("clear")
+  } : {
     add(value) {
-      return add.call(this, value, true);
+      if (!shallow && !isShallow(value) && !isReadonly(value)) {
+        value = toRaw(value);
+      }
+      const target = toRaw(this);
+      const proto = getProto(target);
+      const hadKey = proto.has.call(target, value);
+      if (!hadKey) {
+        target.add(value);
+        trigger(target, "add", value, value);
+      }
+      return this;
     },
     set(key, value) {
-      return set.call(this, key, value, true);
+      if (!shallow && !isShallow(value) && !isReadonly(value)) {
+        value = toRaw(value);
+      }
+      const target = toRaw(this);
+      const {
+        has,
+        get
+      } = getProto(target);
+      let hadKey = has.call(target, key);
+      if (!hadKey) {
+        key = toRaw(key);
+        hadKey = has.call(target, key);
+      }
+      const oldValue = get.call(target, key);
+      target.set(key, value);
+      if (!hadKey) {
+        trigger(target, "add", key, value);
+      } else if (hasChanged(value, oldValue)) {
+        trigger(target, "set", key, value);
+      }
+      return this;
     },
-    delete: deleteEntry,
-    clear,
-    forEach: createForEach(false, true)
-  };
-  const readonlyInstrumentations2 = {
-    get(key) {
-      return get(this, key, true);
+    delete(key) {
+      const target = toRaw(this);
+      const {
+        has,
+        get
+      } = getProto(target);
+      let hadKey = has.call(target, key);
+      if (!hadKey) {
+        key = toRaw(key);
+        hadKey = has.call(target, key);
+      }
+      get ? get.call(target, key) : void 0;
+      const result = target.delete(key);
+      if (hadKey) {
+        trigger(target, "delete", key, void 0);
+      }
+      return result;
     },
-    get size() {
-      return size(this, true);
-    },
-    has(key) {
-      return has.call(this, key, true);
-    },
-    add: createReadonlyMethod("add"),
-    set: createReadonlyMethod("set"),
-    delete: createReadonlyMethod("delete"),
-    clear: createReadonlyMethod("clear"),
-    forEach: createForEach(true, false)
-  };
-  const shallowReadonlyInstrumentations2 = {
-    get(key) {
-      return get(this, key, true, true);
-    },
-    get size() {
-      return size(this, true);
-    },
-    has(key) {
-      return has.call(this, key, true);
-    },
-    add: createReadonlyMethod("add"),
-    set: createReadonlyMethod("set"),
-    delete: createReadonlyMethod("delete"),
-    clear: createReadonlyMethod("clear"),
-    forEach: createForEach(true, true)
-  };
+    clear() {
+      const target = toRaw(this);
+      const hadItems = target.size !== 0;
+      const result = target.clear();
+      if (hadItems) {
+        trigger(target, "clear", void 0, void 0);
+      }
+      return result;
+    }
+  });
   const iteratorMethods = ["keys", "values", "entries", Symbol.iterator];
   iteratorMethods.forEach(method => {
-    mutableInstrumentations2[method] = createIterableMethod(method, false, false);
-    readonlyInstrumentations2[method] = createIterableMethod(method, true, false);
-    shallowInstrumentations2[method] = createIterableMethod(method, false, true);
-    shallowReadonlyInstrumentations2[method] = createIterableMethod(method, true, true);
+    instrumentations[method] = createIterableMethod(method, readonly, shallow);
   });
-  return [mutableInstrumentations2, readonlyInstrumentations2, shallowInstrumentations2, shallowReadonlyInstrumentations2];
+  return instrumentations;
 }
-const [mutableInstrumentations, readonlyInstrumentations, shallowInstrumentations, shallowReadonlyInstrumentations] = /* @__PURE__ */createInstrumentations();
 function createInstrumentationGetter(isReadonly2, shallow) {
-  const instrumentations = shallow ? isReadonly2 ? shallowReadonlyInstrumentations : shallowInstrumentations : isReadonly2 ? readonlyInstrumentations : mutableInstrumentations;
+  const instrumentations = createInstrumentations(isReadonly2, shallow);
   return (target, key, receiver) => {
     if (key === "__v_isReactive") {
       return !isReadonly2;
@@ -1018,13 +1410,13 @@ function createReactiveObject(target, isReadonly2, baseHandlers, collectionHandl
   if (target["__v_raw"] && !(isReadonly2 && target["__v_isReactive"])) {
     return target;
   }
-  const existingProxy = proxyMap.get(target);
-  if (existingProxy) {
-    return existingProxy;
-  }
   const targetType = getTargetType(target);
   if (targetType === 0 /* INVALID */) {
     return target;
+  }
+  const existingProxy = proxyMap.get(target);
+  if (existingProxy) {
+    return existingProxy;
   }
   const proxy = new Proxy(target, targetType === 2 /* COLLECTION */ ? collectionHandlers : baseHandlers);
   proxyMap.set(target, proxy);
@@ -1050,84 +1442,15 @@ function toRaw(observed) {
   return raw ? toRaw(raw) : observed;
 }
 function markRaw(value) {
-  if (Object.isExtensible(value)) {
+  if (!hasOwn(value, "__v_skip") && Object.isExtensible(value)) {
     def(value, "__v_skip", true);
   }
   return value;
 }
 const toReactive = value => isObject$1(value) ? reactive(value) : value;
 const toReadonly = value => isObject$1(value) ? readonly(value) : value;
-class ComputedRefImpl {
-  constructor(getter, _setter, isReadonly, isSSR) {
-    this.getter = getter;
-    this._setter = _setter;
-    this.dep = void 0;
-    this.__v_isRef = true;
-    this["__v_isReadonly"] = false;
-    this.effect = new ReactiveEffect(() => getter(this._value), () => triggerRefValue(this, this.effect._dirtyLevel === 2 ? 2 : 3));
-    this.effect.computed = this;
-    this.effect.active = this._cacheable = !isSSR;
-    this["__v_isReadonly"] = isReadonly;
-  }
-  get value() {
-    const self = toRaw(this);
-    if ((!self._cacheable || self.effect.dirty) && hasChanged(self._value, self._value = self.effect.run())) {
-      triggerRefValue(self, 4);
-    }
-    trackRefValue(self);
-    if (self.effect._dirtyLevel >= 2) {
-      triggerRefValue(self, 2);
-    }
-    return self._value;
-  }
-  set value(newValue) {
-    this._setter(newValue);
-  }
-  // #region polyfill _dirty for backward compatibility third party code for Vue <= 3.3.x
-  get _dirty() {
-    return this.effect.dirty;
-  }
-  set _dirty(v) {
-    this.effect.dirty = v;
-  }
-  // #endregion
-}
-function computed$1(getterOrOptions, debugOptions, isSSR) {
-  if (isSSR === void 0) {
-    isSSR = false;
-  }
-  let getter;
-  let setter;
-  const onlyGetter = isFunction(getterOrOptions);
-  if (onlyGetter) {
-    getter = getterOrOptions;
-    setter = NOOP;
-  } else {
-    getter = getterOrOptions.get;
-    setter = getterOrOptions.set;
-  }
-  const cRef = new ComputedRefImpl(getter, setter, onlyGetter || !setter, isSSR);
-  return cRef;
-}
-function trackRefValue(ref2) {
-  var _a;
-  if (shouldTrack && activeEffect) {
-    ref2 = toRaw(ref2);
-    trackEffect(activeEffect, (_a = ref2.dep) != null ? _a : ref2.dep = createDep(() => ref2.dep = void 0, ref2 instanceof ComputedRefImpl ? ref2 : void 0));
-  }
-}
-function triggerRefValue(ref2, dirtyLevel, newVal, oldVal) {
-  if (dirtyLevel === void 0) {
-    dirtyLevel = 4;
-  }
-  ref2 = toRaw(ref2);
-  const dep = ref2.dep;
-  if (dep) {
-    triggerEffects(dep, dirtyLevel);
-  }
-}
 function isRef(r) {
-  return !!(r && r.__v_isRef === true);
+  return r ? r["__v_isRef"] === true : false;
 }
 function ref(value) {
   return createRef(value, false);
@@ -1139,25 +1462,30 @@ function createRef(rawValue, shallow) {
   return new RefImpl(rawValue, shallow);
 }
 class RefImpl {
-  constructor(value, __v_isShallow) {
-    this.__v_isShallow = __v_isShallow;
-    this.dep = void 0;
-    this.__v_isRef = true;
-    this._rawValue = __v_isShallow ? value : toRaw(value);
-    this._value = __v_isShallow ? value : toReactive(value);
+  constructor(value, isShallow2) {
+    this.dep = new Dep();
+    this["__v_isRef"] = true;
+    this["__v_isShallow"] = false;
+    this._rawValue = isShallow2 ? value : toRaw(value);
+    this._value = isShallow2 ? value : toReactive(value);
+    this["__v_isShallow"] = isShallow2;
   }
   get value() {
-    trackRefValue(this);
+    {
+      this.dep.track();
+    }
     return this._value;
   }
-  set value(newVal) {
-    const useDirectValue = this.__v_isShallow || isShallow(newVal) || isReadonly(newVal);
-    newVal = useDirectValue ? newVal : toRaw(newVal);
-    if (hasChanged(newVal, this._rawValue)) {
-      this._rawValue;
-      this._rawValue = newVal;
-      this._value = useDirectValue ? newVal : toReactive(newVal);
-      triggerRefValue(this, 4);
+  set value(newValue) {
+    const oldValue = this._rawValue;
+    const useDirectValue = this["__v_isShallow"] || isShallow(newValue) || isReadonly(newValue);
+    newValue = useDirectValue ? newValue : toRaw(newValue);
+    if (hasChanged(newValue, oldValue)) {
+      this._rawValue = newValue;
+      this._value = useDirectValue ? newValue : toReactive(newValue);
+      {
+        this.dep.trigger();
+      }
     }
   }
 }
@@ -1165,7 +1493,7 @@ function unref(ref2) {
   return isRef(ref2) ? ref2.value : ref2;
 }
 const shallowUnwrapHandlers = {
-  get: (target, key, receiver) => unref(Reflect.get(target, key, receiver)),
+  get: (target, key, receiver) => key === "__v_raw" ? target : unref(Reflect.get(target, key, receiver)),
   set: (target, key, value, receiver) => {
     const oldValue = target[key];
     if (isRef(oldValue) && !isRef(value)) {
@@ -1191,11 +1519,12 @@ class ObjectRefImpl {
     this._object = _object;
     this._key = _key;
     this._defaultValue = _defaultValue;
-    this.__v_isRef = true;
+    this["__v_isRef"] = true;
+    this._value = void 0;
   }
   get value() {
     const val = this._object[this._key];
-    return val === void 0 ? this._defaultValue : val;
+    return this._value = val === void 0 ? this._defaultValue : val;
   }
   set value(newVal) {
     this._object[this._key] = newVal;
@@ -1208,9 +1537,288 @@ function propertyToRef(source, key, defaultValue) {
   const val = source[key];
   return isRef(val) ? val : new ObjectRefImpl(source, key, defaultValue);
 }
+class ComputedRefImpl {
+  constructor(fn, setter, isSSR) {
+    this.fn = fn;
+    this.setter = setter;
+    /**
+     * @internal
+     */
+    this._value = void 0;
+    /**
+     * @internal
+     */
+    this.dep = new Dep(this);
+    /**
+     * @internal
+     */
+    this.__v_isRef = true;
+    // TODO isolatedDeclarations "__v_isReadonly"
+    // A computed is also a subscriber that tracks other deps
+    /**
+     * @internal
+     */
+    this.deps = void 0;
+    /**
+     * @internal
+     */
+    this.depsTail = void 0;
+    /**
+     * @internal
+     */
+    this.flags = 16;
+    /**
+     * @internal
+     */
+    this.globalVersion = globalVersion - 1;
+    /**
+     * @internal
+     */
+    this.next = void 0;
+    // for backwards compat
+    this.effect = this;
+    this["__v_isReadonly"] = !setter;
+    this.isSSR = isSSR;
+  }
+  /**
+   * @internal
+   */
+  notify() {
+    this.flags |= 16;
+    if (!(this.flags & 8) &&
+    // avoid infinite self recursion
+    activeSub !== this) {
+      batch(this, true);
+      return true;
+    }
+  }
+  get value() {
+    const link = this.dep.track();
+    refreshComputed(this);
+    if (link) {
+      link.version = this.dep.version;
+    }
+    return this._value;
+  }
+  set value(newValue) {
+    if (this.setter) {
+      this.setter(newValue);
+    }
+  }
+}
+function computed$1(getterOrOptions, debugOptions, isSSR) {
+  if (isSSR === void 0) {
+    isSSR = false;
+  }
+  let getter;
+  let setter;
+  if (isFunction(getterOrOptions)) {
+    getter = getterOrOptions;
+  } else {
+    getter = getterOrOptions.get;
+    setter = getterOrOptions.set;
+  }
+  const cRef = new ComputedRefImpl(getter, setter, isSSR);
+  return cRef;
+}
+const INITIAL_WATCHER_VALUE = {};
+const cleanupMap = /* @__PURE__ */new WeakMap();
+let activeWatcher = void 0;
+function onWatcherCleanup(cleanupFn, failSilently, owner) {
+  if (owner === void 0) {
+    owner = activeWatcher;
+  }
+  if (owner) {
+    let cleanups = cleanupMap.get(owner);
+    if (!cleanups) cleanupMap.set(owner, cleanups = []);
+    cleanups.push(cleanupFn);
+  }
+}
+function watch$1(source, cb, options) {
+  if (options === void 0) {
+    options = EMPTY_OBJ;
+  }
+  const {
+    immediate,
+    deep,
+    once,
+    scheduler,
+    augmentJob,
+    call
+  } = options;
+  const reactiveGetter = source2 => {
+    if (deep) return source2;
+    if (isShallow(source2) || deep === false || deep === 0) return traverse(source2, 1);
+    return traverse(source2);
+  };
+  let effect;
+  let getter;
+  let cleanup;
+  let boundCleanup;
+  let forceTrigger = false;
+  let isMultiSource = false;
+  if (isRef(source)) {
+    getter = () => source.value;
+    forceTrigger = isShallow(source);
+  } else if (isReactive(source)) {
+    getter = () => reactiveGetter(source);
+    forceTrigger = true;
+  } else if (isArray(source)) {
+    isMultiSource = true;
+    forceTrigger = source.some(s => isReactive(s) || isShallow(s));
+    getter = () => source.map(s => {
+      if (isRef(s)) {
+        return s.value;
+      } else if (isReactive(s)) {
+        return reactiveGetter(s);
+      } else if (isFunction(s)) {
+        return call ? call(s, 2) : s();
+      } else ;
+    });
+  } else if (isFunction(source)) {
+    if (cb) {
+      getter = call ? () => call(source, 2) : source;
+    } else {
+      getter = () => {
+        if (cleanup) {
+          pauseTracking();
+          try {
+            cleanup();
+          } finally {
+            resetTracking();
+          }
+        }
+        const currentEffect = activeWatcher;
+        activeWatcher = effect;
+        try {
+          return call ? call(source, 3, [boundCleanup]) : source(boundCleanup);
+        } finally {
+          activeWatcher = currentEffect;
+        }
+      };
+    }
+  } else {
+    getter = NOOP;
+  }
+  if (cb && deep) {
+    const baseGetter = getter;
+    const depth = deep === true ? Infinity : deep;
+    getter = () => traverse(baseGetter(), depth);
+  }
+  const scope = getCurrentScope();
+  const watchHandle = () => {
+    effect.stop();
+    if (scope && scope.active) {
+      remove(scope.effects, effect);
+    }
+  };
+  if (once && cb) {
+    const _cb = cb;
+    cb = function cb() {
+      _cb(...arguments);
+      watchHandle();
+    };
+  }
+  let oldValue = isMultiSource ? new Array(source.length).fill(INITIAL_WATCHER_VALUE) : INITIAL_WATCHER_VALUE;
+  const job = immediateFirstRun => {
+    if (!(effect.flags & 1) || !effect.dirty && !immediateFirstRun) {
+      return;
+    }
+    if (cb) {
+      const newValue = effect.run();
+      if (deep || forceTrigger || (isMultiSource ? newValue.some((v, i) => hasChanged(v, oldValue[i])) : hasChanged(newValue, oldValue))) {
+        if (cleanup) {
+          cleanup();
+        }
+        const currentWatcher = activeWatcher;
+        activeWatcher = effect;
+        try {
+          const args = [newValue,
+          // pass undefined as the old value when it's changed for the first time
+          oldValue === INITIAL_WATCHER_VALUE ? void 0 : isMultiSource && oldValue[0] === INITIAL_WATCHER_VALUE ? [] : oldValue, boundCleanup];
+          oldValue = newValue;
+          call ? call(cb, 3, args) :
+          // @ts-expect-error
+          cb(...args);
+        } finally {
+          activeWatcher = currentWatcher;
+        }
+      }
+    } else {
+      effect.run();
+    }
+  };
+  if (augmentJob) {
+    augmentJob(job);
+  }
+  effect = new ReactiveEffect(getter);
+  effect.scheduler = scheduler ? () => scheduler(job, false) : job;
+  boundCleanup = fn => onWatcherCleanup(fn, false, effect);
+  cleanup = effect.onStop = () => {
+    const cleanups = cleanupMap.get(effect);
+    if (cleanups) {
+      if (call) {
+        call(cleanups, 4);
+      } else {
+        for (const cleanup2 of cleanups) cleanup2();
+      }
+      cleanupMap.delete(effect);
+    }
+  };
+  if (cb) {
+    if (immediate) {
+      job(true);
+    } else {
+      oldValue = effect.run();
+    }
+  } else if (scheduler) {
+    scheduler(job.bind(null, true), true);
+  } else {
+    effect.run();
+  }
+  watchHandle.pause = effect.pause.bind(effect);
+  watchHandle.resume = effect.resume.bind(effect);
+  watchHandle.stop = watchHandle;
+  return watchHandle;
+}
+function traverse(value, depth, seen) {
+  if (depth === void 0) {
+    depth = Infinity;
+  }
+  if (depth <= 0 || !isObject$1(value) || value["__v_skip"]) {
+    return value;
+  }
+  seen = seen || /* @__PURE__ */new Map();
+  if ((seen.get(value) || 0) >= depth) {
+    return value;
+  }
+  seen.set(value, depth);
+  depth--;
+  if (isRef(value)) {
+    traverse(value.value, depth, seen);
+  } else if (isArray(value)) {
+    for (let i = 0; i < value.length; i++) {
+      traverse(value[i], depth, seen);
+    }
+  } else if (isSet(value) || isMap(value)) {
+    value.forEach(v => {
+      traverse(v, depth, seen);
+    });
+  } else if (isPlainObject(value)) {
+    for (const key in value) {
+      traverse(value[key], depth, seen);
+    }
+    for (const key of Object.getOwnPropertySymbols(value)) {
+      if (Object.prototype.propertyIsEnumerable.call(value, key)) {
+        traverse(value[key], depth, seen);
+      }
+    }
+  }
+  return value;
+}
 
 /**
-* @vue/runtime-core v3.4.38
+* @vue/runtime-core v3.5.22
 * (c) 2018-present Yuxi (Evan) You and Vue contributors
 * @license MIT
 **/
@@ -1342,7 +1950,14 @@ function callWithAsyncErrorHandling(fn, instance, type, args) {
   }
 }
 function handleError$1(err, instance, type, throwInDev) {
-  instance ? instance.vnode : null;
+  if (throwInDev === void 0) {
+    throwInDev = true;
+  }
+  const contextVNode = instance ? instance.vnode : null;
+  const {
+    errorHandler,
+    throwUnhandledErrorInProduction
+  } = instance && instance.appContext.config || EMPTY_OBJ;
   if (instance) {
     let cur = instance.parent;
     const exposedInstance = instance.proxy;
@@ -1358,25 +1973,27 @@ function handleError$1(err, instance, type, throwInDev) {
       }
       cur = cur.parent;
     }
-    const appErrorHandler = instance.appContext.config.errorHandler;
-    if (appErrorHandler) {
+    if (errorHandler) {
       pauseTracking();
-      callWithErrorHandling(appErrorHandler, null, 10, [err, exposedInstance, errorInfo]);
+      callWithErrorHandling(errorHandler, null, 10, [err, exposedInstance, errorInfo]);
       resetTracking();
       return;
     }
   }
-  logError(err);
+  logError(err, type, contextVNode, throwInDev, throwUnhandledErrorInProduction);
 }
-function logError(err, type, contextVNode, throwInDev) {
-  {
+function logError(err, type, contextVNode, throwInDev, throwInProd) {
+  if (throwInProd === void 0) {
+    throwInProd = false;
+  }
+  if (throwInProd) {
+    throw err;
+  } else {
     console.error(err);
   }
 }
-let isFlushing = false;
-let isFlushPending = false;
 const queue = [];
-let flushIndex = 0;
+let flushIndex = -1;
 const pendingPostFlushCbs = [];
 let activePostFlushCbs = null;
 let postFlushIndex = 0;
@@ -1393,7 +2010,7 @@ function findInsertionIndex(id) {
     const middle = start + end >>> 1;
     const middleJob = queue[middle];
     const middleJobId = getId(middleJob);
-    if (middleJobId < id || middleJobId === id && middleJob.pre) {
+    if (middleJobId < id || middleJobId === id && middleJob.flags & 2) {
       start = middle + 1;
     } else {
       end = middle;
@@ -1402,31 +2019,32 @@ function findInsertionIndex(id) {
   return start;
 }
 function queueJob(job) {
-  if (!queue.length || !queue.includes(job, isFlushing && job.allowRecurse ? flushIndex + 1 : flushIndex)) {
-    if (job.id == null) {
+  if (!(job.flags & 1)) {
+    const jobId = getId(job);
+    const lastJob = queue[queue.length - 1];
+    if (!lastJob ||
+    // fast path when the job id is larger than the tail
+    !(job.flags & 2) && jobId >= getId(lastJob)) {
       queue.push(job);
     } else {
-      queue.splice(findInsertionIndex(job.id), 0, job);
+      queue.splice(findInsertionIndex(jobId), 0, job);
     }
+    job.flags |= 1;
     queueFlush();
   }
 }
 function queueFlush() {
-  if (!isFlushing && !isFlushPending) {
-    isFlushPending = true;
+  if (!currentFlushPromise) {
     currentFlushPromise = resolvedPromise.then(flushJobs);
-  }
-}
-function invalidateJob(job) {
-  const i = queue.indexOf(job);
-  if (i > flushIndex) {
-    queue.splice(i, 1);
   }
 }
 function queuePostFlushCb(cb) {
   if (!isArray(cb)) {
-    if (!activePostFlushCbs || !activePostFlushCbs.includes(cb, cb.allowRecurse ? postFlushIndex + 1 : postFlushIndex)) {
+    if (activePostFlushCbs && cb.id === -1) {
+      activePostFlushCbs.splice(postFlushIndex + 1, 0, cb);
+    } else if (!(cb.flags & 1)) {
       pendingPostFlushCbs.push(cb);
+      cb.flags |= 1;
     }
   } else {
     pendingPostFlushCbs.push(...cb);
@@ -1435,17 +2053,23 @@ function queuePostFlushCb(cb) {
 }
 function flushPreFlushCbs(instance, seen, i) {
   if (i === void 0) {
-    i = isFlushing ? flushIndex + 1 : 0;
+    i = flushIndex + 1;
   }
   for (; i < queue.length; i++) {
     const cb = queue[i];
-    if (cb && cb.pre) {
+    if (cb && cb.flags & 2) {
       if (instance && cb.id !== instance.uid) {
         continue;
       }
       queue.splice(i, 1);
       i--;
+      if (cb.flags & 4) {
+        cb.flags &= -2;
+      }
       cb();
+      if (!(cb.flags & 4)) {
+        cb.flags &= -2;
+      }
     }
   }
 }
@@ -1460,39 +2084,43 @@ function flushPostFlushCbs(seen) {
     activePostFlushCbs = deduped;
     for (postFlushIndex = 0; postFlushIndex < activePostFlushCbs.length; postFlushIndex++) {
       const cb = activePostFlushCbs[postFlushIndex];
-      if (cb.active !== false) cb();
+      if (cb.flags & 4) {
+        cb.flags &= -2;
+      }
+      if (!(cb.flags & 8)) cb();
+      cb.flags &= -2;
     }
     activePostFlushCbs = null;
     postFlushIndex = 0;
   }
 }
-const getId = job => job.id == null ? Infinity : job.id;
-const comparator = (a, b) => {
-  const diff = getId(a) - getId(b);
-  if (diff === 0) {
-    if (a.pre && !b.pre) return -1;
-    if (b.pre && !a.pre) return 1;
-  }
-  return diff;
-};
+const getId = job => job.id == null ? job.flags & 2 ? -1 : Infinity : job.id;
 function flushJobs(seen) {
-  isFlushPending = false;
-  isFlushing = true;
-  queue.sort(comparator);
   const check = NOOP;
   try {
     for (flushIndex = 0; flushIndex < queue.length; flushIndex++) {
       const job = queue[flushIndex];
-      if (job && job.active !== false) {
+      if (job && !(job.flags & 8)) {
         if (!!("production" !== "production") && check(job)) ;
+        if (job.flags & 4) {
+          job.flags &= ~1;
+        }
         callWithErrorHandling(job, job.i, job.i ? 15 : 14);
+        if (!(job.flags & 4)) {
+          job.flags &= ~1;
+        }
       }
     }
   } finally {
-    flushIndex = 0;
+    for (; flushIndex < queue.length; flushIndex++) {
+      const job = queue[flushIndex];
+      if (job) {
+        job.flags &= -2;
+      }
+    }
+    flushIndex = -1;
     queue.length = 0;
     flushPostFlushCbs();
-    isFlushing = false;
     currentFlushPromise = null;
     if (queue.length || pendingPostFlushCbs.length) {
       flushJobs();
@@ -1582,6 +2210,8 @@ function invokeDirectiveHook(vnode, prevVNode, instance, name) {
     }
   }
 }
+const TeleportEndKey = Symbol("_vte");
+const isTeleport = type => type.__isTeleport;
 const leaveCbKey = Symbol("_leaveCb");
 const enterCbKey = Symbol("_enterCb");
 function useTransitionState() {
@@ -1627,10 +2257,10 @@ const recursiveGetSubtree = instance => {
 const BaseTransitionImpl = {
   name: "BaseTransition",
   props: BaseTransitionPropsValidators,
-  setup(props, _ref4) {
+  setup(props, _ref7) {
     let {
       slots
-    } = _ref4;
+    } = _ref7;
     const instance = getCurrentInstance();
     const state = useTransitionState();
     return () => {
@@ -1638,15 +2268,7 @@ const BaseTransitionImpl = {
       if (!children || !children.length) {
         return;
       }
-      let child = children[0];
-      if (children.length > 1) {
-        for (const c of children) {
-          if (c.type !== Comment) {
-            child = c;
-            break;
-          }
-        }
-      }
+      const child = findNonCommentChild(children);
       const rawProps = toRaw(props);
       const {
         mode
@@ -1654,27 +2276,29 @@ const BaseTransitionImpl = {
       if (state.isLeaving) {
         return emptyPlaceholder(child);
       }
-      const innerChild = getKeepAliveChild(child);
+      const innerChild = getInnerChild$1(child);
       if (!innerChild) {
         return emptyPlaceholder(child);
       }
       let enterHooks = resolveTransitionHooks(innerChild, rawProps, state, instance,
       // #11061, ensure enterHooks is fresh after clone
       hooks => enterHooks = hooks);
-      setTransitionHooks(innerChild, enterHooks);
-      const oldChild = instance.subTree;
-      const oldInnerChild = oldChild && getKeepAliveChild(oldChild);
-      if (oldInnerChild && oldInnerChild.type !== Comment && !isSameVNodeType(innerChild, oldInnerChild) && recursiveGetSubtree(instance).type !== Comment) {
-        const leavingHooks = resolveTransitionHooks(oldInnerChild, rawProps, state, instance);
+      if (innerChild.type !== Comment) {
+        setTransitionHooks(innerChild, enterHooks);
+      }
+      let oldInnerChild = instance.subTree && getInnerChild$1(instance.subTree);
+      if (oldInnerChild && oldInnerChild.type !== Comment && !isSameVNodeType(oldInnerChild, innerChild) && recursiveGetSubtree(instance).type !== Comment) {
+        let leavingHooks = resolveTransitionHooks(oldInnerChild, rawProps, state, instance);
         setTransitionHooks(oldInnerChild, leavingHooks);
         if (mode === "out-in" && innerChild.type !== Comment) {
           state.isLeaving = true;
           leavingHooks.afterLeave = () => {
             state.isLeaving = false;
-            if (instance.update.active !== false) {
-              instance.effect.dirty = true;
+            if (!(instance.job.flags & 8)) {
               instance.update();
             }
+            delete leavingHooks.afterLeave;
+            oldInnerChild = void 0;
           };
           return emptyPlaceholder(child);
         } else if (mode === "in-out" && innerChild.type !== Comment) {
@@ -1685,15 +2309,36 @@ const BaseTransitionImpl = {
               earlyRemove();
               el[leaveCbKey] = void 0;
               delete enterHooks.delayedLeave;
+              oldInnerChild = void 0;
             };
-            enterHooks.delayedLeave = delayedLeave;
+            enterHooks.delayedLeave = () => {
+              delayedLeave();
+              delete enterHooks.delayedLeave;
+              oldInnerChild = void 0;
+            };
           };
+        } else {
+          oldInnerChild = void 0;
         }
+      } else if (oldInnerChild) {
+        oldInnerChild = void 0;
       }
       return child;
     };
   }
 };
+function findNonCommentChild(children) {
+  let child = children[0];
+  if (children.length > 1) {
+    for (const c of children) {
+      if (c.type !== Comment) {
+        child = c;
+        break;
+      }
+    }
+  }
+  return child;
+}
 const BaseTransition = BaseTransitionImpl;
 function getLeavingNodesForType(state, vnode) {
   const {
@@ -1840,9 +2485,15 @@ function emptyPlaceholder(vnode) {
     return vnode;
   }
 }
-function getKeepAliveChild(vnode) {
+function getInnerChild$1(vnode) {
   if (!isKeepAlive(vnode)) {
+    if (isTeleport(vnode.type) && vnode.children) {
+      return findNonCommentChild(vnode.children);
+    }
     return vnode;
+  }
+  if (vnode.component) {
+    return vnode.component.subTree;
   }
   const {
     shapeFlag,
@@ -1859,6 +2510,7 @@ function getKeepAliveChild(vnode) {
 }
 function setTransitionHooks(vnode, hooks) {
   if (vnode.shapeFlag & 6 && vnode.component) {
+    vnode.transition = hooks;
     setTransitionHooks(vnode.component.subTree, hooks);
   } else if (vnode.shapeFlag & 128) {
     vnode.ssContent.transition = hooks.clone(vnode.ssContent);
@@ -1868,9 +2520,6 @@ function setTransitionHooks(vnode, hooks) {
   }
 }
 function getTransitionRawChildren(children, keepComment, parentKey) {
-  if (keepComment === void 0) {
-    keepComment = false;
-  }
   let ret = [];
   let keyedFragmentCount = 0;
   for (let i = 0; i < children.length; i++) {
@@ -1879,7 +2528,7 @@ function getTransitionRawChildren(children, keepComment, parentKey) {
     if (child.type === Fragment) {
       if (child.patchFlag & 128) keyedFragmentCount++;
       ret = ret.concat(getTransitionRawChildren(child.children, keepComment, key));
-    } else if (keepComment || child.type !== Comment) {
+    } else {
       ret.push(key != null ? cloneVNode(child, {
         key
       }) : child);
@@ -1892,6 +2541,117 @@ function getTransitionRawChildren(children, keepComment, parentKey) {
   }
   return ret;
 }
+function markAsyncBoundary(instance) {
+  instance.ids = [instance.ids[0] + instance.ids[2]++ + "-", 0, 0];
+}
+const pendingSetRefMap = /* @__PURE__ */new WeakMap();
+function setRef(rawRef, oldRawRef, parentSuspense, vnode, isUnmount) {
+  if (isUnmount === void 0) {
+    isUnmount = false;
+  }
+  if (isArray(rawRef)) {
+    rawRef.forEach((r, i) => setRef(r, oldRawRef && (isArray(oldRawRef) ? oldRawRef[i] : oldRawRef), parentSuspense, vnode, isUnmount));
+    return;
+  }
+  if (isAsyncWrapper(vnode) && !isUnmount) {
+    if (vnode.shapeFlag & 512 && vnode.type.__asyncResolved && vnode.component.subTree.component) {
+      setRef(rawRef, oldRawRef, parentSuspense, vnode.component.subTree);
+    }
+    return;
+  }
+  const refValue = vnode.shapeFlag & 4 ? getComponentPublicInstance(vnode.component) : vnode.el;
+  const value = isUnmount ? null : refValue;
+  const {
+    i: owner,
+    r: ref
+  } = rawRef;
+  const oldRef = oldRawRef && oldRawRef.r;
+  const refs = owner.refs === EMPTY_OBJ ? owner.refs = {} : owner.refs;
+  const setupState = owner.setupState;
+  const rawSetupState = toRaw(setupState);
+  const canSetSetupRef = setupState === EMPTY_OBJ ? NO : key => {
+    return hasOwn(rawSetupState, key);
+  };
+  if (oldRef != null && oldRef !== ref) {
+    invalidatePendingSetRef(oldRawRef);
+    if (isString(oldRef)) {
+      refs[oldRef] = null;
+      if (canSetSetupRef(oldRef)) {
+        setupState[oldRef] = null;
+      }
+    } else if (isRef(oldRef)) {
+      {
+        oldRef.value = null;
+      }
+      const oldRawRefAtom = oldRawRef;
+      if (oldRawRefAtom.k) refs[oldRawRefAtom.k] = null;
+    }
+  }
+  if (isFunction(ref)) {
+    callWithErrorHandling(ref, owner, 12, [value, refs]);
+  } else {
+    const _isString = isString(ref);
+    const _isRef = isRef(ref);
+    if (_isString || _isRef) {
+      const doSet = () => {
+        if (rawRef.f) {
+          const existing = _isString ? canSetSetupRef(ref) ? setupState[ref] : refs[ref] : ref.value ;
+          if (isUnmount) {
+            isArray(existing) && remove(existing, refValue);
+          } else {
+            if (!isArray(existing)) {
+              if (_isString) {
+                refs[ref] = [refValue];
+                if (canSetSetupRef(ref)) {
+                  setupState[ref] = refs[ref];
+                }
+              } else {
+                const newVal = [refValue];
+                {
+                  ref.value = newVal;
+                }
+                if (rawRef.k) refs[rawRef.k] = newVal;
+              }
+            } else if (!existing.includes(refValue)) {
+              existing.push(refValue);
+            }
+          }
+        } else if (_isString) {
+          refs[ref] = value;
+          if (canSetSetupRef(ref)) {
+            setupState[ref] = value;
+          }
+        } else if (_isRef) {
+          {
+            ref.value = value;
+          }
+          if (rawRef.k) refs[rawRef.k] = value;
+        } else ;
+      };
+      if (value) {
+        const job = () => {
+          doSet();
+          pendingSetRefMap.delete(rawRef);
+        };
+        job.id = -1;
+        pendingSetRefMap.set(rawRef, job);
+        queuePostRenderEffect(job, parentSuspense);
+      } else {
+        invalidatePendingSetRef(rawRef);
+        doSet();
+      }
+    }
+  }
+}
+function invalidatePendingSetRef(rawRef) {
+  const pendingSetRef = pendingSetRefMap.get(rawRef);
+  if (pendingSetRef) {
+    pendingSetRef.flags |= 8;
+    pendingSetRefMap.delete(rawRef);
+  }
+}
+getGlobalThis().requestIdleCallback || (cb => setTimeout(cb, 1));
+getGlobalThis().cancelIdleCallback || (id => clearTimeout(id));
 const isAsyncWrapper = i => !!i.type.__asyncLoader;
 const isKeepAlive = vnode => vnode.type.__isKeepAlive;
 function onActivated(hook, target) {
@@ -1997,7 +2757,7 @@ function resolveAsset(type, name, warnMissing, maybeSelfReference) {
   const instance = currentRenderingInstance || currentInstance;
   if (instance) {
     const Component = instance.type;
-    if (type === COMPONENTS) {
+    {
       const selfName = getComponentName(Component, false);
       if (selfName && (selfName === name || selfName === camelize(name) || selfName === capitalize(camelize(name)))) {
         return Component;
@@ -2020,33 +2780,39 @@ function resolve(registry, name) {
 }
 function renderList(source, renderItem, cache, index) {
   let ret;
-  const cached = cache && cache[index];
-  if (isArray(source) || isString(source)) {
+  const cached = cache;
+  const sourceIsArray = isArray(source);
+  if (sourceIsArray || isString(source)) {
+    const sourceIsReactiveArray = sourceIsArray && isReactive(source);
+    let needsWrap = false;
+    let isReadonlySource = false;
+    if (sourceIsReactiveArray) {
+      needsWrap = !isShallow(source);
+      isReadonlySource = isReadonly(source);
+      source = shallowReadArray(source);
+    }
     ret = new Array(source.length);
     for (let i = 0, l = source.length; i < l; i++) {
-      ret[i] = renderItem(source[i], i, void 0, cached && cached[i]);
+      ret[i] = renderItem(needsWrap ? isReadonlySource ? toReadonly(toReactive(source[i])) : toReactive(source[i]) : source[i], i, void 0, cached);
     }
   } else if (typeof source === "number") {
     ret = new Array(source);
     for (let i = 0; i < source; i++) {
-      ret[i] = renderItem(i + 1, i, void 0, cached && cached[i]);
+      ret[i] = renderItem(i + 1, i, void 0, cached);
     }
   } else if (isObject$1(source)) {
     if (source[Symbol.iterator]) {
-      ret = Array.from(source, (item, i) => renderItem(item, i, void 0, cached && cached[i]));
+      ret = Array.from(source, (item, i) => renderItem(item, i, void 0, cached));
     } else {
       const keys = Object.keys(source);
       ret = new Array(keys.length);
       for (let i = 0, l = keys.length; i < l; i++) {
         const key = keys[i];
-        ret[i] = renderItem(source[key], key, i, cached && cached[i]);
+        ret[i] = renderItem(source[key], key, i, cached);
       }
     }
   } else {
     ret = [];
-  }
-  if (cache) {
-    cache[index] = ret;
   }
   return ret;
 }
@@ -2054,9 +2820,10 @@ function renderSlot(slots, name, props, fallback, noSlotted) {
   if (props === void 0) {
     props = {};
   }
-  if (currentRenderingInstance.isCE || currentRenderingInstance.parent && isAsyncWrapper(currentRenderingInstance.parent) && currentRenderingInstance.parent.isCE) {
+  if (currentRenderingInstance.ce || currentRenderingInstance.parent && isAsyncWrapper(currentRenderingInstance.parent) && currentRenderingInstance.parent.ce) {
+    const hasProps = Object.keys(props).length > 0;
     if (name !== "default") props.name = name;
-    return createVNode("slot", props, fallback && fallback());
+    return openBlock(), createBlock(Fragment, null, [createVNode("slot", props, fallback)], hasProps ? -2 : 64);
   }
   let slot = slots[name];
   if (slot && slot._c) {
@@ -2064,15 +2831,16 @@ function renderSlot(slots, name, props, fallback, noSlotted) {
   }
   openBlock();
   const validSlotContent = slot && ensureValidVNode(slot(props));
+  const slotKey = props.key ||
+  // slot content array of a dynamic conditional slot may have a branch
+  // key attached in the `createSlots` helper, respect that
+  validSlotContent && validSlotContent.key;
   const rendered = createBlock(Fragment, {
-    key: (props.key ||
-    // slot content array of a dynamic conditional slot may have a branch
-    // key attached in the `createSlots` helper, respect that
-    validSlotContent && validSlotContent.key || "_" + name) + (
+    key: (slotKey && !isSymbol(slotKey) ? slotKey : "_" + name) + (
     // #7256 force differentiate fallback content from actual content
     !validSlotContent && fallback ? "_fb" : "")
-  }, validSlotContent || (fallback ? fallback() : []), validSlotContent && slots._ === 1 ? 64 : -2);
-  if (!noSlotted && rendered.scopeId) {
+  }, validSlotContent || ([]), validSlotContent && slots._ === 1 ? 64 : -2);
+  if (rendered.scopeId) {
     rendered.slotScopeIds = [rendered.scopeId + "-s"];
   }
   if (slot && slot._c) {
@@ -2107,10 +2875,10 @@ extend(/* @__PURE__ */Object.create(null), {
   $refs: i => i.refs,
   $parent: i => getPublicInstance(i.parent),
   $root: i => getPublicInstance(i.root),
+  $host: i => i.ce,
   $emit: i => i.emit,
   $options: i => resolveMergedOptions(i) ,
   $forceUpdate: i => i.f || (i.f = () => {
-    i.effect.dirty = true;
     queueJob(i.update);
   }),
   $nextTick: i => i.n || (i.n = nextTick.bind(i.proxy)),
@@ -2118,10 +2886,10 @@ extend(/* @__PURE__ */Object.create(null), {
 });
 const hasSetupBinding = (state, key) => state !== EMPTY_OBJ && !state.__isScriptSetup && hasOwn(state, key);
 const PublicInstanceProxyHandlers = {
-  get(_ref7, key) {
+  get(_ref0, key) {
     let {
       _: instance
-    } = _ref7;
+    } = _ref0;
     if (key === "__v_skip") {
       return true;
     }
@@ -2189,10 +2957,10 @@ const PublicInstanceProxyHandlers = {
       }
     } else ;
   },
-  set(_ref8, key, value) {
+  set(_ref1, key, value) {
     let {
       _: instance
-    } = _ref8;
+    } = _ref1;
     const {
       data,
       setupState,
@@ -2216,7 +2984,7 @@ const PublicInstanceProxyHandlers = {
     }
     return true;
   },
-  has(_ref9, key) {
+  has(_ref10, key) {
     let {
       _: {
         data,
@@ -2224,11 +2992,12 @@ const PublicInstanceProxyHandlers = {
         accessCache,
         ctx,
         appContext,
-        propsOptions
+        propsOptions,
+        type
       }
-    } = _ref9;
-    let normalizedProps;
-    return !!accessCache[key] || data !== EMPTY_OBJ && hasOwn(data, key) || hasSetupBinding(setupState, key) || (normalizedProps = propsOptions[0]) && hasOwn(normalizedProps, key) || hasOwn(ctx, key) || hasOwn(publicPropertiesMap, key) || hasOwn(appContext.config.globalProperties, key);
+    } = _ref10;
+    let normalizedProps, cssModules;
+    return !!(accessCache[key] || data !== EMPTY_OBJ && key[0] !== "$" && hasOwn(data, key) || hasSetupBinding(setupState, key) || (normalizedProps = propsOptions[0]) && hasOwn(normalizedProps, key) || hasOwn(ctx, key) || hasOwn(publicPropertiesMap, key) || hasOwn(appContext.config.globalProperties, key) || (cssModules = type.__cssModules) && cssModules[key]);
   },
   defineProperty(target, key, descriptor) {
     if (descriptor.get != null) {
@@ -2360,7 +3129,8 @@ function applyOptions(instance) {
       expose.forEach(key => {
         Object.defineProperty(exposed, key, {
           get: () => publicThis[key],
-          set: val => publicThis[key] = val
+          set: val => publicThis[key] = val,
+          enumerable: true
         });
       });
     } else if (!instance.exposed) {
@@ -2375,6 +3145,9 @@ function applyOptions(instance) {
   }
   if (components) instance.components = components;
   if (directives) instance.directives = directives;
+  if (serverPrefetch) {
+    markAsyncBoundary(instance);
+  }
 }
 function resolveInjections(injectOptions, ctx, checkDuplicateProperties) {
   if (isArray(injectOptions)) {
@@ -2408,14 +3181,18 @@ function callHook$1(hook, instance, type) {
   callWithAsyncErrorHandling(isArray(hook) ? hook.map(h => h.bind(instance.proxy)) : hook.bind(instance.proxy), instance, type);
 }
 function createWatcher(raw, ctx, publicThis, key) {
-  const getter = key.includes(".") ? createPathGetter(publicThis, key) : () => publicThis[key];
+  let getter = key.includes(".") ? createPathGetter(publicThis, key) : () => publicThis[key];
   if (isString(raw)) {
     const handler = ctx[raw];
     if (isFunction(handler)) {
-      watch(getter, handler);
+      {
+        watch(getter, handler);
+      }
     }
   } else if (isFunction(raw)) {
-    watch(getter, raw.bind(publicThis));
+    {
+      watch(getter, raw.bind(publicThis));
+    }
   } else if (isObject$1(raw)) {
     if (isArray(raw)) {
       raw.forEach(r => createWatcher(r, ctx, publicThis, key));
@@ -2597,6 +3374,7 @@ function createAppAPI(render, hydrate) {
     }
     const context = createAppContext();
     const installedPlugins = /* @__PURE__ */new WeakSet();
+    const pluginCleanupFns = [];
     let isMounted = false;
     const app = context.app = {
       _uid: uid$1++,
@@ -2648,16 +3426,14 @@ function createAppAPI(render, hydrate) {
       },
       mount(rootContainer, isHydrate, namespace) {
         if (!isMounted) {
-          const vnode = createVNode(rootComponent, rootProps);
+          const vnode = app._ceVNode || createVNode(rootComponent, rootProps);
           vnode.appContext = context;
           if (namespace === true) {
             namespace = "svg";
           } else if (namespace === false) {
             namespace = void 0;
           }
-          if (isHydrate && hydrate) {
-            hydrate(vnode, rootContainer);
-          } else {
+          {
             render(vnode, rootContainer, namespace);
           }
           isMounted = true;
@@ -2666,8 +3442,12 @@ function createAppAPI(render, hydrate) {
           return getComponentPublicInstance(vnode.component);
         }
       },
+      onUnmount(cleanupFn) {
+        pluginCleanupFns.push(cleanupFn);
+      },
       unmount() {
         if (isMounted) {
+          callWithAsyncErrorHandling(pluginCleanupFns, app._instance, 16);
           render(null, app._container);
           delete app._container.__vue_app__;
         }
@@ -2704,9 +3484,9 @@ function inject(key, defaultValue, treatDefaultAsFactory) {
   if (treatDefaultAsFactory === void 0) {
     treatDefaultAsFactory = false;
   }
-  const instance = currentInstance || currentRenderingInstance;
+  const instance = getCurrentInstance();
   if (instance || currentApp) {
-    const provides = currentApp ? currentApp._context.provides : instance ? instance.parent == null ? instance.vnode.appContext && instance.vnode.appContext.provides : instance.parent.provides : void 0;
+    let provides = currentApp ? currentApp._context.provides : instance ? instance.parent == null || instance.ce ? instance.vnode.appContext && instance.vnode.appContext.provides : instance.parent.provides : void 0;
     if (provides && key in provides) {
       return provides[key];
     } else if (arguments.length > 1) {
@@ -2876,6 +3656,9 @@ function resolvePropValue(options, props, key, value, instance, isAbsent) {
       } else {
         value = defaultValue;
       }
+      if (instance.ce) {
+        instance.ce._setProp(key, value);
+      }
     }
     if (opt[0 /* shouldCast */]) {
       if (isAbsent && !hasDefault) {
@@ -2976,14 +3759,14 @@ function validatePropName(key) {
   }
   return false;
 }
-const isInternalKey = key => key[0] === "_" || key === "$stable";
+const isInternalKey = key => key === "_" || key === "_ctx" || key === "$stable";
 const normalizeSlotValue = value => isArray(value) ? value.map(normalizeVNode) : [normalizeVNode(value)];
 const normalizeSlot = (key, rawSlot, ctx) => {
   if (rawSlot._n) {
     return rawSlot;
   }
   const normalized = withCtx(function () {
-    if (!!("production" !== "production") && currentInstance && (!ctx || ctx.root === currentInstance.root)) ;
+    if (!!("production" !== "production") && currentInstance && !(ctx === null && currentRenderingInstance) && !(ctx && ctx.root !== currentInstance.root)) ;
     return normalizeSlotValue(rawSlot(...arguments));
   }, ctx);
   normalized._c = false;
@@ -3008,7 +3791,7 @@ const normalizeVNodeSlots = (instance, children) => {
 };
 const assignSlots = (slots, children, optimized) => {
   for (const key in children) {
-    if (optimized || key !== "_") {
+    if (optimized || !isInternalKey(key)) {
       slots[key] = children[key];
     }
   }
@@ -3063,83 +3846,6 @@ const updateSlots = (instance, children, optimized) => {
     }
   }
 };
-function setRef(rawRef, oldRawRef, parentSuspense, vnode, isUnmount) {
-  if (isUnmount === void 0) {
-    isUnmount = false;
-  }
-  if (isArray(rawRef)) {
-    rawRef.forEach((r, i) => setRef(r, oldRawRef && (isArray(oldRawRef) ? oldRawRef[i] : oldRawRef), parentSuspense, vnode, isUnmount));
-    return;
-  }
-  if (isAsyncWrapper(vnode) && !isUnmount) {
-    return;
-  }
-  const refValue = vnode.shapeFlag & 4 ? getComponentPublicInstance(vnode.component) : vnode.el;
-  const value = isUnmount ? null : refValue;
-  const {
-    i: owner,
-    r: ref
-  } = rawRef;
-  const oldRef = oldRawRef && oldRawRef.r;
-  const refs = owner.refs === EMPTY_OBJ ? owner.refs = {} : owner.refs;
-  const setupState = owner.setupState;
-  if (oldRef != null && oldRef !== ref) {
-    if (isString(oldRef)) {
-      refs[oldRef] = null;
-      if (hasOwn(setupState, oldRef)) {
-        setupState[oldRef] = null;
-      }
-    } else if (isRef(oldRef)) {
-      oldRef.value = null;
-    }
-  }
-  if (isFunction(ref)) {
-    callWithErrorHandling(ref, owner, 12, [value, refs]);
-  } else {
-    const _isString = isString(ref);
-    const _isRef = isRef(ref);
-    if (_isString || _isRef) {
-      const doSet = () => {
-        if (rawRef.f) {
-          const existing = _isString ? hasOwn(setupState, ref) ? setupState[ref] : refs[ref] : ref.value;
-          if (isUnmount) {
-            isArray(existing) && remove(existing, refValue);
-          } else {
-            if (!isArray(existing)) {
-              if (_isString) {
-                refs[ref] = [refValue];
-                if (hasOwn(setupState, ref)) {
-                  setupState[ref] = refs[ref];
-                }
-              } else {
-                ref.value = [refValue];
-                if (rawRef.k) refs[rawRef.k] = ref.value;
-              }
-            } else if (!existing.includes(refValue)) {
-              existing.push(refValue);
-            }
-          }
-        } else if (_isString) {
-          refs[ref] = value;
-          if (hasOwn(setupState, ref)) {
-            setupState[ref] = value;
-          }
-        } else if (_isRef) {
-          ref.value = value;
-          if (rawRef.k) refs[rawRef.k] = value;
-        } else ;
-      };
-      if (value) {
-        doSet.id = -1;
-        queuePostRenderEffect(doSet, parentSuspense);
-      } else {
-        doSet();
-      }
-    }
-  }
-}
-const TeleportEndKey = Symbol("_vte");
-const isTeleport = type => type.__isTeleport;
 function initFeatureFlags() {
   if (typeof __VUE_PROD_HYDRATION_MISMATCH_DETAILS__ !== "boolean") {
     getGlobalThis().__VUE_PROD_HYDRATION_MISMATCH_DETAILS__ = false;
@@ -3233,6 +3939,8 @@ function baseCreateRenderer(options, createHydrationFns) {
     }
     if (ref != null && parentComponent) {
       setRef(ref, n1 && n1.ref, parentSuspense, n2 || n1, !n2);
+    } else if (ref == null && n1 && n1.ref != null) {
+      setRef(n1.ref, null, parentSuspense, n1, true);
     }
   };
   const processText = (n1, n2, container, anchor) => {
@@ -3255,11 +3963,11 @@ function baseCreateRenderer(options, createHydrationFns) {
   const mountStaticNode = (n2, container, anchor, namespace) => {
     [n2.el, n2.anchor] = hostInsertStaticContent(n2.children, container, anchor, namespace, n2.el, n2.anchor);
   };
-  const moveStaticNode = (_ref13, container, nextSibling) => {
+  const moveStaticNode = (_ref11, container, nextSibling) => {
     let {
       el,
       anchor
-    } = _ref13;
+    } = _ref11;
     let next;
     while (el && el !== anchor) {
       next = hostNextSibling(el);
@@ -3268,11 +3976,11 @@ function baseCreateRenderer(options, createHydrationFns) {
     }
     hostInsert(anchor, container, nextSibling);
   };
-  const removeStaticNode = _ref14 => {
+  const removeStaticNode = _ref12 => {
     let {
       el,
       anchor
-    } = _ref14;
+    } = _ref12;
     let next;
     while (el && el !== anchor) {
       next = hostNextSibling(el);
@@ -3352,7 +4060,7 @@ function baseCreateRenderer(options, createHydrationFns) {
     }
     if (parentComponent) {
       let subTree = parentComponent.subTree;
-      if (vnode === subTree) {
+      if (vnode === subTree || isSuspense(subTree.type) && (subTree.ssContent === vnode || subTree.ssFallback === vnode)) {
         const parentVNode = parentComponent.vnode;
         setScopeId(el, parentVNode, parentVNode.scopeId, parentVNode.slotScopeIds, parentComponent.parent);
       }
@@ -3448,7 +4156,7 @@ function baseCreateRenderer(options, createHydrationFns) {
       // which also requires the correct parent container
       !isSameVNodeType(oldVNode, newVNode) ||
       // - In the case of a component, it could contain anything.
-      oldVNode.shapeFlag & (6 | 64)) ? hostParentNode(oldVNode.el) :
+      oldVNode.shapeFlag & (6 | 64 | 128)) ? hostParentNode(oldVNode.el) :
       // In other cases, the parent container is not actually used so we
       // just pass the block element here to avoid a DOM parentNode call.
       fallbackContainer;
@@ -3509,8 +4217,7 @@ function baseCreateRenderer(options, createHydrationFns) {
         // #2134 or if it's a component root, it may also get moved around
         // as the component is being moved.
         n2.key != null || parentComponent && n2 === parentComponent.subTree) {
-          traverseStaticChildren(n1, n2, true
-          /* shallow */);
+          traverseStaticChildren(n1, n2);
         }
       } else {
         patchChildren(n1, n2, container, fragmentEndAnchor, parentComponent, parentSuspense, namespace, slotScopeIds, optimized);
@@ -3542,6 +4249,7 @@ function baseCreateRenderer(options, createHydrationFns) {
       if (!initialVNode.el) {
         const placeholder = instance.subTree = createVNode(Comment);
         processCommentNode(null, placeholder, container, anchor);
+        initialVNode.placeholder = placeholder.el;
       }
     } else {
       setupRenderEffect(instance, initialVNode, container, anchor, parentSuspense, namespace, optimized);
@@ -3555,8 +4263,6 @@ function baseCreateRenderer(options, createHydrationFns) {
         return;
       } else {
         instance.next = n2;
-        invalidateJob(instance.update);
-        instance.effect.dirty = true;
         instance.update();
       }
     } else {
@@ -3575,7 +4281,9 @@ function baseCreateRenderer(options, createHydrationFns) {
         const {
           bm,
           m,
-          parent
+          parent,
+          root,
+          type
         } = instance;
         const isAsyncWrapperVNode = isAsyncWrapper(initialVNode);
         toggleRecurse(instance, false);
@@ -3586,22 +4294,12 @@ function baseCreateRenderer(options, createHydrationFns) {
           invokeVNodeHook(vnodeHook, parent, initialVNode);
         }
         toggleRecurse(instance, true);
-        if (el && hydrateNode) {
-          const hydrateSubTree = () => {
-            instance.subTree = renderComponentRoot(instance);
-            hydrateNode(el, instance.subTree, instance, parentSuspense, null);
-          };
-          if (isAsyncWrapperVNode) {
-            initialVNode.type.__asyncLoader().then(
-            // note: we are moving the render call into an async callback,
-            // which means it won't track dependencies - but it's ok because
-            // a server-rendered async wrapper is already in resolved state
-            // and it will never need to change.
-            () => !instance.isUnmounted && hydrateSubTree());
-          } else {
-            hydrateSubTree();
+        {
+          if (root.ce &&
+          // @ts-expect-error _def is private
+          root.ce._def.shadowRoot !== false) {
+            root.ce._injectChildStyle(type);
           }
-        } else {
           const subTree = instance.subTree = renderComponentRoot(instance);
           patch(null, subTree, container, anchor, instance, parentSuspense, namespace);
           initialVNode.el = subTree.el;
@@ -3677,16 +4375,14 @@ function baseCreateRenderer(options, createHydrationFns) {
         }
       }
     };
-    const effect = instance.effect = new ReactiveEffect(componentUpdateFn, NOOP, () => queueJob(update), instance.scope
-    // track it in component's effect scope
-    );
-    const update = instance.update = () => {
-      if (effect.dirty) {
-        effect.run();
-      }
-    };
-    update.i = instance;
-    update.id = instance.uid;
+    instance.scope.on();
+    const effect = instance.effect = new ReactiveEffect(componentUpdateFn);
+    instance.scope.off();
+    const update = instance.update = effect.run.bind(effect);
+    const job = instance.job = effect.runIfDirty.bind(effect);
+    job.i = instance;
+    job.id = instance.uid;
+    effect.scheduler = () => queueJob(job);
     toggleRecurse(instance, true);
     update();
   };
@@ -3854,7 +4550,10 @@ function baseCreateRenderer(options, createHydrationFns) {
       for (i = toBePatched - 1; i >= 0; i--) {
         const nextIndex = s2 + i;
         const nextChild = c2[nextIndex];
-        const anchor = nextIndex + 1 < l2 ? c2[nextIndex + 1].el : parentAnchor;
+        const anchorVNode = c2[nextIndex + 1];
+        const anchor = nextIndex + 1 < l2 ?
+        // #13559, fallback to el placeholder for unresolved async component
+        anchorVNode.el || anchorVNode.placeholder : parentAnchor;
         if (newIndexToOldIndexMap[i] === 0) {
           patch(null, nextChild, container, anchor, parentComponent, parentSuspense, namespace, slotScopeIds, optimized);
         } else if (moved) {
@@ -3914,8 +4613,18 @@ function baseCreateRenderer(options, createHydrationFns) {
           delayLeave,
           afterLeave
         } = transition;
-        const remove2 = () => hostInsert(el, container, anchor);
+        const remove2 = () => {
+          if (vnode.ctx.isUnmounted) {
+            hostRemove(el);
+          } else {
+            hostInsert(el, container, anchor);
+          }
+        };
         const performLeave = () => {
+          if (el._isLeaving) {
+            el[leaveCbKey](true
+            /* cancelled */);
+          }
           leave(el, () => {
             remove2();
             afterLeave && afterLeave();
@@ -3953,7 +4662,9 @@ function baseCreateRenderer(options, createHydrationFns) {
       optimized = false;
     }
     if (ref != null) {
+      pauseTracking();
       setRef(ref, null, parentSuspense, vnode, true);
+      resetTracking();
     }
     if (cacheIndex != null) {
       parentComponent.renderCache[cacheIndex] = void 0;
@@ -4055,7 +4766,7 @@ function baseCreateRenderer(options, createHydrationFns) {
     const {
       bum,
       scope,
-      update,
+      job,
       subTree,
       um,
       m,
@@ -4067,8 +4778,8 @@ function baseCreateRenderer(options, createHydrationFns) {
       invokeArrayFns(bum);
     }
     scope.stop();
-    if (update) {
-      update.active = false;
+    if (job) {
+      job.flags |= 8;
       unmount(subTree, instance, parentSuspense, doRemove);
     }
     if (um) {
@@ -4077,12 +4788,6 @@ function baseCreateRenderer(options, createHydrationFns) {
     queuePostRenderEffect(() => {
       instance.isUnmounted = true;
     }, parentSuspense);
-    if (parentSuspense && parentSuspense.pendingBranch && !parentSuspense.isUnmounted && instance.asyncDep && !instance.asyncResolved && instance.suspenseId === parentSuspense.pendingId) {
-      parentSuspense.deps--;
-      if (parentSuspense.deps === 0) {
-        parentSuspense.resolve();
-      }
-    }
   };
   const unmountChildren = function unmountChildren(children, parentComponent, parentSuspense, doRemove, optimized, start) {
     if (doRemove === void 0) {
@@ -4139,37 +4844,36 @@ function baseCreateRenderer(options, createHydrationFns) {
     o: options
   };
   let hydrate;
-  let hydrateNode;
-  if (createHydrationFns) {
-    [hydrate, hydrateNode] = createHydrationFns(internals);
-  }
   return {
     render,
     hydrate,
-    createApp: createAppAPI(render, hydrate)
+    createApp: createAppAPI(render)
   };
 }
-function resolveChildrenNamespace(_ref15, currentNamespace) {
+function resolveChildrenNamespace(_ref13, currentNamespace) {
   let {
     type,
     props
-  } = _ref15;
+  } = _ref13;
   return currentNamespace === "svg" && type === "foreignObject" || currentNamespace === "mathml" && type === "annotation-xml" && props && props.encoding && props.encoding.includes("html") ? void 0 : currentNamespace;
 }
-function toggleRecurse(_ref16, allowed) {
+function toggleRecurse(_ref14, allowed) {
   let {
     effect,
-    update
-  } = _ref16;
-  effect.allowRecurse = update.allowRecurse = allowed;
+    job
+  } = _ref14;
+  if (allowed) {
+    effect.flags |= 32;
+    job.flags |= 4;
+  } else {
+    effect.flags &= -33;
+    job.flags &= -5;
+  }
 }
 function needTransition(parentSuspense, transition) {
   return (!parentSuspense || parentSuspense && !parentSuspense.pendingBranch) && transition && !transition.persisted;
 }
 function traverseStaticChildren(n1, n2, shallow) {
-  if (shallow === void 0) {
-    shallow = false;
-  }
   const ch1 = n1.children;
   const ch2 = n2.children;
   if (isArray(ch1) && isArray(ch2)) {
@@ -4181,9 +4885,13 @@ function traverseStaticChildren(n1, n2, shallow) {
           c2 = ch2[i] = cloneIfMounted(ch2[i]);
           c2.el = c1.el;
         }
-        if (!shallow && c2.patchFlag !== -2) traverseStaticChildren(c1, c2);
       }
-      if (c2.type === Text) {
+      if (c2.type === Text &&
+      // avoid cached text nodes retaining detached dom nodes
+      c2.patchFlag !== -1) {
+        c2.el = c1.el;
+      }
+      if (c2.type === Comment && !c2.el) {
         c2.el = c1.el;
       }
     }
@@ -4241,7 +4949,7 @@ function locateNonHydratedAsyncRoot(instance) {
 }
 function invalidateMount(hooks) {
   if (hooks) {
-    for (let i = 0; i < hooks.length; i++) hooks[i].active = false;
+    for (let i = 0; i < hooks.length; i++) hooks[i].flags |= 8;
   }
 }
 const ssrContextKey = Symbol.for("v-scx");
@@ -4251,143 +4959,72 @@ const useSSRContext = () => {
     return ctx;
   }
 };
-const INITIAL_WATCHER_VALUE = {};
 function watch(source, cb, options) {
   return doWatch(source, cb, options);
 }
-function doWatch(source, cb, _temp) {
-  let {
+function doWatch(source, cb, options) {
+  if (options === void 0) {
+    options = EMPTY_OBJ;
+  }
+  const {
     immediate,
     deep,
     flush,
-    once,
-    onTrack,
-    onTrigger
-  } = _temp === void 0 ? EMPTY_OBJ : _temp;
-  if (cb && once) {
-    const _cb = cb;
-    cb = function cb() {
-      _cb(...arguments);
-      unwatch();
-    };
-  }
-  const instance = currentInstance;
-  const reactiveGetter = source2 => deep === true ? source2 :
-  // for deep: false, only traverse root-level properties
-  traverse(source2, deep === false ? 1 : void 0);
-  let getter;
-  let forceTrigger = false;
-  let isMultiSource = false;
-  if (isRef(source)) {
-    getter = () => source.value;
-    forceTrigger = isShallow(source);
-  } else if (isReactive(source)) {
-    getter = () => reactiveGetter(source);
-    forceTrigger = true;
-  } else if (isArray(source)) {
-    isMultiSource = true;
-    forceTrigger = source.some(s => isReactive(s) || isShallow(s));
-    getter = () => source.map(s => {
-      if (isRef(s)) {
-        return s.value;
-      } else if (isReactive(s)) {
-        return reactiveGetter(s);
-      } else if (isFunction(s)) {
-        return callWithErrorHandling(s, instance, 2);
-      } else ;
-    });
-  } else if (isFunction(source)) {
-    if (cb) {
-      getter = () => callWithErrorHandling(source, instance, 2);
-    } else {
-      getter = () => {
-        if (cleanup) {
-          cleanup();
-        }
-        return callWithAsyncErrorHandling(source, instance, 3, [onCleanup]);
-      };
-    }
-  } else {
-    getter = NOOP;
-  }
-  if (cb && deep) {
-    const baseGetter = getter;
-    getter = () => traverse(baseGetter());
-  }
-  let cleanup;
-  let onCleanup = fn => {
-    cleanup = effect.onStop = () => {
-      callWithErrorHandling(fn, instance, 4);
-      cleanup = effect.onStop = void 0;
-    };
-  };
+    once
+  } = options;
+  const baseWatchOptions = extend({}, options);
+  const runsImmediately = cb && immediate || !cb && flush !== "post";
   let ssrCleanup;
   if (isInSSRComponentSetup) {
-    onCleanup = NOOP;
-    if (!cb) {
-      getter();
-    } else if (immediate) {
-      callWithAsyncErrorHandling(cb, instance, 3, [getter(), isMultiSource ? [] : void 0, onCleanup]);
-    }
     if (flush === "sync") {
       const ctx = useSSRContext();
       ssrCleanup = ctx.__watcherHandles || (ctx.__watcherHandles = []);
-    } else {
-      return NOOP;
+    } else if (!runsImmediately) {
+      const watchStopHandle = () => {};
+      watchStopHandle.stop = NOOP;
+      watchStopHandle.resume = NOOP;
+      watchStopHandle.pause = NOOP;
+      return watchStopHandle;
     }
   }
-  let oldValue = isMultiSource ? new Array(source.length).fill(INITIAL_WATCHER_VALUE) : INITIAL_WATCHER_VALUE;
-  const job = () => {
-    if (!effect.active || !effect.dirty) {
-      return;
-    }
-    if (cb) {
-      const newValue = effect.run();
-      if (deep || forceTrigger || (isMultiSource ? newValue.some((v, i) => hasChanged(v, oldValue[i])) : hasChanged(newValue, oldValue)) || false) {
-        if (cleanup) {
-          cleanup();
-        }
-        callWithAsyncErrorHandling(cb, instance, 3, [newValue,
-        // pass undefined as the old value when it's changed for the first time
-        oldValue === INITIAL_WATCHER_VALUE ? void 0 : isMultiSource && oldValue[0] === INITIAL_WATCHER_VALUE ? [] : oldValue, onCleanup]);
-        oldValue = newValue;
+  const instance = currentInstance;
+  baseWatchOptions.call = (fn, type, args) => callWithAsyncErrorHandling(fn, instance, type, args);
+  let isPre = false;
+  if (flush === "post") {
+    baseWatchOptions.scheduler = job => {
+      queuePostRenderEffect(job, instance && instance.suspense);
+    };
+  } else if (flush !== "sync") {
+    isPre = true;
+    baseWatchOptions.scheduler = (job, isFirstRun) => {
+      if (isFirstRun) {
+        job();
+      } else {
+        queueJob(job);
       }
-    } else {
-      effect.run();
+    };
+  }
+  baseWatchOptions.augmentJob = job => {
+    if (cb) {
+      job.flags |= 4;
+    }
+    if (isPre) {
+      job.flags |= 2;
+      if (instance) {
+        job.id = instance.uid;
+        job.i = instance;
+      }
     }
   };
-  job.allowRecurse = !!cb;
-  let scheduler;
-  if (flush === "sync") {
-    scheduler = job;
-  } else if (flush === "post") {
-    scheduler = () => queuePostRenderEffect(job, instance && instance.suspense);
-  } else {
-    job.pre = true;
-    if (instance) job.id = instance.uid;
-    scheduler = () => queueJob(job);
-  }
-  const effect = new ReactiveEffect(getter, NOOP, scheduler);
-  const scope = getCurrentScope();
-  const unwatch = () => {
-    effect.stop();
-    if (scope) {
-      remove(scope.effects, effect);
+  const watchHandle = watch$1(source, cb, baseWatchOptions);
+  if (isInSSRComponentSetup) {
+    if (ssrCleanup) {
+      ssrCleanup.push(watchHandle);
+    } else if (runsImmediately) {
+      watchHandle();
     }
-  };
-  if (cb) {
-    if (immediate) {
-      job();
-    } else {
-      oldValue = effect.run();
-    }
-  } else if (flush === "post") {
-    queuePostRenderEffect(effect.run.bind(effect), instance && instance.suspense);
-  } else {
-    effect.run();
   }
-  if (ssrCleanup) ssrCleanup.push(unwatch);
-  return unwatch;
+  return watchHandle;
 }
 function instanceWatch(source, value, options) {
   const publicThis = this.proxy;
@@ -4413,41 +5050,6 @@ function createPathGetter(ctx, path) {
     }
     return cur;
   };
-}
-function traverse(value, depth, seen) {
-  if (depth === void 0) {
-    depth = Infinity;
-  }
-  if (depth <= 0 || !isObject$1(value) || value["__v_skip"]) {
-    return value;
-  }
-  seen = seen || /* @__PURE__ */new Set();
-  if (seen.has(value)) {
-    return value;
-  }
-  seen.add(value);
-  depth--;
-  if (isRef(value)) {
-    traverse(value.value, depth, seen);
-  } else if (isArray(value)) {
-    for (let i = 0; i < value.length; i++) {
-      traverse(value[i], depth, seen);
-    }
-  } else if (isSet(value) || isMap(value)) {
-    value.forEach(v => {
-      traverse(v, depth, seen);
-    });
-  } else if (isPlainObject(value)) {
-    for (const key in value) {
-      traverse(value[key], depth, seen);
-    }
-    for (const key of Object.getOwnPropertySymbols(value)) {
-      if (Object.prototype.propertyIsEnumerable.call(value, key)) {
-        traverse(value[key], depth, seen);
-      }
-    }
-  }
-  return value;
 }
 const getModelModifiers = (props, modelName) => {
   return modelName === "modelValue" || modelName === "model-value" ? props.modelModifiers : props[modelName + "Modifiers"] || props[camelize(modelName) + "Modifiers"] || props[hyphenate(modelName) + "Modifiers"];
@@ -4490,11 +5092,12 @@ function emit(instance, event) {
     callWithAsyncErrorHandling(onceHandler, instance, 6, args);
   }
 }
+const mixinEmitsCache = /* @__PURE__ */new WeakMap();
 function normalizeEmitsOptions(comp, appContext, asMixin) {
   if (asMixin === void 0) {
     asMixin = false;
   }
-  const cache = appContext.emitsCache;
+  const cache = asMixin ? mixinEmitsCache : appContext.emitsCache;
   const cached = cache.get(comp);
   if (cached !== void 0) {
     return cached;
@@ -4619,7 +5222,7 @@ function renderComponentRoot(instance) {
     root.dirs = root.dirs ? root.dirs.concat(vnode.dirs) : vnode.dirs;
   }
   if (vnode.transition) {
-    root.transition = vnode.transition;
+    setTransitionHooks(root, vnode.transition);
   }
   {
     result = root;
@@ -4710,11 +5313,11 @@ function hasPropsChanged(prevProps, nextProps, emitsOptions) {
   }
   return false;
 }
-function updateHOCHostEl(_ref17, el) {
+function updateHOCHostEl(_ref15, el) {
   let {
     vnode,
     parent
-  } = _ref17;
+  } = _ref15;
   while (parent) {
     const root = parent.subTree;
     if (root.suspense && root.suspense.activeBranch === vnode) {
@@ -4757,9 +5360,12 @@ function closeBlock() {
   currentBlock = blockStack[blockStack.length - 1] || null;
 }
 let isBlockTreeEnabled = 1;
-function setBlockTracking(value) {
+function setBlockTracking(value, inVOnce) {
+  if (inVOnce === void 0) {
+    inVOnce = false;
+  }
   isBlockTreeEnabled += value;
-  if (value < 0 && currentBlock) {
+  if (value < 0 && currentBlock && inVOnce) {
     currentBlock.hasOnce = true;
   }
 }
@@ -4783,18 +5389,18 @@ function isVNode(value) {
 function isSameVNodeType(n1, n2) {
   return n1.type === n2.type && n1.key === n2.key;
 }
-const normalizeKey = _ref19 => {
+const normalizeKey = _ref17 => {
   let {
     key
-  } = _ref19;
+  } = _ref17;
   return key != null ? key : null;
 };
-const normalizeRef = _ref20 => {
+const normalizeRef = _ref18 => {
   let {
     ref,
     ref_key,
     ref_for
-  } = _ref20;
+  } = _ref18;
   if (typeof ref === "number") {
     ref = "" + ref;
   }
@@ -4995,6 +5601,7 @@ function cloneVNode(vnode, extraProps, mergeRef, cloneTransition) {
     suspense: vnode.suspense,
     ssContent: vnode.ssContent && cloneVNode(vnode.ssContent),
     ssFallback: vnode.ssFallback && cloneVNode(vnode.ssFallback),
+    placeholder: vnode.placeholder,
     el: vnode.el,
     anchor: vnode.anchor,
     ctx: vnode.ctx,
@@ -5015,12 +5622,6 @@ function createTextVNode(text, flag) {
   return createVNode(Text, null, text, flag);
 }
 function createCommentVNode(text, asBlock) {
-  if (text === void 0) {
-    text = "";
-  }
-  if (asBlock === void 0) {
-    asBlock = false;
-  }
   return asBlock ? (openBlock(), createBlock(Comment, null, text)) : createVNode(Comment, null, text);
 }
 function normalizeVNode(child) {
@@ -5030,7 +5631,7 @@ function normalizeVNode(child) {
     return createVNode(Fragment, null,
     // #3666, avoid reference pollution when reusing vnode
     child.slice());
-  } else if (typeof child === "object") {
+  } else if (isVNode(child)) {
     return cloneIfMounted(child);
   } else {
     return createVNode(Text, null, String(child));
@@ -5138,6 +5739,7 @@ function createComponentInstance(vnode, parent, suspense) {
     effect: null,
     update: null,
     // will be set synchronously right after creation
+    job: null,
     scope: new EffectScope(true
     /* detached */),
     render: null,
@@ -5146,6 +5748,7 @@ function createComponentInstance(vnode, parent, suspense) {
     exposeProxy: null,
     withProxy: null,
     provides: parent ? parent.provides : Object.create(appContext.provides),
+    ids: parent ? parent.ids : ["", 0, 0],
     accessCache: null,
     renderCache: [],
     // local resolved assets
@@ -5256,7 +5859,7 @@ function setupComponent(instance, isSSR, optimized) {
   } = instance.vnode;
   const isStateful = isStatefulComponent(instance);
   initProps(instance, props, isStateful, isSSR);
-  initSlots(instance, children, optimized);
+  initSlots(instance, children, optimized || isSSR);
   const setupResult = isStateful ? setupStatefulComponent(instance, isSSR) : void 0;
   isSSR && setInSSRSetupState(false);
   return setupResult;
@@ -5269,13 +5872,17 @@ function setupStatefulComponent(instance, isSSR) {
     setup
   } = Component;
   if (setup) {
+    pauseTracking();
     const setupContext = instance.setupContext = setup.length > 1 ? createSetupContext(instance) : null;
     const reset = setCurrentInstance(instance);
-    pauseTracking();
     const setupResult = callWithErrorHandling(setup, instance, 0, [instance.props, setupContext]);
+    const isAsyncSetup = isPromise$1(setupResult);
     resetTracking();
     reset();
-    if (isPromise$1(setupResult)) {
+    if ((isAsyncSetup || instance.sp) && !isAsyncWrapper(instance)) {
+      markAsyncBoundary(instance);
+    }
+    if (isAsyncSetup) {
       setupResult.then(unsetCurrentInstance, unsetCurrentInstance);
       if (isSSR) {
         return setupResult.then(resolvedResult => {
@@ -5377,7 +5984,7 @@ function getComponentPublicInstance(instance) {
     return instance.proxy;
   }
 }
-const classifyRE = /(?:^|[-_])(\w)/g;
+const classifyRE = /(?:^|[-_])\w/g;
 const classify = str => str.replace(classifyRE, c => c.toUpperCase()).replace(/[-_]/g, "");
 function getComponentName(Component, includeInferred) {
   if (includeInferred === void 0) {
@@ -5416,32 +6023,48 @@ const computed = (getterOrOptions, debugOptions) => {
   return c;
 };
 function h(type, propsOrChildren, children) {
-  const l = arguments.length;
-  if (l === 2) {
-    if (isObject$1(propsOrChildren) && !isArray(propsOrChildren)) {
-      if (isVNode(propsOrChildren)) {
-        return createVNode(type, null, [propsOrChildren]);
+  try {
+    setBlockTracking(-1);
+    const l = arguments.length;
+    if (l === 2) {
+      if (isObject$1(propsOrChildren) && !isArray(propsOrChildren)) {
+        if (isVNode(propsOrChildren)) {
+          return createVNode(type, null, [propsOrChildren]);
+        }
+        return createVNode(type, propsOrChildren);
+      } else {
+        return createVNode(type, null, propsOrChildren);
       }
-      return createVNode(type, propsOrChildren);
     } else {
-      return createVNode(type, null, propsOrChildren);
+      if (l > 3) {
+        children = Array.prototype.slice.call(arguments, 2);
+      } else if (l === 3 && isVNode(children)) {
+        children = [children];
+      }
+      return createVNode(type, propsOrChildren, children);
     }
-  } else {
-    if (l > 3) {
-      children = Array.prototype.slice.call(arguments, 2);
-    } else if (l === 3 && isVNode(children)) {
-      children = [children];
-    }
-    return createVNode(type, propsOrChildren, children);
+  } finally {
+    setBlockTracking(1);
   }
 }
-const version = "3.4.38";
+const version = "3.5.22";
 
 /**
-* @vue/runtime-dom v3.4.38
+* @vue/runtime-dom v3.5.22
 * (c) 2018-present Yuxi (Evan) You and Vue contributors
 * @license MIT
 **/
+let policy = void 0;
+const tt = typeof window !== "undefined" && window.trustedTypes;
+if (tt) {
+  try {
+    policy = /* @__PURE__ */tt.createPolicy("vue", {
+      createHTML: val => val
+    });
+  } catch (e) {
+  }
+}
+const unsafeToTrustedHTML = policy ? val => policy.createHTML(val) : val => val;
 const svgNS = "http://www.w3.org/2000/svg";
 const mathmlNS = "http://www.w3.org/1998/Math/MathML";
 const doc = typeof document !== "undefined" ? document : null;
@@ -5491,7 +6114,7 @@ const nodeOps = {
         if (start === end || !(start = start.nextSibling)) break;
       }
     } else {
-      templateContainer.innerHTML = namespace === "svg" ? "<svg>" + content + "</svg>" : namespace === "mathml" ? "<math>" + content + "</math>" : content;
+      templateContainer.innerHTML = unsafeToTrustedHTML(namespace === "svg" ? "<svg>" + content + "</svg>" : namespace === "mathml" ? "<math>" + content + "</math>" : content);
       const template = templateContainer.content;
       if (namespace === "svg" || namespace === "mathml") {
         const wrapper = template.firstChild;
@@ -5512,13 +6135,6 @@ const nodeOps = {
 const TRANSITION = "transition";
 const ANIMATION = "animation";
 const vtcKey = Symbol("_vtc");
-const Transition = (props, _ref) => {
-  let {
-    slots
-  } = _ref;
-  return h(BaseTransition, resolveTransitionProps(props), slots);
-};
-Transition.displayName = "Transition";
 const DOMTransitionPropsValidators = {
   name: String,
   type: String,
@@ -5537,7 +6153,18 @@ const DOMTransitionPropsValidators = {
   leaveActiveClass: String,
   leaveToClass: String
 };
-Transition.props = /* @__PURE__ */extend({}, BaseTransitionPropsValidators, DOMTransitionPropsValidators);
+const TransitionPropsValidators = /* @__PURE__ */extend({}, BaseTransitionPropsValidators, DOMTransitionPropsValidators);
+const decorate$1 = t => {
+  t.displayName = "Transition";
+  t.props = TransitionPropsValidators;
+  return t;
+};
+const Transition = /* @__PURE__ */decorate$1((props, _ref) => {
+  let {
+    slots
+  } = _ref;
+  return h(BaseTransition, resolveTransitionProps(props), slots);
+});
 const callHook = function callHook(hook, args) {
   if (args === void 0) {
     args = [];
@@ -5588,7 +6215,8 @@ function resolveTransitionProps(rawProps) {
     onAppear = onEnter,
     onAppearCancelled = onEnterCancelled
   } = baseProps;
-  const finishEnter = (el, isAppear, done) => {
+  const finishEnter = (el, isAppear, done, isCancelled) => {
+    el._enterCancelled = isCancelled;
     removeTransitionClass(el, isAppear ? appearToClass : enterToClass);
     removeTransitionClass(el, isAppear ? appearActiveClass : enterActiveClass);
     done && done();
@@ -5631,8 +6259,13 @@ function resolveTransitionProps(rawProps) {
       el._isLeaving = true;
       const resolve = () => finishLeave(el, done);
       addTransitionClass(el, leaveFromClass);
-      addTransitionClass(el, leaveActiveClass);
-      forceReflow();
+      if (!el._enterCancelled) {
+        forceReflow(el);
+        addTransitionClass(el, leaveActiveClass);
+      } else {
+        addTransitionClass(el, leaveActiveClass);
+        forceReflow(el);
+      }
       nextFrame(() => {
         if (!el._isLeaving) {
           return;
@@ -5646,11 +6279,11 @@ function resolveTransitionProps(rawProps) {
       callHook(onLeave, [el, resolve]);
     },
     onEnterCancelled(el) {
-      finishEnter(el, false);
+      finishEnter(el, false, void 0, true);
       callHook(onEnterCancelled, [el]);
     },
     onAppearCancelled(el) {
-      finishEnter(el, true);
+      finishEnter(el, true, void 0, true);
       callHook(onAppearCancelled, [el]);
     },
     onLeaveCancelled(el) {
@@ -5700,7 +6333,7 @@ function whenTransitionEnds(el, expectedType, explicitTimeout, resolve) {
       resolve();
     }
   };
-  if (explicitTimeout) {
+  if (explicitTimeout != null) {
     return setTimeout(resolveIfNotStale, explicitTimeout);
   }
   const {
@@ -5758,7 +6391,7 @@ function getTransitionInfo(el, expectedType) {
     type = timeout > 0 ? transitionTimeout > animationTimeout ? TRANSITION : ANIMATION : null;
     propCount = type ? type === TRANSITION ? transitionDurations.length : animationDurations.length : 0;
   }
-  const hasTransform = type === TRANSITION && /\b(transform|all)(,|$)/.test(getStyleProperties(TRANSITION + "Property").toString());
+  const hasTransform = type === TRANSITION && /\b(?:transform|all)(?:,|$)/.test(getStyleProperties(TRANSITION + "Property").toString());
   return {
     type,
     timeout,
@@ -5776,8 +6409,9 @@ function toMs(s) {
   if (s === "auto") return 0;
   return Number(s.slice(0, -1).replace(",", ".")) * 1e3;
 }
-function forceReflow() {
-  return document.body.offsetHeight;
+function forceReflow(el) {
+  const targetDocument = el ? el.ownerDocument : document;
+  return targetDocument.body.offsetHeight;
 }
 function patchClass(el, value, isSVG) {
   const transitionClasses = el[vtcKey];
@@ -5795,6 +6429,8 @@ function patchClass(el, value, isSVG) {
 const vShowOriginalDisplay = Symbol("_vod");
 const vShowHidden = Symbol("_vsh");
 const vShow = {
+  // used for prop mismatch check during hydration
+  name: "show",
   beforeMount(el, _ref2, _ref3) {
     let {
       value
@@ -5855,7 +6491,7 @@ function setDisplay(el, value) {
   el[vShowHidden] = !value;
 }
 const CSS_VAR_TEXT = Symbol("");
-const displayRE = /(^|;)\s*display\s*:/;
+const displayRE = /(?:^|;)\s*display\s*:/;
 function patchStyle(el, prev, next) {
   const style = el.style;
   const isCssString = isString(next);
@@ -5961,10 +6597,11 @@ function patchAttr(el, key, value, isSVG, instance, isBoolean) {
     }
   }
 }
-function patchDOMProp(el, key, value, parentComponent) {
+function patchDOMProp(el, key, value, parentComponent, attrName) {
   if (key === "innerHTML" || key === "textContent") {
-    if (value == null) return;
-    el[key] = value;
+    if (value != null) {
+      el[key] = key === "innerHTML" ? unsafeToTrustedHTML(value) : value;
+    }
     return;
   }
   const tag = el.tagName;
@@ -5972,7 +6609,10 @@ function patchDOMProp(el, key, value, parentComponent) {
   // custom elements may use _value internally
   !tag.includes("-")) {
     const oldValue = tag === "OPTION" ? el.getAttribute("value") || "" : el.value;
-    const newValue = value == null ? "" : String(value);
+    const newValue = value == null ?
+    // #11647: value should be set as empty string for null and undefined,
+    // but <input type="checkbox"> should be set as 'on'.
+    el.type === "checkbox" ? "on" : "" : String(value);
     if (oldValue !== newValue || !("_value" in el)) {
       el.value = newValue;
     }
@@ -5999,7 +6639,7 @@ function patchDOMProp(el, key, value, parentComponent) {
     el[key] = value;
   } catch (e) {
   }
-  needRemove && el.removeAttribute(key);
+  needRemove && el.removeAttribute(attrName || key);
 }
 function addEventListener(el, event, handler, options) {
   el.addEventListener(event, handler, options);
@@ -6087,6 +6727,10 @@ const patchProp = (el, key, prevValue, nextValue, namespace, parentComponent) =>
     if (!el.tagName.includes("-") && (key === "value" || key === "checked" || key === "selected")) {
       patchAttr(el, key, nextValue, isSVG, parentComponent, key !== "value");
     }
+  } else if (
+  // #11081 force set props for possible async custom element
+  el._isVueCE && (/[A-Z]/.test(key) || !isString(nextValue))) {
+    patchDOMProp(el, camelize(key), nextValue, parentComponent, key);
   } else {
     if (key === "true-value") {
       el._trueValue = nextValue;
@@ -6106,7 +6750,7 @@ function shouldSetAsProp(el, key, value, isSVG) {
     }
     return false;
   }
-  if (key === "spellcheck" || key === "draggable" || key === "translate") {
+  if (key === "spellcheck" || key === "draggable" || key === "translate" || key === "autocorrect") {
     return false;
   }
   if (key === "form") {
@@ -6145,14 +6789,14 @@ function onCompositionEnd(e) {
 }
 const assignKey = Symbol("_assign");
 const vModelText = {
-  created(el, _ref11, vnode) {
+  created(el, _ref1, vnode) {
     let {
       modifiers: {
         lazy,
         trim,
         number
       }
-    } = _ref11;
+    } = _ref1;
     el[assignKey] = getModelAssigner(vnode);
     const castToNumber = number || vnode.props && vnode.props.type === "number";
     addEventListener(el, lazy ? "change" : "input", e => {
@@ -6178,13 +6822,13 @@ const vModelText = {
     }
   },
   // set value on mounted so it's after min/max for type="range"
-  mounted(el, _ref12) {
+  mounted(el, _ref10) {
     let {
       value
-    } = _ref12;
+    } = _ref10;
     el.value = value == null ? "" : value;
   },
-  beforeUpdate(el, _ref13, vnode) {
+  beforeUpdate(el, _ref11, vnode) {
     let {
       value,
       oldValue,
@@ -6193,7 +6837,7 @@ const vModelText = {
         trim,
         number
       }
-    } = _ref13;
+    } = _ref11;
     el[assignKey] = getModelAssigner(vnode);
     if (el.composing) return;
     const elValue = (number || el.type === "number") && !/^0\d/.test(el.value) ? looseToNumber(el.value) : el.value;
@@ -6281,7 +6925,9 @@ const createApp = function createApp() {
     if (!isFunction(component) && !component.render && !component.template) {
       component.template = container.innerHTML;
     }
-    container.innerHTML = "";
+    if (container.nodeType === 1) {
+      container.textContent = "";
+    }
     const proxy = mount(container, false, resolveRootNamespace(container));
     if (container instanceof Element) {
       container.removeAttribute("v-cloak");
@@ -6386,7 +7032,7 @@ function _extends() {
  * @param {{}} options
  *
  */
-function notify(message, options) {
+function _notify(message, options) {
   let timer;
   if (options.type === 'message') {
     timer = 3000;
@@ -6396,9 +7042,9 @@ function notify(message, options) {
   }, undefined, true, timer);
 }
 const notifications = {
-  /* Send and success notification */
+  /* Send a success notification */
   success: (message, options) => {
-    notify(message, _extends({
+    _notify(message, _extends({
       type: 'message',
       // @todo rename it to success
       dismiss: true
@@ -6406,9 +7052,16 @@ const notifications = {
   },
   /* Send an error notification */
   error: (message, options) => {
-    notify(message, _extends({
+    _notify(message, _extends({
       type: 'error',
       // @todo rename it to danger
+      dismiss: true
+    }, options));
+  },
+  /* Send a general notification */
+  notify: (message, options) => {
+    _notify(message, _extends({
+      type: 'message',
       dismiss: true
     }, options));
   },
@@ -6486,6 +7139,18 @@ function handleError(error) {
   const response = JSON.parse(error.response);
   if (response.message) {
     notifications.error(response.message);
+    // Check for App messages queue
+    if (response.messages) {
+      Object.keys(response.messages).forEach(type => {
+        response.messages[type].forEach(message => {
+          if (type === 'error') {
+            notifications.error(message);
+          } else {
+            notifications.notify(message);
+          }
+        });
+      });
+    }
   } else {
     switch (error.status) {
       case 409:
@@ -6723,6 +7388,81 @@ var navigable = {
   }
 };
 
+/**
+ * Handle the click event
+ * @param event
+ * @param ctx  the context
+ */
+function onItemClick(event, ctx) {
+  if (ctx.item.path && ctx.item.type === 'file') {
+    window.parent.document.dispatchEvent(new CustomEvent('onMediaFileSelected', {
+      bubbles: true,
+      cancelable: false,
+      detail: {
+        type: ctx.item.type,
+        name: ctx.item.name,
+        path: ctx.item.path,
+        thumb: ctx.item.thumb,
+        fileType: ctx.item.mime_type ? ctx.item.mime_type : false,
+        extension: ctx.item.extension ? ctx.item.extension : false,
+        width: ctx.item.width ? ctx.item.width : 0,
+        height: ctx.item.height ? ctx.item.height : 0
+      }
+    }));
+  }
+  if (ctx.item.type === 'dir') {
+    window.parent.document.dispatchEvent(new CustomEvent('onMediaFileSelected', {
+      bubbles: true,
+      cancelable: false,
+      detail: {
+        type: ctx.item.type,
+        name: ctx.item.name,
+        path: ctx.item.path
+      }
+    }));
+  }
+
+  // Handle clicks when the item was not selected
+  if (!ctx.isSelected()) {
+    // Handle clicks when ctrl key was pressed
+    if (event[/Mac|Mac OS|MacIntel/gi.test(window.navigator.userAgent) ? 'metaKey' : 'ctrlKey'] || event.keyCode === 17) {
+      ctx.$store.commit(SELECT_BROWSER_ITEM, ctx.item);
+      return;
+    }
+
+    // Unselect when shift key is not pressed
+    if (!event.shiftKey && event.keyCode !== 13) {
+      ctx.$store.commit(UNSELECT_ALL_BROWSER_ITEMS);
+      ctx.$store.commit(SELECT_BROWSER_ITEM, ctx.item);
+      return;
+    }
+    const currentIndex = ctx.localItems.indexOf(ctx.$store.state.selectedItems[0]);
+    const endIndex = ctx.localItems.indexOf(ctx.item);
+    // Handle selections from up to down
+    if (currentIndex < endIndex) {
+      ctx.localItems.slice(currentIndex, endIndex + 1).forEach(element => ctx.$store.commit(SELECT_BROWSER_ITEM, element));
+      return;
+    }
+
+    // Handle selections from down to up
+    ctx.localItems.slice(endIndex, currentIndex).forEach(element => ctx.$store.commit(SELECT_BROWSER_ITEM, element));
+    return;
+  }
+  ctx.$store.dispatch('toggleBrowserItemSelect', ctx.item);
+  window.parent.document.dispatchEvent(new CustomEvent('onMediaFileSelected', {
+    bubbles: true,
+    cancelable: false,
+    detail: {}
+  }));
+
+  // If more than one item was selected and the user clicks again on the selected item,
+  // he most probably wants to unselect all other items.
+  if (ctx.$store.state.selectedItems.length > 1) {
+    ctx.$store.commit(UNSELECT_ALL_BROWSER_ITEMS);
+    ctx.$store.commit(SELECT_BROWSER_ITEM, ctx.item);
+  }
+}
+
 var script$v = {
   name: 'MediaBrowserItemRow',
   mixins: [navigable],
@@ -6730,6 +7470,10 @@ var script$v = {
     item: {
       type: Object,
       default: () => {},
+    },
+    localItems: {
+      type: Array,
+      default: () => [],
     },
   },
   computed: {
@@ -6811,49 +7555,7 @@ var script$v = {
      * @param event
      */
     onClick(event) {
-      const data = {
-        type: this.item.type,
-        name: this.item.name,
-        path: this.item.path,
-        thumb: false,
-        fileType: this.item.mime_type ? this.item.mime_type : false,
-        extension: this.item.extension ? this.item.extension : false,
-      };
-
-      if (this.item.type === 'file') {
-        data.thumb = this.item.thumb ? this.item.thumb : false;
-        data.width = this.item.width ? this.item.width : 0;
-        data.height = this.item.height ? this.item.height : 0;
-      }
-
-      window.parent.document.dispatchEvent(
-        new CustomEvent(
-          'onMediaFileSelected',
-          {
-            bubbles: true,
-            cancelable: false,
-            detail: data,
-          },
-        ),
-      );
-
-      // Handle clicks when the item was not selected
-      if (!this.isSelected()) {
-        // Unselect all other selected items,
-        // if the shift key was not pressed during the click event
-        if (!(event.shiftKey || event.keyCode === 13)) {
-          this.$store.commit(UNSELECT_ALL_BROWSER_ITEMS);
-        }
-        this.$store.commit(SELECT_BROWSER_ITEM, this.item);
-        return;
-      }
-
-      // If more than one item was selected and the user clicks again on the selected item,
-      // he most probably wants to unselect all other items.
-      if (this.$store.state.selectedItems.length > 1) {
-        this.$store.commit(UNSELECT_ALL_BROWSER_ITEMS);
-        this.$store.commit(SELECT_BROWSER_ITEM, this.item);
-      }
+      return onItemClick(event, this);
     },
 
   },
@@ -6861,15 +7563,15 @@ var script$v = {
 
 const _hoisted_1$v = { key: 0 };
 const _hoisted_2$k = ["src", "width", "height"];
-const _hoisted_3$g = ["data-type"];
+const _hoisted_3$h = ["data-type"];
 const _hoisted_4$b = {
   scope: "row",
   class: "name"
 };
 const _hoisted_5$a = { class: "size" };
-const _hoisted_6$8 = { key: 0 };
-const _hoisted_7$5 = { class: "dimension" };
-const _hoisted_8$3 = { class: "created" };
+const _hoisted_6$9 = { key: 0 };
+const _hoisted_7$6 = { class: "dimension" };
+const _hoisted_8$4 = { class: "created" };
 const _hoisted_9$2 = { class: "modified" };
 
 function render$v(_ctx, _cache, $props, $setup, $data, $options) {
@@ -6893,16 +7595,16 @@ function render$v(_ctx, _cache, $props, $setup, $data, $options) {
           key: 1,
           class: "type",
           "data-type": $props.item.extension
-        }, null, 8 /* PROPS */, _hoisted_3$g)),
+        }, null, 8 /* PROPS */, _hoisted_3$h)),
     createBaseVNode("th", _hoisted_4$b, toDisplayString($props.item.name), 1 /* TEXT */),
     createBaseVNode("td", _hoisted_5$a, [
       createTextVNode(toDisplayString($options.size), 1 /* TEXT */),
       ($options.size !== '')
-        ? (openBlock(), createElementBlock("span", _hoisted_6$8, "KB"))
+        ? (openBlock(), createElementBlock("span", _hoisted_6$9, "KB"))
         : createCommentVNode("v-if", true)
     ]),
-    createBaseVNode("td", _hoisted_7$5, toDisplayString($options.dimension), 1 /* TEXT */),
-    createBaseVNode("td", _hoisted_8$3, toDisplayString($props.item.create_date_formatted), 1 /* TEXT */),
+    createBaseVNode("td", _hoisted_7$6, toDisplayString($options.dimension), 1 /* TEXT */),
+    createBaseVNode("td", _hoisted_8$4, toDisplayString($props.item.create_date_formatted), 1 /* TEXT */),
     createBaseVNode("td", _hoisted_9$2, toDisplayString($props.item.modified_date_formatted), 1 /* TEXT */)
   ], 34 /* CLASS, NEED_HYDRATION */))
 }
@@ -6935,7 +7637,7 @@ var script$u = {
 
 const _hoisted_1$u = { class: "table media-browser-table" };
 const _hoisted_2$j = { class: "visually-hidden" };
-const _hoisted_3$f = { class: "media-browser-table-head" };
+const _hoisted_3$g = { class: "media-browser-table-head" };
 const _hoisted_4$a = {
   class: "name",
   scope: "col"
@@ -6944,15 +7646,15 @@ const _hoisted_5$9 = {
   class: "size",
   scope: "col"
 };
-const _hoisted_6$7 = {
+const _hoisted_6$8 = {
   class: "dimension",
   scope: "col"
 };
-const _hoisted_7$4 = {
+const _hoisted_7$5 = {
   class: "created",
   scope: "col"
 };
-const _hoisted_8$2 = {
+const _hoisted_8$3 = {
   class: "modified",
   scope: "col"
 };
@@ -6962,12 +7664,12 @@ function render$u(_ctx, _cache, $props, $setup, $data, $options) {
 
   return (openBlock(), createElementBlock("table", _hoisted_1$u, [
     createBaseVNode("caption", _hoisted_2$j, toDisplayString(_ctx.sprintf('COM_MEDIA_BROWSER_TABLE_CAPTION', $props.currentDirectory)), 1 /* TEXT */),
-    createBaseVNode("thead", _hoisted_3$f, [
+    createBaseVNode("thead", _hoisted_3$g, [
       createBaseVNode("tr", null, [
         _cache[5] || (_cache[5] = createBaseVNode("th", {
           class: "type",
           scope: "col"
-        }, null, -1 /* HOISTED */)),
+        }, null, -1 /* CACHED */)),
         createBaseVNode("th", _hoisted_4$a, [
           createBaseVNode("button", {
             class: "btn btn-link",
@@ -7000,7 +7702,7 @@ function render$u(_ctx, _cache, $props, $setup, $data, $options) {
             }, null, 2 /* CLASS */)
           ])
         ]),
-        createBaseVNode("th", _hoisted_6$7, [
+        createBaseVNode("th", _hoisted_6$8, [
           createBaseVNode("button", {
             class: "btn btn-link",
             onClick: _cache[2] || (_cache[2] = $event => ($options.changeOrder('dimension')))
@@ -7016,7 +7718,7 @@ function render$u(_ctx, _cache, $props, $setup, $data, $options) {
             }, null, 2 /* CLASS */)
           ])
         ]),
-        createBaseVNode("th", _hoisted_7$4, [
+        createBaseVNode("th", _hoisted_7$5, [
           createBaseVNode("button", {
             class: "btn btn-link",
             onClick: _cache[3] || (_cache[3] = $event => ($options.changeOrder('date_created')))
@@ -7032,7 +7734,7 @@ function render$u(_ctx, _cache, $props, $setup, $data, $options) {
             }, null, 2 /* CLASS */)
           ])
         ]),
-        createBaseVNode("th", _hoisted_8$2, [
+        createBaseVNode("th", _hoisted_8$3, [
           createBaseVNode("button", {
             class: "btn btn-link",
             onClick: _cache[4] || (_cache[4] = $event => ($options.changeOrder('date_modified')))
@@ -7054,8 +7756,9 @@ function render$u(_ctx, _cache, $props, $setup, $data, $options) {
       (openBlock(true), createElementBlock(Fragment, null, renderList($props.localItems, (item) => {
         return (openBlock(), createBlock(_component_MediaBrowserItemRow, {
           key: item.path,
-          item: item
-        }, null, 8 /* PROPS */, ["item"]))
+          item: item,
+          "local-items": $props.localItems
+        }, null, 8 /* PROPS */, ["item", "local-items"]))
       }), 128 /* KEYED_FRAGMENT */))
     ])
   ]))
@@ -7105,7 +7808,7 @@ function render$t(_ctx, _cache, $props, $setup, $data, $options) {
     _cache[6] || (_cache[6] = createBaseVNode("span", {
       class: "image-browser-action icon-pencil-alt",
       "aria-hidden": "true"
-    }, null, -1 /* HOISTED */)),
+    }, null, -1 /* CACHED */)),
     createBaseVNode("span", _hoisted_1$t, toDisplayString(_ctx.translate('COM_MEDIA_ACTION_EDIT')), 1 /* TEXT */)
   ], 32 /* NEED_HYDRATION */))
 }
@@ -7151,7 +7854,7 @@ function render$s(_ctx, _cache, $props, $setup, $data, $options) {
     _cache[6] || (_cache[6] = createBaseVNode("span", {
       class: "image-browser-action icon-trash",
       "aria-hidden": "true"
-    }, null, -1 /* HOISTED */)),
+    }, null, -1 /* CACHED */)),
     createBaseVNode("span", _hoisted_1$s, toDisplayString(_ctx.translate('COM_MEDIA_ACTION_DELETE')), 1 /* TEXT */)
   ], 32 /* NEED_HYDRATION */))
 }
@@ -7197,7 +7900,7 @@ function render$r(_ctx, _cache, $props, $setup, $data, $options) {
     _cache[6] || (_cache[6] = createBaseVNode("span", {
       class: "image-browser-action icon-download",
       "aria-hidden": "true"
-    }, null, -1 /* HOISTED */)),
+    }, null, -1 /* CACHED */)),
     createBaseVNode("span", _hoisted_1$r, toDisplayString(_ctx.translate('COM_MEDIA_ACTION_DOWNLOAD')), 1 /* TEXT */)
   ], 32 /* NEED_HYDRATION */))
 }
@@ -7243,7 +7946,7 @@ function render$q(_ctx, _cache, $props, $setup, $data, $options) {
     _cache[6] || (_cache[6] = createBaseVNode("span", {
       class: "image-browser-action icon-search-plus",
       "aria-hidden": "true"
-    }, null, -1 /* HOISTED */)),
+    }, null, -1 /* CACHED */)),
     createBaseVNode("span", _hoisted_1$q, toDisplayString(_ctx.translate('COM_MEDIA_ACTION_PREVIEW')), 1 /* TEXT */)
   ], 32 /* NEED_HYDRATION */))
 }
@@ -7290,7 +7993,7 @@ function render$p(_ctx, _cache, $props, $setup, $data, $options) {
     _cache[6] || (_cache[6] = createBaseVNode("span", {
       class: "image-browser-action fa fa-i-cursor",
       "aria-hidden": "true"
-    }, null, -1 /* HOISTED */)),
+    }, null, -1 /* CACHED */)),
     createBaseVNode("span", _hoisted_1$p, toDisplayString(_ctx.translate('COM_MEDIA_ACTION_RENAME')), 1 /* TEXT */)
   ], 544 /* NEED_HYDRATION, NEED_PATCH */))
 }
@@ -7336,7 +8039,7 @@ function render$o(_ctx, _cache, $props, $setup, $data, $options) {
     _cache[6] || (_cache[6] = createBaseVNode("span", {
       class: "image-browser-action icon-link",
       "aria-hidden": "true"
-    }, null, -1 /* HOISTED */)),
+    }, null, -1 /* CACHED */)),
     createBaseVNode("span", _hoisted_1$o, toDisplayString(_ctx.translate('COM_MEDIA_ACTION_SHARE')), 1 /* TEXT */)
   ], 32 /* NEED_HYDRATION */))
 }
@@ -7564,7 +8267,7 @@ var script$m = {
 
 const _hoisted_1$m = ["aria-label", "title"];
 const _hoisted_2$i = ["aria-label"];
-const _hoisted_3$e = {
+const _hoisted_3$f = {
   "aria-hidden": "true",
   class: "media-browser-actions-item-name"
 };
@@ -7616,7 +8319,7 @@ function render$m(_ctx, _cache, $props, $setup, $data, $options) {
             "aria-orientation": "vertical",
             "aria-label": _ctx.sprintf('COM_MEDIA_ACTIONS_TOOLBAR_LABEL',(_ctx.$parent.$props.item.name))
           }, [
-            createBaseVNode("span", _hoisted_3$e, [
+            createBaseVNode("span", _hoisted_3$f, [
               createBaseVNode("strong", null, toDisplayString(_ctx.$parent.$props.item.name), 1 /* TEXT */)
             ]),
             ($props.previewable)
@@ -7827,13 +8530,13 @@ function render$l(_ctx, _cache, $props, $setup, $data, $options) {
       tabindex: "0",
       onDblclick: _cache[0] || (_cache[0] = withModifiers($event => ($options.onPreviewDblClick()), ["stop","prevent"])),
       onKeyup: _cache[1] || (_cache[1] = withKeys($event => ($options.onPreviewDblClick()), ["enter"]))
-    }, _cache[3] || (_cache[3] = [
+    }, [...(_cache[3] || (_cache[3] = [
       createBaseVNode("div", { class: "file-background" }, [
         createBaseVNode("div", { class: "folder-icon" }, [
           createBaseVNode("span", { class: "icon-folder" })
         ])
-      ], -1 /* HOISTED */)
-    ]), 32 /* NEED_HYDRATION */),
+      ], -1 /* CACHED */)
+    ]))], 32 /* NEED_HYDRATION */),
     createBaseVNode("div", _hoisted_1$l, toDisplayString($props.item.name), 1 /* TEXT */),
     createVNode(_component_MediaBrowserActionItemsContainer, {
       ref: "container",
@@ -7900,7 +8603,7 @@ function render$k(_ctx, _cache, $props, $setup, $data, $options) {
           createBaseVNode("span", { class: "icon-file-alt" })
         ])
       ])
-    ], -1 /* HOISTED */)),
+    ], -1 /* CACHED */)),
     createBaseVNode("div", _hoisted_1$k, toDisplayString($props.item.name) + " " + toDisplayString($props.item.filetype), 1 /* TEXT */),
     createBaseVNode("span", {
       class: "media-browser-select",
@@ -7998,14 +8701,14 @@ var script$j = {
 
 const _hoisted_1$j = ["title"];
 const _hoisted_2$g = { class: "image-background" };
-const _hoisted_3$d = ["src", "alt", "loading", "width", "height"];
+const _hoisted_3$e = ["src", "alt", "loading", "width", "height"];
 const _hoisted_4$9 = {
   key: 1,
   class: "icon-eye-slash image-placeholder",
   "aria-hidden": "true"
 };
 const _hoisted_5$8 = ["title"];
-const _hoisted_6$6 = ["aria-label", "title"];
+const _hoisted_6$7 = ["aria-label", "title"];
 
 function render$j(_ctx, _cache, $props, $setup, $data, $options) {
   const _component_MediaBrowserActionItemsContainer = resolveComponent("MediaBrowserActionItemsContainer");
@@ -8032,7 +8735,7 @@ function render$j(_ctx, _cache, $props, $setup, $data, $options) {
               width: $options.width,
               height: $options.height,
               onLoad: _cache[0] || (_cache[0] = (...args) => ($options.setSize && $options.setSize(...args)))
-            }, null, 40 /* PROPS, NEED_HYDRATION */, _hoisted_3$d))
+            }, null, 40 /* PROPS, NEED_HYDRATION */, _hoisted_3$e))
           : createCommentVNode("v-if", true),
         (!$options.getURL)
           ? (openBlock(), createElementBlock("span", _hoisted_4$9))
@@ -8047,7 +8750,7 @@ function render$j(_ctx, _cache, $props, $setup, $data, $options) {
       class: "media-browser-select",
       "aria-label": _ctx.translate('COM_MEDIA_TOGGLE_SELECT_ITEM'),
       title: _ctx.translate('COM_MEDIA_TOGGLE_SELECT_ITEM')
-    }, null, 8 /* PROPS */, _hoisted_6$6),
+    }, null, 8 /* PROPS */, _hoisted_6$7),
     createVNode(_component_MediaBrowserActionItemsContainer, {
       ref: "container",
       item: $props.item,
@@ -8117,7 +8820,7 @@ function render$i(_ctx, _cache, $props, $setup, $data, $options) {
           createBaseVNode("span", { class: "fas fa-file-video" })
         ])
       ])
-    ], -1 /* HOISTED */)),
+    ], -1 /* CACHED */)),
     createBaseVNode("div", _hoisted_1$i, toDisplayString($props.item.name) + " " + toDisplayString($props.item.filetype), 1 /* TEXT */),
     createVNode(_component_MediaBrowserActionItemsContainer, {
       ref: "container",
@@ -8189,7 +8892,7 @@ function render$h(_ctx, _cache, $props, $setup, $data, $options) {
           createBaseVNode("span", { class: "fas fa-file-audio" })
         ])
       ])
-    ], -1 /* HOISTED */)),
+    ], -1 /* CACHED */)),
     createBaseVNode("div", _hoisted_1$h, toDisplayString($props.item.name) + " " + toDisplayString($props.item.filetype), 1 /* TEXT */),
     createVNode(_component_MediaBrowserActionItemsContainer, {
       ref: "container",
@@ -8260,7 +8963,7 @@ function render$g(_ctx, _cache, $props, $setup, $data, $options) {
           createBaseVNode("span", { class: "fas fa-file" })
         ])
       ])
-    ], -1 /* HOISTED */)),
+    ], -1 /* CACHED */)),
     createBaseVNode("div", _hoisted_1$g, toDisplayString($props.item.name) + " " + toDisplayString($props.item.filetype), 1 /* TEXT */),
     createBaseVNode("span", {
       class: "media-browser-select",
@@ -8286,6 +8989,10 @@ var MediaBrowserItem = {
     item: {
       type: Object,
       default: () => {}
+    },
+    localItems: {
+      type: Array,
+      default: () => []
     }
   },
   data() {
@@ -8372,57 +9079,7 @@ var MediaBrowserItem = {
      * @param event
      */
     handleClick(event) {
-      if (this.item.path && this.item.type === 'file') {
-        window.parent.document.dispatchEvent(new CustomEvent('onMediaFileSelected', {
-          bubbles: true,
-          cancelable: false,
-          detail: {
-            type: this.item.type,
-            name: this.item.name,
-            path: this.item.path,
-            thumb: this.item.thumb,
-            fileType: this.item.mime_type ? this.item.mime_type : false,
-            extension: this.item.extension ? this.item.extension : false,
-            width: this.item.width ? this.item.width : 0,
-            height: this.item.height ? this.item.height : 0
-          }
-        }));
-      }
-      if (this.item.type === 'dir') {
-        window.parent.document.dispatchEvent(new CustomEvent('onMediaFileSelected', {
-          bubbles: true,
-          cancelable: false,
-          detail: {
-            type: this.item.type,
-            name: this.item.name,
-            path: this.item.path
-          }
-        }));
-      }
-
-      // Handle clicks when the item was not selected
-      if (!this.isSelected()) {
-        // Unselect all other selected items,
-        // if the shift key was not pressed during the click event
-        if (!(event.shiftKey || event.keyCode === 13)) {
-          this.$store.commit(UNSELECT_ALL_BROWSER_ITEMS);
-        }
-        this.$store.commit(SELECT_BROWSER_ITEM, this.item);
-        return;
-      }
-      this.$store.dispatch('toggleBrowserItemSelect', this.item);
-      window.parent.document.dispatchEvent(new CustomEvent('onMediaFileSelected', {
-        bubbles: true,
-        cancelable: false,
-        detail: {}
-      }));
-
-      // If more than one item was selected and the user clicks again on the selected item,
-      // he most probably wants to unselect all other items.
-      if (this.$store.state.selectedItems.length > 1) {
-        this.$store.commit(UNSELECT_ALL_BROWSER_ITEMS);
-        this.$store.commit(SELECT_BROWSER_ITEM, this.item);
-      }
+      return onItemClick(event, this);
     },
     /**
      * Handle the when an element is focused in the child to display the layover for a11y
@@ -8488,60 +9145,63 @@ const _hoisted_1$f = {
   key: 0,
   class: "media-infobar"
 };
-const _hoisted_2$e = {
+const _hoisted_2$e = { class: "media-infobar-inner" };
+const _hoisted_3$d = {
   key: 0,
   class: "text-center"
 };
-const _hoisted_3$c = { key: 1 };
-const _hoisted_4$8 = { key: 0 };
-const _hoisted_5$7 = { key: 1 };
-const _hoisted_6$5 = { key: 2 };
-const _hoisted_7$3 = { key: 3 };
-const _hoisted_8$1 = { key: 4 };
-const _hoisted_9$1 = { key: 5 };
-const _hoisted_10$1 = { key: 6 };
+const _hoisted_4$8 = { key: 1 };
+const _hoisted_5$7 = { key: 0 };
+const _hoisted_6$6 = { key: 1 };
+const _hoisted_7$4 = { key: 2 };
+const _hoisted_8$2 = { key: 3 };
+const _hoisted_9$1 = { key: 4 };
+const _hoisted_10$1 = { key: 5 };
+const _hoisted_11$1 = { key: 6 };
 
 function render$f(_ctx, _cache, $props, $setup, $data, $options) {
   return (openBlock(), createBlock(Transition, { name: "infobar" }, {
     default: withCtx(() => [
       ($options.showInfoBar && $options.item)
         ? (openBlock(), createElementBlock("div", _hoisted_1$f, [
-            createBaseVNode("span", {
-              class: "infobar-close",
-              onClick: _cache[0] || (_cache[0] = $event => ($options.hideInfoBar()))
-            }, "×"),
-            createBaseVNode("h2", null, toDisplayString($options.item.name), 1 /* TEXT */),
-            ($options.item.path === '/')
-              ? (openBlock(), createElementBlock("div", _hoisted_2$e, _cache[1] || (_cache[1] = [
-                  createBaseVNode("span", { class: "icon-file placeholder-icon" }, null, -1 /* HOISTED */),
-                  createTextVNode(" Select file or folder to view its details. ")
-                ])))
-              : (openBlock(), createElementBlock("dl", _hoisted_3$c, [
-                  createBaseVNode("dt", null, toDisplayString(_ctx.translate('COM_MEDIA_FOLDER')), 1 /* TEXT */),
-                  createBaseVNode("dd", null, toDisplayString($options.item.directory), 1 /* TEXT */),
-                  createBaseVNode("dt", null, toDisplayString(_ctx.translate('COM_MEDIA_MEDIA_TYPE')), 1 /* TEXT */),
-                  ($options.item.type === 'file')
-                    ? (openBlock(), createElementBlock("dd", _hoisted_4$8, toDisplayString(_ctx.translate('COM_MEDIA_FILE')), 1 /* TEXT */))
-                    : ($options.item.type === 'dir')
-                      ? (openBlock(), createElementBlock("dd", _hoisted_5$7, toDisplayString(_ctx.translate('COM_MEDIA_FOLDER')), 1 /* TEXT */))
-                      : (openBlock(), createElementBlock("dd", _hoisted_6$5, " - ")),
-                  createBaseVNode("dt", null, toDisplayString(_ctx.translate('COM_MEDIA_MEDIA_DATE_CREATED')), 1 /* TEXT */),
-                  createBaseVNode("dd", null, toDisplayString($options.item.create_date_formatted), 1 /* TEXT */),
-                  createBaseVNode("dt", null, toDisplayString(_ctx.translate('COM_MEDIA_MEDIA_DATE_MODIFIED')), 1 /* TEXT */),
-                  createBaseVNode("dd", null, toDisplayString($options.item.modified_date_formatted), 1 /* TEXT */),
-                  createBaseVNode("dt", null, toDisplayString(_ctx.translate('COM_MEDIA_MEDIA_DIMENSION')), 1 /* TEXT */),
-                  ($options.item.width || $options.item.height)
-                    ? (openBlock(), createElementBlock("dd", _hoisted_7$3, toDisplayString($options.item.width) + "px * " + toDisplayString($options.item.height) + "px ", 1 /* TEXT */))
-                    : (openBlock(), createElementBlock("dd", _hoisted_8$1, " - ")),
-                  createBaseVNode("dt", null, toDisplayString(_ctx.translate('COM_MEDIA_MEDIA_SIZE')), 1 /* TEXT */),
-                  ($options.item.size)
-                    ? (openBlock(), createElementBlock("dd", _hoisted_9$1, toDisplayString(($options.item.size / 1024).toFixed(2)) + " KB ", 1 /* TEXT */))
-                    : (openBlock(), createElementBlock("dd", _hoisted_10$1, " - ")),
-                  createBaseVNode("dt", null, toDisplayString(_ctx.translate('COM_MEDIA_MEDIA_MIME_TYPE')), 1 /* TEXT */),
-                  createBaseVNode("dd", null, toDisplayString($options.item.mime_type), 1 /* TEXT */),
-                  createBaseVNode("dt", null, toDisplayString(_ctx.translate('COM_MEDIA_MEDIA_EXTENSION')), 1 /* TEXT */),
-                  createBaseVNode("dd", null, toDisplayString($options.item.extension || '-'), 1 /* TEXT */)
-                ]))
+            createBaseVNode("div", _hoisted_2$e, [
+              createBaseVNode("span", {
+                class: "infobar-close",
+                onClick: _cache[0] || (_cache[0] = $event => ($options.hideInfoBar()))
+              }, "×"),
+              createBaseVNode("h2", null, toDisplayString($options.item.name), 1 /* TEXT */),
+              ($options.item.path === '/')
+                ? (openBlock(), createElementBlock("div", _hoisted_3$d, [...(_cache[1] || (_cache[1] = [
+                    createBaseVNode("span", { class: "icon-file placeholder-icon" }, null, -1 /* CACHED */),
+                    createTextVNode(" Select file or folder to view its details. ", -1 /* CACHED */)
+                  ]))]))
+                : (openBlock(), createElementBlock("dl", _hoisted_4$8, [
+                    createBaseVNode("dt", null, toDisplayString(_ctx.translate('COM_MEDIA_FOLDER')), 1 /* TEXT */),
+                    createBaseVNode("dd", null, toDisplayString($options.item.directory), 1 /* TEXT */),
+                    createBaseVNode("dt", null, toDisplayString(_ctx.translate('COM_MEDIA_MEDIA_TYPE')), 1 /* TEXT */),
+                    ($options.item.type === 'file')
+                      ? (openBlock(), createElementBlock("dd", _hoisted_5$7, toDisplayString(_ctx.translate('COM_MEDIA_FILE')), 1 /* TEXT */))
+                      : ($options.item.type === 'dir')
+                        ? (openBlock(), createElementBlock("dd", _hoisted_6$6, toDisplayString(_ctx.translate('COM_MEDIA_FOLDER')), 1 /* TEXT */))
+                        : (openBlock(), createElementBlock("dd", _hoisted_7$4, " - ")),
+                    createBaseVNode("dt", null, toDisplayString(_ctx.translate('COM_MEDIA_MEDIA_DATE_CREATED')), 1 /* TEXT */),
+                    createBaseVNode("dd", null, toDisplayString($options.item.create_date_formatted), 1 /* TEXT */),
+                    createBaseVNode("dt", null, toDisplayString(_ctx.translate('COM_MEDIA_MEDIA_DATE_MODIFIED')), 1 /* TEXT */),
+                    createBaseVNode("dd", null, toDisplayString($options.item.modified_date_formatted), 1 /* TEXT */),
+                    createBaseVNode("dt", null, toDisplayString(_ctx.translate('COM_MEDIA_MEDIA_DIMENSION')), 1 /* TEXT */),
+                    ($options.item.width || $options.item.height)
+                      ? (openBlock(), createElementBlock("dd", _hoisted_8$2, toDisplayString($options.item.width) + "px * " + toDisplayString($options.item.height) + "px ", 1 /* TEXT */))
+                      : (openBlock(), createElementBlock("dd", _hoisted_9$1, " - ")),
+                    createBaseVNode("dt", null, toDisplayString(_ctx.translate('COM_MEDIA_MEDIA_SIZE')), 1 /* TEXT */),
+                    ($options.item.size)
+                      ? (openBlock(), createElementBlock("dd", _hoisted_10$1, toDisplayString(($options.item.size / 1024).toFixed(2)) + " KB ", 1 /* TEXT */))
+                      : (openBlock(), createElementBlock("dd", _hoisted_11$1, " - ")),
+                    createBaseVNode("dt", null, toDisplayString(_ctx.translate('COM_MEDIA_MEDIA_MIME_TYPE')), 1 /* TEXT */),
+                    createBaseVNode("dd", null, toDisplayString($options.item.mime_type), 1 /* TEXT */),
+                    createBaseVNode("dt", null, toDisplayString(_ctx.translate('COM_MEDIA_MEDIA_EXTENSION')), 1 /* TEXT */),
+                    createBaseVNode("dd", null, toDisplayString($options.item.extension || '-'), 1 /* TEXT */)
+                  ]))
+            ])
           ]))
         : createCommentVNode("v-if", true)
     ]),
@@ -8628,8 +9288,7 @@ var script$e = {
       return this.$store.state.search !== '' && this.localItems.length === 0;
     },
     isEmpty() {
-      return ![...this.$store.getters.getSelectedDirectoryDirectories, ...this.$store.getters.getSelectedDirectoryFiles].length
-       && !this.$store.state.isLoading;
+      return !this.localItems.length && !this.$store.state.isLoading;
     },
     /* The styles for the media-browser element */
     listView() {
@@ -8770,14 +9429,14 @@ const _hoisted_1$e = {
   class: "pt-1"
 };
 const _hoisted_2$d = { class: "alert alert-info m-3" };
-const _hoisted_3$b = { class: "visually-hidden" };
+const _hoisted_3$c = { class: "visually-hidden" };
 const _hoisted_4$7 = {
   key: 1,
   class: "text-center",
-  style: {"display":"grid","justify-content":"center","align-content":"center","margin-top":"-1rem","color":"var(--gray-200)","height":"100%"}
+  style: {"display":"grid","justify-content":"center","align-content":"center","color":"var(--gray-200)","height":"100%"}
 };
 const _hoisted_5$6 = { class: "media-dragoutline" };
-const _hoisted_6$4 = {
+const _hoisted_6$5 = {
   key: 3,
   class: "media-browser-grid"
 };
@@ -8802,8 +9461,8 @@ function render$e(_ctx, _cache, $props, $setup, $data, $options) {
             _cache[4] || (_cache[4] = createBaseVNode("span", {
               class: "icon-info-circle",
               "aria-hidden": "true"
-            }, null, -1 /* HOISTED */)),
-            createBaseVNode("span", _hoisted_3$b, toDisplayString(_ctx.translate('NOTICE')), 1 /* TEXT */),
+            }, null, -1 /* CACHED */)),
+            createBaseVNode("span", _hoisted_3$c, toDisplayString(_ctx.translate('NOTICE')), 1 /* TEXT */),
             createTextVNode(" " + toDisplayString(_ctx.translate('JGLOBAL_NO_MATCHING_RESULTS')), 1 /* TEXT */)
           ])
         ]))
@@ -8813,7 +9472,7 @@ function render$e(_ctx, _cache, $props, $setup, $data, $options) {
           _cache[5] || (_cache[5] = createBaseVNode("span", {
             class: "fa-8x icon-cloud-upload upload-icon",
             "aria-hidden": "true"
-          }, null, -1 /* HOISTED */)),
+          }, null, -1 /* CACHED */)),
           createBaseVNode("p", null, toDisplayString(_ctx.translate("COM_MEDIA_DROP_FILE")), 1 /* TEXT */)
         ]))
       : createCommentVNode("v-if", true),
@@ -8821,7 +9480,7 @@ function render$e(_ctx, _cache, $props, $setup, $data, $options) {
       _cache[6] || (_cache[6] = createBaseVNode("span", {
         class: "icon-cloud-upload upload-icon",
         "aria-hidden": "true"
-      }, null, -1 /* HOISTED */)),
+      }, null, -1 /* CACHED */)),
       createBaseVNode("p", null, toDisplayString(_ctx.translate('COM_MEDIA_DROP_FILE')), 1 /* TEXT */)
     ]),
     (($options.listView === 'table' && !$options.isEmpty && !$options.isEmptySearch))
@@ -8833,7 +9492,7 @@ function render$e(_ctx, _cache, $props, $setup, $data, $options) {
         }, null, 8 /* PROPS */, ["local-items", "current-directory", "style"]))
       : createCommentVNode("v-if", true),
     (($options.listView === 'grid' && !$options.isEmpty))
-      ? (openBlock(), createElementBlock("div", _hoisted_6$4, [
+      ? (openBlock(), createElementBlock("div", _hoisted_6$5, [
           createBaseVNode("div", {
             class: normalizeClass(["media-browser-items", $options.mediaBrowserGridItemsClass]),
             style: normalizeStyle($options.mediaBrowserStyles)
@@ -8841,8 +9500,9 @@ function render$e(_ctx, _cache, $props, $setup, $data, $options) {
             (openBlock(true), createElementBlock(Fragment, null, renderList($options.localItems, (item) => {
               return (openBlock(), createBlock(_component_MediaBrowserItem, {
                 key: item.path,
-                item: item
-              }, null, 8 /* PROPS */, ["item"]))
+                item: item,
+                "local-items": $options.localItems
+              }, null, 8 /* PROPS */, ["item", "local-items"]))
             }), 128 /* KEYED_FRAGMENT */))
           ], 6 /* CLASS, STYLE */)
         ]))
@@ -8953,7 +9613,7 @@ const _hoisted_1$d = {
   role: "group"
 };
 const _hoisted_2$c = ["aria-level", "aria-setsize", "aria-posinset", "tabindex", "onClick", "onKeyup"];
-const _hoisted_3$a = { class: "item-icon" };
+const _hoisted_3$b = { class: "item-icon" };
 const _hoisted_4$6 = { class: "item-name" };
 
 function render$d(_ctx, _cache, $props, $setup, $data, $options) {
@@ -8983,7 +9643,7 @@ function render$d(_ctx, _cache, $props, $setup, $data, $options) {
             _cache[0] || (_cache[0] = withKeys($event => ($options.moveFocusToParentElement()), ["left"]))
           ]
         }, [
-          createBaseVNode("span", _hoisted_3$a, [
+          createBaseVNode("span", _hoisted_3$b, [
             createBaseVNode("span", {
               class: normalizeClass($options.iconClass(item))
             }, null, 2 /* CLASS */)
@@ -9077,7 +9737,7 @@ var script$c = {
 
 const _hoisted_1$c = ["aria-labelledby"];
 const _hoisted_2$b = ["aria-setsize", "tabindex"];
-const _hoisted_3$9 = { class: "item-name" };
+const _hoisted_3$a = { class: "item-name" };
 
 function render$c(_ctx, _cache, $props, $setup, $data, $options) {
   const _component_MediaTree = resolveComponent("MediaTree");
@@ -9107,7 +9767,7 @@ function render$c(_ctx, _cache, $props, $setup, $data, $options) {
             _cache[1] || (_cache[1] = withKeys((...args) => ($options.onDriveClick && $options.onDriveClick(...args)), ["enter"]))
           ]
         }, [
-          createBaseVNode("span", _hoisted_3$9, toDisplayString($props.drive.displayName), 1 /* TEXT */)
+          createBaseVNode("span", _hoisted_3$a, toDisplayString($props.drive.displayName), 1 /* TEXT */)
         ], 40 /* PROPS, NEED_HYDRATION */, _hoisted_2$b),
         createVNode(_component_MediaTree, {
           ref: $props.drive.root,
@@ -9147,25 +9807,30 @@ var script$b = {
 };
 
 const _hoisted_1$b = { class: "media-disk" };
-const _hoisted_2$a = ["id"];
+const _hoisted_2$a = { open: "" };
+const _hoisted_3$9 = ["id"];
 
 function render$b(_ctx, _cache, $props, $setup, $data, $options) {
   const _component_MediaDrive = resolveComponent("MediaDrive");
 
   return (openBlock(), createElementBlock("div", _hoisted_1$b, [
-    createBaseVNode("h2", {
-      id: $options.diskId,
-      class: "media-disk-name"
-    }, toDisplayString($props.disk.displayName), 9 /* TEXT, PROPS */, _hoisted_2$a),
-    (openBlock(true), createElementBlock(Fragment, null, renderList($props.disk.drives, (drive, index) => {
-      return (openBlock(), createBlock(_component_MediaDrive, {
-        key: index,
-        "disk-id": $options.diskId,
-        counter: index,
-        drive: drive,
-        total: $props.disk.drives.length
-      }, null, 8 /* PROPS */, ["disk-id", "counter", "drive", "total"]))
-    }), 128 /* KEYED_FRAGMENT */))
+    createBaseVNode("details", _hoisted_2$a, [
+      createBaseVNode("summary", null, [
+        createBaseVNode("h2", {
+          id: $options.diskId,
+          class: "media-disk-name"
+        }, toDisplayString($props.disk.displayName), 9 /* TEXT, PROPS */, _hoisted_3$9)
+      ]),
+      (openBlock(true), createElementBlock(Fragment, null, renderList($props.disk.drives, (drive, index) => {
+        return (openBlock(), createBlock(_component_MediaDrive, {
+          key: index,
+          "disk-id": $options.diskId,
+          counter: index,
+          drive: drive,
+          total: $props.disk.drives.length
+        }, null, 8 /* PROPS */, ["disk-id", "counter", "drive", "total"]))
+      }), 128 /* KEYED_FRAGMENT */))
+    ])
   ]))
 }
 
@@ -9389,12 +10054,12 @@ const _hoisted_5$5 = {
   class: "media-view-search-input",
   role: "search"
 };
-const _hoisted_6$3 = {
+const _hoisted_6$4 = {
   for: "media_search",
   class: "visually-hidden"
 };
-const _hoisted_7$2 = ["placeholder", "value"];
-const _hoisted_8 = { class: "media-view-icons" };
+const _hoisted_7$3 = ["placeholder", "value"];
+const _hoisted_8$1 = { class: "media-view-icons" };
 const _hoisted_9 = ["aria-label"];
 const _hoisted_10 = ["aria-label"];
 const _hoisted_11 = ["aria-label"];
@@ -9440,7 +10105,7 @@ function render$9(_ctx, _cache, $props, $setup, $data, $options) {
       ]),
       createVNode(_component_MediaBreadcrumb),
       createBaseVNode("div", _hoisted_5$5, [
-        createBaseVNode("label", _hoisted_6$3, toDisplayString(_ctx.translate('COM_MEDIA_SEARCH')), 1 /* TEXT */),
+        createBaseVNode("label", _hoisted_6$4, toDisplayString(_ctx.translate('COM_MEDIA_SEARCH')), 1 /* TEXT */),
         createBaseVNode("input", {
           id: "media_search",
           class: "form-control",
@@ -9448,9 +10113,9 @@ function render$9(_ctx, _cache, $props, $setup, $data, $options) {
           placeholder: _ctx.translate('COM_MEDIA_SEARCH'),
           value: $options.search,
           onInput: _cache[1] || (_cache[1] = (...args) => ($options.changeSearch && $options.changeSearch(...args)))
-        }, null, 40 /* PROPS, NEED_HYDRATION */, _hoisted_7$2)
+        }, null, 40 /* PROPS, NEED_HYDRATION */, _hoisted_7$3)
       ]),
-      createBaseVNode("div", _hoisted_8, [
+      createBaseVNode("div", _hoisted_8$1, [
         ($options.isGridView)
           ? (openBlock(), createElementBlock("button", {
               key: 0,
@@ -9458,12 +10123,12 @@ function render$9(_ctx, _cache, $props, $setup, $data, $options) {
               class: normalizeClass(["media-toolbar-icon", { active: $data.sortingOptions }]),
               "aria-label": _ctx.translate('COM_MEDIA_CHANGE_ORDERING'),
               onClick: _cache[2] || (_cache[2] = $event => ($options.showSortOptions()))
-            }, _cache[9] || (_cache[9] = [
+            }, [...(_cache[9] || (_cache[9] = [
               createBaseVNode("span", {
                 class: "fas fa-sort-amount-down-alt",
                 "aria-hidden": "true"
-              }, null, -1 /* HOISTED */)
-            ]), 10 /* CLASS, PROPS */, _hoisted_9))
+              }, null, -1 /* CACHED */)
+            ]))], 10 /* CLASS, PROPS */, _hoisted_9))
           : createCommentVNode("v-if", true),
         ($options.isGridView)
           ? (openBlock(), createElementBlock("button", {
@@ -9472,12 +10137,12 @@ function render$9(_ctx, _cache, $props, $setup, $data, $options) {
               class: normalizeClass(["media-toolbar-icon media-toolbar-decrease-grid-size", {disabled: $options.isGridSize('sm')}]),
               "aria-label": _ctx.translate('COM_MEDIA_DECREASE_GRID'),
               onClick: _cache[3] || (_cache[3] = withModifiers($event => ($options.decreaseGridSize()), ["stop","prevent"]))
-            }, _cache[10] || (_cache[10] = [
+            }, [...(_cache[10] || (_cache[10] = [
               createBaseVNode("span", {
                 class: "icon-search-minus",
                 "aria-hidden": "true"
-              }, null, -1 /* HOISTED */)
-            ]), 10 /* CLASS, PROPS */, _hoisted_10))
+              }, null, -1 /* CACHED */)
+            ]))], 10 /* CLASS, PROPS */, _hoisted_10))
           : createCommentVNode("v-if", true),
         ($options.isGridView)
           ? (openBlock(), createElementBlock("button", {
@@ -9486,12 +10151,12 @@ function render$9(_ctx, _cache, $props, $setup, $data, $options) {
               class: normalizeClass(["media-toolbar-icon media-toolbar-increase-grid-size", {disabled: $options.isGridSize('xl')}]),
               "aria-label": _ctx.translate('COM_MEDIA_INCREASE_GRID'),
               onClick: _cache[4] || (_cache[4] = withModifiers($event => ($options.increaseGridSize()), ["stop","prevent"]))
-            }, _cache[11] || (_cache[11] = [
+            }, [...(_cache[11] || (_cache[11] = [
               createBaseVNode("span", {
                 class: "icon-search-plus",
                 "aria-hidden": "true"
-              }, null, -1 /* HOISTED */)
-            ]), 10 /* CLASS, PROPS */, _hoisted_11))
+              }, null, -1 /* CACHED */)
+            ]))], 10 /* CLASS, PROPS */, _hoisted_11))
           : createCommentVNode("v-if", true),
         createBaseVNode("button", {
           type: "button",
@@ -9509,12 +10174,12 @@ function render$9(_ctx, _cache, $props, $setup, $data, $options) {
           class: "media-toolbar-icon media-toolbar-info",
           "aria-label": _ctx.translate('COM_MEDIA_TOGGLE_INFO'),
           onClick: _cache[6] || (_cache[6] = withModifiers((...args) => ($options.toggleInfoBar && $options.toggleInfoBar(...args)), ["stop","prevent"]))
-        }, _cache[12] || (_cache[12] = [
+        }, [...(_cache[12] || (_cache[12] = [
           createBaseVNode("span", {
             class: "icon-info",
             "aria-hidden": "true"
-          }, null, -1 /* HOISTED */)
-        ]), 8 /* PROPS */, _hoisted_13)
+          }, null, -1 /* CACHED */)
+        ]))], 8 /* PROPS */, _hoisted_13)
       ])
     ], 8 /* PROPS */, _hoisted_1$9),
     ($options.isGridView && $data.sortingOptions)
@@ -9655,10 +10320,10 @@ var FOCUS_NO_AUTOFOCUS = 'data-no-autofocus';
 
 var allConstants = /*#__PURE__*/Object.freeze({
   __proto__: null,
-  FOCUS_GROUP: FOCUS_GROUP,
-  FOCUS_DISABLED: FOCUS_DISABLED,
   FOCUS_ALLOW: FOCUS_ALLOW,
   FOCUS_AUTO: FOCUS_AUTO,
+  FOCUS_DISABLED: FOCUS_DISABLED,
+  FOCUS_GROUP: FOCUS_GROUP,
   FOCUS_NO_AUTOFOCUS: FOCUS_NO_AUTOFOCUS
 });
 
@@ -9794,10 +10459,10 @@ var orderByTabIndex = function orderByTabIndex(nodes, filterNegative, keepGuards
     return {
       node: node,
       index: index,
-      tabIndex: keepGuards && tabIndex === -1 ? (node.dataset || {}).focusGuard ? 0 : -1 : tabIndex
+      tabIndex: tabIndex
     };
   }).filter(function (data) {
-    return !filterNegative || data.tabIndex >= 0;
+    return true;
   }).sort(tabSort);
 };
 
@@ -9810,26 +10475,25 @@ var tabbables = ['button:enabled', 'select:enabled', 'textarea:enabled', 'input:
 'a[href]', 'area[href]', 'summary', 'iframe', 'object', 'embed', 'audio[controls]', 'video[controls]', '[tabindex]', '[contenteditable]', '[autofocus]'];
 
 var queryTabbables = tabbables.join(',');
-var queryGuardTabbables = "".concat(queryTabbables, ", [data-focus-guard]");
 var _getFocusablesWithShadowDom = function getFocusablesWithShadowDom(parent, withGuards) {
   return toArray((parent.shadowRoot || parent).children).reduce(function (acc, child) {
-    return acc.concat(child.matches(withGuards ? queryGuardTabbables : queryTabbables) ? [child] : [], _getFocusablesWithShadowDom(child));
+    return acc.concat(child.matches(queryTabbables) ? [child] : [], _getFocusablesWithShadowDom(child));
   }, []);
 };
 var getFocusablesWithIFrame = function getFocusablesWithIFrame(parent, withGuards) {
   var _a;
   // contentDocument of iframe will be null if current origin cannot access it
   if (parent instanceof HTMLIFrameElement && ((_a = parent.contentDocument) === null || _a === void 0 ? void 0 : _a.body)) {
-    return getFocusables([parent.contentDocument.body], withGuards);
+    return getFocusables([parent.contentDocument.body]);
   }
   return [parent];
 };
 var getFocusables = function getFocusables(parents, withGuards) {
   return parents.reduce(function (acc, parent) {
     var _a;
-    var focusableWithShadowDom = _getFocusablesWithShadowDom(parent, withGuards);
+    var focusableWithShadowDom = _getFocusablesWithShadowDom(parent);
     var focusableWithIframes = (_a = []).concat.apply(_a, focusableWithShadowDom.map(function (node) {
-      return getFocusablesWithIFrame(node, withGuards);
+      return getFocusablesWithIFrame(node);
     }));
     return acc.concat(
     // add all tabbables inside and within shadow DOMs in DOM order
@@ -9885,7 +10549,7 @@ var filterAutoFocusable = function filterAutoFocusable(nodes, cache) {
  * @param visibilityCache - an cache to store intermediate measurements. Expected to be a fresh `new Map` on every call
  */
 var getFocusableNodes = function getFocusableNodes(topNodes, visibilityCache) {
-  return orderByTabIndex(filterFocusable(getFocusables(topNodes), visibilityCache), false);
+  return orderByTabIndex(filterFocusable(getFocusables(topNodes), visibilityCache));
 };
 /**
  * return list of nodes which are expected to be auto-focused
@@ -10120,8 +10784,18 @@ var newFocus = function newFocus(innerNodes, innerTabbables, outerNodes, activeE
   var firstNodeIndex = outerNodes.indexOf(firstFocus);
   var lastNodeIndex = outerNodes.indexOf(lastFocus);
   var correctedNodes = correctNodes(outerNodes);
-  var correctedIndex = activeElement !== undefined ? correctedNodes.indexOf(activeElement) : -1;
-  var correctedIndexDiff = correctedIndex - (lastNode ? correctedNodes.indexOf(lastNode) : activeIndex);
+  var currentFocusableIndex = activeElement !== undefined ? correctedNodes.indexOf(activeElement) : -1;
+  var previousFocusableIndex = lastNode ? correctedNodes.indexOf(lastNode) : currentFocusableIndex;
+  var tabbableNodes = correctedNodes.filter(function (node) {
+    return node.tabIndex >= 0;
+  });
+  var currentTabbableIndex = activeElement !== undefined ? tabbableNodes.indexOf(activeElement) : -1;
+  var previousTabbableIndex = lastNode ? tabbableNodes.indexOf(lastNode) : currentTabbableIndex;
+  var focusIndexDiff = currentTabbableIndex >= 0 && previousTabbableIndex >= 0 ?
+  // old/new are tabbables, measure distance in tabbable space
+  previousTabbableIndex - currentTabbableIndex :
+  // or else measure in focusable space
+  previousFocusableIndex - currentFocusableIndex;
   // old focus
   if (!indexDiff && lastNodeInside >= 0) {
     return lastNodeInside;
@@ -10144,7 +10818,7 @@ var newFocus = function newFocus(innerNodes, innerTabbables, outerNodes, activeE
     return returnFirstNode;
   }
   // jump out, but not on the guard
-  if (indexDiff && Math.abs(correctedIndexDiff) > 1) {
+  if (indexDiff && Math.abs(focusIndexDiff) > 1) {
     return lastNodeInside;
   }
   // focus above lock
@@ -10595,12 +11269,14 @@ function render$7(_ctx, _cache, $props, $setup, $data, $options) {
           key: 0,
           tabIndex: $props.disabled ? -1 : 0,
           style: normalizeStyle($setup.hidden),
-          "aria-hidden": "true"
+          "aria-hidden": "true",
+          "data-focus-guard": ""
         }, null, 12 /* STYLE, PROPS */, _hoisted_2$7))
       : createCommentVNode("v-if", true),
-    createBaseVNode("div", mergeProps({
+    createBaseVNode("div", mergeProps($setup.groupAttr, {
+      "data-lock": "",
       onFocusout: _cache[0] || (_cache[0] = (...args) => ($setup.onBlur && $setup.onBlur(...args)))
-    }, $setup.groupAttr, { "data-lock": "" }), [
+    }), [
       renderSlot(_ctx.$slots, "default")
     ], 16 /* FULL_PROPS */),
     ($setup.hasTailingGuards)
@@ -10608,7 +11284,8 @@ function render$7(_ctx, _cache, $props, $setup, $data, $options) {
           key: 1,
           tabIndex: $props.disabled ? -1 : 0,
           style: normalizeStyle($setup.hidden),
-          "aria-hidden": "true"
+          "aria-hidden": "true",
+          "data-focus-guard": ""
         }, null, 12 /* STYLE, PROPS */, _hoisted_3$7))
       : createCommentVNode("v-if", true)
   ], 512 /* NEED_PATCH */))
@@ -10736,6 +11413,15 @@ var script$5 = {
       folder: '',
     };
   },
+  computed: {
+    /* Get the contents of the currently selected directory */
+    items() {
+      const directories = this.$store.getters.getSelectedDirectoryDirectories;
+      const files = this.$store.getters.getSelectedDirectoryFiles;
+
+      return [...directories, ...files];
+    },
+  },
   watch: {
     '$store.state.showCreateFolderModal': function (show) {
       this.$nextTick(() => {
@@ -10745,10 +11431,24 @@ var script$5 = {
       });
     },
   },
+
   methods: {
     /* Check if the form is valid */
     isValid() {
       return (this.folder);
+    },
+    /* Check folder name is valid or not */
+    isValidName() {
+      if (this.folder.includes('..')) {
+        return 1;
+      }
+      if ((this.items.filter((file) => file.name.toLowerCase() === (this.folder.toLowerCase())).length !== 0)) {
+        return 2;
+      }
+      if ((!/^[\p{L}\p{N}\-_. ]+$/u.test(this.folder))) {
+        return 3;
+      }
+      return 0;
     },
     /* Close the modal instance */
     close() {
@@ -10785,7 +11485,22 @@ const _hoisted_1$5 = {
 const _hoisted_2$5 = { class: "p-3" };
 const _hoisted_3$5 = { class: "form-group" };
 const _hoisted_4$3 = { for: "folder" };
-const _hoisted_5$3 = ["disabled"];
+const _hoisted_5$3 = {
+  key: 0,
+  id: "folderFeedback",
+  class: "invalid-feedback"
+};
+const _hoisted_6$3 = {
+  key: 1,
+  id: "folderFeedback",
+  class: "invalid-feedback"
+};
+const _hoisted_7$2 = {
+  key: 2,
+  id: "folderFeedback",
+  class: "invalid-feedback"
+};
+const _hoisted_8 = ["disabled"];
 
 function render$5(_ctx, _cache, $props, $setup, $data, $options) {
   const _component_MediaModal = resolveComponent("MediaModal");
@@ -10813,19 +11528,29 @@ function render$5(_ctx, _cache, $props, $setup, $data, $options) {
                   id: "folder",
                   ref: "input",
                   "onUpdate:modelValue": _cache[0] || (_cache[0] = $event => (($data.folder) = $event)),
-                  class: "form-control",
+                  class: normalizeClass(["form-control", ($options.isValidName()!==0 && $options.isValid())?'is-invalid':'']),
                   type: "text",
                   required: "",
                   autocomplete: "off",
+                  "aria-describedby": "folderFeedback",
                   onInput: _cache[1] || (_cache[1] = $event => ($data.folder = $event.target.value))
-                }, null, 544 /* NEED_HYDRATION, NEED_PATCH */), [
+                }, null, 34 /* CLASS, NEED_HYDRATION */), [
                   [
                     vModelText,
                     $data.folder,
                     void 0,
                     { trim: true }
                   ]
-                ])
+                ]),
+                ($options.isValidName()===1)
+                  ? (openBlock(), createElementBlock("div", _hoisted_5$3, toDisplayString(_ctx.translate('COM_MEDIA_CREATE_NEW_FOLDER_RELATIVE_PATH_ERROR')), 1 /* TEXT */))
+                  : createCommentVNode("v-if", true),
+                ($options.isValidName()===2)
+                  ? (openBlock(), createElementBlock("div", _hoisted_6$3, toDisplayString(_ctx.translate('COM_MEDIA_CREATE_NEW_FOLDER_EXISTING_FOLDER_ERROR')), 1 /* TEXT */))
+                  : createCommentVNode("v-if", true),
+                ($options.isValidName()===3 && $options.isValid())
+                  ? (openBlock(), createElementBlock("div", _hoisted_7$2, toDisplayString(_ctx.translate('COM_MEDIA_CREATE_NEW_FOLDER_UNEXPECTED_CHARACTER')), 1 /* TEXT */))
+                  : createCommentVNode("v-if", true)
               ])
             ], 32 /* NEED_HYDRATION */)
           ])
@@ -10838,9 +11563,9 @@ function render$5(_ctx, _cache, $props, $setup, $data, $options) {
             }, toDisplayString(_ctx.translate('JCANCEL')), 1 /* TEXT */),
             createBaseVNode("button", {
               class: "btn btn-success",
-              disabled: !$options.isValid(),
+              disabled: !$options.isValid() || $options.isValidName()!==0,
               onClick: _cache[4] || (_cache[4] = $event => ($options.save()))
-            }, toDisplayString(_ctx.translate('JACTION_CREATE')), 9 /* TEXT, PROPS */, _hoisted_5$3)
+            }, toDisplayString(_ctx.translate('JACTION_CREATE')), 9 /* TEXT, PROPS */, _hoisted_8)
           ])
         ]),
         _: 1 /* STABLE */
@@ -10963,9 +11688,9 @@ function render$4(_ctx, _cache, $props, $setup, $data, $options) {
             type: "button",
             class: "media-preview-close",
             onClick: _cache[0] || (_cache[0] = $event => ($options.close()))
-          }, _cache[2] || (_cache[2] = [
-            createBaseVNode("span", { class: "icon-times" }, null, -1 /* HOISTED */)
-          ]))
+          }, [...(_cache[2] || (_cache[2] = [
+            createBaseVNode("span", { class: "icon-times" }, null, -1 /* CACHED */)
+          ]))])
         ]),
         _: 1 /* STABLE */
       }))
@@ -11255,12 +11980,12 @@ function render$2(_ctx, _cache, $props, $setup, $data, $options) {
                         type: "button",
                         title: _ctx.translate('COM_MEDIA_SHARE_COPY'),
                         onClick: _cache[2] || (_cache[2] = (...args) => ($options.copyToClipboard && $options.copyToClipboard(...args)))
-                      }, _cache[5] || (_cache[5] = [
+                      }, [...(_cache[5] || (_cache[5] = [
                         createBaseVNode("span", {
                           class: "icon-clipboard",
                           "aria-hidden": "true"
-                        }, null, -1 /* HOISTED */)
-                      ]), 8 /* PROPS */, _hoisted_7)
+                        }, null, -1 /* CACHED */)
+                      ]))], 8 /* PROPS */, _hoisted_7)
                     ])
                   ]))
             ])
@@ -11328,7 +12053,7 @@ function render$1(_ctx, _cache, $props, $setup, $data, $options) {
         ]),
         body: withCtx(() => [
           createBaseVNode("div", _hoisted_2$1, [
-            createBaseVNode("div", _hoisted_3$1, toDisplayString(_ctx.translate('JGLOBAL_CONFIRM_DELETE')), 1 /* TEXT */)
+            createBaseVNode("div", _hoisted_3$1, toDisplayString(_ctx.translate('COM_MEDIA_DELETE')), 1 /* TEXT */)
           ])
         ]),
         footer: withCtx(() => [
@@ -11454,7 +12179,7 @@ script.__file = "administrator/components/com_media/resources/scripts/components
 /**
  * Media Event bus - used for communication between joomla and vue
  */
-class Event$1 {
+let Event$1 = class Event {
   /**
      * Media Event constructor
      */
@@ -11485,7 +12210,7 @@ class Event$1 {
     this.events[event] = this.events[event] || [];
     this.events[event].push(callback);
   }
-}
+};
 
 function getDevtoolsGlobalHook() {
   return getTarget().__VUE_DEVTOOLS_GLOBAL_HOOK__;
@@ -11765,9 +12490,7 @@ function installModule(store, rootState, path, module, hot) {
 
   // register in namespace map
   if (module.namespaced) {
-    if (store._modulesNamespaceMap[namespace] && "production" !== 'production') {
-      console.error("[vuex] duplicate namespace " + namespace + " for the namespaced module " + path.join('/'));
-    }
+    if (store._modulesNamespaceMap[namespace] && "production" !== 'production') ;
     store._modulesNamespaceMap[namespace] = module;
   }
 
@@ -12556,110 +13279,124 @@ Store.prototype._withCommit = function _withCommit(fn) {
 };
 Object.defineProperties(Store.prototype, prototypeAccessors);
 
-var isMergeableObject = function isMergeableObject(value) {
-  return isNonNullObject(value) && !isSpecial(value);
-};
-function isNonNullObject(value) {
-  return !!value && typeof value === 'object';
-}
-function isSpecial(value) {
-  var stringValue = Object.prototype.toString.call(value);
-  return stringValue === '[object RegExp]' || stringValue === '[object Date]' || isReactElement(value);
+function getDefaultExportFromCjs (x) {
+	return x && x.__esModule && Object.prototype.hasOwnProperty.call(x, 'default') ? x['default'] : x;
 }
 
-// see https://github.com/facebook/react/blob/b5ac963fb791d1298e7f396236383bc955f916c1/src/isomorphic/classic/element/ReactElement.js#L21-L25
-var canUseSymbol = typeof Symbol === 'function' && Symbol.for;
-var REACT_ELEMENT_TYPE = canUseSymbol ? Symbol.for('react.element') : 0xeac7;
-function isReactElement(value) {
-  return value.$$typeof === REACT_ELEMENT_TYPE;
-}
-function emptyTarget(val) {
-  return Array.isArray(val) ? [] : {};
-}
-function cloneUnlessOtherwiseSpecified(value, options) {
-  return options.clone !== false && options.isMergeableObject(value) ? deepmerge(emptyTarget(value), value, options) : value;
-}
-function defaultArrayMerge(target, source, options) {
-  return target.concat(source).map(function (element) {
-    return cloneUnlessOtherwiseSpecified(element, options);
-  });
-}
-function getMergeFunction(key, options) {
-  if (!options.customMerge) {
-    return deepmerge;
+var cjs;
+var hasRequiredCjs;
+function requireCjs() {
+  if (hasRequiredCjs) return cjs;
+  hasRequiredCjs = 1;
+  var isMergeableObject = function isMergeableObject(value) {
+    return isNonNullObject(value) && !isSpecial(value);
+  };
+  function isNonNullObject(value) {
+    return !!value && typeof value === 'object';
   }
-  var customMerge = options.customMerge(key);
-  return typeof customMerge === 'function' ? customMerge : deepmerge;
-}
-function getEnumerableOwnPropertySymbols(target) {
-  return Object.getOwnPropertySymbols ? Object.getOwnPropertySymbols(target).filter(function (symbol) {
-    return Object.propertyIsEnumerable.call(target, symbol);
-  }) : [];
-}
-function getKeys(target) {
-  return Object.keys(target).concat(getEnumerableOwnPropertySymbols(target));
-}
-function propertyIsOnObject(object, property) {
-  try {
-    return property in object;
-  } catch (_) {
-    return false;
+  function isSpecial(value) {
+    var stringValue = Object.prototype.toString.call(value);
+    return stringValue === '[object RegExp]' || stringValue === '[object Date]' || isReactElement(value);
   }
-}
 
-// Protects from prototype poisoning and unexpected merging up the prototype chain.
-function propertyIsUnsafe(target, key) {
-  return propertyIsOnObject(target, key) // Properties are safe to merge if they don't exist in the target yet,
-  && !(Object.hasOwnProperty.call(target, key) // unsafe if they exist up the prototype chain,
-  && Object.propertyIsEnumerable.call(target, key)); // and also unsafe if they're nonenumerable.
-}
-function mergeObject(target, source, options) {
-  var destination = {};
-  if (options.isMergeableObject(target)) {
-    getKeys(target).forEach(function (key) {
-      destination[key] = cloneUnlessOtherwiseSpecified(target[key], options);
+  // see https://github.com/facebook/react/blob/b5ac963fb791d1298e7f396236383bc955f916c1/src/isomorphic/classic/element/ReactElement.js#L21-L25
+  var canUseSymbol = typeof Symbol === 'function' && Symbol.for;
+  var REACT_ELEMENT_TYPE = canUseSymbol ? Symbol.for('react.element') : 0xeac7;
+  function isReactElement(value) {
+    return value.$$typeof === REACT_ELEMENT_TYPE;
+  }
+  function emptyTarget(val) {
+    return Array.isArray(val) ? [] : {};
+  }
+  function cloneUnlessOtherwiseSpecified(value, options) {
+    return options.clone !== false && options.isMergeableObject(value) ? deepmerge(emptyTarget(value), value, options) : value;
+  }
+  function defaultArrayMerge(target, source, options) {
+    return target.concat(source).map(function (element) {
+      return cloneUnlessOtherwiseSpecified(element, options);
     });
   }
-  getKeys(source).forEach(function (key) {
-    if (propertyIsUnsafe(target, key)) {
-      return;
+  function getMergeFunction(key, options) {
+    if (!options.customMerge) {
+      return deepmerge;
     }
-    if (propertyIsOnObject(target, key) && options.isMergeableObject(source[key])) {
-      destination[key] = getMergeFunction(key, options)(target[key], source[key], options);
+    var customMerge = options.customMerge(key);
+    return typeof customMerge === 'function' ? customMerge : deepmerge;
+  }
+  function getEnumerableOwnPropertySymbols(target) {
+    return Object.getOwnPropertySymbols ? Object.getOwnPropertySymbols(target).filter(function (symbol) {
+      return Object.propertyIsEnumerable.call(target, symbol);
+    }) : [];
+  }
+  function getKeys(target) {
+    return Object.keys(target).concat(getEnumerableOwnPropertySymbols(target));
+  }
+  function propertyIsOnObject(object, property) {
+    try {
+      return property in object;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  // Protects from prototype poisoning and unexpected merging up the prototype chain.
+  function propertyIsUnsafe(target, key) {
+    return propertyIsOnObject(target, key) // Properties are safe to merge if they don't exist in the target yet,
+    && !(Object.hasOwnProperty.call(target, key) // unsafe if they exist up the prototype chain,
+    && Object.propertyIsEnumerable.call(target, key)); // and also unsafe if they're nonenumerable.
+  }
+  function mergeObject(target, source, options) {
+    var destination = {};
+    if (options.isMergeableObject(target)) {
+      getKeys(target).forEach(function (key) {
+        destination[key] = cloneUnlessOtherwiseSpecified(target[key], options);
+      });
+    }
+    getKeys(source).forEach(function (key) {
+      if (propertyIsUnsafe(target, key)) {
+        return;
+      }
+      if (propertyIsOnObject(target, key) && options.isMergeableObject(source[key])) {
+        destination[key] = getMergeFunction(key, options)(target[key], source[key], options);
+      } else {
+        destination[key] = cloneUnlessOtherwiseSpecified(source[key], options);
+      }
+    });
+    return destination;
+  }
+  function deepmerge(target, source, options) {
+    options = options || {};
+    options.arrayMerge = options.arrayMerge || defaultArrayMerge;
+    options.isMergeableObject = options.isMergeableObject || isMergeableObject;
+    // cloneUnlessOtherwiseSpecified is added to `options` so that custom arrayMerge()
+    // implementations can use it. The caller may not replace it.
+    options.cloneUnlessOtherwiseSpecified = cloneUnlessOtherwiseSpecified;
+    var sourceIsArray = Array.isArray(source);
+    var targetIsArray = Array.isArray(target);
+    var sourceAndTargetTypesMatch = sourceIsArray === targetIsArray;
+    if (!sourceAndTargetTypesMatch) {
+      return cloneUnlessOtherwiseSpecified(source, options);
+    } else if (sourceIsArray) {
+      return options.arrayMerge(target, source, options);
     } else {
-      destination[key] = cloneUnlessOtherwiseSpecified(source[key], options);
+      return mergeObject(target, source, options);
     }
-  });
-  return destination;
-}
-function deepmerge(target, source, options) {
-  options = options || {};
-  options.arrayMerge = options.arrayMerge || defaultArrayMerge;
-  options.isMergeableObject = options.isMergeableObject || isMergeableObject;
-  // cloneUnlessOtherwiseSpecified is added to `options` so that custom arrayMerge()
-  // implementations can use it. The caller may not replace it.
-  options.cloneUnlessOtherwiseSpecified = cloneUnlessOtherwiseSpecified;
-  var sourceIsArray = Array.isArray(source);
-  var targetIsArray = Array.isArray(target);
-  var sourceAndTargetTypesMatch = sourceIsArray === targetIsArray;
-  if (!sourceAndTargetTypesMatch) {
-    return cloneUnlessOtherwiseSpecified(source, options);
-  } else if (sourceIsArray) {
-    return options.arrayMerge(target, source, options);
-  } else {
-    return mergeObject(target, source, options);
   }
+  deepmerge.all = function deepmergeAll(array, options) {
+    if (!Array.isArray(array)) {
+      throw new Error('first argument should be an array');
+    }
+    return array.reduce(function (prev, next) {
+      return deepmerge(prev, next, options);
+    }, {});
+  };
+  var deepmerge_1 = deepmerge;
+  cjs = deepmerge_1;
+  return cjs;
 }
-deepmerge.all = function deepmergeAll(array, options) {
-  if (!Array.isArray(array)) {
-    throw new Error('first argument should be an array');
-  }
-  return array.reduce(function (prev, next) {
-    return deepmerge(prev, next, options);
-  }, {});
-};
-var deepmerge_1 = deepmerge;
-var cjs = deepmerge_1;
+
+var cjsExports = requireCjs();
+var deepmerge = /*@__PURE__*/getDefaultExportFromCjs(cjsExports);
 
 /**
  * Created by championswimmer on 22/07/17.
@@ -12726,7 +13463,7 @@ const options$1 = {
   }
 };
 function merge(into, from, mergeOption) {
-  return cjs(into, from, options$1[mergeOption]);
+  return deepmerge(into, from, options$1[mergeOption]);
 }
 let FlattedJSON = JSON;
 /**
@@ -12891,7 +13628,6 @@ class VuexPersistence {
     }
   }
 }
-var VuexPersistence$1 = VuexPersistence;
 
 // The options for persisting state
 const persistedStateOptions = {
@@ -13062,9 +13798,9 @@ const getSelectedDirectoryContents = (state, getters) => [...getters.getSelected
 var getters = /*#__PURE__*/Object.freeze({
   __proto__: null,
   getSelectedDirectory: getSelectedDirectory,
+  getSelectedDirectoryContents: getSelectedDirectoryContents,
   getSelectedDirectoryDirectories: getSelectedDirectoryDirectories,
-  getSelectedDirectoryFiles: getSelectedDirectoryFiles,
-  getSelectedDirectoryContents: getSelectedDirectoryContents
+  getSelectedDirectoryFiles: getSelectedDirectoryFiles
 });
 
 const updateUrlPath = path => {
@@ -13273,15 +14009,15 @@ const updateItemProperties = (context, payload) => context.commit(UPDATE_ITEM_PR
 
 var actions = /*#__PURE__*/Object.freeze({
   __proto__: null,
+  createDirectory: createDirectory,
+  deleteSelectedItems: deleteSelectedItems,
+  download: download,
   getContents: getContents,
   getFullContents: getFullContents,
-  download: download,
-  toggleBrowserItemSelect: toggleBrowserItemSelect,
-  createDirectory: createDirectory,
-  uploadFile: uploadFile,
   renameItem: renameItem,
-  deleteSelectedItems: deleteSelectedItems,
-  updateItemProperties: updateItemProperties
+  toggleBrowserItemSelect: toggleBrowserItemSelect,
+  updateItemProperties: updateItemProperties,
+  uploadFile: uploadFile
 });
 
 // The only way to actually change state in a store is by committing a mutation.
@@ -13718,7 +14454,7 @@ var store = createStore({
   getters,
   actions,
   mutations,
-  plugins: [new VuexPersistence$1(persistedStateOptions).plugin],
+  plugins: [new VuexPersistence(persistedStateOptions).plugin],
   strict: "production" !== 'production'
 });
 

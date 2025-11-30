@@ -1,0 +1,19 @@
+name: 'My Theme'
+type: theme
+description: 'A DiSyL-powered Drupal theme'
+core_version_requirement: ^9 || ^10
+base theme: false
+
+libraries:
+  - my-theme/global
+
+regions:
+  header: 'Header'
+  primary_menu: 'Primary Menu'
+  secondary_menu: 'Secondary Menu'
+  highlighted: 'Highlighted'
+  help: 'Help'
+  content: 'Content'
+  sidebar_first: 'Sidebar First'
+  sidebar_second: 'Sidebar Second'
+  footer: 'Footer'

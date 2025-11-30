@@ -995,10 +995,9 @@ class Kernel
     
     private function loadJoomlaCore(string $corePath): void
     {
-        // Define Joomla constants if not defined
-        if (!defined('JPATH_ROOT')) {
-            define('JPATH_ROOT', $corePath);
-        }
+        // JPATH_ROOT must be the kernel root to allow both instance paths 
+        // and shared-core paths to pass Joomla's Path::check()
+        // Do NOT set it here - let the instance's defines.php set it
         
         // Store core path for later use
         $this->config['joomla_core_path'] = $corePath;

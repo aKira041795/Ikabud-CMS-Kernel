@@ -8,7 +8,6 @@ import { JoomlaEditor, JoomlaEditorDecorator } from 'editor-api';
 /**
  * EditorNone Decorator for Joomla.Editor
  */
-// eslint-disable-next-line max-classes-per-file
 class EditorNoneDecorator extends JoomlaEditorDecorator {
   /**
    * @returns {string}
@@ -58,7 +57,6 @@ class JoomlaEditorNone extends HTMLElement {
     this.getSelection = this.getSelection.bind(this);
 
     // Watch for children changes.
-    // eslint-disable-next-line no-return-assign
     new MutationObserver(() => this.childrenChange()).observe(this, {
       childList: true
     });

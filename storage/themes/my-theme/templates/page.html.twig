@@ -1,0 +1,40 @@
+{#
+/**
+ * My Theme - Page Template
+ */
+#}
+<div class="layout-container">
+  <header role="banner" class="site-header">
+    {{ page.header }}
+    {{ page.primary_menu }}
+  </header>
+
+  {{ page.highlighted }}
+  {{ page.help }}
+
+  <main role="main" class="site-main">
+    <a id="main-content" tabindex="-1"></a>
+
+    <div class="layout-content">
+      {{ page.content }}
+    </div>
+
+    {% if page.sidebar_first %}
+      <aside class="layout-sidebar-first" role="complementary">
+        {{ page.sidebar_first }}
+      </aside>
+    {% endif %}
+
+    {% if page.sidebar_second %}
+      <aside class="layout-sidebar-second" role="complementary">
+        {{ page.sidebar_second }}
+      </aside>
+    {% endif %}
+  </main>
+
+  {% if page.footer %}
+    <footer role="contentinfo" class="site-footer">
+      {{ page.footer }}
+    </footer>
+  {% endif %}
+</div>

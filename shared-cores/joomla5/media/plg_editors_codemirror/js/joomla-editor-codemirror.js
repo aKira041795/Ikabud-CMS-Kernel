@@ -9,7 +9,6 @@ import { keymap, createFromTextarea, EditorState } from 'codemirror';
 /**
  * Codemirror Decorator for JoomlaEditor
  */
-// eslint-disable-next-line max-classes-per-file
 class CodemirrorDecorator extends JoomlaEditorDecorator {
   /**
    * @returns {string}

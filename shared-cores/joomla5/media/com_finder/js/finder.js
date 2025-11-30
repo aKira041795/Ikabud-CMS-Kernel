@@ -23,7 +23,6 @@
           response = JSON.parse(xhr.responseText);
         } catch (e) {
           // Something went wrong, but we are not going to bother the enduser with this
-          // eslint-disable-next-line no-console
           console.error(e);
           return;
         }
@@ -32,7 +31,6 @@
         }
       }).catch(xhr => {
         // Something went wrong, but we are not going to bother the enduser with this
-        // eslint-disable-next-line no-console
         console.error(xhr);
       });
     }
@@ -67,7 +65,9 @@
     document.querySelectorAll('.js-finder-search-query').forEach(searchword => {
       // Handle the auto suggestion
       if (Joomla.getOptions('finder-search')) {
-        searchword.awesomplete = new Awesomplete(searchword);
+        searchword.awesomplete = new Awesomplete(searchword, {
+          listLabel: Joomla.Text._('COM_FINDER_SEARCH_FORM_LIST_LABEL')
+        });
 
         // If the current value is empty, set the previous value.
         searchword.addEventListener('input', onInputChange);

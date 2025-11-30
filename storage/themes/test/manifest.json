@@ -1,0 +1,14 @@
+{
+    "$schema": "https://ikabud.com/schemas/theme-manifest-v1.json",
+    "name": "Test",
+    "version": "1.0.0",
+    "description": "A DiSyL-powered theme",
+    "author": "Ikabud Theme Builder",
+    "license": "GPL-2.0-or-later",
+    "disyl_version": "1.2.0",
+    "cms_support": [
+        "wordpress"
+    ],
+    "components": [],
+    "customizer": []
+}
