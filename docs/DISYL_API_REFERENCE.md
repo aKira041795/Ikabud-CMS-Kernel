@@ -1,6 +1,8 @@
-# DiSyL API Reference v0.1
+# DiSyL API Reference v0.5.1
 
-Complete API documentation for DiSyL PHP classes.
+Complete API documentation for DiSyL PHP classes and REST endpoints.
+
+**Last Updated:** November 30, 2025
 
 ---
 
@@ -12,6 +14,8 @@ Complete API documentation for DiSyL PHP classes.
 4. [Grammar](#grammar)
 5. [ComponentRegistry](#componentregistry)
 6. [Renderers](#renderers)
+7. [CrossInstanceDataProvider](#crossinstancedataprovider) *(NEW)*
+8. [REST API Endpoints](#rest-api-endpoints) *(NEW)*
 
 ---
 
@@ -284,8 +288,286 @@ echo $html;
 
 ---
 
+## CrossInstanceDataProvider
+
+**Namespace**: `IkabudKernel\Core\DiSyL\CrossInstanceDataProvider`
+
+*(New in v0.5.1)*
+
+Global service for fetching data from any registered CMS instance, enabling cross-instance content federation.
+
+### Methods
+
+#### `init(?string $instancesPath = null): void`
+
+Initialize the provider with the instances directory path.
+
+**Parameters**:
+- `$instancesPath` (string|null): Path to instances directory (defaults to `/instances`)
+
+**Example**:
+```php
+use IkabudKernel\Core\DiSyL\CrossInstanceDataProvider;
+
+CrossInstanceDataProvider::init('/var/www/html/ikabud-kernel/instances');
+```
+
+#### `isCrossInstanceQuery(array $attrs): bool`
+
+Check if query attributes indicate a cross-instance query.
+
+**Parameters**:
+- `$attrs` (array): Query attributes
+
+**Returns**: `bool` - True if `instance` or `cms` attribute is present
+
+#### `query(array $attrs): array`
+
+Execute a cross-instance query.
+
+**Parameters**:
+- `$attrs` (array): Query attributes including:
+  - `instance` (string): Target instance ID
+  - `cms` (string): Target CMS type (wordpress, joomla, drupal)
+  - `type` (string): Content type (post, article, node)
+  - `limit` (int): Number of items
+  - `orderby` (string): Sort field
+  - `order` (string): Sort direction (ASC, DESC)
+  - `category` (string): Category filter
+
+**Returns**: `array` - Array of normalized content items
+
+**Example**:
+```php
+use IkabudKernel\Core\DiSyL\CrossInstanceDataProvider;
+
+CrossInstanceDataProvider::init();
+
+$items = CrossInstanceDataProvider::query([
+    'cms' => 'joomla',
+    'instance' => 'joomla-content',
+    'type' => 'article',
+    'limit' => 5,
+    'orderby' => 'created',
+    'order' => 'DESC'
+]);
+
+foreach ($items as $item) {
+    echo $item['title'];           // Common field
+    echo $item['article']['hits']; // Joomla-specific field
+}
+```
+
+### Returned Data Structure
+
+Each item includes:
+
+**Common Fields** (all CMS types):
+```php
+[
+    'id' => 123,
+    'title' => 'Article Title',
+    'content' => 'Full content...',
+    'excerpt' => 'Summary text...',
+    'date' => '2025-11-30 14:00:00',
+    'modified' => '2025-11-30 15:00:00',
+    'author' => 'John Doe',
+    'slug' => 'article-title',
+    'status' => 'publish',
+    'type' => 'article',
+    '_source' => [
+        'instance' => 'joomla-content',
+        'cms' => 'joomla'
+    ]
+]
+```
+
+**CMS-Specific Fields**:
+- WordPress: `post.*` (ID, title, content, excerpt, thumbnail, permalink)
+- Joomla: `article.*` (id, title, introtext, fulltext, alias, hits, images)
+- Drupal: `node.*` (nid, title, body, type, created, changed)
+
+---
+
+## REST API Endpoints
+
+### Filesystem API
+
+#### List Theme Files
+
+```
+GET /api/v1/filesystem/instances/{instanceId}/themes/{themeName}/files
+```
+
+**Response**:
+```json
+{
+  "success": true,
+  "data": {
+    "files": [
+      {
+        "name": "home.disyl",
+        "path": "disyl/home.disyl",
+        "type": "file",
+        "size": 2048
+      },
+      {
+        "name": "components",
+        "path": "disyl/components",
+        "type": "directory",
+        "children": [...]
+      }
+    ]
+  }
+}
+```
+
+#### Read File
+
+```
+GET /api/v1/filesystem/instances/{instanceId}/themes/{themeName}/files/{path}
+```
+
+**Response**:
+```json
+{
+  "success": true,
+  "data": {
+    "content": "{ikb_section type=\"hero\"}\n  ...\n{/ikb_section}",
+    "path": "disyl/home.disyl",
+    "language": "disyl"
+  }
+}
+```
+
+#### Write File
+
+```
+PUT /api/v1/filesystem/instances/{instanceId}/themes/{themeName}/files/{path}
+Content-Type: application/json
+
+{
+  "content": "{ikb_section type=\"hero\"}\n  Updated content\n{/ikb_section}"
+}
+```
+
+**Response**:
+```json
+{
+  "success": true,
+  "message": "File saved successfully"
+}
+```
+
+#### Create File
+
+```
+POST /api/v1/filesystem/instances/{instanceId}/themes/{themeName}/files
+Content-Type: application/json
+
+{
+  "path": "disyl/new-template.disyl",
+  "content": "{!-- New template --}"
+}
+```
+
+#### Delete File
+
+```
+DELETE /api/v1/filesystem/instances/{instanceId}/themes/{themeName}/files/{path}
+```
+
+### Instance Context API
+
+#### Get Database Context
+
+```
+GET /api/v1/filesystem/instances/{instanceId}/context
+```
+
+Returns database schema and sample data for autocomplete.
+
+**Response**:
+```json
+{
+  "success": true,
+  "data": {
+    "cms_type": "wordpress",
+    "instance_name": "wp-main",
+    "variables": {
+      "site": ["name", "description", "url", "admin_email"],
+      "post": ["ID", "title", "content", "excerpt", "thumbnail", "permalink"],
+      "user": ["ID", "login", "email", "display_name", "logged_in"],
+      "query": ["found_posts", "max_num_pages", "current_page"]
+    },
+    "filters": [
+      {"name": "esc_html", "description": "Escape HTML entities"},
+      {"name": "esc_attr", "description": "Escape for attributes"},
+      {"name": "esc_url", "description": "Escape URLs"},
+      {"name": "truncate", "description": "Truncate text", "params": ["length"]},
+      {"name": "date", "description": "Format date", "params": ["format"]}
+    ],
+    "operators": ["==", "!=", ">", "<", ">=", "<=", "&&", "||", "!"],
+    "cms_specific": {
+      "post_types": ["post", "page", "product", "attachment"],
+      "taxonomies": ["category", "post_tag", "product_cat"],
+      "menus": ["primary", "footer", "mobile"],
+      "widgets": ["sidebar-1", "footer-1", "footer-2"],
+      "categories": [
+        {"id": 1, "name": "Uncategorized", "slug": "uncategorized"},
+        {"id": 2, "name": "News", "slug": "news"}
+      ]
+    }
+  }
+}
+```
+
+### Theme Generation API
+
+#### Generate Theme
+
+```
+POST /api/theme/generate
+Content-Type: application/json
+
+{
+  "instance_id": "wp-main",
+  "theme_name": "phoenix",
+  "cms_type": "wordpress",
+  "options": {
+    "include_assets": true,
+    "minify_css": false,
+    "generate_screenshot": true
+  }
+}
+```
+
+**Response**:
+```json
+{
+  "success": true,
+  "message": "Theme generated successfully",
+  "data": {
+    "theme_path": "/instances/wp-main/wp-content/themes/phoenix",
+    "files_created": 15,
+    "warnings": []
+  }
+}
+```
+
+#### Export Theme
+
+```
+GET /api/theme/export/{instanceId}/{themeName}?format=zip
+```
+
+Returns downloadable ZIP file of the theme.
+
+---
+
 ## See Also
 
+- [Theme Builder Guide](THEME_BUILDER_GUIDE.md)
 - [Language Reference](DISYL_LANGUAGE_REFERENCE.md)
 - [Component Catalog](DISYL_COMPONENT_CATALOG.md)
 - [Code Examples](DISYL_CODE_EXAMPLES.md)
