@@ -10,6 +10,10 @@
 // Get the instance directory (where this file is located)
 $instanceDir = __DIR__;
 
+// Kernel root - allows symlinked shared-core paths to pass Joomla's Path::check()
+$kernelRoot = dirname(dirname($instanceDir));
+\defined('IKABUD_KERNEL_ROOT') || \define('IKABUD_KERNEL_ROOT', $kernelRoot);
+
 // Define all JPATH constants to point to instance-specific locations
 // These will NOT be redefined by the shared core's defines.php because it uses \defined() || \define()
 

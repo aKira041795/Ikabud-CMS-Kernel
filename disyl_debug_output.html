@@ -48,7 +48,7 @@
                 
                 <header class="post-header">
                     <div class="ikb-text ikb-text-3xl font-bold text-left gradient-text">
-                        <h1>Phoenix Theme Features</h1>
+                        <h1>DiSyL Filters Reference</h1>
                     </div>
                     
                     <div class="post-meta">
@@ -60,7 +60,8 @@
                 
                 
                 <div class="post-content">
-                    <p>Phoenix is a stunning, modern theme powered by DiSyL. It demonstrates the full power of cross-CMS template development.</p><h2>Design Features</h2><h3>Modern Gradients</h3><p>Beautiful gradient backgrounds that captivate visitors.</p><h3>Smooth Animations</h3><p>Reveal animations and smooth transitions for a polished experience.</p><h3>Fully Responsive</h3><p>Looks perfect on all devices from mobile to desktop.</p><h2>Technical Features</h2><h3>DiSyL-Powered</h3><p>Built entirely with DiSyL templates for maximum flexibility.</p><h3>Lightning Fast</h3><p>Optimized for performance with efficient rendering.</p><h3>SEO Optimized</h3><p>Clean semantic HTML and proper meta tags.</p><h3>Secure</h3><p>Built-in XSS prevention and sanitization.</p><h2>Cross-CMS Compatibility</h2><p>The same Phoenix theme works on:</p><ul><li>WordPress</li><li>Joomla</li><li>Drupal (coming soon)</li></ul><h2>Customization</h2><p>Phoenix offers extensive customization options:</p><ul><li>Multiple color schemes</li><li>Flexible layouts</li><li>Widget/module areas</li><li>Custom logo and branding</li><li>Typography options</li></ul>
+                    <p>Filters transform data in DiSyL templates. Learn about all available filters and how to use them effectively.</p><h2>Security Filters</h2><h3>esc_html</h3><p>Escape HTML entities to prevent XSS attacks.</p><p><code>{item.title | esc_html}</code></p><h3>esc_url</h3><p>Sanitize and escape URLs.</p><p><code>{item.link | esc_url}</code></p><h3>esc_attr</h3><p>Escape HTML attributes.</p><p><code>{item.alt | esc_attr}</code></p><h2>String Filters</h2><h3>truncate</h3><p>Truncate text by character length.</p><p><code>{item.excerpt | truncate:length=150,append="..."}</code></p><h3>wp_trim_words</h3><p>Truncate text by word count.</p><p><code>{item.content | wp_trim_words:num_words=20}</code></p><h3>strip_tags</h3><p>Remove HTML tags.</p><p><code>{item.content | strip_tags}</code></p><h3>upper / lower</h3><p>Convert case.</p><p><code>{item.title | upper}
+{item.title | lower}</code></p><h2>Formatting Filters</h2><h3>date</h3><p>Format dates.</p><p><code>{item.date | date:format="F j, Y"}</code></p><h2>Filter Chaining</h2><p>Combine multiple filters:</p><p><code>{item.content | strip_tags | truncate:length=100 | upper}</code></p>
                 </div>
                 
                 
@@ -71,13 +72,13 @@
                             Share:
                         </div>
                         <div class="share-icons">
-                            <a href="https://twitter.com/intent/tweet?url=/phoenix-theme-features&text=Phoenix Theme Features" target="_blank" class="share-icon share-twitter" aria-label="Share on Twitter">
+                            <a href="https://twitter.com/intent/tweet?url=/disyl-filters-reference&text=DiSyL Filters Reference" target="_blank" class="share-icon share-twitter" aria-label="Share on Twitter">
                                 𝕏
                             </a>
-                            <a href="https://www.facebook.com/sharer/sharer.php?u=/phoenix-theme-features" target="_blank" class="share-icon share-facebook" aria-label="Share on Facebook">
+                            <a href="https://www.facebook.com/sharer/sharer.php?u=/disyl-filters-reference" target="_blank" class="share-icon share-facebook" aria-label="Share on Facebook">
                                 f
                             </a>
-                            <a href="https://www.linkedin.com/shareArticle?url=/phoenix-theme-features&title=Phoenix Theme Features" target="_blank" class="share-icon share-linkedin" aria-label="Share on LinkedIn">
+                            <a href="https://www.linkedin.com/shareArticle?url=/disyl-filters-reference&title=DiSyL Filters Reference" target="_blank" class="share-icon share-linkedin" aria-label="Share on LinkedIn">
                                 in
                             </a>
                         </div>

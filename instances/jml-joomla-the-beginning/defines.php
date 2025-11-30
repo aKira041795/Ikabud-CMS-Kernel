@@ -10,15 +10,15 @@
 // Get the instance directory (where this file is located)
 $instanceDir = __DIR__;
 
-// Get the kernel root (parent of instances directory)
-// JPATH_ROOT must include shared-cores for Path::check() to work with symlinks
+// Kernel root - allows symlinked shared-core paths to pass Path::check()
 $kernelRoot = dirname(dirname($instanceDir));
+\defined('IKABUD_KERNEL_ROOT') || \define('IKABUD_KERNEL_ROOT', $kernelRoot);
 
 // Define all JPATH constants to point to instance-specific locations
 // These will NOT be redefined by the shared core's defines.php because it uses \defined() || \define()
 
-// JPATH_ROOT must be the kernel root to allow symlinked paths from shared-cores
-\defined('JPATH_ROOT') || \define('JPATH_ROOT', $kernelRoot);
+// JPATH_ROOT points to instance directory for proper asset resolution
+\defined('JPATH_ROOT') || \define('JPATH_ROOT', $instanceDir);
 
 // Base paths - point to instance directory (only if not already defined)
 \defined('JPATH_BASE') || \define('JPATH_BASE', $instanceDir);

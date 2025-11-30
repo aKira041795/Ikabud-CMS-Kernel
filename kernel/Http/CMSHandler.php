@@ -373,7 +373,13 @@ class CMSHandler
                 break;
                 
             case 'joomla':
-                define('_JEXEC', 1);
+                if (!defined('_JEXEC')) {
+                    define('_JEXEC', 1);
+                }
+                // Define kernel root for Path::check() to allow symlinked shared-core paths
+                if (!defined('IKABUD_KERNEL_ROOT')) {
+                    define('IKABUD_KERNEL_ROOT', dirname(__DIR__, 2));
+                }
                 if (file_exists($instanceDir . '/defines.php')) {
                     require_once $instanceDir . '/defines.php';
                 }

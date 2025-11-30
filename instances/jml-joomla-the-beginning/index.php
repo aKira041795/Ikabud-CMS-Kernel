@@ -12,7 +12,7 @@ if (version_compare(PHP_VERSION, JOOMLA_MINIMUM_PHP, '<')) {
 }
 
 // Constant that is checked in included files to prevent direct access
-define('_JEXEC', 1);
+defined('_JEXEC') || define('_JEXEC', 1);
 
 // Load instance-specific path definitions BEFORE loading Joomla
 // This ensures instance-specific cache/config directories are used
