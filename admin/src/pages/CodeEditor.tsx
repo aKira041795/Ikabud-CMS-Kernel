@@ -19,7 +19,22 @@ import {
   X,
   Settings,
   Sun,
-  Moon
+  Moon,
+  Columns,
+  Eye,
+  SplitSquareHorizontal,
+  Layers,
+  Box,
+  Type,
+  Grid3X3,
+  Link,
+  MousePointer,
+  Repeat,
+  GitBranch,
+  Monitor,
+  Tablet,
+  Smartphone,
+  LucideIcon
 } from 'lucide-react'
 
 // Types
@@ -218,6 +233,609 @@ const DISYL_PATTERNS = {
   ]
 }
 
+// ============================================================================
+// VISUAL PREVIEW TYPES AND PARSER
+// ============================================================================
+
+interface ParsedNode {
+  id: string
+  componentId: string
+  attributes: Record<string, string>
+  textContent: string
+  children: ParsedNode[]
+  line: number
+}
+
+// Component icon mapping - includes both DiSyL and HTML elements
+const COMPONENT_ICONS: Record<string, LucideIcon> = {
+  // DiSyL components
+  'ikb_section': Layers,
+  'ikb_container': Box,
+  'ikb_row': Columns,
+  'ikb_col': Columns,
+  'ikb_grid': Grid3X3,
+  'ikb_block': Box,
+  'ikb_text': Type,
+  'ikb_heading': Type,
+  'ikb_link': Link,
+  'ikb_button': MousePointer,
+  'ikb_image': Image,
+  'ikb_card': FileText,
+  'ikb_query': Repeat,
+  'if': GitBranch,
+  'for': Repeat,
+  'include': FolderOpen,
+  // HTML elements
+  'div': Box,
+  'section': Layers,
+  'article': FileText,
+  'header': Layers,
+  'footer': Layers,
+  'nav': Columns,
+  'main': Box,
+  'aside': Box,
+  'span': Type,
+  'p': Type,
+  'h1': Type,
+  'h2': Type,
+  'h3': Type,
+  'h4': Type,
+  'h5': Type,
+  'h6': Type,
+  'a': Link,
+  'img': Image,
+  'button': MousePointer,
+  'ul': Columns,
+  'ol': Columns,
+  'li': Box,
+  'form': Box,
+  'input': Box,
+  'textarea': Box,
+  'select': Box,
+}
+
+// Component style mapping - includes both DiSyL and HTML elements
+const getComponentStyle = (componentId: string): string => {
+  switch (componentId) {
+    // DiSyL components
+    case 'ikb_section':
+      return 'bg-blue-50 border-blue-200 min-h-[80px]'
+    case 'ikb_container':
+      return 'bg-indigo-50 border-indigo-200 min-h-[60px]'
+    case 'ikb_row':
+      return 'bg-violet-50 border-violet-200 min-h-[50px]'
+    case 'ikb_col':
+      return 'bg-purple-50 border-purple-200 min-h-[40px]'
+    case 'ikb_block':
+      return 'bg-slate-50 border-slate-200 min-h-[40px]'
+    case 'ikb_grid':
+      return 'bg-cyan-50 border-cyan-200 min-h-[60px]'
+    case 'ikb_card':
+      return 'bg-green-50 border-green-200 min-h-[60px]'
+    case 'ikb_text':
+    case 'ikb_heading':
+      return 'bg-gray-50 border-gray-200 min-h-[30px]'
+    case 'ikb_image':
+      return 'bg-pink-50 border-pink-200 min-h-[50px]'
+    case 'ikb_button':
+    case 'ikb_link':
+      return 'bg-amber-50 border-amber-200 min-h-[30px]'
+    case 'ikb_query':
+      return 'bg-orange-50 border-orange-200 min-h-[60px]'
+    case 'if':
+    case 'for':
+      return 'bg-red-50 border-red-200 border-dashed min-h-[50px]'
+    case 'include':
+      return 'bg-teal-50 border-teal-200 min-h-[30px]'
+    // HTML layout elements
+    case 'div':
+      return 'bg-slate-50 border-slate-300 min-h-[40px]'
+    case 'section':
+    case 'article':
+    case 'main':
+      return 'bg-blue-50 border-blue-200 min-h-[60px]'
+    case 'header':
+    case 'footer':
+    case 'nav':
+    case 'aside':
+      return 'bg-indigo-50 border-indigo-200 min-h-[50px]'
+    // HTML text elements
+    case 'p':
+    case 'span':
+      return 'bg-gray-50 border-gray-200 min-h-[24px]'
+    case 'h1':
+    case 'h2':
+    case 'h3':
+    case 'h4':
+    case 'h5':
+    case 'h6':
+      return 'bg-emerald-50 border-emerald-200 min-h-[28px]'
+    // HTML interactive elements
+    case 'a':
+      return 'bg-amber-50 border-amber-200 min-h-[24px]'
+    case 'button':
+      return 'bg-purple-50 border-purple-200 min-h-[28px]'
+    // HTML media elements
+    case 'img':
+      return 'bg-pink-50 border-pink-200 min-h-[40px]'
+    // HTML list elements
+    case 'ul':
+    case 'ol':
+      return 'bg-cyan-50 border-cyan-200 min-h-[40px]'
+    case 'li':
+      return 'bg-sky-50 border-sky-200 min-h-[24px]'
+    // HTML form elements
+    case 'form':
+      return 'bg-violet-50 border-violet-200 min-h-[60px]'
+    case 'input':
+    case 'textarea':
+    case 'select':
+      return 'bg-fuchsia-50 border-fuchsia-200 min-h-[28px]'
+    default:
+      return 'bg-gray-50 border-gray-200 min-h-[30px]'
+  }
+}
+
+// Parse DiSyL code into visual nodes - handles both DiSyL tags and HTML elements
+function parseDisylCode(code: string): ParsedNode[] {
+  const nodes: ParsedNode[] = []
+  const stack: ParsedNode[] = []
+  let nodeId = 0
+  
+  // Split into lines for line tracking
+  const lines = code.split('\n')
+  
+  // HTML elements we want to parse
+  const htmlElements = ['div', 'section', 'article', 'header', 'footer', 'nav', 'main', 'aside', 
+                        'span', 'p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'a', 'img', 'button',
+                        'ul', 'ol', 'li', 'form', 'input', 'textarea', 'select', 'label', 'table',
+                        'tr', 'td', 'th', 'thead', 'tbody', 'video', 'audio', 'figure', 'figcaption']
+  const htmlElementsPattern = htmlElements.join('|')
+  
+  // Regex patterns for HTML
+  const htmlOpenTagRegex = new RegExp(`<(${htmlElementsPattern})([^>]*?)(?:>|/>)`, 'gi')
+  const htmlCloseTagRegex = new RegExp(`</(${htmlElementsPattern})>`, 'gi')
+  const htmlSelfClosingRegex = new RegExp(`<(${htmlElementsPattern})([^>]*?)/>`, 'gi')
+  
+  // Regex patterns for DiSyL
+  const disylOpenTagRegex = /\{(ikb_\w+|if|for|switch|case)([^}]*?)\}/g
+  const disylCloseTagRegex = /\{\/(ikb_\w+|if|for|switch|case)\}/g
+  const disylSelfClosingRegex = /\{(include|set)([^}]*?)\/\}/g
+  
+  // Variable expression regex
+  const variableRegex = /\{([a-zA-Z_][\w.]*(?:\s*\|[^}]+)?)\}/g
+  
+  let lineNumber = 0
+  
+  for (const line of lines) {
+    lineNumber++
+    let match
+    
+    // Track positions of all tags on this line for proper ordering
+    const tagEvents: Array<{pos: number, type: 'open' | 'close' | 'self', tagName: string, attrs: Record<string, string>, isHtml: boolean}> = []
+    
+    // Find HTML self-closing tags
+    htmlSelfClosingRegex.lastIndex = 0
+    while ((match = htmlSelfClosingRegex.exec(line)) !== null) {
+      const [, tagName, attrString] = match
+      tagEvents.push({
+        pos: match.index,
+        type: 'self',
+        tagName: tagName.toLowerCase(),
+        attrs: parseHtmlAttributes(attrString),
+        isHtml: true
+      })
+    }
+    
+    // Find HTML open tags (but not self-closing)
+    htmlOpenTagRegex.lastIndex = 0
+    while ((match = htmlOpenTagRegex.exec(line)) !== null) {
+      const fullMatch = match[0]
+      if (fullMatch.endsWith('/>')) continue // Skip self-closing
+      
+      const [, tagName, attrString] = match
+      tagEvents.push({
+        pos: match.index,
+        type: 'open',
+        tagName: tagName.toLowerCase(),
+        attrs: parseHtmlAttributes(attrString),
+        isHtml: true
+      })
+    }
+    
+    // Find HTML close tags
+    htmlCloseTagRegex.lastIndex = 0
+    while ((match = htmlCloseTagRegex.exec(line)) !== null) {
+      const [, tagName] = match
+      tagEvents.push({
+        pos: match.index,
+        type: 'close',
+        tagName: tagName.toLowerCase(),
+        attrs: {},
+        isHtml: true
+      })
+    }
+    
+    // Find DiSyL self-closing tags
+    disylSelfClosingRegex.lastIndex = 0
+    while ((match = disylSelfClosingRegex.exec(line)) !== null) {
+      const [, tagName, attrString] = match
+      tagEvents.push({
+        pos: match.index,
+        type: 'self',
+        tagName,
+        attrs: parseDisylAttributes(attrString),
+        isHtml: false
+      })
+    }
+    
+    // Find DiSyL open tags
+    disylOpenTagRegex.lastIndex = 0
+    while ((match = disylOpenTagRegex.exec(line)) !== null) {
+      const fullMatch = match[0]
+      if (fullMatch.endsWith('/}')) continue // Skip self-closing
+      
+      const [, tagName, attrString] = match
+      tagEvents.push({
+        pos: match.index,
+        type: 'open',
+        tagName,
+        attrs: parseDisylAttributes(attrString),
+        isHtml: false
+      })
+    }
+    
+    // Find DiSyL close tags
+    disylCloseTagRegex.lastIndex = 0
+    while ((match = disylCloseTagRegex.exec(line)) !== null) {
+      const [, tagName] = match
+      tagEvents.push({
+        pos: match.index,
+        type: 'close',
+        tagName,
+        attrs: {},
+        isHtml: false
+      })
+    }
+    
+    // Sort by position
+    tagEvents.sort((a, b) => a.pos - b.pos)
+    
+    // Process events in order
+    for (const event of tagEvents) {
+      if (event.type === 'self') {
+        const node: ParsedNode = {
+          id: `node-${++nodeId}`,
+          componentId: event.tagName,
+          attributes: event.attrs,
+          textContent: '',
+          children: [],
+          line: lineNumber
+        }
+        
+        if (stack.length > 0) {
+          stack[stack.length - 1].children.push(node)
+        } else {
+          nodes.push(node)
+        }
+      } else if (event.type === 'open') {
+        const node: ParsedNode = {
+          id: `node-${++nodeId}`,
+          componentId: event.tagName,
+          attributes: event.attrs,
+          textContent: '',
+          children: [],
+          line: lineNumber
+        }
+        stack.push(node)
+      } else if (event.type === 'close') {
+        // Find matching open tag
+        for (let i = stack.length - 1; i >= 0; i--) {
+          if (stack[i].componentId === event.tagName) {
+            const closedNode = stack.splice(i, 1)[0]
+            if (stack.length > 0) {
+              stack[stack.length - 1].children.push(closedNode)
+            } else {
+              nodes.push(closedNode)
+            }
+            break
+          }
+        }
+      }
+    }
+    
+    // Extract text content and variable expressions for current stack top
+    if (stack.length > 0) {
+      // Remove all tags from line to get text content
+      let textContent = line
+        .replace(/<[^>]+>/g, '') // Remove HTML tags
+        .replace(/\{[^}]+\}/g, '') // Remove DiSyL tags
+        .trim()
+      
+      // Also capture variable expressions
+      variableRegex.lastIndex = 0
+      while ((match = variableRegex.exec(line)) !== null) {
+        const varExpr = match[1]
+        // Skip if it's a component tag
+        if (varExpr.startsWith('ikb_') || varExpr.startsWith('/') || 
+            ['if', 'for', 'switch', 'case', 'include', 'set'].includes(varExpr.split(' ')[0])) {
+          continue
+        }
+        textContent += ` {${varExpr}}`
+      }
+      
+      textContent = textContent.trim()
+      if (textContent) {
+        const currentNode = stack[stack.length - 1]
+        if (currentNode.textContent) {
+          currentNode.textContent += ' ' + textContent
+        } else {
+          currentNode.textContent = textContent
+        }
+      }
+    }
+  }
+  
+  // Close any remaining open tags
+  while (stack.length > 0) {
+    const closedNode = stack.pop()!
+    if (stack.length > 0) {
+      stack[stack.length - 1].children.push(closedNode)
+    } else {
+      nodes.push(closedNode)
+    }
+  }
+  
+  return nodes
+}
+
+// Parse HTML attributes
+function parseHtmlAttributes(attrString: string): Record<string, string> {
+  const attrs: Record<string, string> = {}
+  // Match both quoted and unquoted attributes
+  const attrRegex = /([\w-]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|(\S+))/g
+  let match
+  
+  while ((match = attrRegex.exec(attrString)) !== null) {
+    const key = match[1]
+    const value = match[2] || match[3] || match[4] || ''
+    attrs[key] = value
+  }
+  
+  return attrs
+}
+
+// Parse DiSyL attributes
+function parseDisylAttributes(attrString: string): Record<string, string> {
+  const attrs: Record<string, string> = {}
+  const attrRegex = /(\w+)\s*=\s*["']([^"']*)["']/g
+  let match
+  
+  while ((match = attrRegex.exec(attrString)) !== null) {
+    attrs[match[1]] = match[2]
+  }
+  
+  return attrs
+}
+
+// Visual Preview Component
+function VisualPreview({
+  nodes,
+  selectedNode,
+  onSelectNode,
+  deviceWidth
+}: {
+  nodes: ParsedNode[]
+  selectedNode: ParsedNode | null
+  onSelectNode: (node: ParsedNode) => void
+  deviceWidth: string
+}) {
+  const renderNode = (node: ParsedNode, depth = 0): React.ReactNode => {
+    const isSelected = selectedNode?.id === node.id
+    const Icon = COMPONENT_ICONS[node.componentId] || Box
+    
+    return (
+      <div
+        key={node.id}
+        className={`
+          relative p-2 m-1.5 rounded-lg border-2 transition-all cursor-pointer
+          ${getComponentStyle(node.componentId)}
+          ${isSelected ? 'ring-2 ring-blue-500 ring-offset-2 shadow-md' : ''}
+          hover:ring-1 hover:ring-blue-300
+        `}
+        onClick={(e) => {
+          e.stopPropagation()
+          onSelectNode(node)
+        }}
+        title={`Line ${node.line}: ${node.componentId}`}
+      >
+        {/* Component Label */}
+        <div className="flex items-center gap-1.5 mb-1">
+          <Icon className="w-3.5 h-3.5 text-gray-500" />
+          <span className="text-xs font-medium text-gray-600">{node.componentId}</span>
+          {node.attributes.type && (
+            <span className="text-xs text-gray-400">({node.attributes.type})</span>
+          )}
+          <span className="ml-auto text-[10px] text-gray-400">L{node.line}</span>
+        </div>
+        
+        {/* Attributes Preview - show class if available */}
+        {node.attributes.class && (
+          <div className="mb-1">
+            <span className="text-[10px] px-1.5 py-0.5 bg-blue-100 rounded text-blue-600">
+              .{node.attributes.class.split(' ')[0]}
+              {node.attributes.class.split(' ').length > 1 && ` +${node.attributes.class.split(' ').length - 1}`}
+            </span>
+          </div>
+        )}
+        
+        {/* Text Content Preview */}
+        {node.textContent && (
+          <div className="text-xs text-gray-600 mb-1 truncate max-w-full">
+            {node.textContent.length > 40 ? node.textContent.slice(0, 40) + '...' : node.textContent}
+          </div>
+        )}
+        
+        {/* Children */}
+        {node.children.length > 0 && (
+          <div className={`
+            ${node.componentId === 'ikb_row' ? 'flex flex-wrap gap-1' : ''}
+            ${node.componentId === 'ikb_grid' && node.attributes.cols 
+              ? `grid grid-cols-${Math.min(parseInt(node.attributes.cols) || 3, 4)} gap-1` 
+              : ''}
+          `}>
+            {node.children.map(child => renderNode(child, depth + 1))}
+          </div>
+        )}
+        
+        {/* Empty State */}
+        {node.children.length === 0 && !node.textContent && !node.attributes.class && (
+          <div className="flex items-center justify-center h-6 border border-dashed border-gray-300 rounded text-gray-400 text-[10px]">
+            Empty
+          </div>
+        )}
+      </div>
+    )
+  }
+  
+  return (
+    <div 
+      className="h-full overflow-auto bg-white"
+      style={{ maxWidth: deviceWidth }}
+    >
+      <div className="p-3 min-h-full">
+        {nodes.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-48 border-2 border-dashed border-gray-200 rounded-xl text-gray-400">
+            <Layers className="w-10 h-10 mb-2 text-gray-300" />
+            <p className="text-sm font-medium">No Components Found</p>
+            <p className="text-xs">Add HTML or DiSyL tags to see the visual preview</p>
+          </div>
+        ) : (
+          nodes.map(node => renderNode(node))
+        )}
+      </div>
+    </div>
+  )
+}
+
+// Properties Panel Component
+function PropertiesPanel({
+  node,
+  onClose
+}: {
+  node: ParsedNode | null
+  onClose: () => void
+}) {
+  if (!node) return null
+  
+  const Icon = COMPONENT_ICONS[node.componentId] || Box
+  
+  return (
+    <div className="w-72 bg-white border-l border-gray-200 flex flex-col h-full">
+      {/* Header */}
+      <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between bg-gray-50">
+        <div className="flex items-center gap-2">
+          <Icon className="w-4 h-4 text-blue-500" />
+          <span className="font-medium text-gray-900">{node.componentId}</span>
+        </div>
+        <button
+          onClick={onClose}
+          className="p-1 hover:bg-gray-200 rounded text-gray-500"
+        >
+          <X className="w-4 h-4" />
+        </button>
+      </div>
+      
+      {/* Content */}
+      <div className="flex-1 overflow-auto p-4">
+        {/* Line Info */}
+        <div className="mb-4 p-2 bg-blue-50 rounded-lg">
+          <span className="text-xs text-blue-600 font-medium">Line {node.line}</span>
+        </div>
+        
+        {/* Attributes Section */}
+        <div className="mb-4">
+          <h4 className="text-xs font-semibold text-gray-500 uppercase mb-2">Attributes</h4>
+          {Object.keys(node.attributes).length > 0 ? (
+            <div className="space-y-2">
+              {Object.entries(node.attributes).map(([key, value]) => (
+                <div key={key} className="bg-gray-50 rounded-lg p-2">
+                  <div className="text-xs font-medium text-gray-700 mb-1">{key}</div>
+                  <div className="text-xs text-gray-600 break-all font-mono bg-white p-1.5 rounded border border-gray-200">
+                    {value || <span className="text-gray-400 italic">empty</span>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-xs text-gray-400 italic">No attributes</p>
+          )}
+        </div>
+        
+        {/* Text Content Section */}
+        {node.textContent && (
+          <div className="mb-4">
+            <h4 className="text-xs font-semibold text-gray-500 uppercase mb-2">Content</h4>
+            <div className="bg-gray-50 rounded-lg p-2">
+              <div className="text-xs text-gray-600 break-all">
+                {node.textContent}
+              </div>
+            </div>
+          </div>
+        )}
+        
+        {/* Children Count */}
+        {node.children.length > 0 && (
+          <div className="mb-4">
+            <h4 className="text-xs font-semibold text-gray-500 uppercase mb-2">Children</h4>
+            <div className="bg-gray-50 rounded-lg p-2">
+              <span className="text-xs text-gray-600">
+                {node.children.length} child element{node.children.length !== 1 ? 's' : ''}
+              </span>
+              <div className="mt-2 space-y-1">
+                {node.children.slice(0, 5).map((child, i) => {
+                  const ChildIcon = COMPONENT_ICONS[child.componentId] || Box
+                  return (
+                    <div key={i} className="flex items-center gap-1.5 text-xs text-gray-500">
+                      <ChildIcon className="w-3 h-3" />
+                      <span>{child.componentId}</span>
+                      {child.attributes.class && (
+                        <span className="text-blue-500">.{child.attributes.class.split(' ')[0]}</span>
+                      )}
+                    </div>
+                  )
+                })}
+                {node.children.length > 5 && (
+                  <div className="text-xs text-gray-400">+{node.children.length - 5} more...</div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+        
+        {/* Element Type Info */}
+        <div className="mt-4 pt-4 border-t border-gray-200">
+          <h4 className="text-xs font-semibold text-gray-500 uppercase mb-2">Element Type</h4>
+          <div className={`inline-flex items-center gap-1.5 px-2 py-1 rounded text-xs ${
+            node.componentId.startsWith('ikb_') 
+              ? 'bg-purple-100 text-purple-700' 
+              : node.componentId.match(/^(if|for|switch|case|include|set)$/)
+                ? 'bg-red-100 text-red-700'
+                : 'bg-slate-100 text-slate-700'
+          }`}>
+            <Icon className="w-3 h-3" />
+            {node.componentId.startsWith('ikb_') 
+              ? 'DiSyL Component' 
+              : node.componentId.match(/^(if|for|switch|case|include|set)$/)
+                ? 'DiSyL Control'
+                : 'HTML Element'}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function CodeEditor() {
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
@@ -242,6 +860,13 @@ export default function CodeEditor() {
   const [editorTheme, setEditorTheme] = useState<'vs-dark' | 'light'>('vs-dark')
   const [fontSize, setFontSize] = useState(14)
   const [showMinimap, setShowMinimap] = useState(true)
+  
+  // Visual preview state
+  const [viewMode, setViewMode] = useState<'code' | 'split' | 'preview'>('split')
+  const [devicePreview, setDevicePreview] = useState<'desktop' | 'tablet' | 'mobile'>('desktop')
+  const [parsedNodes, setParsedNodes] = useState<ParsedNode[]>([])
+  const [selectedNode, setSelectedNode] = useState<ParsedNode | null>(null)
+  const [showPropertiesPanel, setShowPropertiesPanel] = useState(false)
   
   // Cross-instance context for federation
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -307,6 +932,45 @@ export default function CodeEditor() {
       fetchFileTree()
     }
   }, [instanceId, selectedTheme])
+
+  // Parse DiSyL code for visual preview when content changes
+  useEffect(() => {
+    if (selectedFile?.extension === 'disyl' && fileContent) {
+      const nodes = parseDisylCode(fileContent)
+      setParsedNodes(nodes)
+    } else {
+      setParsedNodes([])
+    }
+  }, [fileContent, selectedFile?.extension])
+
+  // Handle node selection from visual preview - scroll to line in editor and show properties
+  const handleSelectNode = useCallback((node: ParsedNode) => {
+    setSelectedNode(node)
+    setShowPropertiesPanel(true)
+    
+    if (editorRef.current) {
+      // Highlight the line in the editor
+      editorRef.current.revealLineInCenter(node.line)
+      editorRef.current.setPosition({ lineNumber: node.line, column: 1 })
+      
+      // Select the entire line for highlighting
+      const model = editorRef.current.getModel()
+      if (model) {
+        const lineLength = model.getLineLength(node.line)
+        editorRef.current.setSelection({
+          startLineNumber: node.line,
+          startColumn: 1,
+          endLineNumber: node.line,
+          endColumn: lineLength + 1
+        })
+      }
+      
+      editorRef.current.focus()
+    }
+  }, [])
+
+  // Device width for preview
+  const deviceWidth = devicePreview === 'desktop' ? '100%' : devicePreview === 'tablet' ? '768px' : '375px'
 
   const fetchThemes = async () => {
     try {
@@ -797,6 +1461,60 @@ export default function CodeEditor() {
                 {hasUnsavedChanges && <span className="text-orange-500 ml-1">•</span>}
               </span>
               
+              {/* View Mode Toggle - Only for DiSyL files */}
+              {selectedFile?.extension === 'disyl' && (
+                <div className="flex items-center bg-gray-100 rounded-lg p-0.5 border-l border-gray-200 ml-3">
+                  <button
+                    onClick={() => setViewMode('code')}
+                    className={`p-1.5 rounded flex items-center gap-1 text-xs ${viewMode === 'code' ? 'bg-white shadow-sm text-purple-600' : 'text-gray-500'}`}
+                    title="Code Only"
+                  >
+                    <Code2 className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    onClick={() => setViewMode('split')}
+                    className={`p-1.5 rounded flex items-center gap-1 text-xs ${viewMode === 'split' ? 'bg-white shadow-sm text-purple-600' : 'text-gray-500'}`}
+                    title="Split View"
+                  >
+                    <SplitSquareHorizontal className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    onClick={() => setViewMode('preview')}
+                    className={`p-1.5 rounded flex items-center gap-1 text-xs ${viewMode === 'preview' ? 'bg-white shadow-sm text-purple-600' : 'text-gray-500'}`}
+                    title="Preview Only"
+                  >
+                    <Eye className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
+
+              {/* Device Preview - Only for DiSyL files in split/preview mode */}
+              {selectedFile?.extension === 'disyl' && viewMode !== 'code' && (
+                <div className="flex items-center bg-gray-100 rounded-lg p-0.5">
+                  <button
+                    onClick={() => setDevicePreview('desktop')}
+                    className={`p-1.5 rounded ${devicePreview === 'desktop' ? 'bg-white shadow-sm' : ''}`}
+                    title="Desktop"
+                  >
+                    <Monitor className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    onClick={() => setDevicePreview('tablet')}
+                    className={`p-1.5 rounded ${devicePreview === 'tablet' ? 'bg-white shadow-sm' : ''}`}
+                    title="Tablet"
+                  >
+                    <Tablet className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    onClick={() => setDevicePreview('mobile')}
+                    className={`p-1.5 rounded ${devicePreview === 'mobile' ? 'bg-white shadow-sm' : ''}`}
+                    title="Mobile"
+                  >
+                    <Smartphone className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
+
               {/* Editor Settings */}
               <div className="flex items-center gap-1 border-l border-gray-200 pl-3">
                 <button
@@ -896,54 +1614,110 @@ export default function CodeEditor() {
         </div>
 
         {/* Editor Area */}
-        <div className="flex-1 flex flex-col bg-gray-900">
+        <div className="flex-1 flex overflow-hidden">
           {selectedFile ? (
             <>
-              {/* Editor Header */}
-              <div className="px-4 py-2 bg-gray-800 border-b border-gray-700 flex items-center gap-2">
-                {getFileIcon(selectedFile.extension)}
-                <span className="text-sm text-gray-300">{selectedFile.name}</span>
-                <span className="text-xs text-gray-500 ml-2">
-                  {selectedFile.extension?.toUpperCase() || 'TEXT'}
-                </span>
-              </div>
-              
-              {/* Monaco Code Editor */}
-              <div className="flex-1 overflow-hidden">
-                <Editor
-                  height="100%"
-                  language={selectedFile?.extension === 'disyl' ? 'disyl' : getMonacoLanguage(selectedFile?.extension)}
-                  value={fileContent}
-                  onChange={(value) => setFileContent(value || '')}
-                  onMount={handleEditorMount}
-                  theme={editorTheme}
-                  options={{
-                    fontSize: fontSize,
-                    minimap: { enabled: showMinimap },
-                    wordWrap: 'on',
-                    lineNumbers: 'on',
-                    renderWhitespace: 'selection',
-                    scrollBeyondLastLine: false,
-                    automaticLayout: true,
-                    tabSize: 2,
-                    insertSpaces: true,
-                    formatOnPaste: true,
-                    formatOnType: true,
-                    suggestOnTriggerCharacters: true,
-                    quickSuggestions: true,
-                    folding: true,
-                    foldingStrategy: 'indentation',
-                    bracketPairColorization: { enabled: true },
-                    guides: {
-                      bracketPairs: true,
-                      indentation: true,
-                    },
-                  }}
-                />
-              </div>
+              {/* Code Editor Panel */}
+              {(viewMode === 'code' || viewMode === 'split' || selectedFile.extension !== 'disyl') && (
+                <div className={`flex flex-col bg-gray-900 ${
+                  viewMode === 'split' && selectedFile.extension === 'disyl' ? 'w-1/2' : 'flex-1'
+                }`}>
+                  {/* Editor Header */}
+                  <div className="px-4 py-2 bg-gray-800 border-b border-gray-700 flex items-center gap-2">
+                    {getFileIcon(selectedFile.extension)}
+                    <span className="text-sm text-gray-300">{selectedFile.name}</span>
+                    <span className="text-xs text-gray-500 ml-2">
+                      {selectedFile.extension?.toUpperCase() || 'TEXT'}
+                    </span>
+                  </div>
+                  
+                  {/* Monaco Code Editor */}
+                  <div className="flex-1 overflow-hidden">
+                    <Editor
+                      height="100%"
+                      language={selectedFile?.extension === 'disyl' ? 'disyl' : getMonacoLanguage(selectedFile?.extension)}
+                      value={fileContent}
+                      onChange={(value) => setFileContent(value || '')}
+                      onMount={handleEditorMount}
+                      theme={editorTheme}
+                      options={{
+                        fontSize: fontSize,
+                        minimap: { enabled: showMinimap },
+                        wordWrap: 'on',
+                        lineNumbers: 'on',
+                        renderWhitespace: 'selection',
+                        scrollBeyondLastLine: false,
+                        automaticLayout: true,
+                        tabSize: 2,
+                        insertSpaces: true,
+                        formatOnPaste: true,
+                        formatOnType: true,
+                        suggestOnTriggerCharacters: true,
+                        quickSuggestions: true,
+                        folding: true,
+                        foldingStrategy: 'indentation',
+                        bracketPairColorization: { enabled: true },
+                        guides: {
+                          bracketPairs: true,
+                          indentation: true,
+                        },
+                      }}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Visual Preview Panel - Only for DiSyL files */}
+              {selectedFile.extension === 'disyl' && (viewMode === 'preview' || viewMode === 'split') && (
+                <div className={`flex bg-gray-100 border-l border-gray-200 ${
+                  viewMode === 'split' ? 'w-1/2' : 'flex-1'
+                }`}>
+                  {/* Preview + Properties Container */}
+                  <div className="flex-1 flex flex-col">
+                    {/* Preview Header */}
+                    <div className="px-4 py-2 bg-white border-b border-gray-200 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Eye className="w-4 h-4 text-blue-500" />
+                        <span className="text-sm font-medium text-gray-700">Visual Preview</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-gray-500">
+                          {parsedNodes.length} component{parsedNodes.length !== 1 ? 's' : ''}
+                        </span>
+                        {selectedNode && (
+                          <span className="text-xs px-2 py-0.5 bg-blue-100 text-blue-600 rounded">
+                            {selectedNode.componentId}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    
+                    {/* Visual Preview Content */}
+                    <div className="flex-1 overflow-auto flex justify-center">
+                      <VisualPreview
+                        nodes={parsedNodes}
+                        selectedNode={selectedNode}
+                        onSelectNode={handleSelectNode}
+                        deviceWidth={deviceWidth}
+                      />
+                    </div>
+                  </div>
+                  
+                  {/* Properties Panel */}
+                  {showPropertiesPanel && selectedNode && (
+                    <PropertiesPanel
+                      node={selectedNode}
+                      onClose={() => {
+                        setShowPropertiesPanel(false)
+                        setSelectedNode(null)
+                      }}
+                    />
+                  )}
+                </div>
+              )}
             </>
           ) : (
-            <div className="flex-1 flex items-center justify-center text-gray-500">
+            <div className="flex-1 flex items-center justify-center text-gray-500 bg-gray-900">
               <div className="text-center">
                 <FileCode className="w-16 h-16 mx-auto mb-4 text-gray-600" />
                 <p className="text-lg">Select a file to edit</p>

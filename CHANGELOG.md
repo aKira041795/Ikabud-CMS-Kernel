@@ -20,6 +20,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.2.1] - 2025-11-30
+
+### 🎨 Code Editor Visual Preview Enhancement
+
+Added Visual Builder-like features to the Code Editor for intuitive DiSyL theme editing.
+
+### Added
+
+#### Visual Preview Panel
+- **HTML & DiSyL parsing** - Parses both HTML elements and DiSyL component tags
+- **Nested component visualization** - Shows component hierarchy with colored boxes
+- **Component icons** - Distinct icons for each element type (div, section, img, a, etc.)
+- **Class badges** - Shows CSS classes on components for quick identification
+- **Device preview** - Desktop, tablet, and mobile width previews
+
+#### Properties Panel
+- **Component inspector** - Click any component to see its properties
+- **Attribute display** - Shows all HTML/DiSyL attributes with values
+- **Content preview** - Displays text content and variable expressions
+- **Children list** - Shows child elements with their types
+- **Element type badge** - Identifies DiSyL Component, DiSyL Control, or HTML Element
+
+#### Code Highlighting
+- **Click-to-navigate** - Click component in preview to jump to code line
+- **Line selection** - Automatically selects the entire line in editor
+- **Scroll sync** - Editor scrolls to center the selected line
+
+#### View Modes
+- **Code only** - Full-width Monaco editor
+- **Split view** - Side-by-side code and visual preview (default)
+- **Preview only** - Full-width visual preview with properties panel
+
+---
+
 ## [1.2.0] - 2025-11-30
 
 ### 🚀 Kernel Performance & Feature Enhancements
