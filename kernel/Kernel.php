@@ -1020,18 +1020,29 @@ class Kernel
             }
         }
         
-        $stmt = $this->db->query("
-            SELECT i.*, 
-                   COUNT(DISTINCT p.id) as plugin_count,
-                   t.name as theme_name
-            FROM instances i
-            LEFT JOIN instance_plugins p ON i.id = p.instance_id AND p.status = 'active'
-            LEFT JOIN instance_themes t ON i.id = t.instance_id AND t.is_active = 1
-            WHERE i.status = 'active'
-            GROUP BY i.id
-            ORDER BY i.priority DESC, i.name ASC
-        ");
-        $instances = $stmt->fetchAll();
+        try {
+            // Try full query with plugin/theme counts
+            $stmt = $this->db->query("
+                SELECT i.*, 
+                       COUNT(DISTINCT p.id) as plugin_count,
+                       t.name as theme_name
+                FROM instances i
+                LEFT JOIN instance_plugins p ON i.id = p.instance_id AND p.status = 'active'
+                LEFT JOIN instance_themes t ON i.id = t.instance_id AND t.is_active = 1
+                WHERE i.status = 'active'
+                GROUP BY i.id
+                ORDER BY i.instance_name ASC
+            ");
+            $instances = $stmt->fetchAll();
+        } catch (\PDOException $e) {
+            // Fallback: simple query without joins (tables may not exist)
+            $stmt = $this->db->query("
+                SELECT * FROM instances 
+                WHERE status = 'active'
+                ORDER BY instance_name ASC
+            ");
+            $instances = $stmt->fetchAll();
+        }
         
         // Cache for 60 seconds
         if (self::isApcuAvailable()) {
@@ -1305,36 +1316,40 @@ class Kernel
         $instanceId = $this->currentInstance['instance_id'] ?? null;
         if (!$instanceId) return;
         
-        // Get active theme for instance
-        $stmt = $this->db->prepare("
-            SELECT t.*, ts.setting_key, ts.setting_value
-            FROM instance_themes t
-            LEFT JOIN theme_settings ts ON t.id = ts.theme_id
-            WHERE t.instance_id = ? AND t.is_active = 1
-        ");
-        $stmt->execute([$instanceId]);
-        $themeData = $stmt->fetchAll();
-        
-        if (empty($themeData)) {
-            return;
-        }
-        
-        // Build theme config
-        $theme = [
-            'id' => $themeData[0]['id'] ?? null,
-            'name' => $themeData[0]['name'] ?? 'default',
-            'path' => $themeData[0]['path'] ?? null,
-            'settings' => [],
-        ];
-        
-        foreach ($themeData as $row) {
-            if (!empty($row['setting_key'])) {
-                $theme['settings'][$row['setting_key']] = $row['setting_value'];
+        try {
+            // Get active theme for instance
+            $stmt = $this->db->prepare("
+                SELECT t.*, ts.setting_key, ts.setting_value
+                FROM instance_themes t
+                LEFT JOIN theme_settings ts ON t.id = ts.theme_id
+                WHERE t.instance_id = ? AND t.is_active = 1
+            ");
+            $stmt->execute([$instanceId]);
+            $themeData = $stmt->fetchAll();
+            
+            if (empty($themeData)) {
+                return;
             }
+            
+            // Build theme config
+            $theme = [
+                'id' => $themeData[0]['id'] ?? null,
+                'name' => $themeData[0]['name'] ?? 'default',
+                'path' => $themeData[0]['path'] ?? null,
+                'settings' => [],
+            ];
+            
+            foreach ($themeData as $row) {
+                if (!empty($row['setting_key'])) {
+                    $theme['settings'][$row['setting_key']] = $row['setting_value'];
+                }
+            }
+            
+            $this->currentInstance['theme'] = $theme;
+            $this->recordMetric('theme_loaded', 1, ['theme' => $theme['name'], 'instance' => $instanceId]);
+        } catch (\PDOException $e) {
+            // Tables may not exist yet - skip theme loading
         }
-        
-        $this->currentInstance['theme'] = $theme;
-        $this->recordMetric('theme_loaded', 1, ['theme' => $theme['name'], 'instance' => $instanceId]);
     }
     
     private function loadInstancePlugins(): void
@@ -1346,28 +1361,32 @@ class Kernel
         $instanceId = $this->currentInstance['instance_id'] ?? null;
         if (!$instanceId) return;
         
-        // Get active plugins for instance
-        $stmt = $this->db->prepare("
-            SELECT name, path, priority, config
-            FROM instance_plugins
-            WHERE instance_id = ? AND status = 'active'
-            ORDER BY priority DESC, name ASC
-        ");
-        $stmt->execute([$instanceId]);
-        $plugins = $stmt->fetchAll();
-        
         $this->currentInstance['plugins'] = [];
         
-        foreach ($plugins as $plugin) {
-            $this->currentInstance['plugins'][] = [
-                'name' => $plugin['name'],
-                'path' => $plugin['path'],
-                'priority' => $plugin['priority'],
-                'config' => json_decode($plugin['config'] ?? '{}', true),
-            ];
+        try {
+            // Get active plugins for instance
+            $stmt = $this->db->prepare("
+                SELECT name, path, priority, config
+                FROM instance_plugins
+                WHERE instance_id = ? AND status = 'active'
+                ORDER BY priority DESC, name ASC
+            ");
+            $stmt->execute([$instanceId]);
+            $plugins = $stmt->fetchAll();
+            
+            foreach ($plugins as $plugin) {
+                $this->currentInstance['plugins'][] = [
+                    'name' => $plugin['name'],
+                    'path' => $plugin['path'],
+                    'priority' => $plugin['priority'],
+                    'config' => json_decode($plugin['config'] ?? '{}', true),
+                ];
+            }
+            
+            $this->recordMetric('plugins_loaded', count($plugins), ['instance' => $instanceId]);
+        } catch (\PDOException $e) {
+            // Table may not exist yet - skip plugin loading
         }
-        
-        $this->recordMetric('plugins_loaded', count($plugins), ['instance' => $instanceId]);
     }
     
     private function initializeDSL(): void
