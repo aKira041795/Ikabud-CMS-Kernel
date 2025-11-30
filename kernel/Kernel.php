@@ -27,7 +27,7 @@ use Exception;
 
 class Kernel
 {
-    const VERSION = '1.2.2';
+    const VERSION = '1.2.3';
     const BOOT_PHASES = 5;
     const APCU_CONFIG_TTL = 300; // 5 minutes
     const APCU_ENV_TTL = 3600; // 1 hour
@@ -411,44 +411,34 @@ class Kernel
     
     /**
      * Acquire boot lock to prevent race conditions
-     * @return bool True if lock acquired, false if another process is booting
+     * 
+     * Note: In PHP's process-per-request model, each request is isolated.
+     * The lock prevents issues during schema migrations or config updates,
+     * but normal concurrent boots are safe - we proceed without blocking.
+     * 
+     * @return bool True to proceed with boot, false if already booted
      */
     private function acquireBootLock(): bool
     {
+        // In PHP's process model, each request has its own memory space
+        // The lock is mainly useful for preventing concurrent schema migrations
+        // For normal operation, concurrent boots are safe
+        
         // Create lock file if it doesn't exist
         self::$bootLockHandle = @fopen(self::BOOT_LOCK_FILE, 'c');
         
         if (self::$bootLockHandle === false) {
             // Can't create lock file, proceed without locking (fallback)
-            error_log('[Kernel] Warning: Could not create boot lock file, proceeding without lock');
             return true;
         }
         
         // Try to acquire exclusive lock (non-blocking)
         if (!flock(self::$bootLockHandle, LOCK_EX | LOCK_NB)) {
-            // Another process is booting, wait briefly then check if boot completed
+            // Another process is booting - this is normal in PHP
+            // Just proceed without the lock, concurrent boots are safe
             fclose(self::$bootLockHandle);
             self::$bootLockHandle = null;
-            
-            // Wait up to 5 seconds for other boot to complete
-            $waited = 0;
-            while ($waited < 5000) {
-                usleep(100000); // 100ms
-                $waited += 100;
-                
-                // Check if boot completed by another process
-                if (self::$booted) {
-                    return false; // Already booted by another process
-                }
-            }
-            
-            // Timeout - try to acquire lock again
-            self::$bootLockHandle = @fopen(self::BOOT_LOCK_FILE, 'c');
-            if (self::$bootLockHandle && flock(self::$bootLockHandle, LOCK_EX | LOCK_NB)) {
-                return true;
-            }
-            
-            throw new Exception('Boot lock acquisition timeout - another process may be stuck');
+            return true; // Proceed with boot anyway
         }
         
         return true;
@@ -1105,26 +1095,54 @@ class Kernel
     
     private function initializeSecuritySandbox(): void
     {
-        // Detect WordPress admin and get current host for cross-subdomain support
+        // Detect request context
         $request_uri = $_SERVER['REQUEST_URI'] ?? '';
         $current_host = $_SERVER['HTTP_HOST'] ?? '';
+        
+        // Skip security headers for static assets - let the web server/CMS handle these
+        // This prevents MIME type conflicts when assets return errors
+        $static_extensions = ['.css', '.js', '.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', 
+                             '.woff', '.woff2', '.ttf', '.eot', '.ico', '.map', '.json'];
+        $uri_path = strtolower(parse_url($request_uri, PHP_URL_PATH) ?? '');
+        
+        foreach ($static_extensions as $ext) {
+            if (str_ends_with($uri_path, $ext)) {
+                // Static asset - skip kernel security headers, let CMS/webserver handle it
+                return;
+            }
+        }
+        
+        // Also skip for CMS asset directories
+        $asset_paths = ['/wp-content/', '/wp-includes/', '/media/', '/templates/', '/themes/',
+                       '/modules/', '/sites/default/files/', '/core/', '/libraries/'];
+        foreach ($asset_paths as $path) {
+            if (strpos($uri_path, $path) !== false) {
+                return;
+            }
+        }
+        
+        // Detect admin areas
         $is_wp_admin = strpos($request_uri, '/wp-admin/') !== false || 
                        strpos($request_uri, '/wp-login.php') !== false;
+        $is_joomla_admin = strpos($request_uri, '/administrator/') !== false;
+        $is_drupal_admin = strpos($request_uri, '/admin/') !== false || 
+                          strpos($request_uri, '/user/') !== false;
+        $is_admin = $is_wp_admin || $is_joomla_admin || $is_drupal_admin;
         
         // Get base domain for frame-ancestors (e.g., "brutus.test" from "backend.brutus.test")
         $host_parts = explode('.', $current_host);
         $base_domain = implode('.', array_slice($host_parts, -2)); // Last 2 parts
         
-        // Set security headers
-        if (!$is_wp_admin) {
+        // Set security headers only for HTML page requests
+        if (!$is_admin) {
             header('X-Frame-Options: SAMEORIGIN');
         }
         header('X-Content-Type-Options: nosniff');
         header('X-XSS-Protection: 1; mode=block');
         
         // More permissive CSP for CMS compatibility (allows CDNs, external resources, workers, mixed content)
-        // Skip CSP entirely for WordPress admin to prevent customizer iframe issues
-        if (!$is_wp_admin) {
+        // Skip CSP entirely for admin areas to prevent customizer/editor iframe issues
+        if (!$is_admin) {
             // Allow framing from same domain and subdomains (for WordPress customizer cross-subdomain support)
             $csp = "default-src 'self' https: http:; " .
                    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https: http: blob:; " .

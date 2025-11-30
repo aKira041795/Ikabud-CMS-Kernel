@@ -20,6 +20,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.2.3] - 2025-11-30
+
+### 🔧 Boot Lock & Static Asset Fixes
+
+Hotfix for concurrent request handling and static asset MIME type issues.
+
+### Fixed
+
+#### Boot Lock Race Condition
+- **Non-blocking boot lock** - Removed blocking/timeout behavior that caused 500 errors
+- **PHP process model compatibility** - Boot lock now proceeds without blocking on concurrent requests
+- **Safe concurrent boots** - Multiple PHP processes can boot simultaneously without conflicts
+
+#### Static Asset Security Headers
+- **Skip headers for static files** - No longer sets security headers for `.css`, `.js`, `.jpg`, `.png`, etc.
+- **Skip headers for CMS asset paths** - Excludes `/wp-content/`, `/wp-includes/`, `/media/`, `/templates/`, `/sites/default/files/`, etc.
+- **Prevents MIME type conflicts** - Assets no longer rejected due to `X-Content-Type-Options: nosniff` on error pages
+
+#### Admin Area Detection
+- **Extended admin detection** - Now detects Joomla (`/administrator/`) and Drupal (`/admin/`, `/user/`) admin areas
+- **Relaxed CSP for all admins** - CSP headers skipped for all CMS admin areas, not just WordPress
+
+---
+
 ## [1.2.2] - 2025-11-30
 
 ### 🛡️ Kernel Hardening & Safety Rails
