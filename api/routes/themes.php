@@ -948,3 +948,530 @@ $app->delete('/api/v1/filesystem/instances/{instanceId}/themes/{themeId}', funct
     
     return $response->withHeader('Content-Type', 'application/json');
 });
+
+// ============================================================================
+// INSTANCE DATABASE CONTEXT API
+// For Visual Builder and Code Editor expression autocomplete
+// ============================================================================
+
+/**
+ * Get database context for an instance
+ * Returns available data types, fields, and sample values for expressions
+ */
+$app->get('/api/v1/filesystem/instances/{instanceId}/context', function (Request $request, Response $response, array $args) {
+    $instanceId = $args['instanceId'];
+    $instancePath = __DIR__ . '/../../instances/' . $instanceId;
+    
+    if (!is_dir($instancePath)) {
+        $response->getBody()->write(json_encode(['error' => 'Instance not found']));
+        return $response->withStatus(404)->withHeader('Content-Type', 'application/json');
+    }
+    
+    $cmsType = detectCMSType($instancePath);
+    $context = [];
+    
+    try {
+        // Get database connection for the instance
+        $dbConfig = getInstanceDatabaseConfig($instancePath, $cmsType);
+        
+        if ($dbConfig) {
+            $pdo = new PDO(
+                "mysql:host={$dbConfig['host']};dbname={$dbConfig['name']};charset=utf8mb4",
+                $dbConfig['user'],
+                $dbConfig['pass'],
+                [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
+            );
+            
+            // Get context based on CMS type
+            switch ($cmsType) {
+                case 'wordpress':
+                    $context = getWordPressContext($pdo, $dbConfig['prefix']);
+                    break;
+                case 'joomla':
+                    $context = getJoomlaContext($pdo, $dbConfig['prefix']);
+                    break;
+                case 'drupal':
+                    $context = getDrupalContext($pdo, $dbConfig['prefix']);
+                    break;
+                default:
+                    $context = getGenericContext($pdo);
+            }
+        }
+        
+        // Add CMS-specific variables
+        $context['cms'] = $cmsType;
+        $context['variables'] = getCMSVariables($cmsType);
+        $context['filters'] = getAvailableFilters();
+        $context['operators'] = getAvailableOperators();
+        
+    } catch (Exception $e) {
+        error_log("Context API Error: " . $e->getMessage());
+        $context = [
+            'cms' => $cmsType,
+            'error' => 'Could not connect to instance database',
+            'variables' => getCMSVariables($cmsType),
+            'filters' => getAvailableFilters(),
+            'operators' => getAvailableOperators()
+        ];
+    }
+    
+    $response->getBody()->write(json_encode($context));
+    return $response->withHeader('Content-Type', 'application/json');
+});
+
+/**
+ * Get instance database config from CMS config files
+ */
+function getInstanceDatabaseConfig(string $instancePath, string $cmsType): ?array {
+    switch ($cmsType) {
+        case 'wordpress':
+            $configFile = $instancePath . '/wp-config.php';
+            if (file_exists($configFile)) {
+                $content = file_get_contents($configFile);
+                $config = [];
+                
+                if (preg_match("/define\s*\(\s*['\"]DB_NAME['\"]\s*,\s*['\"]([^'\"]+)['\"]\s*\)/", $content, $m)) {
+                    $config['name'] = $m[1];
+                }
+                if (preg_match("/define\s*\(\s*['\"]DB_USER['\"]\s*,\s*['\"]([^'\"]+)['\"]\s*\)/", $content, $m)) {
+                    $config['user'] = $m[1];
+                }
+                if (preg_match("/define\s*\(\s*['\"]DB_PASSWORD['\"]\s*,\s*['\"]([^'\"]*?)['\"]\s*\)/", $content, $m)) {
+                    $config['pass'] = $m[1];
+                }
+                if (preg_match("/define\s*\(\s*['\"]DB_HOST['\"]\s*,\s*['\"]([^'\"]+)['\"]\s*\)/", $content, $m)) {
+                    $config['host'] = $m[1];
+                }
+                if (preg_match("/\\\$table_prefix\s*=\s*['\"]([^'\"]+)['\"]/", $content, $m)) {
+                    $config['prefix'] = $m[1];
+                }
+                
+                if (!empty($config['name']) && !empty($config['user'])) {
+                    $config['host'] = $config['host'] ?? 'localhost';
+                    $config['prefix'] = $config['prefix'] ?? 'wp_';
+                    return $config;
+                }
+            }
+            break;
+            
+        case 'joomla':
+            $configFile = $instancePath . '/configuration.php';
+            if (file_exists($configFile)) {
+                $content = file_get_contents($configFile);
+                $config = [];
+                
+                if (preg_match("/public\s+\\\$db\s*=\s*['\"]([^'\"]+)['\"]/", $content, $m)) {
+                    $config['name'] = $m[1];
+                }
+                if (preg_match("/public\s+\\\$user\s*=\s*['\"]([^'\"]+)['\"]/", $content, $m)) {
+                    $config['user'] = $m[1];
+                }
+                if (preg_match("/public\s+\\\$password\s*=\s*['\"]([^'\"]*?)['\"]/", $content, $m)) {
+                    $config['pass'] = $m[1];
+                }
+                if (preg_match("/public\s+\\\$host\s*=\s*['\"]([^'\"]+)['\"]/", $content, $m)) {
+                    $config['host'] = $m[1];
+                }
+                if (preg_match("/public\s+\\\$dbprefix\s*=\s*['\"]([^'\"]+)['\"]/", $content, $m)) {
+                    $config['prefix'] = $m[1];
+                }
+                
+                if (!empty($config['name']) && !empty($config['user'])) {
+                    $config['host'] = $config['host'] ?? 'localhost';
+                    $config['prefix'] = $config['prefix'] ?? 'jos_';
+                    return $config;
+                }
+            }
+            break;
+            
+        case 'drupal':
+            $settingsFile = $instancePath . '/sites/default/settings.php';
+            if (file_exists($settingsFile)) {
+                // Drupal settings are complex, try to parse
+                $content = file_get_contents($settingsFile);
+                
+                // Look for database array
+                if (preg_match("/\\\$databases\s*\[\s*['\"]default['\"]\s*\]\s*\[\s*['\"]default['\"]\s*\]\s*=\s*\[([^\]]+)\]/s", $content, $m)) {
+                    $dbArray = $m[1];
+                    $config = [];
+                    
+                    if (preg_match("/['\"]database['\"]\s*=>\s*['\"]([^'\"]+)['\"]/", $dbArray, $dm)) {
+                        $config['name'] = $dm[1];
+                    }
+                    if (preg_match("/['\"]username['\"]\s*=>\s*['\"]([^'\"]+)['\"]/", $dbArray, $dm)) {
+                        $config['user'] = $dm[1];
+                    }
+                    if (preg_match("/['\"]password['\"]\s*=>\s*['\"]([^'\"]*?)['\"]/", $dbArray, $dm)) {
+                        $config['pass'] = $dm[1];
+                    }
+                    if (preg_match("/['\"]host['\"]\s*=>\s*['\"]([^'\"]+)['\"]/", $dbArray, $dm)) {
+                        $config['host'] = $dm[1];
+                    }
+                    if (preg_match("/['\"]prefix['\"]\s*=>\s*['\"]([^'\"]*?)['\"]/", $dbArray, $dm)) {
+                        $config['prefix'] = $dm[1];
+                    }
+                    
+                    if (!empty($config['name']) && !empty($config['user'])) {
+                        $config['host'] = $config['host'] ?? 'localhost';
+                        $config['prefix'] = $config['prefix'] ?? '';
+                        return $config;
+                    }
+                }
+            }
+            break;
+    }
+    
+    return null;
+}
+
+/**
+ * Get WordPress database context
+ */
+function getWordPressContext(PDO $pdo, string $prefix): array {
+    $context = [
+        'post_types' => [],
+        'taxonomies' => [],
+        'post_fields' => [],
+        'user_fields' => [],
+        'options' => [],
+        'menus' => [],
+        'widgets' => []
+    ];
+    
+    // Get post types
+    $stmt = $pdo->query("SELECT DISTINCT post_type FROM {$prefix}posts WHERE post_status = 'publish' LIMIT 20");
+    $context['post_types'] = $stmt->fetchAll(PDO::FETCH_COLUMN);
+    
+    // Get taxonomies
+    $stmt = $pdo->query("SELECT DISTINCT taxonomy FROM {$prefix}term_taxonomy LIMIT 20");
+    $context['taxonomies'] = $stmt->fetchAll(PDO::FETCH_COLUMN);
+    
+    // Post fields available in templates
+    $context['post_fields'] = [
+        ['name' => 'post.ID', 'type' => 'int', 'description' => 'Post ID'],
+        ['name' => 'post.title', 'type' => 'string', 'description' => 'Post title'],
+        ['name' => 'post.content', 'type' => 'html', 'description' => 'Post content'],
+        ['name' => 'post.excerpt', 'type' => 'string', 'description' => 'Post excerpt'],
+        ['name' => 'post.date', 'type' => 'date', 'description' => 'Publish date'],
+        ['name' => 'post.modified', 'type' => 'date', 'description' => 'Last modified date'],
+        ['name' => 'post.author', 'type' => 'string', 'description' => 'Author display name'],
+        ['name' => 'post.author_id', 'type' => 'int', 'description' => 'Author user ID'],
+        ['name' => 'post.permalink', 'type' => 'url', 'description' => 'Post URL'],
+        ['name' => 'post.thumbnail', 'type' => 'url', 'description' => 'Featured image URL'],
+        ['name' => 'post.categories', 'type' => 'array', 'description' => 'Post categories'],
+        ['name' => 'post.tags', 'type' => 'array', 'description' => 'Post tags'],
+        ['name' => 'post.comment_count', 'type' => 'int', 'description' => 'Number of comments'],
+        ['name' => 'post.status', 'type' => 'string', 'description' => 'Post status'],
+        ['name' => 'post.type', 'type' => 'string', 'description' => 'Post type'],
+        ['name' => 'post.meta.*', 'type' => 'mixed', 'description' => 'Custom field value']
+    ];
+    
+    // User fields
+    $context['user_fields'] = [
+        ['name' => 'user.ID', 'type' => 'int', 'description' => 'User ID'],
+        ['name' => 'user.login', 'type' => 'string', 'description' => 'Username'],
+        ['name' => 'user.email', 'type' => 'string', 'description' => 'Email address'],
+        ['name' => 'user.display_name', 'type' => 'string', 'description' => 'Display name'],
+        ['name' => 'user.avatar', 'type' => 'url', 'description' => 'Avatar URL'],
+        ['name' => 'user.url', 'type' => 'url', 'description' => 'Website URL'],
+        ['name' => 'user.registered', 'type' => 'date', 'description' => 'Registration date'],
+        ['name' => 'user.roles', 'type' => 'array', 'description' => 'User roles']
+    ];
+    
+    // Get menus
+    $stmt = $pdo->query("SELECT term_id, name FROM {$prefix}terms t 
+        INNER JOIN {$prefix}term_taxonomy tt ON t.term_id = tt.term_id 
+        WHERE tt.taxonomy = 'nav_menu' LIMIT 10");
+    $context['menus'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    
+    // Get widget areas (from options)
+    $stmt = $pdo->prepare("SELECT option_value FROM {$prefix}options WHERE option_name = 'sidebars_widgets'");
+    $stmt->execute();
+    $widgetData = $stmt->fetchColumn();
+    if ($widgetData) {
+        $widgets = @unserialize($widgetData);
+        if ($widgets) {
+            $context['widgets'] = array_keys(array_filter($widgets, function($v) {
+                return is_array($v) && !empty($v);
+            }));
+        }
+    }
+    
+    // Get some options for site context
+    $stmt = $pdo->query("SELECT option_name, option_value FROM {$prefix}options 
+        WHERE option_name IN ('blogname', 'blogdescription', 'siteurl', 'home', 'date_format', 'time_format') LIMIT 10");
+    $options = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
+    $context['site'] = [
+        ['name' => 'site.name', 'type' => 'string', 'value' => $options['blogname'] ?? ''],
+        ['name' => 'site.description', 'type' => 'string', 'value' => $options['blogdescription'] ?? ''],
+        ['name' => 'site.url', 'type' => 'url', 'value' => $options['siteurl'] ?? ''],
+        ['name' => 'site.home', 'type' => 'url', 'value' => $options['home'] ?? '']
+    ];
+    
+    // Get categories with counts
+    $stmt = $pdo->query("SELECT t.name, t.slug, tt.count 
+        FROM {$prefix}terms t 
+        INNER JOIN {$prefix}term_taxonomy tt ON t.term_id = tt.term_id 
+        WHERE tt.taxonomy = 'category' 
+        ORDER BY tt.count DESC LIMIT 20");
+    $context['categories'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    
+    return $context;
+}
+
+/**
+ * Get Joomla database context
+ */
+function getJoomlaContext(PDO $pdo, string $prefix): array {
+    $context = [
+        'content_types' => [],
+        'categories' => [],
+        'article_fields' => [],
+        'user_fields' => [],
+        'modules' => [],
+        'menus' => []
+    ];
+    
+    // Article fields
+    $context['article_fields'] = [
+        ['name' => 'article.id', 'type' => 'int', 'description' => 'Article ID'],
+        ['name' => 'article.title', 'type' => 'string', 'description' => 'Article title'],
+        ['name' => 'article.introtext', 'type' => 'html', 'description' => 'Intro text'],
+        ['name' => 'article.fulltext', 'type' => 'html', 'description' => 'Full text'],
+        ['name' => 'article.alias', 'type' => 'string', 'description' => 'URL alias'],
+        ['name' => 'article.created', 'type' => 'date', 'description' => 'Created date'],
+        ['name' => 'article.modified', 'type' => 'date', 'description' => 'Modified date'],
+        ['name' => 'article.publish_up', 'type' => 'date', 'description' => 'Publish date'],
+        ['name' => 'article.author', 'type' => 'string', 'description' => 'Author name'],
+        ['name' => 'article.category', 'type' => 'string', 'description' => 'Category title'],
+        ['name' => 'article.hits', 'type' => 'int', 'description' => 'View count'],
+        ['name' => 'article.images', 'type' => 'object', 'description' => 'Article images'],
+        ['name' => 'article.urls', 'type' => 'object', 'description' => 'Article URLs']
+    ];
+    
+    // Get categories
+    try {
+        $stmt = $pdo->query("SELECT id, title, alias, level FROM {$prefix}categories 
+            WHERE extension = 'com_content' AND published = 1 
+            ORDER BY lft LIMIT 30");
+        $context['categories'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    } catch (Exception $e) {}
+    
+    // Get module positions
+    try {
+        $stmt = $pdo->query("SELECT DISTINCT position FROM {$prefix}modules 
+            WHERE published = 1 AND client_id = 0 LIMIT 20");
+        $context['modules'] = $stmt->fetchAll(PDO::FETCH_COLUMN);
+    } catch (Exception $e) {}
+    
+    // Get menus
+    try {
+        $stmt = $pdo->query("SELECT id, title, menutype FROM {$prefix}menu_types LIMIT 10");
+        $context['menus'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    } catch (Exception $e) {}
+    
+    return $context;
+}
+
+/**
+ * Get Drupal database context
+ */
+function getDrupalContext(PDO $pdo, string $prefix): array {
+    $context = [
+        'content_types' => [],
+        'taxonomies' => [],
+        'node_fields' => [],
+        'user_fields' => [],
+        'blocks' => [],
+        'menus' => []
+    ];
+    
+    // Node fields
+    $context['node_fields'] = [
+        ['name' => 'node.nid', 'type' => 'int', 'description' => 'Node ID'],
+        ['name' => 'node.title', 'type' => 'string', 'description' => 'Node title'],
+        ['name' => 'node.body', 'type' => 'html', 'description' => 'Body content'],
+        ['name' => 'node.type', 'type' => 'string', 'description' => 'Content type'],
+        ['name' => 'node.created', 'type' => 'date', 'description' => 'Created timestamp'],
+        ['name' => 'node.changed', 'type' => 'date', 'description' => 'Changed timestamp'],
+        ['name' => 'node.author', 'type' => 'string', 'description' => 'Author name'],
+        ['name' => 'node.url', 'type' => 'url', 'description' => 'Node URL'],
+        ['name' => 'node.status', 'type' => 'bool', 'description' => 'Published status']
+    ];
+    
+    // Get content types
+    try {
+        $stmt = $pdo->query("SELECT DISTINCT type FROM {$prefix}node LIMIT 20");
+        $context['content_types'] = $stmt->fetchAll(PDO::FETCH_COLUMN);
+    } catch (Exception $e) {}
+    
+    // Get vocabularies
+    try {
+        $stmt = $pdo->query("SELECT vid, name FROM {$prefix}taxonomy_vocabulary LIMIT 20");
+        $context['taxonomies'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    } catch (Exception $e) {}
+    
+    return $context;
+}
+
+/**
+ * Get generic database context (for native/unknown CMS)
+ */
+function getGenericContext(PDO $pdo): array {
+    $context = [
+        'tables' => []
+    ];
+    
+    // List tables
+    try {
+        $stmt = $pdo->query("SHOW TABLES");
+        $context['tables'] = $stmt->fetchAll(PDO::FETCH_COLUMN);
+    } catch (Exception $e) {}
+    
+    return $context;
+}
+
+/**
+ * Get CMS-specific template variables
+ */
+function getCMSVariables(string $cmsType): array {
+    $common = [
+        ['name' => 'site.name', 'type' => 'string', 'description' => 'Site name'],
+        ['name' => 'site.url', 'type' => 'url', 'description' => 'Site URL'],
+        ['name' => 'site.description', 'type' => 'string', 'description' => 'Site description'],
+        ['name' => 'page.title', 'type' => 'string', 'description' => 'Page title'],
+        ['name' => 'page.url', 'type' => 'url', 'description' => 'Current page URL'],
+        ['name' => 'user.logged_in', 'type' => 'bool', 'description' => 'Is user logged in'],
+        ['name' => 'user.name', 'type' => 'string', 'description' => 'Current user name'],
+        ['name' => 'is_home', 'type' => 'bool', 'description' => 'Is homepage'],
+        ['name' => 'is_single', 'type' => 'bool', 'description' => 'Is single post/article'],
+        ['name' => 'is_archive', 'type' => 'bool', 'description' => 'Is archive page'],
+        ['name' => 'is_search', 'type' => 'bool', 'description' => 'Is search results'],
+        ['name' => 'is_404', 'type' => 'bool', 'description' => 'Is 404 page']
+    ];
+    
+    switch ($cmsType) {
+        case 'wordpress':
+            return array_merge($common, [
+                ['name' => 'is_page', 'type' => 'bool', 'description' => 'Is static page'],
+                ['name' => 'is_category', 'type' => 'bool', 'description' => 'Is category archive'],
+                ['name' => 'is_tag', 'type' => 'bool', 'description' => 'Is tag archive'],
+                ['name' => 'is_author', 'type' => 'bool', 'description' => 'Is author archive'],
+                ['name' => 'have_posts', 'type' => 'bool', 'description' => 'Has posts in loop'],
+                ['name' => 'posts', 'type' => 'array', 'description' => 'Posts array'],
+                ['name' => 'query.post_type', 'type' => 'string', 'description' => 'Current post type'],
+                ['name' => 'query.posts_per_page', 'type' => 'int', 'description' => 'Posts per page'],
+                ['name' => 'pagination.current', 'type' => 'int', 'description' => 'Current page number'],
+                ['name' => 'pagination.total', 'type' => 'int', 'description' => 'Total pages'],
+                ['name' => 'theme.url', 'type' => 'url', 'description' => 'Theme directory URL'],
+                ['name' => 'theme.path', 'type' => 'string', 'description' => 'Theme directory path']
+            ]);
+            
+        case 'joomla':
+            return array_merge($common, [
+                ['name' => 'is_article', 'type' => 'bool', 'description' => 'Is single article'],
+                ['name' => 'is_category', 'type' => 'bool', 'description' => 'Is category view'],
+                ['name' => 'is_blog', 'type' => 'bool', 'description' => 'Is blog layout'],
+                ['name' => 'articles', 'type' => 'array', 'description' => 'Articles array'],
+                ['name' => 'params', 'type' => 'object', 'description' => 'Component parameters'],
+                ['name' => 'template.url', 'type' => 'url', 'description' => 'Template URL'],
+                ['name' => 'template.path', 'type' => 'string', 'description' => 'Template path']
+            ]);
+            
+        case 'drupal':
+            return array_merge($common, [
+                ['name' => 'is_front', 'type' => 'bool', 'description' => 'Is front page'],
+                ['name' => 'is_node', 'type' => 'bool', 'description' => 'Is node page'],
+                ['name' => 'node', 'type' => 'object', 'description' => 'Current node'],
+                ['name' => 'nodes', 'type' => 'array', 'description' => 'Nodes array'],
+                ['name' => 'view', 'type' => 'object', 'description' => 'Current view'],
+                ['name' => 'theme.path', 'type' => 'string', 'description' => 'Theme path']
+            ]);
+            
+        default:
+            return $common;
+    }
+}
+
+/**
+ * Get available DiSyL filters
+ */
+function getAvailableFilters(): array {
+    return [
+        // Escaping filters
+        ['name' => 'esc_html', 'description' => 'Escape HTML entities', 'example' => '{title | esc_html}'],
+        ['name' => 'esc_attr', 'description' => 'Escape for HTML attributes', 'example' => '{value | esc_attr}'],
+        ['name' => 'esc_url', 'description' => 'Escape URL', 'example' => '{link | esc_url}'],
+        ['name' => 'raw', 'description' => 'Output without escaping', 'example' => '{content | raw}'],
+        
+        // String filters
+        ['name' => 'upper', 'description' => 'Convert to uppercase', 'example' => '{name | upper}'],
+        ['name' => 'lower', 'description' => 'Convert to lowercase', 'example' => '{name | lower}'],
+        ['name' => 'capitalize', 'description' => 'Capitalize first letter', 'example' => '{name | capitalize}'],
+        ['name' => 'title', 'description' => 'Title case', 'example' => '{name | title}'],
+        ['name' => 'trim', 'description' => 'Trim whitespace', 'example' => '{text | trim}'],
+        ['name' => 'truncate', 'description' => 'Truncate to length', 'example' => '{text | truncate(100)}'],
+        ['name' => 'slug', 'description' => 'Convert to URL slug', 'example' => '{title | slug}'],
+        ['name' => 'strip_tags', 'description' => 'Remove HTML tags', 'example' => '{content | strip_tags}'],
+        ['name' => 'nl2br', 'description' => 'Newlines to <br>', 'example' => '{text | nl2br}'],
+        
+        // Number filters
+        ['name' => 'int', 'description' => 'Cast to integer', 'example' => '{count | int}'],
+        ['name' => 'float', 'description' => 'Cast to float', 'example' => '{price | float}'],
+        ['name' => 'number_format', 'description' => 'Format number', 'example' => '{price | number_format(2)}'],
+        ['name' => 'abs', 'description' => 'Absolute value', 'example' => '{value | abs}'],
+        ['name' => 'round', 'description' => 'Round number', 'example' => '{value | round(2)}'],
+        
+        // Date filters
+        ['name' => 'date', 'description' => 'Format date', 'example' => '{post.date | date("F j, Y")}'],
+        ['name' => 'time_ago', 'description' => 'Relative time', 'example' => '{post.date | time_ago}'],
+        
+        // Array filters
+        ['name' => 'first', 'description' => 'First element', 'example' => '{items | first}'],
+        ['name' => 'last', 'description' => 'Last element', 'example' => '{items | last}'],
+        ['name' => 'join', 'description' => 'Join array', 'example' => '{tags | join(", ")}'],
+        ['name' => 'length', 'description' => 'Array/string length', 'example' => '{items | length}'],
+        ['name' => 'reverse', 'description' => 'Reverse array', 'example' => '{items | reverse}'],
+        ['name' => 'sort', 'description' => 'Sort array', 'example' => '{items | sort}'],
+        ['name' => 'slice', 'description' => 'Slice array', 'example' => '{items | slice(0, 5)}'],
+        
+        // Encoding filters
+        ['name' => 'json', 'description' => 'JSON encode', 'example' => '{data | json}'],
+        ['name' => 'base64', 'description' => 'Base64 encode', 'example' => '{value | base64}'],
+        ['name' => 'md5', 'description' => 'MD5 hash', 'example' => '{email | md5}'],
+        
+        // Default filter
+        ['name' => 'default', 'description' => 'Default value if empty', 'example' => '{value | default("N/A")}']
+    ];
+}
+
+/**
+ * Get available operators for conditions
+ */
+function getAvailableOperators(): array {
+    return [
+        // Comparison
+        ['name' => '==', 'description' => 'Equal to', 'example' => 'post.type == "page"'],
+        ['name' => '!=', 'description' => 'Not equal to', 'example' => 'post.status != "draft"'],
+        ['name' => '>', 'description' => 'Greater than', 'example' => 'count > 0'],
+        ['name' => '<', 'description' => 'Less than', 'example' => 'count < 10'],
+        ['name' => '>=', 'description' => 'Greater or equal', 'example' => 'count >= 5'],
+        ['name' => '<=', 'description' => 'Less or equal', 'example' => 'count <= 100'],
+        
+        // Logical
+        ['name' => 'and', 'description' => 'Logical AND', 'example' => 'is_single and have_posts'],
+        ['name' => 'or', 'description' => 'Logical OR', 'example' => 'is_home or is_front'],
+        ['name' => 'not', 'description' => 'Logical NOT', 'example' => 'not is_404'],
+        
+        // String/Array
+        ['name' => 'contains', 'description' => 'Contains value', 'example' => 'title contains "news"'],
+        ['name' => 'starts_with', 'description' => 'Starts with', 'example' => 'url starts_with "/blog"'],
+        ['name' => 'ends_with', 'description' => 'Ends with', 'example' => 'file ends_with ".jpg"'],
+        ['name' => 'in', 'description' => 'Value in array', 'example' => 'type in ["post", "page"]'],
+        ['name' => 'matches', 'description' => 'Regex match', 'example' => 'email matches "/^[^@]+@/"'],
+        
+        // Type checking
+        ['name' => 'is_empty', 'description' => 'Is empty/null', 'example' => 'thumbnail is_empty'],
+        ['name' => 'is_defined', 'description' => 'Is defined', 'example' => 'custom_field is_defined']
+    ];
+}

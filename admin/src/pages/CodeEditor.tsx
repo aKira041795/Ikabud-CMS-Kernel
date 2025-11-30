@@ -242,14 +242,65 @@ export default function CodeEditor() {
   const [editorTheme, setEditorTheme] = useState<'vs-dark' | 'light'>('vs-dark')
   const [fontSize, setFontSize] = useState(14)
   const [showMinimap, setShowMinimap] = useState(true)
+  
+  // Cross-instance context for federation
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [instanceContext, setInstanceContext] = useState<any>(null)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [allInstances, setAllInstances] = useState<any[]>([])
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [instanceContextCache, setInstanceContextCache] = useState<Record<string, any>>({})
 
-  // Fetch themes for instance
+  // Fetch themes and context for instance
   useEffect(() => {
     if (instanceId) {
       fetchThemes()
+      fetchInstanceContext(instanceId)
+      fetchAllInstances()
     }
   }, [instanceId])
-
+  
+  // Fetch all available instances for cross-instance suggestions
+  const fetchAllInstances = async () => {
+    try {
+      const res = await fetch('/api/v1/filesystem/instances')
+      const data = await res.json()
+      setAllInstances(data.instances || [])
+    } catch (err) {
+      console.error('Failed to load instances:', err)
+    }
+  }
+  
+  // Fetch instance context (variables, filters, operators from DB)
+  // Supports caching for cross-instance lookups
+  const fetchInstanceContext = async (instId: string, cache = true) => {
+    // Check cache first
+    if (cache && instanceContextCache[instId]) {
+      if (instId === instanceId) {
+        setInstanceContext(instanceContextCache[instId])
+      }
+      return instanceContextCache[instId]
+    }
+    
+    try {
+      const res = await fetch(`/api/v1/filesystem/instances/${instId}/context`)
+      const data = await res.json()
+      
+      // Cache the result
+      setInstanceContextCache(prev => ({ ...prev, [instId]: data }))
+      
+      // Set as current context if it's the main instance
+      if (instId === instanceId) {
+        setInstanceContext(data)
+      }
+      
+      return data
+    } catch (err) {
+      console.error('Failed to load instance context:', err)
+      return null
+    }
+  }
+  
   // Fetch file tree when theme changes
   useEffect(() => {
     if (instanceId && selectedTheme) {
@@ -430,7 +481,7 @@ export default function CodeEditor() {
       ],
     })
     
-    // DiSyL autocomplete
+    // DiSyL autocomplete with cross-instance context
     monaco.languages.registerCompletionItemProvider('disyl', {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       provideCompletionItems: (model: any, position: any) => {
@@ -442,67 +493,242 @@ export default function CodeEditor() {
           endColumn: word.endColumn,
         }
         
+        // Get line content to determine context
+        const lineContent = model.getLineContent(position.lineNumber)
+        const textBeforeCursor = lineContent.substring(0, position.column - 1)
+        
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const suggestions: any[] = []
         
-        // Component suggestions
-        DISYL_PATTERNS.components.forEach(comp => {
-          suggestions.push({
-            label: comp,
-            kind: monaco.languages.CompletionItemKind.Class,
-            insertText: `{${comp} \$1}\n\t\$0\n{/${comp}}`,
-            insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-            documentation: `DiSyL ${comp} component`,
-            range,
-          })
-        })
+        // Check if we're typing instance="" attribute
+        const isInstanceAttr = /instance\s*=\s*["'][^"']*$/.test(textBeforeCursor)
         
-        // Control structure suggestions
-        DISYL_PATTERNS.controls.forEach(ctrl => {
-          if (ctrl === 'if') {
+        // Check if we're typing cms="" attribute  
+        const isCmsAttr = /cms\s*=\s*["'][^"']*$/.test(textBeforeCursor)
+        
+        // Detect if current tag has cms="xxx" or instance="xxx" for context switching
+        const cmsMatch = lineContent.match(/cms\s*=\s*["'](\w+)["']/)
+        const instanceMatch = lineContent.match(/instance\s*=\s*["']([\w-]+)["']/)
+        
+        // Determine which context to use based on tag attributes
+        let activeContext = instanceContext
+        if (instanceMatch && instanceContextCache[instanceMatch[1]]) {
+          activeContext = instanceContextCache[instanceMatch[1]]
+        } else if (cmsMatch) {
+          // Find an instance with matching CMS type
+          const matchingInstance = allInstances.find(i => i.cms_type === cmsMatch[1])
+          if (matchingInstance && instanceContextCache[matchingInstance.id]) {
+            activeContext = instanceContextCache[matchingInstance.id]
+          }
+        }
+        
+        // Check if we're after a pipe (filter context)
+        const isFilterContext = /\|\s*\w*$/.test(textBeforeCursor)
+        
+        // Check if we're in a condition attribute
+        const isConditionContext = /condition\s*=\s*["'][^"']*$/.test(textBeforeCursor)
+        
+        // Check if we're inside a variable expression {
+        const isVariableContext = /\{[^}]*$/.test(textBeforeCursor) && !textBeforeCursor.includes('/')
+        
+        // Instance attribute suggestions
+        if (isInstanceAttr) {
+          allInstances.forEach(inst => {
+            const cmsIcon = inst.cms_type === 'wordpress' ? '🔵' : 
+                           inst.cms_type === 'joomla' ? '🟠' : 
+                           inst.cms_type === 'drupal' ? '🔷' : '⚪'
             suggestions.push({
-              label: ctrl,
-              kind: monaco.languages.CompletionItemKind.Keyword,
-              insertText: `{if condition="\$1"}\n\t\$0\n{/if}`,
-              insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-              documentation: 'Conditional block',
+              label: inst.id,
+              kind: monaco.languages.CompletionItemKind.Reference,
+              insertText: inst.id,
+              documentation: `${cmsIcon} ${inst.name}\nCMS: ${inst.cms_type}\nThemes: ${inst.theme_count}`,
+              detail: `${inst.cms_type} instance`,
               range,
             })
-          } else if (ctrl === 'for') {
+          })
+          return { suggestions }
+        }
+        
+        // CMS attribute suggestions
+        if (isCmsAttr) {
+          const cmsTypes = [
+            { id: 'wordpress', icon: '🔵', desc: 'WordPress CMS' },
+            { id: 'joomla', icon: '🟠', desc: 'Joomla CMS' },
+            { id: 'drupal', icon: '🔷', desc: 'Drupal CMS' },
+            { id: 'native', icon: '⚪', desc: 'Native/Static' },
+          ]
+          cmsTypes.forEach(cms => {
+            const instanceCount = allInstances.filter(i => i.cms_type === cms.id).length
             suggestions.push({
-              label: ctrl,
-              kind: monaco.languages.CompletionItemKind.Keyword,
-              insertText: `{for items="\$1" as="\$2"}\n\t\$0\n{/for}`,
-              insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-              documentation: 'Loop block',
+              label: cms.id,
+              kind: monaco.languages.CompletionItemKind.Enum,
+              insertText: cms.id,
+              documentation: `${cms.icon} ${cms.desc}\n${instanceCount} instance(s) available`,
+              detail: cms.desc,
               range,
             })
-          } else if (ctrl === 'include') {
-            suggestions.push({
-              label: ctrl,
-              kind: monaco.languages.CompletionItemKind.Keyword,
-              insertText: `{include file="\$1" /}`,
-              insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-              documentation: 'Include another template',
-              range,
+          })
+          return { suggestions }
+        }
+        
+        if (isFilterContext) {
+          // Filter suggestions from active context (may be cross-instance)
+          if (activeContext?.filters) {
+            activeContext.filters.forEach((filter: { name: string; description: string; example: string }) => {
+              suggestions.push({
+                label: filter.name,
+                kind: monaco.languages.CompletionItemKind.Function,
+                insertText: filter.name,
+                documentation: `${filter.description}\nExample: ${filter.example}`,
+                detail: 'Filter',
+                range,
+              })
+            })
+          } else {
+            // Fallback to static filters
+            DISYL_PATTERNS.filters.forEach(filter => {
+              suggestions.push({
+                label: filter,
+                kind: monaco.languages.CompletionItemKind.Function,
+                insertText: filter,
+                documentation: `Filter: ${filter}`,
+                range,
+              })
             })
           }
-        })
-        
-        // Filter suggestions
-        DISYL_PATTERNS.filters.forEach(filter => {
-          suggestions.push({
-            label: `| ${filter}`,
-            kind: monaco.languages.CompletionItemKind.Function,
-            insertText: `| ${filter}`,
-            documentation: `Filter: ${filter}`,
-            range,
+        } else if (isConditionContext) {
+          // Variable suggestions for conditions (uses active context for cross-instance)
+          if (activeContext?.variables) {
+            activeContext.variables.forEach((v: { name: string; type: string; description: string }) => {
+              suggestions.push({
+                label: v.name,
+                kind: monaco.languages.CompletionItemKind.Variable,
+                insertText: v.name,
+                documentation: `${v.description} (${v.type})`,
+                detail: v.type,
+                range,
+              })
+            })
+          }
+          
+          // Operator suggestions
+          if (activeContext?.operators) {
+            activeContext.operators.forEach((op: { name: string; description: string; example: string }) => {
+              suggestions.push({
+                label: op.name,
+                kind: monaco.languages.CompletionItemKind.Operator,
+                insertText: op.name,
+                documentation: `${op.description}\nExample: ${op.example}`,
+                detail: 'Operator',
+                range,
+              })
+            })
+          }
+        } else if (isVariableContext) {
+          // Variable suggestions (uses active context for cross-instance)
+          if (activeContext?.variables) {
+            activeContext.variables.forEach((v: { name: string; type: string; description: string }) => {
+              suggestions.push({
+                label: v.name,
+                kind: monaco.languages.CompletionItemKind.Variable,
+                insertText: v.name,
+                documentation: `${v.description} (${v.type})`,
+                detail: v.type,
+                range,
+              })
+            })
+          }
+          
+          // Post fields (WordPress) - from active context
+          if (activeContext?.post_fields) {
+            activeContext.post_fields.forEach((f: { name: string; type: string; description: string }) => {
+              suggestions.push({
+                label: f.name,
+                kind: monaco.languages.CompletionItemKind.Field,
+                insertText: f.name,
+                documentation: `${f.description} (${f.type})`,
+                detail: `Post Field (${f.type})`,
+                range,
+              })
+            })
+          }
+          
+          // Article fields (Joomla) - from active context
+          if (activeContext?.article_fields) {
+            activeContext.article_fields.forEach((f: { name: string; type: string; description: string }) => {
+              suggestions.push({
+                label: f.name,
+                kind: monaco.languages.CompletionItemKind.Field,
+                insertText: f.name,
+                documentation: `${f.description} (${f.type})`,
+                detail: `Article Field (${f.type})`,
+                range,
+              })
+            })
+          }
+          
+          // Node fields (Drupal) - from active context
+          if (activeContext?.node_fields) {
+            activeContext.node_fields.forEach((f: { name: string; type: string; description: string }) => {
+              suggestions.push({
+                label: f.name,
+                kind: monaco.languages.CompletionItemKind.Field,
+                insertText: f.name,
+                documentation: `${f.description} (${f.type})`,
+                detail: `Node Field (${f.type})`,
+                range,
+              })
+            })
+          }
+        } else {
+          // Component suggestions
+          DISYL_PATTERNS.components.forEach(comp => {
+            suggestions.push({
+              label: comp,
+              kind: monaco.languages.CompletionItemKind.Class,
+              insertText: `{${comp} \$1}\n\t\$0\n{/${comp}}`,
+              insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+              documentation: `DiSyL ${comp} component`,
+              range,
+            })
           })
-        })
+          
+          // Control structure suggestions
+          DISYL_PATTERNS.controls.forEach(ctrl => {
+            if (ctrl === 'if') {
+              suggestions.push({
+                label: ctrl,
+                kind: monaco.languages.CompletionItemKind.Keyword,
+                insertText: `{if condition="\$1"}\n\t\$0\n{/if}`,
+                insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                documentation: 'Conditional block',
+                range,
+              })
+            } else if (ctrl === 'for') {
+              suggestions.push({
+                label: ctrl,
+                kind: monaco.languages.CompletionItemKind.Keyword,
+                insertText: `{for items="\$1" as="\$2"}\n\t\$0\n{/for}`,
+                insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                documentation: 'Loop block',
+                range,
+              })
+            } else if (ctrl === 'include') {
+              suggestions.push({
+                label: ctrl,
+                kind: monaco.languages.CompletionItemKind.Keyword,
+                insertText: `{include file="\$1" /}`,
+                insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                documentation: 'Include another template',
+                range,
+              })
+            }
+          })
+        }
         
         return { suggestions }
       },
-      triggerCharacters: ['{', '|', ' ']
+      triggerCharacters: ['{', '|', ' ', '.']
     })
     
     // Add save command
