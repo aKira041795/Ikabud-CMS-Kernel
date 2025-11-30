@@ -10,7 +10,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Planned Features
-- Full React Admin UI implementation
 - Multi-tenant support with resource quotas
 - Real-time process monitoring dashboard
 - Automated backup and restore system
@@ -18,6 +17,59 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Advanced caching strategies
 - Load balancing support
 - Container orchestration (Docker/Kubernetes)
+
+---
+
+## [1.5.0] - 2025-11-30
+
+### 🎨 Theme Builder Enhancements - Monaco Editor & Filesystem API
+
+Major release featuring a professional code editor with Monaco, filesystem-based theme management API, and shared instance selector across all theme features.
+
+### Added
+
+#### Code Editor with Monaco
+- **Monaco Editor Integration** - Same editor as VS Code
+- **Syntax Highlighting** - PHP, JavaScript, CSS, HTML, JSON, YAML, Markdown, and more
+- **Custom DiSyL Language** - Syntax highlighting for DiSyL templates
+- **IntelliSense/Autocomplete** - DiSyL components (`ikb_section`, `ikb_container`, etc.), control structures (`if`, `for`, `include`), and filters
+- **Editor Settings** - Theme toggle (dark/light), font size selector, minimap toggle
+- **Keyboard Shortcuts** - Ctrl+S to save
+- **File Tree Sidebar** - Navigate theme files with folder expansion
+
+#### Filesystem-based Theme API
+- `GET /api/v1/filesystem/instances` - List all instances with CMS type detection
+- `GET /api/v1/filesystem/instances/{id}/themes` - List themes per instance
+- `GET /api/v1/filesystem/instances/{id}/themes/{theme}/tree` - Get file tree
+- `GET /api/v1/filesystem/instances/{id}/themes/{theme}/files` - Read file content
+- `PUT /api/v1/filesystem/instances/{id}/themes/{theme}/files` - Write file content
+- `POST /api/v1/filesystem/instances/{id}/themes` - Create new theme with CMS starter files
+- `POST /api/v1/filesystem/instances/{id}/themes/upload` - Upload theme ZIP
+- `DELETE /api/v1/filesystem/instances/{id}/themes/{theme}` - Delete theme
+
+#### Theme Builder UI
+- **Shared Instance Selector** - Persisted across all theme features via localStorage
+- **3 Main Actions** - New Theme (Visual Builder), Code Editor, Upload ZIP
+- **Theme List** - Display existing themes with quick action buttons
+- **CMS Detection** - Auto-detect WordPress, Joomla, Drupal, or Native
+
+### Changed
+
+#### Theme Generator
+- Auto-create `storage/themes` directory if missing
+- Auto-create `kernel/templates` directory if missing
+- Auto-generate default `disyl-components.css` with component styles
+- Graceful error handling for permission issues
+- Fixed Slim route integration for `/api/theme/generate`
+
+#### Route Configuration
+- Added `filesystem` route mapping for theme management API
+- Added `theme` route mapping for theme generator API
+
+### Fixed
+- Theme generator 404 errors - routes now use Slim `$app` instead of `$router`
+- Permission denied errors - directories auto-created with fallback permissions
+- Missing CSS file errors - fallback to default styles if file doesn't exist
 
 ---
 
