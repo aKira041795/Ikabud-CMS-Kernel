@@ -43,6 +43,10 @@
 - **[🎨 Theme Builder Guide](THEME_BUILDER_GUIDE.md)** - ⭐ NEW: Complete guide for Code Editor & Visual Builder
 - **[Cross-Instance Federation](DISYL_COMPLETE_GUIDE.md#cross-instance-federation)** - ⭐ NEW: Query content from any CMS
 
+### 🔒 Security
+- **[🛡️ Security Whitepaper](DISYL_SECURITY_WHITEPAPER.md)** - ⭐ NEW: Complete security architecture (9.2/10 score)
+- **[Security Audit](DISYL_SECURITY_AUDIT.md)** - Security evaluation and recommendations
+
 ### 🎨 DiSyL Templating Engine (v0.5.1)
 - **[DiSyL README](DISYL_README.md)** - DiSyL documentation index
 - **[🎉 Beta Release v0.5.0](DISYL_BETA_RELEASE_v0.5.0.md)** - Beta release announcement
