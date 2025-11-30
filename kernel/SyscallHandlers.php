@@ -51,9 +51,9 @@ class SyscallHandlers
             $content = $this->fetchPosts($instanceId, $args);
         }
         
-        // Cache result
+        // Cache result (use setWithTags for better invalidation)
         if ($content) {
-            $this->cache->set($instanceId, $cacheKey, $content, 3600);
+            $this->cache->setWithTags($instanceId, $cacheKey, $content, ['content', $postType]);
         }
         
         return $content;
