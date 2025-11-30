@@ -20,6 +20,59 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.5.1] - 2025-11-30
+
+### 🔗 Cross-Instance Content Federation
+
+Runtime support for querying content from any CMS instance within DiSyL templates. Enables true multi-CMS content aggregation.
+
+### Added
+
+#### CrossInstanceDataProvider
+- **New global service** for fetching data from any registered CMS instance
+- **Database config parsing** - Reads wp-config.php, configuration.php, settings.php
+- **Connection pooling** - Cached connections for performance
+- **CMS-specific queries** - WordPress (WP_Query style), Joomla (com_content), Drupal (EntityQuery)
+- **Data normalization** - Common fields: `title`, `content`, `excerpt`, `date`, `author`, `slug`
+- **CMS aliases** - Also provides `post.*`, `article.*`, `node.*` for CMS-specific access
+- **Source tracking** - `_source.instance` and `_source.cms` for debugging
+
+#### BaseRenderer
+- `handleCrossInstanceQuery()` - Detects and handles cross-instance queries
+- Automatic context switching based on `instance=""` or `cms=""` attributes
+- Sets both common and CMS-specific field names in template context
+
+### Changed
+
+#### All Renderers Updated
+- **WordPressRenderer** - Cross-instance support in `renderIkbQuery()`
+- **JoomlaRenderer** - Cross-instance support in `renderIkbQuery()`
+- **DrupalRenderer** - Cross-instance support in `ikb_query` component
+- **NativeRenderer** - Cross-instance support in `renderIkbQuery()`
+
+### Usage Example
+
+```disyl
+{# WordPress site with WooCommerce #}
+{ikb_query type="product" limit="4"}
+  {post.title} - ${product.price}
+{/ikb_query}
+
+{# Pull articles from Joomla instance #}
+{ikb_query cms="joomla" instance="joomla-content" type="article" limit="5"}
+  {article.title}
+  {article.introtext | truncate(150)}
+{/ikb_query}
+
+{# Pull nodes from Drupal instance #}
+{ikb_query cms="drupal" instance="drupal-blog" type="article" limit="3"}
+  {node.title}
+  {node.body | strip_tags | truncate(200)}
+{/ikb_query}
+```
+
+---
+
 ## [1.5.0] - 2025-11-30
 
 ### 🎨 Theme Builder Enhancements - Monaco Editor & Filesystem API
