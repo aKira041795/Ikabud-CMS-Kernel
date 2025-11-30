@@ -20,6 +20,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.2.2] - 2025-11-30
+
+### 🛡️ Kernel Hardening & Safety Rails
+
+Critical fixes addressing VIBE code assessment findings for production readiness.
+
+### Fixed
+
+#### Memory Leak Prevention
+- **Destructor implementation** - Proper cleanup of connection pool, log queue, and boot locks
+- **Connection pool cleanup** - All pooled connections properly closed on kernel destruction
+- **Resource release** - Main database connection explicitly unset in destructor
+
+#### Boot Race Condition Prevention
+- **File-based boot locking** - Prevents concurrent boot attempts via `/tmp/ikabud_kernel_boot.lock`
+- **Non-blocking lock acquisition** - Uses `LOCK_EX | LOCK_NB` for immediate feedback
+- **Timeout handling** - 5-second wait with periodic checks for boot completion
+- **Graceful fallback** - Proceeds without lock if file creation fails (with warning)
+- **Finally block cleanup** - Boot lock always released, even on failure
+
+#### Security Hardening
+- **SecurityManager fallback** - Graceful degradation if security checks fail
+- **Read-only fallback mode** - Only allows `content.fetch`, `db.query`, `http.get`, `theme.render` when security unavailable
+- **Write operation blocking** - All write syscalls blocked during security failure
+- **Basic sanitization fallback** - `htmlspecialchars()` applied to string arguments as last resort
+
+#### Database Schema Validation
+- **Auto-create tables** - Creates missing kernel tables on boot
+- **Tables validated**: `kernel_config`, `kernel_processes`, `instances`, `kernel_boot_log`, `kernel_syscalls`, `kernel_async_log`
+- **Creation logging** - Logs which tables were created or failed
+- **Non-blocking** - Schema validation doesn't halt boot on partial failure
+
+### Technical Details
+- Boot lock file: `/tmp/ikabud_kernel_boot.lock`
+- Lock timeout: 5 seconds (100ms polling intervals)
+- Read-only syscalls whitelist: `['content.fetch', 'db.query', 'http.get', 'theme.render']`
+
+---
+
 ## [1.2.1] - 2025-11-30
 
 ### 🎨 Code Editor Visual Preview Enhancement

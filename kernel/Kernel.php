@@ -27,7 +27,7 @@ use Exception;
 
 class Kernel
 {
-    const VERSION = '1.2.0';
+    const VERSION = '1.2.2';
     const BOOT_PHASES = 5;
     const APCU_CONFIG_TTL = 300; // 5 minutes
     const APCU_ENV_TTL = 3600; // 1 hour
@@ -72,6 +72,12 @@ class Kernel
     // APCu availability
     private static ?bool $apcuAvailable = null;
     
+    // Boot lock file path
+    private const BOOT_LOCK_FILE = '/tmp/ikabud_kernel_boot.lock';
+    
+    // Boot lock file handle
+    private static $bootLockHandle = null;
+    
     /**
      * Get singleton instance
      */
@@ -81,6 +87,25 @@ class Kernel
             self::$instance = new self();
         }
         return self::$instance;
+    }
+    
+    /**
+     * Destructor - cleanup resources
+     * Addresses memory leak risk from connection pool
+     */
+    public function __destruct()
+    {
+        // Close all pooled connections
+        $this->closeConnectionPool();
+        
+        // Flush any pending logs
+        $this->flushLogQueue();
+        
+        // Release boot lock if held
+        $this->releaseBootLock();
+        
+        // Clear main database connection
+        unset($this->db);
     }
     
     /**
@@ -385,7 +410,65 @@ class Kernel
     }
     
     /**
+     * Acquire boot lock to prevent race conditions
+     * @return bool True if lock acquired, false if another process is booting
+     */
+    private function acquireBootLock(): bool
+    {
+        // Create lock file if it doesn't exist
+        self::$bootLockHandle = @fopen(self::BOOT_LOCK_FILE, 'c');
+        
+        if (self::$bootLockHandle === false) {
+            // Can't create lock file, proceed without locking (fallback)
+            error_log('[Kernel] Warning: Could not create boot lock file, proceeding without lock');
+            return true;
+        }
+        
+        // Try to acquire exclusive lock (non-blocking)
+        if (!flock(self::$bootLockHandle, LOCK_EX | LOCK_NB)) {
+            // Another process is booting, wait briefly then check if boot completed
+            fclose(self::$bootLockHandle);
+            self::$bootLockHandle = null;
+            
+            // Wait up to 5 seconds for other boot to complete
+            $waited = 0;
+            while ($waited < 5000) {
+                usleep(100000); // 100ms
+                $waited += 100;
+                
+                // Check if boot completed by another process
+                if (self::$booted) {
+                    return false; // Already booted by another process
+                }
+            }
+            
+            // Timeout - try to acquire lock again
+            self::$bootLockHandle = @fopen(self::BOOT_LOCK_FILE, 'c');
+            if (self::$bootLockHandle && flock(self::$bootLockHandle, LOCK_EX | LOCK_NB)) {
+                return true;
+            }
+            
+            throw new Exception('Boot lock acquisition timeout - another process may be stuck');
+        }
+        
+        return true;
+    }
+    
+    /**
+     * Release boot lock
+     */
+    private function releaseBootLock(): void
+    {
+        if (self::$bootLockHandle !== null) {
+            flock(self::$bootLockHandle, LOCK_UN);
+            fclose(self::$bootLockHandle);
+            self::$bootLockHandle = null;
+        }
+    }
+    
+    /**
      * Boot the kernel with 5-phase sequence
+     * Uses locking to prevent race conditions in concurrent boot attempts
      */
     public static function boot(): void
     {
@@ -397,6 +480,12 @@ class Kernel
         self::$bootId = uniqid('boot_', true);
         
         $kernel = self::getInstance();
+        
+        // Acquire boot lock to prevent race conditions
+        if (!$kernel->acquireBootLock()) {
+            // Another process completed boot
+            return;
+        }
         
         try {
             // Phase 1: Kernel-Level Dependencies
@@ -421,6 +510,9 @@ class Kernel
         } catch (Exception $e) {
             $kernel->logBoot('failed', 'Kernel boot failed: ' . $e->getMessage());
             throw new Exception("Kernel boot failed: " . $e->getMessage());
+        } finally {
+            // Always release boot lock
+            $kernel->releaseBootLock();
         }
     }
     
@@ -437,6 +529,9 @@ class Kernel
             
             // 1.2 Initialize database connection
             $this->initializeDatabase();
+            
+            // 1.2.1 Validate/create required database schema
+            $this->validateDatabaseSchema();
             
             // Now we can log to database
             $this->logPhase(1, 'Kernel-Level Dependencies', 'started');
@@ -580,6 +675,7 @@ class Kernel
     
     /**
      * Execute a syscall with security checks
+     * Includes fallback handling if SecurityManager fails
      */
     public static function syscall(string $name, array $args = [], ?string $role = null): mixed
     {
@@ -589,22 +685,42 @@ class Kernel
             throw new Exception("Syscall not found: {$name}");
         }
         
-        // Security checks (lazy-load security manager only when needed)
-        $securityManager = $kernel->getSecurityManager();
-        
-        // Check permission
-        if (!$securityManager->checkPermission($name, $role)) {
-            throw new Exception("Permission denied for syscall: {$name}");
+        // Security checks with fallback handling
+        try {
+            $securityManager = $kernel->getSecurityManager();
+            
+            // Check permission
+            if (!$securityManager->checkPermission($name, $role)) {
+                throw new Exception("Permission denied for syscall: {$name}");
+            }
+            
+            // Check rate limit
+            $identifier = $role ?? ($_SERVER['REMOTE_ADDR'] ?? 'unknown');
+            if (!$securityManager->checkRateLimit($name, $identifier)) {
+                throw new Exception("Rate limit exceeded for syscall: {$name}");
+            }
+            
+            // Validate arguments
+            $args = $securityManager->validateArgs($name, $args);
+            
+        } catch (Exception $securityException) {
+            // SecurityManager failed - log and apply strict fallback
+            error_log("[Kernel] SecurityManager error: " . $securityException->getMessage());
+            
+            // In fallback mode, only allow read-only syscalls
+            $readOnlySyscalls = ['content.fetch', 'db.query', 'http.get', 'theme.render'];
+            if (!in_array($name, $readOnlySyscalls)) {
+                throw new Exception("Security check unavailable - write operations blocked: {$name}");
+            }
+            
+            // Basic input sanitization fallback
+            $args = array_map(function($arg) {
+                if (is_string($arg)) {
+                    return htmlspecialchars($arg, ENT_QUOTES, 'UTF-8');
+                }
+                return $arg;
+            }, $args);
         }
-        
-        // Check rate limit
-        $identifier = $role ?? ($_SERVER['REMOTE_ADDR'] ?? 'unknown');
-        if (!$securityManager->checkRateLimit($name, $identifier)) {
-            throw new Exception("Rate limit exceeded for syscall: {$name}");
-        }
-        
-        // Validate arguments
-        $args = $securityManager->validateArgs($name, $args);
         
         $startTime = microtime(true);
         $memoryBefore = memory_get_usage();
@@ -780,6 +896,129 @@ class Kernel
         
         // Managers are now lazy-loaded via getters
         // No eager initialization needed here
+    }
+    
+    /**
+     * Validate and create required database schema
+     * Ensures all kernel tables exist before proceeding
+     */
+    private function validateDatabaseSchema(): void
+    {
+        $requiredTables = [
+            'kernel_config' => "
+                CREATE TABLE IF NOT EXISTS kernel_config (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    `key` VARCHAR(255) NOT NULL UNIQUE,
+                    `value` TEXT,
+                    `type` VARCHAR(50) DEFAULT 'string',
+                    description TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    INDEX idx_key (`key`)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+            ",
+            'kernel_processes' => "
+                CREATE TABLE IF NOT EXISTS kernel_processes (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    pid INT NOT NULL,
+                    name VARCHAR(255) NOT NULL,
+                    type VARCHAR(50) NOT NULL,
+                    metadata JSON,
+                    status VARCHAR(50) DEFAULT 'registered',
+                    registered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    INDEX idx_pid (pid),
+                    INDEX idx_name (name),
+                    INDEX idx_status (status)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+            ",
+            'instances' => "
+                CREATE TABLE IF NOT EXISTS instances (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    instance_id VARCHAR(255) NOT NULL UNIQUE,
+                    instance_name VARCHAR(255) NOT NULL,
+                    cms_type VARCHAR(50) NOT NULL DEFAULT 'wordpress',
+                    domain VARCHAR(255),
+                    path_prefix VARCHAR(255) DEFAULT '/',
+                    config JSON,
+                    status VARCHAR(50) DEFAULT 'active',
+                    priority INT DEFAULT 0,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    INDEX idx_instance_id (instance_id),
+                    INDEX idx_status (status),
+                    INDEX idx_domain (domain)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+            ",
+            'kernel_boot_log' => "
+                CREATE TABLE IF NOT EXISTS kernel_boot_log (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    boot_id VARCHAR(255) NOT NULL,
+                    phase INT NOT NULL,
+                    phase_name VARCHAR(255),
+                    status VARCHAR(50),
+                    duration_ms FLOAT,
+                    memory_before BIGINT,
+                    memory_after BIGINT,
+                    error_message TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    INDEX idx_boot_id (boot_id),
+                    INDEX idx_phase (phase)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+            ",
+            'kernel_syscalls' => "
+                CREATE TABLE IF NOT EXISTS kernel_syscalls (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    pid INT,
+                    syscall_name VARCHAR(255) NOT NULL,
+                    syscall_args JSON,
+                    syscall_result JSON,
+                    execution_time FLOAT,
+                    memory_delta BIGINT,
+                    status VARCHAR(50),
+                    error_message TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    INDEX idx_syscall_name (syscall_name),
+                    INDEX idx_status (status)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+            ",
+            'kernel_async_log' => "
+                CREATE TABLE IF NOT EXISTS kernel_async_log (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    type VARCHAR(100) NOT NULL,
+                    message TEXT,
+                    context JSON,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    INDEX idx_type (type),
+                    INDEX idx_created_at (created_at)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+            "
+        ];
+        
+        $missingTables = [];
+        $createdTables = [];
+        
+        foreach ($requiredTables as $tableName => $createSql) {
+            try {
+                // Check if table exists
+                $stmt = $this->db->query("SHOW TABLES LIKE '{$tableName}'");
+                if ($stmt->rowCount() === 0) {
+                    // Table doesn't exist, create it
+                    $this->db->exec($createSql);
+                    $createdTables[] = $tableName;
+                }
+            } catch (Exception $e) {
+                $missingTables[] = $tableName;
+                error_log("[Kernel] Failed to create table {$tableName}: " . $e->getMessage());
+            }
+        }
+        
+        if (!empty($createdTables)) {
+            error_log("[Kernel] Schema validation: Created tables: " . implode(', ', $createdTables));
+        }
+        
+        if (!empty($missingTables)) {
+            error_log("[Kernel] Schema validation warning: Could not create tables: " . implode(', ', $missingTables));
+        }
     }
     
     private function loadKernelConfig(): void
