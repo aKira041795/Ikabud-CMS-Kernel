@@ -250,6 +250,7 @@ $routes = [
         '/api/v1/admin/capabilities' => 'apiListCapabilities',
         '/api/v1/admin/capabilities/metrics' => 'apiCapabilityMetrics',
         '/api/v1/admin/capabilities/breakers' => 'apiCapabilityBreakers',
+        '/api/v1/admin/cache/health' => 'apiCacheHealth',
         '/api/v1/admin/kernel/events' => 'apiKernelEventsList',
         '/api/v1/admin/kernel/triggers' => 'apiKernelTriggersList',
         '/api/v1/admin/ai/settings' => 'apiAiSettingsGet',
@@ -2343,6 +2344,27 @@ switch ($handler) {
         }
         save_capability_cache('capability_breakers.json', $breakers);
         echo json_encode(['ok' => true, 'cleared' => $cleared, 'request_id' => request_id()]);
+        exit;
+
+    case 'apiCacheHealth':
+        header('Content-Type: application/json');
+        $user = app()->user();
+        if (!$user || ($user['role'] ?? '') !== 'admin') {
+            http_response_code(403);
+            echo json_encode(['ok' => false, 'error' => 'Admin only']);
+            exit;
+        }
+
+        $tenantInfo = \Ikabud\Kernel\TenantResolver::controlHostCacheMetrics();
+        $cacheStats = app()->cache()->getStats();
+
+        echo json_encode([
+            'ok' => true,
+            'cache' => $cacheStats,
+            'tenant_host_lookup_cache' => $tenantInfo,
+            'request_id' => request_id(),
+            'generated_at' => gmdate('c'),
+        ]);
         exit;
 
     case 'apiUpdateCapabilityPolicy':

@@ -14,12 +14,26 @@ function cmsCacheInstance(): string
 
 function cmsCacheTtl(): int
 {
-    static $ttl = null;
-    if ($ttl !== null) return $ttl;
-    $settings = getModuleSettings('cms');
+    $tid = cmsRuntimeTenantId();
+    $cacheKey = 'cms_cache_ttl_cached_t' . $tid;
+    $valueKey = 'cms_cache_ttl_value_t' . $tid;
+    if (!empty($GLOBALS[$cacheKey])) {
+        return (int) ($GLOBALS[$valueKey] ?? 0);
+    }
+
+    $settings = readCmsSettings();
     $ttl = (int)($settings['cache_ttl'] ?? CMS_CACHE_TTL);
     if ($ttl < 0) $ttl = 0;
+    $GLOBALS[$cacheKey] = true;
+    $GLOBALS[$valueKey] = $ttl;
     return $ttl;
+}
+
+function cmsResetCacheRuntimeState(): void
+{
+    $tid = cmsRuntimeTenantId();
+    $GLOBALS['cms_cache_ttl_cached_t' . $tid] = false;
+    $GLOBALS['cms_cache_ttl_value_t' . $tid] = null;
 }
 
 /**
@@ -28,6 +42,12 @@ function cmsCacheTtl(): int
 
 function cmsCacheEnabled(): bool
 {
+    $settings = readCmsSettings();
+    $enabled = (string)($settings['cache_enabled'] ?? '1');
+    if (!in_array($enabled, ['1', 'true', 'yes', 'on'], true)) {
+        return false;
+    }
+
     return cmsCacheTtl() > 0;
 }
 

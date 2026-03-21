@@ -214,8 +214,12 @@ function cmsCapabilityLabels(): array
  */
 function cmsCapabilityMap(): array
 {
-    if (isset($GLOBALS['cms_cap_map_cached'])) {
-        return $GLOBALS['cms_cap_map'];
+    $tid = cmsRuntimeTenantId();
+    $cacheKey = 'cms_cap_map_cached_t' . $tid;
+    $valueKey = 'cms_cap_map_t' . $tid;
+
+    if (isset($GLOBALS[$cacheKey])) {
+        return $GLOBALS[$valueKey];
     }
 
     $defaults  = CMS_DEFAULT_CAPABILITIES;
@@ -246,8 +250,8 @@ function cmsCapabilityMap(): array
         }
     }
 
-    $GLOBALS['cms_cap_map_cached'] = true;
-    $GLOBALS['cms_cap_map']        = $map;
+    $GLOBALS[$cacheKey] = true;
+    $GLOBALS[$valueKey] = $map;
     return $map;
 }
 
@@ -257,7 +261,8 @@ function cmsCapabilityMap(): array
  */
 function cmsClearCapMapCache(): void
 {
-    unset($GLOBALS['cms_cap_map_cached'], $GLOBALS['cms_cap_map']);
+    $tid = cmsRuntimeTenantId();
+    unset($GLOBALS['cms_cap_map_cached_t' . $tid], $GLOBALS['cms_cap_map_t' . $tid]);
 }
 
 /**

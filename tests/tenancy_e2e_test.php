@@ -227,6 +227,13 @@ ok($resolver->current() === $baronId, 'setTenantId can switch back to baron tena
 
 $resolver->reset();
 
+// Cached control-host lookup should return the same tenant metadata used by both
+// TenantResolver and TenantEntryRouter.
+$hostRecord = \Ikabud\Kernel\TenantResolver::lookupControlHostRecord('clientsite.test');
+ok(is_array($hostRecord), 'Cached control-host lookup returns tenant record for clientsite.test');
+ok((int)($hostRecord['tenant_id'] ?? 0) === $clientId, 'Cached control-host lookup returns clientsite tenant id');
+ok(($hostRecord['entry_module_id'] ?? '') === 'cms', 'Cached control-host lookup returns cms entry module');
+
 // ────────────────────────────────────────────────────────────────────
 // 5. TenantEntryRouter URI Rewriting
 // ────────────────────────────────────────────────────────────────────
@@ -267,7 +274,7 @@ ok($rewritten5 === '/cms/admin', '"/cms/admin" is NOT rewritten (CMS routes skip
 
 // Kernel URL — no domain match, no rewrite
 $resolver->reset();
-$_SERVER['HTTP_HOST'] = 'baroninventory.test';
+$_SERVER['HTTP_HOST'] = 'applicationkernel.test';
 $rewritten6 = $router->rewriteUri('/');
 ok($rewritten6 === '/', 'Kernel URL "/" is NOT rewritten (no domain mapping) (got: ' . $rewritten6 . ')');
 
@@ -387,16 +394,16 @@ $resolver->reset();
 // ────────────────────────────────────────────────────────────────────
 section('9. Backward Compatibility (HTTP)');
 
-$r1 = http('http://127.0.0.1/', 'baroninventory.test');
-ok($r1['status'] === 200, 'baroninventory.test / returns 200 (got: ' . $r1['status'] . ')');
+$r1 = http('http://127.0.0.1/', 'applicationkernel.test');
+ok($r1['status'] === 200, 'applicationkernel.test / returns 200 (got: ' . $r1['status'] . ')');
 
-$r2 = http('http://127.0.0.1/api/v1/health', 'baroninventory.test');
-ok($r2['status'] === 200, 'baroninventory.test /api/v1/health returns 200');
+$r2 = http('http://127.0.0.1/api/v1/health', 'applicationkernel.test');
+ok($r2['status'] === 200, 'applicationkernel.test /api/v1/health returns 200');
 $health = json_decode($r2['body'], true);
 ok(is_array($health) && ($health['ok'] ?? false) === true, 'Health check returns ok: true');
 
-$r3 = http('http://127.0.0.1/login', 'baroninventory.test');
-ok($r3['status'] === 200, 'baroninventory.test /login returns 200 (got: ' . $r3['status'] . ')');
+$r3 = http('http://127.0.0.1/login', 'applicationkernel.test');
+ok($r3['status'] === 200, 'applicationkernel.test /login returns 200 (got: ' . $r3['status'] . ')');
 
 // ────────────────────────────────────────────────────────────────────
 // 10. CLI Verification
@@ -408,7 +415,7 @@ $cliOutput = shell_exec('php ikabud tenant:list 2>&1');
 $cliClean = preg_replace('/\x1B\[[0-9;]*m/', '', $cliOutput);
 ok(str_contains($cliClean, 'baronbakeshop'), 'tenant:list shows baronbakeshop');
 ok(str_contains($cliClean, 'clientsite'), 'tenant:list shows clientsite');
-ok(!str_contains($cliClean, 'baroninventory.test'), 'tenant:list does not show baroninventory.test (kernel URL, not a tenant domain)');
+ok(!str_contains($cliClean, 'applicationkernel.test'), 'tenant:list does not show applicationkernel.test (kernel URL, not a tenant domain)');
 ok(str_contains($cliClean, 'clientsite.test'), 'tenant:list shows clientsite.test domain');
 ok(str_contains($cliClean, 'entry=daily-ledger'), 'tenant:list shows daily-ledger entry for baronbakeshop');
 ok(str_contains($cliClean, 'entry=cms'), 'tenant:list shows cms entry for clientsite');

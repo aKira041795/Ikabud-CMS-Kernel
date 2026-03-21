@@ -88,9 +88,15 @@
     var BASE = '{base_url}';
     var GLOSSARY = {};
 
-    fetch(BASE + '/api/v1/platform', { headers: { 'Accept': 'application/json' } })
-    .then(function(r) { return r.json(); })
-    .then(function(data) {
+    Promise.all([
+        fetch(BASE + '/api/v1/platform', { headers: { 'Accept': 'application/json' } }).then(function(r) { return r.json(); }),
+        fetch(BASE + '/api/v1/admin/cache/health', { headers: { 'Accept': 'application/json' } })
+            .then(function(r) { return r.json(); })
+            .catch(function() { return { ok: false }; })
+    ])
+    .then(function(results) {
+        var data = results[0] || {};
+        var cacheData = results[1] || {};
         if (!data.ok) {
             document.getElementById('platform-data').innerHTML =
                 '<div class="platform-loading" style="color:var(--danger)">Failed to load: ' + (data.error || 'unknown') + '</div>';
@@ -110,6 +116,9 @@
         var runtime = data.runtime || {};
         var traces = data.traces || [];
         var skipped = Array.isArray(mods.skipped) ? mods.skipped : [];
+        var cache = cacheData.ok ? (cacheData.cache || {}) : null;
+        var hostCache = cacheData.ok ? (cacheData.tenant_host_lookup_cache || {}) : null;
+        var hostMetrics = hostCache && hostCache.metrics ? hostCache.metrics : {};
 
         var html = '';
 
@@ -157,6 +166,30 @@
         html += statRow(glossTip('_term.capability', 'Services') + ' Registered', rt.capabilities_count || 0);
         html += statRow(glossTip('_term.provider', 'Providers'), rt.providers_count || 0);
         html += statRow('Skipped Modules', mods.skipped_count || 0);
+        html += '</div>';
+
+        // Cache health card
+        html += '<div class="platform-card">';
+        if (cache) {
+            var cacheErrors = Number(cache.errors || 0);
+            var cacheBadge = cacheErrors > 0 ? 'badge-warn' : 'badge-ok';
+            var cacheLabel = cacheErrors > 0 ? ('errors: ' + cacheErrors) : 'stable';
+            html += '<h3>Cache Health <span class="badge ' + cacheBadge + '">' + cacheLabel + '</span></h3>';
+            html += statRow('Hit Rate', cache.hit_rate || '0%');
+            html += statRow('Cached Files', cache.cached_files || 0);
+            html += statRow('Active Files', cache.active_files || 0);
+            html += statRow('Expired Files', cache.expired_files || 0);
+            html += statRow('Cache Size (MB)', cache.total_size_mb || 0);
+            html += statRow('APCu Available', cache.apcu_available ? 'Yes' : 'No');
+            html += statRow('Host Lookup Memory Hits', hostMetrics.memory_hits || 0);
+            html += statRow('Host Lookup APCu Hits', hostMetrics.apcu_hits || 0);
+            html += statRow('Host Lookup DB Hits', hostMetrics.db_hits || 0);
+            html += statRow('Host Lookup Misses', hostMetrics.misses || 0);
+            html += statRow('Host Cache TTL (sec)', hostCache && hostCache.ttl_seconds ? hostCache.ttl_seconds : 0);
+        } else {
+            html += '<h3>Cache Health <span class="badge badge-warn">unavailable</span></h3>';
+            html += '<div class="section-help" style="margin:0;">Cache diagnostics endpoint is unreachable or returned an error.</div>';
+        }
         html += '</div>';
 
         // Modules card

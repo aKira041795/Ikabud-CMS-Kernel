@@ -37,6 +37,7 @@ function cmsApiSettingsSave(array $params = []): void
 
     saveModuleSettings('cms', $new);
     cmsResetSettingsCache();
+    cmsResetCacheRuntimeState();
 
     // Audit log the settings change
     if ($ctx = module('cms')) {
@@ -76,6 +77,7 @@ function cmsApiSettingsReset(array $params = []): void
     $previousSettings = readCmsSettings();
     saveModuleSettings('cms', $defaults);
     cmsResetSettingsCache();
+    cmsResetCacheRuntimeState();
 
     // Audit log the reset
     if ($ctx = module('cms')) {

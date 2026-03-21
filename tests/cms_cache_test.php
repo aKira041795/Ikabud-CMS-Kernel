@@ -33,6 +33,15 @@ function t(string $label, bool $ok, string $detail = ''): void
 // ── Clear logs + cache ──────────────────────────────────────────────
 file_put_contents(STORAGE_PATH . '/logs/app.log', '');
 file_put_contents(STORAGE_PATH . '/logs/error.log', '');
+$resolver = app()->tenant();
+$suiteOriginalTenantId = $resolver->current();
+$resolver->setTenantId(0);
+$GLOBALS['cms_settings_cached_t0'] = true;
+$GLOBALS['cms_settings_value_t0'] = [
+    'cache_enabled' => '1',
+    'cache_ttl' => (string) CMS_CACHE_TTL,
+];
+cmsResetCacheRuntimeState();
 cmsCacheFlushAll();
 
 // ═══════════════════════════════════════════════════════════════════
@@ -46,6 +55,32 @@ t('CMS_CACHE_TTL defined', defined('CMS_CACHE_TTL'));
 t('CMS_CACHE_TTL is 600', CMS_CACHE_TTL === 600);
 t('cmsCacheTtl() returns int', is_int(cmsCacheTtl()));
 t('cmsCacheEnabled() returns true (default)', cmsCacheEnabled() === true);
+
+// Respect admin cache toggle and keep runtime state tenant-scoped.
+$originalTenantId = $resolver->current();
+
+$resolver->setTenantId(101);
+$GLOBALS['cms_settings_cached_t101'] = true;
+$GLOBALS['cms_settings_value_t101'] = ['cache_enabled' => '0', 'cache_ttl' => '600'];
+cmsResetCacheRuntimeState();
+t('cmsCacheEnabled() respects cache_enabled=0', cmsCacheEnabled() === false);
+
+$resolver->setTenantId(202);
+$GLOBALS['cms_settings_cached_t202'] = true;
+$GLOBALS['cms_settings_value_t202'] = ['cache_enabled' => '1', 'cache_ttl' => '321'];
+cmsResetCacheRuntimeState();
+t('cmsCacheEnabled() respects enabled tenant setting', cmsCacheEnabled() === true);
+t('cmsCacheTtl() uses tenant-specific runtime value', cmsCacheTtl() === 321);
+
+$resolver->setTenantId(101);
+t('cmsCacheEnabled() remains isolated per tenant', cmsCacheEnabled() === false);
+$resolver->setTenantId(0);
+$GLOBALS['cms_settings_cached_t0'] = true;
+$GLOBALS['cms_settings_value_t0'] = [
+    'cache_enabled' => '1',
+    'cache_ttl' => (string) CMS_CACHE_TTL,
+];
+cmsResetCacheRuntimeState();
 
 // ═══════════════════════════════════════════════════════════════════
 // 2. Basic cache get/set
@@ -171,7 +206,36 @@ $differentEtag = md5($differentHtml);
 t('different content = different etag', $etag !== $differentEtag);
 
 // ═══════════════════════════════════════════════════════════════════
-// 8. EventBus cache listeners
+// 8a. Tenant runtime cache isolation
+// ═══════════════════════════════════════════════════════════════════
+echo "\n=== TENANT RUNTIME CACHE ISOLATION ===\n";
+
+$originalTenantId = $resolver->current();
+
+$resolver->setTenantId(111);
+$GLOBALS['cms_active_theme_cached_t111'] = true;
+$GLOBALS['cms_active_theme_value_t111'] = 'theme-one';
+$GLOBALS['cms_cap_map_cached_t111'] = true;
+$GLOBALS['cms_cap_map_t111'] = ['content.edit' => 'author'];
+
+$resolver->setTenantId(222);
+$GLOBALS['cms_active_theme_cached_t222'] = true;
+$GLOBALS['cms_active_theme_value_t222'] = 'theme-two';
+$GLOBALS['cms_cap_map_cached_t222'] = true;
+$GLOBALS['cms_cap_map_t222'] = ['content.edit' => 'editor'];
+
+$resolver->setTenantId(111);
+t('theme cache key is tenant-scoped', cmsActiveTheme() === 'theme-one');
+t('capability map cache key is tenant-scoped', (cmsCapabilityMap()['content.edit'] ?? '') === 'author');
+
+$resolver->setTenantId(222);
+t('theme cache does not bleed across tenants', cmsActiveTheme() === 'theme-two');
+t('capability map does not bleed across tenants', (cmsCapabilityMap()['content.edit'] ?? '') === 'editor');
+
+$resolver->setTenantId($originalTenantId);
+
+// ═══════════════════════════════════════════════════════════════════
+// 9. EventBus cache listeners
 // ═══════════════════════════════════════════════════════════════════
 echo "\n=== EVENTBUS CACHE LISTENERS ===\n";
 
@@ -226,21 +290,25 @@ $bus->fire('cms.settings.updated', [], 'cms');
 t('all cache flushed by settings event', cmsCacheGet('cms:home:page:1') === null && cmsCacheGet('cms:page:about') === null);
 
 // ═══════════════════════════════════════════════════════════════════
-// 9. Handler integration (verify handlers still work after caching changes)
+// 10. Handler integration (verify handlers still work after caching changes)
 // ═══════════════════════════════════════════════════════════════════
 echo "\n=== HANDLER INTEGRATION ===\n";
 
-// Check that the handlers use cache functions (code-level check)
-$handlerCode = file_get_contents(BASE_PATH . '/modules/cms/handlers.php');
-t('cmsPublicHome uses cmsCacheGet', str_contains($handlerCode, "cmsCacheGet(\$cacheKey)") || str_contains($handlerCode, "cmsCacheGet("));
-t('cmsPublicHome uses cmsCacheSet', str_contains($handlerCode, 'cmsCacheSet($cacheKey'));
-t('cmsPublicSingle uses cmsCacheGet', substr_count($handlerCode, 'cmsCacheGet(') >= 3);
-t('cmsPublicPage uses cmsCacheSet', substr_count($handlerCode, 'cmsCacheSet(') >= 3);
-t('cmsApiContentUpdate fires updated event', str_contains($handlerCode, "cms.content.updated"));
-t('cmsApiContentTrash fires deleted event', str_contains($handlerCode, "cms.content.deleted"));
-t('cmsApiContentPublish calls cmsCacheInvalidateContent', str_contains($handlerCode, 'cmsCacheInvalidateContent($existing)'));
-t('cmsApiBuilderDocumentPublish invalidates cache tags', str_contains($handlerCode, 'cmsCacheInvalidateByTags(array_values(array_unique(array_filter(cmsCacheTagsForContent($content)))))'));
-t('cmsApiSettingsSave calls cmsCacheFlushAll', str_contains($handlerCode, 'cmsCacheFlushAll()'));
+// Check that the split handler files still wire cache + invalidation correctly.
+$publicHandlerCode = file_get_contents(BASE_PATH . '/modules/cms/handlers/90-public.php');
+$contentHandlerCode = file_get_contents(BASE_PATH . '/modules/cms/handlers/35-api-content.php');
+$contentActionsCode = file_get_contents(BASE_PATH . '/modules/cms/handlers/36-api-content-actions.php');
+$builderHandlerCode = file_get_contents(BASE_PATH . '/modules/cms/handlers/20-api-builder.php');
+$settingsHandlerCode = file_get_contents(BASE_PATH . '/modules/cms/handlers/50-api-settings.php');
+t('cmsPublicHome uses cmsCacheGet', str_contains($publicHandlerCode, "cmsCacheGet(\$cacheKey)"));
+t('cmsPublicHome uses cmsCacheSet', str_contains($publicHandlerCode, 'cmsCacheSet($cacheKey'));
+t('cmsPublicSingle uses cmsCacheGet', str_contains($publicHandlerCode, "\$cacheKey = 'cms:post:' . \$slug") && str_contains($publicHandlerCode, 'cmsCacheGet($cacheKey)'));
+t('cmsPublicPage uses cmsCacheSet', str_contains($publicHandlerCode, "\$cacheKey = 'cms:page:' . \$slug") && str_contains($publicHandlerCode, 'cmsCacheSet($cacheKey'));
+t('cmsApiContentUpdate fires updated event', str_contains($contentHandlerCode . $contentActionsCode, 'cms.content.updated'));
+t('cmsApiContentTrash fires deleted event', str_contains($contentHandlerCode . $contentActionsCode, 'cms.content.deleted'));
+t('cmsApiContentPublish calls cmsCacheInvalidateContent', str_contains($contentHandlerCode . $contentActionsCode, 'cmsCacheInvalidateContent('));
+t('cmsApiBuilderDocumentPublish invalidates cache tags', str_contains($builderHandlerCode, 'cmsCacheInvalidateByTags'));
+t('cmsApiSettingsSave calls cmsCacheFlushAll', str_contains($settingsHandlerCode, 'cmsCacheFlushAll()'));
 
 $publicLayoutCode = file_get_contents(BASE_PATH . '/templates/modules/cms/layouts/public.disyl');
 t('public layout loads builder runtime for builder pages', str_contains($publicLayoutCode, '/assets/cms/builder-public.js'));
@@ -251,6 +319,8 @@ t('public layout loads builder runtime for builder pages', str_contains($publicL
 echo "\n=== CLEANUP ===\n";
 cmsCacheFlushAll();
 t('cache flushed', true);
+
+$resolver->setTenantId($suiteOriginalTenantId);
 
 // ═══════════════════════════════════════════════════════════════════
 // LOG CHECK

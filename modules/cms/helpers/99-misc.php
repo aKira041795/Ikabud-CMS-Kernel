@@ -88,9 +88,12 @@ function cmsGenerateThumbnails(string $absolutePath, string $relativeDir, string
 
 function cmsResetSettingsCache(): void
 {
-    $tid = (function_exists('moduleTenantSettingsTenantId') ? moduleTenantSettingsTenantId() : null) ?? 0;
+    $tid = cmsRuntimeTenantId();
     $GLOBALS['cms_settings_cached_t' . $tid] = false;
     $GLOBALS['cms_settings_value_t' . $tid] = null;
+    if (function_exists('cmsResetCacheRuntimeState')) {
+        cmsResetCacheRuntimeState();
+    }
 }
 
 /**

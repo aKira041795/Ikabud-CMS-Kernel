@@ -28,6 +28,24 @@ define('CMS_ROLES', [
     'subscriber'    => 10,
 ]);
 
+function cmsRuntimeTenantId(): int
+{
+    $tenantId = function_exists('moduleTenantSettingsTenantId')
+        ? moduleTenantSettingsTenantId()
+        : null;
+
+    if ($tenantId !== null) {
+        return (int) $tenantId;
+    }
+
+    try {
+        $current = app()->tenant()->current();
+        return $current !== null ? (int) $current : 0;
+    } catch (Throwable $e) {
+        return 0;
+    }
+}
+
 /**
  * Check if a CMS role has at least the given minimum level.
  */

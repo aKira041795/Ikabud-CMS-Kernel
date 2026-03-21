@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Ikabud\Kernel\Http;
 
+use Ikabud\Kernel\TenantResolver;
 use Throwable;
 
 class TenantEntryRouter
@@ -15,24 +16,13 @@ class TenantEntryRouter
             $uri = '/' . $uri;
         }
 
-        $host = (string)($_SERVER['HTTP_HOST'] ?? '');
-        $host = strtolower(trim($host));
+        $host = TenantResolver::normalizeHost((string)($_SERVER['HTTP_HOST'] ?? ''));
         if ($host === '') {
             return $uri;
         }
-        $host = preg_replace('/:\d+$/', '', $host) ?: $host;
 
         try {
-            $pdo = app()->controlDb();
-
-            $stmt = $pdo->prepare(
-                'SELECT td.tenant_id, t.entry_module_id, t.status '
-                . 'FROM kernel_tenant_domains td '
-                . 'JOIN kernel_tenants t ON t.id = td.tenant_id '
-                . 'WHERE td.domain = :d LIMIT 1'
-            );
-            $stmt->execute([':d' => $host]);
-            $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+            $row = TenantResolver::lookupControlHostRecord($host);
 
             if (!is_array($row)) {
                 return $uri;

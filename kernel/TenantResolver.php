@@ -41,6 +41,14 @@ namespace Ikabud\Kernel;
 class TenantResolver
 {
     private static ?TenantResolver $instance = null;
+    private static array $controlHostCache = [];
+    private static array $controlHostCacheMetrics = [
+        'memory_hits' => 0,
+        'apcu_hits' => 0,
+        'db_hits' => 0,
+        'misses' => 0,
+        'errors' => 0,
+    ];
 
     private bool $enabled;
     private string $strategy;
@@ -133,6 +141,92 @@ class TenantResolver
         $this->resolved = false;
     }
 
+    public static function normalizeHost(?string $host): string
+    {
+        $host = strtolower(trim((string) $host));
+        if ($host === '') {
+            return '';
+        }
+
+        return preg_replace('/:\d+$/', '', $host) ?: $host;
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    public static function lookupControlHostRecord(string $host): ?array
+    {
+        $host = self::normalizeHost($host);
+        if ($host === '') {
+            return null;
+        }
+
+        if (array_key_exists($host, self::$controlHostCache)) {
+            self::$controlHostCacheMetrics['memory_hits']++;
+            return self::$controlHostCache[$host];
+        }
+
+        $apcuEnabled = function_exists('apcu_fetch') && function_exists('apcu_store') && ini_get('apc.enabled');
+        $apcuKey = 'ikabud:tenant_host:' . sha1($host);
+        if ($apcuEnabled) {
+            $cached = apcu_fetch($apcuKey, $success);
+            if ($success) {
+                self::$controlHostCacheMetrics['apcu_hits']++;
+                self::$controlHostCache[$host] = is_array($cached) ? $cached : null;
+                return self::$controlHostCache[$host];
+            }
+        }
+
+        $result = null;
+        try {
+            $pdo = app()->controlDb();
+            $stmt = $pdo->prepare(
+                'SELECT td.tenant_id, t.entry_module_id, t.status '
+                . 'FROM kernel_tenant_domains td '
+                . 'JOIN kernel_tenants t ON t.id = td.tenant_id '
+                . 'WHERE td.domain = :d LIMIT 1'
+            );
+            $stmt->execute([':d' => $host]);
+            $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+            if (is_array($row)) {
+                $result = $row;
+                self::$controlHostCacheMetrics['db_hits']++;
+            } else {
+                self::$controlHostCacheMetrics['misses']++;
+            }
+        } catch (\Throwable $e) {
+            $result = null;
+            self::$controlHostCacheMetrics['errors']++;
+        }
+
+        self::$controlHostCache[$host] = $result;
+
+        if ($apcuEnabled) {
+            $ttl = max(1, (int) ($_ENV['TENANT_HOST_CACHE_TTL'] ?? 30));
+            apcu_store($apcuKey, $result, $ttl);
+        }
+
+        if (function_exists('write_log') && (($_ENV['TENANT_HOST_CACHE_LOG'] ?? '0') === '1')) {
+            write_log('tenant.host.lookup', 'debug', [
+                'host' => $host,
+                'result' => is_array($result) ? 'hit' : 'miss',
+                'metrics' => self::$controlHostCacheMetrics,
+            ]);
+        }
+
+        return $result;
+    }
+
+    public static function controlHostCacheMetrics(): array
+    {
+        return [
+            'metrics' => self::$controlHostCacheMetrics,
+            'in_memory_hosts' => count(self::$controlHostCache),
+            'apcu_enabled' => function_exists('apcu_fetch') && function_exists('apcu_store') && (bool)ini_get('apc.enabled'),
+            'ttl_seconds' => max(1, (int) ($_ENV['TENANT_HOST_CACHE_TTL'] ?? 30)),
+        ];
+    }
+
     // ── Internal ─────────────────────────────────────────────────────
 
     private function doResolve(?array $user): ?int
@@ -154,30 +248,19 @@ class TenantResolver
 
         // Strategy 3: Control-plane host -> tenant mapping (production)
         if ($this->strategy === 'control_host' || $this->strategy === 'control' || $this->strategy === 'auto') {
-            $host = (string) ($_SERVER['HTTP_HOST'] ?? '');
-            $host = strtolower(trim($host));
+            $host = self::normalizeHost((string) ($_SERVER['HTTP_HOST'] ?? ''));
             if ($host !== '') {
-                $host = preg_replace('/:\d+$/', '', $host) ?: $host;
-                try {
-                    $pdo = app()->controlDb();
-                    $stmt = $pdo->prepare('SELECT tenant_id FROM kernel_tenant_domains WHERE domain = :d LIMIT 1');
-                    $stmt->execute([':d' => $host]);
-                    $tid = $stmt->fetchColumn();
-                    if ($tid !== false && $tid !== null) {
-                        return (int) $tid;
-                    }
-                } catch (\Throwable $e) {
-                    // Best-effort: fall through to other strategies.
+                $row = self::lookupControlHostRecord($host);
+                if (is_array($row) && isset($row['tenant_id'])) {
+                    return (int) $row['tenant_id'];
                 }
             }
         }
 
         // Strategy 4: Host mapping
         if ($this->strategy === 'host' || $this->strategy === 'auto') {
-            $host = (string) ($_SERVER['HTTP_HOST'] ?? '');
-            $host = strtolower(trim($host));
+            $host = self::normalizeHost((string) ($_SERVER['HTTP_HOST'] ?? ''));
             if ($host !== '') {
-                $host = preg_replace('/:\d+$/', '', $host) ?: $host;
                 if (array_key_exists($host, $this->hostMap)) {
                     return (int) $this->hostMap[$host];
                 }

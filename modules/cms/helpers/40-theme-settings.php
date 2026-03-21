@@ -97,7 +97,7 @@ function readCmsSettings(): array
 {
     // In-process cache keyed by tenant so different tenants in the same
     // process don't share each other's CMS configuration.
-    $tid = (function_exists('moduleTenantSettingsTenantId') ? moduleTenantSettingsTenantId() : null) ?? 0;
+    $tid = cmsRuntimeTenantId();
     $cacheKey = 'cms_settings_cached_t' . $tid;
     $valueKey = 'cms_settings_value_t' . $tid;
     if (!empty($GLOBALS[$cacheKey])) {
@@ -219,9 +219,10 @@ function cmsValidateSettings(array $input): array
 
 function cmsResetThemeRuntimeCache(): void
 {
-    $GLOBALS['cms_active_theme_cached'] = false;
-    $GLOBALS['cms_active_theme_value'] = null;
-    $GLOBALS['cms_theme_symlink_checked'] = false;
+    $tid = cmsRuntimeTenantId();
+    $GLOBALS['cms_active_theme_cached_t' . $tid] = false;
+    $GLOBALS['cms_active_theme_value_t' . $tid] = null;
+    $GLOBALS['cms_theme_symlink_checked_t' . $tid] = false;
 }
 
 /**
@@ -230,25 +231,28 @@ function cmsResetThemeRuntimeCache(): void
 
 function cmsActiveTheme(): ?string
 {
-    $cached = (bool)($GLOBALS['cms_active_theme_cached'] ?? false);
-    $theme = $GLOBALS['cms_active_theme_value'] ?? null;
+    $tid = cmsRuntimeTenantId();
+    $cachedKey = 'cms_active_theme_cached_t' . $tid;
+    $valueKey = 'cms_active_theme_value_t' . $tid;
+    $cached = (bool)($GLOBALS[$cachedKey] ?? false);
+    $theme = $GLOBALS[$valueKey] ?? null;
     if ($cached) {
         return $theme;
     }
-    $GLOBALS['cms_active_theme_cached'] = true;
+    $GLOBALS[$cachedKey] = true;
     $settings = getModuleSettings('cms');
     $slug = trim((string)($settings['active_theme'] ?? ''));
     if ($slug === '' || $slug === 'default') {
-        $GLOBALS['cms_active_theme_value'] = null;
+        $GLOBALS[$valueKey] = null;
         return null;
     }
     // Validate the theme directory exists
     $dir = cmsThemesPath() . '/' . $slug;
     if (!is_dir($dir)) {
-        $GLOBALS['cms_active_theme_value'] = null;
+        $GLOBALS[$valueKey] = null;
         return null;
     }
-    $GLOBALS['cms_active_theme_value'] = $slug;
+    $GLOBALS[$valueKey] = $slug;
     return $slug;
 }
 
@@ -357,9 +361,11 @@ function cmsActivateThemeSymlink(?string $slug): void
 
 function cmsEnsureThemeSymlink(): void
 {
-    $done = (bool)($GLOBALS['cms_theme_symlink_checked'] ?? false);
+    $tid = cmsRuntimeTenantId();
+    $checkedKey = 'cms_theme_symlink_checked_t' . $tid;
+    $done = (bool)($GLOBALS[$checkedKey] ?? false);
     if ($done) return;
-    $GLOBALS['cms_theme_symlink_checked'] = true;
+    $GLOBALS[$checkedKey] = true;
     $active = cmsActiveTheme();
     $link = (string)CMS_THEME_SYMLINK;
     if ($active === null) {
@@ -418,7 +424,7 @@ function cmsRenderThemeAwareTemplate(string $template, array $context = []): str
     return cmsWithThemeSymlinkLock(function () use ($template, $context): string {
         // Force re-verification inside the lock — another process may have
         // changed the shared symlink between cmsResolveTemplate() and here.
-        $GLOBALS['cms_theme_symlink_checked'] = false;
+        $GLOBALS['cms_theme_symlink_checked_t' . cmsRuntimeTenantId()] = false;
         cmsEnsureThemeSymlink();
         return cmsRender($template, $context);
     });
