@@ -1,0 +1,2864 @@
+#!/usr/bin/env php
+<?php
+/**
+ * Ikabud Kernel — CLI Tool
+ * 
+ * Commands:
+ *   php ikabud make:module <name>        Scaffold a new module
+ *   php ikabud make:migration <mod> <n>  Create next numbered migration
+ *   php ikabud make:handler <mod> <fn>   Add handler + route to module
+ *   php ikabud migrate                   Run all pending migrations
+ *   php ikabud migrate <module>          Run pending migrations for one module
+ *   php ikabud migrate:control           Run control-plane migrations (CONTROL DB)
+ *   php ikabud migrate:status            Show migration status
+ *   php ikabud migrate:rollback <module> Rollback last batch for a module
+ *   php ikabud module:list               List all modules and their status
+ *   php ikabud module:enable <id>        Enable a module
+ *   php ikabud module:disable <id>       Disable a module
+ *   php ikabud module:check-boundaries   Enforce module boundary rules
+ *   php ikabud capability:validate       Validate capability versions and schemas
+ *   php ikabud event:list                List registered event listeners
+ *   php ikabud routes                    List all registered routes
+ *   php ikabud disyl:lint [path]         Lint templates for errors
+ *   php ikabud tinker <sql>              Run a raw SQL query
+ * 
+ * @package Ikabud\Kernel
+ * @version 1.0.0
+ */
+
+declare(strict_types=1);
+
+// Ensure CLI only
+if (php_sapi_name() !== 'cli') {
+    echo "CLI only.\n";
+    exit(1);
+}
+
+require_once __DIR__ . '/bootstrap.php';
+require_once __DIR__ . '/src/helpers/module-manager.php';
+
+use Ikabud\Kernel\Database\MigrationRunner;
+use Ikabud\Kernel\Capabilities\CapabilityTestRunner;
+use Ikabud\Kernel\Crypto;
+
+$args = array_slice($argv, 1);
+$command = $args[0] ?? 'help';
+$params = array_slice($args, 1);
+
+function hasFlag(string $flag): bool
+{
+    global $params;
+    return in_array($flag, $params, true);
+}
+
+function paramsWithoutFlags(array $params): array
+{
+    return array_values(array_filter($params, fn($p) => !is_string($p) || !str_starts_with($p, '--')));
+}
+
+function getFlagValue(string $prefix): ?string
+{
+    global $params;
+    foreach ($params as $p) {
+        if (!is_string($p)) continue;
+        if (str_starts_with($p, $prefix)) {
+            return substr($p, strlen($prefix));
+        }
+    }
+    return null;
+}
+
+// ── Styling helpers ──────────────────────────────────────────────────
+
+function out(string $msg): void { echo $msg . "\n"; }
+function green(string $msg): string { return "\033[32m{$msg}\033[0m"; }
+function red(string $msg): string { return "\033[31m{$msg}\033[0m"; }
+function yellow(string $msg): string { return "\033[33m{$msg}\033[0m"; }
+function cyan(string $msg): string { return "\033[36m{$msg}\033[0m"; }
+function bold(string $msg): string { return "\033[1m{$msg}\033[0m"; }
+function dim(string $msg): string { return "\033[2m{$msg}\033[0m"; }
+
+function banner(): void
+{
+    $v = \Ikabud\Kernel\App::KERNEL_VERSION;
+    out('');
+    out(bold('  ╔══════════════════════════════════════╗'));
+    out(bold('  ║') . cyan('  Ikabud Kernel CLI ') . dim("v{$v}") . bold('          ║'));
+    out(bold('  ╚══════════════════════════════════════╝'));
+    out('');
+}
+
+// ── Commands ─────────────────────────────────────────────────────────
+
+switch ($command) {
+
+    // ── help ──────────────────────────────────────────────────────
+    case 'help':
+    case '--help':
+    case '-h':
+        banner();
+        out('  ' . bold('Usage:') . ' php ikabud <command> [arguments]');
+        out('');
+        out('  ' . bold('Scaffolding'));
+        out('    ' . green('make:module') . ' <name>          Create a new module skeleton');
+        out('    ' . green('make:migration') . ' <mod> <name>  Create next numbered migration');
+        out('    ' . green('make:handler') . ' <mod> <fn> [M]  Add handler + route to a module');
+        out('');
+        out('  ' . bold('Migrations'));
+        out('    ' . green('migrate') . '                     Run all pending migrations');
+        out('    ' . green('migrate') . ' <module>            Run pending for one module');
+        out('    ' . green('migrate:control') . '            Run control-plane migrations (CONTROL DB)');
+        out('    ' . green('migrate:status') . '              Show migration status');
+        out('    ' . green('migrate:rollback') . ' <module>   Rollback last batch');
+        out('');
+
+        out('  ' . bold('Tenancy (control plane)'));
+        out('    ' . green('tenant:list') . '                 List tenants');
+        out('    ' . green('tenant:create') . ' <key> <domain> [--entry=<module_id>]');
+        out('    ' . green('tenant:domain:add') . ' <tenant_id> <domain>');
+        out('    ' . green('tenant:domain:remove') . ' <tenant_id> <domain>');
+        out('    ' . green('tenant:db:set') . ' <tenant_id> --host=.. --name=.. --user=.. [--port=3306] [--driver=mysql] [--charset=utf8mb4] [--pass=..]');
+        out('    ' . green('tenant:db:check') . ' <tenant_id>    Show DB config + pass status');
+        out('    ' . green('tenant:provision') . ' <tenant_id> [--skip-db-create] [--admin-user=..] [--admin-pass=..] [--admin-name=..]');
+        out('    ' . green('tenant:verify') . ' <tenant_id>      Health-check a tenant (DB, tables, isolation, admin user)');
+        out('');
+        out('  ' . bold('Modules'));
+        out('    ' . green('module:list') . '                 List all modules');
+        out('    ' . green('module:enable') . ' <id>          Enable a module');
+        out('    ' . green('module:disable') . ' <id>         Disable a module');
+        out('    ' . green('module:pack') . ' <id> [zip]     Create an installable module zip');
+        out('    ' . green('module:uninstall') . ' <id>       Remove module files and disable it');
+        out('    ' . green('module:check-boundaries') . '     Validate module boundary rules');
+        out('    ' . green('module:graph') . ' [id]           Dependency graph + impact analysis');
+        out('');
+        out('  ' . bold('Capabilities'));
+        out('    ' . green('capability:list') . '             List capabilities + providers + origins');
+        out('    ' . green('capability:call') . ' <id> "<json>"  Call a capability');
+        out('    ' . green('capability:validate') . '         Validate versions + schemas');
+        out('');
+        out('  ' . bold('Platform'));
+        out('    ' . green('platform:describe') . '           Full platform manifest (JSON)');
+        out('');
+        out('  ' . bold('Templates'));
+        out('    ' . green('disyl:lint') . ' [path]           Lint templates for syntax errors');
+        out('    ' . green('disyl:lint') . ' --verbose        Show passing files too');
+        out('');
+        out('  ' . bold('Debug'));
+        out('    ' . green('event:list') . '                  List registered event listeners');
+        out('    ' . green('routes') . '                      List all routes');
+        out('    ' . green('tinker') . ' "<sql>"              Run a raw SQL query');
+        out('');
+        break;
+
+    // ── migrate:control ───────────────────────────────────────────
+    case 'migrate:control':
+        banner();
+        try {
+            $runner = new MigrationRunner(app()->controlDb());
+            out('  Running control-plane migrations...');
+            out('');
+            $executed = $runner->migrate('_control');
+            if (empty($executed)) {
+                out('  ' . dim('Nothing to migrate.'));
+            } else {
+                foreach ($executed as $f) {
+                    out('  ' . green('✓') . " {$f}");
+                }
+                out('');
+                out('  ' . green('✓') . bold(' ' . count($executed) . ' migration(s) executed.'));
+            }
+        } catch (\Throwable $e) {
+            out('  ' . red('✗ Migration failed: ') . $e->getMessage());
+            exit(1);
+        }
+        out('');
+        break;
+
+    // ── tenant:list ───────────────────────────────────────────────
+    case 'tenant:list':
+        banner();
+        try {
+            $pdo = app()->controlDb();
+
+            $tStmt = $pdo->query('SELECT id, tenant_key, status, entry_module_id FROM kernel_tenants ORDER BY id DESC');
+            $tenants = $tStmt ? ($tStmt->fetchAll(PDO::FETCH_ASSOC) ?: []) : [];
+
+            $dStmt = $pdo->query('SELECT tenant_id, domain FROM kernel_tenant_domains ORDER BY tenant_id ASC, domain ASC');
+            $domains = $dStmt ? ($dStmt->fetchAll(PDO::FETCH_ASSOC) ?: []) : [];
+            $domainsByTenant = [];
+            foreach ($domains as $d) {
+                if (!is_array($d)) continue;
+                $tid = (int)($d['tenant_id'] ?? 0);
+                $dom = trim((string)($d['domain'] ?? ''));
+                if ($tid <= 0 || $dom === '') continue;
+                if (!isset($domainsByTenant[$tid])) $domainsByTenant[$tid] = [];
+                $domainsByTenant[$tid][] = $dom;
+            }
+
+            if (empty($tenants)) {
+                out('  ' . dim('No tenants found.'));
+                out('');
+                break;
+            }
+
+            out('  ' . bold('Tenants'));
+            out('');
+            foreach ($tenants as $t) {
+                if (!is_array($t)) continue;
+                $tid = (int)($t['id'] ?? 0);
+                $key = (string)($t['tenant_key'] ?? '');
+                $status = (string)($t['status'] ?? 'active');
+                $entry = $t['entry_module_id'] !== null ? (string)$t['entry_module_id'] : '';
+                $doms = $domainsByTenant[$tid] ?? [];
+
+                out('  ' . cyan('#' . $tid) . '  ' . bold($key) . '  ' . dim($status) . ($entry !== '' ? ('  ' . dim('entry=') . $entry) : ''));
+                if (!empty($doms)) out('      ' . dim('domains: ') . implode(', ', $doms));
+            }
+            out('');
+        } catch (\Throwable $e) {
+            out('  ' . red('✗ Failed: ') . $e->getMessage());
+            exit(1);
+        }
+        break;
+
+    // ── tenant:create ─────────────────────────────────────────────
+    case 'tenant:create':
+        $clean = paramsWithoutFlags($params);
+        $tenantKey = strtolower(trim((string)($clean[0] ?? '')));
+        $domain = strtolower(trim((string)($clean[1] ?? '')));
+        $entryModuleId = trim((string)(getFlagValue('--entry=') ?? ''));
+
+        banner();
+        if ($tenantKey === '' || $domain === '') {
+            out('  ' . red('✗ Usage: ') . 'php ikabud tenant:create <key> <domain> [--entry=<module_id>]');
+            out('');
+            exit(1);
+        }
+        if (!preg_match('/^[a-z0-9][a-z0-9\-]{1,78}[a-z0-9]$/', $tenantKey)) {
+            out('  ' . red('✗ Invalid tenant key.'));
+            out('  ' . dim('Expected: lowercase letters/numbers and hyphens, 3-80 chars, must start/end with alnum.'));
+            out('');
+            exit(1);
+        }
+        if (!preg_match('/^[a-z0-9][a-z0-9\.\-]{1,253}[a-z0-9]$/', $domain)) {
+            out('  ' . red('✗ Invalid domain.'));
+            out('');
+            exit(1);
+        }
+        if ($entryModuleId !== '' && !preg_match('/^[a-z0-9_\-\.]{1,100}$/i', $entryModuleId)) {
+            out('  ' . red('✗ Invalid entry module id.'));
+            out('');
+            exit(1);
+        }
+
+        try {
+            $pdo = app()->controlDb();
+            $pdo->beginTransaction();
+
+            $stmt = $pdo->prepare('INSERT INTO kernel_tenants (tenant_key, status, entry_module_id) VALUES (:k, :s, :e)');
+            $stmt->execute([
+                ':k' => $tenantKey,
+                ':s' => 'active',
+                ':e' => ($entryModuleId !== '' ? $entryModuleId : null),
+            ]);
+            $tenantId = (int)$pdo->lastInsertId();
+            if ($tenantId <= 0) {
+                throw new \RuntimeException('Failed to create tenant (no id returned).');
+            }
+
+            $stmt = $pdo->prepare('INSERT INTO kernel_tenant_domains (tenant_id, domain) VALUES (:tid, :d)');
+            $stmt->execute([':tid' => $tenantId, ':d' => $domain]);
+
+            $pdo->commit();
+            out('  ' . green('✓') . ' Created tenant ' . cyan('#' . (string)$tenantId) . ' ' . bold($tenantKey));
+            out('    ' . dim('domain: ') . $domain);
+            if ($entryModuleId !== '') {
+                out('    ' . dim('entry: ') . $entryModuleId);
+            }
+            out('');
+        } catch (\Throwable $e) {
+            try {
+                $pdo = app()->controlDb();
+                if ($pdo->inTransaction()) {
+                    $pdo->rollBack();
+                }
+            } catch (\Throwable $ignored) {
+            }
+            out('  ' . red('✗ Failed: ') . $e->getMessage());
+            out('');
+            exit(1);
+        }
+        break;
+
+    // ── tenant:domain:add ─────────────────────────────────────────
+    case 'tenant:domain:add':
+        $clean = paramsWithoutFlags($params);
+        $tenantId = (int)($clean[0] ?? 0);
+        $domain = strtolower(trim((string)($clean[1] ?? '')));
+        banner();
+        if ($tenantId <= 0 || $domain === '') {
+            out('  ' . red('✗ Usage: ') . 'php ikabud tenant:domain:add <tenant_id> <domain>');
+            out('');
+            exit(1);
+        }
+        if (!preg_match('/^[a-z0-9][a-z0-9\.\-]{1,253}[a-z0-9]$/', $domain)) {
+            out('  ' . red('✗ Invalid domain.'));
+            out('');
+            exit(1);
+        }
+        try {
+            $pdo = app()->controlDb();
+
+            $stmt = $pdo->prepare('SELECT id FROM kernel_tenants WHERE id = :tid LIMIT 1');
+            $stmt->execute([':tid' => $tenantId]);
+            $row = $stmt->fetch(PDO::FETCH_ASSOC);
+            if (!is_array($row)) {
+                out('  ' . red('✗ Tenant not found: ') . (string)$tenantId);
+                out('');
+                exit(1);
+            }
+
+            $stmt = $pdo->prepare('INSERT INTO kernel_tenant_domains (tenant_id, domain) VALUES (:tid, :d)');
+            $stmt->execute([':tid' => $tenantId, ':d' => $domain]);
+
+            out('  ' . green('✓') . ' Added domain to tenant ' . cyan('#' . (string)$tenantId));
+            out('    ' . dim('domain: ') . $domain);
+            out('');
+        } catch (\Throwable $e) {
+            out('  ' . red('✗ Failed: ') . $e->getMessage());
+            out('');
+            exit(1);
+        }
+        break;
+
+    // ── tenant:domain:remove ─────────────────────────────────────
+    case 'tenant:domain:remove':
+        $clean = paramsWithoutFlags($params);
+        $tenantId = (int)($clean[0] ?? 0);
+        $domain = strtolower(trim((string)($clean[1] ?? '')));
+        banner();
+        if ($tenantId <= 0 || $domain === '') {
+            out('  ' . red('✗ Usage: ') . 'php ikabud tenant:domain:remove <tenant_id> <domain>');
+            out('');
+            exit(1);
+        }
+        if (!preg_match('/^[a-z0-9][a-z0-9\.\-]{1,253}[a-z0-9]$/', $domain)) {
+            out('  ' . red('✗ Invalid domain.'));
+            out('');
+            exit(1);
+        }
+        try {
+            $pdo = app()->controlDb();
+            $stmt = $pdo->prepare('DELETE FROM kernel_tenant_domains WHERE tenant_id = :tid AND domain = :d');
+            $stmt->execute([':tid' => $tenantId, ':d' => $domain]);
+            $deleted = (int)$stmt->rowCount();
+            if ($deleted <= 0) {
+                out('  ' . yellow('!') . ' No matching domain row found.');
+                out('    ' . dim('tenant: ') . (string)$tenantId);
+                out('    ' . dim('domain: ') . $domain);
+                out('');
+                break;
+            }
+            out('  ' . green('✓') . ' Removed domain from tenant ' . cyan('#' . (string)$tenantId));
+            out('    ' . dim('domain: ') . $domain);
+            out('');
+        } catch (\Throwable $e) {
+            out('  ' . red('✗ Failed: ') . $e->getMessage());
+            out('');
+            exit(1);
+        }
+        break;
+
+    // ── tenant:db:set ─────────────────────────────────────────────
+    case 'tenant:db:set':
+        $clean = paramsWithoutFlags($params);
+        $tenantId = (int)($clean[0] ?? 0);
+        $driver = trim((string)(getFlagValue('--driver=') ?? 'mysql'));
+        $host = trim((string)(getFlagValue('--host=') ?? ''));
+        $name = trim((string)(getFlagValue('--name=') ?? ''));
+        $user = trim((string)(getFlagValue('--user=') ?? ''));
+        $port = trim((string)(getFlagValue('--port=') ?? '3306'));
+        $charset = trim((string)(getFlagValue('--charset=') ?? 'utf8mb4'));
+        $passFlag = getFlagValue('--pass=');
+        $pass = (string)($passFlag ?? '');
+        banner();
+        if ($tenantId <= 0 || $host === '' || $name === '' || $user === '') {
+            out('  ' . red('✗ Usage: ') . 'php ikabud tenant:db:set <tenant_id> --host=... --name=... --user=... [--port=3306] [--driver=mysql] [--charset=utf8mb4] [--pass=...]');
+            out('');
+            exit(1);
+        }
+        try {
+            $pdo = app()->controlDb();
+            $stmt = $pdo->prepare('SELECT id FROM kernel_tenants WHERE id = :tid LIMIT 1');
+            $stmt->execute([':tid' => $tenantId]);
+            if (!is_array($stmt->fetch(PDO::FETCH_ASSOC))) throw new \RuntimeException('Tenant not found.');
+            $cipher = null; $iv = null; $tag = null;
+            if ($passFlag !== null && $pass !== '') {
+                $enc = (new Crypto())->encryptString($pass);
+                $cipher = (string)($enc['ciphertext'] ?? '');
+                $iv = (string)($enc['iv'] ?? '');
+                $tag = (string)($enc['tag'] ?? '');
+                if ($cipher === '' || $iv === '' || $tag === '') throw new \RuntimeException('Encryption failed.');
+            }
+            if ($passFlag !== null && $pass !== '') {
+                $sql = 'INSERT INTO kernel_tenant_db_connections (tenant_id, db_driver, db_host, db_port, db_name, db_user, db_pass, db_charset, db_pass_ciphertext, db_pass_iv, db_pass_tag) '
+                    . 'VALUES (:tid,:drv,:h,:p,:n,:u,NULL,:cs,:c,:iv,:t) '
+                    . 'ON DUPLICATE KEY UPDATE db_driver=VALUES(db_driver), db_host=VALUES(db_host), db_port=VALUES(db_port), db_name=VALUES(db_name), db_user=VALUES(db_user), db_pass=NULL, db_charset=VALUES(db_charset), db_pass_ciphertext=VALUES(db_pass_ciphertext), db_pass_iv=VALUES(db_pass_iv), db_pass_tag=VALUES(db_pass_tag)';
+                $pdo->prepare($sql)->execute([':tid'=>$tenantId,':drv'=>$driver,':h'=>$host,':p'=>$port,':n'=>$name,':u'=>$user,':cs'=>$charset,':c'=>$cipher,':iv'=>$iv,':t'=>$tag]);
+            } else {
+                $sql = 'INSERT INTO kernel_tenant_db_connections (tenant_id, db_driver, db_host, db_port, db_name, db_user, db_pass, db_charset) '
+                    . 'VALUES (:tid,:drv,:h,:p,:n,:u,NULL,:cs) '
+                    . 'ON DUPLICATE KEY UPDATE db_driver=VALUES(db_driver), db_host=VALUES(db_host), db_port=VALUES(db_port), db_name=VALUES(db_name), db_user=VALUES(db_user), db_pass=NULL, db_charset=VALUES(db_charset)';
+                $pdo->prepare($sql)->execute([':tid'=>$tenantId,':drv'=>$driver,':h'=>$host,':p'=>$port,':n'=>$name,':u'=>$user,':cs'=>$charset]);
+            }
+            out('  ' . green('✓') . ' Updated tenant DB connection for ' . cyan('#' . (string)$tenantId));
+            out('');
+        } catch (\Throwable $e) {
+            out('  ' . red('✗ Failed: ') . $e->getMessage());
+            out('');
+            exit(1);
+        }
+        break;
+
+    // ── tenant:db:check ───────────────────────────────────────────
+    case 'tenant:db:check':
+        $clean = paramsWithoutFlags($params);
+        $tenantId = (int)($clean[0] ?? 0);
+        banner();
+        if ($tenantId <= 0) {
+            out('  ' . red('✗ Usage: ') . 'php ikabud tenant:db:check <tenant_id>');
+            out('');
+            exit(1);
+        }
+        try {
+            $pdo = app()->controlDb();
+            $stmt = $pdo->prepare(
+                'SELECT db_driver, db_host, db_port, db_name, db_user, db_pass, db_charset, '
+                . 'db_pass_ciphertext, db_pass_iv, db_pass_tag '
+                . 'FROM kernel_tenant_db_connections WHERE tenant_id = :tid LIMIT 1'
+            );
+            $stmt->execute([':tid' => $tenantId]);
+            $row = $stmt->fetch(PDO::FETCH_ASSOC);
+            if (!is_array($row)) {
+                out('  ' . yellow('!') . ' No DB connection row found for tenant ' . cyan('#' . (string)$tenantId));
+                out('');
+                break;
+            }
+
+            $driver = (string)($row['db_driver'] ?? 'mysql');
+            $host = (string)($row['db_host'] ?? '');
+            $port = (string)($row['db_port'] ?? '');
+            $name = (string)($row['db_name'] ?? '');
+            $user = (string)($row['db_user'] ?? '');
+            $charset = (string)($row['db_charset'] ?? 'utf8mb4');
+            $plain = (string)($row['db_pass'] ?? '');
+            $cipher = (string)($row['db_pass_ciphertext'] ?? '');
+            $iv = (string)($row['db_pass_iv'] ?? '');
+            $tag = (string)($row['db_pass_tag'] ?? '');
+
+            $hasEncrypted = ($cipher !== '' && $iv !== '' && $tag !== '');
+            $hasPlain = ($plain !== '');
+
+            out('  ' . bold('Tenant DB connection') . ' ' . cyan('#' . (string)$tenantId));
+            out('');
+            out('    ' . dim('driver: ') . $driver);
+            out('    ' . dim('host:   ') . $host);
+            out('    ' . dim('port:   ') . $port);
+            out('    ' . dim('name:   ') . $name);
+            out('    ' . dim('user:   ') . $user);
+            out('    ' . dim('charset:') . ' ' . $charset);
+            out('');
+
+            if ($hasEncrypted) {
+                out('  ' . green('✓') . ' Encrypted password present');
+            } else {
+                out('  ' . yellow('!') . ' Encrypted password missing');
+            }
+
+            if ($hasPlain) {
+                out('  ' . red('✗') . ' Plaintext db_pass is NOT empty (should be NULL/empty)');
+            } else {
+                out('  ' . green('✓') . ' Plaintext db_pass empty');
+            }
+            out('');
+        } catch (\Throwable $e) {
+            out('  ' . red('✗ Failed: ') . $e->getMessage());
+            out('');
+            exit(1);
+        }
+        break;
+
+    // ── tenant:provision ──────────────────────────────────────────
+    case 'tenant:provision':
+        $clean = paramsWithoutFlags($params);
+        $tenantId = (int)($clean[0] ?? 0);
+        $skipDbCreate = hasFlag('--skip-db-create');
+        $adminUser = trim((string)(getFlagValue('--admin-user=') ?? ''));
+        $adminPass = trim((string)(getFlagValue('--admin-pass=') ?? ''));
+        $adminName = trim((string)(getFlagValue('--admin-name=') ?? 'Admin'));
+
+        banner();
+        if ($tenantId <= 0) {
+            out('  ' . red('✗ Usage: ') . 'php ikabud tenant:provision <tenant_id> [--skip-db-create] [--admin-user=...] [--admin-pass=...] [--admin-name=...]');
+            out('');
+            exit(1);
+        }
+
+        try {
+            $controlPdo = app()->controlDb();
+
+            // 1. Validate tenant record exists
+            $stmt = $controlPdo->prepare(
+                'SELECT t.id, t.tenant_key, t.status, t.entry_module_id, '
+                . 'c.db_driver, c.db_host, c.db_port, c.db_name, c.db_user, c.db_pass, c.db_charset, '
+                . 'c.db_pass_ciphertext, c.db_pass_iv, c.db_pass_tag '
+                . 'FROM kernel_tenants t '
+                . 'LEFT JOIN kernel_tenant_db_connections c ON c.tenant_id = t.id '
+                . 'WHERE t.id = :tid LIMIT 1'
+            );
+            $stmt->execute([':tid' => $tenantId]);
+            $tenant = $stmt->fetch(PDO::FETCH_ASSOC);
+            if (!is_array($tenant)) {
+                out('  ' . red('✗ Tenant not found: ') . (string)$tenantId);
+                out('');
+                exit(1);
+            }
+
+            $tenantKey = (string)($tenant['tenant_key'] ?? '');
+            $dbHost = (string)($tenant['db_host'] ?? '');
+            $dbPort = (string)($tenant['db_port'] ?? '3306');
+            $dbName = (string)($tenant['db_name'] ?? '');
+            $dbUser = (string)($tenant['db_user'] ?? '');
+            $dbCharset = (string)($tenant['db_charset'] ?? 'utf8mb4');
+
+            if ($dbHost === '' || $dbName === '' || $dbUser === '') {
+                out('  ' . red('✗ No DB connection configured for tenant ' . (string)$tenantId . '.'));
+                out('  ' . dim('Run: php ikabud tenant:db:set ' . (string)$tenantId . ' --host=... --name=... --user=... --pass=...'));
+                out('');
+                exit(1);
+            }
+
+            // Decrypt password
+            $dbPass = (string)($tenant['db_pass'] ?? '');
+            $cipher = (string)($tenant['db_pass_ciphertext'] ?? '');
+            $iv = (string)($tenant['db_pass_iv'] ?? '');
+            $tag = (string)($tenant['db_pass_tag'] ?? '');
+            if ($cipher !== '' && $iv !== '' && $tag !== '') {
+                $dbPass = (new Crypto())->decryptString($cipher, $iv, $tag);
+            }
+
+            out('  ' . bold('Provisioning tenant') . ' ' . cyan('#' . (string)$tenantId) . ' ' . bold($tenantKey));
+            out('    ' . dim('db: ') . $dbUser . '@' . $dbHost . ':' . $dbPort . '/' . $dbName);
+            out('');
+
+            // 2. Create database (unless --skip-db-create)
+            if (!$skipDbCreate) {
+                out('  Creating database...');
+                try {
+                    $rootDsn = 'mysql:host=' . $dbHost . ';port=' . $dbPort . ';charset=' . $dbCharset;
+                    $rootPdo = new PDO($rootDsn, $dbUser, $dbPass, [
+                        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                    ]);
+                    $safeName = preg_replace('/[^a-zA-Z0-9_]/', '', $dbName);
+                    $rootPdo->exec('CREATE DATABASE IF NOT EXISTS `' . $safeName . '` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci');
+                    out('  ' . green('✓') . ' Database created (or already exists)');
+                } catch (\Throwable $e) {
+                    out('  ' . yellow('!') . ' Could not create database: ' . $e->getMessage());
+                    out('  ' . dim('Use --skip-db-create if database was pre-created (e.g. cPanel).'));
+                    out('');
+                    exit(1);
+                }
+            } else {
+                out('  ' . dim('Skipping database creation (--skip-db-create)'));
+            }
+
+            // 3. Connect to tenant database
+            $tenantDsn = 'mysql:host=' . $dbHost . ';port=' . $dbPort . ';dbname=' . $dbName . ';charset=' . $dbCharset;
+            $tenantPdo = new PDO($tenantDsn, $dbUser, $dbPass, [
+                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+                PDO::ATTR_EMULATE_PREPARES => false,
+            ]);
+            out('  ' . green('✓') . ' Connected to tenant database');
+
+            // 4. Set tenant context so app()->db() returns tenant DB for downstream code
+            app()->tenant()->setTenantId($tenantId);
+
+            // 5. Run tenant-appropriate module migrations against the tenant database
+            out('  Running migrations...');
+            $runner = new MigrationRunner($tenantPdo);
+            $entryModule = trim((string)($tenant['entry_module_id'] ?? ''));
+            $modulePlan = tenantProvisionModulePlan($entryModule !== '' ? $entryModule : null);
+            $results = [];
+            foreach ($modulePlan as $moduleId) {
+                $moduleResult = $runner->migrate($moduleId);
+                if (!empty($moduleResult)) {
+                    $results[$moduleId] = $moduleResult;
+                }
+            }
+            $totalCount = 0;
+            if (empty($results)) {
+                out('  ' . dim('  Nothing to migrate.'));
+            } else {
+                out('  ' . dim('  module plan: ') . implode(', ', $modulePlan));
+                foreach ($results as $mod => $files) {
+                    out('    ' . bold($mod));
+                    foreach ($files as $f) {
+                        out('      ' . green('✓') . " {$f}");
+                        $totalCount++;
+                    }
+                }
+                out('  ' . green('✓') . bold(" {$totalCount} migration(s) executed across " . count($results) . ' module(s).'));
+            }
+
+            // 6. Run tenant-safe kernel migrations only (never control-plane schema)
+            $kernelMigDir = BASE_PATH . '/database/migrations';
+            if (is_dir($kernelMigDir)) {
+                $kernelFiles = tenantSafeKernelMigrationFiles();
+
+                // Ensure migrations tracking table exists for kernel
+                $tenantPdo->exec('CREATE TABLE IF NOT EXISTS `kernel_migrations` (
+                    `id` INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+                    `migration` VARCHAR(255) NOT NULL,
+                    `batch` INT UNSIGNED NOT NULL DEFAULT 1,
+                    `executed_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE KEY `uk_migration` (`migration`)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci');
+
+                $appliedStmt = $tenantPdo->query('SELECT migration FROM kernel_migrations');
+                $applied = array_column($appliedStmt->fetchAll(PDO::FETCH_ASSOC), 'migration');
+
+                $pending = array_diff($kernelFiles, $applied);
+                if (!empty($pending)) {
+                    $batchStmt = $tenantPdo->query('SELECT COALESCE(MAX(batch), 0) FROM kernel_migrations');
+                    $batch = (int)$batchStmt->fetchColumn() + 1;
+
+                    out('    ' . bold('kernel'));
+                    foreach ($pending as $mf) {
+                        $sql = file_get_contents($kernelMigDir . '/' . $mf);
+                        if ($sql !== false && trim($sql) !== '') {
+                            try {
+                                $tenantPdo->exec($sql);
+                                $tenantPdo->prepare('INSERT INTO kernel_migrations (migration, batch) VALUES (:m, :b)')
+                                    ->execute([':m' => $mf, ':b' => $batch]);
+                                out('      ' . green('✓') . " {$mf}");
+                            } catch (\Throwable $kme) {
+                                // Mark as applied even if it fails (schema already exists)
+                                try {
+                                    $tenantPdo->prepare('INSERT IGNORE INTO kernel_migrations (migration, batch) VALUES (:m, :b)')
+                                        ->execute([':m' => $mf, ':b' => $batch]);
+                                } catch (\Throwable $ignored) {}
+                                out('      ' . yellow('~') . " {$mf}" . dim(' (already applied or skipped: ' . $kme->getMessage() . ')'));
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 7. Seed admin user (if --admin-user provided and entry module is CMS)
+            if ($adminUser !== '' && $adminPass !== '') {
+                out('');
+                out('  Seeding admin user...');
+
+                $usersTable = 'users';
+                if ($entryModule === 'cms') {
+                    $usersTable = 'cms_users';
+                }
+
+                // Check if users table exists
+                $tableCheck = $tenantPdo->query("SHOW TABLES LIKE '{$usersTable}'")->fetchColumn();
+                if ($tableCheck !== false) {
+                    $existStmt = $tenantPdo->prepare("SELECT id FROM `{$usersTable}` WHERE username = :u LIMIT 1");
+                    $existStmt->execute([':u' => $adminUser]);
+                    if ($existStmt->fetch()) {
+                        out('  ' . yellow('!') . " User '{$adminUser}' already exists in {$usersTable}");
+                    } else {
+                        $hash = password_hash($adminPass, PASSWORD_BCRYPT);
+                        if ($usersTable === 'cms_users') {
+                            // CMS users table uses password_hash, display_name, email, and ENUM roles
+                            $insertStmt = $tenantPdo->prepare(
+                                "INSERT INTO `cms_users` (username, email, password_hash, display_name, role, is_active) "
+                                . "VALUES (:u, :e, :p, :n, 'administrator', 1)"
+                            );
+                            $insertStmt->execute([
+                                ':u' => $adminUser,
+                                ':e' => $adminUser . '@localhost',
+                                ':p' => $hash,
+                                ':n' => $adminName,
+                            ]);
+                        } else {
+                            // Kernel users table
+                            $insertStmt = $tenantPdo->prepare(
+                                "INSERT INTO `users` (username, password, full_name, role, status) "
+                                . "VALUES (:u, :p, :n, 'admin', 'active')"
+                            );
+                            $insertStmt->execute([
+                                ':u' => $adminUser,
+                                ':p' => $hash,
+                                ':n' => $adminName,
+                            ]);
+                        }
+                        out('  ' . green('✓') . " Admin user '{$adminUser}' created in {$usersTable}");
+                    }
+                } else {
+                    out('  ' . yellow('!') . " Table '{$usersTable}' does not exist yet — skip user seed");
+                }
+            } elseif ($adminUser !== '' && $adminPass === '') {
+                out('  ' . yellow('!') . ' --admin-user provided but --admin-pass missing — skipping user seed');
+            }
+
+            out('');
+            out('  ' . green('✓') . bold(' Provisioning complete for tenant #' . (string)$tenantId . ' (' . $tenantKey . ')'));
+            out('');
+        } catch (\Throwable $e) {
+            out('  ' . red('✗ Provisioning failed: ') . $e->getMessage());
+            if (app()->config('app.debug', false)) {
+                out('  ' . dim($e->getFile() . ':' . $e->getLine()));
+            }
+            out('');
+            exit(1);
+        }
+        break;
+
+    // ── tenant:verify ─────────────────────────────────────────────
+    case 'tenant:verify':
+        $clean = paramsWithoutFlags($params);
+        $verifyTenantId = (int)($clean[0] ?? 0);
+        banner();
+
+        if ($verifyTenantId <= 0) {
+            out('  ' . red('✗ Usage: ') . 'php ikabud tenant:verify <tenant_id>');
+            out('  Runs a health check confirming the tenant is properly set up and isolated.');
+            out('');
+            exit(1);
+        }
+
+        $verifyPassed = 0;
+        $verifyFailed = 0;
+        $verifyWarnings = 0;
+
+        $verifyPass = function (string $msg) use (&$verifyPassed): void {
+            $verifyPassed++;
+            out('  ' . green('✓') . ' ' . $msg);
+        };
+        $verifyFail = function (string $msg) use (&$verifyFailed): void {
+            $verifyFailed++;
+            out('  ' . red('✗') . ' ' . $msg);
+        };
+        $verifyWarn = function (string $msg) use (&$verifyWarnings): void {
+            $verifyWarnings++;
+            out('  ' . yellow('!') . ' ' . $msg);
+        };
+
+        try {
+            $controlPdo = app()->controlDb();
+
+            // ── 1. Control plane tenant record ────────────────────────
+            out('');
+            out('  ' . bold('1. Control Plane Record'));
+            $stmt = $controlPdo->prepare(
+                'SELECT t.id, t.tenant_key, t.status, t.entry_module_id, '
+                . 'c.db_host, c.db_port, c.db_name, c.db_user, c.db_pass, c.db_charset, '
+                . 'c.db_pass_ciphertext, c.db_pass_iv, c.db_pass_tag '
+                . 'FROM kernel_tenants t '
+                . 'LEFT JOIN kernel_tenant_db_connections c ON c.tenant_id = t.id '
+                . 'WHERE t.id = :tid LIMIT 1'
+            );
+            $stmt->execute([':tid' => $verifyTenantId]);
+            $vTenant = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if (!is_array($vTenant)) {
+                $verifyFail('Tenant #' . $verifyTenantId . ' not found in kernel_tenants');
+                throw new RuntimeException('Cannot continue without tenant record.');
+            }
+            $verifyPass('Tenant record found: key=' . ($vTenant['tenant_key'] ?? '?') . ', status=' . ($vTenant['status'] ?? '?'));
+
+            if (($vTenant['status'] ?? '') !== 'active') {
+                $verifyWarn('Tenant status is "' . ($vTenant['status'] ?? '') . '" (expected "active")');
+            }
+
+            $vEntryModule = trim((string)($vTenant['entry_module_id'] ?? ''));
+            if ($vEntryModule !== '') {
+                $verifyPass('Entry module: ' . $vEntryModule);
+            } else {
+                $verifyWarn('No entry_module_id set');
+            }
+
+            // ── 2. Domain bindings ────────────────────────────────────
+            out('');
+            out('  ' . bold('2. Domain Bindings'));
+            $dStmt = $controlPdo->prepare(
+                'SELECT domain FROM kernel_tenant_domains WHERE tenant_id = :tid ORDER BY domain'
+            );
+            $dStmt->execute([':tid' => $verifyTenantId]);
+            $domains = $dStmt->fetchAll(PDO::FETCH_COLUMN);
+            if (empty($domains)) {
+                $verifyFail('No domains bound to this tenant — requests cannot be routed');
+            } else {
+                foreach ($domains as $d) {
+                    $verifyPass('Domain: ' . $d);
+                }
+            }
+
+            // Check for domain conflicts (same domain on multiple tenants)
+            foreach ($domains as $d) {
+                $cStmt = $controlPdo->prepare(
+                    'SELECT tenant_id FROM kernel_tenant_domains WHERE domain = :d AND tenant_id != :tid'
+                );
+                $cStmt->execute([':d' => $d, ':tid' => $verifyTenantId]);
+                $conflict = $cStmt->fetchColumn();
+                if ($conflict !== false) {
+                    $verifyFail('Domain "' . $d . '" also bound to tenant #' . $conflict . ' (CONFLICT)');
+                }
+            }
+
+            // ── 3. Database connection ────────────────────────────────
+            out('');
+            out('  ' . bold('3. Database Connection'));
+            $vDbHost = (string)($vTenant['db_host'] ?? '');
+            $vDbPort = (string)($vTenant['db_port'] ?? '3306');
+            $vDbName = (string)($vTenant['db_name'] ?? '');
+            $vDbUser = (string)($vTenant['db_user'] ?? '');
+            $vDbCharset = (string)($vTenant['db_charset'] ?? 'utf8mb4');
+
+            if ($vDbHost === '' || $vDbName === '' || $vDbUser === '') {
+                $verifyFail('Incomplete DB connection config (host/name/user missing)');
+                throw new RuntimeException('Cannot continue without DB connection.');
+            }
+            $verifyPass('DB config: ' . $vDbUser . '@' . $vDbHost . ':' . $vDbPort . '/' . $vDbName);
+
+            // Decrypt password
+            $vDbPass = (string)($vTenant['db_pass'] ?? '');
+            $cipher = (string)($vTenant['db_pass_ciphertext'] ?? '');
+            $iv = (string)($vTenant['db_pass_iv'] ?? '');
+            $tag = (string)($vTenant['db_pass_tag'] ?? '');
+            if ($cipher !== '' && $iv !== '' && $tag !== '') {
+                try {
+                    $vDbPass = (new Crypto())->decryptString($cipher, $iv, $tag);
+                    $verifyPass('DB password decrypted from encrypted store');
+                } catch (Throwable $e) {
+                    $verifyFail('DB password decryption failed: ' . $e->getMessage());
+                    throw new RuntimeException('Cannot continue without DB password.');
+                }
+            } elseif ($vDbPass !== '') {
+                $verifyWarn('DB password stored in plaintext (consider encrypting)');
+            } else {
+                $verifyFail('No DB password configured');
+                throw new RuntimeException('Cannot continue without DB password.');
+            }
+
+            // Test connection
+            try {
+                $vDsn = 'mysql:host=' . $vDbHost . ';port=' . $vDbPort . ';dbname=' . $vDbName . ';charset=' . $vDbCharset;
+                $vPdo = new PDO($vDsn, $vDbUser, $vDbPass, [
+                    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                    PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+                ]);
+                $verifyPass('DB connection successful');
+            } catch (Throwable $e) {
+                $verifyFail('DB connection failed: ' . $e->getMessage());
+                throw new RuntimeException('Cannot continue without DB connection.');
+            }
+
+            // Check this DB is NOT the control DB (isolation check)
+            $controlDbName = (string)($controlPdo->query('SELECT DATABASE()')->fetchColumn());
+            if ($vDbName === $controlDbName && $vDbHost === (string)app()->config('control_database.host', '')) {
+                $verifyWarn('Tenant DB is same as control DB — OK for dev, not recommended for production');
+            }
+
+            // ── 4. Required tables ────────────────────────────────────
+            out('');
+            out('  ' . bold('4. Required Tables'));
+
+            // Core kernel tables
+            $requiredKernel = ['tenant_module_settings'];
+            // Entry-module-specific tables
+            $requiredCms = [
+                'cms_users', 'cms_content', 'cms_content_meta', 'cms_media',
+                'cms_password_resets', 'cms_builder_documents',
+                'cms_categories', 'cms_tags', 'cms_menus', 'cms_menu_items',
+                'cms_theme_customizer', 'cms_revisions',
+            ];
+
+            $allTables = $vPdo->query('SHOW TABLES')->fetchAll(PDO::FETCH_COLUMN);
+            $tableSet = array_flip($allTables);
+
+            foreach ($requiredKernel as $rt) {
+                if (isset($tableSet[$rt])) {
+                    $verifyPass('Kernel table: ' . $rt);
+                } else {
+                    $verifyFail('Missing kernel table: ' . $rt);
+                }
+            }
+
+            if ($vEntryModule === 'cms') {
+                foreach ($requiredCms as $rt) {
+                    if (isset($tableSet[$rt])) {
+                        $verifyPass('CMS table: ' . $rt);
+                    } else {
+                        $verifyFail('Missing CMS table: ' . $rt);
+                    }
+                }
+            }
+
+            // ── 5. Migrations status ──────────────────────────────────
+            out('');
+            out('  ' . bold('5. Migrations'));
+
+            if (isset($tableSet['kernel_migrations'])) {
+                $mStmt = $vPdo->query('SELECT COUNT(*) FROM kernel_migrations');
+                $mCount = (int)$mStmt->fetchColumn();
+                $verifyPass('kernel_migrations: ' . $mCount . ' recorded');
+            } else {
+                $verifyWarn('kernel_migrations table missing — kernel migrations not tracked');
+            }
+
+            // Check tenant_module_settings has records for this tenant
+            if (isset($tableSet['tenant_module_settings'])) {
+                $tmsStmt = $vPdo->prepare(
+                    'SELECT COUNT(*) FROM tenant_module_settings WHERE tenant_id = :tid'
+                );
+                $tmsStmt->execute([':tid' => $verifyTenantId]);
+                $tmsCount = (int)$tmsStmt->fetchColumn();
+                if ($tmsCount > 0) {
+                    $verifyPass('tenant_module_settings: ' . $tmsCount . ' rows for tenant #' . $verifyTenantId);
+                } else {
+                    $verifyWarn('tenant_module_settings has 0 rows for tenant #' . $verifyTenantId . ' (modules may use global fallback)');
+                }
+            }
+
+            // ── 6. Module state isolation ─────────────────────────────
+            out('');
+            out('  ' . bold('6. Module State Isolation'));
+
+            // Check which modules are enabled via tenant settings
+            if (isset($tableSet['tenant_module_settings'])) {
+                $enStmt = $vPdo->prepare(
+                    'SELECT module_id, JSON_UNQUOTE(setting_value) AS val '
+                    . 'FROM tenant_module_settings WHERE tenant_id = :tid AND setting_key = :sk'
+                );
+                $enStmt->execute([':tid' => $verifyTenantId, ':sk' => '_module_enabled']);
+                $enabledModules = $enStmt->fetchAll(PDO::FETCH_ASSOC);
+                if (!empty($enabledModules)) {
+                    $discoveredModules = array_keys(discoverModules());
+                    foreach ($enabledModules as $em) {
+                        $st = ($em['val'] === 'true' || $em['val'] === '1') ? green('enabled') : yellow('disabled');
+                        // Warn if the module state references a module that no longer exists on disk
+                        if (!in_array($em['module_id'], $discoveredModules, true)) {
+                            $verifyWarn('Module state: ' . $em['module_id'] . ' → ' . $st . ' (module NOT on disk — ghost entry)');
+                        } else {
+                            $verifyPass('Module state: ' . $em['module_id'] . ' → ' . $st);
+                        }
+                    }
+                } else {
+                    $verifyWarn('No per-tenant module enable/disable state — using global defaults');
+                }
+            }
+
+            // ── 7. CMS sub-module registry ────────────────────────────
+            out('');
+            out('  ' . bold('7. CMS Sub-Module Registry'));
+
+            if ($vEntryModule === 'cms' && isset($tableSet['tenant_module_settings'])) {
+                $srStmt = $vPdo->prepare(
+                    'SELECT JSON_UNQUOTE(setting_value) AS val '
+                    . 'FROM tenant_module_settings WHERE tenant_id = :tid AND module_id = :mid AND setting_key = :sk'
+                );
+                $srStmt->execute([':tid' => $verifyTenantId, ':mid' => 'cms', ':sk' => '_installed_submodules']);
+                $srRow = $srStmt->fetch(PDO::FETCH_ASSOC);
+                if (is_array($srRow) && ($srRow['val'] ?? '') !== '') {
+                    $subModules = json_decode($srRow['val'], true);
+                    if (is_array($subModules) && !empty($subModules)) {
+                        foreach ($subModules as $sm) {
+                            $smDir = BASE_PATH . '/modules/' . $sm;
+                            $onDisk = is_dir($smDir) ? green('on disk') : red('MISSING from disk');
+                            $verifyPass('CMS sub-module: ' . $sm . ' (' . $onDisk . ')');
+                        }
+                    } else {
+                        $verifyPass('No CMS sub-modules installed (empty registry)');
+                    }
+                } else {
+                    $verifyPass('No CMS sub-module registry (no sub-modules installed)');
+                }
+
+                // Cross-check: global file registry should NOT be authoritative
+                $globalRegistryPath = STORAGE_PATH . '/cms-installed-modules.json';
+                if (is_file($globalRegistryPath)) {
+                    $globalList = json_decode((string)file_get_contents($globalRegistryPath), true);
+                    if (is_array($globalList) && !empty($globalList)) {
+                        $verifyWarn('Global file registry exists at storage/cms-installed-modules.json with ' . count($globalList) . ' entries (should be empty in multi-tenant mode)');
+                    }
+                }
+            } else {
+                $verifyPass('Skipped (not a CMS tenant)');
+            }
+
+            // ── 8. Admin user exists ──────────────────────────────────
+            out('');
+            out('  ' . bold('8. Admin User'));
+            if ($vEntryModule === 'cms' && isset($tableSet['cms_users'])) {
+                $uStmt = $vPdo->query(
+                    "SELECT id, username, role, is_active FROM cms_users WHERE role IN ('administrator','superadmin') AND is_active = 1 LIMIT 5"
+                );
+                $admins = $uStmt->fetchAll(PDO::FETCH_ASSOC);
+                if (!empty($admins)) {
+                    foreach ($admins as $adm) {
+                        $verifyPass('Admin: ' . $adm['username'] . ' (role=' . $adm['role'] . ', id=' . $adm['id'] . ')');
+                    }
+                } else {
+                    $verifyFail('No active admin users found in cms_users — cannot log in');
+                }
+            } elseif (isset($tableSet['users'])) {
+                $uStmt = $vPdo->query(
+                    "SELECT id, username, role, status FROM users WHERE role = 'admin' AND status = 'active' LIMIT 5"
+                );
+                $admins = $uStmt->fetchAll(PDO::FETCH_ASSOC);
+                if (!empty($admins)) {
+                    foreach ($admins as $adm) {
+                        $verifyPass('Admin: ' . $adm['username'] . ' (role=' . $adm['role'] . ', id=' . $adm['id'] . ')');
+                    }
+                } else {
+                    $verifyFail('No active admin users found in users table');
+                }
+            }
+
+            // ── 9. Cross-tenant DB isolation ──────────────────────────
+            out('');
+            out('  ' . bold('9. Cross-Tenant DB Isolation'));
+            $otStmt = $controlPdo->prepare(
+                'SELECT t.id, t.tenant_key, c.db_name, c.db_host '
+                . 'FROM kernel_tenants t '
+                . 'JOIN kernel_tenant_db_connections c ON c.tenant_id = t.id '
+                . 'WHERE t.id != :tid AND c.db_name = :dbname AND c.db_host = :dbhost'
+            );
+            $otStmt->execute([':tid' => $verifyTenantId, ':dbname' => $vDbName, ':dbhost' => $vDbHost]);
+            $sharedDbTenants = $otStmt->fetchAll(PDO::FETCH_ASSOC);
+            if (!empty($sharedDbTenants)) {
+                foreach ($sharedDbTenants as $sdt) {
+                    $verifyWarn('Shares DB "' . $vDbName . '" with tenant #' . $sdt['id'] . ' (' . $sdt['tenant_key'] . ') — isolation depends on tenant_id scoping in queries');
+                }
+            } else {
+                $verifyPass('Database "' . $vDbName . '" not shared with other tenants');
+            }
+
+            // ── 10. File-system isolation ─────────────────────────────
+            out('');
+            out('  ' . bold('10. File System'));
+            $uploadsDir = BASE_PATH . '/modules/cms/assets/uploads/t' . $verifyTenantId;
+            if (is_dir($uploadsDir)) {
+                $verifyPass('Tenant uploads dir exists: modules/cms/assets/uploads/t' . $verifyTenantId);
+                if (is_writable($uploadsDir)) {
+                    $verifyPass('Uploads dir is writable');
+                } else {
+                    $verifyFail('Uploads dir is NOT writable');
+                }
+            } else {
+                $verifyWarn('Tenant uploads dir does not exist yet (will be created on first upload)');
+            }
+
+        } catch (RuntimeException $e) {
+            out('');
+            out('  ' . red('Verification stopped: ') . $e->getMessage());
+        } catch (Throwable $e) {
+            out('');
+            $verifyFail('Unexpected error: ' . $e->getMessage());
+        }
+
+        // ── Summary ───────────────────────────────────────────────
+        out('');
+        out('  ═══════════════════════════════════════════');
+        out('  ' . bold('Summary for tenant #' . $verifyTenantId));
+        out('    Passed:   ' . green((string)$verifyPassed));
+        if ($verifyWarnings > 0) {
+            out('    Warnings: ' . yellow((string)$verifyWarnings));
+        }
+        if ($verifyFailed > 0) {
+            out('    Failed:   ' . red((string)$verifyFailed));
+        }
+        if ($verifyFailed === 0) {
+            out('  ' . green('✓ Tenant is healthy'));
+        } else {
+            out('  ' . red('✗ ' . $verifyFailed . ' issue(s) must be resolved'));
+        }
+        out('');
+        exit($verifyFailed > 0 ? 1 : 0);
+
+    // ── capability:test ──────────────────────────────────────────
+    case 'capability:test':
+        $clean = paramsWithoutFlags($params);
+        $capIdOrFile = $clean[0] ?? '';
+
+        if (hasFlag('--with-modules')) {
+            loadModuleRoutes(['GET' => [], 'POST' => [], 'PUT' => [], 'DELETE' => []]);
+        }
+
+        $mode = getFlagValue('--mode=');
+        $provider = getFlagValue('--provider=');
+
+        $fixtureFiles = [];
+        $fixturesDir = BASE_PATH . '/tests/capability_fixtures';
+
+        if ($capIdOrFile === '') {
+            // Run all fixtures
+            if (is_dir($fixturesDir)) {
+                foreach (scandir($fixturesDir) as $f) {
+                    if ($f === '.' || $f === '..') continue;
+                    if (!str_ends_with($f, '.json')) continue;
+                    $fixtureFiles[] = $fixturesDir . '/' . $f;
+                }
+            }
+        } else {
+            // If argument looks like a path or ends with .json, treat as file
+            if (str_ends_with($capIdOrFile, '.json') || str_contains($capIdOrFile, '/')) {
+                $path = $capIdOrFile;
+                if (!str_starts_with($path, '/')) {
+                    $path = BASE_PATH . '/' . ltrim($path, '/');
+                }
+                $fixtureFiles[] = $path;
+            } else {
+                // Treat as capability id -> map to fixture file name
+                $fixtureFiles[] = $fixturesDir . '/' . $capIdOrFile . '.json';
+            }
+        }
+
+        banner();
+        out('  ' . bold('Capability Tests'));
+        out('');
+
+        if (empty($fixtureFiles)) {
+            out(yellow('  No fixture files found.'));
+            exit(0);
+        }
+
+        $runner = new CapabilityTestRunner(app()->cap());
+        $totalPassed = 0;
+        $totalFailed = 0;
+
+        foreach ($fixtureFiles as $file) {
+            if (!is_file($file)) {
+                out('  ' . red('✗') . ' ' . dim($file) . ' (missing)');
+                $totalFailed++;
+                continue;
+            }
+
+            $fixture = json_decode((string)file_get_contents($file), true);
+            if (!is_array($fixture)) {
+                out('  ' . red('✗') . ' ' . dim($file) . ' (invalid JSON)');
+                $totalFailed++;
+                continue;
+            }
+
+            // Apply CLI overrides to all cases if provided
+            if ($mode !== null && $mode !== '') {
+                $fixture['mode'] = $mode;
+            }
+            if ($provider !== null && $provider !== '') {
+                foreach (($fixture['cases'] ?? []) as $i => $c) {
+                    if (!is_array($c)) continue;
+                    $fixture['cases'][$i]['options'] = array_merge((array)($c['options'] ?? []), ['provider' => $provider]);
+                }
+            }
+
+            $res = $runner->runFixture($fixture);
+            $capabilityId = (string)($fixture['capability_id'] ?? basename($file));
+            if (!empty($res['ok'])) {
+                out('  ' . green('✓') . ' ' . cyan($capabilityId) . '  ' . dim("passed={$res['passed']}") );
+            } else {
+                out('  ' . red('✗') . ' ' . cyan($capabilityId) . '  ' . dim("passed={$res['passed']} failed={$res['failed']}") );
+                foreach (($res['failures'] ?? []) as $f) {
+                    if (!is_array($f)) continue;
+                    out('      - ' . (string)($f['name'] ?? 'case') . ': ' . (string)($f['error'] ?? 'failed'));
+                }
+            }
+
+            $totalPassed += (int)($res['passed'] ?? 0);
+            $totalFailed += (int)($res['failed'] ?? 0);
+        }
+
+        out('');
+        if ($totalFailed === 0) {
+            out(green("  ✓ ALL PASSED  (passed={$totalPassed})"));
+            exit(0);
+        }
+        out(red("  ✗ FAILURES  (passed={$totalPassed} failed={$totalFailed})"));
+        exit(1);
+
+    // ── capability:list ──────────────────────────────────────────
+    case 'capability:list':
+        banner();
+        out('  ' . bold('Registered Capabilities'));
+        out('');
+
+        if (hasFlag('--with-modules')) {
+            // Load enabled modules (helpers.php) so their capability providers register.
+            // We trigger module boot logic by calling loadModuleRoutes() with an empty routes array.
+            loadModuleRoutes(['GET' => [], 'POST' => [], 'PUT' => [], 'DELETE' => []]);
+        }
+
+        // Note: CLI does not load module routes, so only kernel providers are guaranteed
+        // unless a user manually requires module helpers.
+        $capabilities = app()->capabilities()->inspectAll();
+        if (count($capabilities) === 0) {
+            out('  ' . yellow('No capabilities registered.'));
+            exit(0);
+        }
+
+        foreach ($capabilities as $capability) {
+            if (!is_array($capability)) {
+                continue;
+            }
+            $capId = (string)($capability['id'] ?? '');
+            if ($capId === '') {
+                continue;
+            }
+            $baseId = (string)($capability['base_id'] ?? '');
+            $version = $capability['major_version'] ?? null;
+            $latestId = (string)($capability['latest_id'] ?? '');
+            $isLatest = !empty($capability['is_latest']);
+
+            $suffix = [];
+            if ($baseId !== '' && $baseId !== $capId) {
+                $suffix[] = 'base=' . $baseId;
+            }
+            if ($version !== null) {
+                $suffix[] = 'v=' . (string)$version;
+            }
+            if ($latestId !== '' && !$isLatest) {
+                $suffix[] = 'latest=' . $latestId;
+            }
+
+            out('  ' . cyan($capId) . (!empty($suffix) ? ('  ' . dim(implode('  ', $suffix))) : ''));
+            $providers = is_array($capability['providers'] ?? null) ? $capability['providers'] : [];
+            foreach ($providers as $p) {
+                if (!is_array($p)) {
+                    continue;
+                }
+                $prov = (string)($p['provider'] ?? '');
+                $pri = (int)($p['priority'] ?? 0);
+                $modes = implode(',', (array)($p['modes'] ?? []));
+                $origin = is_array($p['origin'] ?? null) ? $p['origin'] : [];
+                $originType = trim((string)($origin['type'] ?? 'runtime_register'));
+                $originSymbol = trim((string)($origin['symbol'] ?? ''));
+                $originLabel = $originType . ($originSymbol !== '' ? ':' . $originSymbol : '');
+                out('    - ' . green($prov) . '  priority=' . $pri . '  modes=' . dim($modes) . '  origin=' . dim($originLabel));
+            }
+            out('');
+        }
+        break;
+
+    // ── capability:call ──────────────────────────────────────────
+    case 'capability:call':
+        $clean = paramsWithoutFlags($params);
+        $capId = $clean[0] ?? '';
+        $json = $clean[1] ?? null;
+        if ($capId === '') {
+            out(red('  ✗ Capability id required.'));
+            out('  Usage: php ikabud capability:call <capabilityId> "<jsonPayload>" [--mode=pipeline] [--provider=id] [--with-modules]');
+            exit(1);
+        }
+
+        if (hasFlag('--with-modules')) {
+            loadModuleRoutes(['GET' => [], 'POST' => [], 'PUT' => [], 'DELETE' => []]);
+        }
+
+        $payload = null;
+        if ($json !== null) {
+            $payload = json_decode((string)$json, true);
+            if ($payload === null && trim((string)$json) !== 'null') {
+                out(red('  ✗ Invalid JSON payload.'));
+                exit(1);
+            }
+        }
+
+        $mode = getFlagValue('--mode=') ?? 'first';
+        $provider = getFlagValue('--provider=');
+
+        banner();
+        out('  ' . bold('Capability Call'));
+        out('');
+        out('  id: ' . cyan($capId));
+        out('  mode: ' . dim($mode));
+        if ($provider !== null && $provider !== '') {
+            out('  provider: ' . dim($provider));
+        }
+        out('');
+
+        $opts = ['mode' => $mode];
+        if ($provider !== null && $provider !== '') {
+            $opts['provider'] = $provider;
+        }
+
+        try {
+            $result = app()->cap()->call($capId, $payload, $opts);
+            out(green('  ✓ ok'));
+            out('');
+            out(json_encode($result, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) ?: 'null');
+        } catch (Throwable $e) {
+            out(red('  ✗ failed: ') . $e->getMessage());
+            exit(1);
+        }
+        break;
+
+    // ── capability:validate ─────────────────────────────────────
+    case 'capability:validate':
+        banner();
+        out('  ' . bold('Capability Validation'));
+        out('');
+
+        $modules = discoverModules();
+        if (count($modules) === 0) {
+            out(yellow('  No modules found.'));
+            exit(0);
+        }
+
+        $providers = [];
+        $providerSchemas = [];
+        $moduleDepends = [];
+        $invalid = [];
+
+        // Kernel providers
+        foreach (app()->capabilities()->capabilityIds() as $capId) {
+            foreach (app()->capabilities()->providers($capId) as $p) {
+                $pid = (string)($p['provider'] ?? 'kernel');
+                $providers[$capId][$pid] = true;
+            }
+        }
+
+        foreach ($modules as $moduleId => $manifest) {
+            $check = validateModuleCapabilities($manifest);
+            if (empty($check['ok'])) {
+                $invalid[$moduleId] = $check['error'] ?? 'invalid capabilities manifest';
+                continue;
+            }
+
+            foreach (($check['exposes'] ?? []) as $e) {
+                $capId = (string)($e['id'] ?? '');
+                if ($capId === '') continue;
+                $providers[$capId][$moduleId] = true;
+                if (is_array($e['schema'] ?? null)) {
+                    $providerSchemas[$capId][$moduleId] = $e['schema'];
+                }
+            }
+
+            $moduleDepends[$moduleId] = array_values($check['depends'] ?? []);
+        }
+
+        $errors = [];
+        $warnings = [];
+
+        foreach ($moduleDepends as $moduleId => $deps) {
+            foreach ($deps as $depId) {
+                $depId = (string)$depId;
+                if ($depId === '') continue;
+
+                if (!isset($providers[$depId])) {
+                    $base = preg_replace('/@\d+$/', '', $depId);
+                    $alt = [];
+                    foreach (array_keys($providers) as $cap) {
+                        if (str_starts_with($cap, $base . '@')) {
+                            $alt[] = $cap;
+                        }
+                    }
+                    if (!empty($alt)) {
+                        sort($alt);
+                        $warnings[] = "{$moduleId} depends on {$depId} but available versions are: " . implode(', ', $alt);
+                    } else {
+                        $errors[] = "{$moduleId} depends on {$depId} with no providers";
+                    }
+                }
+            }
+        }
+
+        foreach ($providerSchemas as $capId => $schemas) {
+            if (count($schemas) <= 1) continue;
+            $encoded = [];
+            foreach ($schemas as $providerId => $schema) {
+                $encoded[$providerId] = json_encode($schema, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+            }
+            $unique = array_unique(array_values($encoded));
+            if (count($unique) > 1) {
+                $warnings[] = "{$capId} has divergent schemas across providers: " . implode(', ', array_keys($schemas));
+            }
+        }
+
+        if (!empty($invalid)) {
+            out(red('  ✗ invalid capability manifests'));
+            foreach ($invalid as $mid => $err) {
+                out('    - ' . cyan($mid) . ': ' . $err);
+            }
+            out('');
+        }
+
+        if (!empty($errors)) {
+            out(red('  ✗ missing providers'));
+            foreach ($errors as $err) {
+                out('    - ' . $err);
+            }
+            out('');
+        }
+
+        if (!empty($warnings)) {
+            out(yellow('  ! warnings'));
+            foreach ($warnings as $warn) {
+                out('    - ' . $warn);
+            }
+            out('');
+        }
+
+        if (empty($invalid) && empty($errors) && empty($warnings)) {
+            out(green('  ✓ ok'));
+            exit(0);
+        }
+
+        if (!empty($errors) || !empty($invalid)) {
+            exit(2);
+        }
+
+        exit(1);
+
+    // ── module:validate ──────────────────────────────────────────
+    case 'module:disable':
+        $clean = paramsWithoutFlags($params);
+        $moduleId = $clean[0] ?? '';
+        if ($moduleId === '') {
+            out(red('  ✗ Module id required.'));
+            out('  Usage: php ikabud module:disable <id>');
+            exit(1);
+        }
+        disableModule($moduleId);
+        out(green("  ✓ module '{$moduleId}' disabled"));
+        break;
+
+    // ── module:pack ─────────────────────────────────────────────
+    case 'module:pack':
+        $clean = paramsWithoutFlags($params);
+        $moduleId = $clean[0] ?? '';
+        $zipOut = $clean[1] ?? '';
+        if ($moduleId === '') {
+            out(red('  ✗ Module id required.'));
+            out('  Usage: php ikabud module:pack <id> [zip-output-path]');
+            exit(1);
+        }
+        if (!class_exists('ZipArchive')) {
+            out(red('  ✗ PHP zip extension is required.'));
+            exit(1);
+        }
+        $modDir = modulesPath() . '/' . $moduleId;
+        if (!is_dir($modDir)) {
+            out(red("  ✗ Module '{$moduleId}' not found in modules/."));
+            exit(1);
+        }
+
+        if ($zipOut === '') {
+            $zipOut = BASE_PATH . '/storage/' . $moduleId . '-' . date('Ymd-His') . '.zip';
+        } elseif (!str_starts_with($zipOut, '/')) {
+            $zipOut = BASE_PATH . '/' . ltrim($zipOut, '/');
+        }
+        $zipDir = dirname($zipOut);
+        if (!is_dir($zipDir)) {
+            @mkdir($zipDir, 0775, true);
+        }
+
+        $zip = new ZipArchive();
+        if ($zip->open($zipOut, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
+            out(red('  ✗ Cannot create zip file.'));
+            exit(1);
+        }
+
+        $rootLen = strlen(rtrim($modDir, '/')) + 1;
+        $it = new RecursiveDirectoryIterator($modDir, FilesystemIterator::SKIP_DOTS);
+        $files = new RecursiveIteratorIterator($it);
+        foreach ($files as $f) {
+            /** @var SplFileInfo $f */
+            if (!$f->isFile()) continue;
+            $fullPath = $f->getRealPath();
+            if ($fullPath === false) continue;
+            $rel = substr($fullPath, $rootLen);
+            $rel = str_replace('\\', '/', $rel);
+            $zip->addFile($fullPath, $rel);
+        }
+        $zip->close();
+
+        out(green('  ✓ packed') . ' ' . cyan($moduleId) . ' → ' . dim($zipOut));
+        break;
+
+    // ── module:uninstall ────────────────────────────────────────
+    case 'module:uninstall':
+        $clean = paramsWithoutFlags($params);
+        $moduleId = $clean[0] ?? '';
+        if ($moduleId === '') {
+            out(red('  ✗ Module id required.'));
+            out('  Usage: php ikabud module:uninstall <id> [--purge] [--export] [--export-dir=path]');
+            exit(1);
+        }
+
+        $opts = [];
+        if (hasFlag('--purge')) {
+            $opts['purge'] = true;
+        }
+        if (hasFlag('--export')) {
+            $opts['export'] = true;
+        }
+        $exportDir = getFlagValue('--export-dir=');
+        if ($exportDir !== null && $exportDir !== '') {
+            $opts['export_dir'] = $exportDir;
+        }
+
+        $res = uninstallModule($moduleId, $opts);
+        if (!empty($res['ok'])) {
+            out(green("  ✓ module '{$moduleId}' uninstalled"));
+            if (!empty($res['export']) && is_array($res['export'])) {
+                $dir = (string)($res['export']['dir'] ?? '');
+                $count = is_array($res['export']['files'] ?? null) ? count($res['export']['files']) : 0;
+                if ($dir !== '') {
+                    out('  ' . green('✓') . ' exported ' . $count . ' table(s) → ' . dim($dir));
+                }
+            }
+            break;
+        }
+        out(red('  ✗ uninstall failed: ') . ($res['error'] ?? 'unknown'));
+        exit(1);
+
+    // ── module:validate ──────────────────────────────────────────
+    case 'module:validate':
+        $clean = paramsWithoutFlags($params);
+        $moduleId = $clean[0] ?? '';
+        if ($moduleId === '') {
+            out(red('  ✗ Module id required.'));
+            out('  Usage: php ikabud module:validate <module-id>');
+            exit(1);
+        }
+
+        if (hasFlag('--with-modules')) {
+            loadModuleRoutes(['GET' => [], 'POST' => [], 'PUT' => [], 'DELETE' => []]);
+        }
+        $mods = discoverModules();
+        if (!isset($mods[$moduleId])) {
+            out(red("  ✗ Module '{$moduleId}' not found."));
+            exit(1);
+        }
+
+        $check = validateModuleCapabilities($mods[$moduleId]);
+        banner();
+        out('  ' . bold('Module Validate: ') . cyan($moduleId));
+        out('');
+
+        if (empty($check['ok'])) {
+            out('  ' . red('✗ invalid capabilities manifest') . ' — ' . ($check['error'] ?? 'unknown'));
+            exit(1);
+        }
+
+        $deps = $check['depends'] ?? [];
+        $exposes = $check['exposes'] ?? [];
+
+        out('  ' . bold('exposes') . ': ' . dim((string)count($exposes)));
+        foreach ($exposes as $e) {
+            $id = (string)($e['id'] ?? '');
+            $pri = (int)($e['priority'] ?? 10);
+            $modes = implode(',', (array)($e['modes'] ?? []));
+            out('    - ' . cyan($id) . ' priority=' . $pri . ' modes=' . dim($modes));
+        }
+        out('');
+
+        out('  ' . bold('depends') . ': ' . dim((string)count($deps)));
+        $missing = [];
+        foreach ($deps as $d) {
+            $d = (string)$d;
+            $ok = app()->capabilities()->has($d);
+            out('    - ' . ($ok ? green('✓') : red('✗')) . ' ' . cyan($d));
+            if (!$ok) $missing[] = $d;
+        }
+        out('');
+
+        if (!empty($missing)) {
+            out(red('  ✗ missing required capability providers'));
+            exit(2);
+        }
+        out(green('  ✓ ok'));
+        break;
+
+    // ── module:graph ─────────────────────────────────────────────
+    case 'module:graph':
+        banner();
+        out('  ' . bold('Module Dependency Graph'));
+        out('');
+
+        loadModuleRoutes(['GET' => [], 'POST' => [], 'PUT' => [], 'DELETE' => []]);
+
+        $allMods = discoverModules();
+        $registry = app()->capabilities();
+
+        // Build provider map: capabilityId => [providerId, ...]
+        $providerMap = [];
+        foreach ($registry->capabilityIds() as $cid) {
+            foreach ($registry->providers($cid) as $p) {
+                $pid = (string)($p['provider'] ?? '');
+                if ($pid !== '') {
+                    $providerMap[$cid][] = $pid;
+                }
+            }
+        }
+
+        // Build dependency map: moduleId => [capabilityId, ...]
+        $dependsMap = [];
+        $exposesMap = [];
+        foreach ($allMods as $mid => $manifest) {
+            $check = validateModuleCapabilities($manifest);
+            if (empty($check['ok'])) continue;
+            $dependsMap[$mid] = array_values($check['depends'] ?? []);
+            foreach (($check['exposes'] ?? []) as $e) {
+                $cid = (string)($e['id'] ?? '');
+                if ($cid !== '') {
+                    $exposesMap[$mid][] = $cid;
+                }
+            }
+        }
+
+        // Compute edges: moduleA depends on moduleB if moduleA depends on a capability that moduleB provides
+        $edges = [];
+        foreach ($dependsMap as $mid => $deps) {
+            foreach ($deps as $capId) {
+                $providers = $providerMap[$capId] ?? [];
+                foreach ($providers as $pid) {
+                    if ($pid !== $mid && $pid !== 'kernel') {
+                        $edges[$mid][$pid] = true;
+                    }
+                }
+            }
+        }
+
+        // Also track kernel dependencies
+        $kernelDeps = [];
+        foreach ($dependsMap as $mid => $deps) {
+            foreach ($deps as $capId) {
+                $providers = $providerMap[$capId] ?? [];
+                if (in_array('kernel', $providers, true)) {
+                    $kernelDeps[$mid][] = $capId;
+                }
+            }
+        }
+
+        // Display graph
+        $targetModule = paramsWithoutFlags($params)[0] ?? '';
+
+        if ($targetModule !== '') {
+            out('  ' . bold('Impact analysis: ') . cyan($targetModule));
+            out('');
+
+            $exposes = $exposesMap[$targetModule] ?? [];
+            if (!empty($exposes)) {
+                out('  ' . bold('Provides:'));
+                foreach ($exposes as $cid) {
+                    out('    ' . green($cid));
+                }
+                out('');
+            }
+
+            $deps = $dependsMap[$targetModule] ?? [];
+            if (!empty($deps)) {
+                out('  ' . bold('Depends on:'));
+                foreach ($deps as $cid) {
+                    $providers = $providerMap[$cid] ?? ['?'];
+                    out('    ' . cyan($cid) . ' → ' . dim(implode(', ', $providers)));
+                }
+                out('');
+            }
+
+            $dependents = [];
+            foreach ($edges as $dependent => $providers) {
+                if (isset($providers[$targetModule])) {
+                    $dependents[] = $dependent;
+                }
+            }
+            if (!empty($dependents)) {
+                out('  ' . bold('Depended on by:'));
+                foreach ($dependents as $dep) {
+                    out('    ' . yellow($dep));
+                }
+                out('');
+                out('  ' . red('⚠ Disabling ' . $targetModule . ' would break: ' . implode(', ', $dependents)));
+            } else {
+                out('  ' . green('✓ No modules depend on ' . $targetModule));
+            }
+            out('');
+        } else {
+            $hasEdges = false;
+            foreach ($allMods as $mid => $manifest) {
+                $exp = $exposesMap[$mid] ?? [];
+                $moduleEdges = $edges[$mid] ?? [];
+                $kDeps = $kernelDeps[$mid] ?? [];
+
+                if (empty($exp) && empty($moduleEdges) && empty($kDeps)) {
+                    continue;
+                }
+
+                $hasEdges = true;
+                out('  ' . cyan($mid));
+                if (!empty($exp)) {
+                    out('    provides: ' . dim(implode(', ', $exp)));
+                }
+                if (!empty($kDeps)) {
+                    out('    kernel deps: ' . dim(implode(', ', $kDeps)));
+                }
+                if (!empty($moduleEdges)) {
+                    out('    module deps: ' . yellow(implode(', ', array_keys($moduleEdges))));
+                }
+                out('');
+            }
+
+            if (!$hasEdges) {
+                out('  ' . dim('No inter-module dependencies found.'));
+            }
+        }
+        break;
+
+    // ── make:module ──────────────────────────────────────────────
+    case 'make:module':
+        $name = $params[0] ?? '';
+        if ($name === '') {
+            out(red('  ✗ Module name required.'));
+            out('  Usage: php ikabud make:module <name>');
+            out('  Example: php ikabud make:module hr');
+            exit(1);
+        }
+
+        // Normalize: lowercase, hyphens
+        $id = strtolower(preg_replace('/[^a-zA-Z0-9\-]/', '-', $name));
+        $id = preg_replace('/-+/', '-', trim($id, '-'));
+
+        // Pretty label
+        $label = ucwords(str_replace('-', ' ', $id));
+
+        $modulePath = BASE_PATH . '/modules/' . $id;
+        $templatePath = BASE_PATH . '/templates/modules/' . $id;
+
+        if (is_dir($modulePath)) {
+            out(red("  ✗ Module '{$id}' already exists at {$modulePath}"));
+            exit(1);
+        }
+
+        banner();
+        out('  Creating module: ' . bold($id));
+        out('');
+
+        // Create directories
+        $dirs = [
+            $modulePath,
+            $modulePath . '/migrations',
+            $modulePath . '/helpers',
+            $templatePath . '/pages',
+            $templatePath . '/partials',
+        ];
+        foreach ($dirs as $dir) {
+            @mkdir($dir, 0775, true);
+            out('  ' . green('✓') . ' mkdir ' . dim(str_replace(BASE_PATH . '/', '', $dir)));
+        }
+
+        // module.json
+        $manifest = [
+            'id' => $id,
+            'name' => $label,
+            'version' => '1.0.0',
+            'description' => "{$label} module for Ikabud Kernel",
+            'author' => '',
+            'requires_tables' => [],
+            'owns_tables' => [],
+            'reads_tables' => [],
+            'migrations' => [],
+            'settings' => [],
+            'hooks' => [],
+            'nav' => [
+                [
+                    'label' => $label,
+                    'url' => '/admin/' . $id,
+                    'icon' => 'box',
+                    'roles' => ['admin'],
+                ],
+            ],
+        ];
+        file_put_contents(
+            $modulePath . '/module.json',
+            json_encode($manifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n"
+        );
+        out('  ' . green('✓') . ' create module.json');
+
+        $funcPrefix = str_replace('-', '', ucwords($id, '-'));
+
+        // routes.php
+        $routesContent = <<<PHP
+<?php
+/**
+ * {$label} Module — Routes
+ */
+
+return [
+    'GET' => [
+        '/admin/{$id}' => '{$id}:page{$funcPrefix}Home',
+    ],
+    'POST' => [
+        // '/api/v1/modules/{$id}/action' => '{$id}:apiAction',
+    ],
+];
+PHP;
+        file_put_contents($modulePath . '/routes.php', $routesContent . "\n");
+        out('  ' . green('✓') . ' create routes.php');
+
+        // handlers.php
+        $handlersContent = <<<PHP
+<?php
+/**
+ * {$label} Module — Handlers
+ */
+
+declare(strict_types=1);
+
+/**
+ * GET /admin/{$id} — Main page
+ */
+function page{$funcPrefix}Home(array \$params = []): void
+{
+    \$ctx = module();
+    if (!\$ctx) {
+        http_response_code(500);
+        echo 'Module context unavailable';
+        return;
+    }
+
+    \$ctx->requireAnyRole('admin', 'supervisor');
+
+    echo \$ctx->render('modules/{$id}/pages/home.disyl', [
+        'page_title' => '{$label}',
+    ]);
+}
+PHP;
+        file_put_contents($modulePath . '/handlers.php', $handlersContent . "\n");
+        out('  ' . green('✓') . ' create handlers.php');
+
+        // helpers.php (optional, loaded at boot)
+        $helpersContent = <<<PHP
+<?php
+/**
+ * {$label} Module — Helpers
+ * 
+ * This file is auto-loaded when the module is enabled.
+ * Register event listeners, hook callbacks, and shared functions here.
+ */
+
+declare(strict_types=1);
+
+// Example: listen to inter-module events
+// app()->events()->listen('order.placed', function (array \$payload, string \$event) {
+//     // handle event
+// }, 10, '{$id}');
+PHP;
+        file_put_contents($modulePath . '/helpers.php', $helpersContent . "\n");
+        out('  ' . green('✓') . ' create helpers.php');
+
+        // Initial migration
+        $migrationContent = <<<SQL
+-- {$label} Module — Initial Schema
+-- Created: DATE_PLACEHOLDER
+
+-- Add your tables here. Example:
+-- CREATE TABLE IF NOT EXISTS {$id}_items (
+--     id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+--     name VARCHAR(100) NOT NULL,
+--     is_active TINYINT(1) NOT NULL DEFAULT 1,
+--     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+--     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+-- ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+SQL;
+        $migrationContent = str_replace('DATE_PLACEHOLDER', date('Y-m-d'), $migrationContent);
+        file_put_contents($modulePath . '/migrations/001_initial.sql', $migrationContent . "\n");
+        out('  ' . green('✓') . ' create migrations/001_initial.sql');
+
+        // Template: home page
+        $templateContent = <<<DISYL
+{extends "layouts/app.disyl"}
+
+{block head}
+<style>
+    .{$id}-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+    .{$id}-header h2 { font-size: var(--font-size-h2); font-weight: 700; }
+</style>
+{/block}
+
+{block content}
+<div class="{$id}-header">
+    <div>
+        <h2>{$label}</h2>
+        <span class="text-sm text-muted">Module is ready. Start building!</span>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body" style="padding:32px;text-align:center;color:var(--text-muted);">
+        <div style="font-size:48px;margin-bottom:12px;">📦</div>
+        <div style="font-weight:600;">Module scaffolded successfully</div>
+        <div class="text-sm" style="margin-top:4px;">
+            Edit <code>modules/{$id}/handlers.php</code> and
+            <code>templates/modules/{$id}/pages/home.disyl</code> to get started.
+        </div>
+    </div>
+</div>
+{/block}
+DISYL;
+        file_put_contents($templatePath . '/pages/home.disyl', $templateContent . "\n");
+        out('  ' . green('✓') . ' create templates/pages/home.disyl');
+
+        out('');
+        out('  ' . green('✓') . bold(' Module scaffolded: ') . cyan($id));
+        out('');
+        out('  Next steps:');
+        out('    1. Edit ' . dim("modules/{$id}/module.json") . ' (settings, nav, roles)');
+        out('    2. Edit ' . dim("modules/{$id}/migrations/001_initial.sql") . ' (schema)');
+        out('    3. Run ' . cyan("php ikabud migrate {$id}"));
+        out('    4. Visit ' . cyan("/admin/{$id}"));
+        out('');
+        break;
+
+    // ── migrate ──────────────────────────────────────────────────
+    case 'migrate':
+        banner();
+        try {
+            $runner = new MigrationRunner(app()->db());
+
+            if (!empty($params[0])) {
+                // Single module
+                $moduleId = $params[0];
+                out('  Running migrations for: ' . bold($moduleId));
+                $executed = $runner->migrate($moduleId);
+                if (empty($executed)) {
+                    out('  ' . dim('Nothing to migrate.'));
+                } else {
+                    foreach ($executed as $f) {
+                        out('  ' . green('✓') . " {$f}");
+                    }
+                    out('  ' . green('✓') . bold(' ' . count($executed) . ' migration(s) executed.'));
+                }
+            } else {
+                // All modules
+                out('  Running all pending migrations...');
+                out('');
+                $results = $runner->migrateAll();
+                $totalCount = 0;
+                if (empty($results)) {
+                    out('  ' . dim('Nothing to migrate.'));
+                } else {
+                    foreach ($results as $mod => $files) {
+                        out('  ' . bold($mod));
+                        foreach ($files as $f) {
+                            out('    ' . green('✓') . " {$f}");
+                            $totalCount++;
+                        }
+                    }
+                    out('');
+                    out('  ' . green('✓') . bold(" {$totalCount} migration(s) executed across " . count($results) . ' module(s).'));
+                }
+            }
+        } catch (\Throwable $e) {
+            out('  ' . red('✗ Migration failed: ') . $e->getMessage());
+            exit(1);
+        }
+        out('');
+        break;
+
+    // ── migrate:status ───────────────────────────────────────────
+    case 'migrate:status':
+        banner();
+        try {
+            $runner = new MigrationRunner(app()->db());
+
+            if (!empty($params[0])) {
+                $stat = $runner->status($params[0]);
+                out('  Module: ' . bold($params[0]));
+                out('');
+                out('  ' . bold('Applied:'));
+                if (empty($stat['applied'])) {
+                    out('    ' . dim('(none)'));
+                } else {
+                    foreach ($stat['applied'] as $m) {
+                        out('    ' . green('✓') . " {$m['migration']}" . dim(" (batch {$m['batch']}, {$m['executed_at']})"));
+                    }
+                }
+                out('  ' . bold('Pending:'));
+                if (empty($stat['pending'])) {
+                    out('    ' . dim('(none)'));
+                } else {
+                    foreach ($stat['pending'] as $f) {
+                        out('    ' . yellow('○') . " {$f}");
+                    }
+                }
+            } else {
+                $pending = $runner->pending();
+                if (empty($pending)) {
+                    out('  ' . green('✓') . ' All migrations are up to date.');
+                } else {
+                    out('  ' . bold('Pending migrations:'));
+                    foreach ($pending as $mod => $files) {
+                        out('');
+                        out('  ' . bold($mod));
+                        foreach ($files as $f) {
+                            out('    ' . yellow('○') . " {$f}");
+                        }
+                    }
+                }
+            }
+        } catch (\Throwable $e) {
+            out('  ' . red('✗ Error: ') . $e->getMessage());
+            exit(1);
+        }
+        out('');
+        break;
+
+    // ── migrate:rollback ─────────────────────────────────────────
+    case 'migrate:rollback':
+        $moduleId = $params[0] ?? '';
+        if ($moduleId === '') {
+            out(red('  ✗ Module ID required.'));
+            out('  Usage: php ikabud migrate:rollback <module>');
+            exit(1);
+        }
+        banner();
+        try {
+            $runner = new MigrationRunner(app()->db());
+            $steps = (int) ($params[1] ?? 1);
+            out('  Rolling back ' . bold($moduleId) . " ({$steps} batch(es))...");
+            $rolled = $runner->rollback($moduleId, $steps);
+            if (empty($rolled)) {
+                out('  ' . dim('Nothing to rollback.'));
+            } else {
+                foreach ($rolled as $f) {
+                    out('  ' . yellow('↩') . " {$f}");
+                }
+                out('  ' . green('✓') . bold(' ' . count($rolled) . ' migration(s) rolled back.'));
+            }
+        } catch (\Throwable $e) {
+            out('  ' . red('✗ Rollback failed: ') . $e->getMessage());
+            exit(1);
+        }
+        out('');
+        break;
+
+    // ── module:list ──────────────────────────────────────────────
+    case 'module:list':
+        banner();
+        $modules = discoverModules();
+        if (empty($modules)) {
+            out('  ' . dim('No modules found.'));
+        } else {
+            out('  ' . bold(str_pad('ID', 22)) . bold(str_pad('VERSION', 10)) . bold(str_pad('STATUS', 12)) . bold('NAME'));
+            out('  ' . str_repeat('─', 70));
+            foreach ($modules as $m) {
+                $status = $m['_enabled'] ? green('enabled') . ' ' : red('disabled');
+                $version = str_pad($m['version'] ?? '-', 10);
+                $id = str_pad($m['id'], 22);
+                $name = $m['name'] ?? '';
+                out("  {$id}{$version}{$status}  {$name}");
+            }
+        }
+        out('');
+        break;
+
+    // ── module:enable / module:disable ───────────────────────────
+    case 'module:enable':
+    case 'module:disable':
+        $moduleId = $params[0] ?? '';
+        if ($moduleId === '') {
+            out(red('  ✗ Module ID required.'));
+            exit(1);
+        }
+        $modules = discoverModules();
+        if (!isset($modules[$moduleId])) {
+            out(red("  ✗ Module '{$moduleId}' not found."));
+            exit(1);
+        }
+        if ($command === 'module:enable') {
+            enableModule($moduleId);
+            out(green("  ✓ Module '{$moduleId}' enabled."));
+        } else {
+            disableModule($moduleId);
+            out(yellow("  ✓ Module '{$moduleId}' disabled."));
+        }
+        break;
+
+    // ── module:check-boundaries ───────────────────────────────────
+    case 'module:check-boundaries':
+        banner();
+        $scanExtensions = ['php'];
+        $allowedFileIoModuleIds = ['gui-settings'];
+        $forbiddenPatterns = [
+            '/\$_SESSION\b/' => 'Direct $_SESSION access is forbidden. Use module()->... session/service API.',
+            '/\$_COOKIE\b/'  => 'Direct $_COOKIE access is forbidden. Use kernel context accessors.',
+            '/\$_REQUEST\b/' => 'Direct $_REQUEST access is forbidden. Use module()->input().',
+            '/\$_GET\b/'     => 'Direct $_GET access is forbidden. Use module()->input().',
+            '/\$_POST\b/'    => 'Direct $_POST access is forbidden. Use module()->input().',
+            '/\$_FILES\b/'   => 'Direct $_FILES access is forbidden. Use a storage/upload service.',
+            '/\$_ENV\b/'     => 'Direct $_ENV access is forbidden in modules.',
+            '/\$GLOBALS\b/'  => 'Direct $GLOBALS access is forbidden in modules.',
+            '/app\(\)\s*->\s*db\s*\(/i' => 'Raw app()->db() is forbidden in modules. Use module()->db().',
+            '/\b(file_put_contents|fopen|fwrite|file_get_contents|unlink|rename|copy|mkdir|rmdir|chmod|chown|touch)\s*\(/i'
+                => 'Raw file IO is forbidden in modules. Use a storage service/gateway.',
+        ];
+
+        $ignorePathMarkers = ['/vendor/', '/node_modules/'];
+        $root = BASE_PATH . '/modules';
+        $violations = [];
+
+        $iterator = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator($root, FilesystemIterator::SKIP_DOTS)
+        );
+
+        foreach ($iterator as $fileInfo) {
+            /** @var SplFileInfo $fileInfo */
+            if (!$fileInfo->isFile()) {
+                continue;
+            }
+
+            $path = (string) $fileInfo->getPathname();
+            $ext = strtolower((string) $fileInfo->getExtension());
+            if (!in_array($ext, $scanExtensions, true)) {
+                continue;
+            }
+
+            $skip = false;
+            foreach ($ignorePathMarkers as $marker) {
+                if (str_contains($path, $marker)) {
+                    $skip = true;
+                    break;
+                }
+            }
+            if ($skip) {
+                continue;
+            }
+
+            $content = @file_get_contents($path);
+            if (!is_string($content) || $content === '') {
+                continue;
+            }
+
+            // Determine module id from path: modules/{id}/...
+            $rel = str_replace(BASE_PATH . '/', '', $path);
+            $moduleId = null;
+            if (preg_match('#^modules/([^/]+)/#', $rel, $mm)) {
+                $moduleId = $mm[1];
+            }
+
+            $lines = preg_split('/\R/', $content) ?: [];
+            foreach ($lines as $lineNo => $line) {
+                $trimmedLine = trim($line);
+                if ($trimmedLine === '' || str_starts_with($trimmedLine, '//') || str_starts_with($trimmedLine, '/*') || str_starts_with($trimmedLine, '*') || str_starts_with($trimmedLine, '*/')) {
+                    continue;
+                }
+
+                foreach ($forbiddenPatterns as $regex => $message) {
+                    if (preg_match($regex, $line)) {
+                        // Pragmatic allowlist: gui-settings is filesystem-backed
+                        if ($moduleId && in_array($moduleId, $allowedFileIoModuleIds, true)) {
+                            if ($regex === '/\b(file_put_contents|fopen|fwrite|file_get_contents|unlink|rename|copy|mkdir|rmdir|chmod|chown|touch)\s*\(/i') {
+                                continue;
+                            }
+                        }
+
+                        // Pragmatic allowlist: module.json reads are permitted (module manifests)
+                        if ($regex === '/\b(file_put_contents|fopen|fwrite|file_get_contents|unlink|rename|copy|mkdir|rmdir|chmod|chown|touch)\s*\(/i') {
+                            if (str_contains($line, "'/module.json'") || str_contains($line, '"/module.json"') || str_contains($line, '/module.json')) {
+                                continue;
+                            }
+                        }
+
+                        // Pragmatic allowlist: SMS gateway may fall back to app()->db() for non-module call sites
+                        if ($regex === '/app\(\)\s*->\s*db\s*\(/i' && $moduleId === 'sms') {
+                            if (str_contains($rel, 'modules/sms/helpers/sms-gateway.php')) {
+                                continue;
+                            }
+                        }
+
+                        $violations[] = [
+                            'file' => str_replace(BASE_PATH . '/', '', $path),
+                            'line' => $lineNo + 1,
+                            'message' => $message,
+                            'snippet' => trim($line),
+                        ];
+                    }
+                }
+            }
+        }
+
+        if (empty($violations)) {
+            out('  ' . green('✓') . ' No boundary violations found in modules/.');
+            out('');
+            break;
+        }
+
+        out('  ' . red('✗ Boundary violations found: ' . count($violations)));
+        out('');
+        foreach ($violations as $v) {
+            out('  ' . red('•') . ' ' . $v['file'] . ':' . $v['line']);
+            out('    ' . yellow($v['message']));
+            out('    ' . dim($v['snippet']));
+        }
+        out('');
+        out('  ' . yellow('Fix violations before merge. This command is intended for CI gating.'));
+        out('');
+        exit(1);
+
+    // ── event:list ───────────────────────────────────────────────
+    case 'event:list':
+        banner();
+        // Load module helpers to register events
+        foreach (getEnabledModules() as $m) {
+            $helpersFile = ($m['_path'] ?? '') . '/helpers.php';
+            if (is_file($helpersFile)) {
+                require_once $helpersFile;
+            }
+        }
+        $events = app()->events()->registeredEvents();
+        if (empty($events)) {
+            out('  ' . dim('No event listeners registered.'));
+        } else {
+            out('  ' . bold('Registered event listeners:'));
+            foreach ($events as $event) {
+                $count = app()->events()->listenerCount($event);
+                out('  ' . cyan($event) . dim(" ({$count} listener" . ($count !== 1 ? 's' : '') . ')'));
+            }
+        }
+        out('');
+        break;
+
+    // ── routes ───────────────────────────────────────────────────
+    case 'routes':
+        banner();
+        $routes = [
+            'GET' => [
+                '/' => 'pageHome',
+                '/login' => 'pageLogin',
+                '/auth/logout' => 'authLogout',
+                '/api/v1/auth/logout' => 'authLogout',
+                '/api/v1/health' => 'apiHealth',
+                '/api/v1/me' => 'apiMe',
+                '/api/v1/audit-log' => 'apiAuditLog',
+                '/admin/modules' => 'pageAdminModules',
+                '/api/v1/admin/modules' => 'apiListModules',
+            ],
+            'POST' => [
+                '/auth/login' => 'authLogin',
+                '/api/v1/auth/login' => 'authLogin',
+                '/api/v1/auth/refresh' => 'authRefresh',
+                '/api/v1/admin/modules/install' => 'apiInstallModule',
+                '/api/v1/admin/modules/enable' => 'apiEnableModule',
+                '/api/v1/admin/modules/disable' => 'apiDisableModule',
+            ],
+            'PUT' => [],
+            'DELETE' => [],
+        ];
+        $routes = loadModuleRoutes($routes);
+
+        $total = 0;
+        foreach (['GET', 'POST', 'PUT', 'DELETE'] as $method) {
+            $methodRoutes = $routes[$method] ?? [];
+            if (empty($methodRoutes)) continue;
+            out('  ' . bold($method));
+            foreach ($methodRoutes as $pattern => $handler) {
+                $source = str_contains($handler, ':') ? dim('(module)') : dim('(kernel)');
+                out("    {$pattern}  →  {$handler} {$source}");
+                $total++;
+            }
+            out('');
+        }
+        out("  Total: {$total} route(s)");
+        out('');
+        break;
+
+    // ── tinker ───────────────────────────────────────────────────
+    case 'tinker':
+        $sql = implode(' ', $params);
+        if ($sql === '') {
+            out(red('  ✗ SQL query required.'));
+            out('  Usage: php ikabud tinker "SELECT * FROM users LIMIT 5"');
+            exit(1);
+        }
+        try {
+            $stmt = app()->db()->query($sql);
+            $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            if (empty($rows)) {
+                out(dim('  (empty result set)'));
+            } else {
+                // Print as simple table
+                $cols = array_keys($rows[0]);
+                $widths = [];
+                foreach ($cols as $c) {
+                    $widths[$c] = strlen((string) $c);
+                }
+                foreach ($rows as $row) {
+                    foreach ($cols as $c) {
+                        $widths[$c] = max($widths[$c], strlen((string) ($row[$c] ?? 'NULL')));
+                    }
+                }
+                // Cap at 40
+                foreach ($widths as &$w) { $w = min($w, 40); }
+                unset($w);
+
+                // Header
+                $header = '';
+                $sep = '';
+                foreach ($cols as $c) {
+                    $header .= str_pad((string) $c, $widths[$c] + 2);
+                    $sep .= str_repeat('─', $widths[$c] + 2);
+                }
+                out('  ' . bold($header));
+                out('  ' . $sep);
+
+                foreach ($rows as $row) {
+                    $line = '';
+                    foreach ($cols as $c) {
+                        $val = $row[$c] ?? 'NULL';
+                        $val = (string) $val;
+                        if (strlen($val) > 40) $val = substr($val, 0, 37) . '...';
+                        $line .= str_pad($val, $widths[$c] + 2);
+                    }
+                    out('  ' . $line);
+                }
+                out('');
+                out(dim('  ' . count($rows) . ' row(s)'));
+            }
+        } catch (\Throwable $e) {
+            out(red('  ✗ SQL error: ') . $e->getMessage());
+            exit(1);
+        }
+        break;
+
+    // ── platform:describe ─────────────────────────────────────────
+    case 'platform:describe':
+        loadModuleRoutes(['GET' => [], 'POST' => [], 'PUT' => [], 'DELETE' => []]);
+
+        $platformId = app()->platformIdentity();
+
+        // Modules
+        $allMods = discoverModules();
+        $enabledMods = [];
+        $disabledMods = [];
+        foreach ($allMods as $m) {
+            $entry = [
+                'id' => (string)($m['id'] ?? ''),
+                'name' => (string)($m['name'] ?? $m['id'] ?? ''),
+                'version' => (string)($m['version'] ?? '0.0.0'),
+                'status' => $m['status'] ?? null,
+                'requires_kernel' => $m['requires_kernel'] ?? null,
+            ];
+            if (!empty($m['_enabled'])) {
+                $enabledMods[] = $entry;
+            } else {
+                $disabledMods[] = $entry;
+            }
+        }
+
+        // Capabilities
+        $capIds = app()->capabilities()->capabilityIds();
+        $capEntries = [];
+        foreach ($capIds as $cid) {
+            $provs = app()->capabilities()->providers($cid);
+            $providerNames = [];
+            foreach ($provs as $p) {
+                $providerNames[] = (string)($p['provider'] ?? '');
+            }
+            $capEntries[] = [
+                'id' => $cid,
+                'providers' => $providerNames,
+                'effective_schema_mode' => app()->cap()->resolveSchemaMode($cid),
+            ];
+        }
+
+        // Events
+        $eventsCount = 0;
+        try {
+            $stmt = app()->db()->query('SELECT COUNT(*) FROM kernel_events');
+            $eventsCount = $stmt ? (int)$stmt->fetchColumn() : 0;
+        } catch (Throwable $e) {
+        }
+
+        // Triggers
+        $triggersTotal = 0;
+        $triggersEnabled = 0;
+        try {
+            $stmt = app()->db()->query('SELECT COUNT(*) as total, SUM(is_enabled) as enabled FROM kernel_event_triggers');
+            $row = $stmt ? $stmt->fetch(PDO::FETCH_ASSOC) : null;
+            if (is_array($row)) {
+                $triggersTotal = (int)($row['total'] ?? 0);
+                $triggersEnabled = (int)($row['enabled'] ?? 0);
+            }
+        } catch (Throwable $e) {
+        }
+
+        // Health
+        $health = app()->cap()->healthAll();
+        $healthSummary = ['total_calls' => 0, 'total_errors' => 0, 'breakers_open' => 0];
+        foreach ($health as $h) {
+            $healthSummary['total_calls'] += (int)($h['count'] ?? 0);
+            $healthSummary['total_errors'] += (int)($h['errors'] ?? 0);
+            if (!empty($h['breaker_open'])) {
+                $healthSummary['breakers_open']++;
+            }
+        }
+
+        $manifest = [
+            'platform' => $platformId,
+            'modules' => [
+                'enabled_count' => count($enabledMods),
+                'disabled_count' => count($disabledMods),
+                'enabled' => $enabledMods,
+                'disabled' => $disabledMods,
+            ],
+            'capabilities' => [
+                'count' => count($capEntries),
+                'entries' => $capEntries,
+            ],
+            'events' => ['count' => $eventsCount],
+            'triggers' => ['total' => $triggersTotal, 'enabled' => $triggersEnabled],
+            'health' => $healthSummary,
+            'generated_at' => gmdate('c'),
+        ];
+
+        echo json_encode($manifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";
+        break;
+
+    default:
+        out(red("  Unknown command: {$command}"));
+        out("  Run " . cyan('php ikabud help') . " for available commands.");
+        exit(1);
+
+    // ── make:migration ───────────────────────────────────────────
+    case 'make:migration':
+        $clean = paramsWithoutFlags($params);
+        $moduleId = $clean[0] ?? '';
+        $slug = $clean[1] ?? '';
+
+        if ($moduleId === '' || $slug === '') {
+            out(red('  ✗ Module id and migration name required.'));
+            out('  Usage: php ikabud make:migration <module-id> <name>');
+            out('  Example: php ikabud make:migration daily-ledger add_discount_column');
+            exit(1);
+        }
+
+        $migrDir = BASE_PATH . '/modules/' . $moduleId . '/database/migrations';
+        if (!is_dir(BASE_PATH . '/modules/' . $moduleId)) {
+            out(red("  ✗ Module '{$moduleId}' not found."));
+            exit(1);
+        }
+
+        // Create migrations dir if it doesn't exist
+        if (!is_dir($migrDir)) {
+            @mkdir($migrDir, 0775, true);
+        }
+
+        // Determine next sequence number
+        $existing = glob($migrDir . '/*.sql');
+        $maxNum = 0;
+        foreach ($existing as $f) {
+            $base = basename($f);
+            if (preg_match('/^(\d+)_/', $base, $m)) {
+                $maxNum = max($maxNum, (int)$m[1]);
+            }
+        }
+        $nextNum = str_pad((string)($maxNum + 1), 3, '0', STR_PAD_LEFT);
+
+        // Normalize slug: lowercase, underscores
+        $slug = strtolower(preg_replace('/[^a-zA-Z0-9_]/', '_', $slug));
+        $slug = preg_replace('/_+/', '_', trim($slug, '_'));
+
+        $filename = "{$nextNum}_{$slug}.sql";
+        $label = ucwords(str_replace('-', ' ', $moduleId));
+        $today = date('Y-m-d');
+
+        $content = <<<SQL
+-- {$label} Module — {$slug}
+-- Created: {$today}
+
+-- Write your migration SQL below.
+
+SQL;
+        file_put_contents($migrDir . '/' . $filename, $content);
+
+        banner();
+        out('  ' . green('✓') . ' Created migration: ' . cyan("modules/{$moduleId}/database/migrations/{$filename}"));
+        out('');
+        out('  Next: edit the file, then run ' . cyan("php ikabud migrate {$moduleId}"));
+        out('');
+        break;
+
+    // ── make:handler ─────────────────────────────────────────────
+    case 'make:handler':
+        $clean = paramsWithoutFlags($params);
+        $moduleId = $clean[0] ?? '';
+        $handlerName = $clean[1] ?? '';
+        $method = strtoupper($clean[2] ?? 'GET');
+
+        if ($moduleId === '' || $handlerName === '') {
+            out(red('  ✗ Module id and handler name required.'));
+            out('  Usage: php ikabud make:handler <module-id> <handler-name> [GET|POST]');
+            out('  Example: php ikabud make:handler daily-ledger handleAdminReports');
+            exit(1);
+        }
+
+        $modDir = BASE_PATH . '/modules/' . $moduleId;
+        if (!is_dir($modDir)) {
+            out(red("  ✗ Module '{$moduleId}' not found."));
+            exit(1);
+        }
+
+        $handlersFile = $modDir . '/handlers.php';
+        $routesFile = $modDir . '/routes.php';
+
+        if (!file_exists($handlersFile)) {
+            out(red("  ✗ handlers.php not found in module '{$moduleId}'."));
+            exit(1);
+        }
+
+        // Check that the function doesn't already exist
+        $existingCode = file_get_contents($handlersFile);
+        if (preg_match('/function\s+' . preg_quote($handlerName, '/') . '\s*\(/', $existingCode)) {
+            out(red("  ✗ Function '{$handlerName}' already exists in handlers.php."));
+            exit(1);
+        }
+
+        // Determine if it's a page handler or API handler
+        $isApi = str_starts_with($handlerName, 'api');
+        $label = ucwords(str_replace('-', ' ', $moduleId));
+
+        // Generate route path
+        if ($isApi) {
+            // apiGetSomething → /module-id/api/v1/something
+            $routeSlug = preg_replace('/^api(Get|Post|Put|Delete|Save|Create|Update|List)?/', '', $handlerName);
+            $routeSlug = strtolower(preg_replace('/([A-Z])/', '-$1', $routeSlug));
+            $routeSlug = trim($routeSlug, '-');
+            $routePath = "/{$moduleId}/api/v1/{$routeSlug}";
+        } else {
+            // handleAdminSomething → /module-id/admin/something
+            $routeSlug = preg_replace('/^(handle|page)/', '', $handlerName);
+            $routeSlug = strtolower(preg_replace('/([A-Z])/', '-$1', $routeSlug));
+            $routeSlug = trim($routeSlug, '-');
+            $routePath = "/{$moduleId}/{$routeSlug}";
+        }
+
+        // Append handler function to handlers.php
+        if ($isApi) {
+            $handlerCode = <<<PHP
+
+
+/**
+ * {$method} {$routePath}
+ */
+function {$handlerName}(array \$params = []): void
+{
+    header('Content-Type: application/json');
+
+    // TODO: implement API logic
+    echo json_encode(['ok' => true]);
+}
+PHP;
+        } else {
+            $templateRelPath = "modules/{$moduleId}/pages/" . str_replace('-', '_', $routeSlug) . '.disyl';
+            $handlerCode = <<<PHP
+
+
+/**
+ * {$method} {$routePath}
+ */
+function {$handlerName}(array \$params = []): void
+{
+    \$ctx = module();
+    if (!\$ctx) {
+        http_response_code(500);
+        echo 'Module context unavailable';
+        return;
+    }
+
+    // TODO: implement page logic
+    echo \$ctx->render('{$templateRelPath}', [
+        'page_title' => '{$label}',
+    ]);
+}
+PHP;
+        }
+
+        file_put_contents($handlersFile, $handlerCode . "\n", FILE_APPEND);
+
+        // Append route to routes.php
+        $routeAdded = false;
+        if (file_exists($routesFile)) {
+            $routesCode = file_get_contents($routesFile);
+            $methodKey = "'{$method}'";
+
+            // Find the closing bracket of the method array
+            if (preg_match('/([\'"]' . preg_quote($method, '/') . '[\'"]\s*=>\s*\[)(.*?)(\n\s*\])/s', $routesCode, $rm, PREG_OFFSET_CAPTURE)) {
+                $insertPos = $rm[3][1];
+                $routeLine = "\n        '{$routePath}' => '{$moduleId}:{$handlerName}',";
+                $routesCode = substr($routesCode, 0, $insertPos) . $routeLine . substr($routesCode, $insertPos);
+                file_put_contents($routesFile, $routesCode);
+                $routeAdded = true;
+            }
+        }
+
+        banner();
+        out('  ' . green('✓') . ' Added handler: ' . cyan($handlerName) . ' to ' . dim("modules/{$moduleId}/handlers.php"));
+        if ($routeAdded) {
+            out('  ' . green('✓') . ' Added route:   ' . cyan("{$method} {$routePath}") . ' to ' . dim("modules/{$moduleId}/routes.php"));
+        } else {
+            out('  ' . yellow('⚠') . ' Could not auto-add route. Add manually to routes.php:');
+            out("    '{$routePath}' => '{$moduleId}:{$handlerName}'");
+        }
+        out('');
+        break;
+
+    // ── disyl:lint ───────────────────────────────────────────────
+    case 'disyl:lint':
+        banner();
+        $clean = paramsWithoutFlags($params);
+        $targetPath = $clean[0] ?? '';
+        $verbose = hasFlag('--verbose');
+        $fixSuggestions = hasFlag('--fix');
+
+        // Determine files to lint
+        $files = [];
+        if ($targetPath !== '') {
+            $fullPath = realpath(BASE_PATH . '/' . $targetPath) ?: realpath($targetPath);
+            if (!$fullPath) {
+                out(red("  ✗ Path not found: {$targetPath}"));
+                exit(1);
+            }
+            if (is_file($fullPath) && str_ends_with($fullPath, '.disyl')) {
+                $files[] = $fullPath;
+            } elseif (is_dir($fullPath)) {
+                $iter = new RecursiveIteratorIterator(
+                    new RecursiveDirectoryIterator($fullPath, FilesystemIterator::SKIP_DOTS)
+                );
+                foreach ($iter as $finfo) {
+                    if ($finfo->isFile() && str_ends_with($finfo->getFilename(), '.disyl')) {
+                        $files[] = $finfo->getPathname();
+                    }
+                }
+            } else {
+                out(red("  ✗ Not a .disyl file or directory: {$targetPath}"));
+                exit(1);
+            }
+        } else {
+            // Scan all template directories
+            $scanDirs = [
+                BASE_PATH . '/templates',
+            ];
+            // Add module template dirs
+            foreach (glob(BASE_PATH . '/modules/*/') as $modDir) {
+                $modTemplates = $modDir . 'templates';
+                if (is_dir($modTemplates)) {
+                    $scanDirs[] = $modTemplates;
+                }
+            }
+            foreach ($scanDirs as $dir) {
+                if (!is_dir($dir)) continue;
+                $iter = new RecursiveIteratorIterator(
+                    new RecursiveDirectoryIterator($dir, FilesystemIterator::SKIP_DOTS)
+                );
+                foreach ($iter as $finfo) {
+                    if ($finfo->isFile() && str_ends_with($finfo->getFilename(), '.disyl')) {
+                        $files[] = $finfo->getPathname();
+                    }
+                }
+            }
+        }
+
+        sort($files);
+        $fileCount = count($files);
+
+        out('  ' . bold('DiSyL Template Linter'));
+        out('  Scanning ' . cyan((string)$fileCount) . ' template(s)...');
+        out('');
+
+        $totalErrors = 0;
+        $totalWarnings = 0;
+        $filesWithIssues = 0;
+
+        // Tag pairs that must be balanced
+        $tagPairs = [
+            'if'      => '/if',
+            'for'     => '/for',
+            'foreach' => '/foreach',
+            'each'    => '/each',
+            'verbatim'=> '/verbatim',
+            'literal' => '/literal',
+        ];
+
+        foreach ($files as $file) {
+            $relPath = str_replace(BASE_PATH . '/', '', $file);
+            $content = file_get_contents($file);
+            $lines = explode("\n", $content);
+            $issues = [];
+
+            // Strip DiSyL comments and JS single-line comments to avoid false positives
+            $lintContent = preg_replace('/\{!--.*?--\}/s', '', $content);  // DiSyL comments
+            $lintContent = preg_replace('#//[^\n]*#', '', $lintContent);   // JS single-line comments
+
+            // ── Check 1: Unmatched control structure tags ──
+            foreach ($tagPairs as $open => $close) {
+                $openPattern  = '/\{' . preg_quote($open, '/') . '[\s}]/';
+                $closePattern = '/\{\/' . preg_quote($open, '/') . '\}/';
+
+                preg_match_all($openPattern, $lintContent, $openMatches, PREG_OFFSET_CAPTURE);
+                preg_match_all($closePattern, $lintContent, $closeMatches, PREG_OFFSET_CAPTURE);
+
+                $openCount = count($openMatches[0]);
+                $closeCount = count($closeMatches[0]);
+
+                if ($openCount > $closeCount) {
+                    $diff = $openCount - $closeCount;
+                    // Find line of last unmatched open
+                    $lastOpen = end($openMatches[0]);
+                    $lineNum = $lastOpen ? substr_count($content, "\n", 0, $lastOpen[1]) + 1 : 0;
+                    $issues[] = ['type' => 'error', 'line' => $lineNum,
+                        'msg' => "{$diff} unclosed {" . $open . "} tag(s) — missing {" . $close . "}"];
+                } elseif ($closeCount > $openCount) {
+                    $diff = $closeCount - $openCount;
+                    $lastClose = end($closeMatches[0]);
+                    $lineNum = $lastClose ? substr_count($content, "\n", 0, $lastClose[1]) + 1 : 0;
+                    $issues[] = ['type' => 'error', 'line' => $lineNum,
+                        'msg' => "{$diff} extra {" . $close . "} tag(s) without matching {" . $open . "}"];
+                }
+            }
+
+            // ── Check 2: {elseif}/{else} without enclosing {if} ──
+            // Simple heuristic: every {else} or {elseif} should appear between an {if} and {/if}
+            if (preg_match_all('/\{else(?:if\s[^}]*)?\}/', $lintContent, $elseMatches, PREG_OFFSET_CAPTURE)) {
+                $ifOpens  = [];
+                $ifCloses = [];
+                preg_match_all('/\{if\s/', $lintContent, $ifO, PREG_OFFSET_CAPTURE);
+                preg_match_all('/\{\/if\}/', $lintContent, $ifC, PREG_OFFSET_CAPTURE);
+                foreach ($ifO[0] as $m) $ifOpens[] = $m[1];
+                foreach ($ifC[0] as $m) $ifCloses[] = $m[1];
+
+                foreach ($elseMatches[0] as $em) {
+                    $pos = $em[1];
+                    // Count opens before this pos and closes before this pos
+                    $opensBefore = count(array_filter($ifOpens, fn($p) => $p < $pos));
+                    $closesBefore = count(array_filter($ifCloses, fn($p) => $p < $pos));
+                    if ($opensBefore <= $closesBefore) {
+                        $lineNum = substr_count($content, "\n", 0, $pos) + 1;
+                        $tag = trim($em[0], '{}');
+                        $issues[] = ['type' => 'error', 'line' => $lineNum,
+                            'msg' => "{{$tag}} appears outside any {if} block"];
+                    }
+                }
+            }
+
+            // ── Check 3: Unclosed component tags ──
+            if (preg_match_all('/\{(ikb_\w+)[\s}]/', $lintContent, $compMatches)) {
+                foreach (array_unique($compMatches[1]) as $comp) {
+                    // Count opens (non-self-closing) and closes
+                    // Self-closing: {ikb_foo ... /}
+                    preg_match_all('/\{' . preg_quote($comp, '/') . '(?:\s[^}]*)?\}/', $lintContent, $allOpens);
+                    preg_match_all('/\{' . preg_quote($comp, '/') . '(?:\s[^}]*)?\s*\/\s*\}/', $lintContent, $selfClosing);
+                    preg_match_all('/\{\/' . preg_quote($comp, '/') . '\}/', $lintContent, $compCloses);
+
+                    $opens = count($allOpens[0]) - count($selfClosing[0]);
+                    $closes = count($compCloses[0]);
+
+                    if ($opens > $closes) {
+                        $issues[] = ['type' => 'warning', 'line' => 0,
+                            'msg' => ($opens - $closes) . " unclosed {{$comp}} component(s) — missing {/{$comp}}"];
+                    }
+                }
+            }
+
+            // ── Check 4: {include} references check ──
+            if (preg_match_all('/\{include\s+"([^"]+)"/', $content, $incMatches)) {
+                $templateDirs = [
+                    BASE_PATH . '/templates',
+                ];
+                foreach ($incMatches[1] as $incRef) {
+                    $found = false;
+                    foreach ($templateDirs as $tdir) {
+                        $incPath = $tdir . '/' . $incRef;
+                        if (!str_ends_with($incPath, '.disyl')) $incPath .= '.disyl';
+                        if (file_exists($incPath)) {
+                            $found = true;
+                            break;
+                        }
+                    }
+                    if (!$found) {
+                        $issues[] = ['type' => 'warning', 'line' => 0,
+                            'msg' => "Include not found: \"{$incRef}\" — file may be missing or in a module template dir"];
+                    }
+                }
+            }
+
+            // ── Check 5: {extends} layout reference ──
+            if (preg_match('/\{extends\s+"([^"]+)"\s*\}/', $content, $extMatch)) {
+                $layoutRef = $extMatch[1];
+                $layoutPath = BASE_PATH . '/templates/' . $layoutRef;
+                if (!str_ends_with($layoutPath, '.disyl')) $layoutPath .= '.disyl';
+                if (!file_exists($layoutPath)) {
+                    $issues[] = ['type' => 'warning', 'line' => 1,
+                        'msg' => "Layout not found: \"{$layoutRef}\""];
+                }
+            }
+
+            // ── Check 6: Empty control structure bodies ──
+            foreach (['if', 'for', 'foreach', 'each'] as $tag) {
+                $pattern = '/\{' . $tag . '\s+[^}]+\}\s*\{\/' . $tag . '\}/s';
+                if (preg_match_all($pattern, $lintContent, $emptyMatches, PREG_OFFSET_CAPTURE)) {
+                    foreach ($emptyMatches[0] as $em) {
+                        $lineNum = substr_count($content, "\n", 0, $em[1]) + 1;
+                        $issues[] = ['type' => 'warning', 'line' => $lineNum,
+                            'msg' => "Empty {{$tag}} body — control structure has no content"];
+                    }
+                }
+            }
+
+            // ── Check 7: Likely typos — {/foreach} closing wrong tag ──
+            // For each close tag, verify there's a matching open before it
+            foreach (['for' => 'foreach', 'foreach' => 'for'] as $closeTag => $confusedWith) {
+                preg_match_all('/\{\/' . preg_quote($closeTag, '/') . '\}/', $lintContent, $cMatches, PREG_OFFSET_CAPTURE);
+                preg_match_all('/\{' . preg_quote($closeTag, '/') . '\s/', $lintContent, $oMatches, PREG_OFFSET_CAPTURE);
+                // If there are closes but no opens, it's likely a typo
+                if (count($cMatches[0]) > 0 && count($oMatches[0]) === 0) {
+                    $lineNum = substr_count($content, "\n", 0, $cMatches[0][0][1]) + 1;
+                    $issues[] = ['type' => 'warning', 'line' => $lineNum,
+                        'msg' => "{/{$closeTag}} found but no {{$closeTag}} — did you mean {/{$confusedWith}}?"];
+                }
+            }
+
+            // ── Report ──
+            if (!empty($issues)) {
+                $filesWithIssues++;
+                out('  ' . bold($relPath));
+                usort($issues, fn($a, $b) => $a['line'] <=> $b['line']);
+                foreach ($issues as $issue) {
+                    $icon = $issue['type'] === 'error' ? red('✗') : yellow('⚠');
+                    $lineLabel = $issue['line'] > 0 ? dim("L{$issue['line']}") . ' ' : '';
+                    $typeLabel = $issue['type'] === 'error' ? red('error') : yellow('warn');
+                    out("    {$icon} {$lineLabel}{$typeLabel}: {$issue['msg']}");
+
+                    if ($issue['type'] === 'error') $totalErrors++;
+                    else $totalWarnings++;
+                }
+                out('');
+            } elseif ($verbose) {
+                out('  ' . green('✓') . ' ' . dim($relPath));
+            }
+        }
+
+        // Summary
+        out('  ─────────────────────────────────────────────');
+        out('  Scanned: ' . cyan((string)$fileCount) . ' files');
+        if ($totalErrors === 0 && $totalWarnings === 0) {
+            out('  ' . green('✓ No issues found'));
+        } else {
+            if ($totalErrors > 0) {
+                out('  Errors:   ' . red((string)$totalErrors));
+            }
+            if ($totalWarnings > 0) {
+                out('  Warnings: ' . yellow((string)$totalWarnings));
+            }
+            out('  Files with issues: ' . bold((string)$filesWithIssues));
+        }
+        out('');
+        exit($totalErrors > 0 ? 1 : 0);
+}

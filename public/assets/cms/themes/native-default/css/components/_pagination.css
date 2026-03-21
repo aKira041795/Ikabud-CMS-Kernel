@@ -1,0 +1,56 @@
+/**
+ * Pagination Component
+ * Native Default Theme v2.1.0
+ */
+
+.pagination {
+    margin-top: var(--spacing-2xl);
+    text-align: center;
+}
+
+.pagination__inner {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+}
+
+.pagination__link,
+.pagination__page {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 40px;
+    height: 40px;
+    padding: 0 0.75rem;
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+    color: var(--color-text);
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--border-radius-md);
+    transition: all var(--transition-fast);
+}
+
+.pagination__link:hover,
+.pagination__page:hover {
+    background: var(--color-surface);
+    border-color: var(--color-text-light);
+}
+
+.pagination__page--current {
+    background: var(--color-primary);
+    border-color: var(--color-primary);
+    color: #fff;
+}
+
+.pagination__link--disabled {
+    opacity: 0.5;
+    pointer-events: none;
+}
+
+.pagination__info {
+    margin-top: 1rem;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-light);
+}

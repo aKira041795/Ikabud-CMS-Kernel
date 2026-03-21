@@ -1,0 +1,526 @@
+{extends "modules/daily-ledger/layouts/app.disyl"}
+
+{block head}
+<style>
+    .print-only {
+        display: none;
+    }
+    @media print {
+        .print-hide {
+            display: none !important;
+        }
+        .print-only {
+            display: block !important;
+        }
+        .card {
+            border: none !important;
+            box-shadow: none !important;
+        }
+        body {
+            background: #fff !important;
+        }
+    }
+</style>
+{/block}
+
+{block content}
+<div class="flex items-center justify-between mb-6">
+    <div>
+        <h2 class="text-lg font-semibold text-gray-900">Production Withdrawal</h2>
+        <p class="text-sm text-gray-500">Encode branch withdrawals by row and sync in one batch.</p>
+        <p class="text-xs text-gray-500 mt-1">
+            Business date: <span class="font-medium text-gray-700">{business_date_label}</span>
+            · Timezone: <span class="font-medium text-gray-700">{operating_timezone}</span>
+            · Region: <span class="font-medium text-gray-700">{operating_region}</span>
+        </p>
+        <div class="mt-2">
+            <span class="inline-flex items-center rounded-full bg-amber-100 px-3 py-1 text-sm font-semibold text-amber-800 ring-1 ring-inset ring-amber-300">
+                Cutoff: {close_of_day_time}
+            </span>
+        </div>
+    </div>
+    <button type="button" class="btn btn-outline print-hide" onclick="printProductionLedger()">Print</button>
+</div>
+
+<div class="card mb-6">
+    <div class="card-header">
+        <span>Withdrawal Batch</span>
+        <span class="text-sm text-muted">{branches | count} branch rows</span>
+    </div>
+    <div class="card-body">
+        {if branches | count == 0}
+        <div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            No branch assignment found for this account.
+        </div>
+        {/if}
+
+        {if branches | count > 0}
+        <div class="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-4 mb-4">
+            <div class="form-group mb-0">
+                <label class="form-label">Ledger Date</label>
+                <input type="date" id="ledger-date" class="form-input" value="{ledger_date}">
+            </div>
+            <div class="form-group mb-0">
+                <label class="form-label">Product</label>
+                <input
+                    type="text"
+                    id="product-search"
+                    class="form-input mb-2"
+                    placeholder="Search product name or SKU..."
+                    oninput="filterProductOptions()"
+                >
+                <select id="product-id" class="form-input">
+                    {foreach products as p}
+                    <option value="{p.id}" data-pieces-per-batch="{p.output_pieces_per_batch}" data-unit-label="{p.output_unit_label}">{p.name} ({p.sku})</option>
+                    {/foreach}
+                </select>
+            </div>
+            <div class="form-group mb-0">
+                <label class="form-label">Flow Mode</label>
+                <select id="flow-mode" class="form-input">
+                    <option value="production" selected>Production</option>
+                    <option value="legacy">Legacy</option>
+                </select>
+            </div>
+            <div class="form-group mb-0">
+                <label class="form-label">Reason</label>
+                <input type="text" id="reason" class="form-input" placeholder="Optional override reason">
+            </div>
+        </div>
+
+        <div class="table-wrap mb-4">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Branch Code</th>
+                        <th>Branch Name</th>
+                        <th class="text-right">Withdrawal Qty</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {foreach branches as br}
+                    <tr>
+                        <td class="font-mono text-sm">{br.code}</td>
+                        <td>{br.name}</td>
+                        <td class="text-right" style="min-width: 180px;">
+                            <input
+                                type="number"
+                                min="0"
+                                step="1"
+                                class="form-input qty-input text-right"
+                                data-branch-id="{br.id}"
+                                value="0"
+                            >
+                        </td>
+                    </tr>
+                    {/foreach}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="flex items-center justify-end gap-2">
+            <button type="button" class="btn btn-outline" onclick="resetWithdrawals()">Reset</button>
+            <button type="button" class="btn btn-primary" id="submit-withdrawals" onclick="submitWithdrawalsByRow()">Submit Withdrawals</button>
+        </div>
+        {/if}
+    </div>
+</div>
+
+<form class="card mb-6" hx-get="{base_url}/admin/production" hx-target="#main-content" hx-swap="innerHTML" hx-push-url="true">
+    <div class="card-body">
+        <div class="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-4 items-end">
+            <div class="form-group mb-0">
+                <label class="form-label">From</label>
+                <input type="date" class="form-input" name="date_from" value="{date_from}">
+            </div>
+            <div class="form-group mb-0">
+                <label class="form-label">To</label>
+                <input type="date" class="form-input" name="date_to" value="{date_to}">
+            </div>
+            <div class="form-group mb-0">
+                <label class="form-label">Ledger Date</label>
+                <input type="date" class="form-input" name="ledger_date" value="{ledger_date}">
+            </div>
+            <button type="submit" class="btn btn-outline">Refresh History</button>
+        </div>
+    </div>
+</form>
+
+<div class="card">
+    <div class="card-header">
+        <span>Recent Production Movements</span>
+        <span class="text-sm text-muted">{movement_rows | count} rows</span>
+    </div>
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>Created</th>
+                    <th>Date</th>
+                    <th>Type</th>
+                    <th>Branch</th>
+                    <th>Product</th>
+                    <th>Flow</th>
+                    <th class="text-right">Qty</th>
+                    <th>Reason</th>
+                    <th>Actor</th>
+                </tr>
+            </thead>
+            <tbody>
+                {if movement_rows | count == 0}
+                <tr><td colspan="9" class="px-4 py-10 text-center text-sm text-gray-500">No production movement history in selected range.</td></tr>
+                {/if}
+                {foreach movement_rows as row}
+                <tr data-movement-type="{row.movement_type}">
+                    <td>{row.created_at}</td>
+                    <td>{row.ledger_date}</td>
+                    <td>
+                        <span class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset
+                            {if row.movement_type == 'withdrawal'}bg-indigo-50 text-indigo-700 ring-indigo-200{/if}
+                            {if row.movement_type == 'output'}bg-emerald-50 text-emerald-700 ring-emerald-200{/if}
+                            {if row.movement_type == 'reverse'}bg-rose-50 text-rose-700 ring-rose-200{/if}
+                        ">{row.movement_type}</span>
+                        {if row.movement_type == 'withdrawal' && row.has_reverse}
+                        <span class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset bg-amber-50 text-amber-700 ring-amber-200 ml-1">Overridden</span>
+                        {/if}
+                    </td>
+                    <td>{row.destination_name} <span class="text-muted">({row.destination_code})</span></td>
+                    <td>{row.product_name} <span class="text-muted">({row.sku})</span></td>
+                    <td>{row.flow_mode}</td>
+                    <td class="text-right font-semibold">{row.quantity}</td>
+                    <td class="text-sm text-muted">{row.override_reason}</td>
+                    <td class="text-sm text-muted">
+                        <div>{row.created_by_role}</div>
+                        {if can_production_override && row.movement_type == 'withdrawal' && !row.has_reverse}
+                        <button
+                            type="button"
+                            class="btn btn-sm btn-outline mt-2 print-hide"
+                            onclick="openOverrideModal({row.id}, {row.destination_branch_id}, {row.product_id}, '{row.ledger_date}', {row.quantity}, '{row.flow_mode}')"
+                        >
+                            Override
+                        </button>
+                        {/if}
+                    </td>
+                </tr>
+                {/foreach}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="modal-overlay" id="override-modal">
+    <div class="modal">
+        <h3>Admin Override Withdrawal</h3>
+        <p class="text-sm text-gray-500 mb-4">This will reverse the selected withdrawal, then submit a corrected withdrawal value.</p>
+        <input type="hidden" id="ov-movement-id">
+        <input type="hidden" id="ov-branch-id">
+        <input type="hidden" id="ov-product-id">
+        <input type="hidden" id="ov-ledger-date">
+        <input type="hidden" id="ov-flow-mode">
+
+        <div class="form-group">
+            <label class="form-label">Original Quantity</label>
+            <input type="number" class="form-input" id="ov-original-qty" readonly>
+        </div>
+        <div class="form-group">
+            <label class="form-label">Corrected Quantity</label>
+            <input type="number" min="1" step="1" class="form-input" id="ov-corrected-qty" placeholder="Enter corrected withdrawal quantity">
+        </div>
+        <div class="form-group mb-0">
+            <label class="form-label">Override Reason</label>
+            <input type="text" class="form-input" id="ov-reason" placeholder="Required reason for override">
+        </div>
+
+        <div class="modal-actions">
+            <button type="button" class="btn btn-outline" onclick="closeOverrideModal()">Cancel</button>
+            <button type="button" class="btn btn-primary" id="ov-submit-btn" onclick="submitOverrideMovement()">Apply Override</button>
+        </div>
+    </div>
+</div>
+{/block}
+
+{block scripts}
+<script>
+    function filterProductOptions() {
+        var input = document.getElementById('product-search');
+        var select = document.getElementById('product-id');
+        if (!input || !select) return;
+
+        var query = (input.value || '').toLowerCase().trim();
+        var firstVisibleValue = '';
+
+        Array.from(select.options || []).forEach(function(opt) {
+            var text = (opt.text || '').toLowerCase();
+            var visible = query === '' || text.indexOf(query) !== -1;
+            opt.hidden = !visible;
+            if (visible && firstVisibleValue === '') {
+                firstVisibleValue = opt.value;
+            }
+        });
+
+        var selected = select.options[select.selectedIndex];
+        if (selected && selected.hidden && firstVisibleValue !== '') {
+            select.value = firstVisibleValue;
+        }
+    }
+
+    function resetWithdrawals() {
+        document.querySelectorAll('.qty-input').forEach(function(el) {
+            el.value = '0';
+        });
+    }
+
+    function submitWithdrawalsByRow() {
+        var btn = document.getElementById('submit-withdrawals');
+        var ledgerDate = document.getElementById('ledger-date').value;
+        var productId = parseInt(document.getElementById('product-id').value, 10) || 0;
+        var flowMode = document.getElementById('flow-mode').value || 'production';
+        var reason = (document.getElementById('reason').value || '').trim();
+
+        if (!ledgerDate) {
+            showToast('Ledger date is required', 'error');
+            return;
+        }
+        if (!productId) {
+            showToast('Product is required', 'error');
+            return;
+        }
+
+        var operations = [];
+        var now = Date.now();
+        document.querySelectorAll('.qty-input').forEach(function(el, idx) {
+            var qty = parseInt(el.value, 10) || 0;
+            if (qty <= 0) {
+                return;
+            }
+            var branchId = parseInt(el.getAttribute('data-branch-id'), 10) || 0;
+            if (!branchId) {
+                return;
+            }
+            operations.push({
+                type: 'withdrawal',
+                destination_branch_id: branchId,
+                product_id: productId,
+                ledger_date: ledgerDate,
+                quantity: qty,
+                flow_mode: flowMode,
+                override_reason: reason,
+                client_op_id: 'wd-' + now + '-' + branchId + '-' + idx
+            });
+        });
+
+        if (operations.length === 0) {
+            showToast('Enter at least one row quantity greater than 0', 'error');
+            return;
+        }
+
+        btn.disabled = true;
+        btn.textContent = 'Submitting...';
+
+        fetch('{base_url}/api/v1/production/sync-batch', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': (window.DL_CSRF || ''),
+                'Authorization': (window.DL_TOKEN ? ('Bearer ' + window.DL_TOKEN) : '')
+            },
+            body: JSON.stringify({ operations: operations })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(res) {
+            if (!res.ok) {
+                showToast(res.error || 'Failed to submit withdrawals', 'error');
+                return;
+            }
+
+            var summary = res.summary || { succeeded: 0, failed: 0 };
+            var msg = 'Withdrawals synced: ' + summary.succeeded + ' success';
+            if (summary.failed > 0) {
+                msg += ', ' + summary.failed + ' failed';
+            }
+            showToast(msg, summary.failed > 0 ? 'error' : 'success');
+            setTimeout(function() { window.location.reload(); }, 700);
+        })
+        .catch(function() {
+            showToast('Network error while submitting withdrawals', 'error');
+        })
+        .finally(function() {
+            btn.disabled = false;
+            btn.textContent = 'Submit Withdrawals';
+        });
+    }
+
+    function printProductionLedger() {
+        var rows = Array.from(document.querySelectorAll('tr[data-movement-type="withdrawal"]'));
+        if (rows.length === 0) {
+            showToast('No withdrawal movement rows to print in current range.', 'error');
+            return;
+        }
+
+        var printedAt = new Date().toLocaleString();
+        var htmlRows = rows.map(function(row) {
+            var cells = row.querySelectorAll('td');
+            if (!cells || cells.length < 9) return '';
+            return '<tr>' +
+                '<td>' + cells[0].textContent.trim() + '</td>' +
+                '<td>' + cells[1].textContent.trim() + '</td>' +
+                '<td>' + cells[3].textContent.trim() + '</td>' +
+                '<td>' + cells[4].textContent.trim() + '</td>' +
+                '<td style="text-align:right;">' + cells[6].textContent.trim() + '</td>' +
+                '<td>' + cells[7].textContent.trim() + '</td>' +
+                '<td>' + cells[8].textContent.trim() + '</td>' +
+                '</tr>';
+        }).join('');
+
+        var reportHtml = '<!doctype html><html><head><meta charset="utf-8">' +
+            '<title>Production Withdrawal Report</title>' +
+            '<style>' +
+            'body{font-family:Arial,sans-serif;color:#111827;margin:24px;}' +
+            'h1{font-size:20px;margin:0 0 8px;}' +
+            '.meta{font-size:13px;color:#374151;margin:2px 0;}' +
+            'table{width:100%;border-collapse:collapse;margin-top:16px;}' +
+            'th,td{border:1px solid #d1d5db;padding:8px;font-size:12px;vertical-align:top;}' +
+            'th{background:#f3f4f6;text-align:left;}' +
+            '.right{text-align:right;}' +
+            '</style></head><body>' +
+            '<h1>Production Withdrawal Report</h1>' +
+            '<div class="meta">Ledger Date: {ledger_date}</div>' +
+            '<div class="meta">History Range: {date_from} to {date_to}</div>' +
+            '<div class="meta">Prepared By: {user_name} ({user_role})</div>' +
+            '<div class="meta">Printed At: ' + printedAt + '</div>' +
+            '<table><thead><tr>' +
+            '<th>Created</th><th>Date</th><th>Branch</th><th>Product</th><th class="right">Qty</th><th>Reason</th><th>Actor</th>' +
+            '</tr></thead><tbody>' + htmlRows + '</tbody></table>' +
+            '</body></html>';
+
+        var w = window.open('', '_blank', 'width=1024,height=768');
+        if (!w) {
+            showToast('Popup blocked. Please allow popups for printing.', 'error');
+            return;
+        }
+        w.document.open();
+        w.document.write(reportHtml);
+        w.document.close();
+        w.focus();
+        w.print();
+    }
+
+    function openOverrideModal(movementId, branchId, productId, ledgerDate, quantity, flowMode) {
+        document.getElementById('ov-movement-id').value = movementId;
+        document.getElementById('ov-branch-id').value = branchId;
+        document.getElementById('ov-product-id').value = productId;
+        document.getElementById('ov-ledger-date').value = ledgerDate;
+        document.getElementById('ov-flow-mode').value = flowMode || 'production';
+        document.getElementById('ov-original-qty').value = quantity;
+        document.getElementById('ov-corrected-qty').value = quantity;
+        document.getElementById('ov-reason').value = '';
+        document.getElementById('override-modal').classList.add('show');
+        document.getElementById('ov-corrected-qty').focus();
+    }
+
+    function closeOverrideModal() {
+        document.getElementById('override-modal').classList.remove('show');
+    }
+
+    function submitOverrideMovement() {
+        var submitBtn = document.getElementById('ov-submit-btn');
+        var movementId = parseInt(document.getElementById('ov-movement-id').value, 10) || 0;
+        var branchId = parseInt(document.getElementById('ov-branch-id').value, 10) || 0;
+        var productId = parseInt(document.getElementById('ov-product-id').value, 10) || 0;
+        var ledgerDate = document.getElementById('ov-ledger-date').value || '';
+        var flowMode = document.getElementById('ov-flow-mode').value || 'production';
+        var correctedQty = parseInt(document.getElementById('ov-corrected-qty').value, 10) || 0;
+        var reason = (document.getElementById('ov-reason').value || '').trim();
+
+        if (!movementId || !branchId || !productId || !ledgerDate) {
+            showToast('Invalid override context', 'error');
+            return;
+        }
+        if (correctedQty <= 0) {
+            showToast('Corrected quantity must be greater than 0', 'error');
+            return;
+        }
+        if (!reason) {
+            showToast('Override reason is required', 'error');
+            return;
+        }
+
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Applying...';
+
+        var reversePayload = {
+            reference_movement_id: movementId,
+            destination_branch_id: branchId,
+            product_id: productId,
+            ledger_date: ledgerDate,
+            quantity: correctedQty,
+            flow_mode: flowMode,
+            reason: reason,
+            client_op_id: 'ovr-rev-' + movementId + '-' + Date.now()
+        };
+
+        fetch('{base_url}/api/v1/production/reverse', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': (window.DL_CSRF || ''),
+                'Authorization': (window.DL_TOKEN ? ('Bearer ' + window.DL_TOKEN) : '')
+            },
+            body: JSON.stringify(reversePayload)
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(reverseRes) {
+            if (!reverseRes.ok) {
+                throw new Error(reverseRes.error || 'Reverse failed');
+            }
+
+            var withdrawalPayload = {
+                destination_branch_id: branchId,
+                product_id: productId,
+                ledger_date: ledgerDate,
+                quantity: correctedQty,
+                flow_mode: flowMode,
+                reason: reason,
+                client_op_id: 'ovr-new-' + movementId + '-' + Date.now()
+            };
+
+            return fetch('{base_url}/api/v1/production/withdrawal', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-Token': (window.DL_CSRF || ''),
+                    'Authorization': (window.DL_TOKEN ? ('Bearer ' + window.DL_TOKEN) : '')
+                },
+                body: JSON.stringify(withdrawalPayload)
+            });
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(withdrawRes) {
+            if (!withdrawRes.ok) {
+                throw new Error(withdrawRes.error || 'Corrected withdrawal failed');
+            }
+
+            closeOverrideModal();
+            showToast('Override applied successfully', 'success');
+            setTimeout(function() { window.location.reload(); }, 700);
+        })
+        .catch(function(err) {
+            showToast(err.message || 'Override failed', 'error');
+        })
+        .finally(function() {
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Apply Override';
+        });
+    }
+
+    document.getElementById('override-modal').addEventListener('click', function(e) {
+        if (e.target === this) {
+            closeOverrideModal();
+        }
+    });
+
+</script>
+{/block}

@@ -1,0 +1,150 @@
+{
+    "id": "daily-ledger",
+    "name": "Daily Ledger",
+    "version": "1.0.0",
+    "description": "Daily sales report encoding system \u2014 digital mirror of paper ledger",
+    "author": "Noah C. Omamalin",
+    "owns_tables": [
+        "dl_admins",
+        "dl_branches",
+        "dl_cashiers",
+        "dl_supervisors",
+        "dl_supervisor_branches",
+        "dl_production_incharges",
+        "dl_production_incharge_branches",
+        "dl_daily_ledger",
+        "dl_ledger_day_status",
+        "dl_variance_flags",
+        "dl_products",
+        "dl_product_price_history",
+        "dl_branch_products",
+        "dl_production_movements"
+    ],
+    "reads_tables": [
+        "audit_logs",
+        "rate_limits",
+        "refresh_tokens",
+        "users"
+    ],
+    "migrations": [
+        "database/migrations/002_dl_user_branch_isolation.sql",
+        "database/migrations/003_align_dl_prefixed_schema.sql",
+        "database/migrations/004_add_production_movements.sql",
+        "database/migrations/005_add_production_incharge_role.sql",
+        "database/migrations/006_add_product_output_profile.sql",
+        "database/migrations/007_fix_withdrawal_ledger_column.sql"
+    ],
+    "capabilities": {
+        "exposes": [
+            {
+                "id": "kernel.auth.authenticate@1",
+                "priority": 500,
+                "modes": [
+                    "pipeline"
+                ],
+                "schema": {
+                    "type": "object",
+                    "properties": {
+                        "username": {
+                            "type": "string"
+                        },
+                        "password": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        ],
+        "depends": [],
+        "policy": {
+            "capabilities": {
+                "kernel.auth.authenticate@1": {
+                    "allow_callers": [
+                        "daily-ledger",
+                        "kernel"
+                    ]
+                }
+            }
+        }
+    },
+    "settings_fields": [
+        {
+            "key": "production_output_enabled",
+            "type": "checkbox",
+            "label": "Enable Production Output",
+            "description": "Show the Production Output page and allow production output entries to be recorded."
+        }
+    ],
+    "auth_cookie": "daily_ledger_token",
+    "nav": [
+        {
+            "label": "Dashboard",
+            "url": "/admin/dashboard",
+            "icon": "grid",
+            "roles": [
+                "supervisor"
+            ]
+        },
+        {
+            "label": "Ledger",
+            "url": "/cashier/ledger",
+            "icon": "clipboard",
+            "roles": [
+                "cashier",
+                "supervisor"
+            ]
+        },
+        {
+            "label": "Sales",
+            "url": "/admin/sales",
+            "icon": "bar-chart",
+            "roles": [
+                "supervisor"
+            ]
+        },
+        {
+            "label": "Variances",
+            "url": "/admin/variances",
+            "icon": "alert-triangle",
+            "roles": [
+                "supervisor"
+            ]
+        },
+        {
+            "label": "Activity",
+            "url": "/admin/activity",
+            "icon": "activity",
+            "roles": [
+                "supervisor"
+            ]
+        },
+        {
+            "label": "Production Withdrawal",
+            "url": "/admin/production",
+            "icon": "factory",
+            "roles": [
+                "admin",
+                "supervisor",
+                "production_in_charge"
+            ]
+        },
+        {
+            "label": "Production Output",
+            "url": "/admin/production-output",
+            "icon": "layers",
+            "roles": [
+                "admin",
+                "supervisor",
+                "production_in_charge"
+            ]
+        },
+        {
+            "label": "Settings",
+            "url": "/admin/settings",
+            "icon": "shield",
+            "roles": [
+                "admin"
+            ]
+        }
+    ]
+}

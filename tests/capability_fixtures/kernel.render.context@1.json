@@ -1,0 +1,20 @@
+{
+  "capability_id": "kernel.render.context@1",
+  "mode": "first",
+  "cases": [
+    {
+      "name": "render-context-basic",
+      "options": {
+        "provider": "kernel"
+      },
+      "payload": {
+        "template": "pages/login.disyl"
+      },
+      "expect": {
+        "result": {
+          "has_keys": ["user", "csrf_token", "csrf_field", "nav_items", "gui" ]
+        }
+      }
+    }
+  ]
+}

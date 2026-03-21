@@ -1,0 +1,266 @@
+{!-- Guidance Monitoring System - Base Layout --}
+{!-- Powered by DiSyL (Declarative Ikabud Syntax Language) --}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{page_title | default:'Guidance Monitoring System'}</title>
+    
+    {!-- Tailwind CSS --}
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    {!-- Font Awesome Icons --}
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    
+    {!-- HTMX for server-driven reactivity --}
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    
+    {!-- Alpine.js for client-side interactivity --}
+    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    
+    {!-- Application Stylesheet --}
+    <link rel="stylesheet" href="/assets/modules/guidance/css/app.css">
+    
+    {!-- Global config for JS --}
+    <script>
+        var APP_BASE = '{base_url}';
+        var APP_COOKIE = '{cookie_name}';
+        var APP_CSRF = '{csrf_token}';
+        function closeModal() {
+            var container = document.getElementById('modal-container');
+            if (container) {
+                container.innerHTML = '';
+            }
+        }
+        function showToast(message, type) {
+            var cont = document.getElementById('toast-container');
+            if (!cont) return;
+            var el = document.createElement('div');
+            var cls = (type === 'error') ? 'bg-red-600 text-white' : 'bg-green-600 text-white';
+            el.className = 'mb-2 px-4 py-3 rounded-lg shadow text-sm ' + cls;
+            el.textContent = String(message || 'OK');
+            cont.appendChild(el);
+            setTimeout(function() {
+                if (el && el.parentNode) {
+                    el.parentNode.removeChild(el);
+                }
+            }, 3500);
+        }
+        window.addEventListener('showToast', function(evt) {
+            var d = evt && evt.detail ? evt.detail : null;
+            if (!d) return;
+            showToast(d.message || 'OK', d.type || 'success');
+        });
+        // Execute <script> tags in HTMX-swapped content so Alpine components work
+        document.addEventListener('htmx:afterSettle', function(evt) {
+            var scripts = evt.detail.elt.querySelectorAll('script:not([src])');
+            scripts.forEach(function(s) {
+                var ns = document.createElement('script');
+                ns.textContent = s.textContent;
+                s.parentNode.replaceChild(ns, s);
+            });
+        });
+        // Prefix all HTMX requests with the app base path and inject CSRF token
+        document.addEventListener('htmx:configRequest', function(evt) {
+            var path = evt.detail.path;
+            if (path && path.charAt(0) === '/' && path.indexOf(APP_BASE) !== 0) {
+                evt.detail.path = APP_BASE + path;
+            }
+            // Add CSRF token header for state-changing requests
+            var verb = (evt.detail.verb || '').toUpperCase();
+            if (verb === 'POST' || verb === 'PUT' || verb === 'PATCH' || verb === 'DELETE') {
+                evt.detail.headers['X-CSRF-Token'] = APP_CSRF;
+            }
+        });
+        document.addEventListener('htmx:afterRequest', function(evt) {
+            var req = evt.detail && evt.detail.requestConfig ? evt.detail.requestConfig : null;
+            var method = req && req.verb ? String(req.verb).toUpperCase() : '';
+            if (method !== 'POST' && method !== 'PUT' && method !== 'PATCH' && method !== 'DELETE') {
+                return;
+            }
+
+            var source = evt.detail ? evt.detail.elt : null;
+            var modalRoot = document.getElementById('modal-container');
+            if (!modalRoot || !source || !modalRoot.contains(source)) {
+                return;
+            }
+
+            var xhr = evt.detail ? evt.detail.xhr : null;
+            if (xhr && xhr.status >= 200 && xhr.status < 300) {
+                closeModal();
+            }
+        });
+        function maybeShowToastFromHeader(xhr) {
+            if (!xhr || typeof xhr.getResponseHeader !== 'function') return;
+            var trig = xhr.getResponseHeader('HX-Trigger');
+            if (!trig) return;
+            try {
+                var data = JSON.parse(trig);
+                if (data && data.showToast) {
+                    showToast(data.showToast.message || 'OK', data.showToast.type || 'error');
+                }
+            } catch (e) {}
+        }
+        document.addEventListener('htmx:responseError', function(evt) {
+            var xhr = evt.detail ? evt.detail.xhr : null;
+            maybeShowToastFromHeader(xhr);
+            if (xhr && xhr.status) {
+                showToast('Request failed (' + xhr.status + ')', 'error');
+                return;
+            }
+            showToast('Request failed', 'error');
+        });
+        document.addEventListener('htmx:sendError', function() {
+            showToast('Network error', 'error');
+        });
+    </script>
+    
+    {block head}{/block}
+</head>
+<body class="bg-gray-50 min-h-screen" x-data="{ sidebarOpen: true, userMenuOpen: false }">
+    
+    {if user}
+    {!-- Authenticated Layout --}
+    <div class="flex h-screen overflow-hidden">
+        
+        {!-- Sidebar --}
+        <aside class="bg-indigo-800 text-white transition-all duration-300"
+               :class="sidebarOpen ? 'w-64' : 'w-20'">
+            
+            {!-- Logo --}
+            <div class="flex items-center h-16 px-4 border-b border-indigo-700">
+                <i class="fas fa-heart-pulse text-2xl"></i>
+                <span class="ml-3 font-bold text-lg" x-show="sidebarOpen" x-cloak>Guidance</span>
+            </div>
+            
+            {!-- Navigation --}
+            <nav class="mt-4 px-2">
+                <a href="{base_url}/" 
+                   class="flex items-center px-4 py-3 rounded-lg mb-1 hover:bg-indigo-700 {if current_page == 'dashboard'}bg-indigo-700{/if}"
+                   hx-get="/admin/guidance/pages/dashboard" 
+                   hx-target="#main-content" 
+                   hx-push-url="{base_url}/">
+                    <i class="fas fa-chart-line w-6"></i>
+                    <span class="ml-3" x-show="sidebarOpen" x-cloak>Dashboard</span>
+                </a>
+                
+                <a href="{base_url}/cases" 
+                   class="flex items-center px-4 py-3 rounded-lg mb-1 hover:bg-indigo-700 {if current_page == 'cases'}bg-indigo-700{/if}"
+                   hx-get="/admin/guidance/pages/cases" 
+                   hx-target="#main-content" 
+                   hx-push-url="{base_url}/cases">
+                    <i class="fas fa-folder-open w-6"></i>
+                    <span class="ml-3" x-show="sidebarOpen" x-cloak>Cases</span>
+                </a>
+                
+                <a href="{base_url}/appointments" 
+                   class="flex items-center px-4 py-3 rounded-lg mb-1 hover:bg-indigo-700 {if current_page == 'appointments'}bg-indigo-700{/if}"
+                   hx-get="/admin/guidance/pages/appointments" 
+                   hx-target="#main-content" 
+                   hx-push-url="{base_url}/appointments">
+                    <i class="fas fa-calendar-alt w-6"></i>
+                    <span class="ml-3" x-show="sidebarOpen" x-cloak>Appointments</span>
+                </a>
+                
+                <a href="{base_url}/reports" 
+                   class="flex items-center px-4 py-3 rounded-lg mb-1 hover:bg-indigo-700 {if current_page == 'reports'}bg-indigo-700{/if}"
+                   hx-get="/admin/guidance/pages/reports" 
+                   hx-target="#main-content" 
+                   hx-push-url="{base_url}/reports">
+                    <i class="fas fa-chart-bar w-6"></i>
+                    <span class="ml-3" x-show="sidebarOpen" x-cloak>Reports</span>
+                </a>
+                
+                <a href="{base_url}/trackers" 
+                   class="flex items-center px-4 py-3 rounded-lg mb-1 hover:bg-indigo-700 {if current_page == 'trackers'}bg-indigo-700{/if}"
+                   hx-get="/admin/guidance/pages/trackers" 
+                   hx-target="#main-content" 
+                   hx-push-url="{base_url}/trackers">
+                    <i class="fas fa-clipboard-list w-6"></i>
+                    <span class="ml-3" x-show="sidebarOpen" x-cloak>Student Tracker</span>
+                </a>
+
+                <a href="{base_url}/users" 
+                   class="flex items-center px-4 py-3 rounded-lg mb-1 hover:bg-indigo-700 {if current_page == 'users'}bg-indigo-700{/if}"
+                   hx-get="/admin/guidance/pages/users" 
+                   hx-target="#main-content" 
+                   hx-push-url="{base_url}/users">
+                    <i class="fas fa-users w-6"></i>
+                    <span class="ml-3" x-show="sidebarOpen" x-cloak>Users</span>
+                </a>
+
+                <a href="{base_url}/colleges" 
+                   class="flex items-center px-4 py-3 rounded-lg mb-1 hover:bg-indigo-700 {if current_page == 'colleges'}bg-indigo-700{/if}"
+                   hx-get="/admin/guidance/pages/colleges" 
+                   hx-target="#main-content" 
+                   hx-push-url="{base_url}/colleges">
+                    <i class="fas fa-building-columns w-6"></i>
+                    <span class="ml-3" x-show="sidebarOpen" x-cloak>Colleges</span>
+                </a>
+
+                {if user_role == 'admin'}
+                <a href="{base_url}/settings" 
+                   class="flex items-center px-4 py-3 rounded-lg mb-1 hover:bg-indigo-700 {if current_page == 'settings'}bg-indigo-700{/if}"
+                   hx-get="/admin/guidance/pages/settings" 
+                   hx-target="#main-content" 
+                   hx-push-url="{base_url}/settings">
+                    <i class="fas fa-gear w-6"></i>
+                    <span class="ml-3" x-show="sidebarOpen" x-cloak>Settings</span>
+                </a>
+                {/if}
+            </nav>
+        </aside>
+
+        {!-- Main content --}
+        <div class="flex-1 flex flex-col overflow-hidden">
+            {!-- Header --}
+            <header class="bg-white shadow-sm border-b border-gray-100 h-16 flex items-center justify-between px-6">
+                <div class="flex items-center gap-3">
+                    <button class="text-gray-500 hover:text-gray-700" @click="sidebarOpen = !sidebarOpen">
+                        <i class="fas fa-bars"></i>
+                    </button>
+                    <h1 class="text-lg font-semibold text-gray-900">{page_title | default:'Guidance Monitoring System'}</h1>
+                </div>
+
+                <div class="flex items-center gap-4">
+                    <div class="relative" x-data="{open:false}">
+                        <button class="flex items-center gap-2 text-gray-700 hover:text-gray-900" @click="open=!open">
+                            <div class="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-semibold">
+                                {user_initials | default:'U'}
+                            </div>
+                            <div class="hidden md:block text-left">
+                                <div class="text-sm font-medium">{user_name | default:'User'}</div>
+                                <div class="text-xs text-gray-500">{user_role | default:''}</div>
+                            </div>
+                            <i class="fas fa-chevron-down text-xs text-gray-400"></i>
+                        </button>
+                        <div x-show="open" x-cloak @click.away="open=false" class="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-100 overflow-hidden">
+                            <a href="{base_url}/profile" hx-get="/admin/guidance/pages/profile" hx-target="#main-content" hx-push-url="{base_url}/profile" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
+                                <i class="fas fa-user mr-2 text-gray-400"></i> Profile
+                            </a>
+                            <a href="/guidance/logout" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
+                                <i class="fas fa-right-from-bracket mr-2 text-gray-400"></i> Logout
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <main id="main-content" class="flex-1 overflow-y-auto p-6">
+                {block content}{/block}
+            </main>
+
+            <div id="modal-container"></div>
+            <div id="toast-container" class="fixed top-4 right-4 z-50"></div>
+        </div>
+    </div>
+
+    {else}
+    {!-- Guest Layout --}
+    <main class="min-h-screen flex items-center justify-center p-6">
+        {block content}{/block}
+    </main>
+    {/if}
+</body>
+</html>

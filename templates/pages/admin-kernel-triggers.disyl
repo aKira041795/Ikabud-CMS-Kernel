@@ -1,0 +1,880 @@
+{extends "layouts/app.disyl"}
+
+{block head}
+<style>
+    .input { font-size: 12px; padding: 7px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg); color: var(--text); min-width: 220px; }
+    .select { font-size: 12px; padding: 7px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg); color: var(--text); }
+
+    .triggers-table th, .triggers-table td { padding: 8px 10px; font-size: 12px; vertical-align: top; }
+    .triggers-table th { font-weight: 700; background: var(--surface); position: sticky; top: 0; z-index: 1; }
+
+    .toggle { display: inline-flex; align-items:center; gap: 8px; user-select:none; }
+    .toggle input { width: 16px; height: 16px; }
+
+    .row-actions { display:flex; align-items:center; gap: 8px; flex-wrap: wrap; }
+    .row-actions .btn { padding: 6px 10px; }
+
+    .cell-tight { white-space: nowrap; }
+    .tpl { width: 360px; max-width: 70vw; min-height: 38px; resize: vertical; font-size: 12px; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg); color: var(--text); }
+    .num { width: 88px; font-size: 12px; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg); color: var(--text); }
+
+    .loading { font-size: 12px; color: var(--text-muted); padding: 10px 0; }
+
+    .suggest-panel { display:none; }
+    .suggest-panel.show { display:block; }
+    .suggest-item { display:flex; gap: 10px; align-items:flex-start; padding: 10px 0; border-bottom: 1px solid var(--border); }
+    .suggest-item:last-child { border-bottom: none; }
+    .suggest-item input { width: 16px; height: 16px; margin-top: 2px; }
+    .suggest-main { flex: 1; }
+    .suggest-title { display:flex; align-items:center; gap: 8px; flex-wrap: wrap; }
+    .suggest-reason { margin-top: 4px; font-size: 12px; color: var(--text-muted); }
+    .suggest-code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 12px; color: var(--text); }
+    .suggest-preview { margin-top: 6px; font-size: 12px; color: var(--text); background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 8px 10px; }
+    .btn-disabled { opacity: .55; cursor: not-allowed; }
+    .tips-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; margin-bottom: 12px; }
+    .tip-card { border: 1px solid var(--border); background: var(--surface); border-radius: 10px; padding: 10px; }
+    .tip-title { font-size: 12px; font-weight: 700; color: var(--text); margin-bottom: 4px; }
+    .tip-text { font-size: 11px; color: var(--text-muted); line-height: 1.45; }
+    .mode-toggle { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-muted); }
+    .mode-toggle input { width: 16px; height: 16px; }
+    .mode-hint { font-size: 11px; color: var(--text-muted); margin-top: 8px; }
+    .simple-mode .adv-col { display: none; }
+    .quick-create { border: 1px solid var(--border); background: var(--surface); border-radius: 10px; padding: 12px; margin-bottom: 12px; }
+    .quick-create-title { font-size: 13px; font-weight: 700; margin-bottom: 4px; }
+    .quick-create-help { font-size: 11px; color: var(--text-muted); margin-bottom: 10px; }
+    .quick-create-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+    .quick-create-grid .select { width: 100%; min-width: 0; }
+    .quick-create-template { margin-top: 10px; }
+    .quick-create-template textarea { width: 100%; min-height: 58px; resize: vertical; }
+    .sample-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
+    .sample-row .btn { padding: 5px 9px; font-size: 11px; }
+    .quick-create-actions { margin-top: 10px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .quick-create-note { font-size: 11px; color: var(--text-muted); }
+    @media (max-width: 980px) {
+        .quick-create-grid { grid-template-columns: 1fr; }
+    }
+</style>
+{/block}
+
+{block content}
+<div class="page-header">
+    <div>
+        <h2>Automation Rules</h2>
+        <div class="page-desc">Create simple “when this happens, do this” rules. Each rule listens to an event and runs an action.</div>
+    </div>
+</div>
+
+<div class="tips-grid">
+    <div class="tip-card">
+        <div class="tip-title">1. Pick A Trigger Event</div>
+        <div class="tip-text">Choose the event that starts the automation, like a record being created or updated.</div>
+    </div>
+    <div class="tip-card">
+        <div class="tip-title">2. Choose The Action</div>
+        <div class="tip-text">Select the service/action to run when the event occurs.</div>
+    </div>
+    <div class="tip-card">
+        <div class="tip-title">3. Save And Monitor</div>
+        <div class="tip-text">Enable the rule, save, then watch status and traces from the Platform page.</div>
+    </div>
+</div>
+
+<div class="panel">
+    <div class="toolbar">
+        <div class="left">
+            <strong style="font-size:13px;">Available Events</strong>
+            <span class="badge" id="eventCounts">Loading…</span>
+        </div>
+        <div class="right">
+            <span class="muted" style="font-size:12px;">These are events your modules can trigger.</span>
+        </div>
+    </div>
+
+    <div class="panel suggest-panel" id="suggestPanel" style="margin-top:10px;">
+        <div class="toolbar">
+            <div class="left">
+                <strong style="font-size:13px;">Smart Suggestions</strong>
+                <span class="badge" id="suggestFor">—</span>
+                <span class="badge" id="suggestCount">0</span>
+            </div>
+            <div class="right">
+                <button class="btn" onclick="closeSuggest()">Close</button>
+                <button class="btn" id="applySuggestBtn" onclick="applySelectedSuggestions()">Use Selected</button>
+            </div>
+        </div>
+        <div class="muted" style="font-size:12px;margin-bottom:8px;">Review suggested rules, then apply only the ones that match your workflow.</div>
+        <div id="suggestBody" class="muted" style="font-size:12px;">No suggestions loaded.</div>
+    </div>
+
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th style="min-width:120px;">Module</th>
+                    <th style="min-width:320px;">Event (When)</th>
+                    <th style="min-width:220px;">Event Data</th>
+                </tr>
+            </thead>
+            <tbody id="eventsTbody">
+                <tr><td colspan="3" class="muted">Loading…</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="panel" id="rulesPanel">
+    <div class="quick-create">
+        <div class="quick-create-title">Create New Rule</div>
+        <div class="quick-create-help">Quick setup: choose an event, choose an action, then save. Advanced controls stay in each table row below.</div>
+        <div class="quick-create-grid">
+            <div>
+                <label class="muted" style="font-size:11px;">Module</label>
+                <select class="select" id="qcModule" onchange="updateQuickCreateEventOptions()">
+                    <option value="">Select module</option>
+                </select>
+            </div>
+            <div>
+                <label class="muted" style="font-size:11px;">When this happens (Event)</label>
+                <select class="select" id="qcEvent">
+                    <option value="">Select event</option>
+                </select>
+            </div>
+            <div>
+                <label class="muted" style="font-size:11px;">Run this action</label>
+                <select class="select" id="qcCapability">
+                    <option value="">Select action</option>
+                </select>
+            </div>
+        </div>
+        <div class="quick-create-template">
+            <label class="muted" style="font-size:11px;">Optional payload template</label>
+            <textarea class="tpl" id="qcTemplate" placeholder="Leave blank for default behavior"></textarea>
+            <div class="sample-row">
+                <button class="btn" type="button" onclick="setQuickTemplateSample('none')">No template</button>
+                <button class="btn" type="button" onclick="setQuickTemplateSample('id')">Sample: record id only</button>
+                <button class="btn" type="button" onclick="setQuickTemplateSample('context')">Sample: event context</button>
+            </div>
+        </div>
+        <div class="quick-create-actions">
+            <button class="btn btn-primary" type="button" onclick="createQuickRule()">Create Rule</button>
+            <span class="quick-create-note">New rules are created as Active with safe defaults (priority 100, retries 0, timeout 5000ms).</span>
+        </div>
+    </div>
+
+    <div class="toolbar">
+        <div class="left">
+            <input class="input" id="filter" placeholder="Search by module, event, or action..." oninput="renderTable()">
+            <select class="select" id="moduleFilter" onchange="renderTable()">
+                <option value="">All modules</option>
+            </select>
+            <span class="badge" id="counts">Loading…</span>
+        </div>
+        <div class="right">
+            <label class="mode-toggle" title="Show advanced rule settings like priority, retries, timeout, and templates.">
+                <input type="checkbox" id="advancedModeToggle" onchange="setAdvancedMode(this.checked)">
+                <span>Advanced mode</span>
+            </label>
+            <button class="btn" onclick="reloadAll()">Reload</button>
+        </div>
+    </div>
+    <div class="mode-hint" id="modeHint">Simple mode: showing core fields only.</div>
+
+    <div class="loading" id="loading">Loading events and triggers…</div>
+
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th style="min-width:120px;">Module</th>
+                    <th style="min-width:260px;">When This Happens</th>
+                    <th style="min-width:180px;">Run This Action</th>
+                    <th class="cell-tight">Status</th>
+                    <th class="cell-tight adv-col">Priority</th>
+                    <th class="adv-col" style="min-width:390px;">Message Template (optional)</th>
+                    <th class="cell-tight adv-col">Rate Limit</th>
+                    <th class="cell-tight adv-col">Retries</th>
+                    <th class="cell-tight adv-col">Timeout</th>
+                    <th style="min-width:120px;">Actions</th>
+                </tr>
+            </thead>
+            <tbody id="tbody">
+                <tr><td colspan="10" class="muted">Loading…</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+{/block}
+
+{block scripts}
+<script>
+    var KERNEL_CSRF = '{csrf_token}';
+    var KERNEL_EVENTS = [];
+    var KERNEL_TRIGGERS = [];
+    var KERNEL_CAPABILITIES = [];
+    var EVENTS_BY_KEY = {}; // module|event_key -> event
+    var ACTIVE_SUGGEST_EVENT = null;
+    var ACTIVE_SUGGESTIONS = [];
+    var ACTIVE_ALLOWED_CAPS = [];
+    var ADVANCED_MODE = false;
+
+    function applyModeUI() {
+        var panel = document.getElementById('rulesPanel');
+        var toggle = document.getElementById('advancedModeToggle');
+        var hint = document.getElementById('modeHint');
+        if (!panel || !toggle || !hint) return;
+
+        if (ADVANCED_MODE) {
+            panel.classList.remove('simple-mode');
+            toggle.checked = true;
+            hint.textContent = 'Advanced mode: all rule controls are visible.';
+        } else {
+            panel.classList.add('simple-mode');
+            toggle.checked = false;
+            hint.textContent = 'Simple mode: showing core fields only.';
+        }
+    }
+
+    function setAdvancedMode(enabled) {
+        ADVANCED_MODE = !!enabled;
+        try {
+            localStorage.setItem('kernel_triggers_advanced_mode', ADVANCED_MODE ? '1' : '0');
+        } catch (e) {}
+        applyModeUI();
+    }
+
+    function loadAdvancedModePreference() {
+        try {
+            ADVANCED_MODE = localStorage.getItem('kernel_triggers_advanced_mode') === '1';
+        } catch (e) {
+            ADVANCED_MODE = false;
+        }
+        applyModeUI();
+    }
+
+    function setEventCounts() {
+        var c = document.getElementById('eventCounts');
+        if (!c) return;
+        var n = KERNEL_EVENTS.length || 0;
+        c.textContent = n + ' event' + (n === 1 ? '' : 's');
+    }
+
+    function openSuggest() {
+        var p = document.getElementById('suggestPanel');
+        if (p) p.classList.add('show');
+    }
+
+    function closeSuggest() {
+        ACTIVE_SUGGEST_EVENT = null;
+        ACTIVE_SUGGESTIONS = [];
+        ACTIVE_ALLOWED_CAPS = [];
+        var p = document.getElementById('suggestPanel');
+        if (p) p.classList.remove('show');
+    }
+
+    function renderSuggestions() {
+        var body = document.getElementById('suggestBody');
+        var forEl = document.getElementById('suggestFor');
+        var countEl = document.getElementById('suggestCount');
+        var applyBtn = document.getElementById('applySuggestBtn');
+
+        if (forEl) {
+            forEl.textContent = ACTIVE_SUGGEST_EVENT ? (ACTIVE_SUGGEST_EVENT.module + ' · ' + ACTIVE_SUGGEST_EVENT.event_key) : '—';
+        }
+        if (countEl) {
+            countEl.textContent = String((ACTIVE_SUGGESTIONS || []).length);
+        }
+        if (applyBtn) {
+            applyBtn.disabled = !(ACTIVE_SUGGESTIONS && ACTIVE_SUGGESTIONS.length);
+            if (applyBtn.disabled) {
+                applyBtn.classList.add('btn-disabled');
+            } else {
+                applyBtn.classList.remove('btn-disabled');
+            }
+        }
+
+        if (!body) return;
+
+        if (!ACTIVE_SUGGESTIONS || !ACTIVE_SUGGESTIONS.length) {
+            body.innerHTML = '<div class="muted">No suggestions.</div>';
+            return;
+        }
+
+        var allowed = Array.isArray(ACTIVE_ALLOWED_CAPS) ? ACTIVE_ALLOWED_CAPS : [];
+        body.innerHTML = ACTIVE_SUGGESTIONS.map(function(s, idx) {
+            var isAllowed = allowed.length ? (allowed.indexOf(String(s.capability_id || '')) !== -1) : true;
+            var title = '<span class="suggest-code">' + esc(s.capability_id) + '</span>';
+            var meta = '<span class="badge">priority ' + esc(s.priority) + '</span>';
+            if (!isAllowed) {
+                meta += ' <span class="badge warn">Not allowed</span>';
+            }
+            var tpl = (s.template !== null && s.template !== undefined && String(s.template).trim() !== '') ? String(s.template) : '';
+            var tplBox = tpl ? ('<div class="suggest-preview"><div class="muted" style="font-size:11px;margin-bottom:4px;">Template</div><div class="suggest-code">' + esc(tpl) + '</div></div>') : '';
+            return (
+                '<div class="suggest-item">' +
+                    '<input type="checkbox" ' + (isAllowed ? 'checked' : '') + ' ' + (isAllowed ? '' : 'disabled') + ' data-suggest-idx="' + idx + '">' +
+                    '<div class="suggest-main">' +
+                        '<div class="suggest-title">' + title + meta + '</div>' +
+                        (s.reason ? ('<div class="suggest-reason">' + esc(s.reason) + '</div>') : '') +
+                        tplBox +
+                    '</div>' +
+                '</div>'
+            );
+        }).join('');
+    }
+
+    function suggestForEvent(moduleId, eventKey) {
+        openSuggest();
+        ACTIVE_SUGGEST_EVENT = { module: moduleId, event_key: eventKey };
+        ACTIVE_SUGGESTIONS = [];
+        ACTIVE_ALLOWED_CAPS = [];
+        renderSuggestions();
+
+        var body = document.getElementById('suggestBody');
+        if (body) body.innerHTML = '<div class="muted">Requesting suggestions…</div>';
+
+        fetch('/api/v1/admin/kernel/triggers/suggest', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': KERNEL_CSRF },
+            body: JSON.stringify({ module: moduleId, event_key: eventKey })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(res) {
+            if (res && res.ok) {
+                ACTIVE_SUGGESTIONS = Array.isArray(res.suggestions) ? res.suggestions : [];
+                ACTIVE_ALLOWED_CAPS = Array.isArray(res.allowed_capabilities) ? res.allowed_capabilities : [];
+                showToast('Suggestions ready');
+            } else {
+                ACTIVE_SUGGESTIONS = [];
+                ACTIVE_ALLOWED_CAPS = [];
+                showToast((res && res.error) ? res.error : 'Suggestion failed');
+            }
+            renderSuggestions();
+        })
+        .catch(function() {
+            ACTIVE_SUGGESTIONS = [];
+            ACTIVE_ALLOWED_CAPS = [];
+            showToast('Network error');
+            renderSuggestions();
+        });
+    }
+
+    function applySelectedSuggestions() {
+        if (!ACTIVE_SUGGEST_EVENT || !ACTIVE_SUGGESTIONS.length) {
+            showToast('No suggestions to apply');
+            return;
+        }
+
+        var body = document.getElementById('suggestBody');
+        var checks = body ? body.querySelectorAll('input[type="checkbox"][data-suggest-idx]') : [];
+        var idxs = [];
+        checks.forEach(function(ch) {
+            if (ch.checked) idxs.push(Number(ch.getAttribute('data-suggest-idx')));
+        });
+
+        if (!idxs.length) {
+            showToast('Select at least one suggestion');
+            return;
+        }
+
+        var toApply = idxs.map(function(i) { return ACTIVE_SUGGESTIONS[i]; }).filter(Boolean);
+        var allowed = Array.isArray(ACTIVE_ALLOWED_CAPS) ? ACTIVE_ALLOWED_CAPS : [];
+        toApply = toApply.filter(function(s) {
+            return !allowed.length || (allowed.indexOf(String(s.capability_id || '')) !== -1);
+        });
+        if (!toApply.length) {
+            showToast('Nothing allowed selected');
+            return;
+        }
+
+        showToast('Applying ' + toApply.length + ' suggestion(s)…', 2500);
+
+        // Apply sequentially to keep server load small and to simplify error handling.
+        var i = 0;
+        function next() {
+            if (i >= toApply.length) {
+                showToast('Applied suggestions');
+                reloadAll(true);
+                return;
+            }
+
+            var s = toApply[i++];
+            fetch('/api/v1/admin/kernel/triggers/save', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': KERNEL_CSRF },
+                body: JSON.stringify({
+                    module: s.module,
+                    event_key: s.event_key,
+                    capability_id: s.capability_id,
+                    provider: s.provider || null,
+                    is_enabled: s.is_enabled ? 1 : 0,
+                    priority: Number(s.priority || 100),
+                    template: s.template || '',
+                    max_per_minute: (s.max_per_minute === null || s.max_per_minute === undefined) ? '' : Number(s.max_per_minute),
+                    retry_count: Number(s.retry_count || 0),
+                    timeout_ms: Number(s.timeout_ms || 5000),
+                    meta: (s.meta && typeof s.meta === 'object') ? s.meta : null
+                })
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(res) {
+                if (!res || !res.ok) {
+                    showToast((res && res.error) ? res.error : 'Failed applying suggestion');
+                }
+                next();
+            })
+            .catch(function() {
+                showToast('Network error while applying suggestion');
+                next();
+            });
+        }
+        next();
+    }
+
+    function renderEvents() {
+        var tbody = document.getElementById('eventsTbody');
+        if (!tbody) return;
+
+        if (!KERNEL_EVENTS.length) {
+            tbody.innerHTML = '<tr><td colspan="3" class="muted">No events available yet.</td></tr>';
+            setEventCounts();
+            return;
+        }
+
+        tbody.innerHTML = KERNEL_EVENTS.map(function(e) {
+            var desc = e.description ? String(e.description) : '';
+            var title = desc ? ('title="' + esc(desc) + '"') : '';
+            var vars = Array.isArray(e.available_vars) ? e.available_vars : [];
+            return (
+                '<tr>' +
+                    '<td class="mono">' + esc(e.module) + '</td>' +
+                    '<td ' + title + '>' +
+                        '<div class="mono">' + esc(e.event_key) + '</div>' +
+                        (desc ? '<div class="muted" style="margin-top:3px;max-width:620px;">' + esc(desc) + '</div>' : '') +
+                        '<div style="margin-top:6px;">' +
+                            '<button class="btn" onclick="suggestForEvent(\'' + esc(e.module) + '\',\'' + esc(e.event_key) + '\')">Get Suggestions</button>' +
+                        '</div>' +
+                    '</td>' +
+                    '<td>' +
+                        (vars.length ? vars.map(function(v) {
+                            return '<span class="badge"><span class="mono">' + esc(v) + '</span></span>';
+                        }).join(' ') : '<span class="muted">—</span>') +
+                    '</td>' +
+                '</tr>'
+            );
+        }).join('');
+
+        setEventCounts();
+    }
+
+    function normalizeCapabilities(raw) {
+        if (!Array.isArray(raw)) return [];
+        var list = [];
+        raw.forEach(function(item) {
+            if (typeof item === 'string') {
+                list.push({ id: item, label: item, description: '' });
+                return;
+            }
+            if (!item || typeof item !== 'object') return;
+            var id = String(item.id || item.capability_id || item.capability || '').trim();
+            if (!id) return;
+            var label = String(item.label || item.name || id);
+            var description = String(item.description || '');
+            list.push({ id: id, label: label, description: description });
+        });
+        list.sort(function(a, b) { return a.id.localeCompare(b.id); });
+        return list;
+    }
+
+    function updateQuickCreateModuleOptions() {
+        var sel = document.getElementById('qcModule');
+        if (!sel) return;
+        var current = sel.value || '';
+        var modules = {};
+        KERNEL_EVENTS.forEach(function(e) { modules[String(e.module || '')] = true; });
+        var keys = Object.keys(modules).filter(function(m) { return m.trim() !== ''; }).sort();
+        sel.innerHTML = '<option value="">Select module</option>' + keys.map(function(m) {
+            return '<option value="' + esc(m) + '">' + esc(m) + '</option>';
+        }).join('');
+        if (current && modules[current]) sel.value = current;
+        updateQuickCreateEventOptions();
+    }
+
+    function updateQuickCreateEventOptions() {
+        var modSel = document.getElementById('qcModule');
+        var evtSel = document.getElementById('qcEvent');
+        if (!modSel || !evtSel) return;
+        var moduleId = modSel.value || '';
+        var events = KERNEL_EVENTS.filter(function(e) {
+            return moduleId ? String(e.module || '') === moduleId : true;
+        });
+        evtSel.innerHTML = '<option value="">Select event</option>' + events.map(function(e) {
+            var desc = e.description ? (' - ' + String(e.description)) : '';
+            var text = String(e.event_key || '') + desc;
+            return '<option value="' + esc(String(e.event_key || '')) + '">' + esc(text) + '</option>';
+        }).join('');
+    }
+
+    function updateQuickCreateCapabilityOptions() {
+        var sel = document.getElementById('qcCapability');
+        if (!sel) return;
+        var current = sel.value || '';
+        sel.innerHTML = '<option value="">Select action</option>' + KERNEL_CAPABILITIES.map(function(c) {
+            var label = c.label && c.label !== c.id ? (c.label + ' (' + c.id + ')') : c.id;
+            return '<option value="' + esc(c.id) + '">' + esc(label) + '</option>';
+        }).join('');
+        if (current && KERNEL_CAPABILITIES.some(function(c){ return c.id === current; })) {
+            sel.value = current;
+        }
+    }
+
+    function setQuickTemplateSample(kind) {
+        var tpl = document.getElementById('qcTemplate');
+        if (!tpl) return;
+        if (kind === 'none') {
+            tpl.value = '';
+            return;
+        }
+        if (kind === 'id') {
+            tpl.value = '{"id":"{{record_id}}"}';
+            return;
+        }
+        tpl.value = '{"event":"{{event_key}}","module":"{{module}}","timestamp":"{{now}}"}';
+    }
+
+    function createQuickRule() {
+        var moduleEl = document.getElementById('qcModule');
+        var eventEl = document.getElementById('qcEvent');
+        var capEl = document.getElementById('qcCapability');
+        var tplEl = document.getElementById('qcTemplate');
+        if (!moduleEl || !eventEl || !capEl || !tplEl) return;
+
+        var moduleId = String(moduleEl.value || '');
+        var eventKey = String(eventEl.value || '');
+        var capabilityId = String(capEl.value || '');
+        var template = String(tplEl.value || '');
+
+        if (!moduleId || !eventKey || !capabilityId) {
+            showToast('Select module, event, and action first');
+            return;
+        }
+
+        fetch('/api/v1/admin/kernel/triggers/save', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': KERNEL_CSRF },
+            body: JSON.stringify({
+                module: moduleId,
+                event_key: eventKey,
+                capability_id: capabilityId,
+                is_enabled: 1,
+                priority: 100,
+                template: template,
+                max_per_minute: '',
+                retry_count: 0,
+                timeout_ms: 5000
+            })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(res) {
+            if (res && res.ok) {
+                showToast('Rule created');
+                tplEl.value = '';
+                reloadAll(true);
+            } else {
+                showToast((res && res.error) ? res.error : 'Failed to create rule');
+            }
+        })
+        .catch(function() {
+            showToast('Network error while creating rule');
+        });
+    }
+
+    function esc(s) {
+        return String(s === null || s === undefined ? '' : s)
+            .replace(/&/g,'&amp;')
+            .replace(/</g,'&lt;')
+            .replace(/>/g,'&gt;')
+            .replace(/"/g,'&quot;')
+            .replace(/'/g,'&#39;');
+    }
+
+    function keyFor(moduleId, eventKey) {
+        return String(moduleId || '') + '|' + String(eventKey || '');
+    }
+
+    function buildEventsIndex() {
+        EVENTS_BY_KEY = {};
+        KERNEL_EVENTS.forEach(function(e) {
+            EVENTS_BY_KEY[keyFor(e.module, e.event_key)] = e;
+        });
+    }
+
+    function setCounts() {
+        var c = document.getElementById('counts');
+        if (!c) return;
+        var unreg = 0;
+        KERNEL_TRIGGERS.forEach(function(t) {
+            if (!EVENTS_BY_KEY[keyFor(t.module, t.event_key)]) unreg++;
+        });
+
+        var txt = (KERNEL_TRIGGERS.length || 0) + ' trigger' + (KERNEL_TRIGGERS.length === 1 ? '' : 's');
+        if (unreg > 0) {
+            c.classList.add('warn');
+            txt += ' · ' + unreg + ' unregistered event' + (unreg === 1 ? '' : 's');
+        } else {
+            c.classList.remove('warn');
+        }
+        c.textContent = txt;
+    }
+
+    function updateModuleFilterOptions() {
+        var sel = document.getElementById('moduleFilter');
+        if (!sel) return;
+
+        var current = sel.value;
+        var modules = {};
+        KERNEL_TRIGGERS.forEach(function(t) { modules[String(t.module || '')] = true; });
+        KERNEL_EVENTS.forEach(function(e) { modules[String(e.module || '')] = true; });
+
+        var list = Object.keys(modules).filter(function(m) { return m.trim() !== ''; }).sort();
+        sel.innerHTML = '<option value="">All modules</option>' + list.map(function(m) {
+            return '<option value="' + esc(m) + '">' + esc(m) + '</option>';
+        }).join('');
+        sel.value = current;
+    }
+
+    function getFilteredTriggers() {
+        var f = (document.getElementById('filter').value || '').toLowerCase();
+        var mod = document.getElementById('moduleFilter').value || '';
+
+        return KERNEL_TRIGGERS.filter(function(t) {
+            if (mod && String(t.module) !== mod) return false;
+            if (!f) return true;
+            var hay = (String(t.module) + ' ' + String(t.event_key) + ' ' + String(t.capability_id)).toLowerCase();
+            return hay.indexOf(f) !== -1;
+        });
+    }
+
+    function renderTable() {
+        var tbody = document.getElementById('tbody');
+        var loading = document.getElementById('loading');
+
+        if (!tbody) return;
+        if (loading) loading.style.display = 'none';
+
+        var rows = getFilteredTriggers();
+
+        if (!rows.length) {
+            tbody.innerHTML = '<tr><td colspan="10" class="muted">No triggers match your filter.</td></tr>';
+            setCounts();
+            return;
+        }
+
+        tbody.innerHTML = rows.map(function(t) {
+            var ev = EVENTS_BY_KEY[keyFor(t.module, t.event_key)];
+            var eventBadge = '';
+            if (!ev) {
+                eventBadge = ' <span class="badge warn" title="This rule points to an event that is not currently available. The module may be disabled or the event name may have changed.">Unavailable event</span>';
+            }
+
+            var desc = ev && ev.description ? String(ev.description) : (t.event_description ? String(t.event_description) : '');
+            var title = desc ? ('title="' + esc(desc) + '"') : '';
+
+            var enabled = (Number(t.is_enabled) === 1);
+            var tpl = t.template || '';
+
+            var maxPerMin = (t.max_per_minute === null || t.max_per_minute === undefined) ? '' : String(t.max_per_minute);
+
+            return (
+                '<tr data-module="' + esc(t.module) + '" data-event="' + esc(t.event_key) + '" data-cap="' + esc(t.capability_id) + '" data-trigger-id="' + esc(String(t.id || '')) + '">' +
+                    '<td class="mono">' + esc(t.module) + '</td>' +
+                    '<td ' + title + '><div class="mono">' + esc(t.event_key) + '</div>' +
+                        (desc ? '<div class="muted" style="margin-top:3px;max-width:540px;">' + esc(desc) + '</div>' : '') +
+                        eventBadge +
+                    '</td>' +
+                    '<td class="mono">' + esc(t.capability_id) + '</td>' +
+                    '<td class="cell-tight">' +
+                        '<label class="toggle"><input type="checkbox" ' + (enabled ? 'checked' : '') + ' onchange="markDirty(this)"><span class="muted">' + (enabled ? 'Active' : 'Paused') + '</span></label>' +
+                    '</td>' +
+                    '<td class="cell-tight adv-col"><input class="num" type="number" value="' + esc(t.priority) + '" oninput="markDirty(this)"></td>' +
+                    '<td class="adv-col"><textarea class="tpl" placeholder="Optional payload, e.g. {\"id\":\"{{record_id}}\"}" oninput="markDirty(this)">' + esc(tpl) + '</textarea></td>' +
+                    '<td class="cell-tight adv-col"><input class="num" type="number" min="" placeholder="No limit" value="' + esc(maxPerMin) + '" oninput="markDirty(this)"></td>' +
+                    '<td class="cell-tight adv-col"><input class="num" type="number" min="0" value="' + esc(t.retry_count) + '" oninput="markDirty(this)"></td>' +
+                    '<td class="cell-tight adv-col"><input class="num" type="number" min="0" placeholder="5000" value="' + esc(t.timeout_ms) + '" oninput="markDirty(this)"></td>' +
+                    '<td class="cell-tight">' +
+                        '<div class="row-actions">' +
+                            '<button class="btn" onclick="saveRow(this)">Save</button>' +
+                            '<button class="btn btn-danger" onclick="deleteRow(this)" title="Delete this rule">Delete</button>' +
+                            '<span class="muted" data-status></span>' +
+                        '</div>' +
+                    '</td>' +
+                '</tr>'
+            );
+        }).join('');
+
+        setCounts();
+    }
+
+    function getRowEl(el) {
+        var node = el;
+        while (node && node.tagName !== 'TR') node = node.parentNode;
+        return node;
+    }
+
+    function markDirty(el) {
+        var tr = getRowEl(el);
+        if (!tr) return;
+        tr.dataset.dirty = '1';
+        var status = tr.querySelector('[data-status]');
+        if (status) status.textContent = 'Unsaved changes';
+    }
+
+    function rowPayload(tr) {
+        var moduleId = tr.getAttribute('data-module') || '';
+        var eventKey = tr.getAttribute('data-event') || '';
+        var capId = tr.getAttribute('data-cap') || '';
+
+        var inputs = tr.querySelectorAll('input, textarea');
+        var enabledInput = inputs[0];
+        var priorityInput = inputs[1];
+        var tplInput = inputs[2];
+        var maxPerMinInput = inputs[3];
+        var retryInput = inputs[4];
+        var timeoutInput = inputs[5];
+
+        return {
+            module: moduleId,
+            event_key: eventKey,
+            capability_id: capId,
+            is_enabled: enabledInput && enabledInput.checked ? 1 : 0,
+            priority: priorityInput ? Number(priorityInput.value || 0) : 100,
+            template: tplInput ? String(tplInput.value || '') : '',
+            max_per_minute: maxPerMinInput ? (maxPerMinInput.value === '' ? '' : Number(maxPerMinInput.value)) : '',
+            retry_count: retryInput ? Number(retryInput.value || 0) : 0,
+            timeout_ms: timeoutInput ? Number(timeoutInput.value || 0) : 0,
+        };
+    }
+
+    function saveRow(btn) {
+        var tr = getRowEl(btn);
+        if (!tr) return;
+
+        var status = tr.querySelector('[data-status]');
+        if (status) status.textContent = 'Saving...';
+
+        var payload = rowPayload(tr);
+
+        fetch('/api/v1/admin/kernel/triggers/save', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': KERNEL_CSRF },
+            body: JSON.stringify(payload)
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(res) {
+            if (res && res.ok) {
+                tr.dataset.dirty = '0';
+                if (status) status.textContent = 'Saved';
+                showToast('Rule saved');
+                reloadAll(true);
+            } else {
+                if (status) status.textContent = 'Error';
+                showToast((res && res.error) ? res.error : 'Failed to save rule');
+            }
+        })
+        .catch(function() {
+            if (status) status.textContent = 'Error';
+            showToast('Network error');
+        });
+    }
+
+    function deleteRow(btn) {
+        var tr = getRowEl(btn);
+        if (!tr) return;
+
+        var module = tr.getAttribute('data-module') || '';
+        var eventKey = tr.getAttribute('data-event') || '';
+        var capId = tr.getAttribute('data-cap') || '';
+        var triggerId = tr.getAttribute('data-trigger-id') || '';
+
+        if (!confirm('Delete rule: ' + module + ' / ' + eventKey + ' → ' + capId + '?\n\nThis cannot be undone.')) {
+            return;
+        }
+
+        btn.disabled = true;
+        var status = tr.querySelector('[data-status]');
+        if (status) status.textContent = 'Deleting...';
+
+        fetch('/api/v1/admin/kernel/triggers/delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': KERNEL_CSRF },
+            body: JSON.stringify({ id: triggerId ? Number(triggerId) : 0 })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(res) {
+            if (res && res.ok) {
+                showToast('Rule deleted');
+                reloadAll(true);
+            } else {
+                btn.disabled = false;
+                if (status) status.textContent = 'Error';
+                showToast((res && res.error) ? res.error : 'Failed to delete rule');
+            }
+        })
+        .catch(function() {
+            btn.disabled = false;
+            if (status) status.textContent = 'Error';
+            showToast('Network error');
+        });
+    }
+
+    function reloadAll(silent) {
+        var loading = document.getElementById('loading');
+        if (loading) loading.style.display = 'block';
+
+        var p1 = fetch('/api/v1/admin/kernel/events').then(function(r) { return r.json(); });
+        var p2 = fetch('/api/v1/admin/kernel/triggers').then(function(r) { return r.json(); });
+        var p3 = fetch('/api/v1/admin/capabilities').then(function(r) { return r.json(); });
+
+        Promise.all([p1, p2, p3]).then(function(res) {
+            var ev = res[0];
+            var tr = res[1];
+            var cap = res[2];
+
+            if (!ev || !ev.ok) {
+                showToast((ev && ev.error) ? ev.error : 'Failed to load events');
+                return;
+            }
+            if (!tr || !tr.ok) {
+                showToast((tr && tr.error) ? tr.error : 'Failed to load triggers');
+                return;
+            }
+            if (!cap || !cap.ok) {
+                showToast((cap && cap.error) ? cap.error : 'Failed to load actions');
+                return;
+            }
+
+            KERNEL_EVENTS = Array.isArray(ev.events) ? ev.events : [];
+            KERNEL_TRIGGERS = Array.isArray(tr.triggers) ? tr.triggers : [];
+            KERNEL_CAPABILITIES = normalizeCapabilities(cap.capabilities || []);
+
+            buildEventsIndex();
+            updateModuleFilterOptions();
+            updateQuickCreateModuleOptions();
+            updateQuickCreateCapabilityOptions();
+            renderEvents();
+            setCounts();
+            renderTable();
+
+            if (!silent) {
+                showToast('Rules loaded');
+            }
+        }).catch(function() {
+            showToast('Network error while loading');
+        }).finally(function() {
+            if (loading) loading.style.display = 'none';
+        });
+    }
+
+    loadAdvancedModePreference();
+    reloadAll(true);
+</script>
+{/block}

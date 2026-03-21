@@ -1,0 +1,1934 @@
+{extends "modules/cms/layouts/admin.disyl"}
+
+{block content}
+<div class="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-5" x-data="cmsEditor()">
+
+{if edit_lock_warning}
+<div class="col-span-full bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 mb-2 flex items-start gap-3">
+    <svg class="w-5 h-5 text-amber-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/></svg>
+    <div>
+        <p class="text-sm font-medium text-amber-800">Editorial Lock Warning</p>
+        <p class="text-xs text-amber-600 mt-0.5">{edit_lock_warning}</p>
+    </div>
+</div>
+{/if}
+
+{if page_builder_supported}
+<div class="col-span-full bg-violet-50 border border-violet-200 rounded-lg px-4 py-3 flex items-start justify-between gap-4">
+    <div>
+        <p class="text-sm font-semibold text-violet-800">Dedicated Page Builder</p>
+        <p class="text-xs text-violet-700 mt-1">Pages now have a separate builder workflow. Use the builder for layout and block-based page composition.</p>
+    </div>
+    <a href="{page_builder_url}" class="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-violet-600 text-white text-sm font-semibold hover:bg-violet-700 transition-colors shrink-0">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5h16M4 12h16M4 19h16"/></svg>
+        {if page_builder_enabled}Open Page Builder{else}Edit with Page Builder{/if}
+    </a>
+</div>
+{/if}
+
+<!-- Sticky top action bar (inside cmsEditor scope) -->
+<div class="col-span-full sticky top-0 z-20 -mx-6 -mt-2 px-6 py-3 bg-white/95 backdrop-blur border-b border-gray-200 shadow-sm mb-2">
+    <div class="flex items-center gap-3">
+        <a href="{base_url}/cms/admin/content?type={content_type}" class="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-800 transition-colors shrink-0">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+            <span class="hidden sm:inline">{if content_type == 'post'}Posts{else}Pages{/if}</span>
+        </a>
+        <svg class="w-3.5 h-3.5 text-gray-300 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+        <span class="text-sm font-medium text-gray-700 truncate flex-1" x-text="form.title || '{if content}{content.title}{else}New {content_type}{/if}'"></span>
+        <div class="flex items-center gap-2 shrink-0">
+            <span class="hidden sm:inline text-xs px-2 py-1 rounded-full font-medium"
+                :class="{
+                    'bg-emerald-50 text-emerald-700': form.status === 'published',
+                    'bg-amber-50 text-amber-700': form.status === 'draft',
+                    'bg-violet-50 text-violet-700': form.status === 'scheduled',
+                    'bg-indigo-50 text-indigo-700': form.status === 'private',
+                    'bg-red-50 text-red-600': form.status === 'trash',
+                    'bg-gray-100 text-gray-500': !['published','draft','scheduled','private','trash'].includes(form.status)
+                }"
+                x-text="form.status"
+            ></span>
+            <span class="text-[11px] text-gray-400 hidden sm:inline" x-text="autosaveStatus" x-show="autosaveStatus" x-transition></span>
+            {if page_builder_supported}
+            <a href="{page_builder_url}" class="px-3 py-1.5 text-sm font-medium text-violet-700 bg-violet-100 rounded-lg hover:bg-violet-200 transition-colors">Page Builder</a>
+            {/if}
+            <button class="px-3 py-1.5 text-sm font-medium text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-50" @click="saveDraft()" :disabled="saving" x-text="saving ? 'Saving...' : 'Save Draft'" title="Ctrl+S"></button>
+            <button class="px-4 py-1.5 text-sm font-semibold text-white bg-sky-600 rounded-lg hover:bg-sky-700 transition-colors shadow-sm disabled:opacity-50" @click="publish()" :disabled="saving || !capabilities.can_publish" x-text="primaryActionLabel()" title="Ctrl+Shift+P"></button>
+        </div>
+    </div>
+</div>
+    <!-- Main column -->
+    <div class="space-y-4">
+        <!-- Title + slug -->
+        <div class="bg-white rounded-xl border border-gray-200 shadow-sm px-5 py-4">
+            <input type="text" class="w-full text-2xl font-bold border-0 focus:ring-0 p-0 placeholder:text-gray-300 text-gray-900 leading-snug" x-model="form.title" placeholder="Post title…" @input="autoSlug()">
+            <div class="flex items-center gap-1.5 mt-2.5 text-xs">
+                <span class="text-gray-400 shrink-0">Permalink:</span>
+                <span class="text-gray-400 shrink-0">{base_url}{if content_type == 'post'}/cms/blog/{else}/cms/page/{/if}</span>
+                <input type="text" class="flex-1 min-w-0 border-0 border-b border-dashed border-gray-300 focus:border-sky-400 focus:ring-0 py-0 px-0 text-sky-600 font-mono text-xs" x-model="form.slug" placeholder="url-slug" @focus="$el.select()">
+            </div>
+        </div>
+
+        <div class="bg-white rounded-xl border border-gray-200 shadow-sm">
+            <div class="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+                <span class="text-sm font-semibold text-gray-700">Content</span>
+                <div class="inline-flex items-center bg-gray-100 rounded-lg p-0.5">
+                    <button type="button" @click="editorMode = 'html'; $nextTick(() => initTinyMce())" class="px-3 py-1 text-xs font-medium rounded-md transition-all" :class="editorMode === 'html' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'">Visual</button>
+                    <button type="button" @click="editorMode = 'blocks'" class="px-3 py-1 text-xs font-medium rounded-md transition-all" :class="editorMode === 'blocks' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'">Blocks</button>
+                </div>
+            </div>
+
+            <div class="p-4" x-show="editorMode === 'html'" x-cloak>
+                <textarea id="cms-html-editor" x-ref="bodyEditor" x-model="form.body" data-tinymce-editor placeholder="Write your content here…" class="w-full min-h-[480px] resize-y text-sm leading-relaxed font-mono border border-gray-200 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500"></textarea>
+            </div>
+
+            <div class="p-4 space-y-4" x-show="editorMode === 'blocks'" x-cloak>
+                <!-- Block inserter -->
+                <div class="flex flex-wrap gap-1.5 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                    <span class="text-[11px] font-semibold text-gray-400 uppercase tracking-wider w-full mb-1">Layout</span>
+                    <button type="button" class="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-md bg-violet-50 border border-violet-200 text-violet-700 hover:bg-violet-100 transition-colors shadow-sm" @click="addBlock('section')">
+                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v14a1 1 0 01-1 1H5a1 1 0 01-1-1V5z"/></svg> Section
+                    </button>
+                    <button type="button" class="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-md bg-violet-50 border border-violet-200 text-violet-700 hover:bg-violet-100 transition-colors shadow-sm" @click="_pendingColumnsIdx = null; showColumnsPresets = true">
+                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 4v16M15 4v16M4 4h16v16H4z"/></svg> Columns
+                    </button>
+                    <button type="button" class="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-md bg-emerald-50 border border-emerald-200 text-emerald-700 hover:bg-emerald-100 transition-colors shadow-sm" @click="showSavedBlocks = true" x-show="savedBlocks.length > 0">
+                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2 1 3 3 3h10c2 0 3-1 3-3V7c0-2-1-3-3-3H7c-2 0-3 1-3 3z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 4v4h8V4"/></svg> Saved
+                    </button>
+                    <span class="text-[11px] font-semibold text-gray-400 uppercase tracking-wider w-full mb-1 mt-2">Content</span>
+                    <button type="button" class="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-md bg-white border border-gray-200 text-gray-700 hover:border-sky-300 hover:text-sky-700 hover:bg-sky-50 transition-colors shadow-sm" @click="addBlock('heading')">
+                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h8"/></svg> Heading
+                    </button>
+                    <button type="button" class="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-md bg-white border border-gray-200 text-gray-700 hover:border-sky-300 hover:text-sky-700 hover:bg-sky-50 transition-colors shadow-sm" @click="addBlock('paragraph')">
+                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h8"/></svg> Paragraph
+                    </button>
+                    <button type="button" class="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-md bg-white border border-gray-200 text-gray-700 hover:border-sky-300 hover:text-sky-700 hover:bg-sky-50 transition-colors shadow-sm" @click="addBlock('image')">
+                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14"/></svg> Image
+                    </button>
+                    <button type="button" class="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-md bg-white border border-gray-200 text-gray-700 hover:border-sky-300 hover:text-sky-700 hover:bg-sky-50 transition-colors shadow-sm" @click="addBlock('list')">
+                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"/></svg> List
+                    </button>
+                    <button type="button" class="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-md bg-white border border-gray-200 text-gray-700 hover:border-sky-300 hover:text-sky-700 hover:bg-sky-50 transition-colors shadow-sm" @click="addBlock('quote')">
+                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/></svg> Quote
+                    </button>
+                    <button type="button" class="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-md bg-white border border-gray-200 text-gray-700 hover:border-sky-300 hover:text-sky-700 hover:bg-sky-50 transition-colors shadow-sm" @click="addBlock('button')">
+                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5"/></svg> Button
+                    </button>
+                    <button type="button" class="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-md bg-white border border-gray-200 text-gray-700 hover:border-sky-300 hover:text-sky-700 hover:bg-sky-50 transition-colors shadow-sm" @click="addBlock('gallery')">
+                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2z"/></svg> Gallery
+                    </button>
+                    <button type="button" class="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-md bg-white border border-gray-200 text-gray-700 hover:border-sky-300 hover:text-sky-700 hover:bg-sky-50 transition-colors shadow-sm" @click="addBlock('embed')">
+                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg> Embed
+                    </button>
+                    <button type="button" class="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-md bg-white border border-gray-200 text-gray-700 hover:border-sky-300 hover:text-sky-700 hover:bg-sky-50 transition-colors shadow-sm" @click="addBlock('separator')">
+                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"/></svg> Separator
+                    </button>
+                    <button type="button" class="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-md bg-white border border-gray-200 text-gray-700 hover:border-sky-300 hover:text-sky-700 hover:bg-sky-50 transition-colors shadow-sm" @click="addBlock('spacer')">
+                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"/></svg> Spacer
+                    </button>
+                    <button type="button" class="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-md bg-white border border-gray-200 text-gray-700 hover:border-sky-300 hover:text-sky-700 hover:bg-sky-50 transition-colors shadow-sm" @click="addBlock('html')">
+                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/></svg> HTML
+                    </button>
+                    {if ext_block_types && ext_block_types | count > 0}
+                    {foreach ext_block_types as ebt}
+                    <button type="button" class="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-md bg-indigo-50 border border-indigo-200 text-indigo-700 hover:bg-indigo-100 transition-colors shadow-sm" @click="addExtBlock('{ebt.type}')">
+                        + {ebt.label}
+                    </button>
+                    {/foreach}
+                    {/if}
+                </div>
+
+                <div class="space-y-2">
+                    <template x-if="blocks.length === 0">
+                        <div class="flex flex-col items-center justify-center py-12 text-center border-2 border-dashed border-gray-200 rounded-xl">
+                            <svg class="w-8 h-8 text-gray-300 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 4v16m8-8H4"/></svg>
+                            <p class="text-sm text-gray-400">Add your first block above</p>
+                        </div>
+                    </template>
+
+                    <template x-for="(b, idx) in blocks" :key="idx">
+                        <div class="border border-gray-200 rounded-lg bg-white hover:border-sky-200 transition-colors" draggable="true" @dragstart="blockDragStart(idx)" @dragover="blockDragOver($event, idx)" @drop="blockDrop(idx)" @dragend="blockDragEnd()" :class="{'opacity-50 border-dashed border-sky-400': dragIdx === idx, 'border-sky-300 bg-sky-50/30': dragIdx !== null && dragIdx !== idx}">
+                            <div class="flex items-center justify-between px-3 py-2 bg-gray-50/80 border-b border-gray-100 rounded-t-lg">
+                                <div class="flex items-center gap-2 cursor-grab active:cursor-grabbing">
+                                    <svg class="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8h16M4 16h16"/></svg>
+                                    <span class="text-xs font-semibold text-gray-600 capitalize" x-text="b.type"></span>
+                                </div>
+                                <div class="flex items-center gap-1">
+                                    <button type="button" class="p-1 rounded text-gray-400 hover:text-gray-600 hover:bg-gray-200 transition-colors disabled:opacity-30" @click="moveBlock(idx, -1)" :disabled="idx===0" title="Move up">
+                                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 15l7-7 7 7"/></svg>
+                                    </button>
+                                    <button type="button" class="p-1 rounded text-gray-400 hover:text-gray-600 hover:bg-gray-200 transition-colors disabled:opacity-30" @click="moveBlock(idx, 1)" :disabled="idx===blocks.length-1" title="Move down">
+                                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
+                                    </button>
+                                    <button type="button" class="p-1 rounded text-red-400 hover:text-red-600 hover:bg-red-50 transition-colors" @click="removeBlock(idx)" title="Remove">
+                                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/></svg>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="p-3">
+                                <template x-if="b.type === 'heading'">
+                                    <div class="grid grid-cols-1 md:grid-cols-[120px_1fr] gap-2">
+                                        <select x-model.number="b.level" class="text-sm border border-gray-300 rounded-lg px-3 py-2 bg-white">
+                                            <option :value="2">H2</option>
+                                            <option :value="3">H3</option>
+                                            <option :value="4">H4</option>
+                                        </select>
+                                        <input type="text" x-model="b.text" placeholder="Heading text" class="w-full text-sm border border-gray-300 rounded-lg px-3 py-2">
+                                    </div>
+                                </template>
+
+                                <template x-if="b.type === 'paragraph'">
+                                    <textarea x-model="b.text" placeholder="Type / for commands, or start writing…" @input="handleSlashInput($event, idx)" @keydown="handleSlashKey($event, idx)" class="w-full min-h-[90px] resize-y text-sm border border-gray-300 rounded-lg px-3 py-2"></textarea>
+                                </template>
+
+                                <template x-if="b.type === 'image'">
+                                    <div class="space-y-2">
+                                        <div class="flex gap-2">
+                                            <input type="text" x-model="b.url" placeholder="Image URL (e.g. /assets/modules/cms/uploads/.. )" class="flex-1 text-sm border border-gray-300 rounded-lg px-3 py-2">
+                                            <button type="button" @click="openMediaBrowser('block_image', idx)" class="px-3 py-2 text-xs font-medium bg-gray-100 border border-gray-300 rounded-lg hover:bg-gray-200 transition-colors whitespace-nowrap">Browse</button>
+                                        </div>
+                                        <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                            <input type="text" x-model="b.alt" placeholder="Alt text" class="w-full text-sm border border-gray-300 rounded-lg px-3 py-2">
+                                            <input type="text" x-model="b.caption" placeholder="Caption (optional)" class="w-full text-sm border border-gray-300 rounded-lg px-3 py-2">
+                                        </div>
+                                        <template x-if="b.url">
+                                            <img :src="b.url" class="max-h-32 rounded border border-gray-200" onerror="this.style.display='none'" loading="lazy">
+                                        </template>
+                                    </div>
+                                </template>
+
+                                <template x-if="b.type === 'list'">
+                                    <div class="space-y-2">
+                                        <select x-model="b.style" class="text-sm border border-gray-300 rounded-lg px-3 py-2 bg-white">
+                                            <option value="ul">Bulleted</option>
+                                            <option value="ol">Numbered</option>
+                                        </select>
+                                        <textarea x-model="b.items_text" placeholder="One item per line" class="w-full min-h-[90px] resize-y text-sm border border-gray-300 rounded-lg px-3 py-2"></textarea>
+                                    </div>
+                                </template>
+
+                                <template x-if="b.type === 'html'">
+                                    <textarea x-model="b.html" placeholder="Raw HTML" class="w-full min-h-[120px] resize-y text-sm font-mono border border-gray-300 rounded-lg px-3 py-2"></textarea>
+                                </template>
+
+                                <template x-if="b.type === 'quote'">
+                                    <div class="space-y-2">
+                                        <textarea x-model="b.text" placeholder="Quote text…" class="w-full min-h-[80px] resize-y text-sm italic border border-gray-300 rounded-lg px-3 py-2 border-l-4 border-l-gray-400"></textarea>
+                                        <input type="text" x-model="b.citation" placeholder="— Citation / Author" class="w-full text-sm border border-gray-300 rounded-lg px-3 py-2 text-gray-500">
+                                    </div>
+                                </template>
+
+                                <template x-if="b.type === 'button'">
+                                    <div class="space-y-2">
+                                        <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                            <input type="text" x-model="b.text" placeholder="Button text" class="w-full text-sm border border-gray-300 rounded-lg px-3 py-2">
+                                            <input type="text" x-model="b.url" placeholder="Link URL" class="w-full text-sm border border-gray-300 rounded-lg px-3 py-2">
+                                        </div>
+                                        <div class="grid grid-cols-2 gap-2">
+                                            <select x-model="b.style" class="text-sm border border-gray-300 rounded-lg px-3 py-2 bg-white">
+                                                <option value="primary">Primary (solid)</option>
+                                                <option value="outline">Outline</option>
+                                            </select>
+                                            <select x-model="b.target" class="text-sm border border-gray-300 rounded-lg px-3 py-2 bg-white">
+                                                <option value="_self">Same window</option>
+                                                <option value="_blank">New tab</option>
+                                            </select>
+                                        </div>
+                                        <div class="mt-1">
+                                            <span class="inline-block px-4 py-2 text-sm font-medium rounded-lg" :class="b.style === 'outline' ? 'border border-sky-600 text-sky-600' : 'bg-sky-600 text-white'" x-text="b.text || 'Button'"></span>
+                                        </div>
+                                    </div>
+                                </template>
+
+                                <template x-if="b.type === 'gallery'">
+                                    <div class="space-y-2">
+                                        <div class="flex gap-2">
+                                            <textarea x-model="b.urls_text" placeholder="One image URL per line" class="flex-1 min-h-[80px] resize-y text-sm font-mono border border-gray-300 rounded-lg px-3 py-2"></textarea>
+                                            <button type="button" @click="openMediaBrowser('block_gallery', idx)" class="px-3 py-2 text-xs font-medium bg-gray-100 border border-gray-300 rounded-lg hover:bg-gray-200 transition-colors whitespace-nowrap self-start">Browse</button>
+                                        </div>
+                                        <div class="flex items-center gap-2">
+                                            <label class="text-xs text-gray-500">Columns:</label>
+                                            <select x-model.number="b.columns" class="text-sm border border-gray-300 rounded-lg px-3 py-2 bg-white">
+                                                <option :value="2">2</option>
+                                                <option :value="3">3</option>
+                                                <option :value="4">4</option>
+                                            </select>
+                                        </div>
+                                        <div class="grid gap-1" :style="'grid-template-columns:repeat('+b.columns+',1fr)'" x-show="(b.urls_text||'').trim()">
+                                            <template x-for="(u, ui) in (b.urls_text||'').split('\n').filter(s=>s.trim())" :key="ui">
+                                                <img :src="u.trim()" class="w-full h-20 object-cover rounded border border-gray-200" loading="lazy" onerror="this.style.display='none'">
+                                            </template>
+                                        </div>
+                                    </div>
+                                </template>
+
+                                <template x-if="b.type === 'embed'">
+                                    <div class="space-y-2">
+                                        <input type="text" x-model="b.url" placeholder="Paste YouTube, Vimeo, or any URL…" class="w-full text-sm border border-gray-300 rounded-lg px-3 py-2">
+                                        <p class="text-[11px] text-gray-400">Supports YouTube, Vimeo. Rendered as responsive iframe on the public site.</p>
+                                    </div>
+                                </template>
+
+                                <template x-if="b.type === 'spacer'">
+                                    <div class="flex items-center gap-3">
+                                        <label class="text-xs text-gray-500 shrink-0">Height:</label>
+                                        <input type="range" x-model.number="b.height" min="8" max="200" step="8" class="flex-1">
+                                        <span class="text-xs text-gray-500 w-12 text-right" x-text="b.height + 'px'"></span>
+                                    </div>
+                                </template>
+
+                                <template x-if="b.type === 'separator'">
+                                    <div class="space-y-2">
+                                        <select x-model="b.style" class="text-sm border border-gray-300 rounded-lg px-3 py-2 bg-white">
+                                            <option value="solid">Solid</option>
+                                            <option value="dashed">Dashed</option>
+                                            <option value="dotted">Dotted</option>
+                                            <option value="double">Double</option>
+                                        </select>
+                                        <hr class="mt-1" :style="'border-style:' + b.style">
+                                    </div>
+                                </template>
+
+                                <!-- Section block -->
+                                <template x-if="b.type === 'section'">
+                                    <div class="space-y-3">
+                                        <div class="p-3 rounded-lg border-2 border-dashed border-violet-200 bg-violet-50/30 text-center">
+                                            <p class="text-xs text-violet-600 font-medium">Section Wrapper</p>
+                                            <p class="text-[10px] text-violet-400 mt-0.5">Renders as a full-width section with background. Content inside uses max-width container.</p>
+                                        </div>
+                                        <div class="grid grid-cols-2 gap-2">
+                                            <div>
+                                                <label class="block text-[10px] font-medium text-gray-500 mb-1">Background Color</label>
+                                                <div class="flex items-center gap-2">
+                                                    <input type="color" x-model="b.bg_color" class="w-8 h-8 rounded border border-gray-200 cursor-pointer">
+                                                    <input type="text" x-model="b.bg_color" placeholder="#ffffff" class="flex-1 text-xs border border-gray-200 rounded-lg px-2 py-1.5 font-mono">
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <label class="block text-[10px] font-medium text-gray-500 mb-1">Text Color</label>
+                                                <div class="flex items-center gap-2">
+                                                    <input type="color" x-model="b.text_color" class="w-8 h-8 rounded border border-gray-200 cursor-pointer">
+                                                    <input type="text" x-model="b.text_color" placeholder="#000000" class="flex-1 text-xs border border-gray-200 rounded-lg px-2 py-1.5 font-mono">
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="grid grid-cols-2 gap-2">
+                                            <div>
+                                                <label class="block text-[10px] font-medium text-gray-500 mb-1">Background Image URL</label>
+                                                <div class="flex gap-1">
+                                                    <input type="text" x-model="b.bg_image" placeholder="/assets/..." class="flex-1 text-xs border border-gray-200 rounded-lg px-2.5 py-1.5">
+                                                    <button type="button" @click="openMediaBrowser('block_bg', idx)" class="px-2 py-1 text-[10px] font-medium bg-gray-100 border border-gray-200 rounded-lg hover:bg-gray-200 transition-colors">Browse</button>
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <label class="block text-[10px] font-medium text-gray-500 mb-1">Padding (px)</label>
+                                                <div class="flex items-center gap-2">
+                                                    <input type="range" x-model.number="b.padding" min="0" max="120" step="8" class="flex-1">
+                                                    <span class="text-xs text-gray-500 w-10 text-right" x-text="b.padding+'px'"></span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="grid grid-cols-2 gap-2">
+                                            <div>
+                                                <label class="block text-[10px] font-medium text-gray-500 mb-1">Max Width</label>
+                                                <select x-model="b.max_width" class="w-full text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 bg-white">
+                                                    <option value="">Full width</option>
+                                                    <option value="960px">960px</option>
+                                                    <option value="1140px">1140px (default)</option>
+                                                    <option value="1320px">1320px</option>
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <label class="block text-[10px] font-medium text-gray-500 mb-1">Text Align</label>
+                                                <select x-model="b.text_align" class="w-full text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 bg-white">
+                                                    <option value="">Default (left)</option>
+                                                    <option value="center">Center</option>
+                                                    <option value="right">Right</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label class="block text-[10px] font-medium text-gray-500 mb-1">Inner Content (HTML or text)</label>
+                                            <textarea x-model="b.content" placeholder="Section inner content..." class="w-full min-h-[80px] resize-y text-sm border border-gray-200 rounded-lg px-3 py-2"></textarea>
+                                        </div>
+                                    </div>
+                                </template>
+
+                                <!-- Columns block -->
+                                <template x-if="b.type === 'columns'">
+                                    <div class="space-y-3">
+                                        <div class="flex items-center gap-3 mb-2">
+                                            <span class="text-xs font-medium text-gray-500">Layout:</span>
+                                            <span class="text-xs font-mono text-violet-600 bg-violet-50 px-2 py-0.5 rounded" x-text="b.layout"></span>
+                                            <button type="button" @click="changeColumnsLayout(idx)" class="text-xs text-sky-600 hover:text-sky-800 font-medium">Change</button>
+                                        </div>
+                                        <div class="grid gap-3" :style="'grid-template-columns:' + columnsLayoutToGrid(b.layout)">
+                                            <template x-for="(col, ci) in b.columns" :key="ci">
+                                                <div class="border border-gray-200 rounded-lg p-2 bg-gray-50/50">
+                                                    <div class="flex items-center justify-between mb-1.5">
+                                                        <span class="text-[10px] font-semibold text-gray-500" x-text="'Column '+(ci+1)"></span>
+                                                        <span class="text-[10px] text-gray-400" x-text="b.layout.split('/')[ci] || ''"></span>
+                                                    </div>
+                                                    <textarea x-model="b.columns[ci].content" placeholder="Column content (HTML or text)..." class="w-full min-h-[80px] resize-y text-xs border border-gray-200 rounded-lg px-2.5 py-2"></textarea>
+                                                </div>
+                                            </template>
+                                        </div>
+                                        <div class="grid grid-cols-2 gap-2">
+                                            <div>
+                                                <label class="block text-[10px] font-medium text-gray-500 mb-1">Gap</label>
+                                                <select x-model="b.gap" class="w-full text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 bg-white">
+                                                    <option value="16px">16px (tight)</option>
+                                                    <option value="24px">24px (default)</option>
+                                                    <option value="32px">32px (wide)</option>
+                                                    <option value="48px">48px (spacious)</option>
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <label class="block text-[10px] font-medium text-gray-500 mb-1">Vertical Align</label>
+                                                <select x-model="b.valign" class="w-full text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 bg-white">
+                                                    <option value="start">Top</option>
+                                                    <option value="center">Center</option>
+                                                    <option value="end">Bottom</option>
+                                                    <option value="stretch">Stretch</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                        <label class="flex items-center gap-2 text-xs text-gray-600">
+                                            <input type="checkbox" x-model="b.stack_mobile" class="rounded border-gray-300 text-sky-600 w-3.5 h-3.5"> Stack on mobile
+                                        </label>
+                                    </div>
+                                </template>
+
+                                <!-- Per-block style controls (all block types) -->
+                                <div class="mt-2 pt-2 border-t border-gray-100">
+                                    <button type="button" @click="b._showStyles = !b._showStyles" class="text-[10px] font-medium text-gray-400 hover:text-gray-600 flex items-center gap-1">
+                                        <svg class="w-2.5 h-2.5 transition-transform" :class="b._showStyles && 'rotate-90'" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+                                        Block Styles
+                                    </button>
+                                    <div x-show="b._showStyles" x-cloak class="mt-2 grid grid-cols-3 gap-2">
+                                        <div><label class="block text-[10px] text-gray-400 mb-0.5">BG Color</label><input type="text" x-model="b._styles_bg" placeholder="transparent" class="w-full text-[10px] border border-gray-200 rounded px-2 py-1 font-mono"></div>
+                                        <div><label class="block text-[10px] text-gray-400 mb-0.5">Text Color</label><input type="text" x-model="b._styles_color" placeholder="inherit" class="w-full text-[10px] border border-gray-200 rounded px-2 py-1 font-mono"></div>
+                                        <div><label class="block text-[10px] text-gray-400 mb-0.5">Padding</label><input type="text" x-model="b._styles_padding" placeholder="0" class="w-full text-[10px] border border-gray-200 rounded px-2 py-1 font-mono"></div>
+                                        <div><label class="block text-[10px] text-gray-400 mb-0.5">Margin</label><input type="text" x-model="b._styles_margin" placeholder="0" class="w-full text-[10px] border border-gray-200 rounded px-2 py-1 font-mono"></div>
+                                        <div><label class="block text-[10px] text-gray-400 mb-0.5">Border Radius</label><input type="text" x-model="b._styles_radius" placeholder="0" class="w-full text-[10px] border border-gray-200 rounded px-2 py-1 font-mono"></div>
+                                        <div><label class="block text-[10px] text-gray-400 mb-0.5">CSS Class</label><input type="text" x-model="b._styles_class" placeholder="" class="w-full text-[10px] border border-gray-200 rounded px-2 py-1"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+
+                <!-- Columns layout preset picker -->
+                <div x-show="showColumnsPresets" x-cloak class="fixed inset-0 bg-black/30 z-50 flex items-center justify-center" @click.self="_pendingColumnsIdx = null; showColumnsPresets = false">
+                    <div class="bg-white rounded-xl shadow-xl w-full max-w-sm p-5">
+                        <h3 class="text-sm font-bold text-gray-900 mb-3">Choose Column Layout</h3>
+                        <div class="grid grid-cols-3 gap-2">
+                            <template x-for="preset in columnsPresets" :key="preset.layout">
+                                <button type="button" @click="applyColumnsPreset(preset.layout)" class="border border-gray-200 rounded-lg p-3 hover:border-sky-400 hover:bg-sky-50 transition-colors text-center">
+                                    <div class="flex gap-0.5 mb-1.5 h-8" x-html="preset.visual"></div>
+                                    <span class="text-[10px] font-medium text-gray-600" x-text="preset.label"></span>
+                                </button>
+                            </template>
+                        </div>
+                        <button type="button" @click="_pendingColumnsIdx = null; showColumnsPresets = false" class="mt-3 w-full px-3 py-1.5 text-xs text-gray-500 hover:text-gray-700">Cancel</button>
+                    </div>
+                </div>
+
+                <!-- Saved blocks picker -->
+                <div x-show="showSavedBlocks" x-cloak class="fixed inset-0 bg-black/30 z-50 flex items-center justify-center" @click.self="showSavedBlocks = false">
+                    <div class="bg-white rounded-xl shadow-xl w-full max-w-lg p-5">
+                        <h3 class="text-sm font-bold text-gray-900 mb-3">Insert Saved Block</h3>
+                        <div class="space-y-2 max-h-[300px] overflow-y-auto">
+                            <template x-for="sb in savedBlocks" :key="sb.id">
+                                <button type="button" @click="insertSavedBlock(sb); showSavedBlocks=false" class="w-full flex items-center gap-3 border border-gray-200 rounded-lg p-3 hover:border-sky-300 hover:bg-sky-50 text-left transition-colors">
+                                    <div class="flex-1">
+                                        <span class="text-sm font-medium text-gray-700" x-text="sb.name"></span>
+                                        <span class="text-[10px] text-gray-400 ml-2" x-text="sb.category"></span>
+                                        <p class="text-xs text-gray-400 mt-0.5" x-text="sb.description || (sb.blocks_json?.length + ' block(s)')"></p>
+                                    </div>
+                                    <span class="text-xs text-sky-600 font-medium shrink-0">Insert</span>
+                                </button>
+                            </template>
+                        </div>
+                        <button type="button" @click="showSavedBlocks = false" class="mt-3 w-full px-3 py-1.5 text-xs text-gray-500">Cancel</button>
+                    </div>
+                </div>
+
+                <!-- Slash command menu -->
+                <div x-show="slashMenu.open" x-cloak @click.outside="slashMenu.open = false" class="fixed z-50 bg-white rounded-lg shadow-xl border border-gray-200 w-56 py-1 max-h-[200px] overflow-y-auto" :style="'left:' + slashMenu.x + 'px;top:' + slashMenu.y + 'px'">
+                    <template x-if="filteredSlashCommands.length === 0">
+                        <div class="px-3 py-2 text-xs text-gray-400">No matching commands</div>
+                    </template>
+                    <template x-for="(sc, sci) in filteredSlashCommands" :key="sci">
+                        <button type="button" @click="executeSlashCommand(sc.cmd, slashMenu.blockIdx)" class="w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-sky-50 transition-colors">
+                            <span class="inline-flex items-center justify-center w-7 h-7 rounded bg-gray-100 text-[11px] font-bold text-gray-500 shrink-0" x-text="sc.icon"></span>
+                            <div>
+                                <div class="text-sm font-medium text-gray-700" x-text="sc.label"></div>
+                                <div class="text-[11px] text-gray-400" x-text="sc.desc"></div>
+                            </div>
+                        </button>
+                    </template>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-xl border border-gray-200 shadow-sm">
+            <div class="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+                <span class="text-sm font-semibold text-gray-700">Excerpt</span>
+                <span class="text-[11px] text-gray-400">Optional short summary</span>
+            </div>
+            <div class="p-4">
+                <textarea x-model="form.excerpt" placeholder="A brief description shown in listings and search results…" class="w-full min-h-[90px] resize-y text-sm border border-gray-200 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 leading-relaxed"></textarea>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sidebar -->
+    <div class="space-y-3">
+        <!-- Publish panel -->
+        <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+            <div class="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+                <span class="text-sm font-semibold text-gray-700">Publish</span>
+                <span class="text-xs px-2 py-0.5 rounded-full font-semibold"
+                    :class="{
+                        'bg-emerald-50 text-emerald-700': form.status === 'published',
+                        'bg-amber-50 text-amber-700': form.status === 'draft',
+                        'bg-violet-50 text-violet-700': form.status === 'scheduled',
+                        'bg-indigo-50 text-indigo-700': form.status === 'private',
+                        'bg-red-50 text-red-600': form.status === 'trash',
+                        'bg-gray-100 text-gray-500': !['published','draft','scheduled','private','trash'].includes(form.status)
+                    }"
+                    x-text="form.status.charAt(0).toUpperCase() + form.status.slice(1)"
+                ></span>
+            </div>
+            <div class="p-4 space-y-3">
+                <!-- Primary actions -->
+                <button class="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-sky-600 text-white text-sm font-semibold rounded-lg hover:bg-sky-700 active:bg-sky-800 disabled:opacity-50 transition-colors shadow-sm" @click="publish()" :disabled="saving || !capabilities.can_publish">
+                    <svg class="w-4 h-4" x-show="!saving" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                    <svg class="w-4 h-4 animate-spin" x-show="saving" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                    <span x-text="primaryActionLabel()"></span>
+                </button>
+                <button class="w-full px-4 py-2 bg-white text-gray-700 text-sm font-medium rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-50 transition-colors" @click="saveDraft()" :disabled="saving" x-text="saving ? 'Saving...' : 'Save Draft'"></button>
+
+                <div class="border-t border-gray-100 pt-3 space-y-2">
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 mb-1.5">Status</label>
+                        <select x-model="form.status" class="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
+                            <option value="draft">Draft</option>
+                            <option value="published">Published</option>
+                            <option value="private">Private</option>
+                            <option value="scheduled">Scheduled</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 mb-1.5">Publish Date & Time</label>
+                        <input type="datetime-local" x-model="form.published_at" class="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
+                        <p class="text-[11px] text-gray-400 mt-1.5" x-text="form.status === 'scheduled' ? 'Required for scheduled content.' : 'Optional for draft/private. Used immediately when publishing.'"></p>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 mb-1.5">Content Type</label>
+                        <select x-model="form.type" class="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
+                            <option value="post">Post</option>
+                            <option value="page">Page</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="border-t border-gray-100 pt-3 flex items-center gap-2">
+                    {if content}
+                    <button class="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors" @click="preview()" :disabled="saving">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                        Preview
+                    </button>
+                    <template x-if="form.status !== 'trash'">
+                        <button class="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium text-red-500 border border-red-200 rounded-lg hover:bg-red-50 disabled:opacity-50 transition-colors" @click="trash()" :disabled="saving || !capabilities.can_trash">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                            Trash
+                        </button>
+                    </template>
+                    <template x-if="form.status === 'trash'">
+                        <button class="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium text-emerald-600 border border-emerald-200 rounded-lg hover:bg-emerald-50 disabled:opacity-50 transition-colors" @click="restore()" :disabled="saving || !capabilities.can_restore">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/></svg>
+                            Restore
+                        </button>
+                    </template>
+                    {/if}
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-xl border border-gray-200 shadow-sm">
+            <div class="px-4 py-3 border-b border-gray-100">
+                <span class="text-sm font-semibold text-gray-700">Capabilities</span>
+            </div>
+            <div class="p-4 grid grid-cols-2 gap-2 text-[11px]">
+                <div class="flex items-center justify-between px-2 py-1.5 rounded border" :class="capabilities.can_edit ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-gray-200 bg-gray-50 text-gray-500'"><span>Edit</span><span x-text="capabilities.can_edit ? 'Yes' : 'No'"></span></div>
+                <div class="flex items-center justify-between px-2 py-1.5 rounded border" :class="capabilities.can_publish ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-gray-200 bg-gray-50 text-gray-500'"><span>Publish</span><span x-text="capabilities.can_publish ? 'Yes' : 'No'"></span></div>
+                <div class="flex items-center justify-between px-2 py-1.5 rounded border" :class="capabilities.can_trash ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-gray-200 bg-gray-50 text-gray-500'"><span>Trash</span><span x-text="capabilities.can_trash ? 'Yes' : 'No'"></span></div>
+                <div class="flex items-center justify-between px-2 py-1.5 rounded border" :class="capabilities.can_workflow ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-gray-200 bg-gray-50 text-gray-500'"><span>Workflow</span><span x-text="capabilities.can_workflow ? 'Yes' : 'No'"></span></div>
+                <div class="flex items-center justify-between px-2 py-1.5 rounded border" :class="capabilities.ai_tools ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-gray-200 bg-gray-50 text-gray-500'"><span>AI Summary</span><span x-text="capabilities.ai_tools ? 'Yes' : 'No'"></span></div>
+                <div class="flex items-center justify-between px-2 py-1.5 rounded border" :class="capabilities.ai_seo_suggest ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-gray-200 bg-gray-50 text-gray-500'"><span>AI Meta</span><span x-text="capabilities.ai_seo_suggest ? 'Yes' : 'No'"></span></div>
+            </div>
+        </div>
+
+        {if content_templates && content_templates | count > 1}
+        <div class="bg-white rounded-xl border border-gray-200 shadow-sm">
+            <div class="px-4 py-3 border-b border-gray-100">
+                <span class="text-sm font-semibold text-gray-700">Template</span>
+            </div>
+            <div class="p-4">
+                <select x-model="selectedTemplate" class="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
+                    <template x-for="tpl in contentTemplates" :key="tpl.slug">
+                        <option :value="tpl.slug" x-text="tpl.label"></option>
+                    </template>
+                </select>
+                <p class="text-[11px] text-gray-400 mt-1.5">Layout template for this content.</p>
+            </div>
+        </div>
+        {/if}
+
+        <div class="bg-white rounded-xl border border-gray-200 shadow-sm">
+            <div class="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+                <span class="text-sm font-semibold text-gray-700">Workflow</span>
+                <template x-if="workflow.state">
+                    <span class="text-[11px] font-medium px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full" x-text="workflow.state"></span>
+                </template>
+            </div>
+            <div class="p-4 space-y-3">
+                <template x-if="!contentId && capabilities.can_workflow">
+                    <button type="button" class="w-full px-3 py-2 bg-white text-sky-700 text-xs font-semibold rounded-lg border border-sky-200 hover:bg-sky-50 disabled:opacity-50 transition-colors" @click="initWorkflowForNew()" :disabled="saving || workflow.loading">
+                        Initialize Draft for Workflow
+                    </button>
+                </template>
+                <template x-if="!capabilities.can_workflow">
+                    <div class="text-xs text-amber-600">Your role does not allow workflow transitions.</div>
+                </template>
+                <template x-if="workflow.loading">
+                    <div class="text-xs text-gray-400">Loading workflow…</div>
+                </template>
+                <template x-if="workflow.error">
+                    <div class="text-xs text-red-500" x-text="workflow.error"></div>
+                </template>
+                <template x-if="!workflow.loading && workflow.allowed_actions && workflow.allowed_actions.length > 0">
+                    <div class="flex flex-wrap gap-1.5">
+                        <template x-for="(a, idx) in workflow.allowed_actions" :key="idx">
+                            <button type="button" class="px-3 py-1.5 bg-gray-100 text-gray-700 text-xs font-medium rounded-lg hover:bg-gray-200 disabled:opacity-50 transition-colors" @click="transitionWorkflow(a.action)" :disabled="saving || !capabilities.can_workflow">
+                                <span x-text="a.label"></span>
+                            </button>
+                        </template>
+                    </div>
+                </template>
+                <template x-if="!workflow.loading && (!workflow.allowed_actions || workflow.allowed_actions.length === 0)">
+                    <div class="text-xs text-gray-400" x-text="workflow.state ? 'No actions available.' : (contentId ? 'No workflow configured.' : 'Save a draft to initialize workflow.')"></div>
+                </template>
+            </div>
+        </div>
+
+        {if content}
+        <div class="bg-white rounded-xl border border-gray-200 shadow-sm">
+            <div class="px-4 py-3 border-b border-gray-100">
+                <span class="text-sm font-semibold text-gray-700">Details</span>
+            </div>
+            <div class="p-4 space-y-2">
+                <div class="flex items-center justify-between text-xs">
+                    <span class="text-gray-400">Author</span>
+                    <span class="font-medium text-gray-700">{content.author_name}</span>
+                </div>
+                <div class="flex items-center justify-between text-xs">
+                    <span class="text-gray-400">Created</span>
+                    <span class="text-gray-600">{content.created_at}</span>
+                </div>
+                {if content.published_at}
+                <div class="flex items-center justify-between text-xs">
+                    <span class="text-gray-400">Published</span>
+                    <span class="text-gray-600">{content.published_at}</span>
+                </div>
+                {/if}
+                {if content.updated_at}
+                <div class="flex items-center justify-between text-xs">
+                    <span class="text-gray-400">Updated</span>
+                    <span class="text-gray-600">{content.updated_at}</span>
+                </div>
+                {/if}
+                <div class="flex items-center justify-between text-xs">
+                    <span class="text-gray-400">ID</span>
+                    <code class="font-mono text-gray-500 text-[11px]">{content.id}</code>
+                </div>
+            </div>
+        </div>
+        {/if}
+
+        <div class="bg-white rounded-xl border border-gray-200 shadow-sm">
+            <div class="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+                <span class="text-sm font-semibold text-gray-700">SEO</span>
+                <button type="button" class="inline-flex items-center gap-1 text-[11px] font-medium text-violet-600 hover:text-violet-800 disabled:opacity-50" @click="aiSeoSuggest()" :disabled="saving || ai.loading || !capabilities.ai_seo_suggest">
+                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+                    AI Meta Suggest
+                </button>
+            </div>
+            <div class="p-4 space-y-3">
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 mb-1.5">Meta Title</label>
+                    <input type="text" x-model="meta.seo_title" placeholder="Override page title" class="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 mb-1.5">Meta Description</label>
+                    <textarea x-model="meta.seo_description" placeholder="Search engine description" class="w-full min-h-[70px] resize-y text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500"></textarea>
+                </div>
+                <template x-if="ai.error">
+                    <div class="text-xs text-red-500" x-text="ai.error"></div>
+                </template>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-xl border border-gray-200 shadow-sm">
+            <div class="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+                <span class="text-sm font-semibold text-gray-700">Categories</span>
+                <button type="button" class="text-xs font-medium text-sky-600 hover:text-sky-800 transition-colors" @click="catAdding = !catAdding" x-text="catAdding ? 'Cancel' : '+ Add'"></button>
+            </div>
+            <div class="p-4 space-y-2">
+                <template x-if="catAdding">
+                    <div class="flex items-center gap-2">
+                        <input type="text" x-model="catNewName" placeholder="New category name" class="flex-1 text-xs border border-gray-200 rounded-lg px-2.5 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500" @keydown.enter.prevent="addCategory()">
+                        <button type="button" class="px-2.5 py-2 bg-sky-600 text-white text-xs font-medium rounded-lg hover:bg-sky-700 transition-colors" @click="addCategory()">Add</button>
+                    </div>
+                </template>
+                <template x-if="allCategories.length === 0 && !catAdding">
+                    <div class="text-xs text-gray-400 py-2 text-center">No categories yet. Add one above.</div>
+                </template>
+                <div class="max-h-[180px] overflow-y-auto space-y-0.5">
+                    <template x-for="cat in allCategories" :key="cat.id">
+                        <label class="flex items-center gap-2.5 cursor-pointer hover:bg-gray-50 rounded-lg px-2 py-1.5 transition-colors">
+                            <input type="checkbox" :value="cat.id" :checked="selectedCategoryIds.includes(Number(cat.id))" @change="toggleCategory(Number(cat.id))" class="w-3.5 h-3.5 rounded border-gray-300 text-sky-600 focus:ring-sky-500">
+                            <span x-text="cat.name" class="text-xs text-gray-700"></span>
+                        </label>
+                    </template>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-xl border border-gray-200 shadow-sm">
+            <div class="px-4 py-3 border-b border-gray-100">
+                <span class="text-sm font-semibold text-gray-700">Tags</span>
+            </div>
+            <div class="p-4 space-y-2">
+                <div class="flex flex-wrap gap-1.5 min-h-[28px]">
+                    <template x-for="(tag, ti) in tagNames" :key="ti">
+                        <span class="inline-flex items-center gap-1 px-2 py-0.5 bg-sky-50 text-sky-700 text-xs font-medium rounded-full border border-sky-200">
+                            <span x-text="tag"></span>
+                            <button type="button" @click="tagNames.splice(ti, 1)" class="text-sky-400 hover:text-sky-700">&times;</button>
+                        </span>
+                    </template>
+                </div>
+                <div class="relative">
+                    <input type="text" x-model="tagInput" @keydown.enter.prevent="addTag()" @keydown.comma.prevent="addTag()" @input="filterTagSuggestions()" @focus="showTagSuggestions = true" @click.outside="showTagSuggestions = false" placeholder="Add tag…" class="w-full text-xs border border-gray-200 rounded-lg px-2.5 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
+                    <div x-show="showTagSuggestions && filteredTagSuggestions.length > 0" x-cloak class="absolute z-20 left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-[120px] overflow-y-auto">
+                        <template x-for="(st, sti) in filteredTagSuggestions" :key="sti">
+                            <button type="button" @mousedown.prevent="selectTagSuggestion(st.name)" class="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-sky-50 transition-colors" x-text="st.name"></button>
+                        </template>
+                    </div>
+                </div>
+                <p class="text-[11px] text-gray-400">Press Enter or comma to add. New tags are created automatically.</p>
+            </div>
+        </div>
+
+        {if content}
+        <div class="bg-white rounded-xl border border-gray-200 shadow-sm">
+            <div class="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+                <span class="text-sm font-semibold text-gray-700">Revisions</span>
+                <button type="button" @click="loadRevisions()" class="text-[11px] font-medium text-sky-600 hover:text-sky-800 transition-colors" x-text="revisions.length ? 'Refresh' : 'Load'"></button>
+            </div>
+            <div class="p-4 space-y-2">
+                <template x-if="revisions.length === 0 && !revisionsLoading">
+                    <p class="text-xs text-gray-400">Click Load to view revision history.</p>
+                </template>
+                <template x-if="revisionsLoading">
+                    <p class="text-xs text-gray-400">Loading…</p>
+                </template>
+                <template x-if="revisions.length > 0">
+                    <div class="max-h-[200px] overflow-y-auto space-y-1">
+                        <template x-for="(rev, ri) in revisions" :key="rev.id">
+                            <div class="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-gray-50 text-xs group">
+                                <div class="flex-1 min-w-0">
+                                    <p class="text-gray-700 font-medium truncate" x-text="rev.title"></p>
+                                    <p class="text-gray-400 text-[10px]" x-text="(rev.author_name || 'Unknown') + ' · ' + rev.created_at + (rev.revision_note ? ' · ' + rev.revision_note : '')"></p>
+                                </div>
+                                <button type="button" @click="restoreRevision(rev.id)" class="hidden group-hover:inline-flex px-2 py-0.5 text-[10px] font-medium text-sky-600 border border-sky-200 rounded hover:bg-sky-50 transition-colors shrink-0">Restore</button>
+                            </div>
+                        </template>
+                    </div>
+                </template>
+                <template x-if="revisionTotal > revisions.length">
+                    <p class="text-[10px] text-gray-400 text-center" x-text="revisionTotal + ' total revisions'"></p>
+                </template>
+            </div>
+        </div>
+        {/if}
+
+        <div class="bg-white rounded-xl border border-gray-200 shadow-sm">
+            <div class="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+                <span class="text-sm font-semibold text-gray-700">AI Summary</span>
+                <button type="button" class="inline-flex items-center gap-1 text-[11px] font-medium text-violet-600 hover:text-violet-800 disabled:opacity-50 transition-colors" @click="aiSummarize()" :disabled="saving || ai.loading || !capabilities.ai_tools">
+                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                    <span x-text="ai.loading ? 'Generating...' : 'Generate'"></span>
+                </button>
+            </div>
+            <div class="p-4 space-y-3">
+                <template x-if="!ai.summary && !ai.loading">
+                    <p class="text-xs text-gray-400" x-text="contentId ? 'Generate an AI-powered excerpt from your content.' : 'Generate an AI-powered excerpt. A draft will be auto-saved first if needed.'"></p>
+                </template>
+                <template x-if="ai.summary">
+                    <div class="text-xs text-gray-700 leading-relaxed bg-gray-50 rounded-lg p-3 border border-gray-100" x-text="ai.summary"></div>
+                </template>
+                <template x-if="ai.summary">
+                    <button type="button" class="w-full px-3 py-2 bg-sky-600 text-white text-xs font-semibold rounded-lg hover:bg-sky-700 disabled:opacity-50 transition-colors" @click="applySummaryToExcerpt()" :disabled="saving">
+                        Use as Excerpt
+                    </button>
+                </template>
+                <template x-if="ai.error">
+                    <div class="text-xs text-red-500" x-text="ai.error"></div>
+                </template>
+            </div>
+        </div>
+
+        {if field_defs && field_defs | count > 0}
+        <div class="bg-white rounded-xl border border-gray-200 shadow-sm">
+            <div class="px-4 py-3 border-b border-gray-100">
+                <span class="text-sm font-semibold text-gray-700">Custom Fields</span>
+            </div>
+            <div class="p-4 space-y-3">
+                {foreach field_defs as f}
+                <div>
+                    <label class="block text-xs font-medium text-gray-600 mb-1.5">{f.label}</label>
+                    {if f.field_type == 'richtext'}
+                        <textarea :id="'rt-' + '{f.field_key}'" x-model="dynMeta['{f.field_key}']" placeholder="{f.placeholder}" data-richtext-field="{f.field_key}" class="w-full min-h-[120px] resize-y text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500"></textarea>
+                    {else}
+                    {if f.field_type == 'textarea'}
+                        <textarea x-model="dynMeta['{f.field_key}']" placeholder="{f.placeholder}" class="w-full min-h-[70px] resize-y text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500"></textarea>
+                    {else}
+                        {if f.field_type == 'number'}
+                            <input type="number" x-model="dynMeta['{f.field_key}']" placeholder="{f.placeholder}" class="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
+                        {else}
+                            {if f.field_type == 'boolean'}
+                                <select x-model="dynMeta['{f.field_key}']" class="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
+                                    <option value="">—</option>
+                                    <option value="1">Yes</option>
+                                    <option value="0">No</option>
+                                </select>
+                            {else}
+                                {if f.field_type == 'select'}
+                                    <select x-model="dynMeta['{f.field_key}']" class="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
+                                        <option value="">—</option>
+                                        {if f.options}
+                                            {foreach f.options as o}
+                                                <option value="{o.value}">{o.label}</option>
+                                            {/foreach}
+                                        {/if}
+                                    </select>
+                                {else}
+                                    <input type="text" x-model="dynMeta['{f.field_key}']" placeholder="{f.placeholder}" class="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
+                                {/if}
+                            {/if}
+                        {/if}
+                    {/if}
+                    {/if}
+                    <div class="text-[11px] text-gray-400 mt-1 font-mono">{f.field_key}</div>
+                </div>
+                {/foreach}
+            </div>
+        </div>
+        {/if}
+
+        {if ext_sidebar_fields && ext_sidebar_fields | count > 0}
+        <div class="bg-white rounded-xl border border-indigo-100 shadow-sm">
+            <div class="px-4 py-3 border-b border-indigo-100 flex items-center gap-2">
+                <span class="text-sm font-semibold text-indigo-700">Extension Fields</span>
+                <span class="text-[10px] px-1.5 py-0.5 bg-indigo-50 text-indigo-400 rounded font-medium uppercase tracking-wide">ext</span>
+            </div>
+            <div class="p-4 space-y-3">
+                {foreach ext_sidebar_fields as ef}
+                <div>
+                    <label class="block text-xs font-medium text-gray-600 mb-1.5">{ef.label}</label>
+                    {if ef.type == 'richtext'}
+                        <textarea :id="'rt-' + '{ef.key}'" x-model="dynMeta['{ef.key}']" placeholder="{ef.placeholder}" data-richtext-field="{ef.key}" class="w-full min-h-[120px] resize-y text-sm border border-indigo-100 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400"></textarea>
+                    {else}
+                    {if ef.type == 'textarea'}
+                        <textarea x-model="dynMeta['{ef.key}']" placeholder="{ef.placeholder}" class="w-full min-h-[70px] resize-y text-sm border border-indigo-100 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400"></textarea>
+                    {else}
+                        {if ef.type == 'number'}
+                            <input type="number" x-model="dynMeta['{ef.key}']" placeholder="{ef.placeholder}" class="w-full text-sm border border-indigo-100 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400">
+                        {else}
+                            {if ef.type == 'boolean'}
+                                <select x-model="dynMeta['{ef.key}']" class="w-full text-sm border border-indigo-100 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400">
+                                    <option value="">—</option>
+                                    <option value="1">Yes</option>
+                                    <option value="0">No</option>
+                                </select>
+                            {else}
+                                <input type="text" x-model="dynMeta['{ef.key}']" placeholder="{ef.placeholder}" class="w-full text-sm border border-indigo-100 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400">
+                            {/if}
+                        {/if}
+                    {/if}
+                    {/if}
+                    <div class="text-[11px] text-indigo-300 mt-1 font-mono">{ef.key}</div>
+                </div>
+                {/foreach}
+            </div>
+        </div>
+        {/if}
+    </div>
+
+    <!-- ═══════════════════ Media Browser Modal ═══════════════════ -->
+    <div x-show="mediaBrowser.open" x-cloak class="fixed inset-0 flex items-center justify-center p-4" :style="'z-index:' + (mediaBrowser.target === 'tinymce_file_picker' ? '65536' : '50')" @keydown.escape.window="closeMediaBrowser()">
+        <div class="fixed inset-0 bg-black/50" @click="closeMediaBrowser()"></div>
+        <div class="relative bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[85vh] flex flex-col" style="z-index:10">
+            <!-- Header -->
+            <div class="flex items-center justify-between px-5 py-4 border-b border-gray-200">
+                <div>
+                    <h3 class="text-base font-semibold text-gray-900">Media Library</h3>
+                    <p class="text-xs text-gray-400 mt-0.5" x-text="mediaBrowser.items.length + ' file(s)'"></p>
+                </div>
+                <div class="flex items-center gap-3">
+                    <div class="relative">
+                        <svg class="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                        <input type="text" x-model="mediaBrowser.search" placeholder="Search..." class="pl-8 pr-3 py-1.5 text-xs border border-gray-200 rounded-lg w-48 focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
+                    </div>
+                    <button @click="closeMediaBrowser()" class="text-gray-400 hover:text-gray-600">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                    </button>
+                </div>
+            </div>
+            <!-- Upload bar -->
+            <div class="px-5 py-3 border-b border-gray-100 bg-gray-50 flex items-center gap-3">
+                <label class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-sky-600 text-white text-xs font-medium rounded-lg hover:bg-sky-700 cursor-pointer transition-colors">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+                    Upload
+                    <input type="file" multiple accept="image/*" @change="mediaUpload($event)" class="hidden">
+                </label>
+                <span x-show="mediaBrowser.uploading" class="text-xs text-gray-500">Uploading...</span>
+            </div>
+            <!-- Grid -->
+            <div class="flex-1 overflow-y-auto p-5">
+                <div class="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 gap-3" x-show="mediaFilteredItems().length > 0">
+                    <template x-for="item in mediaFilteredItems()" :key="item.id">
+                        <div @click="mediaSelect(item)"
+                             class="relative aspect-square rounded-lg overflow-hidden border-2 cursor-pointer transition-all hover:shadow-md"
+                             :class="mediaBrowser.selectedId === item.id ? 'border-sky-500 ring-2 ring-sky-500/30' : 'border-gray-200 hover:border-gray-300'">
+                            <template x-if="item.mime_type && item.mime_type.startsWith('image/')">
+                                <img :src="item.url" class="w-full h-full object-cover" loading="lazy" onerror="this.parentElement.innerHTML='<div class=\'flex items-center justify-center h-full bg-gray-100 text-gray-400 text-xs\'>Error</div>'">
+                            </template>
+                            <template x-if="!item.mime_type || !item.mime_type.startsWith('image/')">
+                                <div class="flex items-center justify-center h-full bg-gray-100">
+                                    <svg class="w-8 h-8 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
+                                </div>
+                            </template>
+                            <div class="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/60 to-transparent px-1.5 py-1">
+                                <p class="text-[10px] text-white truncate" x-text="item.original_name || item.file_path"></p>
+                            </div>
+                            <div x-show="mediaBrowser.selectedId === item.id" class="absolute top-1 right-1 w-5 h-5 bg-sky-500 rounded-full flex items-center justify-center">
+                                <svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+                <div x-show="mediaFilteredItems().length === 0" class="flex flex-col items-center justify-center py-12 text-gray-400">
+                    <svg class="w-12 h-12 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                    <p class="text-sm">No media files found</p>
+                </div>
+            </div>
+            <!-- Footer -->
+            <div class="flex items-center justify-between px-5 py-3 border-t border-gray-200 bg-gray-50 rounded-b-xl">
+                <p class="text-xs text-gray-400" x-show="mediaBrowser.selectedItem" x-text="mediaBrowser.selectedItem ? (mediaBrowser.selectedItem.original_name || mediaBrowser.selectedItem.file_path) : ''"></p>
+                <div class="flex gap-2">
+                    <button @click="closeMediaBrowser()" class="px-4 py-2 text-xs font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">Cancel</button>
+                    <button @click="mediaConfirmSelection()" :disabled="!mediaBrowser.selectedId" class="px-4 py-2 text-xs font-medium text-white bg-sky-600 rounded-lg hover:bg-sky-700 disabled:opacity-50 transition-colors">Select</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{/block}
+
+{block scripts}
+<script>
+function cmsEditor() {
+    return {
+        isNew: {is_new | json},
+        contentId: {if content}{content.id}{else}0{/if},
+        saving: false,
+        editorId: 'cms-html-editor',
+        editorMode: {if tinymce_assets && tinymce_assets.js_urls && tinymce_assets.js_urls | count > 0}'html'{else}'blocks'{/if},
+        blocks: {content_blocks | json},
+        tinymceAssets: {tinymce_assets | json},
+        tinymceConfig: {tinymce_config | json},
+        workflow: {
+            loading: false,
+            error: '',
+            state: '',
+            allowed_actions: [],
+        },
+        capabilities: {capabilities | json},
+        ai: {
+            loading: false,
+            error: '',
+            summary: '',
+        },
+        form: {
+            title: {if content}{content.title | json}{else}''{/if},
+            slug: {if content}{content.slug | json}{else}''{/if},
+            body: {if content}{content.body | json}{else}''{/if},
+            excerpt: {if content}{content.excerpt | json}{else}''{/if},
+            status: {if content}{content.status | json}{else}'draft'{/if},
+            published_at: {if content && content.published_at}{content.published_at | json}{else}''{/if}.replace(' ', 'T').slice(0, 16),
+            type: {content_type | json},
+        },
+        meta: {
+            seo_title: {if content_meta}{content_meta.seo_title | json}{else}''{/if},
+            seo_description: {if content_meta}{content_meta.seo_description | json}{else}''{/if},
+        },
+        dynMeta: {dyn_meta | json},
+        allCategories: {all_categories | json},
+        selectedCategoryIds: {content_category_ids | json},
+        catAdding: false,
+        catNewName: '',
+        contentTemplates: {content_templates | json},
+        selectedTemplate: {selected_template | json},
+        extBlockTypes: {ext_block_types | json},
+        allTags: {all_tags | json},
+        tagNames: {content_tag_names | json},
+        tagInput: '',
+        showTagSuggestions: false,
+        filteredTagSuggestions: [],
+        revisions: [],
+        revisionTotal: 0,
+        revisionsLoading: false,
+        _autosaveTimer: null,
+        _autosaveDirty: false,
+        autosaveStatus: '',
+        dragIdx: null,
+        showColumnsPresets: false,
+
+        // ── Media Browser ───────────────────────────────────
+        mediaBrowser: {
+            open: false,
+            items: [],
+            search: '',
+            selectedId: null,
+            selectedItem: null,
+            target: '', // 'block_image', 'block_gallery', 'block_bg', 'tinymce_file_picker'
+            targetIdx: -1,
+            uploading: false,
+            loaded: false,
+            tinymcePickerCallback: null,
+        },
+        showSavedBlocks: false,
+        _pendingColumnsIdx: null,
+        savedBlocks: [],
+        columnsPresets: [
+            { layout: '50/50', label: '2 Equal', visual: '<div class="flex-1 bg-violet-200 rounded"></div><div class="flex-1 bg-violet-200 rounded"></div>' },
+            { layout: '33/33/33', label: '3 Equal', visual: '<div class="flex-1 bg-violet-200 rounded"></div><div class="flex-1 bg-violet-200 rounded"></div><div class="flex-1 bg-violet-200 rounded"></div>' },
+            { layout: '70/30', label: '70 / 30', visual: '<div class="bg-violet-200 rounded" style="flex:7"></div><div class="bg-violet-200 rounded" style="flex:3"></div>' },
+            { layout: '30/70', label: '30 / 70', visual: '<div class="bg-violet-200 rounded" style="flex:3"></div><div class="bg-violet-200 rounded" style="flex:7"></div>' },
+            { layout: '25/50/25', label: '25/50/25', visual: '<div class="bg-violet-200 rounded" style="flex:1"></div><div class="bg-violet-200 rounded" style="flex:2"></div><div class="bg-violet-200 rounded" style="flex:1"></div>' },
+            { layout: '25/25/25/25', label: '4 Equal', visual: '<div class="flex-1 bg-violet-200 rounded"></div><div class="flex-1 bg-violet-200 rounded"></div><div class="flex-1 bg-violet-200 rounded"></div><div class="flex-1 bg-violet-200 rounded"></div>' },
+        ],
+        slashMenu: { open: false, blockIdx: -1, filter: '', x: 0, y: 0 },
+        slashCommands: [
+            { cmd: 'heading', label: 'Heading', desc: 'Large section heading', icon: 'H' },
+            { cmd: 'paragraph', label: 'Paragraph', desc: 'Plain text block', icon: 'P' },
+            { cmd: 'image', label: 'Image', desc: 'Image with caption', icon: 'I' },
+            { cmd: 'list', label: 'List', desc: 'Bulleted or numbered list', icon: 'L' },
+            { cmd: 'quote', label: 'Quote', desc: 'Blockquote with citation', icon: '"' },
+            { cmd: 'button', label: 'Button', desc: 'Call-to-action button', icon: 'B' },
+            { cmd: 'gallery', label: 'Gallery', desc: 'Image grid gallery', icon: 'G' },
+            { cmd: 'embed', label: 'Embed', desc: 'YouTube, Vimeo embed', icon: '▶' },
+            { cmd: 'separator', label: 'Separator', desc: 'Horizontal rule', icon: '—' },
+            { cmd: 'spacer', label: 'Spacer', desc: 'Vertical spacing', icon: '↕' },
+            { cmd: 'html', label: 'HTML', desc: 'Raw HTML code', icon: '<>' },
+            { cmd: 'section', label: 'Section', desc: 'Full-width section wrapper', icon: '□' },
+        ],
+        tinyMceLoadPromise: null,
+        ensureTinyMceLoaded() {
+            if (typeof window.tinymce !== 'undefined') return Promise.resolve();
+            if (this.tinyMceLoadPromise) return this.tinyMceLoadPromise;
+
+            const assets = this.tinymceAssets || {};
+            const jsUrls = Array.isArray(assets.js_urls) ? assets.js_urls.filter(Boolean) : [];
+            const cssUrls = Array.isArray(assets.css_urls) ? assets.css_urls.filter(Boolean) : [];
+
+            cssUrls.forEach((href) => {
+                if (document.querySelector('link[data-tinymce-asset="' + href + '"]')) return;
+                const link = document.createElement('link');
+                link.rel = 'stylesheet';
+                link.href = href;
+                link.setAttribute('data-tinymce-asset', href);
+                document.head.appendChild(link);
+            });
+
+            this.tinyMceLoadPromise = new Promise((resolve, reject) => {
+                if (jsUrls.length === 0) {
+                    reject(new Error('TinyMCE assets missing'));
+                    return;
+                }
+
+                const loadAt = (idx) => {
+                    if (typeof window.tinymce !== 'undefined') { resolve(); return; }
+                    if (idx >= jsUrls.length) { reject(new Error('TinyMCE failed to load')); return; }
+                    const src = jsUrls[idx];
+                    const existing = document.querySelector('script[data-tinymce-asset="' + src + '"]');
+                    if (existing) {
+                        existing.addEventListener('load', () => resolve(), { once: true });
+                        existing.addEventListener('error', () => loadAt(idx + 1), { once: true });
+                        return;
+                    }
+                    const script = document.createElement('script');
+                    script.src = src;
+                    script.async = true;
+                    script.setAttribute('data-tinymce-asset', src);
+                    script.onload = () => resolve();
+                    script.onerror = () => loadAt(idx + 1);
+                    document.head.appendChild(script);
+                };
+
+                loadAt(0);
+            });
+
+            return this.tinyMceLoadPromise;
+        },
+        initTinyMce() {
+            if (typeof window.tinymce === 'undefined') return;
+            if (!this.$refs.bodyEditor) return;
+
+            const existing = window.tinymce.get(this.editorId);
+            if (existing) {
+                existing.setContent(this.form.body || '');
+                return;
+            }
+
+            const self = this;
+            const config = Object.assign({}, this.tinymceConfig || {}, {
+                selector: '#' + this.editorId,
+                content_style: 'img.alignleft, img[style*="float: left"], img[style*="float:left"] { float: left; margin: 0 1rem 0 0; max-width: 50%; } img.alignright, img[style*="float: right"], img[style*="float:right"] { float: right; margin: 0 0 0 1rem; max-width: 50%; } img.aligncenter { display: block; margin-left: auto; margin-right: auto; }',
+                image_class_list: [
+                    { title: 'None', value: '' },
+                    { title: 'Align Left', value: 'alignleft' },
+                    { title: 'Align Center', value: 'aligncenter' },
+                    { title: 'Align Right', value: 'alignright' }
+                ],
+                file_picker_types: 'image',
+                file_picker_callback: function(callback, value, meta) {
+                    self.mediaBrowser.tinymcePickerCallback = callback;
+                    self.openMediaBrowser('tinymce_file_picker', -1);
+                },
+                setup: (editor) => {
+                    editor.on('init', () => {
+                        editor.setContent(this.form.body || '');
+                    });
+                    editor.on('change input undo redo keyup', () => {
+                        this.form.body = editor.getContent();
+                    });
+                }
+            });
+
+            window.tinymce.init(config);
+        },
+        syncBodyFromEditor() {
+            if (typeof window.tinymce === 'undefined') return;
+            const editor = window.tinymce.get(this.editorId);
+            if (!editor) return;
+            this.form.body = editor.getContent();
+        },
+        async loadWorkflow() {
+            if (!this.contentId) {
+                this.workflow.loading = false;
+                this.workflow.error = '';
+                this.workflow.state = '';
+                this.workflow.allowed_actions = [];
+                return;
+            }
+            this.workflow.loading = true;
+            this.workflow.error = '';
+            try {
+                const res = await fetch(CMS_BASE + '/api/v1/cms/content/' + this.contentId + '/workflow', {
+                    method: 'GET',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CMS_CSRF },
+                });
+                const data = await res.json();
+                if (data.ok) {
+                    this.workflow.state = (data.workflow && data.workflow.state) ? data.workflow.state : '';
+                    this.workflow.allowed_actions = (data.workflow && data.workflow.allowed_actions) ? data.workflow.allowed_actions : [];
+                } else {
+                    this.workflow.error = data.error || 'Workflow unavailable';
+                }
+            } catch (e) {
+                this.workflow.error = 'Workflow unavailable';
+            }
+            this.workflow.loading = false;
+        },
+        async transitionWorkflow(action) {
+            if (!this.capabilities.can_workflow) {
+                this.workflow.error = 'You do not have permission to transition workflow.';
+                return;
+            }
+            if (!this.contentId) {
+                this.workflow.error = 'Save a draft first.';
+                return;
+            }
+            this.saving = true;
+            try {
+                const res = await fetch(CMS_BASE + '/api/v1/cms/content/' + this.contentId + '/workflow/transition', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CMS_CSRF },
+                    body: JSON.stringify({ action: action }),
+                });
+                const data = await res.json();
+                if (data.ok) {
+                    toast('Workflow updated');
+                    await this.loadWorkflow();
+                } else {
+                    toast(data.error || 'Transition failed', 'error');
+                }
+            } catch (e) {
+                toast('Network error', 'error');
+            }
+            this.saving = false;
+        },
+        async aiSummarize() {
+            if (!this.capabilities.ai_tools) {
+                this.ai.error = 'You do not have permission to use AI tools.';
+                return;
+            }
+            const ready = await this.ensureContentIdForAi();
+            if (!ready) return;
+            this.ai.loading = true;
+            this.ai.error = '';
+            this.ai.summary = '';
+            try {
+                const res = await fetch(CMS_BASE + '/api/v1/cms/content/' + this.contentId + '/ai/summary', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CMS_CSRF },
+                    body: JSON.stringify({}),
+                });
+                const data = await res.json();
+                if (data.ok) {
+                    this.ai.summary = (data.summary || '').trim();
+                } else {
+                    this.ai.error = data.error || 'AI error';
+                }
+            } catch (e) {
+                this.ai.error = 'Network error';
+            }
+            this.ai.loading = false;
+        },
+        applySummaryToExcerpt() {
+            if (this.ai.summary) {
+                this.form.excerpt = this.ai.summary;
+                toast('Excerpt updated');
+            }
+        },
+        async ensureContentIdForAi() {
+            if (this.contentId) return true;
+            if (!this.form.title.trim() && !String(this.form.body || '').trim()) {
+                this.ai.error = 'Add a title or some content first.';
+                return false;
+            }
+
+            const prevStatus = this.form.status;
+            this.saving = true;
+            this.ai.error = '';
+            try {
+                const payload = this.buildPayload();
+                payload.status = 'draft';
+                const res = await fetch(CMS_BASE + '/api/v1/cms/content', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CMS_CSRF },
+                    body: JSON.stringify(payload),
+                });
+                const data = await res.json();
+                if (!data.ok || !data.id) {
+                    this.ai.error = data.error || 'Failed to create draft for AI tools.';
+                    this.saving = false;
+                    this.form.status = prevStatus;
+                    return false;
+                }
+
+                this.contentId = data.id;
+                this.isNew = false;
+                this.form.status = payload.status;
+
+                try {
+                    const url = CMS_BASE + '/cms/admin/content/edit/' + data.id;
+                    if (window && window.history && typeof window.history.replaceState === 'function') {
+                        window.history.replaceState({}, '', url);
+                    }
+                } catch (e) {}
+
+                toast('Draft auto-saved. AI tools are now enabled.');
+                this.saving = false;
+                return true;
+            } catch (e) {
+                this.ai.error = 'Network error';
+                this.saving = false;
+                this.form.status = prevStatus;
+                return false;
+            }
+        },
+        async aiSeoSuggest() {
+            if (!this.capabilities.ai_seo_suggest) {
+                this.ai.error = 'You do not have permission to use AI SEO suggestions.';
+                return;
+            }
+            const ready = await this.ensureContentIdForAi();
+            if (!ready) return;
+            this.ai.loading = true;
+            this.ai.error = '';
+            try {
+                const res = await fetch(CMS_BASE + '/api/v1/cms/content/' + this.contentId + '/ai/seo', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CMS_CSRF },
+                    body: JSON.stringify({}),
+                });
+                const data = await res.json();
+                if (data.ok && data.seo) {
+                    if (data.seo.seo_title !== undefined) this.meta.seo_title = data.seo.seo_title;
+                    if (data.seo.seo_description !== undefined) this.meta.seo_description = data.seo.seo_description;
+                    toast('SEO suggestions applied');
+                } else {
+                    this.ai.error = data.error || 'AI error';
+                }
+            } catch (e) {
+                this.ai.error = 'Network error';
+            }
+            this.ai.loading = false;
+        },
+        addBlock(type) {
+            if (type === 'heading') {
+                this.blocks.push({ type: 'heading', level: 2, text: '' });
+            } else if (type === 'paragraph') {
+                this.blocks.push({ type: 'paragraph', text: '' });
+            } else if (type === 'image') {
+                this.blocks.push({ type: 'image', url: '', alt: '', caption: '' });
+            } else if (type === 'list') {
+                this.blocks.push({ type: 'list', style: 'ul', items_text: '' });
+            } else if (type === 'html') {
+                this.blocks.push({ type: 'html', html: '' });
+            } else if (type === 'quote') {
+                this.blocks.push({ type: 'quote', text: '', citation: '' });
+            } else if (type === 'button') {
+                this.blocks.push({ type: 'button', text: '', url: '', style: 'primary', target: '_self' });
+            } else if (type === 'gallery') {
+                this.blocks.push({ type: 'gallery', urls_text: '', columns: 3 });
+            } else if (type === 'embed') {
+                this.blocks.push({ type: 'embed', url: '' });
+            } else if (type === 'spacer') {
+                this.blocks.push({ type: 'spacer', height: 40 });
+            } else if (type === 'separator') {
+                this.blocks.push({ type: 'separator', style: 'solid' });
+            } else if (type === 'section') {
+                this.blocks.push({ type: 'section', bg_color: '', text_color: '', bg_image: '', padding: 48, max_width: '1140px', text_align: '', content: '' });
+            }
+        },
+        addColumnsBlock(layout) {
+            const parts = layout.split('/');
+            const cols = parts.map(() => ({ content: '' }));
+            this.blocks.push({ type: 'columns', layout, columns: cols, gap: '24px', valign: 'start', stack_mobile: true });
+        },
+        changeColumnsLayout(idx) {
+            this.showColumnsPresets = true;
+            this._pendingColumnsIdx = idx;
+        },
+        applyColumnsPreset(layout) {
+            if (this._pendingColumnsIdx !== null && this.blocks[this._pendingColumnsIdx] && this.blocks[this._pendingColumnsIdx].type === 'columns') {
+                const block = this.blocks[this._pendingColumnsIdx];
+                const parts = layout.split('/');
+                block.layout = layout;
+                block.columns = parts.map((_, i) => ({ content: (block.columns && block.columns[i] && block.columns[i].content) ? block.columns[i].content : '' }));
+            } else {
+                this.addColumnsBlock(layout);
+            }
+            this._pendingColumnsIdx = null;
+            this.showColumnsPresets = false;
+        },
+        columnsLayoutToGrid(layout) {
+            const map = { '50/50': '1fr 1fr', '33/33/33': '1fr 1fr 1fr', '70/30': '7fr 3fr', '30/70': '3fr 7fr', '25/50/25': '1fr 2fr 1fr', '25/25/25/25': '1fr 1fr 1fr 1fr' };
+            return map[layout] || '1fr 1fr';
+        },
+        async loadSavedBlocks() {
+            try {
+                const res = await fetch(CMS_BASE + '/api/v1/cms/saved-blocks', { headers: { 'X-CSRF-TOKEN': CMS_CSRF } });
+                const d = await res.json();
+                if (d.ok) this.savedBlocks = d.blocks || [];
+            } catch (e) {}
+        },
+        insertSavedBlock(sb) {
+            const blocks = sb.blocks_json || [];
+            this.blocks.push(...this.hydrateBlocks(blocks));
+            // Increment usage via fire-and-forget
+            fetch(CMS_BASE + '/api/v1/cms/saved-blocks/' + sb.id, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CMS_CSRF }, body: JSON.stringify({ usage_increment: true }) }).catch(() => {});
+        },
+        hydrateBlock(block) {
+            const b = { ...(block || {}) };
+            const styles = b.styles || {};
+            b._showStyles = !!b._showStyles;
+            b._styles_bg = styles.backgroundColor || '';
+            b._styles_color = styles.color || '';
+            b._styles_padding = styles.padding || '';
+            b._styles_margin = styles.margin || '';
+            b._styles_radius = styles.borderRadius || '';
+            b._styles_class = styles.cssClass || '';
+            if (b.type === 'list') {
+                const items = Array.isArray(b.items) ? b.items : [];
+                b.items_text = b.items_text || items.map(i => String(i || '')).join('\n');
+                b.style = b.style === 'ol' ? 'ol' : 'ul';
+            } else if (b.type === 'gallery') {
+                const urls = Array.isArray(b.urls) ? b.urls : [];
+                b.urls_text = b.urls_text || urls.map(u => typeof u === 'string' ? u : (u && u.url ? u.url : '')).filter(Boolean).join('\n');
+                b.columns = Number(b.columns || 3);
+            } else if (b.type === 'section') {
+                b.bg_color = b.bg_color || '';
+                b.text_color = b.text_color || '';
+                b.bg_image = b.bg_image || '';
+                b.padding = Number(b.padding || 48);
+                b.max_width = b.max_width || '1140px';
+                b.text_align = b.text_align || '';
+                b.content = b.content || '';
+            } else if (b.type === 'columns') {
+                b.layout = b.layout || '50/50';
+                b.columns = Array.isArray(b.columns) ? b.columns.map(col => ({ content: (col && col.content) ? col.content : '' })) : [];
+                b.gap = b.gap || '24px';
+                b.valign = b.valign || 'start';
+                b.stack_mobile = typeof b.stack_mobile === 'boolean' ? b.stack_mobile : true;
+            }
+            return b;
+        },
+        hydrateBlocks(blocks) {
+            return Array.isArray(blocks) ? blocks.map(b => this.hydrateBlock(b)) : [];
+        },
+        _serializeBlockStyles(b) {
+            const s = {};
+            if (b._styles_bg) s.backgroundColor = b._styles_bg;
+            if (b._styles_color) s.color = b._styles_color;
+            if (b._styles_padding) s.padding = b._styles_padding;
+            if (b._styles_margin) s.margin = b._styles_margin;
+            if (b._styles_radius) s.borderRadius = b._styles_radius;
+            if (b._styles_class) s.cssClass = b._styles_class;
+            return Object.keys(s).length > 0 ? s : undefined;
+        },
+        addExtBlock(type) {
+            const def = this.extBlockTypes.find(b => b.type === type);
+            if (!def) return;
+            const block = { type: type };
+            (def.fields || []).forEach(f => { block[f.key || f] = f.default || ''; });
+            this.blocks.push(block);
+        },
+        removeBlock(idx) { this.blocks.splice(idx, 1); },
+        moveBlock(idx, delta) {
+            const ni = idx + delta;
+            if (ni < 0 || ni >= this.blocks.length) return;
+            const tmp = this.blocks[idx];
+            this.blocks[idx] = this.blocks[ni];
+            this.blocks[ni] = tmp;
+        },
+        serializeBlocks() {
+            return this.blocks.map(b => {
+                const styles = this._serializeBlockStyles(b);
+                let out;
+                if (b.type === 'list') {
+                    const lines = String(b.items_text || '').split('\n').map(s => s.trim()).filter(Boolean);
+                    out = { type: 'list', style: b.style === 'ol' ? 'ol' : 'ul', items: lines };
+                } else if (b.type === 'heading') {
+                    const lvl = Number(b.level || 2);
+                    out = { type: 'heading', level: (lvl >= 2 && lvl <= 4) ? lvl : 2, text: String(b.text || '') };
+                } else if (b.type === 'paragraph') {
+                    out = { type: 'paragraph', text: String(b.text || '') };
+                } else if (b.type === 'image') {
+                    out = { type: 'image', url: String(b.url || ''), alt: String(b.alt || ''), caption: String(b.caption || '') };
+                } else if (b.type === 'html') {
+                    out = { type: 'html', html: String(b.html || '') };
+                } else if (b.type === 'quote') {
+                    out = { type: 'quote', text: String(b.text || ''), citation: String(b.citation || '') };
+                } else if (b.type === 'button') {
+                    out = { type: 'button', text: String(b.text || ''), url: String(b.url || ''), style: String(b.style || 'primary'), target: String(b.target || '_self') };
+                } else if (b.type === 'gallery') {
+                    const urls = String(b.urls_text || '').split('\n').map(s => s.trim()).filter(Boolean).map(u => ({ url: u, alt: '' }));
+                    out = { type: 'gallery', urls: urls, columns: Number(b.columns || 3) };
+                } else if (b.type === 'embed') {
+                    out = { type: 'embed', url: String(b.url || '') };
+                } else if (b.type === 'spacer') {
+                    out = { type: 'spacer', height: Number(b.height || 40) };
+                } else if (b.type === 'separator') {
+                    out = { type: 'separator', style: String(b.style || 'solid') };
+                } else if (b.type === 'section') {
+                    out = { type: 'section', bg_color: b.bg_color || '', text_color: b.text_color || '', bg_image: b.bg_image || '', padding: Number(b.padding || 48), max_width: b.max_width || '1140px', text_align: b.text_align || '', content: b.content || '' };
+                } else if (b.type === 'columns') {
+                    out = { type: 'columns', layout: b.layout || '50/50', columns: (b.columns || []).map(c => ({ content: c.content || '' })), gap: b.gap || '24px', valign: b.valign || 'start', stack_mobile: !!b.stack_mobile };
+                } else {
+                    out = { ...b };
+                }
+                if (styles) out.styles = styles;
+                // Strip internal UI props
+                delete out._open; delete out._showStyles; delete out._styles_bg; delete out._styles_color; delete out._styles_padding; delete out._styles_margin; delete out._styles_radius; delete out._styles_class;
+                return out;
+            });
+        },
+        autoSlug() {
+            if (this.isNew || this.form.slug === '') {
+                this.form.slug = this.form.title.toLowerCase().replace(/[^a-z0-9\s-]/g, '').replace(/[\s-]+/g, '-').replace(/^-|-$/g, '');
+            }
+        },
+        buildPayload() {
+            this.syncBodyFromEditor();
+            this.syncRichTextFields();
+            const payload = { ...this.form, meta: { ...this.meta, ...this.dynMeta, _template: this.selectedTemplate }, category_ids: this.selectedCategoryIds, tag_names: this.tagNames };
+            if (this.editorMode === 'blocks') payload.blocks = this.serializeBlocks();
+            return payload;
+        },
+        primaryActionLabel() {
+            if (this.saving) {
+                if (this.form.status === 'scheduled') return 'Scheduling...';
+                if (this.form.status === 'published') return 'Updating...';
+                return 'Publishing...';
+            }
+            if (this.form.status === 'scheduled') return this.isNew ? 'Schedule' : 'Save Schedule';
+            if (this.form.status === 'published') return 'Update';
+            return 'Publish';
+        },
+        async save() {
+            if (!this.form.title.trim()) { toast('Title is required', 'error'); return; }
+            if (this.form.status === 'scheduled' && !this.form.published_at) { toast('Publish date and time are required for scheduled content', 'error'); return; }
+            this.saving = true;
+            try {
+                const url = this.isNew ? CMS_BASE + '/api/v1/cms/content' : CMS_BASE + '/api/v1/cms/content/' + this.contentId;
+                const res = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CMS_CSRF },
+                    body: JSON.stringify(this.buildPayload()),
+                });
+                const data = await res.json();
+                if (data.ok) {
+                    this._autosaveClear();
+                    toast('Saved successfully');
+                    if (this.isNew && data.id) { window.location.href = CMS_BASE + '/cms/admin/content/edit/' + data.id; }
+                } else { toast(data.error || 'Save failed', 'error'); }
+            } catch (e) { toast('Network error', 'error'); }
+            this.saving = false;
+        },
+        async saveDraft() {
+            this.form.status = 'draft';
+            await this.save();
+        },
+        async initWorkflowForNew() {
+            const ready = await this.ensureContentIdForAi();
+            if (!ready) return;
+            await this.loadWorkflow();
+        },
+        async publish() {
+            if (!this.capabilities.can_publish) { toast('You do not have permission to publish', 'error'); return; }
+            if (!this.form.title.trim()) { toast('Title is required', 'error'); return; }
+            if (this.form.status === 'scheduled') {
+                await this.save();
+                return;
+            }
+            this.saving = true;
+            try {
+                if (this.isNew) {
+                    const payload = this.buildPayload();
+                    payload.status = 'published';
+                    const res = await fetch(CMS_BASE + '/api/v1/cms/content', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CMS_CSRF },
+                        body: JSON.stringify(payload),
+                    });
+                    const data = await res.json();
+                    if (data.ok && data.id) {
+                        this._autosaveClear();
+                        toast('Published!');
+                        window.location.href = CMS_BASE + '/cms/admin/content/edit/' + data.id;
+                    } else { toast(data.error || 'Publish failed', 'error'); }
+                } else {
+                    await this.save();
+                    const res = await fetch(CMS_BASE + '/api/v1/cms/content/' + this.contentId + '/publish', {
+                        method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CMS_CSRF },
+                    });
+                    const data = await res.json();
+                    if (data.ok) { this._autosaveClear(); this.form.status = 'published'; toast('Published!'); }
+                    else { toast(data.error || 'Publish failed', 'error'); }
+                }
+            } catch (e) { toast('Network error', 'error'); }
+            this.saving = false;
+        },
+        async trash() {
+            if (!this.capabilities.can_trash) { toast('You do not have permission to trash content', 'error'); return; }
+            if (!confirm('Move to trash?')) return;
+            this.saving = true;
+            try {
+                const res = await fetch(CMS_BASE + '/api/v1/cms/content/' + this.contentId + '/trash', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CMS_CSRF },
+                });
+                const data = await res.json();
+                if (data.ok) { this.form.status = 'trash'; toast('Moved to trash'); }
+                else { toast(data.error || 'Failed', 'error'); }
+            } catch (e) { toast('Network error', 'error'); }
+            this.saving = false;
+        },
+        async restore() {
+            if (!this.capabilities.can_restore) { toast('You do not have permission to restore content', 'error'); return; }
+            this.saving = true;
+            try {
+                const res = await fetch(CMS_BASE + '/api/v1/cms/content/' + this.contentId + '/restore', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CMS_CSRF },
+                });
+                const data = await res.json();
+                if (data.ok) { this.form.status = 'draft'; toast('Restored to draft'); }
+                else { toast(data.error || 'Restore failed', 'error'); }
+            } catch (e) { toast('Network error', 'error'); }
+            this.saving = false;
+        },
+        preview() {
+            const slug = this.form.slug || '';
+            const type = this.form.type || 'post';
+            if (!slug) { toast('Save first to preview', 'error'); return; }
+            const path = type === 'page' ? '/cms/page/' + slug : '/cms/blog/' + slug;
+            window.open(CMS_BASE + path, '_blank');
+        },
+        addTag() {
+            const name = (this.tagInput || '').trim().replace(/,+$/, '').trim();
+            if (name && !this.tagNames.includes(name)) {
+                this.tagNames.push(name);
+            }
+            this.tagInput = '';
+            this.showTagSuggestions = false;
+        },
+        selectTagSuggestion(name) {
+            if (!this.tagNames.includes(name)) {
+                this.tagNames.push(name);
+            }
+            this.tagInput = '';
+            this.showTagSuggestions = false;
+        },
+        filterTagSuggestions() {
+            const q = (this.tagInput || '').toLowerCase().trim();
+            if (!q) { this.filteredTagSuggestions = []; return; }
+            this.filteredTagSuggestions = this.allTags.filter(t => t.name.toLowerCase().includes(q) && !this.tagNames.includes(t.name));
+        },
+        async loadRevisions() {
+            if (this.isNew) return;
+            this.revisionsLoading = true;
+            try {
+                const res = await fetch(CMS_BASE + '/api/v1/cms/content/' + this.contentId + '/revisions', { headers: { 'X-CSRF-TOKEN': CMS_CSRF } });
+                const data = await res.json();
+                if (data.ok) {
+                    this.revisions = data.revisions || [];
+                    this.revisionTotal = data.total || 0;
+                }
+            } catch (e) {}
+            this.revisionsLoading = false;
+        },
+        async restoreRevision(revId) {
+            if (!confirm('Restore this revision? Current content will be saved as a revision first.')) return;
+            try {
+                const res = await fetch(CMS_BASE + '/api/v1/cms/content/' + this.contentId + '/revisions/' + revId + '/restore', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CMS_CSRF }, body: '{}',
+                });
+                const data = await res.json();
+                if (data.ok) {
+                    toast('Revision restored. Reloading…');
+                    setTimeout(() => location.reload(), 800);
+                } else { toast(data.error || 'Restore failed', 'error'); }
+            } catch (e) { toast('Network error', 'error'); }
+        },
+        toggleCategory(id) {
+            const idx = this.selectedCategoryIds.indexOf(id);
+            if (idx >= 0) { this.selectedCategoryIds.splice(idx, 1); }
+            else { this.selectedCategoryIds.push(id); }
+        },
+        async addCategory() {
+            const name = (this.catNewName || '').trim();
+            if (!name) return;
+            try {
+                const res = await fetch(CMS_BASE + '/api/v1/cms/categories', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CMS_CSRF },
+                    body: JSON.stringify({ name: name }),
+                });
+                const data = await res.json();
+                if (data.ok && data.id) {
+                    this.allCategories.push({ id: data.id, name: name, slug: name.toLowerCase().replace(/[^a-z0-9]+/g, '-'), parent_id: null });
+                    this.selectedCategoryIds.push(data.id);
+                    this.catNewName = '';
+                    this.catAdding = false;
+                    toast('Category created');
+                } else { toast(data.error || 'Failed', 'error'); }
+            } catch (e) { toast('Network error', 'error'); }
+        },
+        initRichTextFields() {
+            if (typeof window.tinymce === 'undefined') return;
+            document.querySelectorAll('[data-richtext-field]').forEach(el => {
+                const fieldKey = el.getAttribute('data-richtext-field');
+                const editorId = el.id;
+                if (!editorId || window.tinymce.get(editorId)) return;
+                const config = Object.assign({}, this.tinymceConfig || {}, {
+                    selector: '#' + editorId,
+                    height: 200,
+                    menubar: false,
+                    toolbar: 'bold italic underline | bullist numlist | link | removeformat',
+                    setup: (editor) => {
+                        editor.on('init', () => {
+                            editor.setContent(this.dynMeta[fieldKey] || '');
+                        });
+                        editor.on('change input undo redo keyup', () => {
+                            this.dynMeta[fieldKey] = editor.getContent();
+                        });
+                    }
+                });
+                window.tinymce.init(config);
+            });
+        },
+        syncRichTextFields() {
+            if (typeof window.tinymce === 'undefined') return;
+            document.querySelectorAll('[data-richtext-field]').forEach(el => {
+                const fieldKey = el.getAttribute('data-richtext-field');
+                const editor = window.tinymce.get(el.id);
+                if (editor) {
+                    this.dynMeta[fieldKey] = editor.getContent();
+                }
+            });
+        },
+        _autosaveKey() {
+            return 'cms_autosave_' + (this.contentId || 'new_' + this.form.type);
+        },
+        _autosaveSnapshot() {
+            return JSON.stringify({ title: this.form.title, slug: this.form.slug, body: this.form.body, excerpt: this.form.excerpt, status: this.form.status, blocks: this.blocks, meta: this.meta, dynMeta: this.dynMeta, selectedCategoryIds: this.selectedCategoryIds, ts: Date.now() });
+        },
+        _autosaveTick() {
+            if (!this._autosaveDirty) return;
+            try {
+                this.syncBodyFromEditor();
+                this.syncRichTextFields();
+                localStorage.setItem(this._autosaveKey(), this._autosaveSnapshot());
+                this._autosaveDirty = false;
+                this.autosaveStatus = 'Saved locally';
+                setTimeout(() => { if (this.autosaveStatus === 'Saved locally') this.autosaveStatus = ''; }, 3000);
+            } catch (e) {}
+        },
+        _autosaveMarkDirty() {
+            this._autosaveDirty = true;
+            this.autosaveStatus = 'Unsaved changes';
+        },
+        _autosaveClear() {
+            try { localStorage.removeItem(this._autosaveKey()); } catch(e) {}
+            this.autosaveStatus = '';
+        },
+        _autosaveRecover() {
+            try {
+                const raw = localStorage.getItem(this._autosaveKey());
+                if (!raw) return;
+                const snap = JSON.parse(raw);
+                if (!snap || !snap.ts) return;
+                const age = Date.now() - snap.ts;
+                if (age > 86400000) { this._autosaveClear(); return; }
+                const mins = Math.round(age / 60000);
+                const label = mins < 1 ? 'less than a minute ago' : mins + ' minute' + (mins === 1 ? '' : 's') + ' ago';
+                if (confirm('Unsaved draft found from ' + label + '. Restore it?')) {
+                    if (snap.title !== undefined) this.form.title = snap.title;
+                    if (snap.slug !== undefined) this.form.slug = snap.slug;
+                    if (snap.body !== undefined) this.form.body = snap.body;
+                    if (snap.excerpt !== undefined) this.form.excerpt = snap.excerpt;
+                    if (snap.blocks && Array.isArray(snap.blocks)) this.blocks = this.hydrateBlocks(snap.blocks);
+                    if (snap.meta) Object.assign(this.meta, snap.meta);
+                    if (snap.dynMeta) Object.assign(this.dynMeta, snap.dynMeta);
+                    if (snap.selectedCategoryIds) this.selectedCategoryIds = snap.selectedCategoryIds;
+                    toast('Draft restored from local backup');
+                } else {
+                    this._autosaveClear();
+                }
+            } catch (e) { this._autosaveClear(); }
+        },
+
+        // ── Media Browser Methods ─────────────────────────────
+        closeMediaBrowser() {
+            this.mediaBrowser.open = false;
+            this.mediaBrowser.tinymcePickerCallback = null;
+        },
+        async openMediaBrowser(target, idx) {
+            this.mediaBrowser.target = target;
+            this.mediaBrowser.targetIdx = idx;
+            this.mediaBrowser.selectedId = null;
+            this.mediaBrowser.selectedItem = null;
+            this.mediaBrowser.search = '';
+            this.mediaBrowser.open = true;
+            if (!this.mediaBrowser.loaded) {
+                await this._loadMediaItems();
+            }
+        },
+
+        async _loadMediaItems() {
+            try {
+                const res = await fetch(CMS_BASE + '/api/v1/cms/media');
+                const data = await res.json();
+                this.mediaBrowser.items = Array.isArray(data.data) ? data.data : (Array.isArray(data.items) ? data.items : (Array.isArray(data.media) ? data.media : []));
+                this.mediaBrowser.loaded = true;
+            } catch (e) {
+                console.error('Failed to load media', e);
+            }
+        },
+
+        mediaFilteredItems() {
+            const items = this.mediaBrowser.items;
+            if (!this.mediaBrowser.search) return items;
+            const q = this.mediaBrowser.search.toLowerCase();
+            return items.filter(i =>
+                (i.original_name || '').toLowerCase().includes(q) ||
+                (i.file_path || '').toLowerCase().includes(q)
+            );
+        },
+
+        mediaSelect(item) {
+            this.mediaBrowser.selectedId = item.id;
+            this.mediaBrowser.selectedItem = item;
+        },
+
+        mediaConfirmSelection() {
+            const item = this.mediaBrowser.selectedItem;
+            if (!item) return;
+            const url = item.url;
+            const target = this.mediaBrowser.target;
+            const idx = this.mediaBrowser.targetIdx;
+
+            if (target === 'tinymce_file_picker' && this.mediaBrowser.tinymcePickerCallback) {
+                this.mediaBrowser.tinymcePickerCallback(url, { alt: item.alt_text || item.original_name || '' });
+                this.mediaBrowser.tinymcePickerCallback = null;
+            } else if (target === 'block_image' && this.blocks[idx]) {
+                this.blocks[idx].url = url;
+                if (!this.blocks[idx].alt && item.alt_text) this.blocks[idx].alt = item.alt_text;
+            } else if (target === 'block_gallery' && this.blocks[idx]) {
+                const existing = (this.blocks[idx].urls_text || '').trim();
+                this.blocks[idx].urls_text = existing ? existing + '\n' + url : url;
+            } else if (target === 'block_bg' && this.blocks[idx]) {
+                this.blocks[idx].bg_image = url;
+            }
+
+            this.mediaBrowser.open = false;
+        },
+
+        async mediaUpload(event) {
+            const files = event.target.files;
+            if (!files || files.length === 0) return;
+            this.mediaBrowser.uploading = true;
+            try {
+                for (const file of files) {
+                    const fd = new FormData();
+                    fd.append('file', file);
+                    fd.append('_token', CMS_CSRF);
+                    const res = await fetch(CMS_BASE + '/api/v1/cms/media/upload', { method: 'POST', body: fd });
+                    const data = await res.json();
+                    if (data.ok) {
+                        this.mediaBrowser.items.unshift({
+                            id: data.id,
+                            file_path: data.file_path || '',
+                            url: data.url || '',
+                            filename: data.filename || file.name,
+                            original_name: file.name,
+                            mime_type: file.type,
+                            file_size: file.size,
+                            alt_text: '',
+                            created_at: new Date().toISOString()
+                        });
+                    }
+                }
+            } catch (e) {
+                console.error('Upload failed', e);
+            } finally {
+                this.mediaBrowser.uploading = false;
+                event.target.value = '';
+            }
+        },
+
+        _setupKeyboardShortcuts() {
+            document.addEventListener('keydown', (e) => {
+                if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'P') {
+                    e.preventDefault();
+                    this.publish();
+                } else if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+                    e.preventDefault();
+                    this.saveDraft();
+                } else if (e.key === 'Escape') {
+                    const modals = document.querySelectorAll('[role="dialog"]:not([hidden])');
+                    if (modals.length > 0) {
+                        modals.forEach(m => m.setAttribute('hidden', ''));
+                    }
+                }
+            });
+        },
+        get filteredSlashCommands() {
+            const q = (this.slashMenu.filter || '').toLowerCase();
+            if (!q) return this.slashCommands;
+            return this.slashCommands.filter(c => c.label.toLowerCase().includes(q) || c.cmd.toLowerCase().includes(q));
+        },
+        handleSlashInput(e, idx) {
+            const val = e.target.value || '';
+            if (val.startsWith('/')) {
+                const rect = e.target.getBoundingClientRect();
+                this.slashMenu = { open: true, blockIdx: idx, filter: val.slice(1), x: rect.left, y: rect.bottom + 4 };
+            } else {
+                this.slashMenu.open = false;
+            }
+        },
+        handleSlashKey(e, idx) {
+            if (!this.slashMenu.open) return;
+            if (e.key === 'Escape') { this.slashMenu.open = false; e.preventDefault(); return; }
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                const cmds = this.filteredSlashCommands;
+                if (cmds.length > 0) this.executeSlashCommand(cmds[0].cmd, idx);
+                return;
+            }
+        },
+        executeSlashCommand(cmd, idx) {
+            this.slashMenu.open = false;
+            if (idx >= 0 && idx < this.blocks.length) {
+                this.blocks.splice(idx, 1);
+            }
+            this.addBlock(cmd);
+        },
+        blockDragStart(idx) { this.dragIdx = idx; },
+        blockDragOver(e, idx) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+        },
+        blockDrop(idx) {
+            if (this.dragIdx === null || this.dragIdx === idx) { this.dragIdx = null; return; }
+            const moved = this.blocks.splice(this.dragIdx, 1)[0];
+            this.blocks.splice(idx, 0, moved);
+            this.dragIdx = null;
+            this._autosaveMarkDirty();
+        },
+        blockDragEnd() { this.dragIdx = null; },
+        init() {
+            window.__cmsEditor = this;
+            this.blocks = this.hydrateBlocks(this.blocks);
+            this._autosaveRecover();
+            this.loadWorkflow();
+            this.loadSavedBlocks();
+            this._autosaveTimer = setInterval(() => this._autosaveTick(), 30000);
+            this.$watch('form', () => this._autosaveMarkDirty(), { deep: true });
+            this.$watch('blocks', () => this._autosaveMarkDirty(), { deep: true });
+            this.$watch('meta', () => this._autosaveMarkDirty(), { deep: true });
+            this.$watch('dynMeta', () => this._autosaveMarkDirty(), { deep: true });
+            this._setupKeyboardShortcuts();
+            this.$nextTick(() => {
+                this.ensureTinyMceLoaded()
+                    .then(() => {
+                        this.initTinyMce();
+                        this.initRichTextFields();
+                    })
+                    .catch(() => {
+                        toast('TinyMCE failed to load. Check network access to CDN.', 'error');
+                    });
+            });
+        },
+    };
+}
+</script>
+{/block}

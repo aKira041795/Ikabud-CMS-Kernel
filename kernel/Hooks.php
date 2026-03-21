@@ -1,0 +1,161 @@
+<?php
+/**
+ * Ikabud Kernel Hook System
+ * 
+ * Provides a clean decoupling layer between the kernel OS and userland (modules).
+ * The kernel never calls module functions directly — it fires hooks.
+ * Modules register listeners during their bootstrap phase.
+ * 
+ * Hook types:
+ *   filter  — transforms a value through a chain of callbacks (returns modified value)
+ *   action  — fires side-effect callbacks (returns nothing)
+ * 
+ * The kernel defines well-known hooks it fires:
+ *   'kernel.nav_items'       (filter)  — build navigation items for the current user
+ *   'kernel.gui_context'     (filter)  — merge GUI settings into the theme context
+ *   'kernel.gui_css'         (filter)  — generate CSS override block
+ *   'kernel.home_url'        (filter)  — resolve the home URL for a role
+ *   'kernel.csrf_token'      (filter)  — provide CSRF token string
+ *   'kernel.csrf_field'      (filter)  — provide CSRF hidden input HTML
+ *   'kernel.render_context'  (filter)  — modify the global render context before template compilation
+ *   'kernel.boot'            (action)  — fired after kernel boot completes
+ *   'kernel.shutdown'        (action)  — fired at shutdown
+ * 
+ * @package Ikabud\Kernel
+ * @version 1.0.0
+ */
+
+namespace Ikabud\Kernel;
+
+class Hooks
+{
+    private static ?Hooks $instance = null;
+
+    /** @var array<string, array<int, array{callback: callable, priority: int, module: string}>> */
+    private array $listeners = [];
+
+    private function __construct() {}
+
+    public static function getInstance(): self
+    {
+        if (self::$instance === null) {
+            self::$instance = new self();
+        }
+        return self::$instance;
+    }
+
+    /**
+     * Register a listener for a hook.
+     * Lower priority numbers run first (default 10).
+     */
+    public function on(string $hook, callable $callback, int $priority = 10): void
+    {
+        $module = '';
+        if (\function_exists('moduleCurrentId')) {
+            $resolved = \moduleCurrentId();
+            $module = \is_string($resolved) ? $resolved : '';
+        }
+
+        $this->listeners[$hook][] = [
+            'callback' => $callback,
+            'priority' => $priority,
+            'module' => $module,
+        ];
+        // Sort by priority (stable sort)
+        usort($this->listeners[$hook], fn($a, $b) => $a['priority'] <=> $b['priority']);
+    }
+
+    /**
+     * Fire a filter hook — passes $value through each listener and returns the result.
+     * Each listener receives ($value, ...$args) and must return the (possibly modified) value.
+     */
+    public function filter(string $hook, mixed $value, mixed ...$args): mixed
+    {
+        if (empty($this->listeners[$hook])) {
+            return $value;
+        }
+        foreach ($this->listeners[$hook] as $entry) {
+            try {
+                $result = null;
+                $module = (string)($entry['module'] ?? '');
+                if ($module !== '' && \function_exists('moduleWithContext')) {
+                    $result = \moduleWithContext($module, static function () use ($entry, $value, $args) {
+                        return ($entry['callback'])($value, ...$args);
+                    });
+                } else {
+                    $result = ($entry['callback'])($value, ...$args);
+                }
+                // Only accept the result if the callback returned the same type
+                // (prevents a broken filter from nullifying the chain)
+                if ($result !== null) {
+                    $value = $result;
+                }
+            } catch (\Throwable $e) {
+                if (function_exists('write_log')) {
+                    write_log("Hooks: filter '{$hook}' listener threw: " . $e->getMessage(), 'error', [
+                        'hook'  => $hook,
+                        'file'  => $e->getFile(),
+                        'line'  => $e->getLine(),
+                    ]);
+                }
+                // Continue chain with previous $value — bad listener is skipped
+            }
+        }
+        return $value;
+    }
+
+    /**
+     * Fire an action hook — calls each listener for side effects, returns nothing.
+     */
+    public function action(string $hook, mixed ...$args): void
+    {
+        if (empty($this->listeners[$hook])) {
+            return;
+        }
+        foreach ($this->listeners[$hook] as $entry) {
+            try {
+                $module = (string)($entry['module'] ?? '');
+                if ($module !== '' && \function_exists('moduleWithContext')) {
+                    \moduleWithContext($module, static function () use ($entry, $args): void {
+                        ($entry['callback'])(...$args);
+                    });
+                } else {
+                    ($entry['callback'])(...$args);
+                }
+            } catch (\Throwable $e) {
+                if (function_exists('write_log')) {
+                    write_log("Hooks: action '{$hook}' listener threw: " . $e->getMessage(), 'error', [
+                        'hook'  => $hook,
+                        'file'  => $e->getFile(),
+                        'line'  => $e->getLine(),
+                    ]);
+                }
+                // Continue — bad listener doesn't kill other listeners
+            }
+        }
+    }
+
+    /**
+     * Check if any listener is registered for a hook.
+     */
+    public function has(string $hook): bool
+    {
+        return !empty($this->listeners[$hook]);
+    }
+
+    /**
+     * Remove all listeners for a hook (useful in tests).
+     */
+    public function off(string $hook): void
+    {
+        unset($this->listeners[$hook]);
+    }
+
+    /**
+     * Reset all hooks (useful in tests).
+     */
+    public function reset(): void
+    {
+        $this->listeners = [];
+    }
+}

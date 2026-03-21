@@ -1,0 +1,156 @@
+{extends "layouts/app.disyl"}
+
+{block head}
+<style>
+    .as-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:20px; }
+    .as-header h2 { font-size:var(--font-size-h2,1.5rem); font-weight:700; }
+    .as-tabs { display:flex; gap:4px; margin-bottom:24px; }
+    .as-tabs a { padding:8px 16px; border-radius:6px; font-size:14px; font-weight:500; color:var(--text-muted,#666); text-decoration:none; }
+    .as-tabs a:hover { background:var(--surface-hover,#f1f1f1); }
+    .as-tabs a.active { background:var(--primary,#2563eb); color:#fff; }
+    .as-setting { display:flex; align-items:center; justify-content:space-between; padding:16px 0; border-bottom:1px solid var(--border,#e5e7eb); }
+    .as-setting:last-child { border-bottom:none; }
+    .as-setting .info h4 { font-size:15px; font-weight:600; margin-bottom:2px; }
+    .as-setting .info p { font-size:13px; color:var(--text-muted,#888); margin:0; }
+    .as-toggle { position:relative; width:44px; height:24px; cursor:pointer; }
+    .as-toggle input { display:none; }
+    .as-toggle .slider { position:absolute; inset:0; background:#ccc; border-radius:24px; transition:.2s; }
+    .as-toggle .slider::before { content:''; position:absolute; width:18px; height:18px; left:3px; bottom:3px; background:#fff; border-radius:50%; transition:.2s; }
+    .as-toggle input:checked + .slider { background:var(--primary,#2563eb); }
+    .as-toggle input:checked + .slider::before { transform:translateX(20px); }
+    .as-input { padding:8px 12px; border:1px solid var(--border,#e5e7eb); border-radius:6px; font-size:14px; width:80px; text-align:center; }
+    .as-textarea { width:100%; min-height:80px; padding:8px 12px; border:1px solid var(--border,#e5e7eb); border-radius:6px; font-size:14px; font-family:monospace; resize:vertical; }
+    .text-sm { font-size:13px; }
+    .text-muted { color:var(--text-muted,#888); }
+</style>
+{/block}
+
+{block content}
+<div class="as-header">
+    <div>
+        <h2>🛡️ Anti-Spam</h2>
+        <span class="text-sm text-muted">Configuration</span>
+    </div>
+    <button class="btn btn-primary btn-sm" onclick="saveSettings()">Save Settings</button>
+</div>
+
+<div class="as-tabs">
+    <a href="/admin/anti-spam">Dashboard</a>
+    <a href="/admin/anti-spam/log">Log</a>
+    <a href="/admin/anti-spam/blocked">Blocked IPs</a>
+    <a href="/admin/anti-spam/settings" class="active">Settings</a>
+</div>
+
+<div class="card">
+    <div class="card-header" style="font-weight:600;">Protection Settings</div>
+    <div class="card-body">
+
+        <div class="as-setting">
+            <div class="info">
+                <h4>Anti-Spam Protection</h4>
+                <p>Master toggle — disables all checks when off.</p>
+            </div>
+            <label class="as-toggle">
+                <input type="checkbox" id="s-enabled" {if settings.enabled == "1"}checked{/if} />
+                <span class="slider"></span>
+            </label>
+        </div>
+
+        <div class="as-setting">
+            <div class="info">
+                <h4>Honeypot Fields</h4>
+                <p>Hidden form fields that bots fill in. Submissions with filled honeypots are silently discarded.</p>
+            </div>
+            <label class="as-toggle">
+                <input type="checkbox" id="s-honeypot" {if settings.honeypot_enabled == "1"}checked{/if} />
+                <span class="slider"></span>
+            </label>
+        </div>
+
+        <div class="as-setting">
+            <div class="info">
+                <h4>Rate Limiting</h4>
+                <p>Limit requests per IP within a time window.</p>
+            </div>
+            <label class="as-toggle">
+                <input type="checkbox" id="s-ratelimit" {if settings.rate_limit_enabled == "1"}checked{/if} />
+                <span class="slider"></span>
+            </label>
+        </div>
+
+        <div class="as-setting">
+            <div class="info">
+                <h4>Rate Limit Window</h4>
+                <p>Time window in seconds.</p>
+            </div>
+            <input type="number" class="as-input" id="s-window" value="{settings.rate_limit_window | default:"60"}" min="1" />
+        </div>
+
+        <div class="as-setting">
+            <div class="info">
+                <h4>Max Requests</h4>
+                <p>Maximum requests allowed within the window.</p>
+            </div>
+            <input type="number" class="as-input" id="s-max" value="{settings.rate_limit_max | default:"10"}" min="1" />
+        </div>
+
+        <div class="as-setting">
+            <div class="info">
+                <h4>Keyword Blocking</h4>
+                <p>Block submissions containing specific keywords.</p>
+            </div>
+            <label class="as-toggle">
+                <input type="checkbox" id="s-keyword" {if settings.keyword_block_enabled == "1"}checked{/if} />
+                <span class="slider"></span>
+            </label>
+        </div>
+
+        <div class="as-setting" style="flex-direction:column;align-items:stretch;gap:8px;">
+            <div class="info">
+                <h4>Blocked Keywords</h4>
+                <p>Comma-separated list of keywords to block.</p>
+            </div>
+            <textarea class="as-textarea" id="s-keywords">{settings.blocked_keywords}</textarea>
+        </div>
+
+        <div class="as-setting">
+            <div class="info">
+                <h4>Log Retention</h4>
+                <p>Days to keep log entries before auto-cleanup.</p>
+            </div>
+            <input type="number" class="as-input" id="s-retention" value="{settings.log_retention_days | default:"30"}" min="1" />
+        </div>
+
+    </div>
+</div>
+
+<script>
+function saveSettings() {
+    const data = {
+        enabled:               document.getElementById('s-enabled').checked ? '1' : '0',
+        honeypot_enabled:      document.getElementById('s-honeypot').checked ? '1' : '0',
+        rate_limit_enabled:    document.getElementById('s-ratelimit').checked ? '1' : '0',
+        rate_limit_window:     document.getElementById('s-window').value,
+        rate_limit_max:        document.getElementById('s-max').value,
+        keyword_block_enabled: document.getElementById('s-keyword').checked ? '1' : '0',
+        blocked_keywords:      document.getElementById('s-keywords').value,
+        log_retention_days:    document.getElementById('s-retention').value,
+    };
+
+    fetch('/api/v1/anti-spam/settings', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        credentials: 'same-origin',
+        body: JSON.stringify(data)
+    })
+    .then(r => r.json())
+    .then(d => {
+        if (d.ok) {
+            if (typeof window.showToast === 'function') { window.showToast('Settings saved', 'success'); }
+            else { alert('Settings saved.'); }
+        } else { alert(d.error || 'Error saving settings'); }
+    })
+    .catch(() => alert('Request failed'));
+}
+</script>
+{/block}

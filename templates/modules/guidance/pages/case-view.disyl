@@ -1,0 +1,58 @@
+{extends "modules/guidance/layouts/app.disyl"}
+
+{block content}
+<div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+    <div class="flex items-start justify-between gap-4">
+        <div>
+            <div class="text-xs uppercase tracking-wide text-gray-400">Case</div>
+            <h1 class="text-xl font-semibold text-gray-900 mt-1">
+                {case.case_number | default:'#'} — {case.student_name | default:'Student'}
+            </h1>
+            <div class="mt-2 flex flex-wrap gap-2">
+                {if case.severity}
+                {ikb_badge variant="{case.severity}"}{case.severity | title}{/ikb_badge}
+                {/if}
+                {if case.status}
+                {ikb_badge variant="{case.status}"}{case.status | title}{/ikb_badge}
+                {/if}
+                {if case.category}
+                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-gray-100 text-gray-700">
+                    {case.category | title}
+                </span>
+                {/if}
+            </div>
+        </div>
+
+        <a href="{base_url}/cases" 
+           hx-get="/admin/guidance/pages/cases" 
+           hx-target="#main-content" 
+           hx-push-url="{base_url}/cases"
+           class="text-sm text-indigo-600 hover:text-indigo-800 font-medium">
+            <i class="fas fa-arrow-left mr-1"></i> Back
+        </a>
+    </div>
+
+    <div class="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="rounded-lg border border-gray-100 p-4">
+            <div class="text-xs text-gray-500">Student ID</div>
+            <div class="text-sm font-medium text-gray-900 mt-1">{case.student_id | default:'—'}</div>
+        </div>
+        <div class="rounded-lg border border-gray-100 p-4">
+            <div class="text-xs text-gray-500">Client Number</div>
+            <div class="text-sm font-medium text-gray-900 mt-1">{case.student_mobile | default:'—'}</div>
+        </div>
+        <div class="rounded-lg border border-gray-100 p-4">
+            <div class="text-xs text-gray-500">Updated</div>
+            <div class="text-sm font-medium text-gray-900 mt-1">{case.updated_at | default:'—'}</div>
+        </div>
+        <div class="rounded-lg border border-gray-100 p-4 md:col-span-2">
+            <div class="text-xs text-gray-500">Presenting Issue</div>
+            <div class="text-sm text-gray-900 mt-1">{case.presenting_issue | default:'—' | raw}</div>
+        </div>
+        <div class="rounded-lg border border-gray-100 p-4 md:col-span-2">
+            <div class="text-xs text-gray-500">Notes</div>
+            <div class="text-sm text-gray-900 mt-1">{case.notes | default:'—' | raw}</div>
+        </div>
+    </div>
+</div>
+{/block}

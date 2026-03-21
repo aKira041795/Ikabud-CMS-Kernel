@@ -1,0 +1,24 @@
+{extends "modules/cms/layouts/public.disyl"}
+
+{block head}
+{if cms_head}{cms_head | raw}{/if}
+{if structured_data}{structured_data | raw}{/if}
+{/block}
+
+{block content}
+{if builder_enabled}
+<article class="w-full {builder_page_settings.container_class}">
+    {content_html | raw}
+</article>
+{else}
+<article class="max-w-3xl mx-auto">
+    <header class="mb-8">
+        <h1 class="text-3xl font-bold text-gray-900 leading-tight">{content.title}</h1>
+    </header>
+
+    <div class="prose text-gray-700 leading-relaxed text-base">
+        {content_html | raw}
+    </div>
+</article>
+{/if}
+{/block}

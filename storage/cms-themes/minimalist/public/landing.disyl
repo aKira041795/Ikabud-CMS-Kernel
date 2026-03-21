@@ -1,0 +1,22 @@
+{extends "_cms_active_theme/layouts/public.disyl"}
+
+{block head}
+{if cms_head}{cms_head|raw}{/if}
+{if structured_data}{structured_data|raw}{/if}
+{/block}
+
+{block content}
+<section class="landing-hero">
+    <div class="hero-wrapper">
+        <div class="hero-content">
+            <h1 class="hero-title">{content.title|default:"Welcome to Our Site"}</h1>
+            <p class="hero-subtitle">{site_tagline|default:"Something great is waiting for you"}</p>
+            <a href="#main-content" class="hero-cta">Get Started</a>
+        </div>
+    </div>
+</section>
+
+<section id="main-content" class="landing-content prose">
+    {content_html|raw}
+</section>
+{/block}

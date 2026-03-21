@@ -1,0 +1,35 @@
+{
+    "id": "ticketing",
+    "name": "Ticketing",
+    "version": "1.1.0",
+    "description": "Ticket / issue tracking system with public submission, image attachments and admin notifications",
+    "author": "Noah C. Omamalin",
+    "requires_tables": ["tickets", "ticket_comments"],
+    "owns_tables": ["tickets", "ticket_comments", "ticket_attachments", "ticketing_settings"],
+    "reads_tables": ["users"],
+    "migrations": [
+        "migrations/001_tickets_schema.sql",
+        "migrations/002_property_management.sql"
+    ],
+    "consumes": ["sms.send@1"],
+    "nav": [
+        {
+            "label": "Tickets",
+            "url": "/tickets",
+            "icon": "message-square",
+            "roles": ["*"]
+        },
+        {
+            "label": "New Ticket",
+            "url": "/tickets/create",
+            "icon": "plus-circle",
+            "roles": ["*"]
+        },
+        {
+            "label": "Settings",
+            "url": "/admin/ticketing/settings",
+            "icon": "settings",
+            "roles": ["admin", "supervisor"]
+        }
+    ]
+}

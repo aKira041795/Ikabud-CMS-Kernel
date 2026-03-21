@@ -1,0 +1,546 @@
+/**
+ * Form Elements & Native Forms
+ * Native Default Theme v2.2.0
+ */
+
+/* ========================================
+   Native Form Base Styles
+   ======================================== */
+.native-form {
+    max-width: 600px;
+    margin: 0 auto;
+}
+
+.native-form__field {
+    margin-bottom: 1.5rem;
+}
+
+.native-form__field--full {
+    width: 100%;
+}
+
+.native-form__field--half {
+    width: 50%;
+}
+
+.native-form__label,
+.native-form label,
+form[data-ajax="true"] label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 500;
+    color: var(--color-text, #1f2937);
+    font-size: 0.875rem;
+}
+
+.native-form__required,
+.native-form .required,
+.native-form label .required,
+form[data-ajax="true"] .required {
+    color: #ef4444;
+    margin-left: 0.125rem;
+}
+
+/* Form group/field wrapper */
+.native-form__field,
+.native-form .form-group,
+form[data-ajax="true"] .form-group {
+    margin-bottom: 1.5rem;
+}
+
+.native-form__input,
+.native-form__textarea,
+.native-form__select,
+.native-form input[type="text"],
+.native-form input[type="email"],
+.native-form input[type="tel"],
+.native-form input[type="number"],
+.native-form input[type="password"],
+.native-form input[type="url"],
+.native-form input[type="date"],
+.native-form input[type="time"],
+.native-form textarea,
+.native-form select,
+.native-form .form-control,
+form[data-ajax="true"] input[type="text"],
+form[data-ajax="true"] input[type="email"],
+form[data-ajax="true"] input[type="tel"],
+form[data-ajax="true"] input[type="number"],
+form[data-ajax="true"] textarea,
+form[data-ajax="true"] select {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    font-size: 1rem;
+    line-height: 1.5;
+    color: var(--color-text, #1f2937);
+    background-color: #fff;
+    border: 1px solid var(--color-border, #d1d5db);
+    border-radius: 0.5rem;
+    transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+    box-sizing: border-box;
+}
+
+.native-form__input:focus,
+.native-form__textarea:focus,
+.native-form__select:focus,
+.native-form input:focus,
+.native-form textarea:focus,
+.native-form select:focus,
+form[data-ajax="true"] input:focus,
+form[data-ajax="true"] textarea:focus,
+form[data-ajax="true"] select:focus {
+    outline: none;
+    border-color: var(--color-primary, #3b82f6);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.native-form__input::placeholder,
+.native-form__textarea::placeholder {
+    color: #9ca3af;
+}
+
+.native-form__textarea {
+    min-height: 120px;
+    resize: vertical;
+}
+
+.native-form__select {
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+    background-position: right 0.75rem center;
+    background-repeat: no-repeat;
+    background-size: 1.25rem;
+    padding-right: 2.5rem;
+}
+
+.native-form__file {
+    width: 100%;
+    padding: 0.5rem;
+    font-size: 0.875rem;
+    border: 2px dashed var(--color-border, #d1d5db);
+    border-radius: 0.5rem;
+    cursor: pointer;
+}
+
+.native-form__file:hover {
+    border-color: var(--color-primary, #3b82f6);
+}
+
+.native-form__help {
+    display: block;
+    margin-top: 0.375rem;
+    font-size: 0.75rem;
+    color: #6b7280;
+}
+
+/* Radio & Checkbox Groups */
+.native-form__radio-group,
+.native-form__checkbox-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.native-form__radio,
+.native-form__checkbox {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+    font-size: 0.875rem;
+    color: var(--color-text, #374151);
+}
+
+.native-form__radio input,
+.native-form__checkbox input {
+    width: 1rem;
+    height: 1rem;
+    accent-color: var(--color-primary, #3b82f6);
+    cursor: pointer;
+}
+
+/* Submit Button */
+.native-form__submit,
+.native-form .form-submit,
+.native-form .form-group.form-submit {
+    margin-top: 2rem;
+}
+
+.native-form__button,
+.native-form button[type="submit"],
+.native-form input[type="submit"],
+.native-form .btn,
+.native-form .btn-primary,
+form[data-ajax="true"] button[type="submit"],
+form[data-ajax="true"] input[type="submit"] {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.875rem 2rem;
+    font-size: 1rem;
+    font-weight: 600;
+    color: #fff !important;
+    background: linear-gradient(135deg, var(--color-primary, #3b82f6) 0%, #2563eb 100%) !important;
+    border: none !important;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 4px rgba(59, 130, 246, 0.3);
+    text-decoration: none;
+}
+
+.native-form__button:hover,
+.native-form button[type="submit"]:hover,
+.native-form input[type="submit"]:hover,
+.native-form .btn:hover,
+form[data-ajax="true"] button[type="submit"]:hover,
+form[data-ajax="true"] input[type="submit"]:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+    color: #fff !important;
+}
+
+.native-form__button:active,
+.native-form button[type="submit"]:active,
+.native-form input[type="submit"]:active,
+form[data-ajax="true"] button[type="submit"]:active,
+form[data-ajax="true"] input[type="submit"]:active {
+    transform: translateY(0);
+}
+
+.native-form__button:disabled,
+.native-form button[type="submit"]:disabled,
+.native-form input[type="submit"]:disabled,
+form[data-ajax="true"] button[type="submit"]:disabled,
+form[data-ajax="true"] input[type="submit"]:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+}
+
+/* Headings & Dividers */
+.native-form__heading {
+    margin: 1.5rem 0 1rem;
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: var(--color-text, #1f2937);
+}
+
+.native-form__paragraph {
+    margin-bottom: 1rem;
+    color: #6b7280;
+    font-size: 0.875rem;
+}
+
+.native-form__divider {
+    margin: 1.5rem 0;
+    border: none;
+    border-top: 1px solid var(--color-border, #e5e7eb);
+}
+
+/* Validation States */
+.native-form__input.is-invalid,
+.native-form__textarea.is-invalid,
+.native-form__select.is-invalid {
+    border-color: #ef4444;
+}
+
+.native-form__input.is-invalid:focus,
+.native-form__textarea.is-invalid:focus,
+.native-form__select.is-invalid:focus {
+    box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1);
+}
+
+/* ========================================
+   Search Form
+   ======================================== */
+.search-form__inner {
+    display: flex;
+    border: 1px solid var(--color-border);
+    border-radius: var(--border-radius-md);
+    overflow: hidden;
+}
+
+.search-input {
+    flex: 1;
+    padding: 0.75rem 1rem;
+    border: none;
+    font-size: var(--font-size-sm);
+    outline: none;
+}
+
+.search-submit {
+    padding: 0.75rem 1rem;
+    background: var(--color-primary);
+    color: #fff;
+    border: none;
+    cursor: pointer;
+    transition: background var(--transition-fast);
+}
+
+.search-submit:hover {
+    background: var(--color-primary-hover);
+}
+
+/* Large Search Form (404 page) */
+.search-form--large {
+    display: flex;
+    gap: var(--spacing-md);
+}
+
+.search-form--large .search-input {
+    flex: 1;
+    padding: var(--spacing-md) var(--spacing-lg);
+    font-size: var(--font-size-base);
+    border: 2px solid var(--color-border);
+    border-radius: var(--border-radius-md);
+    outline: none;
+    transition: border-color var(--transition-fast);
+}
+
+.search-form--large .search-input:focus {
+    border-color: var(--color-primary);
+}
+
+.search-form--large .btn {
+    padding: var(--spacing-md) var(--spacing-xl);
+}
+
+/* ========================================
+   Newsletter Form
+   ======================================== */
+.newsletter-form__inner {
+    display: flex;
+    gap: 0.75rem;
+    max-width: 500px;
+    margin: 0 auto;
+}
+
+@media (max-width: 640px) {
+    .newsletter-form__inner {
+        flex-direction: column;
+    }
+}
+
+.newsletter-form__input {
+    flex: 1;
+    padding: 0.875rem 1.25rem;
+    font-size: var(--font-size-base);
+    border: none;
+    border-radius: var(--border-radius-md);
+    outline: none;
+}
+
+.newsletter-form__submit {
+    white-space: nowrap;
+}
+
+.newsletter-form__privacy {
+    font-size: var(--font-size-sm);
+    opacity: 0.8;
+    margin-top: 1rem;
+}
+
+/* ========================================
+   Native Form Styles (BEM)
+   ======================================== */
+.native-form {
+    margin: 0;
+    padding: 0;
+}
+
+.native-form__field {
+    margin-bottom: var(--spacing-lg);
+}
+
+.native-form__label {
+    display: block;
+    margin-bottom: var(--spacing-sm);
+    font-weight: 500;
+    color: var(--color-text);
+}
+
+.native-form__input,
+.native-form__textarea,
+.native-form__select {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    font-family: var(--font-body);
+    font-size: var(--font-size-base);
+    color: var(--color-text);
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--border-radius-md);
+    transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.native-form__input:focus,
+.native-form__textarea:focus,
+.native-form__select:focus {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px rgba(30, 115, 190, 0.1);
+}
+
+.native-form__textarea {
+    min-height: 120px;
+    resize: vertical;
+}
+
+.native-form__input--error,
+.native-form__textarea--error,
+.native-form__select--error {
+    border-color: var(--color-error);
+}
+
+.native-form__error {
+    display: block;
+    margin-top: var(--spacing-xs);
+    font-size: var(--font-size-sm);
+    color: var(--color-error);
+}
+
+.native-form__help {
+    display: block;
+    margin-top: var(--spacing-xs);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-light);
+}
+
+/* Compact form modifier */
+.native-form--compact .native-form__field {
+    margin-bottom: var(--spacing-md);
+}
+
+.native-form--compact .native-form__input,
+.native-form--compact .native-form__textarea,
+.native-form--compact .native-form__select {
+    padding: 0.5rem 0.75rem;
+    font-size: var(--font-size-sm);
+}
+
+/* ========================================
+   Form AJAX Message Styles
+   ======================================== */
+.native-form-message {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--spacing-md, 1rem);
+    padding: var(--spacing-md, 1rem) var(--spacing-lg, 1.5rem);
+    margin-bottom: var(--spacing-lg, 1.5rem);
+    border-radius: var(--border-radius-md, 8px);
+    animation: nativeFormMessageSlideIn 0.3s ease-out;
+}
+
+.native-form-message--success {
+    background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
+    border: 1px solid #10b981;
+    color: #065f46;
+}
+
+.native-form-message--error {
+    background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
+    border: 1px solid #ef4444;
+    color: #991b1b;
+}
+
+.native-form-message__icon {
+    flex-shrink: 0;
+    width: 24px;
+    height: 24px;
+}
+
+.native-form-message--success .native-form-message__icon {
+    color: #10b981;
+}
+
+.native-form-message--error .native-form-message__icon {
+    color: #ef4444;
+}
+
+.native-form-message__content {
+    flex: 1;
+}
+
+.native-form-message__content strong {
+    display: block;
+    font-size: 1rem;
+    font-weight: 600;
+    margin-bottom: 0.25rem;
+}
+
+.native-form-message__content p {
+    margin: 0;
+    font-size: 0.875rem;
+    opacity: 0.9;
+}
+
+.native-form-message__close {
+    flex-shrink: 0;
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    line-height: 1;
+    cursor: pointer;
+    opacity: 0.5;
+    transition: opacity 0.2s;
+    padding: 0;
+    margin: -0.25rem;
+}
+
+.native-form-message__close:hover {
+    opacity: 1;
+}
+
+.native-form-message--success .native-form-message__close {
+    color: #065f46;
+}
+
+.native-form-message--error .native-form-message__close {
+    color: #991b1b;
+}
+
+.native-form-message--hiding {
+    animation: nativeFormMessageSlideOut 0.3s ease-in forwards;
+}
+
+/* Loading spinner */
+.native-form-spinner {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    border: 2px solid currentColor;
+    border-right-color: transparent;
+    border-radius: 50%;
+    animation: nativeFormSpin 0.75s linear infinite;
+    vertical-align: middle;
+    margin-right: 0.5rem;
+}
+
+@keyframes nativeFormMessageSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes nativeFormMessageSlideOut {
+    from {
+        opacity: 1;
+        transform: translateY(0);
+    }
+    to {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+}
+
+@keyframes nativeFormSpin {
+    to {
+        transform: rotate(360deg);
+    }
+}

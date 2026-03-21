@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{page_title} — CMS</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script defer src="https://unpkg.com/alpinejs@3.14.3/dist/cdn.min.js"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        cms: {
+                            50: '#f0f9ff', 100: '#e0f2fe', 200: '#bae6fd', 300: '#7dd3fc',
+                            400: '#38bdf8', 500: '#0ea5e9', 600: '#0284c7', 700: '#0369a1',
+                            800: '#075985', 900: '#0c4a6e', 950: '#082f49',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        [x-cloak] { display: none !important; }
+
+        /* Second pass: improve overall legibility and contrast across admin surfaces. */
+        .cms-admin {
+            color: #1f2937;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            text-rendering: optimizeLegibility;
+        }
+
+        .cms-admin main {
+            color: #1f2937;
+            line-height: 1.58;
+        }
+
+        .cms-admin main h1,
+        .cms-admin main h2,
+        .cms-admin main h3,
+        .cms-admin main h4 {
+            color: #111827;
+            letter-spacing: -0.01em;
+        }
+
+        .cms-admin main p,
+        .cms-admin main li,
+        .cms-admin main td {
+            color: #243041;
+        }
+
+        .cms-admin main .text-xs {
+            font-size: 0.79rem;
+        }
+
+        .cms-admin main .text-\[10px\] { font-size: 0.73rem !important; }
+        .cms-admin main .text-\[11px\] { font-size: 0.78rem !important; }
+
+        .cms-admin main .text-gray-400 { color: #5b6470 !important; }
+        .cms-admin main .text-gray-500 { color: #3f4752 !important; }
+        .cms-admin main .text-gray-600 { color: #2f3a46 !important; }
+        .cms-admin main .text-gray-700 { color: #1f2937 !important; }
+        .cms-admin main th.text-gray-500 { color: #334155 !important; }
+
+        .cms-admin header .text-gray-400 { color: #596273 !important; }
+        .cms-admin header .text-gray-500 { color: #3f4752 !important; }
+        .cms-admin header h1 {
+            color: #111827;
+            font-weight: 700;
+        }
+
+        .cms-admin aside .text-slate-300 { color: #d7deea !important; }
+        .cms-admin aside .text-slate-400 { color: #bfc9d8 !important; }
+        .cms-admin aside .text-slate-500 { color: #a4afc0 !important; }
+        .cms-admin aside a {
+            font-weight: 500;
+            line-height: 1.35;
+        }
+        .cms-admin aside nav > div > span {
+            font-size: 0.7rem;
+            letter-spacing: 0.08em;
+            color: #b7c2d3 !important;
+        }
+
+        .cms-admin main input,
+        .cms-admin main select,
+        .cms-admin main textarea {
+            color: #111827;
+            font-weight: 500;
+            font-size: 0.95rem;
+        }
+
+        .cms-admin main input:focus,
+        .cms-admin main select:focus,
+        .cms-admin main textarea:focus {
+            border-color: #2563eb !important;
+            box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.16) !important;
+            outline: none;
+        }
+
+        .cms-admin main label {
+            color: #374151;
+            font-weight: 600;
+        }
+
+        .cms-admin main .bg-gray-50 {
+            background-color: #f7f8fa;
+        }
+
+        .cms-admin main .border-gray-100 { border-color: #e3e8ef !important; }
+        .cms-admin main .border-gray-200 { border-color: #d4dbe5 !important; }
+        .cms-admin main .rounded-lg,
+        .cms-admin main .rounded-xl {
+            border-radius: 0.6rem;
+        }
+
+        .cms-admin main input::placeholder,
+        .cms-admin main textarea::placeholder {
+            color: #6b7280;
+            opacity: 1;
+        }
+    </style>
+    {block head}{/block}
+</head>
+<body class="cms-admin bg-gray-50 min-h-screen" x-data="{ sidebarOpen: true, mobileMenu: false }">
+    <div class="flex h-screen overflow-hidden">
+
+        <!-- Sidebar -->
+        <aside class="hidden lg:flex lg:flex-col bg-slate-900 text-white transition-all duration-200"
+               :class="sidebarOpen ? 'w-60' : 'w-16'">
+            <div class="flex items-center h-14 px-4 border-b border-slate-700/50 shrink-0">
+                <svg class="w-6 h-6 text-sky-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z"/></svg>
+                <span class="ml-2 font-bold text-sm tracking-wide" x-show="sidebarOpen" x-cloak>CMS</span>
+            </div>
+            <nav class="flex-1 overflow-y-auto py-3 px-2 space-y-0.5">
+                <a href="{base_url}/cms/admin" class="flex items-center px-3 py-2 rounded-md text-sm hover:bg-slate-800 {if current_page == 'dashboard'}bg-slate-800 text-white{else}text-slate-300{/if}">
+                    <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
+                    <span class="ml-3" x-show="sidebarOpen" x-cloak>Dashboard</span>
+                </a>
+                <div class="pt-3 pb-1 px-3" x-show="sidebarOpen" x-cloak>
+                    <span class="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Content</span>
+                </div>
+                <a href="{base_url}/cms/admin/content?type=post" class="flex items-center px-3 py-2 rounded-md text-sm hover:bg-slate-800 {if current_page == 'posts'}bg-slate-800 text-white{else}text-slate-300{/if}">
+                    <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                    <span class="ml-3" x-show="sidebarOpen" x-cloak>Posts</span>
+                </a>
+                <a href="{base_url}/cms/admin/content?type=page" class="flex items-center px-3 py-2 rounded-md text-sm hover:bg-slate-800 {if current_page == 'pages'}bg-slate-800 text-white{else}text-slate-300{/if}">
+                    <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                    <span class="ml-3" x-show="sidebarOpen" x-cloak>Pages</span>
+                </a>
+                <a href="{base_url}/cms/admin/react-builder/create" class="flex items-center px-3 py-2 rounded-md text-sm hover:bg-slate-800 {if current_page == 'react_builder'}bg-slate-800 text-white{else}text-slate-300{/if}">
+                    <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 5a1 1 0 011-1h4a1 1 0 011 1v5a1 1 0 01-1 1H5a1 1 0 01-1-1V5zm10 0a1 1 0 011-1h4a1 1 0 011 1v2a1 1 0 01-1 1h-4a1 1 0 01-1-1V5zM4 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1v-4zm10-1a1 1 0 011-1h4a1 1 0 011 1v5a1 1 0 01-1 1h-4a1 1 0 01-1-1v-5z"/></svg>
+                    <span class="ml-3" x-show="sidebarOpen" x-cloak>Page Builder</span>
+                </a>
+                <a href="{base_url}/cms/admin/media" class="flex items-center px-3 py-2 rounded-md text-sm hover:bg-slate-800 {if current_page == 'media'}bg-slate-800 text-white{else}text-slate-300{/if}">
+                    <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                    <span class="ml-3" x-show="sidebarOpen" x-cloak>Media</span>
+                </a>
+                <div class="pt-3 pb-1 px-3" x-show="sidebarOpen" x-cloak>
+                    <span class="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Appearance</span>
+                </div>
+                <a href="{base_url}/cms/admin/customize" class="flex items-center px-3 py-2 rounded-md text-sm hover:bg-slate-800 {if current_page == 'customize'}bg-slate-800 text-white{else}text-slate-300{/if}">
+                    <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01"/></svg>
+                    <span class="ml-3" x-show="sidebarOpen" x-cloak>Customize</span>
+                </a>
+                <a href="{base_url}/cms/admin/themes" class="flex items-center px-3 py-2 rounded-md text-sm hover:bg-slate-800 {if current_page == 'themes'}bg-slate-800 text-white{else}text-slate-300{/if}">
+                    <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z"/></svg>
+                    <span class="ml-3" x-show="sidebarOpen" x-cloak>Themes</span>
+                </a>
+                <div class="pt-3 pb-1 px-3" x-show="sidebarOpen" x-cloak>
+                    <span class="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Structure</span>
+                </div>
+                <a href="{base_url}/cms/admin/categories" class="flex items-center px-3 py-2 rounded-md text-sm hover:bg-slate-800 {if current_page == 'categories'}bg-slate-800 text-white{else}text-slate-300{/if}">
+                    <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a4 4 0 014-4z"/></svg>
+                    <span class="ml-3" x-show="sidebarOpen" x-cloak>Categories</span>
+                </a>
+                <a href="{base_url}/cms/admin/menus" class="flex items-center px-3 py-2 rounded-md text-sm hover:bg-slate-800 {if current_page == 'menus'}bg-slate-800 text-white{else}text-slate-300{/if}">
+                    <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 6h16M4 12h16M4 18h7"/></svg>
+                    <span class="ml-3" x-show="sidebarOpen" x-cloak>Menus</span>
+                </a>
+                <a href="{base_url}/cms/admin/redirects" class="flex items-center px-3 py-2 rounded-md text-sm hover:bg-slate-800 {if current_page == 'redirects'}bg-slate-800 text-white{else}text-slate-300{/if}">
+                    <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13 5l7 7-7 7M5 5l7 7-7 7"/></svg>
+                    <span class="ml-3" x-show="sidebarOpen" x-cloak>Redirects</span>
+                </a>
+                <div class="pt-3 pb-1 px-3" x-show="sidebarOpen" x-cloak>
+                    <span class="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Admin</span>
+                </div>
+                <a href="{base_url}/cms/admin/users" class="flex items-center px-3 py-2 rounded-md text-sm hover:bg-slate-800 {if current_page == 'users'}bg-slate-800 text-white{else}text-slate-300{/if}">
+                    <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+                    <span class="ml-3" x-show="sidebarOpen" x-cloak>Users</span>
+                </a>
+                <a href="{base_url}/cms/admin/permissions" class="flex items-center px-3 py-2 rounded-md text-sm hover:bg-slate-800 {if current_page == 'permissions'}bg-slate-800 text-white{else}text-slate-300{/if}">
+                    <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+                    <span class="ml-3" x-show="sidebarOpen" x-cloak>Permissions</span>
+                </a>
+                <a href="{base_url}/cms/admin/settings" class="flex items-center px-3 py-2 rounded-md text-sm hover:bg-slate-800 {if current_page == 'settings'}bg-slate-800 text-white{else}text-slate-300{/if}">
+                    <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                    <span class="ml-3" x-show="sidebarOpen" x-cloak>Settings</span>
+                </a>
+                <a href="{base_url}/cms/admin/content-types" class="flex items-center px-3 py-2 rounded-md text-sm hover:bg-slate-800 {if current_page == 'content_types'}bg-slate-800 text-white{else}text-slate-300{/if}">
+                    <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 7h10M7 12h6m-6 5h10M5 4h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V6a2 2 0 012-2z"/></svg>
+                    <span class="ml-3" x-show="sidebarOpen" x-cloak>Content Types</span>
+                </a>
+                <a href="{base_url}/cms/admin/import-export" class="flex items-center px-3 py-2 rounded-md text-sm hover:bg-slate-800 {if current_page == 'import_export'}bg-slate-800 text-white{else}text-slate-300{/if}">
+                    <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/></svg>
+                    <span class="ml-3" x-show="sidebarOpen" x-cloak>Import / Export</span>
+                </a>
+                <a href="{base_url}/cms/admin/modules" class="flex items-center px-3 py-2 rounded-md text-sm hover:bg-slate-800 {if current_page == 'modules'}bg-slate-800 text-white{else}text-slate-300{/if}">
+                    <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+                    <span class="ml-3" x-show="sidebarOpen" x-cloak>Modules</span>
+                </a>
+                {if ext_nav_items && ext_nav_items | count > 0}
+                <div class="pt-3 pb-1 px-3" x-show="sidebarOpen" x-cloak>
+                    <span class="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Extensions</span>
+                </div>
+                {foreach ext_nav_items as enav}
+                <a href="{enav.url}" class="flex items-center px-3 py-2 rounded-md text-sm hover:bg-slate-800 {if current_page == enav.active_key}bg-slate-800 text-white{else}text-slate-300{/if}">
+                    {if enav.icon}<span class="w-5 h-5 shrink-0 flex items-center justify-center text-xs">{enav.icon}</span>{else}<svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>{/if}
+                    <span class="ml-3" x-show="sidebarOpen" x-cloak>{enav.label}</span>
+                </a>
+                {/foreach}
+                {/if}
+            </nav>
+            <div class="border-t border-slate-700/50 px-3 py-3 shrink-0">
+                <a href="{base_url}/cms" target="_blank" class="flex items-center px-3 py-2 rounded-md text-sm text-slate-400 hover:text-white hover:bg-slate-800">
+                    <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+                    <span class="ml-3" x-show="sidebarOpen" x-cloak>View Site</span>
+                </a>
+            </div>
+        </aside>
+
+        <!-- Mobile sidebar overlay -->
+        <div x-show="mobileMenu" x-cloak class="fixed inset-0 z-40 lg:hidden" @click="mobileMenu=false">
+            <div class="fixed inset-0 bg-black/50"></div>
+            <aside class="fixed inset-y-0 left-0 w-60 bg-slate-900 text-white z-50 overflow-y-auto">
+                <div class="flex items-center justify-between h-14 px-4 border-b border-slate-700/50">
+                    <div class="flex items-center">
+                        <svg class="w-6 h-6 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z"/></svg>
+                        <span class="ml-2 font-bold text-sm">CMS</span>
+                    </div>
+                    <button @click="mobileMenu=false" class="text-slate-400 hover:text-white">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                    </button>
+                </div>
+                <nav class="py-3 px-2 space-y-0.5">
+                    <a href="{base_url}/cms/admin" class="flex items-center px-3 py-2 rounded-md text-sm text-slate-300 hover:bg-slate-800">
+                        <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
+                        <span class="ml-3">Dashboard</span>
+                    </a>
+                    <a href="{base_url}/cms/admin/content?type=post" class="flex items-center px-3 py-2 rounded-md text-sm text-slate-300 hover:bg-slate-800">
+                        <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                        <span class="ml-3">Posts</span>
+                    </a>
+                    <a href="{base_url}/cms/admin/content?type=page" class="flex items-center px-3 py-2 rounded-md text-sm text-slate-300 hover:bg-slate-800">
+                        <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                        <span class="ml-3">Pages</span>
+                    </a>
+                    <a href="{base_url}/cms/admin/react-builder/create" class="flex items-center px-3 py-2 rounded-md text-sm text-slate-300 hover:bg-slate-800">
+                        <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 5a1 1 0 011-1h4a1 1 0 011 1v5a1 1 0 01-1 1H5a1 1 0 01-1-1V5zm10 0a1 1 0 011-1h4a1 1 0 011 1v2a1 1 0 01-1 1h-4a1 1 0 01-1-1V5zM4 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1v-4zm10-1a1 1 0 011-1h4a1 1 0 011 1v5a1 1 0 01-1 1h-4a1 1 0 01-1-1v-5z"/></svg>
+                        <span class="ml-3">Page Builder</span>
+                    </a>
+                    <a href="{base_url}/cms/admin/media" class="flex items-center px-3 py-2 rounded-md text-sm text-slate-300 hover:bg-slate-800">
+                        <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                        <span class="ml-3">Media</span>
+                    </a>
+                    <a href="{base_url}/cms/admin/customize" class="flex items-center px-3 py-2 rounded-md text-sm text-slate-300 hover:bg-slate-800">
+                        <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01"/></svg>
+                        <span class="ml-3">Customize</span>
+                    </a>
+                    <a href="{base_url}/cms/admin/categories" class="flex items-center px-3 py-2 rounded-md text-sm text-slate-300 hover:bg-slate-800">
+                        <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a4 4 0 014-4z"/></svg>
+                        <span class="ml-3">Categories</span>
+                    </a>
+                    <a href="{base_url}/cms/admin/menus" class="flex items-center px-3 py-2 rounded-md text-sm text-slate-300 hover:bg-slate-800">
+                        <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 6h16M4 12h16M4 18h7"/></svg>
+                        <span class="ml-3">Menus</span>
+                    </a>
+                    <a href="{base_url}/cms/admin/users" class="flex items-center px-3 py-2 rounded-md text-sm text-slate-300 hover:bg-slate-800">
+                        <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+                        <span class="ml-3">Users</span>
+                    </a>
+                    <a href="{base_url}/cms/admin/settings" class="flex items-center px-3 py-2 rounded-md text-sm text-slate-300 hover:bg-slate-800">
+                        <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                        <span class="ml-3">Settings</span>
+                    </a>
+                </nav>
+            </aside>
+        </div>
+
+        <!-- Main content area -->
+        <div class="flex-1 flex flex-col overflow-hidden">
+            <!-- Top header -->
+            <header class="bg-white border-b border-gray-200 h-14 flex items-center justify-between px-4 lg:px-6 shrink-0">
+                <div class="flex items-center gap-3">
+                    <button class="lg:hidden text-gray-500 hover:text-gray-700" @click="mobileMenu=true">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+                    </button>
+                    <button class="hidden lg:block text-gray-400 hover:text-gray-600" @click="sidebarOpen=!sidebarOpen">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+                    </button>
+                    <h1 class="text-base font-semibold text-gray-900">{page_title}</h1>
+                </div>
+                <div class="flex items-center gap-3">
+                    <button @click="$dispatch('cms-search-open')" class="hidden sm:inline-flex items-center gap-2 px-3 py-1.5 text-xs text-gray-400 bg-gray-50 border border-gray-200 rounded-lg hover:bg-gray-100 hover:text-gray-600 transition-colors" title="Ctrl+K">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                        <span>Search…</span>
+                        <kbd class="ml-1 px-1.5 py-0.5 text-[10px] font-mono bg-white border border-gray-200 rounded">⌘K</kbd>
+                    </button>
+                    <span class="hidden sm:inline text-sm text-gray-500">{cms_user_display}</span>
+                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-sky-100 text-sky-700">{cms_user_role}</span>
+                    <a href="{base_url}/auth/logout" class="text-sm text-gray-400 hover:text-gray-600">Logout</a>
+                </div>
+            </header>
+
+            <!-- Breadcrumbs -->
+            {if breadcrumbs && breadcrumbs | count > 1}
+            <nav class="px-4 lg:px-6 pt-3 pb-0">
+                <ol class="flex items-center gap-1.5 text-xs text-gray-400">
+                    {foreach breadcrumbs as crumb}
+                    {if !crumb.__first}<li><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg></li>{/if}
+                    <li>{if crumb.url}<a href="{crumb.url}" class="hover:text-gray-700 transition-colors">{crumb.label}</a>{else}<span class="text-gray-600 font-medium">{crumb.label}</span>{/if}</li>
+                    {/foreach}
+                </ol>
+            </nav>
+            {/if}
+
+            <!-- Page content -->
+            <main class="flex-1 overflow-y-auto p-4 lg:p-6">
+                {block content}{/block}
+            </main>
+        </div>
+    </div>
+
+    <!-- Toast notifications -->
+    <div id="cms-toast" class="fixed bottom-4 right-4 z-50" x-data="cmsToast()" @cms-toast.window="show($event.detail)">
+        <template x-if="visible">
+            <div class="px-4 py-3 rounded-lg shadow-lg text-sm font-medium text-white transition-all"
+                 :class="type === 'error' ? 'bg-red-600' : 'bg-emerald-600'"
+                 x-text="message" x-transition></div>
+        </template>
+    </div>
+
+    <!-- Command Palette / Quick Search -->
+    <div x-data="cmsCommandPalette()" @cms-search-open.window="open()" @keydown.window="handleGlobalKey($event)" x-show="isOpen" x-cloak class="fixed inset-0 z-[60]" @click.self="close()">
+        <div class="fixed inset-0 bg-black/40 backdrop-blur-sm" x-show="isOpen" x-transition.opacity></div>
+        <div class="fixed top-[15%] left-1/2 -translate-x-1/2 w-full max-w-lg" x-show="isOpen" x-transition>
+            <div class="bg-white rounded-xl shadow-2xl border border-gray-200 overflow-hidden">
+                <div class="flex items-center gap-3 px-4 py-3 border-b border-gray-100">
+                    <svg class="w-5 h-5 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                    <input x-ref="searchInput" type="text" x-model="query" @input.debounce.300ms="search()" @keydown.escape="close()" @keydown.arrow-down.prevent="selectNext()" @keydown.arrow-up.prevent="selectPrev()" @keydown.enter.prevent="go()" placeholder="Search content, pages, actions…" class="flex-1 text-sm border-0 focus:ring-0 p-0 placeholder:text-gray-400">
+                    <kbd class="px-1.5 py-0.5 text-[10px] font-mono text-gray-400 bg-gray-100 border border-gray-200 rounded">ESC</kbd>
+                </div>
+                <div class="max-h-[320px] overflow-y-auto" x-show="results.length > 0 || loading">
+                    <div x-show="loading" class="px-4 py-6 text-center text-xs text-gray-400">Searching…</div>
+                    <template x-for="(r, i) in results" :key="i">
+                        <a :href="r.url" class="flex items-center gap-3 px-4 py-2.5 text-sm transition-colors no-underline" :class="selectedIdx === i ? 'bg-sky-50 text-sky-700' : 'text-gray-700 hover:bg-gray-50'" @mouseenter="selectedIdx = i">
+                            <span class="inline-flex items-center justify-center w-6 h-6 rounded bg-gray-100 text-[10px] font-semibold uppercase shrink-0" :class="selectedIdx === i ? 'bg-sky-100 text-sky-600' : 'text-gray-400'" x-text="r.type ? r.type.charAt(0) : '?'"></span>
+                            <span class="flex-1 truncate" x-text="r.title"></span>
+                            <span class="text-[11px] text-gray-400 shrink-0" x-text="r.type"></span>
+                        </a>
+                    </template>
+                </div>
+                <div x-show="query.length > 0 && !loading && results.length === 0" class="px-4 py-6 text-center text-xs text-gray-400">No results found.</div>
+                <div x-show="query.length === 0 && !loading" class="px-4 py-3 border-t border-gray-100">
+                    <p class="text-[11px] text-gray-400 mb-2">Quick actions</p>
+                    <div class="flex flex-wrap gap-1.5">
+                        <a href="{base_url}/cms/admin/content/create?type=post" class="px-2.5 py-1 text-xs bg-gray-50 border border-gray-200 rounded-md hover:bg-sky-50 hover:border-sky-200 hover:text-sky-700 transition-colors no-underline text-gray-600">+ New Post</a>
+                        <a href="{base_url}/cms/admin/content/create?type=page" class="px-2.5 py-1 text-xs bg-gray-50 border border-gray-200 rounded-md hover:bg-sky-50 hover:border-sky-200 hover:text-sky-700 transition-colors no-underline text-gray-600">+ New Page</a>
+                        <a href="{base_url}/cms/admin/react-builder/create" class="px-2.5 py-1 text-xs bg-gray-50 border border-gray-200 rounded-md hover:bg-sky-50 hover:border-sky-200 hover:text-sky-700 transition-colors no-underline text-gray-600">Page Builder</a>
+                        <a href="{base_url}/cms/admin/media" class="px-2.5 py-1 text-xs bg-gray-50 border border-gray-200 rounded-md hover:bg-sky-50 hover:border-sky-200 hover:text-sky-700 transition-colors no-underline text-gray-600">Media Library</a>
+                        <a href="{base_url}/cms/admin/settings" class="px-2.5 py-1 text-xs bg-gray-50 border border-gray-200 rounded-md hover:bg-sky-50 hover:border-sky-200 hover:text-sky-700 transition-colors no-underline text-gray-600">Settings</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        var CMS_BASE = '{base_url}';
+        var CMS_CSRF = '{csrf_token}';
+
+        function cmsToast() {
+            return {
+                visible: false, message: '', type: 'success',
+                show(detail) {
+                    this.message = detail.message || 'Done';
+                    this.type = detail.type || 'success';
+                    this.visible = true;
+                    setTimeout(() => { this.visible = false; }, 3000);
+                }
+            };
+        }
+        function toast(message, type) {
+            window.dispatchEvent(new CustomEvent('cms-toast', { detail: { message, type: type || 'success' } }));
+        }
+
+        function cmsCommandPalette() {
+            return {
+                isOpen: false,
+                query: '',
+                results: [],
+                loading: false,
+                selectedIdx: 0,
+                open() {
+                    this.isOpen = true;
+                    this.query = '';
+                    this.results = [];
+                    this.selectedIdx = 0;
+                    this.$nextTick(() => this.$refs.searchInput && this.$refs.searchInput.focus());
+                },
+                close() { this.isOpen = false; this.query = ''; this.results = []; },
+                handleGlobalKey(e) {
+                    if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+                        e.preventDefault();
+                        this.isOpen ? this.close() : this.open();
+                    }
+                },
+                selectNext() { this.selectedIdx = Math.min(this.selectedIdx + 1, this.results.length - 1); },
+                selectPrev() { this.selectedIdx = Math.max(this.selectedIdx - 1, 0); },
+                go() {
+                    if (this.results[this.selectedIdx]) {
+                        window.location.href = this.results[this.selectedIdx].url;
+                    }
+                },
+                async search() {
+                    const q = this.query.trim();
+                    if (q.length < 2) { this.results = []; return; }
+                    this.loading = true;
+                    try {
+                        const res = await fetch(CMS_BASE + '/api/v1/cms/content?q=' + encodeURIComponent(q) + '&limit=10', {
+                            headers: { 'X-CSRF-TOKEN': CMS_CSRF }
+                        });
+                        const data = await res.json();
+                        if (data.ok && Array.isArray(data.data)) {
+                            this.results = data.data.map(r => ({
+                                title: r.title || '(untitled)',
+                                type: r.type || 'post',
+                                url: CMS_BASE + '/cms/admin/content/edit/' + r.id,
+                            }));
+                        } else { this.results = []; }
+                    } catch (e) { this.results = []; }
+                    this.loading = false;
+                    this.selectedIdx = 0;
+                },
+            };
+        }
+    </script>
+    {block scripts}{/block}
+</body>
+</html>

@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{page_title|default:"Page Builder"} — {site_name|default:"CMS"}</title>
+    <link rel="stylesheet" href="{builder_css_url}">
+    <style>
+        html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; }
+        #root { height: 100%; }
+    </style>
+</head>
+<body>
+    <!-- Boot data for the React SPA (includes baseUrl, csrfToken, user, contentId) -->
+    <script id="builder-boot-data" type="application/json">
+        {builder_boot_json|raw}
+    </script>
+    <div id="root"></div>
+    <script>
+    {literal}
+    (function() {
+        var cssLink = document.querySelector('link[href*="builder.css"]');
+        if (!cssLink) return;
+        var s = document.createElement('script');
+        s.type = 'module';
+        s.src = cssLink.href.replace('builder.css', 'builder.js');
+        s.onerror = function() {
+            document.getElementById('root').innerHTML = '<div style="padding:3rem;text-align:center;color:#ef4444;font-family:system-ui"><h2>Failed to load Page Builder</h2><p>The builder JS bundle could not be loaded. Run <code>npm run build</code> in modules/cms/builder-ui/.</p></div>';
+        };
+        document.body.appendChild(s);
+    })();
+    {/literal}
+    </script>
+</body>
+</html>

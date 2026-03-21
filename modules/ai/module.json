@@ -1,0 +1,105 @@
+{
+    "id": "ai",
+    "name": "AI",
+    "version": "1.0.0",
+    "description": "AI capability providers for kernel automation and suggestions.",
+    "author": "Noah C. Omamalin",
+    "owns_tables": [],
+    "reads_tables": [],
+    "nav": [],
+    "capabilities": {
+        "exposes": [
+            {
+                "id": "ai.capability.suggest@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "schema": {
+                    "type": "object",
+                    "required": [
+                        "event"
+                    ],
+                    "properties": {
+                        "event": {
+                            "type": "object"
+                        },
+                        "existing_triggers": {
+                            "type": "array"
+                        },
+                        "available_capabilities": {
+                            "type": "array"
+                        }
+                    }
+                }
+            },
+            {
+                "id": "ai.text.generate@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "schema": {
+                    "type": "object",
+                    "required": [
+                        "messages"
+                    ],
+                    "properties": {
+                        "messages": {
+                            "type": "array"
+                        },
+                        "temperature": {
+                            "type": "number"
+                        },
+                        "json": {
+                            "type": "boolean"
+                        }
+                    }
+                }
+            },
+            {
+                "id": "ai.explain@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "schema": {
+                    "type": "object",
+                    "required": [
+                        "concept"
+                    ],
+                    "properties": {
+                        "concept": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        ],
+        "depends": [],
+        "policy": {
+            "capabilities": {
+                "ai.capability.suggest@1": {
+                    "allow_callers": [
+                        "kernel",
+                        "ai"
+                    ]
+                },
+                "ai.text.generate@1": {
+                    "allow_callers": [
+                        "kernel",
+                        "ai",
+                        "cms"
+                    ]
+                },
+                "ai.explain@1": {
+                    "allow_callers": [
+                        "kernel",
+                        "ai",
+                        "cms"
+                    ]
+                }
+            }
+        }
+    }
+}

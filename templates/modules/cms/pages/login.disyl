@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sign In — CMS</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script defer src="https://unpkg.com/alpinejs@3.14.3/dist/cdn.min.js"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        cms: {
+                            50: '#f0f9ff', 100: '#e0f2fe', 200: '#bae6fd', 300: '#7dd3fc',
+                            400: '#38bdf8', 500: '#0ea5e9', 600: '#0284c7', 700: '#0369a1',
+                            800: '#075985', 900: '#0c4a6e', 950: '#082f49',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-sky-950 flex items-center justify-center px-4">
+    <div class="w-full max-w-md">
+        <div class="bg-white/95 backdrop-blur rounded-2xl shadow-2xl border border-white/10 overflow-hidden">
+            <div class="px-8 pt-8 pb-6">
+                <div class="flex items-center justify-center gap-3">
+                    <div class="w-11 h-11 rounded-xl bg-sky-600 flex items-center justify-center shadow-lg shadow-sky-600/20">
+                        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z"/></svg>
+                    </div>
+                    <div class="text-left">
+                        <div class="text-xl font-extrabold text-slate-900 tracking-tight">CMS Admin</div>
+                        <div class="text-xs text-slate-500">Sign in to manage content</div>
+                    </div>
+                </div>
+
+                <div class="mt-6" x-data="cmsLogin()">
+                    <div x-show="error" x-text="error" class="mb-4 text-sm bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg" style="display:none;"></div>
+
+                    <form @submit.prevent="submit()" class="space-y-4">
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-600 mb-1">Username or Email</label>
+                            <input type="text" x-model="form.username" autocomplete="username" required
+                                   class="w-full px-4 py-3 rounded-lg border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500" />
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-600 mb-1">Password</label>
+                            <input type="password" x-model="form.password" autocomplete="current-password" required
+                                   class="w-full px-4 py-3 rounded-lg border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500" />
+                        </div>
+                        <div class="flex justify-end -mt-1">
+                            <a href="{base_url}/cms/forgot-password" class="text-xs text-sky-700 hover:text-sky-900 font-medium">Forgot password?</a>
+                        </div>
+                        <button type="submit" :disabled="loading"
+                                class="w-full py-3 rounded-lg bg-sky-600 text-white font-semibold hover:bg-sky-700 disabled:opacity-60 transition-colors">
+                            <span x-text="loading ? 'Signing in...' : 'Sign In'"></span>
+                        </button>
+                    </form>
+
+                    <div class="mt-6 text-xs text-slate-400 text-center">
+                        <a href="{base_url}/cms" class="hover:text-slate-600">Back to site</a>
+                    </div>
+                </div>
+            </div>
+
+            <div class="px-8 py-4 bg-slate-50 border-t border-slate-100 text-[11px] text-slate-500 flex items-center justify-between">
+                <span>Powered by CMS Module</span>
+                <span class="font-mono">{base_url}</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function cmsLogin() {
+            return {
+                loading: false,
+                error: '',
+                form: { username: '', password: '' },
+                async submit() {
+                    this.error = '';
+                    this.loading = true;
+                    try {
+                        const res = await fetch('{base_url}/api/v1/auth/login', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(this.form),
+                        });
+                        const data = await res.json();
+                        if (data.ok && data.redirect) {
+                            window.location.href = '{base_url}' + data.redirect;
+                            return;
+                        }
+                        this.error = data.error || 'Login failed';
+                    } catch (e) {
+                        this.error = 'Network error';
+                    }
+                    this.loading = false;
+                }
+            };
+        }
+    </script>
+</body>
+</html>

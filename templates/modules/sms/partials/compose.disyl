@@ -1,0 +1,50 @@
+{!-- SMS Compose Modal --}
+<div id="sms-compose-modal" style="position:fixed;inset:0;z-index:150;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(0,0,0,0.5);" onclick="if(event.target===this)this.remove()">
+    <div class="card" style="width:100%;max-width:480px;" onclick="event.stopPropagation()">
+        <div class="card-header">
+            Compose SMS
+            <button onclick="document.getElementById('sms-compose-modal').remove()" style="background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:18px;">&times;</button>
+        </div>
+        <div class="card-body">
+            <form hx-post="/api/v1/modules/sms/send" hx-target="#modal-container" hx-swap="innerHTML">
+
+                {if test_mode}
+                <div style="background:var(--warning-light);color:var(--warning);padding:10px 14px;border-radius:var(--radius);font-size:var(--font-size-small);font-weight:500;margin-bottom:16px;">
+                    <strong>Test Mode is ON.</strong> SMS will be logged but not actually sent.
+                </div>
+                {/if}
+
+                {if !sms_configured}
+                <div style="background:var(--danger-light);color:var(--danger);padding:10px 14px;border-radius:var(--radius);font-size:var(--font-size-small);font-weight:500;margin-bottom:16px;">
+                    SMS provider is not configured. Go to the <strong>Settings</strong> tab to configure.
+                </div>
+                {/if}
+
+                <div class="form-group">
+                    <label class="form-label">Recipient Name</label>
+                    <input type="text" name="recipient_name" class="form-input" placeholder="e.g. Juan Dela Cruz">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Phone Number <span style="color:var(--danger)">*</span></label>
+                    <input type="tel" name="recipient" class="form-input" required placeholder="e.g. 09171234567">
+                    <div class="text-sm text-muted" style="margin-top:4px;">Local format (09xx) or international (+639xx)</div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Message <span style="color:var(--danger)">*</span></label>
+                    <textarea name="message" class="form-input" required rows="4" maxlength="320" placeholder="Type your message here..." oninput="document.getElementById('sms-char-count').textContent=this.value.length" style="resize:vertical;"></textarea>
+                    <div style="display:flex;justify-content:space-between;margin-top:4px;" class="text-sm text-muted">
+                        <span><span id="sms-char-count">0</span> / 320 characters</span>
+                        <span>1 SMS = 160 chars</span>
+                    </div>
+                </div>
+
+                <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:20px;">
+                    <button type="button" class="btn btn-outline" onclick="document.getElementById('sms-compose-modal').remove()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Send SMS</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>

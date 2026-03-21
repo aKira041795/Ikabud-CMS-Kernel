@@ -1,0 +1,157 @@
+{extends "layouts/app.disyl"}
+
+{block head}
+<style>
+    .as-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:20px; }
+    .as-header h2 { font-size:var(--font-size-h2,1.5rem); font-weight:700; }
+    .as-tabs { display:flex; gap:4px; margin-bottom:24px; }
+    .as-tabs a { padding:8px 16px; border-radius:6px; font-size:14px; font-weight:500; color:var(--text-muted,#666); text-decoration:none; }
+    .as-tabs a:hover { background:var(--surface-hover,#f1f1f1); }
+    .as-tabs a.active { background:var(--primary,#2563eb); color:#fff; }
+    .as-block-form { display:flex; gap:8px; margin-bottom:16px; align-items:flex-end; }
+    .as-block-form .field { display:flex; flex-direction:column; gap:4px; }
+    .as-block-form label { font-size:12px; font-weight:600; color:var(--text-muted,#888); }
+    .as-block-form input, .as-block-form select { padding:8px 12px; border:1px solid var(--border,#e5e7eb); border-radius:6px; font-size:14px; }
+    .badge-perm { display:inline-block; padding:2px 8px; border-radius:9999px; font-size:11px; font-weight:600; background:#fef2f2; color:#dc2626; }
+    .badge-temp { display:inline-block; padding:2px 8px; border-radius:9999px; font-size:11px; font-weight:600; background:#fffbeb; color:#d97706; }
+    .text-sm { font-size:13px; }
+    .text-muted { color:var(--text-muted,#888); }
+</style>
+{/block}
+
+{block content}
+<div class="as-header">
+    <div>
+        <h2>🛡️ Anti-Spam</h2>
+        <span class="text-sm text-muted">Blocked IP addresses</span>
+    </div>
+</div>
+
+<div class="as-tabs">
+    <a href="/admin/anti-spam">Dashboard</a>
+    <a href="/admin/anti-spam/log">Log</a>
+    <a href="/admin/anti-spam/blocked" class="active">Blocked IPs</a>
+    <a href="/admin/anti-spam/settings">Settings</a>
+</div>
+
+<div class="card" style="margin-bottom:24px;">
+    <div class="card-header" style="font-weight:600;">Block an IP</div>
+    <div class="card-body">
+        <div class="as-block-form" id="block-form">
+            <div class="field">
+                <label>IP Address</label>
+                <input type="text" id="block-ip" placeholder="192.168.1.1" />
+            </div>
+            <div class="field">
+                <label>Reason</label>
+                <input type="text" id="block-reason" placeholder="Manual block" />
+            </div>
+            <div class="field">
+                <label>Duration</label>
+                <select id="block-duration">
+                    <option value="">Permanent</option>
+                    <option value="60">1 hour</option>
+                    <option value="1440">24 hours</option>
+                    <option value="10080">7 days</option>
+                    <option value="43200">30 days</option>
+                </select>
+            </div>
+            <button class="btn btn-primary btn-sm" onclick="blockIp()">Block</button>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body" style="padding:0;">
+        {if blocked_ips | count > 0}
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>IP Address</th>
+                        <th>Reason</th>
+                        <th>Type</th>
+                        <th>Expires</th>
+                        <th>Hits</th>
+                        <th>Blocked At</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {foreach blocked_ips as ip}
+                    <tr>
+                        <td><code>{ip.ip_address}</code></td>
+                        <td class="text-sm">{ip.reason}</td>
+                        <td>
+                            {if ip.is_permanent == "1"}
+                                <span class="badge-perm">Permanent</span>
+                            {else}
+                                <span class="badge-temp">Temporary</span>
+                            {/if}
+                        </td>
+                        <td class="text-sm text-muted">
+                            {if ip.is_permanent == "1"}
+                                —
+                            {else}
+                                {ip.blocked_until}
+                            {/if}
+                        </td>
+                        <td class="text-sm">{ip.hits}</td>
+                        <td class="text-sm text-muted">{ip.created_at}</td>
+                        <td>
+                            <button class="btn btn-outline btn-sm" onclick="unblockIp('{ip.ip_address}')">Unblock</button>
+                        </td>
+                    </tr>
+                    {/foreach}
+                </tbody>
+            </table>
+        </div>
+        {else}
+        <div style="padding:32px;text-align:center;color:var(--text-muted,#888);">
+            No blocked IPs. The list is clean.
+        </div>
+        {/if}
+    </div>
+</div>
+
+<script>
+function blockIp() {
+    const ip = document.getElementById('block-ip').value.trim();
+    const reason = document.getElementById('block-reason').value.trim() || 'Manual block';
+    const duration = document.getElementById('block-duration').value;
+    if (!ip) { alert('Enter an IP address.'); return; }
+
+    const body = {ip, reason};
+    if (duration) body.duration = parseInt(duration, 10);
+
+    fetch('/api/v1/anti-spam/block-ip', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        credentials: 'same-origin',
+        body: JSON.stringify(body)
+    })
+    .then(r => r.json())
+    .then(d => {
+        if (d.ok) { location.reload(); }
+        else { alert(d.error || 'Error'); }
+    })
+    .catch(() => alert('Request failed'));
+}
+
+function unblockIp(ip) {
+    if (!confirm('Unblock ' + ip + '?')) return;
+    fetch('/api/v1/anti-spam/unblock-ip', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        credentials: 'same-origin',
+        body: JSON.stringify({ip})
+    })
+    .then(r => r.json())
+    .then(d => {
+        if (d.ok) { location.reload(); }
+        else { alert(d.error || 'Error'); }
+    })
+    .catch(() => alert('Request failed'));
+}
+</script>
+{/block}

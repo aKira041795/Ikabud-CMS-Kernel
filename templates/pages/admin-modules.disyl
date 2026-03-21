@@ -1,0 +1,1136 @@
+{extends "layouts/app.disyl"}
+
+{block head}
+<style>
+    .module-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 16px; }
+    .module-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px; transition: box-shadow .15s; }
+    .module-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,.06); }
+    .module-card-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 10px; gap: 8px; }
+    .module-name { font-size: 16px; font-weight: 700; color: var(--text); }
+    .module-version { font-size: 11px; font-weight: 600; color: var(--text-muted); background: var(--bg); padding: 2px 8px; border-radius: 8px; white-space: nowrap; }
+    .module-desc { font-size: 13px; color: var(--text-muted); line-height: 1.5; margin-bottom: 12px; }
+    .module-meta { display: flex; gap: 16px; font-size: 12px; color: var(--text-light); margin-bottom: 14px; flex-wrap: wrap; }
+    .module-meta span { display: flex; align-items: center; gap: 4px; }
+    .module-actions { display: flex; gap: 8px; align-items: center; }
+    .status-dot { width: 6px; height: 6px; border-radius: 50%; }
+    .status-pill.enabled .status-dot { background: var(--success); }
+    .status-pill.disabled .status-dot { background: var(--danger); }
+    .btn-enable { background: var(--success-light); color: var(--success); border: none; padding: 6px 14px; font-size: 12px; font-weight: 600; border-radius: 8px; cursor: pointer; transition: filter .15s; }
+    .btn-enable:hover { filter: brightness(.95); }
+    .btn-disable { background: var(--danger-light); color: var(--danger); border: none; padding: 6px 14px; font-size: 12px; font-weight: 600; border-radius: 8px; cursor: pointer; transition: filter .15s; }
+    .btn-disable:hover { filter: brightness(.95); }
+    .btn-config { background: var(--bg); color: var(--text); border: 1px solid var(--border); padding: 6px 14px; font-size: 12px; font-weight: 600; border-radius: 8px; cursor: pointer; transition: filter .15s; }
+    .btn-config:hover { filter: brightness(.98); }
+    .upload-zone { border: 2px dashed var(--border); border-radius: 12px; padding: 32px 20px; text-align: center; cursor: pointer; transition: border-color .15s, background .15s; background: var(--surface); }
+    .upload-zone:hover, .upload-zone.dragover { border-color: var(--primary); background: rgba(59,130,246,.04); }
+    .upload-zone input[type="file"] { display: none; }
+    .upload-zone p { font-size: 13px; color: var(--text-muted); margin-top: 6px; }
+    .upload-zone .upload-icon { font-size: 28px; margin-bottom: 4px; color: var(--text-muted); }
+    .upload-progress { display: none; margin-top: 12px; font-size: 13px; color: var(--text-muted); }
+    .upload-progress.show { display: block; }
+    .install-diagnostics { display: none; margin-top: 12px; font-size: 12px; border-radius: 10px; padding: 10px 12px; }
+    .install-diagnostics.show { display: block; }
+    .install-diagnostics.ok { background: var(--success-light); color: var(--success); border: 1px solid var(--success); }
+    .install-diagnostics.err { background: var(--danger-light); color: var(--danger); border: 1px solid var(--danger); }
+    .install-diagnostics code { font-family: monospace; font-size: 11px; }
+    .module-id { font-family: monospace; font-size: 11px; color: var(--text-light); margin-top: 2px; }
+    .cap-warning { margin-top: 10px; font-size: 12px; background: var(--warning-light); color: var(--warning); border: 1px solid var(--warning); border-radius: 10px; padding: 10px 12px; }
+    .cap-warning strong { font-weight: 700; }
+    .btn-disabled { opacity: .55; cursor: not-allowed; }
+    .optin-row { display: flex; align-items: center; gap: 10px; margin-top: 10px; font-size: 12px; color: var(--text-muted); }
+    .optin-row input { width: 16px; height: 16px; }
+    .cap-section { margin-top: 32px; }
+    .cap-section-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px; flex-wrap: wrap; }
+    .cap-section-header h3 { font-size: 15px; font-weight: 600; color: var(--text); }
+    .cap-section-header span { font-size: 12px; color: var(--text-muted); }
+    .cap-panel { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; font-size: 12px; color: var(--text); min-height: 48px; }
+    .cap-panel-loading { color: var(--text-muted); }
+    .cap-panel-error { color: var(--danger); }
+    .cap-table { width: 100%; border-collapse: collapse; margin-top: 4px; }
+    .cap-table th, .cap-table td { padding: 6px 8px; text-align: left; font-size: 12px; }
+    .cap-table th { font-weight: 600; color: var(--text-muted); border-bottom: 1px solid var(--border); }
+    .cap-table tr:nth-child(even) td { background: var(--bg); }
+    .cap-provider { font-family: monospace; font-size: 11px; }
+    .cap-cap-list { display: flex; flex-wrap: wrap; gap: 4px; }
+    .cap-cap-pill { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 999px; font-size: 11px; background: var(--bg); color: var(--text); border: 1px solid var(--border); }
+    .cap-cap-pill-code { font-family: monospace; }
+    .cap-metric-badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 6px; border-radius: 999px; font-size: 10px; }
+    .cap-metric-badge.ok { background: var(--success-light); color: var(--success); }
+    .cap-metric-badge.warn { background: var(--warning-light); color: var(--warning); }
+    .cap-metric-badge.err { background: var(--danger-light); color: var(--danger); }
+    .cap-metric-badge strong { font-weight: 700; }
+    .cap-empty { font-size: 12px; color: var(--text-muted); }
+    .cap-reset { margin-left: 6px; font-size: 10px; color: var(--text-muted); cursor: pointer; text-decoration: underline; }
+    .cap-access-row { margin-top: 3px; display: flex; flex-wrap: wrap; gap: 4px; }
+    .cap-access { font-size: 10px; color: var(--text-muted); display: inline-flex; align-items: center; gap: 2px; }
+    .caller-header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 12px; }
+    .caller-header select { font-size: 12px; padding: 3px 6px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg); }
+    .caller-cap-list { display: flex; flex-wrap: wrap; gap: 4px; }
+    .caller-cap-item { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 999px; font-size: 11px; background: var(--bg); border: 1px solid var(--border); }
+    .caller-cap-item-code { font-family: monospace; }
+    .caller-cap-provider { font-size: 10px; color: var(--text-muted); }
+    .config-modal { position: fixed; inset: 0; z-index: 1200; display: none; }
+    .config-modal.show { display: block; }
+    .config-modal-backdrop { position: absolute; inset: 0; background: rgba(15, 23, 42, .45); }
+    .config-modal-dialog { position: absolute; top: 8vh; left: 50%; transform: translateX(-50%); width: min(720px, 95vw); max-height: 84vh; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 14px 30px rgba(2, 6, 23, .25); overflow: hidden; display: flex; flex-direction: column; }
+    .config-modal-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 14px; border-bottom: 1px solid var(--border); background: var(--bg); }
+    .config-modal-title { font-size: 13px; font-weight: 700; color: var(--text); }
+    .config-modal-close { border: 1px solid var(--border); background: var(--surface); color: var(--text-muted); border-radius: 8px; padding: 4px 10px; font-size: 12px; cursor: pointer; }
+    .config-modal-close:hover { color: var(--text); }
+    .config-modal-body { padding: 14px; overflow-y: auto; }
+    .config-form-grid { display: grid; gap: 12px; }
+    .config-field { display: flex; flex-direction: column; gap: 6px; }
+    .config-field-inline { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text); }
+    .config-field-label { font-size: 12px; font-weight: 600; color: var(--text); }
+    .config-field-help { font-size: 11px; color: var(--text-muted); }
+    .config-input, .config-select { width: 100%; border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; font-size: 13px; color: var(--text); background: var(--surface); }
+    .config-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+    .btn-save { background: var(--primary); color: #fff; border: none; padding: 7px 14px; font-size: 12px; font-weight: 600; border-radius: 8px; cursor: pointer; }
+    .btn-save:hover { filter: brightness(.95); }
+    .btn-muted { background: var(--bg); color: var(--text); border: 1px solid var(--border); padding: 7px 14px; font-size: 12px; font-weight: 600; border-radius: 8px; cursor: pointer; }
+    .config-status { margin-bottom: 10px; font-size: 12px; color: var(--text-muted); }
+    .config-status.err { color: var(--danger); }
+    .config-status.ok { color: var(--success); }
+</style>
+{/block}
+
+{block content}
+<div class="page-header">
+    <div>
+        <h2>Module Manager</h2>
+        <div class="page-desc">Install, enable, and configure modules. Manage capability wiring and access policies between modules.</div>
+    </div>
+</div>
+
+<!-- Upload zone -->
+<div class="upload-zone" id="upload-zone" onclick="document.getElementById('zip-input').click()">
+    <div class="upload-icon"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></div>
+    <strong style="font-size:14px;">Install Module</strong>
+    <p>Drag &amp; drop a module .zip file here, or click to browse</p>
+    <input type="file" id="zip-input" accept=".zip" onchange="installModule(this.files[0])">
+</div>
+<div class="upload-progress" id="upload-progress">Installing module...</div>
+<div class="install-diagnostics" id="install-diagnostics"></div>
+
+<!-- Module list -->
+<div style="margin-top:24px;">
+    {if modules | count == 0}
+    <div class="empty-state">
+        <h3>No modules installed</h3>
+        <p>Upload a module .zip file above to get started.</p>
+    </div>
+    {else}
+    <div class="module-grid" id="module-grid">
+        {foreach modules as mod}
+        <div class="module-card" id="mod-{mod.id}">
+            <div class="module-card-header">
+                <div>
+                    <div class="module-name">{mod.name}</div>
+                    <div class="module-id">{mod.id}</div>
+                </div>
+                <div style="display:flex;align-items:center;gap:8px;">
+                    <span class="module-version">v{mod.version}</span>
+                    {if mod.enabled}
+                    <span class="status-pill enabled"><span class="status-dot"></span> Enabled</span>
+                    {else}
+                    <span class="status-pill disabled"><span class="status-dot"></span> Disabled</span>
+                    {/if}
+                </div>
+            </div>
+
+            {if mod.description}
+            <div class="module-desc">{mod.description}</div>
+            {/if}
+
+            <div class="module-meta">
+                {if mod.author}<span>By {mod.author}</span>{/if}
+                <span>{mod.route_count} routes</span>
+                <span>{mod.nav_count} nav items</span>
+                <span>{mod.capability_exposes_count} exposes</span>
+                <span>{mod.capability_depends_count} depends</span>
+            </div>
+
+            {if mod.capability_manifest_error}
+            <div class="cap-warning">
+                <strong>Capabilities:</strong> {mod.capability_manifest_error}
+            </div>
+            {/if}
+
+            {if (mod.capability_missing_depends | count) > 0}
+            <div class="cap-warning">
+                <strong>Missing capabilities:</strong>
+                <div style="margin-top:6px;">
+                    {foreach mod.capability_missing_depends as cap}
+                        <div style="font-family: monospace; font-size: 11px;">{cap}</div>
+                    {/foreach}
+                </div>
+            </div>
+            {/if}
+
+            <div class="module-actions">
+                {if mod.settings_fields | count > 0}
+                <button class="btn-sm btn-config" onclick="openModuleConfig('{mod.id}')">Config</button>
+                {/if}
+                {if mod.enabled}
+                <button class="btn-sm btn-disable" onclick="toggleModule('{mod.id}', false)">Disable</button>
+                {else}
+                    {if mod.capability_ready_to_enable}
+                    <button class="btn-sm btn-enable" onclick="toggleModule('{mod.id}', true)">Enable</button>
+                    {else}
+                    <button class="btn-sm btn-enable btn-disabled" disabled>Enable</button>
+                    {/if}
+                {/if}
+            </div>
+
+            {if mod.settings_context_notice}
+            <div style="margin-top:10px;font-size:12px;color:var(--text-muted);">{mod.settings_context_notice}</div>
+            {/if}
+
+            <div class="optin-row">
+                <input type="checkbox" id="optin-{mod.id}" {if mod.allow_kernel_admin}checked{/if} onchange="toggleAdminOptin('{mod.id}', this.checked)">
+                <label for="optin-{mod.id}">Allow kernel admin access</label>
+            </div>
+        </div>
+        {/foreach}
+    </div>
+    {/if}
+</div>
+
+<!-- Capability insights -->
+<div class="cap-section">
+    <div class="cap-section-header">
+        <h3>Capability Insights</h3>
+        <span>Providers, latency/breakers, and which modules are allowed to call each capability.</span>
+    </div>
+    <div id="capabilities-panel" class="cap-panel cap-panel-loading">
+        Loading capability data...
+    </div>
+</div>
+
+<!-- Caller wiring (per-module capability depends) -->
+<div class="cap-section">
+    <div class="cap-section-header">
+        <h3>Caller Wiring</h3>
+        <span>Pick a module and choose which capabilities it depends on.</span>
+    </div>
+    <div id="caller-panel" class="cap-panel cap-panel-loading">
+        Loading caller wiring...
+    </div>
+</div>
+
+<div id="module-config-modal" class="config-modal" aria-hidden="true">
+    <div class="config-modal-backdrop" onclick="closeModuleConfig()"></div>
+    <div class="config-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="module-config-title">
+        <div class="config-modal-header">
+            <div id="module-config-title" class="config-modal-title">Module Config</div>
+            <button type="button" class="config-modal-close" onclick="closeModuleConfig()">Close</button>
+        </div>
+        <div class="config-modal-body">
+            <div id="module-config-status" class="config-status"></div>
+            <form id="module-config-form" class="config-form-grid"></form>
+            <div class="config-actions">
+                <button type="button" class="btn-muted" onclick="closeModuleConfig()">Cancel</button>
+                <button type="button" id="module-config-save" class="btn-save" onclick="saveModuleConfig()">Save</button>
+            </div>
+        </div>
+    </div>
+</div>
+{/block}
+
+{block scripts}
+<script>
+    var BASE = '{base_url}';
+    var CSRF = '{csrf_token}';
+    var callerModules = [];
+    var callerCapabilities = [];
+    var openConfigModuleId = null;
+    var moduleConfigMeta = {
+        {foreach modules as mod}
+        '{mod.id}': {
+            id: '{mod.id}',
+            name: '{mod.name}',
+            enabled: {if mod.enabled}true{else}false{/if},
+            allowKernelAdmin: {if mod.allow_kernel_admin}true{else}false{/if}
+        },
+        {/foreach}
+    };
+    var openConfigModule = null;
+
+    // Drag & drop support
+    var zone = document.getElementById('upload-zone');
+    ['dragenter','dragover'].forEach(function(e) {
+        zone.addEventListener(e, function(ev) { ev.preventDefault(); zone.classList.add('dragover'); });
+    });
+    ['dragleave','drop'].forEach(function(e) {
+        zone.addEventListener(e, function(ev) { ev.preventDefault(); zone.classList.remove('dragover'); });
+    });
+    zone.addEventListener('drop', function(ev) {
+        var files = ev.dataTransfer.files;
+        if (files.length > 0 && files[0].name.endsWith('.zip')) {
+            installModule(files[0]);
+        } else {
+            showToast('Please drop a .zip file');
+        }
+    });
+
+    function installErrorMessage(res) {
+        var code = String((res && res.error_code) || '');
+        var msg = String((res && res.error) || 'Installation failed');
+        var requestId = String((res && res.request_id) || '');
+        var details = {
+            upload_missing: 'No upload payload was received. Select a .zip file and try again.',
+            upload_failed: 'The upload failed before processing. Check server upload limits and try again.',
+            upload_tmp_missing: 'Upload was received but temporary file is unavailable on server.',
+            upload_not_http_upload: 'Upload validation failed. Please upload via the browser form only.',
+            upload_empty: 'The uploaded zip file is empty.',
+            upload_invalid_extension: 'Only .zip module packages are accepted.',
+            upload_invalid_mime: 'Uploaded file type is not recognized as a ZIP archive.',
+            zip_not_found: 'Installer could not read the uploaded zip file.',
+            zip_invalid_signature: 'Uploaded file is not a valid ZIP archive signature.',
+            zip_open_failed: 'ZIP archive could not be opened by the server.',
+            zip_too_many_entries: 'ZIP contains too many files/directories.',
+            zip_size_limit_exceeded: 'ZIP uncompressed content exceeds allowed size limit.',
+            zip_invalid_path: 'ZIP contains invalid or unsafe file paths.',
+            zip_outside_module_root: 'ZIP contains files outside the module root folder.',
+            zip_unsupported_entry_type: 'ZIP contains unsupported entry types (e.g. symlink).',
+            zip_invalid_metadata: 'ZIP entry metadata is invalid.',
+            zip_extraction_failed: 'Server failed while extracting ZIP contents.',
+            target_dir_init_failed: 'Installer failed to prepare target directory.',
+            target_dir_resolution_failed: 'Installer failed to resolve extraction directory safely.',
+            module_already_exists: 'A module with this id already exists. Remove it first or use update flow.',
+            manifest_not_found: 'module.json manifest was not found in the package.',
+            manifest_invalid_json: 'module.json is not valid JSON.',
+            manifest_missing_required_field: 'module.json is missing required fields.',
+            manifest_invalid_id: 'module.json id is invalid.',
+            manifest_invalid_name: 'module.json name is invalid.',
+            manifest_invalid_version: 'module.json version is invalid.',
+            manifest_invalid_table_list: 'module.json table declarations are invalid.',
+            manifest_invalid_auth_cookie: 'module.json auth_cookie value is invalid.',
+            manifest_invalid_nav: 'module.json nav structure is invalid.',
+            manifest_validation_failed: 'module.json validation failed.',
+            manifest_invalid_capabilities: 'module.json capabilities block is invalid.',
+            missing_capability_providers: 'Module cannot be enabled because required capability providers are missing.',
+            network_error: 'The request failed before the server returned a response.'
+        };
+
+        var friendly = details[code] || msg;
+        if (requestId !== '') {
+            return friendly + ' (ref: ' + requestId + ')';
+        }
+        return friendly;
+    }
+
+    function showInstallDiagnostics(ok, res, fallbackMessage) {
+        var el = document.getElementById('install-diagnostics');
+        if (!el) return;
+
+        var code = String((res && res.error_code) || '');
+        var requestId = String((res && res.request_id) || '');
+        var message = fallbackMessage || (ok ? 'Module installed successfully.' : installErrorMessage(res));
+
+        var parts = [];
+        parts.push('<div><strong>' + (ok ? 'Install succeeded' : 'Install failed') + ':</strong> ' + message + '</div>');
+        if (code !== '') {
+            parts.push('<div style="margin-top:4px;">code: <code>' + code + '</code></div>');
+        }
+        if (requestId !== '') {
+            parts.push('<div style="margin-top:2px;">request: <code>' + requestId + '</code></div>');
+        }
+
+        el.classList.remove('ok');
+        el.classList.remove('err');
+        el.classList.add(ok ? 'ok' : 'err');
+        el.classList.add('show');
+        el.innerHTML = parts.join('');
+    }
+
+    function installModule(file) {
+        if (!file) return;
+        if (!file.name.endsWith('.zip')) {
+            showToast('Only .zip files are accepted');
+            return;
+        }
+        var progress = document.getElementById('upload-progress');
+        var diagnostics = document.getElementById('install-diagnostics');
+        if (diagnostics) {
+            diagnostics.classList.remove('show');
+            diagnostics.innerHTML = '';
+        }
+        progress.classList.add('show');
+        progress.textContent = 'Installing ' + file.name + '...';
+
+        var form = new FormData();
+        form.append('module_zip', file);
+
+        fetch(BASE + '/api/v1/admin/modules/install', {
+            method: 'POST',
+            body: form
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(res) {
+            progress.classList.remove('show');
+            if (res.ok) {
+                var okMsg = 'Module "' + (res.manifest ? res.manifest.name : res.module_id) + '" installed successfully';
+                showToast(okMsg);
+                showInstallDiagnostics(true, res, okMsg);
+                setTimeout(function() { window.location.reload(); }, 600);
+            } else {
+                var errMsg = installErrorMessage(res);
+                showToast(errMsg);
+                showInstallDiagnostics(false, res, errMsg);
+            }
+        })
+        .catch(function() {
+            progress.classList.remove('show');
+            var netMsg = 'Upload failed — network error';
+            showToast(netMsg);
+            showInstallDiagnostics(false, { error_code: 'network_error' }, netMsg);
+        });
+
+        // Reset file input
+        document.getElementById('zip-input').value = '';
+    }
+
+    function toggleModule(moduleId, enable) {
+        var endpoint = enable ? '/api/v1/admin/modules/enable' : '/api/v1/admin/modules/disable';
+        fetch(BASE + endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ module_id: moduleId })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(res) {
+            if (res.ok) {
+                showToast('Module ' + (enable ? 'enabled' : 'disabled'));
+                setTimeout(function() { window.location.reload(); }, 400);
+            } else {
+                var errMsg = installErrorMessage(res);
+                if (res.missing && Array.isArray(res.missing) && res.missing.length > 0) {
+                    errMsg += ': ' + res.missing.join(', ');
+                }
+                showToast(errMsg);
+            }
+        })
+        .catch(function() { showToast('Network error'); });
+    }
+
+    function toggleAdminOptin(moduleId, allow) {
+        fetch(BASE + '/api/v1/admin/modules/settings', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ module_id: moduleId, settings: { allow_kernel_admin: !!allow }, _token: CSRF })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(res) {
+            if (res.ok) {
+                showToast('Admin access ' + (allow ? 'enabled' : 'disabled'));
+                setTimeout(function() { window.location.reload(); }, 400);
+            } else {
+                showToast(res.error || 'Action failed');
+                setTimeout(function() { window.location.reload(); }, 600);
+            }
+        })
+        .catch(function() {
+            showToast('Network error');
+            setTimeout(function() { window.location.reload(); }, 600);
+        });
+    }
+
+    function setConfigQueryParam(moduleId, replaceHistory) {
+        var url = new URL(window.location.href);
+        if (moduleId) {
+            url.searchParams.set('config', moduleId);
+        } else {
+            url.searchParams.delete('config');
+        }
+        var state = { config: moduleId || null };
+        if (replaceHistory) {
+            window.history.replaceState(state, '', url.toString());
+        } else {
+            window.history.pushState(state, '', url.toString());
+        }
+    }
+
+    function getConfigStatusEl() {
+        return document.getElementById('module-config-status');
+    }
+
+    function setConfigStatus(message, type) {
+        var el = getConfigStatusEl();
+        if (!el) return;
+        el.classList.remove('ok');
+        el.classList.remove('err');
+        if (type) {
+            el.classList.add(type);
+        }
+        el.textContent = message || '';
+    }
+
+    function escapeHtml(value) {
+        return String(value == null ? '' : value)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
+
+    function normalizeFieldType(field) {
+        var t = String((field && field.type) || 'text').toLowerCase();
+        if (t === 'bool' || t === 'boolean') return 'checkbox';
+        if (t === 'int' || t === 'integer') return 'number';
+        return t;
+    }
+
+    function renderModuleConfigForm(moduleMeta) {
+        var form = document.getElementById('module-config-form');
+        if (!form) return;
+
+        var fields = Array.isArray(moduleMeta.settings_fields) ? moduleMeta.settings_fields : [];
+        var values = (moduleMeta.settings && typeof moduleMeta.settings === 'object') ? moduleMeta.settings : {};
+        openConfigModule = moduleMeta;
+
+        if (!fields.length) {
+            form.innerHTML = '<div class="cap-empty">This module has no configurable settings declared.</div>';
+            return;
+        }
+
+        var html = '';
+        fields.forEach(function(field, idx) {
+            if (!field || typeof field !== 'object') return;
+            var key = String(field.key || '').trim();
+            if (!key) return;
+
+            var type = normalizeFieldType(field);
+            var label = String(field.label || key);
+            var desc = String(field.description || '');
+            var inputId = 'cfg-' + key.replace(/[^a-zA-Z0-9_-]/g, '-') + '-' + idx;
+            var current = Object.prototype.hasOwnProperty.call(values, key) ? values[key] : (Object.prototype.hasOwnProperty.call(field, 'default') ? field.default : '');
+
+            if (type === 'checkbox') {
+                var checked = current ? ' checked' : '';
+                html += '<div class="config-field">'
+                    + '<label class="config-field-inline" for="' + escapeHtml(inputId) + '">'
+                    + '<input id="' + escapeHtml(inputId) + '" type="checkbox" data-config-key="' + escapeHtml(key) + '" data-config-type="checkbox"' + checked + '>'
+                    + '<span>' + escapeHtml(label) + '</span>'
+                    + '</label>'
+                    + (desc ? '<div class="config-field-help">' + escapeHtml(desc) + '</div>' : '')
+                    + '</div>';
+                return;
+            }
+
+            if (type === 'select') {
+                var options = Array.isArray(field.options) ? field.options : [];
+                var opts = '';
+                options.forEach(function(opt) {
+                    var ov = opt && Object.prototype.hasOwnProperty.call(opt, 'value') ? String(opt.value) : '';
+                    var ol = opt && Object.prototype.hasOwnProperty.call(opt, 'label') ? String(opt.label) : ov;
+                    var selected = String(current) === ov ? ' selected' : '';
+                    opts += '<option value="' + escapeHtml(ov) + '"' + selected + '>' + escapeHtml(ol) + '</option>';
+                });
+                html += '<div class="config-field">'
+                    + '<label class="config-field-label" for="' + escapeHtml(inputId) + '">' + escapeHtml(label) + '</label>'
+                    + '<select id="' + escapeHtml(inputId) + '" class="config-select" data-config-key="' + escapeHtml(key) + '" data-config-type="select">' + opts + '</select>'
+                    + (desc ? '<div class="config-field-help">' + escapeHtml(desc) + '</div>' : '')
+                    + '</div>';
+                return;
+            }
+
+            var inputType = type === 'number' ? 'number' : 'text';
+            html += '<div class="config-field">'
+                + '<label class="config-field-label" for="' + escapeHtml(inputId) + '">' + escapeHtml(label) + '</label>'
+                + '<input id="' + escapeHtml(inputId) + '" class="config-input" type="' + inputType + '" data-config-key="' + escapeHtml(key) + '" data-config-type="' + escapeHtml(type) + '" value="' + escapeHtml(String(current == null ? '' : current)) + '">'
+                + (desc ? '<div class="config-field-help">' + escapeHtml(desc) + '</div>' : '')
+                + '</div>';
+        });
+
+        form.innerHTML = html || '<div class="cap-empty">This module has no configurable settings declared.</div>';
+    }
+
+    function loadModuleConfig(moduleId) {
+        var title = document.getElementById('module-config-title');
+        if (title) {
+            title.textContent = 'Module Config: ' + moduleId;
+        }
+
+        setConfigStatus('Loading module settings...', '');
+        var form = document.getElementById('module-config-form');
+        if (form) {
+            form.innerHTML = '';
+        }
+
+        fetch(BASE + '/api/v1/admin/modules', { headers: { 'Accept': 'application/json' } })
+        .then(function(r) { return r.json(); })
+        .then(function(res) {
+            if (!res || !res.ok || !Array.isArray(res.modules)) {
+                throw new Error((res && res.error) ? res.error : 'Failed to load module list');
+            }
+
+            var moduleMeta = null;
+            res.modules.forEach(function(mod) {
+                if (String((mod && mod.id) || '') === moduleId) {
+                    moduleMeta = mod;
+                }
+            });
+
+            if (!moduleMeta) {
+                throw new Error('Module not found: ' + moduleId);
+            }
+
+            renderModuleConfigForm(moduleMeta);
+            setConfigStatus('Edit values and click Save.', '');
+        })
+        .catch(function(err) {
+            openConfigModule = null;
+            setConfigStatus(err && err.message ? err.message : 'Failed to load module config', 'err');
+        });
+    }
+
+    function openModuleConfig(moduleId, skipHistory) {
+        var meta = moduleConfigMeta[moduleId] || null;
+        if (!meta) {
+            showToast('Unknown module: ' + moduleId);
+            return;
+        }
+
+        var modal = document.getElementById('module-config-modal');
+        if (!modal) return;
+
+        modal.classList.add('show');
+        modal.setAttribute('aria-hidden', 'false');
+        openConfigModuleId = moduleId;
+        loadModuleConfig(moduleId);
+
+        if (!skipHistory) {
+            setConfigQueryParam(moduleId, false);
+        }
+    }
+
+    function closeModuleConfig(skipHistory) {
+        var modal = document.getElementById('module-config-modal');
+        if (!modal) return;
+
+        modal.classList.remove('show');
+        modal.setAttribute('aria-hidden', 'true');
+        openConfigModuleId = null;
+        openConfigModule = null;
+        setConfigStatus('', '');
+
+        var form = document.getElementById('module-config-form');
+        if (form) {
+            form.innerHTML = '';
+        }
+
+        if (!skipHistory) {
+            setConfigQueryParam(null, false);
+        }
+    }
+
+    function saveModuleConfig() {
+        if (!openConfigModule || !openConfigModuleId) {
+            showToast('No module config is open');
+            return;
+        }
+
+        var form = document.getElementById('module-config-form');
+        if (!form) {
+            showToast('Config form is unavailable');
+            return;
+        }
+
+        var saveBtn = document.getElementById('module-config-save');
+        if (saveBtn) {
+            saveBtn.disabled = true;
+        }
+
+        var settings = {};
+        var controls = form.querySelectorAll('[data-config-key]');
+        controls.forEach(function(el) {
+            var key = String(el.getAttribute('data-config-key') || '').trim();
+            if (!key) return;
+            var type = String(el.getAttribute('data-config-type') || 'text').toLowerCase();
+            if (type === 'checkbox') {
+                settings[key] = !!el.checked;
+                return;
+            }
+            settings[key] = String(el.value == null ? '' : el.value);
+        });
+
+        setConfigStatus('Saving...', '');
+
+        fetch(BASE + '/api/v1/admin/modules/settings', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ module_id: openConfigModuleId, settings: settings, _token: CSRF })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(res) {
+            if (!res || !res.ok) {
+                throw new Error((res && res.error) ? res.error : 'Failed to save settings');
+            }
+            setConfigStatus('Settings saved successfully.', 'ok');
+            showToast('Settings saved');
+            setTimeout(function() { window.location.reload(); }, 450);
+        })
+        .catch(function(err) {
+            setConfigStatus(err && err.message ? err.message : 'Failed to save settings', 'err');
+            showToast('Save failed');
+        })
+        .finally(function() {
+            if (saveBtn) {
+                saveBtn.disabled = false;
+            }
+        });
+    }
+
+    document.addEventListener('keydown', function(ev) {
+        if (ev.key !== 'Escape') return;
+        var modal = document.getElementById('module-config-modal');
+        if (!modal || !modal.classList.contains('show')) return;
+        closeModuleConfig(false);
+    });
+
+    function syncConfigModalFromQuery() {
+        var params = new URLSearchParams(window.location.search);
+        var moduleId = params.get('config');
+        var modal = document.getElementById('module-config-modal');
+        var isOpen = !!(modal && modal.classList.contains('show'));
+
+        if (!moduleId) {
+            if (isOpen) {
+                closeModuleConfig(true);
+            }
+            return;
+        }
+
+        var meta = moduleConfigMeta[moduleId] || null;
+        if (!meta) {
+            if (isOpen) {
+                closeModuleConfig(true);
+            }
+            return;
+        }
+
+        if (isOpen && openConfigModuleId === moduleId) {
+            return;
+        }
+
+        openModuleConfig(moduleId, true);
+    }
+
+    window.addEventListener('popstate', function() {
+        syncConfigModalFromQuery();
+    });
+
+    syncConfigModalFromQuery();
+
+    // Capability insights panel
+    function loadCapabilitiesInsights() {
+        var panel = document.getElementById('capabilities-panel');
+        if (!panel) return;
+
+        Promise.all([
+            fetch(BASE + '/api/v1/admin/capabilities', { headers: { 'Accept': 'application/json' } }).then(function(r){ return r.json(); }),
+            fetch(BASE + '/api/v1/admin/capabilities/metrics', { headers: { 'Accept': 'application/json' } }).then(function(r){ return r.json(); }),
+            fetch(BASE + '/api/v1/admin/capabilities/breakers', { headers: { 'Accept': 'application/json' } }).then(function(r){ return r.json(); }),
+            fetch(BASE + '/api/v1/admin/modules', { headers: { 'Accept': 'application/json' } }).then(function(r){ return r.json(); })
+        ]).then(function(all) {
+            var caps = all[0];
+            var metrics = all[1];
+            var breakers = all[2];
+            var modules = all[3];
+
+            if (!caps.ok) {
+                panel.classList.remove('cap-panel-loading');
+                panel.classList.add('cap-panel-error');
+                panel.textContent = caps.error || 'Failed to load capability list';
+                return;
+            }
+
+            var metricsMap = (metrics && metrics.ok && metrics.metrics) ? metrics.metrics : {};
+            var breakerMap = (breakers && breakers.ok && breakers.breakers) ? breakers.breakers : {};
+            var modulesList = (modules && modules.ok && Array.isArray(modules.modules)) ? modules.modules : [];
+
+            var list = Array.isArray(caps.capabilities) ? caps.capabilities : [];
+            if (list.length === 0) {
+                panel.classList.remove('cap-panel-loading');
+                panel.innerHTML = '<div class="cap-empty">No capabilities registered.</div>';
+                return;
+            }
+
+            // Group by provider/module
+            var byProvider = {};
+            list.forEach(function(cap) {
+                var cid = cap.id || '';
+                var providers = Array.isArray(cap.providers) ? cap.providers : [];
+                providers.forEach(function(p) {
+                    var pid = String(p.provider || '');
+                    if (!byProvider[pid]) {
+                        byProvider[pid] = [];
+                    }
+
+                    var key = cid + '|' + pid;
+                    var m = metricsMap[key] || {};
+                    var b = breakerMap[key] || {};
+                    var policy = p.policy || null;
+
+                    byProvider[pid].push({
+                        id: cid,
+                        metrics: m,
+                        breaker: b,
+                        policy: policy
+                    });
+                });
+            });
+
+            var providers = Object.keys(byProvider).sort();
+            if (providers.length === 0) {
+                panel.classList.remove('cap-panel-loading');
+                panel.innerHTML = '<div class="cap-empty">No capability providers registered.</div>';
+                return;
+            }
+
+            var rows = '';
+            providers.forEach(function(pid) {
+                var capsForProvider = byProvider[pid];
+                var capHtml = '';
+
+                capsForProvider.forEach(function(entry) {
+                    var cid = entry.id;
+                    var m = entry.metrics || {};
+                    var b = entry.breaker || {};
+                    var policy = entry.policy || {};
+
+                    var count = m.count || 0;
+                    var errors = m.errors || 0;
+                    var p95 = m.p95_ms || 0;
+                    var openUntil = b.open_until || 0;
+                    var now = Math.floor(Date.now() / 1000);
+                    var hasErrors = errors > 0;
+                    var isOpen = openUntil > now;
+
+                    var cls = 'ok';
+                    if (isOpen) cls = 'err';
+                    else if (hasErrors) cls = 'warn';
+
+                    // Compute existing allow_callers for this provider+capability from policy
+                    var allow = [];
+                    if (policy && policy.capabilities && policy.capabilities[cid] && Array.isArray(policy.capabilities[cid].allow_callers)) {
+                        allow = policy.capabilities[cid].allow_callers;
+                    }
+                    var accessHtml = '';
+                    if (modulesList.length) {
+                        accessHtml += '<div class="cap-access-row">';
+                        modulesList.forEach(function(mod) {
+                            var mid = String(mod.id || '');
+                            if (!mid || mid === pid) return; // skip self
+                            var mname = String(mod.name || mid);
+                            var label = mname + ' (' + mid + ')';
+                            var checked = allow.indexOf(mid) !== -1 ? ' checked' : '';
+                            accessHtml += '<label class="cap-access" title="' + label.replace(/"/g, '&quot;') + '">'
+                                + '<input type="checkbox" class="cap-access-toggle" data-provider="' + pid.replace(/"/g, '&quot;') + '" data-capability="' + cid.replace(/"/g, '&quot;') + '" data-module="' + mid.replace(/"/g, '&quot;') + '"' + checked + '>'
+                                + label
+                                + '</label>';
+                        });
+                        accessHtml += '</div>';
+                    }
+
+                    capHtml += '<div class="cap-cap-pill">'
+                        + '<span class="cap-cap-pill-code">' + cid + '</span>'
+                        + '<span class="cap-metric-badge ' + cls + '">'
+                        + '<strong>' + (p95 || 0) + 'ms</strong>'
+                        + '<span>p95 · ' + count + ' calls' + (errors ? (', ' + errors + ' errors') : '') + (isOpen ? ' · breaker OPEN' : '') + '</span>'
+                        + '</span>'
+                        + '<span class="cap-reset" data-capability="' + cid.replace(/"/g, '&quot;') + '" data-provider="' + pid.replace(/"/g, '&quot;') + '">reset</span>'
+                        + accessHtml
+                        + '</div>';
+                });
+
+                if (!capHtml) {
+                    capHtml = '<span class="cap-empty">No capabilities</span>';
+                }
+
+                rows += '<tr>'
+                    + '<td class="cap-provider">' + pid + '</td>'
+                    + '<td><div class="cap-cap-list">' + capHtml + '</div></td>'
+                    + '</tr>';
+            });
+
+            var html = ''
+                + '<div class="cap-hint">'
+                + '<strong>Provides (module)</strong> = the module that implements the capability. '
+                + '<strong>Allowed modules</strong> (checkboxes) = who is allowed to use it.'
+                + '</div>'
+                + '<table class="cap-table">'
+                + '<thead><tr><th>Provides (module)</th><th>Capabilities · Access · Latency · Breakers</th></tr></thead>'
+                + '<tbody>' + rows + '</tbody>'
+                + '</table>';
+
+            panel.classList.remove('cap-panel-loading');
+            panel.classList.remove('cap-panel-error');
+            panel.innerHTML = html;
+            bindBreakerButtons();
+            bindCapabilityAccess();
+        }).catch(function() {
+            var panel = document.getElementById('capabilities-panel');
+            if (!panel) return;
+            panel.classList.remove('cap-panel-loading');
+            panel.classList.add('cap-panel-error');
+            panel.textContent = 'Failed to load capability insights (network error).';
+        });
+    }
+
+    function bindBreakerButtons() {
+        var panel = document.getElementById('capabilities-panel');
+        if (!panel) return;
+        var buttons = panel.querySelectorAll('.cap-reset');
+        buttons.forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                var capabilityId = btn.getAttribute('data-capability') || '';
+                var providerId = btn.getAttribute('data-provider') || '';
+                resetBreaker(capabilityId, providerId);
+            });
+        });
+    }
+
+    function bindCapabilityAccess() {
+        var panel = document.getElementById('capabilities-panel');
+        if (!panel) return;
+        var toggles = panel.querySelectorAll('.cap-access-toggle');
+        toggles.forEach(function(input) {
+            input.addEventListener('change', function() {
+                var providerId = input.getAttribute('data-provider') || '';
+                var capabilityId = input.getAttribute('data-capability') || '';
+                if (!providerId || !capabilityId) return;
+
+                // Gather all checked modules for this provider+capability
+                var selector = '.cap-access-toggle[data-provider="' + providerId.replace(/"/g, '\\"') + '"][data-capability="' + capabilityId.replace(/"/g, '\\"') + '"]';
+                var peers = panel.querySelectorAll(selector);
+                var allow = [];
+                peers.forEach(function(p) {
+                    if (p.checked) {
+                        var mid = p.getAttribute('data-module') || '';
+                        if (mid) allow.push(mid);
+                    }
+                });
+
+                fetch(BASE + '/api/v1/admin/capabilities/policy', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        provider_module_id: providerId,
+                        capability_id: capabilityId,
+                        allow_callers: allow
+                    })
+                })
+                .then(function(r) { return r.json(); })
+                .then(function(res) {
+                    if (!res.ok) {
+                        showToast(res.error || 'Failed to update capability access');
+                        // Reload state from server on failure
+                        setTimeout(loadCapabilitiesInsights, 500);
+                    }
+                })
+                .catch(function() {
+                    showToast('Network error while updating capability access');
+                    setTimeout(loadCapabilitiesInsights, 800);
+                });
+            });
+        });
+    }
+
+    function resetBreaker(capabilityId, providerId) {
+        if (!capabilityId || !providerId) return;
+        if (!window.confirm('Reset breaker for ' + capabilityId + ' → ' + providerId + '?')) return;
+
+        fetch(BASE + '/api/v1/admin/capabilities/breakers/reset', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ capability_id: capabilityId, provider_id: providerId })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(res) {
+            if (res.ok) {
+                showToast('Breaker reset (' + (res.cleared || 0) + ' entry)');
+                setTimeout(loadCapabilitiesInsights, 400);
+            } else {
+                showToast(res.error || 'Failed to reset breaker');
+            }
+        })
+        .catch(function() {
+            showToast('Network error while resetting breaker');
+        });
+    }
+
+    // Load insights on page load
+    loadCapabilitiesInsights();
+    loadCallerWiringPanel();
+
+    function loadCallerWiringPanel() {
+        var panel = document.getElementById('caller-panel');
+        if (!panel) return;
+
+        Promise.all([
+            fetch(BASE + '/api/v1/admin/modules', { headers: { 'Accept': 'application/json' } }).then(function(r){ return r.json(); }),
+            fetch(BASE + '/api/v1/admin/capabilities', { headers: { 'Accept': 'application/json' } }).then(function(r){ return r.json(); })
+        ]).then(function(all) {
+            var mods = all[0];
+            var caps = all[1];
+
+            if (!mods.ok) {
+                panel.classList.remove('cap-panel-loading');
+                panel.classList.add('cap-panel-error');
+                panel.textContent = mods.error || 'Failed to load modules';
+                return;
+            }
+            if (!caps.ok) {
+                panel.classList.remove('cap-panel-loading');
+                panel.classList.add('cap-panel-error');
+                panel.textContent = caps.error || 'Failed to load capabilities';
+                return;
+            }
+
+            callerModules = Array.isArray(mods.modules) ? mods.modules.slice() : [];
+            callerCapabilities = Array.isArray(caps.capabilities) ? caps.capabilities.slice() : [];
+
+            if (!callerModules.length) {
+                panel.classList.remove('cap-panel-loading');
+                panel.innerHTML = '<div class="cap-empty">No modules available.</div>';
+                return;
+            }
+
+            callerModules.sort(function(a, b) {
+                var idA = String(a.id || '');
+                var idB = String(b.id || '');
+                return idA.localeCompare(idB);
+            });
+
+            var activeId = callerModules[0].id || '';
+            var selectHtml = '<div class="caller-header">'
+                + '<span>Module:</span>'
+                + '<select id="caller-module-select">';
+            callerModules.forEach(function(m) {
+                var mid = String(m.id || '');
+                if (!mid) return;
+                var name = String(m.name || mid);
+                var selected = mid === activeId ? ' selected' : '';
+                selectHtml += '<option value="' + mid.replace(/"/g, '&quot;') + '"' + selected + '>' + name + ' (' + mid + ')</option>';
+            });
+            selectHtml += '</select></div>';
+
+            panel.classList.remove('cap-panel-loading');
+            panel.classList.remove('cap-panel-error');
+            panel.innerHTML = selectHtml + '<div id="caller-cap-list" class="caller-cap-list"></div>';
+
+            renderCallerCapabilities(activeId);
+
+            var selectEl = document.getElementById('caller-module-select');
+            if (selectEl) {
+                selectEl.addEventListener('change', function() {
+                    var mid = String(selectEl.value || '');
+                    if (!mid) return;
+                    renderCallerCapabilities(mid);
+                });
+            }
+        }).catch(function() {
+            var panel = document.getElementById('caller-panel');
+            if (!panel) return;
+            panel.classList.remove('cap-panel-loading');
+            panel.classList.add('cap-panel-error');
+            panel.textContent = 'Failed to load caller wiring (network error).';
+        });
+    }
+
+    function renderCallerCapabilities(moduleId) {
+        var panel = document.getElementById('caller-panel');
+        var listEl = document.getElementById('caller-cap-list');
+        if (!panel || !listEl) return;
+
+        var mod = null;
+        callerModules.forEach(function(m) {
+            if (String(m.id || '') === String(moduleId)) {
+                mod = m;
+            }
+        });
+        if (!mod) {
+            listEl.innerHTML = '<div class="cap-empty">Module not found.</div>';
+            return;
+        }
+
+        var currentDepends = Array.isArray(mod.depends) ? mod.depends : [];
+        var html = '';
+
+        if (!callerCapabilities.length) {
+            html = '<div class="cap-empty">No capabilities registered.</div>';
+        } else {
+            callerCapabilities.forEach(function(cap) {
+                var cid = String(cap.id || '');
+                if (!cid) return;
+                var providers = Array.isArray(cap.providers) ? cap.providers : [];
+                var providerNames = providers.map(function(p) {
+                    return String(p.provider || '');
+                }).filter(function(x) { return x !== ''; });
+                var label = cid;
+                var providerLabel = providerNames.length ? 'from ' + providerNames.join(', ') : '';
+                var checked = currentDepends.indexOf(cid) !== -1 ? ' checked' : '';
+                html += '<label class="caller-cap-item">'
+                    + '<input type="checkbox" class="caller-dep-toggle" data-module="' + String(mod.id || '').replace(/"/g, '&quot;') + '" data-capability="' + cid.replace(/"/g, '&quot;') + '"' + checked + '>'
+                    + '<span class="caller-cap-item-code">' + cid + '</span>'
+                    + (providerLabel ? '<span class="caller-cap-provider">' + providerLabel + '</span>' : '')
+                    + '</label>';
+            });
+        }
+
+        listEl.innerHTML = html;
+        bindCallerDepends();
+    }
+
+    function bindCallerDepends() {
+        var panel = document.getElementById('caller-panel');
+        if (!panel) return;
+        var toggles = panel.querySelectorAll('.caller-dep-toggle');
+        toggles.forEach(function(input) {
+            input.addEventListener('change', function() {
+                var moduleId = String(input.getAttribute('data-module') || '');
+                if (!moduleId) return;
+
+                var selector = '.caller-dep-toggle[data-module="' + moduleId.replace(/"/g, '\\"') + '"]';
+                var peers = panel.querySelectorAll(selector);
+                var depends = [];
+                peers.forEach(function(p) {
+                    if (p.checked) {
+                        var cid = String(p.getAttribute('data-capability') || '');
+                        if (cid) depends.push(cid);
+                    }
+                });
+
+                fetch(BASE + '/api/v1/admin/modules/depends', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        module_id: moduleId,
+                        depends: depends
+                    })
+                })
+                .then(function(r) { return r.json(); })
+                .then(function(res) {
+                    if (!res.ok) {
+                        showToast(res.error || 'Failed to update module dependencies');
+                        setTimeout(loadCallerWiringPanel, 500);
+                    } else {
+                        callerModules.forEach(function(m) {
+                            if (String(m.id || '') === moduleId) {
+                                m.depends = Array.isArray(res.depends) ? res.depends : depends;
+                            }
+                        });
+                    }
+                })
+                .catch(function() {
+                    showToast('Network error while updating module dependencies');
+                    setTimeout(loadCallerWiringPanel, 800);
+                });
+            });
+        });
+    }
+</script>
+{/block}

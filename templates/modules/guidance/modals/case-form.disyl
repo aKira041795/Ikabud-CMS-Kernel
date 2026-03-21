@@ -1,0 +1,128 @@
+{!-- Case Form Modal --}
+{if tinymce_assets && tinymce_assets.css_urls}
+{foreach tinymce_assets.css_urls as css_url}
+<link rel="stylesheet" href="{css_url}">
+{/foreach}
+{/if}
+{if tinymce_assets && tinymce_assets.js_urls}
+{foreach tinymce_assets.js_urls as js_url}
+<script src="{js_url}"></script>
+{/foreach}
+{/if}
+<div class="fixed inset-0 z-50 overflow-y-auto" aria-modal="true">
+    <div class="flex items-center justify-center min-h-screen px-4">
+        <div class="fixed inset-0 bg-black bg-opacity-50" onclick="closeModal()"></div>
+
+        <div class="relative bg-white rounded-xl shadow-xl w-full max-w-3xl">
+        <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+            <div>
+                <h2 class="text-lg font-semibold text-gray-900">New Case</h2>
+                <p class="text-sm text-gray-500 mt-0.5">Create a guidance counseling case</p>
+            </div>
+            <button type="button" onclick="closeModal()" class="text-gray-400 hover:text-gray-700">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+
+        <form hx-post="/admin/guidance/api/cases"
+              hx-swap="none"
+              class="p-6">
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Student Name</label>
+                    <input name="student_name" required
+                           class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" />
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Student ID</label>
+                    <input name="student_id" required
+                           class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" />
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Client Number</label>
+                    <input name="client_number" required placeholder="e.g. 09XXXXXXXXX"
+                           class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" />
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Category</label>
+                    <select name="category" class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                        <option value="general">General</option>
+                        <option value="academic">Academic</option>
+                        <option value="behavioral">Behavioral</option>
+                        <option value="emotional">Emotional</option>
+                        <option value="family">Family</option>
+                        <option value="peer">Peer</option>
+                        <option value="career">Career</option>
+                        <option value="crisis">Crisis</option>
+                        <option value="special_needs">Special Needs</option>
+                        <option value="substance">Substance</option>
+                        <option value="other">Other</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Severity</label>
+                    <select name="severity" class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                        <option value="low">Low</option>
+                        <option value="medium" selected>Medium</option>
+                        <option value="high">High</option>
+                        <option value="critical">Critical</option>
+                    </select>
+                </div>
+
+                <div class="md:col-span-2">
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Counselor</label>
+                    {if user_role == 'counselor'}
+                    <input type="hidden" name="counselor_id" value="{user_id}">
+                    <p class="text-xs text-gray-500">Assigned to your account</p>
+                    {else}
+                    <select name="counselor_id" required class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                        <option value="">Select counselor</option>
+                        {foreach counselors as c}
+                        <option value="{c.id}">{c.first_name} {c.last_name}</option>
+                        {/foreach}
+                    </select>
+                    {/if}
+                </div>
+
+                <div class="md:col-span-2">
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Presenting Issue</label>
+                    <textarea id="guidance-case-presenting-issue" name="presenting_issue" required rows="4" data-tinymce-editor
+                              class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"></textarea>
+                </div>
+            </div>
+
+            <div class="flex items-center justify-end gap-2 mt-6">
+                <button type="button" class="px-4 py-2 text-sm font-medium rounded-lg border border-gray-200 hover:bg-gray-50"
+                        onclick="closeModal()">Cancel</button>
+                <button type="submit" class="px-4 py-2 text-sm font-medium rounded-lg bg-indigo-600 text-white hover:bg-indigo-700">
+                    <i class="fas fa-save mr-2"></i>Create Case
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+</div>
+<script>
+(function() {
+    if (typeof window.tinymce === 'undefined') return;
+    var existing = window.tinymce.get('guidance-case-presenting-issue');
+    if (existing) return;
+    var config = Object.assign({}, {tinymce_config | json}, {
+        selector: '#guidance-case-presenting-issue'
+    });
+    window.tinymce.init(config);
+})();
+document.addEventListener('htmx:configRequest', function(evt) {
+    var form = evt.detail && evt.detail.elt ? evt.detail.elt.closest('form') : null;
+    if (!form) return;
+    if (form.getAttribute('hx-post') !== '/admin/guidance/api/cases') return;
+    if (typeof window.tinymce === 'undefined') return;
+    var editor = window.tinymce.get('guidance-case-presenting-issue');
+    if (editor) {
+        editor.save();
+    }
+});
+</script>

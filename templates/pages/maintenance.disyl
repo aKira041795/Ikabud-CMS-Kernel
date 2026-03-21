@@ -1,0 +1,13 @@
+{extends "layouts/app.disyl"}
+
+{block content}
+<div style="max-width: 720px; margin: 0 auto; padding: 80px 20px; text-align: center;">
+    <h1 style="font-size: calc(var(--font-size-h1) * 2.3); font-weight: 800; color: var(--warning);">Maintenance</h1>
+    <p style="font-size: var(--font-size-h2); color: var(--text-muted); margin-top: 10px;">This tenant is temporarily unavailable.</p>
+    <p style="color: var(--text-light); margin-top: 8px;">Please try again later. If you are an admin, re-enable the tenant in the control plane.</p>
+    <div style="margin-top: 22px; display:flex; gap: 10px; justify-content:center; flex-wrap:wrap;">
+        <a href="{base_url}/" class="btn btn-primary">Go Home</a>
+        <a href="{base_url}/admin/tenants" class="btn btn-outline">Admin: Tenants</a>
+    </div>
+</div>
+{/block}

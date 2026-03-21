@@ -1,0 +1,32 @@
+{extends "_cms_active_theme/layouts/public.disyl"}
+
+{block head}
+{if cms_head}{cms_head | raw}{/if}
+{/block}
+
+{block content}
+<article>
+    <header class="mb-10">
+        <h1 class="text-3xl font-bold leading-tight mb-4" style="font-family: system-ui, sans-serif;">{post.title}</h1>
+        <div class="flex items-center gap-2 text-sm text-gray-400" style="font-family: system-ui, sans-serif;">
+            <span>{post.author_name}</span>
+            <span>&middot;</span>
+            <time>{post.published_at}</time>
+        </div>
+    </header>
+
+    {if post.featured_image}
+    <img class="w-full rounded mb-10" src="/assets/modules/cms/uploads/{post.featured_image}" alt="{post.title}">
+    {/if}
+
+    <div class="prose text-lg text-gray-800 leading-relaxed">
+        {post_html | raw}
+    </div>
+
+    <div class="mt-14 pt-8 border-t border-gray-100">
+        <a href="{base_url}/cms/blog" class="inline-flex items-center gap-1.5 text-sm text-gray-400 hover:text-gray-700 no-underline" style="font-family: system-ui, sans-serif;">
+            &larr; Back to archive
+        </a>
+    </div>
+</article>
+{/block}

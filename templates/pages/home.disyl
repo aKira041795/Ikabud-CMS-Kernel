@@ -1,0 +1,106 @@
+{extends "layouts/app.disyl"}
+
+{block content}
+<div style="max-width:840px;margin:0 auto;padding:44px 12px;">
+    <div class="card" style="padding:22px 22px 18px 22px;">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap;">
+            <div>
+                <div style="font-size:var(--font-size-h1);font-weight:800;letter-spacing:-.2px;">Welcome, {user.name}</div>
+                <div style="margin-top:6px;color:var(--text-muted);font-size:var(--font-size-base);">Kernel OS status overview</div>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                <span style="display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;background:var(--bg);border:1px solid var(--border);font-size:var(--font-size-nav);color:var(--text-muted);">
+                    Role
+                    <strong style="color:var(--text);">{user.role}</strong>
+                </span>
+                <a class="btn btn-outline btn-sm" href="{base_url}/admin/profile">Profile</a>
+                {if user.role == 'admin'}
+                    <a class="btn btn-primary btn-sm" href="{base_url}/admin/modules">Modules</a>
+                {/if}
+            </div>
+        </div>
+
+        <div style="margin-top:18px;display:grid;grid-template-columns:repeat(3,1fr);gap:12px;">
+            <div style="border:1px solid var(--border);border-radius:12px;padding:12px 14px;background:var(--surface);">
+                <div style="font-size:11px;font-weight:800;letter-spacing:.4px;text-transform:uppercase;color:var(--text-light);">Enabled modules</div>
+                <div style="margin-top:6px;font-size:22px;font-weight:800;">{enabled_modules_count}</div>
+            </div>
+            <div style="border:1px solid var(--border);border-radius:12px;padding:12px 14px;background:var(--surface);">
+                <div style="font-size:11px;font-weight:800;letter-spacing:.4px;text-transform:uppercase;color:var(--text-light);">Accessible now</div>
+                <div style="margin-top:6px;font-size:22px;font-weight:800;">{accessible_modules_count}</div>
+            </div>
+            <div style="border:1px solid var(--border);border-radius:12px;padding:12px 14px;background:var(--surface);">
+                <div style="font-size:11px;font-weight:800;letter-spacing:.4px;text-transform:uppercase;color:var(--text-light);">Next action</div>
+                <div style="margin-top:8px;font-size:var(--font-size-base);font-weight:700;">
+                    {if user.role == 'admin'}
+                        {if enabled_modules_count == 0}
+                            Enable a module
+                        {else}
+                            Opt-in admin access
+                        {/if}
+                    {else}
+                        Contact admin
+                    {/if}
+                </div>
+            </div>
+        </div>
+
+        <div style="margin-top:14px;">
+            {if user.role == 'admin'}
+                {if enabled_modules_count == 0}
+                    <div style="margin-top:10px;padding:12px 14px;border-radius:12px;background:var(--warning-light);border:1px solid var(--warning);color:var(--warning);font-size:var(--font-size-base);">
+                        No modules are currently enabled. Go to <a href="{base_url}/admin/modules">Modules</a> to install or enable modules.
+                    </div>
+                {else}
+                    {if accessible_modules_count == 0}
+                        <div style="margin-top:10px;padding:12px 14px;border-radius:12px;background:var(--warning-light);border:1px solid var(--warning);color:var(--warning);font-size:var(--font-size-base);">
+                            {enabled_modules_count} module(s) are running, but none are opted-in for kernel admin access. Open <a href="{base_url}/admin/modules">Modules</a> and toggle “Allow kernel admin access”.
+                        </div>
+                    {else}
+                        <div style="margin-top:10px;padding:12px 14px;border-radius:12px;background:var(--success-light);border:1px solid var(--success);color:var(--success);font-size:var(--font-size-base);">
+                            {accessible_modules_count} module(s) are ready for you.
+                        </div>
+                    {/if}
+                {/if}
+            {else}
+                {if enabled_modules_count == 0}
+                    <div style="margin-top:10px;padding:12px 14px;border-radius:12px;background:var(--warning-light);border:1px solid var(--warning);color:var(--warning);font-size:var(--font-size-base);">
+                        No modules are currently enabled. Contact your administrator to install or enable modules.
+                    </div>
+                {else}
+                    <div style="margin-top:10px;padding:12px 14px;border-radius:12px;background:var(--bg);border:1px solid var(--border);color:var(--text-muted);font-size:var(--font-size-base);">
+                        {enabled_modules_count} module(s) are running, but no landing page is available for your role.
+                    </div>
+                {/if}
+            {/if}
+        </div>
+
+        <div style="margin-top:16px;border:1px solid var(--border);border-radius:12px;background:var(--bg);padding:14px 14px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">
+                <div style="font-size:12px;font-weight:800;letter-spacing:.4px;text-transform:uppercase;color:var(--text-light);">Modules</div>
+                {if user.role == 'admin'}
+                    <div style="font-size:12px;color:var(--text-muted);">Visible = opted-in for admin</div>
+                {/if}
+            </div>
+
+            <div style="margin-top:10px;display:grid;grid-template-columns:repeat(2, minmax(0, 1fr));gap:8px;">
+                {if user.role == 'admin'}
+                    {if accessible_modules_count > 0}
+                        {foreach accessible_modules_names as n}
+                            <div style="padding:10px 12px;border-radius:10px;background:var(--surface);border:1px solid var(--border);font-size:var(--font-size-base);font-weight:600;color:var(--text);">{n}</div>
+                        {/foreach}
+                    {else}
+                        {foreach enabled_modules_names as n}
+                            <div style="padding:10px 12px;border-radius:10px;background:var(--surface);border:1px solid var(--border);font-size:var(--font-size-base);font-weight:600;color:var(--text);opacity:.75;">{n}</div>
+                        {/foreach}
+                    {/if}
+                {else}
+                    {foreach enabled_modules_names as n}
+                        <div style="padding:10px 12px;border-radius:10px;background:var(--surface);border:1px solid var(--border);font-size:var(--font-size-base);font-weight:600;color:var(--text);">{n}</div>
+                    {/foreach}
+                {/if}
+            </div>
+        </div>
+    </div>
+</div>
+{/block}

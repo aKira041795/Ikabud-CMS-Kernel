@@ -1,0 +1,400 @@
+{extends "modules/daily-ledger/layouts/app.disyl"}
+
+{block head}
+{/block}
+
+{block content}
+<div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
+    <div>
+        <h2 class="text-lg font-semibold text-gray-900">Sales Report</h2>
+        <p class="text-sm text-gray-500">Encoder view for daily inventory and sales.</p>
+        <p class="text-xs text-gray-500 mt-1">
+            Business date: <span class="font-medium text-gray-700">{business_date_label}</span>
+            · Timezone: <span class="font-medium text-gray-700">{operating_timezone}</span>
+            · Region: <span class="font-medium text-gray-700">{operating_region}</span>
+        </p>
+        <div class="mt-2">
+            <span class="inline-flex items-center rounded-full bg-amber-100 px-3 py-1 text-sm font-semibold text-amber-800 ring-1 ring-inset ring-amber-300">
+                Cutoff: {close_of_day_time}
+            </span>
+        </div>
+    </div>
+
+    <div class="flex flex-wrap items-center gap-2">
+        <span class="inline-flex items-center rounded-full bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700 ring-1 ring-inset ring-indigo-200">{branch_name}</span>
+        {if is_cashier}
+        <input type="date" class="form-input mt-0 w-auto min-w-40" id="ledger-date" value="{ledger_date}" max="{today}"
+               hx-get="{base_url}/ledger"
+               hx-target="#main-content"
+               hx-swap="innerHTML"
+               hx-include="this"
+               name="date">
+        {else}
+        <select class="form-input mt-0 w-auto min-w-44" id="branch-select" name="branch_id"
+                hx-get="{base_url}/ledger"
+                hx-target="#main-content"
+                hx-swap="innerHTML"
+                hx-include="[name='date']">
+            {foreach branches as br}
+            <option value="{br.id}" {if br.id == branch_id}selected{/if}>{br.name}</option>
+            {/foreach}
+        </select>
+        <input type="date" class="form-input mt-0 w-auto min-w-40" id="ledger-date" value="{ledger_date}" max="{today}" name="date"
+               hx-get="{base_url}/ledger"
+               hx-target="#main-content"
+               hx-swap="innerHTML"
+               hx-include="[name='branch_id']">
+        {/if}
+
+        <span class="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ring-1 ring-inset
+            {if day_status == 'open'}bg-emerald-50 text-emerald-700 ring-emerald-200{/if}
+            {if day_status == 'closed'}bg-rose-50 text-rose-700 ring-rose-200{/if}
+        ">{day_status}</span>
+
+        <span class="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ring-1 ring-inset bg-emerald-50 text-emerald-700 ring-emerald-200" id="global-status">All saved</span>
+        <button type="button" class="btn btn-outline" onclick="printCashierLedger()">Print</button>
+    </div>
+</div>
+
+<div class="mb-4">
+    <input type="text" class="form-input max-w-xs" id="ledger-search" placeholder="Search product..." oninput="filterLedgerRows(this.value)">
+</div>
+
+<div class="card">
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th class="text-left w-14">#</th>
+                    <th>Description</th>
+                    <th class="text-right">Beg. Bal</th>
+                    <th class="text-right">Addt'l</th>
+                    <th class="text-right">W/Draw</th>
+                    <th class="text-right">Bal. End</th>
+                    <th class="text-right">Sales</th>
+                </tr>
+            </thead>
+            <tbody id="ledger-body"
+                   hx-get="{base_url}/ledger/rows?date={ledger_date}&branch_id={branch_id}"
+                   hx-trigger="load"
+                   hx-swap="innerHTML">
+                <tr><td colspan="7" class="px-4 py-10 text-center text-sm text-gray-500">Loading...</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+{if day_status == 'open'}
+<div class="mt-6 flex justify-end gap-3">
+    <button class="btn btn-primary" id="close-day-btn" onclick="closeDay()">Close Day</button>
+</div>
+{/if}
+{if day_status == 'closed'}
+<div class="mt-6 flex items-center justify-end gap-3">
+    <span class="text-sm text-gray-500">This day has been closed.</span>
+    {if can_ledger_override}
+    <button class="btn btn-outline" onclick="reopenDay()">Reopen Day</button>
+    {/if}
+</div>
+{/if}
+{/block}
+
+{block scripts}
+<script>
+    var BASE = '{base_url}';
+    var BRANCH_ID = '{branch_id}';
+    var LEDGER_DATE = '{ledger_date}';
+    var DAY_STATUS = '{day_status}';
+
+    // Offline buffer: localStorage write-ahead log
+    var PENDING_KEY = 'bbs_pending_saves';
+
+    function getPending() {
+        try { return JSON.parse(localStorage.getItem(PENDING_KEY) || '[]'); }
+        catch(e) { return []; }
+    }
+    function setPending(arr) {
+        localStorage.setItem(PENDING_KEY, JSON.stringify(arr));
+    }
+
+    // Compute sales = beg_bal + addtl - withdraw - bal_end
+    function computeSales(productId) {
+        var row = document.querySelector('tr[data-product-id="' + productId + '"]');
+        if (!row) return 0;
+        var beg = parseInt(row.querySelector('[data-field="beg_bal"]').value) || 0;
+        var add = parseInt(row.querySelector('[data-field="addtl"]').value) || 0;
+        var wdr = parseInt(row.querySelector('[data-field="withdraw"]').value) || 0;
+        var end = parseInt(row.querySelector('[data-field="bal_end"]').value) || 0;
+        var sales = beg + add - wdr - end;
+        if (sales < 0) sales = 0;
+        // Update the display
+        var span = row.querySelector('.sales-computed');
+        if (span) span.textContent = sales;
+        return sales;
+    }
+
+    function doSave(productId, field, value) {
+        var payload = {
+            product_id: productId,
+            field: field,
+            value: value,
+            date: LEDGER_DATE
+        };
+        if (BRANCH_ID) payload.branch_id = BRANCH_ID;
+        return fetch(BASE + '/api/v1/cashier/ledger/save', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': (window.DL_CSRF || ''),
+                'Authorization': (window.DL_TOKEN ? ('Bearer ' + window.DL_TOKEN) : '')
+            },
+            body: JSON.stringify(payload)
+        }).then(function(r) { return r.json(); });
+    }
+
+    function saveField(input) {
+        var productId = input.dataset.product;
+        var field = input.dataset.field;
+        var value = parseInt(input.value) || 0;
+        input.value = value;
+        input.classList.remove('saved', 'error');
+        input.classList.add('saving');
+        updateGlobalStatus('pending');
+
+        // Recompute sales display immediately
+        var sales = computeSales(productId);
+
+        // Save the changed field
+        doSave(productId, field, value)
+        .then(function(res) {
+            input.classList.remove('saving');
+            if (res.ok) {
+                input.classList.add('saved');
+                setTimeout(function() { input.classList.remove('saved'); }, 1500);
+                removePending(productId, field);
+                // Also save the computed sales value to DB
+                doSave(productId, 'sales', sales).catch(function() {});
+            } else {
+                input.classList.add('error');
+                addPending({ product_id: productId, field: field, value: value, date: LEDGER_DATE });
+            }
+            updateGlobalStatus(getPending().length > 0 ? 'pending' : 'saved');
+        })
+        .catch(function() {
+            input.classList.remove('saving');
+            input.classList.add('error');
+            addPending({ product_id: productId, field: field, value: value, date: LEDGER_DATE });
+            updateGlobalStatus('pending');
+        });
+    }
+
+    function addPending(payload) {
+        var list = getPending();
+        // Replace existing entry for same product+field+date
+        list = list.filter(function(p) {
+            return !(p.product_id == payload.product_id && p.field == payload.field && p.date == payload.date);
+        });
+        list.push(payload);
+        setPending(list);
+    }
+
+    function removePending(productId, field) {
+        var list = getPending().filter(function(p) {
+            return !(p.product_id == productId && p.field == field && p.date == LEDGER_DATE);
+        });
+        setPending(list);
+    }
+
+    function updateGlobalStatus(state) {
+        var el = document.getElementById('global-status');
+        if (!el) return;
+        el.classList.remove('all-saved', 'pending');
+        if (state === 'saved') {
+            el.textContent = 'All saved';
+            el.classList.add('all-saved');
+        } else {
+            el.textContent = 'Saving...';
+            el.classList.add('pending');
+        }
+    }
+
+    // Retry pending saves on page load
+    function retryPending() {
+        var list = getPending();
+        if (list.length === 0) return;
+        updateGlobalStatus('pending');
+
+        list.forEach(function(payload) {
+            fetch(BASE + '/api/v1/cashier/ledger/save', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-Token': (window.DL_CSRF || ''),
+                    'Authorization': (window.DL_TOKEN ? ('Bearer ' + window.DL_TOKEN) : '')
+                },
+                body: JSON.stringify(payload)
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(res) {
+                if (res.ok) {
+                    removePending(payload.product_id, payload.field);
+                    if (getPending().length === 0) updateGlobalStatus('saved');
+                }
+            })
+            .catch(function() {});
+        });
+    }
+
+    // Tab/Enter navigation between inputs
+    document.addEventListener('keydown', function(e) {
+        if (e.key !== 'Tab' && e.key !== 'Enter') return;
+        var target = e.target;
+        if (!target.classList.contains('ledger-input')) return;
+
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            // Move to next input
+            var inputs = Array.from(document.querySelectorAll('.ledger-input:not(:disabled)'));
+            var idx = inputs.indexOf(target);
+            if (idx >= 0 && idx < inputs.length - 1) {
+                inputs[idx + 1].focus();
+                inputs[idx + 1].select();
+            }
+        }
+    });
+
+    function closeDay() {
+        if (!confirm('Close this day? Cashiers will no longer be able to edit.')) return;
+        var btn = document.getElementById('close-day-btn');
+        btn.disabled = true;
+        btn.textContent = 'Closing...';
+
+        fetch(BASE + '/api/v1/cashier/ledger/close-day', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': (window.DL_CSRF || ''),
+                'Authorization': (window.DL_TOKEN ? ('Bearer ' + window.DL_TOKEN) : '')
+            },
+            body: JSON.stringify({ date: LEDGER_DATE, branch_id: BRANCH_ID })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(res) {
+            if (res.ok) {
+                showToast('Day closed successfully');
+                setTimeout(function() { window.location.href = BASE + '/ledger?branch_id=' + BRANCH_ID + '&date=' + LEDGER_DATE; }, 800);
+            } else {
+                btn.disabled = false;
+                btn.textContent = 'Close Day';
+                showToast(res.error || 'Failed to close day');
+            }
+        })
+        .catch(function() {
+            btn.disabled = false;
+            btn.textContent = 'Close Day';
+            showToast('Network error');
+        });
+    }
+
+    function reopenDay() {
+        if (!confirm('Reopen this day for editing?')) return;
+
+        fetch(BASE + '/api/v1/admin/reopen-day', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': (window.DL_CSRF || ''),
+                'Authorization': (window.DL_TOKEN ? ('Bearer ' + window.DL_TOKEN) : '')
+            },
+            body: JSON.stringify({ date: LEDGER_DATE, branch_id: BRANCH_ID })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(res) {
+            if (res.ok) {
+                showToast('Day reopened');
+                setTimeout(function() { window.location.href = BASE + '/ledger?branch_id=' + BRANCH_ID + '&date=' + LEDGER_DATE; }, 800);
+            } else {
+                showToast(res.error || 'Failed to reopen');
+            }
+        })
+        .catch(function() { showToast('Network error'); });
+    }
+
+    // Client-side product search/filter
+    function filterLedgerRows(query) {
+        query = query.toLowerCase().trim();
+        var rows = document.querySelectorAll('#ledger-body tr[data-product-id]');
+        rows.forEach(function(row) {
+            var name = (row.querySelector('.product-name') || {}).textContent || '';
+            row.style.display = name.toLowerCase().indexOf(query) !== -1 ? '' : 'none';
+        });
+    }
+
+    // On page load, retry any pending offline saves
+    document.addEventListener('DOMContentLoaded', retryPending);
+
+    function printCashierLedger() {
+        var rows = Array.from(document.querySelectorAll('#ledger-body tr[data-product-id]'));
+        if (rows.length === 0) {
+            showToast('No ledger rows available to print.', 'error');
+            return;
+        }
+
+        var printedAt = new Date().toLocaleString();
+        var htmlRows = rows.map(function(row) {
+            var rowNum = (row.querySelector('.row-num') || {}).textContent || '';
+            var product = (row.querySelector('.product-name') || {}).textContent || '';
+            var beg = (row.querySelector('[data-field="beg_bal"]') || {}).value || '0';
+            var addtl = (row.querySelector('[data-field="addtl"]') || {}).value || '0';
+            var withdraw = (row.querySelector('[data-field="withdraw"]') || {}).value || '0';
+            var balEnd = (row.querySelector('[data-field="bal_end"]') || {}).value || '0';
+            var sales = (row.querySelector('.sales-computed') || {}).textContent || '0';
+
+            return '<tr>' +
+                '<td style="text-align:center;">' + String(rowNum).trim() + '</td>' +
+                '<td>' + String(product).trim() + '</td>' +
+                '<td style="text-align:right;">' + String(beg).trim() + '</td>' +
+                '<td style="text-align:right;">' + String(addtl).trim() + '</td>' +
+                '<td style="text-align:right;">' + String(withdraw).trim() + '</td>' +
+                '<td style="text-align:right;">' + String(balEnd).trim() + '</td>' +
+                '<td style="text-align:right;">' + String(sales).trim() + '</td>' +
+                '</tr>';
+        }).join('');
+
+        var reportHtml = '<!doctype html><html><head><meta charset="utf-8">' +
+            '<title>Daily Ledger Report</title>' +
+            '<style>' +
+            'body{font-family:Arial,sans-serif;color:#111827;margin:24px;}' +
+            'h1{font-size:20px;margin:0 0 8px;}' +
+            '.meta{font-size:13px;color:#374151;margin:2px 0;}' +
+            'table{width:100%;border-collapse:collapse;margin-top:16px;}' +
+            'th,td{border:1px solid #d1d5db;padding:8px;font-size:12px;vertical-align:top;}' +
+            'th{background:#f3f4f6;text-align:left;}' +
+            '</style></head><body>' +
+            '<h1>Daily Ledger Report</h1>' +
+            '<div class="meta">Branch: {branch_name}</div>' +
+            '<div class="meta">Ledger Date: {ledger_date}</div>' +
+            '<div class="meta">Prepared By: {user_name} ({user_role})</div>' +
+            '<div class="meta">Printed At: ' + printedAt + '</div>' +
+            '<table><thead><tr>' +
+            '<th>#</th><th>Description</th><th style="text-align:right;">Beg. Bal</th><th style="text-align:right;">Addt\'l</th><th style="text-align:right;">W/Draw</th><th style="text-align:right;">Bal. End</th><th style="text-align:right;">Sales</th>' +
+            '</tr></thead><tbody>' + htmlRows + '</tbody></table>' +
+            '</body></html>';
+
+        var w = window.open('', '_blank', 'width=1024,height=768');
+        if (!w) {
+            showToast('Popup blocked. Please allow popups for printing.', 'error');
+            return;
+        }
+        w.document.open();
+        w.document.write(reportHtml);
+        w.document.close();
+        w.focus();
+        w.print();
+    }
+</script>
+{/block}

@@ -1,0 +1,104 @@
+/**
+ * CSS Custom Properties (Design Tokens)
+ * Native Default Theme v2.1.0
+ */
+
+:root {
+    /* Colors */
+    --color-primary: #1e73be;
+    --color-primary-dark: #185a94;
+    --color-primary-hover: #185a94;
+    --color-secondary: #64748B;
+    --color-accent: #F59E0B;
+    --color-success: #10B981;
+    --color-warning: #F59E0B;
+    --color-error: #EF4444;
+    
+    --color-text: #222222;
+    --color-text-light: #6B7280;
+    --color-text-muted: #9CA3AF;
+    --color-background: #FFFFFF;
+    --color-surface: #F9FAFB;
+    --color-border: #E5E7EB;
+    
+    --color-link: #1e73be;
+    --color-link-hover: #185a94;
+    
+    /* Header */
+    --header-bg: #FFFFFF;
+    --header-text: #222222;
+    --header-border: #E5E7EB;
+    
+    /* Footer */
+    --footer-bg: #222222;
+    --footer-text: #FFFFFF;
+    --footer-link: rgba(255, 255, 255, 0.7);
+    --footer-link-hover: #FFFFFF;
+    
+    /* Section Spacing */
+    --section-padding-y: 4rem;
+    
+    /* Typography */
+    --font-body: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    --font-heading: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    --font-mono: 'SF Mono', 'Fira Code', 'Fira Mono', Menlo, Monaco, Consolas, monospace;
+    
+    --font-size-xs: 0.75rem;
+    --font-size-sm: 0.875rem;
+    --font-size-base: 1rem;
+    --font-size-lg: 1.125rem;
+    --font-size-xl: 1.25rem;
+    --font-size-2xl: 1.5rem;
+    --font-size-3xl: 1.875rem;
+    --font-size-4xl: 2.25rem;
+    --font-size-5xl: 3rem;
+    
+    --line-height-tight: 1.25;
+    --line-height-normal: 1.5;
+    --line-height-relaxed: 1.75;
+    
+    /* Spacing */
+    --spacing-xs: 0.25rem;
+    --spacing-sm: 0.5rem;
+    --spacing-md: 1rem;
+    --spacing-lg: 1.5rem;
+    --spacing-xl: 2rem;
+    --spacing-2xl: 3rem;
+    --spacing-3xl: 4rem;
+    
+    /* Layout */
+    --container-width: 1200px;
+    --container-narrow: 720px;
+    --container-wide: 1400px;
+    --container-padding: 1.5rem;
+    --content-width: 720px;
+    --wide-width: 1400px;
+    --sidebar-width: 300px;
+    --sidebar-gap: 2rem;
+    --header-height: 70px;
+    
+    /* Borders & Radius */
+    --border-width: 1px;
+    --border-radius-sm: 2px;
+    --border-radius-md: 2px;
+    --border-radius-lg: 2px;
+    --border-radius-full: 2px;
+    
+    /* Shadows */
+    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+    --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+    
+    /* Transitions */
+    --transition-fast: 150ms ease;
+    --transition-normal: 300ms ease;
+    --transition-slow: 500ms ease;
+    
+    /* Z-index */
+    --z-dropdown: 100;
+    --z-sticky: 200;
+    --z-fixed: 300;
+    --z-modal: 400;
+    --z-tooltip: 500;
+}

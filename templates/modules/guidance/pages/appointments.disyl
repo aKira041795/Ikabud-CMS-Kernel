@@ -1,0 +1,294 @@
+{extends "modules/guidance/layouts/app.disyl"}
+
+{block content}
+{!-- Appointments Page --}
+
+{ikb_section padding="none"}
+    
+    <div x-data="(window.appointmentsPage ? window.appointmentsPage() : { view: 'list', monthLabel: '', calendarCells: [], init: function(){}, prevMonth: function(){}, nextMonth: function(){}, goToday: function(){}, statusColor: function(){ return 'bg-gray-100 text-gray-700 border border-gray-200'; }, openAppt: function(){} })"
+         x-init="if (typeof init === 'function') init()">
+    
+    {!-- Page Header --}
+    <div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6 gap-4">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-900">Appointments</h1>
+            <p class="text-sm text-gray-500 mt-1">Manage counseling sessions and schedules</p>
+        </div>
+        <button hx-get="/admin/guidance/pages/appointments/new" hx-target="#modal-container" hx-swap="innerHTML"
+                class="inline-flex items-center px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition shadow-sm">
+            <i class="fas fa-calendar-plus mr-2"></i> New Appointment
+        </button>
+    </div>
+    
+    {!-- Filters Bar --}
+    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 mb-5">
+        <div class="flex flex-col lg:flex-row lg:items-center gap-3">
+            {!-- View Toggle --}
+            <div class="flex bg-gray-100 rounded-lg p-0.5 flex-shrink-0">
+                <button @click="view = 'list'" 
+                        :class="view === 'list' ? 'bg-white shadow-sm text-indigo-700' : 'text-gray-500 hover:text-gray-700'"
+                        class="px-3 py-1.5 rounded-md text-sm font-medium transition">
+                    <i class="fas fa-list mr-1.5"></i>List
+                </button>
+                <button @click="view = 'calendar'" 
+                        :class="view === 'calendar' ? 'bg-white shadow-sm text-indigo-700' : 'text-gray-500 hover:text-gray-700'"
+                        class="px-3 py-1.5 rounded-md text-sm font-medium transition">
+                    <i class="fas fa-calendar mr-1.5"></i>Calendar
+                </button>
+            </div>
+            
+            <div class="h-6 w-px bg-gray-200 hidden lg:block"></div>
+            
+            {!-- Search --}
+            <div class="relative flex-1 max-w-xs">
+                <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs"></i>
+                <input type="text" name="search" placeholder="Search student or case..."
+                       class="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                       hx-get="/admin/guidance/api/appointments" hx-target="#appointments-list" hx-trigger="keyup changed delay:400ms"
+                       hx-include="[name='status'],[name='from'],[name='to'],[name='counselor_id']" />
+            </div>
+            
+            {!-- Status Filter --}
+            <select name="status"
+                    class="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    hx-get="/admin/guidance/api/appointments" hx-target="#appointments-list" hx-trigger="change"
+                    hx-include="[name='search'],[name='from'],[name='to'],[name='counselor_id']">
+                <option value="">All Status</option>
+                <option value="pending">Pending</option>
+                <option value="scheduled">Scheduled</option>
+                <option value="confirmed">Confirmed</option>
+                <option value="completed">Completed</option>
+                <option value="cancelled">Cancelled</option>
+                <option value="no_show">No Show</option>
+                <option value="rejected">Rejected</option>
+            </select>
+            
+            {!-- Date Range --}
+            <div class="flex items-center gap-2">
+                <input type="date" name="from" placeholder="From"
+                       class="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                       hx-get="/admin/guidance/api/appointments" hx-target="#appointments-list" hx-trigger="change"
+                       hx-include="[name='search'],[name='status'],[name='to'],[name='counselor_id']" />
+                <span class="text-gray-400 text-xs">to</span>
+                <input type="date" name="to" placeholder="To"
+                       class="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                       hx-get="/admin/guidance/api/appointments" hx-target="#appointments-list" hx-trigger="change"
+                       hx-include="[name='search'],[name='status'],[name='from'],[name='counselor_id']" />
+            </div>
+            
+            {!-- Counselor Filter (admin/supervisor only) --}
+            {if user_role != 'counselor'}
+            <select name="counselor_id"
+                    class="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    hx-get="/admin/guidance/api/appointments" hx-target="#appointments-list" hx-trigger="change"
+                    hx-include="[name='search'],[name='status'],[name='from'],[name='to']">
+                <option value="">All Counselors</option>
+                {foreach counselors as c}
+                <option value="{c.id}">{c.first_name} {c.last_name}</option>
+                {/foreach}
+            </select>
+            {/if}
+            
+            {!-- Clear Filters --}
+            <button type="button" onclick="document.querySelectorAll('[name=search],[name=status],[name=from],[name=to],[name=counselor_id]').forEach(e=>{e.value=''}); htmx.ajax('GET','/admin/guidance/api/appointments',{target:'#appointments-list'})"
+                    class="text-xs text-gray-500 hover:text-red-600 flex-shrink-0 px-2 py-2" title="Clear filters">
+                <i class="fas fa-times-circle mr-1"></i>Clear
+            </button>
+        </div>
+    </div>
+    
+    {!-- List View --}
+    <div x-show="view === 'list'" x-cloak>
+        <div id="appointments-list" 
+             hx-get="/admin/guidance/api/appointments" 
+             hx-trigger="load, refreshAppointments from:body"
+             hx-swap="innerHTML">
+            <div class="flex items-center justify-center py-16 text-gray-400">
+                <i class="fas fa-spinner fa-spin text-lg mr-3"></i> Loading appointments...
+            </div>
+        </div>
+    </div>
+    
+    {!-- Calendar View --}
+    <div x-show="view === 'calendar'" x-cloak>
+        <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+            {!-- Calendar Header --}
+            <div class="flex items-center justify-between mb-4">
+                <button @click="prevMonth()" class="p-2 hover:bg-gray-100 rounded-lg transition">
+                    <i class="fas fa-chevron-left text-gray-600"></i>
+                </button>
+                <div class="flex items-center gap-3">
+                    <h2 class="text-lg font-semibold text-gray-800" x-text="monthLabel"></h2>
+                    <button @click="goToday()" class="px-2 py-1 text-xs font-medium text-indigo-600 bg-indigo-50 rounded hover:bg-indigo-100 transition">Today</button>
+                </div>
+                <button @click="nextMonth()" class="p-2 hover:bg-gray-100 rounded-lg transition">
+                    <i class="fas fa-chevron-right text-gray-600"></i>
+                </button>
+            </div>
+            
+            {!-- Day Headers --}
+            <div class="grid grid-cols-7 gap-px bg-gray-200 rounded-t-lg overflow-hidden">
+                <template x-for="day in ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']">
+                    <div class="bg-gray-50 py-2 text-center text-xs font-semibold text-gray-500 uppercase" x-text="day"></div>
+                </template>
+            </div>
+            
+            {!-- Calendar Grid --}
+            <div class="grid grid-cols-7 gap-px bg-gray-200 rounded-b-lg overflow-hidden">
+                <template x-for="cell in calendarCells" :key="cell.key">
+                    <div class="bg-white p-1 min-h-[90px] relative"
+                         :class="{ 'bg-indigo-50 ring-1 ring-inset ring-indigo-200': cell.isToday, 'opacity-40': !cell.currentMonth }">
+                        <span class="text-xs font-medium block mb-1 px-1"
+                              :class="cell.isToday ? 'text-indigo-700 font-bold' : 'text-gray-700'"
+                              x-text="cell.day"></span>
+                        <div class="space-y-0.5 overflow-y-auto max-h-[65px]">
+                            <template x-for="appt in cell.appointments" :key="appt.id">
+                                <div class="text-xs px-1.5 py-0.5 rounded cursor-pointer truncate"
+                                     :class="statusColor(appt.status_key || appt.status)"
+                                     :title="(appt.student_name || 'N/A') + ' - ' + appt.scheduled_time"
+                                     @click="openAppt(appt.id)"
+                                     x-text="appt.scheduled_time.substring(0,5) + ' ' + (appt.student_name || 'N/A')">
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </template>
+            </div>
+            
+            {!-- Legend --}
+            <div class="flex flex-wrap gap-4 mt-4 pt-4 border-t text-xs text-gray-600">
+                <span><span class="inline-block w-3 h-3 rounded bg-amber-100 border border-amber-300 mr-1"></span> Pending</span>
+                <span><span class="inline-block w-3 h-3 rounded bg-blue-100 border border-blue-300 mr-1"></span> Scheduled</span>
+                <span><span class="inline-block w-3 h-3 rounded bg-indigo-100 border border-indigo-300 mr-1"></span> Confirmed</span>
+                <span><span class="inline-block w-3 h-3 rounded bg-green-100 border border-green-300 mr-1"></span> Completed</span>
+                <span><span class="inline-block w-3 h-3 rounded bg-red-100 border border-red-300 mr-1"></span> Cancelled</span>
+                <span><span class="inline-block w-3 h-3 rounded bg-yellow-100 border border-yellow-300 mr-1"></span> No Show</span>
+            </div>
+        </div>
+    </div>
+
+    </div>
+
+{/ikb_section}
+
+<script>
+    window.appointmentsPage = function() {
+        return {
+            view: 'list',
+            monthDate: new Date(),
+            monthLabel: '',
+            calendarCells: [],
+            calendarAppts: {},
+            init: function() {
+                this.updateMonthLabel();
+                this.buildCalendar();
+                this.fetchCalendar();
+
+                var self = this;
+                document.body.addEventListener('refreshAppointmentsCalendar', function() {
+                    self.fetchCalendar();
+                });
+            },
+            updateMonthLabel: function() {
+                var y = this.monthDate.getFullYear();
+                var m = this.monthDate.getMonth();
+                var d = new Date(y, m, 1);
+                this.monthLabel = d.toLocaleString(undefined, { month: 'long', year: 'numeric' });
+            },
+            monthKey: function() {
+                var y = this.monthDate.getFullYear();
+                var m = this.monthDate.getMonth() + 1;
+                return y + '-' + String(m).padStart(2, '0');
+            },
+            prevMonth: function() {
+                this.monthDate = new Date(this.monthDate.getFullYear(), this.monthDate.getMonth() - 1, 1);
+                this.updateMonthLabel();
+                this.buildCalendar();
+                this.fetchCalendar();
+            },
+            nextMonth: function() {
+                this.monthDate = new Date(this.monthDate.getFullYear(), this.monthDate.getMonth() + 1, 1);
+                this.updateMonthLabel();
+                this.buildCalendar();
+                this.fetchCalendar();
+            },
+            goToday: function() {
+                var t = new Date();
+                this.monthDate = new Date(t.getFullYear(), t.getMonth(), 1);
+                this.updateMonthLabel();
+                this.buildCalendar();
+                this.fetchCalendar();
+            },
+            buildCalendar: function() {
+                var y = this.monthDate.getFullYear();
+                var m = this.monthDate.getMonth();
+                var first = new Date(y, m, 1);
+                var startDow = first.getDay();
+                var start = new Date(y, m, 1 - startDow);
+
+                var today = new Date();
+                var todayKey = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0') + '-' + String(today.getDate()).padStart(2, '0');
+
+                var cells = [];
+                for (var i = 0; i < 42; i++) {
+                    var cur = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i);
+                    var key = cur.getFullYear() + '-' + String(cur.getMonth() + 1).padStart(2, '0') + '-' + String(cur.getDate()).padStart(2, '0');
+                    var currentMonth = (cur.getMonth() === m);
+                    cells.push({
+                        key: key,
+                        day: cur.getDate(),
+                        currentMonth: currentMonth,
+                        isToday: key === todayKey,
+                        appointments: (this.calendarAppts[key] || [])
+                    });
+                }
+                this.calendarCells = cells;
+            },
+            fetchCalendar: function() {
+                var self = this;
+                var qs = new URLSearchParams();
+                qs.set('month', this.monthKey());
+                var counselorSel = document.querySelector("[name='counselor_id']");
+                if (counselorSel && counselorSel.value) {
+                    qs.set('counselor_id', counselorSel.value);
+                }
+                fetch('/admin/guidance/api/appointments/calendar?' + qs.toString(), { headers: { 'Accept': 'application/json' } })
+                    .then(function(r) { return r.json(); })
+                    .then(function(res) {
+                        if (!res || !res.ok || !Array.isArray(res.appointments)) return;
+                        var map = {};
+                        res.appointments.forEach(function(a) {
+                            if (!a || !a.scheduled_date) return;
+                            var k = a.scheduled_date;
+                            if (!map[k]) map[k] = [];
+                            map[k].push(a);
+                        });
+                        self.calendarAppts = map;
+                        self.buildCalendar();
+                    })
+                    .catch(function() {});
+            },
+            statusColor: function(status) {
+                var s = (status || '').toString();
+                if (s === 'pending') return 'bg-amber-100 text-amber-800 border border-amber-200';
+                if (s === 'scheduled') return 'bg-blue-100 text-blue-800 border border-blue-200';
+                if (s === 'confirmed') return 'bg-indigo-100 text-indigo-800 border border-indigo-200';
+                if (s === 'completed') return 'bg-green-100 text-green-800 border border-green-200';
+                if (s === 'cancelled') return 'bg-red-100 text-red-800 border border-red-200';
+                if (s === 'no_show') return 'bg-yellow-100 text-yellow-800 border border-yellow-200';
+                if (s === 'rejected') return 'bg-gray-200 text-gray-700 border border-gray-300';
+                return 'bg-gray-100 text-gray-700 border border-gray-200';
+            },
+            openAppt: function(id) {
+                if (!id) return;
+                if (window.htmx) {
+                    htmx.ajax('GET', '/admin/guidance/pages/appointments/' + id, { target: '#modal-container', swap: 'innerHTML' });
+                } else {
+                    window.location.href = '/admin/guidance/pages/appointments/' + id;
+                }
+            }
+        }
+    }
+</script>
+
+{/block}

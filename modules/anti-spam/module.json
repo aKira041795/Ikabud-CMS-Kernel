@@ -1,0 +1,84 @@
+{
+    "id": "anti-spam",
+    "name": "Anti-Spam",
+    "version": "1.0.0",
+    "description": "Simple anti-spam protection: honeypot fields, rate limiting, keyword blocklist, and IP blocking.",
+    "author": "",
+    "requires_tables": [],
+    "owns_tables": [
+        "antispam_blocked_ips",
+        "antispam_log",
+        "antispam_settings"
+    ],
+    "reads_tables": [],
+    "migrations": [
+        "001_initial.sql"
+    ],
+    "settings": [],
+    "hooks": [],
+    "capabilities": {
+        "exposes": [
+            {
+                "id": "antispam.check@1",
+                "priority": 100,
+                "modes": [
+                    "first"
+                ],
+                "schema": {
+                    "type": "object",
+                    "properties": {
+                        "body": {
+                            "type": "string",
+                            "description": "Text body to scan for blocked keywords"
+                        },
+                        "ip": {
+                            "type": "string",
+                            "description": "IP address to check (defaults to request IP)"
+                        }
+                    }
+                }
+            }
+        ],
+        "depends": [],
+        "policy": {
+            "capabilities": {
+                "antispam.check@1": {
+                    "allow_callers": [
+                        "cms"
+                    ]
+                }
+            }
+        }
+    },
+    "events": [
+        {
+            "key": "antispam.blocked",
+            "description": "A request was blocked by anti-spam",
+            "available_vars": [
+                "ip",
+                "check",
+                "detail",
+                "uri"
+            ]
+        },
+        {
+            "key": "antispam.honeypot.triggered",
+            "description": "A honeypot field was filled (bot detected)",
+            "available_vars": [
+                "ip",
+                "field",
+                "uri"
+            ]
+        }
+    ],
+    "nav": [
+        {
+            "label": "Anti-Spam",
+            "url": "/admin/anti-spam",
+            "icon": "shield",
+            "roles": [
+                "admin"
+            ]
+        }
+    ]
+}

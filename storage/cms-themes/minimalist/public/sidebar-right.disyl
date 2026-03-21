@@ -1,0 +1,28 @@
+{extends "_cms_active_theme/layouts/public.disyl"}
+
+{block head}
+{if cms_head}{cms_head|raw}{/if}
+{if structured_data}{structured_data|raw}{/if}
+{/block}
+
+{block content}
+<div class="page-with-sidebar-right">
+    <article class="page-content">
+        <header class="page-header">
+            <h1 class="page-title">{content.title|default:"Untitled"}</h1>
+        </header>
+
+        <div class="page-body prose">
+            {content_html|raw}
+        </div>
+    </article>
+
+    <aside class="sidebar sidebar-right">
+        {if customized_sidebar}
+        {customized_sidebar|raw}
+        {else}
+        <p>No sidebar content.</p>
+        {/if}
+    </aside>
+</div>
+{/block}

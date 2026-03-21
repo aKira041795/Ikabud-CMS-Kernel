@@ -1,0 +1,69 @@
+{!-- Case Row Partial - Used in cases list --}
+<tr class="hover:bg-gray-50 cursor-pointer transition {if case.deleted_at}opacity-60 bg-red-50{/if}" 
+    data-case-id="{case.id}"
+    hx-get="/admin/guidance/pages/cases/{case.id}" 
+    hx-target="#main-content" 
+    hx-push-url="{base_url}/cases/{case.id}">
+    
+    <td class="px-6 py-4 whitespace-nowrap">
+        <div class="flex items-center">
+            <div class="w-10 h-10 {if case.deleted_at}bg-red-100{else}bg-indigo-100{/if} rounded-full flex items-center justify-center">
+                <span class="{if case.deleted_at}text-red-700{else}text-indigo-700{/if} font-medium">{case.student_name | first | upper}</span>
+            </div>
+            <div class="ml-4">
+                <div class="text-sm font-medium text-gray-900">{case.student_name | esc_html}</div>
+                <div class="text-sm text-gray-500">
+                    {case.student_id | esc_html}
+                    {if case.deleted_at}<span class="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-red-100 text-red-700"><i class="fas fa-trash-alt mr-1 text-[10px]"></i>Deleted</span>{/if}
+                </div>
+            </div>
+        </div>
+    </td>
+    
+    <td class="px-6 py-4 whitespace-nowrap">
+        <span class="text-sm text-gray-900">{case.case_number}</span>
+    </td>
+    
+    <td class="px-6 py-4 whitespace-nowrap">
+        {ikb_badge variant="{case.status}"}{case.status | title}{/ikb_badge}
+    </td>
+    
+    <td class="px-6 py-4 whitespace-nowrap">
+        {ikb_badge variant="{case.severity}"}{case.severity | title}{/ikb_badge}
+    </td>
+    
+    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+        {case.category | title}
+    </td>
+    
+    <td class="px-6 py-4">
+        {if case.college_code}
+        <div class="flex flex-wrap gap-1">
+            {foreach case.college_codes as code}
+            <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-indigo-50 text-indigo-700 border border-indigo-200">{code}</span>
+            {/foreach}
+        </div>
+        {else}
+        <span class="text-xs text-gray-400 italic">—</span>
+        {/if}
+    </td>
+    
+    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+        {case.counselor_name | default:'Unassigned'}
+    </td>
+    
+    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+        {case.updated_at | date:'M d, Y'}
+    </td>
+    
+    <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
+        <button class="text-gray-500 hover:text-indigo-700" 
+                onclick="event.stopPropagation();"
+                hx-get="/admin/guidance/pages/cases/{case.id}" 
+                hx-target="#main-content"
+                hx-push-url="{base_url}/cases/{case.id}"
+                title="View">
+            <i class="fas fa-eye"></i>
+        </button>
+    </td>
+</tr>

@@ -1,0 +1,170 @@
+{extends "layouts/app.disyl"}
+
+{block head}
+<style>
+    .sms-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; flex-wrap: wrap; gap: 12px; }
+    .sms-header h2 { font-size: var(--font-size-h2); font-weight: 700; }
+    .sms-badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; }
+    .sms-badge.test-mode { background: var(--warning-light); color: var(--warning); }
+
+    .sms-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
+    @media (max-width: 900px) { .sms-stats { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 640px) { .sms-stats { grid-template-columns: 1fr; } }
+    .sms-stat { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; box-shadow: var(--shadow); }
+    .sms-stat .stat-label { font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: .3px; }
+    .sms-stat .stat-value { font-size: 26px; font-weight: 700; margin-top: 4px; }
+
+    .sms-tabs { display: flex; gap: 0; border-bottom: 1px solid var(--border); padding: 0 16px; }
+    .sms-tab { padding: 10px 16px; font-size: var(--font-size-nav); font-weight: 500; color: var(--text-muted); border: none; border-bottom: 2px solid transparent; cursor: pointer; background: none; white-space: nowrap; transition: all .15s; }
+    .sms-tab:hover { color: var(--text); }
+    .sms-tab.active { color: var(--primary); border-bottom-color: var(--primary); font-weight: 600; }
+
+    .sms-search { display: flex; gap: 8px; padding: 12px 16px; background: var(--bg); border-bottom: 1px solid var(--border); }
+    .sms-search input { flex: 1; }
+
+    .sms-empty { text-align: center; padding: 48px 16px; color: var(--text-muted); }
+    .sms-empty-title { font-weight: 600; }
+    .sms-empty-sub { font-size: var(--font-size-small); margin-top: 4px; }
+
+    .hidden { display: none !important; }
+</style>
+{/block}
+
+{block content}
+<div class="sms-header">
+    <div>
+        <h2>SMS Notifications</h2>
+        <span class="text-sm text-muted">Send and track SMS messages</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px;">
+        {if sms_settings.sms_test_mode}
+        <span class="sms-badge test-mode">Test Mode</span>
+        {/if}
+        <button class="btn btn-primary" hx-get="/admin/sms/compose" hx-target="#modal-container" hx-swap="innerHTML">Compose SMS</button>
+    </div>
+</div>
+
+{!-- Stats Cards --}
+<div class="sms-stats" id="sms-stats">
+    <div class="sms-stat">
+        <div class="stat-label">Today Sent</div>
+        <div class="stat-value" style="color:var(--success)" id="stat-today-sent">&mdash;</div>
+    </div>
+    <div class="sms-stat">
+        <div class="stat-label">Today Failed</div>
+        <div class="stat-value" style="color:var(--danger)" id="stat-today-failed">&mdash;</div>
+    </div>
+    <div class="sms-stat">
+        <div class="stat-label">This Month</div>
+        <div class="stat-value" style="color:var(--primary)" id="stat-month-sent">&mdash;</div>
+    </div>
+    <div class="sms-stat">
+        <div class="stat-label">All Time</div>
+        <div class="stat-value" id="stat-total-sent">&mdash;</div>
+    </div>
+</div>
+
+{!-- Tabs + Content --}
+<div class="card">
+    <div class="sms-tabs" id="sms-tabs">
+        <button class="sms-tab active" data-tab="log" data-status="">All Messages</button>
+        <button class="sms-tab" data-tab="log" data-status="sent">Sent</button>
+        <button class="sms-tab" data-tab="log" data-status="failed">Failed</button>
+        <button class="sms-tab" data-tab="templates">Templates</button>
+        <button class="sms-tab" data-tab="settings">Settings</button>
+    </div>
+
+    <div class="sms-search" id="sms-search-bar">
+        <input type="text" id="sms-search" class="form-input" placeholder="Search by number, name, or message...">
+        <button id="sms-search-btn" class="btn btn-outline btn-sm">Search</button>
+    </div>
+
+    <div id="sms-log-container" hx-get="/api/v1/modules/sms/log" hx-trigger="load, refreshSmsLog from:body" hx-target="#sms-log-container">
+        <div style="text-align:center;padding:32px;color:var(--text-muted);">Loading SMS log...</div>
+    </div>
+
+    <div id="sms-templates-container" class="hidden"></div>
+    <div id="sms-settings-container" class="hidden"></div>
+</div>
+
+<div id="modal-container"></div>
+
+<script>
+(function() {
+    fetch('/api/v1/modules/sms/stats')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.ok) {
+            var s = data.data;
+            document.getElementById('stat-today-sent').textContent = s.today_sent || 0;
+            document.getElementById('stat-today-failed').textContent = s.today_failed || 0;
+            document.getElementById('stat-month-sent').textContent = s.month_sent || 0;
+            document.getElementById('stat-total-sent').textContent = s.total_sent || 0;
+        }
+    })
+    .catch(function() {});
+
+    document.querySelectorAll('.sms-tab').forEach(function(tab) {
+        tab.addEventListener('click', function() {
+            document.querySelectorAll('.sms-tab').forEach(function(t) { t.classList.remove('active'); });
+            this.classList.add('active');
+
+            var tabType = this.dataset.tab;
+            var logC = document.getElementById('sms-log-container');
+            var tplC = document.getElementById('sms-templates-container');
+            var setC = document.getElementById('sms-settings-container');
+            var srch = document.getElementById('sms-search-bar');
+
+            if (tabType === 'templates') {
+                logC.classList.add('hidden'); srch.classList.add('hidden'); setC.classList.add('hidden');
+                tplC.classList.remove('hidden');
+                htmx.ajax('GET', '/admin/sms/templates', {target: '#sms-templates-container', swap: 'innerHTML'});
+            } else if (tabType === 'settings') {
+                logC.classList.add('hidden'); srch.classList.add('hidden'); tplC.classList.add('hidden');
+                setC.classList.remove('hidden');
+                htmx.ajax('GET', '/admin/sms/settings', {target: '#sms-settings-container', swap: 'innerHTML'});
+            } else {
+                logC.classList.remove('hidden'); srch.classList.remove('hidden');
+                tplC.classList.add('hidden'); setC.classList.add('hidden');
+                var status = this.dataset.status || '';
+                var url = '/api/v1/modules/sms/log' + (status ? '?status=' + status : '');
+                htmx.ajax('GET', url, {target: '#sms-log-container', swap: 'innerHTML'});
+            }
+        });
+    });
+
+    var searchInput = document.getElementById('sms-search');
+    var searchBtn = document.getElementById('sms-search-btn');
+    function doSearch() {
+        var q = searchInput.value.trim();
+        var url = '/api/v1/modules/sms/log' + (q ? '?search=' + encodeURIComponent(q) : '');
+        htmx.ajax('GET', url, {target: '#sms-log-container', swap: 'innerHTML'});
+    }
+    if (searchBtn) searchBtn.addEventListener('click', doSearch);
+    if (searchInput) searchInput.addEventListener('keydown', function(e) { if (e.key === 'Enter') doSearch(); });
+
+    // Wire HTMX HX-Trigger showToast events from SMS handlers
+    document.body.addEventListener('showToast', function(e) {
+        var detail = e.detail || {};
+        if (typeof detail === 'string') { showToast(detail); }
+        else if (detail.message) { showToast(detail.message); }
+        else if (detail.value && detail.value.message) { showToast(detail.value.message); }
+    });
+
+    // Wire HTMX HX-Trigger refreshSmsLog to reload stats too
+    document.body.addEventListener('refreshSmsLog', function() {
+        fetch('/api/v1/modules/sms/stats')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.ok) {
+                var s = data.data;
+                document.getElementById('stat-today-sent').textContent = s.today_sent || 0;
+                document.getElementById('stat-today-failed').textContent = s.today_failed || 0;
+                document.getElementById('stat-month-sent').textContent = s.month_sent || 0;
+                document.getElementById('stat-total-sent').textContent = s.total_sent || 0;
+            }
+        }).catch(function() {});
+    });
+})();
+</script>
+{/block}

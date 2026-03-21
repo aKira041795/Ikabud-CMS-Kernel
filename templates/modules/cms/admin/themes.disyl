@@ -1,0 +1,213 @@
+{extends "modules/cms/layouts/admin.disyl"}
+
+{block content}
+<div class="space-y-6" x-data="cmsThemeManager()">
+    <!-- Header -->
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-900">Themes</h1>
+            <p class="mt-1 text-sm text-gray-500">Install, activate, and manage CMS themes.</p>
+        </div>
+        <div class="flex items-center gap-3">
+            <button @click="showUpload = !showUpload" class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-sky-600 rounded-lg hover:bg-sky-700 transition-colors">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+                Upload Theme
+            </button>
+        </div>
+    </div>
+
+    <!-- Upload Panel -->
+    <div x-show="showUpload" x-cloak x-transition class="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+        <h3 class="text-sm font-semibold text-gray-700 mb-3">Install Theme from ZIP</h3>
+        <p class="text-xs text-gray-500 mb-4">Upload a theme package (.zip) containing a <code class="bg-gray-100 px-1 rounded">theme.json</code> manifest. The theme will be extracted and made available for activation.</p>
+        <form @submit.prevent="uploadTheme" class="flex items-end gap-4">
+            <div class="flex-1">
+                <label class="block text-xs font-medium text-gray-600 mb-1">Theme Package (.zip)</label>
+                <input type="file" x-ref="themeFile" accept=".zip" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-sky-50 file:text-sky-700 hover:file:bg-sky-100">
+            </div>
+            <button type="submit" :disabled="uploading" class="inline-flex items-center gap-2 px-5 py-2 text-sm font-medium text-white bg-sky-600 rounded-lg hover:bg-sky-700 disabled:opacity-50 transition-colors">
+                <template x-if="uploading">
+                    <svg class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
+                </template>
+                <span x-text="uploading ? 'Installing…' : 'Install'"></span>
+            </button>
+        </form>
+        <div x-show="uploadMsg" x-cloak class="mt-3 text-sm rounded-lg px-4 py-2" :class="uploadOk ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'" x-text="uploadMsg"></div>
+    </div>
+
+    <!-- Active Theme Highlight -->
+    <div class="bg-gradient-to-r from-sky-50 to-indigo-50 border border-sky-200 rounded-xl p-5" x-show="activeThemeMeta">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 bg-sky-100 rounded-lg flex items-center justify-center">
+                <svg class="w-5 h-5 text-sky-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01"/></svg>
+            </div>
+            <div>
+                <p class="text-sm font-semibold text-sky-900">Active Theme: <span x-text="activeThemeMeta?.name || activeTheme"></span></p>
+                <p class="text-xs text-sky-700" x-show="activeThemeMeta?.version">Version <span x-text="activeThemeMeta?.version"></span> <span x-show="activeThemeMeta?.author">by <span x-text="activeThemeMeta?.author"></span></span></p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Theme Grid -->
+    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+        <template x-for="theme in themes" :key="theme.slug">
+            <div class="bg-white rounded-xl border shadow-sm overflow-hidden transition-shadow hover:shadow-md" :class="theme.slug === activeTheme ? 'border-sky-300 ring-2 ring-sky-100' : 'border-gray-200'">
+                <!-- Theme Preview Area -->
+                <div class="h-40 bg-gradient-to-br from-gray-100 to-gray-50 flex items-center justify-center relative">
+                    <div class="text-center">
+                        <svg class="w-12 h-12 text-gray-300 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01"/></svg>
+                        <p class="text-xs text-gray-400 mt-2" x-text="theme.slug"></p>
+                    </div>
+                    <div x-show="theme.slug === activeTheme" class="absolute top-3 right-3">
+                        <span class="inline-flex items-center gap-1 bg-sky-600 text-white text-[11px] font-semibold px-2.5 py-1 rounded-full">
+                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                            Active
+                        </span>
+                    </div>
+                </div>
+
+                <!-- Theme Info -->
+                <div class="p-4 border-t border-gray-100">
+                    <div class="flex items-start justify-between mb-2">
+                        <div>
+                            <h3 class="font-semibold text-gray-900 text-sm" x-text="theme.name"></h3>
+                            <p class="text-xs text-gray-500 mt-0.5">
+                                <span x-show="theme.version" x-text="'v' + theme.version"></span>
+                                <span x-show="theme.author"> · <span x-text="theme.author"></span></span>
+                            </p>
+                        </div>
+                        <span class="text-xs text-gray-400" x-text="theme.override_count + ' overrides'"></span>
+                    </div>
+                    <p class="text-xs text-gray-500 line-clamp-2 mb-3" x-text="theme.description || 'No description provided.'"></p>
+
+                    <!-- Actions -->
+                    <div class="flex items-center gap-2">
+                        <template x-if="theme.slug !== activeTheme">
+                            <button @click="activateTheme(theme.slug)" :disabled="activating" class="flex-1 text-center px-3 py-1.5 text-xs font-medium text-sky-700 bg-sky-50 rounded-lg hover:bg-sky-100 transition-colors disabled:opacity-50">
+                                Activate
+                            </button>
+                        </template>
+                        <template x-if="theme.slug === activeTheme">
+                            <span class="flex-1 text-center px-3 py-1.5 text-xs font-medium text-sky-600 bg-sky-50 rounded-lg cursor-default">
+                                Currently Active
+                            </span>
+                        </template>
+                        <template x-if="theme.slug !== activeTheme">
+                            <button @click="deleteTheme(theme)" class="px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors">
+                                Delete
+                            </button>
+                        </template>
+                    </div>
+                </div>
+            </div>
+        </template>
+    </div>
+
+    <!-- Empty State -->
+    <div x-show="themes.length === 0" class="text-center py-16 bg-white rounded-xl border border-gray-200">
+        <svg class="w-16 h-16 text-gray-300 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01"/></svg>
+        <p class="mt-4 text-sm text-gray-500">No themes installed. Upload a theme package to get started.</p>
+    </div>
+</div>
+
+<script>
+function cmsThemeManager() {
+    return {
+        themes: JSON.parse('{themes_json|raw}'),
+        activeTheme: '{active_theme}',
+        showUpload: false,
+        uploading: false,
+        activating: false,
+        uploadMsg: '',
+        uploadOk: false,
+
+        get activeThemeMeta() {
+            return this.themes.find(t => t.slug === this.activeTheme) || null;
+        },
+
+        async uploadTheme() {
+            const fileInput = this.$refs.themeFile;
+            if (!fileInput.files || !fileInput.files.length) {
+                this.uploadMsg = 'Please select a .zip file.';
+                this.uploadOk = false;
+                return;
+            }
+            this.uploading = true;
+            this.uploadMsg = '';
+            try {
+                const fd = new FormData();
+                fd.append('theme', fileInput.files[0]);
+                fd.append('_token', CMS_CSRF);
+                const res = await fetch(CMS_BASE + '/api/v1/cms/themes/upload', { method: 'POST', body: fd });
+                const data = await res.json();
+                if (data.ok) {
+                    this.uploadMsg = data.message || 'Theme installed successfully.';
+                    this.uploadOk = true;
+                    fileInput.value = '';
+                    // Reload theme list
+                    await this.reloadThemes();
+                } else {
+                    this.uploadMsg = data.error || 'Upload failed.';
+                    this.uploadOk = false;
+                }
+            } catch (e) {
+                this.uploadMsg = 'Upload failed: ' + e.message;
+                this.uploadOk = false;
+            } finally {
+                this.uploading = false;
+            }
+        },
+
+        async activateTheme(slug) {
+            if (!confirm('Activate theme "' + slug + '"? The site appearance will change.')) return;
+            this.activating = true;
+            try {
+                const fd = new FormData();
+                fd.append('slug', slug);
+                fd.append('_token', CMS_CSRF);
+                const res = await fetch(CMS_BASE + '/api/v1/cms/themes/activate', { method: 'POST', body: fd });
+                const data = await res.json();
+                if (data.ok) {
+                    this.activeTheme = slug;
+                } else {
+                    alert(data.error || 'Activation failed.');
+                }
+            } catch (e) {
+                alert('Error: ' + e.message);
+            } finally {
+                this.activating = false;
+            }
+        },
+
+        async deleteTheme(theme) {
+            if (!confirm('Delete theme "' + theme.name + '"? This cannot be undone.')) return;
+            try {
+                const fd = new FormData();
+                fd.append('_token', CMS_CSRF);
+                const res = await fetch(CMS_BASE + '/api/v1/cms/themes/' + theme.slug + '/delete', { method: 'POST', body: fd });
+                const data = await res.json();
+                if (data.ok) {
+                    this.themes = this.themes.filter(t => t.slug !== theme.slug);
+                } else {
+                    alert(data.error || 'Delete failed.');
+                }
+            } catch (e) {
+                alert('Error: ' + e.message);
+            }
+        },
+
+        async reloadThemes() {
+            try {
+                const res = await fetch(CMS_BASE + '/api/v1/cms/themes');
+                const data = await res.json();
+                if (data.ok) {
+                    this.themes = data.data || data.themes || [];
+                }
+            } catch (e) {
+                // silent
+            }
+        }
+    };
+}
+</script>
+{/block}

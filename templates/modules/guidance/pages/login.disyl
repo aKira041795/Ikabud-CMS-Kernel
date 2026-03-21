@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Guidance Sign In</title>
+    <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+    {if gui.font_url}<link href="{gui.font_url}" rel="stylesheet">{/if}
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        :root {
+            --primary: {gui.color_primary}; --primary-hover: {gui.color_primary_hover}; --primary-light: {gui.color_primary_light};
+            --bg: {gui.color_bg}; --surface: {gui.color_surface}; --border: {gui.color_border};
+            --text: {gui.color_text}; --text-muted: {gui.color_text_muted};
+        }
+        body { font-family: {gui.font_family | raw}; background: var(--bg); min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
+        .login-card { background: var(--surface); border-radius: 12px; box-shadow: 0 4px 24px rgba(0,0,0,.08); width: 100%; max-width: 420px; padding: 40px 32px; border: 1px solid var(--border); }
+        .login-logo { text-align: center; margin-bottom: 28px; }
+        .login-logo h1 { font-size: 22px; font-weight: 800; color: var(--text); }
+        .login-logo p { font-size: 13px; color: var(--text-muted); margin-top: 6px; }
+        .form-group { margin-bottom: 18px; }
+        .form-label { display: block; font-size: 13px; font-weight: 600; color: var(--text-muted); margin-bottom: 6px; }
+        .form-input { width: 100%; padding: 10px 14px; border: 1px solid var(--border); border-radius: 8px; font-size: 15px; font-family: inherit; transition: border-color .15s; }
+        .form-input:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-light); }
+        .btn-login { width: 100%; padding: 12px; background: var(--primary); color: #fff; border: none; border-radius: 8px; font-size: 15px; font-weight: 700; font-family: inherit; cursor: pointer; transition: background .15s; }
+        .btn-login:hover { background: var(--primary-hover); }
+        .btn-login:disabled { opacity: .6; cursor: not-allowed; }
+        .error-msg { background: #fee2e2; color: #dc2626; padding: 10px 14px; border-radius: 8px; font-size: 13px; margin-bottom: 16px; display: none; }
+        .error-msg.show { display: block; }
+        .hint { margin-top: 14px; font-size: 12px; color: var(--text-muted); text-align: center; }
+        .hint a { color: var(--primary); text-decoration: none; font-weight: 600; }
+        .hint a:hover { text-decoration: underline; }
+    </style>
+    {if gui.css_overrides}<style>{gui.css_overrides}</style>{/if}
+</head>
+<body>
+    <div class="login-card">
+        <div class="login-logo">
+            <h1>Guidance Portal</h1>
+            <p>Sign in with your Guidance staff account</p>
+        </div>
+
+        <div id="login-error" class="error-msg"></div>
+
+        <form id="login-form" onsubmit="return handleGuidanceLogin(event)">
+            <div class="form-group">
+                <label class="form-label" for="email">Email or Username</label>
+                <input class="form-input" type="text" id="email" name="email" autocomplete="username" required autofocus>
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="password">Password</label>
+                <input class="form-input" type="password" id="password" name="password" autocomplete="current-password" required>
+            </div>
+            <button type="submit" class="btn-login" id="login-btn">Sign In</button>
+        </form>
+
+        <div class="hint">
+            Kernel admin login is available at <a href="/login">/login</a>
+        </div>
+    </div>
+
+    <script>
+        function handleGuidanceLogin(e) {
+            e.preventDefault();
+            var btn = document.getElementById('login-btn');
+            var errEl = document.getElementById('login-error');
+            btn.disabled = true;
+            btn.textContent = 'Signing in...';
+            errEl.classList.remove('show');
+
+            var data = {
+                email: document.getElementById('email').value,
+                password: document.getElementById('password').value
+            };
+
+            fetch('/guidance/auth/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                body: JSON.stringify(data)
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(res) {
+                if (res.ok && res.redirect) {
+                    window.location.href = res.redirect;
+                } else {
+                    errEl.textContent = res.error || 'Login failed';
+                    errEl.classList.add('show');
+                    btn.disabled = false;
+                    btn.textContent = 'Sign In';
+                }
+            })
+            .catch(function() {
+                errEl.textContent = 'Network error. Please try again.';
+                errEl.classList.add('show');
+                btn.disabled = false;
+                btn.textContent = 'Sign In';
+            });
+
+            return false;
+        }
+    </script>
+</body>
+</html>

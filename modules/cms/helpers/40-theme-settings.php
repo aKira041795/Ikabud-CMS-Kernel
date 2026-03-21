@@ -1,0 +1,559 @@
+<?php
+
+declare(strict_types=1);
+
+function cmsThemesPath(): string
+{
+    return rtrim((string)(defined('STORAGE_PATH') ? STORAGE_PATH : BASE_PATH . '/storage'), '/') . '/cms-themes';
+}
+
+if (!defined('CMS_THEME_SYMLINK')) {
+    define('CMS_THEME_SYMLINK', rtrim((string)(defined('BASE_PATH') ? BASE_PATH : dirname(__DIR__, 2)), '/') . '/templates/_cms_active_theme');
+}
+
+/**
+ * Default CMS settings — used when no settings have been saved yet.
+ * Mirrors the gui-settings pattern: every key has an explicit default.
+ */
+
+function cmsSettingsDefaults(): array
+{
+    return [
+        // ── General ──────────────────────────────────
+        'site_title'           => '',
+        'site_tagline'         => '',
+        'posts_per_page'       => '10',
+
+        // ── Content ──────────────────────────────────
+        'default_post_status'  => 'draft',
+        'comments_enabled'     => '1',
+        'excerpt_length'       => '160',
+
+        // ── Media ────────────────────────────────────
+        'max_upload_mb'        => '2',
+
+        // ── SEO ──────────────────────────────────────
+        'seo_title_separator'  => '|',
+        'seo_meta_description' => '',
+        'seo_og_image'         => '',
+        'seo_robots'           => 'index, follow',
+
+        // ── Permalinks / Reading ─────────────────────
+        'homepage_type'        => 'posts',
+        'homepage_page_id'     => '',
+        'date_format'          => 'M j, Y',
+        'time_format'          => 'g:i A',
+
+        // ── Performance ──────────────────────────────
+        'cache_enabled'        => '1',
+        'cache_ttl'            => '600',
+
+        // ── Social ───────────────────────────────────
+        'social_facebook'      => '',
+        'social_twitter'       => '',
+        'social_instagram'     => '',
+        'social_youtube'       => '',
+        'social_linkedin'      => '',
+
+        // ── Theme ────────────────────────────────────
+        'active_theme'         => 'default',
+        // ── Builder ──────────────────────────────────
+        // Comma-separated list of content types that support the Page Builder
+        'builder_enabled_types'     => 'page',
+        // '1' = content built with builder cannot be edited in the classic editor
+        'builder_enforce_lock'      => '1',
+
+        // ── Comments ─────────────────────────────────
+        'default_comment_status'    => 'open',
+
+        // ── Post Formats ─────────────────────────────
+        // Comma-separated list of enabled post formats (leave empty to hide UI)
+        'enabled_post_formats'      => 'standard,aside,gallery,link,image,quote,video,audio',
+
+        // ── Media ────────────────────────────────────
+        'media_alt_required'        => '0',
+        // Comma-separated additional allowed upload extensions
+        'media_extra_allowed_exts'  => '',
+        // Enable media usage tracking (records which content uses which media)
+        'media_usage_tracking'      => '1',
+
+        // ── Reading time ─────────────────────────────
+        'reading_time_enabled'      => '1',
+        // Average words-per-minute for reading time calculation
+        'reading_time_wpm'          => '200',
+
+        // ── Permissions (JSON-encoded overrides) ──
+        'role_permissions'          => '',
+    ];
+}
+
+/**
+ * Read current CMS settings merged with defaults.
+ * Ensures every known key is always present.
+ * Result is cached in-process to avoid repeated file reads.
+ */
+
+function readCmsSettings(): array
+{
+    // In-process cache keyed by tenant so different tenants in the same
+    // process don't share each other's CMS configuration.
+    $tid = (function_exists('moduleTenantSettingsTenantId') ? moduleTenantSettingsTenantId() : null) ?? 0;
+    $cacheKey = 'cms_settings_cached_t' . $tid;
+    $valueKey = 'cms_settings_value_t' . $tid;
+    if (!empty($GLOBALS[$cacheKey])) {
+        return $GLOBALS[$valueKey];
+    }
+    $defaults = cmsSettingsDefaults();
+    $saved = getModuleSettings('cms');
+    if (!is_array($saved) || empty($saved)) {
+        $result = $defaults;
+    } else {
+        $result = array_merge($defaults, $saved);
+    }
+    $GLOBALS[$cacheKey] = true;
+    $GLOBALS[$valueKey] = $result;
+    return $result;
+}
+
+/**
+ * Clear the in-process CMS settings cache.
+ * Call after saving settings so subsequent reads pick up changes.
+ */
+
+function cmsValidateSettings(array $input): array
+{
+    $defaults = cmsSettingsDefaults();
+    $allowed = array_keys($defaults);
+    $clean = [];
+
+    foreach ($allowed as $key) {
+        if (!array_key_exists($key, $input)) {
+            continue;
+        }
+        $clean[$key] = trim((string)$input[$key]);
+    }
+
+    // Numeric fields — clamp to sensible ranges
+    if (isset($clean['posts_per_page'])) {
+        $clean['posts_per_page'] = (string)max(1, min(100, (int)$clean['posts_per_page']));
+    }
+    if (isset($clean['excerpt_length'])) {
+        $clean['excerpt_length'] = (string)max(20, min(500, (int)$clean['excerpt_length']));
+    }
+    if (isset($clean['max_upload_mb'])) {
+        $clean['max_upload_mb'] = (string)max(1, min(64, (int)$clean['max_upload_mb']));
+    }
+    if (isset($clean['cache_ttl'])) {
+        $clean['cache_ttl'] = (string)max(0, min(86400, (int)$clean['cache_ttl']));
+    }
+
+    // Boolean-ish fields
+    foreach (['comments_enabled', 'cache_enabled', 'builder_enforce_lock', 'media_alt_required', 'reading_time_enabled', 'media_usage_tracking'] as $boolKey) {
+        if (isset($clean[$boolKey])) {
+            $clean[$boolKey] = in_array($clean[$boolKey], ['1', 'true', 'yes', 'on'], true) ? '1' : '0';
+        }
+    }
+
+    // Numeric fields for new settings
+    if (isset($clean['reading_time_wpm'])) {
+        $clean['reading_time_wpm'] = (string)max(50, min(1000, (int)$clean['reading_time_wpm']));
+    }
+
+    // Enum fields
+    if (isset($clean['default_post_status']) && !in_array($clean['default_post_status'], ['draft', 'published'], true)) {
+        $clean['default_post_status'] = 'draft';
+    }
+    if (isset($clean['homepage_type']) && !in_array($clean['homepage_type'], ['posts', 'page'], true)) {
+        $clean['homepage_type'] = 'posts';
+    }
+    if (isset($clean['default_comment_status']) && !in_array($clean['default_comment_status'], ['open', 'closed'], true)) {
+        $clean['default_comment_status'] = 'open';
+    }
+
+    // builder_enabled_types: allow only known content type slugs (alphanumeric/dash/comma)
+    if (isset($clean['builder_enabled_types'])) {
+        $types = array_filter(array_map('trim', explode(',', $clean['builder_enabled_types'])));
+        $types = array_filter($types, fn($t) => (bool)preg_match('/^[a-z0-9_\-]+$/i', $t));
+        $clean['builder_enabled_types'] = implode(',', $types);
+    }
+
+    // enabled_post_formats: allow only known formats
+    $knownFormats = ['standard', 'aside', 'gallery', 'link', 'image', 'quote', 'status', 'video', 'audio', 'chat'];
+    if (isset($clean['enabled_post_formats'])) {
+        $fmts = array_filter(array_map('trim', explode(',', $clean['enabled_post_formats'])));
+        $fmts = array_filter($fmts, fn($f) => in_array($f, $knownFormats, true));
+        $clean['enabled_post_formats'] = implode(',', $fmts);
+    }
+
+    // media_extra_allowed_exts: alphanumeric only
+    if (isset($clean['media_extra_allowed_exts'])) {
+        $exts = array_filter(array_map('trim', explode(',', $clean['media_extra_allowed_exts'])));
+        $exts = array_filter($exts, fn($e) => (bool)preg_match('/^[a-z0-9]+$/', $e));
+        $clean['media_extra_allowed_exts'] = implode(',', $exts);
+    }
+    if (isset($clean['seo_robots'])) {
+        $validRobots = ['index, follow', 'noindex, follow', 'index, nofollow', 'noindex, nofollow'];
+        if (!in_array($clean['seo_robots'], $validRobots, true)) {
+            $clean['seo_robots'] = 'index, follow';
+        }
+    }
+
+    // Sanitize URL-like fields
+    foreach (['social_facebook', 'social_twitter', 'social_instagram', 'social_youtube', 'social_linkedin', 'seo_og_image'] as $urlKey) {
+        if (isset($clean[$urlKey]) && $clean[$urlKey] !== '') {
+            $clean[$urlKey] = filter_var($clean[$urlKey], FILTER_SANITIZE_URL) ?: '';
+        }
+    }
+
+    // Title separator — single char or short string
+    if (isset($clean['seo_title_separator'])) {
+        $clean['seo_title_separator'] = mb_substr($clean['seo_title_separator'], 0, 3);
+    }
+
+    return $clean;
+}
+
+/**
+ * Reset in-process CMS theme runtime caches.
+ */
+
+function cmsResetThemeRuntimeCache(): void
+{
+    $GLOBALS['cms_active_theme_cached'] = false;
+    $GLOBALS['cms_active_theme_value'] = null;
+    $GLOBALS['cms_theme_symlink_checked'] = false;
+}
+
+/**
+ * Get the active theme slug from CMS settings, or null if using default.
+ */
+
+function cmsActiveTheme(): ?string
+{
+    $cached = (bool)($GLOBALS['cms_active_theme_cached'] ?? false);
+    $theme = $GLOBALS['cms_active_theme_value'] ?? null;
+    if ($cached) {
+        return $theme;
+    }
+    $GLOBALS['cms_active_theme_cached'] = true;
+    $settings = getModuleSettings('cms');
+    $slug = trim((string)($settings['active_theme'] ?? ''));
+    if ($slug === '' || $slug === 'default') {
+        $GLOBALS['cms_active_theme_value'] = null;
+        return null;
+    }
+    // Validate the theme directory exists
+    $dir = cmsThemesPath() . '/' . $slug;
+    if (!is_dir($dir)) {
+        $GLOBALS['cms_active_theme_value'] = null;
+        return null;
+    }
+    $GLOBALS['cms_active_theme_value'] = $slug;
+    return $slug;
+}
+
+/**
+ * Discover available themes from storage/cms-themes/.
+ * Returns array of theme metadata from theme.json files.
+ */
+
+function cmsAvailableThemes(): array
+{
+    $dir = cmsThemesPath();
+    if (!is_dir($dir)) {
+        return [];
+    }
+    $themes = [];
+    foreach (scandir($dir) as $entry) {
+        if ($entry === '.' || $entry === '..') continue;
+        $themeDir = $dir . '/' . $entry;
+        if (!is_dir($themeDir)) continue;
+        $metaFile = $themeDir . '/theme.json';
+        $meta = ['slug' => $entry, 'name' => ucfirst($entry), 'version' => '1.0', 'author' => '', 'description' => ''];
+        if (is_file($metaFile)) {
+            $decoded = kernelReadJsonFile($metaFile);
+            if (!empty($decoded)) {
+                $meta = array_merge($meta, $decoded);
+            }
+        }
+        $meta['slug'] = $entry;
+        // Count override files
+        $overrides = 0;
+        foreach (['layouts/public.disyl', 'public/home.disyl', 'public/single.disyl', 'public/page.disyl'] as $tpl) {
+            if (is_file($themeDir . '/' . $tpl)) {
+                $overrides++;
+            }
+        }
+        $meta['override_count'] = $overrides;
+        $themes[] = $meta;
+    }
+    return $themes;
+}
+
+/**
+ * Path to the lock file guarding theme symlink mutations/renders.
+ */
+function cmsThemeSymlinkLockPath(): string
+{
+    $locksDir = rtrim((string)(defined('STORAGE_PATH') ? STORAGE_PATH : BASE_PATH . '/storage'), '/') . '/locks';
+    if (!is_dir($locksDir)) {
+        @mkdir($locksDir, 0775, true);
+    }
+    return $locksDir . '/cms-theme-symlink.lock';
+}
+
+/**
+ * Execute callback while holding an exclusive lock for theme symlink operations.
+ */
+function cmsWithThemeSymlinkLock(callable $callback): mixed
+{
+    $lockPath = cmsThemeSymlinkLockPath();
+    $handle = @fopen($lockPath, 'c+');
+    if (!is_resource($handle)) {
+        return $callback();
+    }
+
+    try {
+        if (@flock($handle, LOCK_EX)) {
+            return $callback();
+        }
+        return $callback();
+    } finally {
+        @flock($handle, LOCK_UN);
+        @fclose($handle);
+    }
+}
+
+/**
+ * Activate a CMS theme by creating a symlink in the templates directory.
+ * Pass null or 'default' to deactivate (remove symlink).
+ */
+
+function cmsActivateThemeSymlink(?string $slug): void
+{
+    cmsWithThemeSymlinkLock(function () use ($slug): void {
+        cmsResetThemeRuntimeCache();
+        $link = (string)CMS_THEME_SYMLINK;
+        // Remove existing symlink/file
+        if (is_link($link)) {
+            kernelDeletePath($link);
+        } elseif (is_dir($link)) {
+            kernelDeletePath($link);
+        }
+        if ($slug === null || $slug === '' || $slug === 'default') {
+            return;
+        }
+        $target = cmsThemesPath() . '/' . $slug;
+        if (is_dir($target)) {
+            @symlink($target, $link);
+        }
+        kernelFlushCodeCaches();
+    });
+}
+
+/**
+ * Ensure the theme symlink is current on each request (lightweight check).
+ */
+
+function cmsEnsureThemeSymlink(): void
+{
+    $done = (bool)($GLOBALS['cms_theme_symlink_checked'] ?? false);
+    if ($done) return;
+    $GLOBALS['cms_theme_symlink_checked'] = true;
+    $active = cmsActiveTheme();
+    $link = (string)CMS_THEME_SYMLINK;
+    if ($active === null) {
+        // No active theme — remove symlink if it exists
+        if (is_link($link)) {
+            kernelDeletePath($link);
+        }
+        return;
+    }
+    $target = cmsThemesPath() . '/' . $active;
+    // Check if symlink already points to the right place
+    if (is_link($link) && readlink($link) === $target) {
+        return;
+    }
+    // Recreate
+    cmsActivateThemeSymlink($active);
+}
+
+/**
+ * Resolve a CMS public template path, checking theme override first.
+ *
+ * Usage: cmsResolveTemplate('public/single.disyl')
+ * This checks:
+ *   1. _cms_active_theme/{subPath} (symlink to active theme)
+ *   2. modules/cms/{subPath} (default)
+ *
+ * Returns a path relative to templates/ that the kernel TemplateEngine can resolve.
+ * Only public templates are themeable — admin templates always use defaults.
+ */
+
+function cmsResolveTemplate(string $subPath): string
+{
+    $default = 'modules/cms/' . $subPath;
+    $activeTheme = cmsActiveTheme();
+    if ($activeTheme === null) {
+        return $default;
+    }
+    cmsEnsureThemeSymlink();
+    // Check if theme override exists via the symlink
+    $overridePath = (string)CMS_THEME_SYMLINK . '/' . $subPath;
+    if (is_file($overridePath)) {
+        return '_cms_active_theme/' . $subPath;
+    }
+    return $default;
+}
+
+/**
+ * Render a resolved template path that may depend on the active theme symlink.
+ */
+function cmsRenderThemeAwareTemplate(string $template, array $context = []): string
+{
+    if (!str_starts_with($template, '_cms_active_theme/')) {
+        return cmsRender($template, $context);
+    }
+
+    return cmsWithThemeSymlinkLock(function () use ($template, $context): string {
+        // Force re-verification inside the lock — another process may have
+        // changed the shared symlink between cmsResolveTemplate() and here.
+        $GLOBALS['cms_theme_symlink_checked'] = false;
+        cmsEnsureThemeSymlink();
+        return cmsRender($template, $context);
+    });
+}
+
+/**
+ * Render a CMS public template with theme override support.
+ * Wraps app()->render() with theme-aware template resolution.
+ */
+
+function cmsPublicRender(string $subPath, array $context = []): string
+{
+    return cmsWithThemeSymlinkLock(function () use ($subPath, $context): string {
+        $template = cmsResolveTemplate($subPath);
+        return cmsRender($template, $context);
+    });
+}
+
+/**
+ * Resolve a public URL for an active theme asset with safe fallback.
+ * Falls back to native-default when the active theme asset is missing.
+ */
+function cmsThemeAssetUrl(string $assetPath, string $baseUrl = ''): string
+{
+    $assetPath = ltrim(trim($assetPath), '/');
+    if ($assetPath === '') {
+        return '';
+    }
+
+    $basePath = rtrim((string)(defined('BASE_PATH') ? BASE_PATH : dirname(__DIR__, 2)), '/');
+    $active = cmsActiveTheme() ?? 'native-default';
+
+    $activePublicFile = $basePath . '/public/assets/cms/themes/' . $active . '/' . $assetPath;
+    if (is_file($activePublicFile)) {
+        return rtrim($baseUrl, '/') . '/assets/cms/themes/' . rawurlencode($active) . '/' . str_replace('%2F', '/', rawurlencode($assetPath));
+    }
+
+    $fallback = 'native-default';
+    $fallbackPublicFile = $basePath . '/public/assets/cms/themes/' . $fallback . '/' . $assetPath;
+    if (is_file($fallbackPublicFile)) {
+        return rtrim($baseUrl, '/') . '/assets/cms/themes/' . rawurlencode($fallback) . '/' . str_replace('%2F', '/', rawurlencode($assetPath));
+    }
+
+    return '';
+}
+
+function cmsSidebarTemplateKeyFromPath(string $templatePath, string $fallback = 'home'): string
+{
+    $base = strtolower((string)pathinfo($templatePath, PATHINFO_FILENAME));
+    $base = preg_replace('/[^a-z0-9_\-]/', '', $base ?? '') ?: '';
+    if ($base === '') {
+        $fallback = preg_replace('/[^a-z0-9_\-]/', '', strtolower($fallback)) ?: 'home';
+        return $fallback;
+    }
+    return $base;
+}
+
+function cmsSidebarTemplateTargets(): array
+{
+    $targets = [];
+
+    $activeTheme = cmsActiveTheme();
+    if ($activeTheme !== null) {
+        $dir = cmsThemesPath() . '/' . $activeTheme . '/public';
+    } else {
+        $native = cmsThemesPath() . '/native-default/public';
+        $dir = is_dir($native) ? $native : ((defined('BASE_PATH') ? BASE_PATH : dirname(__DIR__, 2)) . '/templates/modules/cms/public');
+    }
+
+    if (is_dir($dir)) {
+        foreach (glob($dir . '/*.disyl') ?: [] as $file) {
+            $key = cmsSidebarTemplateKeyFromPath((string)$file, 'home');
+            if ($key === 'sidebar') continue;
+            $targets[$key] = [
+                'key' => $key,
+                'label' => ucwords(str_replace(['-', '_'], ' ', $key)) . ' Template',
+            ];
+        }
+    }
+
+    if (empty($targets)) {
+        $targets = [
+            'home' => ['key' => 'home', 'label' => 'Home Template'],
+            'archive' => ['key' => 'archive', 'label' => 'Archive Template'],
+            'single' => ['key' => 'single', 'label' => 'Single Template'],
+            'page' => ['key' => 'page', 'label' => 'Page Template'],
+            'search' => ['key' => 'search', 'label' => 'Search Template'],
+        ];
+    }
+
+    $preferred = ['home', 'archive', 'single', 'page', 'search'];
+    $ordered = [];
+    foreach ($preferred as $key) {
+        if (isset($targets[$key])) $ordered[] = $targets[$key];
+    }
+    foreach ($targets as $key => $target) {
+        if (!in_array($key, $preferred, true)) $ordered[] = $target;
+    }
+
+    return $ordered;
+}
+
+function cmsSidebarThemeTemplateExists(): bool
+{
+    $resolved = cmsResolveTemplate('public/sidebar.disyl');
+    $basePath = (string)(defined('BASE_PATH') ? BASE_PATH : dirname(__DIR__, 2));
+    $absolute = rtrim($basePath, '/') . '/templates/' . ltrim($resolved, '/');
+    return is_file($absolute);
+}
+
+/**
+ * Build common render context for CMS admin templates.
+ * Provides cms_user_display, cms_user_role, current_page for the admin layout.
+ */
+
+function cmsAdminContext(array $user, string $currentPage = '', array $breadcrumbs = []): array
+{
+    $source = (string)($user['source'] ?? '');
+    $role   = (string)($user['role'] ?? '');
+    $name   = (string)($user['full_name'] ?? $user['username'] ?? $user['name'] ?? 'User');
+
+    if ($source === 'kernel' && $role === 'admin') {
+        $displayRole = 'Kernel Admin';
+    } else {
+        $displayRole = ucfirst($role);
+    }
+
+    $baseUrl = rtrim((string)(defined('BASE_URL') ? BASE_URL : ''), '/');
+    $defaultCrumbs = [['label' => 'Dashboard', 'url' => $baseUrl . '/cms/admin']];
+
+    return [
+        'cms_user_display' => $name,
+        'cms_user_role'    => $displayRole,
+        'current_page'     => $currentPage,
+        'ext_nav_items'    => cmsGetExtensionNavItems(),
+        'breadcrumbs'      => !empty($breadcrumbs) ? array_merge($defaultCrumbs, $breadcrumbs) : $defaultCrumbs,
+    ];
+}

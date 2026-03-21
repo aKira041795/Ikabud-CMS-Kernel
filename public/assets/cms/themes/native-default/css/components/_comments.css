@@ -1,0 +1,82 @@
+/**
+ * Comments Section
+ * Native Default Theme v2.1.0
+ */
+
+.comments-section {
+    margin-top: var(--spacing-2xl);
+    padding-top: var(--spacing-xl);
+    border-top: 1px solid var(--color-border);
+}
+
+.comments-title {
+    font-size: var(--font-size-xl);
+    margin-bottom: var(--spacing-lg);
+}
+
+.comment-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.comment {
+    padding: var(--spacing-lg) 0;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.comment:last-child {
+    border-bottom: none;
+}
+
+.comment-author {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    margin-bottom: var(--spacing-sm);
+}
+
+.comment-author-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: var(--border-radius-full);
+    object-fit: cover;
+}
+
+.comment-author-name {
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+.comment-date {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-light);
+}
+
+.comment-content {
+    font-size: var(--font-size-base);
+    line-height: 1.7;
+    color: var(--color-text);
+}
+
+.comment-reply-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    margin-top: var(--spacing-sm);
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+    color: var(--color-primary);
+}
+
+/* Nested comments */
+.comment .children {
+    list-style: none;
+    margin: var(--spacing-md) 0 0 var(--spacing-xl);
+    padding: 0;
+}
+
+.comment .children .comment {
+    border-left: 2px solid var(--color-border);
+    padding-left: var(--spacing-lg);
+}

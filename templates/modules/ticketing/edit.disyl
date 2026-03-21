@@ -1,0 +1,55 @@
+{extends "layouts/app"}
+
+{block content}
+<div class="flex justify-between items-center mb-4">
+    <h1 style="font-size: var(--font-size-h1); font-weight: 700;">Edit {ticket.ticket_no}</h1>
+    <a href="{base_url}/tickets/{ticket.id}" class="btn btn-outline" hx-boost="true">← Back</a>
+</div>
+
+<div class="card" style="max-width: 700px;">
+    <div class="card-header">Edit Ticket</div>
+    <div class="card-body">
+        <form hx-post="{base_url}/api/v1/tickets/update" hx-target="body">
+            <input type="hidden" name="_token" value="{csrf_token}">
+            <input type="hidden" name="ticket_id" value="{ticket.id}">
+
+            <div class="form-group">
+                <label class="form-label">Subject *</label>
+                <input type="text" name="subject" class="form-input" required value="{ticket.subject}" autofocus>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Description</label>
+                <textarea name="description" class="form-input" rows="5" style="resize: vertical;">{ticket.description}</textarea>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                <div class="form-group">
+                    <label class="form-label">Priority</label>
+                    <select name="priority" class="form-input">
+                        <option value="low" {if ticket.priority == 'low'}selected{/if}>Low</option>
+                        <option value="medium" {if ticket.priority == 'medium'}selected{/if}>Medium</option>
+                        <option value="high" {if ticket.priority == 'high'}selected{/if}>High</option>
+                        <option value="urgent" {if ticket.priority == 'urgent'}selected{/if}>Urgent</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Assign To</label>
+                    <select name="assigned_to" class="form-input">
+                        <option value="">— Unassigned —</option>
+                        {foreach users as u}
+                        <option value="{u.id}" {if u.id == ticket.assigned_to}selected{/if}>{u.full_name} ({u.role})</option>
+                        {/foreach}
+                    </select>
+                </div>
+            </div>
+
+            <div style="display: flex; gap: 10px; margin-top: 8px;">
+                <button type="submit" class="btn btn-primary">Save Changes</button>
+                <a href="{base_url}/tickets/{ticket.id}" class="btn btn-outline" hx-boost="true">Cancel</a>
+            </div>
+        </form>
+    </div>
+</div>
+{/block}

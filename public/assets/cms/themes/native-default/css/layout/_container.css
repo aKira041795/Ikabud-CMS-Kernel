@@ -1,0 +1,47 @@
+/**
+ * Container & Grid System
+ * Native Default Theme v2.1.0
+ */
+
+.container {
+    max-width: var(--container-width);
+    margin: 0 auto;
+    padding: 0 var(--container-padding);
+}
+
+.container--narrow {
+    max-width: var(--container-narrow);
+}
+
+.container--wide {
+    max-width: var(--container-wide);
+}
+
+.site-content {
+    flex: 1;
+    min-height: 50vh;
+}
+
+.content-area {
+    padding: var(--spacing-2xl) 0 var(--spacing-3xl);
+}
+
+.content-area.has-sidebar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) var(--sidebar-width, 280px);
+    gap: var(--sidebar-gap, 3rem);
+}
+
+.content-area.has-sidebar.sidebar-left {
+    grid-template-columns: var(--sidebar-width, 300px) 1fr;
+}
+
+@media (max-width: 1024px) {
+    .content-area.has-sidebar {
+        grid-template-columns: 1fr;
+    }
+    
+    .content-area.has-sidebar.sidebar-left .sidebar {
+        order: 2;
+    }
+}

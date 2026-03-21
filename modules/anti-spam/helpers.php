@@ -1,0 +1,285 @@
+<?php
+/**
+ * Anti-Spam Module — Helpers
+ *
+ * Core anti-spam checking functions.
+ * Other modules call antispamCheck() to validate incoming requests.
+ */
+
+declare(strict_types=1);
+
+// ── Public API ────────────────────────────────────────────────────────────
+
+/**
+ * Run all enabled anti-spam checks against the current request.
+ *
+ * @param  string $body  Optional request body text to scan for blocked keywords.
+ * @return array{pass: bool, check: string, detail: string}
+ */
+function antispamCheck(string $body = ''): array
+{
+    $ip = antispamClientIp();
+
+    $settings = antispamGetSettings();
+    if (($settings['enabled'] ?? '1') !== '1') {
+        return ['pass' => true, 'check' => 'disabled', 'detail' => ''];
+    }
+
+    // 1. IP block check
+    if (antispamIsIpBlocked($ip)) {
+        antispamLog($ip, 'ip_block', 'fail', 'Blocked IP');
+        antispamFireEvent('antispam.blocked', ['ip' => $ip, 'check' => 'ip_block', 'detail' => 'Blocked IP address', 'uri' => $_SERVER['REQUEST_URI'] ?? '']);
+        return ['pass' => false, 'check' => 'ip_block', 'detail' => 'Blocked IP address'];
+    }
+
+    // 2. Rate limit check
+    if (($settings['rate_limit_enabled'] ?? '1') === '1') {
+        $window = max(1, (int)($settings['rate_limit_window'] ?? 60));
+        $max    = max(1, (int)($settings['rate_limit_max']    ?? 10));
+        if (antispamIsRateLimited($ip, $window, $max)) {
+            antispamLog($ip, 'rate_limit', 'fail', ">{$max} requests in {$window}s");
+            antispamFireEvent('antispam.blocked', ['ip' => $ip, 'check' => 'rate_limit', 'detail' => 'Rate limit exceeded', 'uri' => $_SERVER['REQUEST_URI'] ?? '']);
+            return ['pass' => false, 'check' => 'rate_limit', 'detail' => 'Rate limit exceeded'];
+        }
+    }
+
+    // 3. Keyword blocklist
+    if ($body !== '' && ($settings['keyword_block_enabled'] ?? '1') === '1') {
+        $keywords = array_filter(array_map('trim', explode(',', $settings['blocked_keywords'] ?? '')));
+        $matched  = antispamMatchesKeywords($body, $keywords);
+        if ($matched !== null) {
+            antispamLog($ip, 'keyword', 'fail', "Matched: {$matched}");
+            antispamFireEvent('antispam.blocked', ['ip' => $ip, 'check' => 'keyword', 'detail' => "Matched: {$matched}", 'uri' => $_SERVER['REQUEST_URI'] ?? '']);
+            return ['pass' => false, 'check' => 'keyword', 'detail' => 'Blocked content detected'];
+        }
+    }
+
+    antispamLog($ip, 'rate_limit', 'pass', '');
+    return ['pass' => true, 'check' => 'all', 'detail' => ''];
+}
+
+/**
+ * Honeypot check — call this on form submissions.
+ * Returns true if the submission looks like a bot (honeypot field was filled).
+ */
+function antispamHoneypotTriggered(array $input, string $fieldName = '_hp_name'): bool
+{
+    $settings = antispamGetSettings();
+    if (($settings['honeypot_enabled'] ?? '1') !== '1') {
+        return false;
+    }
+
+    $triggered = !empty($input[$fieldName]);
+    if ($triggered) {
+        $ip = antispamClientIp();
+        antispamLog($ip, 'honeypot', 'fail', "Field: {$fieldName}");
+        antispamFireEvent('antispam.honeypot.triggered', ['ip' => $ip, 'field' => $fieldName, 'uri' => $_SERVER['REQUEST_URI'] ?? '']);
+    }
+    return $triggered;
+}
+
+// ── Settings ──────────────────────────────────────────────────────────────
+
+function antispamGetSettings(): array
+{
+    // Cache keyed by tenant ID so different tenants in the same process
+    // don't share each other's antispam configuration.
+    static $cache = [];
+    $tid = (function_exists('moduleTenantSettingsTenantId') ? moduleTenantSettingsTenantId() : null) ?? 0;
+    if (array_key_exists($tid, $cache)) return $cache[$tid];
+
+    try {
+        $ctx = module();
+        $db  = $ctx ? $ctx->db() : app()->db();
+        $stmt = $db->query('SELECT setting_key, setting_value FROM antispam_settings');
+        $rows = $stmt->fetchAll(\PDO::FETCH_KEY_PAIR);
+        $cache[$tid] = $rows ?: [];
+    } catch (\Throwable $e) {
+        $cache[$tid] = [];
+    }
+    return $cache[$tid];
+}
+
+function antispamSaveSetting(string $key, string $value): void
+{
+    $ctx = module();
+    $db  = $ctx ? $ctx->db() : app()->db();
+    $stmt = $db->prepare('INSERT INTO antispam_settings (setting_key, setting_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)');
+    $stmt->execute([$key, $value]);
+}
+
+// ── IP Blocking ───────────────────────────────────────────────────────────
+
+function antispamIsIpBlocked(string $ip): bool
+{
+    $ctx = module();
+    $db  = $ctx ? $ctx->db() : app()->db();
+    $stmt = $db->prepare(
+        'SELECT id FROM antispam_blocked_ips WHERE ip_address = ? AND (is_permanent = 1 OR blocked_until > NOW())'
+    );
+    $stmt->execute([$ip]);
+    if ($stmt->fetch()) {
+        // Increment hit counter
+        $db->prepare('UPDATE antispam_blocked_ips SET hits = hits + 1 WHERE ip_address = ?')->execute([$ip]);
+        return true;
+    }
+    return false;
+}
+
+function antispamBlockIp(string $ip, string $reason, ?int $durationMinutes = null): void
+{
+    $ctx = module();
+    $db  = $ctx ? $ctx->db() : app()->db();
+
+    $permanent   = $durationMinutes === null ? 1 : 0;
+    $blockedUntil = $durationMinutes !== null
+        ? date('Y-m-d H:i:s', time() + $durationMinutes * 60)
+        : null;
+
+    $stmt = $db->prepare(
+        'INSERT INTO antispam_blocked_ips (ip_address, reason, blocked_until, is_permanent) VALUES (?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE reason = VALUES(reason), blocked_until = VALUES(blocked_until), is_permanent = VALUES(is_permanent)'
+    );
+    $stmt->execute([$ip, $reason, $blockedUntil, $permanent]);
+}
+
+function antispamUnblockIp(string $ip): void
+{
+    $ctx = module();
+    $db  = $ctx ? $ctx->db() : app()->db();
+    $db->prepare('DELETE FROM antispam_blocked_ips WHERE ip_address = ?')->execute([$ip]);
+}
+
+// ── Rate Limiting ─────────────────────────────────────────────────────────
+
+function antispamIsRateLimited(string $ip, int $windowSeconds, int $maxRequests): bool
+{
+    $ctx = module();
+    $db  = $ctx ? $ctx->db() : app()->db();
+    $stmt = $db->prepare(
+        'SELECT COUNT(*) FROM antispam_log WHERE ip_address = ? AND created_at >= DATE_SUB(NOW(), INTERVAL ? SECOND)'
+    );
+    $stmt->execute([$ip, $windowSeconds]);
+    return (int)$stmt->fetchColumn() >= $maxRequests;
+}
+
+// ── Keyword Matching ──────────────────────────────────────────────────────
+
+function antispamMatchesKeywords(string $text, array $keywords): ?string
+{
+    $lower = mb_strtolower($text);
+    foreach ($keywords as $kw) {
+        if ($kw !== '' && mb_strpos($lower, mb_strtolower($kw)) !== false) {
+            return $kw;
+        }
+    }
+    return null;
+}
+
+// ── Logging ───────────────────────────────────────────────────────────────
+
+function antispamLog(string $ip, string $checkType, string $result, string $detail): void
+{
+    try {
+        $ctx = module();
+        $db  = $ctx ? $ctx->db() : app()->db();
+        $uri = $_SERVER['REQUEST_URI'] ?? '';
+        $stmt = $db->prepare(
+            'INSERT INTO antispam_log (ip_address, request_uri, check_type, result, detail) VALUES (?, ?, ?, ?, ?)'
+        );
+        $stmt->execute([$ip, substr($uri, 0, 500), $checkType, $result, substr($detail, 0, 500)]);
+    } catch (\Throwable $e) {
+        // Silently fail — logging should never break the request
+    }
+}
+
+// ── Utilities ─────────────────────────────────────────────────────────────
+
+function antispamClientIp(): string
+{
+    // Prefer X-Forwarded-For behind proxies, fall back to REMOTE_ADDR
+    $forwarded = $_SERVER['HTTP_X_FORWARDED_FOR'] ?? '';
+    if ($forwarded !== '') {
+        $parts = explode(',', $forwarded);
+        $ip = trim($parts[0]);
+        if (filter_var($ip, FILTER_VALIDATE_IP)) {
+            return $ip;
+        }
+    }
+    return $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
+}
+
+// ── Kernel Integration ───────────────────────────────────────────────────
+
+/**
+ * Fire a kernel event if kernelEmitEvent is available.
+ * Non-fatal — event firing must never break the spam check itself.
+ */
+function antispamFireEvent(string $event, array $payload): void
+{
+    if (!function_exists('kernelEmitEvent')) {
+        return;
+    }
+    try {
+        kernelEmitEvent($event, $payload, 'anti-spam');
+    } catch (\Throwable $e) {
+        write_log('antispamFireEvent error: ' . $e->getMessage(), 'warning', ['event' => $event]);
+    }
+}
+
+/**
+ * Capability export function — auto-discovered by the module manager.
+ * Exposes antispam.check@1 to the kernel capability bus.
+ *
+ * @return array<string, callable>
+ */
+function anti_spam_capability_handlers(): array
+{
+    return [
+        'antispam.check@1' => 'anti_spam_cap_antispam_check_1',
+    ];
+}
+
+/**
+ * Capability handler for antispam.check@1.
+ *
+ * Payload: { body?: string, ip?: string }
+ * Returns: { pass: bool, check: string, detail: string }
+ */
+function anti_spam_cap_antispam_check_1(mixed $payload, string $capabilityId = '', string $providerId = ''): array
+{
+    if (!is_array($payload)) {
+        return ['pass' => true, 'check' => 'skipped', 'detail' => 'Invalid payload type'];
+    }
+    $body = isset($payload['body']) ? (string)$payload['body'] : '';
+    return antispamCheck($body);
+}
+
+// ── Stats (for dashboard) ─────────────────────────────────────────────────
+
+function antispamGetStats(): array
+{
+    $ctx = module();
+    $db  = $ctx ? $ctx->db() : app()->db();
+
+    $today = date('Y-m-d');
+
+    $blocked = (int)$db->query('SELECT COUNT(*) FROM antispam_blocked_ips WHERE is_permanent = 1 OR blocked_until > NOW()')->fetchColumn();
+
+    $stmt = $db->prepare('SELECT COUNT(*) FROM antispam_log WHERE result = ? AND created_at >= ?');
+    $stmt->execute(['fail', $today . ' 00:00:00']);
+    $blockedToday = (int)$stmt->fetchColumn();
+
+    $stmt2 = $db->prepare('SELECT COUNT(*) FROM antispam_log WHERE result = ? AND created_at >= ?');
+    $stmt2->execute(['pass', $today . ' 00:00:00']);
+    $passedToday = (int)$stmt2->fetchColumn();
+
+    $totalLog = (int)$db->query('SELECT COUNT(*) FROM antispam_log')->fetchColumn();
+
+    return [
+        'blocked_ips'    => $blocked,
+        'blocked_today'  => $blockedToday,
+        'passed_today'   => $passedToday,
+        'total_log'      => $totalLog,
+    ];
+}

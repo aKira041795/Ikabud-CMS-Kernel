@@ -1,0 +1,173 @@
+{extends "modules/guidance/layouts/app.disyl"}
+
+{block content}
+{!-- Settings Page --}
+
+{ikb_section padding="none"}
+    
+    {!-- Page Header --}
+    <div class="mb-6">
+        <h1 class="text-2xl font-bold text-gray-900">Settings</h1>
+        <p class="text-sm text-gray-500 mt-1">Configure system preferences</p>
+    </div>
+    
+    <div class="flex gap-6">
+        {!-- Sidebar Navigation --}
+        <div class="w-56 flex-shrink-0 hidden lg:block">
+            <nav id="settings-nav" class="space-y-1 sticky top-6">
+                <a href="#general" data-section="general" class="settings-nav-link flex items-center px-4 py-2.5 text-sm font-medium rounded-lg transition bg-indigo-50 text-indigo-700">
+                    <i class="fas fa-cog w-5 text-center"></i>
+                    <span class="ml-3">General</span>
+                </a>
+                <a href="#working-hours" data-section="working-hours" class="settings-nav-link flex items-center px-4 py-2.5 text-sm font-medium rounded-lg transition text-gray-600 hover:bg-gray-50">
+                    <i class="fas fa-clock w-5 text-center"></i>
+                    <span class="ml-3">Working Hours</span>
+                </a>
+                <a href="#notifications" data-section="notifications" class="settings-nav-link flex items-center px-4 py-2.5 text-sm font-medium rounded-lg transition text-gray-600 hover:bg-gray-50">
+                    <i class="fas fa-bell w-5 text-center"></i>
+                    <span class="ml-3">Notifications</span>
+                </a>
+                <a href="#retention" data-section="retention" class="settings-nav-link flex items-center px-4 py-2.5 text-sm font-medium rounded-lg transition text-gray-600 hover:bg-gray-50">
+                    <i class="fas fa-archive w-5 text-center"></i>
+                    <span class="ml-3">Data Retention</span>
+                </a>
+                <a href="#security" data-section="security" class="settings-nav-link flex items-center px-4 py-2.5 text-sm font-medium rounded-lg transition text-gray-600 hover:bg-gray-50">
+                    <i class="fas fa-shield-alt w-5 text-center"></i>
+                    <span class="ml-3">Security / 2FA</span>
+                </a>
+            </nav>
+        </div>
+        
+        {!-- Settings Form --}
+        <div class="flex-1 min-w-0">
+            <form hx-put="/admin/guidance/api/settings" hx-swap="none" class="space-y-5">
+                
+                {!-- General Settings --}
+                <div id="general" class="bg-white rounded-xl shadow-sm border border-gray-100 p-6 settings-section">
+                    <h2 class="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                        <i class="fas fa-cog mr-2 text-indigo-500"></i> General Settings
+                    </h2>
+                    
+                    <h3 class="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">
+                        <i class="fas fa-globe mr-1"></i> Location &amp; Timezone
+                    </h3>
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Country</label>
+                            <input type="text" name="app_country" value="{settings.app_country}" class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" />
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Region / City</label>
+                            <input type="text" name="app_region" value="{settings.app_region}" class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" />
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Timezone</label>
+                            <input type="text" name="app_timezone" value="{settings.app_timezone}" class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" />
+                        </div>
+                    </div>
+                    
+                    <h3 class="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">
+                        <i class="fas fa-calendar-check mr-1"></i> Appointments
+                    </h3>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Appointment Slot Duration (minutes)</label>
+                            <input type="number" name="appointment_slot_minutes" value="{settings.appointment_slot_minutes}" class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" />
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Max Appointments Per Day</label>
+                            <input type="number" name="max_appointments_per_day" value="{settings.max_appointments_per_day}" class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" />
+                        </div>
+                    </div>
+                </div>
+                
+                {!-- Working Hours --}
+                <div id="working-hours" class="bg-white rounded-xl shadow-sm border border-gray-100 p-6 settings-section">
+                    <h2 class="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                        <i class="fas fa-clock mr-2 text-indigo-500"></i> Working Hours
+                    </h2>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Start Time</label>
+                            <input type="time" name="working_hours_start" value="{settings.working_hours_start}" class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" />
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">End Time</label>
+                            <input type="time" name="working_hours_end" value="{settings.working_hours_end}" class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" />
+                        </div>
+                    </div>
+                </div>
+                
+                {!-- Notifications --}
+                <div id="notifications" class="bg-white rounded-xl shadow-sm border border-gray-100 p-6 settings-section">
+                    <h2 class="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                        <i class="fas fa-bell mr-2 text-indigo-500"></i> Notifications
+                    </h2>
+                    <div class="space-y-4">
+                        <div class="max-w-xs">
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Reminder Hours Before Appointment</label>
+                            <input type="number" name="reminder_hours_before" value="{settings.reminder_hours_before}" class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" />
+                        </div>
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="hidden" name="email_notifications" value="0">
+                            <input type="checkbox" name="email_notifications" value="1" {if settings.email_notifications == '1'}checked{/if} class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                            <span class="text-sm text-gray-700">Send email notifications</span>
+                        </label>
+                    </div>
+                </div>
+                
+                {!-- Data Retention --}
+                <div id="retention" class="bg-white rounded-xl shadow-sm border border-gray-100 p-6 settings-section">
+                    <h2 class="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                        <i class="fas fa-archive mr-2 text-indigo-500"></i> Data Retention
+                    </h2>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Active Cases Retention (years)</label>
+                            <input type="number" name="retention_active_years" value="{settings.retention_active_years}" class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" />
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Closed Cases Retention (years)</label>
+                            <input type="number" name="retention_closed_years" value="{settings.retention_closed_years}" class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" />
+                        </div>
+                    </div>
+                </div>
+                
+                {!-- Security / 2FA --}
+                <div id="security" class="bg-white rounded-xl shadow-sm border border-gray-100 p-6 settings-section">
+                    <h2 class="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                        <i class="fas fa-shield-alt mr-2 text-indigo-500"></i> Security / Two-Factor Authentication
+                    </h2>
+                    <p class="text-sm text-gray-500 mb-4">When enabled, a 6-digit verification code will be sent via email before completing the action.</p>
+                    <div class="space-y-3">
+                        <label class="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition cursor-pointer">
+                            <div>
+                                <span class="text-sm font-medium text-gray-700">2FA for Staff Login</span>
+                                <p class="text-xs text-gray-500 mt-0.5">Require OTP email verification when staff members log in</p>
+                            </div>
+                            <input type="hidden" name="two_fa_login" value="0">
+                            <input type="checkbox" name="two_fa_login" value="1" {if settings.two_fa_login == '1'}checked{/if} class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 h-5 w-5">
+                        </label>
+                        <label class="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition cursor-pointer">
+                            <div>
+                                <span class="text-sm font-medium text-gray-700">2FA for Online Booking</span>
+                                <p class="text-xs text-gray-500 mt-0.5">Require students to verify their email with OTP before submitting a booking</p>
+                            </div>
+                            <input type="hidden" name="two_fa_booking" value="0">
+                            <input type="checkbox" name="two_fa_booking" value="1" {if settings.two_fa_booking == '1'}checked{/if} class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 h-5 w-5">
+                        </label>
+                    </div>
+                </div>
+
+                <div class="flex justify-end sticky bottom-4">
+                    <button type="submit" class="inline-flex items-center px-6 py-2.5 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition shadow-lg shadow-indigo-200">
+                        <i class="fas fa-save mr-2"></i> Save Settings
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+{/ikb_section}
+
+{/block}

@@ -1,0 +1,115 @@
+{extends "layouts/app.disyl"}
+
+{block head}
+<style>
+    .as-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:20px; }
+    .as-header h2 { font-size:var(--font-size-h2,1.5rem); font-weight:700; }
+    .as-tabs { display:flex; gap:4px; margin-bottom:24px; }
+    .as-tabs a { padding:8px 16px; border-radius:6px; font-size:14px; font-weight:500; color:var(--text-muted,#666); text-decoration:none; }
+    .as-tabs a:hover { background:var(--surface-hover,#f1f1f1); }
+    .as-tabs a.active { background:var(--primary,#2563eb); color:#fff; }
+    .as-filter { display:flex; gap:8px; margin-bottom:16px; }
+    .as-filter a { padding:6px 14px; border-radius:5px; font-size:13px; text-decoration:none; color:var(--text-muted,#666); border:1px solid var(--border,#e5e7eb); }
+    .as-filter a.active { background:var(--primary,#2563eb); color:#fff; border-color:var(--primary,#2563eb); }
+    .badge-fail { display:inline-block; padding:2px 8px; border-radius:9999px; font-size:11px; font-weight:600; background:#fef2f2; color:#dc2626; }
+    .badge-pass { display:inline-block; padding:2px 8px; border-radius:9999px; font-size:11px; font-weight:600; background:#f0fdf4; color:#16a34a; }
+    .as-pager { display:flex; align-items:center; gap:12px; justify-content:center; margin-top:16px; padding:12px; }
+    .as-pager a { padding:6px 12px; border:1px solid var(--border,#e5e7eb); border-radius:5px; font-size:13px; text-decoration:none; color:var(--text,#333); }
+    .as-pager a:hover { background:var(--surface-hover,#f1f1f1); }
+    .text-sm { font-size:13px; }
+    .text-muted { color:var(--text-muted,#888); }
+</style>
+{/block}
+
+{block content}
+<div class="as-header">
+    <div>
+        <h2>🛡️ Anti-Spam</h2>
+        <span class="text-sm text-muted">Activity log — {total} entries</span>
+    </div>
+    <button class="btn btn-outline btn-sm" onclick="clearLog()">Clear Old Entries</button>
+</div>
+
+<div class="as-tabs">
+    <a href="/admin/anti-spam">Dashboard</a>
+    <a href="/admin/anti-spam/log" class="active">Log</a>
+    <a href="/admin/anti-spam/blocked">Blocked IPs</a>
+    <a href="/admin/anti-spam/settings">Settings</a>
+</div>
+
+<div class="as-filter">
+    <a href="/admin/anti-spam/log?filter=all" class="{if filter == "all"}active{/if}">All</a>
+    <a href="/admin/anti-spam/log?filter=fail" class="{if filter == "fail"}active{/if}">Blocked</a>
+    <a href="/admin/anti-spam/log?filter=pass" class="{if filter == "pass"}active{/if}">Passed</a>
+</div>
+
+<div class="card">
+    <div class="card-body" style="padding:0;">
+        {if entries | count > 0}
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Time</th>
+                        <th>IP Address</th>
+                        <th>URI</th>
+                        <th>Check</th>
+                        <th>Result</th>
+                        <th>Detail</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {foreach entries as entry}
+                    <tr>
+                        <td class="text-sm">{entry.created_at}</td>
+                        <td><code>{entry.ip_address}</code></td>
+                        <td class="text-sm text-muted" style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{entry.request_uri}</td>
+                        <td class="text-sm">{entry.check_type}</td>
+                        <td>
+                            {if entry.result == "fail"}
+                                <span class="badge-fail">BLOCKED</span>
+                            {else}
+                                <span class="badge-pass">PASS</span>
+                            {/if}
+                        </td>
+                        <td class="text-sm text-muted">{entry.detail}</td>
+                    </tr>
+                    {/foreach}
+                </tbody>
+            </table>
+        </div>
+
+        {if total_pages > 1}
+        <div class="as-pager">
+            {if page_num > 1}
+                <a href="/admin/anti-spam/log?filter={filter}&page={page_num - 1}">&laquo; Prev</a>
+            {/if}
+            <span class="text-sm text-muted">Page {page_num} of {total_pages}</span>
+            {if page_num < total_pages}
+                <a href="/admin/anti-spam/log?filter={filter}&page={page_num + 1}">Next &raquo;</a>
+            {/if}
+        </div>
+        {/if}
+
+        {else}
+        <div style="padding:32px;text-align:center;color:var(--text-muted,#888);">
+            No log entries found.
+        </div>
+        {/if}
+    </div>
+</div>
+
+<script>
+function clearLog() {
+    if (!confirm('Clear log entries older than the retention period?')) return;
+    fetch('/api/v1/anti-spam/clear-log', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        credentials: 'same-origin'
+    })
+    .then(r => r.json())
+    .then(d => { alert(d.message || 'Done'); location.reload(); })
+    .catch(() => alert('Error clearing log'));
+}
+</script>
+{/block}

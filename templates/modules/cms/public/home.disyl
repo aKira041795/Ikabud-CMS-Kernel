@@ -1,0 +1,53 @@
+{extends "modules/cms/layouts/public.disyl"}
+
+{block content}
+<div class="text-center mb-8">
+    <h1 class="text-3xl font-bold text-gray-900">Blog</h1>
+    <p class="text-gray-500 mt-1">Latest posts and updates</p>
+</div>
+
+{if posts | count == 0}
+<div class="text-center py-16 text-gray-400">
+    <p class="text-lg">No posts yet.</p>
+    <p class="mt-1">Check back soon for new content.</p>
+</div>
+{/if}
+
+<div class="cms-blog-listing space-y-5">
+    {foreach posts as post}
+    <article class="cms-blog-card bg-white rounded-lg border border-gray-200 p-6 hover:shadow-md transition-shadow">
+        {if post.featured_image}
+        <div class="cms-post-image">
+        <img class="w-full h-52 object-cover rounded-lg mb-4" src="/assets/modules/cms/uploads/{post.featured_image}" alt="{post.title}" loading="lazy">
+        </div>
+        {/if}
+        <h2 class="text-xl font-bold mb-2">
+            <a href="{base_url}/cms/blog/{post.slug}" class="text-gray-900 hover:text-sky-600 no-underline">{post.title}</a>
+        </h2>
+        <div class="text-xs text-gray-400 mb-3">
+            {if theme_settings.blog_show_author}By {post.author_name} {/if}{if theme_settings.blog_show_date}· {post.published_at}{/if}
+        </div>
+        {if theme_settings.blog_show_excerpt}
+        <div class="text-gray-500 text-sm leading-relaxed line-clamp-3">
+            {post.excerpt}
+        </div>
+        {/if}
+        {if theme_settings.blog_show_readmore}
+        <a href="{base_url}/cms/blog/{post.slug}" class="inline-block mt-3 text-sm font-medium text-sky-600 hover:text-sky-800 no-underline">{theme_settings.blog_readmore_text|default:"Read more →"}</a>
+        {/if}
+    </article>
+    {/foreach}
+</div>
+
+{if total_pages > 1}
+<div class="flex items-center justify-center gap-2 mt-8">
+    {if page_num > 1}
+    <a href="{base_url}/cms/blog?page=1" class="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 no-underline text-gray-600">« First</a>
+    {/if}
+    <span class="px-4 py-2 text-sm bg-sky-600 text-white rounded-lg">Page {page_num} of {total_pages}</span>
+    {if page_num < total_pages}
+    <a href="{base_url}/cms/blog?page={next_page}" class="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 no-underline text-gray-600">Next »</a>
+    {/if}
+</div>
+{/if}
+{/block}

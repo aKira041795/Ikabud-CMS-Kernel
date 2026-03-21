@@ -1,0 +1,24 @@
+{extends "_cms_active_theme/layouts/public.disyl"}
+
+{block head}
+{if cms_head}{cms_head | raw}{/if}
+{if structured_data}{structured_data | raw}{/if}
+{/block}
+
+{block content}
+{if builder_enabled}
+<article class="{builder_page_settings.container_class}" style="width: 100%;">
+    {content_html | raw}
+</article>
+{else}
+<article style="max-width: 720px; margin: 0 auto;">
+    <header style="margin-bottom: 2rem;">
+        <h1>{content.title}</h1>
+    </header>
+
+    <div class="post-content prose">
+        {content_html | raw}
+    </div>
+</article>
+{/if}
+{/block}

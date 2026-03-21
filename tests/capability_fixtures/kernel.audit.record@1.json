@@ -1,0 +1,44 @@
+{
+  "capability_id": "kernel.audit.record@1",
+  "mode": "first",
+  "cases": [
+    {
+      "name": "audit-missing-action",
+      "options": {
+        "provider": "kernel"
+      },
+      "payload": {
+        "module": "_test",
+        "branch_id": 1
+      },
+      "expect": {
+        "result": {
+          "has_keys": ["ok"],
+          "equals": {"ok": false}
+        }
+      }
+    },
+    {
+      "name": "audit-basic",
+      "options": {
+        "provider": "kernel"
+      },
+      "payload": {
+        "module": "_test",
+        "action": "test.audit",
+        "branch_id": 1,
+        "entity_type": "test",
+        "entity_id": "1",
+        "old_data": {"a": 1},
+        "new_data": {"a": 2},
+        "reason": "fixture"
+      },
+      "expect": {
+        "result": {
+          "has_keys": ["ok"],
+          "equals": {"ok": true}
+        }
+      }
+    }
+  ]
+}

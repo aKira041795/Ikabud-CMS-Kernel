@@ -1,0 +1,14 @@
+{
+    "name": "ikabud/kernel",
+    "description": "Ikabud Kernel",
+    "type": "project",
+    "scripts": {
+        "guard:manifests": "php scripts/guard-module-manifests.php"
+    },
+    "require": {
+        "php": "^8.1",
+        "phpoffice/phpword": "^1.2",
+        "phpmailer/phpmailer": "^7.0"
+    },
+    "license": "proprietary"
+}

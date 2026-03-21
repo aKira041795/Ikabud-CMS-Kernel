@@ -1,0 +1,48 @@
+{if trackers | count > 0}
+<div class="divide-y divide-gray-100">
+    {foreach trackers as t}
+    <a href="{base_url}/trackers/{t.id}"
+       hx-get="/admin/guidance/pages/trackers/{t.id}"
+       hx-target="#main-content"
+       hx-push-url="{base_url}/trackers/{t.id}"
+       class="block px-5 py-4 hover:bg-gray-50 transition">
+        <div class="flex items-start justify-between gap-4">
+            <div class="min-w-0">
+                <div class="text-sm font-semibold text-gray-900 truncate">{t.name}</div>
+                <div class="mt-1 text-xs text-gray-500 line-clamp-2">{t.description | default:'—'}</div>
+                <div class="mt-2 text-xs text-gray-400">
+                    {if t.academic_year}<span class="mr-3"><i class="fas fa-graduation-cap mr-1"></i>{t.academic_year}</span>{/if}
+                    {if t.college_name}<span class="mr-3"><i class="fas fa-building-columns mr-1"></i>{t.college_name}</span>{/if}
+                    <span><i class="fas fa-users mr-1"></i>{t.student_count | default:'0'} students</span>
+                </div>
+            </div>
+            <div class="flex items-center gap-2 flex-shrink-0">
+                {if t.is_active}
+                <span class="px-2 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-700">Active</span>
+                {else}
+                <span class="px-2 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-700">Inactive</span>
+                {/if}
+                <button hx-get="/admin/guidance/pages/trackers/{t.id}/edit" hx-target="#modal-container" hx-swap="innerHTML"
+                        class="p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg" title="Edit">
+                    <i class="fas fa-pen text-xs"></i>
+                </button>
+            </div>
+        </div>
+    </a>
+    {/foreach}
+</div>
+{else}
+<div class="p-10 text-center">
+    <div class="w-14 h-14 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-3">
+        <i class="fas fa-clipboard-list text-gray-400 text-xl"></i>
+    </div>
+    <div class="text-sm font-semibold text-gray-800">No trackers yet</div>
+    <div class="mt-1 text-xs text-gray-500">Create a tracker to start tracking student submissions.</div>
+    <div class="mt-5">
+        <button hx-get="/admin/guidance/pages/trackers/new" hx-target="#modal-container" hx-swap="innerHTML"
+                class="inline-flex items-center px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition shadow-sm">
+            <i class="fas fa-plus mr-2"></i> New Tracker
+        </button>
+    </div>
+</div>
+{/if}

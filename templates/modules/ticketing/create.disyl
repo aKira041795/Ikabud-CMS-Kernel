@@ -1,0 +1,73 @@
+{extends "layouts/app"}
+
+{block content}
+<div class="flex justify-between items-center mb-4">
+    <h1 style="font-size: var(--font-size-h1); font-weight: 700;">New Ticket</h1>
+    <a href="{base_url}/tickets" class="btn btn-outline" hx-boost="true">← Back</a>
+</div>
+
+<div class="card" style="max-width: 700px;">
+    <div class="card-header">Create Ticket</div>
+    <div class="card-body">
+        <form hx-post="{base_url}/api/v1/tickets" hx-target="body" id="ticketForm">
+            <input type="hidden" name="_token" value="{csrf_token}">
+
+            <div class="form-group">
+                <label class="form-label">Subject *</label>
+                <input type="text" name="subject" class="form-input" required placeholder="Brief description of the issue" autofocus>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Description</label>
+                <textarea name="description" class="form-input" rows="5" placeholder="Detailed explanation (optional)" style="resize: vertical;"></textarea>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                <div class="form-group">
+                    <label class="form-label">Category</label>
+                    <select name="category" class="form-input">
+                        <option value="other" selected>Other</option>
+                        <option value="plumbing">Plumbing</option>
+                        <option value="electrical">Electrical</option>
+                        <option value="pest_control">Pest Control</option>
+                        <option value="common_area">Common Area</option>
+                        <option value="security">Security</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Unit / Room</label>
+                    <input type="text" name="unit_no" class="form-input" placeholder="e.g. Unit 4B" maxlength="40">
+                </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                <div class="form-group">
+                    <label class="form-label">Priority</label>
+                    <select name="priority" class="form-input">
+                        <option value="low">Low</option>
+                        <option value="medium" selected>Medium</option>
+                        <option value="high">High</option>
+                        <option value="urgent">Urgent</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Assign To</label>
+                    <select name="assigned_to" class="form-input">
+                        <option value="">— Unassigned —</option>
+                        {foreach users as u}
+                        <option value="{u.id}">{u.full_name} ({u.role})</option>
+                        {/foreach}
+                    </select>
+                </div>
+            </div>
+
+            <div style="display: flex; gap: 10px; margin-top: 8px;">
+                <button type="submit" class="btn btn-primary">Create Ticket</button>
+                <a href="{base_url}/tickets" class="btn btn-outline" hx-boost="true">Cancel</a>
+            </div>
+        </form>
+    </div>
+</div>
+{/block}

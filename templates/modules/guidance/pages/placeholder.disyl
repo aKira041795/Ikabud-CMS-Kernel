@@ -1,0 +1,21 @@
+{extends "modules/guidance/layouts/app.disyl"}
+
+{block content}
+<div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+    <div class="flex items-center justify-between">
+        <h1 class="text-xl font-semibold text-gray-900">{heading | default:page_title}</h1>
+        <a href="{base_url}/" class="text-sm text-indigo-600 hover:text-indigo-800 font-medium">
+            <i class="fas fa-arrow-left mr-1"></i> Back to Dashboard
+        </a>
+    </div>
+
+    <div class="mt-4 text-sm text-gray-600">
+        {message | default:'Page not ported yet.'}
+    </div>
+
+    <div class="mt-6 rounded-lg border border-indigo-100 bg-indigo-50 p-4 text-xs text-indigo-900">
+        <div class="font-semibold mb-1">Developer Note</div>
+        <div>This is a placeholder page to keep the Guidance navigation functional during modularization.</div>
+    </div>
+</div>
+{/block}

@@ -1,0 +1,256 @@
+{extends "modules/cms/layouts/admin.disyl"}
+
+{block content}
+<div x-data="cmsPageBuilder()" x-init="init()" class="fixed inset-0 flex flex-col bg-gray-100" style="z-index:50;">
+    <div class="flex items-center justify-between h-14 px-4 bg-slate-950 border-b border-slate-800 shadow-sm shrink-0 text-slate-100">
+        <div class="flex items-center gap-2 min-w-0">
+            <a href="{base_url}/cms/admin/content?type=page" class="flex items-center text-slate-400 hover:text-white shrink-0"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg></a>
+            <input type="text" class="text-base font-semibold text-white border-0 bg-transparent focus:ring-0 p-0 min-w-[160px] max-w-[320px] truncate placeholder:text-slate-500" x-model="form.title" placeholder="Page title..." @input="autoSlug()">
+            <span class="text-[10px] px-1.5 py-0.5 rounded-full font-medium shrink-0" :class="{'bg-emerald-50 text-emerald-700':form.status==='published','bg-amber-50 text-amber-700':form.status==='draft','bg-violet-50 text-violet-700':form.status==='scheduled'}" x-text="form.status"></span>
+            <span class="text-xs text-slate-400 shrink-0" x-text="dirty?'Unsaved':autosaveStatus"></span>
+        </div>
+        <div class="flex items-center gap-1.5 shrink-0">
+            <button type="button" class="p-2 rounded-lg hover:bg-slate-800 text-slate-300 disabled:opacity-30" @click="undo()" :disabled="undoStack.length===0" title="Undo"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a5 5 0 015 5v2M3 10l4-4M3 10l4 4"/></svg></button>
+            <button type="button" class="p-2 rounded-lg hover:bg-slate-800 text-slate-300 disabled:opacity-30" @click="redo()" :disabled="redoStack.length===0" title="Redo"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 10H11a5 5 0 00-5 5v2M21 10l-4-4M21 10l-4 4"/></svg></button>
+            <div class="w-px h-6 bg-slate-800 mx-0.5"></div>
+            <div class="flex items-center border border-slate-700 rounded-lg overflow-hidden bg-slate-900">
+                <button type="button" class="px-3 py-1.5 text-xs font-bold" :class="deviceMode==='desktop'?'bg-violet-500/20 text-violet-200':'text-slate-400 hover:bg-slate-800'" @click="deviceMode='desktop'">D</button>
+                <button type="button" class="px-3 py-1.5 text-xs font-bold border-l border-slate-700" :class="deviceMode==='tablet'?'bg-violet-500/20 text-violet-200':'text-slate-400 hover:bg-slate-800'" @click="deviceMode='tablet'">T</button>
+                <button type="button" class="px-3 py-1.5 text-xs font-bold border-l border-slate-700" :class="deviceMode==='mobile'?'bg-violet-500/20 text-violet-200':'text-slate-400 hover:bg-slate-800'" @click="deviceMode='mobile'">M</button>
+            </div>
+            <div class="w-px h-6 bg-slate-800 mx-0.5"></div>
+            <button type="button" class="p-2 rounded-lg hover:bg-slate-800 text-slate-300" @click="showHistory=!showHistory" title="History"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg></button>
+            <button x-show="form.id" type="button" class="px-3 py-1.5 text-sm font-medium text-slate-200 bg-slate-800 rounded-lg hover:bg-slate-700 disabled:opacity-50" @click="preview()" :disabled="saving">Preview</button>
+            <button type="button" class="px-3 py-1.5 text-sm font-medium text-slate-200 bg-slate-800 rounded-lg hover:bg-slate-700 disabled:opacity-50" @click="save('draft')" :disabled="saving" x-text="saving?'Saving...':'Save Draft'"></button>
+            <button type="button" class="px-3.5 py-1.5 text-sm font-semibold text-white bg-violet-600 rounded-lg hover:bg-violet-700 shadow-sm disabled:opacity-50" @click="save()" :disabled="saving" x-text="saving?'Saving...':primaryActionLabel()"></button>
+        </div>
+    </div>
+    <div x-show="message.text" x-cloak class="mx-4 mt-2 rounded-lg px-3 py-2 text-sm shrink-0 cursor-pointer" :class="message.type==='error'?'bg-red-50 border border-red-200 text-red-700':'bg-emerald-50 border border-emerald-200 text-emerald-700'" x-text="message.text" @click="message.text=''"></div>
+    <div class="flex flex-1 overflow-hidden">
+
+        <div class="w-80 bg-slate-900 border-r border-slate-800 flex flex-col shrink-0 text-slate-100">
+            <div class="flex items-center gap-1 p-2 border-b border-slate-800 shrink-0 bg-slate-950 overflow-x-auto">
+                <template x-for="t in ['elements','sections','templates','navigator','page']" :key="t"><button type="button" class="px-3 py-2 text-[11px] font-semibold capitalize tracking-wide text-center rounded-lg transition-colors whitespace-nowrap" :class="leftTab===t?'bg-violet-500/20 text-violet-200 ring-1 ring-violet-400/40':'text-slate-400 hover:text-slate-100 hover:bg-slate-800'" @click="leftTab=t" x-text="t"></button></template>
+            </div>
+            <div class="flex-1 overflow-y-auto p-3">
+                <div x-show="leftTab==='elements'">
+                    <div class="relative mb-3">
+                        <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m21 21-6-6m2-5a7 7 0 1 1-14 0 7 7 0 0 1 14 0Z"/></svg>
+                        <input type="text" class="w-full text-sm border border-slate-700 bg-slate-800/50 text-slate-100 rounded-xl pl-10 pr-3 py-2.5 placeholder:text-slate-500 focus:border-violet-500 focus:ring-1 focus:ring-violet-500/30 outline-none transition-colors" placeholder="Search widgets..." x-model="widgetSearch">
+                    </div>
+                    <div class="flex flex-wrap gap-1.5 mb-3">
+                        <button type="button" class="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-full transition-colors" :class="!selectedCategory?'bg-violet-500/20 text-violet-200 ring-1 ring-violet-400/40':'text-slate-400 bg-slate-800 hover:text-slate-200'" @click="selectedCategory=null">All</button>
+                        <template x-for="cat in widgetCategories()" :key="cat">
+                            <button type="button" class="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-full transition-colors" :class="selectedCategory===cat?'bg-violet-500/20 text-violet-200 ring-1 ring-violet-400/40':'text-slate-400 bg-slate-800 hover:text-slate-200'" @click="selectedCategory=selectedCategory===cat?null:cat" x-text="categoryLabel(cat)"></button>
+                        </template>
+                    </div>
+                    <div class="space-y-1.5">
+                        <template x-for="wt in allFilteredWidgets()" :key="wt.type">
+                            <div class="flex items-center gap-3 p-2.5 rounded-xl border border-slate-700/50 bg-slate-800/30 hover:border-violet-400/50 hover:bg-slate-800/60 transition-all cursor-grab group/widget" draggable="true" @dragstart="onWidgetDragStart($event,wt.type)" @click="insertNode(wt.type)">
+                                <div class="w-9 h-9 rounded-lg flex items-center justify-center shrink-0 transition-colors" :class="{'bg-violet-500/10 text-violet-400':wt.category==='content','bg-blue-500/10 text-blue-400':wt.category==='layout','bg-emerald-500/10 text-emerald-400':wt.category==='media','bg-orange-500/10 text-orange-400':wt.category==='dynamic','bg-rose-500/10 text-rose-400':wt.category==='advanced'}"><span x-html="widgetSvg(wt.type)"></span></div>
+                                <div class="flex-1 min-w-0">
+                                    <p class="text-[13px] font-medium text-slate-100 leading-tight" x-text="wt.label"></p>
+                                    <p class="text-[11px] text-slate-500 leading-tight mt-0.5 truncate" x-text="wt.description||''"></p>
+                                </div>
+                                <svg class="w-4 h-4 text-slate-600 shrink-0 opacity-0 group-hover/widget:opacity-100 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-width="2" d="M8 6h.01M12 6h.01M16 6h.01M8 12h.01M12 12h.01M16 12h.01M8 18h.01M12 18h.01M16 18h.01"/></svg>
+                            </div>
+                        </template>
+                        <template x-if="allFilteredWidgets().length===0">
+                            <div class="text-center py-8">
+                                <svg class="w-8 h-8 text-slate-600 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="m21 21-6-6m2-5a7 7 0 1 1-14 0 7 7 0 0 1 14 0Z"/></svg>
+                                <p class="text-xs text-slate-500">No widgets match your search.</p>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+                <div x-show="leftTab==='sections'" x-cloak>
+                    <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">Blank Layouts</p>
+                    <div class="grid grid-cols-2 gap-1.5 mb-4">
+                        <template x-for="lo in sectionLayouts" :key="lo.type">
+                            <button type="button" class="flex flex-col items-center gap-1 p-3 rounded-xl border border-slate-700 bg-slate-950 hover:border-violet-400 hover:bg-slate-800 transition-colors text-center" @click="insertSectionLayout(lo.type)">
+                                <span class="text-[8px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded" :class="lo.icon==='grid'?'bg-blue-500/20 text-blue-300':'bg-violet-500/20 text-violet-300'" x-text="lo.icon"></span>
+                                <span class="text-xs font-medium text-slate-100 mt-1" x-text="lo.label"></span>
+                                <span class="text-[10px] text-slate-500 leading-tight" x-text="lo.desc"></span>
+                            </button>
+                        </template>
+                    </div>
+                    <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">Patterns</p>
+                    <div class="space-y-1.5">
+                        <template x-for="pat in sectionPatterns" :key="pat.id">
+                            <button type="button" class="w-full flex items-center gap-2 p-3 rounded-xl border border-slate-700 bg-slate-950 hover:border-violet-400 hover:bg-slate-800 text-left" @click="insertPattern(pat.id)">
+                                <span class="text-base shrink-0" x-html="pat.icon"></span>
+                                <div class="min-w-0"><p class="text-sm font-medium text-slate-100 truncate" x-text="pat.label"></p><p class="text-xs text-slate-400 truncate" x-text="pat.desc"></p></div>
+                            </button>
+                        </template>
+                    </div>
+                </div>
+                <div x-show="leftTab==='templates'" x-cloak>
+                    <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">Page Templates</p>
+                    <template x-if="builderTemplates.length===0"><p class="text-xs text-slate-400 mb-2">No templates yet.</p></template>
+                    <template x-for="tpl in builderTemplates" :key="tpl.id">
+                        <div class="flex items-center justify-between p-3 rounded-xl border border-slate-700 bg-slate-950 mb-1.5">
+                            <div class="min-w-0"><p class="text-sm font-medium text-slate-100 truncate" x-text="tpl.name"></p><p class="text-xs text-slate-400" x-text="tpl.is_system?'System':'Custom'"></p></div>
+                            <div class="flex gap-1 shrink-0">
+                                <button type="button" class="px-2.5 py-1 text-xs font-medium text-violet-200 bg-violet-500/20 rounded hover:bg-violet-500/30" @click="applyTemplate(tpl.id)">Apply</button>
+                                <button x-show="!tpl.is_system" type="button" class="px-2.5 py-1 text-xs font-medium text-red-200 bg-red-500/20 rounded hover:bg-red-500/30" @click="deleteTemplate(tpl.id)">Del</button>
+                            </div>
+                        </div>
+                    </template>
+                    <button type="button" class="w-full px-3 py-2 text-sm font-medium text-slate-100 bg-slate-800 border border-slate-700 rounded-lg hover:bg-slate-700 mt-2" @click="saveAsTemplate()">Save as Template</button>
+                    <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2 mt-4">Reusable Sections</p>
+                    <template x-if="reusableSections.length===0"><p class="text-xs text-slate-400">None yet.</p></template>
+                    <template x-for="sec in reusableSections" :key="sec.id">
+                        <div class="flex items-center justify-between p-3 rounded-xl border border-slate-700 bg-slate-950 mb-1.5">
+                            <span class="text-sm font-medium text-slate-100 truncate" x-text="sec.name"></span>
+                            <div class="flex gap-1 shrink-0">
+                                <button type="button" class="px-2.5 py-1 text-xs font-medium text-slate-100 bg-slate-800 rounded hover:bg-slate-700" @click="insertReusable(sec.id)">Insert</button>
+                                <button type="button" class="px-2.5 py-1 text-xs font-medium text-red-200 bg-red-500/20 rounded hover:bg-red-500/30" @click="deleteReusable(sec.id)">Del</button>
+                            </div>
+                        </div>
+                    </template>
+                    <button type="button" class="w-full px-3 py-2 text-sm font-medium text-slate-100 bg-slate-800 border border-slate-700 rounded-lg hover:bg-slate-700 mt-2" @click="saveReusableSection()">Save as Reusable</button>
+                </div>
+                <div x-show="leftTab==='navigator'" x-cloak>
+                    <template x-if="doc.children.length===0">
+                        <div class="text-center py-8">
+                            <svg class="w-8 h-8 text-slate-600 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25H12"/></svg>
+                            <p class="text-xs text-slate-500">No elements yet.</p>
+                            <p class="text-[11px] text-slate-600 mt-1">Add widgets from the Elements tab.</p>
+                        </div>
+                    </template>
+                    <div x-html="renderNavigatorTree(doc.children, 0)" @click="handleNavigatorClick($event)"></div>
+                </div>
+                <div x-show="leftTab==='page'" x-cloak class="space-y-3">
+                    <div><label class="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Slug</label><input type="text" class="w-full text-sm border border-slate-700 bg-slate-800/50 text-slate-100 rounded-xl px-3 py-2.5 focus:border-violet-500 focus:ring-1 focus:ring-violet-500/30 outline-none transition-colors" x-model="form.slug"></div>
+                    <div><label class="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Excerpt</label><textarea class="w-full text-sm border border-slate-700 bg-slate-800/50 text-slate-100 rounded-xl px-3 py-2.5 min-h-[88px] resize-y focus:border-violet-500 focus:ring-1 focus:ring-violet-500/30 outline-none transition-colors" x-model="form.excerpt"></textarea></div>
+                    <div><label class="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Status</label><select x-model="form.status" class="w-full text-sm border border-slate-700 bg-slate-800/50 text-slate-100 rounded-xl px-3 py-2.5 focus:border-violet-500 focus:ring-1 focus:ring-violet-500/30 outline-none transition-colors"><option value="draft">Draft</option><option value="published">Published</option><option value="private">Private</option><option value="scheduled">Scheduled</option></select></div>
+                    <div><label class="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Publish Date</label><input type="datetime-local" class="w-full text-sm border border-slate-700 bg-slate-800/50 text-slate-100 rounded-xl px-3 py-2.5 focus:border-violet-500 focus:ring-1 focus:ring-violet-500/30 outline-none transition-colors" x-model="form.published_at"></div>
+                    <div><label class="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Template</label><select x-model="form.selected_template" class="w-full text-sm border border-slate-700 bg-slate-800/50 text-slate-100 rounded-xl px-3 py-2.5 focus:border-violet-500 focus:ring-1 focus:ring-violet-500/30 outline-none transition-colors"><template x-for="ct in contentTemplates" :key="ct.slug"><option :value="ct.slug" x-text="ct.label"></option></template></select></div>
+                    <div><label class="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Container Class</label><input type="text" class="w-full text-sm border border-slate-700 bg-slate-800/50 text-slate-100 rounded-xl px-3 py-2.5 focus:border-violet-500 focus:ring-1 focus:ring-violet-500/30 outline-none transition-colors placeholder:text-slate-600" x-model="pageSettings.container_class" placeholder="e.g. max-w-4xl"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex-1 overflow-y-auto p-6 bg-gray-50/80" @click="selectedNodeId=null">
+            <div class="mx-auto bg-white rounded-2xl shadow-sm border border-gray-200/80 min-h-[400px] transition-all" :class="{'max-w-full':deviceMode==='desktop','max-w-[768px]':deviceMode==='tablet','max-w-[375px]':deviceMode==='mobile'}">
+                <template x-if="doc.children.length===0">
+                    <div class="flex flex-col items-center justify-center py-24 px-8">
+                        <div class="w-20 h-20 rounded-2xl bg-gradient-to-br from-violet-50 to-violet-100 flex items-center justify-center mb-5 shadow-sm">
+                            <svg class="w-10 h-10 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 4v16m8-8H4"/></svg>
+                        </div>
+                        <p class="text-base font-semibold text-gray-800 mb-1">Start building your page</p>
+                        <p class="text-sm text-gray-400 mb-6 text-center max-w-xs">Drag widgets from the left panel, choose a section layout, or start from a template.</p>
+                        <div class="flex gap-2.5">
+                            <button type="button" class="px-4 py-2 text-sm font-medium text-white bg-violet-600 rounded-xl hover:bg-violet-700 shadow-sm transition-colors" @click="insertSectionLayout('single')">+ Add Section</button>
+                            <button type="button" class="px-4 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 shadow-sm transition-colors" @click="leftTab='templates'">Browse Templates</button>
+                        </div>
+                    </div>
+                </template>
+                <div class="p-2 space-y-1" x-ref="canvasRoot">
+                    <template x-for="(node,idx) in doc.children" :key="node.id">
+                        <div class="relative" @click.stop="selectNode(node.id)">
+                            <div class="absolute -top-3 left-1/2 -translate-x-1/2 z-20 opacity-0 hover:opacity-100 transition-opacity">
+                                <button type="button" class="flex items-center gap-1 px-2.5 py-1 text-[10px] font-semibold text-violet-600 bg-white border border-violet-200 rounded-full shadow-md hover:bg-violet-50 transition-colors" @click.stop="insertSectionBefore(idx)">
+                                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-width="2" d="M12 6v12M6 12h12"/></svg> Add
+                                </button>
+                            </div>
+                            <div x-html="renderCanvasNode(node, null, idx, 0)" @click.stop="handleCanvasClick($event)" @dragstart="onDragStart($event,node.id,null,idx)" @dragover.prevent="onCanvasDragOver($event)" @drop.prevent="onDrop($event,null,idx)"></div>
+                        </div>
+                    </template>
+                </div>
+                <div x-show="doc.children.length>0" class="p-5 text-center">
+                    <button type="button" class="px-5 py-2.5 text-sm font-medium text-violet-600 bg-violet-50 border border-violet-200 rounded-xl hover:bg-violet-100 shadow-sm transition-colors" @click="insertSectionLayout('single')">
+                        <svg class="w-4 h-4 inline-block mr-1 -mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-width="2" d="M12 6v12M6 12h12"/></svg>Add Section
+                    </button>
+                </div>
+            </div>
+            <div x-show="previewHtml" x-cloak class="mt-4 mx-auto bg-white rounded-2xl shadow-sm border border-gray-200/80 overflow-hidden" :class="{'max-w-full':deviceMode==='desktop','max-w-[768px]':deviceMode==='tablet','max-w-[375px]':deviceMode==='mobile'}">
+                <div class="px-4 py-2.5 border-b border-gray-100 flex items-center justify-between bg-gray-50/50"><span class="text-xs font-semibold text-gray-600">Preview</span><button type="button" class="text-xs text-gray-400 hover:text-gray-600 transition-colors" @click="previewHtml=''">Close</button></div>
+                <div class="p-4 prose max-w-none" x-html="previewHtml"></div>
+            </div>
+        </div>
+
+        <div class="w-80 bg-slate-950 border-l border-slate-800 flex flex-col shrink-0 overflow-hidden text-slate-100">
+            <template x-if="selectedNodeId&&selectedNode()">
+                <div class="flex flex-col flex-1 overflow-hidden">
+                    <div class="px-4 py-3 border-b border-slate-800 flex items-center justify-between shrink-0 bg-slate-900/50">
+                        <div class="flex items-center gap-2.5 min-w-0">
+                            <span class="w-5 h-5 shrink-0 text-violet-400" x-html="widgetSvg(selectedNode().type)"></span>
+                            <span class="text-sm font-semibold text-slate-100 truncate" x-text="nodeLabel(selectedNode())"></span>
+                            <span class="text-[9px] px-1.5 py-0.5 rounded-full font-medium shrink-0" :class="nodeBadgeClasses(selectedNode().type)" x-text="selectedNode().type"></span>
+                        </div>
+                        <button type="button" class="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors" @click="selectedNodeId=null"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg></button>
+                    </div>
+                    <div class="grid grid-cols-2 gap-1 p-2 border-b border-slate-800 shrink-0 bg-slate-900">
+                        <template x-for="it in ['content','style','advanced','responsive']" :key="it"><button type="button" class="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-center rounded-lg transition-colors" :class="inspectorTab===it?'bg-violet-500/20 text-violet-200 ring-1 ring-violet-400/40':'text-slate-400 hover:text-slate-100 hover:bg-slate-800'" @click="inspectorTab=it" x-text="it"></button></template>
+                    </div>
+                    <div class="flex-1 overflow-y-auto p-4 bg-slate-950">
+                        <div x-show="inspectorTab==='content'" class="space-y-3" x-html="renderInspectorContent(selectedNode())"></div>
+                        <div x-show="inspectorTab==='style'" x-cloak class="space-y-3.5">
+                            <div><label class="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Text Color</label><div class="flex items-center gap-2"><input type="color" class="w-8 h-8 rounded-lg border border-slate-700 cursor-pointer bg-slate-900" :value="selectedNode().style.color||'#000000'" @input="setStyle('color',$event.target.value)"><span class="text-xs text-slate-500 font-mono" x-text="selectedNode().style.color||'inherit'"></span></div></div>
+                            <div><label class="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Background</label><div class="flex items-center gap-2"><input type="color" class="w-8 h-8 rounded-lg border border-slate-700 cursor-pointer bg-slate-900" :value="selectedNode().style.background||'#ffffff'" @input="setStyle('background',$event.target.value)"><span class="text-xs text-slate-500 font-mono" x-text="selectedNode().style.background||'inherit'"></span></div></div>
+                            <div><label class="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Font Size</label><input type="text" class="w-full text-xs bg-slate-900 border border-slate-700 text-slate-100 rounded-lg px-3 py-2 focus:border-violet-500 focus:ring-1 focus:ring-violet-500/30 outline-none transition-colors" placeholder="e.g. 16px" :value="selectedNode().style.fontSize||''" @input="setStyle('fontSize',$event.target.value)"></div>
+                            <div><label class="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Text Align</label>
+                                <div class="flex gap-1"><template x-for="a in ['left','center','right']" :key="a"><button type="button" class="px-3 py-1.5 text-[10px] font-semibold uppercase rounded-lg border transition-colors" :class="selectedNode().style.textAlign===a?'border-violet-400 bg-violet-500/20 text-violet-200':'border-slate-700 text-slate-400 hover:bg-slate-800'" @click="setStyle('textAlign',a)" x-text="a"></button></template></div>
+                            </div>
+                            <div><label class="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Border Radius</label><input type="text" class="w-full text-xs bg-slate-900 border border-slate-700 text-slate-100 rounded-lg px-3 py-2 focus:border-violet-500 focus:ring-1 focus:ring-violet-500/30 outline-none transition-colors" placeholder="e.g. 8px" :value="selectedNode().style.borderRadius||''" @input="setStyle('borderRadius',$event.target.value)"></div>
+                        </div>
+                        <div x-show="inspectorTab==='advanced'" x-cloak class="space-y-3.5">
+                            <div><label class="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Margin</label><input type="text" class="w-full text-xs bg-slate-900 border border-slate-700 text-slate-100 rounded-lg px-3 py-2 focus:border-violet-500 focus:ring-1 focus:ring-violet-500/30 outline-none transition-colors" placeholder="e.g. 16px" :value="selectedNode().style.margin||''" @input="setStyle('margin',$event.target.value)"></div>
+                            <div><label class="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Padding</label><input type="text" class="w-full text-xs bg-slate-900 border border-slate-700 text-slate-100 rounded-lg px-3 py-2 focus:border-violet-500 focus:ring-1 focus:ring-violet-500/30 outline-none transition-colors" placeholder="e.g. 24px" :value="selectedNode().style.padding||''" @input="setStyle('padding',$event.target.value)"></div>
+                            <div><label class="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Anchor ID</label><input type="text" class="w-full text-xs bg-slate-900 border border-slate-700 text-slate-100 rounded-lg px-3 py-2 focus:border-violet-500 focus:ring-1 focus:ring-violet-500/30 outline-none transition-colors" placeholder="e.g. hero-section" :value="selectedNode().meta.anchorId||''" @input="setMeta('anchorId',$event.target.value)"></div>
+                            <div><label class="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">CSS Class</label><input type="text" class="w-full text-xs bg-slate-900 border border-slate-700 text-slate-100 rounded-lg px-3 py-2 focus:border-violet-500 focus:ring-1 focus:ring-violet-500/30 outline-none transition-colors" placeholder="e.g. my-custom-class" :value="selectedNode().meta.cssClass||''" @input="setMeta('cssClass',$event.target.value)"></div>
+                        </div>
+                        <div x-show="inspectorTab==='responsive'" x-cloak class="space-y-3.5">
+                            <div class="flex items-center gap-2 p-2.5 rounded-lg bg-slate-800/50 border border-slate-700/50">
+                                <svg class="w-4 h-4 text-violet-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-width="1.5" d="M9.75 17 9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2Z"/></svg>
+                                <p class="text-[11px] text-slate-400">Overrides for <strong class="text-slate-200" x-text="deviceMode"></strong>. Leave blank to inherit.</p>
+                            </div>
+                            <div><label class="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Font Size</label><input type="text" class="w-full text-xs bg-slate-900 border border-slate-700 text-slate-100 rounded-lg px-3 py-2 focus:border-violet-500 focus:ring-1 focus:ring-violet-500/30 outline-none transition-colors" placeholder="e.g. 14px" :value="getResponsive('font_size')" @input="setResponsive(selectedNode(),'font_size',$event.target.value)"></div>
+                            <div><label class="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Padding</label><input type="text" class="w-full text-xs bg-slate-900 border border-slate-700 text-slate-100 rounded-lg px-3 py-2 focus:border-violet-500 focus:ring-1 focus:ring-violet-500/30 outline-none transition-colors" placeholder="e.g. 16px" :value="getResponsive('padding')" @input="setResponsive(selectedNode(),'padding',$event.target.value)"></div>
+                            <div><label class="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Visibility</label><select class="w-full text-xs bg-slate-900 border border-slate-700 text-slate-100 rounded-lg px-3 py-2 focus:border-violet-500 focus:ring-1 focus:ring-violet-500/30 outline-none transition-colors" :value="getResponsive('hidden')?'true':'false'" @change="setResponsive(selectedNode(),'hidden',$event.target.value==='true')"><option value="false">Visible</option><option value="true">Hidden</option></select></div>
+                        </div>
+                    </div>
+                </div>
+            </template>
+            <template x-if="!selectedNodeId">
+                <div class="flex-1 flex flex-col items-center justify-center p-6">
+                    <svg class="w-10 h-10 text-slate-700 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15.042 21.672 13.684 16.6m0 0-2.51 2.225.569-9.47 5.227 7.917-3.286-.672Zm-7.518-.267A8.25 8.25 0 1 1 20.25 10.5M8.288 14.212A5.25 5.25 0 1 1 17.25 10.5"/></svg>
+                    <p class="text-sm font-medium text-slate-400 text-center">Select an element</p>
+                    <p class="text-xs text-slate-600 text-center mt-1">Click any element on the canvas to edit its properties.</p>
+                </div>
+            </template>
+        </div>
+
+        <div x-show="showHistory" x-cloak class="w-64 bg-slate-950 border-l border-slate-800 flex flex-col shrink-0 overflow-hidden text-slate-100">
+            <div class="px-4 py-3 border-b border-slate-800 flex items-center justify-between shrink-0">
+                <div class="flex items-center gap-2"><svg class="w-4 h-4 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><span class="text-sm font-semibold text-slate-100">History</span></div>
+                <button type="button" class="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors" @click="showHistory=false"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg></button>
+            </div>
+            <div class="flex-1 overflow-y-auto p-3 space-y-1.5">
+                <template x-if="revisions.length===0">
+                    <div class="text-center py-8">
+                        <svg class="w-8 h-8 text-slate-700 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        <p class="text-xs text-slate-500">No revisions yet.</p>
+                        <p class="text-[11px] text-slate-600 mt-1">Save your page to create the first revision.</p>
+                    </div>
+                </template>
+                <template x-for="rev in revisions" :key="rev.id">
+                    <div class="flex items-center justify-between p-2.5 rounded-xl border border-slate-800 bg-slate-900/50 hover:border-slate-700 transition-colors">
+                        <div class="min-w-0">
+                            <p class="text-xs font-medium text-slate-200" x-text="'Rev #'+rev.revision_number"></p>
+                            <p class="text-[10px] text-slate-500 truncate" x-text="rev.note||rev.created_at"></p>
+                        </div>
+                        <button type="button" class="px-2.5 py-1 text-[10px] font-semibold text-violet-200 bg-violet-500/20 rounded-lg hover:bg-violet-500/30 shrink-0 transition-colors" @click="restoreRevision(rev.id)">Restore</button>
+                    </div>
+                </template>
+            </div>
+        </div>
+    </div>
+</div>
+{/block}
+
+{block scripts}
+<script type="application/json" id="cms-page-builder-boot">{builder_boot_json}</script>
+<script src="/assets/cms/page-builder-core.js"></script>
+{/block}

@@ -1,0 +1,29 @@
+{extends "_cms_active_theme/layouts/public.disyl"}
+
+{block content}
+<section class="home-hero">
+    <div class="hero-content">
+        <h1>{site_title|default:gui.app_name|default:"Welcome"}</h1>
+        <p class="tagline">{site_tagline|default:"A minimal, clean website"}</p>
+    </div>
+</section>
+
+<section class="home-posts">
+    <h2>Latest Posts</h2>
+    {if posts|count > 0}
+    <div class="posts-grid">
+        {foreach posts as post}
+        <article class="post-item">
+            <h3>
+                <a href="{base_url}/cms/blog/{post.slug}">{post.title}</a>
+            </h3>
+            <p class="excerpt">{post.excerpt|default:"No excerpt available."}</p>
+            <a href="{base_url}/cms/blog/{post.slug}" class="read-more">Read more →</a>
+        </article>
+        {/foreach}
+    </div>
+    {else}
+    <p>No posts available yet.</p>
+    {/if}
+</section>
+{/block}

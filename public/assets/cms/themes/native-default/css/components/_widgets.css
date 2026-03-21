@@ -1,0 +1,99 @@
+/**
+ * Widget Styles
+ * Native Default Theme v2.1.0
+ */
+
+/* ========================================
+   Base Widget
+   ======================================== */
+.widget {
+    margin-bottom: var(--sidebar-widget-margin, var(--spacing-xl));
+    padding: var(--sidebar-widget-padding, 1.5rem);
+    background: var(--sidebar-widget-bg, var(--color-background));
+    border-radius: var(--sidebar-widget-radius, var(--border-radius-lg));
+    border: 1px solid var(--sidebar-widget-border, var(--color-border));
+}
+
+.widget-title {
+    font-size: var(--sidebar-widget-title-size, var(--font-size-base));
+    font-weight: var(--sidebar-widget-title-weight, 600);
+    color: var(--sidebar-widget-title-color, var(--color-text));
+    margin-bottom: var(--sidebar-widget-title-margin, 1rem);
+    padding-bottom: var(--sidebar-widget-title-padding, 0.75rem);
+    border-bottom: var(--sidebar-widget-title-border-width, 2px) solid var(--sidebar-widget-title-border-color, var(--color-primary));
+}
+
+.widget a {
+    color: var(--sidebar-widget-link-color, var(--color-text));
+}
+
+.widget a:hover {
+    color: var(--sidebar-widget-link-hover, var(--color-primary));
+}
+
+/* ========================================
+   Recent Posts Widget
+   ======================================== */
+.recent-posts-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.recent-post-item {
+    display: flex;
+    gap: 1rem;
+    padding: 0.75rem 0;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.recent-post-item:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
+.recent-post-item:first-child {
+    padding-top: 0;
+}
+
+.recent-post-thumb {
+    flex-shrink: 0;
+}
+
+.recent-post-thumb img {
+    width: 60px;
+    height: 60px;
+    object-fit: cover;
+    border-radius: var(--border-radius-sm);
+}
+
+.recent-post-title {
+    display: block;
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+    color: var(--color-text);
+    line-height: 1.4;
+    margin-bottom: 0.25rem;
+}
+
+.recent-post-title:hover {
+    color: var(--color-primary);
+}
+
+.recent-post-date {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-light);
+}
+
+/* ========================================
+   Tag Cloud
+   ======================================== */
+.tag-cloud {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.tag-cloud .tag {
+    font-size: var(--font-size-xs);
+}

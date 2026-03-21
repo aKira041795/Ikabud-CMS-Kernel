@@ -1,0 +1,99 @@
+{
+    "id": "tinymce",
+    "name": "TinyMCE",
+    "version": "1.0.0",
+    "description": "Shared editor service module for assets, config, normalization, and sanitation.",
+    "author": "Noah C. Omamalin",
+    "owns_tables": [],
+    "reads_tables": [],
+    "nav": [],
+    "capabilities": {
+        "exposes": [
+            {
+                "id": "tinymce.assets.get@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ]
+            },
+            {
+                "id": "tinymce.config.get@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ]
+            },
+            {
+                "id": "tinymce.html.normalize@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ]
+            },
+            {
+                "id": "tinymce.html.sanitize@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ]
+            }
+        ],
+        "depends": [],
+        "policy": {
+            "capabilities": {
+                "tinymce.assets.get@1": {
+                    "allow_callers": [
+                        "cms",
+                        "guidance",
+                        "tinymce"
+                    ]
+                },
+                "tinymce.config.get@1": {
+                    "allow_callers": [
+                        "cms",
+                        "guidance",
+                        "tinymce"
+                    ]
+                },
+                "tinymce.html.normalize@1": {
+                    "allow_callers": [
+                        "cms",
+                        "guidance",
+                        "tinymce"
+                    ]
+                },
+                "tinymce.html.sanitize@1": {
+                    "allow_callers": [
+                        "cms",
+                        "guidance",
+                        "tinymce"
+                    ]
+                }
+            }
+        }
+    },
+    "events": [
+        {
+            "key": "tinymce.editor.loaded",
+            "description": "TinyMCE editor configuration loaded",
+            "available_vars": [
+                "context",
+                "profile"
+            ]
+        },
+        {
+            "key": "tinymce.content.changed",
+            "description": "TinyMCE content changed",
+            "available_vars": [
+                "context"
+            ]
+        },
+        {
+            "key": "tinymce.content.saved",
+            "description": "TinyMCE content saved",
+            "available_vars": [
+                "context"
+            ]
+        }
+    ]
+}

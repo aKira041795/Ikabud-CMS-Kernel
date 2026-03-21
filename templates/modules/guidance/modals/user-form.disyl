@@ -1,0 +1,141 @@
+{!-- User Form Modal --}
+
+<div class="fixed inset-0 z-50 overflow-y-auto" aria-modal="true">
+    <div class="flex items-start justify-center min-h-screen px-4 py-8">
+        <div class="fixed inset-0 bg-black bg-opacity-50" onclick="closeModal()"></div>
+        
+        <div class="relative bg-white rounded-2xl shadow-2xl max-w-2xl w-full">
+            <div class="flex items-center justify-between px-6 py-4 border-b bg-gradient-to-r from-indigo-50 to-white rounded-t-2xl">
+                <div class="flex items-center space-x-3">
+                    <div class="w-10 h-10 rounded-xl bg-indigo-100 flex items-center justify-center">
+                        <i class="fas fa-user-cog text-indigo-600"></i>
+                    </div>
+                    <h2 class="text-lg font-bold text-gray-900">
+                        {if user.id}Edit User{else}New User{/if}
+                    </h2>
+                </div>
+                <button onclick="closeModal()" class="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <form {if user.id}hx-put="/admin/guidance/api/users/{user.id}"{else}hx-post="/admin/guidance/api/users"{/if}
+                  hx-swap="none"
+                  class="p-6 space-y-5">
+                
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">First Name *</label>
+                        <input type="text" name="first_name" required value="{user.first_name | default:''}"
+                               class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Last Name *</label>
+                        <input type="text" name="last_name" required value="{user.last_name | default:''}"
+                               class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
+                    </div>
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Email Address {if is_admin}*{/if}</label>
+                    {if is_admin}
+                    <input type="email" name="email" required value="{user.email | default:''}"
+                           class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
+                    {else}
+                    <input type="email" disabled value="{user.email | default:''}"
+                           class="w-full px-4 py-2 border border-gray-200 rounded-lg bg-gray-100 text-gray-500 cursor-not-allowed">
+                    <p class="text-xs text-gray-400 mt-1"><i class="fas fa-lock mr-1"></i>Contact admin to change email</p>
+                    {/if}
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
+                    <input type="tel" name="phone" value="{user.phone | default:''}" placeholder="e.g. 09171234567"
+                           class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
+                </div>
+                
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Role</label>
+                        {if is_self}
+                        <select disabled class="w-full px-4 py-2 border border-gray-200 rounded-lg bg-gray-100 text-gray-500 cursor-not-allowed">
+                            <option selected>{user.role | capitalize}</option>
+                        </select>
+                        <p class="text-xs text-amber-600 mt-1"><i class="fas fa-lock mr-1"></i>You cannot change your own role</p>
+                        {elseif is_admin}
+                        <select name="role" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
+                            <option value="counselor" {if user.role == 'counselor'}selected{/if}>Counselor</option>
+                            <option value="supervisor" {if user.role == 'supervisor'}selected{/if}>Supervisor</option>
+                            <option value="admin" {if user.role == 'admin'}selected{/if}>Admin</option>
+                        </select>
+                        {else}
+                        <select disabled class="w-full px-4 py-2 border border-gray-200 rounded-lg bg-gray-100 text-gray-500 cursor-not-allowed">
+                            <option selected>{user.role | capitalize}</option>
+                        </select>
+                        {/if}
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">
+                            {if user.id}New Password{else}Password *{/if}
+                        </label>
+                        <input type="password" name="password" {if !user.id}required{/if}
+                               placeholder="{if user.id}Leave blank to keep{else}Enter password{/if}"
+                               class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
+                    </div>
+                </div>
+                
+                <div class="flex justify-end space-x-3 pt-4 border-t">
+                    <button type="button" onclick="closeModal()" 
+                            class="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200">
+                        Cancel
+                    </button>
+                    <button type="submit" class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">
+                        <i class="fas fa-save mr-2"></i> {if user.id}Update{else}Create{/if} User
+                    </button>
+                </div>
+            </form>
+            
+            {if user.id}
+            {if is_admin}
+            <div class="px-6 py-5 border-t bg-gray-50 rounded-b-2xl">
+                <h3 class="text-sm font-semibold text-gray-700 mb-3">
+                    <i class="fas fa-university mr-2 text-indigo-500"></i>College Assignments
+                </h3>
+                <form hx-post="/admin/guidance/api/users/{user.id}/colleges" hx-swap="none" class="space-y-3">
+                    <div class="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto">
+                        {foreach colleges as col}
+                        <label class="flex items-center space-x-2 px-3 py-2 bg-white border border-gray-200 rounded-lg hover:bg-indigo-50 hover:border-indigo-300 cursor-pointer transition">
+                            <input type="checkbox" name="college_ids[]" value="{col.id}"
+                                   class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                            <div>
+                                <span class="text-sm font-medium text-gray-800">{col.code}</span>
+                                <span class="text-xs text-gray-500 ml-1">{col.name}</span>
+                            </div>
+                        </label>
+                        {/foreach}
+                    </div>
+                    <div class="flex justify-end">
+                        <button type="submit" class="px-4 py-2 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">
+                            <i class="fas fa-save mr-1"></i> Save Assignments
+                        </button>
+                    </div>
+                </form>
+            </div>
+            {/if}
+            {/if}
+        </div>
+    </div>
+</div>
+
+{if user.id}
+<div id="__assigned_colleges_data" data-ids="{assigned_colleges_json | raw}" style="display:none"></div>
+<script>
+(function() {
+    var el = document.getElementById('__assigned_colleges_data');
+    var assigned = el ? JSON.parse(el.getAttribute('data-ids') || '[]') : [];
+    document.querySelectorAll('input[name="college_ids[]"]').forEach(function(cb) {
+        if (assigned.indexOf(parseInt(cb.value)) !== -1) cb.checked = true;
+    });
+})();
+</script>
+{/if}

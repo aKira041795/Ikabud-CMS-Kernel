@@ -1,0 +1,76 @@
+<?php
+
+declare(strict_types=1);
+
+return [
+    'name' => 'Baron Inventory Ledger',
+    'version' => '0.1.0',
+    'env' => $_ENV['APP_ENV'] ?? 'development',
+    'debug' => (bool) ($_ENV['APP_DEBUG'] ?? true),
+    'url' => $_ENV['APP_URL'] ?? 'http://baroninventory.test',
+    'timezone' => $_ENV['APP_TIMEZONE'] ?? 'Asia/Manila',
+
+    'cookie_name' => $_ENV['APP_COOKIE_NAME'] ?? 'baroninventory_token',
+
+    'jwt' => [
+        'secret' => $_ENV['JWT_SECRET'] ?? 'change-me-in-env',
+        'expiration' => (int) ($_ENV['JWT_EXPIRATION'] ?? 14400),
+    ],
+
+    'ai' => [
+        'openai_api_key' => $_ENV['OPENAI_API_KEY'] ?? '',
+        'openai_model' => $_ENV['OPENAI_MODEL'] ?? 'gpt-4o-mini',
+        'groq_api_key' => $_ENV['GROQ_API_KEY'] ?? '',
+        'ollama_base_url' => $_ENV['OLLAMA_BASE_URL'] ?? 'http://localhost:11434',
+    ],
+
+    'sms' => [
+        'provider' => $_ENV['SMS_PROVIDER'] ?? '',
+        'api_key' => $_ENV['SMS_API_KEY'] ?? '',
+        'api_secret' => $_ENV['SMS_API_SECRET'] ?? '',
+        'sender_name' => $_ENV['SMS_SENDER_NAME'] ?? '',
+    ],
+
+    'capabilities' => [
+        'timeout_ms' => (int) ($_ENV['CAP_TIMEOUT_MS'] ?? 2000),
+        'retries' => (int) ($_ENV['CAP_RETRIES'] ?? 0),
+        'retry_delay_ms' => (int) ($_ENV['CAP_RETRY_DELAY_MS'] ?? 100),
+        'breaker_threshold' => (int) ($_ENV['CAP_BREAKER_THRESHOLD'] ?? 5),
+        'breaker_window_sec' => (int) ($_ENV['CAP_BREAKER_WINDOW_SEC'] ?? 30),
+        'breaker_cooldown_sec' => (int) ($_ENV['CAP_BREAKER_COOLDOWN_SEC'] ?? 60),
+        'metrics_max_samples' => (int) ($_ENV['CAP_METRICS_MAX_SAMPLES'] ?? 200),
+        'schema_validation_mode' => (string) ($_ENV['CAP_SCHEMA_MODE'] ?? 'warn'),
+        'schema_modes' => [
+            'kernel.audit.record@1' => 'enforce',
+            'workflow.state.get@1' => 'enforce',
+            'workflow.transition@1' => 'enforce',
+        ],
+    ],
+
+    'modules' => [
+        // Backward compatible default: eagerly load each enabled module's helpers.php
+        // during route loading. Set APP_EAGER_MODULE_HELPERS=0 to experiment with
+        // lazy helper loading patterns.
+        'eager_helpers' => (bool) ($_ENV['APP_EAGER_MODULE_HELPERS'] ?? true),
+        // warn  => log route ambiguities and continue registering
+        // block => reject ambiguous dynamic/static route registrations
+        'route_ambiguity_mode' => (string) ($_ENV['APP_ROUTE_AMBIGUITY_MODE'] ?? 'warn'),
+    ],
+
+    'multi_tenant' => [
+        'enabled' => (bool) ($_ENV['APP_MULTI_TENANT_ENABLED'] ?? false),
+        'strategy' => (string) ($_ENV['APP_TENANT_STRATEGY'] ?? 'control_host'),
+        'header' => (string) ($_ENV['APP_TENANT_HEADER'] ?? 'X-Tenant'),
+        'default' => isset($_ENV['APP_TENANT_DEFAULT']) ? (int) $_ENV['APP_TENANT_DEFAULT'] : null,
+        'column' => (string) ($_ENV['APP_TENANT_COLUMN'] ?? 'tenant_id'),
+        'host_map' => [],
+    ],
+
+    'crypto' => [
+        'control_db_enc_key' => $_ENV['CONTROL_DB_ENC_KEY'] ?? ($_ENV['APP_ENCRYPTION_KEY'] ?? null),
+    ],
+
+    'cookie' => [
+        'samesite' => $_ENV['APP_COOKIE_SAMESITE'] ?? 'Strict',
+    ],
+];

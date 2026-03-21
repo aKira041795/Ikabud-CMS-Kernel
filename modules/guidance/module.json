@@ -1,0 +1,119 @@
+{
+    "id": "guidance",
+    "name": "Guidance Monitoring",
+    "version": "1.0.0",
+    "description": "School guidance counseling case management and scheduling.",
+    "author": "Noah C. Omamalin",
+    "owns_tables": [
+        "gm_users",
+        "gm_password_resets",
+        "gm_otp_codes",
+        "gm_rate_limits",
+        "gm_colleges",
+        "gm_counselor_assignments",
+        "gm_cases",
+        "gm_case_status_history",
+        "gm_counselor_notes",
+        "gm_attachments",
+        "gm_appointment_types",
+        "gm_appointments",
+        "gm_blocked_dates",
+        "gm_notifications",
+        "gm_notification_queue",
+        "gm_settings",
+        "gm_form_fields",
+        "gm_audit_logs",
+        "gm_sync_queue",
+        "gm_migrations"
+    ],
+    "reads_tables": [
+        "users",
+        "audit_logs",
+        "rate_limits"
+    ],
+    "migrations": [
+        "migrations/001_guidance_schema.sql",
+        "migrations/002_guidance_seed.sql"
+    ],
+    "events": [
+        {
+            "key": "guidance.booking.created",
+            "description": "Fired when a student submits a public booking request.",
+            "available_vars": [
+                "appointment_id",
+                "student_name",
+                "student_email",
+                "student_phone",
+                "to",
+                "trigger_ref_id"
+            ]
+        },
+        {
+            "key": "guidance.appointment.created",
+            "description": "Fired when an admin creates a new appointment for a case.",
+            "available_vars": [
+                "appointment_id",
+                "date",
+                "time",
+                "student_name",
+                "to",
+                "trigger_ref_id"
+            ]
+        }
+    ],
+    "capabilities": {
+        "exposes": [
+            {
+                "id": "kernel.auth.authenticate@1",
+                "priority": 600,
+                "modes": [
+                    "pipeline"
+                ],
+                "schema": {
+                    "type": "object",
+                    "properties": {
+                        "username": {
+                            "type": "string"
+                        },
+                        "password": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        ],
+        "depends": [
+            "tinymce.assets.get@1",
+            "tinymce.config.get@1",
+            "tinymce.html.normalize@1",
+            "tinymce.html.sanitize@1"
+        ],
+        "policy": {
+            "default": {
+                "deny_providers": []
+            },
+            "capabilities": {
+                "kernel.auth.authenticate@1": {
+                    "allow_callers": [
+                        "sms",
+                        "guidance",
+                        "kernel"
+                    ]
+                }
+            }
+        }
+    },
+    "auth_cookie": "guidance_staff_token",
+    "nav": [
+        {
+            "label": "Guidance",
+            "url": "/admin/guidance",
+            "icon": "heart-pulse",
+            "roles": [
+                "admin",
+                "supervisor",
+                "counselor"
+            ]
+        }
+    ]
+}

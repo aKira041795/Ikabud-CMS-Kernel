@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{page_title}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: 'Georgia', 'Times New Roman', serif; }
+        .prose h2 { margin: 2.5rem 0 1rem; font-size: 1.5rem; font-weight: 700; font-family: system-ui, sans-serif; }
+        .prose h3 { margin: 2rem 0 0.75rem; font-size: 1.2rem; font-weight: 600; font-family: system-ui, sans-serif; }
+        .prose p { margin: 0 0 1.25rem; line-height: 1.8; }
+        .prose img { max-width: 100%; border-radius: 0.25rem; margin: 1.5rem 0; }
+        .prose img[style*="float: left"], .prose img[style*="float:left"], .prose img.alignleft { float: left; margin: 0 1rem 0 0; max-width: 50%; }
+        .prose img[style*="float: right"], .prose img[style*="float:right"], .prose img.alignright { float: right; margin: 0 0 0 1rem; max-width: 50%; }
+        .prose img.aligncenter { display: block; margin-left: auto; margin-right: auto; }
+        .prose blockquote { border-left: 3px solid #111; padding: 0.75rem 1.25rem; margin: 1.5rem 0; font-style: italic; color: #444; }
+        .prose pre { background: #111; color: #e0e0e0; padding: 1.25rem; border-radius: 0.25rem; overflow-x: auto; font-size: 0.85rem; font-family: 'Menlo', monospace; }
+        .prose code { background: #f5f5f5; padding: 0.1rem 0.35rem; border-radius: 2px; font-size: 0.9em; }
+        .prose pre code { background: none; padding: 0; }
+        .prose ul, .prose ol { padding-left: 1.5rem; margin: 0 0 1.25rem; }
+        .prose li { margin-bottom: 0.5rem; line-height: 1.7; }
+        .prose a { color: #111; text-decoration: underline; text-underline-offset: 2px; }
+        .prose a:hover { color: #555; }
+    </style>
+    {block head}{/block}
+</head>
+<body class="bg-white text-gray-900 min-h-screen">
+    <header class="border-b border-gray-100">
+        <div class="max-w-2xl mx-auto px-6 py-6 flex items-center justify-between">
+            <a href="{base_url}/cms" class="text-xl font-bold tracking-tight hover:opacity-70 no-underline" style="font-family: system-ui, sans-serif;">Blog</a>
+            <nav class="flex items-center gap-5 text-sm" style="font-family: system-ui, sans-serif;">
+                <a href="{base_url}/cms/blog" class="text-gray-500 hover:text-gray-900 no-underline">Archive</a>
+                <a href="{base_url}/cms/admin" class="text-gray-300 hover:text-gray-500 no-underline text-xs">Admin</a>
+            </nav>
+        </div>
+    </header>
+
+    <main class="max-w-4xl mx-auto px-6 py-12">
+        <div class="flex flex-col lg:flex-row gap-10 lg:items-start{if has_customized_sidebar && !builder_enabled}{if sidebar_position == 'left'} lg:flex-row-reverse{/if}{/if}">
+            <section class="min-w-0 flex-1">
+                {block content}{/block}
+            </section>
+            {if has_customized_sidebar && !builder_enabled}
+            <aside class="w-full lg:flex-none" style="max-width:{sidebar_width|default:'300'}px;">
+                {customized_sidebar|raw}
+            </aside>
+            {/if}
+        </div>
+    </main>
+
+    <footer class="border-t border-gray-100 mt-16">
+        <div class="max-w-2xl mx-auto px-6 py-8 text-center text-xs text-gray-300" style="font-family: system-ui, sans-serif;">
+            Powered by CMS Module &middot; Minimal Theme
+        </div>
+    </footer>
+    {block scripts}{/block}
+</body>
+</html>

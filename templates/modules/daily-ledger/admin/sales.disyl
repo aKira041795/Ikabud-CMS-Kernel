@@ -1,0 +1,148 @@
+{extends "modules/daily-ledger/layouts/app.disyl"}
+
+{block head}
+<style>
+    .print-only {
+        display: none;
+    }
+    @media print {
+        .print-hide {
+            display: none !important;
+        }
+        .print-only {
+            display: block !important;
+        }
+        .card {
+            border: none !important;
+            box-shadow: none !important;
+        }
+        body {
+            background: #fff !important;
+        }
+    }
+</style>
+{/block}
+
+{block content}
+<div class="print-only mb-4">
+    <h1 class="text-lg font-semibold text-gray-900">Sales Summary Report</h1>
+    <div class="text-sm text-gray-700">Date Range: {date_from} to {date_to}</div>
+    <div class="text-sm text-gray-700">Prepared By: {user_name} ({user_role})</div>
+    <div class="text-sm text-gray-700" id="print-generated-at-sales">Printed At: -</div>
+</div>
+
+<div class="flex items-center justify-between mb-6">
+    <div>
+        <h2 class="text-lg font-semibold text-gray-900">Sales Summary</h2>
+        <p class="text-sm text-gray-500">Filter by date range, branch, or product.</p>
+        <p class="text-xs text-gray-500 mt-1">
+            Business date: <span class="font-medium text-gray-700">{business_date_label}</span>
+            · Timezone: <span class="font-medium text-gray-700">{operating_timezone}</span>
+            · Region: <span class="font-medium text-gray-700">{operating_region}</span>
+        </p>
+        <div class="mt-2">
+            <span class="inline-flex items-center rounded-full bg-amber-100 px-3 py-1 text-sm font-semibold text-amber-800 ring-1 ring-inset ring-amber-300">
+                Cutoff: {close_of_day_time}
+            </span>
+        </div>
+    </div>
+    {if user_role == 'admin'}
+    <button type="button" class="btn btn-outline print-hide" onclick="printSalesSummary()">Print</button>
+    {/if}
+</div>
+
+<form class="card mb-6 print-hide" hx-get="{base_url}/admin/sales" hx-target="#main-content" hx-swap="innerHTML" hx-push-url="true">
+    <div class="card-body">
+    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5 items-end">
+    <div class="form-group">
+        <label class="form-label">From</label>
+        <input type="date" class="form-input" name="date_from" value="{date_from}">
+    </div>
+    <div class="form-group">
+        <label class="form-label">To</label>
+        <input type="date" class="form-input" name="date_to" value="{date_to}">
+    </div>
+    <div class="form-group">
+        <label class="form-label">Branch</label>
+        <select class="form-input" name="branch_id">
+            <option value="">All Branches</option>
+            {foreach branches as br}
+            <option value="{br.id}" {if br.id == branch_id}selected{/if}>{br.name}</option>
+            {/foreach}
+        </select>
+    </div>
+    <div class="form-group">
+        <label class="form-label">Search</label>
+        <input type="text" class="form-input" name="q" value="{search}" placeholder="Product, SKU, or branch...">
+    </div>
+    <button type="submit" class="btn btn-primary">Filter</button>
+    </div>
+    </div>
+</form>
+
+<div class="card">
+    <div class="card-header">
+        <span>Sales Data</span>
+        <span class="text-sm text-muted">{sales_rows | count} rows</span>
+    </div>
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Branch</th>
+                    <th>Product</th>
+                    <th>SKU</th>
+                    <th class="text-right">Beg Bal</th>
+                    <th class="text-right">Addt'l</th>
+                    <th class="text-right">W/Draw</th>
+                    <th class="text-right">Bal End</th>
+                    <th class="text-right">Sales</th>
+                    <th class="text-right">Price</th>
+                    <th class="text-right">Amount</th>
+                </tr>
+            </thead>
+            <tbody>
+                {if sales_rows | count == 0}
+                <tr><td colspan="11" class="px-4 py-10 text-center text-sm text-gray-500">No data for selected range</td></tr>
+                {/if}
+                {foreach sales_rows as row}
+                <tr>
+                    <td>{row.ledger_date}</td>
+                    <td>{row.branch_name}</td>
+                    <td>{row.product_name}</td>
+                    <td class="text-muted text-sm">{row.sku}</td>
+                    <td class="text-right">{row.beg_bal}</td>
+                    <td class="text-right">{row.addtl}</td>
+                    <td class="text-right">{row.withdraw}</td>
+                    <td class="text-right">{row.bal_end}</td>
+                    <td class="text-right">{row.sales}</td>
+                    <td class="text-right">{row.price_snapshot}</td>
+                    <td class="text-right font-semibold text-emerald-700">{row.amount}</td>
+                </tr>
+                {/foreach}
+                {if sales_rows | count > 0}
+                <tr>
+                    <td colspan="8" class="text-right font-semibold bg-gray-50 border-t border-gray-200">Grand Total:</td>
+                    <td class="text-right">{grand_units}</td>
+                    <td></td>
+                    <td class="text-right font-semibold text-emerald-700">PHP {grand_amount | number_format}</td>
+                </tr>
+                {/if}
+            </tbody>
+        </table>
+    </div>
+</div>
+{/block}
+
+{block scripts}
+<script>
+    function printSalesSummary() {
+        var el = document.getElementById('print-generated-at-sales');
+        if (el) {
+            el.textContent = 'Printed At: ' + new Date().toLocaleString();
+        }
+        window.print();
+    }
+</script>
+{/block}

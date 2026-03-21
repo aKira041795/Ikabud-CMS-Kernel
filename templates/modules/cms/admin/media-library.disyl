@@ -1,0 +1,887 @@
+{extends "modules/cms/layouts/admin.disyl"}
+
+{block content}
+<!-- Upload zone -->
+<div class="mb-6" x-data="cmsUploader()">
+    <div class="border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors bg-white"
+         :class="dragover ? 'border-sky-400 bg-sky-50' : 'border-gray-300 hover:border-gray-400'"
+         @click="$refs.fileInput.click()"
+         @dragover.prevent="dragover=true" @dragleave="dragover=false" @drop.prevent="handleDrop($event)">
+        <input type="file" x-ref="fileInput" @change="upload($event)" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt" multiple class="hidden">
+        <div x-show="!uploading">
+            <svg class="w-10 h-10 mx-auto text-gray-300 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+            <p class="text-sm font-medium text-gray-600">Drop files here or click to upload</p>
+            <p class="text-xs text-gray-400 mt-1">Max 2MB per file · Images, PDF, Office documents</p>
+        </div>
+        <div x-show="uploading" class="text-sky-600">
+            <svg class="w-8 h-8 mx-auto animate-spin mb-2" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
+            Uploading... <span x-text="uploadProgress"></span>
+        </div>
+    </div>
+</div>
+
+<div x-data="cmsMediaLibrary()" x-init="init()">
+<div class="flex items-center justify-between mb-3">
+    <span class="text-xs text-gray-400">{total} files</span>
+    <div class="inline-flex items-center bg-gray-100 rounded-lg p-0.5">
+        <button @click="viewMode = 'grid'" class="px-2.5 py-1 text-xs font-medium rounded-md transition-all" :class="viewMode === 'grid' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/></svg>
+        </button>
+        <button @click="viewMode = 'list'" class="px-2.5 py-1 text-xs font-medium rounded-md transition-all" :class="viewMode === 'list' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"/></svg>
+        </button>
+    </div>
+</div>
+
+{if media | count == 0}
+<div class="bg-white rounded-lg border border-gray-200 py-16 text-center">
+    <svg class="w-12 h-12 mx-auto text-gray-200 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+    <p class="text-gray-400">No media files yet. Upload your first file above.</p>
+</div>
+{/if}
+
+    <!-- Grid view -->
+    <div x-show="viewMode === 'grid'" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+        {foreach media as item}
+        <div class="group bg-white rounded-lg border border-gray-200 overflow-hidden relative" x-data="{ copied: false }">
+            {if item.mime_type == 'image/jpeg' || item.mime_type == 'image/png' || item.mime_type == 'image/gif' || item.mime_type == 'image/webp'}
+            <img class="w-full h-32 object-cover bg-gray-100" src="{item.url}" alt="{item.alt_text}" loading="lazy">
+            {else}
+            <div class="w-full h-32 flex items-center justify-center bg-gray-50 text-gray-400 text-xs font-mono">{item.mime_type}</div>
+            {/if}
+            <div class="px-2.5 py-2">
+                <div class="text-xs font-medium text-gray-700 truncate" title="{item.original_name}">{item.original_name}</div>
+                <div class="text-[10px] text-gray-400 mt-0.5">{item.created_at}</div>
+            </div>
+            <div class="absolute top-1.5 right-1.5 hidden group-hover:flex gap-1">
+                {if item.mime_type == 'image/jpeg' || item.mime_type == 'image/png' || item.mime_type == 'image/gif' || item.mime_type == 'image/webp'}
+                <button class="px-2 py-1 bg-amber-500 text-white text-[10px] font-medium rounded shadow-sm hover:bg-amber-600"
+                    @click.stop="openEditor({item.id}, '{item.url}', '{item.mime_type}')">Edit</button>
+                {/if}
+                <button class="px-2 py-1 bg-sky-600 text-white text-[10px] font-medium rounded shadow-sm hover:bg-sky-700"
+                    @click.stop="navigator.clipboard.writeText('{item.url}'); copied=true; setTimeout(()=>copied=false,1500)"
+                        x-text="copied ? '✓' : 'URL'"></button>
+                <button class="px-2 py-1 bg-red-600 text-white text-[10px] font-medium rounded shadow-sm hover:bg-red-700"
+                        @click.stop="deleteMedia({item.id})">Del</button>
+            </div>
+        </div>
+        {/foreach}
+    </div>
+
+    <!-- List view -->
+    <div x-show="viewMode === 'list'" class="bg-white rounded-lg border border-gray-200 overflow-hidden">
+        <table class="w-full">
+            <thead>
+                <tr class="bg-gray-50/80 border-b border-gray-200">
+                    <th class="w-16 px-3 py-2.5"></th>
+                    <th class="text-left px-3 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-gray-400">Name</th>
+                    <th class="text-left px-3 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-gray-400 hidden md:table-cell">Type</th>
+                    <th class="text-left px-3 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-gray-400 hidden sm:table-cell">Date</th>
+                    <th class="px-3 py-2.5 text-right text-[11px] font-semibold uppercase tracking-wider text-gray-400">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">
+                {foreach media as item}
+                <tr class="group hover:bg-gray-50 transition-colors" x-data="{ copied: false }">
+                    <td class="px-3 py-2">
+                        {if item.mime_type == 'image/jpeg' || item.mime_type == 'image/png' || item.mime_type == 'image/gif' || item.mime_type == 'image/webp'}
+                        <img class="w-10 h-10 object-cover rounded bg-gray-100" src="{item.url}" alt="{item.alt_text}" loading="lazy">
+                        {else}
+                        <div class="w-10 h-10 flex items-center justify-center bg-gray-100 rounded text-gray-400 text-[9px] font-mono">{item.mime_type}</div>
+                        {/if}
+                    </td>
+                    <td class="px-3 py-2">
+                        <span class="text-sm font-medium text-gray-700" title="{item.original_name}">{item.original_name}</span>
+                    </td>
+                    <td class="px-3 py-2 hidden md:table-cell"><span class="text-xs text-gray-400">{item.mime_type}</span></td>
+                    <td class="px-3 py-2 hidden sm:table-cell"><span class="text-xs text-gray-400">{item.created_at}</span></td>
+                    <td class="px-3 py-2 text-right">
+                        <div class="flex items-center justify-end gap-1">
+                            {if item.mime_type == 'image/jpeg' || item.mime_type == 'image/png' || item.mime_type == 'image/gif' || item.mime_type == 'image/webp'}
+                            <button class="px-2 py-1 text-[11px] font-medium text-amber-700 bg-amber-50 rounded hover:bg-amber-100 transition-colors"
+                                @click.stop="openEditor({item.id}, '{item.url}', '{item.mime_type}')">Edit</button>
+                            {/if}
+                                <button class="px-2 py-1 text-[11px] font-medium text-sky-600 bg-sky-50 rounded hover:bg-sky-100 transition-colors"
+                                    @click.stop="navigator.clipboard.writeText('{item.url}'); copied=true; setTimeout(()=>copied=false,1500)"
+                                    x-text="copied ? 'Copied!' : 'Copy URL'"></button>
+                            <button class="px-2 py-1 text-[11px] font-medium text-red-500 bg-red-50 rounded hover:bg-red-100 transition-colors"
+                                    @click.stop="deleteMedia({item.id})">Delete</button>
+                        </div>
+                    </td>
+                </tr>
+                {/foreach}
+            </tbody>
+        </table>
+    </div>
+
+    <div x-show="editorOpen" x-cloak class="fixed inset-0 z-[70] flex items-center justify-center p-4" @keydown.escape.window="closeEditor()" @keydown.window="nudgeCrop($event)" @mousemove.window="updateCropSelection($event)" @mouseup.window="finishCropSelection()">
+        <div class="absolute inset-0 bg-black/40" @click="closeEditor()"></div>
+        <div class="relative w-full max-w-5xl bg-white rounded-xl border border-gray-200 shadow-xl overflow-hidden max-h-[92vh] flex flex-col">
+            <div class="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
+                <h3 class="text-sm font-semibold text-gray-800">Edit Image</h3>
+                <button class="text-gray-400 hover:text-gray-600" @click="closeEditor()">✕</button>
+            </div>
+            <div class="p-4 grid lg:grid-cols-[minmax(0,1fr)_320px] gap-4 overflow-y-auto">
+                <div class="space-y-4 min-w-0">
+                    <div class="rounded-lg overflow-hidden border border-gray-200 bg-gray-50">
+                        <div class="overflow-auto max-h-[62vh] p-4 flex justify-center">
+                            <div class="relative inline-block select-none">
+                                <img x-ref="editorImage" :src="editorImageUrl" alt="Selected image" class="max-w-full h-auto block"
+                                     :style="'transform:scale(' + zoomLevel + '); transform-origin: top left;'"
+                                     :class="selectedOperation === 'crop' ? 'cursor-crosshair' : ''"
+                                     loading="lazy"
+                                     @load="handleEditorImageLoad($event)"
+                                     @mousedown.prevent="startCropSelection($event)">
+                                <div x-show="selectedOperation === 'crop' && cropWidth > 0 && cropHeight > 0"
+                                      class="absolute border-2 border-sky-500 bg-sky-300/20 pointer-events-auto"
+                                      :style="displayCropStyle()"
+                                      @mousedown.self.stop.prevent="startCropMove($event)">
+                                     <div class="absolute inset-0 pointer-events-none">
+                                        <div class="absolute left-1/3 top-0 bottom-0 w-px bg-white/60"></div>
+                                        <div class="absolute left-2/3 top-0 bottom-0 w-px bg-white/60"></div>
+                                        <div class="absolute top-1/3 left-0 right-0 h-px bg-white/60"></div>
+                                        <div class="absolute top-2/3 left-0 right-0 h-px bg-white/60"></div>
+                                     </div>
+                                     <div class="absolute -left-2 -top-2 w-4 h-4 rounded-full bg-sky-600 border-2 border-white cursor-nwse-resize"
+                                         @mousedown.stop.prevent="startCropResize('nw', $event)"></div>
+                                     <div class="absolute -right-2 -top-2 w-4 h-4 rounded-full bg-sky-600 border-2 border-white cursor-nesw-resize"
+                                         @mousedown.stop.prevent="startCropResize('ne', $event)"></div>
+                                     <div class="absolute -left-2 -bottom-2 w-4 h-4 rounded-full bg-sky-600 border-2 border-white cursor-nesw-resize"
+                                         @mousedown.stop.prevent="startCropResize('sw', $event)"></div>
+                                     <div class="absolute -right-2 -bottom-2 w-4 h-4 rounded-full bg-sky-600 border-2 border-white cursor-nwse-resize"
+                                         @mousedown.stop.prevent="startCropResize('se', $event)"></div>
+                                     <div class="absolute left-1/2 -top-2 -translate-x-1/2 w-4 h-4 rounded-full bg-sky-600 border-2 border-white cursor-ns-resize"
+                                         @mousedown.stop.prevent="startCropResize('n', $event)"></div>
+                                     <div class="absolute right-0 top-1/2 translate-x-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-sky-600 border-2 border-white cursor-ew-resize"
+                                         @mousedown.stop.prevent="startCropResize('e', $event)"></div>
+                                     <div class="absolute left-1/2 bottom-0 -translate-x-1/2 translate-y-1/2 w-4 h-4 rounded-full bg-sky-600 border-2 border-white cursor-ns-resize"
+                                         @mousedown.stop.prevent="startCropResize('s', $event)"></div>
+                                     <div class="absolute left-0 top-1/2 -translate-x-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-sky-600 border-2 border-white cursor-ew-resize"
+                                         @mousedown.stop.prevent="startCropResize('w', $event)"></div>
+                                   </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex flex-wrap items-center gap-2 text-xs text-gray-500">
+                        <span class="px-2 py-1 rounded bg-gray-100 text-gray-600">Original: <span x-text="imageNaturalWidth || '—'"></span> × <span x-text="imageNaturalHeight || '—'"></span></span>
+                        <template x-if="selectedOperation === 'crop'">
+                            <span class="px-2 py-1 rounded bg-sky-50 text-sky-700">Crop: <span x-text="cropWidth || 0"></span> × <span x-text="cropHeight || 0"></span></span>
+                        </template>
+                        <template x-if="selectedOperation === 'resize'">
+                            <span class="px-2 py-1 rounded bg-emerald-50 text-emerald-700">Resize: <span x-text="resizeWidth || 0"></span> × <span x-text="resizeHeight || 0"></span></span>
+                        </template>
+                        <span class="px-2 py-1 rounded bg-violet-50 text-violet-700">Zoom: <span x-text="Math.round((zoomLevel || 1) * 100)"></span>%</span>
+                        <template x-if="selectedOperation === 'crop' && cropWidth > 0">
+                            <span class="px-2 py-1 rounded bg-amber-50 text-amber-700 font-mono tracking-tight select-none" title="Arrow keys move the crop box. Shift for ×10 steps. Alt+Arrow resizes the box.">↑↓←→ move &nbsp;·&nbsp; ⇧ ×10 &nbsp;·&nbsp; ⌥+↑↓←→ resize</span>
+                        </template>
+                    </div>
+                </div>
+
+                <div class="space-y-4">
+                <div class="rounded-lg border border-gray-200 p-3 bg-white/80 space-y-2">
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs font-semibold uppercase tracking-wide text-gray-500">Canvas Zoom</span>
+                        <button class="px-2 py-1 text-xs rounded border border-gray-300 text-gray-600 hover:bg-gray-50" @click="resetZoom()">Reset</button>
+                    </div>
+                    <input type="range" min="0.5" max="3" step="0.05" x-model.number="zoomLevel" class="w-full accent-sky-600">
+                </div>
+
+                <div class="rounded-lg border border-gray-200 p-3 bg-white/80 space-y-2">
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs font-semibold uppercase tracking-wide text-gray-500">Edit History</span>
+                        <span class="text-[11px] text-gray-400" x-text="historyStack.length + ' steps'"></span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button class="px-2.5 py-1.5 text-xs rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50" @click="undoEditorState()" :disabled="!historyStack.length">Undo</button>
+                        <button class="px-2.5 py-1.5 text-xs rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50" @click="resetEditorState()">Reset All</button>
+                    </div>
+                    <p class="text-[11px] text-gray-500">History controls affect editor settings before save. Original media remains unchanged unless you apply with replace mode.</p>
+                </div>
+
+                <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    <button class="px-3 py-2 text-xs font-medium rounded-md border transition-colors"
+                            :class="selectedOperation === 'rotate_left' ? 'border-sky-300 bg-sky-50 text-sky-700' : 'border-gray-200 hover:bg-gray-50 text-gray-700'"
+                            @click="setOperation('rotate_left')">Rotate Left</button>
+                    <button class="px-3 py-2 text-xs font-medium rounded-md border transition-colors"
+                            :class="selectedOperation === 'rotate_right' ? 'border-sky-300 bg-sky-50 text-sky-700' : 'border-gray-200 hover:bg-gray-50 text-gray-700'"
+                            @click="setOperation('rotate_right')">Rotate Right</button>
+                    <button class="px-3 py-2 text-xs font-medium rounded-md border transition-colors"
+                            :class="selectedOperation === 'flip_horizontal' ? 'border-sky-300 bg-sky-50 text-sky-700' : 'border-gray-200 hover:bg-gray-50 text-gray-700'"
+                            @click="setOperation('flip_horizontal')">Flip Horizontal</button>
+                    <button class="px-3 py-2 text-xs font-medium rounded-md border transition-colors"
+                            :class="selectedOperation === 'flip_vertical' ? 'border-sky-300 bg-sky-50 text-sky-700' : 'border-gray-200 hover:bg-gray-50 text-gray-700'"
+                            @click="setOperation('flip_vertical')">Flip Vertical</button>
+                    <button class="px-3 py-2 text-xs font-medium rounded-md border transition-colors"
+                            :class="selectedOperation === 'crop' ? 'border-sky-300 bg-sky-50 text-sky-700' : 'border-gray-200 hover:bg-gray-50 text-gray-700'"
+                            @click="setOperation('crop')">Crop</button>
+                    <button class="px-3 py-2 text-xs font-medium rounded-md border transition-colors"
+                            :class="selectedOperation === 'resize' ? 'border-sky-300 bg-sky-50 text-sky-700' : 'border-gray-200 hover:bg-gray-50 text-gray-700'"
+                            @click="setOperation('resize')">Resize</button>
+                </div>
+
+                <div x-show="selectedOperation === 'crop'" class="space-y-3 rounded-lg border border-gray-200 p-3 bg-gray-50/70">
+                    <div>
+                        <div class="text-sm font-medium text-gray-700">Crop selection</div>
+                    <p class="text-xs text-gray-500 mt-1">Drag directly on the image to define the crop area, or fine-tune the numbers below. You can lock a preset ratio and define output size.</p>
+                    </div>
+                    <div class="space-y-2">
+                    <div class="text-xs text-gray-600">Aspect preset</div>
+                    <div class="flex flex-wrap gap-1.5">
+                        <button type="button" class="px-2 py-1 text-[11px] rounded border"
+                            :class="cropAspectPreset === 'free' ? 'border-sky-300 bg-sky-50 text-sky-700' : 'border-gray-300 text-gray-600 hover:bg-white'"
+                            @click="setCropAspectPreset('free')">Free</button>
+                        <button type="button" class="px-2 py-1 text-[11px] rounded border"
+                            :class="cropAspectPreset === '1:1' ? 'border-sky-300 bg-sky-50 text-sky-700' : 'border-gray-300 text-gray-600 hover:bg-white'"
+                            @click="setCropAspectPreset('1:1')">1:1</button>
+                        <button type="button" class="px-2 py-1 text-[11px] rounded border"
+                            :class="cropAspectPreset === '4:3' ? 'border-sky-300 bg-sky-50 text-sky-700' : 'border-gray-300 text-gray-600 hover:bg-white'"
+                            @click="setCropAspectPreset('4:3')">4:3</button>
+                        <button type="button" class="px-2 py-1 text-[11px] rounded border"
+                            :class="cropAspectPreset === '16:9' ? 'border-sky-300 bg-sky-50 text-sky-700' : 'border-gray-300 text-gray-600 hover:bg-white'"
+                            @click="setCropAspectPreset('16:9')">16:9</button>
+                        <button type="button" class="px-2 py-1 text-[11px] rounded border"
+                            :class="cropAspectPreset === '1200:630' ? 'border-sky-300 bg-sky-50 text-sky-700' : 'border-gray-300 text-gray-600 hover:bg-white'"
+                            @click="setCropAspectPreset('1200:630')">OG 1200×630</button>
+                    </div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <label class="block text-xs text-gray-600">X
+                            <input type="number" min="0" x-model.number="cropX" class="mt-1 w-full rounded-md border-gray-300 text-sm focus:border-sky-500 focus:ring-sky-500">
+                        </label>
+                        <label class="block text-xs text-gray-600">Y
+                            <input type="number" min="0" x-model.number="cropY" class="mt-1 w-full rounded-md border-gray-300 text-sm focus:border-sky-500 focus:ring-sky-500">
+                        </label>
+                        <label class="block text-xs text-gray-600">Width
+                            <input type="number" min="1" x-model.number="cropWidth" @input="syncCropFromWidth()" class="mt-1 w-full rounded-md border-gray-300 text-sm focus:border-sky-500 focus:ring-sky-500">
+                        </label>
+                        <label class="block text-xs text-gray-600">Height
+                            <input type="number" min="1" x-model.number="cropHeight" @input="syncCropFromHeight()" class="mt-1 w-full rounded-md border-gray-300 text-sm focus:border-sky-500 focus:ring-sky-500">
+                        </label>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <label class="block text-xs text-gray-600">Output Width (optional)
+                            <input type="number" min="0" x-model.number="cropOutputWidth" class="mt-1 w-full rounded-md border-gray-300 text-sm focus:border-sky-500 focus:ring-sky-500">
+                        </label>
+                        <label class="block text-xs text-gray-600">Output Height (optional)
+                            <input type="number" min="0" x-model.number="cropOutputHeight" class="mt-1 w-full rounded-md border-gray-300 text-sm focus:border-sky-500 focus:ring-sky-500">
+                        </label>
+                    </div>
+                    <button class="px-2.5 py-1.5 text-xs rounded-md border border-gray-300 text-gray-600 hover:bg-white"
+                            @click="resetCropBox()">Reset crop to full image</button>
+                </div>
+
+                <div x-show="selectedOperation === 'resize'" class="space-y-3 rounded-lg border border-gray-200 p-3 bg-gray-50/70">
+                    <div>
+                        <div class="text-sm font-medium text-gray-700">Resize image</div>
+                        <p class="text-xs text-gray-500 mt-1">Adjust dimensions before saving. Aspect ratio lock is enabled by default.</p>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <label class="block text-xs text-gray-600">Width
+                            <input type="number" min="1" x-model.number="resizeWidth" @input="syncResizeFromWidth()" class="mt-1 w-full rounded-md border-gray-300 text-sm focus:border-sky-500 focus:ring-sky-500">
+                        </label>
+                        <label class="block text-xs text-gray-600">Height
+                            <input type="number" min="1" x-model.number="resizeHeight" @input="syncResizeFromHeight()" class="mt-1 w-full rounded-md border-gray-300 text-sm focus:border-sky-500 focus:ring-sky-500">
+                        </label>
+                    </div>
+                    <label class="inline-flex items-center gap-2 text-sm text-gray-700">
+                        <input type="checkbox" x-model="lockAspectRatio" class="rounded border-gray-300 text-sky-600 focus:ring-sky-500">
+                        Keep aspect ratio
+                    </label>
+                </div>
+
+                <label class="inline-flex items-center gap-2 text-sm text-gray-700">
+                    <input type="checkbox" x-model="replaceOriginal" class="rounded border-gray-300 text-sky-600 focus:ring-sky-500">
+                    Replace original image
+                </label>
+                <p class="text-xs text-gray-500">Best practice is to keep this unchecked so edits create a new copy and preserve the original asset.</p>
+                </div>
+            </div>
+            <div class="px-4 py-3 border-t border-gray-200 flex items-center justify-end gap-2">
+                <button class="px-3 py-1.5 text-sm text-gray-600 hover:text-gray-800" @click="closeEditor()" :disabled="editorBusy">Cancel</button>
+                <button class="px-3 py-1.5 text-sm font-medium rounded-md text-white bg-sky-600 hover:bg-sky-700 disabled:opacity-60"
+                        @click="applyEdit()" :disabled="editorBusy || !canApplyEdit()" x-text="editorBusy ? 'Saving...' : 'Apply Edit'"></button>
+            </div>
+        </div>
+    </div>
+
+{if total_pages > 1}
+<div class="flex items-center justify-center gap-2 mt-5">
+    {if page_num > 1}<a href="{base_url}/cms/admin/media?page=1" class="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50">«</a>{/if}
+    <span class="px-3 py-1.5 text-sm bg-sky-600 text-white rounded-md">{page_num} / {total_pages}</span>
+    {if page_num < total_pages}<a href="{base_url}/cms/admin/media?page={next_page}" class="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50">»</a>{/if}
+</div>
+{/if}
+</div>
+{/block}
+
+{block scripts}
+<script>
+function cmsMediaLibrary() {
+    return {
+        viewMode: localStorage.getItem('cms_media_view') || 'grid',
+        editorOpen: false,
+        editorBusy: false,
+        editorMediaId: 0,
+        editorImageUrl: '',
+        editorMimeType: '',
+        selectedOperation: 'rotate_right',
+        replaceOriginal: false,
+        imageNaturalWidth: 0,
+        imageNaturalHeight: 0,
+        imageAspectRatio: 1,
+        resizeWidth: 0,
+        resizeHeight: 0,
+        lockAspectRatio: true,
+        zoomLevel: 1,
+        historyStack: [],
+        cropAspectPreset: 'free',
+        cropAspectRatio: 0,
+        cropOutputWidth: 0,
+        cropOutputHeight: 0,
+        cropX: 0,
+        cropY: 0,
+        cropWidth: 0,
+        cropHeight: 0,
+        cropDragging: false,
+        cropDragMode: 'new',
+        cropDragStart: null,
+        cropResizeCorner: null,
+        cropStartBox: null,
+        init() {
+            this.$watch('viewMode', value => localStorage.setItem('cms_media_view', value));
+        },
+        snapshotEditorState() {
+            return {
+                selectedOperation: this.selectedOperation,
+                resizeWidth: this.resizeWidth,
+                resizeHeight: this.resizeHeight,
+                lockAspectRatio: this.lockAspectRatio,
+                cropX: this.cropX,
+                cropY: this.cropY,
+                cropWidth: this.cropWidth,
+                cropHeight: this.cropHeight,
+                cropAspectPreset: this.cropAspectPreset,
+                cropAspectRatio: this.cropAspectRatio,
+                cropOutputWidth: this.cropOutputWidth,
+                cropOutputHeight: this.cropOutputHeight,
+                zoomLevel: this.zoomLevel,
+            };
+        },
+        applyEditorState(state) {
+            if (!state || typeof state !== 'object') return;
+            this.selectedOperation = state.selectedOperation || this.selectedOperation;
+            this.resizeWidth = Number(state.resizeWidth || this.resizeWidth || 0);
+            this.resizeHeight = Number(state.resizeHeight || this.resizeHeight || 0);
+            this.lockAspectRatio = !!state.lockAspectRatio;
+            this.cropX = Math.max(0, Number(state.cropX || 0));
+            this.cropY = Math.max(0, Number(state.cropY || 0));
+            this.cropWidth = Math.max(1, Number(state.cropWidth || 1));
+            this.cropHeight = Math.max(1, Number(state.cropHeight || 1));
+            this.cropAspectPreset = state.cropAspectPreset || 'free';
+            this.cropAspectRatio = Number(state.cropAspectRatio || 0);
+            this.cropOutputWidth = Math.max(0, Number(state.cropOutputWidth || 0));
+            this.cropOutputHeight = Math.max(0, Number(state.cropOutputHeight || 0));
+            this.zoomLevel = Math.min(3, Math.max(0.5, Number(state.zoomLevel || 1)));
+        },
+        pushEditorHistory() {
+            this.historyStack.push(this.snapshotEditorState());
+            if (this.historyStack.length > 30) {
+                this.historyStack.shift();
+            }
+        },
+        undoEditorState() {
+            const previous = this.historyStack.pop();
+            if (!previous) return;
+            this.applyEditorState(previous);
+        },
+        resetEditorState() {
+            this.historyStack = [];
+            this.selectedOperation = 'rotate_right';
+            this.lockAspectRatio = true;
+            this.zoomLevel = 1;
+            this.cropAspectPreset = 'free';
+            this.cropAspectRatio = 0;
+            this.cropOutputWidth = 0;
+            this.cropOutputHeight = 0;
+            this.resizeWidth = this.imageNaturalWidth;
+            this.resizeHeight = this.imageNaturalHeight;
+            this.resetCropBox();
+        },
+        resetZoom() {
+            this.zoomLevel = 1;
+        },
+        setCropAspectPreset(preset) {
+            this.pushEditorHistory();
+            this.cropAspectPreset = preset;
+            if (preset === 'free') {
+                this.cropAspectRatio = 0;
+                return;
+            }
+            const [w, h] = preset.split(':').map(part => Number(part || 0));
+            if (w > 0 && h > 0) {
+                this.cropAspectRatio = w / h;
+                if (preset === '1200:630') {
+                    this.cropOutputWidth = 1200;
+                    this.cropOutputHeight = 630;
+                }
+                this.applyCropAspectToCurrent();
+            }
+        },
+        applyCropAspectToCurrent() {
+            if (!this.cropAspectRatio || !this.cropWidth || !this.cropHeight) return;
+            let nextWidth = this.cropWidth;
+            let nextHeight = Math.round(nextWidth / this.cropAspectRatio);
+            if (nextHeight > this.imageNaturalHeight - this.cropY) {
+                nextHeight = this.imageNaturalHeight - this.cropY;
+                nextWidth = Math.round(nextHeight * this.cropAspectRatio);
+            }
+            if (nextWidth > this.imageNaturalWidth - this.cropX) {
+                nextWidth = this.imageNaturalWidth - this.cropX;
+                nextHeight = Math.round(nextWidth / this.cropAspectRatio);
+            }
+            this.cropWidth = Math.max(1, nextWidth);
+            this.cropHeight = Math.max(1, nextHeight);
+        },
+        setOperation(operation) {
+            this.pushEditorHistory();
+            this.selectedOperation = operation;
+            if (operation === 'resize' && this.imageNaturalWidth && this.imageNaturalHeight) {
+                this.resizeWidth = this.imageNaturalWidth;
+                this.resizeHeight = this.imageNaturalHeight;
+            }
+            if (operation === 'crop' && this.imageNaturalWidth && this.imageNaturalHeight && (!this.cropWidth || !this.cropHeight)) {
+                this.resetCropBox();
+            }
+        },
+        openEditor(id, imageUrl, mimeType) {
+            if (!['image/jpeg', 'image/png', 'image/gif', 'image/webp'].includes(mimeType)) {
+                toast('This file type cannot be edited', 'error');
+                return;
+            }
+            this.editorMediaId = Number(id || 0);
+            this.editorImageUrl = imageUrl;
+            this.editorMimeType = mimeType;
+            this.selectedOperation = 'rotate_right';
+            this.replaceOriginal = false;
+            this.imageNaturalWidth = 0;
+            this.imageNaturalHeight = 0;
+            this.imageAspectRatio = 1;
+            this.resizeWidth = 0;
+            this.resizeHeight = 0;
+            this.lockAspectRatio = true;
+            this.zoomLevel = 1;
+            this.historyStack = [];
+            this.cropAspectPreset = 'free';
+            this.cropAspectRatio = 0;
+            this.cropOutputWidth = 0;
+            this.cropOutputHeight = 0;
+            this.cropX = 0;
+            this.cropY = 0;
+            this.cropWidth = 0;
+            this.cropHeight = 0;
+            this.cropDragging = false;
+            this.cropDragMode = 'new';
+            this.cropDragStart = null;
+            this.cropResizeCorner = null;
+            this.cropStartBox = null;
+            this.editorOpen = true;
+        },
+        closeEditor() {
+            if (this.editorBusy) return;
+            this.cropDragging = false;
+            this.cropDragMode = 'new';
+            this.cropResizeCorner = null;
+            this.cropStartBox = null;
+            this.editorOpen = false;
+        },
+        handleEditorImageLoad(event) {
+            const image = event.target;
+            this.imageNaturalWidth = Number(image.naturalWidth || 0);
+            this.imageNaturalHeight = Number(image.naturalHeight || 0);
+            this.imageAspectRatio = this.imageNaturalWidth > 0 && this.imageNaturalHeight > 0
+                ? this.imageNaturalWidth / this.imageNaturalHeight
+                : 1;
+            this.resizeWidth = this.imageNaturalWidth;
+            this.resizeHeight = this.imageNaturalHeight;
+            this.resetCropBox();
+        },
+        resetCropBox() {
+            if (!this.imageNaturalWidth || !this.imageNaturalHeight) return;
+            this.cropX = 0;
+            this.cropY = 0;
+            this.cropWidth = this.imageNaturalWidth;
+            this.cropHeight = this.imageNaturalHeight;
+        },
+        syncCropFromWidth() {
+            this.cropWidth = Math.max(1, Number(this.cropWidth || 1));
+            if (this.cropAspectRatio > 0) {
+                this.cropHeight = Math.max(1, Math.round(this.cropWidth / this.cropAspectRatio));
+            }
+            if (this.cropX + this.cropWidth > this.imageNaturalWidth) {
+                this.cropWidth = Math.max(1, this.imageNaturalWidth - this.cropX);
+            }
+            if (this.cropY + this.cropHeight > this.imageNaturalHeight) {
+                this.cropHeight = Math.max(1, this.imageNaturalHeight - this.cropY);
+            }
+        },
+        syncCropFromHeight() {
+            this.cropHeight = Math.max(1, Number(this.cropHeight || 1));
+            if (this.cropAspectRatio > 0) {
+                this.cropWidth = Math.max(1, Math.round(this.cropHeight * this.cropAspectRatio));
+            }
+            if (this.cropX + this.cropWidth > this.imageNaturalWidth) {
+                this.cropWidth = Math.max(1, this.imageNaturalWidth - this.cropX);
+            }
+            if (this.cropY + this.cropHeight > this.imageNaturalHeight) {
+                this.cropHeight = Math.max(1, this.imageNaturalHeight - this.cropY);
+            }
+        },
+        syncResizeFromWidth() {
+            const width = Math.max(1, Number(this.resizeWidth || 0));
+            this.resizeWidth = width;
+            if (this.lockAspectRatio && this.imageAspectRatio > 0) {
+                this.resizeHeight = Math.max(1, Math.round(width / this.imageAspectRatio));
+            }
+        },
+        syncResizeFromHeight() {
+            const height = Math.max(1, Number(this.resizeHeight || 0));
+            this.resizeHeight = height;
+            if (this.lockAspectRatio && this.imageAspectRatio > 0) {
+                this.resizeWidth = Math.max(1, Math.round(height * this.imageAspectRatio));
+            }
+        },
+        nudgeCrop(e) {
+            // Only act when editor is open, crop tool active, and a crop box exists
+            if (!this.editorOpen || this.selectedOperation !== 'crop') return;
+            if (this.cropWidth <= 0 || this.cropHeight <= 0) return;
+            // Don't hijack keys while typing in an input/textarea/select
+            const tag = document.activeElement ? document.activeElement.tagName : '';
+            if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+            const arrows = ['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'];
+            if (!arrows.includes(e.key)) return;
+            e.preventDefault();
+            const step = e.shiftKey ? 10 : 1;
+            const resize = e.altKey; // Alt+Arrow resizes box, plain Arrow moves it
+            if (resize) {
+                // Alt+Arrow → resize crop box
+                if (e.key === 'ArrowRight') {
+                    const maxW = this.imageNaturalWidth - this.cropX;
+                    this.cropWidth = Math.min(maxW, this.cropWidth + step);
+                    if (this.cropAspectRatio > 0) this.cropHeight = Math.max(1, Math.round(this.cropWidth / this.cropAspectRatio));
+                } else if (e.key === 'ArrowLeft') {
+                    this.cropWidth = Math.max(1, this.cropWidth - step);
+                    if (this.cropAspectRatio > 0) this.cropHeight = Math.max(1, Math.round(this.cropWidth / this.cropAspectRatio));
+                } else if (e.key === 'ArrowDown') {
+                    const maxH = this.imageNaturalHeight - this.cropY;
+                    this.cropHeight = Math.min(maxH, this.cropHeight + step);
+                    if (this.cropAspectRatio > 0) this.cropWidth = Math.max(1, Math.round(this.cropHeight * this.cropAspectRatio));
+                } else if (e.key === 'ArrowUp') {
+                    this.cropHeight = Math.max(1, this.cropHeight - step);
+                    if (this.cropAspectRatio > 0) this.cropWidth = Math.max(1, Math.round(this.cropHeight * this.cropAspectRatio));
+                }
+                // Clamp to image bounds after resize
+                if (this.cropX + this.cropWidth > this.imageNaturalWidth)  this.cropWidth  = Math.max(1, this.imageNaturalWidth  - this.cropX);
+                if (this.cropY + this.cropHeight > this.imageNaturalHeight) this.cropHeight = Math.max(1, this.imageNaturalHeight - this.cropY);
+            } else {
+                // Arrow → move crop box position
+                if (e.key === 'ArrowLeft')  this.cropX = Math.max(0, Math.min(this.cropX - step, this.imageNaturalWidth  - this.cropWidth));
+                if (e.key === 'ArrowRight') this.cropX = Math.max(0, Math.min(this.cropX + step, this.imageNaturalWidth  - this.cropWidth));
+                if (e.key === 'ArrowUp')    this.cropY = Math.max(0, Math.min(this.cropY - step, this.imageNaturalHeight - this.cropHeight));
+                if (e.key === 'ArrowDown')  this.cropY = Math.max(0, Math.min(this.cropY + step, this.imageNaturalHeight - this.cropHeight));
+            }
+        },
+        getImageRect() {
+            const image = this.$refs.editorImage;
+            return image ? image.getBoundingClientRect() : null;
+        },
+        eventToNaturalPoint(event) {
+            const rect = this.getImageRect();
+            if (!rect || !this.imageNaturalWidth || !this.imageNaturalHeight) return null;
+            const relativeX = Math.min(Math.max(event.clientX - rect.left, 0), rect.width);
+            const relativeY = Math.min(Math.max(event.clientY - rect.top, 0), rect.height);
+            const scaleX = this.imageNaturalWidth / rect.width;
+            const scaleY = this.imageNaturalHeight / rect.height;
+            return {
+                x: Math.round(relativeX * scaleX),
+                y: Math.round(relativeY * scaleY),
+            };
+        },
+        startCropSelection(event) {
+            if (this.selectedOperation !== 'crop') return;
+            const point = this.eventToNaturalPoint(event);
+            if (!point) return;
+            this.pushEditorHistory();
+            this.cropDragging = true;
+            this.cropDragMode = 'new';
+            this.cropDragStart = point;
+            this.cropResizeCorner = null;
+            this.cropStartBox = null;
+            this.cropX = point.x;
+            this.cropY = point.y;
+            this.cropWidth = 1;
+            this.cropHeight = 1;
+        },
+        startCropMove(event) {
+            if (this.selectedOperation !== 'crop') return;
+            const point = this.eventToNaturalPoint(event);
+            if (!point) return;
+            this.pushEditorHistory();
+            this.cropDragging = true;
+            this.cropDragMode = 'move';
+            this.cropResizeCorner = null;
+            this.cropDragStart = point;
+            this.cropStartBox = {
+                x: this.cropX,
+                y: this.cropY,
+                width: this.cropWidth,
+                height: this.cropHeight,
+            };
+        },
+        startCropResize(corner, event) {
+            if (this.selectedOperation !== 'crop') return;
+            const point = this.eventToNaturalPoint(event);
+            if (!point) return;
+            this.pushEditorHistory();
+            this.cropDragging = true;
+            this.cropDragMode = 'resize';
+            this.cropResizeCorner = corner;
+            this.cropDragStart = point;
+            this.cropStartBox = {
+                x: this.cropX,
+                y: this.cropY,
+                width: this.cropWidth,
+                height: this.cropHeight,
+            };
+        },
+        updateCropSelection(event) {
+            if (!this.cropDragging || this.selectedOperation !== 'crop' || !this.cropDragStart) return;
+            const point = this.eventToNaturalPoint(event);
+            if (!point) return;
+
+            if (this.cropDragMode === 'move' && this.cropStartBox) {
+                const dx = point.x - this.cropDragStart.x;
+                const dy = point.y - this.cropDragStart.y;
+                const maxX = Math.max(0, this.imageNaturalWidth - this.cropStartBox.width);
+                const maxY = Math.max(0, this.imageNaturalHeight - this.cropStartBox.height);
+                this.cropX = Math.max(0, Math.min(this.cropStartBox.x + dx, maxX));
+                this.cropY = Math.max(0, Math.min(this.cropStartBox.y + dy, maxY));
+                return;
+            }
+
+            if (this.cropDragMode === 'resize' && this.cropStartBox && this.cropResizeCorner) {
+                const box = this.cropStartBox;
+                const right = box.x + box.width;
+                const bottom = box.y + box.height;
+                const centerX = box.x + (box.width / 2);
+                const centerY = box.y + (box.height / 2);
+
+                let nextX1 = box.x;
+                let nextY1 = box.y;
+                let nextX2 = right;
+                let nextY2 = bottom;
+
+                if (this.cropResizeCorner.includes('w')) nextX1 = point.x;
+                if (this.cropResizeCorner.includes('e')) nextX2 = point.x;
+                if (this.cropResizeCorner.includes('n')) nextY1 = point.y;
+                if (this.cropResizeCorner.includes('s')) nextY2 = point.y;
+
+                if (this.cropResizeCorner === 'n' || this.cropResizeCorner === 's') {
+                    nextX1 = box.x;
+                    nextX2 = right;
+                }
+                if (this.cropResizeCorner === 'e' || this.cropResizeCorner === 'w') {
+                    nextY1 = box.y;
+                    nextY2 = bottom;
+                }
+
+                if (this.cropAspectRatio > 0) {
+                    if (this.cropResizeCorner === 'e' || this.cropResizeCorner === 'w') {
+                        const width = Math.max(1, Math.abs(nextX2 - nextX1));
+                        const height = Math.max(1, Math.round(width / this.cropAspectRatio));
+                        nextY1 = Math.round(centerY - (height / 2));
+                        nextY2 = nextY1 + height;
+                    } else if (this.cropResizeCorner === 'n' || this.cropResizeCorner === 's') {
+                        const height = Math.max(1, Math.abs(nextY2 - nextY1));
+                        const width = Math.max(1, Math.round(height * this.cropAspectRatio));
+                        nextX1 = Math.round(centerX - (width / 2));
+                        nextX2 = nextX1 + width;
+                    } else {
+                        let width = Math.max(1, Math.abs(nextX2 - nextX1));
+                        let height = Math.max(1, Math.abs(nextY2 - nextY1));
+                        if ((width / height) > this.cropAspectRatio) {
+                            height = Math.max(1, Math.round(width / this.cropAspectRatio));
+                        } else {
+                            width = Math.max(1, Math.round(height * this.cropAspectRatio));
+                        }
+                        if (this.cropResizeCorner.includes('w')) {
+                            nextX1 = right - width;
+                            nextX2 = right;
+                        } else {
+                            nextX1 = box.x;
+                            nextX2 = box.x + width;
+                        }
+                        if (this.cropResizeCorner.includes('n')) {
+                            nextY1 = bottom - height;
+                            nextY2 = bottom;
+                        } else {
+                            nextY1 = box.y;
+                            nextY2 = box.y + height;
+                        }
+                    }
+                }
+
+                if (nextX1 > nextX2) {
+                    const t = nextX1; nextX1 = nextX2; nextX2 = t;
+                }
+                if (nextY1 > nextY2) {
+                    const t = nextY1; nextY1 = nextY2; nextY2 = t;
+                }
+
+                nextX1 = Math.max(0, nextX1);
+                nextY1 = Math.max(0, nextY1);
+                nextX2 = Math.min(this.imageNaturalWidth, nextX2);
+                nextY2 = Math.min(this.imageNaturalHeight, nextY2);
+
+                this.cropX = Math.max(0, Math.min(nextX1, this.imageNaturalWidth - 1));
+                this.cropY = Math.max(0, Math.min(nextY1, this.imageNaturalHeight - 1));
+                this.cropWidth = Math.max(1, Math.min(nextX2 - nextX1, this.imageNaturalWidth - this.cropX));
+                this.cropHeight = Math.max(1, Math.min(nextY2 - nextY1, this.imageNaturalHeight - this.cropY));
+                return;
+            }
+
+            const start = this.cropDragStart;
+            let deltaX = point.x - start.x;
+            let deltaY = point.y - start.y;
+            let width = Math.max(1, Math.abs(deltaX));
+            let height = Math.max(1, Math.abs(deltaY));
+
+            if (this.cropAspectRatio > 0) {
+                if (height <= 1) {
+                    height = Math.max(1, Math.round(width / this.cropAspectRatio));
+                } else if ((width / height) > this.cropAspectRatio) {
+                    height = Math.max(1, Math.round(width / this.cropAspectRatio));
+                } else {
+                    width = Math.max(1, Math.round(height * this.cropAspectRatio));
+                }
+                deltaX = deltaX < 0 ? -width : width;
+                deltaY = deltaY < 0 ? -height : height;
+            }
+
+            const candidateX = deltaX < 0 ? start.x - width : start.x;
+            const candidateY = deltaY < 0 ? start.y - height : start.y;
+            this.cropX = Math.max(0, Math.min(candidateX, this.imageNaturalWidth - 1));
+            this.cropY = Math.max(0, Math.min(candidateY, this.imageNaturalHeight - 1));
+            this.cropWidth = Math.max(1, Math.min(width, this.imageNaturalWidth - this.cropX));
+            this.cropHeight = Math.max(1, Math.min(height, this.imageNaturalHeight - this.cropY));
+        },
+        finishCropSelection() {
+            this.cropDragging = false;
+            this.cropDragMode = 'new';
+            this.cropDragStart = null;
+            this.cropResizeCorner = null;
+            this.cropStartBox = null;
+        },
+        displayCropStyle() {
+            const rect = this.getImageRect();
+            if (!rect || !this.imageNaturalWidth || !this.imageNaturalHeight) {
+                return 'display:none;';
+            }
+            const scaleX = rect.width / this.imageNaturalWidth;
+            const scaleY = rect.height / this.imageNaturalHeight;
+            return [
+                'left:' + (this.cropX * scaleX) + 'px',
+                'top:' + (this.cropY * scaleY) + 'px',
+                'width:' + (this.cropWidth * scaleX) + 'px',
+                'height:' + (this.cropHeight * scaleY) + 'px',
+            ].join(';');
+        },
+        canApplyEdit() {
+            if (!this.editorMediaId || !this.selectedOperation) return false;
+            if (this.selectedOperation === 'resize') {
+                return Number(this.resizeWidth) > 0 && Number(this.resizeHeight) > 0;
+            }
+            if (this.selectedOperation === 'crop') {
+                return Number(this.cropWidth) > 0 && Number(this.cropHeight) > 0;
+            }
+            return true;
+        },
+        async applyEdit() {
+            if (!this.canApplyEdit()) return;
+            const payload = {
+                operation: this.selectedOperation,
+                mode: this.replaceOriginal ? 'replace' : 'copy',
+            };
+            if (this.selectedOperation === 'resize') {
+                payload.width = Number(this.resizeWidth || 0);
+                payload.height = Number(this.resizeHeight || 0);
+            }
+            if (this.selectedOperation === 'crop') {
+                payload.x = Number(this.cropX || 0);
+                payload.y = Number(this.cropY || 0);
+                payload.width = Number(this.cropWidth || 0);
+                payload.height = Number(this.cropHeight || 0);
+                payload.output_width = Number(this.cropOutputWidth || 0);
+                payload.output_height = Number(this.cropOutputHeight || 0);
+            }
+            this.editorBusy = true;
+            try {
+                const res = await fetch(CMS_BASE + '/api/v1/cms/media/' + this.editorMediaId + '/edit', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CMS_CSRF },
+                    body: JSON.stringify(payload),
+                });
+                const data = await res.json();
+                if (!data.ok) {
+                    toast(data.error || 'Image edit failed', 'error');
+                    return;
+                }
+                toast(this.replaceOriginal ? 'Image updated' : 'Edited copy created');
+                window.location.reload();
+            } catch (error) {
+                toast('Network error while editing image', 'error');
+            } finally {
+                this.editorBusy = false;
+            }
+        },
+    };
+}
+
+function cmsUploader() {
+    return {
+        uploading: false, uploadProgress: '', dragover: false,
+        async upload(event) { await this.uploadFiles(event.target.files || []); },
+        async handleDrop(event) { this.dragover = false; await this.uploadFiles(event.dataTransfer.files || []); },
+        async uploadFiles(files) {
+            if (!files.length) return;
+            this.uploading = true;
+            let done = 0;
+            for (const file of files) {
+                this.uploadProgress = (done + 1) + '/' + files.length;
+                const fd = new FormData();
+                fd.append('file', file);
+                fd.append('_token', CMS_CSRF);
+                try {
+                    const res = await fetch(CMS_BASE + '/api/v1/cms/media/upload', { method: 'POST', body: fd });
+                    const data = await res.json();
+                    if (!data.ok) toast(data.error || 'Upload failed', 'error');
+                } catch(e) { toast('Upload error', 'error'); }
+                done++;
+            }
+            this.uploading = false;
+            window.location.reload();
+        }
+    };
+}
+async function deleteMedia(id) {
+    if (!confirm('Delete this file permanently?')) return;
+    try {
+        const res = await fetch(CMS_BASE + '/api/v1/cms/media/' + id + '/delete', {
+            method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CMS_CSRF },
+        });
+        const data = await res.json();
+        if (data.ok) { toast('File deleted'); window.location.reload(); }
+        else toast(data.error || 'Delete failed', 'error');
+    } catch(e) { toast('Network error', 'error'); }
+}
+</script>
+{/block}

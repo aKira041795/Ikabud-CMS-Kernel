@@ -1,0 +1,10 @@
+/**
+ * Sidebar Layout
+ * Native Default Theme v2.1.0
+ */
+
+.sidebar {
+    padding-top: 1rem;
+}
+
+/* Sidebar widget base styles are in components/_widgets.css */

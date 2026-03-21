@@ -1,0 +1,32 @@
+{!-- Recent Cases Partial - Dashboard Widget --}
+
+{if cases | count > 0}
+{for case in cases}
+<div class="p-4 hover:bg-gray-50 cursor-pointer transition flex items-center justify-between"
+     data-case-id="{case.id}"
+     hx-get="/admin/guidance/pages/cases/{case.id}" 
+     hx-target="#main-content" 
+     hx-push-url="{base_url}/cases/{case.id}">
+    
+    <div class="flex items-center space-x-4">
+        <div class="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center flex-shrink-0">
+            <span class="text-indigo-700 font-medium">{case.student_name | first | upper}</span>
+        </div>
+        <div class="min-w-0">
+            <p class="text-sm font-medium text-gray-900 truncate">{case.student_name | esc_html}</p>
+            <p class="text-xs text-gray-500 truncate">{case.presenting_issue | truncate:50}</p>
+        </div>
+    </div>
+    
+    <div class="flex items-center space-x-2 flex-shrink-0">
+        {ikb_badge variant="{case.severity}"}{case.severity | title}{/ikb_badge}
+        {ikb_badge variant="{case.status}"}{case.status | title}{/ikb_badge}
+    </div>
+</div>
+{/for}
+{else}
+<div class="p-8 text-center text-gray-500">
+    <i class="fas fa-inbox text-4xl mb-3 text-gray-300"></i>
+    <p>No recent cases</p>
+</div>
+{/if}

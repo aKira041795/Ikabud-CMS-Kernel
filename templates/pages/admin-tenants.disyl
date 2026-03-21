@@ -1,0 +1,465 @@
+{extends "layouts/app.disyl"}
+
+{block head}
+<style>
+    .tenant-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: 14px; }
+    .tenant-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px; transition: box-shadow .15s; }
+    .tenant-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,.06); }
+    .tenant-title { display:flex; align-items:flex-start; justify-content:space-between; gap: 8px; margin-bottom: 8px; }
+    .tenant-key { font-weight: 800; font-size: 14px; }
+    .tenant-id { font-family: monospace; font-size: 11px; color: var(--text-light); }
+    .meta { font-size: 12px; color: var(--text-muted); margin-top: 6px; }
+    .domain-list { margin-top: 10px; display:flex; flex-wrap: wrap; gap: 6px; }
+    .domain-pill { display:inline-flex; align-items:center; gap: 8px; padding: 6px 10px; border-radius: 999px; border: 1px solid var(--border); background: var(--bg); font-size: 12px; }
+    .domain-pill code { font-family: monospace; font-size: 11px; }
+    .domain-pill button { border: none; background: transparent; cursor: pointer; color: var(--danger); font-weight: 800; }
+    .actions { display:flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+    .tenants-loading { text-align: center; padding: 32px; color: var(--text-muted); font-size: 13px; }
+    .entry-module-row { display:flex; align-items:center; gap: 8px; margin-top: 10px; }
+    .entry-module-value { min-width: 0; flex: 1; }
+</style>
+{/block}
+
+{block content}
+<div class="page-header">
+    <div>
+        <h2>Tenants</h2>
+        <div class="page-desc">Manage multi-tenant deployments. Domain routing maps HTTP hosts to tenants, and DB credentials are stored encrypted-at-rest.</div>
+    </div>
+    <div class="page-actions">
+        <button class="btn btn-outline btn-sm" onclick="reloadTenants()">Reload</button>
+        <button class="btn btn-primary btn-sm" onclick="openCreateTenant()">+ Create Tenant</button>
+    </div>
+</div>
+
+<div id="tenants-loading" class="tenants-loading">Loading tenants…</div>
+
+<div id="tenants-empty" class="empty-state" style="display:none;">
+    <h3>No tenants found</h3>
+    <p>Create your first tenant to begin.</p>
+</div>
+
+<div id="tenants-grid" class="tenant-grid"></div>
+
+<!-- Create tenant modal -->
+<div class="modal-overlay" id="modal-create" onclick="onBackdrop(event, 'modal-create')">
+    <div class="modal" onclick="event.stopPropagation()">
+        <h3>Create Tenant</h3>
+        <div class="form-group">
+            <label class="form-label">Tenant Key</label>
+            <input class="form-input" id="ct-key" placeholder="client-001" autocomplete="off">
+            <div class="hint">Stable identifier (no spaces). Used for ops, not customer-facing.</div>
+        </div>
+        <div class="form-group">
+            <label class="form-label">Primary Domain</label>
+            <input class="form-input" id="ct-domain" placeholder="client-domain.tld" autocomplete="off">
+            <div class="hint">Used for host-based tenant resolution.</div>
+        </div>
+        <div class="form-group">
+            <label class="form-label">Entry Module ID (optional)</label>
+            <select class="form-input" id="ct-entry"></select>
+            <div class="hint">Use a known module ID to avoid tenant root routing failures.</div>
+        </div>
+        <div class="modal-actions">
+            <button class="btn btn-outline" onclick="closeModal('modal-create')">Cancel</button>
+            <button class="btn btn-primary" onclick="createTenant()">Create</button>
+        </div>
+    </div>
+</div>
+
+<!-- Entry module modal -->
+<div class="modal-overlay" id="modal-entry-module" onclick="onBackdrop(event, 'modal-entry-module')">
+    <div class="modal" onclick="event.stopPropagation()">
+        <h3>Edit Entry Module</h3>
+        <input type="hidden" id="entry-tenant-id">
+        <div class="form-group">
+            <label class="form-label">Entry Module</label>
+            <select class="form-input" id="entry-module-select"></select>
+            <div class="hint">Choose the module that should receive tenant root traffic. Leave blank to disable entry-module routing for this tenant.</div>
+        </div>
+        <div class="modal-actions">
+            <button class="btn btn-outline" onclick="closeModal('modal-entry-module')">Cancel</button>
+            <button class="btn btn-primary" onclick="saveEntryModule()">Save</button>
+        </div>
+    </div>
+</div>
+
+<!-- Add domain modal -->
+<div class="modal-overlay" id="modal-domain" onclick="onBackdrop(event, 'modal-domain')">
+    <div class="modal" onclick="event.stopPropagation()">
+        <h3>Add Domain</h3>
+        <input type="hidden" id="dom-tenant-id">
+        <div class="form-group">
+            <label class="form-label">Domain</label>
+            <input class="form-input" id="dom-domain" placeholder="guidance.client-domain.tld" autocomplete="off">
+        </div>
+        <div class="modal-actions">
+            <button class="btn btn-outline" onclick="closeModal('modal-domain')">Cancel</button>
+            <button class="btn btn-primary" onclick="addDomain()">Add</button>
+        </div>
+    </div>
+</div>
+
+<!-- DB connection modal -->
+<div class="modal-overlay" id="modal-db" onclick="onBackdrop(event, 'modal-db')">
+    <div class="modal" onclick="event.stopPropagation()">
+        <h3>Tenant Database Connection</h3>
+        <input type="hidden" id="db-tenant-id">
+        <div class="grid-2">
+            <div class="form-group">
+                <label class="form-label">Host</label>
+                <input class="form-input" id="db-host" placeholder="127.0.0.1" autocomplete="off">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Port</label>
+                <input class="form-input" id="db-port" placeholder="3306" autocomplete="off">
+            </div>
+        </div>
+        <div class="form-group">
+            <label class="form-label">Database</label>
+            <input class="form-input" id="db-name" placeholder="tenant_db_001" autocomplete="off">
+        </div>
+        <div class="grid-2">
+            <div class="form-group">
+                <label class="form-label">Username</label>
+                <input class="form-input" id="db-user" placeholder="dbuser" autocomplete="off">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Password</label>
+                <input class="form-input" id="db-pass" type="password" placeholder="(will be encrypted)" autocomplete="new-password">
+            </div>
+        </div>
+        <div class="hint">Password is stored encrypted-at-rest in the control DB. Leave blank to keep existing password.</div>
+        <div class="modal-actions">
+            <button class="btn btn-outline" onclick="closeModal('modal-db')">Cancel</button>
+            <button class="btn btn-primary" onclick="saveDbConn()">Save</button>
+        </div>
+    </div>
+</div>
+{/block}
+
+{block scripts}
+<script>
+    var BASE = '{base_url}';
+    var CSRF = '{csrf_token}';
+    var ENTRY_MODULE_OPTIONS = {entry_module_options_json|raw};
+
+    function openModal(id) {
+        var el = document.getElementById(id);
+        if (el) el.style.display = 'flex';
+    }
+
+    function moduleLabel(option) {
+        if (!option) return '-';
+        var name = String(option.name || option.id || '-');
+        var id = String(option.id || '');
+        return id && name !== id ? (name + ' (' + id + ')') : name;
+    }
+
+    function refreshEntryModuleOptions(options) {
+        ENTRY_MODULE_OPTIONS = Array.isArray(options) ? options : [];
+    }
+
+    function renderEntryModuleOptions(selectedId) {
+        var select = document.getElementById('entry-module-select');
+        if (!select) return;
+        var html = '<option value="">No entry module</option>';
+        ENTRY_MODULE_OPTIONS.forEach(function(option) {
+            var id = String(option.id || '');
+            if (!id) return;
+            var selected = (String(selectedId || '') === id) ? ' selected' : '';
+            var disabled = (option.loadable === false) ? ' disabled' : '';
+            var suffix = [];
+            if (option.enabled === false) suffix.push('disabled');
+            if (option.loadable === false) suffix.push('not loadable');
+            html += '<option value="' + escapeHtml(id) + '"' + selected + disabled + '>'
+                + escapeHtml(moduleLabel(option) + (suffix.length ? ' [' + suffix.join(', ') + ']' : ''))
+                + '</option>';
+        });
+        select.innerHTML = html;
+    }
+
+    function toggleTenantStatus(tenantId, currentStatus) {
+        var tid = parseInt(tenantId || 0, 10);
+        if (tid <= 0) return;
+        currentStatus = String(currentStatus || 'active');
+        var next = (currentStatus === 'active') ? 'suspended' : 'active';
+        var verb = (next === 'suspended') ? 'disable' : 'enable';
+        if (!window.confirm('Confirm ' + verb + ' tenant #' + tid + '?')) return;
+        fetch(BASE + '/api/v1/admin/tenants/status', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ tenant_id: tid, status: next, _token: CSRF })
+        })
+        .then(function(r){ return r.json(); })
+        .then(function(res){
+            if (res.ok) {
+                showToast('Tenant status updated');
+                reloadTenants();
+            } else {
+                showToast(res.error || 'Update failed');
+            }
+        })
+        .catch(function(){ showToast('Network error'); });
+    }
+    function closeModal(id) {
+        var el = document.getElementById(id);
+        if (el) el.style.display = 'none';
+    }
+    function onBackdrop(ev, id) {
+        if (ev.target && ev.target.id === id) closeModal(id);
+    }
+
+    function openCreateTenant() {
+        document.getElementById('ct-key').value = '';
+        document.getElementById('ct-domain').value = '';
+        renderCreateEntryModuleOptions('');
+        openModal('modal-create');
+    }
+
+    function renderCreateEntryModuleOptions(selectedId) {
+        var select = document.getElementById('ct-entry');
+        if (!select) return;
+        var html = '<option value="">No entry module</option>';
+        ENTRY_MODULE_OPTIONS.forEach(function(option) {
+            var id = String(option.id || '');
+            if (!id) return;
+            var selected = (String(selectedId || '') === id) ? ' selected' : '';
+            var disabled = (option.loadable === false) ? ' disabled' : '';
+            var suffix = [];
+            if (option.enabled === false) suffix.push('disabled');
+            if (option.loadable === false) suffix.push('not loadable');
+            html += '<option value="' + escapeHtml(id) + '"' + selected + disabled + '>'
+                + escapeHtml(moduleLabel(option) + (suffix.length ? ' [' + suffix.join(', ') + ']' : ''))
+                + '</option>';
+        });
+        select.innerHTML = html;
+    }
+
+    function openEntryModule(tenantId) {
+        var tenant = (window.__tenantsById && window.__tenantsById[String(tenantId || '')]) ? window.__tenantsById[String(tenantId || '')] : null;
+        document.getElementById('entry-tenant-id').value = String(tenantId || '');
+        renderEntryModuleOptions(tenant && tenant.entry_module_id ? String(tenant.entry_module_id) : '');
+        openModal('modal-entry-module');
+    }
+
+    function openAddDomain(tenantId) {
+        document.getElementById('dom-tenant-id').value = String(tenantId || '');
+        document.getElementById('dom-domain').value = '';
+        openModal('modal-domain');
+    }
+
+    function openDbConn(tenantId) {
+        document.getElementById('db-tenant-id').value = String(tenantId || '');
+        var t = (window.__tenantsById && window.__tenantsById[String(tenantId || '')]) ? window.__tenantsById[String(tenantId || '')] : null;
+        var db = t && t.db ? t.db : null;
+        document.getElementById('db-host').value = db && db.db_host ? String(db.db_host) : '';
+        document.getElementById('db-port').value = '3306';
+        document.getElementById('db-name').value = db && db.db_name ? String(db.db_name) : '';
+        document.getElementById('db-user').value = db && db.db_user ? String(db.db_user) : '';
+        document.getElementById('db-pass').value = '';
+        openModal('modal-db');
+    }
+
+    function escapeHtml(s) {
+        return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    function renderTenants(list) {
+        var grid = document.getElementById('tenants-grid');
+        var empty = document.getElementById('tenants-empty');
+        var loading = document.getElementById('tenants-loading');
+        if (!grid) return;
+        if (loading) loading.style.display = 'none';
+
+        list = Array.isArray(list) ? list : [];
+
+        window.__tenantsById = {};
+        list.forEach(function(t) {
+            if (t && t.id != null) window.__tenantsById[String(t.id)] = t;
+        });
+
+        if (list.length === 0) {
+            grid.innerHTML = '';
+            if (empty) empty.style.display = 'block';
+            return;
+        }
+        if (empty) empty.style.display = 'none';
+
+        var html = '';
+        list.forEach(function(t) {
+            var status = String(t.status || 'active');
+            var pillCls = (status === 'active') ? 'active' : 'suspended';
+            var domains = Array.isArray(t.domains) ? t.domains : [];
+            var db = (t && t.db) ? t.db : null;
+            var dbSummary = (db && (db.db_host || db.db_name || db.db_user))
+                ? ('host=' + escapeHtml(db.db_host || '-') + ', db=' + escapeHtml(db.db_name || '-') + ', user=' + escapeHtml(db.db_user || '-'))
+                : '-';
+            var dbBtn = t.db_configured ? 'Edit DB' : 'Add DB';
+            var domainBtn = 'Add domain';
+            var statusBtnLabel = (status === 'active') ? 'Disable' : 'Enable';
+            var statusBtnCls = (status === 'active') ? '' : 'primary';
+            var entryDisplay = escapeHtml(t.entry_module_id || '-');
+
+            var domHtml = '';
+            domains.forEach(function(d) {
+                domHtml += '<span class="domain-pill"><code>' + escapeHtml(d) + '</code>'
+                    + '<button title="Remove" onclick="removeDomain(' + (t.id||0) + ',\'' + escapeHtml(d) + '\')">×</button>'
+                    + '</span>';
+            });
+
+            html += ''
+                + '<div class="tenant-card">'
+                + '  <div class="tenant-title">'
+                + '    <div>'
+                + '      <div class="tenant-key">' + escapeHtml(t.tenant_key || '') + '</div>'
+                + '      <div class="tenant-id">tenant_id=' + escapeHtml(t.id) + '</div>'
+                + '    </div>'
+                + '    <span class="status-pill ' + pillCls + '">' + escapeHtml(status) + '</span>'
+                + '  </div>'
+                + '  <div class="entry-module-row">'
+                + '    <div class="meta entry-module-value">Entry module: <code>' + entryDisplay + '</code></div>'
+                + '    <button class="btn btn-outline btn-sm" onclick="openEntryModule(' + (t.id||0) + ')">Edit entry</button>'
+                + '  </div>'
+                + '  <div class="meta">DB configured: <strong>' + (t.db_configured ? 'Yes' : 'No') + '</strong></div>'
+                + '  <div class="meta">DB: <code>' + dbSummary + '</code></div>'
+                + '  <div class="meta" style="margin-top: 10px;">Domains (aliases)</div>'
+                + '  <div class="domain-list">' + (domHtml || '<span class="meta">No domains</span>') + '</div>'
+                + '  <div class="actions">'
+                + '    <button class="btn btn-outline btn-sm" onclick="openAddDomain(' + (t.id||0) + ')">' + domainBtn + '</button>'
+                + '    <button class="btn btn-primary btn-sm" onclick="openDbConn(' + (t.id||0) + ')">' + dbBtn + '</button>'
+                + '    <button class="btn btn-sm ' + (statusBtnCls ? 'btn-primary' : 'btn-outline') + '" onclick="toggleTenantStatus(' + (t.id||0) + ',\'' + escapeHtml(status) + '\')">' + statusBtnLabel + '</button>'
+                + '  </div>'
+                + '</div>';
+        });
+
+        grid.innerHTML = html;
+    }
+
+    function reloadTenants() {
+        fetch(BASE + '/api/v1/admin/tenants', { headers: { 'Accept': 'application/json' } })
+            .then(function(r){ return r.json(); })
+            .then(function(res){
+                if (!res.ok) {
+                    showToast(res.error || 'Failed to load tenants');
+                    return;
+                }
+                refreshEntryModuleOptions(res.entry_module_options || []);
+                renderTenants(res.tenants || []);
+            })
+            .catch(function(){ showToast('Network error'); });
+    }
+
+    function createTenant() {
+        var key = document.getElementById('ct-key').value.trim();
+        var domain = document.getElementById('ct-domain').value.trim().toLowerCase();
+        var entry = document.getElementById('ct-entry').value;
+        fetch(BASE + '/api/v1/admin/tenants/create', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ tenant_key: key, domain: domain, entry_module_id: entry, _token: CSRF })
+        })
+        .then(function(r){ return r.json(); })
+        .then(function(res){
+            if (res.ok) {
+                closeModal('modal-create');
+                showToast('Tenant created');
+                reloadTenants();
+            } else {
+                showToast(res.error || 'Create failed');
+            }
+        })
+        .catch(function(){ showToast('Network error'); });
+    }
+
+    function saveEntryModule() {
+        var tenantId = parseInt(document.getElementById('entry-tenant-id').value || '0', 10);
+        var entryModuleId = document.getElementById('entry-module-select').value;
+
+        fetch(BASE + '/api/v1/admin/tenants/entry-module', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ tenant_id: tenantId, entry_module_id: entryModuleId, _token: CSRF })
+        })
+        .then(function(r){ return r.json(); })
+        .then(function(res){
+            if (res.ok) {
+                closeModal('modal-entry-module');
+                showToast('Entry module saved');
+                reloadTenants();
+            } else {
+                showToast(res.error || 'Save failed');
+            }
+        })
+        .catch(function(){ showToast('Network error'); });
+    }
+
+    function addDomain() {
+        var tenantId = parseInt(document.getElementById('dom-tenant-id').value || '0', 10);
+        var domain = document.getElementById('dom-domain').value.trim().toLowerCase();
+        fetch(BASE + '/api/v1/admin/tenants/domain/add', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ tenant_id: tenantId, domain: domain, _token: CSRF })
+        })
+        .then(function(r){ return r.json(); })
+        .then(function(res){
+            if (res.ok) {
+                closeModal('modal-domain');
+                showToast('Domain added');
+                reloadTenants();
+            } else {
+                showToast(res.error || 'Add failed');
+            }
+        })
+        .catch(function(){ showToast('Network error'); });
+    }
+
+    function removeDomain(tenantId, domain) {
+        if (!window.confirm('Remove domain ' + domain + '?')) return;
+        fetch(BASE + '/api/v1/admin/tenants/domain/remove', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ tenant_id: parseInt(tenantId||0,10), domain: String(domain||''), _token: CSRF })
+        })
+        .then(function(r){ return r.json(); })
+        .then(function(res){
+            if (res.ok) {
+                showToast('Domain removed');
+                reloadTenants();
+            } else {
+                showToast(res.error || 'Remove failed');
+            }
+        })
+        .catch(function(){ showToast('Network error'); });
+    }
+
+    function saveDbConn() {
+        var tenantId = parseInt(document.getElementById('db-tenant-id').value || '0', 10);
+        var host = document.getElementById('db-host').value.trim();
+        var port = document.getElementById('db-port').value.trim() || '3306';
+        var name = document.getElementById('db-name').value.trim();
+        var user = document.getElementById('db-user').value.trim();
+        var pass = document.getElementById('db-pass').value;
+
+        fetch(BASE + '/api/v1/admin/tenants/db/upsert', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ tenant_id: tenantId, db_host: host, db_port: port, db_name: name, db_user: user, db_pass: pass, _token: CSRF })
+        })
+        .then(function(r){ return r.json(); })
+        .then(function(res){
+            if (res.ok) {
+                closeModal('modal-db');
+                showToast('DB saved');
+                reloadTenants();
+            } else {
+                showToast(res.error || 'Save failed');
+            }
+        })
+        .catch(function(){ showToast('Network error'); });
+    }
+
+    reloadTenants();
+</script>
+{/block}

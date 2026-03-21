@@ -1,0 +1,32 @@
+/* ===========================================
+   Native Default Theme - Main Stylesheet
+   Version: 2.1.0 (Modular Architecture)
+   =========================================== */
+
+/* Base - Foundation styles */
+@import 'base/_variables.css';
+@import 'base/_reset.css';
+@import 'base/_typography.css';
+
+/* Layout - Structural components */
+@import 'layout/_container.css';
+@import 'layout/_header.css';
+@import 'layout/_footer.css';
+@import 'layout/_sidebar.css';
+
+/* Components - Reusable UI elements */
+@import 'components/_buttons.css';
+@import 'components/_forms.css';
+@import 'components/_cards.css';
+@import 'components/_widgets.css';
+@import 'components/_pagination.css';
+@import 'components/_comments.css';
+@import 'components/_page-builder.css';
+
+/* Pages - Page-specific styles */
+@import 'pages/_single.css';
+@import 'pages/_archive.css';
+@import 'pages/_search.css';
+
+/* Utilities - Helper classes (load last) */
+@import 'utilities/_utilities.css';

@@ -1,0 +1,143 @@
+{!-- Appointment Form Modal --}
+
+{if tinymce_assets && tinymce_assets.css_urls}
+{foreach tinymce_assets.css_urls as css_url}
+<link rel="stylesheet" href="{css_url}">
+{/foreach}
+{/if}
+{if tinymce_assets && tinymce_assets.js_urls}
+{foreach tinymce_assets.js_urls as js_url}
+<script src="{js_url}"></script>
+{/foreach}
+{/if}
+
+<div class="fixed inset-0 z-50 overflow-y-auto" aria-modal="true">
+    <div class="flex items-center justify-center min-h-screen px-4">
+        <div class="fixed inset-0 bg-black bg-opacity-50" onclick="closeModal()"></div>
+        
+        <div class="relative bg-white rounded-xl shadow-xl max-w-lg w-full">
+            <div class="flex items-center justify-between p-4 border-b">
+                <h2 class="text-xl font-semibold text-gray-800">
+                    {if appointment.id}Edit Appointment{else}New Appointment{/if}
+                </h2>
+                <button onclick="closeModal()" class="text-gray-400 hover:text-gray-600">
+                    <i class="fas fa-times text-xl"></i>
+                </button>
+            </div>
+            
+            <form {if appointment.id}hx-put="/admin/guidance/api/appointments/{appointment.id}"{else}hx-post="/admin/guidance/api/appointments"{/if}
+                  hx-swap="none"
+                  class="p-6 space-y-4">
+                
+                {if case_id}
+                <input type="hidden" name="case_id" value="{case_id}">
+                {/if}
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Case *</label>
+                    <select name="case_id" required class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                            hx-get="/admin/guidance/api/cases/options" hx-trigger="load" hx-target="this" hx-swap="innerHTML">
+                        <option value="">Loading cases...</option>
+                    </select>
+                </div>
+
+                {if user_role != 'counselor'}
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Counselor *</label>
+                    <select name="counselor_id" required class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
+                        <option value="">Select counselor</option>
+                        {foreach counselors as c}
+                        <option value="{c.id}" {if appointment.counselor_id == c.id}selected{/if}>{c.first_name} {c.last_name}</option>
+                        {/foreach}
+                    </select>
+                </div>
+                {/if}
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Date *</label>
+                        <input type="date" name="scheduled_date" required
+                               value="{appointment.scheduled_date | default:''}"
+                               min="{today}"
+                               class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Time *</label>
+                        <input type="time" name="scheduled_time" required
+                               value="{appointment.scheduled_time | default:'09:00'}"
+                               class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
+                    </div>
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Duration (minutes)</label>
+                    <select name="duration_minutes" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
+                        <option value="30" {if appointment.duration_minutes == '30'}selected{/if}>30 minutes</option>
+                        <option value="45" {if appointment.duration_minutes == '45'}selected{/if}>45 minutes</option>
+                        <option value="60" {if appointment.duration_minutes == '60'}selected{/if}>1 hour</option>
+                        <option value="90" {if appointment.duration_minutes == '90'}selected{/if}>1.5 hours</option>
+                    </select>
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Purpose</label>
+                    <select name="purpose" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
+                        <option value="counseling" {if appointment.purpose == 'counseling'}selected{/if}>Counseling Session</option>
+                        <option value="follow_up" {if appointment.purpose == 'follow_up'}selected{/if}>Follow-up</option>
+                        <option value="assessment" {if appointment.purpose == 'assessment'}selected{/if}>Assessment</option>
+                        <option value="parent_meeting" {if appointment.purpose == 'parent_meeting'}selected{/if}>Parent Meeting</option>
+                        <option value="other" {if appointment.purpose == 'other'}selected{/if}>Other</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Location</label>
+                    <input type="text" name="location" value="{appointment.location | default:''}"
+                           class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500" placeholder="Optional">
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+                    <textarea id="guidance-appointment-notes" name="notes" rows="3" placeholder="Additional notes..." data-tinymce-editor
+                              class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500">{appointment.notes | default:''}</textarea>
+                </div>
+                
+                <div class="flex justify-end space-x-3 pt-4 border-t">
+                    <button type="button" onclick="closeModal()" 
+                            class="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200">
+                        Cancel
+                    </button>
+                    <button type="submit" class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">
+                        <i class="fas fa-save mr-2"></i> Save Appointment
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+ <script>
+ (function() {
+     if (typeof window.tinymce === 'undefined') return;
+     var existing = window.tinymce.get('guidance-appointment-notes');
+     if (existing) {
+         existing.setContent(document.getElementById('guidance-appointment-notes').value || '');
+         return;
+     }
+     var config = Object.assign({}, {tinymce_config | json}, {
+         selector: '#guidance-appointment-notes'
+     });
+     window.tinymce.init(config);
+ })();
+ document.addEventListener('htmx:configRequest', function(evt) {
+     var form = evt.detail && evt.detail.elt ? evt.detail.elt.closest('form') : null;
+     if (!form) return;
+     var hxPost = form.getAttribute('hx-post');
+     var hxPut = form.getAttribute('hx-put');
+     if (hxPost !== '/admin/guidance/api/appointments' && (!hxPut || hxPut.indexOf('/admin/guidance/api/appointments/') !== 0)) return;
+     if (typeof window.tinymce === 'undefined') return;
+     var editor = window.tinymce.get('guidance-appointment-notes');
+     if (editor) {
+         editor.save();
+     }
+ });
+ </script>

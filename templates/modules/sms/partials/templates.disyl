@@ -1,0 +1,38 @@
+{!-- SMS Templates Management --}
+<div style="padding:16px;">
+    <div style="margin-bottom:16px;">
+        <div style="font-weight:700;font-size:var(--font-size-base);">Message Templates</div>
+        <div class="text-sm text-muted" style="margin-top:4px;">Customize SMS messages for each event. Use placeholders like <code style="background:var(--bg);padding:1px 6px;border-radius:4px;">&#123;name&#125;</code> for dynamic content.</div>
+    </div>
+
+    {foreach templates as tpl}
+    <div class="card" style="margin-bottom:12px;">
+        <div class="card-body">
+            <form hx-post="/api/v1/modules/sms/templates" hx-swap="none">
+                <input type="hidden" name="event_key" value="{tpl.event_key}">
+
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+                    <div>
+                        <div style="font-weight:600;">{tpl.label}</div>
+                        <div class="text-sm text-muted" style="font-family:monospace;">{tpl.event_key}</div>
+                    </div>
+                    <label style="display:flex;align-items:center;gap:6px;font-size:var(--font-size-small);color:var(--text-muted);cursor:pointer;">
+                        <input type="checkbox" name="is_enabled" value="1" {if tpl.is_enabled}checked{/if}>
+                        Enabled
+                    </label>
+                </div>
+
+                <textarea name="template" rows="3" class="form-input" style="font-family:monospace;font-size:var(--font-size-small);resize:vertical;">{tpl.template}</textarea>
+
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px;">
+                    <div class="text-sm text-muted">
+                        {if tpl.event_key == 'manual'}Placeholders: &#123;message&#125;{/if}
+                        {if tpl.event_key == 'daily_report'}Placeholders: &#123;name&#125;, &#123;date&#125;, &#123;total&#125;{/if}
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-sm">Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    {/foreach}
+</div>

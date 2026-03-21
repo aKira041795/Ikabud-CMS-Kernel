@@ -1,0 +1,32 @@
+{
+    "id": "media",
+    "name": "Media",
+    "version": "1.0.0",
+    "description": "CMS media library module (uploads + metadata + capabilities).",
+    "author": "Noah C. Omamalin",
+    "owns_tables": ["cms_media"],
+    "reads_tables": ["cms_users"],
+    "migrations": [
+        "database/migrations/001_cms_media.sql"
+    ],
+    "nav": [],
+    "capabilities": {
+        "exposes": [
+            { "id": "media.list@1", "priority": 50, "modes": ["first"], "schema": { "type": "object", "properties": { "q": { "type": "string" }, "limit": { "type": "integer" }, "offset": { "type": "integer" }, "uploaded_by": { "type": "integer" } } } },
+            { "id": "media.upload@1", "priority": 50, "modes": ["first"], "schema": { "type": "object", "properties": { "filename": { "type": "string" }, "mime_type": { "type": "string" }, "uploaded_by": { "type": "integer" }, "alt_text": { "type": "string" }, "storage_path": { "type": "string" } } } },
+            { "id": "media.delete@1", "priority": 50, "modes": ["first"], "schema": { "type": "object", "required": ["id"], "properties": { "id": { "type": "integer" } } } }
+        ],
+        "depends": [],
+        "policy": {
+            "capabilities": {
+                "media.list@1": { "allow_callers": ["cms", "media"] },
+                "media.upload@1": { "allow_callers": ["cms", "media"] },
+                "media.delete@1": { "allow_callers": ["cms", "media"] }
+            }
+        }
+    },
+    "events": [
+        { "key": "media.uploaded", "description": "Media uploaded", "available_vars": ["media_id", "filename", "mime_type"] },
+        { "key": "media.deleted", "description": "Media deleted", "available_vars": ["media_id"] }
+    ]
+}

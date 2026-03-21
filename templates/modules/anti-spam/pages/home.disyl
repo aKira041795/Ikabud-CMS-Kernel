@@ -1,0 +1,99 @@
+{extends "layouts/app.disyl"}
+
+{block head}
+<style>
+    .as-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:20px; }
+    .as-header h2 { font-size:var(--font-size-h2,1.5rem); font-weight:700; }
+    .as-tabs { display:flex; gap:4px; margin-bottom:24px; }
+    .as-tabs a { padding:8px 16px; border-radius:6px; font-size:14px; font-weight:500; color:var(--text-muted,#666); text-decoration:none; }
+    .as-tabs a:hover { background:var(--surface-hover,#f1f1f1); }
+    .as-tabs a.active { background:var(--primary,#2563eb); color:#fff; }
+    .as-stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:16px; margin-bottom:24px; }
+    .as-stat { background:var(--surface,#fff); border:1px solid var(--border,#e5e7eb); border-radius:8px; padding:20px; }
+    .as-stat .label { font-size:13px; color:var(--text-muted,#888); margin-bottom:4px; }
+    .as-stat .value { font-size:28px; font-weight:700; }
+    .as-stat .value.danger { color:#dc2626; }
+    .as-stat .value.success { color:#16a34a; }
+    .badge-fail { display:inline-block; padding:2px 8px; border-radius:9999px; font-size:11px; font-weight:600; background:#fef2f2; color:#dc2626; }
+    .badge-pass { display:inline-block; padding:2px 8px; border-radius:9999px; font-size:11px; font-weight:600; background:#f0fdf4; color:#16a34a; }
+    .text-sm { font-size:13px; }
+    .text-muted { color:var(--text-muted,#888); }
+</style>
+{/block}
+
+{block content}
+<div class="as-header">
+    <div>
+        <h2>🛡️ Anti-Spam</h2>
+        <span class="text-sm text-muted">Protection dashboard</span>
+    </div>
+</div>
+
+<div class="as-tabs">
+    <a href="/admin/anti-spam" class="active">Dashboard</a>
+    <a href="/admin/anti-spam/log">Log</a>
+    <a href="/admin/anti-spam/blocked">Blocked IPs</a>
+    <a href="/admin/anti-spam/settings">Settings</a>
+</div>
+
+<div class="as-stats">
+    <div class="as-stat">
+        <div class="label">Blocked IPs</div>
+        <div class="value danger">{stats.blocked_ips}</div>
+    </div>
+    <div class="as-stat">
+        <div class="label">Blocked Today</div>
+        <div class="value danger">{stats.blocked_today}</div>
+    </div>
+    <div class="as-stat">
+        <div class="label">Passed Today</div>
+        <div class="value success">{stats.passed_today}</div>
+    </div>
+    <div class="as-stat">
+        <div class="label">Total Log Entries</div>
+        <div class="value">{stats.total_log}</div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header" style="font-weight:600;">Recent Activity</div>
+    <div class="card-body" style="padding:0;">
+        {if recent_log | count > 0}
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Time</th>
+                        <th>IP</th>
+                        <th>Check</th>
+                        <th>Result</th>
+                        <th>Detail</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {foreach recent_log as entry}
+                    <tr>
+                        <td class="text-sm">{entry.created_at}</td>
+                        <td><code>{entry.ip_address}</code></td>
+                        <td class="text-sm">{entry.check_type}</td>
+                        <td>
+                            {if entry.result == "fail"}
+                                <span class="badge-fail">BLOCKED</span>
+                            {else}
+                                <span class="badge-pass">PASS</span>
+                            {/if}
+                        </td>
+                        <td class="text-sm text-muted">{entry.detail}</td>
+                    </tr>
+                    {/foreach}
+                </tbody>
+            </table>
+        </div>
+        {else}
+        <div style="padding:32px;text-align:center;color:var(--text-muted,#888);">
+            No activity recorded yet.
+        </div>
+        {/if}
+    </div>
+</div>
+{/block}

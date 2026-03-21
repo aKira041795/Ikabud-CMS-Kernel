@@ -1,0 +1,102 @@
+{!-- SMS Settings --}
+<div style="padding:16px;">
+    <div style="margin-bottom:16px;">
+        <div style="font-weight:700;font-size:var(--font-size-base);">SMS Provider Settings</div>
+        <div class="text-sm text-muted" style="margin-top:4px;">Configure your SMS gateway credentials and preferences.</div>
+    </div>
+
+    <form hx-post="/api/v1/modules/sms/settings" hx-swap="none" style="max-width:480px;">
+
+        {foreach fields as f}
+        <div class="form-group">
+            <label class="form-label">{f.label}</label>
+
+            {if f.type == 'select'}
+            <select name="{f.key}" class="form-input">
+                {foreach f.options as val => lbl}
+                <option value="{val}" {if val == f.value}selected{/if}>{lbl}</option>
+                {/foreach}
+            </select>
+            {/if}
+
+            {if f.type == 'text'}
+            <input type="text" name="{f.key}" value="{f.value}" class="form-input">
+            {/if}
+
+            {if f.type == 'password'}
+            <input type="password" name="{f.key}" value="{f.value}" class="form-input" placeholder="••••••••">
+            {/if}
+
+            {if f.type == 'checkbox'}
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+                <input type="checkbox" name="{f.key}" value="1" {if f.value}checked{/if}>
+                <span style="font-size:var(--font-size-base);color:var(--text);">Enabled</span>
+            </label>
+            {/if}
+
+            {if f.description}
+            <div class="text-sm text-muted" style="margin-top:4px;">{f.description}</div>
+            {/if}
+        </div>
+        {/foreach}
+
+        <div style="display:flex;align-items:center;gap:12px;margin-top:20px;">
+            <button type="submit" class="btn btn-primary">Save Settings</button>
+            <button type="button" id="sms-test-btn" class="btn btn-outline">Send Test SMS</button>
+        </div>
+    </form>
+
+    {!-- Test SMS section --}
+    <div id="sms-test-section" class="hidden" style="margin-top:20px;max-width:480px;">
+        <div class="card">
+            <div class="card-body">
+                <div style="font-weight:600;margin-bottom:8px;">Send Test SMS</div>
+                <div style="display:flex;gap:8px;">
+                    <input type="tel" id="sms-test-number" class="form-input" placeholder="09171234567" style="flex:1;">
+                    <button id="sms-test-send" class="btn btn-success btn-sm">Send</button>
+                </div>
+                <div id="sms-test-result" class="text-sm" style="margin-top:8px;"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+(function() {
+    var testBtn = document.getElementById('sms-test-btn');
+    var testSection = document.getElementById('sms-test-section');
+    var testSend = document.getElementById('sms-test-send');
+
+    if (testBtn) testBtn.addEventListener('click', function() {
+        testSection.classList.toggle('hidden');
+    });
+
+    if (testSend) testSend.addEventListener('click', function() {
+        var num = document.getElementById('sms-test-number').value.trim();
+        if (!num) return;
+        var resultEl = document.getElementById('sms-test-result');
+        resultEl.textContent = 'Sending...';
+        resultEl.style.color = 'var(--text-muted)';
+
+        fetch('/api/v1/modules/sms/test', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({test_number: num})
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.ok) {
+                resultEl.textContent = data.simulated ? 'Test simulated (test mode on)' : 'Test SMS sent successfully!';
+                resultEl.style.color = 'var(--success)';
+            } else {
+                resultEl.textContent = 'Failed: ' + (data.error || 'Unknown error');
+                resultEl.style.color = 'var(--danger)';
+            }
+        })
+        .catch(function() {
+            resultEl.textContent = 'Network error';
+            resultEl.style.color = 'var(--danger)';
+        });
+    });
+})();
+</script>

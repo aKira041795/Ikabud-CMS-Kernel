@@ -1,0 +1,62 @@
+{extends "_cms_active_theme/layouts/public.disyl"}
+
+{block head}
+{if cms_head}{cms_head|raw}{/if}
+{if structured_data}{structured_data|raw}{/if}
+{/block}
+
+{block content}
+{if builder_enabled}
+<article class="post single-post single-post--builder cms-builder-page" style="width: 100%;">
+    {post_html|raw}
+</article>
+{else}
+<article class="post single-post cms-single-prose">
+    <header class="post-header">
+        <h1 class="post-title">{post.title|default:"Untitled"}</h1>
+        <div class="post-meta">
+            <span class="post-date">{post.published_at|default:"Date unknown"}</span>
+            {if post.author_name}
+            <span class="post-author">By {post.author_name}</span>
+            {/if}
+        </div>
+    </header>
+
+    {if post.featured_image}
+    <div class="post-featured-image">
+        <img src="/assets/modules/cms/uploads/{post.featured_image}" alt="{post.title}">
+    </div>
+    {/if}
+
+    <div class="post-content prose">
+        {post_html|raw}
+    </div>
+
+    {if post_categories|count > 0}
+    <div class="post-taxonomy post-categories">
+        <span class="taxonomy-label">Categories</span>
+        <div class="taxonomy-list">
+            {foreach post_categories as cat}
+            <a href="{base_url}/cms/category/{cat.slug}" class="taxonomy-chip">{cat.name}</a>
+            {/foreach}
+        </div>
+    </div>
+    {/if}
+
+    {if post_tags|count > 0}
+    <div class="post-taxonomy post-tags-list">
+        <span class="taxonomy-label">Tags</span>
+        <div class="taxonomy-list">
+            {foreach post_tags as tag}
+            <span class="taxonomy-chip taxonomy-chip--muted">#{tag}</span>
+            {/foreach}
+        </div>
+    </div>
+    {/if}
+
+    <div class="post-backlink">
+        <a href="{base_url}/cms/blog">&larr; Back to blog</a>
+    </div>
+</article>
+{/if}
+{/block}

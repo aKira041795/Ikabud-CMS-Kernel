@@ -1,0 +1,325 @@
+{
+    "id": "cms",
+    "name": "Content Management System",
+    "version": "1.0.0",
+    "description": "Full CMS with pages, posts, custom content types, media library, and public frontend.",
+    "author": "Noah C. Omamalin",
+    "auth_cookie": "cms_token",
+    "owns_tables": [
+        "cms_content",
+        "cms_content_meta",
+        "cms_content_types",
+        "cms_field_definitions",
+        "cms_content_fields",
+        "cms_blocks",
+        "cms_builder_documents",
+        "cms_builder_revisions",
+        "cms_builder_reusable_sections",
+        "cms_builder_templates",
+        "cms_relations",
+        "cms_categories",
+        "cms_content_categories",
+        "cms_users",
+        "cms_media",
+        "cms_tags",
+        "cms_content_tags",
+        "cms_menus",
+        "cms_menu_items",
+        "cms_revisions",
+        "cms_slug_redirects",
+        "cms_media_usage",
+        "cms_menu_locations",
+        "cms_saved_blocks",
+        "cms_password_resets",
+        "audit_logs",
+        "kernel_search_index",
+        "workflow_instances",
+        "workflow_transition_logs",
+        "cms_theme_customizer"
+    ],
+    "reads_tables": [
+        "kernel_event_triggers",
+        "rate_limits",
+        "workflow_definitions"
+    ],
+    "migrations": [
+        "database/migrations/001_cms_content_core.sql",
+        "database/migrations/002_cms_blocks_json.sql",
+        "database/migrations/003_cms_content_types_and_fields.sql",
+        "database/migrations/003_cms_content_fields.sql",
+        "database/migrations/004_cms_blocks_table.sql",
+        "database/migrations/005_cms_relations.sql",
+        "database/migrations/006_cms_categories.sql",
+        "database/migrations/007_cms_tags.sql",
+        "database/migrations/008_cms_menus.sql",
+        "database/migrations/009_cms_revisions.sql",
+        "database/migrations/010_cms_tier3.sql",
+        "database/migrations/011_cms_builder_documents.sql",
+        "database/migrations/012_cms_theme_customizer.sql",
+        "database/migrations/013_cms_crud_enhancements.sql",
+        "database/migrations/015_cms_password_resets.sql"
+    ],
+    "capabilities": {
+        "exposes": [
+            {
+                "id": "cms.content.get@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ]
+            },
+            {
+                "id": "cms.content.list@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ]
+            },
+            {
+                "id": "cms.content.create@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ]
+            },
+            {
+                "id": "kernel.auth.authenticate@1",
+                "priority": 500,
+                "modes": [
+                    "pipeline"
+                ]
+            },
+            {
+                "id": "cms.media.list@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ]
+            },
+            {
+                "id": "cms.media.upload@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ]
+            },
+            {
+                "id": "cms.builder.get@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ]
+            },
+            {
+                "id": "cms.builder.render@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ]
+            },
+            {
+                "id": "cms.settings.get@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ]
+            },
+            {
+                "id": "cms.themes.list@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ]
+            }
+        ],
+        "depends": [
+            "kernel.auth.user@1",
+            "kernel.audit.record@1",
+            "ai.text.generate@1",
+            "workflow.state.get@1",
+            "workflow.transition@1",
+            "tinymce.assets.get@1",
+            "tinymce.config.get@1",
+            "tinymce.html.normalize@1",
+            "tinymce.html.sanitize@1"
+        ],
+        "policy": {
+            "capabilities": {
+                "cms.content.create@1": {
+                    "allow_callers": [
+                        "media",
+                        "search",
+                        "users",
+                        "workflow"
+                    ]
+                },
+                "cms.content.get@1": {
+                    "allow_callers": [
+                        "media",
+                        "search",
+                        "users",
+                        "workflow"
+                    ]
+                },
+                "cms.content.list@1": {
+                    "allow_callers": [
+                        "media",
+                        "search",
+                        "users",
+                        "workflow"
+                    ]
+                }
+            }
+        }
+    },
+    "events": [
+        {
+            "key": "cms.content.created",
+            "description": "Content item created",
+            "available_vars": [
+                "content_id",
+                "title",
+                "type",
+                "author_id"
+            ]
+        },
+        {
+            "key": "cms.content.published",
+            "description": "Content item published",
+            "available_vars": [
+                "content_id",
+                "title",
+                "slug",
+                "type"
+            ]
+        },
+        {
+            "key": "cms.content.updated",
+            "description": "Content item updated",
+            "available_vars": [
+                "content_id",
+                "title",
+                "fields_changed"
+            ]
+        },
+        {
+            "key": "cms.content.deleted",
+            "description": "Content item trashed",
+            "available_vars": [
+                "content_id",
+                "title",
+                "type"
+            ]
+        },
+        {
+            "key": "cms.media.uploaded",
+            "description": "Media file uploaded",
+            "available_vars": [
+                "media_id",
+                "filename",
+                "mime_type"
+            ]
+        },
+        {
+            "key": "cms.user.created",
+            "description": "CMS user created",
+            "available_vars": [
+                "user_id",
+                "username",
+                "role"
+            ]
+        },
+        {
+            "key": "cms.settings.updated",
+            "description": "CMS settings changed",
+            "available_vars": [
+                "settings"
+            ]
+        }
+    ],
+    "nav": [
+        {
+            "label": "CMS",
+            "url": "/cms/admin",
+            "icon": "layout-dashboard",
+            "roles": [
+                "superadmin",
+                "administrator",
+                "editor",
+                "author",
+                "contributor",
+                "subscriber"
+            ]
+        },
+        {
+            "label": "All Content",
+            "url": "/cms/admin/content",
+            "icon": "file-text",
+            "roles": [
+                "superadmin",
+                "administrator",
+                "editor",
+                "author",
+                "contributor"
+            ]
+        },
+        {
+            "label": "Media",
+            "url": "/cms/admin/media",
+            "icon": "image",
+            "roles": [
+                "superadmin",
+                "administrator",
+                "editor",
+                "author"
+            ]
+        },
+        {
+            "label": "Categories",
+            "url": "/cms/admin/categories",
+            "icon": "folder-tree",
+            "roles": [
+                "superadmin",
+                "administrator",
+                "editor"
+            ]
+        },
+        {
+            "label": "Menus",
+            "url": "/cms/admin/menus",
+            "icon": "menu",
+            "roles": [
+                "superadmin",
+                "administrator",
+                "editor"
+            ]
+        },
+        {
+            "label": "---",
+            "url": "#",
+            "icon": "separator",
+            "roles": [
+                "superadmin",
+                "administrator"
+            ]
+        },
+        {
+            "label": "CMS Users",
+            "url": "/cms/admin/users",
+            "icon": "users",
+            "roles": [
+                "superadmin",
+                "administrator"
+            ]
+        },
+        {
+            "label": "CMS Settings",
+            "url": "/cms/admin/settings",
+            "icon": "settings",
+            "roles": [
+                "superadmin",
+                "administrator"
+            ]
+        }
+    ]
+}

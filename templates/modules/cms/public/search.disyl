@@ -1,0 +1,62 @@
+{extends "modules/cms/layouts/public.disyl"}
+
+{block content}
+<div class="text-center mb-8">
+    <h1 class="text-3xl font-bold text-gray-900">Search</h1>
+</div>
+
+<form action="{base_url}/cms/search" method="GET" class="mb-8">
+    <div class="flex gap-2 max-w-xl mx-auto">
+        <input type="text" name="q" value="{query}" placeholder="Search posts and pages…" class="flex-1 px-4 py-2.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500" autofocus>
+        <button type="submit" class="px-5 py-2.5 text-sm font-semibold text-white bg-sky-600 rounded-lg hover:bg-sky-700 transition-colors">Search</button>
+    </div>
+</form>
+
+{if query}
+<p class="text-sm text-gray-500 mb-4 text-center">
+    {if total > 0}Found {total} result{if total != 1}s{/if} for <strong>"{query}"</strong>{else}No results found for <strong>"{query}"</strong>{/if}
+</p>
+{/if}
+
+{if posts | count == 0 && query}
+<div class="text-center py-12 text-gray-400">
+    <p class="text-lg">No matching content found.</p>
+    <p class="mt-1 text-sm">Try different keywords or browse the <a href="{base_url}/cms/blog" class="text-sky-600 hover:text-sky-800">blog</a>.</p>
+</div>
+{/if}
+
+<div class="space-y-5">
+    {foreach posts as post}
+    <article class="bg-white rounded-lg border border-gray-200 p-6 hover:shadow-md transition-shadow">
+        <div class="flex items-center gap-2 mb-2">
+            <span class="text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-gray-100 text-gray-500">{post.type}</span>
+        </div>
+        <h2 class="text-xl font-bold mb-2">
+            {if post.type == 'page'}
+            <a href="{base_url}/cms/page/{post.slug}" class="text-gray-900 hover:text-sky-600 no-underline">{post.title}</a>
+            {else}
+            <a href="{base_url}/cms/blog/{post.slug}" class="text-gray-900 hover:text-sky-600 no-underline">{post.title}</a>
+            {/if}
+        </h2>
+        <div class="text-xs text-gray-400 mb-3">
+            By {post.author_name} · {post.published_at}
+        </div>
+        <div class="text-gray-500 text-sm leading-relaxed line-clamp-3">
+            {if post.excerpt}{post.excerpt}{/if}
+        </div>
+    </article>
+    {/foreach}
+</div>
+
+{if total_pages > 1}
+<div class="flex items-center justify-center gap-2 mt-8">
+    {if page_num > 1}
+    <a href="?q={query}&page=1" class="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 no-underline text-gray-600">« First</a>
+    {/if}
+    <span class="px-4 py-2 text-sm bg-sky-600 text-white rounded-lg">Page {page_num} of {total_pages}</span>
+    {if page_num < total_pages}
+    <a href="?q={query}&page={next_page}" class="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 no-underline text-gray-600">Next »</a>
+    {/if}
+</div>
+{/if}
+{/block}

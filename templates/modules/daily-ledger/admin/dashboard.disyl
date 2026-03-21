@@ -1,0 +1,122 @@
+{extends "modules/daily-ledger/layouts/app.disyl"}
+
+{block head}
+{/block}
+
+{block content}
+<div class="flex items-center justify-between mb-6">
+    <div>
+        <h2 class="text-lg font-semibold text-gray-900">Dashboard</h2>
+        <p class="text-sm text-gray-500">Overview across branches.</p>
+        <p class="text-xs text-gray-500 mt-1">
+            Business date: <span class="font-medium text-gray-700">{business_date_label}</span>
+            · Timezone: <span class="font-medium text-gray-700">{operating_timezone}</span>
+            · Region: <span class="font-medium text-gray-700">{operating_region}</span>
+        </p>
+        <div class="mt-2">
+            <span class="inline-flex items-center rounded-full bg-amber-100 px-3 py-1 text-sm font-semibold text-amber-800 ring-1 ring-inset ring-amber-300">
+                Cutoff: {close_of_day_time}
+            </span>
+        </div>
+    </div>
+    <span class="text-sm text-gray-500">{today}</span>
+</div>
+
+<!-- Stats row -->
+<div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 mb-6">
+    <div class="card">
+        <div class="card-body">
+            <div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Branches</div>
+            <div class="mt-1 text-3xl font-semibold text-gray-900">{branches | count}</div>
+            <div class="mt-1 text-sm text-gray-500">Active branches</div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-body">
+            <div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Today's Sales</div>
+            <div class="mt-1 text-3xl font-semibold text-emerald-600">
+                {total_units_today}
+                <span class="text-sm font-medium text-gray-500">units</span>
+            </div>
+            <div class="mt-2 text-lg font-semibold text-gray-900">PHP {total_amount_today | number_format:2}</div>
+            <div class="mt-1 text-sm text-gray-500">across all branches</div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-body">
+            <div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Unreviewed Variances</div>
+            <div class="mt-1 text-3xl font-semibold {if unreviewed_variances > 0}text-amber-600{/if}{if unreviewed_variances == 0}text-emerald-600{/if}">
+                {unreviewed_variances}
+            </div>
+            <div class="mt-2 text-sm text-gray-500">
+                {if unreviewed_variances > 0}
+                    <a href="{base_url}/daily-ledger/admin/variances?reviewed=0" class="inline-flex items-center gap-2 rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700 ring-1 ring-inset ring-amber-200 hover:bg-amber-100">
+                        Review now
+                        <i class="fas fa-arrow-right text-xs"></i>
+                    </a>
+                {/if}
+                {if unreviewed_variances == 0}All clear{/if}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Branch sales today -->
+<div class="card mb-4">
+    <div class="card-header">Today's Branch Sales</div>
+    <div class="card-body p-0">
+        {foreach branch_cards as card}
+        <div class="flex items-center justify-between px-4 py-3 border-b border-gray-100 last:border-b-0">
+            <div>
+                <div class="text-sm font-semibold text-gray-900">{card.name}</div>
+                <div class="text-xs text-gray-500">
+                    {if card.units > 0}{card.units} units sold{/if}
+                    {if card.units == 0}No data yet{/if}
+                </div>
+            </div>
+            <div class="text-right">
+                <div class="text-sm font-semibold text-gray-900">{if card.amount > 0}PHP {card.amount | number_format:2}{/if}{if card.amount == 0}—{/if}</div>
+                <span class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset
+                    {if card.status == 'open'}bg-emerald-50 text-emerald-700 ring-emerald-200{/if}
+                    {if card.status == 'closed'}bg-rose-50 text-rose-700 ring-rose-200{/if}
+                    {if card.status == 'none'}bg-gray-50 text-gray-700 ring-gray-200{/if}
+                ">
+                    {card.status}
+                </span>
+            </div>
+        </div>
+        {/foreach}
+    </div>
+</div>
+
+<!-- Recent activity -->
+<div class="card">
+    <div class="card-header">
+        <span>Recent Encoder Activity</span>
+        <a href="{base_url}/admin/activity" class="text-sm font-semibold text-indigo-600 hover:text-indigo-700">View All &rarr;</a>
+    </div>
+    <div class="card-body p-0">
+        {if recent_activity | count == 0}
+        <div class="px-4 py-10 text-center text-sm text-gray-500">No activity yet today</div>
+        {/if}
+        {foreach recent_activity as act}
+        <div class="px-4 py-3 border-b border-gray-100 last:border-b-0 text-sm">
+            <span class="float-right text-xs text-gray-500">{act.created_at}</span>
+            <span class="font-semibold text-gray-900">{act.actor_name}</span>
+            <span class="text-gray-600">
+                {if act.action == 'field_update'}updated a field{/if}
+                {if act.action == 'close_day'}closed the day{/if}
+                {if act.action == 'reopen_day'}reopened a day{/if}
+                {if act.action == 'create_product'}added a product{/if}
+                {if act.action == 'update_product'}updated a product{/if}
+            </span>
+            {if act.branch_name}
+            <span class="text-xs text-gray-500"> — {act.branch_name}</span>
+            {/if}
+        </div>
+        {/foreach}
+    </div>
+</div>
+{/block}

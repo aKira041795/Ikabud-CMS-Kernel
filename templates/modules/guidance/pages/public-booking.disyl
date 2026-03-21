@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Book an Appointment - Guidance Office</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="/assets/modules/guidance/css/app.css">
+    <script>
+        var APP_BASE = '{base_url}';
+        document.addEventListener('htmx:configRequest', function(evt) {
+            var path = evt.detail.path;
+            if (path && path.charAt(0) === '/' && path.indexOf(APP_BASE) !== 0) {
+                evt.detail.path = APP_BASE + path;
+            }
+        });
+    </script>
+</head>
+<body class="bg-gradient-to-br from-indigo-50 via-white to-purple-50 min-h-screen">
+    <div class="max-w-2xl mx-auto px-4 py-8">
+        <div class="text-center mb-8">
+            <div class="inline-flex items-center justify-center w-16 h-16 bg-indigo-600 rounded-full mb-4">
+                <i class="fas fa-calendar-check text-white text-2xl"></i>
+            </div>
+            <h1 class="text-3xl font-bold text-gray-900">Book an Appointment</h1>
+            <p class="text-gray-600 mt-2">Schedule a session with a guidance counselor</p>
+            {if school_info.name}
+                <p class="text-sm text-indigo-600 font-medium mt-1">{school_info.name}</p>
+            {/if}
+        </div>
+        
+        <div class="flex items-center justify-center mb-8">
+            <div class="flex items-center space-x-4">
+                <div class="step-indicator active flex items-center justify-center w-8 h-8 rounded-full text-sm font-medium" id="step1-indicator">1</div>
+                <div class="w-12 h-0.5 bg-gray-300" id="step1-line"></div>
+                <div class="step-indicator flex items-center justify-center w-8 h-8 rounded-full bg-gray-200 text-gray-600 text-sm font-medium" id="step2-indicator">2</div>
+                <div class="w-12 h-0.5 bg-gray-300" id="step2-line"></div>
+                <div class="step-indicator flex items-center justify-center w-8 h-8 rounded-full bg-gray-200 text-gray-600 text-sm font-medium" id="step3-indicator">3</div>
+            </div>
+        </div>
+        
+        <div class="bg-white rounded-2xl shadow-xl p-6 md:p-8">
+            <form id="booking-form" hx-post="/api/booking" hx-swap="innerHTML" hx-target="#form-result">
+                
+                <div id="step1" class="step-content">
+                    <h2 class="text-xl font-semibold text-gray-900 mb-6">
+                        <i class="fas fa-user text-indigo-500 mr-2"></i> Your Information
+                    </h2>
+                    
+                    <div class="space-y-4">
+                        {booking_fields_html | raw}
+                    </div>
+                    
+                    <div class="mt-6 flex justify-end">
+                        <button type="button" onclick="nextStep(2)" 
+                                class="px-6 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors">
+                            Next <i class="fas fa-arrow-right ml-2"></i>
+                        </button>
+                    </div>
+                </div>
+                
+                <div id="step2" class="step-content hidden">
+                    <h2 class="text-xl font-semibold text-gray-900 mb-6">
+                        <i class="fas fa-calendar text-indigo-500 mr-2"></i> Appointment Details
+                    </h2>
+                    
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Type of Session *</label>
+                            <select name="appointment_type_id" id="type-select" required
+                                    class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                                <option value="">Select Type</option>
+                                {foreach appointment_types as type}
+                                    <option value="{type.id}" data-duration="{type.duration_minutes}">{type.name} ({type.duration_minutes} min)</option>
+                                {/foreach}
+                            </select>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Preferred Date *</label>
+                            <input type="date" name="scheduled_date" id="date-select" required
+                                   min="{min_date}" max="{max_date}"
+                                   class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                            <p class="text-xs text-gray-500 mt-1">You can book up to {max_booking_days} days in advance</p>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Available Time Slots *</label>
+                            <div id="slots-container" class="min-h-[100px] border border-gray-200 rounded-lg p-4 bg-gray-50">
+                                <p class="text-gray-500 text-sm text-center">
+                                    <i class="fas fa-info-circle mr-1"></i> Select a date to see available slots
+                                </p>
+                            </div>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Reason for Visit</label>
+                            <select name="purpose" class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                                <option value="">Select Reason</option>
+                                <option value="Academic concerns">Academic concerns</option>
+                                <option value="Personal/Emotional support">Personal/Emotional support</option>
+                                <option value="Career guidance">Career guidance</option>
+                                <option value="Family issues">Family issues</option>
+                                <option value="Peer/Social concerns">Peer/Social concerns</option>
+                                <option value="Stress/Anxiety">Stress/Anxiety</option>
+                                <option value="Other">Other</option>
+                            </select>
+                        </div>
+                        
+                        <div class="flex items-center p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                            <input type="checkbox" name="is_urgent" value="1" id="urgent-check"
+                                   class="w-4 h-4 text-amber-600 border-gray-300 rounded focus:ring-amber-500">
+                            <label for="urgent-check" class="ml-2 text-sm text-amber-800">
+                                <i class="fas fa-exclamation-triangle mr-1"></i>
+                                This is urgent and needs priority attention
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <div class="mt-6 flex justify-between">
+                        <button type="button" onclick="prevStep(1)" 
+                                class="px-6 py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">
+                            <i class="fas fa-arrow-left mr-2"></i> Back
+                        </button>
+                        <button type="button" onclick="nextStep(3)" 
+                                class="px-6 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors">
+                            Next <i class="fas fa-arrow-right ml-2"></i>
+                        </button>
+                    </div>
+                </div>
+                
+                <div id="step3" class="step-content hidden">
+                    <h2 class="text-xl font-semibold text-gray-900 mb-6">
+                        <i class="fas fa-check-circle text-indigo-500 mr-2"></i> Review & Submit
+                    </h2>
+                    
+                    <div class="bg-gray-50 rounded-lg p-4 mb-4">
+                        <h3 class="font-medium text-gray-700 mb-3">Your Information</h3>
+                        <div class="grid grid-cols-2 gap-2 text-sm" id="review-personal"></div>
+                    </div>
+                    
+                    <div class="bg-gray-50 rounded-lg p-4 mb-4">
+                        <h3 class="font-medium text-gray-700 mb-3">Appointment Details</h3>
+                        <div class="grid grid-cols-2 gap-2 text-sm" id="review-appointment"></div>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Additional Message (optional)</label>
+                        <textarea name="message" rows="3"
+                                  class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                                  placeholder="Any additional information you'd like to share..."></textarea>
+                    </div>
+                    
+                    <div class="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                        <p class="text-sm text-blue-800">
+                            <i class="fas fa-info-circle mr-1"></i>
+                            Your appointment request will be reviewed by a counselor. You will receive an email confirmation once approved.
+                        </p>
+                    </div>
+                    
+                    <div class="mt-6 flex justify-between">
+                        <button type="button" onclick="prevStep(2)" 
+                                class="px-6 py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">
+                            <i class="fas fa-arrow-left mr-2"></i> Back
+                        </button>
+                        <button type="submit" id="submit-btn"
+                                class="px-6 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors">
+                            <i class="fas fa-paper-plane mr-2"></i> Submit Request
+                        </button>
+                    </div>
+                </div>
+                
+                <div id="form-result"></div>
+            </form>
+        </div>
+        
+        <div class="text-center mt-8 text-sm text-gray-500">
+            <p>Need immediate help? Contact the Guidance Office directly.</p>
+            {if school_info.phone}
+                <p class="mt-1"><i class="fas fa-phone mr-1"></i> {school_info.phone}</p>
+            {/if}
+        </div>
+    </div>
+
+    <div id="toast-container" class="fixed top-4 right-4 z-50"></div>
+
+    <script>
+        let currentStep = 1;
+
+        function nextStep(step) {
+            if (!validateStep(currentStep)) return;
+
+            document.getElementById('step' + currentStep).classList.add('hidden');
+            document.getElementById('step' + step).classList.remove('hidden');
+
+            document.getElementById('step' + currentStep + '-indicator').classList.remove('active');
+            document.getElementById('step' + currentStep + '-indicator').classList.add('completed');
+            document.getElementById('step' + step + '-indicator').classList.add('active');
+
+            if (step === 3) {
+                updateReview();
+            }
+
+            currentStep = step;
+        }
+
+        function prevStep(step) {
+            document.getElementById('step' + currentStep).classList.add('hidden');
+            document.getElementById('step' + step).classList.remove('hidden');
+
+            document.getElementById('step' + currentStep + '-indicator').classList.remove('active');
+            document.getElementById('step' + step + '-indicator').classList.add('active');
+
+            currentStep = step;
+        }
+
+        function validateStep(step) {
+            if (step === 1) {
+                const required = document.querySelectorAll('#step1 [required]');
+                for (const el of required) {
+                    if (!el.value) {
+                        showToast('Please fill out all required fields', 'error');
+                        el.focus();
+                        return false;
+                    }
+                }
+            }
+            if (step === 2) {
+                const type = document.getElementById('type-select');
+                const date = document.getElementById('date-select');
+                const time = document.getElementById('selected-time');
+                if (!type.value || !date.value || !time || !time.value) {
+                    showToast('Please select a session type, date, and time slot', 'error');
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        function updateReview() {
+            const form = document.getElementById('booking-form');
+            const data = new FormData(form);
+
+            const personal = document.getElementById('review-personal');
+            const appt = document.getElementById('review-appointment');
+            if (!personal || !appt) return;
+
+            personal.innerHTML = '';
+            appt.innerHTML = '';
+
+            const pairs = [];
+            data.forEach((v, k) => pairs.push([k, v]));
+
+            for (const [k, v] of pairs) {
+                if (k === 'message' || k === 'purpose' || k === 'is_urgent' || k === 'appointment_type_id' || k === 'scheduled_date' || k === 'scheduled_time') continue;
+                if (v === '') continue;
+                personal.innerHTML += `<div class="text-gray-500">${escapeHtml(k.replace(/_/g,' '))}:</div><div class="font-medium text-gray-800">${escapeHtml(String(v))}</div>`;
+            }
+
+            const typeSelect = document.getElementById('type-select');
+            const typeLabel = typeSelect && typeSelect.selectedOptions[0] ? typeSelect.selectedOptions[0].textContent : '';
+            appt.innerHTML += `<div class="text-gray-500">Type:</div><div class="font-medium text-gray-800">${escapeHtml(typeLabel)}</div>`;
+            appt.innerHTML += `<div class="text-gray-500">Date:</div><div class="font-medium text-gray-800">${escapeHtml(data.get('scheduled_date') || '')}</div>`;
+            appt.innerHTML += `<div class="text-gray-500">Time:</div><div class="font-medium text-gray-800">${escapeHtml(data.get('scheduled_time') || '')}</div>`;
+            const purpose = data.get('purpose') || '';
+            if (purpose) appt.innerHTML += `<div class="text-gray-500">Purpose:</div><div class="font-medium text-gray-800">${escapeHtml(purpose)}</div>`;
+            const urgent = data.get('is_urgent') ? 'Yes' : 'No';
+            appt.innerHTML += `<div class="text-gray-500">Urgent:</div><div class="font-medium text-gray-800">${escapeHtml(urgent)}</div>`;
+        }
+
+        function escapeHtml(str) {
+            return str.replace(/[&<>"']/g, function(m) {
+                return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]);
+            });
+        }
+
+        function showToast(message, type) {
+            const cont = document.getElementById('toast-container');
+            if (!cont) return;
+            const el = document.createElement('div');
+            el.className = 'mb-2 px-4 py-3 rounded-lg shadow text-sm ' + (type === 'error' ? 'bg-red-600 text-white' : 'bg-green-600 text-white');
+            el.textContent = message;
+            cont.appendChild(el);
+            setTimeout(() => el.remove(), 3500);
+        }
+
+        function refreshSlots() {
+            const college = document.querySelector('[name=college_id]');
+            const date = document.getElementById('date-select');
+            const type = document.getElementById('type-select');
+
+            if (!college || !date || !type) return;
+            if (!college.value || !date.value) return;
+
+            const url = `/guidance/book/api/slots?date=${encodeURIComponent(date.value)}&college_id=${encodeURIComponent(college.value)}&type_id=${encodeURIComponent(type.value)}`;
+            htmx.ajax('GET', url, { target: '#slots-container', swap: 'innerHTML' });
+        }
+
+        document.addEventListener('change', function(e) {
+            if (e.target && (e.target.id === 'date-select' || e.target.id === 'type-select' || e.target.name === 'college_id')) {
+                refreshSlots();
+            }
+        });
+
+        document.addEventListener('click', function(e) {
+            const btn = e.target.closest('.slot-btn');
+            if (!btn) return;
+            document.querySelectorAll('.slot-btn').forEach(b => b.classList.remove('bg-indigo-600','text-white','border-indigo-600'));
+            btn.classList.add('bg-indigo-600','text-white','border-indigo-600');
+            const time = btn.getAttribute('data-time') || '';
+            const counselor = btn.getAttribute('data-counselor') || '';
+            const tEl = document.getElementById('selected-time');
+            const cEl = document.getElementById('selected-counselor');
+            if (tEl) tEl.value = time;
+            if (cEl) cEl.value = counselor;
+        });
+
+        document.body.addEventListener('htmx:afterOnLoad', function(evt) {
+            const trig = evt.detail.xhr ? evt.detail.xhr.getResponseHeader('HX-Trigger') : null;
+            if (!trig) return;
+            try {
+                const data = JSON.parse(trig);
+                if (data && data.showToast) {
+                    showToast(data.showToast.message || 'OK', data.showToast.type || 'success');
+                }
+            } catch (e) {}
+        });
+
+        document.body.addEventListener('htmx:beforeRequest', function(evt) {
+            if (evt.detail.elt && evt.detail.elt.id === 'booking-form') {
+                if (!validateStep(3)) {
+                    evt.preventDefault();
+                }
+            }
+        });
+
+    </script>
+</body>
+</html>

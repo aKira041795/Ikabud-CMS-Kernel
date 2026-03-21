@@ -1,0 +1,125 @@
+{
+    "id": "search",
+    "name": "Search Index",
+    "version": "1.0.0",
+    "description": "Cross-module search index with capability API and event-driven indexing.",
+    "author": "Noah C. Omamalin",
+    "owns_tables": [
+        "kernel_search_index"
+    ],
+    "reads_tables": ["cms_content"],
+    "migrations": [
+        "database/migrations/001_kernel_search_index.sql"
+    ],
+    "nav": [],
+    "capabilities": {
+        "exposes": [
+            {
+                "id": "search.query@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "schema": {
+                    "type": "object",
+                    "required": [
+                        "q"
+                    ],
+                    "properties": {
+                        "q": { "type": "string" },
+                        "limit": { "type": "integer" },
+                        "offset": { "type": "integer" },
+                        "module": { "type": "string" }
+                    }
+                }
+            },
+            {
+                "id": "search.index.upsert@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "schema": {
+                    "type": "object",
+                    "required": [
+                        "module",
+                        "entity_type",
+                        "entity_id"
+                    ],
+                    "properties": {
+                        "module": { "type": "string" },
+                        "entity_type": { "type": "string" },
+                        "entity_id": { "type": "string" },
+                        "title": { "type": "string" },
+                        "excerpt": { "type": "string" },
+                        "search_text": { "type": "string" },
+                        "json_metadata": { "type": ["object", "string"] }
+                    }
+                }
+            },
+            {
+                "id": "search.index.delete@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "schema": {
+                    "type": "object",
+                    "required": [
+                        "module",
+                        "entity_type",
+                        "entity_id"
+                    ],
+                    "properties": {
+                        "module": { "type": "string" },
+                        "entity_type": { "type": "string" },
+                        "entity_id": { "type": "string" }
+                    }
+                }
+            }
+        ],
+        "depends": [],
+        "policy": {
+            "capabilities": {
+                "search.query@1": {
+                    "allow_callers": [
+                        "cms",
+                        "search"
+                    ]
+                },
+                "search.index.delete@1": {
+                    "allow_callers": [
+                        "cms",
+                        "search"
+                    ]
+                },
+                "search.index.upsert@1": {
+                    "allow_callers": [
+                        "cms",
+                        "search"
+                    ]
+                }
+            }
+        }
+    },
+    "events": [
+        {
+            "key": "search.indexed",
+            "description": "Entity indexed",
+            "available_vars": [
+                "module",
+                "entity_type",
+                "entity_id"
+            ]
+        },
+        {
+            "key": "search.deleted",
+            "description": "Entity removed from index",
+            "available_vars": [
+                "module",
+                "entity_type",
+                "entity_id"
+            ]
+        }
+    ]
+}

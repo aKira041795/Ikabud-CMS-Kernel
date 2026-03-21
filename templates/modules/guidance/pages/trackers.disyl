@@ -1,0 +1,36 @@
+{extends "modules/guidance/layouts/app.disyl"}
+
+{block content}
+{!-- Trackers Page --}
+
+{ikb_section padding="none"}
+
+<div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6 gap-4">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900">Student Tracker</h1>
+        <p class="text-sm text-gray-500 mt-1">Track item submissions per student across cohorts</p>
+    </div>
+
+    <button hx-get="/admin/guidance/pages/trackers/new" hx-target="#modal-container" hx-swap="innerHTML"
+            class="inline-flex items-center px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition shadow-sm">
+        <i class="fas fa-plus mr-2"></i> New Tracker
+    </button>
+</div>
+
+<div class="bg-white rounded-xl shadow-sm border border-gray-100 p-0 overflow-hidden">
+    <div class="px-5 py-4 border-b flex items-center justify-between">
+        <div class="text-sm font-semibold text-gray-800">Trackers</div>
+        <div class="text-xs text-gray-500">Click a tracker to manage students and items</div>
+    </div>
+
+    <div id="trackers-table"
+         hx-get="/admin/guidance/api/trackers"
+         hx-trigger="load, refreshTrackers from:body"
+         hx-swap="innerHTML">
+        <div class="p-8 text-sm text-gray-500">Loading...</div>
+    </div>
+</div>
+
+{/ikb_section}
+
+{/block}

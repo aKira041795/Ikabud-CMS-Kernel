@@ -1,0 +1,33 @@
+{extends "modules/guidance/layouts/app.disyl"}
+
+{block content}
+{!-- Colleges Management Page --}
+
+{ikb_section padding="none"}
+    
+    <div class="flex items-center justify-between mb-6">
+        <div>
+            {ikb_text tag="h1" size="2xl" weight="bold"}Colleges{/ikb_text}
+            {ikb_text color="muted"}Manage colleges and department assignments{/ikb_text}
+        </div>
+        
+        {if user_role == 'admin'}
+        {ikb_button variant="primary" hx-get="/admin/guidance/pages/colleges/new" hx-target="#modal-container"}
+            <i class="fas fa-plus mr-2"></i> Add College
+        {/ikb_button}
+        {/if}
+    </div>
+    
+    {!-- Colleges Table --}
+    {ikb_card variant="elevated" padding="none"}
+        <div id="colleges-list" hx-get="/admin/guidance/api/colleges" hx-trigger="load, refreshColleges from:body" hx-swap="innerHTML">
+            <div class="p-12 text-center">
+                {ikb_spinner size="lg" /}
+                {ikb_text color="muted" class="mt-4"}Loading colleges...{/ikb_text}
+            </div>
+        </div>
+    {/ikb_card}
+    
+{/ikb_section}
+
+{/block}

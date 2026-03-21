@@ -1,0 +1,262 @@
+{extends "layouts/app.disyl"}
+
+{block head}
+<style>
+    .sa-header { margin-bottom: 24px; }
+    .sa-header h2 { font-size: 20px; font-weight: 700; color: var(--text); }
+    .sa-header .sa-desc { font-size: 13px; color: var(--text-muted); margin-top: 4px; }
+    .sa-tenant-bar { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; padding: 12px 16px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; }
+    .sa-tenant-bar label { font-size: 13px; font-weight: 600; color: var(--text); white-space: nowrap; }
+    .sa-tenant-select { flex: 1; max-width: 360px; border: 1px solid var(--border); border-radius: 8px; padding: 7px 10px; font-size: 13px; color: var(--text); background: var(--bg); }
+    .sa-module-list { display: grid; gap: 20px; }
+    .sa-module { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; transition: opacity .2s; }
+    .sa-module.sa-disabled { opacity: .65; }
+    .sa-module-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 20px; border-bottom: 1px solid var(--border); background: var(--bg); }
+    .sa-module-left { display: flex; align-items: center; gap: 12px; }
+    .sa-module-name { font-size: 15px; font-weight: 700; color: var(--text); }
+    .sa-module-version { font-size: 11px; font-weight: 600; color: var(--text-muted); background: var(--surface); padding: 2px 8px; border-radius: 8px; }
+    .sa-module-desc { font-size: 12px; color: var(--text-muted); padding: 4px 20px 0; }
+    .sa-badge { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 6px; text-transform: uppercase; letter-spacing: .3px; }
+    .sa-badge-on { background: #d1fae5; color: #065f46; }
+    .sa-badge-off { background: #fee2e2; color: #991b1b; }
+    .sa-toggle { position: relative; display: inline-block; width: 38px; height: 22px; flex-shrink: 0; }
+    .sa-toggle input { opacity: 0; width: 0; height: 0; }
+    .sa-toggle .sa-slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background: #ccc; border-radius: 22px; transition: .2s; }
+    .sa-toggle .sa-slider::before { position: absolute; content: ""; height: 16px; width: 16px; left: 3px; bottom: 3px; background: #fff; border-radius: 50%; transition: .2s; }
+    .sa-toggle input:checked + .sa-slider { background: var(--primary, #2563eb); }
+    .sa-toggle input:checked + .sa-slider::before { transform: translateX(16px); }
+    .sa-toggle input:disabled + .sa-slider { opacity: .5; cursor: not-allowed; }
+    .sa-fields { padding: 16px 20px; display: grid; gap: 14px; }
+    .sa-field { display: flex; flex-direction: column; gap: 6px; }
+    .sa-field-inline { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--text); }
+    .sa-field-label { font-size: 12px; font-weight: 600; color: var(--text); }
+    .sa-field-help { font-size: 11px; color: var(--text-muted); }
+    .sa-input, .sa-select { width: 100%; border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; font-size: 13px; color: var(--text); background: var(--surface); }
+    .sa-actions { display: flex; justify-content: flex-end; gap: 8px; padding: 12px 20px; border-top: 1px solid var(--border); }
+    .sa-btn-save { background: var(--primary); color: #fff; border: none; padding: 8px 18px; font-size: 12px; font-weight: 600; border-radius: 8px; cursor: pointer; transition: filter .15s; }
+    .sa-btn-save:hover { filter: brightness(.92); }
+    .sa-btn-save:disabled { opacity: .55; cursor: not-allowed; }
+    .sa-status { font-size: 12px; padding: 0 20px 12px; }
+    .sa-status.ok { color: var(--success, #059669); }
+    .sa-status.err { color: var(--danger, #dc2626); }
+    .sa-empty { text-align: center; padding: 48px 20px; color: var(--text-muted); font-size: 14px; }
+    .sa-tenant-info { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-muted); margin-left: 12px; }
+    .sa-tenant-badge { font-size: 10px; font-weight: 600; padding: 2px 7px; border-radius: 6px; background: var(--surface); border: 1px solid var(--border); color: var(--text-muted); }
+    .sa-module-count { font-size: 12px; color: var(--text-muted); margin-bottom: 16px; }
+    .sa-module-notice { font-size: 12px; color: var(--text-muted); padding: 20px; text-align: center; }
+    .sa-db-warning { background: #fef3c7; border: 1px solid #f59e0b; border-radius: 10px; padding: 12px 16px; margin-bottom: 20px; font-size: 13px; color: #92400e; display: flex; align-items: center; gap: 8px; }
+    .sa-db-warning strong { font-weight: 700; }
+</style>
+{/block}
+
+{block content}
+<div class="sa-header">
+    <h2>Feature Settings</h2>
+    {if multi_tenant}
+    <div class="sa-desc">Manage module feature flags and settings per tenant. Select a tenant, then enable/disable modules and adjust settings below.</div>
+    {else}
+    <div class="sa-desc">Manage module feature flags and settings. Changes take effect immediately.</div>
+    {/if}
+</div>
+
+{if multi_tenant}
+<div class="sa-tenant-bar">
+    <label for="sa-tenant-picker">Tenant:</label>
+    <select id="sa-tenant-picker" class="sa-tenant-select" onchange="switchTenant(this.value)">
+        {foreach tenants as t}
+        <option value="{t.id}" {if t.selected}selected{/if}>{t.label}</option>
+        {/foreach}
+    </select>
+</div>
+{/if}
+
+{if not tenant_db_ok}
+<div class="sa-db-warning">
+    <strong>Warning:</strong> This tenant has no database connection configured. Module toggles and settings are unavailable until a database is set up.
+</div>
+{/if}
+
+{if modules | count == 0}
+<div class="sa-empty">
+    {if multi_tenant}
+    <p>No modules are relevant for this tenant.</p>
+    <p style="font-size:12px;margin-top:8px;">Select a different tenant above, or check the tenant's entry module configuration.</p>
+    {else}
+    <p>No modules discovered.</p>
+    {/if}
+</div>
+{else}
+{if multi_tenant}
+<div class="sa-module-count">{module_count} module(s) for this tenant.</div>
+{/if}
+<div class="sa-module-list">
+    {foreach modules as mod}
+    <div class="sa-module {if not mod.is_enabled}sa-disabled{/if}" id="sa-mod-{mod.id}">
+        <div class="sa-module-header">
+            <div class="sa-module-left">
+                {if tenant_db_ok}
+                <label class="sa-toggle" title="{if mod.is_enabled}Disable{else}Enable{/if} {mod.name}">
+                    <input type="checkbox" onchange="toggleModule('{mod.id}', this.checked)" {if mod.is_enabled}checked{/if}>
+                    <span class="sa-slider"></span>
+                </label>
+                {/if}
+                <div>
+                    <span class="sa-module-name">{mod.name}</span>
+                    {if mod.is_enabled}
+                    <span class="sa-badge sa-badge-on">Enabled</span>
+                    {else}
+                    <span class="sa-badge sa-badge-off">Disabled</span>
+                    {/if}
+                </div>
+            </div>
+            <span class="sa-module-version">v{mod.version}</span>
+        </div>
+        {if mod.description}
+        <div class="sa-module-desc">{mod.description}</div>
+        {/if}
+
+        {if not mod.is_enabled}
+        <div class="sa-module-notice">Enable this module to configure its settings.</div>
+        {elseif not mod.has_fields}
+        <div class="sa-module-notice">This module has no configurable settings.</div>
+        {else}
+        <div class="sa-fields" id="sa-fields-{mod.id}">
+            {foreach mod.fields as field}
+            {if field.is_checkbox}
+            <div class="sa-field">
+                <label class="sa-field-inline">
+                    <input type="checkbox" data-sa-module="{mod.id}" data-sa-key="{field.key}" data-sa-type="checkbox" {if field.is_checked}checked{/if}>
+                    <span>{field.label}</span>
+                </label>
+                {if field.description}
+                <div class="sa-field-help">{field.description}</div>
+                {/if}
+            </div>
+            {elseif field.is_select}
+            <div class="sa-field">
+                <label class="sa-field-label">{field.label}</label>
+                <select class="sa-select" data-sa-module="{mod.id}" data-sa-key="{field.key}" data-sa-type="select">
+                    {foreach field.options as opt}
+                    <option value="{opt.value}" {if opt.selected}selected{/if}>{opt.label}</option>
+                    {/foreach}
+                </select>
+                {if field.description}
+                <div class="sa-field-help">{field.description}</div>
+                {/if}
+            </div>
+            {else}
+            <div class="sa-field">
+                <label class="sa-field-label">{field.label}</label>
+                <input class="sa-input" type="{field.input_type}" data-sa-module="{mod.id}" data-sa-key="{field.key}" data-sa-type="{field.type}" value="{field.current_value}">
+                {if field.description}
+                <div class="sa-field-help">{field.description}</div>
+                {/if}
+            </div>
+            {/if}
+            {/foreach}
+        </div>
+        <div class="sa-status" id="sa-status-{mod.id}"></div>
+        <div class="sa-actions">
+            {if mod.settings_url}
+            <a href="{mod.settings_url}" style="font-size:12px;color:var(--text-muted);text-decoration:none;padding:8px 14px;">Advanced Settings &rarr;</a>
+            {/if}
+            <button class="sa-btn-save" onclick="saveModuleSettings('{mod.id}')">Save</button>
+        </div>
+        {/if}
+    </div>
+    {/foreach}
+</div>
+{/if}
+{/block}
+
+{block scripts}
+<script>
+var CSRF = '{csrf_token}';
+var MULTI_TENANT = {if multi_tenant}true{else}false{/if};
+var SELECTED_TENANT_ID = {selected_tenant_id};
+
+function switchTenant(tenantId) {
+    window.location.href = '/superadmin/settings?tenant_id=' + encodeURIComponent(tenantId);
+}
+
+function setStatus(moduleId, message, type) {
+    var el = document.getElementById('sa-status-' + moduleId);
+    if (!el) return;
+    el.className = 'sa-status' + (type ? ' ' + type : '');
+    el.textContent = message || '';
+}
+
+function toggleModule(moduleId, enabled) {
+    var payload = { module_id: moduleId, enabled: enabled, _token: CSRF };
+    if (MULTI_TENANT && SELECTED_TENANT_ID) {
+        payload.tenant_id = SELECTED_TENANT_ID;
+    }
+    fetch('/api/v1/superadmin/modules/toggle', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(res) {
+        if (res.ok) {
+            window.location.reload();
+        } else {
+            alert(res.error || 'Toggle failed');
+            window.location.reload();
+        }
+    })
+    .catch(function() {
+        alert('Network error');
+        window.location.reload();
+    });
+}
+
+function saveModuleSettings(moduleId) {
+    var container = document.getElementById('sa-fields-' + moduleId);
+    if (!container) return;
+
+    var settings = {};
+    var controls = container.querySelectorAll('[data-sa-key]');
+    controls.forEach(function(el) {
+        var key = el.getAttribute('data-sa-key');
+        var type = (el.getAttribute('data-sa-type') || 'text').toLowerCase();
+        if (!key) return;
+        if (type === 'checkbox') {
+            settings[key] = !!el.checked;
+        } else {
+            settings[key] = el.value;
+        }
+    });
+
+    setStatus(moduleId, 'Saving...', '');
+    var btn = container.closest('.sa-module').querySelector('.sa-btn-save');
+    if (btn) btn.disabled = true;
+
+    var payload = { module_id: moduleId, settings: settings, _token: CSRF };
+    if (MULTI_TENANT && SELECTED_TENANT_ID) {
+        payload.tenant_id = SELECTED_TENANT_ID;
+    }
+
+    fetch('/api/v1/superadmin/modules/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(res) {
+        if (res.ok) {
+            setStatus(moduleId, 'Settings saved.', 'ok');
+            if (typeof showToast === 'function') showToast('Settings saved');
+        } else {
+            setStatus(moduleId, res.error || 'Save failed', 'err');
+        }
+    })
+    .catch(function() {
+        setStatus(moduleId, 'Network error', 'err');
+    })
+    .finally(function() {
+        if (btn) btn.disabled = false;
+    });
+}
+</script>
+{/block}

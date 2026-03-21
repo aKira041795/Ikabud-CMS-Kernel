@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Daily Ledger Sign In</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+</head>
+<body class="min-h-screen bg-slate-50 flex items-center justify-center p-6">
+    <div class="w-full max-w-md">
+        <div class="mb-6 text-center">
+            <div class="mx-auto mb-3 h-12 w-12 rounded-2xl bg-indigo-600 text-white flex items-center justify-center shadow-sm">
+                <i class="fas fa-receipt"></i>
+            </div>
+            <h1 class="text-xl font-semibold text-gray-900">Daily Ledger</h1>
+            <p class="mt-1 text-sm text-gray-500">Sign in to continue</p>
+        </div>
+
+        <div class="rounded-2xl bg-white shadow-sm ring-1 ring-gray-200 p-6">
+            <div id="login-error" class="hidden mb-4 rounded-lg bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700 ring-1 ring-inset ring-rose-200"></div>
+
+            <form id="login-form" onsubmit="return handleLogin(event)">
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700" for="username">Username</label>
+                    <input class="mt-1 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200" type="text" id="username" name="username" autocomplete="username" required autofocus>
+                </div>
+                <div class="mb-5">
+                    <label class="block text-sm font-medium text-gray-700" for="password">Password</label>
+                    <input class="mt-1 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200" type="password" id="password" name="password" autocomplete="current-password" required>
+                </div>
+                <button type="submit" class="w-full inline-flex items-center justify-center rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 disabled:opacity-60" id="login-btn">Sign In</button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        function handleLogin(e) {
+            e.preventDefault();
+            var btn = document.getElementById('login-btn');
+            var errEl = document.getElementById('login-error');
+            btn.disabled = true;
+            btn.textContent = 'Signing in...';
+            errEl.classList.add('hidden');
+
+            var data = {
+                username: document.getElementById('username').value,
+                password: document.getElementById('password').value
+            };
+
+            fetch('/daily-ledger/auth/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                body: JSON.stringify(data)
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(res) {
+                if (res.ok && res.redirect) {
+                    window.location.href = res.redirect;
+                } else {
+                    errEl.textContent = res.error || 'Login failed';
+                    errEl.classList.remove('hidden');
+                    btn.disabled = false;
+                    btn.textContent = 'Sign In';
+                }
+            })
+            .catch(function() {
+                errEl.textContent = 'Network error. Please try again.';
+                errEl.classList.remove('hidden');
+                btn.disabled = false;
+                btn.textContent = 'Sign In';
+            });
+
+            return false;
+        }
+    </script>
+</body>
+</html>

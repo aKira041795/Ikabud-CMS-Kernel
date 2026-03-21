@@ -1,0 +1,42 @@
+{extends "_cms_active_theme/layouts/public.disyl"}
+
+{block content}
+<div class="mb-12">
+    <h1 class="text-2xl font-bold" style="font-family: system-ui, sans-serif;">Archive</h1>
+</div>
+
+{if posts | count == 0}
+<div class="py-16 text-center text-gray-300">
+    <p class="text-lg">No posts yet.</p>
+</div>
+{/if}
+
+<div class="space-y-10">
+    {foreach posts as post}
+    <article class="group">
+        <div class="flex items-baseline gap-3 mb-1.5" style="font-family: system-ui, sans-serif;">
+            <time class="text-xs text-gray-300 shrink-0 tabular-nums">{post.published_at}</time>
+        </div>
+        <h2 class="text-xl font-semibold mb-2" style="font-family: system-ui, sans-serif;">
+            <a href="{base_url}/cms/blog/{post.slug}" class="text-gray-900 hover:text-gray-500 no-underline">{post.title}</a>
+        </h2>
+        <div class="text-gray-500 text-base leading-relaxed line-clamp-2">
+            {if post.excerpt}{post.excerpt}{else}{post.body}{/if}
+        </div>
+        <a href="{base_url}/cms/blog/{post.slug}" class="inline-block mt-2 text-sm text-gray-400 hover:text-gray-700 no-underline" style="font-family: system-ui, sans-serif;">Read &rarr;</a>
+    </article>
+    {/foreach}
+</div>
+
+{if total_pages > 1}
+<div class="flex items-center justify-center gap-3 mt-14 pt-8 border-t border-gray-100" style="font-family: system-ui, sans-serif;">
+    {if page_num > 1}
+    <a href="{base_url}/cms/blog?page=1" class="text-sm text-gray-400 hover:text-gray-700 no-underline">&larr; First</a>
+    {/if}
+    <span class="text-xs text-gray-300">{page_num} / {total_pages}</span>
+    {if page_num < total_pages}
+    <a href="{base_url}/cms/blog?page={next_page}" class="text-sm text-gray-400 hover:text-gray-700 no-underline">Next &rarr;</a>
+    {/if}
+</div>
+{/if}
+{/block}

@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{page_title}</title>
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #f3f4f6;
+            color: #111827;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+        }
+        .card {
+            background: #fff;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,.10);
+            padding: 48px 40px;
+            text-align: center;
+            max-width: 480px;
+            width: 100%;
+        }
+        .icon {
+            width: 60px;
+            height: 60px;
+            background: #d1fae5;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 24px;
+            font-size: 28px;
+        }
+        h1 { font-size: 1.4rem; font-weight: 700; margin-bottom: 10px; color: #111827; }
+        p  { font-size: 14px; color: #6b7280; line-height: 1.6; margin-bottom: 10px; }
+        .ticket-no {
+            display: inline-block;
+            background: #f0f9ff;
+            border: 1px solid #bae6fd;
+            color: #0369a1;
+            font-family: monospace;
+            font-size: 1.1rem;
+            font-weight: 700;
+            padding: 8px 20px;
+            border-radius: 6px;
+            margin: 14px 0 24px;
+            letter-spacing: .5px;
+        }
+        .btn-back {
+            display: inline-block;
+            padding: 10px 24px;
+            background: #2563eb;
+            color: #fff;
+            text-decoration: none;
+            border-radius: 7px;
+            font-size: 14px;
+            font-weight: 600;
+        }
+        .btn-back:hover { background: #1d4ed8; }
+        .footer-note { font-size: 12px; color: #9ca3af; margin-top: 24px; }
+    </style>
+</head>
+<body>
+<div class="card">
+    <div class="icon">&#10003;</div>
+    <h1>Request Submitted!</h1>
+    <p>Your maintenance request has been received. Our property management team will review it shortly.</p>
+
+    {if ticket_no}
+    <p style="margin-top:6px;font-size:13px;color:#374151;font-weight:600;">Your ticket number is:</p>
+    <div class="ticket-no">{ticket_no}</div>
+    <p style="font-size:12px;">Please save this number for your reference.</p>
+    {/if}
+
+    <a href="{base_url}/submit-ticket" class="btn-back" style="margin-top:20px;display:inline-block;">Submit Another Request</a>
+
+    <p class="footer-note">If this is an emergency, please contact property management directly.</p>
+</div>
+</body>
+</html>

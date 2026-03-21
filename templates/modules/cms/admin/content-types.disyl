@@ -1,0 +1,378 @@
+{extends "modules/cms/layouts/admin.disyl"}
+
+{block content}
+<div x-data="cmsContentTypes()" x-init="init()">
+    <div class="flex items-center justify-between mb-4">
+        <div>
+            <div class="text-sm text-gray-500">Define custom content types and their fields. Fields are stored in <span class="font-mono">cms_content_meta</span>.</div>
+        </div>
+        <button class="inline-flex items-center gap-1.5 px-4 py-2 bg-sky-600 text-white text-sm font-medium rounded-lg hover:bg-sky-700 transition-colors" @click="openCreateType()">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+            New Content Type
+        </button>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-[360px_1fr] gap-4">
+        <!-- Content types list -->
+        <div class="bg-white rounded-lg border border-gray-200 overflow-hidden">
+            <div class="px-4 py-2.5 border-b border-gray-100 text-[11px] font-semibold uppercase tracking-wider text-gray-400">Content Types</div>
+            <div class="divide-y divide-gray-100">
+                <template x-if="types.length === 0">
+                    <div class="p-6 text-sm text-gray-400">No content types found.</div>
+                </template>
+                <template x-for="t in types" :key="t.id">
+                    <button class="w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors"
+                            :class="selectedType && selectedType.id === t.id ? 'bg-sky-50' : ''"
+                            @click="selectType(t)">
+                        <div class="flex items-center justify-between gap-3">
+                            <div>
+                                <div class="text-sm font-semibold text-gray-900" x-text="t.label"></div>
+                                <div class="text-[11px] text-gray-400" x-text="t.slug"></div>
+                            </div>
+                            <div class="text-[11px] font-semibold" :class="String(t.is_active) === '1' ? 'text-emerald-700' : 'text-gray-400'" x-text="String(t.is_active) === '1' ? 'Active' : 'Disabled'"></div>
+                        </div>
+                    </button>
+                </template>
+            </div>
+        </div>
+
+        <!-- Fields for selected type -->
+        <div class="bg-white rounded-lg border border-gray-200 overflow-hidden">
+            <div class="px-4 py-2.5 border-b border-gray-100 flex items-center justify-between">
+                <div class="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Fields</div>
+                <div class="flex items-center gap-2">
+                    <template x-if="selectedType">
+                        <button class="px-3 py-2 bg-gray-100 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-200" @click="openEditType(selectedType)">Edit Type</button>
+                    </template>
+                    <template x-if="selectedType">
+                        <button class="px-3 py-2 bg-sky-600 text-white text-sm font-medium rounded-lg hover:bg-sky-700" @click="openCreateField()">Add Field</button>
+                    </template>
+                </div>
+            </div>
+
+            <template x-if="!selectedType">
+                <div class="p-8 text-sm text-gray-400">Select a content type to manage its fields.</div>
+            </template>
+
+            <template x-if="selectedType">
+                <div>
+                    <div class="px-4 py-3 text-sm text-gray-500 border-b border-gray-100">
+                        <span class="font-semibold text-gray-700" x-text="selectedType.label"></span>
+                        <span class="text-gray-300 mx-2">/</span>
+                        <span class="font-mono text-xs" x-text="selectedType.slug"></span>
+                    </div>
+
+                    <template x-if="fields.length === 0">
+                        <div class="p-8 text-sm text-gray-400">No fields defined yet.</div>
+                    </template>
+
+                    <template x-if="fields.length > 0">
+                        <table class="w-full">
+                            <thead>
+                                <tr class="bg-gray-50 border-b border-gray-200">
+                                    <th class="text-left px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-gray-400">Key</th>
+                                    <th class="text-left px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-gray-400">Label</th>
+                                    <th class="text-left px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-gray-400">Type</th>
+                                    <th class="px-4 py-2.5 w-24"></th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-100">
+                                <template x-for="f in fields" :key="f.id">
+                                    <tr class="hover:bg-gray-50 transition-colors">
+                                        <td class="px-4 py-3 text-xs font-mono text-gray-700" x-text="f.field_key"></td>
+                                        <td class="px-4 py-3 text-sm text-gray-700" x-text="f.label"></td>
+                                        <td class="px-4 py-3 text-xs text-gray-500" x-text="f.field_type"></td>
+                                        <td class="px-4 py-3 text-right">
+                                            <button class="text-xs text-gray-400 hover:text-sky-600" @click="openEditField(f)">Edit</button>
+                                            <button class="ml-2 text-xs text-red-600 hover:text-red-700" @click="deleteField(f)">Del</button>
+                                        </td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </template>
+                </div>
+            </template>
+        </div>
+    </div>
+
+    <!-- Type modal -->
+    <template x-if="showTypeModal">
+        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40" @click.self="closeModals()">
+            <div class="bg-white rounded-xl shadow-xl w-full max-w-lg p-6" @click.stop>
+                <h3 class="text-lg font-semibold text-gray-900 mb-4" x-text="typeForm.id ? 'Edit Content Type' : 'Create Content Type'"></h3>
+                <div class="space-y-3">
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 mb-1">Slug</label>
+                        <input type="text" x-model="typeForm.slug" placeholder="product" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg" :disabled="!!typeForm.id">
+                        <div class="text-[11px] text-gray-400 mt-1">Used as <span class="font-mono">cms_content.type</span>. Cannot be changed after creation.</div>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 mb-1">Label</label>
+                        <input type="text" x-model="typeForm.label" placeholder="Product" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg">
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs font-medium text-gray-500 mb-1">Icon</label>
+                            <input type="text" x-model="typeForm.icon" placeholder="file-text" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-500 mb-1">Status</label>
+                            <select x-model="typeForm.is_active" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white">
+                                <option value="1">Active</option>
+                                <option value="0">Disabled</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div x-show="formError" class="text-xs text-red-600 mt-2" x-text="formError"></div>
+
+                <div class="flex justify-between items-center mt-6">
+                    <template x-if="typeForm.id">
+                        <button class="px-4 py-2 text-sm text-white bg-red-600 rounded-lg hover:bg-red-700" @click="deleteType()">Delete Type</button>
+                    </template>
+                    <div class="ml-auto flex gap-2">
+                        <button class="px-4 py-2 text-sm text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200" @click="closeModals()">Cancel</button>
+                        <button class="px-4 py-2 text-sm text-white bg-sky-600 rounded-lg hover:bg-sky-700 disabled:opacity-50" @click="saveType()" :disabled="saving" x-text="saving ? 'Saving...' : 'Save'"></button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </template>
+
+    <!-- Field modal -->
+    <template x-if="showFieldModal">
+        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40" @click.self="closeModals()">
+            <div class="bg-white rounded-xl shadow-xl w-full max-w-lg p-6" @click.stop>
+                <h3 class="text-lg font-semibold text-gray-900 mb-4" x-text="fieldForm.id ? 'Edit Field' : 'Create Field'"></h3>
+
+                <div class="space-y-3">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs font-medium text-gray-500 mb-1">Field Key</label>
+                            <input type="text" x-model="fieldForm.field_key" placeholder="price" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg" :disabled="!!fieldForm.id">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-500 mb-1">Field Type</label>
+                            <select x-model="fieldForm.field_type" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white">
+                                <option value="text">Text</option>
+                                <option value="textarea">Textarea</option>
+                                <option value="number">Number</option>
+                                <option value="select">Select</option>
+                                <option value="boolean">Boolean</option>
+                                <option value="date">Date</option>
+                                <option value="url">URL</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 mb-1">Label</label>
+                        <input type="text" x-model="fieldForm.label" placeholder="Price" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 mb-1">Placeholder</label>
+                        <input type="text" x-model="fieldForm.placeholder" placeholder="Optional" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg">
+                    </div>
+                    <div x-show="fieldForm.field_type === 'select'" x-cloak>
+                        <label class="block text-xs font-medium text-gray-500 mb-1">Select Options (JSON)</label>
+                        <textarea x-model="fieldForm.options_json" placeholder='[{"value":"red","label":"Red"}]' class="w-full min-h-[90px] resize-y text-sm font-mono border border-gray-300 rounded-lg px-3 py-2"></textarea>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 mb-1">Validation Rules (JSON)</label>
+                        <textarea x-model="fieldForm.validation_json" placeholder='{"required":true,"min":0,"max":999}' class="w-full min-h-[90px] resize-y text-sm font-mono border border-gray-300 rounded-lg px-3 py-2"></textarea>
+                    </div>
+                </div>
+
+                <div x-show="formError" class="text-xs text-red-600 mt-2" x-text="formError"></div>
+
+                <div class="flex justify-end gap-2 mt-6">
+                    <button class="px-4 py-2 text-sm text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200" @click="closeModals()">Cancel</button>
+                    <button class="px-4 py-2 text-sm text-white bg-sky-600 rounded-lg hover:bg-sky-700 disabled:opacity-50" @click="saveField()" :disabled="saving" x-text="saving ? 'Saving...' : 'Save'"></button>
+                </div>
+            </div>
+        </div>
+    </template>
+</div>
+{/block}
+
+{block scripts}
+<script>
+function cmsContentTypes() {
+    return {
+        types: [],
+        fields: [],
+        selectedType: null,
+        showTypeModal: false,
+        showFieldModal: false,
+        saving: false,
+        formError: '',
+        typeForm: { id: 0, slug: '', label: '', icon: 'file-text', is_active: '1' },
+        fieldForm: { id: 0, field_key: '', field_type: 'text', label: '', placeholder: '', options_json: '', validation_json: '' },
+
+        async init() {
+            await this.reloadTypes();
+            // auto select first
+            if (this.types.length > 0) {
+                this.selectType(this.types[0]);
+            }
+        },
+
+        async reloadTypes() {
+            const res = await fetch(CMS_BASE + '/api/v1/cms/content-types');
+            const data = await res.json();
+            this.types = data.data || [];
+        },
+
+        async selectType(t) {
+            this.selectedType = t;
+            await this.reloadFields();
+        },
+
+        async reloadFields() {
+            if (!this.selectedType) return;
+            const res = await fetch(CMS_BASE + '/api/v1/cms/content-types/' + this.selectedType.id + '/fields');
+            const data = await res.json();
+            this.fields = data.data || [];
+        },
+
+        openCreateType() {
+            this.formError = '';
+            this.typeForm = { id: 0, slug: '', label: '', icon: 'file-text', is_active: '1' };
+            this.showTypeModal = true;
+        },
+
+        openEditType(t) {
+            this.formError = '';
+            this.typeForm = { id: t.id, slug: t.slug, label: t.label, icon: t.icon || 'file-text', is_active: String(t.is_active ?? '1') };
+            this.showTypeModal = true;
+        },
+
+        openCreateField() {
+            this.formError = '';
+            this.fieldForm = { id: 0, field_key: '', field_type: 'text', label: '', placeholder: '', options_json: '', validation_json: '' };
+            this.showFieldModal = true;
+        },
+
+        openEditField(f) {
+            this.formError = '';
+            this.fieldForm = {
+                id: f.id,
+                field_key: f.field_key,
+                field_type: f.field_type,
+                label: f.label,
+                placeholder: f.placeholder || '',
+                options_json: f.options_json || '',
+                validation_json: f.validation_json || '',
+            };
+            this.showFieldModal = true;
+        },
+
+        closeModals() {
+            this.showTypeModal = false;
+            this.showFieldModal = false;
+            this.formError = '';
+            this.saving = false;
+        },
+
+        async saveType() {
+            this.formError = '';
+            if (!this.typeForm.slug.trim() || !this.typeForm.label.trim()) {
+                this.formError = 'Slug and Label are required.';
+                return;
+            }
+            this.saving = true;
+            try {
+                const res = await fetch(CMS_BASE + '/api/v1/cms/content-types', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CMS_CSRF },
+                    body: JSON.stringify(this.typeForm),
+                });
+                const data = await res.json();
+                if (!data.ok) {
+                    this.formError = data.error || 'Failed';
+                } else {
+                    toast('Saved');
+                    this.closeModals();
+                    await this.reloadTypes();
+                }
+            } catch (e) {
+                this.formError = 'Network error';
+            }
+            this.saving = false;
+        },
+
+        async deleteType() {
+            if (!this.typeForm.id) return;
+            if (!confirm('Delete this content type? This does not delete existing content.')) return;
+            this.saving = true;
+            try {
+                const res = await fetch(CMS_BASE + '/api/v1/cms/content-types/' + this.typeForm.id + '/delete', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CMS_CSRF },
+                });
+                const data = await res.json();
+                if (data.ok) {
+                    toast('Deleted');
+                    this.closeModals();
+                    this.selectedType = null;
+                    this.fields = [];
+                    await this.reloadTypes();
+                } else {
+                    this.formError = data.error || 'Failed';
+                }
+            } catch (e) { this.formError = 'Network error'; }
+            this.saving = false;
+        },
+
+        async saveField() {
+            if (!this.selectedType) return;
+            this.formError = '';
+            if (!this.fieldForm.field_key.trim() || !this.fieldForm.label.trim()) {
+                this.formError = 'Field Key and Label are required.';
+                return;
+            }
+            this.saving = true;
+            try {
+                const payload = { ...this.fieldForm };
+                const res = await fetch(CMS_BASE + '/api/v1/cms/content-types/' + this.selectedType.id + '/fields', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CMS_CSRF },
+                    body: JSON.stringify(payload),
+                });
+                const data = await res.json();
+                if (data.ok) {
+                    toast('Field saved');
+                    this.closeModals();
+                    await this.reloadFields();
+                } else {
+                    this.formError = data.error || 'Failed';
+                }
+            } catch (e) {
+                this.formError = 'Network error';
+            }
+            this.saving = false;
+        },
+
+        async deleteField(f) {
+            if (!confirm('Delete this field definition?')) return;
+            try {
+                const res = await fetch(CMS_BASE + '/api/v1/cms/fields/' + f.id + '/delete', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CMS_CSRF },
+                });
+                const data = await res.json();
+                if (data.ok) {
+                    toast('Field deleted');
+                    await this.reloadFields();
+                } else {
+                    toast(data.error || 'Failed', 'error');
+                }
+            } catch (e) {
+                toast('Network error', 'error');
+            }
+        },
+    };
+}
+</script>
+{/block}

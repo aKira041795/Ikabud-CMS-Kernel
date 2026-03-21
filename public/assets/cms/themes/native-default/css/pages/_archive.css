@@ -1,0 +1,240 @@
+/**
+ * Archive/Blog Listing Styles
+ * Native Default Theme v2.1.0
+ */
+
+/* ========================================
+   Hero Section
+   ======================================== */
+.hero {
+    position: relative;
+    min-height: 50vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    overflow: hidden;
+    padding: var(--spacing-3xl) 0;
+}
+
+.hero--gradient {
+    background: linear-gradient(135deg, var(--color-primary) 0%, #0d5a9e 100%);
+    color: #fff;
+}
+
+.hero--minimal {
+    min-height: auto;
+    padding: var(--spacing-2xl) 0;
+    background: var(--color-surface);
+    color: var(--color-text);
+}
+
+.hero--minimal .hero__title {
+    color: var(--color-text);
+    font-size: clamp(2rem, 4vw, 3rem);
+}
+
+.hero--minimal .hero__subtitle {
+    color: var(--color-text-light);
+}
+
+.hero--image {
+    color: #fff;
+}
+
+.hero__background {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 0;
+}
+
+.hero__bg-image {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.hero__overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+}
+
+.hero__content {
+    position: relative;
+    z-index: 1;
+    padding: var(--spacing-3xl) 0;
+}
+
+.hero__inner {
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+.hero__title {
+    font-size: clamp(2.5rem, 5vw, 4rem);
+    font-weight: 700;
+    margin-bottom: 1.5rem;
+    line-height: 1.1;
+}
+
+.hero--gradient .hero__title,
+.hero--image .hero__title {
+    color: #fff;
+}
+
+.hero__subtitle {
+    font-size: clamp(1.125rem, 2vw, 1.5rem);
+    opacity: 0.9;
+    margin-bottom: 2rem;
+    max-width: 600px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.hero__actions {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+.hero__scroll-indicator {
+    position: absolute;
+    bottom: 2rem;
+    left: 50%;
+    transform: translateX(-50%);
+}
+
+.scroll-down {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    color: currentColor;
+    opacity: 0.7;
+    animation: bounce 2s infinite;
+}
+
+@keyframes bounce {
+    0%, 20%, 50%, 80%, 100% { transform: translateY(0); }
+    40% { transform: translateY(-10px); }
+    60% { transform: translateY(-5px); }
+}
+
+/* ========================================
+   Sections
+   ======================================== */
+.section {
+    padding: var(--spacing-3xl) 0;
+}
+
+.section--featured {
+    background: var(--color-surface);
+}
+
+.section--posts {
+    padding: var(--spacing-2xl) 0 var(--spacing-3xl);
+}
+
+.section__header {
+    text-align: center;
+    margin-bottom: var(--spacing-xl);
+}
+
+.section__title {
+    font-size: var(--font-size-2xl);
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+    color: var(--color-text);
+}
+
+.section__subtitle {
+    font-size: var(--font-size-base);
+    color: var(--color-text-light);
+    margin: 0;
+}
+
+.section__footer {
+    text-align: center;
+    margin-top: var(--spacing-2xl);
+}
+
+.bg-surface {
+    background: var(--color-surface);
+}
+
+/* ========================================
+   Newsletter Section
+   ======================================== */
+.section--newsletter {
+    background: linear-gradient(135deg, var(--color-primary) 0%, #6366f1 100%);
+    color: #fff;
+}
+
+.newsletter-box {
+    text-align: center;
+    max-width: 600px;
+    margin: 0 auto;
+}
+
+.newsletter-box__title {
+    font-size: var(--font-size-3xl);
+    margin-bottom: 0.75rem;
+    color: #fff;
+}
+
+.newsletter-box__text {
+    font-size: var(--font-size-lg);
+    opacity: 0.9;
+    margin-bottom: 2rem;
+}
+
+/* ========================================
+   Breadcrumbs
+   ======================================== */
+.breadcrumbs {
+    background: var(--color-surface);
+    padding: 1rem 0;
+    font-size: var(--font-size-sm);
+}
+
+.breadcrumbs__list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.breadcrumbs__item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.breadcrumbs__link {
+    color: var(--color-text-light);
+}
+
+.breadcrumbs__link:hover {
+    color: var(--color-primary);
+}
+
+.breadcrumbs__text {
+    color: var(--color-text);
+    font-weight: 500;
+}
+
+.breadcrumbs__separator {
+    color: var(--color-text-muted);
+}

@@ -1,0 +1,15 @@
+{if comments | count == 0}
+<div class="text-muted" style="padding: 12px 0;">No comments yet.</div>
+{/if}
+<ul class="comment-list">
+    {foreach comments as c}
+    <li class="comment-item">
+        <div class="flex items-center gap-2">
+            <span class="comment-author">{c.author_name}</span>
+            <span class="comment-role">{c.author_role}</span>
+            <span class="comment-time">{c.created_at}</span>
+        </div>
+        <div class="comment-body">{c.body}</div>
+    </li>
+    {/foreach}
+</ul>

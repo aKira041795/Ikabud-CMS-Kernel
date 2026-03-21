@@ -1,0 +1,125 @@
+{extends "modules/daily-ledger/layouts/app.disyl"}
+
+{block head}
+{/block}
+
+{block content}
+<div class="flex items-center justify-between mb-6">
+    <div>
+        <h2 class="text-lg font-semibold text-gray-900">Variance Flags</h2>
+        <p class="text-sm text-gray-500">Beginning Inventory vs previous day ending.</p>
+    </div>
+</div>
+
+<form class="card mb-6" hx-get="{base_url}/admin/variances" hx-target="#main-content" hx-swap="innerHTML" hx-push-url="true">
+    <div class="card-body">
+    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 items-end">
+    <div class="form-group">
+        <label class="form-label">Branch</label>
+        <select class="form-input" name="branch_id">
+            <option value="">All Branches</option>
+            {foreach branches as br}
+            <option value="{br.id}" {if br.id == branch_id}selected{/if}>{br.name}</option>
+            {/foreach}
+        </select>
+    </div>
+    <div class="form-group">
+        <label class="form-label">Status</label>
+        <select class="form-input" name="status">
+            <option value="">All</option>
+            <option value="unreviewed" {if status_filter == 'unreviewed'}selected{/if}>Unreviewed</option>
+            <option value="investigated" {if status_filter == 'investigated'}selected{/if}>Investigated</option>
+            <option value="corrected" {if status_filter == 'corrected'}selected{/if}>Corrected</option>
+        </select>
+    </div>
+    <div class="form-group">
+        <label class="form-label">Search</label>
+        <input type="text" class="form-input" name="q" value="{search}" placeholder="Product or branch...">
+    </div>
+    <div class="form-group">
+        <div class="h-5"></div>
+        <button type="submit" class="btn btn-primary w-full h-11">Filter</button>
+    </div>
+    </div>
+    </div>
+</form>
+
+<div class="card">
+    <div class="card-header">
+        <span>Variance Records</span>
+        <span class="text-sm text-muted">{variances | count} flags</span>
+    </div>
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Branch</th>
+                    <th>Product</th>
+                    <th class="text-right">Prev Bal End</th>
+                    <th class="text-right">Current Beg Bal</th>
+                    <th class="text-right">Variance</th>
+                    <th>Status</th>
+                    <th>Reviewer</th>
+                </tr>
+            </thead>
+            <tbody>
+                {if variances | count == 0}
+                <tr><td colspan="8" class="px-4 py-10 text-center text-sm text-gray-500">No variances found</td></tr>
+                {/if}
+                {foreach variances as v}
+                <tr>
+                    <td>{v.ledger_date}</td>
+                    <td>{v.branch_name}</td>
+                    <td>{v.product_name}</td>
+                    <td class="text-right">{v.prev_bal_end}</td>
+                    <td class="text-right">{v.current_beg_bal}</td>
+                    <td class="text-right font-semibold {if v.variance > 0}text-emerald-700{/if}{if v.variance < 0}text-rose-700{/if}">{v.variance}</td>
+                    <td>
+                        <select class="form-input mt-0 w-auto min-w-40 px-2 py-1 text-xs" data-id="{v.id}" onchange="updateVarianceStatus(this)">
+                            <option value="unreviewed" {if v.resolution_status == 'unreviewed'}selected{/if}>Unreviewed</option>
+                            <option value="investigated" {if v.resolution_status == 'investigated'}selected{/if}>Investigated</option>
+                            <option value="corrected" {if v.resolution_status == 'corrected'}selected{/if}>Corrected</option>
+                        </select>
+                    </td>
+                    <td class="text-sm text-muted">{v.reviewer_name}</td>
+                </tr>
+                {/foreach}
+            </tbody>
+        </table>
+    </div>
+</div>
+{/block}
+
+{block scripts}
+<script>
+    var BASE = '{base_url}';
+
+    function updateVarianceStatus(select) {
+        var id = select.dataset.id;
+        var status = select.value;
+        select.disabled = true;
+
+        fetch(BASE + '/api/v1/admin/variances/update', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ variance_id: parseInt(id), status: status })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(res) {
+            select.disabled = false;
+            if (res.ok) {
+                // Update styling
+                select.className = 'form-input mt-0 w-auto min-w-40 px-2 py-1 text-xs status-select ' + status;
+                showToast('Status updated to ' + status);
+            } else {
+                showToast(res.error || 'Update failed');
+            }
+        })
+        .catch(function() {
+            select.disabled = false;
+            showToast('Network error');
+        });
+    }
+</script>
+{/block}

@@ -1,0 +1,167 @@
+{extends "layouts/app"}
+
+{block head}
+<style>
+    .settings-section { max-width: 640px; }
+    .settings-section .card { margin-bottom: 20px; }
+    .toggle-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 12px 0;
+        border-bottom: 1px solid var(--border);
+    }
+    .toggle-row:last-child { border-bottom: none; }
+    .toggle-label { font-size: var(--font-size-base); color: var(--text); font-weight: 600; }
+    .toggle-desc  { font-size: var(--font-size-small); color: var(--text-muted); margin-top: 2px; }
+    .toggle-switch { position: relative; width: 44px; height: 24px; flex-shrink: 0; }
+    .toggle-switch input { opacity: 0; width: 0; height: 0; }
+    .toggle-slider {
+        position: absolute; inset: 0;
+        background: var(--border);
+        border-radius: 24px;
+        cursor: pointer;
+        transition: background .2s;
+    }
+    .toggle-slider::before {
+        content: '';
+        position: absolute;
+        width: 18px; height: 18px;
+        left: 3px; top: 3px;
+        background: #fff;
+        border-radius: 50%;
+        transition: transform .2s;
+    }
+    .toggle-switch input:checked + .toggle-slider { background: var(--primary); }
+    .toggle-switch input:checked + .toggle-slider::before { transform: translateX(20px); }
+    .save-bar {
+        position: sticky; bottom: 0;
+        background: var(--surface);
+        border-top: 1px solid var(--border);
+        padding: 14px 0;
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        margin-top: 8px;
+    }
+    #saveMsg { font-size: var(--font-size-small); color: var(--success); display: none; }
+</style>
+{/block}
+
+{block content}
+<div class="flex justify-between items-center mb-4">
+    <div>
+        <a href="{base_url}/tickets" class="text-sm" hx-boost="true">← Tickets</a>
+        <h1 style="font-size: var(--font-size-h1); font-weight: 700; margin-top: 4px;">Ticketing — Settings</h1>
+    </div>
+</div>
+
+<div class="settings-section">
+
+    <!-- Notifications -->
+    <div class="card">
+        <div class="card-header">Admin Notifications</div>
+        <div class="card-body" id="settingsForm">
+            <form hx-post="{base_url}/api/v1/ticketing/settings" hx-target="body" id="tkSettingsForm">
+                <input type="hidden" name="_token" value="{csrf_token}">
+
+                <!-- SMS -->
+                <div class="toggle-row">
+                    <div>
+                        <div class="toggle-label">SMS Notifications</div>
+                        <div class="toggle-desc">Send an SMS to the admin number when a new ticket is submitted</div>
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" name="notify_sms" value="1"
+                            {if settings.notify_sms == '1'}checked{/if}
+                            onchange="document.getElementById('notify_sms_hidden').value = this.checked ? '1' : '0'">
+                        <span class="toggle-slider"></span>
+                    </label>
+                    <input type="hidden" id="notify_sms_hidden" name="notify_sms"
+                        value="{if settings.notify_sms == '1'}1{else}0{/if}">
+                </div>
+
+                <div class="form-group" style="padding: 12px 0 4px;">
+                    <label class="form-label">Admin Phone Number</label>
+                    <input type="text" name="admin_phone" class="form-input" style="max-width: 260px;"
+                        placeholder="+639XXXXXXXXX"
+                        value="{if settings.admin_phone}{settings.admin_phone}{/if}">
+                    <div style="font-size: var(--font-size-small); color: var(--text-muted); margin-top: 4px;">
+                        Uses the configured SMS module provider. Include country code (e.g. +63 for Philippines).
+                    </div>
+                </div>
+
+                <!-- Email -->
+                <div class="toggle-row" style="margin-top: 8px;">
+                    <div>
+                        <div class="toggle-label">Email Notifications</div>
+                        <div class="toggle-desc">Send an email to the admin address when a new ticket is submitted</div>
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" name="notify_email" value="1"
+                            {if settings.notify_email == '1'}checked{/if}
+                            onchange="document.getElementById('notify_email_hidden').value = this.checked ? '1' : '0'">
+                        <span class="toggle-slider"></span>
+                    </label>
+                    <input type="hidden" id="notify_email_hidden" name="notify_email"
+                        value="{if settings.notify_email == '1'}1{else}0{/if}">
+                </div>
+
+                <div class="form-group" style="padding: 12px 0 4px;">
+                    <label class="form-label">Admin Email Address</label>
+                    <input type="email" name="admin_email" class="form-input" style="max-width: 320px;"
+                        placeholder="admin@example.com"
+                        value="{if settings.admin_email}{settings.admin_email}{/if}">
+                </div>
+
+                <!-- Public form toggle -->
+                <div class="toggle-row" style="margin-top: 8px;">
+                    <div>
+                        <div class="toggle-label">Public Submission Form</div>
+                        <div class="toggle-desc">
+                            Allow residents to submit tickets via the public form at
+                            <code style="font-size:11px;">/submit-ticket</code>
+                        </div>
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" name="public_form_enabled" value="1"
+                            {if settings.public_form_enabled != '0'}checked{/if}
+                            onchange="document.getElementById('public_form_hidden').value = this.checked ? '1' : '0'">
+                        <span class="toggle-slider"></span>
+                    </label>
+                    <input type="hidden" id="public_form_hidden" name="public_form_enabled"
+                        value="{if settings.public_form_enabled != '0'}1{else}0{/if}">
+                </div>
+
+                <div class="save-bar">
+                    <button type="submit" class="btn btn-primary">Save Settings</button>
+                    <span id="saveMsg">&#10003; Saved</span>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Public form link -->
+    <div class="card">
+        <div class="card-header">Public Form Link</div>
+        <div class="card-body">
+            <p style="font-size: var(--font-size-base); color: var(--text); margin-bottom: 10px;">
+                Share this link with residents so they can submit maintenance requests:
+            </p>
+            <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                <code id="publicLink" style="font-size: 13px; background: var(--bg); padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border);">
+                    {base_url}/submit-ticket
+                </code>
+                <button onclick="navigator.clipboard.writeText(document.getElementById('publicLink').textContent.trim()).then(function(){ this.textContent='Copied!'; }.bind(this))"
+                    class="btn btn-sm btn-outline" type="button">
+                    Copy Link
+                </button>
+                <a href="{base_url}/submit-ticket" target="_blank" rel="noopener" class="btn btn-sm btn-outline">
+                    Open ↗
+                </a>
+            </div>
+        </div>
+    </div>
+
+</div>
+{/block}

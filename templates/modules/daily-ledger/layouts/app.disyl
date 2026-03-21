@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{page_title | default:'Daily Ledger'}</title>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+
+    <style>
+        .btn { display: inline-flex; align-items: center; justify-content: center; gap: .5rem; border-radius: .5rem; padding: .5rem .75rem; font-size: .875rem; font-weight: 600; transition: background-color .15s, border-color .15s, color .15s, box-shadow .15s; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+        .btn:focus-visible { outline: 2px solid transparent; outline-offset: 2px; box-shadow: 0 0 0 3px rgba(99,102,241,.25); }
+        .btn-sm { padding: .25rem .5rem; font-size: .75rem; }
+        .btn-primary { background: rgb(79 70 229); color: #fff; }
+        .btn-primary:hover { background: rgb(67 56 202); }
+        .btn-outline { background: #fff; color: rgb(17 24 39); border: 1px solid rgb(209 213 219); }
+        .btn-outline:hover { background: rgb(249 250 251); }
+        .btn-danger { background: rgb(225 29 72); color: #fff; }
+        .btn-danger:hover { background: rgb(190 18 60); }
+
+        .form-label { display: block; font-size: .875rem; font-weight: 500; color: rgb(55 65 81); }
+        .form-input { margin-top: .25rem; display: block; width: 100%; border-radius: .5rem; border: 1px solid rgb(209 213 219); background: #fff; padding: .5rem .75rem; font-size: .875rem; color: rgb(17 24 39); box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+        .form-input:focus { outline: none; border-color: rgb(99 102 241); box-shadow: 0 0 0 3px rgba(99,102,241,.22); }
+        .form-group { margin-bottom: 1rem; }
+
+        .card { border-radius: .75rem; border: 1px solid rgb(229 231 235); background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+        .card-header { display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgb(229 231 235); padding: .75rem 1rem; font-size: .875rem; font-weight: 600; color: rgb(17 24 39); }
+        .card-body { padding: 1rem; }
+
+        .table-wrap { overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; }
+        thead th { white-space: nowrap; border-bottom: 1px solid rgb(229 231 235); background: rgb(249 250 251); padding: .75rem 1rem; text-align: left; font-size: .75rem; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: rgb(75 85 99); }
+        tbody td { border-bottom: 1px solid rgb(243 244 246); padding: .75rem 1rem; font-size: .875rem; color: rgb(17 24 39); }
+        tbody tr:hover { background: rgb(249 250 251); }
+
+        .text-muted { color: rgb(107 114 128); }
+
+        .modal-overlay { position: fixed; inset: 0; z-index: 300; display: none; align-items: center; justify-content: center; background: rgba(0,0,0,.4); padding: 1rem; }
+        .modal-overlay.show { display: flex; }
+        .modal { width: 100%; max-width: 32rem; border-radius: 1rem; background: #fff; padding: 1.5rem; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25); border: 1px solid rgba(0,0,0,0.05); }
+        .modal h3 { margin-bottom: 1rem; font-size: 1rem; font-weight: 600; color: rgb(17 24 39); }
+        .modal-actions { margin-top: 1.5rem; display: flex; align-items: center; justify-content: flex-end; gap: .5rem; }
+    </style>
+
+    <script>
+        window.DL_BASE = '/daily-ledger';
+        window.DL_CSRF = '{csrf_token}';
+        window.DL_TOKEN = '{dl_token}';
+        window.showToast = function(message, type) {
+            try {
+                var cont = document.getElementById('toast-container');
+                if (!cont) return;
+
+                var el = document.createElement('div');
+                var cls = (type === 'error') ? 'bg-red-600 text-white' : 'bg-slate-900 text-white';
+                el.className = 'mb-2 px-4 py-3 rounded-xl shadow text-sm ' + cls;
+                el.textContent = String(message || 'OK');
+                cont.appendChild(el);
+
+                setTimeout(function() {
+                    if (el && el.parentNode) el.parentNode.removeChild(el);
+                }, 2800);
+            } catch (e) {
+            }
+        };
+        window.addEventListener('showToast', function(evt) {
+            var d = evt && evt.detail ? evt.detail : null;
+            if (!d) return;
+            window.showToast(d.message || 'OK', d.type || 'success');
+        });
+        document.addEventListener('htmx:afterSettle', function(evt) {
+            var scripts = evt.detail.elt.querySelectorAll('script:not([src])');
+            scripts.forEach(function(s) {
+                var ns = document.createElement('script');
+                ns.textContent = s.textContent;
+                s.parentNode.replaceChild(ns, s);
+            });
+        });
+        document.addEventListener('htmx:configRequest', function(evt) {
+            var verb = (evt.detail.verb || '').toUpperCase();
+            if (verb === 'POST' || verb === 'PUT' || verb === 'PATCH' || verb === 'DELETE') {
+                evt.detail.headers['X-CSRF-Token'] = DL_CSRF;
+            }
+        });
+        function maybeShowToastFromHeader(xhr) {
+            if (!xhr || typeof xhr.getResponseHeader !== 'function') return;
+            var trig = xhr.getResponseHeader('HX-Trigger');
+            if (!trig) return;
+            try {
+                var data = JSON.parse(trig);
+                if (data && data.showToast) {
+                    window.showToast(data.showToast.message || 'OK', data.showToast.type || 'error');
+                }
+            } catch (e) {}
+        }
+        document.addEventListener('htmx:responseError', function(evt) {
+            var xhr = evt.detail ? evt.detail.xhr : null;
+            maybeShowToastFromHeader(xhr);
+            if (xhr && xhr.status) {
+                window.showToast('Request failed (' + xhr.status + ')', 'error');
+                return;
+            }
+            window.showToast('Request failed', 'error');
+        });
+        document.addEventListener('htmx:sendError', function() {
+            window.showToast('Network error', 'error');
+        });
+    </script>
+    {block head}{/block}
+</head>
+<body class="min-h-screen bg-slate-50" x-data="{ sidebarOpen: true }">
+
+    <div id="toast-container" class="fixed top-4 right-4 z-50"></div>
+
+    <div class="flex h-screen overflow-hidden">
+        <aside class="relative bg-gradient-to-b from-indigo-700 to-indigo-900 text-white transition-all duration-300" :class="sidebarOpen ? 'w-64' : 'w-20'">
+            <div class="flex h-16 items-center gap-3 px-4 border-b border-white/10">
+                <div class="h-9 w-9 rounded-xl bg-white/10 flex items-center justify-center ring-1 ring-white/10">
+                    <i class="fas fa-receipt text-lg"></i>
+                </div>
+                <span class="font-semibold text-base tracking-tight" x-show="sidebarOpen" x-cloak>Daily Ledger</span>
+            </div>
+
+            <nav class="mt-4 px-2">
+                {if user_role == 'cashier' || user_role == 'supervisor' || user_role == 'admin'}
+                <a href="{base_url}/ledger"
+                   class="flex items-center px-3 py-2.5 rounded-xl mb-1 hover:bg-white/10 {if current_page == 'ledger'}bg-white/10 ring-1 ring-white/10{/if}">
+                    <i class="fas fa-clipboard-list w-6"></i>
+                    <span class="ml-3 text-sm font-medium" x-show="sidebarOpen" x-cloak>Ledger</span>
+                </a>
+                {/if}
+
+                {if user_role == 'admin' || user_role == 'supervisor'}
+                <a href="{base_url}/admin/dashboard"
+                   class="flex items-center px-3 py-2.5 rounded-xl mb-1 hover:bg-white/10 {if current_page == 'dashboard'}bg-white/10 ring-1 ring-white/10{/if}">
+                    <i class="fas fa-chart-line w-6"></i>
+                    <span class="ml-3 text-sm font-medium" x-show="sidebarOpen" x-cloak>Dashboard</span>
+                </a>
+
+                <a href="{base_url}/admin/sales"
+                   class="flex items-center px-3 py-2.5 rounded-xl mb-1 hover:bg-white/10 {if current_page == 'sales'}bg-white/10 ring-1 ring-white/10{/if}">
+                    <i class="fas fa-chart-bar w-6"></i>
+                    <span class="ml-3 text-sm font-medium" x-show="sidebarOpen" x-cloak>Sales</span>
+                </a>
+
+                <a href="{base_url}/admin/variances"
+                   class="flex items-center px-3 py-2.5 rounded-xl mb-1 hover:bg-white/10 {if current_page == 'variances'}bg-white/10 ring-1 ring-white/10{/if}">
+                    <i class="fas fa-triangle-exclamation w-6"></i>
+                    <span class="ml-3 text-sm font-medium" x-show="sidebarOpen" x-cloak>Variances</span>
+                </a>
+
+                <a href="{base_url}/admin/activity"
+                   class="flex items-center px-3 py-2.5 rounded-xl mb-1 hover:bg-white/10 {if current_page == 'activity'}bg-white/10 ring-1 ring-white/10{/if}">
+                    <i class="fas fa-clock-rotate-left w-6"></i>
+                    <span class="ml-3 text-sm font-medium" x-show="sidebarOpen" x-cloak>Activity</span>
+                </a>
+                {/if}
+
+                {if user_role == 'admin' || user_role == 'supervisor' || user_role == 'production_in_charge'}
+                <a href="{base_url}/admin/production"
+                   class="flex items-center px-3 py-2.5 rounded-xl mb-1 hover:bg-white/10 {if current_page == 'production'}bg-white/10 ring-1 ring-white/10{/if}">
+                    <i class="fas fa-industry w-6"></i>
+                    <span class="ml-3 text-sm font-medium" x-show="sidebarOpen" x-cloak>Production Withdrawal</span>
+                </a>
+
+                <a href="{base_url}/admin/production-output"
+                   class="flex items-center px-3 py-2.5 rounded-xl mb-1 hover:bg-white/10 {if current_page == 'production_output'}bg-white/10 ring-1 ring-white/10{/if}">
+                    <i class="fas fa-layer-group w-6"></i>
+                    <span class="ml-3 text-sm font-medium" x-show="sidebarOpen" x-cloak>Production Output</span>
+                </a>
+                {/if}
+
+                {if user_role == 'admin'}
+                <div class="my-4 border-t border-white/10"></div>
+
+                <a href="{base_url}/admin/products"
+                   class="flex items-center px-3 py-2.5 rounded-xl mb-1 hover:bg-white/10 {if current_page == 'products'}bg-white/10 ring-1 ring-white/10{/if}">
+                    <i class="fas fa-box w-6"></i>
+                    <span class="ml-3 text-sm font-medium" x-show="sidebarOpen" x-cloak>Products</span>
+                </a>
+
+                <a href="{base_url}/admin/branches"
+                   class="flex items-center px-3 py-2.5 rounded-xl mb-1 hover:bg-white/10 {if current_page == 'branches'}bg-white/10 ring-1 ring-white/10{/if}">
+                    <i class="fas fa-store w-6"></i>
+                    <span class="ml-3 text-sm font-medium" x-show="sidebarOpen" x-cloak>Branches</span>
+                </a>
+
+                <a href="{base_url}/admin/users"
+                   class="flex items-center px-3 py-2.5 rounded-xl mb-1 hover:bg-white/10 {if current_page == 'users'}bg-white/10 ring-1 ring-white/10{/if}">
+                    <i class="fas fa-users w-6"></i>
+                    <span class="ml-3 text-sm font-medium" x-show="sidebarOpen" x-cloak>Users</span>
+                </a>
+
+                <a href="{base_url}/admin/settings"
+                   class="flex items-center px-3 py-2.5 rounded-xl mb-1 hover:bg-white/10 {if current_page == 'settings'}bg-white/10 ring-1 ring-white/10{/if}">
+                    <i class="fas fa-user-shield w-6"></i>
+                    <span class="ml-3 text-sm font-medium" x-show="sidebarOpen" x-cloak>Settings</span>
+                </a>
+                {/if}
+            </nav>
+        </aside>
+
+        <div class="flex-1 flex flex-col overflow-hidden">
+            <header class="bg-white/80 backdrop-blur border-b border-gray-200 h-16 flex items-center justify-between px-6">
+                <button type="button" class="inline-flex items-center justify-center h-9 w-9 rounded-lg text-gray-600 hover:text-gray-900 hover:bg-gray-100" @click="sidebarOpen = !sidebarOpen">
+                    <i class="fas fa-bars"></i>
+                </button>
+                <div class="flex items-center gap-4">
+                    <div class="text-right">
+                        <div class="text-sm font-semibold text-gray-900">{user_name}</div>
+                        <div class="text-xs text-gray-500 uppercase tracking-wide">{user_role}</div>
+                    </div>
+                    <a href="/daily-ledger/logout" class="text-sm font-semibold text-indigo-600 hover:text-indigo-700">Logout</a>
+                </div>
+            </header>
+
+            <main class="flex-1 overflow-auto p-6" id="main-content">
+                {block content}{/block}
+            </main>
+        </div>
+    </div>
+
+    {block scripts}{/block}
+</body>
+</html>

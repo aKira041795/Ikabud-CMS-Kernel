@@ -1,0 +1,66 @@
+/**
+ * Button Styles
+ * Native Default Theme v2.1.0
+ */
+
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: var(--button-padding-y, 0.75rem) var(--button-padding-x, 1.5rem);
+    font-family: var(--font-body);
+    font-size: var(--font-size-sm);
+    font-weight: var(--button-font-weight, 500);
+    line-height: 1.5;
+    text-align: center;
+    text-decoration: none;
+    border: 2px solid transparent;
+    border-radius: var(--button-radius, var(--border-radius-md));
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.btn-sm {
+    padding: 0.5rem 1rem;
+    font-size: var(--font-size-xs);
+}
+
+.btn-lg {
+    padding: 1rem 2rem;
+    font-size: var(--font-size-base);
+}
+
+.btn-primary {
+    background: var(--button-primary-bg, var(--color-primary));
+    color: var(--button-primary-color, #fff);
+    border-color: var(--button-primary-bg, var(--color-primary));
+}
+
+.btn-primary:hover {
+    background: var(--button-primary-hover-bg, var(--color-primary-hover));
+    border-color: var(--button-primary-hover-bg, var(--color-primary-hover));
+    color: var(--button-primary-color, #fff);
+}
+
+.btn-secondary {
+    background: var(--button-secondary-bg, transparent);
+    color: var(--button-secondary-color, var(--color-primary));
+    border-color: var(--button-secondary-border, var(--color-primary));
+}
+
+.btn-secondary:hover {
+    background: var(--button-secondary-hover-bg, var(--color-primary));
+    color: var(--button-secondary-hover-color, #fff);
+}
+
+.btn-outline {
+    background: transparent;
+    color: var(--color-text);
+    border-color: var(--color-border);
+}
+
+.btn-outline:hover {
+    background: var(--color-surface);
+    border-color: var(--color-text-light);
+}

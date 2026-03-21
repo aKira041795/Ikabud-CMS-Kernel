@@ -1,0 +1,17 @@
+{extends "_cms_active_theme/layouts/public.disyl"}
+
+{block head}
+{if cms_head}{cms_head | raw}{/if}
+{/block}
+
+{block content}
+<article>
+    <header class="mb-10">
+        <h1 class="text-3xl font-bold leading-tight" style="font-family: system-ui, sans-serif;">{content.title}</h1>
+    </header>
+
+    <div class="prose text-lg text-gray-800 leading-relaxed">
+        {content_html | raw}
+    </div>
+</article>
+{/block}

@@ -1,0 +1,80 @@
+{extends "modules/daily-ledger/layouts/app.disyl"}
+
+{block head}
+{/block}
+
+{block content}
+<div class="flex items-center justify-between mb-6">
+    <div>
+        <h2 class="text-lg font-semibold text-gray-900">Encoder Activity</h2>
+        <p class="text-sm text-gray-500">Audit trail across encoders and branches.</p>
+    </div>
+    <span class="text-sm text-gray-500">{activities | count} entries</span>
+</div>
+
+<form class="card mb-6" hx-get="{base_url}/admin/activity" hx-target="#main-content" hx-swap="innerHTML" hx-push-url="true">
+    <div class="card-body">
+    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5 items-end">
+    <div class="form-group">
+        <label class="form-label">From</label>
+        <input type="date" class="form-input" name="date_from" value="{date_from}">
+    </div>
+    <div class="form-group">
+        <label class="form-label">To</label>
+        <input type="date" class="form-input" name="date_to" value="{date_to}">
+    </div>
+    <div class="form-group">
+        <label class="form-label">Branch</label>
+        <select class="form-input" name="branch_id">
+            <option value="">All Branches</option>
+            {foreach branches as br}
+            <option value="{br.id}" {if br.id == branch_id}selected{/if}>{br.name}</option>
+            {/foreach}
+        </select>
+    </div>
+    <div class="form-group">
+        <label class="form-label">Search</label>
+        <input type="text" class="form-input" name="q" value="{search}" placeholder="Name, action, or branch...">
+    </div>
+    <div class="form-group">
+        <div class="h-5"></div>
+        <button type="submit" class="btn btn-primary w-full h-11">Filter</button>
+    </div>
+    </div>
+    </div>
+</form>
+
+<div class="card">
+    <div class="card-header">
+        <span>Activity Log</span>
+    </div>
+    <div class="card-body p-0">
+        {if activities | count == 0}
+        <div class="px-4 py-10 text-center text-sm text-gray-500">No activity found for selected date range</div>
+        {/if}
+        {foreach activities as act}
+        <div class="flex flex-col gap-1 px-4 py-3 border-b border-gray-100 last:border-b-0 text-sm">
+            <div class="flex items-center justify-between gap-3">
+                <div class="font-semibold text-gray-900">{act.actor_name}</div>
+                <div class="text-xs text-gray-500">{act.created_at}</div>
+            </div>
+            <div class="text-sm text-gray-600">
+                {if act.action == 'field_update'}<span class="inline-flex items-center rounded-full bg-indigo-50 px-2.5 py-1 text-xs font-semibold text-indigo-700 ring-1 ring-inset ring-indigo-200">Field</span> updated a ledger field{/if}
+                {if act.action == 'close_day'}<span class="inline-flex items-center rounded-full bg-rose-50 px-2.5 py-1 text-xs font-semibold text-rose-700 ring-1 ring-inset ring-rose-200">Close</span> closed the day{/if}
+                {if act.action == 'reopen_day'}<span class="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700 ring-1 ring-inset ring-amber-200">Reopen</span> reopened a day{/if}
+                {if act.action == 'create_product'}<span class="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-200">Create</span> added a product{/if}
+                {if act.action == 'update_product'}<span class="inline-flex items-center rounded-full bg-indigo-50 px-2.5 py-1 text-xs font-semibold text-indigo-700 ring-1 ring-inset ring-indigo-200">Update</span> updated a product{/if}
+                {if act.action == 'create_branch'}<span class="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-200">Create</span> added a branch{/if}
+                {if act.action == 'update_branch'}<span class="inline-flex items-center rounded-full bg-indigo-50 px-2.5 py-1 text-xs font-semibold text-indigo-700 ring-1 ring-inset ring-indigo-200">Update</span> updated a branch{/if}
+                {if act.action == 'create_user'}<span class="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-200">Create</span> created a user{/if}
+                {if act.action == 'update_user'}<span class="inline-flex items-center rounded-full bg-indigo-50 px-2.5 py-1 text-xs font-semibold text-indigo-700 ring-1 ring-inset ring-indigo-200">Update</span> updated a user{/if}
+                {if act.action == 'variance_status'}<span class="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700 ring-1 ring-inset ring-amber-200">Variance</span> updated variance status{/if}
+            </div>
+            {if act.branch_name}
+            <div class="text-xs text-gray-500">{act.branch_name}</div>
+            {/if}
+        </div>
+        {/foreach}
+    </div>
+</div>
+{/block}

@@ -1,0 +1,117 @@
+{
+    "id": "sms",
+    "name": "SMS Notifications",
+    "version": "1.0.0",
+    "description": "Send SMS notifications via Semaphore, Twilio, Vonage, or MoceanAPI.",
+    "author": "Noah C. Omamalin",
+    "capabilities": {
+        "exposes": [
+            {
+                "id": "sms.send@1",
+                "priority": 100,
+                "modes": [
+                    "first"
+                ],
+                "schema": {
+                    "type": "object",
+                    "required": [
+                        "to",
+                        "message"
+                    ],
+                    "properties": {
+                        "to": {
+                            "type": "string"
+                        },
+                        "message": {
+                            "type": "string"
+                        },
+                        "recipient_name": {
+                            "type": "string"
+                        },
+                        "trigger_event": {
+                            "type": "string"
+                        },
+                        "trigger_ref_id": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        ],
+        "depends": [],
+        "policy": {
+            "capabilities": {
+                "sms.send@1": {
+                    "allow_callers": [
+                        "kernel",
+                        "guidance",
+                        "sms"
+                    ]
+                }
+            }
+        }
+    },
+    "owns_tables": [
+        "sms_log",
+        "sms_templates"
+    ],
+    "reads_tables": [
+        "users"
+    ],
+    "settings": [
+        {
+            "key": "sms_provider",
+            "label": "SMS Provider",
+            "type": "select",
+            "options": {
+                "semaphore": "Semaphore (Philippines)",
+                "twilio": "Twilio",
+                "vonage": "Vonage (Nexmo)",
+                "mocean": "MoceanAPI"
+            },
+            "default": "semaphore"
+        },
+        {
+            "key": "sms_api_key",
+            "label": "API Key",
+            "type": "password",
+            "default": ""
+        },
+        {
+            "key": "sms_api_secret",
+            "label": "API Secret / Auth Token",
+            "type": "password",
+            "default": "",
+            "description": "Required for Twilio (Auth Token) and Vonage (API Secret). Not needed for Semaphore."
+        },
+        {
+            "key": "sms_sender_name",
+            "label": "Sender Name / From Number",
+            "type": "text",
+            "default": "BARON",
+            "description": "Sender ID (max 11 chars) or phone number in E.164 format for Twilio."
+        },
+        {
+            "key": "sms_country_code",
+            "label": "Default Country Code",
+            "type": "text",
+            "default": "+63",
+            "description": "Default country code prepended to numbers without one (e.g. +63 for Philippines)."
+        },
+        {
+            "key": "sms_test_mode",
+            "label": "Test Mode",
+            "type": "checkbox",
+            "default": "1",
+            "description": "When enabled, SMS will be logged but not actually sent."
+        }
+    ],
+    "nav": [
+        {
+            "label": "SMS",
+            "url": "/admin/sms",
+            "icon": "message-square",
+            "roles": ["admin", "supervisor"]
+        }
+    ]
+}

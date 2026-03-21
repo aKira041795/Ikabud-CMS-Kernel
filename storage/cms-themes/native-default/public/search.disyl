@@ -1,0 +1,55 @@
+{extends "_cms_active_theme/layouts/public.disyl"}
+
+{block content}
+<div style="text-align: center; margin-bottom: 3rem;">
+    <h1>Search</h1>
+    <form action="{base_url}/cms/search" method="GET" class="native-search" style="margin: 1.5rem auto 0; max-width: 500px;">
+        <input type="search" name="q" placeholder="Search posts..." value="{query}" autocomplete="off">
+        <button type="submit">Search</button>
+    </form>
+</div>
+
+{if query}
+<p style="color: var(--color-text-light); margin-bottom: 2rem;">
+    {if posts | count > 0}
+    Showing results for &ldquo;{query}&rdquo;
+    {else}
+    No results found for &ldquo;{query}&rdquo;
+    {/if}
+</p>
+{/if}
+
+{if posts | count > 0}
+<div style="display: flex; flex-direction: column; gap: 1.5rem;">
+    {foreach posts as post}
+    <article class="ikb-card" style="border: 1px solid var(--color-border);">
+        <div style="padding: 1.5rem;">
+            <h2 class="ikb-card-title" style="font-size: 1.25rem;">
+                <a href="{base_url}/cms/blog/{post.slug}">{post.title}</a>
+            </h2>
+            <div class="card-meta" style="margin-bottom: 0.75rem;">
+                {post.published_at}
+            </div>
+            <div class="card-excerpt">
+                {if post.excerpt}{post.excerpt}{else}{post.body}{/if}
+            </div>
+        </div>
+    </article>
+    {/foreach}
+</div>
+{/if}
+
+{if total_pages > 1}
+<nav class="native-pagination">
+    <ul>
+        {if page_num > 1}
+        <li><a href="{base_url}/cms/search?q={query}&page=1">&laquo; First</a></li>
+        {/if}
+        <li class="current"><span>Page {page_num} of {total_pages}</span></li>
+        {if page_num < total_pages}
+        <li><a href="{base_url}/cms/search?q={query}&page={next_page}">Next &raquo;</a></li>
+        {/if}
+    </ul>
+</nav>
+{/if}
+{/block}

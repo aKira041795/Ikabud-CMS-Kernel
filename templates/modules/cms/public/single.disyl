@@ -1,0 +1,41 @@
+{extends "modules/cms/layouts/public.disyl"}
+
+{block head}
+{if cms_head}{cms_head | raw}{/if}
+{if structured_data}{structured_data | raw}{/if}
+{/block}
+
+{block content}
+{if builder_enabled}
+<article class="w-full {builder_page_settings.container_class}">
+    {post_html | raw}
+</article>
+{else}
+<article class="cms-single-prose max-w-3xl mx-auto">
+    <header class="mb-8">
+        <h1 class="text-3xl font-bold text-gray-900 leading-tight mb-3">{post.title}</h1>
+        <div class="flex items-center gap-3 text-sm text-gray-400">
+            {if theme_settings.single_show_author}<span>By {post.author_name}</span>{/if}
+            {if theme_settings.single_show_date}<span>·</span><span>{post.published_at}</span>{/if}
+        </div>
+    </header>
+
+    {if post.featured_image}
+    <img class="w-full max-h-[400px] object-cover rounded-xl mb-8" src="/assets/modules/cms/uploads/{post.featured_image}" alt="{post.title}">
+    {/if}
+
+    <div class="prose text-gray-700 leading-relaxed text-base">
+        {post_html | raw}
+    </div>
+
+    <div class="mt-10 pt-6 border-t border-gray-200">
+        {if theme_settings.single_show_nav}
+        <a href="{base_url}/cms/blog" class="inline-flex items-center gap-1.5 text-sm font-medium text-sky-600 hover:text-sky-800 no-underline">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+            Back to blog
+        </a>
+        {/if}
+    </div>
+</article>
+{/if}
+{/block}

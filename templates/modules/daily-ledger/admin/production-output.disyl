@@ -1,0 +1,391 @@
+{extends "modules/daily-ledger/layouts/app.disyl"}
+
+{block head}
+<style>
+    .print-only {
+        display: none;
+    }
+    @media print {
+        .print-hide {
+            display: none !important;
+        }
+        .print-only {
+            display: block !important;
+        }
+        .card {
+            border: none !important;
+            box-shadow: none !important;
+        }
+        body {
+            background: #fff !important;
+        }
+    }
+</style>
+{/block}
+
+{block content}
+<div class="flex items-center justify-between mb-6">
+    <div>
+        <h2 class="text-lg font-semibold text-gray-900">Production Output</h2>
+        <p class="text-sm text-gray-500">Encode output using batch count with per-product yield profile.</p>
+        <p class="text-xs text-gray-500 mt-1">
+            Business date: <span class="font-medium text-gray-700">{business_date_label}</span>
+            · Timezone: <span class="font-medium text-gray-700">{operating_timezone}</span>
+            · Region: <span class="font-medium text-gray-700">{operating_region}</span>
+        </p>
+        <div class="mt-2">
+            <span class="inline-flex items-center rounded-full bg-amber-100 px-3 py-1 text-sm font-semibold text-amber-800 ring-1 ring-inset ring-amber-300">
+                Cutoff: {close_of_day_time}
+            </span>
+        </div>
+    </div>
+    <button type="button" class="btn btn-outline print-hide" onclick="printOutputLedger()">Print</button>
+</div>
+
+{if can_production_output}
+<div class="card mb-6">
+    <div class="card-header">
+        <span>Output Batch (Option A)</span>
+        <span class="text-sm text-muted">Batch count x product yield profile</span>
+    </div>
+    <div class="card-body">
+        {if branches | count == 0}
+        <div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            No branch assignment found for this account.
+        </div>
+        {/if}
+
+        {if branches | count > 0}
+        <div class="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-4 mb-4">
+            <div class="form-group mb-0">
+                <label class="form-label">Ledger Date</label>
+                <input type="date" id="output-ledger-date" class="form-input" value="{ledger_date}">
+            </div>
+            <div class="form-group mb-0">
+                <label class="form-label">Product</label>
+                <select id="output-product-id" class="form-input" onchange="updateOutputProfileHint()">
+                    {foreach products as p}
+                    <option value="{p.id}" data-pieces-per-batch="{p.output_pieces_per_batch}" data-unit-label="{p.output_unit_label}">{p.name} ({p.sku})</option>
+                    {/foreach}
+                </select>
+                <p class="mt-2 text-sm text-gray-500" id="output-profile-hint">Select a product to view configured yield profile.</p>
+            </div>
+            <div class="form-group mb-0">
+                <label class="form-label">Flow Mode</label>
+                <select id="output-flow-mode" class="form-input">
+                    <option value="production" selected>Production</option>
+                    <option value="legacy">Legacy</option>
+                </select>
+            </div>
+            <div class="form-group mb-0">
+                <label class="form-label">Reason</label>
+                <input type="text" id="output-reason" class="form-input" placeholder="Optional output note">
+            </div>
+        </div>
+
+        <div class="table-wrap mb-4">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Branch Code</th>
+                        <th>Branch Name</th>
+                        <th class="text-right">Batch Count</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {foreach branches as br}
+                    <tr>
+                        <td class="font-mono text-sm">{br.code}</td>
+                        <td>{br.name}</td>
+                        <td class="text-right" style="min-width: 180px;">
+                            <input
+                                type="number"
+                                min="0"
+                                step="1"
+                                class="form-input output-batch-input text-right"
+                                data-branch-id="{br.id}"
+                                value="0"
+                            >
+                        </td>
+                    </tr>
+                    {/foreach}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="flex items-center justify-end gap-2">
+            <button type="button" class="btn btn-outline" onclick="resetOutputBatches()">Reset</button>
+            <button type="button" class="btn btn-primary" id="submit-output" onclick="submitOutputByBatch()">Submit Output</button>
+        </div>
+        {/if}
+    </div>
+</div>
+{/if}
+
+{if !can_production_output}
+<div class="card mb-6">
+    <div class="card-body">
+        <div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            Production Output (batch-count mode) is disabled. Ask the Settings Admin (superadmin) to activate it from Feature Settings.
+        </div>
+    </div>
+</div>
+{/if}
+
+<form class="card mb-6" hx-get="{base_url}/admin/production-output" hx-target="#main-content" hx-swap="innerHTML" hx-push-url="true">
+    <div class="card-body">
+        <div class="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-4 items-end">
+            <div class="form-group mb-0">
+                <label class="form-label">From</label>
+                <input type="date" class="form-input" name="date_from" value="{date_from}">
+            </div>
+            <div class="form-group mb-0">
+                <label class="form-label">To</label>
+                <input type="date" class="form-input" name="date_to" value="{date_to}">
+            </div>
+            <div class="form-group mb-0">
+                <label class="form-label">Ledger Date</label>
+                <input type="date" class="form-input" name="ledger_date" value="{ledger_date}">
+            </div>
+            <button type="submit" class="btn btn-outline">Refresh History</button>
+        </div>
+    </div>
+</form>
+
+<div class="card">
+    <div class="card-header">
+        <span>Recent Output Movements</span>
+        <span class="text-sm text-muted">{movement_rows | count} rows</span>
+    </div>
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>Created</th>
+                    <th>Date</th>
+                    <th>Type</th>
+                    <th>Branch</th>
+                    <th>Product</th>
+                    <th>Flow</th>
+                    <th class="text-right">Qty</th>
+                    <th>Reason</th>
+                    <th>Actor</th>
+                </tr>
+            </thead>
+            <tbody>
+                {if movement_rows | count == 0}
+                <tr><td colspan="9" class="px-4 py-10 text-center text-sm text-gray-500">No output movement history in selected range.</td></tr>
+                {/if}
+                {foreach movement_rows as row}
+                <tr data-movement-type="{row.movement_type}">
+                    <td>{row.created_at}</td>
+                    <td>{row.ledger_date}</td>
+                    <td>
+                        <span class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset
+                            {if row.movement_type == 'output'}bg-emerald-50 text-emerald-700 ring-emerald-200{/if}
+                            {if row.movement_type == 'reverse'}bg-rose-50 text-rose-700 ring-rose-200{/if}
+                        ">{row.movement_type}</span>
+                    </td>
+                    <td>{row.destination_name} <span class="text-muted">({row.destination_code})</span></td>
+                    <td>{row.product_name} <span class="text-muted">({row.sku})</span></td>
+                    <td>{row.flow_mode}</td>
+                    <td class="text-right font-semibold">{row.quantity}</td>
+                    <td class="text-sm text-muted">{row.override_reason}</td>
+                    <td class="text-sm text-muted">{row.created_by_role}</td>
+                </tr>
+                {/foreach}
+            </tbody>
+        </table>
+    </div>
+</div>
+{/block}
+
+{block scripts}
+<script>
+    function resetOutputBatches() {
+        document.querySelectorAll('.output-batch-input').forEach(function(el) {
+            el.value = '0';
+        });
+    }
+
+    function selectedOutputProductProfile() {
+        var select = document.getElementById('output-product-id');
+        if (!select || !select.options || select.selectedIndex < 0) {
+            return { piecesPerBatch: 0, unitLabel: 'pcs' };
+        }
+
+        var selected = select.options[select.selectedIndex];
+        var piecesPerBatch = parseInt(selected.getAttribute('data-pieces-per-batch'), 10) || 0;
+        var unitLabel = selected.getAttribute('data-unit-label') || 'pcs';
+        return { piecesPerBatch: piecesPerBatch, unitLabel: unitLabel };
+    }
+
+    function updateOutputProfileHint() {
+        var hint = document.getElementById('output-profile-hint');
+        if (!hint) {
+            return;
+        }
+
+        var profile = selectedOutputProductProfile();
+        if (profile.piecesPerBatch <= 0) {
+            hint.textContent = 'This product has no output yield profile yet. Set "pieces per batch" in Products first.';
+            return;
+        }
+
+        hint.textContent = 'Yield profile: 1 batch = ' + profile.piecesPerBatch + ' ' + profile.unitLabel;
+    }
+
+    function submitOutputByBatch() {
+        var btn = document.getElementById('submit-output');
+        if (!btn) {
+            return;
+        }
+
+        var ledgerDate = document.getElementById('output-ledger-date').value;
+        var productId = parseInt(document.getElementById('output-product-id').value, 10) || 0;
+        var flowMode = document.getElementById('output-flow-mode').value || 'production';
+        var reason = (document.getElementById('output-reason').value || '').trim();
+        var profile = selectedOutputProductProfile();
+
+        if (!ledgerDate) {
+            showToast('Ledger date is required', 'error');
+            return;
+        }
+        if (!productId) {
+            showToast('Product is required', 'error');
+            return;
+        }
+        if (profile.piecesPerBatch <= 0) {
+            showToast('Selected product has no output pieces per batch profile', 'error');
+            return;
+        }
+
+        var operations = [];
+        var now = Date.now();
+        document.querySelectorAll('.output-batch-input').forEach(function(el, idx) {
+            var batchCount = parseInt(el.value, 10) || 0;
+            if (batchCount <= 0) {
+                return;
+            }
+            var branchId = parseInt(el.getAttribute('data-branch-id'), 10) || 0;
+            if (!branchId) {
+                return;
+            }
+
+            operations.push({
+                type: 'output',
+                destination_branch_id: branchId,
+                product_id: productId,
+                ledger_date: ledgerDate,
+                quantity: batchCount * profile.piecesPerBatch,
+                flow_mode: flowMode,
+                reason: reason,
+                batch_count: batchCount,
+                pieces_per_batch: profile.piecesPerBatch,
+                client_op_id: 'out-' + now + '-' + branchId + '-' + idx
+            });
+        });
+
+        if (operations.length === 0) {
+            showToast('Enter at least one row batch count greater than 0', 'error');
+            return;
+        }
+
+        btn.disabled = true;
+        btn.textContent = 'Submitting...';
+
+        fetch('{base_url}/api/v1/production/sync-batch', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': (window.DL_CSRF || ''),
+                'Authorization': (window.DL_TOKEN ? ('Bearer ' + window.DL_TOKEN) : '')
+            },
+            body: JSON.stringify({ operations: operations })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(res) {
+            if (!res.ok) {
+                showToast(res.error || 'Failed to submit output', 'error');
+                return;
+            }
+
+            var summary = res.summary || { succeeded: 0, failed: 0 };
+            var msg = 'Output synced: ' + summary.succeeded + ' success';
+            if (summary.failed > 0) {
+                msg += ', ' + summary.failed + ' failed';
+            }
+            showToast(msg, summary.failed > 0 ? 'error' : 'success');
+            setTimeout(function() { window.location.reload(); }, 700);
+        })
+        .catch(function() {
+            showToast('Network error while submitting output', 'error');
+        })
+        .finally(function() {
+            btn.disabled = false;
+            btn.textContent = 'Submit Output';
+        });
+    }
+
+    function printOutputLedger() {
+        var rows = Array.from(document.querySelectorAll('tr[data-movement-type="output"], tr[data-movement-type="reverse"]'));
+        if (rows.length === 0) {
+            showToast('No output movement rows to print in current range.', 'error');
+            return;
+        }
+
+        var printedAt = new Date().toLocaleString();
+        var htmlRows = rows.map(function(row) {
+            var cells = row.querySelectorAll('td');
+            if (!cells || cells.length < 9) return '';
+            return '<tr>' +
+                '<td>' + cells[0].textContent.trim() + '</td>' +
+                '<td>' + cells[1].textContent.trim() + '</td>' +
+                '<td>' + cells[2].textContent.trim() + '</td>' +
+                '<td>' + cells[3].textContent.trim() + '</td>' +
+                '<td>' + cells[4].textContent.trim() + '</td>' +
+                '<td style="text-align:right;">' + cells[6].textContent.trim() + '</td>' +
+                '<td>' + cells[7].textContent.trim() + '</td>' +
+                '<td>' + cells[8].textContent.trim() + '</td>' +
+                '</tr>';
+        }).join('');
+
+        var reportHtml = '<!doctype html><html><head><meta charset="utf-8">' +
+            '<title>Production Output Report</title>' +
+            '<style>' +
+            'body{font-family:Arial,sans-serif;color:#111827;margin:24px;}' +
+            'h1{font-size:20px;margin:0 0 8px;}' +
+            '.meta{font-size:13px;color:#374151;margin:2px 0;}' +
+            'table{width:100%;border-collapse:collapse;margin-top:16px;}' +
+            'th,td{border:1px solid #d1d5db;padding:8px;font-size:12px;vertical-align:top;}' +
+            'th{background:#f3f4f6;text-align:left;}' +
+            '.right{text-align:right;}' +
+            '</style></head><body>' +
+            '<h1>Production Output Report</h1>' +
+            '<div class="meta">Ledger Date: {ledger_date}</div>' +
+            '<div class="meta">History Range: {date_from} to {date_to}</div>' +
+            '<div class="meta">Prepared By: {user_name} ({user_role})</div>' +
+            '<div class="meta">Printed At: ' + printedAt + '</div>' +
+            '<table><thead><tr>' +
+            '<th>Created</th><th>Date</th><th>Type</th><th>Branch</th><th>Product</th><th class="right">Qty</th><th>Reason</th><th>Actor</th>' +
+            '</tr></thead><tbody>' + htmlRows + '</tbody></table>' +
+            '</body></html>';
+
+        var w = window.open('', '_blank', 'width=1024,height=768');
+        if (!w) {
+            showToast('Popup blocked. Please allow popups for printing.', 'error');
+            return;
+        }
+        w.document.open();
+        w.document.write(reportHtml);
+        w.document.close();
+        w.focus();
+        w.print();
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        updateOutputProfileHint();
+    });
+</script>
+{/block}

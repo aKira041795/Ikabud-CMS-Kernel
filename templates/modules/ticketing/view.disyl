@@ -1,0 +1,224 @@
+{extends "layouts/app"}
+
+{block head}
+<style>
+    .badge { display: inline-block; padding: 3px 12px; border-radius: 10px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .3px; }
+    .badge-open { background: var(--primary-light); color: var(--primary); }
+    .badge-progress { background: var(--warning-light); color: var(--warning); }
+    .badge-resolved { background: var(--success-light); color: var(--success); }
+    .badge-closed { background: var(--bg); color: var(--text-muted); }
+    .badge-low { background: var(--bg); color: var(--text-muted); }
+    .badge-medium { background: var(--primary-light); color: var(--primary); }
+    .badge-high { background: var(--warning-light); color: var(--warning); }
+    .badge-urgent { background: var(--danger-light); color: var(--danger); }
+
+    .ticket-detail { display: grid; grid-template-columns: 2fr 1fr; gap: 20px; }
+    @media (max-width: 768px) { .ticket-detail { grid-template-columns: 1fr; } }
+
+    .detail-row { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--border); font-size: var(--font-size-nav); }
+    .detail-row:last-child { border-bottom: none; }
+    .detail-label { color: var(--text-muted); font-weight: 600; }
+    .detail-value { color: var(--text); }
+
+    .comment-list { list-style: none; padding: 0; }
+    .comment-item { padding: 14px 0; border-bottom: 1px solid var(--border); }
+    .comment-item:last-child { border-bottom: none; }
+    .comment-author { font-weight: 600; font-size: var(--font-size-nav); }
+    .comment-role { font-size: 10px; padding: 1px 6px; border-radius: 6px; background: var(--bg); color: var(--text-muted); text-transform: uppercase; font-weight: 700; }
+    .comment-time { font-size: var(--font-size-small); color: var(--text-light); }
+    .comment-body { margin-top: 6px; font-size: var(--font-size-base); color: var(--text); white-space: pre-wrap; }
+
+    .desc-block { white-space: pre-wrap; color: var(--text); font-size: var(--font-size-base); line-height: 1.6; padding: 12px 0; }
+</style>
+{/block}
+
+{block content}
+<div class="flex justify-between items-center mb-4">
+    <div>
+        <a href="{base_url}/tickets" class="text-sm" hx-boost="true">← All Tickets</a>
+        <h1 style="font-size: var(--font-size-h1); font-weight: 700; margin-top: 4px;">
+            <span style="color: var(--text-muted); font-size: var(--font-size-h2);">{ticket.ticket_no}</span>
+            {ticket.subject}
+        </h1>
+    </div>
+    {if ticket.status == 'open'}
+    <a href="{base_url}/tickets/{ticket.id}/edit" class="btn btn-primary" hx-boost="true">Edit Ticket</a>
+    {/if}
+    {if ticket.status == 'in_progress'}
+    <a href="{base_url}/tickets/{ticket.id}/edit" class="btn btn-primary" hx-boost="true">Edit Ticket</a>
+    {/if}
+</div>
+
+<div class="ticket-detail">
+    <!-- Left: description + comments -->
+    <div>
+        <!-- Description -->
+        <div class="card mb-4">
+            <div class="card-header">Description</div>
+            <div class="card-body">
+                {if ticket.description}
+                <div class="desc-block">{ticket.description}</div>
+                {else}
+                <div class="text-muted">No description provided.</div>
+                {/if}
+            </div>
+        </div>
+
+        {!-- Contact info block — shown for public submissions only --}
+        {if ticket.source == 'public'}
+        <div class="card mb-4">
+            <div class="card-header">Submitter Info</div>
+            <div class="card-body" style="padding: 0 16px;">
+                <div class="detail-row">
+                    <span class="detail-label">Name</span>
+                    <span class="detail-value">{ticket.contact_name}</span>
+                </div>
+                {if ticket.unit_no}
+                <div class="detail-row">
+                    <span class="detail-label">Unit / Room</span>
+                    <span class="detail-value">{ticket.unit_no}</span>
+                </div>
+                {/if}
+                {if ticket.contact_email}
+                <div class="detail-row">
+                    <span class="detail-label">Email</span>
+                    <span class="detail-value"><a href="mailto:{ticket.contact_email}">{ticket.contact_email}</a></span>
+                </div>
+                {/if}
+                {if ticket.contact_phone}
+                <div class="detail-row">
+                    <span class="detail-label">Phone</span>
+                    <span class="detail-value">{ticket.contact_phone}</span>
+                </div>
+                {/if}
+            </div>
+        </div>
+        {/if}
+
+        {!-- Attachments --}
+        {if attachments | count > 0}
+        <div class="card mb-4">
+            <div class="card-header">Attachments ({attachments | count})</div>
+            <div class="card-body">
+                <div style="display:flex;flex-wrap:wrap;gap:10px;">
+                    {foreach attachments as att}
+                    <a href="{att.file_url}" target="_blank" rel="noopener" style="display:block;border:1px solid var(--border);border-radius:6px;overflow:hidden;">
+                        <img src="{att.file_url}" alt="{att.filename}" style="width:120px;height:90px;object-fit:cover;display:block;">
+                    </a>
+                    {/foreach}
+                </div>
+            </div>
+        </div>
+        {/if}
+
+        <!-- Comments -->
+        <div class="card">
+            <div class="card-header">
+                Comments
+                <span class="text-muted text-sm" style="font-weight:400;">({comments | count})</span>
+            </div>
+            <div class="card-body" id="comments-list">
+                {include "modules/ticketing/partials/comments"}
+            </div>
+
+            <!-- Add comment form -->
+            <div style="padding: 16px; border-top: 1px solid var(--border);">
+                <form hx-post="{base_url}/api/v1/tickets/comment" hx-target="#comments-list" hx-swap="innerHTML">
+                    <input type="hidden" name="_token" value="{csrf_token}">
+                    <input type="hidden" name="ticket_id" value="{ticket.id}">
+                    <textarea name="body" class="form-input" rows="3" placeholder="Add a comment..." required style="resize: vertical;"></textarea>
+                    <button type="submit" class="btn btn-primary btn-sm" style="margin-top: 8px;">Post Comment</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Right: sidebar details + actions -->
+    <div>
+        <!-- Status & details -->
+        <div class="card mb-4">
+            <div class="card-header">Details</div>
+            <div class="card-body" style="padding: 0 16px;">
+                <div class="detail-row">
+                    <span class="detail-label">Status</span>
+                    <span class="detail-value">
+                        {if ticket.status == 'open'}<span class="badge badge-open">Open</span>{/if}
+                        {if ticket.status == 'in_progress'}<span class="badge badge-progress">In Progress</span>{/if}
+                        {if ticket.status == 'resolved'}<span class="badge badge-resolved">Resolved</span>{/if}
+                        {if ticket.status == 'closed'}<span class="badge badge-closed">Closed</span>{/if}
+                    </span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Category</span>
+                    <span class="detail-value" style="text-transform:capitalize;">{ticket.category | replace('_', ' ')}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Priority</span>
+                    <span class="detail-value">
+                        {if ticket.priority == 'low'}<span class="badge badge-low">Low</span>{/if}
+                        {if ticket.priority == 'medium'}<span class="badge badge-medium">Medium</span>{/if}
+                        {if ticket.priority == 'high'}<span class="badge badge-high">High</span>{/if}
+                        {if ticket.priority == 'urgent'}<span class="badge badge-urgent">Urgent</span>{/if}
+                    </span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Created By</span>
+                    <span class="detail-value">{ticket.creator_name}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Assigned To</span>
+                    <span class="detail-value">{if ticket.assignee_name}{ticket.assignee_name}{else}—{/if}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Created</span>
+                    <span class="detail-value" style="font-size: var(--font-size-small);">{ticket.created_at}</span>
+                </div>
+                {if ticket.closed_at}
+                <div class="detail-row">
+                    <span class="detail-label">Closed</span>
+                    <span class="detail-value" style="font-size: var(--font-size-small);">{ticket.closed_at}</span>
+                </div>
+                {/if}
+            </div>
+        </div>
+
+        <!-- Actions -->
+        <div class="card">
+            <div class="card-header">Actions</div>
+            <div class="card-body">
+                <!-- Change status -->
+                <form hx-post="{base_url}/api/v1/tickets/status" hx-target="body" style="margin-bottom: 12px;">
+                    <input type="hidden" name="_token" value="{csrf_token}">
+                    <input type="hidden" name="ticket_id" value="{ticket.id}">
+                    <label class="form-label">Change Status</label>
+                    <div style="display: flex; gap: 6px;">
+                        <select name="status" class="form-input">
+                            <option value="open" {if ticket.status == 'open'}selected{/if}>Open</option>
+                            <option value="in_progress" {if ticket.status == 'in_progress'}selected{/if}>In Progress</option>
+                            <option value="resolved" {if ticket.status == 'resolved'}selected{/if}>Resolved</option>
+                            <option value="closed" {if ticket.status == 'closed'}selected{/if}>Closed</option>
+                        </select>
+                        <button type="submit" class="btn btn-sm btn-outline">Update</button>
+                    </div>
+                </form>
+
+                <!-- Assign -->
+                <form hx-post="{base_url}/api/v1/tickets/assign" hx-target="body">
+                    <input type="hidden" name="_token" value="{csrf_token}">
+                    <input type="hidden" name="ticket_id" value="{ticket.id}">
+                    <label class="form-label">Assign To</label>
+                    <div style="display: flex; gap: 6px;">
+                        <select name="assigned_to" class="form-input">
+                            <option value="">— Unassigned —</option>
+                            {foreach users as u}
+                            <option value="{u.id}" {if u.id == ticket.assigned_to}selected{/if}>{u.full_name}</option>
+                            {/foreach}
+                        </select>
+                        <button type="submit" class="btn btn-sm btn-outline">Assign</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{/block}

@@ -1,0 +1,225 @@
+{extends "layouts/app.disyl"}
+
+{block head}
+<style>
+    .users-table th, .users-table td { padding: 10px 14px; }
+    .users-table .mono { font-size: 12px; }
+    .user-active { display: inline-flex; align-items: center; gap: 5px; }
+    .user-active .dot { width: 7px; height: 7px; border-radius: 50%; }
+    .user-active .dot.on { background: var(--success); }
+    .user-active .dot.off { background: var(--danger); }
+</style>
+{/block}
+
+{block content}
+<div class="page-header">
+    <div>
+        <h2>Users</h2>
+        <div class="page-desc">Manage kernel-level admin accounts. Module users are managed within each module.</div>
+    </div>
+    <div class="page-actions">
+        <form style="display:flex;gap:8px;align-items:center;" method="GET" action="{base_url}/admin/users">
+            <input type="text" class="form-input" name="q" value="{search}" placeholder="Search name or username..." style="width:220px;">
+            <button type="submit" class="btn btn-outline btn-sm">Search</button>
+        </form>
+        <button class="btn btn-primary btn-sm" onclick="openAddUser()">+ Add User</button>
+    </div>
+</div>
+
+<div class="panel" style="padding:0; overflow:hidden;">
+    <div class="table-wrap">
+        <table class="users-table">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Full Name</th>
+                    <th>Username</th>
+                    <th>Role</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {if users | count == 0}
+                <tr>
+                    <td colspan="6" class="muted" style="padding:20px 14px;">No kernel users found.</td>
+                </tr>
+                {else}
+                {foreach users as u}
+                <tr>
+                    <td class="mono muted">{u.id}</td>
+                    <td style="font-weight:600;">{u.full_name}</td>
+                    <td class="mono">{u.username}</td>
+                    <td><span class="role-pill {u.role}">{u.role}</span></td>
+                    <td>
+                        <span class="user-active">
+                            <span class="dot {if u.is_active == 1}on{else}off{/if}"></span>
+                            {if u.is_active == 1}Active{else}Inactive{/if}
+                        </span>
+                    </td>
+                    <td>
+                        <button class="btn btn-outline btn-sm" onclick="openEditUser({u.id}, '{u.full_name | escape}', '{u.role}', {u.is_active})">Edit</button>
+                    </td>
+                </tr>
+                {/foreach}
+                {/if}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Add User Modal -->
+<div class="modal-overlay" id="add-modal" onclick="if(event.target===this)closeModal('add-modal')">
+    <div class="modal" onclick="event.stopPropagation()">
+        <h3>Add User</h3>
+        <div class="form-group">
+            <label class="form-label">Full Name</label>
+            <input class="form-input" type="text" id="add-full-name" autocomplete="off">
+        </div>
+        <div class="form-group">
+            <label class="form-label">Username</label>
+            <input class="form-input" type="text" id="add-username" autocomplete="off">
+        </div>
+        <div class="form-group">
+            <label class="form-label">Password</label>
+            <input class="form-input" type="password" id="add-password" autocomplete="new-password">
+        </div>
+        <div class="form-group">
+            <label class="form-label">Role</label>
+            <select class="form-input" id="add-role">
+                <option value="admin">admin</option>
+                <option value="superadmin">superadmin</option>
+                <option value="manager">manager</option>
+                <option value="viewer">viewer</option>
+            </select>
+        </div>
+        <div class="modal-actions">
+            <button class="btn btn-outline" onclick="closeModal('add-modal')">Cancel</button>
+            <button class="btn btn-primary" id="add-submit" onclick="submitAddUser()">Add User</button>
+        </div>
+    </div>
+</div>
+
+<!-- Edit User Modal -->
+<div class="modal-overlay" id="edit-modal" onclick="if(event.target===this)closeModal('edit-modal')">
+    <div class="modal" onclick="event.stopPropagation()">
+        <h3>Edit User</h3>
+        <input type="hidden" id="edit-id">
+        <div class="form-group">
+            <label class="form-label">Full Name</label>
+            <input class="form-input" type="text" id="edit-full-name" autocomplete="off">
+        </div>
+        <div class="form-group">
+            <label class="form-label">Role</label>
+            <select class="form-input" id="edit-role">
+                <option value="admin">admin</option>
+                <option value="superadmin">superadmin</option>
+                <option value="manager">manager</option>
+                <option value="viewer">viewer</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label class="form-label">Status</label>
+            <select class="form-input" id="edit-active">
+                <option value="1">Active</option>
+                <option value="0">Inactive</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label class="form-label">New Password (optional)</label>
+            <input class="form-input" type="password" id="edit-password" autocomplete="new-password">
+            <div class="hint">Leave blank to keep the existing password.</div>
+        </div>
+        <div class="modal-actions">
+            <button class="btn btn-outline" onclick="closeModal('edit-modal')">Cancel</button>
+            <button class="btn btn-primary" id="edit-submit" onclick="submitEditUser()">Save</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    var BASE = '{base_url}';
+
+    function openAddUser() {
+        document.getElementById('add-full-name').value = '';
+        document.getElementById('add-username').value = '';
+        document.getElementById('add-password').value = '';
+        document.getElementById('add-role').value = 'manager';
+        openModal('add-modal');
+    }
+
+    function openEditUser(id, name, role, active) {
+        document.getElementById('edit-id').value = id;
+        document.getElementById('edit-full-name').value = name || '';
+        document.getElementById('edit-role').value = role || 'manager';
+        document.getElementById('edit-active').value = String(active || 1);
+        document.getElementById('edit-password').value = '';
+        openModal('edit-modal');
+    }
+
+    function openModal(id) {
+        var el = document.getElementById(id);
+        if (el) el.style.display = 'flex';
+    }
+
+    function closeModal(id) {
+        var el = document.getElementById(id);
+        if (el) el.style.display = 'none';
+    }
+
+    function submitAddUser() {
+        var fullName = document.getElementById('add-full-name').value.trim();
+        var username = document.getElementById('add-username').value.trim();
+        var password = document.getElementById('add-password').value;
+        var role = document.getElementById('add-role').value;
+
+        if (!fullName || !username || !password) {
+            showToast('All fields required');
+            return;
+        }
+
+        var btn = document.getElementById('add-submit');
+        btn.disabled = true; btn.textContent = 'Adding...';
+
+        fetch(BASE + '/api/v1/admin/users', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ full_name: fullName, username: username, password: password, role: role })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(res) {
+            if (res.ok) { showToast('User added'); setTimeout(function() { window.location.reload(); }, 600); }
+            else { showToast(res.error || 'Failed'); btn.disabled = false; btn.textContent = 'Add User'; }
+        })
+        .catch(function() { showToast('Network error'); btn.disabled = false; btn.textContent = 'Add User'; });
+    }
+
+    function submitEditUser() {
+        var userId = parseInt(document.getElementById('edit-id').value || '0');
+        var fullName = document.getElementById('edit-full-name').value.trim();
+        var role = document.getElementById('edit-role').value;
+        var isActive = parseInt(document.getElementById('edit-active').value || '1');
+        var password = document.getElementById('edit-password').value;
+
+        if (!userId || !fullName) {
+            showToast('Invalid input');
+            return;
+        }
+
+        var btn = document.getElementById('edit-submit');
+        btn.disabled = true; btn.textContent = 'Saving...';
+
+        fetch(BASE + '/api/v1/admin/users/update', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ user_id: userId, full_name: fullName, role: role, is_active: isActive, password: password })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(res) {
+            if (res.ok) { showToast('Saved'); setTimeout(function() { window.location.reload(); }, 600); }
+            else { showToast(res.error || 'Failed'); btn.disabled = false; btn.textContent = 'Save'; }
+        })
+        .catch(function() { showToast('Network error'); btn.disabled = false; btn.textContent = 'Save'; });
+    }
+</script>
+{/block}

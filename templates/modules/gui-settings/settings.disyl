@@ -1,0 +1,469 @@
+{extends "layouts/app.disyl"}
+
+{block head}
+<style>
+    .page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; flex-wrap: wrap; gap: 12px; }
+    .page-header h2 { font-size: 18px; font-weight: 700; }
+    .settings-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    @media (max-width: 900px) { .settings-grid { grid-template-columns: 1fr; } }
+    .section-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+    .section-title { padding: 14px 18px; border-bottom: 1px solid var(--border); font-weight: 700; font-size: 14px; color: var(--text); background: var(--bg); display: flex; align-items: center; gap: 8px; }
+    .section-body { padding: 18px; }
+    .field-row { margin-bottom: 14px; }
+    .field-row:last-child { margin-bottom: 0; }
+    .field-label { display: block; font-size: 12px; font-weight: 600; color: var(--text-muted); margin-bottom: 4px; text-transform: uppercase; letter-spacing: .3px; }
+    .field-hint { font-size: 11px; color: var(--text-light); margin-top: 2px; }
+    .color-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+    .color-row:last-child { margin-bottom: 0; }
+    .color-row label { flex: 1; font-size: 12px; font-weight: 500; color: var(--text-muted); }
+    .color-row input[type="color"] { width: 36px; height: 30px; border: 1px solid var(--border); border-radius: 6px; cursor: pointer; padding: 2px; background: #fff; }
+    .color-row .hex-val { font-family: monospace; font-size: 11px; color: var(--text-light); width: 64px; text-align: center; }
+    .preset-grid { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+    .preset-btn { padding: 6px 14px; font-size: 12px; font-weight: 600; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); cursor: pointer; transition: all .15s; }
+    .preset-btn:hover { border-color: var(--primary); color: var(--primary); background: var(--primary-light); }
+    .preset-btn.active { border-color: var(--primary); background: var(--primary-light); color: var(--primary); }
+    .preview-box { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; margin-top: 20px; }
+    .preview-header { height: 40px; display: flex; align-items: center; padding: 0 14px; gap: 10px; }
+    .preview-header .p-logo { font-weight: 700; font-size: 13px; }
+    .preview-header .p-logo span { }
+    .preview-nav { height: 32px; border-bottom: 1px solid; display: flex; align-items: center; padding: 0 14px; gap: 8px; }
+    .preview-nav a { font-size: 11px; font-weight: 500; padding: 4px 8px; border-radius: 4px; text-decoration: none; }
+    .preview-content { padding: 14px; }
+    .preview-content .p-card { border: 1px solid; border-radius: 6px; padding: 10px; margin-bottom: 8px; }
+    .preview-content .p-btn { display: inline-block; padding: 5px 12px; border-radius: 5px; color: #fff; font-size: 11px; font-weight: 600; }
+    .font-select { width: 100%; padding: 9px 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 14px; font-family: inherit; background: #fff; }
+    .size-input { width: 80px; padding: 7px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; font-family: monospace; text-align: center; }
+    .save-bar { position: sticky; bottom: 0; background: var(--surface); border-top: 1px solid var(--border); padding: 14px 18px; display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 24px; border-radius: 10px; box-shadow: 0 -2px 8px rgba(0,0,0,.05); z-index: 50; }
+    .size-group { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+    .size-group:last-child { margin-bottom: 0; }
+    .size-group label { flex: 1; font-size: 12px; font-weight: 500; color: var(--text-muted); }
+    .full-span { grid-column: 1 / -1; }
+</style>
+{/block}
+
+{block content}
+<div class="page-header">
+    <h2>GUI Settings</h2>
+    <div style="display:flex;gap:8px;">
+        <button class="btn btn-outline btn-sm" onclick="resetDefaults()">Reset to Defaults</button>
+    </div>
+</div>
+
+<div class="settings-grid">
+
+    <!-- ── Branding ──────────────────────────────────── -->
+    <div class="section-card">
+        <div class="section-title">Branding</div>
+        <div class="section-body">
+            <div class="field-row">
+                <label class="field-label">Application Name</label>
+                <input type="text" class="form-input" id="s-app_name" value="{settings.app_name}" oninput="onAppNameChange(this.value)">
+                <div class="field-hint">Displayed in the header bar. The first word is accented.</div>
+            </div>
+            <div class="field-row">
+                <label class="field-label">Accent Word</label>
+                <input type="text" class="form-input" id="s-app_name_accent" value="{settings.app_name_accent}" style="max-width:200px;">
+                <div class="field-hint">The highlighted portion of the name (e.g. "Baron")</div>
+            </div>
+            <div class="field-row">
+                <label class="field-label">Rest of Name</label>
+                <input type="text" class="form-input" id="s-app_name_rest" value="{settings.app_name_rest}" style="max-width:200px;">
+                <div class="field-hint">The non-highlighted portion (e.g. "Bakeshop")</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Typography ────────────────────────────────── -->
+    <div class="section-card">
+        <div class="section-title">Typography</div>
+        <div class="section-body">
+            <div class="field-row">
+                <label class="field-label">Font Family</label>
+                <select class="font-select" id="s-font_family" onchange="onFontChange(this)">
+                    {foreach font_presets as fp}
+                    <option value="{fp.family}" data-url="{fp.url}" {if settings.font_family == fp.family}selected{/if}>{fp.label}</option>
+                    {/foreach}
+                </select>
+                <input type="hidden" id="s-font_url" value="{settings.font_url}">
+            </div>
+            <div class="field-row" style="margin-top:14px;">
+                <label class="field-label">Font Sizes</label>
+                <div class="size-group">
+                    <label>Base text</label>
+                    <input type="text" class="size-input" id="s-font_size_base" value="{settings.font_size_base}">
+                </div>
+                <div class="size-group">
+                    <label>Small text</label>
+                    <input type="text" class="size-input" id="s-font_size_small" value="{settings.font_size_small}">
+                </div>
+                <div class="size-group">
+                    <label>Heading 1</label>
+                    <input type="text" class="size-input" id="s-font_size_h1" value="{settings.font_size_h1}">
+                </div>
+                <div class="size-group">
+                    <label>Heading 2</label>
+                    <input type="text" class="size-input" id="s-font_size_h2" value="{settings.font_size_h2}">
+                </div>
+                <div class="size-group">
+                    <label>Navigation</label>
+                    <input type="text" class="size-input" id="s-font_size_nav" value="{settings.font_size_nav}">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Color Theme Presets ───────────────────────── -->
+    <div class="section-card full-span">
+        <div class="section-title">Color Theme Presets</div>
+        <div class="section-body">
+            <div class="preset-grid">
+                {foreach color_presets as cp}
+                <button class="preset-btn" onclick='applyColorPreset({loop.index1})' data-preset-index="{loop.index1}">{cp.label}</button>
+                {/foreach}
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Primary Colors ────────────────────────────── -->
+    <div class="section-card">
+        <div class="section-title">Primary &amp; Accent Colors</div>
+        <div class="section-body">
+            <div class="color-row">
+                <label>Primary</label>
+                <input type="color" id="s-color_primary" value="{settings.color_primary}" oninput="updateHex(this)">
+                <span class="hex-val" id="hex-color_primary">{settings.color_primary}</span>
+            </div>
+            <div class="color-row">
+                <label>Primary Hover</label>
+                <input type="color" id="s-color_primary_hover" value="{settings.color_primary_hover}" oninput="updateHex(this)">
+                <span class="hex-val" id="hex-color_primary_hover">{settings.color_primary_hover}</span>
+            </div>
+            <div class="color-row">
+                <label>Primary Light</label>
+                <input type="color" id="s-color_primary_light" value="{settings.color_primary_light}" oninput="updateHex(this)">
+                <span class="hex-val" id="hex-color_primary_light">{settings.color_primary_light}</span>
+            </div>
+            <div class="color-row">
+                <label>Success</label>
+                <input type="color" id="s-color_success" value="{settings.color_success}" oninput="updateHex(this)">
+                <span class="hex-val" id="hex-color_success">{settings.color_success}</span>
+            </div>
+            <div class="color-row">
+                <label>Warning</label>
+                <input type="color" id="s-color_warning" value="{settings.color_warning}" oninput="updateHex(this)">
+                <span class="hex-val" id="hex-color_warning">{settings.color_warning}</span>
+            </div>
+            <div class="color-row">
+                <label>Danger</label>
+                <input type="color" id="s-color_danger" value="{settings.color_danger}" oninput="updateHex(this)">
+                <span class="hex-val" id="hex-color_danger">{settings.color_danger}</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Surface & Text Colors ─────────────────────── -->
+    <div class="section-card">
+        <div class="section-title">Surface &amp; Text Colors</div>
+        <div class="section-body">
+            <div class="color-row">
+                <label>Background</label>
+                <input type="color" id="s-color_bg" value="{settings.color_bg}" oninput="updateHex(this)">
+                <span class="hex-val" id="hex-color_bg">{settings.color_bg}</span>
+            </div>
+            <div class="color-row">
+                <label>Surface (cards)</label>
+                <input type="color" id="s-color_surface" value="{settings.color_surface}" oninput="updateHex(this)">
+                <span class="hex-val" id="hex-color_surface">{settings.color_surface}</span>
+            </div>
+            <div class="color-row">
+                <label>Border</label>
+                <input type="color" id="s-color_border" value="{settings.color_border}" oninput="updateHex(this)">
+                <span class="hex-val" id="hex-color_border">{settings.color_border}</span>
+            </div>
+            <div class="color-row">
+                <label>Text</label>
+                <input type="color" id="s-color_text" value="{settings.color_text}" oninput="updateHex(this)">
+                <span class="hex-val" id="hex-color_text">{settings.color_text}</span>
+            </div>
+            <div class="color-row">
+                <label>Text Muted</label>
+                <input type="color" id="s-color_text_muted" value="{settings.color_text_muted}" oninput="updateHex(this)">
+                <span class="hex-val" id="hex-color_text_muted">{settings.color_text_muted}</span>
+            </div>
+            <div class="color-row">
+                <label>Text Light</label>
+                <input type="color" id="s-color_text_light" value="{settings.color_text_light}" oninput="updateHex(this)">
+                <span class="hex-val" id="hex-color_text_light">{settings.color_text_light}</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Header Colors ─────────────────────────────── -->
+    <div class="section-card">
+        <div class="section-title">Header Bar</div>
+        <div class="section-body">
+            <div class="color-row">
+                <label>Header Background</label>
+                <input type="color" id="s-color_header_bg" value="{settings.color_header_bg}" oninput="updateHex(this)">
+                <span class="hex-val" id="hex-color_header_bg">{settings.color_header_bg}</span>
+            </div>
+            <div class="color-row">
+                <label>Header Text</label>
+                <input type="color" id="s-color_header_text" value="{settings.color_header_text}" oninput="updateHex(this)">
+                <span class="hex-val" id="hex-color_header_text">{settings.color_header_text}</span>
+            </div>
+            <div class="color-row">
+                <label>Header Accent</label>
+                <input type="color" id="s-color_header_accent" value="{settings.color_header_accent}" oninput="updateHex(this)">
+                <span class="hex-val" id="hex-color_header_accent">{settings.color_header_accent}</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Layout ────────────────────────────────────── -->
+    <div class="section-card">
+        <div class="section-title">Layout</div>
+        <div class="section-body">
+            <div class="size-group">
+                <label>Border Radius</label>
+                <input type="text" class="size-input" id="s-border_radius" value="{settings.border_radius}">
+            </div>
+            <div class="size-group">
+                <label>Header Height</label>
+                <input type="text" class="size-input" id="s-header_height" value="{settings.header_height}">
+            </div>
+            <div class="size-group">
+                <label>Nav Height</label>
+                <input type="text" class="size-input" id="s-nav_height" value="{settings.nav_height}">
+            </div>
+            <div class="size-group">
+                <label>Max Content Width</label>
+                <input type="text" class="size-input" id="s-max_width" value="{settings.max_width}" style="width:100px;">
+            </div>
+
+            <div class="field-row" style="margin-top:14px;">
+                <label class="field-label">Navigation Layout</label>
+                <select class="font-select" id="s-nav_layout">
+                    <option value="top" {if settings.nav_layout == 'top'}selected{/if}>Top menu (current)</option>
+                    <option value="sidebar" {if settings.nav_layout == 'sidebar'}selected{/if}>Sidebar</option>
+                </select>
+                <div class="field-hint">Choose whether the main module navigation appears at the top or as a sidebar.</div>
+            </div>
+
+            <div class="field-row">
+                <label class="field-label">Sidebar Position</label>
+                <select class="font-select" id="s-sidebar_position">
+                    <option value="left" {if settings.sidebar_position == 'left'}selected{/if}>Left</option>
+                    <option value="right" {if settings.sidebar_position == 'right'}selected{/if}>Right</option>
+                </select>
+                <div class="field-hint">Only applies when Navigation Layout is set to Sidebar.</div>
+            </div>
+
+            <div class="field-row">
+                <label class="field-label">Mobile / Tablet Menu</label>
+                <select class="font-select" id="s-mobile_menu">
+                    <option value="canvas" {if settings.mobile_menu == 'canvas'}selected{/if}>Off-canvas (slide-in)</option>
+                </select>
+                <div class="field-hint">Applies on tablet and mobile screen widths.</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Live Preview ──────────────────────────────── -->
+    <div class="section-card full-span">
+        <div class="section-title">Live Preview</div>
+        <div class="section-body">
+            <div class="preview-box" id="preview-box">
+                <div class="preview-header" id="preview-header">
+                    <div class="p-logo"><span id="preview-accent">{settings.app_name_accent}</span> <span id="preview-rest">{settings.app_name_rest}</span></div>
+                </div>
+                <div class="preview-nav" id="preview-nav">
+                    <a href="#" id="preview-link1">Dashboard</a>
+                    <a href="#" id="preview-link2">Ledger</a>
+                    <a href="#" id="preview-link3">Sales</a>
+                </div>
+                <div class="preview-content" id="preview-content">
+                    <div class="p-card" id="preview-card">
+                        <strong id="preview-text">Sample card content</strong>
+                        <p style="margin-top:4px;" id="preview-muted">Muted text example</p>
+                    </div>
+                    <span class="p-btn" id="preview-btn">Primary Button</span>
+                    <span class="p-btn" id="preview-success-btn" style="margin-left:6px;">Success</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<!-- Save Bar -->
+<div class="save-bar">
+    <div style="font-size:13px;color:var(--text-muted);" id="save-status">Make changes and click Save</div>
+    <div style="display:flex;gap:8px;">
+        <button class="btn btn-primary" onclick="saveSettings()">Save Settings</button>
+    </div>
+</div>
+{/block}
+
+{block scripts}
+<script>
+    var BASE = '{base_url}';
+
+    // Color presets data — driven by handler context via DiSyL v4 {foreach} in <script>
+    var colorPresets = [
+        {foreach color_presets as cp}{ label: '{cp.label}', colors: {cp.colors | json} },{/foreach}
+    ];
+
+    // Collect all setting field IDs — driven from handler context
+    var settingKeys = {setting_keys | json};
+
+    function getVal(key) {
+        var el = document.getElementById('s-' + key);
+        return el ? el.value : '';
+    }
+    function setVal(key, val) {
+        var el = document.getElementById('s-' + key);
+        if (el) el.value = val;
+        var hex = document.getElementById('hex-' + key);
+        if (hex) hex.textContent = val;
+    }
+
+    function updateHex(input) {
+        var key = input.id.replace('s-', '');
+        var hex = document.getElementById('hex-' + key);
+        if (hex) hex.textContent = input.value;
+        updatePreview();
+    }
+
+    function onAppNameChange(val) {
+        var parts = val.trim().split(' ');
+        setVal('app_name_accent', parts[0] || '');
+        setVal('app_name_rest', parts.slice(1).join(' '));
+        updatePreview();
+    }
+
+    function onFontChange(sel) {
+        var opt = sel.options[sel.selectedIndex];
+        setVal('font_url', opt.getAttribute('data-url') || '');
+        updatePreview();
+    }
+
+    function applyColorPreset(idx) {
+        var preset = colorPresets[idx - 1];
+        if (!preset) return;
+        var colors = preset.colors;
+        for (var key in colors) {
+            if (colors.hasOwnProperty(key)) {
+                setVal(key, colors[key]);
+            }
+        }
+        // Highlight button
+        document.querySelectorAll('.preset-btn').forEach(function(b) { b.classList.remove('active'); });
+        var btn = document.querySelector('[data-preset-index="' + idx + '"]');
+        if (btn) btn.classList.add('active');
+        updatePreview();
+    }
+
+    // ── Live Preview ─────────────────────────────────────
+    function updatePreview() {
+        var ph = document.getElementById('preview-header');
+        var pn = document.getElementById('preview-nav');
+        var pc = document.getElementById('preview-content');
+        var pCard = document.getElementById('preview-card');
+
+        ph.style.background = getVal('color_header_bg');
+        document.getElementById('preview-accent').style.color = getVal('color_header_accent');
+        document.getElementById('preview-accent').textContent = getVal('app_name_accent');
+        document.getElementById('preview-rest').style.color = getVal('color_header_text');
+        document.getElementById('preview-rest').textContent = getVal('app_name_rest');
+
+        pn.style.background = getVal('color_surface');
+        pn.style.borderColor = getVal('color_border');
+        document.querySelectorAll('#preview-nav a').forEach(function(a) {
+            a.style.color = getVal('color_text_muted');
+            a.style.fontSize = getVal('font_size_nav');
+        });
+
+        pc.style.background = getVal('color_bg');
+        pCard.style.background = getVal('color_surface');
+        pCard.style.borderColor = getVal('color_border');
+        pCard.style.borderRadius = getVal('border_radius');
+        document.getElementById('preview-text').style.color = getVal('color_text');
+        document.getElementById('preview-muted').style.color = getVal('color_text_muted');
+
+        var pbtn = document.getElementById('preview-btn');
+        pbtn.style.background = getVal('color_primary');
+        pbtn.style.borderRadius = getVal('border_radius');
+
+        var sbtn = document.getElementById('preview-success-btn');
+        sbtn.style.background = getVal('color_success');
+        sbtn.style.borderRadius = getVal('border_radius');
+
+        // Apply font to preview
+        var fontUrl = getVal('font_url');
+        var fontFamily = getVal('font_family');
+        var previewBox = document.getElementById('preview-box');
+        if (fontFamily) previewBox.style.fontFamily = fontFamily;
+        document.getElementById('preview-text').style.fontSize = getVal('font_size_base');
+    }
+
+    // ── Save ─────────────────────────────────────────────
+    function saveSettings() {
+        var data = {};
+        settingKeys.forEach(function(key) {
+            data[key] = getVal(key);
+        });
+
+        document.getElementById('save-status').textContent = 'Saving...';
+
+        fetch(BASE + '/api/v1/admin/gui-settings', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(res) {
+            if (res.ok) {
+                showToast('Settings saved! Reloading...');
+                setTimeout(function() { window.location.reload(); }, 600);
+            } else {
+                document.getElementById('save-status').textContent = res.error || 'Save failed';
+                showToast(res.error || 'Save failed');
+            }
+        })
+        .catch(function() {
+            document.getElementById('save-status').textContent = 'Network error';
+            showToast('Network error');
+        });
+    }
+
+    function resetDefaults() {
+        if (!confirm('Reset all GUI settings to defaults? This cannot be undone.')) return;
+
+        fetch(BASE + '/api/v1/admin/gui-settings/reset', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: '{}'
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(res) {
+            if (res.ok) {
+                showToast('Reset to defaults! Reloading...');
+                setTimeout(function() { window.location.reload(); }, 600);
+            } else {
+                showToast(res.error || 'Reset failed');
+            }
+        })
+        .catch(function() { showToast('Network error'); });
+    }
+
+    // Init preview on load
+    document.addEventListener('DOMContentLoaded', updatePreview);
+
+    // Auto-update preview on any input change
+    document.querySelectorAll('.section-body input, .section-body select').forEach(function(el) {
+        el.addEventListener('input', updatePreview);
+        el.addEventListener('change', updatePreview);
+    });
+</script>
+{/block}

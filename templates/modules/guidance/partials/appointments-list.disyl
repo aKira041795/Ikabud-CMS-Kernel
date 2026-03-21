@@ -1,0 +1,152 @@
+{!-- Appointments List Partial - Flat rows with date separators --}
+
+{!-- Summary Stat Pills --}
+<div class="flex flex-wrap gap-3 mb-5">
+    <div class="flex items-center gap-2 px-3 py-2 bg-indigo-50 rounded-lg border border-indigo-100">
+        <i class="fas fa-calendar-day text-indigo-500 text-sm"></i>
+        <span class="text-sm font-semibold text-indigo-700">{stats.today_count | default:'0'}</span>
+        <span class="text-xs text-indigo-600">Today</span>
+    </div>
+    <div class="flex items-center gap-2 px-3 py-2 bg-blue-50 rounded-lg border border-blue-100">
+        <i class="fas fa-calendar-week text-blue-500 text-sm"></i>
+        <span class="text-sm font-semibold text-blue-700">{stats.week_count | default:'0'}</span>
+        <span class="text-xs text-blue-600">This Week</span>
+    </div>
+    <div class="flex items-center gap-2 px-3 py-2 bg-amber-50 rounded-lg border border-amber-100">
+        <i class="fas fa-clock text-amber-500 text-sm"></i>
+        <span class="text-sm font-semibold text-amber-700">{stats.pending_count | default:'0'}</span>
+        <span class="text-xs text-amber-600">Pending</span>
+    </div>
+    <div class="flex items-center gap-2 px-3 py-2 bg-emerald-50 rounded-lg border border-emerald-100">
+        <i class="fas fa-arrow-up text-emerald-500 text-sm"></i>
+        <span class="text-sm font-semibold text-emerald-700">{stats.upcoming_count | default:'0'}</span>
+        <span class="text-xs text-emerald-600">Upcoming</span>
+    </div>
+    <div class="flex items-center gap-2 px-3 py-2 bg-green-50 rounded-lg border border-green-100">
+        <i class="fas fa-check-circle text-green-500 text-sm"></i>
+        <span class="text-sm font-semibold text-green-700">{stats.completed_count | default:'0'}</span>
+        <span class="text-xs text-green-600">Completed</span>
+    </div>
+    {if total > 0}
+    <div class="flex items-center gap-2 px-3 py-2 bg-gray-50 rounded-lg border border-gray-200 ml-auto">
+        <span class="text-xs text-gray-500">Showing <strong class="text-gray-700">{total}</strong> appointments</span>
+    </div>
+    {/if}
+</div>
+
+{!-- Appointment Rows (flat: date headers + appointment rows interleaved) --}
+{if rows | count > 0}
+<div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden divide-y divide-gray-100">
+    {for row in rows}
+
+    {if row.row_type == 'date_header'}
+    <div class="px-5 py-3 flex items-center justify-between {if row.is_today}bg-indigo-50{elseif row.is_past}bg-gray-50{else}bg-slate-50{/if}">
+        <div class="flex items-center gap-2">
+            {if row.is_today}
+            <span class="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></span>
+            <span class="text-sm font-bold text-indigo-700">{row.label}</span>
+            <span class="text-xs text-indigo-400 ml-1">{row.date}</span>
+            {else}
+            <i class="fas fa-calendar-alt text-xs {if row.is_past}text-gray-400{else}text-gray-500{/if}"></i>
+            <span class="text-sm font-semibold {if row.is_past}text-gray-500{else}text-gray-800{/if}">{row.label}</span>
+            {/if}
+        </div>
+        <span class="text-xs font-medium {if row.is_today}text-indigo-500{else}text-gray-400{/if}">{row.day_count} appt{if row.day_count != 1}s{/if}</span>
+    </div>
+    {/if}
+
+    {if row.row_type == 'appointment'}
+    <div class="px-5 py-3 flex items-center gap-4 hover:bg-gray-50/70 transition group {if row.is_past}opacity-60{/if}">
+        <div class="w-20 flex-shrink-0">
+            <div class="text-sm font-bold text-gray-800">{row.scheduled_time}</div>
+            <div class="text-xs text-gray-400 mt-0.5">{row.duration_minutes | default:'30'} min</div>
+        </div>
+
+        <div class="w-px h-10 bg-gray-200 flex-shrink-0"></div>
+
+        <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-2">
+                <span class="text-sm font-semibold text-gray-900 truncate">{row.student_name | default:'N/A'}</span>
+                {if row.is_urgent}
+                <span class="px-1.5 py-0.5 text-xs font-bold bg-red-100 text-red-700 rounded animate-pulse">URGENT</span>
+                {/if}
+            </div>
+            <div class="flex items-center gap-2 mt-0.5 text-xs text-gray-400">
+                {if row.case_number}
+                <span class="text-indigo-600 font-medium">{row.case_number}</span>
+                <span class="text-gray-300">|</span>
+                {/if}
+                <span>{row.appointment_type | default:'individual' | title}</span>
+                {if row.counselor_name}
+                <span class="text-gray-300">|</span>
+                <span><i class="fas fa-user-md mr-0.5"></i>{row.counselor_name}</span>
+                {/if}
+                {if row.purpose}
+                <span class="text-gray-300">|</span>
+                <span class="truncate max-w-[150px]">{row.purpose}</span>
+                {/if}
+            </div>
+        </div>
+
+        <div class="flex-shrink-0">
+            <span class="px-2.5 py-1 text-xs font-semibold rounded-full inline-flex items-center gap-1
+                {if row.status_key == 'pending'}bg-amber-100 text-amber-800
+                {elseif row.status_key == 'scheduled'}bg-blue-100 text-blue-800
+                {elseif row.status_key == 'confirmed'}bg-indigo-100 text-indigo-800
+                {elseif row.status_key == 'completed'}bg-green-100 text-green-800
+                {elseif row.status_key == 'cancelled'}bg-red-100 text-red-800
+                {elseif row.status_key == 'rejected'}bg-gray-200 text-gray-600
+                {elseif row.status_key == 'no_show'}bg-yellow-100 text-yellow-800
+                {else}bg-gray-100 text-gray-600{/if}">
+                {if row.status_key == 'pending'}<i class="fas fa-clock text-[10px]"></i>{/if}
+                {if row.status_key == 'scheduled'}<i class="fas fa-calendar-check text-[10px]"></i>{/if}
+                {if row.status_key == 'confirmed'}<i class="fas fa-thumbs-up text-[10px]"></i>{/if}
+                {if row.status_key == 'completed'}<i class="fas fa-check-circle text-[10px]"></i>{/if}
+                {if row.status_key == 'cancelled'}<i class="fas fa-ban text-[10px]"></i>{/if}
+                {if row.status_key == 'no_show'}<i class="fas fa-user-slash text-[10px]"></i>{/if}
+                {if row.status_key == 'rejected'}<i class="fas fa-times-circle text-[10px]"></i>{/if}
+                {row.status_key | title}
+            </span>
+        </div>
+
+        <div class="flex items-center gap-1 flex-shrink-0 opacity-70 group-hover:opacity-100 transition">
+            {if row.status_key == 'pending'}
+            <button hx-post="/admin/guidance/api/appointments/{row.id}/approve"
+                    hx-confirm="Approve this appointment?"
+                    hx-swap="none"
+                    class="p-1.5 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition" title="Approve">
+                <i class="fas fa-check text-xs"></i>
+            </button>
+            <button hx-post="/admin/guidance/api/appointments/{row.id}/reject"
+                    hx-confirm="Reject this appointment?"
+                    hx-swap="none"
+                    class="p-1.5 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition" title="Reject">
+                <i class="fas fa-times text-xs"></i>
+            </button>
+            
+            {else}
+            <button hx-get="/admin/guidance/pages/appointments/{row.id}" hx-target="#modal-container" hx-swap="innerHTML"
+                    class="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition" title="View Details">
+                <i class="fas fa-eye text-xs"></i>
+            </button>
+            {/if}
+        </div>
+    </div>
+    {/if}
+
+    {/for}
+</div>
+
+{else}
+<div class="bg-white rounded-xl shadow-sm border border-gray-100 p-12 text-center">
+    <div class="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+        <i class="fas fa-calendar text-gray-400 text-2xl"></i>
+    </div>
+    <h3 class="text-lg font-medium text-gray-900 mb-2">No appointments found</h3>
+    <p class="text-gray-500 mb-4">Try adjusting your filters or schedule a new appointment.</p>
+    <button hx-get="/admin/guidance/pages/appointments/new" hx-target="#modal-container" hx-swap="innerHTML"
+            class="inline-flex items-center px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition">
+        <i class="fas fa-calendar-plus mr-2"></i> New Appointment
+    </button>
+</div>
+{/if}

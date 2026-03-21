@@ -1,0 +1,40 @@
+# Environment
+.env
+
+# Dependencies
+vendor/
+node_modules/
+
+# Storage runtime artifacts
+storage/logs/
+storage/cache/
+storage/locks/
+storage/backups/
+storage/module-exports/
+storage/.installed
+storage/modules.json
+storage/cms-installed-modules.json
+
+# Compiled builder assets (rebuild with npm run build)
+modules/cms/builder-ui/dist/
+
+# Archives
+*.zip
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.windsurf/
+
+# Legacy
+contact-form/
+contact-form.bak*
+android/
+
+# Backup files
+*.bak
+*.bak_*
+
+# Debug artifacts
+public/debug-opcache.php

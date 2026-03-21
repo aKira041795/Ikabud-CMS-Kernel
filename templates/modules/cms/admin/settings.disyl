@@ -1,0 +1,517 @@
+{extends "modules/cms/layouts/admin.disyl"}
+
+{block content}
+<div x-data="cmsSettings()" class="max-w-5xl">
+    <div class="flex items-center justify-between mb-6">
+        <h2 class="text-lg font-bold text-gray-800">CMS Settings</h2>
+        <button type="button" @click="resetDefaults()" class="px-3 py-1.5 text-xs font-medium text-gray-500 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">Reset to Defaults</button>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+
+        <!-- General -->
+        <div class="bg-white rounded-lg border border-gray-200 overflow-hidden">
+            <div class="px-4 py-2.5 border-b border-gray-100 text-[11px] font-semibold uppercase tracking-wider text-gray-400 bg-gray-50">General</div>
+            <div class="p-4 space-y-4">
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 mb-1">Site Title</label>
+                    <input type="text" x-model="settings.site_title" placeholder="My Website" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
+                    <p class="text-[11px] text-gray-400 mt-1">Displayed in the browser title bar and public pages.</p>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 mb-1">Site Tagline</label>
+                    <input type="text" x-model="settings.site_tagline" placeholder="Just another site" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
+                    <p class="text-[11px] text-gray-400 mt-1">A short description, used in feeds and meta tags.</p>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 mb-1">Posts Per Page</label>
+                    <input type="number" x-model="settings.posts_per_page" min="1" max="100" placeholder="10" class="w-32 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
+                    <p class="text-[11px] text-gray-400 mt-1">Posts shown on archive/blog pages (1–100).</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Content & Comments -->
+        <div class="bg-white rounded-lg border border-gray-200 overflow-hidden">
+            <div class="px-4 py-2.5 border-b border-gray-100 text-[11px] font-semibold uppercase tracking-wider text-gray-400 bg-gray-50">Content &amp; Comments</div>
+            <div class="p-4 space-y-4">
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 mb-1">Default Post Status</label>
+                    <select x-model="settings.default_post_status" class="w-48 px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
+                        <option value="draft">Draft</option>
+                        <option value="published">Published</option>
+                    </select>
+                    <p class="text-[11px] text-gray-400 mt-1">New posts are created with this status.</p>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 mb-1">Excerpt Length</label>
+                    <input type="number" x-model="settings.excerpt_length" min="20" max="500" placeholder="160" class="w-32 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
+                    <p class="text-[11px] text-gray-400 mt-1">Max characters for auto-generated excerpts (20–500).</p>
+                </div>
+                <hr class="border-gray-100">
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 mb-1">Comments System</label>
+                    <select x-model="settings.comments_enabled" class="w-48 px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
+                        <option value="1">Enabled</option>
+                        <option value="0">Disabled</option>
+                    </select>
+                    <p class="text-[11px] text-gray-400 mt-1">Master switch for the commenting system.</p>
+                </div>
+                <div x-show="settings.comments_enabled === '1' || settings.comments_enabled === 1" x-transition>
+                    <label class="block text-xs font-medium text-gray-500 mb-1">Default Comment Status</label>
+                    <select x-model="settings.default_comment_status" class="w-48 px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
+                        <option value="open">Open</option>
+                        <option value="closed">Closed</option>
+                    </select>
+                    <p class="text-[11px] text-gray-400 mt-1">New posts default to this comment status. Each post can override.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Reading / Homepage -->
+        <div class="bg-white rounded-lg border border-gray-200 overflow-hidden">
+            <div class="px-4 py-2.5 border-b border-gray-100 text-[11px] font-semibold uppercase tracking-wider text-gray-400 bg-gray-50">Reading / Homepage</div>
+            <div class="p-4 space-y-4">
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 mb-1">Homepage Displays</label>
+                    <select x-model="settings.homepage_type" class="w-56 px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
+                        <option value="posts">Latest posts</option>
+                        <option value="page">A static page</option>
+                    </select>
+                </div>
+                <div x-show="settings.homepage_type === 'page'" x-transition>
+                    <label class="block text-xs font-medium text-gray-500 mb-1">Homepage Page</label>
+                    <select x-model="settings.homepage_page_id" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
+                        <option value="">— Select a page —</option>
+                        {foreach pages as pg}
+                        <option value="{pg.id}">{pg.title}</option>
+                        {/foreach}
+                    </select>
+                    <p class="text-[11px] text-gray-400 mt-1">Only published pages are listed.</p>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 mb-1">Date Format</label>
+                        <select x-model="settings.date_format" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
+                            <option value="M j, Y">Mar 10, 2026</option>
+                            <option value="F j, Y">March 10, 2026</option>
+                            <option value="Y-m-d">2026-03-10</option>
+                            <option value="d/m/Y">10/03/2026</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 mb-1">Time Format</label>
+                        <select x-model="settings.time_format" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
+                            <option value="g:i A">2:30 PM</option>
+                            <option value="H:i">14:30</option>
+                        </select>
+                    </div>
+                </div>
+                <hr class="border-gray-100">
+                <div class="flex items-center justify-between gap-4">
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500">Estimated Reading Time</label>
+                        <p class="text-[11px] text-gray-400 mt-0.5">Show "X min read" on posts.</p>
+                    </div>
+                    <select x-model="settings.reading_time_enabled" class="w-24 px-2 py-1.5 text-sm border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
+                        <option value="1">On</option>
+                        <option value="0">Off</option>
+                    </select>
+                </div>
+                <div x-show="settings.reading_time_enabled === '1' || settings.reading_time_enabled === 1" x-transition>
+                    <label class="block text-xs font-medium text-gray-500 mb-1">Words Per Minute</label>
+                    <input type="number" x-model="settings.reading_time_wpm" min="100" max="500" placeholder="200" class="w-32 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
+                    <p class="text-[11px] text-gray-400 mt-1">Average reading speed for calculation (100–500 WPM).</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- SEO -->
+        <div class="bg-white rounded-lg border border-gray-200 overflow-hidden">
+            <div class="px-4 py-2.5 border-b border-gray-100 text-[11px] font-semibold uppercase tracking-wider text-gray-400 bg-gray-50">SEO</div>
+            <div class="p-4 space-y-4">
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 mb-1">Title Separator</label>
+                    <input type="text" x-model="settings.seo_title_separator" maxlength="3" placeholder="|" class="w-20 px-3 py-2 text-sm border border-gray-300 rounded-lg text-center focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
+                    <p class="text-[11px] text-gray-400 mt-1">Between page title and site name (e.g. | — –).</p>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 mb-1">Default Meta Description</label>
+                    <textarea x-model="settings.seo_meta_description" rows="2" placeholder="A brief description of your site..." class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 resize-vertical"></textarea>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 mb-1">Default OG Image URL</label>
+                    <input type="url" x-model="settings.seo_og_image" placeholder="https://example.com/og.jpg" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
+                    <p class="text-[11px] text-gray-400 mt-1">Fallback Open Graph image for social sharing.</p>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 mb-1">Robots Directive</label>
+                    <select x-model="settings.seo_robots" class="w-56 px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
+                        <option value="index, follow">index, follow</option>
+                        <option value="noindex, follow">noindex, follow</option>
+                        <option value="index, nofollow">index, nofollow</option>
+                        <option value="noindex, nofollow">noindex, nofollow</option>
+                    </select>
+                    <p class="text-[11px] text-gray-400 mt-1">Global robots meta. Pages can override.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Media -->
+        <div class="bg-white rounded-lg border border-gray-200 overflow-hidden">
+            <div class="px-4 py-2.5 border-b border-gray-100 text-[11px] font-semibold uppercase tracking-wider text-gray-400 bg-gray-50">Media</div>
+            <div class="p-4 space-y-4">
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 mb-1">Max Upload Size (MB)</label>
+                    <input type="number" x-model="settings.max_upload_mb" min="1" max="64" placeholder="2" class="w-32 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
+                    <p class="text-[11px] text-gray-400 mt-1">Server PHP limit may also apply.</p>
+                </div>
+                <div class="flex items-center justify-between gap-4">
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500">Require Alt Text</label>
+                        <p class="text-[11px] text-gray-400 mt-0.5">Prompt editors to add alt text for accessibility.</p>
+                    </div>
+                    <select x-model="settings.media_alt_required" class="w-24 px-2 py-1.5 text-sm border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
+                        <option value="1">Yes</option>
+                        <option value="0">No</option>
+                    </select>
+                </div>
+                <div class="flex items-center justify-between gap-4">
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500">Usage Tracking</label>
+                        <p class="text-[11px] text-gray-400 mt-0.5">Track which content uses which media files.</p>
+                    </div>
+                    <select x-model="settings.media_usage_tracking" class="w-24 px-2 py-1.5 text-sm border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
+                        <option value="1">On</option>
+                        <option value="0">Off</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 mb-1">Extra Allowed Extensions</label>
+                    <input type="text" x-model="settings.media_extra_allowed_exts" placeholder="webp,avif,heic" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
+                    <p class="text-[11px] text-gray-400 mt-1">Comma-separated file extensions beyond the defaults (e.g. webp,avif).</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Page Builder -->
+        <div class="bg-white rounded-lg border border-gray-200 overflow-hidden">
+            <div class="px-4 py-2.5 border-b border-gray-100 text-[11px] font-semibold uppercase tracking-wider text-gray-400 bg-gray-50">Page Builder</div>
+            <div class="p-4 space-y-4">
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 mb-1">Enabled Content Types</label>
+                    <div class="flex flex-wrap gap-3 mt-1.5">
+                        <template x-for="ctype in ['page','post']" :key="ctype">
+                            <label class="inline-flex items-center gap-1.5 text-sm text-gray-600 cursor-pointer">
+                                <input type="checkbox" :value="ctype"
+                                    :checked="settings.builder_enabled_types.split(',').map(s=>s.trim()).includes(ctype)"
+                                    @change="
+                                        let arr = settings.builder_enabled_types.split(',').map(s=>s.trim()).filter(Boolean);
+                                        if ($event.target.checked) { if (!arr.includes(ctype)) arr.push(ctype); }
+                                        else { arr = arr.filter(x => x !== ctype); }
+                                        settings.builder_enabled_types = arr.join(',');
+                                    "
+                                    class="rounded border-gray-300 text-sky-600 focus:ring-sky-500/20">
+                                <span class="capitalize" x-text="ctype"></span>
+                            </label>
+                        </template>
+                    </div>
+                    <p class="text-[11px] text-gray-400 mt-1.5">Content types that can use the visual page builder.</p>
+                </div>
+                <div class="flex items-center justify-between gap-4">
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500">Enforce Builder Lock</label>
+                        <p class="text-[11px] text-gray-400 mt-0.5">Prevent editing builder content in the classic editor.</p>
+                    </div>
+                    <select x-model="settings.builder_enforce_lock" class="w-24 px-2 py-1.5 text-sm border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
+                        <option value="1">Yes</option>
+                        <option value="0">No</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <!-- Post Formats -->
+        <div class="bg-white rounded-lg border border-gray-200 overflow-hidden">
+            <div class="px-4 py-2.5 border-b border-gray-100 text-[11px] font-semibold uppercase tracking-wider text-gray-400 bg-gray-50">Post Formats</div>
+            <div class="p-4">
+                <p class="text-[11px] text-gray-400 mb-3">Enable the post formats available in the editor. Disable all to hide the format selector.</p>
+                <div class="grid grid-cols-2 gap-x-4 gap-y-2">
+                    <template x-for="fmt in postFormats" :key="fmt.key">
+                        <label class="inline-flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
+                            <input type="checkbox" :value="fmt.key"
+                                :checked="settings.enabled_post_formats.split(',').map(s=>s.trim()).includes(fmt.key)"
+                                @change="
+                                    let arr = settings.enabled_post_formats.split(',').map(s=>s.trim()).filter(Boolean);
+                                    if ($event.target.checked) { if (!arr.includes(fmt.key)) arr.push(fmt.key); }
+                                    else { arr = arr.filter(x => x !== fmt.key); }
+                                    settings.enabled_post_formats = arr.join(',');
+                                "
+                                class="rounded border-gray-300 text-sky-600 focus:ring-sky-500/20">
+                            <span x-text="fmt.label"></span>
+                        </label>
+                    </template>
+                </div>
+            </div>
+        </div>
+
+        <!-- Performance -->
+        <div class="bg-white rounded-lg border border-gray-200 overflow-hidden">
+            <div class="px-4 py-2.5 border-b border-gray-100 text-[11px] font-semibold uppercase tracking-wider text-gray-400 bg-gray-50">Performance</div>
+            <div class="p-4 space-y-4">
+                <div class="flex items-center justify-between gap-4">
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500">Page Cache</label>
+                        <p class="text-[11px] text-gray-400 mt-0.5">Cache rendered pages for faster load times.</p>
+                    </div>
+                    <select x-model="settings.cache_enabled" class="w-24 px-2 py-1.5 text-sm border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
+                        <option value="1">On</option>
+                        <option value="0">Off</option>
+                    </select>
+                </div>
+                <div x-show="settings.cache_enabled === '1' || settings.cache_enabled === 1" x-transition>
+                    <label class="block text-xs font-medium text-gray-500 mb-1">Cache TTL (seconds)</label>
+                    <input type="number" x-model="settings.cache_ttl" min="0" max="86400" placeholder="600" class="w-32 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
+                    <p class="text-[11px] text-gray-400 mt-1">How long pages stay cached (0 = forever, max 86400).</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Social Links -->
+        <div class="bg-white rounded-lg border border-gray-200 overflow-hidden">
+            <div class="px-4 py-2.5 border-b border-gray-100 text-[11px] font-semibold uppercase tracking-wider text-gray-400 bg-gray-50">Social Links</div>
+            <div class="p-4 space-y-3">
+                <template x-for="s in socialFields" :key="s.key">
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 mb-1" x-text="s.label"></label>
+                        <input type="url" x-model="settings[s.key]" :placeholder="s.placeholder" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
+                    </div>
+                </template>
+            </div>
+        </div>
+
+        <!-- Theme (full-span) -->
+        <div class="bg-white rounded-lg border border-gray-200 overflow-hidden lg:col-span-2">
+            <div class="px-4 py-2.5 border-b border-gray-100 text-[11px] font-semibold uppercase tracking-wider text-gray-400 bg-gray-50">Theme</div>
+            <div class="p-4 space-y-4">
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 mb-1">Active Theme</label>
+                    <select x-model="settings.active_theme" class="w-64 px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
+                        <option value="default">Default (built-in)</option>
+                        {if available_themes}
+                        {foreach available_themes as th}
+                        <option value="{th.slug}">{th.name} v{th.version}</option>
+                        {/foreach}
+                        {/if}
+                    </select>
+                    <p class="text-[11px] text-gray-400 mt-1">Themes override public page templates. Admin pages are never themed.</p>
+                    <button type="button" @click="showPreview = !showPreview" class="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-violet-600 bg-violet-50 border border-violet-200 rounded-lg hover:bg-violet-100 transition-colors">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                        <span x-text="showPreview ? 'Hide Preview' : 'Live Preview'"></span>
+                    </button>
+                </div>
+                <div x-show="showPreview" x-transition class="border border-gray-200 rounded-lg overflow-hidden bg-gray-50">
+                    <div class="flex items-center justify-between px-3 py-2 bg-gray-100 border-b border-gray-200">
+                        <span class="text-[11px] text-gray-500 font-medium">Theme Preview (current saved theme)</span>
+                        <div class="inline-flex items-center gap-1">
+                            <button @click="previewWidth = '100%'" class="px-1.5 py-0.5 text-[10px] rounded" :class="previewWidth === '100%' ? 'bg-white shadow-sm text-gray-700' : 'text-gray-400'">Desktop</button>
+                            <button @click="previewWidth = '768px'" class="px-1.5 py-0.5 text-[10px] rounded" :class="previewWidth === '768px' ? 'bg-white shadow-sm text-gray-700' : 'text-gray-400'">Tablet</button>
+                            <button @click="previewWidth = '375px'" class="px-1.5 py-0.5 text-[10px] rounded" :class="previewWidth === '375px' ? 'bg-white shadow-sm text-gray-700' : 'text-gray-400'">Mobile</button>
+                        </div>
+                    </div>
+                    <div class="flex justify-center p-2 bg-gray-50">
+                        <iframe :src="CMS_BASE + '/cms'" class="bg-white border border-gray-200 rounded transition-all duration-300" :style="'width:' + previewWidth + ';height:400px'" sandbox="allow-same-origin"></iframe>
+                    </div>
+                </div>
+                {if available_themes && available_themes | count > 0}
+                <div class="space-y-2">
+                    <p class="text-xs font-medium text-gray-500">Installed Themes</p>
+                    {foreach available_themes as th}
+                    <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-100">
+                        <div>
+                            <span class="text-sm font-medium text-gray-700">{th.name}</span>
+                            <span class="text-xs text-gray-400 ml-1">v{th.version}</span>
+                            {if th.author}<span class="text-xs text-gray-400 ml-2">by {th.author}</span>{/if}
+                            {if th.description}<p class="text-xs text-gray-400 mt-0.5">{th.description}</p>{/if}
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span class="text-xs text-gray-400">{th.override_count} override(s)</span>
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium {if active_theme == th.slug}bg-green-100 text-green-700{else}bg-gray-100 text-gray-500{/if}">
+                                {if active_theme == th.slug}Active{else}Inactive{/if}
+                            </span>
+                        </div>
+                    </div>
+                    {/foreach}
+                </div>
+                {else}
+                <p class="text-xs text-gray-400">No themes installed. Add themes to <code class="bg-gray-100 px-1.5 py-0.5 rounded text-[11px]">storage/cms-themes/</code></p>
+                {/if}
+            </div>
+        </div>
+
+        <!-- Password Reset Email Test (full-span) -->
+        <div class="bg-white rounded-lg border border-gray-200 overflow-hidden lg:col-span-2">
+            <div class="px-4 py-2.5 border-b border-gray-100 text-[11px] font-semibold uppercase tracking-wider text-gray-400 bg-gray-50">Email Diagnostics</div>
+            <div class="p-4">
+                <div class="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                        <h3 class="text-sm font-semibold text-gray-700">Password Reset Email Test</h3>
+                        <p class="mt-1 text-xs text-gray-500">Sends a test reset email to your current CMS admin account email.</p>
+                    </div>
+                    <button type="button" @click="sendResetEmailTest()" :disabled="testingResetEmail" class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-cms-600 rounded-lg hover:bg-cms-700 disabled:opacity-50 transition-colors">
+                        <template x-if="testingResetEmail">
+                            <svg class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
+                        </template>
+                        <span x-text="testingResetEmail ? 'Sending…' : 'Send Test Reset Email'"></span>
+                    </button>
+                </div>
+                <div x-show="resetEmailMsg" x-cloak class="mt-3 text-sm rounded-lg px-4 py-2" :class="resetEmailOk ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'" x-text="resetEmailMsg"></div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Sticky Save Bar -->
+    <div class="sticky bottom-0 mt-6 bg-white border border-gray-200 rounded-lg px-5 py-3 flex items-center justify-between shadow-sm z-50">
+        <span class="text-xs text-gray-400" x-text="statusMsg"></span>
+        <button class="px-5 py-2 bg-sky-600 text-white text-sm font-medium rounded-lg hover:bg-sky-700 disabled:opacity-50 transition-colors" @click="save()" :disabled="saving" x-text="saving ? 'Saving...' : 'Save Settings'"></button>
+    </div>
+</div>
+{/block}
+
+{block scripts}
+<script>
+function cmsSettings() {
+    return {
+        saving: false,
+        testingResetEmail: false,
+        resetEmailMsg: '',
+        resetEmailOk: false,
+        showPreview: false,
+        previewWidth: '100%',
+        statusMsg: 'Make changes and click Save',
+        socialFields: [
+            { key: 'social_facebook',  label: 'Facebook',  placeholder: 'https://facebook.com/...' },
+            { key: 'social_twitter',   label: 'Twitter / X', placeholder: 'https://x.com/...' },
+            { key: 'social_instagram', label: 'Instagram', placeholder: 'https://instagram.com/...' },
+            { key: 'social_youtube',   label: 'YouTube',   placeholder: 'https://youtube.com/...' },
+            { key: 'social_linkedin',  label: 'LinkedIn',  placeholder: 'https://linkedin.com/in/...' },
+        ],
+        postFormats: [
+            { key: 'standard', label: 'Standard' },
+            { key: 'aside',    label: 'Aside' },
+            { key: 'gallery',  label: 'Gallery' },
+            { key: 'link',     label: 'Link' },
+            { key: 'image',    label: 'Image' },
+            { key: 'quote',    label: 'Quote' },
+            { key: 'video',    label: 'Video' },
+            { key: 'audio',    label: 'Audio' },
+        ],
+        settings: {
+            site_title: '{cms_settings.site_title | raw}',
+            site_tagline: '{cms_settings.site_tagline | raw}',
+            posts_per_page: '{cms_settings.posts_per_page | raw}',
+            default_post_status: '{cms_settings.default_post_status | raw}',
+            comments_enabled: '{cms_settings.comments_enabled | raw}',
+            default_comment_status: '{cms_settings.default_comment_status | raw}',
+            excerpt_length: '{cms_settings.excerpt_length | raw}',
+            max_upload_mb: '{cms_settings.max_upload_mb | raw}',
+            media_alt_required: '{cms_settings.media_alt_required | raw}',
+            media_extra_allowed_exts: '{cms_settings.media_extra_allowed_exts | raw}',
+            media_usage_tracking: '{cms_settings.media_usage_tracking | raw}',
+            seo_title_separator: '{cms_settings.seo_title_separator | raw}',
+            seo_meta_description: '{cms_settings.seo_meta_description | raw}',
+            seo_og_image: '{cms_settings.seo_og_image | raw}',
+            seo_robots: '{cms_settings.seo_robots | raw}',
+            homepage_type: '{cms_settings.homepage_type | raw}',
+            homepage_page_id: '{cms_settings.homepage_page_id | raw}',
+            date_format: '{cms_settings.date_format | raw}',
+            time_format: '{cms_settings.time_format | raw}',
+            reading_time_enabled: '{cms_settings.reading_time_enabled | raw}',
+            reading_time_wpm: '{cms_settings.reading_time_wpm | raw}',
+            cache_enabled: '{cms_settings.cache_enabled | raw}',
+            cache_ttl: '{cms_settings.cache_ttl | raw}',
+            builder_enabled_types: '{cms_settings.builder_enabled_types | raw}',
+            builder_enforce_lock: '{cms_settings.builder_enforce_lock | raw}',
+            enabled_post_formats: '{cms_settings.enabled_post_formats | raw}',
+            social_facebook: '{cms_settings.social_facebook | raw}',
+            social_twitter: '{cms_settings.social_twitter | raw}',
+            social_instagram: '{cms_settings.social_instagram | raw}',
+            social_youtube: '{cms_settings.social_youtube | raw}',
+            social_linkedin: '{cms_settings.social_linkedin | raw}',
+            active_theme: '{active_theme | raw}',
+        },
+        async save() {
+            this.saving = true;
+            this.statusMsg = 'Saving...';
+            try {
+                const res = await fetch(CMS_BASE + '/api/v1/cms/settings', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CMS_CSRF },
+                    body: JSON.stringify({ settings: this.settings }),
+                });
+                const data = await res.json();
+                if (data.ok) {
+                    this.statusMsg = 'Settings saved';
+                    toast('Settings saved');
+                } else {
+                    this.statusMsg = data.error || 'Save failed';
+                    toast(data.error || 'Save failed', 'error');
+                }
+            } catch(e) {
+                this.statusMsg = 'Network error';
+                toast('Network error', 'error');
+            }
+            this.saving = false;
+        },
+        async resetDefaults() {
+            if (!confirm('Reset all CMS settings to defaults? This cannot be undone.')) return;
+            this.statusMsg = 'Resetting...';
+            try {
+                const res = await fetch(CMS_BASE + '/api/v1/cms/settings/reset', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CMS_CSRF },
+                    body: '{}',
+                });
+                const data = await res.json();
+                if (data.ok) {
+                    toast('Reset to defaults! Reloading...');
+                    setTimeout(() => window.location.reload(), 600);
+                } else {
+                    this.statusMsg = data.error || 'Reset failed';
+                    toast(data.error || 'Reset failed', 'error');
+                }
+            } catch(e) {
+                this.statusMsg = 'Network error';
+                toast('Network error', 'error');
+            }
+        },
+        async sendResetEmailTest() {
+            this.testingResetEmail = true;
+            this.resetEmailMsg = '';
+            this.resetEmailOk = false;
+            try {
+                const res = await fetch(CMS_BASE + '/api/v1/cms/auth/test-reset-email', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CMS_CSRF },
+                    body: '{}',
+                });
+                const data = await res.json();
+                this.resetEmailOk = !!data.ok;
+                this.resetEmailMsg = data.message || data.error || 'Request completed.';
+                if (data.ok) {
+                    toast(this.resetEmailMsg);
+                } else {
+                    toast(this.resetEmailMsg, 'error');
+                }
+            } catch(e) {
+                this.resetEmailOk = false;
+                this.resetEmailMsg = 'Network error';
+                toast('Network error', 'error');
+            }
+            this.testingResetEmail = false;
+        }
+    };
+}
+</script>
+{/block}

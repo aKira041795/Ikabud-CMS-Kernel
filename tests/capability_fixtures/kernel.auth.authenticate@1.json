@@ -1,0 +1,71 @@
+{
+  "capability_id": "kernel.auth.authenticate@1",
+  "mode": "pipeline",
+  "cases": [
+    {
+      "name": "kernel-admin-no-seed",
+      "options": {
+        "provider": "kernel"
+      },
+      "payload": {
+        "username": "admin",
+        "password": "admin123"
+      },
+      "expect": {
+        "result": {
+          "is_null": true
+        }
+      }
+    },
+    {
+      "name": "kernel-admin-invalid",
+      "options": {
+        "provider": "kernel"
+      },
+      "payload": {
+        "username": "admin",
+        "password": "__wrong__"
+      },
+      "expect": {
+        "result": {
+          "is_null": true
+        }
+      }
+    },
+    {
+      "name": "daily-ledger-cashier-valid",
+      "options": {
+        "provider": "daily-ledger",
+        "with_modules": true
+      },
+      "payload": {
+        "username": "@daily-ledger:cashier1",
+        "password": "cashier123"
+      },
+      "expect": {
+        "result": {
+          "has_keys": ["user", "source"],
+          "equals": {
+            "source": "daily-ledger"
+          }
+        }
+      }
+    },
+    {
+      "name": "guidance-admin-valid-seeded",
+      "options": {
+        "provider": "guidance",
+        "with_modules": true
+      },
+      "payload": {
+        "username": "@guidance:admin@guidance.local",
+        "password": "admin123"
+      },
+      "expect": {
+        "result": {
+          "is_null": true
+        }
+      }
+    }
+  ]
+}

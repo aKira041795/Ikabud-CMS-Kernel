@@ -1,0 +1,125 @@
+{!-- Cases Table Partial - Returned by HTMX --}
+
+{!-- Summary Stat Pills --}
+<div class="flex flex-wrap gap-3 mb-5">
+    <div class="flex items-center gap-2 px-3 py-2 bg-blue-50 rounded-lg border border-blue-100">
+        <i class="fas fa-folder-open text-blue-500 text-sm"></i>
+        <span class="text-sm font-semibold text-blue-700">{stats.open_count | default:'0'}</span>
+        <span class="text-xs text-blue-600">Open</span>
+    </div>
+    <div class="flex items-center gap-2 px-3 py-2 bg-indigo-50 rounded-lg border border-indigo-100">
+        <i class="fas fa-spinner text-indigo-500 text-sm"></i>
+        <span class="text-sm font-semibold text-indigo-700">{stats.in_progress_count | default:'0'}</span>
+        <span class="text-xs text-indigo-600">In Progress</span>
+    </div>
+    <div class="flex items-center gap-2 px-3 py-2 bg-amber-50 rounded-lg border border-amber-100">
+        <i class="fas fa-pause-circle text-amber-500 text-sm"></i>
+        <span class="text-sm font-semibold text-amber-700">{stats.on_hold_count | default:'0'}</span>
+        <span class="text-xs text-amber-600">On Hold</span>
+    </div>
+    <div class="flex items-center gap-2 px-3 py-2 bg-green-50 rounded-lg border border-green-100">
+        <i class="fas fa-check-circle text-green-500 text-sm"></i>
+        <span class="text-sm font-semibold text-green-700">{stats.closed_count | default:'0'}</span>
+        <span class="text-xs text-green-600">Closed</span>
+    </div>
+    {if stats.urgent_count > 0}
+    <div class="flex items-center gap-2 px-3 py-2 bg-red-50 rounded-lg border border-red-100">
+        <i class="fas fa-exclamation-triangle text-red-500 text-sm"></i>
+        <span class="text-sm font-semibold text-red-700">{stats.urgent_count}</span>
+        <span class="text-xs text-red-600">Urgent</span>
+    </div>
+    {/if}
+    {if stats.high_severity_count > 0}
+    <div class="flex items-center gap-2 px-3 py-2 bg-orange-50 rounded-lg border border-orange-100">
+        <i class="fas fa-arrow-up text-orange-500 text-sm"></i>
+        <span class="text-sm font-semibold text-orange-700">{stats.high_severity_count}</span>
+        <span class="text-xs text-orange-600">High/Critical</span>
+    </div>
+    {/if}
+    <div class="flex items-center gap-2 px-3 py-2 bg-gray-50 rounded-lg border border-gray-200 ml-auto">
+        <span class="text-xs text-gray-500">Total <strong class="text-gray-700">{stats.total_cases | default:'0'}</strong> cases</span>
+    </div>
+</div>
+
+{if cases | count > 0}
+<div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+<table class="min-w-full divide-y divide-gray-200">
+    <thead class="bg-gray-50">
+        <tr>
+            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Student</th>
+            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Case #</th>
+            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Severity</th>
+            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
+            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">College</th>
+            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Counselor</th>
+            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Updated</th>
+            <th scope="col" class="relative px-6 py-3"><span class="sr-only">Actions</span></th>
+        </tr>
+    </thead>
+    <tbody class="bg-white divide-y divide-gray-200">
+        {for case in cases}
+        {include "modules/guidance/partials/case-row.disyl" with {case: case}}
+        {/for}
+    </tbody>
+</table>
+
+{if pagination}
+<div class="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6">
+    <div class="flex-1 flex justify-between sm:hidden">
+        {if pagination.has_prev}
+        <a href="#" hx-get="/admin/guidance/api/cases?page={pagination.prev_page}" hx-target="#cases-list"
+           class="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">Previous</a>
+        {/if}
+        {if pagination.has_next}
+        <a href="#" hx-get="/admin/guidance/api/cases?page={pagination.next_page}" hx-target="#cases-list"
+           class="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">Next</a>
+        {/if}
+    </div>
+
+    <div class="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
+        <div>
+            <p class="text-sm text-gray-700">
+                Showing <span class="font-medium">{pagination.from}</span> to <span class="font-medium">{pagination.to}</span> of
+                <span class="font-medium">{pagination.total}</span> results
+            </p>
+        </div>
+        <div>
+            <nav class="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
+                {if pagination.has_prev}
+                <a href="#" hx-get="/admin/guidance/api/cases?page={pagination.prev_page}" hx-target="#cases-list"
+                   class="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
+                    <i class="fas fa-chevron-left"></i>
+                </a>
+                {/if}
+
+                <span class="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-700">
+                    Page {pagination.current_page} of {pagination.total_pages}
+                </span>
+
+                {if pagination.has_next}
+                <a href="#" hx-get="/admin/guidance/api/cases?page={pagination.next_page}" hx-target="#cases-list"
+                   class="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
+                    <i class="fas fa-chevron-right"></i>
+                </a>
+                {/if}
+            </nav>
+        </div>
+    </div>
+</div>
+{/if}
+</div>
+
+{else}
+<div class="bg-white rounded-xl shadow-sm border border-gray-100 p-12 text-center">
+    <div class="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+        <i class="fas fa-folder-open text-gray-400 text-2xl"></i>
+    </div>
+    <h3 class="text-lg font-medium text-gray-900 mb-2">No cases found</h3>
+    <p class="text-gray-500 mb-4">Try adjusting your filters or create a new case.</p>
+    <button hx-get="/admin/guidance/pages/cases/new" hx-target="#modal-container" hx-swap="innerHTML"
+            class="inline-flex items-center px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition">
+        <i class="fas fa-plus mr-2"></i> Create Case
+    </button>
+</div>
+{/if}

@@ -1,0 +1,70 @@
+{!-- Dashboard Stats Cards - Returned by HTMX polling --}
+
+{!-- Row 1: Primary KPI Cards --}
+<div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+    {!-- Active Cases --}
+    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5 relative overflow-hidden">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-3xl font-bold text-gray-900">{stats.active_cases | default:'0'}</p>
+                <p class="text-sm text-gray-500 mt-1">Active Cases</p>
+            </div>
+            <div class="w-12 h-12 bg-indigo-50 rounded-xl flex items-center justify-center">
+                <i class="fas fa-folder-open text-indigo-600 text-lg"></i>
+            </div>
+        </div>
+        <div class="absolute bottom-0 left-0 right-0 h-1 bg-indigo-500"></div>
+    </div>
+    
+    {!-- Critical Cases --}
+    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5 relative overflow-hidden">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-3xl font-bold {if stats.critical_cases > 0}text-red-600{else}text-gray-900{/if}">{stats.critical_cases | default:'0'}</p>
+                <p class="text-sm text-gray-500 mt-1">Critical</p>
+            </div>
+            <div class="w-12 h-12 bg-red-50 rounded-xl flex items-center justify-center">
+                <i class="fas fa-exclamation-triangle text-red-500 text-lg"></i>
+            </div>
+        </div>
+        {if stats.critical_cases > 0}
+        <a href="{base_url}/cases?severity=critical" class="block mt-2 text-xs text-red-600 hover:underline font-medium">
+            <i class="fas fa-arrow-right mr-1"></i> View critical
+        </a>
+        {/if}
+        <div class="absolute bottom-0 left-0 right-0 h-1 bg-red-500"></div>
+    </div>
+    
+    {!-- Today's Appointments --}
+    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5 relative overflow-hidden">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-3xl font-bold text-gray-900">{stats.today_appointments | default:'0'}</p>
+                <p class="text-sm text-gray-500 mt-1">Today's Appointments</p>
+            </div>
+            <div class="w-12 h-12 bg-green-50 rounded-xl flex items-center justify-center">
+                <i class="fas fa-calendar-check text-green-600 text-lg"></i>
+            </div>
+        </div>
+        <div class="absolute bottom-0 left-0 right-0 h-1 bg-green-500"></div>
+    </div>
+    
+    {!-- Pending Approvals --}
+    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5 relative overflow-hidden">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-3xl font-bold {if stats.pending_approvals > 0}text-amber-600{else}text-gray-900{/if}">{stats.pending_approvals | default:'0'}</p>
+                <p class="text-sm text-gray-500 mt-1">Pending Approvals</p>
+            </div>
+            <div class="w-12 h-12 bg-amber-50 rounded-xl flex items-center justify-center">
+                <i class="fas fa-hourglass-half text-amber-500 text-lg"></i>
+            </div>
+        </div>
+        {if stats.pending_approvals > 0}
+        <a href="{base_url}/appointments?status=pending" class="block mt-2 text-xs text-amber-600 hover:underline font-medium">
+            <i class="fas fa-arrow-right mr-1"></i> Review now
+        </a>
+        {/if}
+        <div class="absolute bottom-0 left-0 right-0 h-1 bg-amber-500"></div>
+    </div>
+</div>

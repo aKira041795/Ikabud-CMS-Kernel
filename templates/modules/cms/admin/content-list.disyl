@@ -1,0 +1,290 @@
+{extends "modules/cms/layouts/admin.disyl"}
+
+{block content}
+<div class="flex items-start justify-between mb-6">
+    <div>
+        <h1 class="text-xl font-bold text-gray-900">{if content_type == 'post'}Posts{else}Pages{/if}</h1>
+        <p class="text-sm text-gray-400 mt-0.5">{total} item{if total != 1}s{/if}</p>
+    </div>
+    <div class="flex items-center gap-2">
+        {if content_type == 'page'}
+        <a href="{base_url}/cms/admin/react-builder/create" class="inline-flex items-center gap-2 px-4 py-2 bg-violet-600 text-white text-sm font-semibold rounded-lg hover:bg-violet-700 transition-colors shadow-sm">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5h16M4 12h16M4 19h16"/></svg>
+            New page builder
+        </a>
+        {/if}
+        <a href="{base_url}/cms/admin/content/create?type={content_type}" class="inline-flex items-center gap-2 px-4 py-2 bg-sky-600 text-white text-sm font-semibold rounded-lg hover:bg-sky-700 transition-colors shadow-sm">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/></svg>
+            New {content_type}
+        </a>
+    </div>
+</div>
+
+<!-- Toolbar card -->
+<div class="bg-white rounded-xl border border-gray-200 shadow-sm mb-5 overflow-hidden">
+    <!-- Type + status tabs -->
+    <div class="flex items-center border-b border-gray-100 px-4 gap-1">
+        <a href="{base_url}/cms/admin/content?type=post" class="relative px-3 py-3 text-sm font-medium transition-colors {if content_type == 'post'}text-sky-600 after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-sky-600{else}text-gray-500 hover:text-gray-800{/if}">Posts</a>
+        <a href="{base_url}/cms/admin/content?type=page" class="relative px-3 py-3 text-sm font-medium transition-colors {if content_type == 'page'}text-sky-600 after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-sky-600{else}text-gray-500 hover:text-gray-800{/if}">Pages</a>
+        <div class="flex-1"></div>
+        <a href="{base_url}/cms/admin/content?type={content_type}" class="px-2.5 py-1 text-xs font-medium rounded-md transition-colors {if status_filter == ''}bg-gray-100 text-gray-800{else}text-gray-400 hover:text-gray-700 hover:bg-gray-50{/if}">All</a>
+        <a href="{base_url}/cms/admin/content?type={content_type}&status=published" class="px-2.5 py-1 text-xs font-medium rounded-md transition-colors {if status_filter == 'published'}bg-emerald-50 text-emerald-700{else}text-gray-400 hover:text-gray-700 hover:bg-gray-50{/if}">Published</a>
+        <a href="{base_url}/cms/admin/content?type={content_type}&status=draft" class="px-2.5 py-1 text-xs font-medium rounded-md transition-colors {if status_filter == 'draft'}bg-amber-50 text-amber-700{else}text-gray-400 hover:text-gray-700 hover:bg-gray-50{/if}">Draft</a>
+        <a href="{base_url}/cms/admin/content?type={content_type}&status=private" class="px-2.5 py-1 text-xs font-medium rounded-md transition-colors {if status_filter == 'private'}bg-indigo-50 text-indigo-700{else}text-gray-400 hover:text-gray-700 hover:bg-gray-50{/if}">Private</a>
+        <a href="{base_url}/cms/admin/content?type={content_type}&status=trash" class="px-2.5 py-1 text-xs font-medium rounded-md transition-colors {if status_filter == 'trash'}bg-red-50 text-red-600{else}text-gray-400 hover:text-gray-700 hover:bg-gray-50{/if}">Trash</a>
+    </div>
+    <!-- Search -->
+    <form class="flex items-center gap-2 px-4 py-3" method="get" action="{base_url}/cms/admin/content">
+        <input type="hidden" name="type" value="{content_type}">
+        {if status_filter}<input type="hidden" name="status" value="{status_filter}">{/if}
+        <div class="relative flex-1">
+            <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+            </div>
+            <input type="search" name="q" placeholder="Search by title…" value="{search}" class="w-full pl-9 pr-4 py-2 text-sm bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 focus:bg-white transition-colors">
+        </div>
+        <button type="submit" class="px-4 py-2 bg-gray-100 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-200 transition-colors">Search</button>
+    </form>
+</div>
+
+{if !rows}
+<div class="bg-white rounded-xl border border-gray-200 shadow-sm">
+    <div class="py-20 text-center">
+        <div class="inline-flex items-center justify-center w-12 h-12 rounded-full bg-gray-100 mb-4">
+            <svg class="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+        </div>
+        {if search || status_filter}
+        <h3 class="text-sm font-semibold text-gray-700 mb-1">No results found</h3>
+        <p class="text-sm text-gray-400 mb-4">Try adjusting your search or filter.</p>
+        <a href="{base_url}/cms/admin/content?type={content_type}" class="text-sm font-medium text-sky-600 hover:underline">Clear filters</a>
+        {else}
+        <h3 class="text-sm font-semibold text-gray-700 mb-1">No {content_type}s yet</h3>
+        <p class="text-sm text-gray-400 mb-5">Get started by creating your first {content_type}.</p>
+        <a href="{base_url}/cms/admin/content/create?type={content_type}" class="inline-flex items-center gap-2 px-4 py-2 bg-sky-600 text-white text-sm font-semibold rounded-lg hover:bg-sky-700 transition-colors shadow-sm">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/></svg>
+            Create first {content_type}
+        </a>
+        {/if}
+    </div>
+</div>
+{else}
+<div x-data="cmsBulkActions()" class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+    <!-- Bulk action bar -->
+    <div x-show="selected.length > 0" x-transition class="flex items-center gap-3 px-5 py-2.5 bg-sky-50 border-b border-sky-100">
+        <span class="text-xs font-semibold text-sky-700" x-text="selected.length + ' selected'"></span>
+        <div class="flex items-center gap-1.5 ml-auto">
+            <button @click="bulkAction('publish')" class="px-2.5 py-1 text-xs font-medium bg-emerald-100 text-emerald-700 rounded-md hover:bg-emerald-200 transition-colors" :disabled="bulkLoading">Publish</button>
+            <button @click="bulkAction('draft')" class="px-2.5 py-1 text-xs font-medium bg-amber-100 text-amber-700 rounded-md hover:bg-amber-200 transition-colors" :disabled="bulkLoading">Set Draft</button>
+            <button @click="bulkAction('trash')" class="px-2.5 py-1 text-xs font-medium bg-red-100 text-red-600 rounded-md hover:bg-red-200 transition-colors" :disabled="bulkLoading">Trash</button>
+            <button @click="selected = []" class="px-2.5 py-1 text-xs font-medium text-gray-500 bg-white border border-gray-200 rounded-md hover:bg-gray-50 transition-colors">Clear</button>
+        </div>
+    </div>
+    <table class="w-full">
+        <thead>
+            <tr class="bg-gray-50/80 border-b border-gray-200">
+                <th class="w-10 px-3 py-3"><input type="checkbox" class="rounded border-gray-300 text-sky-600 focus:ring-sky-500/20" @change="toggleAll($event)" :checked="selected.length === allIds.length && allIds.length > 0"></th>
+                <th class="text-left px-5 py-3 text-[11px] font-semibold uppercase tracking-wider text-gray-400">Title</th>
+                <th class="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-gray-400 hidden lg:table-cell">Author</th>
+                <th class="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-gray-400">Status</th>
+                <th class="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-gray-400 hidden md:table-cell">Date</th>
+                <th class="px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-gray-400 text-right">Actions</th>
+            </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-100">
+            {foreach rows as row}
+            <tr class="group hover:bg-sky-50/30 transition-colors" :class="selected.includes({row.id}) ? 'bg-sky-50/50' : ''">
+                <td class="px-3 py-3.5"><input type="checkbox" class="rounded border-gray-300 text-sky-600 focus:ring-sky-500/20" value="{row.id}" @change="toggleOne({row.id})" :checked="selected.includes({row.id})"></td>
+                <td class="px-5 py-3.5">
+                    <div class="flex items-start gap-3">
+                        <div class="flex-shrink-0 mt-1.5">
+                            {if row.status == 'published'}<span class="block w-2 h-2 rounded-full bg-emerald-500" title="Published"></span>
+                            {else}{if row.status == 'draft'}<span class="block w-2 h-2 rounded-full bg-amber-400" title="Draft"></span>
+                            {else}{if row.status == 'private'}<span class="block w-2 h-2 rounded-full bg-indigo-400" title="Private"></span>
+                            {else}<span class="block w-2 h-2 rounded-full bg-red-400" title="{row.status}"></span>
+                            {/if}{/if}{/if}
+                        </div>
+                        <div class="min-w-0">
+                            <a href="{base_url}/cms/admin/content/edit/{row.id}" class="text-sm font-semibold text-gray-900 hover:text-sky-600 transition-colors">{row.title}</a>
+                            <div class="text-[11px] text-gray-400 font-mono mt-0.5">{if content_type == 'post'}/blog/{else}/page/{/if}{row.slug}</div>
+                        </div>
+                    </div>
+                </td>
+                <td class="px-4 py-3.5 hidden lg:table-cell">
+                    <span class="text-xs text-gray-600">{row.author_name}</span>
+                </td>
+                <td class="px-4 py-3.5">
+                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold
+                        {if row.status == 'published'}bg-emerald-50 text-emerald-700
+                        {else}{if row.status == 'draft'}bg-amber-50 text-amber-700
+                        {else}{if row.status == 'private'}bg-indigo-50 text-indigo-700
+                        {else}bg-red-50 text-red-600{/if}{/if}{/if}">{row.status}</span>
+                </td>
+                <td class="px-4 py-3.5 text-xs text-gray-400 hidden md:table-cell whitespace-nowrap">
+                    {if row.published_at}{row.published_at}{else}{row.updated_at}{/if}
+                </td>
+                <td class="px-4 py-3.5 text-right">
+                    <div class="flex items-center justify-end gap-2">
+                        {if content_type == 'page'}
+                        <a href="{base_url}/cms/admin/react-builder/{row.id}" class="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-violet-600 bg-violet-50 rounded-md hover:bg-violet-100 transition-colors">
+                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5h16M4 12h16M4 19h16"/></svg>
+                            Builder
+                        </a>
+                        {/if}
+                        <button type="button" @click="openPreview({row.id})" class="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-violet-600 bg-violet-50 rounded-md hover:bg-violet-100 transition-colors">
+                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                            Preview
+                        </button>
+                        <a href="{base_url}/cms/admin/content/edit/{row.id}" class="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-sky-600 bg-sky-50 rounded-md hover:bg-sky-100 transition-colors">
+                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                            Edit
+                        </a>
+                        {if row.status == 'published'}
+                        <a href="{base_url}{if content_type == 'post'}/cms/blog/{else}/cms/page/{/if}{row.slug}" target="_blank" class="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-gray-500 bg-gray-50 rounded-md hover:bg-gray-100 transition-colors">
+                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+                            View
+                        </a>
+                        {/if}
+                    </div>
+                </td>
+            </tr>
+            {/foreach}
+        </tbody>
+    </table>
+
+    {if total_pages > 1}
+    <div class="flex items-center justify-between mt-4">
+        <p class="text-xs text-gray-400">Page {page_num} of {total_pages}</p>
+        <div class="flex items-center gap-1">
+            {if page_num > 1}
+            <a href="{base_url}/cms/admin/content?type={content_type}&page=1&q={search}&status={status_filter}" class="px-3 py-1.5 text-sm border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-gray-600">«</a>
+            <a href="{base_url}/cms/admin/content?type={content_type}&page={prev_page}&q={search}&status={status_filter}" class="px-3 py-1.5 text-sm border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-gray-600">‹</a>
+            {/if}
+            <span class="px-3 py-1.5 text-sm bg-sky-600 text-white rounded-lg font-medium">{page_num}</span>
+            {if page_num < total_pages}
+            <a href="{base_url}/cms/admin/content?type={content_type}&page={next_page}&q={search}&status={status_filter}" class="px-3 py-1.5 text-sm border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-gray-600">›</a>
+            <a href="{base_url}/cms/admin/content?type={content_type}&page={total_pages}&q={search}&status={status_filter}" class="px-3 py-1.5 text-sm border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-gray-600">»</a>
+            {/if}
+        </div>
+    </div>
+    {/if}
+
+<!-- Inline Preview Panel -->
+<div x-show="previewOpen" x-cloak class="fixed inset-0 z-50" @keydown.escape.window="previewOpen && (previewOpen = false)">
+    <div class="fixed inset-0 bg-black/30 backdrop-blur-sm" @click="previewOpen = false" x-transition.opacity></div>
+    <div class="fixed inset-y-0 right-0 w-full max-w-lg bg-white shadow-2xl border-l border-gray-200 flex flex-col" x-transition:enter="transition ease-out duration-200" x-transition:enter-start="translate-x-full" x-transition:enter-end="translate-x-0" x-transition:leave="transition ease-in duration-150" x-transition:leave-start="translate-x-0" x-transition:leave-end="translate-x-full">
+        <div class="flex items-center justify-between px-5 py-3 border-b border-gray-200 shrink-0">
+            <h3 class="text-sm font-semibold text-gray-800">Content Preview</h3>
+            <div class="flex items-center gap-2">
+                <a x-show="previewData.id" :href="CMS_BASE + '/cms/admin/content/edit/' + previewData.id" class="text-xs text-sky-600 hover:underline">Edit</a>
+                <button @click="previewOpen = false" class="text-gray-400 hover:text-gray-600">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            </div>
+        </div>
+        <div class="flex-1 overflow-y-auto">
+            <div x-show="previewLoading" class="p-8 text-center text-sm text-gray-400">Loading preview…</div>
+            <div x-show="!previewLoading && previewData.title" class="p-5 space-y-4">
+                <div>
+                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold mb-2" :class="{
+                        'bg-emerald-50 text-emerald-700': previewData.status === 'published',
+                        'bg-amber-50 text-amber-700': previewData.status === 'draft',
+                        'bg-indigo-50 text-indigo-700': previewData.status === 'private',
+                        'bg-red-50 text-red-600': previewData.status === 'trash'
+                    }" x-text="previewData.status"></span>
+                    <h2 class="text-lg font-bold text-gray-900" x-text="previewData.title"></h2>
+                    <p class="text-xs text-gray-400 font-mono mt-1" x-text="'/' + previewData.type + '/' + previewData.slug"></p>
+                </div>
+                <div x-show="previewData.excerpt" class="bg-gray-50 rounded-lg p-3">
+                    <p class="text-[11px] font-semibold text-gray-400 uppercase mb-1">Excerpt</p>
+                    <p class="text-sm text-gray-600 leading-relaxed" x-text="previewData.excerpt"></p>
+                </div>
+                <div>
+                    <p class="text-[11px] font-semibold text-gray-400 uppercase mb-2">Body</p>
+                    <div class="prose prose-sm max-w-none text-gray-700" x-html="previewData.rendered_html || previewData.body"></div>
+                </div>
+                <div class="border-t border-gray-100 pt-3 space-y-1 text-xs text-gray-400">
+                    <p x-show="previewData.author_name">Author: <span class="text-gray-600" x-text="previewData.author_name"></span></p>
+                    <p x-show="previewData.updated_at">Updated: <span class="text-gray-600" x-text="previewData.updated_at"></span></p>
+                    <p x-show="previewData.published_at">Published: <span class="text-gray-600" x-text="previewData.published_at"></span></p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+</div>
+{/if}
+{/block}
+
+{block scripts}
+<script>
+function cmsBulkActions() {
+    return {
+        selected: [],
+        bulkLoading: false,
+        previewOpen: false,
+        previewLoading: false,
+        previewData: {},
+        async openPreview(id) {
+            this.previewOpen = true;
+            this.previewLoading = true;
+            this.previewData = {};
+            try {
+                const res = await fetch(CMS_BASE + '/api/v1/cms/content/' + id, {
+                    headers: { 'X-CSRF-TOKEN': CMS_CSRF }
+                });
+                const data = await res.json();
+                if (data.ok && data.data) {
+                    this.previewData = data.data;
+                } else {
+                    this.previewData = { title: 'Error loading preview', body: data.error || '' };
+                }
+            } catch (e) {
+                this.previewData = { title: 'Network error', body: '' };
+            }
+            this.previewLoading = false;
+        },
+        allIds: [{foreach rows as row}{row.id},{/foreach}],
+        toggleAll(e) {
+            this.selected = e.target.checked ? [...this.allIds] : [];
+        },
+        toggleOne(id) {
+            const idx = this.selected.indexOf(id);
+            if (idx >= 0) this.selected.splice(idx, 1);
+            else this.selected.push(id);
+        },
+        async bulkAction(action) {
+            if (this.selected.length === 0) return;
+            const label = action === 'trash' ? 'move to trash' : action;
+            if (!confirm('Are you sure you want to ' + label + ' ' + this.selected.length + ' item(s)?')) return;
+            this.bulkLoading = true;
+            let ok = 0, fail = 0;
+            for (const id of this.selected) {
+                try {
+                    let url, body = {};
+                    if (action === 'trash') {
+                        url = CMS_BASE + '/api/v1/cms/content/' + id + '/trash';
+                    } else if (action === 'publish') {
+                        url = CMS_BASE + '/api/v1/cms/content/' + id + '/publish';
+                    } else {
+                        url = CMS_BASE + '/api/v1/cms/content/' + id;
+                        body = { status: 'draft' };
+                    }
+                    const res = await fetch(url, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CMS_CSRF },
+                        body: JSON.stringify(body),
+                    });
+                    const data = await res.json();
+                    if (data.ok) ok++; else fail++;
+                } catch (e) { fail++; }
+            }
+            this.bulkLoading = false;
+            if (ok > 0) toast(ok + ' item(s) updated');
+            if (fail > 0) toast(fail + ' item(s) failed', 'error');
+            if (ok > 0) setTimeout(() => location.reload(), 500);
+            this.selected = [];
+        },
+    };
+}
+</script>
+{/block}

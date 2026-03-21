@@ -1,0 +1,168 @@
+{extends "modules/daily-ledger/layouts/app.disyl"}
+
+{block head}
+{/block}
+
+{block content}
+<div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
+    <div>
+        <h2 class="text-lg font-semibold text-gray-900">Branches</h2>
+        <p class="text-sm text-gray-500">Manage branches and activation status.</p>
+    </div>
+    <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
+        <form class="flex gap-2" hx-get="{base_url}/admin/branches" hx-target="#main-content" hx-swap="innerHTML" hx-push-url="true">
+            <input type="text" class="form-input w-full sm:w-64" name="q" value="{search}" placeholder="Search name or code...">
+            <button type="submit" class="btn btn-outline">Search</button>
+        </form>
+        <button class="btn btn-primary" onclick="openAddBranch()">+ Add Branch</button>
+    </div>
+</div>
+
+<div class="card">
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>Code</th>
+                    <th>Name</th>
+                    <th>Address</th>
+                    <th class="text-right">Users</th>
+                    <th class="text-right">Products</th>
+                    <th>Status</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {foreach branches as b}
+                <tr>
+                    <td class="font-mono text-sm font-semibold text-gray-900">{b.code}</td>
+                    <td class="font-medium text-gray-900">{b.name}</td>
+                    <td class="text-sm text-muted">{b.address}</td>
+                    <td class="text-right">{b.user_count}</td>
+                    <td class="text-right">{b.product_count}</td>
+                    <td>
+                        {if b.is_active == 1}<span class="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-200">Active</span>{/if}
+                        {if b.is_active == 0}<span class="inline-flex items-center rounded-full bg-rose-50 px-2.5 py-1 text-xs font-semibold text-rose-700 ring-1 ring-inset ring-rose-200">Inactive</span>{/if}
+                    </td>
+                    <td>
+                        <button class="btn btn-sm btn-outline" onclick="openEditBranch({b.id}, '{b.name}', '{b.address}', {b.is_active})">Edit</button>
+                    </td>
+                </tr>
+                {/foreach}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Add Branch Modal -->
+<div class="modal-overlay" id="add-modal">
+    <div class="modal">
+        <h3>Add Branch</h3>
+        <div class="form-group">
+            <label class="form-label">Branch Code</label>
+            <input class="form-input uppercase" type="text" id="add-code" placeholder="e.g. BR03">
+        </div>
+        <div class="form-group">
+            <label class="form-label">Branch Name</label>
+            <input class="form-input" type="text" id="add-name" placeholder="e.g. Branch 3">
+        </div>
+        <div class="form-group">
+            <label class="form-label">Address</label>
+            <input class="form-input" type="text" id="add-address" placeholder="Optional">
+        </div>
+        <div class="modal-actions">
+            <button class="btn btn-outline" onclick="closeModal('add-modal')">Cancel</button>
+            <button class="btn btn-primary" id="add-submit" onclick="submitAddBranch()">Add Branch</button>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Branch Modal -->
+<div class="modal-overlay" id="edit-modal">
+    <div class="modal">
+        <h3>Edit Branch</h3>
+        <input type="hidden" id="edit-id">
+        <div class="form-group">
+            <label class="form-label">Branch Name</label>
+            <input class="form-input" type="text" id="edit-name">
+        </div>
+        <div class="form-group">
+            <label class="form-label">Address</label>
+            <input class="form-input" type="text" id="edit-address">
+        </div>
+        <div class="form-group">
+            <label class="form-label">Status</label>
+            <select class="form-input" id="edit-active">
+                <option value="1">Active</option>
+                <option value="0">Inactive</option>
+            </select>
+        </div>
+        <div class="modal-actions">
+            <button class="btn btn-outline" onclick="closeModal('edit-modal')">Cancel</button>
+            <button class="btn btn-primary" id="edit-submit" onclick="submitEditBranch()">Save Changes</button>
+        </div>
+    </div>
+</div>
+{/block}
+
+{block scripts}
+<script>
+    var BASE = '{base_url}';
+
+    function openAddBranch() { document.getElementById('add-modal').classList.add('show'); document.getElementById('add-code').focus(); }
+    function closeModal(id) { document.getElementById(id).classList.remove('show'); }
+
+    function openEditBranch(id, name, address, active) {
+        document.getElementById('edit-id').value = id;
+        document.getElementById('edit-name').value = name;
+        document.getElementById('edit-address').value = address;
+        document.getElementById('edit-active').value = active;
+        document.getElementById('edit-modal').classList.add('show');
+    }
+
+    function submitAddBranch() {
+        var btn = document.getElementById('add-submit');
+        btn.disabled = true; btn.textContent = 'Adding...';
+        fetch(BASE + '/api/v1/admin/branches', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                code: document.getElementById('add-code').value.toUpperCase(),
+                name: document.getElementById('add-name').value,
+                address: document.getElementById('add-address').value
+            })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(res) {
+            if (res.ok) { showToast('Branch added'); setTimeout(function() { window.location.reload(); }, 600); }
+            else { showToast(res.error || 'Failed'); btn.disabled = false; btn.textContent = 'Add Branch'; }
+        })
+        .catch(function() { showToast('Network error'); btn.disabled = false; btn.textContent = 'Add Branch'; });
+    }
+
+    function submitEditBranch() {
+        var btn = document.getElementById('edit-submit');
+        btn.disabled = true; btn.textContent = 'Saving...';
+        fetch(BASE + '/api/v1/admin/branches/update', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                branch_id: parseInt(document.getElementById('edit-id').value),
+                name: document.getElementById('edit-name').value,
+                address: document.getElementById('edit-address').value,
+                is_active: parseInt(document.getElementById('edit-active').value)
+            })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(res) {
+            if (res.ok) { showToast('Branch updated'); setTimeout(function() { window.location.reload(); }, 600); }
+            else { showToast(res.error || 'Failed'); btn.disabled = false; btn.textContent = 'Save Changes'; }
+        })
+        .catch(function() { showToast('Network error'); btn.disabled = false; btn.textContent = 'Save Changes'; });
+    }
+
+    document.querySelectorAll('.modal-overlay').forEach(function(el) {
+        el.addEventListener('click', function(e) { if (e.target === el) el.classList.remove('show'); });
+    });
+</script>
+{/block}

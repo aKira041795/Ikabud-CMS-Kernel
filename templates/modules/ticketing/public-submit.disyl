@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{page_title}</title>
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #f3f4f6;
+            color: #111827;
+            min-height: 100vh;
+            padding: 24px 16px 48px;
+        }
+        .page-wrap  { max-width: 600px; margin: 0 auto; }
+        .brand      { text-align: center; margin-bottom: 28px; }
+        .brand-name { font-size: 1.1rem; font-weight: 700; color: #6b7280; letter-spacing: .5px; }
+        .card       { background: #fff; border-radius: 10px; box-shadow: 0 1px 4px rgba(0,0,0,.08); padding: 28px; }
+        .card-title { font-size: 1.25rem; font-weight: 700; margin-bottom: 20px; color: #111827; }
+        .form-row   { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+        @media(max-width:480px){ .form-row { grid-template-columns: 1fr; } }
+        .form-group { margin-bottom: 16px; }
+        label       { display: block; font-size: 13px; font-weight: 600; color: #374151; margin-bottom: 5px; }
+        label .req  { color: #dc2626; margin-left: 2px; }
+        input[type=text],
+        input[type=email],
+        input[type=tel],
+        input[type=number],
+        select,
+        textarea    {
+            width: 100%;
+            padding: 9px 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 7px;
+            font-size: 14px;
+            color: #111827;
+            background: #fff;
+            transition: border-color .15s;
+            appearance: none;
+        }
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            border-color: #2563eb;
+            box-shadow: 0 0 0 3px rgba(37,99,235,.12);
+        }
+        textarea    { resize: vertical; }
+        .hint       { font-size: 12px; color: #6b7280; margin-top: 4px; }
+        .captcha-box {
+            background: #f9fafb;
+            border: 1px solid #e5e7eb;
+            border-radius: 7px;
+            padding: 14px 16px;
+            margin-bottom: 16px;
+        }
+        .captcha-box label { margin-bottom: 8px; color: #1e3a8a; }
+        .captcha-box input { max-width: 140px; }
+        .btn-submit {
+            width: 100%;
+            padding: 12px;
+            background: #2563eb;
+            color: #fff;
+            border: none;
+            border-radius: 7px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background .15s;
+        }
+        .btn-submit:hover   { background: #1d4ed8; }
+        .btn-submit:disabled{ background: #93c5fd; cursor: not-allowed; }
+        .error-box {
+            display: none;
+            background: #fef2f2;
+            border: 1px solid #fecaca;
+            color: #dc2626;
+            border-radius: 7px;
+            padding: 10px 14px;
+            font-size: 13px;
+            margin-bottom: 14px;
+        }
+        .file-hint  { font-size: 12px; color: #6b7280; margin-top: 5px; }
+        .footer-note{ text-align: center; font-size: 12px; color: #9ca3af; margin-top: 20px; }
+    </style>
+</head>
+<body>
+<div class="page-wrap">
+
+    <div class="brand">
+        <div class="brand-name">MAINTENANCE REQUEST</div>
+    </div>
+
+    <div class="card">
+        <div class="card-title">Submit a Maintenance Request</div>
+
+        <form id="tkForm" enctype="multipart/form-data" novalidate>
+            {!-- Honeypot field \u2014 must stay hidden and empty --}
+            <input type="text" name="_hp_name" style="display:none;" tabindex="-1" autocomplete="off">
+            <input type="hidden" name="captcha_token" id="captchaToken" value="{captcha_token}">
+
+            {!-- Contact info --}
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Your Name <span class="req">*</span></label>
+                    <input type="text" name="contact_name" required maxlength="120" autocomplete="name">
+                </div>
+                <div class="form-group">
+                    <label>Unit / Room No.</label>
+                    <input type="text" name="unit_no" placeholder="e.g. Unit 4B, Room 12" maxlength="40">
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Email Address</label>
+                    <input type="email" name="contact_email" autocomplete="email" placeholder="optional">
+                </div>
+                <div class="form-group">
+                    <label>Phone Number</label>
+                    <input type="tel" name="contact_phone" autocomplete="tel" placeholder="optional">
+                </div>
+            </div>
+
+            {!-- Issue details --}
+            <div class="form-group">
+                <label>Category <span class="req">*</span></label>
+                <select name="category">
+                    <option value="plumbing">Plumbing (leaks, clogs, water issues)</option>
+                    <option value="electrical">Electrical (lights, outlets, breaker)</option>
+                    <option value="pest_control">Pest Control</option>
+                    <option value="common_area">Common Area</option>
+                    <option value="security">Security (locks, gates, cameras)</option>
+                    <option value="other" selected>Other</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>Issue Subject <span class="req">*</span></label>
+                <input type="text" name="subject" required maxlength="255" placeholder="Brief description of the problem">
+            </div>
+
+            <div class="form-group">
+                <label>Details</label>
+                <textarea name="description" rows="4" placeholder="Describe the problem in more detail (when it started, how severe, etc.)"></textarea>
+            </div>
+
+            {!-- Image upload --}
+            <div class="form-group">
+                <label>Photos <span id="fileCount" style="font-weight:400;color:#6b7280;">(0 / 3)</span></label>
+                <input type="file" name="attachments[]" accept="image/jpeg,image/png,image/webp" multiple id="fileInput">
+                <p class="file-hint">JPEG, PNG or WebP only &bull; Max 2 MB each &bull; Up to 3 photos</p>
+            </div>
+
+            {!-- Captcha --}
+            <div class="captcha-box">
+                <label id="captchaQuestion">{captcha_question}</label>
+                <input type="number" name="captcha_answer" id="captchaAnswer" required placeholder="Enter the answer"
+                    inputmode="numeric" style="max-width:140px;">
+            </div>
+
+            <div class="error-box" id="errorBox"></div>
+
+            <button type="submit" class="btn-submit" id="submitBtn">Submit Request</button>
+        </form>
+    </div>
+
+    <p class="footer-note">Your request will be reviewed by the property management team.</p>
+</div>
+
+<script>
+(function () {
+    var form        = document.getElementById('tkForm');
+    var errorBox    = document.getElementById('errorBox');
+    var submitBtn   = document.getElementById('submitBtn');
+    var fileInput   = document.getElementById('fileInput');
+    var fileCount   = document.getElementById('fileCount');
+    var captchaQ    = document.getElementById('captchaQuestion');
+    var captchaA    = document.getElementById('captchaAnswer');
+    var captchaT    = document.getElementById('captchaToken');
+    var base        = '{base_url}';
+
+    fileInput.addEventListener('change', function () {
+        var n = Math.min(this.files.length, 3);
+        fileCount.textContent = '(' + n + ' / 3)';
+        if (this.files.length > 3) {
+            showError('Only the first 3 photos will be uploaded.');
+        }
+    });
+
+    form.addEventListener('submit', function (e) {
+        e.preventDefault();
+        hideError();
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Submitting\u2026';
+
+        var fd = new FormData(form);
+
+        // Enforce 3-file cap client side
+        if (fileInput.files.length > 3) {
+            var dt = new DataTransfer();
+            for (var i = 0; i < 3; i++) { dt.items.add(fileInput.files[i]); }
+            fileInput.files = dt.files;
+            fd.delete('attachments[]');
+            for (var j = 0; j < 3; j++) { fd.append('attachments[]', fileInput.files[j]); }
+        }
+
+        fetch(base + '/api/v1/tickets/public-submit', {
+            method: 'POST',
+            body: fd
+        })
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+            if (d.ok && d.redirect) {
+                window.location.href = d.redirect;
+                return;
+            }
+            showError(d.error || 'An unexpected error occurred. Please try again.');
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Submit Request';
+
+            if (d.refresh_captcha) {
+                refreshCaptcha();
+            }
+        })
+        .catch(function () {
+            showError('Network error. Please check your connection and try again.');
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Submit Request';
+        });
+    });
+
+    function refreshCaptcha() {
+        fetch(base + '/api/v1/tickets/captcha')
+            .then(function (r) { return r.json(); })
+            .then(function (c) {
+                captchaQ.textContent = c.question;
+                captchaT.value = c.token;
+                captchaA.value = '';
+                captchaA.focus();
+            });
+    }
+
+    function showError(msg) {
+        errorBox.textContent = msg;
+        errorBox.style.display = 'block';
+        errorBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    function hideError() {
+        errorBox.style.display = 'none';
+    }
+}());
+</script>
+</body>
+</html>

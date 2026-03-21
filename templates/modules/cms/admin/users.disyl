@@ -1,0 +1,201 @@
+{extends "modules/cms/layouts/admin.disyl"}
+
+{block content}
+<div x-data="cmsUsers()">
+    <div class="flex items-center justify-between mb-4">
+        <form class="flex items-center gap-2" method="get" action="{base_url}/cms/admin/users">
+            <input type="search" name="q" placeholder="Search users..." value="{search}" class="px-3 py-2 text-sm border border-gray-300 rounded-lg w-64 focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
+            <button type="submit" class="px-3 py-2 bg-gray-100 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-200">Search</button>
+        </form>
+        <button class="inline-flex items-center gap-1.5 px-4 py-2 bg-sky-600 text-white text-sm font-medium rounded-lg hover:bg-sky-700 transition-colors" @click="showCreate = true">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+            New User
+        </button>
+    </div>
+
+    <div class="bg-white rounded-lg border border-gray-200 overflow-hidden">
+        <table class="w-full">
+            <thead>
+                <tr class="bg-gray-50 border-b border-gray-200">
+                    <th class="text-left px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-gray-400">Username</th>
+                    <th class="text-left px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-gray-400 hidden sm:table-cell">Display Name</th>
+                    <th class="text-left px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-gray-400 hidden md:table-cell">Email</th>
+                    <th class="text-left px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-gray-400">Role</th>
+                    <th class="text-left px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-gray-400">Status</th>
+                    <th class="text-left px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-gray-400 hidden lg:table-cell">Last Login</th>
+                    <th class="px-4 py-2.5 w-16"></th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">
+                {foreach cms_users as u}
+                <tr class="hover:bg-gray-50 transition-colors">
+                    <td class="px-4 py-3 text-sm font-medium text-gray-900">{u.username}</td>
+                    <td class="px-4 py-3 text-sm text-gray-600 hidden sm:table-cell">{u.display_name}</td>
+                    <td class="px-4 py-3 text-xs text-gray-500 hidden md:table-cell">{u.email}</td>
+                    <td class="px-4 py-3">
+                        <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold
+                            {if u.role == 'superadmin'}bg-pink-50 text-pink-700
+                            {else}{if u.role == 'administrator'}bg-violet-50 text-violet-700
+                            {else}{if u.role == 'editor'}bg-sky-50 text-sky-700
+                            {else}{if u.role == 'author'}bg-emerald-50 text-emerald-700
+                            {else}{if u.role == 'contributor'}bg-amber-50 text-amber-700
+                            {else}bg-gray-100 text-gray-500{/if}{/if}{/if}{/if}{/if}">{u.role}</span>
+                    </td>
+                    <td class="px-4 py-3">
+                        {if u.is_active == 1}
+                        <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-50 text-emerald-700">Active</span>
+                        {else}
+                        <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-red-50 text-red-600">Inactive</span>
+                        {/if}
+                    </td>
+                    <td class="px-4 py-3 text-xs text-gray-400 hidden lg:table-cell">{u.last_login_at}</td>
+                    <td class="px-4 py-3">
+                        <button class="text-xs text-gray-400 hover:text-sky-600" @click="editUser({u.id}, '{u.display_name | raw}', '{u.email | raw}', '{u.role}', {u.is_active})">Edit</button>
+                    </td>
+                </tr>
+                {/foreach}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Create User Modal -->
+    <template x-if="showCreate">
+        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40" @click.self="showCreate = false">
+            <div class="bg-white rounded-xl shadow-xl w-full max-w-md p-6" @click.stop>
+                <h3 class="text-lg font-semibold text-gray-900 mb-4">Create CMS User</h3>
+                <div class="space-y-3">
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 mb-1">Username</label>
+                        <input type="text" x-model="newUser.username" placeholder="username" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 mb-1">Email</label>
+                        <input type="email" x-model="newUser.email" placeholder="email@example.com" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 mb-1">Display Name</label>
+                        <input type="text" x-model="newUser.display_name" placeholder="Full Name" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 mb-1">Password</label>
+                        <input type="password" x-model="newUser.password" placeholder="Min 8 characters" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 mb-1">Role</label>
+                        <select x-model="newUser.role" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
+                            <option value="subscriber">Subscriber</option>
+                            <option value="contributor">Contributor</option>
+                            <option value="author">Author</option>
+                            <option value="editor">Editor</option>
+                            <option value="administrator">Administrator</option>
+                            <option value="superadmin">Super Admin</option>
+                        </select>
+                    </div>
+                </div>
+                <div x-show="formError" class="text-xs text-red-600 mt-2" x-text="formError"></div>
+                <div class="flex justify-end gap-2 mt-5">
+                    <button class="px-4 py-2 text-sm text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200" @click="showCreate = false">Cancel</button>
+                    <button class="px-4 py-2 text-sm text-white bg-sky-600 rounded-lg hover:bg-sky-700 disabled:opacity-50" @click="createUser()" :disabled="saving" x-text="saving ? 'Creating...' : 'Create'"></button>
+                </div>
+            </div>
+        </div>
+    </template>
+
+    <!-- Edit User Modal -->
+    <template x-if="showEdit">
+        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40" @click.self="showEdit = false">
+            <div class="bg-white rounded-xl shadow-xl w-full max-w-md p-6" @click.stop>
+                <h3 class="text-lg font-semibold text-gray-900 mb-4">Edit User</h3>
+                <div class="space-y-3">
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 mb-1">Display Name</label>
+                        <input type="text" x-model="editData.display_name" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 mb-1">Email</label>
+                        <input type="email" x-model="editData.email" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 mb-1">Role</label>
+                        <select x-model="editData.role" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
+                            <option value="subscriber">Subscriber</option>
+                            <option value="contributor">Contributor</option>
+                            <option value="author">Author</option>
+                            <option value="editor">Editor</option>
+                            <option value="administrator">Administrator</option>
+                            <option value="superadmin">Super Admin</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 mb-1">New Password (leave blank to keep)</label>
+                        <input type="password" x-model="editData.password" placeholder="Min 8 characters" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <input type="checkbox" x-model="editData.is_active" id="edit-active" class="rounded border-gray-300 text-sky-600 focus:ring-sky-500">
+                        <label for="edit-active" class="text-sm text-gray-600">Active</label>
+                    </div>
+                </div>
+                <div x-show="formError" class="text-xs text-red-600 mt-2" x-text="formError"></div>
+                <div class="flex justify-end gap-2 mt-5">
+                    <button class="px-4 py-2 text-sm text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200" @click="showEdit = false">Cancel</button>
+                    <button class="px-4 py-2 text-sm text-white bg-sky-600 rounded-lg hover:bg-sky-700 disabled:opacity-50" @click="updateUser()" :disabled="saving" x-text="saving ? 'Saving...' : 'Save'"></button>
+                </div>
+            </div>
+        </div>
+    </template>
+</div>
+{/block}
+
+{block scripts}
+<script>
+function cmsUsers() {
+    return {
+        showCreate: false, showEdit: false, saving: false, formError: '',
+        newUser: { username: '', email: '', display_name: '', password: '', role: 'subscriber' },
+        editData: { id: 0, display_name: '', email: '', role: '', password: '', is_active: true },
+        editUser(id, name, email, role, active) {
+            this.editData = { id, display_name: name, email, role, password: '', is_active: !!active };
+            this.formError = '';
+            this.showEdit = true;
+        },
+        async createUser() {
+            this.formError = '';
+            this.saving = true;
+            try {
+                const res = await fetch(CMS_BASE + '/api/v1/cms/users', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CMS_CSRF },
+                    body: JSON.stringify(this.newUser),
+                });
+                const data = await res.json();
+                if (data.ok) { toast('User created'); window.location.reload(); }
+                else { this.formError = data.error || 'Failed'; }
+            } catch(e) { this.formError = 'Network error'; }
+            this.saving = false;
+        },
+        async updateUser() {
+            this.formError = '';
+            this.saving = true;
+            const payload = {
+                display_name: this.editData.display_name,
+                email: this.editData.email,
+                role: this.editData.role,
+                is_active: this.editData.is_active ? 1 : 0,
+            };
+            if (this.editData.password) payload.password = this.editData.password;
+            try {
+                const res = await fetch(CMS_BASE + '/api/v1/cms/users/' + this.editData.id, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CMS_CSRF },
+                    body: JSON.stringify(payload),
+                });
+                const data = await res.json();
+                if (data.ok) { toast('User updated'); window.location.reload(); }
+                else { this.formError = data.error || 'Failed'; }
+            } catch(e) { this.formError = 'Network error'; }
+            this.saving = false;
+        },
+    };
+}
+</script>
+{/block}

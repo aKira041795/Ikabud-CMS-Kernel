@@ -1,0 +1,44 @@
+{extends "_cms_active_theme/layouts/public.disyl"}
+
+{block content}
+<div class="search-shell">
+    <h1>Search</h1>
+    <form action="{base_url}/cms/search" method="GET" class="search-form">
+        <input type="search" name="q" placeholder="Search posts..." value="{query}" autocomplete="off">
+        <button type="submit">Search</button>
+    </form>
+
+    {if query}
+    <p class="search-meta">
+        {if posts | count > 0}
+        Showing results for &ldquo;{query}&rdquo;
+        {else}
+        No results found for &ldquo;{query}&rdquo;
+        {/if}
+    </p>
+    {/if}
+
+    {if posts | count > 0}
+    <div class="posts-grid">
+        {foreach posts as post}
+        <article class="post-item">
+            <h3><a href="{base_url}/cms/blog/{post.slug}">{post.title}</a></h3>
+            <div class="post-meta">
+                {if post.published_at}<span>{post.published_at}</span>{/if}
+            </div>
+            <p class="excerpt">{if post.excerpt}{post.excerpt}{else}{post.body}{/if}</p>
+            <a href="{base_url}/cms/blog/{post.slug}" class="read-more">Read more →</a>
+        </article>
+        {/foreach}
+    </div>
+    {/if}
+
+    {if total_pages > 1}
+    <nav class="post-backlink">
+        {if page_num > 1}<a href="{base_url}/cms/search?q={query}&page=1">&laquo; First</a>{/if}
+        <span class="taxonomy-chip taxonomy-chip--muted">Page {page_num} of {total_pages}</span>
+        {if page_num < total_pages}<a href="{base_url}/cms/search?q={query}&page={next_page}">Next &raquo;</a>{/if}
+    </nav>
+    {/if}
+</div>
+{/block}

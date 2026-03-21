@@ -1,0 +1,159 @@
+{extends "layouts/app"}
+
+{block head}
+<style>
+    .stats-row { display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
+    .stat-card { flex: 1; min-width: 120px; padding: 14px 16px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); text-align: center; }
+    .stat-card .stat-value { font-size: 28px; font-weight: 700; color: var(--text); }
+    .stat-card .stat-label { font-size: var(--font-size-small); color: var(--text-muted); text-transform: uppercase; letter-spacing: .3px; margin-top: 2px; }
+    .stat-card.open .stat-value { color: var(--primary); }
+    .stat-card.progress .stat-value { color: var(--warning); }
+    .stat-card.resolved .stat-value { color: var(--success); }
+    .stat-card.closed .stat-value { color: var(--text-muted); }
+
+    .filters-row { display: flex; gap: 10px; margin-bottom: 16px; align-items: center; flex-wrap: wrap; }
+    .filters-row select { max-width: 180px; }
+
+    .badge { display: inline-block; padding: 2px 10px; border-radius: 10px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .3px; }
+    .badge-open { background: var(--primary-light); color: var(--primary); }
+    .badge-progress { background: var(--warning-light); color: var(--warning); }
+    .badge-resolved { background: var(--success-light); color: var(--success); }
+    .badge-closed { background: var(--bg); color: var(--text-muted); }
+    .badge-low { background: var(--bg); color: var(--text-muted); }
+    .badge-medium { background: var(--primary-light); color: var(--primary); }
+    .badge-high { background: var(--warning-light); color: var(--warning); }
+    .badge-urgent { background: var(--danger-light); color: var(--danger); }
+
+    .ticket-subject { font-weight: 600; color: var(--text); }
+    .ticket-subject:hover { color: var(--primary); }
+    .ticket-no { font-size: var(--font-size-small); color: var(--text-muted); font-family: monospace; }
+    .ticket-meta { font-size: var(--font-size-small); color: var(--text-light); }
+</style>
+{/block}
+
+{block content}
+<div class="flex justify-between items-center mb-4">
+    <h1 style="font-size: var(--font-size-h1); font-weight: 700;">Tickets</h1>
+    <a href="{base_url}/tickets/create" class="btn btn-primary" hx-boost="true">+ New Ticket</a>
+</div>
+
+<!-- Stats -->
+<div class="stats-row">
+    <div class="stat-card open">
+        <div class="stat-value">{stats.open}</div>
+        <div class="stat-label">Open</div>
+    </div>
+    <div class="stat-card progress">
+        <div class="stat-value">{stats.in_progress}</div>
+        <div class="stat-label">In Progress</div>
+    </div>
+    <div class="stat-card resolved">
+        <div class="stat-value">{stats.resolved}</div>
+        <div class="stat-label">Resolved</div>
+    </div>
+    <div class="stat-card closed">
+        <div class="stat-value">{stats.closed}</div>
+        <div class="stat-label">Closed</div>
+    </div>
+</div>
+
+<!-- Filters -->
+<form class="filters-row" method="get" action="{base_url}/tickets" hx-boost="true">
+    <select name="status" class="form-input" onchange="this.form.submit()">
+        <option value="">All Statuses</option>
+        <option value="open" {if status_filter == 'open'}selected{/if}>Open</option>
+        <option value="in_progress" {if status_filter == 'in_progress'}selected{/if}>In Progress</option>
+        <option value="resolved" {if status_filter == 'resolved'}selected{/if}>Resolved</option>
+        <option value="closed" {if status_filter == 'closed'}selected{/if}>Closed</option>
+    </select>
+    <select name="priority" class="form-input" onchange="this.form.submit()">
+        <option value="">All Priorities</option>
+        <option value="urgent" {if priority_filter == 'urgent'}selected{/if}>Urgent</option>
+        <option value="high" {if priority_filter == 'high'}selected{/if}>High</option>
+        <option value="medium" {if priority_filter == 'medium'}selected{/if}>Medium</option>
+        <option value="low" {if priority_filter == 'low'}selected{/if}>Low</option>
+    </select>
+    <select name="category" class="form-input" onchange="this.form.submit()">
+        <option value="">All Categories</option>
+        <option value="plumbing"     {if category_filter == 'plumbing'}selected{/if}>Plumbing</option>
+        <option value="electrical"   {if category_filter == 'electrical'}selected{/if}>Electrical</option>
+        <option value="pest_control" {if category_filter == 'pest_control'}selected{/if}>Pest Control</option>
+        <option value="common_area"  {if category_filter == 'common_area'}selected{/if}>Common Area</option>
+        <option value="security"     {if category_filter == 'security'}selected{/if}>Security</option>
+        <option value="other"        {if category_filter == 'other'}selected{/if}>Other</option>
+    </select>
+</form>
+
+<!-- Ticket Table -->
+<div class="card">
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Subject</th>
+                    <th>Category</th>
+                    <th>Unit</th>
+                    <th>Source</th>
+                    <th>Status</th>
+                    <th>Priority</th>
+                    <th>Submitted By</th>
+                    <th>Assigned To</th>
+                    <th>Created</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {if tickets | count == 0}
+                <tr><td colspan="11" style="text-align:center; padding: 40px; color: var(--text-muted);">No tickets found. Create one!</td></tr>
+                {/if}
+                {foreach tickets as t}
+                <tr>
+                    <td><span class="ticket-no">{t.ticket_no}</span></td>
+                    <td>
+                        {if t.status == 'open'}<a href="{base_url}/tickets/{t.id}/edit" class="ticket-subject" hx-boost="true">{t.subject}</a>{/if}
+                        {if t.status == 'in_progress'}<a href="{base_url}/tickets/{t.id}/edit" class="ticket-subject" hx-boost="true">{t.subject}</a>{/if}
+                        {if t.status == 'resolved'}<a href="{base_url}/tickets/{t.id}" class="ticket-subject" hx-boost="true">{t.subject}</a>{/if}
+                        {if t.status == 'closed'}<a href="{base_url}/tickets/{t.id}" class="ticket-subject" hx-boost="true">{t.subject}</a>{/if}
+                    </td>
+                    <td class="ticket-meta">
+                        {if t.category == 'plumbing'}<span class="badge" style="background:var(--primary-light);color:var(--primary);">Plumbing</span>{/if}
+                        {if t.category == 'electrical'}<span class="badge" style="background:var(--warning-light);color:var(--warning);">Electrical</span>{/if}
+                        {if t.category == 'pest_control'}<span class="badge" style="background:var(--danger-light);color:var(--danger);">Pest Control</span>{/if}
+                        {if t.category == 'common_area'}<span class="badge" style="background:var(--success-light);color:var(--success);">Common Area</span>{/if}
+                        {if t.category == 'security'}<span class="badge" style="background:var(--bg);color:var(--text-muted);">Security</span>{/if}
+                        {if t.category == 'other'}<span class="badge" style="background:var(--bg);color:var(--text-muted);">Other</span>{/if}
+                    </td>
+                    <td class="ticket-meta">{if t.unit_no}{t.unit_no}{else}—{/if}</td>
+                    <td>
+                        {if t.source == 'public'}<span title="Public submission" style="color:var(--primary);font-size:13px;">&#127760;</span>{/if}
+                        {if t.source == 'internal'}<span title="Internal" style="color:var(--text-muted);font-size:13px;">&#128100;</span>{/if}
+                    </td>
+                    <td>
+                        {if t.status == 'open'}<span class="badge badge-open">Open</span>{/if}
+                        {if t.status == 'in_progress'}<span class="badge badge-progress">In Progress</span>{/if}
+                        {if t.status == 'resolved'}<span class="badge badge-resolved">Resolved</span>{/if}
+                        {if t.status == 'closed'}<span class="badge badge-closed">Closed</span>{/if}
+                    </td>
+                    <td>
+                        {if t.priority == 'low'}<span class="badge badge-low">Low</span>{/if}
+                        {if t.priority == 'medium'}<span class="badge badge-medium">Medium</span>{/if}
+                        {if t.priority == 'high'}<span class="badge badge-high">High</span>{/if}
+                        {if t.priority == 'urgent'}<span class="badge badge-urgent">Urgent</span>{/if}
+                    </td>
+                    <td class="ticket-meta">
+                        {if t.source == 'public'}{if t.contact_name}{t.contact_name}{else}(public){/if}{else}{t.creator_name}{/if}
+                    </td>
+                    <td class="ticket-meta">{if t.assignee_name}{t.assignee_name}{else}—{/if}</td>
+                    <td class="ticket-meta">{t.created_at}</td>
+                    <td>
+                        {if t.status == 'open'}<a href="{base_url}/tickets/{t.id}/edit" class="btn btn-sm btn-outline" hx-boost="true">Edit</a>{/if}
+                        {if t.status == 'in_progress'}<a href="{base_url}/tickets/{t.id}/edit" class="btn btn-sm btn-outline" hx-boost="true">Edit</a>{/if}
+                    </td>
+                </tr>
+                {/foreach}
+            </tbody>
+        </table>
+    </div>
+</div>
+{/block}

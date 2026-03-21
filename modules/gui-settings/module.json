@@ -1,0 +1,17 @@
+{
+    "id": "gui-settings",
+    "name": "GUI Settings",
+    "version": "1.0.0",
+    "description": "Customize frontend appearance — colors, fonts, app name, and visual styling",
+    "author": "Noah C. Omamalin",
+    "owns_tables": [],
+    "reads_tables": [],
+    "nav": [
+        {
+            "label": "GUI Settings",
+            "url": "/admin/gui-settings",
+            "icon": "palette",
+            "roles": ["admin"]
+        }
+    ]
+}
