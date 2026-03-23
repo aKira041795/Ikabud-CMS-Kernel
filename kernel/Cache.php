@@ -224,12 +224,37 @@ class Cache
                 $this->incrementStat('errors');
                 return null;
             }
-            
-            // Promote to APCu for faster subsequent reads
-            if (self::$apcuAvailable) {
-                apcu_store('cache_' . $apcuKey, $result, $this->ttl);
+
+            // Respect the per-entry expiry timestamp stamped at write time.
+            // This corrects the bug where $this->ttl (1800 s) was used as the
+            // expiry bound for all entries regardless of their written TTL.
+            $expiresAt = isset($result['_cache_expires_at']) ? (int)$result['_cache_expires_at'] : 0;
+            if ($expiresAt === 0) {
+                // Legacy entry with no expiry stamp (written before this fix).
+                // Evict it so it is re-written with the correct stamp on next set().
+                @unlink($file);
+                if (self::$apcuAvailable) {
+                    apcu_delete('cache_' . $apcuKey);
+                }
+                $this->incrementStat('misses');
+                return null;
             }
-            
+            if (time() >= $expiresAt) {
+                // Entry has expired — remove stale file and return miss.
+                @unlink($file);
+                if (self::$apcuAvailable) {
+                    apcu_delete('cache_' . $apcuKey);
+                }
+                $this->incrementStat('misses');
+                return null;
+            }
+
+            // Promote to APCu using the remaining time from the stored expiry.
+            if (self::$apcuAvailable) {
+                $remainingTtl = max(1, $expiresAt - time());
+                apcu_store('cache_' . $apcuKey, $result, $remainingTtl);
+            }
+
             $this->incrementStat('hits');
             return $result;
         } catch (\Exception $e) {
@@ -263,7 +288,13 @@ class Cache
             if ($this->maxCacheSizeMB > 0) {
                 $this->enforceCacheLimit();
             }
-            
+
+            // Stamp expiry so all cache tiers honour the caller-specified TTL.
+            // Without this, file entries are checked against $this->ttl (default
+            // 1800 s) and APCu re-promotions use the same default — meaning an
+            // entry written with ttl=20 can survive stale for 30 minutes.
+            $response['_cache_expires_at'] = time() + $cacheTtl;
+
             $data = serialize($response);
             
             // Compress if data is large
