@@ -385,6 +385,10 @@ function cmsAdminContentEdit(array $params = []): void
     $meta        = cmsLoadContentMeta($db, $id);
     $contentType = (string)($content['type'] ?? 'post');
 
+    $aiAutomation = function_exists('cmsAiAutomationContentStateFromMeta')
+        ? cmsAiAutomationContentStateFromMeta($meta)
+        : ['enabled' => ($meta['_ai_generated'] ?? '') === '1'];
+
     $fieldDefs = [];
     try {
         $stmt = $db->prepare(
@@ -484,6 +488,7 @@ function cmsAdminContentEdit(array $params = []): void
         'can_workflow'    => cmsCanPublish($user),
         'ai_tools'        => $canEdit,
         'ai_seo_suggest'  => $canEdit,
+        'ai_refine'       => $canEdit && cmsUserCan($user, 'ai.refine'),
         'can_duplicate'   => $canEdit,
         'builder_access'  => $builderSupported,
         'is_kernel_admin' => $isKernelAdmin,
@@ -542,6 +547,7 @@ function cmsAdminContentEdit(array $params = []): void
         'duplicate_url'                 => $duplicateUrl,
         'permalink'                     => $permalink,
         'capabilities'                  => $capabilities,
+        'ai_automation_json'            => json_encode($aiAutomation, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
     ]));
 }
 

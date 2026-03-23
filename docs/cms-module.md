@@ -43,6 +43,7 @@ Implemented admin areas include:
 - Theme customizer
 - Theme manager
 - CMS sub-module manager
+- **AI Content Automation** (`/cms/admin/ai-automation`) — manage content plans, view run history, configure search grounding
 
 Primary route definitions live in `modules/cms/routes.php`. Primary admin handlers live in `modules/cms/handlers/15-admin.php`, `modules/cms/handlers/80-customizer.php`, `modules/cms/handlers/82-permissions.php`, and `modules/cms/handlers/84-extensions.php`.
 
@@ -243,3 +244,4 @@ See `docs/cms-capability-map.md` and `docs/cms-extension-points.md` for capabili
 - `docs/cms-roadmap.md` — forward roadmap from the current baseline
 - `docs/cms-rewiring-audit.md` — implementation audit and remaining debt
 - `docs/cms-theme-design-architecture.md` — theme authoring and architecture guide
+- `docs/cms-ai-content-automation.md` — AI content automation: plans, runs, search grounding, content modes

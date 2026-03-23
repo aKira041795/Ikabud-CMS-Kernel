@@ -4,11 +4,69 @@
 -- transitional meta/blocks-based builder implementation.
 -- ═══════════════════════════════════════════════════════════════
 
-ALTER TABLE cms_content
-    ADD COLUMN content_mode VARCHAR(20) NOT NULL DEFAULT 'standard' AFTER type,
-    ADD COLUMN builder_document_id INT UNSIGNED DEFAULT NULL AFTER body,
-    ADD KEY idx_cms_content_mode (content_mode),
-    ADD KEY idx_cms_builder_document_id (builder_document_id);
+SET @cms_has_content_mode_col := (
+    SELECT COUNT(*)
+    FROM information_schema.columns
+    WHERE table_schema = DATABASE()
+      AND table_name = 'cms_content'
+      AND column_name = 'content_mode'
+);
+SET @cms_add_content_mode_col_sql := IF(
+    @cms_has_content_mode_col = 0,
+    'ALTER TABLE cms_content ADD COLUMN content_mode VARCHAR(20) NOT NULL DEFAULT ''standard'' AFTER type',
+    'SELECT 1'
+);
+PREPARE cms_add_content_mode_col_stmt FROM @cms_add_content_mode_col_sql;
+EXECUTE cms_add_content_mode_col_stmt;
+DEALLOCATE PREPARE cms_add_content_mode_col_stmt;
+
+SET @cms_has_builder_document_id_col := (
+    SELECT COUNT(*)
+    FROM information_schema.columns
+    WHERE table_schema = DATABASE()
+      AND table_name = 'cms_content'
+      AND column_name = 'builder_document_id'
+);
+SET @cms_add_builder_document_id_col_sql := IF(
+    @cms_has_builder_document_id_col = 0,
+    'ALTER TABLE cms_content ADD COLUMN builder_document_id INT UNSIGNED DEFAULT NULL AFTER body',
+    'SELECT 1'
+);
+PREPARE cms_add_builder_document_id_col_stmt FROM @cms_add_builder_document_id_col_sql;
+EXECUTE cms_add_builder_document_id_col_stmt;
+DEALLOCATE PREPARE cms_add_builder_document_id_col_stmt;
+
+SET @cms_has_idx_content_mode := (
+    SELECT COUNT(*)
+    FROM information_schema.statistics
+    WHERE table_schema = DATABASE()
+      AND table_name = 'cms_content'
+      AND index_name = 'idx_cms_content_mode'
+);
+SET @cms_add_idx_content_mode_sql := IF(
+    @cms_has_idx_content_mode = 0,
+    'ALTER TABLE cms_content ADD KEY idx_cms_content_mode (content_mode)',
+    'SELECT 1'
+);
+PREPARE cms_add_idx_content_mode_stmt FROM @cms_add_idx_content_mode_sql;
+EXECUTE cms_add_idx_content_mode_stmt;
+DEALLOCATE PREPARE cms_add_idx_content_mode_stmt;
+
+SET @cms_has_idx_builder_document_id := (
+    SELECT COUNT(*)
+    FROM information_schema.statistics
+    WHERE table_schema = DATABASE()
+      AND table_name = 'cms_content'
+      AND index_name = 'idx_cms_builder_document_id'
+);
+SET @cms_add_idx_builder_document_id_sql := IF(
+    @cms_has_idx_builder_document_id = 0,
+    'ALTER TABLE cms_content ADD KEY idx_cms_builder_document_id (builder_document_id)',
+    'SELECT 1'
+);
+PREPARE cms_add_idx_builder_document_id_stmt FROM @cms_add_idx_builder_document_id_sql;
+EXECUTE cms_add_idx_builder_document_id_stmt;
+DEALLOCATE PREPARE cms_add_idx_builder_document_id_stmt;
 
 CREATE TABLE IF NOT EXISTS cms_builder_documents (
     id               INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,

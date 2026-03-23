@@ -421,7 +421,9 @@ CREATE TABLE IF NOT EXISTS my_table (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 ```
 
-**Note**: Migrations are NOT auto-run. The admin must run them manually or through a future migration runner.
+**Multi-tenant note**: If `APP_MULTI_TENANT_ENABLED` is on, module migrations must be safe to run against tenant databases as well as the default database. New module migrations should be idempotent (`IF NOT EXISTS`, `information_schema` guards for `ALTER TABLE`, etc.) because tenant schema is synchronized separately from the control plane.
+
+The kernel now provides tenant migration synchronization through `syncTenantMigrationsForTenant()` and `syncTenantMigrationsForCurrentRequest()` in [src/helpers/module-manager.php](/var/www/html/applicationkernel/src/helpers/module-manager.php). Tenant DB setup and tenant request bootstrap use these helpers to apply manifest-declared module migrations to the tenant-resolved database.
 
 ---
 

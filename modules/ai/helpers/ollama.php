@@ -5,8 +5,8 @@ declare(strict_types=1);
 function aiOllamaSettings(): array
 {
     try {
-        if (function_exists('getModuleSettings')) {
-            $s = getModuleSettings('ai');
+        if (function_exists('aiResolvedSettings')) {
+            $s = aiResolvedSettings();
             return is_array($s) ? $s : [];
         }
     } catch (Throwable $e) {
@@ -58,6 +58,7 @@ function aiOllamaModel(): string
 
 function aiOllamaSuggestTriggers(array $context): array
 {
+    $timeoutSeconds = 25;
     $event = is_array($context['event'] ?? null) ? $context['event'] : [];
     $existing = is_array($context['existing_triggers'] ?? null) ? $context['existing_triggers'] : [];
     $availableCaps = is_array($context['available_capabilities'] ?? null) ? $context['available_capabilities'] : [];
@@ -134,9 +135,9 @@ function aiOllamaSuggestTriggers(array $context): array
     ];
 }
 
-function aiOllamaTextGenerate(array $messages, float $temperature = 0.2, bool $json = false, int $timeoutSeconds = 5): array
+function aiOllamaTextGenerate(array $messages, float $temperature = 0.2, bool $json = false, int $timeoutSeconds = 5, ?int $maxTokens = null): array
 {
-    $timeoutSeconds = max(1, min(30, $timeoutSeconds));
+    $timeoutSeconds = max(1, min(55, $timeoutSeconds));
 
     $payload = [
         'model' => aiOllamaModel(),
@@ -148,6 +149,9 @@ function aiOllamaTextGenerate(array $messages, float $temperature = 0.2, bool $j
     ];
     if ($json) {
         $payload['format'] = 'json';
+    }
+    if ($maxTokens !== null && $maxTokens > 0) {
+        $payload['options']['num_predict'] = $maxTokens;
     }
 
     $url = aiOllamaBaseUrl() . '/api/chat';

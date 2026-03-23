@@ -45,6 +45,65 @@ function save_capability_cache(string $filename, array $data): void
     @file_put_contents($path, json_encode($data), LOCK_EX);
 }
 
+function adminViewCacheTtl(): int
+{
+    return max(0, (int)($_ENV['ADMIN_VIEW_CACHE_TTL'] ?? 20));
+}
+
+function adminViewCacheInstance(): string
+{
+    $tid = app()->tenant()->current();
+    return 'admin_view_t' . ($tid ?? 0);
+}
+
+function adminViewCacheScopedKey(string $key, ?array $user = null): string
+{
+    $role = (string)($user['role'] ?? 'guest');
+    $source = (string)($user['source'] ?? 'none');
+    return $key . '|role:' . $role . '|source:' . $source;
+}
+
+function adminViewCacheGet(string $key, ?array $user = null): ?array
+{
+    if (adminViewCacheTtl() <= 0) {
+        return null;
+    }
+
+    $scopedKey = adminViewCacheScopedKey($key, $user);
+    $hit = app()->cache()->get(adminViewCacheInstance(), $scopedKey);
+    if (!is_array($hit)) {
+        return null;
+    }
+
+    $payload = $hit['payload'] ?? null;
+    return is_array($payload) ? $payload : null;
+}
+
+function adminViewCacheSet(string $key, array $payload, array $tags = [], ?array $user = null): void
+{
+    $ttl = adminViewCacheTtl();
+    if ($ttl <= 0) {
+        return;
+    }
+
+    $scopedKey = adminViewCacheScopedKey($key, $user);
+    app()->cache()->setWithTags(
+        adminViewCacheInstance(),
+        $scopedKey,
+        ['payload' => $payload],
+        $tags,
+        $ttl
+    );
+}
+
+function adminViewCacheInvalidate(array $tags): void
+{
+    if (empty($tags)) {
+        return;
+    }
+    app()->cache()->clearByTags(adminViewCacheInstance(), array_values(array_unique($tags)));
+}
+
 function listTenantEntryModuleOptions(): array
 {
     $modules = discoverModules();
@@ -267,6 +326,7 @@ $routes = [
         '/api/v1/superadmin/modules/settings' => 'apiSuperadminUpdateModuleSettings',
         '/api/v1/superadmin/modules/toggle' => 'apiSuperadminToggleModule',
         '/api/v1/admin/ai/settings' => 'apiAiSettingsSave',
+        '/api/v1/admin/cache/clear' => 'apiCacheClear',
         '/api/v1/admin/profile/update' => 'apiAdminUpdateProfile',
         '/api/v1/admin/users' => 'apiAdminCreateUser',
         '/api/v1/admin/users/update' => 'apiAdminUpdateUser',
@@ -288,6 +348,15 @@ $routes = [
 ];
 
 // Batch-load all tenant module settings in 1 query (avoids N+1 per module)
+try {
+    syncTenantMigrationsForCurrentRequest();
+} catch (Throwable $e) {
+    write_log('Tenant migration sync failed during request bootstrap: ' . $e->getMessage(), 'error', [
+        'host' => (string)($_SERVER['HTTP_HOST'] ?? ''),
+        'uri' => $uri,
+    ]);
+}
+
 preloadAllTenantModuleSettings();
 
 $routes = loadModuleRoutes($routes);
@@ -420,6 +489,7 @@ switch ($handler) {
             $dStmt->execute([':tid' => $tenantId, ':d' => $domain]);
 
             $pdo->commit();
+            adminViewCacheInvalidate(['admin:view:tenants', 'admin:view:platform']);
             echo json_encode(['ok' => true, 'tenant_id' => $tenantId]);
         } catch (Throwable $e) {
             if ($pdo->inTransaction()) {
@@ -475,7 +545,20 @@ switch ($handler) {
                 }
             }
 
-            echo json_encode(['ok' => true, 'tenant_id' => $tenantId, 'entry_module_id' => $entryModuleId, 'request_id' => request_id()]);
+            $sync = syncTenantMigrationsForTenant($tenantId, $entryModuleId);
+            if (empty($sync['ok'])) {
+                http_response_code(500);
+                echo json_encode([
+                    'ok' => false,
+                    'error' => 'Tenant entry module updated, but tenant migrations failed to synchronize',
+                    'details' => $sync['error'] ?? 'Unknown error',
+                    'tenant_id' => $tenantId,
+                ]);
+                exit;
+            }
+
+            adminViewCacheInvalidate(['admin:view:tenants', 'admin:view:platform', 'admin:view:modules']);
+            echo json_encode(['ok' => true, 'tenant_id' => $tenantId, 'entry_module_id' => $entryModuleId, 'migration_sync' => $sync, 'request_id' => request_id()]);
         } catch (Throwable $e) {
             http_response_code(500);
             echo json_encode(['ok' => false, 'error' => 'Failed to update tenant entry module']);
@@ -504,6 +587,7 @@ switch ($handler) {
         try {
             $stmt = app()->controlDb()->prepare('INSERT INTO kernel_tenant_domains (tenant_id, domain) VALUES (:tid, :d)');
             $stmt->execute([':tid' => $tenantId, ':d' => $domain]);
+            adminViewCacheInvalidate(['admin:view:tenants', 'admin:view:platform']);
             echo json_encode(['ok' => true]);
         } catch (Throwable $e) {
             http_response_code(500);
@@ -533,6 +617,7 @@ switch ($handler) {
         try {
             $stmt = app()->controlDb()->prepare('DELETE FROM kernel_tenant_domains WHERE tenant_id = :tid AND domain = :d');
             $stmt->execute([':tid' => $tenantId, ':d' => $domain]);
+            adminViewCacheInvalidate(['admin:view:tenants', 'admin:view:platform']);
             echo json_encode(['ok' => true]);
         } catch (Throwable $e) {
             http_response_code(500);
@@ -627,7 +712,21 @@ switch ($handler) {
             $stmt->execute($bind);
 
             $pdo->commit();
-            echo json_encode(['ok' => true]);
+
+            $sync = syncTenantMigrationsForTenant($tenantId);
+            if (empty($sync['ok'])) {
+                http_response_code(500);
+                echo json_encode([
+                    'ok' => false,
+                    'error' => 'Tenant DB connection saved, but tenant migrations failed to synchronize',
+                    'details' => $sync['error'] ?? 'Unknown error',
+                    'tenant_id' => $tenantId,
+                ]);
+                exit;
+            }
+
+            adminViewCacheInvalidate(['admin:view:tenants', 'admin:view:platform']);
+            echo json_encode(['ok' => true, 'migration_sync' => $sync]);
         } catch (Throwable $e) {
             if ($pdo->inTransaction()) {
                 $pdo->rollBack();
@@ -675,6 +774,7 @@ switch ($handler) {
         try {
             $stmt = app()->controlDb()->prepare('UPDATE kernel_tenants SET status = :s, updated_at = NOW() WHERE id = :tid');
             $stmt->execute([':s' => $status, ':tid' => $tenantId]);
+            adminViewCacheInvalidate(['admin:view:tenants', 'admin:view:platform']);
             echo json_encode(['ok' => true]);
         } catch (Throwable $e) {
             http_response_code(500);
@@ -700,6 +800,9 @@ switch ($handler) {
         $groqKey = trim((string)($s['groq_api_key'] ?? ''));
         $groqMasked = $groqKey !== '' ? ('***' . substr($groqKey, -4)) : '';
 
+        $searchKey = trim((string)($s['search_grounding_api_key'] ?? ''));
+        $searchKeyMasked = $searchKey !== '' ? ('***' . substr($searchKey, -4)) : '';
+
         echo json_encode([
             'ok' => true,
             'settings' => [
@@ -719,6 +822,10 @@ switch ($handler) {
                 'openai_api_key_set' => $apiKey !== '',
                 'groq_api_key_masked' => $groqMasked,
                 'groq_api_key_set' => $groqKey !== '',
+                'search_grounding_provider' => (string)($s['search_grounding_provider'] ?? ''),
+                'search_grounding_key_masked' => $searchKeyMasked,
+                'search_grounding_key_set' => $searchKey !== '',
+                'search_grounding_max_results' => max(1, min(10, (int)($s['search_grounding_max_results'] ?? 5))),
             ],
         ]);
         exit;
@@ -781,7 +888,25 @@ switch ($handler) {
             }
         }
 
+        // Search grounding provider and settings
+        if (array_key_exists('search_grounding_provider', $settingsIn)) {
+            $sp = trim((string)$settingsIn['search_grounding_provider']);
+            if (in_array($sp, ['', 'brave', 'tavily', 'serper'], true)) {
+                $new['search_grounding_provider'] = $sp;
+            }
+        }
+        if (array_key_exists('search_grounding_api_key', $settingsIn)) {
+            $sk = trim((string)$settingsIn['search_grounding_api_key']);
+            if ($sk !== '') {
+                $new['search_grounding_api_key'] = $sk;
+            }
+        }
+        if (array_key_exists('search_grounding_max_results', $settingsIn)) {
+            $new['search_grounding_max_results'] = max(1, min(10, (int)$settingsIn['search_grounding_max_results']));
+        }
+
         saveModuleSettings('ai', $new);
+        adminViewCacheInvalidate(['admin:view:modules', 'admin:view:platform']);
 
         echo json_encode(['ok' => true]);
         exit;
@@ -845,6 +970,8 @@ switch ($handler) {
             }
         }
 
+        $allModules = discoverModules();
+
         // ── Build tenant-relevant module whitelist ───────────────────
         $tenantRelevantModules = null; // null = no filter (show all enabled)
         $selectedEntryModule = '';
@@ -870,6 +997,41 @@ switch ($handler) {
                         }
                     }
                 }
+
+                // Include capability-providing modules whose exposed
+                // capabilities are actually depended on by the entry module
+                // or its submodules (e.g. AI for CMS).
+                $neededCaps = [];
+                foreach ($tenantRelevantModules as $_relId => $_) {
+                    $_relMod = $allModules[$_relId] ?? [];
+                    foreach ($_relMod['capabilities']['depends'] ?? [] as $_dep) {
+                        $neededCaps[(string)$_dep] = true;
+                    }
+                }
+                foreach ($allModules as $_capMod) {
+                    $_capModId = (string)($_capMod['id'] ?? '');
+                    if ($_capModId === '' || isset($tenantRelevantModules[$_capModId])) {
+                        continue;
+                    }
+                    if (empty($_capMod['settings_fields'])) {
+                        continue;
+                    }
+                    $exposes = $_capMod['capabilities']['exposes'] ?? [];
+                    if (empty($exposes)) {
+                        continue;
+                    }
+                    // Check if any exposed capability is needed
+                    $needed = false;
+                    foreach ($exposes as $_exp) {
+                        if (isset($neededCaps[(string)($_exp['id'] ?? '')])) {
+                            $needed = true;
+                            break;
+                        }
+                    }
+                    if ($needed && isModuleEnabledForTenant($_capModId, $selectedTenantId)) {
+                        $tenantRelevantModules[$_capModId] = true;
+                    }
+                }
             }
             // If entry_module_id is empty, show all enabled (no whitelist filter)
         }
@@ -884,7 +1046,6 @@ switch ($handler) {
             }
         }
 
-        $allModules = discoverModules();
         $moduleList = [];
         foreach ($allModules as $m) {
             $moduleId = (string)($m['id'] ?? '');
@@ -1162,6 +1323,7 @@ switch ($handler) {
             ], ['mode' => 'first']);
         } catch (Throwable $e) {}
 
+        adminViewCacheInvalidate(['admin:view:modules', 'admin:view:platform', 'admin:view:capabilities']);
         echo json_encode(['ok' => true, 'module_id' => $modId, 'settings' => $newSettings]);
         exit;
 
@@ -1250,6 +1412,7 @@ switch ($handler) {
         } catch (Throwable $e) {}
 
         kernelFlushCodeCaches();
+        adminViewCacheInvalidate(['admin:view:modules', 'admin:view:platform', 'admin:view:capabilities']);
         echo json_encode(['ok' => true, 'module_id' => $modId, 'enabled' => $enabled]);
         exit;
 
@@ -1817,6 +1980,14 @@ switch ($handler) {
             echo json_encode(['ok' => false, 'error' => 'Admin only']);
             exit;
         }
+
+        $cacheKey = 'api:list-modules:v1';
+        $cached = adminViewCacheGet($cacheKey, $user);
+        if ($cached !== null) {
+            echo json_encode($cached);
+            exit;
+        }
+
         $all = discoverModules();
         $list = [];
         foreach ($all as $m) {
@@ -1841,7 +2012,10 @@ switch ($handler) {
                 'settings' => is_array($modSettings) ? $modSettings : [],
             ];
         }
-        echo json_encode(['ok' => true, 'modules' => $list]);
+
+        $payload = ['ok' => true, 'modules' => $list];
+        adminViewCacheSet($cacheKey, $payload, ['admin:view:modules', 'admin:view:platform'], $user);
+        echo json_encode($payload);
         exit;
 
     case 'apiModulesHealth':
@@ -1850,6 +2024,13 @@ switch ($handler) {
         if (!$user || ($user['role'] ?? '') !== 'admin') {
             http_response_code(403);
             echo json_encode(['ok' => false, 'error' => 'Admin only']);
+            exit;
+        }
+
+        $cacheKey = 'api:modules-health:v1';
+        $cached = adminViewCacheGet($cacheKey, $user);
+        if ($cached !== null) {
+            echo json_encode($cached);
             exit;
         }
 
@@ -1913,12 +2094,14 @@ switch ($handler) {
             ];
         }
 
-        echo json_encode([
+        $payload = [
             'ok' => true,
             'modules' => $out,
             'skipped_modules' => array_values($skipped),
             'request_id' => request_id(),
-        ]);
+        ];
+        adminViewCacheSet($cacheKey, $payload, ['admin:view:modules', 'admin:view:platform', 'admin:view:capabilities'], $user);
+        echo json_encode($payload);
         exit;
 
     case 'apiTenantsList':
@@ -1927,6 +2110,13 @@ switch ($handler) {
         if (!$user || ($user['role'] ?? '') !== 'admin') {
             http_response_code(403);
             echo json_encode(['ok' => false, 'error' => 'Admin only']);
+            exit;
+        }
+
+        $cacheKey = 'api:tenants-list:v1';
+        $cached = adminViewCacheGet($cacheKey, $user);
+        if ($cached !== null) {
+            echo json_encode($cached);
             exit;
         }
 
@@ -2001,12 +2191,14 @@ switch ($handler) {
                 ];
             }
 
-            echo json_encode([
+            $payload = [
                 'ok' => true,
                 'tenants' => $out,
                 'entry_module_options' => $entryModuleOptions,
                 'request_id' => request_id(),
-            ]);
+            ];
+            adminViewCacheSet($cacheKey, $payload, ['admin:view:tenants', 'admin:view:platform'], $user);
+            echo json_encode($payload);
         } catch (Throwable $e) {
             http_response_code(500);
             echo json_encode(['ok' => false, 'error' => 'Failed to load tenants']);
@@ -2021,8 +2213,18 @@ switch ($handler) {
             echo json_encode(['ok' => false, 'error' => 'Admin only']);
             exit;
         }
+
+        $cacheKey = 'api:list-capabilities:v1';
+        $cached = adminViewCacheGet($cacheKey, $user);
+        if ($cached !== null) {
+            echo json_encode($cached);
+            exit;
+        }
+
         $out = app()->capabilities()->inspectAll();
-        echo json_encode(['ok' => true, 'capabilities' => $out, 'request_id' => request_id()]);
+        $payload = ['ok' => true, 'capabilities' => $out, 'request_id' => request_id()];
+        adminViewCacheSet($cacheKey, $payload, ['admin:view:capabilities', 'admin:view:platform'], $user);
+        echo json_encode($payload);
         exit;
 
     case 'apiKernelEventsList':
@@ -2147,6 +2349,7 @@ switch ($handler) {
             exit;
         }
 
+        adminViewCacheInvalidate(['admin:view:platform']);
         echo json_encode(['ok' => true]);
         exit;
 
@@ -2172,6 +2375,7 @@ switch ($handler) {
         try {
             $stmt = app()->db()->prepare('DELETE FROM kernel_event_triggers WHERE id = ?');
             $stmt->execute([$triggerId]);
+            adminViewCacheInvalidate(['admin:view:platform']);
             echo json_encode(['ok' => true]);
         } catch (Throwable $e) {
             http_response_code(500);
@@ -2367,6 +2571,33 @@ switch ($handler) {
         ]);
         exit;
 
+    case 'apiCacheClear':
+        header('Content-Type: application/json');
+        $user = app()->user();
+        if (!$user || ($user['role'] ?? '') !== 'admin') {
+            http_response_code(403);
+            echo json_encode(['ok' => false, 'error' => 'Admin only']);
+            exit;
+        }
+
+        app()->csrfEnforce();
+
+        $result = app()->cache()->clearAll();
+        $tenantHostCache = ['memory_cleared' => 0, 'apcu_cleared' => 0];
+        if (class_exists('Ikabud\\Kernel\\TenantResolver') && method_exists('Ikabud\\Kernel\\TenantResolver', 'clearControlHostCache')) {
+            $tenantHostCache = \Ikabud\Kernel\TenantResolver::clearControlHostCache();
+        }
+
+        echo json_encode([
+            'ok' => true,
+            'cleared' => (int)($result['cleared'] ?? 0),
+            'errors' => is_array($result['errors'] ?? null) ? $result['errors'] : [],
+            'tenant_host_lookup_cache' => $tenantHostCache,
+            'request_id' => request_id(),
+            'generated_at' => gmdate('c'),
+        ]);
+        exit;
+
     case 'apiUpdateCapabilityPolicy':
         header('Content-Type: application/json');
         $user = app()->user();
@@ -2394,6 +2625,7 @@ switch ($handler) {
             exit;
         }
 
+        adminViewCacheInvalidate(['admin:view:capabilities', 'admin:view:platform', 'admin:view:modules']);
         echo json_encode(['ok' => true] + $result + ['request_id' => request_id()]);
         exit;
 
@@ -2423,6 +2655,7 @@ switch ($handler) {
             exit;
         }
 
+        adminViewCacheInvalidate(['admin:view:capabilities', 'admin:view:platform', 'admin:view:modules']);
         echo json_encode(['ok' => true] + $result + ['request_id' => request_id()]);
         exit;
 
@@ -2565,6 +2798,9 @@ switch ($handler) {
             ]
         );
 
+        if (!empty($result['ok'])) {
+            adminViewCacheInvalidate(['admin:view:modules', 'admin:view:platform', 'admin:view:capabilities']);
+        }
         http_response_code($result['ok'] ? 200 : 422);
         echo json_encode($result + ['request_id' => request_id()]);
         exit;
@@ -2617,6 +2853,7 @@ switch ($handler) {
         }
 
         enableModule($modId);
+        adminViewCacheInvalidate(['admin:view:modules', 'admin:view:platform', 'admin:view:capabilities']);
         echo json_encode(['ok' => true, 'module_id' => $modId, 'enabled' => true, 'request_id' => request_id()]);
         exit;
 
@@ -2637,6 +2874,7 @@ switch ($handler) {
             exit;
         }
         disableModule($modId);
+        adminViewCacheInvalidate(['admin:view:modules', 'admin:view:platform', 'admin:view:capabilities']);
         echo json_encode(['ok' => true, 'module_id' => $modId, 'enabled' => false]);
         exit;
 
@@ -2755,6 +2993,7 @@ switch ($handler) {
             // ignore
         }
 
+        adminViewCacheInvalidate(['admin:view:modules', 'admin:view:platform']);
         echo json_encode(['ok' => true, 'module_id' => $modId, 'settings' => $newSettings]);
         exit;
 
@@ -2963,6 +3202,13 @@ switch ($handler) {
             exit;
         }
 
+        $cacheKey = 'api:platform:v1';
+        $cached = adminViewCacheGet($cacheKey, $user);
+        if ($cached !== null) {
+            echo json_encode($cached);
+            exit;
+        }
+
         $platformId = app()->platformIdentity();
         $skippedModules = array_values(getSkippedModules());
         $routeAmbiguityMode = (string) config('app.modules.route_ambiguity_mode', 'warn');
@@ -3067,7 +3313,7 @@ switch ($handler) {
         } catch (Throwable $e) {
         }
 
-        echo json_encode([
+        $payload = [
             'ok' => true,
             'platform' => $platformId,
             'modules' => [
@@ -3096,7 +3342,9 @@ switch ($handler) {
             ],
             'request_id' => request_id(),
             'generated_at' => gmdate('c'),
-        ], JSON_UNESCAPED_SLASHES);
+        ];
+        adminViewCacheSet($cacheKey, $payload, ['admin:view:platform', 'admin:view:modules', 'admin:view:capabilities'], $user);
+        echo json_encode($payload, JSON_UNESCAPED_SLASHES);
         exit;
 
     case 'apiHealth':

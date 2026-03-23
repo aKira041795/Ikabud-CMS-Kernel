@@ -118,14 +118,10 @@ class Cache
      */
     private function getCacheKey(string $uri): string
     {
-        $key = $uri;
-        
-        // Include query parameters for GET requests
-        if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'GET' && !empty($_GET)) {
-            $key .= '_' . md5(http_build_query($_GET));
-        }
-        
-        return md5($key);
+        // Cache keys must be deterministic from the logical URI/key only.
+        // Using ambient request globals (method/$_GET) breaks invalidation
+        // when cache writes happen on GET and invalidation happens on POST/CLI.
+        return md5($uri);
     }
     
     /**
@@ -340,14 +336,14 @@ class Cache
     /**
      * Store response in cache with tags for granular invalidation
      */
-    public function setWithTags(string $instanceId, string $uri, array $response, array $tags = []): void
+    public function setWithTags(string $instanceId, string $uri, array $response, array $tags = [], ?int $ttl = null): void
     {
         // Add tags to response metadata
         $response['cache_tags'] = $tags;
         $response['cache_uri'] = $uri;
         
         // Store the cache file
-        $this->set($instanceId, $uri, $response);
+        $this->set($instanceId, $uri, $response, $ttl);
         
         // Create tag index files for quick lookup
         foreach ($tags as $tag) {

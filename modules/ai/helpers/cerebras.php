@@ -2,7 +2,17 @@
 
 declare(strict_types=1);
 
-function aiGroqSettings(): array
+/**
+ * Cerebras AI provider (OpenAI-compatible API).
+ *
+ * Free tier: llama-4-scout-17b-16e-instruct — 30 RPM, 1M tokens/min.
+ * Paid tier: llama3.1-70b — higher limits.
+ * Known for extremely fast inference speed.
+ *
+ * API: https://api.cerebras.ai/v1/chat/completions
+ */
+
+function aiCerebrasSettings(): array
 {
     try {
         if (function_exists('aiResolvedSettings')) {
@@ -14,72 +24,56 @@ function aiGroqSettings(): array
     return [];
 }
 
-function aiGroqApiKey(): string
+function aiCerebrasApiKey(): string
 {
-    $s = aiGroqSettings();
-    $key = trim((string)($s['groq_api_key'] ?? ''));
+    $s = aiCerebrasSettings();
+    $key = trim((string)($s['cerebras_api_key'] ?? ''));
     if ($key !== '') {
         return $key;
     }
-
-    $key = (string)app()->config('ai.groq_api_key', '');
-    return trim($key);
+    return trim((string)app()->config('ai.cerebras_api_key', ''));
 }
 
-function aiGroqModel(): string
+function aiCerebrasModel(): string
 {
-    $s = aiGroqSettings();
-    $tier = trim((string)($s['tier'] ?? ''));
-    if ($tier === '') {
-        $tier = 'free';
-    }
+    $s = aiCerebrasSettings();
+    $tier = trim((string)($s['tier'] ?? 'free'));
 
     if ($tier === 'custom') {
-        $custom = trim((string)($s['groq_model'] ?? ''));
+        $custom = trim((string)($s['cerebras_model'] ?? ''));
         if ($custom !== '') {
             return $custom;
         }
     }
-
     if ($tier === 'paid') {
-        $paid = trim((string)($s['groq_model_paid'] ?? ''));
-        if ($paid !== '') {
-            return $paid;
-        }
+        $paid = trim((string)($s['cerebras_model_paid'] ?? ''));
+        return $paid !== '' ? $paid : 'llama3.1-70b';
     }
 
-    $free = trim((string)($s['groq_model_free'] ?? ''));
-    return $free !== '' ? $free : 'llama-3.1-8b-instant';
+    $free = trim((string)($s['cerebras_model_free'] ?? ''));
+    return $free !== '' ? $free : 'llama-4-scout-17b-16e-instruct';
 }
 
-function aiGroqSuggestTriggers(array $context): array
+function aiCerebrasSuggestTriggers(array $context): array
 {
-    $apiKey = aiGroqApiKey();
+    $apiKey = aiCerebrasApiKey();
     if ($apiKey === '') {
-        return ['ok' => false, 'error' => 'GROQ_API_KEY is not configured'];
+        return ['ok' => false, 'error' => 'CEREBRAS_API_KEY is not configured'];
     }
-
-    $timeoutSeconds = 25;
 
     $event = is_array($context['event'] ?? null) ? $context['event'] : [];
     $existing = is_array($context['existing_triggers'] ?? null) ? $context['existing_triggers'] : [];
     $availableCaps = is_array($context['available_capabilities'] ?? null) ? $context['available_capabilities'] : [];
 
-    $module = (string)($event['module'] ?? '');
-    $eventKey = (string)($event['event_key'] ?? '');
-    $desc = (string)($event['description'] ?? '');
-    $vars = $event['available_vars'] ?? [];
-    if (!is_array($vars)) $vars = [];
-
     $system = "You are a careful backend assistant for a modular PHP app. Your job is to propose kernel_event_triggers suggestions. Output must be valid JSON only.";
 
-    $user = [
+    $user = json_encode([
         'task' => 'suggest_triggers',
         'event' => [
-            'module' => $module,
-            'event_key' => $eventKey,
-            'description' => $desc,
-            'available_vars' => array_values($vars),
+            'module' => (string)($event['module'] ?? ''),
+            'event_key' => (string)($event['event_key'] ?? ''),
+            'description' => (string)($event['description'] ?? ''),
+            'available_vars' => array_values(is_array($event['available_vars'] ?? null) ? $event['available_vars'] : []),
         ],
         'existing_triggers' => $existing,
         'available_capabilities' => $availableCaps,
@@ -91,34 +85,28 @@ function aiGroqSuggestTriggers(array $context): array
         ],
         'output_schema' => [
             'type' => 'object',
-            'properties' => [
-                'suggestions' => [
-                    'type' => 'array',
-                ],
-            ],
+            'properties' => ['suggestions' => ['type' => 'array']],
             'required' => ['suggestions'],
         ],
-    ];
+    ], JSON_UNESCAPED_SLASHES);
 
-    // Groq is OpenAI-compatible. We avoid response_format here for maximum compatibility.
     $payload = [
-        'model' => aiGroqModel(),
+        'model' => aiCerebrasModel(),
         'messages' => [
             ['role' => 'system', 'content' => $system],
-            ['role' => 'user', 'content' => json_encode($user, JSON_UNESCAPED_SLASHES)],
+            ['role' => 'user', 'content' => $user],
         ],
         'temperature' => 0.2,
     ];
 
-    $resp = aiGroqHttp('https://api.groq.com/openai/v1/chat/completions', $payload, $apiKey, $timeoutSeconds);
+    $resp = aiCerebrasHttp('https://api.cerebras.ai/v1/chat/completions', $payload, $apiKey, 25);
     if (empty($resp['ok'])) {
         return $resp;
     }
 
-    $content = (string)($resp['content'] ?? '');
-    $decoded = json_decode($content, true);
+    $decoded = json_decode((string)($resp['content'] ?? ''), true);
     if (!is_array($decoded)) {
-        return ['ok' => false, 'error' => 'Groq returned invalid JSON'];
+        return ['ok' => false, 'error' => 'Cerebras returned invalid JSON'];
     }
 
     return [
@@ -128,17 +116,17 @@ function aiGroqSuggestTriggers(array $context): array
     ];
 }
 
-function aiGroqTextGenerate(array $messages, float $temperature = 0.2, bool $json = false, int $timeoutSeconds = 5, ?int $maxTokens = null): array
+function aiCerebrasTextGenerate(array $messages, float $temperature = 0.2, bool $json = false, int $timeoutSeconds = 5, ?int $maxTokens = null): array
 {
-    $apiKey = aiGroqApiKey();
+    $apiKey = aiCerebrasApiKey();
     if ($apiKey === '') {
-        return ['ok' => false, 'error' => 'GROQ_API_KEY is not configured'];
+        return ['ok' => false, 'error' => 'CEREBRAS_API_KEY is not configured'];
     }
 
     $timeoutSeconds = max(1, min(55, $timeoutSeconds));
 
     $payload = [
-        'model' => aiGroqModel(),
+        'model' => aiCerebrasModel(),
         'messages' => $messages,
         'temperature' => $temperature,
     ];
@@ -149,7 +137,7 @@ function aiGroqTextGenerate(array $messages, float $temperature = 0.2, bool $jso
         $payload['max_tokens'] = $maxTokens;
     }
 
-    $resp = aiGroqHttp('https://api.groq.com/openai/v1/chat/completions', $payload, $apiKey, $timeoutSeconds);
+    $resp = aiCerebrasHttp('https://api.cerebras.ai/v1/chat/completions', $payload, $apiKey, $timeoutSeconds);
     if (empty($resp['ok'])) {
         return $resp;
     }
@@ -157,28 +145,26 @@ function aiGroqTextGenerate(array $messages, float $temperature = 0.2, bool $jso
     return ['ok' => true, 'content' => (string)($resp['content'] ?? '')];
 }
 
-function aiGroqHttp(string $url, array $payload, string $apiKey, int $timeoutSeconds = 25): array
+function aiCerebrasHttp(string $url, array $payload, string $apiKey, int $timeoutSeconds = 25): array
 {
     $ch = curl_init($url);
     if ($ch === false) {
         return ['ok' => false, 'error' => 'curl_init failed'];
     }
 
-    $timeoutSeconds = max(1, min(60, $timeoutSeconds));
-
-    $json = json_encode($payload);
-    if ($json === false) {
+    $encoded = json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+    if ($encoded === false) {
         return ['ok' => false, 'error' => 'Failed to encode request'];
     }
 
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_POST, true);
-    curl_setopt($ch, CURLOPT_POSTFIELDS, $json);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, $encoded);
     curl_setopt($ch, CURLOPT_HTTPHEADER, [
         'Content-Type: application/json',
         'Authorization: Bearer ' . $apiKey,
     ]);
-    curl_setopt($ch, CURLOPT_TIMEOUT, $timeoutSeconds);
+    curl_setopt($ch, CURLOPT_TIMEOUT, max(1, min(60, $timeoutSeconds)));
 
     $body = curl_exec($ch);
     $err = curl_error($ch);
@@ -186,12 +172,12 @@ function aiGroqHttp(string $url, array $payload, string $apiKey, int $timeoutSec
     curl_close($ch);
 
     if ($body === false) {
-        return ['ok' => false, 'error' => 'Groq request failed: ' . $err];
+        return ['ok' => false, 'error' => 'Cerebras request failed: ' . $err];
     }
 
     $decoded = json_decode($body, true);
     if (!is_array($decoded)) {
-        return ['ok' => false, 'error' => 'Groq returned non-JSON response', 'http_code' => $code];
+        return ['ok' => false, 'error' => 'Cerebras returned non-JSON response', 'http_code' => $code];
     }
 
     if ($code < 200 || $code >= 300) {
@@ -199,9 +185,10 @@ function aiGroqHttp(string $url, array $payload, string $apiKey, int $timeoutSec
         return ['ok' => false, 'error' => $msg, 'http_code' => $code];
     }
 
+    // OpenAI-compatible response format
     $content = (string)($decoded['choices'][0]['message']['content'] ?? '');
     if (trim($content) === '') {
-        return ['ok' => false, 'error' => 'Groq returned empty content'];
+        return ['ok' => false, 'error' => 'Cerebras returned empty content'];
     }
 
     return ['ok' => true, 'content' => $content, 'http_code' => $code];

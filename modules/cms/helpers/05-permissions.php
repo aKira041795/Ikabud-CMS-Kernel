@@ -109,6 +109,8 @@ define('CMS_DEFAULT_CAPABILITIES', [
     // ── AI ───────────────────────────────────────────────────────────
     'ai.summary'                => 'contributor',
     'ai.seo'                    => 'contributor',
+    'ai.refine'                 => 'contributor',
+    'ai.automation.manage'      => 'administrator',
 ]);
 
 /**
@@ -201,6 +203,8 @@ function cmsCapabilityLabels(): array
         'workflow.transition'       => 'Change Workflow State',
         'ai.summary'               => 'Generate AI Summary',
         'ai.seo'                    => 'Generate AI SEO',
+        'ai.refine'                 => 'Refine AI-Generated Content',
+        'ai.automation.manage'      => 'Manage AI Content Automation',
     ];
 }
 

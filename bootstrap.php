@@ -34,6 +34,18 @@ if (file_exists(BASE_PATH . '/.env')) {
         [$key, $value] = explode('=', $line, 2);
         $key = trim($key);
         $value = trim($value);
+        if ($key === '' || preg_match('/^[A-Z][A-Z0-9_]*$/', $key) !== 1) {
+            continue;
+        }
+        // Support optional quoted values in .env.
+        if (strlen($value) >= 2) {
+            $first = $value[0];
+            $last = $value[strlen($value) - 1];
+            if (($first === '"' && $last === '"') || ($first === '\'' && $last === '\'')) {
+                $value = substr($value, 1, -1);
+                $value = str_replace(['\\"', "\\'", '\\\\'], ['"', "'", '\\'], $value);
+            }
+        }
         if (!isset($_ENV[$key])) {
             $_ENV[$key] = $value;
             putenv($key . '=' . $value);

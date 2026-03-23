@@ -1,0 +1,816 @@
+{extends "modules/cms/layouts/admin.disyl"}
+
+{block content}
+<div x-data="cmsAiAutomationPage()" class="space-y-5">
+    <div class="bg-white border border-gray-200 rounded-lg p-4">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+            <div>
+                <h2 class="text-sm font-semibold text-gray-800">Plan Editor</h2>
+                <p class="text-xs text-gray-500 mt-1">Create a generation plan, control research behavior, and run it manually or on a schedule.</p>
+            </div>
+            <div class="flex items-center gap-2">
+                <button type="button" @click="resetForm()" class="px-3 py-1.5 text-xs font-medium text-gray-600 bg-white border border-gray-300 rounded-md hover:bg-gray-50">New Plan</button>
+                <button type="button" @click="savePlan()" :disabled="saving" class="px-3 py-1.5 text-xs font-medium text-white bg-sky-600 rounded-md hover:bg-sky-700 disabled:opacity-60">
+                    <span x-show="!saving">Save Plan</span>
+                    <span x-show="saving">Saving...</span>
+                </button>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4">
+            <label class="block">
+                <span class="text-xs text-gray-500">Topic</span>
+                <input x-model="form.topic" class="mt-1 w-full px-3 py-2 text-sm border border-gray-300 rounded-md" placeholder="e.g. Sourdough starter maintenance" />
+            </label>
+            <label class="block">
+                <span class="text-xs text-gray-500">Content Type</span>
+                <select x-model="form.content_type" class="mt-1 w-full px-3 py-2 text-sm border border-gray-300 rounded-md bg-white">
+                    <option value="post">post</option>
+                    <option value="page">page</option>
+                </select>
+            </label>
+            <label class="block">
+                <span class="text-xs text-gray-500">Content Mode</span>
+                <select x-model="form.content_mode" class="mt-1 w-full px-3 py-2 text-sm border border-gray-300 rounded-md bg-white">
+                    <template x-for="m in contentModes" :key="m.value">
+                        <option :value="m.value" x-text="m.label"></option>
+                    </template>
+                </select>
+                <p class="mt-1 text-[11px] text-gray-400" x-text="contentModeHint()"></p>
+            </label>
+            <label class="block md:col-span-2">
+                <span class="text-xs text-gray-500">Prompt Template</span>
+                <textarea x-model="form.prompt_template" rows="3" class="mt-1 w-full px-3 py-2 text-sm border border-gray-300 rounded-md"></textarea>
+                <div class="mt-2 flex flex-wrap items-center gap-2">
+                    <span class="text-[11px] uppercase tracking-wide text-gray-400">Presets</span>
+                    <button type="button" @click="applyPromptPreset('tutorial')" class="px-2 py-1 text-[11px] border border-gray-300 rounded text-gray-600 hover:bg-gray-50">Tutorial</button>
+                    <button type="button" @click="applyPromptPreset('standard')" class="px-2 py-1 text-[11px] border border-gray-300 rounded text-gray-600 hover:bg-gray-50">Standard</button>
+                    <button type="button" @click="applyPromptPreset('expert')" class="px-2 py-1 text-[11px] border border-gray-300 rounded text-gray-600 hover:bg-gray-50">Expert Guide</button>
+                    <button type="button" @click="applyPromptPreset('research')" class="px-2 py-1 text-[11px] border border-gray-300 rounded text-gray-600 hover:bg-gray-50">Research-Backed</button>
+                    <button type="button" @click="applyPromptPreset('comparison')" class="px-2 py-1 text-[11px] border border-gray-300 rounded text-gray-600 hover:bg-gray-50">Comparison</button>
+                    <button type="button" @click="applyPromptPreset('checklist')" class="px-2 py-1 text-[11px] border border-gray-300 rounded text-gray-600 hover:bg-gray-50">Checklist</button>
+                </div>
+                <div class="mt-2 flex flex-wrap items-center gap-2">
+                    <span class="text-[11px] uppercase tracking-wide text-gray-400">Tokens</span>
+                    <button type="button" @click="insertTemplateToken('{topic}')" class="px-2 py-1 text-[11px] bg-gray-100 rounded text-gray-600 hover:bg-gray-200">{topic}</button>
+                    <button type="button" @click="insertTemplateToken('{content_type}')" class="px-2 py-1 text-[11px] bg-gray-100 rounded text-gray-600 hover:bg-gray-200">{content_type}</button>
+                    <button type="button" @click="insertTemplateToken('{writing_style}')" class="px-2 py-1 text-[11px] bg-gray-100 rounded text-gray-600 hover:bg-gray-200">{writing_style}</button>
+                    <button type="button" @click="insertTemplateToken('{target_audience}')" class="px-2 py-1 text-[11px] bg-gray-100 rounded text-gray-600 hover:bg-gray-200">{target_audience}</button>
+                    <button type="button" @click="insertTemplateToken('{keywords}')" class="px-2 py-1 text-[11px] bg-gray-100 rounded text-gray-600 hover:bg-gray-200">{keywords}</button>
+                </div>
+            </label>
+            <label class="block">
+                <span class="text-xs text-gray-500">Writing Style</span>
+                <input x-model="form.writing_style" class="mt-1 w-full px-3 py-2 text-sm border border-gray-300 rounded-md" placeholder="Clear, specific, and useful" />
+            </label>
+            <label class="block">
+                <span class="text-xs text-gray-500">Target Audience</span>
+                <input x-model="form.target_audience" class="mt-1 w-full px-3 py-2 text-sm border border-gray-300 rounded-md" placeholder="Home bakers" />
+            </label>
+            <label class="block md:col-span-2">
+                <span class="text-xs text-gray-500">Keywords (comma-separated)</span>
+                <input x-model="form.keywords_text" class="mt-1 w-full px-3 py-2 text-sm border border-gray-300 rounded-md" placeholder="sourdough, starter, hydration" />
+            </label>
+            <div class="block md:col-span-2 border border-sky-100 bg-sky-50 rounded-md p-3">
+                <div class="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                        <div class="text-xs font-semibold text-sky-900">Internet Search</div>
+                        <p class="text-xs text-sky-800 mt-1">Control whether this plan uses live web search before generation and asks the AI to add linked attributions.</p>
+                    </div>
+                    <div class="text-[11px] rounded px-2 py-1"
+                         :class="searchConfig.configured ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'"
+                         x-text="searchConfig.configured ? ('Global search ready: ' + (searchConfig.provider || 'configured')) : 'Global search not configured'"></div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
+                    <label class="block">
+                        <span class="text-xs text-gray-500">Search Mode</span>
+                        <select x-model="form.search_grounding_mode" class="mt-1 w-full px-3 py-2 text-sm border border-gray-300 rounded-md bg-white">
+                            <option value="global">Use global default</option>
+                            <option value="enabled">Always use internet search</option>
+                            <option value="disabled">Never use internet search</option>
+                        </select>
+                    </label>
+                    <div class="text-xs text-gray-600 bg-white border border-sky-100 rounded-md p-3">
+                        <div class="font-medium text-gray-700">Current behavior</div>
+                        <div class="mt-1" x-text="searchModeSummary()"></div>
+                        <div class="mt-1 text-[11px] text-gray-500" x-show="searchConfig.configured">Provider: <span x-text="searchConfig.provider || 'configured'"></span>, max results: <span x-text="searchConfig.max_results || 5"></span></div>
+                        <div class="mt-1 text-[11px] text-amber-700" x-show="!searchConfig.configured">Configure a search provider in Admin AI Settings to enable grounded generation.</div>
+                    </div>
+                </div>
+            </div>
+            <label class="block">
+                <span class="text-xs text-gray-500">Cadence</span>
+                <select x-model="form.cadence" class="mt-1 w-full px-3 py-2 text-sm border border-gray-300 rounded-md bg-white">
+                    <template x-for="cad in cadences" :key="cad">
+                        <option :value="cad" x-text="cad"></option>
+                    </template>
+                </select>
+            </label>
+            <label class="block">
+                <span class="text-xs text-gray-500">Interval</span>
+                <input x-model.number="form.cadence_interval" type="number" min="1" max="365" class="mt-1 w-full px-3 py-2 text-sm border border-gray-300 rounded-md" />
+            </label>
+            <label class="block">
+                <span class="text-xs text-gray-500">Publish Offset (minutes)</span>
+                <input x-model.number="form.publish_offset_minutes" type="number" min="0" class="mt-1 w-full px-3 py-2 text-sm border border-gray-300 rounded-md" />
+            </label>
+            <label class="block">
+                <span class="text-xs text-gray-500">Visual Mode</span>
+                <select x-model="form.visual_mode" class="mt-1 w-full px-3 py-2 text-sm border border-gray-300 rounded-md bg-white">
+                    <template x-for="mode in visualModes" :key="mode">
+                        <option :value="mode" x-text="mode"></option>
+                    </template>
+                </select>
+            </label>
+            <label class="block">
+                <span class="text-xs text-gray-500">Auto-Refine Policy</span>
+                <select x-model="form.auto_refine_policy" class="mt-1 w-full px-3 py-2 text-sm border border-gray-300 rounded-md bg-white">
+                    <option value="off">Off</option>
+                    <option value="high_severity_once">Retry once on high-severity QA</option>
+                    <option value="always_once">Always run one refine pass</option>
+                </select>
+                <p class="mt-1 text-[11px] text-gray-400" x-text="autoRefinePolicyHint()"></p>
+            </label>
+            <label class="block">
+                <span class="text-xs text-gray-500">Auto-Publish Policy</span>
+                <select x-model="form.auto_publish_policy" class="mt-1 w-full px-3 py-2 text-sm border border-gray-300 rounded-md bg-white">
+                    <option value="off">Off</option>
+                    <option value="high_confidence_low_sensitivity">High confidence, low sensitivity only</option>
+                </select>
+                <p class="mt-1 text-[11px] text-gray-400" x-text="autoPublishPolicyHint()"></p>
+            </label>
+            <label class="block">
+                <span class="text-xs text-gray-500">Confidence Threshold</span>
+                <input x-model.number="form.confidence_threshold" type="number" min="50" max="100" class="mt-1 w-full px-3 py-2 text-sm border border-gray-300 rounded-md" />
+                <p class="mt-1 text-[11px] text-gray-400">Minimum approval score required before future confidence-gated auto-publish can proceed.</p>
+            </label>
+            <div class="flex flex-wrap items-center gap-3 md:col-span-2 pt-1">
+                <label class="inline-flex items-center gap-2 text-xs text-gray-600"><input type="checkbox" x-model="form.summary_enabled" class="rounded border-gray-300"> Summary</label>
+                <label class="inline-flex items-center gap-2 text-xs text-gray-600"><input type="checkbox" x-model="form.seo_enabled" class="rounded border-gray-300"> SEO</label>
+                <label class="inline-flex items-center gap-2 text-xs text-gray-600"><input type="checkbox" x-model="form.is_active" class="rounded border-gray-300"> Active</label>
+            </div>
+            <label class="block md:col-span-2" x-show="form.cadence !== 'manual'">
+                <span class="text-xs text-gray-500">Next Scheduled Run</span>
+                <input x-model="form.next_run_at" type="datetime-local" class="mt-1 w-full px-3 py-2 text-sm border border-gray-300 rounded-md" />
+            </label>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 xl:grid-cols-2 gap-5">
+        <div class="bg-white border border-gray-200 rounded-lg overflow-hidden">
+            <div class="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
+                <h3 class="text-sm font-semibold text-gray-700">Plans</h3>
+                <button class="px-2.5 py-1 text-xs border border-gray-300 rounded-md text-gray-600 hover:bg-gray-50" @click="refreshPlans()">Refresh</button>
+            </div>
+            <div class="max-h-[420px] overflow-auto">
+                <table class="w-full text-sm">
+                    <thead>
+                        <tr class="text-left text-xs text-gray-500 border-b border-gray-100">
+                            <th class="px-3 py-2">Topic</th>
+                            <th class="px-3 py-2">Schedule</th>
+                            <th class="px-3 py-2">Status</th>
+                            <th class="px-3 py-2">Last Content</th>
+                            <th class="px-3 py-2">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <template x-for="plan in plans" :key="plan.id">
+                            <tr class="border-b border-gray-100">
+                                <td class="px-3 py-2">
+                                    <div class="font-medium text-gray-800" x-text="plan.topic"></div>
+                                    <div class="text-[11px] text-gray-500" x-text="plan.content_type + ' · ' + (plan.content_mode || 'standard')"></div>
+                                    <div class="text-[11px] text-sky-700 mt-0.5" x-text="planSearchLabel(plan)"></div>
+                                    <div class="text-[11px] text-violet-700 mt-0.5" x-text="planAutoPublishLabel(plan)"></div>
+                                    <div x-show="plan.last_error" class="text-[11px] text-red-600 mt-0.5 truncate max-w-[200px]" :title="plan.last_error" x-text="plan.last_error"></div>
+                                </td>
+                                <td class="px-3 py-2 text-xs text-gray-600">
+                                    <div x-text="plan.cadence + (plan.cadence !== 'manual' ? ' / ' + plan.cadence_interval : '')"></div>
+                                    <div x-show="plan.next_run_at" class="text-[11px] text-gray-400 mt-0.5" x-text="'Next: ' + shortDate(plan.next_run_at)"></div>
+                                </td>
+                                <td class="px-3 py-2">
+                                    <span class="inline-flex px-2 py-0.5 rounded text-[11px] font-semibold" :class="plan.is_active ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100 text-gray-600'" x-text="plan.is_active ? 'active' : 'paused'"></span>
+                                </td>
+                                <td class="px-3 py-2 text-xs text-gray-600">
+                                    <a x-show="plan.last_generated_content_id" :href="CMS_BASE + '/cms/admin/content/edit/' + plan.last_generated_content_id" class="text-sky-700 hover:underline" x-text="plan.last_generated_title || ('#' + plan.last_generated_content_id)"></a>
+                                    <span x-show="!plan.last_generated_content_id" class="text-gray-400">-</span>
+                                </td>
+                                <td class="px-3 py-2">
+                                    <div class="flex flex-wrap gap-1">
+                                        <button class="px-2 py-1 text-[11px] border border-gray-300 rounded text-gray-600 hover:bg-gray-50" @click="editPlan(plan)">Edit</button>
+                                        <button class="px-2 py-1 text-[11px] border border-gray-300 rounded text-gray-600 hover:bg-gray-50" @click="togglePlan(plan)" x-text="plan.is_active ? 'Pause' : 'Activate'"></button>
+                                        <button class="px-2 py-1 text-[11px] border border-sky-600 rounded text-sky-700 hover:bg-sky-50" @click="runNow(plan)">Run Now</button>
+                                        <button class="px-2 py-1 text-[11px] border border-red-300 rounded text-red-600 hover:bg-red-50" @click="deletePlan(plan)">Delete</button>
+                                    </div>
+                                </td>
+                            </tr>
+                        </template>
+                        <tr x-show="plans.length === 0">
+                            <td colspan="5" class="px-3 py-8 text-center text-xs text-gray-500">No plans yet.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="bg-white border border-gray-200 rounded-lg overflow-hidden">
+            <div class="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
+                <h3 class="text-sm font-semibold text-gray-700">Recent Runs</h3>
+                <button class="px-2.5 py-1 text-xs border border-gray-300 rounded-md text-gray-600 hover:bg-gray-50" @click="refreshRuns()">Refresh</button>
+            </div>
+            <div class="max-h-[420px] overflow-auto">
+                <table class="w-full text-sm">
+                    <thead>
+                        <tr class="text-left text-xs text-gray-500 border-b border-gray-100">
+                            <th class="px-3 py-2">Run</th>
+                            <th class="px-3 py-2">Status</th>
+                            <th class="px-3 py-2">Content</th>
+                            <th class="px-3 py-2">Details</th>
+                            <th class="px-3 py-2">Time</th>
+                            <th class="px-3 py-2">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <template x-for="run in runs" :key="run.id">
+                            <tr class="border-b border-gray-100">
+                                <td class="px-3 py-2">
+                                    <div class="font-medium text-gray-800">#<span x-text="run.id"></span></div>
+                                    <div class="text-[11px] text-gray-500 truncate max-w-[150px]" x-text="run.topic_snapshot"></div>
+                                </td>
+                                <td class="px-3 py-2">
+                                    <span class="inline-flex px-2 py-0.5 rounded text-[11px] font-semibold" :class="runStatusClass(run.status)" x-text="run.status"></span>
+                                    <div x-show="run.auto_refine_unresolved" class="mt-1 inline-flex px-2 py-0.5 rounded text-[10px] font-semibold bg-red-50 text-red-700">auto-refine unresolved</div>
+                                    <div x-show="run.status === 'failed' && run.error_message" class="text-[11px] text-red-600 mt-0.5 truncate max-w-[180px]" :title="run.error_message" x-text="run.error_message"></div>
+                                </td>
+                                <td class="px-3 py-2 text-xs text-gray-600">
+                                    <a x-show="run.content_id" :href="CMS_BASE + '/cms/admin/content/edit/' + run.content_id" class="text-sky-700 hover:underline" x-text="run.content_title || ('#' + run.content_id)"></a>
+                                    <span x-show="!run.content_id" class="text-gray-400">-</span>
+                                </td>
+                                <td class="px-3 py-2 text-xs text-gray-500">
+                                    <div x-show="run.seo_title" class="truncate max-w-[150px]" :title="run.seo_title" x-text="'SEO: ' + run.seo_title"></div>
+                                    <div x-show="run.summary_text" class="truncate max-w-[150px] text-[11px]" :title="run.summary_text" x-text="run.summary_text"></div>
+                                    <div x-show="run.qa_warning_count" class="mt-1 text-[11px]" :class="run.qa_high_warning_count ? 'text-amber-700' : 'text-gray-500'" x-text="qaSummary(run)"></div>
+                                    <div x-show="run.latest_critique" class="mt-1 text-[11px] text-slate-600 truncate max-w-[180px]" :title="run.latest_critique" x-text="'Last critique: ' + run.latest_critique"></div>
+                                    <div x-show="historySummary(run)" class="mt-1 text-[11px] text-gray-400" x-text="historySummary(run)"></div>
+                                </td>
+                                <td class="px-3 py-2 text-xs text-gray-500">
+                                    <div x-text="shortDate(run.started_at) || '-'"></div>
+                                    <div x-show="run.completed_at" class="text-[11px] text-gray-400" x-text="shortDate(run.completed_at)"></div>
+                                </td>
+                                <td class="px-3 py-2">
+                                    <div class="flex flex-wrap gap-1">
+                                        <button x-show="run.content_id" class="px-2 py-1 text-[11px] border border-gray-300 rounded text-gray-600 hover:bg-gray-50" @click="openCritiqueModal(run)">Critique</button>
+                                        <button x-show="run.content_id && (run.critique_history.length || run.refine_history.length)" class="px-2 py-1 text-[11px] border border-slate-300 rounded text-slate-600 hover:bg-slate-50" @click="openCritiqueModal(run, true)">History</button>
+                                    </div>
+                                </td>
+                            </tr>
+                        </template>
+                        <tr x-show="runs.length === 0">
+                            <td colspan="6" class="px-3 py-8 text-center text-xs text-gray-500">No runs yet.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div x-show="critiqueModalOpen" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/55 px-4" @keydown.escape.window="closeCritiqueModal()">
+        <div class="w-full max-w-4xl bg-white rounded-xl shadow-2xl overflow-hidden">
+            <div class="px-5 py-4 border-b border-gray-200 flex items-start justify-between gap-4">
+                <div>
+                    <h3 class="text-sm font-semibold text-gray-900">Refine AI Draft</h3>
+                    <p class="mt-1 text-xs text-gray-500" x-text="critiqueModalRun ? ('Run #' + critiqueModalRun.id + ' • ' + (critiqueModalRun.topic_snapshot || '')) : ''"></p>
+                </div>
+                <button type="button" class="text-sm text-gray-400 hover:text-gray-600" @click="closeCritiqueModal()">Close</button>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-[1.25fr,0.95fr] gap-0">
+                <div class="p-5 border-b lg:border-b-0 lg:border-r border-gray-200 space-y-4">
+                    <div>
+                        <div class="text-xs font-semibold text-gray-700">Critique Brief</div>
+                        <p class="mt-1 text-xs text-gray-500">Describe the rewrite you want. The refine pass will preserve structure and valid citations where possible.</p>
+                    </div>
+
+                    <div class="flex flex-wrap gap-2">
+                        <button type="button" class="px-2 py-1 text-[11px] border border-gray-300 rounded text-gray-600 hover:bg-gray-50" @click="applyCritiquePreset('Resolve the current QA warnings first. Remove unsupported claims, tighten weak sections, and keep any valid citations intact.')">Resolve QA</button>
+                        <button type="button" class="px-2 py-1 text-[11px] border border-gray-300 rounded text-gray-600 hover:bg-gray-50" @click="applyCritiquePreset('Sharpen the thesis, reduce hedging, and make the recommendations more decisive without changing the article structure.')">Sharpen Position</button>
+                        <button type="button" class="px-2 py-1 text-[11px] border border-gray-300 rounded text-gray-600 hover:bg-gray-50" @click="applyCritiquePreset('Improve specificity, remove filler, and replace generic claims with concrete details and clearer consequences.')">Add Specificity</button>
+                    </div>
+
+                    <label class="block">
+                        <textarea x-model="critiqueForm.feedback" rows="10" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md" placeholder="Explain what should change in the draft..."></textarea>
+                    </label>
+
+                    <div x-show="critiqueModalRun && critiqueModalRun.qa_warnings && critiqueModalRun.qa_warnings.length" class="rounded-md border border-amber-200 bg-amber-50 p-3">
+                        <div class="text-xs font-semibold text-amber-900">Current QA Warnings</div>
+                        <div class="mt-2 space-y-1 max-h-40 overflow-auto">
+                            <template x-for="(warning, index) in (critiqueModalRun ? critiqueModalRun.qa_warnings : [])" :key="'qa-' + index">
+                                <div class="text-[11px] leading-5" :class="warning.severity === 'high' ? 'text-amber-900' : 'text-amber-800'">
+                                    <span class="font-semibold uppercase" x-text="warning.severity || 'low'"></span>
+                                    <span x-text="warning.message"></span>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+
+                    <div class="flex items-center justify-between gap-3">
+                        <div class="text-[11px] text-gray-500" x-text="critiqueModalRun ? historySummary(critiqueModalRun) : ''"></div>
+                        <div class="flex items-center gap-2">
+                            <button type="button" class="px-3 py-1.5 text-xs border border-gray-300 rounded-md text-gray-600 hover:bg-gray-50" @click="closeCritiqueModal()">Cancel</button>
+                            <button type="button" class="px-3 py-1.5 text-xs font-medium text-white bg-sky-600 rounded-md hover:bg-sky-700 disabled:opacity-60" :disabled="critiqueSubmitting" @click="submitCritique()">
+                                <span x-show="!critiqueSubmitting">Apply Refinement</span>
+                                <span x-show="critiqueSubmitting">Refining...</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="p-5 bg-slate-50 space-y-4">
+                    <div>
+                        <div class="text-xs font-semibold text-gray-700">History</div>
+                        <p class="mt-1 text-xs text-gray-500">Recent critique requests and refinement passes for this content.</p>
+                    </div>
+
+                    <div class="space-y-3 max-h-[420px] overflow-auto">
+                        <template x-if="critiqueModalRun && !(critiqueModalRun.critique_history.length || critiqueModalRun.refine_history.length)">
+                            <div class="text-xs text-gray-500">No critique or refine history yet.</div>
+                        </template>
+
+                        <template x-for="(entry, index) in combinedHistory(critiqueModalRun)" :key="'history-' + index">
+                            <div class="rounded-md border border-gray-200 bg-white p-3">
+                                <div class="flex items-center justify-between gap-3">
+                                    <div class="text-[11px] font-semibold uppercase tracking-wide text-gray-600" x-text="entry.type"></div>
+                                    <div class="text-[11px] text-gray-400" x-text="shortDate(entry.at)"></div>
+                                </div>
+                                <div class="mt-1 text-[11px] text-gray-500" x-text="historyEntryLabel(entry)"></div>
+                                <div x-show="entry.feedback" class="mt-2 text-xs text-gray-700 whitespace-pre-line" x-text="entry.feedback"></div>
+                                <div x-show="entry.summary" class="mt-2 text-xs text-gray-700" x-text="entry.summary"></div>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function cmsAiAutomationPage() {
+    const defaults = {
+        id: null,
+        topic: '',
+        content_type: 'post',
+        content_mode: 'standard',
+        prompt_template: 'Create a unique, publication-ready {content_type} about {topic}. Use the requested writing style, target audience, keywords, and avoid overlapping with recent generated content.',
+        writing_style: 'Clear, specific, and useful.',
+        target_audience: '',
+        keywords_text: '',
+        search_grounding_mode: 'global',
+        cadence: 'manual',
+        cadence_interval: 1,
+        publish_offset_minutes: 0,
+        visual_mode: 'suggest_media',
+        summary_enabled: true,
+        seo_enabled: true,
+        is_active: true,
+        next_run_at: '',
+        auto_refine_policy: 'high_severity_once',
+        auto_publish_policy: 'off',
+        confidence_threshold: 85,
+    };
+
+    return {
+        shortDate(v) {
+            if (!v) return '';
+            const d = new Date(v.replace(' ', 'T'));
+            if (isNaN(d)) return v;
+            return d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+        },
+
+        runStatusClass(status) {
+            switch (status) {
+                case 'review': return 'bg-amber-50 text-amber-700';
+                case 'scheduled': return 'bg-sky-50 text-sky-700';
+                case 'success': case 'published': return 'bg-emerald-50 text-emerald-700';
+                case 'failed': return 'bg-red-50 text-red-700';
+                case 'generating': return 'bg-sky-50 text-sky-700';
+                default: return 'bg-gray-100 text-gray-600';
+            }
+        },
+
+        qaSummary(run) {
+            if (!run || !run.qa_warning_count) return '';
+            return run.qa_high_warning_count > 0
+                ? ('QA: ' + run.qa_warning_count + ' warning' + (run.qa_warning_count !== 1 ? 's' : '') + ' • ' + run.qa_high_warning_count + ' high')
+                : ('QA: ' + run.qa_warning_count + ' warning' + (run.qa_warning_count !== 1 ? 's' : ''));
+        },
+
+        historySummary(run) {
+            if (!run) return '';
+            const critiques = Array.isArray(run.critique_history) ? run.critique_history.length : 0;
+            const refines = Array.isArray(run.refine_history) ? run.refine_history.length : 0;
+            if (!critiques && !refines) return '';
+            let summary = 'Critiques: ' + critiques + ' • Refines: ' + refines;
+            if (run.auto_refine_count) summary += ' • Auto: ' + run.auto_refine_count;
+            return summary;
+        },
+
+        combinedHistory(run) {
+            if (!run) return [];
+            const critiqueEntries = (Array.isArray(run.critique_history) ? run.critique_history : []).map((entry) => ({
+                type: 'critique',
+                at: entry.created_at || '',
+                source: entry.source || 'manual',
+                trigger: entry.trigger || '',
+                feedback: entry.feedback || '',
+                summary: entry.label || '',
+                run_id: entry.run_id || null,
+            }));
+            const refineEntries = (Array.isArray(run.refine_history) ? run.refine_history : []).map((entry) => ({
+                type: 'refine',
+                at: entry.refined_at || '',
+                source: entry.source || 'manual',
+                trigger: entry.trigger || '',
+                feedback: '',
+                summary: entry.title_changed ? 'Title changed during refinement.' : 'Body refinement applied.',
+                run_id: entry.run_id || null,
+            }));
+
+            return critiqueEntries.concat(refineEntries).sort((a, b) => {
+                const atA = Date.parse((a.at || '').replace(' ', 'T')) || 0;
+                const atB = Date.parse((b.at || '').replace(' ', 'T')) || 0;
+                return atB - atA;
+            });
+        },
+
+        historyEntryLabel(entry) {
+            if (!entry) return '';
+            const source = (entry.source || '').startsWith('auto_') ? 'auto refine' : (entry.source || 'manual');
+            const parts = [source];
+            if (entry.trigger) parts.push(entry.trigger);
+            if (entry.run_id) parts.push('run #' + entry.run_id);
+            return parts.join(' • ');
+        },
+
+        plans: {plans_json | raw} || [],
+        runs: {runs_json | raw} || [],
+        cadences: {cadences_json | raw} || ['manual', 'daily', 'weekly', 'monthly'],
+        visualModes: {visual_modes_json | raw} || ['none', 'suggest_media'],
+        contentModes: [
+            { value: 'standard', label: 'Standard' },
+            { value: 'tutorial', label: 'Tutorial (step-by-step)' },
+            { value: 'opinion', label: 'Opinion (expert take)' },
+            { value: 'comparison', label: 'Comparison (pros/cons)' },
+            { value: 'checklist', label: 'Checklist (actionable steps)' },
+            { value: 'expert', label: 'Expert (senior judgment)' },
+        ],
+        searchConfig: {search_config_json | raw} || { configured: false, provider: '', max_results: 5 },
+        form: { ...defaults },
+        saving: false,
+        critiqueModalOpen: false,
+        critiqueModalRun: null,
+        critiqueSubmitting: false,
+        critiqueForm: {
+            feedback: '',
+        },
+
+        insertTemplateToken(token) {
+            this.form.prompt_template = ((this.form.prompt_template || '').trim() + ' ' + token).trim();
+        },
+
+        applyPromptPreset(preset) {
+            const templates = {
+                tutorial: 'Create a publication-ready tutorial {content_type} about {topic}. Open with a Quick Start section, then walk {target_audience} through the job in dependency order. Include exact steps, decision points, common mistakes, and what to do first when time or resources are limited. Avoid overlap with recent generated content.',
+                standard: 'Create a publication-ready {content_type} about {topic}. Use the requested writing style, give {target_audience} a clear takeaway in the opening, include one expert distinction or hidden cost that beginner guides usually miss, and explain what to do, what to avoid, and why the trade-off matters.',
+                expert: 'Create a publication-ready opinionated {content_type} about {topic}. Take a clear position for {target_audience}, state the thesis early, defend it with evidence and practical decision points, include one contrarian insight, and address the strongest counter-argument before closing with a hard recommendation.',
+                research: 'Create a research-backed {content_type} about {topic}. Use the requested writing style, incorporate the keywords naturally, explain evidence-based considerations for {target_audience}, cite factual claims where possible, and translate facts into practical decisions rather than neutral summary.',
+                comparison: 'Create a comparison-focused {content_type} about {topic}. Compare the main options or approaches using shared criteria, name the winner for specific reader conditions, include a "skip both if" case, and help {target_audience} choose based on real-world constraints rather than feature lists.',
+                checklist: 'Create a checklist-style {content_type} about {topic}. Break the workflow into concrete action steps for {target_audience}, begin each step with a direct verb, include common failure points, and add a visible completion cue such as "Done when…" or "Check that…" for each major step.',
+            };
+            this.form.prompt_template = templates[preset] || defaults.prompt_template;
+            // Auto-match content mode to preset
+            const modeMap = { tutorial: 'tutorial', standard: 'standard', expert: 'expert', research: 'standard', comparison: 'comparison', checklist: 'checklist' };
+            if (modeMap[preset]) this.form.content_mode = modeMap[preset];
+            if (preset === 'research') this.form.search_grounding_mode = 'enabled';
+        },
+
+        contentModeHint() {
+            const hints = {
+                standard: 'Balanced article with a strong opening takeaway, one expert distinction, and a practical decision section.',
+                tutorial: 'Step-by-step walkthrough with Quick Start first, concrete sequence, and decision points.',
+                opinion: 'Strong editorial position with early thesis, counter-argument handling, and a decisive close.',
+                comparison: 'Shared criteria, explicit winner conditions, and a "skip both if…" scenario.',
+                checklist: 'Actionable numbered steps with imperative verbs, done-criteria, and failure prevention.',
+                expert: 'Senior-practitioner guidance with hidden costs, default-choice logic, and narrow exceptions to the rule.',
+            };
+            return hints[this.form.content_mode] || '';
+        },
+
+        autoRefinePolicyHint() {
+            const hints = {
+                off: 'Do not run any automatic refine retry. Editors handle all critique manually.',
+                high_severity_once: 'Run one refine retry only when QA finds high-severity problems such as unsupported evidence claims.',
+                always_once: 'Always run one refine pass after generation to tighten and polish the draft before review.',
+            };
+            return hints[this.form.auto_refine_policy] || '';
+        },
+
+        autoPublishPolicyHint() {
+            const hints = {
+                off: 'Keep every AI draft on the normal editorial review path.',
+                high_confidence_low_sensitivity: 'Prepare this plan for future score-based auto-publish only when confidence is high and topic sensitivity is low.',
+            };
+            return hints[this.form.auto_publish_policy] || '';
+        },
+
+        searchModeSummary() {
+            if (this.form.search_grounding_mode === 'enabled') {
+                return this.searchConfig.configured
+                    ? 'This plan will force live search and ask the AI to add linked citations.'
+                    : 'This plan is set to force live search, but no provider is configured yet.';
+            }
+            if (this.form.search_grounding_mode === 'disabled') {
+                return 'This plan will skip live search even if a global provider is configured.';
+            }
+            return this.searchConfig.configured
+                ? 'This plan follows the global search setting and will use the configured provider.'
+                : 'This plan follows the global setting. No provider is configured yet, so generation will run without live search.';
+        },
+
+        planSearchLabel(plan) {
+            if (plan.search_grounding_enabled === true) return 'internet search: forced on';
+            if (plan.search_grounding_enabled === false) return 'internet search: forced off';
+            return this.searchConfig.configured ? 'internet search: global default' : 'internet search: unavailable';
+        },
+
+        planAutoPublishLabel(plan) {
+            const threshold = Number(plan.confidence_threshold || 85);
+            if ((plan.auto_publish_policy || 'off') === 'high_confidence_low_sensitivity') {
+                return 'auto publish: high confidence at ' + threshold + '+ (low sensitivity only)';
+            }
+            return 'auto publish: off';
+        },
+
+        resetForm() {
+            this.form = { ...defaults };
+        },
+
+        editPlan(plan) {
+            let nra = '';
+            if (plan.next_run_at) {
+                const d = new Date(plan.next_run_at.replace(' ', 'T'));
+                if (!isNaN(d)) nra = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0') + 'T' + String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+            }
+            this.form = {
+                id: plan.id,
+                topic: plan.topic || '',
+                content_type: plan.content_type || 'post',
+                content_mode: plan.content_mode || 'standard',
+                prompt_template: plan.prompt_template || defaults.prompt_template,
+                writing_style: plan.writing_style || defaults.writing_style,
+                target_audience: plan.target_audience || '',
+                keywords_text: Array.isArray(plan.keywords) ? plan.keywords.join(', ') : '',
+                search_grounding_mode: plan.search_grounding_enabled === true ? 'enabled' : (plan.search_grounding_enabled === false ? 'disabled' : 'global'),
+                cadence: plan.cadence || 'manual',
+                cadence_interval: Number(plan.cadence_interval || 1),
+                publish_offset_minutes: Number(plan.publish_offset_minutes || 0),
+                visual_mode: plan.visual_mode || 'suggest_media',
+                auto_refine_policy: plan.auto_refine_policy || 'high_severity_once',
+                auto_publish_policy: plan.auto_publish_policy || 'off',
+                confidence_threshold: Number(plan.confidence_threshold || 85),
+                summary_enabled: !!plan.summary_enabled,
+                seo_enabled: !!plan.seo_enabled,
+                is_active: !!plan.is_active,
+                next_run_at: nra,
+            };
+        },
+
+        payloadFromForm() {
+            const p = {
+                topic: this.form.topic,
+                content_type: this.form.content_type,
+                content_mode: this.form.content_mode,
+                prompt_template: this.form.prompt_template,
+                writing_style: this.form.writing_style,
+                target_audience: this.form.target_audience,
+                keywords: (this.form.keywords_text || '').split(',').map(v => v.trim()).filter(Boolean),
+                search_grounding_enabled: this.form.search_grounding_mode === 'global'
+                    ? null
+                    : this.form.search_grounding_mode === 'enabled',
+                cadence: this.form.cadence,
+                cadence_interval: Number(this.form.cadence_interval || 1),
+                publish_offset_minutes: Number(this.form.publish_offset_minutes || 0),
+                visual_mode: this.form.visual_mode,
+                auto_refine_policy: this.form.auto_refine_policy,
+                auto_publish_policy: this.form.auto_publish_policy,
+                confidence_threshold: Number(this.form.confidence_threshold || 85),
+                summary_enabled: !!this.form.summary_enabled,
+                seo_enabled: !!this.form.seo_enabled,
+                is_active: !!this.form.is_active,
+            };
+            if (this.form.next_run_at) {
+                p.next_run_at = this.form.next_run_at.replace('T', ' ') + ':00';
+            }
+            return p;
+        },
+
+        async savePlan() {
+            const topic = String(this.form.topic || '').trim();
+            const contentType = String(this.form.content_type || '').trim();
+            if (topic === '') {
+                toast('Topic is required', 'error');
+                return;
+            }
+            if (contentType === '') {
+                toast('Content type is required', 'error');
+                return;
+            }
+
+            this.saving = true;
+            const isEdit = !!this.form.id;
+            const url = isEdit
+                ? CMS_BASE + '/api/v1/cms/ai/plans/' + this.form.id
+                : CMS_BASE + '/api/v1/cms/ai/plans';
+            try {
+                const res = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CMS_CSRF },
+                    body: JSON.stringify(this.payloadFromForm()),
+                });
+                const data = await res.json();
+                if (!data.ok) {
+                    toast(data.error || 'Failed to save plan', 'error');
+                    return;
+                }
+                toast(isEdit ? 'Plan updated' : 'Plan created');
+                await this.refreshPlans();
+                await this.refreshRuns();
+                this.resetForm();
+            } catch (e) {
+                toast('Network error while saving plan', 'error');
+            } finally {
+                this.saving = false;
+            }
+        },
+
+        async togglePlan(plan) {
+            try {
+                const res = await fetch(CMS_BASE + '/api/v1/cms/ai/plans/' + plan.id + '/toggle', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CMS_CSRF },
+                    body: '{}',
+                });
+                const data = await res.json();
+                if (!data.ok) {
+                    toast(data.error || 'Failed to toggle plan', 'error');
+                    return;
+                }
+                toast('Plan status updated');
+                await this.refreshPlans();
+            } catch (e) {
+                toast('Network error while toggling plan', 'error');
+            }
+        },
+
+        async runNow(plan) {
+            if (!confirm('Run this plan now? This will generate new AI content.')) {
+                return;
+            }
+            toast('Generating content...', 'info');
+            try {
+                const res = await fetch(CMS_BASE + '/api/v1/cms/ai/plans/' + plan.id + '/run', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CMS_CSRF },
+                    body: '{}',
+                });
+                const data = await res.json();
+                if (!data.ok) {
+                    toast(data.error || 'Failed to run plan', 'error');
+                    return;
+                }
+                let msg = 'Content #' + data.content_id + ' created in review.';
+                if (typeof data.search_sources_count === 'number' && data.search_sources_count > 0) {
+                    msg += ' ' + data.search_sources_count + ' web source' + (data.search_sources_count > 1 ? 's' : '') + ' fetched';
+                    if (typeof data.citations_count === 'number') {
+                        msg += ', ' + data.citations_count + ' citation' + (data.citations_count !== 1 ? 's' : '');
+                    }
+                    msg += '.';
+                }
+                if (data.qa_warnings && data.qa_warnings.length) {
+                    msg += ' (' + data.qa_warnings.length + ' QA warning' + (data.qa_warnings.length > 1 ? 's' : '') + ')';
+                }
+                if (data.auto_refine && data.auto_refine.attempted) {
+                    msg += data.auto_refine.applied
+                        ? ' Auto-refine applied.'
+                        : ' Auto-refine attempted but still needs manual review.';
+                }
+                toast(msg);
+                await this.refreshPlans();
+                await this.refreshRuns();
+            } catch (e) {
+                toast('Network error while running plan', 'error');
+            }
+        },
+
+        async deletePlan(plan) {
+            if (!confirm('Delete plan "' + plan.topic + '" and all its run history?')) {
+                return;
+            }
+            try {
+                const res = await fetch(CMS_BASE + '/api/v1/cms/ai/plans/' + plan.id + '/delete', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CMS_CSRF },
+                    body: '{}',
+                });
+                const data = await res.json();
+                if (!data.ok) {
+                    toast(data.error || 'Failed to delete plan', 'error');
+                    return;
+                }
+                toast('Plan deleted');
+                this.resetForm();
+                await this.refreshPlans();
+                await this.refreshRuns();
+            } catch (e) {
+                toast('Network error while deleting plan', 'error');
+            }
+        },
+
+        async refreshPlans() {
+            try {
+                const res = await fetch(CMS_BASE + '/api/v1/cms/ai/plans?limit=100');
+                const data = await res.json();
+                this.plans = data.ok ? (data.plans || []) : [];
+            } catch (e) {
+                this.plans = [];
+            }
+        },
+
+        async refreshRuns() {
+            try {
+                const res = await fetch(CMS_BASE + '/api/v1/cms/ai/runs?limit=50');
+                const data = await res.json();
+                this.runs = data.ok ? (data.runs || []) : [];
+            } catch (e) {
+                this.runs = [];
+            }
+        },
+
+        applyCritiquePreset(text) {
+            const current = String(this.critiqueForm.feedback || '').trim();
+            this.critiqueForm.feedback = current ? (current + '\n\n' + text) : text;
+        },
+
+        openCritiqueModal(run, historyOnly = false) {
+            this.critiqueModalRun = run;
+            this.critiqueForm.feedback = historyOnly ? '' : (run.latest_critique || '');
+            this.critiqueModalOpen = true;
+        },
+
+        closeCritiqueModal() {
+            this.critiqueModalOpen = false;
+            this.critiqueModalRun = null;
+            this.critiqueSubmitting = false;
+            this.critiqueForm.feedback = '';
+        },
+
+        async submitCritique() {
+            const run = this.critiqueModalRun;
+            if (!run) return;
+            if (!run.content_id) {
+                toast('This run has no content to refine', 'error');
+                return;
+            }
+
+            const feedback = String(this.critiqueForm.feedback || '').trim();
+            if (!feedback || !feedback.trim()) {
+                toast('Add critique instructions before refining', 'error');
+                return;
+            }
+
+            this.critiqueSubmitting = true;
+            toast('Refining content...', 'info');
+            try {
+                const res = await fetch(CMS_BASE + '/api/v1/cms/content/' + run.content_id + '/ai/refine', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CMS_CSRF },
+                    body: JSON.stringify({ feedback: feedback.trim() }),
+                });
+                const data = await res.json();
+                if (!data.ok) {
+                    toast(data.error || 'Failed to refine content', 'error');
+                    this.critiqueSubmitting = false;
+                    return;
+                }
+                toast('Refinement applied to content #' + data.content_id);
+                await this.refreshPlans();
+                await this.refreshRuns();
+                this.closeCritiqueModal();
+            } catch (e) {
+                toast('Network error while refining content', 'error');
+                this.critiqueSubmitting = false;
+            }
+        },
+    };
+}
+</script>
+{/block}

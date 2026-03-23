@@ -21,6 +21,61 @@ if (is_file($installLock) && !isset($_GET['force'])) {
 $errors  = [];
 $success = false;
 
+/**
+ * Remove control characters/newlines that can break .env structure.
+ */
+function installerEnvSanitizeValue(string $value): string
+{
+    $value = str_replace(["\r", "\n", "\0"], '', $value);
+    return trim($value);
+}
+
+/**
+ * Keep only host[:port] characters to avoid header injection in APP_URL.
+ */
+function installerSanitizeHost(string $host): string
+{
+    $host = trim($host);
+    if ($host === '') {
+        return 'localhost';
+    }
+    if (preg_match('/^[A-Za-z0-9.\-:\[\]]+$/', $host) !== 1) {
+        return 'localhost';
+    }
+    return $host;
+}
+
+/**
+ * Parse existing .env file into key/value map (best-effort).
+ */
+function installerReadExistingEnv(string $path): array
+{
+    if (!is_file($path)) {
+        return [];
+    }
+
+    $lines = @file($path, FILE_IGNORE_NEW_LINES);
+    if (!is_array($lines)) {
+        return [];
+    }
+
+    $env = [];
+    foreach ($lines as $line) {
+        $line = trim((string)$line);
+        if ($line === '' || str_starts_with($line, '#') || !str_contains($line, '=')) {
+            continue;
+        }
+        [$k, $v] = explode('=', $line, 2);
+        $k = trim($k);
+        if ($k === '') {
+            continue;
+        }
+        $env[$k] = installerEnvSanitizeValue((string)$v);
+    }
+
+    return $env;
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['step'] ?? '') === 'install') {
 
     // ── Collect & validate input ────────────────────────────────────────
@@ -115,33 +170,84 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['step'] ?? '') === 'install
 
             // ── Generate .env with secure JWT secret ────────────────────
             $scheme    = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
-            $host      = $_SERVER['HTTP_HOST'] ?? 'localhost';
+            $host      = installerSanitizeHost((string)($_SERVER['HTTP_HOST'] ?? 'localhost'));
             // Detect base path (Bluehost subdirectory installs)
             $scriptDir = dirname($_SERVER['SCRIPT_NAME']);
             $basePath  = rtrim(dirname($scriptDir), '/');
             if ($basePath === '.' || $basePath === '/' || $basePath === '') {
                 $basePath = '';
             }
-            $appUrl    = "{$scheme}://{$host}{$basePath}";
+            $appUrl    = installerEnvSanitizeValue("{$scheme}://{$host}{$basePath}");
             $jwtSecret = bin2hex(random_bytes(32));
 
-            $env = "APP_ENV=production\n"
-                 . "APP_DEBUG=0\n"
-                 . "APP_URL={$appUrl}\n"
-                 . "APP_TIMEZONE=Asia/Manila\n"
-                 . "APP_COOKIE_NAME=baroninventory_token\n"
-                 . "APP_COOKIE_SAMESITE=Lax\n\n"
-                 . "DB_HOST={$dbHost}\n"
-                 . "DB_PORT={$dbPort}\n"
-                 . "DB_DATABASE={$dbName}\n"
-                 . "DB_USERNAME={$dbUser}\n"
-                 . "DB_PASSWORD={$dbPass}\n"
-                 . "DB_COLLATION=utf8mb4_unicode_ci\n\n"
-                 . "JWT_SECRET={$jwtSecret}\n"
-                 . "JWT_EXPIRATION=86400\n";
+            $envPath = __DIR__ . '/../.env';
+            $existingEnv = installerReadExistingEnv($envPath);
 
-            file_put_contents(__DIR__ . '/../.env', $env, LOCK_EX);
-            @chmod(__DIR__ . '/../.env', 0600);
+            // Managed keys are always refreshed from installer input.
+            $managed = [
+                'APP_ENV' => 'production',
+                'APP_DEBUG' => '0',
+                'APP_URL' => $appUrl,
+                'APP_TIMEZONE' => 'Asia/Manila',
+                'APP_COOKIE_NAME' => 'baroninventory_token',
+                'APP_COOKIE_SAMESITE' => 'Lax',
+                'DB_HOST' => installerEnvSanitizeValue($dbHost),
+                'DB_PORT' => installerEnvSanitizeValue($dbPort),
+                'DB_DATABASE' => installerEnvSanitizeValue($dbName),
+                'DB_USERNAME' => installerEnvSanitizeValue($dbUser),
+                'DB_PASSWORD' => installerEnvSanitizeValue($dbPass),
+                'DB_COLLATION' => 'utf8mb4_unicode_ci',
+                'JWT_SECRET' => $jwtSecret,
+                'JWT_EXPIRATION' => '86400',
+            ];
+
+            // Preserve any existing non-managed keys (tenant, email, control-plane, etc.).
+            foreach ($existingEnv as $k => $v) {
+                if (!array_key_exists($k, $managed)) {
+                    $managed[$k] = installerEnvSanitizeValue((string)$v);
+                }
+            }
+
+            $orderedKeys = [
+                'APP_ENV', 'APP_DEBUG', 'APP_URL', 'APP_TIMEZONE', 'APP_COOKIE_NAME', 'APP_COOKIE_SAMESITE',
+                'DB_HOST', 'DB_PORT', 'DB_DATABASE', 'DB_USERNAME', 'DB_PASSWORD', 'DB_COLLATION',
+                'JWT_SECRET', 'JWT_EXPIRATION',
+            ];
+
+            $envLines = [];
+            foreach ($orderedKeys as $k) {
+                if (array_key_exists($k, $managed)) {
+                    $envLines[] = $k . '=' . installerEnvSanitizeValue((string)$managed[$k]);
+                    unset($managed[$k]);
+                }
+            }
+            foreach ($managed as $k => $v) {
+                $envLines[] = $k . '=' . installerEnvSanitizeValue((string)$v);
+            }
+            $env = implode("\n", $envLines) . "\n";
+
+            // Optional backup of previous env before replacing.
+            if (is_file($envPath)) {
+                $backupDir = __DIR__ . '/../storage/backups';
+                if (!is_dir($backupDir)) {
+                    @mkdir($backupDir, 0755, true);
+                }
+                $backupPath = $backupDir . '/env-' . date('Ymd-His') . '.bak';
+                @copy($envPath, $backupPath);
+                @chmod($backupPath, 0600);
+            }
+
+            // Atomic write: temp file + rename prevents partial writes.
+            $tmpPath = $envPath . '.tmp.' . bin2hex(random_bytes(4));
+            if (@file_put_contents($tmpPath, $env, LOCK_EX) === false) {
+                throw new RuntimeException('Failed writing temporary .env file');
+            }
+            @chmod($tmpPath, 0600);
+            if (!@rename($tmpPath, $envPath)) {
+                @unlink($tmpPath);
+                throw new RuntimeException('Failed replacing .env file');
+            }
+            @chmod($envPath, 0600);
 
             // ── Create storage dirs ─────────────────────────────────────
             $dirs = [

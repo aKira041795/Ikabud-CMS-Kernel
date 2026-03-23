@@ -93,6 +93,36 @@ function cmsSettingsDefaults(): array
  * Result is cached in-process to avoid repeated file reads.
  */
 
+function cmsSettingsPersistentCacheTtl(): int
+{
+    return max(0, (int)($_ENV['CMS_SETTINGS_CACHE_TTL'] ?? 30));
+}
+
+function cmsSettingsPersistentCacheInstance(): string
+{
+    $tid = cmsRuntimeTenantId();
+    return 'cms_settings_t' . $tid;
+}
+
+function cmsSettingsPersistentCacheKey(): string
+{
+    return 'cms:settings:merged:v1';
+}
+
+function cmsClearPersistentSettingsCache(): void
+{
+    if (cmsSettingsPersistentCacheTtl() <= 0) {
+        return;
+    }
+
+    $instance = cmsSettingsPersistentCacheInstance();
+    $key = cmsSettingsPersistentCacheKey();
+    app()->cache()->clearByTags($instance, ['cms:settings']);
+    app()->cache()->clearByTags($instance, ['cms:settings:tenant']);
+    // Best-effort direct key clear via pattern fallback is intentionally avoided;
+    // tag invalidation handles all setting snapshots for the tenant instance.
+}
+
 function readCmsSettings(): array
 {
     // In-process cache keyed by tenant so different tenants in the same
@@ -103,13 +133,37 @@ function readCmsSettings(): array
     if (!empty($GLOBALS[$cacheKey])) {
         return $GLOBALS[$valueKey];
     }
+
     $defaults = cmsSettingsDefaults();
+
+    $persistentTtl = cmsSettingsPersistentCacheTtl();
+    if ($persistentTtl > 0) {
+        $cached = app()->cache()->get(cmsSettingsPersistentCacheInstance(), cmsSettingsPersistentCacheKey());
+        if (is_array($cached)) {
+            $result = array_merge($defaults, $cached);
+            $GLOBALS[$cacheKey] = true;
+            $GLOBALS[$valueKey] = $result;
+            return $result;
+        }
+    }
+
     $saved = getModuleSettings('cms');
     if (!is_array($saved) || empty($saved)) {
         $result = $defaults;
     } else {
         $result = array_merge($defaults, $saved);
     }
+
+    if ($persistentTtl > 0) {
+        app()->cache()->setWithTags(
+            cmsSettingsPersistentCacheInstance(),
+            cmsSettingsPersistentCacheKey(),
+            $result,
+            ['cms:settings', 'cms:settings:tenant'],
+            $persistentTtl
+        );
+    }
+
     $GLOBALS[$cacheKey] = true;
     $GLOBALS[$valueKey] = $result;
     return $result;

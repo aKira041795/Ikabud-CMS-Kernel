@@ -91,6 +91,9 @@ function cmsResetSettingsCache(): void
     $tid = cmsRuntimeTenantId();
     $GLOBALS['cms_settings_cached_t' . $tid] = false;
     $GLOBALS['cms_settings_value_t' . $tid] = null;
+    if (function_exists('cmsClearPersistentSettingsCache')) {
+        cmsClearPersistentSettingsCache();
+    }
     if (function_exists('cmsResetCacheRuntimeState')) {
         cmsResetCacheRuntimeState();
     }
@@ -204,6 +207,33 @@ if (class_exists('Ikabud\\Kernel\\EventBus')) {
     $bus->listen('cms.settings.updated', function () {
         cmsCacheFlushAll();
     }, 10, 'cms');
+
+    $bus->listen('workflow.transitioned', function (array $payload) {
+        $workflowKey = (string)($payload['workflow_key'] ?? '');
+        $toState = (string)($payload['to_state'] ?? '');
+        $entityType = (string)($payload['entity_type'] ?? '');
+        $contentId = (int)($payload['entity_id'] ?? 0);
+
+        if ($workflowKey !== 'cms.content' || $entityType !== 'cms_content' || $toState !== 'review' || $contentId <= 0) {
+            return;
+        }
+
+        // AI automation sends its own email after the transition to avoid blocking the capability timeout
+        $meta = $payload['meta'] ?? [];
+        if (is_array($meta) && ($meta['source'] ?? '') === 'ai_automation') {
+            return;
+        }
+
+        if (!function_exists('cmsAiAutomationSendApprovalNotification')) {
+            return;
+        }
+
+        try {
+            cmsAiAutomationSendApprovalNotification($contentId);
+        } catch (\Throwable $e) {
+            write_log('cms ai automation approval email failed: ' . $e->getMessage(), 'error', ['content_id' => $contentId]);
+        }
+    }, 20, 'cms');
 }
 
 // ── CMS Categories ─────────────────────────────────────────────────

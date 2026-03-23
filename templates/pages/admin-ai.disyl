@@ -139,6 +139,34 @@
 </div>
 
 <div class="panel">
+    <div class="panel-title">Web Search Grounding</div>
+    <div class="section-desc" style="margin-bottom:14px;font-size:13px;color:var(--text-muted);">
+        When enabled, AI automation fetches live search results before generating content. The model cites real sources as inline links. Requires an API key from one of the supported providers.
+    </div>
+    <div>
+        <div class="field">
+            <label>Search Provider</label>
+            <select class="select" id="search_grounding_provider">
+                <option value="">Disabled</option>
+                <option value="brave">Brave Search</option>
+                <option value="tavily">Tavily (AI-optimized)</option>
+                <option value="serper">Serper.dev (Google)</option>
+            </select>
+            <div class="help">Brave and Serper have free tiers. Tavily is designed specifically for LLM grounding.</div>
+        </div>
+        <div class="field">
+            <label>Search API Key <span style="font-weight:400;color:var(--text-muted);">— current: <span id="search_key_masked">(not set)</span></span></label>
+            <input class="input mono" id="search_grounding_api_key" placeholder="Leave blank to keep existing key">
+        </div>
+        <div class="field">
+            <label>Max Results per Generation</label>
+            <input class="input" id="search_grounding_max_results" type="number" min="1" max="10" placeholder="5">
+            <div class="help">How many search results to fetch and inject as grounding context (1–10).</div>
+        </div>
+    </div>
+</div>
+
+<div class="panel">
     <div class="row" style="margin-bottom:10px;">
         <div>
             <strong style="font-size:13px;">Connection Test</strong>
@@ -206,6 +234,11 @@
                 document.getElementById('groq_api_key').value = '';
                 document.getElementById('groq_key_masked').textContent = s.groq_api_key_set ? (s.groq_api_key_masked || '***') : '(not set)';
 
+                document.getElementById('search_grounding_provider').value = s.search_grounding_provider || '';
+                document.getElementById('search_grounding_api_key').value = '';
+                document.getElementById('search_key_masked').textContent = s.search_grounding_key_set ? (s.search_grounding_key_masked || '***') : '(not set)';
+                document.getElementById('search_grounding_max_results').value = s.search_grounding_max_results || 5;
+
                 toggleProviderFields();
                 toggleTierFields();
 
@@ -244,6 +277,13 @@
         var gkey = document.getElementById('groq_api_key').value;
         if (gkey && gkey.trim() !== '') {
             settings.groq_api_key = gkey.trim();
+        }
+
+        settings.search_grounding_provider = document.getElementById('search_grounding_provider').value;
+        settings.search_grounding_max_results = parseInt(document.getElementById('search_grounding_max_results').value, 10) || 5;
+        var skey = document.getElementById('search_grounding_api_key').value;
+        if (skey && skey.trim() !== '') {
+            settings.search_grounding_api_key = skey.trim();
         }
 
         setStatus('Saving…');

@@ -1037,6 +1037,207 @@ function tenantProvisionModulePlan(?string $entryModuleId): array
     return $planned;
 }
 
+function tenantEntryModuleIdForTenant(int $tenantId): ?string
+{
+    if ($tenantId <= 0) {
+        return null;
+    }
+
+    try {
+        $stmt = app()->controlDb()->prepare('SELECT entry_module_id FROM kernel_tenants WHERE id = :tenant_id LIMIT 1');
+        $stmt->execute([':tenant_id' => $tenantId]);
+        $value = $stmt->fetchColumn();
+        if (!is_string($value)) {
+            return null;
+        }
+        $value = trim($value);
+        return $value !== '' ? $value : null;
+    } catch (Throwable $e) {
+        return null;
+    }
+}
+
+function tenantEnsureMigrationTrackingTable(PDO $db): void
+{
+    $db->exec(
+        'CREATE TABLE IF NOT EXISTS `_migrations` ('
+        . 'id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY, '
+        . 'module VARCHAR(80) NOT NULL, '
+        . 'migration VARCHAR(255) NOT NULL, '
+        . 'batch INT UNSIGNED NOT NULL DEFAULT 1, '
+        . 'executed_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, '
+        . 'UNIQUE KEY uq_module_migration (module, migration)'
+        . ') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4'
+    );
+}
+
+function tenantAppliedModuleMigrations(PDO $db, string $moduleId): array
+{
+    tenantEnsureMigrationTrackingTable($db);
+
+    try {
+        $stmt = $db->prepare('SELECT migration FROM _migrations WHERE module = :module');
+        $stmt->execute([':module' => $moduleId]);
+        $rows = $stmt->fetchAll(PDO::FETCH_COLUMN) ?: [];
+        $applied = [];
+        foreach ($rows as $row) {
+            $name = trim((string)$row);
+            if ($name !== '') {
+                $applied[$name] = true;
+            }
+        }
+        return $applied;
+    } catch (Throwable $e) {
+        return [];
+    }
+}
+
+function tenantRecordModuleMigration(PDO $db, string $moduleId, string $migrationName): void
+{
+    tenantEnsureMigrationTrackingTable($db);
+
+    $batchStmt = $db->prepare('SELECT COALESCE(MAX(batch), 0) + 1 FROM _migrations WHERE module = :module');
+    $batchStmt->execute([':module' => $moduleId]);
+    $batch = (int)$batchStmt->fetchColumn();
+    if ($batch <= 0) {
+        $batch = 1;
+    }
+
+    $stmt = $db->prepare('INSERT IGNORE INTO _migrations (module, migration, batch) VALUES (:module, :migration, :batch)');
+    $stmt->execute([
+        ':module' => $moduleId,
+        ':migration' => $migrationName,
+        ':batch' => $batch,
+    ]);
+}
+
+function tenantSyncModuleMigrations(PDO $db, string $moduleId, ?array $manifest = null): array
+{
+    $moduleId = trim($moduleId);
+    if ($moduleId === '') {
+        return [];
+    }
+
+    if ($manifest === null) {
+        $allModules = discoverModules();
+        $manifest = $allModules[$moduleId] ?? null;
+    }
+    if (!is_array($manifest)) {
+        return [];
+    }
+
+    $declared = $manifest['migrations'] ?? [];
+    if (!is_array($declared) || $declared === []) {
+        return [];
+    }
+
+    $modulePath = rtrim((string)($manifest['_path'] ?? ''), '/');
+    if ($modulePath === '') {
+        return [];
+    }
+
+    $applied = tenantAppliedModuleMigrations($db, $moduleId);
+    $executed = [];
+
+    foreach ($declared as $relativePath) {
+        $relativePath = ltrim((string)$relativePath, '/');
+        if ($relativePath === '') {
+            continue;
+        }
+
+        $migrationName = basename($relativePath);
+        if (isset($applied[$migrationName])) {
+            continue;
+        }
+
+        $fullPath = $modulePath . '/' . $relativePath;
+        if (!is_file($fullPath)) {
+            continue;
+        }
+
+        $sql = (string)file_get_contents($fullPath);
+        if (trim($sql) === '') {
+            tenantRecordModuleMigration($db, $moduleId, $migrationName);
+            $executed[] = $migrationName;
+            continue;
+        }
+
+        $db->exec($sql);
+        tenantRecordModuleMigration($db, $moduleId, $migrationName);
+        $applied[$migrationName] = true;
+        $executed[] = $migrationName;
+    }
+
+    return $executed;
+}
+
+function syncTenantMigrationsForTenant(int $tenantId, ?string $entryModuleId = null): array
+{
+    if ($tenantId <= 0) {
+        return ['ok' => false, 'error' => 'Invalid tenant ID'];
+    }
+
+    $db = app()->dbForTenant($tenantId);
+    if ($db === null) {
+        return ['ok' => false, 'error' => 'Tenant DB connection unavailable'];
+    }
+
+    $entryModuleId = $entryModuleId !== null ? trim($entryModuleId) : tenantEntryModuleIdForTenant($tenantId);
+    $plannedModules = tenantProvisionModulePlan($entryModuleId !== '' ? $entryModuleId : null);
+    $allModules = discoverModules();
+    $results = [];
+
+    try {
+        foreach ($plannedModules as $moduleId) {
+            $manifest = $allModules[$moduleId] ?? null;
+            if (!is_array($manifest)) {
+                continue;
+            }
+            $executed = tenantSyncModuleMigrations($db, $moduleId, $manifest);
+            if ($executed !== []) {
+                $results[$moduleId] = $executed;
+            }
+        }
+
+        return [
+            'ok' => true,
+            'tenant_id' => $tenantId,
+            'entry_module_id' => $entryModuleId !== '' ? $entryModuleId : null,
+            'modules' => $results,
+        ];
+    } catch (Throwable $e) {
+        return [
+            'ok' => false,
+            'error' => $e->getMessage(),
+            'tenant_id' => $tenantId,
+            'entry_module_id' => $entryModuleId !== '' ? $entryModuleId : null,
+            'modules' => $results,
+        ];
+    }
+}
+
+function syncTenantMigrationsForCurrentRequest(): array
+{
+    static $done = null;
+    if ($done !== null) {
+        return $done;
+    }
+
+    if (!moduleTenantSettingsModeEnabled()) {
+        $done = ['ok' => true, 'skipped' => 'tenant_mode_disabled'];
+        return $done;
+    }
+
+    $tenantId = moduleTenantSettingsTenantId();
+    if ($tenantId === null || $tenantId <= 0) {
+        $done = ['ok' => true, 'skipped' => 'tenant_unresolved'];
+        return $done;
+    }
+
+    $done = syncTenantMigrationsForTenant($tenantId);
+    return $done;
+}
+
 /**
  * Validate capabilities block in a module manifest.
  * Returns:

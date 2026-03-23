@@ -67,6 +67,8 @@
 .term-guide-summary::before { content: '▸'; display: inline-block; margin-right: 8px; color: var(--primary); transition: transform .15s ease; }
 .term-guide-card[open] .term-guide-summary::before { transform: rotate(90deg); }
 .term-guide-body { padding: 14px 16px 16px; }
+.cache-actions { display: flex; align-items: center; gap: 10px; margin: 12px 0 2px; }
+.cache-action-msg { font-size: 11px; color: var(--text-muted); min-height: 14px; }
 </style>
 
 <div class="page-header">
@@ -186,6 +188,10 @@
             html += statRow('Host Lookup DB Hits', hostMetrics.db_hits || 0);
             html += statRow('Host Lookup Misses', hostMetrics.misses || 0);
             html += statRow('Host Cache TTL (sec)', hostCache && hostCache.ttl_seconds ? hostCache.ttl_seconds : 0);
+            html += '<div class="cache-actions">';
+            html += '<button id="clear-platform-cache-btn" class="btn btn-outline btn-sm">Clear Cache</button>';
+            html += '<span id="clear-platform-cache-msg" class="cache-action-msg"></span>';
+            html += '</div>';
         } else {
             html += '<h3>Cache Health <span class="badge badge-warn">unavailable</span></h3>';
             html += '<div class="section-help" style="margin:0;">Cache diagnostics endpoint is unreachable or returned an error.</div>';
@@ -303,6 +309,7 @@
         html += '</details>';
 
         document.getElementById('platform-data').innerHTML = html;
+        bindCacheClearAction(BASE);
     })
     .catch(function(err) {
         document.getElementById('platform-data').innerHTML =
@@ -317,6 +324,48 @@
             + '<div class="flow-step-label">' + esc(label) + '</div>'
             + '<div class="flow-step-note">' + esc(note) + '</div>'
             + '</div>';
+    }
+    function bindCacheClearAction(base) {
+        var btn = document.getElementById('clear-platform-cache-btn');
+        var msg = document.getElementById('clear-platform-cache-msg');
+        if (!btn || !msg) {
+            return;
+        }
+
+        btn.addEventListener('click', function() {
+            if (!window.confirm('Clear kernel cache now? This will remove cached entries and refresh diagnostics.')) {
+                return;
+            }
+
+            btn.disabled = true;
+            msg.textContent = 'Clearing...';
+
+            fetch(base + '/api/v1/admin/cache/clear', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify({ _token: '{csrf_token}' })
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(payload) {
+                if (!payload || !payload.ok) {
+                    msg.textContent = (payload && payload.error) ? payload.error : 'Cache clear failed';
+                    btn.disabled = false;
+                    return;
+                }
+
+                msg.textContent = 'Cleared ' + String(payload.cleared || 0) + ' cache files.';
+                window.setTimeout(function() {
+                    window.location.reload();
+                }, 500);
+            })
+            .catch(function() {
+                msg.textContent = 'Network error while clearing cache';
+                btn.disabled = false;
+            });
+        });
     }
     function actionItem(title, note) {
         return '<div class="action-item">'

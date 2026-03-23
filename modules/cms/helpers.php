@@ -8,6 +8,8 @@ require_once __DIR__ . '/helpers/05-permissions.php';
 require_once __DIR__ . '/helpers/10-core.php';
 require_once __DIR__ . '/helpers/20-seo-public.php';
 require_once __DIR__ . '/helpers/15-utils.php';
+require_once __DIR__ . '/helpers/86-ai-search-grounding.php';
+require_once __DIR__ . '/helpers/85-ai-automation.php';
 require_once __DIR__ . '/helpers/99-misc.php';
 require_once __DIR__ . '/helpers/30-media.php';
 require_once __DIR__ . '/helpers/40-theme-settings.php';

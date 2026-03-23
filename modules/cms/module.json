@@ -35,7 +35,9 @@
         "kernel_search_index",
         "workflow_instances",
         "workflow_transition_logs",
-        "cms_theme_customizer"
+        "cms_theme_customizer",
+        "cms_ai_content_plans",
+        "cms_ai_content_runs"
     ],
     "reads_tables": [
         "kernel_event_triggers",
@@ -57,7 +59,12 @@
         "database/migrations/011_cms_builder_documents.sql",
         "database/migrations/012_cms_theme_customizer.sql",
         "database/migrations/013_cms_crud_enhancements.sql",
-        "database/migrations/015_cms_password_resets.sql"
+        "database/migrations/015_cms_password_resets.sql",
+        "database/migrations/016_cms_ai_content_automation.sql",
+        "database/migrations/017_cms_ai_plan_search_grounding.sql",
+        "database/migrations/018_cms_ai_plan_content_mode.sql",
+        "database/migrations/019_cms_ai_plan_auto_refine_policy.sql",
+        "database/migrations/020_cms_ai_plan_auto_publish_policy.sql"
     ],
     "capabilities": {
         "exposes": [

@@ -25,3 +25,4 @@ require_once __DIR__ . '/handlers/78-import-export.php';
 require_once __DIR__ . '/handlers/80-customizer.php';
 require_once __DIR__ . '/handlers/82-permissions.php';
 require_once __DIR__ . '/handlers/84-extensions.php';
+require_once __DIR__ . '/handlers/86-ai-automation.php';

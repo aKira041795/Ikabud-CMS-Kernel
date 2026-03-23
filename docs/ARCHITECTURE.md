@@ -104,7 +104,7 @@ Executed on every request before routing:
 
 1. **Path constants** — `BASE_PATH`, `CONFIG_PATH`, `SRC_PATH`, `STORAGE_PATH`, `PUBLIC_PATH`, `KERNEL_PATH`, `TEMPLATES_PATH`
 2. **Error handling** — PHP error reporting routed to `storage/logs/error.log`, stack traces never exposed to clients
-3. **`.env` loading** — Parse `BASE_PATH/.env` (key=value, comments ignored)
+3. **`.env` loading** — Parse `BASE_PATH/.env` (key=value, comments ignored); supports single- and double-quoted values with backslash escape sequences; only `[A-Z][A-Z0-9_]*` keys are accepted
 4. **Config merge** — Load `config/app.php`, `config/database.php`, `config/control_database.php`
 5. **Global helpers** — `request_id()`, `is_https()`, `write_log()`, `config()`, `app()`, `db()`, `kernelPdo()`
 6. **Autoloader** — SPL autoloader for `Ikabud\Kernel\*` namespace
@@ -235,7 +235,8 @@ $content = app()->cap('cms.content.get@1', ['slug' => 'about']);
 
 - **Control plane database** — Contains `tenants` table and `kernel_tenant_db_connections` (encrypted credentials)
 - **Per-tenant database** — Each tenant has its own MySQL database; credentials decrypted at connection time via `Crypto.php`
-- **Tenant resolution** — `TenantResolver` resolves tenant ID from HTTP header, hostname, or default config
+- **Tenant resolution** — `TenantResolver` resolves tenant ID from HTTP header, hostname, or default config. Host lookups are cached in memory and optionally in APCu (`ikabud:tenant_host:*` keys, TTL from `TENANT_HOST_CACHE_TTL` env var).  
+  `TenantResolver::clearControlHostCache()` flushes both layers (used after tenant DB credential changes).
 
 ### Tenant Entry Routing (`kernel/Http/TenantEntryRouter.php`)
 
@@ -307,6 +308,37 @@ db()->table('cms_content')->insert(['title' => $title, 'slug' => $slug]);
 - Control-plane migrations: `control-migrations/`
 - Runner: `PdoMigrationRunner` — incremental, tracks applied migrations
 
+### Tenant Migration Auto-Sync
+
+On every HTTP request (when multi-tenancy is active) the kernel automatically
+applies any pending module migrations to the current tenant's database:
+
+```
+syncTenantMigrationsForCurrentRequest()
+  → resolves tenant ID
+  → discovers planned modules via tenantProvisionModulePlan(entry_module_id)
+  → for each module, compares declared migrations against _migrations tracking table
+  → executes any unapplied SQL files, records them in _migrations
+```
+
+Tracking table `_migrations` is created automatically per tenant database:
+
+| Column | Description |
+|--------|-------------|
+| `module` | Module ID that owns the migration |
+| `migration` | SQL filename (basename) |
+| `batch` | Incrementing batch number per module |
+| `executed_at` | Timestamp of execution |
+
+Superadmin tenant operations (provisioning entry module, saving DB credentials)
+also call `syncTenantMigrationsForTenant()` explicitly and surface migration
+errors in the API response before returning.
+
+Relevant helpers in `src/helpers/module-manager.php`:
+- `tenantSyncModuleMigrations(PDO, moduleId)` — apply pending migrations for one module
+- `syncTenantMigrationsForTenant(tenantId)` — apply across all planned modules for a tenant
+- `syncTenantMigrationsForCurrentRequest()` — request-lifecycle hook (static once-per-request)
+
 ### Tenant Database Pool
 
 `App::dbForTenant(int $tenantId)` maintains a lazy connection pool — each tenant's PDO is created on first access and reused for the request lifetime.
@@ -363,6 +395,37 @@ All superadmin endpoints enforce:
 - **Request ID:** Every request gets a unique `X-Request-Id` header (accepted from upstream or generated)
 - **Correlation:** All log entries include request ID for cross-log tracing
 - **Audit trail:** Security-sensitive operations (module toggles, auth, lock/unlock) are logged with actor context
+
+---
+
+## Admin View Caching
+
+Kernel superadmin API responses (tenant list, platform settings, module list) are
+optionally cached per-tenant and per-role to reduce repeated DB reads.
+
+**Env var:** `ADMIN_VIEW_CACHE_TTL` (seconds, default `20`, set `0` to disable)
+
+Cache keys are scoped by `role` and `source` so a superadmin and a regular admin
+never share a response. Writing through (`adminViewCacheSet`) and invalidation
+(`adminViewCacheInvalidate`) happen at the same mutation points so the cache
+stays consistent with database state.
+
+Relevant helpers in `public/index.php`:
+
+| Function | Description |
+|----------|-------------|
+| `adminViewCacheTtl()` | Returns configured TTL (0 = disabled) |
+| `adminViewCacheGet(key, user)` | Fetch from cache; returns `null` on miss or disabled |
+| `adminViewCacheSet(key, payload, tags, user)` | Write with tag annotations |
+| `adminViewCacheInvalidate(tags)` | Purge all cache entries with any of the given tags |
+
+Cache tags used:
+
+| Tag | Invalidated by |
+|-----|----------------|
+| `admin:view:tenants` | Any tenant create/update/delete |
+| `admin:view:platform` | Platform settings change |
+| `admin:view:modules` | Module toggle or settings update |
 
 ---
 

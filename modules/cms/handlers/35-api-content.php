@@ -253,6 +253,35 @@ function cmsApiContentWorkflowTransition(array $params = []): void
         }
 
         if (($res['to_state'] ?? '') === 'published') {
+            $db = cmsDb();
+            $meta = cmsLoadContentMeta($db, $id);
+            $desiredPublishAt = trim((string)($meta['_ai_desired_publish_at'] ?? ''));
+            $normalizedDesiredPublishAt = cmsNormalizePublishAt($desiredPublishAt);
+            if ($normalizedDesiredPublishAt !== null && strtotime($normalizedDesiredPublishAt) > time()) {
+                $db->prepare(
+                    "UPDATE cms_content SET status = 'scheduled', published_at = :pub, updated_at = NOW() WHERE id = :id LIMIT 1"
+                )->execute([':pub' => $normalizedDesiredPublishAt, ':id' => $id]);
+
+                try {
+                    app()->cap()->call('kernel.audit.record@1', [
+                        'module' => 'cms',
+                        'action' => 'content.schedule_from_ai_approval',
+                        'entity_type' => 'cms_content',
+                        'entity_id' => (string)$id,
+                        'new_data' => ['status' => 'scheduled', 'published_at' => $normalizedDesiredPublishAt],
+                    ]);
+                } catch (Throwable $ignored) {
+                }
+
+                echo json_encode([
+                    'ok' => true,
+                    'transition' => $res,
+                    'content_status' => 'scheduled',
+                    'published_at' => $normalizedDesiredPublishAt,
+                ]);
+                exit;
+            }
+
             cmsApiContentPublish(['id' => $id]);
             return;
         }
@@ -314,7 +343,10 @@ function cmsApiContentAiSummary(array $params = []): void
             ],
             'temperature' => 0.2,
             'json' => false,
-        ], ['caller_module' => 'cms', 'caller_user' => $user]);
+            'timeout_ms' => 20000,
+            'max_tokens' => 220,
+            'preferred_tier' => 'free',
+        ], ['caller_module' => 'cms', 'caller_user' => $user, 'timeout_ms' => 20000]);
 
         if (empty($res['ok'])) {
             http_response_code(422);
@@ -325,6 +357,10 @@ function cmsApiContentAiSummary(array $params = []): void
         echo json_encode(['ok' => true, 'summary' => trim((string)($res['content'] ?? ''))]);
         exit;
     } catch (Throwable $e) {
+        write_log('cms ai summary failed: ' . $e->getMessage(), 'error', [
+            'content_id' => $id,
+            'user_id' => (int)($user['id'] ?? 0),
+        ]);
         http_response_code(500);
         echo json_encode(['ok' => false, 'error' => 'AI capability call failed']);
         exit;
@@ -397,7 +433,10 @@ function cmsApiContentAiSeo(array $params = []): void
             ],
             'temperature' => 0.2,
             'json' => true,
-        ], ['caller_module' => 'cms', 'caller_user' => $user]);
+            'timeout_ms' => 20000,
+            'max_tokens' => 220,
+            'preferred_tier' => 'free',
+        ], ['caller_module' => 'cms', 'caller_user' => $user, 'timeout_ms' => 20000]);
 
         if (empty($res['ok'])) {
             http_response_code(422);
@@ -418,6 +457,10 @@ function cmsApiContentAiSeo(array $params = []): void
         ]]);
         exit;
     } catch (Throwable $e) {
+        write_log('cms ai seo failed: ' . $e->getMessage(), 'error', [
+            'content_id' => $id,
+            'user_id' => (int)($user['id'] ?? 0),
+        ]);
         http_response_code(500);
         echo json_encode(['ok' => false, 'error' => 'AI capability call failed']);
         exit;

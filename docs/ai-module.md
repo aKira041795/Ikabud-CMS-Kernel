@@ -849,4 +849,56 @@ ledger.closed → workflow.ledger.daily_close
 
 ---
 
-*Document v2 — all review feedback integrated. Ready for Phase A implementation.*
+## 14. AI Provider Expansion (v3)
+
+### Supported Providers
+
+The AI module now supports seven LLM providers sharing a common helper interface:
+
+| Provider | Key | Notes |
+|----------|-----|-------|
+| OpenAI | `openai` | Default. Requires `OPENAI_API_KEY` / `api_key` setting. |
+| Groq | `groq` | OpenAI-compatible, high-speed. Requires `groq_api_key`. |
+| Ollama | `ollama` | Local inference server. Requires `ollama_base_url`. |
+| Google Gemini | `gemini` | Requires `gemini_api_key`. |
+| Cerebras | `cerebras` | Requires `cerebras_api_key`. |
+| OpenRouter | `openrouter` | Multi-model gateway. Requires `openrouter_api_key`. |
+| Mistral | `mistral` | Requires `mistral_api_key`. |
+
+Provider is selected via the `provider` setting (global or per-tenant). All providers implement the same two entry-point shapes:
+- `ai{Provider}SuggestTriggers($ctx)` for `ai.capability.suggest@1`
+- `ai{Provider}TextGenerate($messages, $temp, $json, $timeout[, $maxTokens])` for `ai.text.generate@1`
+
+### Settings Resolution Order
+
+Settings are resolved in three layers, with later layers taking precedence:
+
+1. **Global settings** — stored in the module registry (`readModuleRegistry()['ai']['settings']`)
+2. **Tenant settings** — per-tenant overrides (`getModuleSettings('ai')`)  
+   Empty-string tenant values do not mask valid global defaults.
+3. **Runtime overrides** — programmatic overrides via `aiRuntimeOverrides()` / `aiWithRuntimeOverrides()`  
+   Empty-string runtime values are also ignored.
+
+Functions:
+
+| Function | Description |
+|----------|-------------|
+| `aiGlobalSettings()` | Returns raw global AI settings array |
+| `aiResolvedSettings()` | Returns merged settings (global → tenant → runtime) |
+| `aiRuntimeOverrides(?array $replace)` | Get or set in-request runtime overrides |
+| `aiWithRuntimeOverrides(array $overrides, callable $callback)` | Scoped override — restores previous state after callback |
+
+### `ai.text.generate@1` — Extended Input Parameters
+
+Two new optional payload keys were added:
+
+| Key | Type | Description |
+|-----|------|-------------|
+| `preferred_tier` | `string` | Hint for provider model selection: `free`, `paid`, or `custom`. Empty = no preference. |
+| `max_tokens` | `integer` | Hard cap on response tokens. If omitted or 0, the provider default is used. |
+
+The `provider` field in the response is now always the actual resolved provider instead of hardcoded `"openai"`.
+
+---
+
+*Document v3 — new providers, settings cascade, and runtime overrides documented.*

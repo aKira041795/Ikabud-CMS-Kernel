@@ -659,6 +659,139 @@
         </div>
         {/if}
 
+        <div class="bg-white rounded-xl border border-gray-200 shadow-sm" x-show="aiAutomation.enabled" x-cloak>
+            <div class="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+                <span class="text-sm font-semibold text-gray-700">AI Automation</span>
+                <a href="{base_url}/cms/admin/ai-automation" class="text-[11px] font-medium text-sky-600 hover:text-sky-800">Open Automation</a>
+            </div>
+            <div class="p-4 space-y-3">
+                <div class="flex gap-2" x-show="capabilities.ai_refine">
+                    <button type="button" class="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium text-violet-700 border border-violet-200 rounded-lg hover:bg-violet-50 disabled:opacity-50 transition-colors" @click="openAiRefineModal()" :disabled="saving || aiRefine.submitting || !contentId">
+                        Refine Draft
+                    </button>
+                    <button type="button" class="inline-flex items-center justify-center px-3 py-2 text-xs font-medium text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors" @click="openAiRefineModal(aiAutomation.latest_critique || 'Tighten structure, verify every factual claim, and remove any unsupported authority wording.')" :disabled="saving || aiRefine.submitting || !contentId">
+                        Reuse Last
+                    </button>
+                </div>
+                <div x-show="aiRefine.error" class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-[11px] text-red-700" x-text="aiRefine.error"></div>
+                <div class="flex items-center justify-between text-xs" x-show="aiAutomation.topic">
+                    <span class="text-gray-400">Topic</span>
+                    <span class="text-gray-700 font-medium text-right max-w-[170px]" x-text="aiAutomation.topic"></span>
+                </div>
+                <div class="flex items-center justify-between text-xs">
+                    <span class="text-gray-400">Mode</span>
+                    <span class="text-gray-600" x-text="aiAutomation.content_mode || 'standard'"></span>
+                </div>
+                <div class="flex items-center justify-between text-xs" x-show="aiAutomation.plan_id">
+                    <span class="text-gray-400">Plan / Run</span>
+                    <span class="text-gray-600" x-text="'#' + aiAutomation.plan_id + ' / #' + aiAutomation.run_id"></span>
+                </div>
+                <div class="flex items-center justify-between text-xs" x-show="aiAutomation.last_refined_at">
+                    <span class="text-gray-400">Last Refined</span>
+                    <span class="text-gray-600" x-text="aiAutomation.last_refined_at"></span>
+                </div>
+                <div class="flex items-center justify-between text-xs" x-show="aiAutomation.refine_attempt_count">
+                    <span class="text-gray-400">Refine Attempts</span>
+                    <span class="text-gray-600" x-text="aiAutomation.refine_attempt_count"></span>
+                </div>
+                <div class="flex items-center justify-between text-xs" x-show="aiAutomation.auto_refine_count">
+                    <span class="text-gray-400">Auto Refines</span>
+                    <span class="text-gray-600" x-text="aiAutomation.auto_refine_count"></span>
+                </div>
+                <div class="flex items-center justify-between text-xs" x-show="aiAutomation.quality_score">
+                    <span class="text-gray-400">Quality Score</span>
+                    <span class="text-gray-700 font-semibold" x-text="aiAutomation.quality_score + '/100'"></span>
+                </div>
+                <div class="flex items-center justify-between text-xs" x-show="aiAutomation.approval_confidence">
+                    <span class="text-gray-400">Approval Confidence</span>
+                    <span class="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase"
+                          :class="{
+                            'bg-red-100 text-red-700': aiAutomation.approval_confidence === 'blocked' || aiAutomation.approval_confidence === 'low',
+                            'bg-amber-100 text-amber-700': aiAutomation.approval_confidence === 'medium',
+                            'bg-emerald-100 text-emerald-700': aiAutomation.approval_confidence === 'high'
+                          }"
+                          x-text="aiAutomation.approval_confidence"></span>
+                </div>
+                <div class="flex items-center justify-between text-xs" x-show="aiAutomation.approval_recommendation">
+                    <span class="text-gray-400">Recommendation</span>
+                    <span class="text-gray-600 text-right" x-text="aiAutomation.approval_recommendation"></span>
+                </div>
+
+                <div x-show="aiAutomation.auto_refine_unresolved" class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-[11px] text-red-700 font-medium">
+                    Auto-refine ran, but high-severity QA warnings still remain.
+                </div>
+
+                <div x-show="aiAutomation.quality_assessment && aiAutomation.quality_assessment.dimensions" class="rounded-lg border border-sky-200 bg-sky-50 p-3 space-y-2">
+                    <div class="text-[11px] font-semibold text-sky-900 uppercase tracking-wide">Quality Assessment</div>
+                    <div class="grid grid-cols-2 gap-2 text-[11px] text-sky-900">
+                        <div class="rounded border border-sky-100 bg-white/70 px-2 py-1">
+                            <div class="text-sky-700">Completeness</div>
+                            <div class="font-semibold" x-text="(aiAutomation.quality_assessment.dimensions.completeness || 0) + '/100'"></div>
+                        </div>
+                        <div class="rounded border border-sky-100 bg-white/70 px-2 py-1">
+                            <div class="text-sky-700">Accuracy</div>
+                            <div class="font-semibold" x-text="(aiAutomation.quality_assessment.dimensions.accuracy_signals || 0) + '/100'"></div>
+                        </div>
+                        <div class="rounded border border-sky-100 bg-white/70 px-2 py-1">
+                            <div class="text-sky-700">Actionable Depth</div>
+                            <div class="font-semibold" x-text="(aiAutomation.quality_assessment.dimensions.actionable_depth || 0) + '/100'"></div>
+                        </div>
+                        <div class="rounded border border-sky-100 bg-white/70 px-2 py-1">
+                            <div class="text-sky-700">Repetition</div>
+                            <div class="font-semibold" x-text="(aiAutomation.quality_assessment.dimensions.repetition || 0) + '/100'"></div>
+                        </div>
+                        <div class="rounded border border-sky-100 bg-white/70 px-2 py-1 col-span-2">
+                            <div class="text-sky-700">Realism</div>
+                            <div class="font-semibold" x-text="(aiAutomation.quality_assessment.dimensions.realism || 0) + '/100'"></div>
+                        </div>
+                    </div>
+                    <div x-show="aiAutomation.blocking_reasons && aiAutomation.blocking_reasons.length" class="space-y-1">
+                        <div class="text-[10px] font-semibold uppercase tracking-wide text-sky-800">Blocking Reasons</div>
+                        <template x-for="(reason, index) in aiAutomation.blocking_reasons" :key="'block-reason-' + index">
+                            <div class="text-[11px] leading-5 text-sky-900" x-text="reason"></div>
+                        </template>
+                    </div>
+                </div>
+
+                <div x-show="aiAutomation.latest_critique" class="rounded-lg border border-gray-200 bg-gray-50 p-3">
+                    <div class="text-[11px] font-semibold text-gray-600 uppercase tracking-wide">Latest Critique</div>
+                    <div class="mt-1 text-xs text-gray-700 whitespace-pre-line" x-text="aiAutomation.latest_critique"></div>
+                </div>
+
+                <div x-show="aiAutomation.qa_warnings && aiAutomation.qa_warnings.length" class="rounded-lg border border-amber-200 bg-amber-50 p-3">
+                    <div class="text-[11px] font-semibold text-amber-900 uppercase tracking-wide">QA Warnings</div>
+                    <div class="mt-2 space-y-1 max-h-[180px] overflow-auto">
+                        <template x-for="(warning, index) in aiAutomation.qa_warnings" :key="'editor-qa-' + index">
+                            <div class="text-[11px] leading-5" :class="warning.severity === 'high' ? 'text-amber-900' : 'text-amber-800'">
+                                <span class="font-semibold uppercase" x-text="warning.severity || 'low'"></span>
+                                <span x-text="warning.message"></span>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+
+                <div>
+                    <div class="text-[11px] font-semibold text-gray-600 uppercase tracking-wide">Critique / Refine History</div>
+                    <div class="mt-2 space-y-2 max-h-[220px] overflow-auto">
+                        <template x-if="!(aiAutomation.critique_history.length || aiAutomation.refine_history.length)">
+                            <div class="text-xs text-gray-400">No AI critique history yet.</div>
+                        </template>
+                        <template x-for="(entry, index) in aiAutomationCombinedHistory()" :key="'editor-history-' + index">
+                            <div class="rounded-lg border border-gray-200 bg-gray-50 p-3">
+                                <div class="flex items-center justify-between gap-2">
+                                    <div class="text-[10px] font-semibold uppercase tracking-wide text-gray-600" x-text="entry.type"></div>
+                                    <div class="text-[10px] text-gray-400" x-text="shortDate(entry.at)"></div>
+                                </div>
+                                <div class="mt-1 text-[11px] text-gray-500" x-text="aiAutomationHistoryLabel(entry)"></div>
+                                <div x-show="entry.feedback" class="mt-2 text-xs text-gray-700 whitespace-pre-line" x-text="entry.feedback"></div>
+                                <div x-show="entry.summary" class="mt-2 text-xs text-gray-700" x-text="entry.summary"></div>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <div class="bg-white rounded-xl border border-gray-200 shadow-sm">
             <div class="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
                 <span class="text-sm font-semibold text-gray-700">SEO</span>
@@ -947,6 +1080,52 @@
             </div>
         </div>
     </div>
+
+    <div x-show="aiRefine.open" x-cloak class="fixed inset-0 z-50 flex items-center justify-center p-4" @click.self="closeAiRefineModal()">
+        <div class="absolute inset-0 bg-slate-950/50"></div>
+        <div class="relative w-full max-w-2xl rounded-2xl border border-slate-200 bg-white shadow-2xl">
+            <div class="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+                <div>
+                    <div class="text-sm font-semibold text-slate-900">Refine AI Draft</div>
+                    <p class="mt-1 text-xs text-slate-500">Runs against the active tenant content record and preserves critique history on this draft.</p>
+                </div>
+                <button type="button" class="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700" @click="closeAiRefineModal()">
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            </div>
+            <div class="space-y-4 px-5 py-4">
+                <div class="flex flex-wrap gap-2">
+                    <button type="button" class="rounded-full border border-slate-200 px-3 py-1 text-[11px] font-medium text-slate-600 hover:border-violet-300 hover:bg-violet-50 hover:text-violet-700" @click="applyAiRefinePreset('Tighten the structure, make transitions smoother, and remove repetition without changing the core claims.')">Structure</button>
+                    <button type="button" class="rounded-full border border-slate-200 px-3 py-1 text-[11px] font-medium text-slate-600 hover:border-violet-300 hover:bg-violet-50 hover:text-violet-700" @click="applyAiRefinePreset('Verify factual framing, remove unsupported authority language, and rewrite any uncited numbers conservatively.')">Evidence</button>
+                    <button type="button" class="rounded-full border border-slate-200 px-3 py-1 text-[11px] font-medium text-slate-600 hover:border-violet-300 hover:bg-violet-50 hover:text-violet-700" @click="applyAiRefinePreset('Make the draft clearer for a general reader while preserving all cited points and the current topic.')">Clarity</button>
+                </div>
+                <div x-show="aiAutomation.qa_warnings && aiAutomation.qa_warnings.length" class="rounded-xl border border-amber-200 bg-amber-50 p-3">
+                    <div class="text-[11px] font-semibold uppercase tracking-wide text-amber-900">Current QA Warnings</div>
+                    <div class="mt-2 space-y-1 max-h-32 overflow-auto">
+                        <template x-for="(warning, index) in aiAutomation.qa_warnings" :key="'refine-qa-' + index">
+                            <div class="text-[11px]" :class="warning.severity === 'high' ? 'text-amber-900' : 'text-amber-800'">
+                                <span class="font-semibold uppercase" x-text="warning.severity || 'low'"></span>
+                                <span x-text="warning.message"></span>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-slate-600 mb-2">Critique</label>
+                    <textarea x-model="aiRefine.feedback" class="min-h-[160px] w-full rounded-xl border border-slate-200 px-3 py-3 text-sm leading-6 text-slate-800 focus:border-violet-400 focus:outline-none focus:ring-2 focus:ring-violet-500/15" placeholder="Describe what should improve in this AI draft."></textarea>
+                </div>
+            </div>
+            <div class="flex items-center justify-between gap-3 border-t border-slate-100 px-5 py-4">
+                <div class="text-[11px] text-slate-500">This stays in the current tenant database and updates the stored AI critique history for the draft.</div>
+                <div class="flex items-center gap-2">
+                    <button type="button" class="rounded-lg px-3 py-2 text-sm text-slate-600 hover:bg-slate-100" @click="closeAiRefineModal()">Cancel</button>
+                    <button type="button" class="rounded-lg bg-violet-600 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-700 disabled:opacity-50" @click="submitAiRefine()" :disabled="aiRefine.submitting || !aiRefine.feedback.trim()">
+                        <span x-text="aiRefine.submitting ? 'Refining...' : 'Apply Refinement'"></span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 {/block}
 
@@ -973,6 +1152,26 @@ function cmsEditor() {
             loading: false,
             error: '',
             summary: '',
+        },
+        aiRefine: {
+            open: false,
+            submitting: false,
+            feedback: '',
+            error: '',
+        },
+        aiAutomation: {ai_automation_json | raw} || {
+            enabled: false,
+            qa_warnings: [],
+            critique_history: [],
+            refine_history: [],
+            citations: [],
+            quality_assessment: {},
+            quality_score: 0,
+            approval_confidence: '',
+            approval_recommendation: '',
+            blocking_reasons: [],
+            auto_refine_count: 0,
+            auto_refine_unresolved: false,
         },
         form: {
             title: {if content}{content.title | json}{else}''{/if},
@@ -1049,6 +1248,129 @@ function cmsEditor() {
             { cmd: 'section', label: 'Section', desc: 'Full-width section wrapper', icon: '□' },
         ],
         tinyMceLoadPromise: null,
+        aiAutomationCombinedHistory() {
+            const ai = this.aiAutomation || {};
+            const critiqueEntries = (Array.isArray(ai.critique_history) ? ai.critique_history : []).map((entry) => ({
+                type: 'critique',
+                at: entry.created_at || '',
+                source: entry.source || 'manual',
+                trigger: entry.trigger || '',
+                feedback: entry.feedback || '',
+                summary: entry.label || '',
+                run_id: entry.run_id || null,
+            }));
+            const refineEntries = (Array.isArray(ai.refine_history) ? ai.refine_history : []).map((entry) => ({
+                type: 'refine',
+                at: entry.refined_at || '',
+                source: entry.source || 'manual',
+                trigger: entry.trigger || '',
+                feedback: '',
+                summary: entry.title_changed ? 'Title changed during refinement.' : 'Body refinement applied.',
+                run_id: entry.run_id || null,
+            }));
+
+            return critiqueEntries.concat(refineEntries).sort((a, b) => {
+                const atA = Date.parse((a.at || '').replace(' ', 'T')) || 0;
+                const atB = Date.parse((b.at || '').replace(' ', 'T')) || 0;
+                return atB - atA;
+            });
+        },
+        aiAutomationHistoryLabel(entry) {
+            if (!entry) return '';
+            const source = (entry.source || '').startsWith('auto_') ? 'auto refine' : (entry.source || 'manual');
+            const parts = [source];
+            if (entry.trigger) parts.push(entry.trigger);
+            if (entry.run_id) parts.push('run #' + entry.run_id);
+            return parts.join(' • ');
+        },
+        openAiRefineModal(seedFeedback = '') {
+            this.aiRefine.error = '';
+            this.aiRefine.feedback = seedFeedback || this.aiAutomation.latest_critique || '';
+            this.aiRefine.open = true;
+        },
+        closeAiRefineModal() {
+            this.aiRefine.open = false;
+            this.aiRefine.submitting = false;
+            this.aiRefine.error = '';
+        },
+        applyAiRefinePreset(text) {
+            this.aiRefine.feedback = text;
+        },
+        async submitAiRefine() {
+            if (!this.capabilities.ai_refine) {
+                this.aiRefine.error = 'You do not have permission to refine AI content.';
+                return;
+            }
+            if (!this.contentId) {
+                this.aiRefine.error = 'Save the draft before refining it.';
+                return;
+            }
+            const feedback = String(this.aiRefine.feedback || '').trim();
+            if (!feedback) {
+                this.aiRefine.error = 'Critique is required.';
+                return;
+            }
+
+            this.aiRefine.submitting = true;
+            this.aiRefine.error = '';
+            try {
+                const res = await fetch(CMS_BASE + '/api/v1/cms/content/' + this.contentId + '/ai/refine', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CMS_CSRF },
+                    body: JSON.stringify({ feedback }),
+                });
+                const data = await res.json();
+                if (!data.ok) {
+                    this.aiRefine.error = data.error || 'Failed to refine content';
+                    return;
+                }
+
+                if (data.title !== undefined) this.form.title = data.title || this.form.title;
+                if (data.body_html !== undefined) {
+                    this.form.body = data.body_html || '';
+                    if (typeof window.tinymce !== 'undefined') {
+                        const editor = window.tinymce.get(this.editorId);
+                        if (editor) editor.setContent(this.form.body || '');
+                    }
+                }
+                if (data.summary !== undefined) this.form.excerpt = data.summary || this.form.excerpt;
+                if (data.automation && typeof data.automation === 'object') {
+                    this.aiAutomation = Object.assign({
+                        enabled: true,
+                        qa_warnings: [],
+                        critique_history: [],
+                        refine_history: [],
+                        citations: [],
+                        quality_assessment: {},
+                        quality_score: 0,
+                        approval_confidence: '',
+                        approval_recommendation: '',
+                        blocking_reasons: [],
+                        auto_refine_count: 0,
+                        auto_refine_unresolved: false,
+                    }, data.automation);
+                } else {
+                    if (Array.isArray(data.qa_warnings)) this.aiAutomation.qa_warnings = data.qa_warnings;
+                    if (Array.isArray(data.citations)) this.aiAutomation.citations = data.citations;
+                    if (data.quality_assessment && typeof data.quality_assessment === 'object') {
+                        this.aiAutomation.quality_assessment = data.quality_assessment;
+                        this.aiAutomation.quality_score = data.quality_assessment.overall || 0;
+                        this.aiAutomation.approval_confidence = data.quality_assessment.approval_confidence || '';
+                        this.aiAutomation.approval_recommendation = data.quality_assessment.approval_recommendation || '';
+                        this.aiAutomation.blocking_reasons = Array.isArray(data.quality_assessment.blocking_reasons) ? data.quality_assessment.blocking_reasons : [];
+                    }
+                    this.aiAutomation.latest_critique = feedback;
+                }
+
+                this._autosaveMarkDirty();
+                this.closeAiRefineModal();
+                toast('AI refinement applied');
+            } catch (e) {
+                this.aiRefine.error = 'Network error';
+            } finally {
+                this.aiRefine.submitting = false;
+            }
+        },
         ensureTinyMceLoaded() {
             if (typeof window.tinymce !== 'undefined') return Promise.resolve();
             if (this.tinyMceLoadPromise) return this.tinyMceLoadPromise;
@@ -1854,9 +2176,8 @@ function cmsEditor() {
                     e.preventDefault();
                     this.saveDraft();
                 } else if (e.key === 'Escape') {
-                    const modals = document.querySelectorAll('[role="dialog"]:not([hidden])');
-                    if (modals.length > 0) {
-                        modals.forEach(m => m.setAttribute('hidden', ''));
+                    if (this.aiRefine.open) {
+                        this.closeAiRefineModal();
                     }
                 }
             });

@@ -5,6 +5,78 @@ declare(strict_types=1);
 require_once __DIR__ . '/helpers/openai.php';
 require_once __DIR__ . '/helpers/groq.php';
 require_once __DIR__ . '/helpers/ollama.php';
+require_once __DIR__ . '/helpers/gemini.php';
+require_once __DIR__ . '/helpers/cerebras.php';
+require_once __DIR__ . '/helpers/openrouter.php';
+require_once __DIR__ . '/helpers/mistral.php';
+
+function aiRuntimeOverrides(?array $replace = null): array
+{
+    static $overrides = [];
+
+    if ($replace !== null) {
+        $overrides = $replace;
+    }
+
+    return $overrides;
+}
+
+function aiWithRuntimeOverrides(array $overrides, callable $callback): mixed
+{
+    $previous = aiRuntimeOverrides();
+    aiRuntimeOverrides(array_merge($previous, $overrides));
+
+    try {
+        return $callback();
+    } finally {
+        aiRuntimeOverrides($previous);
+    }
+}
+
+function aiGlobalSettings(): array
+{
+    try {
+        if (function_exists('readModuleRegistry')) {
+            $registry = readModuleRegistry();
+            $settings = $registry['ai']['settings'] ?? [];
+            return is_array($settings) ? $settings : [];
+        }
+    } catch (Throwable $e) {
+    }
+
+    return [];
+}
+
+function aiResolvedSettings(): array
+{
+    $global = aiGlobalSettings();
+
+    try {
+        if (function_exists('getModuleSettings')) {
+            $tenant = getModuleSettings('ai');
+            if (is_array($tenant)) {
+                // Merge tenant into global, but skip empty-string tenant
+                // values so they don't mask valid global defaults.
+                foreach ($tenant as $key => $value) {
+                    if (is_string($value) && trim($value) === '') {
+                        continue;
+                    }
+                    $global[$key] = $value;
+                }
+            }
+        }
+    } catch (Throwable $e) {
+    }
+
+    foreach (aiRuntimeOverrides() as $key => $value) {
+        if (is_string($value) && trim($value) === '') {
+            continue;
+        }
+        $global[$key] = $value;
+    }
+
+    return $global;
+}
 
 function ai_capability_handlers(): array
 {
@@ -45,8 +117,8 @@ function ai_cap_ai_capability_suggest_1(mixed $payload, string $capabilityId = '
 
     $provider = '';
     try {
-        if (function_exists('getModuleSettings')) {
-            $s = getModuleSettings('ai');
+        if (function_exists('aiResolvedSettings')) {
+            $s = aiResolvedSettings();
             if (is_array($s)) {
                 $provider = trim((string)($s['provider'] ?? ''));
             }
@@ -58,6 +130,14 @@ function ai_cap_ai_capability_suggest_1(mixed $payload, string $capabilityId = '
         $out = aiGroqSuggestTriggers($ctx);
     } elseif ($provider === 'ollama') {
         $out = aiOllamaSuggestTriggers($ctx);
+    } elseif ($provider === 'gemini') {
+        $out = aiGeminiSuggestTriggers($ctx);
+    } elseif ($provider === 'cerebras') {
+        $out = aiCerebrasSuggestTriggers($ctx);
+    } elseif ($provider === 'openrouter') {
+        $out = aiOpenRouterSuggestTriggers($ctx);
+    } elseif ($provider === 'mistral') {
+        $out = aiMistralSuggestTriggers($ctx);
     } else {
         $out = aiOpenAiSuggestTriggers($ctx);
     }
@@ -94,7 +174,7 @@ function ai_cap_ai_capability_suggest_1(mixed $payload, string $capabilityId = '
     return [
         'ok' => true,
         'suggestions' => $normalized,
-        'provider' => 'openai',
+        'provider' => $provider !== '' ? $provider : 'openai',
     ];
 }
 
@@ -188,11 +268,16 @@ function ai_cap_ai_text_generate_1(mixed $payload, string $capabilityId = '', st
     $json = array_key_exists('json', $payload) ? (bool)$payload['json'] : false;
     $timeoutMs = array_key_exists('timeout_ms', $payload) ? (int)$payload['timeout_ms'] : 5000;
     $timeoutSeconds = max(1, (int)ceil($timeoutMs / 1000));
+    $maxTokens = isset($payload['max_tokens']) && (int)$payload['max_tokens'] > 0 ? (int)$payload['max_tokens'] : null;
+    $preferredTier = trim((string)($payload['preferred_tier'] ?? ''));
+    if (!in_array($preferredTier, ['free', 'paid', 'custom'], true)) {
+        $preferredTier = '';
+    }
 
     $provider = '';
     try {
-        if (function_exists('getModuleSettings')) {
-            $s = getModuleSettings('ai');
+        if (function_exists('aiResolvedSettings')) {
+            $s = aiResolvedSettings();
             if (is_array($s)) {
                 $provider = trim((string)($s['provider'] ?? ''));
             }
@@ -200,13 +285,32 @@ function ai_cap_ai_text_generate_1(mixed $payload, string $capabilityId = '', st
     } catch (Throwable $e) {
     }
 
-    if ($provider === 'groq') {
-        $out = aiGroqTextGenerate($messages, $temperature, $json, $timeoutSeconds);
-    } elseif ($provider === 'ollama') {
-        $out = aiOllamaTextGenerate($messages, $temperature, $json, $timeoutSeconds);
-    } else {
-        $out = aiOpenAiTextGenerate($messages, $temperature, $json, $timeoutSeconds);
-    }
+    $callProvider = static function () use ($provider, $messages, $temperature, $json, $timeoutSeconds, $maxTokens): array {
+        if ($provider === 'groq') {
+            return aiGroqTextGenerate($messages, $temperature, $json, $timeoutSeconds, $maxTokens);
+        }
+        if ($provider === 'ollama') {
+            return aiOllamaTextGenerate($messages, $temperature, $json, $timeoutSeconds, $maxTokens);
+        }
+        if ($provider === 'gemini') {
+            return aiGeminiTextGenerate($messages, $temperature, $json, $timeoutSeconds, $maxTokens);
+        }
+        if ($provider === 'cerebras') {
+            return aiCerebrasTextGenerate($messages, $temperature, $json, $timeoutSeconds, $maxTokens);
+        }
+        if ($provider === 'openrouter') {
+            return aiOpenRouterTextGenerate($messages, $temperature, $json, $timeoutSeconds, $maxTokens);
+        }
+        if ($provider === 'mistral') {
+            return aiMistralTextGenerate($messages, $temperature, $json, $timeoutSeconds, $maxTokens);
+        }
+
+        return aiOpenAiTextGenerate($messages, $temperature, $json, $timeoutSeconds, $maxTokens);
+    };
+
+    $out = $preferredTier !== ''
+        ? aiWithRuntimeOverrides(['tier' => $preferredTier], $callProvider)
+        : $callProvider();
 
     if (empty($out['ok'])) {
         return $out;

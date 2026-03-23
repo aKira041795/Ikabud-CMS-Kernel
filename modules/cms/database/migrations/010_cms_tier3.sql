@@ -3,17 +3,134 @@
 -- ═══════════════════════════════════════════════════════════════
 
 -- Allow multiple menus (remove unique constraint on location, make location nullable)
-ALTER TABLE cms_menus DROP INDEX uk_location;
+SET @cms_has_uk_location := (
+    SELECT COUNT(*)
+    FROM information_schema.statistics
+    WHERE table_schema = DATABASE()
+      AND table_name = 'cms_menus'
+      AND index_name = 'uk_location'
+);
+SET @cms_drop_uk_location_sql := IF(
+    @cms_has_uk_location > 0,
+    'ALTER TABLE cms_menus DROP INDEX uk_location',
+    'SELECT 1'
+);
+PREPARE cms_drop_uk_location_stmt FROM @cms_drop_uk_location_sql;
+EXECUTE cms_drop_uk_location_stmt;
+DEALLOCATE PREPARE cms_drop_uk_location_stmt;
 ALTER TABLE cms_menus MODIFY location VARCHAR(50) DEFAULT NULL;
-ALTER TABLE cms_menus ADD COLUMN slug VARCHAR(100) NOT NULL DEFAULT '' AFTER name;
-ALTER TABLE cms_menus ADD COLUMN description VARCHAR(500) DEFAULT NULL AFTER slug;
-ALTER TABLE cms_menus ADD COLUMN auto_add_pages TINYINT(1) NOT NULL DEFAULT 0 AFTER description;
-ALTER TABLE cms_menus ADD INDEX idx_location (location);
+SET @cms_has_slug_col := (
+    SELECT COUNT(*)
+    FROM information_schema.columns
+    WHERE table_schema = DATABASE()
+      AND table_name = 'cms_menus'
+      AND column_name = 'slug'
+);
+SET @cms_add_slug_col_sql := IF(
+    @cms_has_slug_col = 0,
+    'ALTER TABLE cms_menus ADD COLUMN slug VARCHAR(100) NOT NULL DEFAULT '''' AFTER name',
+    'SELECT 1'
+);
+PREPARE cms_add_slug_col_stmt FROM @cms_add_slug_col_sql;
+EXECUTE cms_add_slug_col_stmt;
+DEALLOCATE PREPARE cms_add_slug_col_stmt;
+
+SET @cms_has_description_col := (
+    SELECT COUNT(*)
+    FROM information_schema.columns
+    WHERE table_schema = DATABASE()
+      AND table_name = 'cms_menus'
+      AND column_name = 'description'
+);
+SET @cms_add_description_col_sql := IF(
+    @cms_has_description_col = 0,
+    'ALTER TABLE cms_menus ADD COLUMN description VARCHAR(500) DEFAULT NULL AFTER slug',
+    'SELECT 1'
+);
+PREPARE cms_add_description_col_stmt FROM @cms_add_description_col_sql;
+EXECUTE cms_add_description_col_stmt;
+DEALLOCATE PREPARE cms_add_description_col_stmt;
+
+SET @cms_has_auto_add_pages_col := (
+    SELECT COUNT(*)
+    FROM information_schema.columns
+    WHERE table_schema = DATABASE()
+      AND table_name = 'cms_menus'
+      AND column_name = 'auto_add_pages'
+);
+SET @cms_add_auto_add_pages_col_sql := IF(
+    @cms_has_auto_add_pages_col = 0,
+    'ALTER TABLE cms_menus ADD COLUMN auto_add_pages TINYINT(1) NOT NULL DEFAULT 0 AFTER description',
+    'SELECT 1'
+);
+PREPARE cms_add_auto_add_pages_col_stmt FROM @cms_add_auto_add_pages_col_sql;
+EXECUTE cms_add_auto_add_pages_col_stmt;
+DEALLOCATE PREPARE cms_add_auto_add_pages_col_stmt;
+
+SET @cms_has_idx_location := (
+    SELECT COUNT(*)
+    FROM information_schema.statistics
+    WHERE table_schema = DATABASE()
+      AND table_name = 'cms_menus'
+      AND index_name = 'idx_location'
+);
+SET @cms_add_idx_location_sql := IF(
+    @cms_has_idx_location = 0,
+    'ALTER TABLE cms_menus ADD INDEX idx_location (location)',
+    'SELECT 1'
+);
+PREPARE cms_add_idx_location_stmt FROM @cms_add_idx_location_sql;
+EXECUTE cms_add_idx_location_stmt;
+DEALLOCATE PREPARE cms_add_idx_location_stmt;
 
 -- Enhance menu items with description, icon, and title attribute
-ALTER TABLE cms_menu_items ADD COLUMN description VARCHAR(500) DEFAULT NULL AFTER css_class;
-ALTER TABLE cms_menu_items ADD COLUMN icon VARCHAR(50) DEFAULT NULL AFTER description;
-ALTER TABLE cms_menu_items ADD COLUMN title_attr VARCHAR(200) DEFAULT NULL AFTER icon;
+SET @cms_has_menu_item_description := (
+    SELECT COUNT(*)
+    FROM information_schema.columns
+    WHERE table_schema = DATABASE()
+      AND table_name = 'cms_menu_items'
+      AND column_name = 'description'
+);
+SET @cms_add_menu_item_description_sql := IF(
+    @cms_has_menu_item_description = 0,
+    'ALTER TABLE cms_menu_items ADD COLUMN description VARCHAR(500) DEFAULT NULL AFTER css_class',
+    'SELECT 1'
+);
+PREPARE cms_add_menu_item_description_stmt FROM @cms_add_menu_item_description_sql;
+EXECUTE cms_add_menu_item_description_stmt;
+DEALLOCATE PREPARE cms_add_menu_item_description_stmt;
+
+SET @cms_has_menu_item_icon := (
+    SELECT COUNT(*)
+    FROM information_schema.columns
+    WHERE table_schema = DATABASE()
+      AND table_name = 'cms_menu_items'
+      AND column_name = 'icon'
+);
+SET @cms_add_menu_item_icon_sql := IF(
+    @cms_has_menu_item_icon = 0,
+    'ALTER TABLE cms_menu_items ADD COLUMN icon VARCHAR(50) DEFAULT NULL AFTER description',
+    'SELECT 1'
+);
+PREPARE cms_add_menu_item_icon_stmt FROM @cms_add_menu_item_icon_sql;
+EXECUTE cms_add_menu_item_icon_stmt;
+DEALLOCATE PREPARE cms_add_menu_item_icon_stmt;
+
+SET @cms_has_menu_item_title_attr := (
+    SELECT COUNT(*)
+    FROM information_schema.columns
+    WHERE table_schema = DATABASE()
+      AND table_name = 'cms_menu_items'
+      AND column_name = 'title_attr'
+);
+SET @cms_add_menu_item_title_attr_sql := IF(
+    @cms_has_menu_item_title_attr = 0,
+    'ALTER TABLE cms_menu_items ADD COLUMN title_attr VARCHAR(200) DEFAULT NULL AFTER icon',
+    'SELECT 1'
+);
+PREPARE cms_add_menu_item_title_attr_stmt FROM @cms_add_menu_item_title_attr_sql;
+EXECUTE cms_add_menu_item_title_attr_stmt;
+DEALLOCATE PREPARE cms_add_menu_item_title_attr_stmt;
 
 -- Menu location registry (theme-defined locations)
 CREATE TABLE IF NOT EXISTS cms_menu_locations (

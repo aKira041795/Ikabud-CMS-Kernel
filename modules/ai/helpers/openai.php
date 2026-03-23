@@ -5,8 +5,8 @@ declare(strict_types=1);
 function aiSettings(): array
 {
     try {
-        if (function_exists('getModuleSettings')) {
-            $s = getModuleSettings('ai');
+        if (function_exists('aiResolvedSettings')) {
+            $s = aiResolvedSettings();
             return is_array($s) ? $s : [];
         }
     } catch (Throwable $e) {
@@ -153,14 +153,14 @@ function aiOpenAiSuggestTriggers(array $context): array
     ];
 }
 
-function aiOpenAiTextGenerate(array $messages, float $temperature = 0.2, bool $json = false, int $timeoutSeconds = 5): array
+function aiOpenAiTextGenerate(array $messages, float $temperature = 0.2, bool $json = false, int $timeoutSeconds = 5, ?int $maxTokens = null): array
 {
     $apiKey = aiOpenAiApiKey();
     if ($apiKey === '') {
         return ['ok' => false, 'error' => 'OPENAI_API_KEY is not configured'];
     }
 
-    $timeoutSeconds = max(1, min(25, $timeoutSeconds));
+    $timeoutSeconds = max(1, min(55, $timeoutSeconds));
 
     $payload = [
         'model' => aiOpenAiModel(),
@@ -170,8 +170,11 @@ function aiOpenAiTextGenerate(array $messages, float $temperature = 0.2, bool $j
     if ($json) {
         $payload['response_format'] = ['type' => 'json_object'];
     }
+    if ($maxTokens !== null && $maxTokens > 0) {
+        $payload['max_tokens'] = $maxTokens;
+    }
 
-    $resp = aiOpenAiHttp('https://api.openai.com/v1/chat/completions', $payload, $apiKey);
+    $resp = aiOpenAiHttp('https://api.openai.com/v1/chat/completions', $payload, $apiKey, $timeoutSeconds);
     if (empty($resp['ok'])) {
         return $resp;
     }

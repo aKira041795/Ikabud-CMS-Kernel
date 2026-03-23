@@ -227,6 +227,35 @@ class TenantResolver
         ];
     }
 
+    /**
+     * Clear control-host lookup caches (in-memory + APCu).
+     *
+     * @return array{memory_cleared:int,apcu_cleared:int}
+     */
+    public static function clearControlHostCache(): array
+    {
+        $memoryCleared = count(self::$controlHostCache);
+        self::$controlHostCache = [];
+
+        $apcuCleared = 0;
+        $apcuEnabled = function_exists('apcu_fetch') && function_exists('apcu_store') && (bool)ini_get('apc.enabled');
+        if ($apcuEnabled && function_exists('apcu_cache_info')) {
+            $info = apcu_cache_info();
+            if (is_array($info) && isset($info['cache_list']) && is_array($info['cache_list'])) {
+                foreach ($info['cache_list'] as $entry) {
+                    $key = (string)($entry['info'] ?? '');
+                    if ($key !== '' && str_starts_with($key, 'ikabud:tenant_host:')) {
+                        if (apcu_delete($key)) {
+                            $apcuCleared++;
+                        }
+                    }
+                }
+            }
+        }
+
+        return ['memory_cleared' => $memoryCleared, 'apcu_cleared' => $apcuCleared];
+    }
+
     // ── Internal ─────────────────────────────────────────────────────
 
     private function doResolve(?array $user): ?int

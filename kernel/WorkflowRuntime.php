@@ -283,7 +283,7 @@ final class WorkflowRuntime
         }
 
         if (function_exists('kernelEmitEvent')) {
-            kernelEmitEvent('workflow.transitioned', [
+            $eventPayload = [
                 'workflow_key' => $workflowKey,
                 'module' => $module,
                 'entity_type' => $entityType,
@@ -291,7 +291,11 @@ final class WorkflowRuntime
                 'from_state' => $from,
                 'to_state' => $to,
                 'action' => $action,
-            ], 'kernel');
+            ];
+            if (is_array($payload['meta'] ?? null)) {
+                $eventPayload['meta'] = $payload['meta'];
+            }
+            kernelEmitEvent('workflow.transitioned', $eventPayload, 'kernel');
         }
 
         return [

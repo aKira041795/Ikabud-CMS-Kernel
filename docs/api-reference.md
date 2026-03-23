@@ -793,6 +793,104 @@ HTTP status codes:
 
 ---
 
+## CMS AI Automation API
+
+All endpoints require the CMS capability `ai.automation.manage`.
+
+### GET /api/v1/cms/ai/plans
+
+List all AI content plans.
+
+**Query params**: `limit` (default 50)
+
+**Response** (`200`):
+```json
+{
+    "ok": true,
+    "plans": [
+        {
+            "id": 1,
+            "topic": "Sourdough bread baking",
+            "content_type": "post",
+            "content_mode": "tutorial",
+            "cadence": "weekly",
+            "is_active": true,
+            "next_run_at": "2026-03-28T08:00:00Z"
+        }
+    ]
+}
+```
+
+### GET /api/v1/cms/ai/plans/{id}
+
+Get a single plan by ID.
+
+### GET /api/v1/cms/ai/runs
+
+List recent generation run history.
+
+**Query params**: `limit` (default 50), `plan_id` (filter by plan)
+
+### POST /api/v1/cms/ai/plans
+
+Create a new AI content plan.
+
+**Body** (JSON):
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `topic` | string | required | Content topic |
+| `content_type` | string | `post` | CMS content type slug |
+| `content_mode` | string | `standard` | Generation style: `standard`, `tutorial`, `opinion`, `comparison`, `checklist`, `expert` |
+| `prompt_template` | string | built-in | Prompt template with `{topic}`, `{content_type}` placeholders |
+| `writing_style` | string | `Clear, specific, and useful.` | Style instruction |
+| `target_audience` | string | `""` | Target audience description |
+| `keywords` | array | `[]` | SEO/topic keywords |
+| `summary_enabled` | boolean | `true` | Generate summary |
+| `seo_enabled` | boolean | `true` | Generate SEO title/description |
+| `auto_refine_policy` | string | `high_severity_once` | `off`, `high_severity_once`, `always_once` |
+| `auto_publish_policy` | string | `off` | `off`, `high_confidence_low_sensitivity` |
+| `confidence_threshold` | integer | `85` | 0–100 threshold for auto-refine/publish |
+| `visual_mode` | string | `suggest_media` | `none`, `suggest_media` |
+| `cadence` | string | `manual` | `manual`, `daily`, `weekly`, `monthly` |
+| `cadence_interval` | integer | `1` | Interval multiplier for cadence |
+| `publish_offset_minutes` | integer | `0` | Minutes after run to schedule publish |
+| `search_grounding_enabled` | boolean\|null | `null` | `null` = global setting, `true`/`false` = override |
+| `is_active` | boolean | `true` | Whether plan runs on schedule |
+
+### POST /api/v1/cms/ai/plans/{id}
+
+Update an existing plan. Accepts same fields as create. Only provided fields are updated.
+
+### POST /api/v1/cms/ai/plans/{id}/toggle
+
+Toggle plan active state.
+
+**Response** (`200`):
+```json
+{ "ok": true, "is_active": false }
+```
+
+### POST /api/v1/cms/ai/plans/{id}/run
+
+Manually trigger a generation run for the plan immediately.
+
+**Response** (`200`):
+```json
+{ "ok": true, "run_id": 42, "content_id": 17 }
+```
+
+### POST /api/v1/cms/ai/plans/{id}/delete
+
+Delete a plan and its run history.
+
+### POST /api/v1/cms/content/{id}/ai/refine
+
+Run an on-demand AI refinement pass on existing content.
+Returns updated content fields (title, body, summary, seo_title, seo_description).
+
+---
+
 ## CMS Extensions Installer API (Admin)
 
 These endpoints are available when the CMS module is installed and the requester has CMS settings-management capability.

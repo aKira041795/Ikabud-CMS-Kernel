@@ -1,0 +1,251 @@
+<?php
+
+declare(strict_types=1);
+
+/**
+ * Google Gemini AI provider.
+ *
+ * Free tier: gemini-2.5-flash.
+ * Paid tier: gemini-2.5-pro — higher limits, better reasoning.
+ *
+ * API: https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent
+ */
+
+function aiGeminiNormalizeModel(string $model, string $tier = 'free'): string
+{
+    $model = trim($model);
+    if ($model === '') {
+        return $tier === 'paid' ? 'gemini-2.5-pro' : 'gemini-2.5-flash';
+    }
+
+    $normalized = strtolower($model);
+    $deprecatedFreeModels = [
+        'gemini-2.0-flash',
+        'models/gemini-2.0-flash',
+    ];
+
+    if ($tier !== 'paid' && in_array($normalized, $deprecatedFreeModels, true)) {
+        return 'gemini-2.5-flash';
+    }
+
+    return $model;
+}
+
+function aiGeminiSettings(): array
+{
+    try {
+        if (function_exists('aiResolvedSettings')) {
+            $s = aiResolvedSettings();
+            return is_array($s) ? $s : [];
+        }
+    } catch (Throwable $e) {
+    }
+    return [];
+}
+
+function aiGeminiApiKey(): string
+{
+    $s = aiGeminiSettings();
+    $key = trim((string)($s['gemini_api_key'] ?? ''));
+    if ($key !== '') {
+        return $key;
+    }
+    return trim((string)app()->config('ai.gemini_api_key', ''));
+}
+
+function aiGeminiModel(): string
+{
+    $s = aiGeminiSettings();
+    $tier = trim((string)($s['tier'] ?? 'free'));
+
+    if ($tier === 'custom') {
+        $custom = trim((string)($s['gemini_model'] ?? ''));
+        if ($custom !== '') {
+            return aiGeminiNormalizeModel($custom, 'custom');
+        }
+    }
+    if ($tier === 'paid') {
+        $paid = trim((string)($s['gemini_model_paid'] ?? ''));
+        return aiGeminiNormalizeModel($paid, 'paid');
+    }
+
+    $free = trim((string)($s['gemini_model_free'] ?? ''));
+    return aiGeminiNormalizeModel($free, 'free');
+}
+
+function aiGeminiConvertMessages(array $messages): array
+{
+    $systemInstruction = null;
+    $contents = [];
+
+    foreach ($messages as $msg) {
+        $role = (string)($msg['role'] ?? 'user');
+        $text = (string)($msg['content'] ?? '');
+
+        if ($role === 'system') {
+            $systemInstruction = $text;
+            continue;
+        }
+
+        $contents[] = [
+            'role' => $role === 'assistant' ? 'model' : 'user',
+            'parts' => [['text' => $text]],
+        ];
+    }
+
+    return ['system' => $systemInstruction, 'contents' => $contents];
+}
+
+function aiGeminiSuggestTriggers(array $context): array
+{
+    $apiKey = aiGeminiApiKey();
+    if ($apiKey === '') {
+        return ['ok' => false, 'error' => 'GEMINI_API_KEY is not configured'];
+    }
+
+    $event = is_array($context['event'] ?? null) ? $context['event'] : [];
+    $existing = is_array($context['existing_triggers'] ?? null) ? $context['existing_triggers'] : [];
+    $availableCaps = is_array($context['available_capabilities'] ?? null) ? $context['available_capabilities'] : [];
+
+    $system = "You are a careful backend assistant for a modular PHP app. Your job is to propose kernel_event_triggers suggestions. Output must be valid JSON only.";
+
+    $user = json_encode([
+        'task' => 'suggest_triggers',
+        'event' => [
+            'module' => (string)($event['module'] ?? ''),
+            'event_key' => (string)($event['event_key'] ?? ''),
+            'description' => (string)($event['description'] ?? ''),
+            'available_vars' => array_values(is_array($event['available_vars'] ?? null) ? $event['available_vars'] : []),
+        ],
+        'existing_triggers' => $existing,
+        'available_capabilities' => $availableCaps,
+        'constraints' => [
+            'output_json_only' => true,
+            'suggestions_max' => 5,
+            'template_style' => 'Use {var} placeholders only from available_vars. Keep SMS templates <= 160 chars when possible.',
+            'must_include_reason' => true,
+        ],
+        'output_schema' => [
+            'type' => 'object',
+            'properties' => ['suggestions' => ['type' => 'array']],
+            'required' => ['suggestions'],
+        ],
+    ], JSON_UNESCAPED_SLASHES);
+
+    $resp = aiGeminiHttp(
+        aiGeminiModel(),
+        [['role' => 'user', 'content' => $user]],
+        $system,
+        0.2,
+        true,
+        $apiKey,
+        25
+    );
+
+    if (empty($resp['ok'])) {
+        return $resp;
+    }
+
+    $decoded = json_decode((string)($resp['content'] ?? ''), true);
+    if (!is_array($decoded)) {
+        return ['ok' => false, 'error' => 'Gemini returned invalid JSON'];
+    }
+
+    return [
+        'ok' => true,
+        'suggestions' => is_array($decoded['suggestions'] ?? null) ? $decoded['suggestions'] : [],
+        'raw' => $decoded,
+    ];
+}
+
+function aiGeminiTextGenerate(array $messages, float $temperature = 0.2, bool $json = false, int $timeoutSeconds = 5, ?int $maxTokens = null): array
+{
+    $apiKey = aiGeminiApiKey();
+    if ($apiKey === '') {
+        return ['ok' => false, 'error' => 'GEMINI_API_KEY is not configured'];
+    }
+
+    $timeoutSeconds = max(1, min(55, $timeoutSeconds));
+
+    $converted = aiGeminiConvertMessages($messages);
+
+    return aiGeminiHttp(
+        aiGeminiModel(),
+        $messages,
+        $converted['system'],
+        $temperature,
+        $json,
+        $apiKey,
+        $timeoutSeconds,
+        $maxTokens
+    );
+}
+
+function aiGeminiHttp(string $model, array $messages, ?string $systemInstruction, float $temperature, bool $json, string $apiKey, int $timeoutSeconds = 25, ?int $maxTokens = null): array
+{
+    $url = 'https://generativelanguage.googleapis.com/v1beta/models/' . urlencode($model) . ':generateContent?key=' . urlencode($apiKey);
+
+    $converted = aiGeminiConvertMessages($messages);
+    $payload = [
+        'contents' => $converted['contents'],
+        'generationConfig' => [
+            'temperature' => $temperature,
+        ],
+    ];
+
+    if ($json) {
+        $payload['generationConfig']['responseMimeType'] = 'application/json';
+    }
+    if ($maxTokens !== null && $maxTokens > 0) {
+        $payload['generationConfig']['maxOutputTokens'] = $maxTokens;
+    }
+
+    $sysText = $systemInstruction ?? $converted['system'];
+    if ($sysText !== null && $sysText !== '') {
+        $payload['systemInstruction'] = [
+            'parts' => [['text' => $sysText]],
+        ];
+    }
+
+    $ch = curl_init($url);
+    if ($ch === false) {
+        return ['ok' => false, 'error' => 'curl_init failed'];
+    }
+
+    $encoded = json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+    if ($encoded === false) {
+        return ['ok' => false, 'error' => 'Failed to encode request'];
+    }
+
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_POST, true);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, $encoded);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
+    curl_setopt($ch, CURLOPT_TIMEOUT, max(1, min(60, $timeoutSeconds)));
+
+    $body = curl_exec($ch);
+    $err = curl_error($ch);
+    $code = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    if ($body === false) {
+        return ['ok' => false, 'error' => 'Gemini request failed: ' . $err];
+    }
+
+    $decoded = json_decode($body, true);
+    if (!is_array($decoded)) {
+        return ['ok' => false, 'error' => 'Gemini returned non-JSON response', 'http_code' => $code];
+    }
+
+    if ($code < 200 || $code >= 300) {
+        $msg = (string)($decoded['error']['message'] ?? ('HTTP ' . $code));
+        return ['ok' => false, 'error' => $msg, 'http_code' => $code];
+    }
+
+    $content = (string)($decoded['candidates'][0]['content']['parts'][0]['text'] ?? '');
+    if (trim($content) === '') {
+        return ['ok' => false, 'error' => 'Gemini returned empty content'];
+    }
+
+    return ['ok' => true, 'content' => $content, 'http_code' => $code];
+}

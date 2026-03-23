@@ -69,7 +69,7 @@ function cmsCacheGet(string $cacheKey): ?array
 function cmsCacheSet(string $cacheKey, array $data, array $tags = []): void
 {
     if (!cmsCacheEnabled()) return;
-    app()->cache()->setWithTags(cmsCacheInstance(), $cacheKey, $data, $tags);
+    app()->cache()->setWithTags(cmsCacheInstance(), $cacheKey, $data, $tags, cmsCacheTtl());
 }
 
 /**

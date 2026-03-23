@@ -227,6 +227,7 @@ function cmsApiThemeActivate(array $params = []): void
         // Deactivate — revert to module default
         cmsActivateThemeSymlink(null);
         saveModuleSettings('cms', ['active_theme' => 'default']);
+        cmsResetSettingsCache();
         cmsResetThemeRuntimeCache();
         // Flush all cached pages since theme-dependent rendering has changed
         cmsCacheFlushAll();
@@ -247,6 +248,7 @@ function cmsApiThemeActivate(array $params = []): void
 
     cmsActivateThemeSymlink($slug);
     saveModuleSettings('cms', ['active_theme' => $slug]);
+    cmsResetSettingsCache();
     cmsResetThemeRuntimeCache();
     // Flush all cached pages since theme-dependent rendering has changed
     cmsCacheFlushAll();

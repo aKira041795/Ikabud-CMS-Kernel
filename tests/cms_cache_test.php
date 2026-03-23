@@ -126,6 +126,26 @@ t('entry2 still cached', cmsCacheGet('test:entry2') !== null);
 cmsCacheInvalidateByTags(['shared:tag']);
 t('entry2 invalidated by shared tag', cmsCacheGet('test:entry2') === null);
 
+// Regression: invalidation must not depend on request method/query context
+$prevMethod = $_SERVER['REQUEST_METHOD'] ?? null;
+$prevGet = $_GET ?? [];
+$_SERVER['REQUEST_METHOD'] = 'GET';
+$_GET = ['archive' => '2026-03'];
+cmsCacheSet('test:context-sensitive-key', ['val' => 'x'], ['context:tag']);
+t('context-sensitive key cached', cmsCacheGet('test:context-sensitive-key') !== null);
+
+$_SERVER['REQUEST_METHOD'] = 'POST';
+$_GET = [];
+cmsCacheInvalidateByTags(['context:tag']);
+t('tag invalidation works across request contexts', cmsCacheGet('test:context-sensitive-key') === null);
+
+if ($prevMethod !== null) {
+    $_SERVER['REQUEST_METHOD'] = $prevMethod;
+} else {
+    unset($_SERVER['REQUEST_METHOD']);
+}
+$_GET = $prevGet;
+
 // ═══════════════════════════════════════════════════════════════════
 // 4. Content tag generation
 // ═══════════════════════════════════════════════════════════════════
