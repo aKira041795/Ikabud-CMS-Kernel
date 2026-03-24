@@ -871,23 +871,19 @@ function getEnabledModules(): array
  */
 function tenantSafeKernelMigrationFiles(): array
 {
-    $dir = rtrim((string)(defined('BASE_PATH') ? BASE_PATH : dirname(__DIR__, 2)), '/') . '/migrations';
-    if (!is_dir($dir)) {
-        return [];
-    }
+    $artifacts = [
+        '001_kernel_events_and_triggers.sql' => BASE_PATH . '/migrations/001_kernel_events_and_triggers.sql',
+        '006_kernel_workflow_tables.sql' => BASE_PATH . '/database/migrations/006_kernel_workflow_tables.sql',
+        '007_kernel_runtime_tables.sql' => BASE_PATH . '/database/migrations/007_kernel_runtime_tables.sql',
+    ];
 
     $files = [];
-    foreach (scandir($dir) as $file) {
-        if (!is_string($file) || !str_ends_with($file, '.sql')) {
-            continue;
+    foreach ($artifacts as $artifactName => $fullPath) {
+        if (is_file($fullPath)) {
+            $files[] = $artifactName;
         }
-        if (preg_match('/control[_-]?plane/i', $file)) {
-            continue;
-        }
-        $files[] = $file;
     }
 
-    sort($files);
     return $files;
 }
 
@@ -1123,6 +1119,7 @@ function tenantSyncKernelMigrations(PDO $db): array
     $artifacts = [
         '001_kernel_events_and_triggers.sql' => BASE_PATH . '/migrations/001_kernel_events_and_triggers.sql',
         '006_kernel_workflow_tables.sql' => BASE_PATH . '/database/migrations/006_kernel_workflow_tables.sql',
+        '007_kernel_runtime_tables.sql' => BASE_PATH . '/database/migrations/007_kernel_runtime_tables.sql',
     ];
 
     $applied = tenantAppliedModuleMigrations($db, '_kernel');

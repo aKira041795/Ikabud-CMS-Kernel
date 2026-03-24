@@ -229,6 +229,7 @@ A JWT minted on tenant A must not work on tenant B.
 ## Auditability
 - Provisioning events recorded in control DB
 - Runtime audits recorded in tenant DB (audit_logs)
+- Tenant provisioning must apply the tenant-safe kernel runtime artifacts, including `audit_logs`, workflow tables, and kernel event tables, in addition to entry-module migrations
 
 ## Predictable performance
 - Host->tenant lookup cached in-process per request

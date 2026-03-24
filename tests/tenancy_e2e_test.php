@@ -434,7 +434,7 @@ ok(str_contains($helpOutput, 'tenant:provision'), 'help shows tenant:provision c
 section('11. Provisioning Scope');
 
 $tenantKernelMigrations = tenantSafeKernelMigrationFiles();
-ok($tenantKernelMigrations === ['001_kernel_events_and_triggers.sql'], 'Tenant-safe kernel migrations exclude control-plane schema');
+ok($tenantKernelMigrations === ['001_kernel_events_and_triggers.sql', '006_kernel_workflow_tables.sql', '007_kernel_runtime_tables.sql'], 'Tenant-safe kernel migrations include runtime kernel tables and exclude control-plane schema');
 
 $cmsProvisionPlan = tenantProvisionModulePlan('cms');
 sort($cmsProvisionPlan);

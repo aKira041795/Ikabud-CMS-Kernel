@@ -612,46 +612,11 @@ switch ($command) {
             }
 
             // 6. Run tenant-safe kernel migrations only (never control-plane schema)
-            $kernelMigDir = BASE_PATH . '/database/migrations';
-            if (is_dir($kernelMigDir)) {
-                $kernelFiles = tenantSafeKernelMigrationFiles();
-
-                // Ensure migrations tracking table exists for kernel
-                $tenantPdo->exec('CREATE TABLE IF NOT EXISTS `kernel_migrations` (
-                    `id` INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-                    `migration` VARCHAR(255) NOT NULL,
-                    `batch` INT UNSIGNED NOT NULL DEFAULT 1,
-                    `executed_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                    UNIQUE KEY `uk_migration` (`migration`)
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci');
-
-                $appliedStmt = $tenantPdo->query('SELECT migration FROM kernel_migrations');
-                $applied = array_column($appliedStmt->fetchAll(PDO::FETCH_ASSOC), 'migration');
-
-                $pending = array_diff($kernelFiles, $applied);
-                if (!empty($pending)) {
-                    $batchStmt = $tenantPdo->query('SELECT COALESCE(MAX(batch), 0) FROM kernel_migrations');
-                    $batch = (int)$batchStmt->fetchColumn() + 1;
-
-                    out('    ' . bold('kernel'));
-                    foreach ($pending as $mf) {
-                        $sql = file_get_contents($kernelMigDir . '/' . $mf);
-                        if ($sql !== false && trim($sql) !== '') {
-                            try {
-                                $tenantPdo->exec($sql);
-                                $tenantPdo->prepare('INSERT INTO kernel_migrations (migration, batch) VALUES (:m, :b)')
-                                    ->execute([':m' => $mf, ':b' => $batch]);
-                                out('      ' . green('✓') . " {$mf}");
-                            } catch (\Throwable $kme) {
-                                // Mark as applied even if it fails (schema already exists)
-                                try {
-                                    $tenantPdo->prepare('INSERT IGNORE INTO kernel_migrations (migration, batch) VALUES (:m, :b)')
-                                        ->execute([':m' => $mf, ':b' => $batch]);
-                                } catch (\Throwable $ignored) {}
-                                out('      ' . yellow('~') . " {$mf}" . dim(' (already applied or skipped: ' . $kme->getMessage() . ')'));
-                            }
-                        }
-                    }
+            $kernelApplied = tenantSyncKernelMigrations($tenantPdo);
+            if (!empty($kernelApplied)) {
+                out('    ' . bold('kernel'));
+                foreach ($kernelApplied as $artifactName) {
+                    out('      ' . green('✓') . " {$artifactName}");
                 }
             }
 
