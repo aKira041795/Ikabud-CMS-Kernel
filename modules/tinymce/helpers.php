@@ -34,7 +34,7 @@ function tinymceNormalizeHtml(string $html): string
     $html = str_replace(["\r\n", "\r"], "\n", $html);
     // WordPress imports and TinyMCE round-trips commonly preserve spacer paragraphs
     // like <p>&nbsp;</p> or <p><br></p>; strip those so blank lines do not grow on edit.
-    $withoutSpacerParagraphs = preg_replace('#<p>(?:\s|&nbsp;|&#160;|<br\s*/?>)*</p>#iu', '', $html);
+    $withoutSpacerParagraphs = preg_replace('~<p>(?:\s|&nbsp;|&#160;|<br\s*/?>)*</p>~iu', '', $html);
     if (is_string($withoutSpacerParagraphs)) {
         $html = $withoutSpacerParagraphs;
     }
