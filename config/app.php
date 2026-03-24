@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-$appUrl = $_ENV['APP_URL'] ?? 'http://baroninventory.test';
+$appUrl = $_ENV['APP_URL'] ?? 'http://applicationos.test';
 $cookieName = trim((string)($_ENV['APP_COOKIE_NAME'] ?? ''));
 if ($cookieName === '') {
     $cookieHost = (string)(parse_url($appUrl, PHP_URL_HOST) ?? '');
@@ -13,7 +13,7 @@ if ($cookieName === '') {
 }
 
 return [
-    'name' => 'Baron Inventory Ledger',
+    'name' => 'Application Kernel OS',
     'version' => '0.1.0',
     'env' => $_ENV['APP_ENV'] ?? 'development',
     'debug' => (bool) ($_ENV['APP_DEBUG'] ?? true),
@@ -81,5 +81,6 @@ return [
         'timeout_seconds' => max(2, (int) ($_ENV['APP_UPDATES_TIMEOUT_SECONDS'] ?? 10)),
         'release_limit' => max(1, min(20, (int) ($_ENV['APP_UPDATES_RELEASE_LIMIT'] ?? 5))),
         'user_agent' => trim((string) ($_ENV['APP_UPDATES_USER_AGENT'] ?? 'Ikabud-Kernel-Updater/1.0')),
+        'auto_check_interval_minutes' => max(1, (int) ($_ENV['APP_UPDATES_AUTO_CHECK_INTERVAL_MINUTES'] ?? 60)),
     ],
 ];

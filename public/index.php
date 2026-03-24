@@ -1561,7 +1561,7 @@ switch ($handler) {
         }
 
         $token = app()->jwt()->generate($payload);
-        $cookieName = config('app.cookie_name', 'baroninventory_token');
+        $cookieName = config('app.cookie_name', 'app_token');
         $expiry = time() + (int) config('app.jwt.expiration', 86400);
         setcookie($cookieName, $token, [
             'expires' => $expiry,
@@ -1704,7 +1704,7 @@ switch ($handler) {
         exit;
 
     case 'authLogout':
-        $cookieName = config('app.cookie_name', 'baroninventory_token');
+        $cookieName = config('app.cookie_name', 'app_token');
         clearAuthCookie($cookieName);
 
         // API clients get JSON instead of redirect
@@ -3178,7 +3178,7 @@ switch ($handler) {
             }
 
             $newToken = app()->jwt()->generate($newPayload);
-            $cookieName = config('app.cookie_name', 'baroninventory_token');
+            $cookieName = config('app.cookie_name', 'app_token');
             $expiry = time() + (int) config('app.jwt.expiration', 86400);
             setcookie($cookieName, $newToken, [
                 'expires' => $expiry,
@@ -3214,6 +3214,8 @@ switch ($handler) {
             echo json_encode($cached);
             exit;
         }
+
+        kernelUpdatesMaybeAutoSync($user);
 
         $platformId = app()->platformIdentity();
         $skippedModules = array_values(getSkippedModules());

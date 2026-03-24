@@ -86,7 +86,7 @@ echo "\n=== Template render test ===\n";
 $app = (function() {
     $_SERVER['REQUEST_METHOD'] = 'GET';
     $_SERVER['REQUEST_URI'] = '/superadmin/settings';
-    $_SERVER['HTTP_HOST'] = 'baroninventory.test';
+    $_SERVER['HTTP_HOST'] = 'applicationos.test';
     return app();
 })();
 

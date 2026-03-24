@@ -4,7 +4,7 @@ error_reporting(E_ALL);
 ini_set('display_errors', '1');
 
 // Simulate request context
-$_SERVER['HTTP_HOST'] = 'baroninventory.test';
+$_SERVER['HTTP_HOST'] = 'applicationos.test';
 $_SERVER['REQUEST_METHOD'] = 'GET';
 $_SERVER['REQUEST_URI'] = '/';
 

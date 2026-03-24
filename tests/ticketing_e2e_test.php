@@ -9,7 +9,7 @@ declare(strict_types=1);
  * Run: php tests/ticketing_e2e_test.php
  */
 
-define('BASE_URL', 'http://baroninventory.test');
+define('BASE_URL', 'http://applicationos.test');
 define('TESTS_ROOT', __DIR__);
 
 // ─── Test Runner ────────────────────────────────────────────────────────────

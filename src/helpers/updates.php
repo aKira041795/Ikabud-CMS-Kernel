@@ -43,6 +43,11 @@ function kernelUpdatesBranch(): string
     return $branch !== '' ? $branch : 'master';
 }
 
+function kernelUpdatesAutoCheckIntervalMinutes(): int
+{
+    return max(1, (int) (kernelUpdatesConfig()['auto_check_interval_minutes'] ?? 60));
+}
+
 function kernelUpdatesHttpJson(string $url): array
 {
     $headers = [
@@ -289,6 +294,38 @@ function kernelUpdatesReadSyncState(string $key): ?array
     }
 }
 
+function kernelUpdatesIsSyncStale(?array $state = null): bool
+{
+    if (!is_array($state)) {
+        return true;
+    }
+    $updatedAt = trim((string) ($state['updated_at'] ?? ''));
+    if ($updatedAt === '') {
+        return true;
+    }
+    $timestamp = strtotime($updatedAt);
+    if ($timestamp === false) {
+        return true;
+    }
+    $maxAge = kernelUpdatesAutoCheckIntervalMinutes() * 60;
+    return (time() - $timestamp) >= $maxAge;
+}
+
+function kernelUpdatesMaybeAutoSync(?array $actor = null): array
+{
+    $state = kernelUpdatesReadSyncState('github_release_sync');
+    if (!kernelUpdatesEnabled()) {
+        return ['ok' => false, 'skipped' => true, 'reason' => 'disabled'];
+    }
+    if (!kernelUpdatesEnsureCatalogAvailable()) {
+        return ['ok' => false, 'skipped' => true, 'reason' => 'catalog_missing'];
+    }
+    if (!kernelUpdatesIsSyncStale($state)) {
+        return ['ok' => true, 'skipped' => true, 'reason' => 'fresh'];
+    }
+    return kernelUpdatesSyncCatalog($actor);
+}
+
 function kernelUpdatesSyncCatalog(?array $actor = null): array
 {
     if (!kernelUpdatesEnabled()) {
@@ -520,7 +557,10 @@ function kernelUpdatesBuildSummary(): array
     return [
         'enabled' => kernelUpdatesEnabled(),
         'repo' => kernelUpdatesRepo(),
+        'branch' => kernelUpdatesBranch(),
         'last_sync' => $lastSync,
+        'auto_check_interval_minutes' => kernelUpdatesAutoCheckIntervalMinutes(),
+        'sync_stale' => kernelUpdatesIsSyncStale($lastSync),
         'catalog_ready' => kernelUpdatesEnsureCatalogAvailable(),
         'kernel' => [
             'installed_version' => $installedKernelVersion,

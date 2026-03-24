@@ -318,8 +318,8 @@ ok(is_array($decoded2) && (int)($decoded2['tenant_id'] ?? 0) === $clientId, 'JWT
 // Simulate: resolved tenant is baron (204), but JWT says client (205)
 $resolver->setTenantId($baronId);
 
-$oldCookie = $_COOKIE[config('app.cookie_name', 'baroninventory_token')] ?? null;
-$_COOKIE[config('app.cookie_name', 'baroninventory_token')] = $token2; // token for clientsite
+$oldCookie = $_COOKIE[config('app.cookie_name', 'app_token')] ?? null;
+$_COOKIE[config('app.cookie_name', 'app_token')] = $token2; // token for clientsite
 app()->setUser([]); // Force re-evaluation
 
 // Clear the cached user to force re-read
@@ -331,16 +331,16 @@ $crossUser = app()->user();
 ok($crossUser === null, 'Cross-tenant JWT rejected: baron tenant rejects clientsite token');
 
 // Same tenant should work
-$_COOKIE[config('app.cookie_name', 'baroninventory_token')] = $token1; // token for baron
+$_COOKIE[config('app.cookie_name', 'app_token')] = $token1; // token for kernel host
 $reflProp->setValue(app(), null);
 $sameUser = app()->user();
 ok(is_array($sameUser) && ($sameUser['tenant_id'] ?? 0) == $baronId, 'Same-tenant JWT accepted');
 
 // Cleanup
 if ($oldCookie !== null) {
-    $_COOKIE[config('app.cookie_name', 'baroninventory_token')] = $oldCookie;
+    $_COOKIE[config('app.cookie_name', 'app_token')] = $oldCookie;
 } else {
-    unset($_COOKIE[config('app.cookie_name', 'baroninventory_token')]);
+    unset($_COOKIE[config('app.cookie_name', 'app_token')]);
 }
 $reflProp->setValue(app(), null);
 $resolver->reset();
