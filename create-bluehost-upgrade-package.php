@@ -119,6 +119,9 @@ function collectSqlFiles(string $modulesRoot, array $suffixes): array
         if ($module === '.' || $module === '..') {
             continue;
         }
+        if (preg_match('/\.bak(?:_|$)/i', (string) $module) === 1) {
+            continue;
+        }
         $modulePath = $modulesRoot . '/' . $module;
         if (!is_dir($modulePath)) {
             continue;
@@ -168,6 +171,7 @@ function buildSqlBundle(string $root, array $relativePaths, string $title): stri
         if ($sql === '') {
             continue;
         }
+        $sql = normalizeSqlSnippet($sql);
         $parts[] = '-- ------------------------------------------------------------';
         $parts[] = '-- Source: ' . $relativePath;
         $parts[] = '-- ------------------------------------------------------------';
@@ -178,6 +182,116 @@ function buildSqlBundle(string $root, array $relativePaths, string $title): stri
     $parts[] = 'SET FOREIGN_KEY_CHECKS = 1;';
     $parts[] = '';
     return implode("\n", $parts) . "\n";
+}
+
+function normalizeSqlSnippet(string $sql): string
+{
+    $sql = rtrim($sql);
+    if ($sql === '') {
+        return $sql;
+    }
+
+    $guardedAddColumns = buildGuardedAddColumnSql($sql);
+    if ($guardedAddColumns !== null) {
+        return $guardedAddColumns;
+    }
+
+    if (!preg_match('/;\s*$/', $sql)) {
+        $sql .= ';';
+    }
+
+    return $sql;
+}
+
+function buildGuardedAddColumnSql(string $sql): ?string
+{
+    $trimmed = trim($sql);
+    if (!preg_match('/^ALTER\s+TABLE\s+(`?[A-Za-z0-9_]+`?)\s+(.+)$/is', $trimmed, $matches)) {
+        return null;
+    }
+
+    $tableExpr = trim((string) $matches[1]);
+    $tableName = trim($tableExpr, '`');
+    $operations = rtrim(trim((string) $matches[2]), ';');
+    $clauses = splitSqlClauses($operations);
+    if ($clauses === []) {
+        return null;
+    }
+
+    $guarded = [];
+    foreach ($clauses as $clause) {
+        $clause = trim($clause);
+        if (!preg_match('/^ADD\s+COLUMN\s+(`?[A-Za-z0-9_]+`?)/i', $clause, $columnMatches)) {
+            return null;
+        }
+
+        $columnExpr = trim((string) $columnMatches[1]);
+        $columnName = trim($columnExpr, '`');
+        $escapedTableName = str_replace("'", "''", $tableName);
+        $escapedColumnName = str_replace("'", "''", $columnName);
+        $escapedClause = str_replace("'", "''", $clause);
+        $guarded[] = implode("\n", [
+            'SET @col_exists := (',
+            '    SELECT COUNT(*) FROM information_schema.columns',
+            "    WHERE table_schema = DATABASE() AND table_name = '{$escapedTableName}' AND column_name = '{$escapedColumnName}'",
+            ');',
+            "SET @sql := IF(@col_exists = 0, 'ALTER TABLE {$tableExpr} {$escapedClause}', 'SELECT 1');",
+            'PREPARE stmt FROM @sql;',
+            'EXECUTE stmt;',
+            'DEALLOCATE PREPARE stmt;',
+        ]);
+    }
+
+    return implode("\n\n", $guarded);
+}
+
+function splitSqlClauses(string $sql): array
+{
+    $clauses = [];
+    $buffer = '';
+    $depth = 0;
+    $inSingleQuote = false;
+    $inDoubleQuote = false;
+    $length = strlen($sql);
+
+    for ($index = 0; $index < $length; $index++) {
+        $char = $sql[$index];
+        $prev = $index > 0 ? $sql[$index - 1] : '';
+
+        if ($char === "'" && !$inDoubleQuote && $prev !== '\\') {
+            $inSingleQuote = !$inSingleQuote;
+            $buffer .= $char;
+            continue;
+        }
+        if ($char === '"' && !$inSingleQuote && $prev !== '\\') {
+            $inDoubleQuote = !$inDoubleQuote;
+            $buffer .= $char;
+            continue;
+        }
+        if (!$inSingleQuote && !$inDoubleQuote) {
+            if ($char === '(') {
+                $depth++;
+            } elseif ($char === ')' && $depth > 0) {
+                $depth--;
+            } elseif ($char === ',' && $depth === 0) {
+                $clause = trim($buffer);
+                if ($clause !== '') {
+                    $clauses[] = $clause;
+                }
+                $buffer = '';
+                continue;
+            }
+        }
+
+        $buffer .= $char;
+    }
+
+    $tail = trim($buffer);
+    if ($tail !== '') {
+        $clauses[] = $tail;
+    }
+
+    return $clauses;
 }
 
 function buildReadme(string $codeArchiveName): string
