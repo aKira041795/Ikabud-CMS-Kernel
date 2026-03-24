@@ -8,8 +8,47 @@ declare(strict_types=1);
 
 function cmsHasEnabledWordpressImporter(): bool
 {
+    return cmsCanUseWordpressImporter();
+}
+
+function cmsWordpressImporterModulePath(): string
+{
+    return rtrim((string)(defined('BASE_PATH') ? BASE_PATH : dirname(__DIR__, 3)), '/') . '/modules/wordpress-importer';
+}
+
+function cmsWordpressImporterRouteEnabled(): bool
+{
     $modules = getEnabledModules();
-    return isset($modules['wordpress-importer']) && function_exists('wordpressImporterApiImport');
+    return isset($modules['wordpress-importer']) && function_exists('wordpressImporterAdminPage');
+}
+
+function cmsCanUseWordpressImporter(): bool
+{
+    if (function_exists('wordpressImporterApiImport')) {
+        return true;
+    }
+
+    $modulePath = cmsWordpressImporterModulePath();
+    if (!is_file($modulePath . '/module.json')) {
+        return false;
+    }
+
+    $registeredForCms = function_exists('_cmsIsRegisteredSubModule')
+        ? _cmsIsRegisteredSubModule('wordpress-importer')
+        : false;
+    $cmsOwnedOnDisk = is_file($modulePath . '/.cms-owned');
+
+    if (!$registeredForCms && !$cmsOwnedOnDisk) {
+        return false;
+    }
+
+    $handlersPath = $modulePath . '/handlers.php';
+    if (!is_file($handlersPath)) {
+        return false;
+    }
+
+    require_once $handlersPath;
+    return function_exists('wordpressImporterApiImport');
 }
 
 function cmsLooksLikeXmlImport(string $raw): bool
@@ -50,6 +89,7 @@ function cmsAdminImportExport(array $params = []): void
         'tag_count' => $tagCount,
         'media_count' => $mediaCount,
         'wordpress_importer_enabled' => cmsHasEnabledWordpressImporter(),
+        'wordpress_importer_route_enabled' => cmsWordpressImporterRouteEnabled(),
         'wordpress_importer_url' => rtrim((string)(defined('BASE_URL') ? BASE_URL : ''), '/') . '/cms/admin/wordpress-import',
     ]));
 }

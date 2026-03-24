@@ -98,7 +98,9 @@
                     </div>
                     {if wordpress_importer_enabled}
                     <p class="text-[11px] text-gray-400 mt-1">WordPress Importer is installed. XML files uploaded here will be routed to the importer extension automatically.</p>
+                    {if wordpress_importer_route_enabled}
                     <p class="text-xs mt-2"><a href="{wordpress_importer_url}" class="text-emerald-700 font-semibold hover:text-emerald-800">Open the dedicated WordPress importer</a></p>
+                    {/if}
                     {else}
                     <p class="text-[11px] text-gray-400 mt-1">WordPress XML import is available as an optional CMS extension from the Modules page.</p>
                     {/if}

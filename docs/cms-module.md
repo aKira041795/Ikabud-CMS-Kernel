@@ -43,6 +43,7 @@ Implemented admin areas include:
 - Theme customizer
 - Theme manager
 - CMS sub-module manager
+- Optional WordPress XML importer extension (`/cms/admin/wordpress-import`) for WXR uploads routed from the core Import / Export screen
 - **AI Content Automation** (`/cms/admin/ai-automation`) — manage content plans, view run history, configure search grounding
 
 Primary route definitions live in `modules/cms/routes.php`. Primary admin handlers live in `modules/cms/handlers/15-admin.php`, `modules/cms/handlers/80-customizer.php`, `modules/cms/handlers/82-permissions.php`, and `modules/cms/handlers/84-extensions.php`.
@@ -179,6 +180,13 @@ CMS sub-modules are add-ons installed through the CMS admin UI (`/cms/admin/modu
 - **Superadmin visibility**: The superadmin settings page shows CMS sub-module settings per tenant. For tenants whose `entry_module_id` is `cms`, the page displays settings for the CMS module itself plus any modules listed in that tenant's `_installed_submodules` registry. This allows cross-tenant management of CMS add-on configuration without switching tenant contexts.
 
 See `docs/module-development-guide.md` → *Packaging & Installation* for the full ZIP format spec, API reference, cross-tenant adoption details, and multi-tenant-safe delete behavior.
+
+### WordPress importer behavior
+
+- The core CMS Import / Export screen continues to handle JSON imports directly.
+- When the optional `wordpress-importer` CMS sub-module is installed, `.xml` / WXR uploads from the same screen are routed to the importer automatically.
+- The dedicated importer page is available at `/cms/admin/wordpress-import` when the extension route is active.
+- Import result counters distinguish between newly created taxonomy terms (`New Categories`, `New Tags`) and taxonomy assignments made to imported content (`Category Links`, `Tag Links`). A zero value for new terms does not mean taxonomy assignment failed if links were created against existing terms.
 
 See `docs/cms-capability-map.md` and `docs/cms-extension-points.md` for capabilities, hooks, and events.
 
