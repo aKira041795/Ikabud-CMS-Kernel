@@ -27,6 +27,24 @@
 3. **Run installer** — Visit `https://yourdomain.com/lock.php` → Enter app DB credentials and admin account. If multi-tenant mode is enabled, also enter the control-plane DB settings.
 4. **Secure** — Delete `public/lock.php` after verifying the application works
 
+### Bluehost Upgrade Kit For Existing Installs
+
+If Bluehost is already running an older version and you want a package that includes both the updated files and importable SQL bundles, generate the upgrade kit locally:
+
+```bash
+php create-bluehost-upgrade-package.php
+```
+
+This creates a zip containing:
+
+- a fresh deployment archive for the application files
+- `db/app-upgrade.sql` for the primary application database
+- `db/control-upgrade.sql` for the control database when multi-tenant mode is enabled
+- `db/tenant-upgrade.sql` for tenant databases when tenants use separate databases
+- `README-UPGRADE.txt` with the recommended import/deploy order
+
+Use this upgrade kit for additive Bluehost upgrades where you want the SQL import to create missing tables, add newer columns, and preserve existing rows before replacing the live code.
+
 ---
 
 ## Manual Installation
