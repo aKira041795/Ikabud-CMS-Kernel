@@ -45,6 +45,26 @@ This creates a zip containing:
 
 Use this upgrade kit for additive Bluehost upgrades where you want the SQL import to create missing tables, add newer columns, and preserve existing rows before replacing the live code.
 
+This is now the recommended production upgrade path for older Bluehost installs. The guarded SQL bundle/import flow has been validated against a live Bluehost site.
+
+Recommended live-upgrade order:
+
+1. Back up the live files and every database first.
+2. Generate a fresh upgrade kit from the exact commit you plan to deploy.
+3. Import `db/app-upgrade.sql` into the primary application database.
+4. If multi-tenant mode is enabled, import `db/control-upgrade.sql` into the control database.
+5. If tenants use separate databases, import `db/tenant-upgrade.sql` into each tenant database.
+6. Upload and extract the bundled application zip over the live codebase.
+7. Preserve the live `.env`, `storage/`, and `public/uploads/` directories.
+8. Test the kernel host, tenant hosts, and review `storage/logs/app.log` plus `storage/logs/error.log`.
+
+Important notes:
+
+- Always use a freshly generated guarded upgrade kit, not an older extracted SQL file.
+- The SQL bundles are intended to be repeatable for partially upgraded databases and will skip already-existing guarded columns.
+- Some reconciliation migrations still remove obsolete legacy tables only after canonical replacements or backfills exist.
+- Do not use `public/lock.php` as the upgrade path for an already-installed production site.
+
 ---
 
 ## Manual Installation
