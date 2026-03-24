@@ -50,7 +50,7 @@ function aiGeminiApiKey(): string
     if ($key !== '') {
         return $key;
     }
-    return trim((string)app()->config('ai.gemini_api_key', ''));
+    return '';
 }
 
 function aiGeminiModel(): string

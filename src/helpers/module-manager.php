@@ -127,11 +127,18 @@ function moduleTenantSettingsTenantId(): ?int
         return null;
     }
 
+    static $resolvingTenantId = false;
+
     try {
         $tenant = app()->tenant();
         $tenantId = $tenant->current();
-        if ($tenantId === null) {
-            $tenantId = $tenant->resolve(app()->user());
+        if ($tenantId === null && !$resolvingTenantId) {
+            $resolvingTenantId = true;
+            try {
+                $tenantId = $tenant->resolve();
+            } finally {
+                $resolvingTenantId = false;
+            }
         }
         if ($tenantId === null || $tenantId <= 0) {
             return null;
@@ -1111,7 +1118,36 @@ function tenantRecordModuleMigration(PDO $db, string $moduleId, string $migratio
     ]);
 }
 
-function tenantSyncModuleMigrations(PDO $db, string $moduleId, ?array $manifest = null): array
+function tenantSyncKernelMigrations(PDO $db): array
+{
+    $artifacts = [
+        '001_kernel_events_and_triggers.sql' => BASE_PATH . '/migrations/001_kernel_events_and_triggers.sql',
+        '006_kernel_workflow_tables.sql' => BASE_PATH . '/database/migrations/006_kernel_workflow_tables.sql',
+    ];
+
+    $applied = tenantAppliedModuleMigrations($db, '_kernel');
+    $executed = [];
+
+    foreach ($artifacts as $artifactName => $fullPath) {
+        if (isset($applied[$artifactName]) || !is_file($fullPath)) {
+            continue;
+        }
+
+        $sql = (string) file_get_contents($fullPath);
+        if (trim($sql) === '') {
+            continue;
+        }
+
+        $db->exec($sql);
+        tenantRecordModuleMigration($db, '_kernel', $artifactName);
+        $applied[$artifactName] = true;
+        $executed[] = $artifactName;
+    }
+
+    return $executed;
+}
+
+function applyModuleSqlArtifacts(PDO $db, string $moduleId, string $manifestKey, ?array $manifest = null, string $trackingPrefix = ''): array
 {
     $moduleId = trim($moduleId);
     if ($moduleId === '') {
@@ -1126,7 +1162,7 @@ function tenantSyncModuleMigrations(PDO $db, string $moduleId, ?array $manifest 
         return [];
     }
 
-    $declared = $manifest['migrations'] ?? [];
+    $declared = $manifest[$manifestKey] ?? [];
     if (!is_array($declared) || $declared === []) {
         return [];
     }
@@ -1145,8 +1181,8 @@ function tenantSyncModuleMigrations(PDO $db, string $moduleId, ?array $manifest 
             continue;
         }
 
-        $migrationName = basename($relativePath);
-        if (isset($applied[$migrationName])) {
+        $artifactName = $trackingPrefix . basename($relativePath);
+        if (isset($applied[$artifactName])) {
             continue;
         }
 
@@ -1156,19 +1192,26 @@ function tenantSyncModuleMigrations(PDO $db, string $moduleId, ?array $manifest 
         }
 
         $sql = (string)file_get_contents($fullPath);
-        if (trim($sql) === '') {
-            tenantRecordModuleMigration($db, $moduleId, $migrationName);
-            $executed[] = $migrationName;
-            continue;
+        if (trim($sql) !== '') {
+            $db->exec($sql);
         }
 
-        $db->exec($sql);
-        tenantRecordModuleMigration($db, $moduleId, $migrationName);
-        $applied[$migrationName] = true;
-        $executed[] = $migrationName;
+        tenantRecordModuleMigration($db, $moduleId, $artifactName);
+        $applied[$artifactName] = true;
+        $executed[] = $artifactName;
     }
 
     return $executed;
+}
+
+function tenantSyncModuleMigrations(PDO $db, string $moduleId, ?array $manifest = null): array
+{
+    return applyModuleSqlArtifacts($db, $moduleId, 'migrations', $manifest);
+}
+
+function tenantSyncModuleSeeds(PDO $db, string $moduleId, ?array $manifest = null): array
+{
+    return applyModuleSqlArtifacts($db, $moduleId, 'seeds', $manifest, 'seed:');
 }
 
 function syncTenantMigrationsForTenant(int $tenantId, ?string $entryModuleId = null): array
@@ -1188,14 +1231,21 @@ function syncTenantMigrationsForTenant(int $tenantId, ?string $entryModuleId = n
     $results = [];
 
     try {
+        $kernelApplied = tenantSyncKernelMigrations($db);
+        if ($kernelApplied !== []) {
+            $results['_kernel'] = $kernelApplied;
+        }
+
         foreach ($plannedModules as $moduleId) {
             $manifest = $allModules[$moduleId] ?? null;
             if (!is_array($manifest)) {
                 continue;
             }
             $executed = tenantSyncModuleMigrations($db, $moduleId, $manifest);
-            if ($executed !== []) {
-                $results[$moduleId] = $executed;
+            $seeded = tenantSyncModuleSeeds($db, $moduleId, $manifest);
+            $applied = array_merge($executed, $seeded);
+            if ($applied !== []) {
+                $results[$moduleId] = $applied;
             }
         }
 

@@ -6,6 +6,7 @@ require_once __DIR__ . '/../bootstrap.php';
 require_once __DIR__ . '/../src/helpers/security.php';
 require_once __DIR__ . '/../src/helpers/module-manager.php';
 require_once __DIR__ . '/../src/helpers/email.php';
+require_once __DIR__ . '/../src/helpers/updates.php';
 
 
 if (session_status() === PHP_SESSION_NONE) {
@@ -327,6 +328,7 @@ $routes = [
         '/api/v1/superadmin/modules/toggle' => 'apiSuperadminToggleModule',
         '/api/v1/admin/ai/settings' => 'apiAiSettingsSave',
         '/api/v1/admin/cache/clear' => 'apiCacheClear',
+        '/api/v1/admin/updates/check' => 'apiAdminCheckUpdates',
         '/api/v1/admin/profile/update' => 'apiAdminUpdateProfile',
         '/api/v1/admin/users' => 'apiAdminCreateUser',
         '/api/v1/admin/users/update' => 'apiAdminUpdateUser',
@@ -1754,11 +1756,11 @@ switch ($handler) {
             exit;
         }
 
-        // Only admin/supervisor can view audit log
+        // Only kernel admin or superadmin can view audit log
         $auditRole = (string) ($user['role'] ?? '');
-        if (!in_array($auditRole, ['admin', 'supervisor'], true)) {
+        if (!in_array($auditRole, ['admin', 'superadmin'], true)) {
             http_response_code(403);
-            echo json_encode(['ok' => false, 'error' => 'Only admin and supervisor can view audit logs.']);
+            echo json_encode(['ok' => false, 'error' => 'Only admin and superadmin can view audit logs.']);
             exit;
         }
 
@@ -3010,7 +3012,7 @@ switch ($handler) {
         $username = trim((string)($input['username'] ?? ''));
         $password = (string)($input['password'] ?? '');
         $fullName = trim((string)($input['full_name'] ?? ''));
-        $role     = (string)($input['role'] ?? 'cashier');
+        $role     = (string)($input['role'] ?? 'viewer');
         $branchId = (int)($input['branch_id'] ?? 0);
 
         if ($username === '' || $password === '' || $fullName === '') {
@@ -3025,7 +3027,7 @@ switch ($handler) {
             exit;
         }
 
-        // Kernel OS cannot create module users (cashier/supervisor). Those are module-owned.
+        // Kernel OS users are limited to kernel-managed roles only.
 
         try {
             $hash = password_hash($password, PASSWORD_BCRYPT);
@@ -3037,6 +3039,10 @@ switch ($handler) {
 
             echo json_encode(['ok' => true, 'user_id' => $newUserId]);
         } catch (Throwable $e) {
+            write_log('kernel admin create user failed: ' . $e->getMessage(), 'error', [
+                'username' => $username,
+                'role' => $role,
+            ]);
             if (str_contains($e->getMessage(), 'Duplicate entry')) {
                 http_response_code(409);
                 echo json_encode(['ok' => false, 'error' => 'Username already exists']);
@@ -3316,6 +3322,7 @@ switch ($handler) {
         $payload = [
             'ok' => true,
             'platform' => $platformId,
+            'updates' => kernelUpdatesBuildSummary(),
             'modules' => [
                 'enabled_count' => count($enabledModules),
                 'disabled_count' => count($disabledModules),
@@ -3345,6 +3352,28 @@ switch ($handler) {
         ];
         adminViewCacheSet($cacheKey, $payload, ['admin:view:platform', 'admin:view:modules', 'admin:view:capabilities'], $user);
         echo json_encode($payload, JSON_UNESCAPED_SLASHES);
+        exit;
+
+    case 'apiAdminCheckUpdates':
+        header('Content-Type: application/json');
+        $user = app()->user();
+        if (!$user || !in_array($user['role'] ?? '', ['admin', 'superadmin'], true) || ($user['source'] ?? 'kernel') !== 'kernel') {
+            http_response_code(403);
+            echo json_encode(['ok' => false, 'error' => 'Kernel admin only']);
+            exit;
+        }
+
+        app()->csrfEnforce();
+        $result = kernelUpdatesSyncCatalog($user);
+        if (empty($result['ok'])) {
+            http_response_code(422);
+            echo json_encode($result, JSON_UNESCAPED_SLASHES);
+            exit;
+        }
+
+        adminViewCacheInvalidate(['admin:view:platform']);
+        $result['updates'] = kernelUpdatesBuildSummary();
+        echo json_encode($result, JSON_UNESCAPED_SLASHES);
         exit;
 
     case 'apiHealth':

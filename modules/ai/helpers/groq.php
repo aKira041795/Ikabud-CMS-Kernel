@@ -21,9 +21,7 @@ function aiGroqApiKey(): string
     if ($key !== '') {
         return $key;
     }
-
-    $key = (string)app()->config('ai.groq_api_key', '');
-    return trim($key);
+    return '';
 }
 
 function aiGroqModel(): string

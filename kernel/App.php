@@ -717,7 +717,7 @@ class App
     {
         // If this tenant matches the current request's resolved tenant, reuse app()->db()
         $currentTid = $this->tenant()->current();
-        if ($currentTid !== null && (int)$currentTid === $tenantId) {
+        if (PHP_SAPI !== 'cli' && $currentTid !== null && (int)$currentTid === $tenantId) {
             return $this->db();
         }
 

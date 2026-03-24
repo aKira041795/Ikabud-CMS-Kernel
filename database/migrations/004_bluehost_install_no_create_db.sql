@@ -348,7 +348,7 @@ CREATE TABLE `users` (
   `username` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL,
   `password_hash` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
   `full_name` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `role` enum('admin','supervisor','cashier') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'cashier',
+  `role` enum('admin','superadmin','manager','viewer') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'viewer',
   `is_active` tinyint(1) NOT NULL DEFAULT '1',
   `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,

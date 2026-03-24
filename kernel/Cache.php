@@ -697,7 +697,15 @@ class Cache
         }
         
         // Don't cache if user is authenticated (dynamic content)
-        $cookieName = $_ENV['APP_COOKIE_NAME'] ?? 'guidance_token';
+        $cookieName = trim((string)($_ENV['APP_COOKIE_NAME'] ?? ''));
+        if ($cookieName === '') {
+            $appUrl = (string)($_ENV['APP_URL'] ?? '');
+            $cookieHost = (string)(parse_url($appUrl, PHP_URL_HOST) ?? '');
+            $cookieHost = strtolower($cookieHost);
+            $cookieHost = preg_replace('/[^a-z0-9]+/', '_', $cookieHost) ?? '';
+            $cookieHost = trim($cookieHost, '_');
+            $cookieName = ($cookieHost !== '' ? $cookieHost : 'app') . '_token';
+        }
         if (!empty($_COOKIE[$cookieName])) {
             $this->incrementStat('bypasses');
             return false;

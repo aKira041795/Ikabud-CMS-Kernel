@@ -22,11 +22,6 @@ function aiOllamaBaseUrl(): string
         return rtrim($url, '/');
     }
 
-    $url = trim((string)app()->config('ai.ollama_base_url', ''));
-    if ($url !== '') {
-        return rtrim($url, '/');
-    }
-
     return 'http://localhost:11434';
 }
 

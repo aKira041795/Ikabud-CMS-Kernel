@@ -28,6 +28,22 @@ function emailEnv(string $key, string $default = ''): string
     return $value;
 }
 
+function emailNormalizeSmtpPassword(string $host, string $password): string
+{
+    $host = strtolower(trim($host));
+    if ($password === '') {
+        return '';
+    }
+
+    // Gmail app passwords are commonly displayed in 4-character groups with spaces,
+    // but SMTP authentication expects the raw 16-character token.
+    if ($host === 'smtp.gmail.com' || $host === 'smtp.googlemail.com') {
+        return preg_replace('/\s+/', '', $password) ?? $password;
+    }
+
+    return $password;
+}
+
 /**
  * Send an email using configured SMTP settings
  * 
@@ -64,7 +80,7 @@ function sendEmail(string $to, string $subject, string $body, array $options = [
         $mail->Host = emailEnv('EMAIL_SMTP_HOST', 'smtp.gmail.com');
         $mail->Port = (int)emailEnv('EMAIL_SMTP_PORT', '587');
         $mail->Username = emailEnv('EMAIL_SMTP_USER');
-        $mail->Password = emailEnv('EMAIL_SMTP_PASS');
+        $mail->Password = emailNormalizeSmtpPassword($mail->Host, emailEnv('EMAIL_SMTP_PASS'));
         $mail->SMTPAuth = ($mail->Username !== '' && $mail->Password !== '');
 
         $crypto = strtolower(emailEnv('EMAIL_SMTP_CRYPTO', 'tls'));

@@ -2,33 +2,29 @@
 
 declare(strict_types=1);
 
+$appUrl = $_ENV['APP_URL'] ?? 'http://baroninventory.test';
+$cookieName = trim((string)($_ENV['APP_COOKIE_NAME'] ?? ''));
+if ($cookieName === '') {
+    $cookieHost = (string)(parse_url($appUrl, PHP_URL_HOST) ?? '');
+    $cookieHost = strtolower($cookieHost);
+    $cookieHost = preg_replace('/[^a-z0-9]+/', '_', $cookieHost) ?? '';
+    $cookieHost = trim($cookieHost, '_');
+    $cookieName = ($cookieHost !== '' ? $cookieHost : 'app') . '_token';
+}
+
 return [
     'name' => 'Baron Inventory Ledger',
     'version' => '0.1.0',
     'env' => $_ENV['APP_ENV'] ?? 'development',
     'debug' => (bool) ($_ENV['APP_DEBUG'] ?? true),
-    'url' => $_ENV['APP_URL'] ?? 'http://baroninventory.test',
+    'url' => $appUrl,
     'timezone' => $_ENV['APP_TIMEZONE'] ?? 'Asia/Manila',
 
-    'cookie_name' => $_ENV['APP_COOKIE_NAME'] ?? 'baroninventory_token',
+    'cookie_name' => $cookieName,
 
     'jwt' => [
         'secret' => $_ENV['JWT_SECRET'] ?? 'change-me-in-env',
         'expiration' => (int) ($_ENV['JWT_EXPIRATION'] ?? 14400),
-    ],
-
-    'ai' => [
-        'openai_api_key' => $_ENV['OPENAI_API_KEY'] ?? '',
-        'openai_model' => $_ENV['OPENAI_MODEL'] ?? 'gpt-4o-mini',
-        'groq_api_key' => $_ENV['GROQ_API_KEY'] ?? '',
-        'ollama_base_url' => $_ENV['OLLAMA_BASE_URL'] ?? 'http://localhost:11434',
-    ],
-
-    'sms' => [
-        'provider' => $_ENV['SMS_PROVIDER'] ?? '',
-        'api_key' => $_ENV['SMS_API_KEY'] ?? '',
-        'api_secret' => $_ENV['SMS_API_SECRET'] ?? '',
-        'sender_name' => $_ENV['SMS_SENDER_NAME'] ?? '',
     ],
 
     'capabilities' => [
@@ -61,7 +57,9 @@ return [
         'enabled' => (bool) ($_ENV['APP_MULTI_TENANT_ENABLED'] ?? false),
         'strategy' => (string) ($_ENV['APP_TENANT_STRATEGY'] ?? 'control_host'),
         'header' => (string) ($_ENV['APP_TENANT_HEADER'] ?? 'X-Tenant'),
-        'default' => isset($_ENV['APP_TENANT_DEFAULT']) ? (int) $_ENV['APP_TENANT_DEFAULT'] : null,
+        'default' => isset($_ENV['APP_TENANT_DEFAULT']) && trim((string) $_ENV['APP_TENANT_DEFAULT']) !== ''
+            ? (int) $_ENV['APP_TENANT_DEFAULT']
+            : null,
         'column' => (string) ($_ENV['APP_TENANT_COLUMN'] ?? 'tenant_id'),
         'host_map' => [],
     ],
@@ -72,5 +70,16 @@ return [
 
     'cookie' => [
         'samesite' => $_ENV['APP_COOKIE_SAMESITE'] ?? 'Strict',
+    ],
+
+    'updates' => [
+        'enabled' => (bool) ($_ENV['APP_UPDATES_ENABLED'] ?? true),
+        'github_repo' => trim((string) ($_ENV['APP_UPDATES_GITHUB_REPO'] ?? 'aKira041795/Ikabud-CMS-Kernel')),
+        'github_branch' => trim((string) ($_ENV['APP_UPDATES_GITHUB_BRANCH'] ?? 'master')),
+        'github_api_base' => rtrim((string) ($_ENV['APP_UPDATES_GITHUB_API_BASE'] ?? 'https://api.github.com'), '/'),
+        'channel' => trim((string) ($_ENV['APP_UPDATES_CHANNEL'] ?? 'stable')),
+        'timeout_seconds' => max(2, (int) ($_ENV['APP_UPDATES_TIMEOUT_SECONDS'] ?? 10)),
+        'release_limit' => max(1, min(20, (int) ($_ENV['APP_UPDATES_RELEASE_LIMIT'] ?? 5))),
+        'user_agent' => trim((string) ($_ENV['APP_UPDATES_USER_AGENT'] ?? 'Ikabud-Kernel-Updater/1.0')),
     ],
 ];

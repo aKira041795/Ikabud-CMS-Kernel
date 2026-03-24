@@ -6,28 +6,18 @@
 INSERT INTO users (username, password_hash, full_name, role) VALUES
 ('admin', '$2y$10$chk.jYHX5dnrEHvDd0.3QewSlqzd5H5XHbsr4.EAr09GNav9q.j7a', 'System Admin', 'admin');
 
--- Supervisor user (password: super123)
+-- Manager user (password: manager123)
 INSERT INTO users (username, password_hash, full_name, role) VALUES
-('supervisor', '$2y$10$nCZ2qDowxZoIRZEmticALuD7mSeDWj9qMwWXe.yOEjTeNAA0neZa2', 'Branch Supervisor', 'supervisor');
+('manager', '$2y$10$chk.jYHX5dnrEHvDd0.3QeJux4xVj4/Gp.9H9l6KDEvff1V4Q9X2La', 'Operations Manager', 'manager');
 
--- Cashier users (password: cashier123)
+-- Viewer user (password: viewer123)
 INSERT INTO users (username, password_hash, full_name, role) VALUES
-('cashier1', '$2y$10$ymEqvzjoQQdKXEPRFFAIueXCOERn.q1wFL38NUw3e7cx9kyHOIBLi', 'Maria Santos', 'cashier'),
-('cashier2', '$2y$10$ymEqvzjoQQdKXEPRFFAIueXCOERn.q1wFL38NUw3e7cx9kyHOIBLi', 'Juan Dela Cruz', 'cashier');
+('viewer', '$2y$10$11jE.mT5FA8Cjqm0b4vQmec6NPeC1kxsP9n3uM1V2qg/KiUrEJ8m2', 'Read Only User', 'viewer');
 
 -- Sample branch
 INSERT INTO branches (code, name, address) VALUES
 ('MAIN', 'Main Branch', 'Baron Bakeshop Main Store'),
 ('BR02', 'Branch 2', 'Baron Bakeshop Branch 2');
-
--- Assign cashier1 to MAIN, cashier2 to BR02
-INSERT INTO user_branches (user_id, branch_id) VALUES
-(3, 1),
-(4, 2);
-
--- Assign supervisor to MAIN
-INSERT INTO user_branches (user_id, branch_id) VALUES
-(2, 1);
 
 -- Products (from the paper ledger image)
 INSERT INTO products (sku, name, current_price, sort_order) VALUES

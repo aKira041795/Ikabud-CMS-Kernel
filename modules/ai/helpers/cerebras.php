@@ -31,7 +31,7 @@ function aiCerebrasApiKey(): string
     if ($key !== '') {
         return $key;
     }
-    return trim((string)app()->config('ai.cerebras_api_key', ''));
+    return '';
 }
 
 function aiCerebrasModel(): string

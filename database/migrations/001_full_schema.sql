@@ -18,14 +18,14 @@ CREATE TABLE IF NOT EXISTS branches (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- -----------------------------------------------
--- 2. users (roles: admin, supervisor, cashier)
+-- 2. users (kernel roles: admin, superadmin, manager, viewer)
 -- -----------------------------------------------
 CREATE TABLE IF NOT EXISTS users (
     id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     username VARCHAR(50) NOT NULL UNIQUE,
     password_hash VARCHAR(255) NOT NULL,
     full_name VARCHAR(100) NOT NULL,
-    role ENUM('admin','supervisor','cashier') NOT NULL DEFAULT 'cashier',
+    role ENUM('admin','superadmin','manager','viewer') NOT NULL DEFAULT 'viewer',
     is_active TINYINT(1) NOT NULL DEFAULT 1,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,

@@ -69,6 +69,14 @@
 .term-guide-body { padding: 14px 16px 16px; }
 .cache-actions { display: flex; align-items: center; gap: 10px; margin: 12px 0 2px; }
 .cache-action-msg { font-size: 11px; color: var(--text-muted); min-height: 14px; }
+.updates-actions { display: flex; gap: 10px; align-items: center; margin-top: 12px; flex-wrap: wrap; }
+.updates-msg { font-size: 11px; color: var(--text-muted); min-height: 14px; }
+.update-list { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+.update-item { border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); padding: 10px 12px; }
+.update-item-top { display: flex; justify-content: space-between; gap: 12px; align-items: center; }
+.update-item-title { font-size: 12px; font-weight: 700; color: var(--text); }
+.update-item-meta { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
+.update-empty { color: var(--text-muted); font-size: 12px; margin-top: 8px; }
 </style>
 
 <div class="page-header">
@@ -116,6 +124,7 @@
         var trigs = data.triggers || {};
         var health = data.health || {};
         var runtime = data.runtime || {};
+        var updates = data.updates || {};
         var traces = data.traces || [];
         var skipped = Array.isArray(mods.skipped) ? mods.skipped : [];
         var cache = cacheData.ok ? (cacheData.cache || {}) : null;
@@ -210,6 +219,52 @@
             if (m.status === 'legacy_compatibility') { compat += '<span class="mod-compat badge badge-warn">legacy</span>'; }
             html += '<div class="mod-row">' + statusBadge + ' <span class="mod-name">' + esc(m.name || m.id) + '</span><span class="mod-version">' + esc(m.version || '') + '</span>' + compat + '</div>';
         });
+        html += '</div>';
+
+        // Updates card
+        var kernelUpdate = updates.kernel || {};
+        var moduleUpdatesCount = Number(updates.module_updates_count || 0);
+        var updatesBadge = kernelUpdate.update_available || moduleUpdatesCount > 0 ? 'badge-warn' : 'badge-ok';
+        var updatesLabel = 'up to date';
+        if (kernelUpdate.update_available && moduleUpdatesCount > 0) {
+            updatesLabel = 'kernel + ' + String(moduleUpdatesCount) + ' module updates';
+        } else if (kernelUpdate.update_available) {
+            updatesLabel = 'kernel update';
+        } else if (moduleUpdatesCount > 0) {
+            updatesLabel = String(moduleUpdatesCount) + ' module update' + (moduleUpdatesCount === 1 ? '' : 's');
+        }
+        html += '<div class="platform-card">';
+        html += '<h3>Updates <span class="badge ' + updatesBadge + '">' + esc(updatesLabel) + '</span></h3>';
+        html += statRow('Source Repo', updates.repo || 'not configured');
+        html += statRow('Catalog Ready', updates.catalog_ready ? 'Yes' : 'No');
+        html += statRow('Installed Kernel', kernelUpdate.installed_version || '');
+        html += statRow('Available Kernel', kernelUpdate.available_version || 'none');
+        html += statRow('Module Updates', moduleUpdatesCount);
+        html += statRow('Manifest Support', updates.manifest_support ? 'Yes' : 'No');
+        html += statRow('Last Checked', updates.last_sync && updates.last_sync.updated_at ? updates.last_sync.updated_at : 'never');
+        html += '<div class="updates-actions">';
+        html += '<button id="check-updates-btn" class="btn btn-outline btn-sm">Check Now</button>';
+        if (kernelUpdate.release_url) {
+            html += '<a class="btn btn-sm" href="' + escAttr(kernelUpdate.release_url) + '" target="_blank" rel="noreferrer">Open Release</a>';
+        }
+        html += '</div>';
+        html += '<div id="check-updates-msg" class="updates-msg"></div>';
+        if (kernelUpdate.summary) {
+            html += '<div class="section-help" style="margin-top:10px;">' + esc(kernelUpdate.summary) + '</div>';
+        }
+        var moduleUpdates = (updates.modules || []).filter(function(mod) { return !!mod.update_available; });
+        if (moduleUpdates.length > 0) {
+            html += '<div class="update-list">';
+            moduleUpdates.slice(0, 6).forEach(function(mod) {
+                html += '<div class="update-item">';
+                html += '<div class="update-item-top"><div class="update-item-title">' + esc(mod.name || mod.id) + '</div><div class="badge badge-warn">' + esc(mod.installed_version || '') + ' → ' + esc(mod.available_version || '') + '</div></div>';
+                html += '<div class="update-item-meta">' + esc(mod.summary || 'Update metadata loaded from the latest release manifest.') + '</div>';
+                html += '</div>';
+            });
+            html += '</div>';
+        } else {
+            html += '<div class="update-empty">No module updates are currently advertised by the release catalog.</div>';
+        }
         html += '</div>';
 
         // Runtime safeguards card
@@ -310,6 +365,7 @@
 
         document.getElementById('platform-data').innerHTML = html;
         bindCacheClearAction(BASE);
+        bindUpdateCheckAction(BASE);
     })
     .catch(function(err) {
         document.getElementById('platform-data').innerHTML =
@@ -367,6 +423,44 @@
             });
         });
     }
+    function bindUpdateCheckAction(base) {
+        var btn = document.getElementById('check-updates-btn');
+        var msg = document.getElementById('check-updates-msg');
+        if (!btn || !msg) {
+            return;
+        }
+
+        btn.addEventListener('click', function() {
+            btn.disabled = true;
+            msg.textContent = 'Checking GitHub releases...';
+
+            fetch(base + '/api/v1/admin/updates/check', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify({ _token: '{csrf_token}' })
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(payload) {
+                if (!payload || !payload.ok) {
+                    msg.textContent = (payload && payload.error) ? payload.error : 'Update check failed';
+                    btn.disabled = false;
+                    return;
+                }
+
+                msg.textContent = 'Update catalog refreshed.';
+                window.setTimeout(function() {
+                    window.location.reload();
+                }, 500);
+            })
+            .catch(function() {
+                msg.textContent = 'Network error while checking updates';
+                btn.disabled = false;
+            });
+        });
+    }
     function actionItem(title, note) {
         return '<div class="action-item">'
             + '<h4>' + esc(title) + '</h4>'
@@ -392,6 +486,7 @@
         if (!g) return esc(fallback || key);
         return '<span title="' + esc(g.description || '') + '" style="border-bottom:1px dotted var(--text-muted); cursor:help;">' + esc(g.label || fallback || key) + '</span>';
     }
+    function escAttr(s) { return esc(s).replace(/"/g, '&quot;'); }
 })();
 </script>
 {/block}

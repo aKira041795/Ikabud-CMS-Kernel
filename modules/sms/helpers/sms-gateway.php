@@ -35,23 +35,6 @@ function smsGetSettings(): array
     
     $cache[$tid] = array_merge($defaults, $cache[$tid]);
 
-    // Optional env overrides (prefer env for secrets in production)
-    $envProvider = trim((string)app()->config('sms.provider', ''));
-    if ($envProvider !== '') {
-        $cache[$tid]['sms_provider'] = $envProvider;
-    }
-    $envKey = trim((string)app()->config('sms.api_key', ''));
-    if ($envKey !== '') {
-        $cache[$tid]['sms_api_key'] = $envKey;
-    }
-    $envSecret = trim((string)app()->config('sms.api_secret', ''));
-    if ($envSecret !== '') {
-        $cache[$tid]['sms_api_secret'] = $envSecret;
-    }
-    $envSender = trim((string)app()->config('sms.sender_name', ''));
-    if ($envSender !== '') {
-        $cache[$tid]['sms_sender_name'] = $envSender;
-    }
     return $cache[$tid];
 }
 

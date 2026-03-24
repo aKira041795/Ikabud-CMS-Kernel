@@ -21,9 +21,7 @@ function aiOpenAiApiKey(): string
     if ($key !== '') {
         return $key;
     }
-
-    $key = (string)app()->config('ai.openai_api_key', '');
-    return trim($key);
+    return '';
 }
 
 function aiOpenAiModel(): string
@@ -54,9 +52,7 @@ function aiOpenAiModel(): string
         return $free;
     }
 
-    $m = (string)app()->config('ai.openai_model', 'gpt-4o-mini');
-    $m = trim($m);
-    return $m !== '' ? $m : 'gpt-4o-mini';
+    return 'gpt-4o-mini';
 }
 
 function aiOpenAiSuggestTriggers(array $context): array

@@ -24,7 +24,7 @@
 
 1. **Create MySQL database** — cPanel → MySQL Databases → Create database + user → Grant ALL privileges
 2. **Upload archive** — Upload `application-kernel-os.zip` to `public_html/` → Extract
-3. **Run installer** — Visit `https://yourdomain.com/lock.php` → Enter DB credentials and admin account
+3. **Run installer** — Visit `https://yourdomain.com/lock.php` → Enter app DB credentials and admin account. If multi-tenant mode is enabled, also enter the control-plane DB settings.
 4. **Secure** — Delete `public/lock.php` after verifying the application works
 
 ---
@@ -67,13 +67,20 @@ JWT_SECRET=your-random-64-char-secret
 JWT_EXPIRATION=14400
 
 # Optional: Multi-tenancy
-MULTI_TENANT_ENABLED=false
+APP_MULTI_TENANT_ENABLED=0
+APP_TENANT_STRATEGY=control_host
 CONTROL_DB_HOST=localhost
+CONTROL_DB_PORT=3306
 CONTROL_DB_DATABASE=control_db
 CONTROL_DB_USERNAME=control_user
 CONTROL_DB_PASSWORD=control_pass
 CONTROL_DB_ENC_KEY=your-encryption-key
 ```
+
+Notes:
+
+- `APP_COOKIE_NAME` is derived automatically from `APP_URL` when it is not set.
+- AI and SMS provider credentials are managed by their modules and are not required in the base `.env`.
 
 ### 4. Set Permissions
 
@@ -110,12 +117,13 @@ sudo systemctl restart apache2
 
 Navigate to `https://yourdomain.com/lock.php` in your browser. The installer will:
 
-- Verify PHP requirements
-- Test database connectivity
-- Run kernel migrations
-- Run module migrations
+- Connect to the application database and apply `database/migrations/001_full_schema.sql`
+- Bootstrap the kernel and apply pending kernel + module migrations
+- Apply control-plane migrations to `CONTROL_DB_*` when multi-tenant mode is enabled
 - Create the initial admin user
-- Generate `.installed` marker file
+- Write or refresh `.env` and generate the `.installed` marker file
+
+If you are reinstalling, the installer backs up the previous `.env` to `storage/backups/env-YYYYmmdd-HHMMSS.bak` before replacing it.
 
 ### 7. Post-Install Security
 
@@ -129,9 +137,10 @@ Navigate to `https://yourdomain.com/lock.php` in your browser. The installer wil
 
 To enable multi-tenancy:
 
-1. Set `MULTI_TENANT_ENABLED=true` in `.env`
-2. Configure the control-plane database credentials (`CONTROL_DB_*`)
-3. Run control-plane migrations:
+1. Set `APP_MULTI_TENANT_ENABLED=1` in `.env`
+2. Configure the control-plane database credentials (`CONTROL_DB_*`) and `CONTROL_DB_ENC_KEY`
+3. If you are using the web installer, enter the same control DB values in the installer form so `_control` migrations run against the correct database.
+4. If you are provisioning manually without the web installer, run control-plane migrations:
 
 ```bash
 # Apply control-plane schema
@@ -139,8 +148,8 @@ mysql -u control_user -p control_db < control-migrations/001_control_plane_tenan
 mysql -u control_user -p control_db < control-migrations/002_control_plane_encrypt_db_pass.sql
 ```
 
-4. Create tenant entries in the `tenants` table
-5. Create per-tenant databases and register their encrypted credentials in `kernel_tenant_db_connections`
+5. Create tenant entries in the `tenants` table
+6. Create per-tenant databases and register their encrypted credentials in `kernel_tenant_db_connections`
 
 See [tenancy-roadmap.md](tenancy-roadmap.md) for the full multi-tenancy design.
 
@@ -175,11 +184,20 @@ npm run type-check
 | Symptom | Fix |
 |---------|-----|
 | 500 error after install | Check `storage/logs/error.log` for PHP errors |
+| Generic error page on first request | Ensure the generated `.env` is readable by the web server process |
 | "Class not found" errors | Run `composer install` or verify autoloader |
 | Blank page | Ensure `APP_DEBUG=true` temporarily, check error.log |
 | Login redirect loop | Verify `JWT_SECRET` is set and cookie domain is correct |
 | Module not loading | Check `storage/modules.json` for enabled state |
 | Template errors | Clear `storage/cache/` directory |
+
+HTTP smoke test for the installer without `curl`:
+
+```bash
+php scripts/test-install-http.php
+```
+
+This checks the live `lock.php` endpoint over HTTP, verifies the installed lock behavior, and verifies that `lock.php?force=1` still renders the installer form.
 
 ---
 

@@ -31,7 +31,7 @@ function aiOpenRouterApiKey(): string
     if ($key !== '') {
         return $key;
     }
-    return trim((string)app()->config('ai.openrouter_api_key', ''));
+    return '';
 }
 
 function aiOpenRouterModel(): string

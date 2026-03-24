@@ -35,6 +35,9 @@
         "migrations/001_guidance_schema.sql",
         "migrations/002_guidance_seed.sql"
     ],
+    "seeds": [
+        "seeds/001_guidance_baseline.sql"
+    ],
     "events": [
         {
             "key": "guidance.booking.created",
