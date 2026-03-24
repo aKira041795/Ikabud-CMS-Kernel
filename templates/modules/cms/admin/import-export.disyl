@@ -83,20 +83,25 @@
             <div class="p-5 space-y-4">
                 <!-- File picker -->
                 <div>
-                    <label class="block text-xs font-medium text-gray-500 mb-1.5">JSON Export File</label>
+                    <label class="block text-xs font-medium text-gray-500 mb-1.5">Import File</label>
                     <div class="flex items-center gap-3">
                         <label class="flex-1 flex items-center justify-center gap-2 px-4 py-6 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-sky-400 hover:bg-sky-50/50 transition-colors"
                             :class="importFile ? 'border-emerald-400 bg-emerald-50/50' : ''">
                             <template x-if="!importFile">
-                                <span class="text-sm text-gray-400">Click to select .json file</span>
+                                <span class="text-sm text-gray-400">Click to select {if wordpress_importer_enabled}.json or WordPress .xml{else}.json{/if} file</span>
                             </template>
                             <template x-if="importFile">
                                 <span class="text-sm text-emerald-700 font-medium" x-text="importFile.name"></span>
                             </template>
-                            <input type="file" accept=".json,application/json" @change="importFile = $event.target.files[0] || null" class="hidden">
+                            <input type="file" accept="{if wordpress_importer_enabled}.json,.xml,text/xml,application/xml{else}.json,application/json{/if}" @change="importFile = $event.target.files[0] || null" class="hidden">
                         </label>
                     </div>
+                    {if wordpress_importer_enabled}
+                    <p class="text-[11px] text-gray-400 mt-1">WordPress Importer is installed. XML files uploaded here will be routed to the importer extension automatically.</p>
+                    <p class="text-xs mt-2"><a href="{wordpress_importer_url}" class="text-emerald-700 font-semibold hover:text-emerald-800">Open the dedicated WordPress importer</a></p>
+                    {else}
                     <p class="text-[11px] text-gray-400 mt-1">WordPress XML import is available as an optional CMS extension from the Modules page.</p>
+                    {/if}
                 </div>
 
                 <!-- Mode -->
@@ -161,6 +166,7 @@ function importExport() {
         importing: false,
         importResult: null,
         importError: '',
+        wordpressImporterEnabled: {if wordpress_importer_enabled}true{else}false{/if},
 
         doExport() {
             const types = [];
@@ -180,11 +186,21 @@ function importExport() {
             this.importResult = null;
             this.importError = '';
             try {
+                const fileName = (this.importFile.name || '').toLowerCase();
+                const isXmlImport = fileName.endsWith('.xml') || ((this.importFile.type || '').toLowerCase().includes('xml'));
+                if (isXmlImport && !this.wordpressImporterEnabled) {
+                    this.importError = 'WordPress XML detected. Install the WordPress Importer extension first.';
+                    return;
+                }
+
                 const fd = new FormData();
                 fd.append('file', this.importFile);
                 fd.append('mode', this.importMode);
                 fd.append('_token', CMS_CSRF);
-                const res = await fetch(CMS_BASE + '/api/v1/cms/import', { method: 'POST', body: fd });
+                const endpoint = isXmlImport
+                    ? CMS_BASE + '/api/v1/cms/wordpress-importer/import'
+                    : CMS_BASE + '/api/v1/cms/import';
+                const res = await fetch(endpoint, { method: 'POST', body: fd });
                 const data = await res.json();
                 if (data.ok) {
                     this.importResult = data.stats;

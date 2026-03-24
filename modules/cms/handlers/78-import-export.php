@@ -6,6 +6,25 @@ declare(strict_types=1);
 // IMPORT / EXPORT — Content data portability
 // ═══════════════════════════════════════════════════════════════════════
 
+function cmsHasEnabledWordpressImporter(): bool
+{
+    $modules = getEnabledModules();
+    return isset($modules['wordpress-importer']) && function_exists('wordpressImporterApiImport');
+}
+
+function cmsLooksLikeXmlImport(string $raw): bool
+{
+    $trimmed = ltrim($raw);
+    if ($trimmed === '' || $trimmed[0] !== '<') {
+        return false;
+    }
+
+    return str_contains($trimmed, '<rss')
+        || str_contains($trimmed, '<channel')
+        || str_contains($trimmed, '<wp:wxr_version')
+        || str_contains($trimmed, '<?xml');
+}
+
 /**
  * Admin page for import/export.
  */
@@ -24,12 +43,14 @@ function cmsAdminImportExport(array $params = []): void
     echo cmsRender('modules/cms/admin/import-export.disyl', array_merge(cmsAdminContext($user, 'import_export', [
         ['label' => 'Import / Export', 'url' => ''],
     ]), [
-        'page_title'  => 'Import / Export',
-        'post_count'  => $postCount,
-        'page_count'  => $pageCount,
-        'cat_count'   => $catCount,
-        'tag_count'   => $tagCount,
+        'page_title' => 'Import / Export',
+        'post_count' => $postCount,
+        'page_count' => $pageCount,
+        'cat_count' => $catCount,
+        'tag_count' => $tagCount,
         'media_count' => $mediaCount,
+        'wordpress_importer_enabled' => cmsHasEnabledWordpressImporter(),
+        'wordpress_importer_url' => rtrim((string)(defined('BASE_URL') ? BASE_URL : ''), '/') . '/cms/admin/wordpress-import',
     ]));
 }
 
@@ -154,6 +175,23 @@ function cmsApiImport(array $params = []): void
     }
 
     $raw = file_get_contents($_FILES['file']['tmp_name']);
+    if (!is_string($raw) || trim($raw) === '') {
+        http_response_code(422);
+        echo json_encode(['ok' => false, 'error' => 'Uploaded file is empty']);
+        exit;
+    }
+
+    if (cmsLooksLikeXmlImport($raw)) {
+        if (cmsHasEnabledWordpressImporter()) {
+            wordpressImporterApiImport($params);
+            return;
+        }
+
+        http_response_code(422);
+        echo json_encode(['ok' => false, 'error' => 'WordPress XML detected. Install or enable the WordPress Importer extension, then import the file again.']);
+        exit;
+    }
+
     $data = json_decode($raw, true);
     if (!is_array($data) || empty($data['content'])) {
         http_response_code(422);
