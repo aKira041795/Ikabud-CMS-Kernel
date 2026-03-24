@@ -320,7 +320,7 @@
                         </div>
                     </div>
                     <div class="flex justify-center p-2 bg-gray-50">
-                        <iframe :src="CMS_BASE + '/cms'" class="bg-white border border-gray-200 rounded transition-all duration-300" :style="'width:' + previewWidth + ';height:400px'" sandbox="allow-same-origin"></iframe>
+                        <iframe :src="CMS_BASE + '/cms'" class="bg-white border border-gray-200 rounded transition-all duration-300" :style="'width:' + previewWidth + ';height:400px'" sandbox="allow-same-origin allow-scripts allow-forms"></iframe>
                     </div>
                 </div>
                 {if available_themes && available_themes | count > 0}
@@ -407,40 +407,7 @@ function cmsSettings() {
             { key: 'video',    label: 'Video' },
             { key: 'audio',    label: 'Audio' },
         ],
-        settings: {
-            site_title: '{cms_settings.site_title | raw}',
-            site_tagline: '{cms_settings.site_tagline | raw}',
-            posts_per_page: '{cms_settings.posts_per_page | raw}',
-            default_post_status: '{cms_settings.default_post_status | raw}',
-            comments_enabled: '{cms_settings.comments_enabled | raw}',
-            default_comment_status: '{cms_settings.default_comment_status | raw}',
-            excerpt_length: '{cms_settings.excerpt_length | raw}',
-            max_upload_mb: '{cms_settings.max_upload_mb | raw}',
-            media_alt_required: '{cms_settings.media_alt_required | raw}',
-            media_extra_allowed_exts: '{cms_settings.media_extra_allowed_exts | raw}',
-            media_usage_tracking: '{cms_settings.media_usage_tracking | raw}',
-            seo_title_separator: '{cms_settings.seo_title_separator | raw}',
-            seo_meta_description: '{cms_settings.seo_meta_description | raw}',
-            seo_og_image: '{cms_settings.seo_og_image | raw}',
-            seo_robots: '{cms_settings.seo_robots | raw}',
-            homepage_type: '{cms_settings.homepage_type | raw}',
-            homepage_page_id: '{cms_settings.homepage_page_id | raw}',
-            date_format: '{cms_settings.date_format | raw}',
-            time_format: '{cms_settings.time_format | raw}',
-            reading_time_enabled: '{cms_settings.reading_time_enabled | raw}',
-            reading_time_wpm: '{cms_settings.reading_time_wpm | raw}',
-            cache_enabled: '{cms_settings.cache_enabled | raw}',
-            cache_ttl: '{cms_settings.cache_ttl | raw}',
-            builder_enabled_types: '{cms_settings.builder_enabled_types | raw}',
-            builder_enforce_lock: '{cms_settings.builder_enforce_lock | raw}',
-            enabled_post_formats: '{cms_settings.enabled_post_formats | raw}',
-            social_facebook: '{cms_settings.social_facebook | raw}',
-            social_twitter: '{cms_settings.social_twitter | raw}',
-            social_instagram: '{cms_settings.social_instagram | raw}',
-            social_youtube: '{cms_settings.social_youtube | raw}',
-            social_linkedin: '{cms_settings.social_linkedin | raw}',
-            active_theme: '{active_theme | raw}',
-        },
+        settings: {cms_settings_json|raw},
         async save() {
             this.saving = true;
             this.statusMsg = 'Saving...';

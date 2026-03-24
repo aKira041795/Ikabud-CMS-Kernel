@@ -657,6 +657,9 @@ function cmsAdminSettings(array $params = []): void
     ]), [
         'page_title'       => 'CMS Settings',
         'cms_settings'     => $settings,
+        'cms_settings_json'=> json_encode(array_merge($settings, [
+            'active_theme' => cmsActiveTheme() ?? 'default',
+        ]), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT),
         'defaults'         => $defaults,
         'setting_keys'     => array_keys($defaults),
         'available_themes' => cmsAvailableThemes(),

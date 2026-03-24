@@ -1159,20 +1159,32 @@ function cmsEditor() {
             feedback: '',
             error: '',
         },
-        aiAutomation: {ai_automation_json | raw} || {
+        aiAutomation: Object.assign({
             enabled: false,
             qa_warnings: [],
             critique_history: [],
             refine_history: [],
             citations: [],
-            quality_assessment: {},
+            quality_assessment: {
+                overall: 0,
+                approval_confidence: '',
+                approval_recommendation: '',
+                blocking_reasons: [],
+                dimensions: {
+                    completeness: 0,
+                    accuracy_signals: 0,
+                    actionable_depth: 0,
+                    repetition: 0,
+                    realism: 0,
+                },
+            },
             quality_score: 0,
             approval_confidence: '',
             approval_recommendation: '',
             blocking_reasons: [],
             auto_refine_count: 0,
             auto_refine_unresolved: false,
-        },
+        }, {ai_automation_json | raw} || {}),
         form: {
             title: {if content}{content.title | json}{else}''{/if},
             slug: {if content}{content.slug | json}{else}''{/if},
@@ -1341,7 +1353,19 @@ function cmsEditor() {
                         critique_history: [],
                         refine_history: [],
                         citations: [],
-                        quality_assessment: {},
+                        quality_assessment: {
+                            overall: 0,
+                            approval_confidence: '',
+                            approval_recommendation: '',
+                            blocking_reasons: [],
+                            dimensions: {
+                                completeness: 0,
+                                accuracy_signals: 0,
+                                actionable_depth: 0,
+                                repetition: 0,
+                                realism: 0,
+                            },
+                        },
                         quality_score: 0,
                         approval_confidence: '',
                         approval_recommendation: '',
@@ -1353,11 +1377,32 @@ function cmsEditor() {
                     if (Array.isArray(data.qa_warnings)) this.aiAutomation.qa_warnings = data.qa_warnings;
                     if (Array.isArray(data.citations)) this.aiAutomation.citations = data.citations;
                     if (data.quality_assessment && typeof data.quality_assessment === 'object') {
-                        this.aiAutomation.quality_assessment = data.quality_assessment;
-                        this.aiAutomation.quality_score = data.quality_assessment.overall || 0;
-                        this.aiAutomation.approval_confidence = data.quality_assessment.approval_confidence || '';
-                        this.aiAutomation.approval_recommendation = data.quality_assessment.approval_recommendation || '';
-                        this.aiAutomation.blocking_reasons = Array.isArray(data.quality_assessment.blocking_reasons) ? data.quality_assessment.blocking_reasons : [];
+                        this.aiAutomation.quality_assessment = Object.assign({
+                            overall: 0,
+                            approval_confidence: '',
+                            approval_recommendation: '',
+                            blocking_reasons: [],
+                            dimensions: {
+                                completeness: 0,
+                                accuracy_signals: 0,
+                                actionable_depth: 0,
+                                repetition: 0,
+                                realism: 0,
+                            },
+                        }, data.quality_assessment, {
+                            blocking_reasons: Array.isArray(data.quality_assessment.blocking_reasons) ? data.quality_assessment.blocking_reasons : [],
+                            dimensions: Object.assign({
+                                completeness: 0,
+                                accuracy_signals: 0,
+                                actionable_depth: 0,
+                                repetition: 0,
+                                realism: 0,
+                            }, data.quality_assessment.dimensions || {}),
+                        });
+                        this.aiAutomation.quality_score = this.aiAutomation.quality_assessment.overall || 0;
+                        this.aiAutomation.approval_confidence = this.aiAutomation.quality_assessment.approval_confidence || '';
+                        this.aiAutomation.approval_recommendation = this.aiAutomation.quality_assessment.approval_recommendation || '';
+                        this.aiAutomation.blocking_reasons = this.aiAutomation.quality_assessment.blocking_reasons;
                     }
                     this.aiAutomation.latest_critique = feedback;
                 }
@@ -1431,7 +1476,7 @@ function cmsEditor() {
             const self = this;
             const config = Object.assign({}, this.tinymceConfig || {}, {
                 selector: '#' + this.editorId,
-                content_style: 'img.alignleft, img[style*="float: left"], img[style*="float:left"] { float: left; margin: 0 1rem 0 0; max-width: 50%; } img.alignright, img[style*="float: right"], img[style*="float:right"] { float: right; margin: 0 0 0 1rem; max-width: 50%; } img.aligncenter { display: block; margin-left: auto; margin-right: auto; }',
+                content_style: 'body { margin: 1rem; line-height: 1.35; } p { margin: 0 0 0.65rem; } p:last-child { margin-bottom: 0; } ul, ol { margin: 0 0 0.75rem 1.25rem; padding: 0; } li { margin: 0.2rem 0; } figure { margin: 0.75rem 0; } img { height: auto; max-width: 100%; } img.alignleft, img[style*="float: left"], img[style*="float:left"] { float: left; margin: 0 1rem 0 0; max-width: 50%; } img.alignright, img[style*="float: right"], img[style*="float:right"] { float: right; margin: 0 0 0 1rem; max-width: 50%; } img.aligncenter { display: block; margin-left: auto; margin-right: auto; }',
                 image_class_list: [
                     { title: 'None', value: '' },
                     { title: 'Align Left', value: 'alignleft' },

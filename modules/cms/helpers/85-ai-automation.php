@@ -2721,7 +2721,9 @@ function cmsAiAutomationContentStateFromMeta(array $meta): array
     $critiqueHistory = cmsAiAutomationDecodeMetaJson($meta, '_ai_critique_history');
     $refineHistory = cmsAiAutomationDecodeMetaJson($meta, '_ai_refine_history');
     $citations = cmsAiAutomationDecodeMetaJson($meta, '_ai_citations');
-    $qualityAssessment = cmsAiAutomationDecodeMetaJson($meta, '_ai_quality_assessment');
+    $qualityAssessment = cmsAiAutomationNormalizeQualityAssessment(
+        cmsAiAutomationDecodeMetaJson($meta, '_ai_quality_assessment')
+    );
 
     $autoRefineCount = count(array_filter($critiqueHistory, static function ($entry): bool {
         return is_array($entry) && str_starts_with((string)($entry['source'] ?? ''), 'auto_');
@@ -2753,6 +2755,34 @@ function cmsAiAutomationContentStateFromMeta(array $meta): array
         'auto_refine_count' => $autoRefineCount,
         'auto_refine_unresolved' => $autoRefineCount > 0 && $hasHighWarnings,
     ];
+}
+
+function cmsAiAutomationNormalizeQualityAssessment(array $qualityAssessment): array
+{
+    $dimensions = is_array($qualityAssessment['dimensions'] ?? null) ? $qualityAssessment['dimensions'] : [];
+
+    return array_merge([
+        'overall' => 0,
+        'approval_confidence' => '',
+        'approval_recommendation' => '',
+        'blocking_reasons' => [],
+        'dimensions' => [
+            'completeness' => 0,
+            'accuracy_signals' => 0,
+            'actionable_depth' => 0,
+            'repetition' => 0,
+            'realism' => 0,
+        ],
+    ], $qualityAssessment, [
+        'blocking_reasons' => is_array($qualityAssessment['blocking_reasons'] ?? null) ? $qualityAssessment['blocking_reasons'] : [],
+        'dimensions' => array_merge([
+            'completeness' => 0,
+            'accuracy_signals' => 0,
+            'actionable_depth' => 0,
+            'repetition' => 0,
+            'realism' => 0,
+        ], $dimensions),
+    ]);
 }
 
 function cmsAiAutomationAppendHistoryEntry(array $meta, string $key, array $entry, int $limit = 10): array

@@ -202,6 +202,7 @@ function wordpressImporterImportStructuredPayload(array $data, string $mode, int
         $slug = trim((string)($item['slug'] ?? ''));
         $type = trim((string)($item['type'] ?? 'post'));
         $title = trim((string)($item['title'] ?? ''));
+        $bodyHtml = cmsEditorSanitizeHtml(cmsEditorNormalizeHtml((string)($item['body'] ?? ''), 'cms.content'), 'cms.content');
         if ($slug === '') {
             $slug = cmsSlugify($title);
         }
@@ -230,7 +231,7 @@ function wordpressImporterImportStructuredPayload(array $data, string $mode, int
 
             $updateExistingContent->execute([
                 ':title'   => $title,
-                ':body'    => (string)($item['body'] ?? ''),
+                ':body'    => $bodyHtml,
                 ':excerpt' => (string)($item['excerpt'] ?? ''),
                 ':status'  => $status,
                 ':pub'     => $publishedAt,
@@ -246,7 +247,7 @@ function wordpressImporterImportStructuredPayload(array $data, string $mode, int
                     ':title'     => $title,
                     ':slug'      => wordpressImporterEnsureUniqueSlug($slug, $type),
                     ':type'      => $type,
-                    ':body'      => (string)($item['body'] ?? ''),
+                    ':body'      => $bodyHtml,
                     ':excerpt'   => (string)($item['excerpt'] ?? ''),
                     ':status'    => $status,
                     ':author_id' => $resolvedAuthorId,

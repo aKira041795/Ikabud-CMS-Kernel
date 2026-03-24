@@ -32,7 +32,18 @@ function tinymceDefaultToolbar(): string
 function tinymceNormalizeHtml(string $html): string
 {
     $html = str_replace(["\r\n", "\r"], "\n", $html);
-    $html = preg_replace("/\n{3,}/", "\n\n", $html);
+    // WordPress imports and TinyMCE round-trips commonly preserve spacer paragraphs
+    // like <p>&nbsp;</p> or <p><br></p>; strip those so blank lines do not grow on edit.
+    $withoutSpacerParagraphs = preg_replace('#<p>(?:\s|&nbsp;|&#160;|<br\s*/?>)*</p>#iu', '', $html);
+    if (is_string($withoutSpacerParagraphs)) {
+        $html = $withoutSpacerParagraphs;
+    }
+
+    $collapsedBreaks = preg_replace("/\n{3,}/", "\n\n", $html);
+    if (is_string($collapsedBreaks)) {
+        $html = $collapsedBreaks;
+    }
+
     return trim((string)$html);
 }
 
