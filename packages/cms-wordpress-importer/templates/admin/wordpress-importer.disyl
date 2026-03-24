@@ -1,0 +1,108 @@
+{extends "modules/cms/layouts/admin.disyl"}
+
+{block content}
+<div x-data="wordpressImporter()" class="max-w-3xl">
+    <div class="mb-6">
+        <h1 class="text-xl font-bold text-gray-900">WordPress Import</h1>
+        <p class="text-sm text-gray-500 mt-0.5">Import WordPress XML/WXR posts, pages, categories, and tags into this CMS.</p>
+    </div>
+
+    <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        <div class="px-5 py-4 border-b border-gray-100 bg-amber-50/70">
+            <h2 class="text-sm font-semibold text-gray-900">Import XML</h2>
+        </div>
+        <div class="p-5 space-y-4">
+            <div>
+                <label class="block text-xs font-medium text-gray-500 mb-1.5">WordPress Export File</label>
+                <label class="flex items-center justify-center gap-2 px-4 py-6 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-sky-400 hover:bg-sky-50/50 transition-colors"
+                    :class="importFile ? 'border-emerald-400 bg-emerald-50/50' : ''">
+                    <template x-if="!importFile">
+                        <span class="text-sm text-gray-400">Click to select a WordPress `.xml` export</span>
+                    </template>
+                    <template x-if="importFile">
+                        <span class="text-sm text-emerald-700 font-medium" x-text="importFile.name"></span>
+                    </template>
+                    <input type="file" accept=".xml,text/xml,application/xml" @change="importFile = $event.target.files[0] || null" class="hidden">
+                </label>
+                <p class="text-[11px] text-gray-400 mt-1">Supported scope: posts, pages, categories, and tags. Media download is not part of this extension yet.</p>
+            </div>
+
+            <div>
+                <label class="block text-xs font-medium text-gray-500 mb-1.5">Duplicate Handling</label>
+                <div class="flex gap-3">
+                    <label class="inline-flex items-center gap-1.5 text-sm">
+                        <input type="radio" x-model="importMode" value="merge" class="border-gray-300 text-sky-600 focus:ring-sky-500"> Skip existing
+                    </label>
+                    <label class="inline-flex items-center gap-1.5 text-sm">
+                        <input type="radio" x-model="importMode" value="replace" class="border-gray-300 text-sky-600 focus:ring-sky-500"> Overwrite
+                    </label>
+                </div>
+            </div>
+
+            <button @click="doImport()" :disabled="!importFile || importing" class="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-amber-600 text-white text-sm font-semibold rounded-lg hover:bg-amber-700 disabled:opacity-50 transition-colors">
+                <svg class="w-4 h-4" x-show="!importing" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+                <svg class="w-4 h-4 animate-spin" x-show="importing" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                <span x-text="importing ? 'Importing...' : 'Import WordPress XML'"></span>
+            </button>
+
+            <div x-show="importResult" x-cloak class="bg-gray-50 rounded-lg p-4 text-sm">
+                <h4 class="font-semibold text-gray-700 mb-2">Import Result</h4>
+                <template x-if="importResult">
+                    <div class="grid grid-cols-2 gap-1 text-xs">
+                        <span class="text-gray-500">Imported:</span>
+                        <span class="font-semibold text-emerald-700" x-text="importResult.imported || 0"></span>
+                        <span class="text-gray-500">Updated:</span>
+                        <span class="font-semibold text-sky-700" x-text="importResult.updated || 0"></span>
+                        <span class="text-gray-500">Skipped:</span>
+                        <span class="font-semibold text-gray-500" x-text="importResult.skipped || 0"></span>
+                        <span class="text-gray-500">Errors:</span>
+                        <span class="font-semibold" :class="(importResult.errors||0) > 0 ? 'text-red-600' : 'text-gray-400'" x-text="importResult.errors || 0"></span>
+                        <span class="text-gray-500">Categories:</span>
+                        <span class="font-semibold text-gray-700" x-text="importResult.categories_imported || 0"></span>
+                        <span class="text-gray-500">Tags:</span>
+                        <span class="font-semibold text-gray-700" x-text="importResult.tags_imported || 0"></span>
+                    </div>
+                </template>
+            </div>
+
+            <p x-show="importError" x-text="importError" class="text-sm text-red-600"></p>
+        </div>
+    </div>
+</div>
+
+<script>
+function wordpressImporter() {
+    return {
+        importFile: null,
+        importMode: 'merge',
+        importing: false,
+        importResult: null,
+        importError: '',
+
+        async doImport() {
+            if (!this.importFile) return;
+            this.importing = true;
+            this.importResult = null;
+            this.importError = '';
+            try {
+                const fd = new FormData();
+                fd.append('file', this.importFile);
+                fd.append('mode', this.importMode);
+                fd.append('_token', CMS_CSRF);
+                const res = await fetch(CMS_BASE + '/api/v1/cms/wordpress-importer/import', { method: 'POST', body: fd });
+                const data = await res.json();
+                if (data.ok) {
+                    this.importResult = data.stats;
+                } else {
+                    this.importError = data.error || 'Import failed';
+                }
+            } catch (e) {
+                this.importError = 'Network error';
+            } finally {
+                this.importing = false;
+            }
+        }
+    };
+}
+</script>
+{/block}

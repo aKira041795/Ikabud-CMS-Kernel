@@ -1,0 +1,9 @@
+{
+    "id": "wordpress-importer",
+    "name": "WordPress Importer",
+    "version": "1.0.0",
+    "description": "Imports WordPress XML/WXR posts, pages, categories, and tags into the CMS.",
+    "author": "GitHub Copilot",
+    "requires_kernel": "3.1.0",
+    "nav": []
+}

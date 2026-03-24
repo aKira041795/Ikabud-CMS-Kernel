@@ -5,7 +5,7 @@
     <!-- Header -->
     <div class="mb-6">
         <h1 class="text-xl font-bold text-gray-900">Import / Export</h1>
-        <p class="text-sm text-gray-500 mt-0.5">Export your CMS data as JSON or import from a CMS JSON export or WordPress XML file</p>
+        <p class="text-sm text-gray-500 mt-0.5">Export your CMS data as JSON or import content from a previous export</p>
     </div>
 
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -83,20 +83,20 @@
             <div class="p-5 space-y-4">
                 <!-- File picker -->
                 <div>
-                    <label class="block text-xs font-medium text-gray-500 mb-1.5">Import File</label>
+                    <label class="block text-xs font-medium text-gray-500 mb-1.5">JSON Export File</label>
                     <div class="flex items-center gap-3">
                         <label class="flex-1 flex items-center justify-center gap-2 px-4 py-6 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-sky-400 hover:bg-sky-50/50 transition-colors"
                             :class="importFile ? 'border-emerald-400 bg-emerald-50/50' : ''">
                             <template x-if="!importFile">
-                                <span class="text-sm text-gray-400">Click to select .json or WordPress .xml file</span>
+                                <span class="text-sm text-gray-400">Click to select .json file</span>
                             </template>
                             <template x-if="importFile">
                                 <span class="text-sm text-emerald-700 font-medium" x-text="importFile.name"></span>
                             </template>
-                            <input type="file" accept=".json,.xml,application/json,text/xml,application/xml" @change="importFile = $event.target.files[0] || null" class="hidden">
+                            <input type="file" accept=".json,application/json" @change="importFile = $event.target.files[0] || null" class="hidden">
                         </label>
                     </div>
-                    <p class="text-[11px] text-gray-400 mt-1">Supports native CMS JSON exports and WordPress XML/WXR exports for posts, pages, categories, and tags.</p>
+                    <p class="text-[11px] text-gray-400 mt-1">WordPress XML import is available as an optional CMS extension from the Modules page.</p>
                 </div>
 
                 <!-- Mode -->
