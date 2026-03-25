@@ -28,11 +28,21 @@ interface DatabaseContract
     public function prepare(string $sql): PDOStatement;
 
     /**
-     * Execute a raw query (SELECT only) and return the statement.
-     * 
-     * @throws \RuntimeException if the query is not a SELECT or accesses unauthorized tables
+     * Execute a raw query and return the statement.
+     * If $params is provided, the query is prepared and executed with those parameters.
+     *
+     * @param array $params Positional (?) or named (:key) parameters
+     * @throws \RuntimeException if the query accesses unauthorized tables
      */
-    public function query(string $sql): PDOStatement;
+    public function query(string $sql, array $params = []): PDOStatement;
+
+    /**
+     * Prepare and execute a write statement (INSERT/UPDATE/DELETE).
+     *
+     * @param array $params Positional (?) or named (:key) parameters
+     * @throws \RuntimeException if access is denied or execution fails
+     */
+    public function execute(string $sql, array $params = []): bool;
 
     /**
      * Get the last inserted ID.

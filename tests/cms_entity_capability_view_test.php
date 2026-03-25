@@ -221,7 +221,10 @@ t('media_gallery is false in context',  $ctxMap['media_gallery'] === false);
 // ════════════════════════════════════════════════════════════════════
 echo "\n=== CAPABILITY DATA via cmsEntityCapabilityData() ===\n";
 
-// Seed pricing meta so the provider has data to return
+// Seed pricing data — update the capability config so all active providers (CMS or ecommerce) return 29.99/USD.
+// cmsEntityAttachCapability does an upsert on cms_entity_capabilities (used by ecommerce provider).
+// Also seed cms_content_meta for CMS meta-based provider fallback.
+cmsEntityAttachCapability($testEntityId, 'pricing', ['price' => 29.99, 'currency' => 'USD']);
 $db->prepare(
     "INSERT INTO cms_content_meta (content_id, meta_key, meta_value)
      VALUES (:cid, '_price', '29.99')

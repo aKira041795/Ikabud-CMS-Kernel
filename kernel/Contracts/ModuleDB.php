@@ -64,14 +64,32 @@ class ModuleDB implements DatabaseContract
         return $this->pdo->prepare($sql);
     }
 
-    public function query(string $sql): PDOStatement
+    public function query(string $sql, array $params = []): PDOStatement
     {
         $this->enforceAccess($sql);
-        $stmt = $this->pdo->query($sql);
-        if ($stmt === false) {
-            throw new \RuntimeException("Query failed: {$sql}");
+        if (empty($params)) {
+            $stmt = $this->pdo->query($sql);
+            if ($stmt === false) {
+                throw new \RuntimeException("Query failed: {$sql}");
+            }
+            return $stmt;
         }
+        $stmt = $this->pdo->prepare($sql);
+        if ($stmt === false) {
+            throw new \RuntimeException("Prepare failed: {$sql}");
+        }
+        $stmt->execute($params);
         return $stmt;
+    }
+
+    public function execute(string $sql, array $params = []): bool
+    {
+        $this->enforceAccess($sql);
+        $stmt = $this->pdo->prepare($sql);
+        if ($stmt === false) {
+            throw new \RuntimeException("Prepare failed: {$sql}");
+        }
+        return $stmt->execute($params);
     }
 
     public function lastInsertId(): string
