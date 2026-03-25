@@ -2895,7 +2895,20 @@ switch ($handler) {
             exit;
         }
 
-        enableModule($modId);
+        if (moduleTenantSettingsModeEnabled()) {
+            $eTenantId = moduleTenantSettingsTenantId();
+            if ($eTenantId !== null) {
+                enableModuleForTenant($modId, $eTenantId);
+            } else {
+                // No tenant resolved (main domain): write directly to global registry.
+                $eReg = readModuleRegistry();
+                $eReg[$modId] = array_merge($eReg[$modId] ?? [], ['enabled' => true, 'enabled_at' => date('Y-m-d H:i:s')]);
+                writeModuleRegistry($eReg);
+                kernelFlushCodeCaches();
+            }
+        } else {
+            enableModule($modId);
+        }
         adminViewCacheInvalidate(['admin:view:modules', 'admin:view:platform', 'admin:view:capabilities']);
         echo json_encode(['ok' => true, 'module_id' => $modId, 'enabled' => true, 'request_id' => request_id()]);
         exit;
@@ -2919,7 +2932,20 @@ switch ($handler) {
             echo json_encode(['ok' => false, 'error' => 'Module not found']);
             exit;
         }
-        disableModule($modId);
+        if (moduleTenantSettingsModeEnabled()) {
+            $dTenantId = moduleTenantSettingsTenantId();
+            if ($dTenantId !== null) {
+                disableModuleForTenant($modId, $dTenantId);
+            } else {
+                // No tenant resolved (main domain): write directly to global registry.
+                $dReg = readModuleRegistry();
+                $dReg[$modId] = array_merge($dReg[$modId] ?? [], ['enabled' => false, 'disabled_at' => date('Y-m-d H:i:s')]);
+                writeModuleRegistry($dReg);
+                kernelFlushCodeCaches();
+            }
+        } else {
+            disableModule($modId);
+        }
         adminViewCacheInvalidate(['admin:view:modules', 'admin:view:platform', 'admin:view:capabilities']);
         echo json_encode(['ok' => true, 'module_id' => $modId, 'enabled' => false]);
         exit;
@@ -3023,7 +3049,22 @@ switch ($handler) {
             exit;
         }
 
-        saveModuleSettings($modId, $newSettings);
+        // allow_kernel_admin is a kernel-lifecycle key — always write to global registry
+        // regardless of tenant mode so it is never silently dropped.
+        if (array_key_exists('allow_kernel_admin', $settingsIn)) {
+            $akaReg = readModuleRegistry();
+            $akaReg[$modId]['settings'] = array_merge($akaReg[$modId]['settings'] ?? [], [
+                'allow_kernel_admin' => (bool)$settingsIn['allow_kernel_admin'],
+            ]);
+            writeModuleRegistry($akaReg);
+            // Remove from $newSettings so saveModuleSettings() doesn't attempt it again.
+            unset($newSettings['allow_kernel_admin']);
+        }
+
+        // Only call saveModuleSettings for remaining (tenant-scoped) keys.
+        if (!empty(array_diff_key($newSettings, $oldSettings)) || !empty($tenantScopedKeys)) {
+            saveModuleSettings($modId, $newSettings);
+        }
 
         // Best-effort audit log
         try {
