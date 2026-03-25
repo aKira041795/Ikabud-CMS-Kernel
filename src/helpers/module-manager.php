@@ -1428,7 +1428,8 @@ function validateModuleCapabilities(array $manifest): array
 function isValidCapabilityId(string $capId): bool
 {
     // contract.id@major (major is integer)
-    return (bool) preg_match('/^[a-z][a-z0-9]*(?:\.[a-z][a-z0-9]*)*@\d+$/', $capId);
+    // Segments: lowercase letter/digit/underscore; must start with a letter.
+    return (bool) preg_match('/^[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)*@\d+$/', $capId);
 }
 
 function routePatternSegments(string $pattern): array

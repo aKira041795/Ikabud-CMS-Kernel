@@ -57,7 +57,7 @@ loadModuleRoutes(['GET' => [], 'POST' => [], 'PUT' => [], 'DELETE' => []]);
 echo "\n=== BUILT-IN CAPABILITY TYPES ===\n";
 
 $builtins    = cmsBuiltinEntityCapabilities();
-$expectedIds = ['pricing', 'inventory', 'booking', 'inquiry', 'progresstracking', 'lessonsindex', 'mediagallery'];
+$expectedIds = ['pricing', 'inventory', 'booking', 'inquiry', 'progress_tracking', 'lessons_index', 'media_gallery'];
 $builtinIds  = array_column($builtins, 'id');
 
 t('builtin list is array', is_array($builtins));
@@ -78,9 +78,9 @@ $byId = array_column($builtins, null, 'id');
 t('pricing default currency is USD',       ($byId['pricing']['default_config']['currency'] ?? '') === 'USD');
 t('inventory default stock_qty is 0',      ($byId['inventory']['default_config']['stock_qty'] ?? -1) === 0);
 t('booking default slot_duration is 60',   ($byId['booking']['default_config']['slot_duration_minutes'] ?? 0) === 60);
-t('progresstracking default unit is percent', ($byId['progresstracking']['default_config']['unit'] ?? '') === 'percent');
-t('lessonsindex default child_type is lesson', ($byId['lessonsindex']['default_config']['child_type'] ?? '') === 'lesson');
-t('mediagallery default columns is 3',     ($byId['mediagallery']['default_config']['columns'] ?? 0) === 3);
+t('progress_tracking default unit is percent', ($byId['progress_tracking']['default_config']['unit'] ?? '') === 'percent');
+t('lessons_index default child_type is lesson', ($byId['lessons_index']['default_config']['child_type'] ?? '') === 'lesson');
+t('media_gallery default columns is 3',     ($byId['media_gallery']['default_config']['columns'] ?? 0) === 3);
 
 // ════════════════════════════════════════════════════════════════════
 // 2. CAPABILITY TYPE REGISTRY
@@ -162,11 +162,11 @@ t('inventory attached',                   isset($caps['inventory']));
 t('inventory default track_stock = true', ($caps['inventory']['track_stock'] ?? null) === true);
 t('inventory default stock_qty = 0',      ($caps['inventory']['stock_qty'] ?? null) === 0);
 
-// Attach progresstracking
-cmsEntityAttachCapability($testEntityId, 'progresstracking');
+// Attach progress_tracking
+cmsEntityAttachCapability($testEntityId, 'progress_tracking');
 $caps = cmsEntityGetCapabilities($testEntityId);
-t('progresstracking attached',               isset($caps['progresstracking']));
-t('progresstracking default unit = percent', ($caps['progresstracking']['unit'] ?? '') === 'percent');
+t('progress_tracking attached',               isset($caps['progress_tracking']));
+t('progress_tracking default unit = percent', ($caps['progress_tracking']['unit'] ?? '') === 'percent');
 
 // Config update via upsert (ON DUPLICATE KEY UPDATE)
 cmsEntityAttachCapability($testEntityId, 'pricing', ['price' => 29.99, 'currency' => 'USD', 'sale_price' => 19.99]);
@@ -210,11 +210,11 @@ t('context is array',                  is_array($ctxMap));
 t('context has all known cap IDs',     count(array_intersect_key($ctxMap, array_flip($expectedIds))) === count($expectedIds));
 t('pricing is true in context',        $ctxMap['pricing'] === true);
 t('inventory is true in context',      $ctxMap['inventory'] === true);
-t('progresstracking true in context',  $ctxMap['progresstracking'] === true);
+t('progress_tracking true in context',  $ctxMap['progress_tracking'] === true);
 t('booking is false in context',       $ctxMap['booking'] === false);
 t('inquiry is false in context',       $ctxMap['inquiry'] === false);
-t('lessonsindex is false in context',  $ctxMap['lessonsindex'] === false);
-t('mediagallery is false in context',  $ctxMap['mediagallery'] === false);
+t('lessons_index is false in context',  $ctxMap['lessons_index'] === false);
+t('media_gallery is false in context',  $ctxMap['media_gallery'] === false);
 
 // ════════════════════════════════════════════════════════════════════
 // 5. CAPABILITY DATA VIA BUS — cmsEntityCapabilityData()
@@ -244,8 +244,8 @@ t('pricing data currency is USD',              ($capData['pricing']['currency'] 
 t('pricing data sale_price null (not seeded)', array_key_exists('sale_price', $capData['pricing'] ?? []) && $capData['pricing']['sale_price'] === null);
 t('inventory data present',                    isset($capData['inventory']));
 t('inventory data has in_stock key',           array_key_exists('in_stock', $capData['inventory'] ?? []));
-t('progresstracking data present',             isset($capData['progresstracking']));
-t('progresstracking percent 0 (no session)',   ($capData['progresstracking']['percent'] ?? -1) === 0);
+t('progress_tracking data present',             isset($capData['progress_tracking']));
+t('progress_tracking percent 0 (no session)',   ($capData['progress_tracking']['percent'] ?? -1) === 0);
 
 // Entity with no capabilities should return empty data
 cmsEntityCapabilityClearCache($testEntityId);

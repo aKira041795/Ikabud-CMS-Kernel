@@ -1,15 +1,15 @@
 {* media-gallery.block.disyl — image gallery with optional lightbox *}
-{* @requires entity.capability.mediagallery.data@1 *}
-{if capability_data.mediagallery}
+{* @requires entity.capability.media_gallery.data@1 *}
+{if capability_data.media_gallery}
 <div class="cms-gallery-block mb-8"
-     {if capability_data.mediagallery.lightbox}data-gallery-lightbox="true"{/if}>
-    {if capability_data.mediagallery.items}
+     {if capability_data.media_gallery.lightbox}data-gallery-lightbox="true"{/if}>
+    {if capability_data.media_gallery.items}
     <div class="grid gap-2"
-         style="grid-template-columns: repeat({capability_data.mediagallery.columns}, minmax(0, 1fr));">
-        {foreach capability_data.mediagallery.items as img loop}
+         style="grid-template-columns: repeat({capability_data.media_gallery.columns}, minmax(0, 1fr));">
+        {foreach capability_data.media_gallery.items as img loop}
         <a href="{if img.url}{img.url}{else}/assets/modules/cms/uploads/{img.src}{/if}"
            class="block aspect-square overflow-hidden rounded-lg bg-gray-100 group"
-           {if capability_data.mediagallery.lightbox}data-lightbox="gallery" data-title="{img.caption}"{/if}>
+           {if capability_data.media_gallery.lightbox}data-lightbox="gallery" data-title="{img.caption}"{/if}>
             <img class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                  src="{if img.thumb}{img.thumb}{else}/assets/modules/cms/uploads/{img.src}{/if}"
                  alt="{if img.caption}{img.caption}{else}Gallery image {loop.index1}{/if}"

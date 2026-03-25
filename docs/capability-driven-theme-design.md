@@ -38,9 +38,9 @@ Public rendering should depend on explicit feature flags attached to the entity,
 - `inventory`
 - `booking`
 - `inquiry`
-- `progresstracking`
-- `lessonsindex`
-- `mediagallery`
+- `progress_tracking`
+- `lessons_index`
+- `media_gallery`
 
 ### 1.3 Token-only theming by default
 
@@ -96,9 +96,9 @@ Capability providers expose runtime data through the kernel capability bus using
 - `entity.capability.inventory.data@1`
 - `entity.capability.booking.data@1`
 - `entity.capability.inquiry.data@1`
-- `entity.capability.progresstracking.data@1`
-- `entity.capability.lessonsindex.data@1`
-- `entity.capability.mediagallery.data@1`
+- `entity.capability.progress_tracking.data@1`
+- `entity.capability.lessons_index.data@1`
+- `entity.capability.media_gallery.data@1`
 
 The CMS module ships default providers, but higher-priority modules can override them later.
 
@@ -197,14 +197,14 @@ An entity with:
 
 - `pricing`
 - `inventory`
-- `mediagallery`
+- `media_gallery`
 
 will render product-like behavior from the same `entity.view.disyl` template.
 
 An entity with:
 
-- `lessonsindex`
-- `progresstracking`
+- `lessons_index`
+- `progress_tracking`
 - `pricing`
 
 will render course-like behavior without switching to a different template family.
@@ -274,15 +274,15 @@ Currently returns stub data and is intended to be overridden by a dedicated book
 
 Returns CTA configuration from attached capability config.
 
-### `progresstracking`
+### `progress_tracking`
 
 Reads per-user progress using `kernel.auth.user@1` plus content meta.
 
-### `lessonsindex`
+### `lessons_index`
 
 Builds a child-entity index by querying child content linked through `_parent_id`.
 
-### `mediagallery`
+### `media_gallery`
 
 Reads gallery data from `_gallery` meta.
 
@@ -324,15 +324,15 @@ Attaches:
 
 - `pricing`
 - `inventory`
-- `mediagallery`
+- `media_gallery`
 
 ### `education`
 
 Attaches:
 
 - `pricing`
-- `lessonsindex`
-- `progresstracking`
+- `lessons_index`
+- `progress_tracking`
 
 ### `business`
 
@@ -340,13 +340,13 @@ Attaches:
 
 - `inquiry`
 - `booking`
-- `mediagallery`
+- `media_gallery`
 
 ### `portfolio`
 
 Attaches:
 
-- `mediagallery`
+- `media_gallery`
 - `inquiry`
 
 These presets can also provide token overrides so the same template system presents differently by use case.

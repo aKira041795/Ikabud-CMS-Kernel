@@ -6,7 +6,7 @@ declare(strict_types=1);
 // Entity Capability Profile System — helpers/56-entity-capabilities.php
 //
 // An "entity capability" is a FEATURE PROFILE attached to a CMS content entity
-// (e.g. "pricing", "inventory", "booking", "progresstracking"). It is distinct
+// (e.g. "pricing", "inventory", "booking", "progress_tracking"). It is distinct
 // from Kernel service capabilities (CapabilityBus contracts between modules).
 //
 // Entity capabilities drive universal template block rendering: the same
@@ -69,7 +69,7 @@ function cmsBuiltinEntityCapabilities(): array
             'default_config' => ['label' => 'Inquire'],
         ],
         [
-            'id'             => 'progresstracking',
+            'id'             => 'progress_tracking',
             'label'          => 'Progress Tracking',
             'description'    => 'Track per-user completion progress (e.g. for courses or challenges).',
             'icon'           => 'activity',
@@ -79,7 +79,7 @@ function cmsBuiltinEntityCapabilities(): array
             'default_config' => ['unit' => 'percent'],
         ],
         [
-            'id'             => 'lessonsindex',
+            'id'             => 'lessons_index',
             'label'          => 'Lessons / Chapters',
             'description'    => 'Render an ordered index of child entities (lessons, chapters, modules).',
             'icon'           => 'list',
@@ -90,7 +90,7 @@ function cmsBuiltinEntityCapabilities(): array
             'default_config' => ['child_type' => 'lesson', 'show_numbers' => true],
         ],
         [
-            'id'             => 'mediagallery',
+            'id'             => 'media_gallery',
             'label'          => 'Media Gallery',
             'description'    => 'Display an extended gallery block with lightbox support.',
             'icon'           => 'image',

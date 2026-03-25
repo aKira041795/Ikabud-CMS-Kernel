@@ -1,18 +1,18 @@
 {* progress.block.disyl — per-user progress bar for courses/challenges *}
-{* @requires entity.capability.progresstracking.data@1 *}
-{if capability_data.progresstracking}
+{* @requires entity.capability.progress_tracking.data@1 *}
+{if capability_data.progress_tracking}
 <div class="cms-progress-block my-3">
-    {if capability_data.progresstracking.authenticated}
+    {if capability_data.progress_tracking.authenticated}
     <div class="flex items-center gap-3">
         <div class="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
             <div class="h-full bg-sky-500 rounded-full transition-all duration-500"
-                 style="width:{capability_data.progresstracking.percent}%"
+                 style="width:{capability_data.progress_tracking.percent}%"
                  role="progressbar"
-                 aria-valuenow="{capability_data.progresstracking.percent}"
+                 aria-valuenow="{capability_data.progress_tracking.percent}"
                  aria-valuemin="0"
                  aria-valuemax="100"></div>
         </div>
-        <span class="text-sm font-medium text-gray-600 w-12 shrink-0">{capability_data.progresstracking.percent}%</span>
+        <span class="text-sm font-medium text-gray-600 w-12 shrink-0">{capability_data.progress_tracking.percent}%</span>
     </div>
     {else}
     <p class="text-sm text-gray-400"><a href="{base_url}/cms/login" class="text-sky-600 hover:underline">Sign in</a> to track your progress.</p>

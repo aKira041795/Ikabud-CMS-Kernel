@@ -47,12 +47,12 @@
                 {/if}
 
                 {* Progress pill for enrolled courses *}
-                {if item.capabilities.progresstracking and item.capability_data.progresstracking.authenticated}
+                {if item.capabilities.progress_tracking and item.capability_data.progress_tracking.authenticated}
                 <div class="mt-2">
                     <div class="h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
-                        <div class="h-full bg-sky-400 rounded-full" style="width:{item.capability_data.progresstracking.percent}%"></div>
+                        <div class="h-full bg-sky-400 rounded-full" style="width:{item.capability_data.progress_tracking.percent}%"></div>
                     </div>
-                    <span class="text-xs text-gray-400 mt-0.5 block">{item.capability_data.progresstracking.percent}% complete</span>
+                    <span class="text-xs text-gray-400 mt-0.5 block">{item.capability_data.progress_tracking.percent}% complete</span>
                 </div>
                 {/if}
             </div>

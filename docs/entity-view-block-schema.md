@@ -27,18 +27,18 @@ root keys are available to capability blocks.
   .inventory              — bool
   .booking                — bool
   .inquiry                — bool
-  .progresstracking       — bool
-  .lessonsindex           — bool
-  .mediagallery           — bool
+  .progress_tracking       — bool
+  .lessons_index           — bool
+  .media_gallery           — bool
 
 {capability_data}         — map<string, object>: resolved data per attached capability
   .pricing                — PricingData | absent
   .inventory              — InventoryData | absent
   .booking                — BookingData | absent
   .inquiry                — InquiryData | absent
-  .progresstracking       — ProgressData | absent
-  .lessonsindex           — LessonsData | absent
-  .mediagallery           — GalleryData | absent
+  .progress_tracking       — ProgressData | absent
+  .lessons_index           — LessonsData | absent
+  .media_gallery           — GalleryData | absent
 
 {post_html}               — string(raw): rendered body content (builder or classic)
 {builder_enabled}         — bool: true when page-builder output is used
@@ -64,14 +64,14 @@ The template renders blocks in a fixed, deterministic order. Every block is
 either always-present or capability-gated. No other order is valid.
 
 ```
-1. MEDIA          — gated: capabilities.mediagallery (fallback: entity.featured_image)
+1. MEDIA          — gated: capabilities.media_gallery (fallback: entity.featured_image)
 2. HEADER         — always present
    2a. META       — always included (sub-block)
-   2b. PROGRESS   — gated: capabilities.progresstracking
+   2b. PROGRESS   — gated: capabilities.progress_tracking
 3. PRICING        — gated: capabilities.pricing
 4. INVENTORY      — gated: capabilities.inventory
 5. BODY           — always present (builder or prose)
-6. LESSONS        — gated: capabilities.lessonsindex
+6. LESSONS        — gated: capabilities.lessons_index
 7. ACTION         — gated: capabilities.pricing OR capabilities.booking OR capabilities.inquiry
 ```
 
@@ -81,12 +81,12 @@ either always-present or capability-gated. No other order is valid.
 
 ### 3.1 media-gallery.block.disyl
 
-**Gate:** `{if capabilities.mediagallery}` → include; `{elseif entity.featured_image}` → fallback hero.
+**Gate:** `{if capabilities.media_gallery}` → include; `{elseif entity.featured_image}` → fallback hero.
 
 **Data contract — `GalleryData`:**
 
 ```
-capability_data.mediagallery
+capability_data.media_gallery
   .items[]                — array of image objects
     .src                  — string: filename in uploads/
     .url                  — string|null: full URL override
@@ -102,7 +102,7 @@ capability_data.mediagallery
 - Each item: `<a>` wrapping `<img>` with lazy loading, hover scale, lightbox attrs
 - Fallback: single `<img>` hero when gallery has no items but `entity.featured_image` exists
 
-**CapabilityBus provider:** `entity.capability.mediagallery.data@1`  
+**CapabilityBus provider:** `entity.capability.media_gallery.data@1`  
 **PHP function:** `cms_cap_entity_capability_media_gallery_data_1()`  
 **Data source:** `cms_content_meta` where `meta_key = '_gallery'` (JSON array)
 
@@ -134,12 +134,12 @@ theme_settings.single_show_date   — bool: controls date visibility
 
 ### 3.3 progress.block.disyl
 
-**Gate:** `{if capabilities.progresstracking}`
+**Gate:** `{if capabilities.progress_tracking}`
 
 **Data contract — `ProgressData`:**
 
 ```
-capability_data.progresstracking
+capability_data.progress_tracking
   .percent                — int: 0–100 clamped progress value
   .authenticated          — bool: whether a user session exists
 ```
@@ -150,7 +150,7 @@ capability_data.progresstracking
 - Unauthenticated: `<p>` with sign-in link pointing to `{base_url}/cms/login`
 - ARIA: `role="progressbar"`, `aria-valuenow`, `aria-valuemin="0"`, `aria-valuemax="100"`
 
-**CapabilityBus provider:** `entity.capability.progresstracking.data@1`  
+**CapabilityBus provider:** `entity.capability.progress_tracking.data@1`  
 **PHP function:** `cms_cap_entity_capability_progress_tracking_data_1()`  
 **Data source:** `cms_entity_progress` table (primary — `entity_id`, `user_id`, `percent` columns; inserted/upserted on progress update, range-clamped 0–100); falls back to `cms_content_meta` where `meta_key = '_progress_user_{userId}'` for pre-migration 022 data
 
@@ -209,12 +209,12 @@ capability_data.inventory
 
 ### 3.6 lessons.block.disyl
 
-**Gate:** `{if capabilities.lessonsindex}`
+**Gate:** `{if capabilities.lessons_index}`
 
 **Data contract — `LessonsData`:**
 
 ```
-capability_data.lessonsindex
+capability_data.lessons_index
   .items[]                — array of child entity rows
     .id                   — int: child entity id
     .title                — string: child entity title
@@ -230,7 +230,7 @@ capability_data.lessonsindex
 - Draft items: reduced opacity + pointer-events disabled
 - Max 200 children (query LIMIT)
 
-**CapabilityBus provider:** `entity.capability.lessonsindex.data@1`  
+**CapabilityBus provider:** `entity.capability.lessons_index.data@1`  
 **PHP function:** `cms_cap_entity_capability_lessons_index_data_1()`  
 **Data source:** `cms_content` joined via `cms_content_meta._parent_id`
 
@@ -290,9 +290,9 @@ capabilities are attached. Each sub-section has its own inner gate.
 | `inventory`         | `entity.capability.inventory.data@1`       | inventory.block.disyl       | slot 4        | `_sku`, `_stock_qty`, `_track_inventory` meta |
 | `booking`           | `entity.capability.booking.data@1`         | action.block.disyl (sub)    | slot 7        | stub (future module)           |
 | `inquiry`           | `entity.capability.inquiry.data@1`         | action.block.disyl (sub)    | slot 7        | config passthrough             |
-| `progresstracking`  | `entity.capability.progresstracking.data@1`| progress.block.disyl        | slot 2b       | `cms_entity_progress` table (primary); `_progress_user_{id}` meta (legacy fallback) |
-| `lessonsindex`      | `entity.capability.lessonsindex.data@1`    | lessons.block.disyl         | slot 6        | `cms_content` parent join      |
-| `mediagallery`      | `entity.capability.mediagallery.data@1`    | media-gallery.block.disyl   | slot 1        | `_gallery` meta (JSON array)   |
+| `progress_tracking`  | `entity.capability.progress_tracking.data@1`| progress.block.disyl        | slot 2b       | `cms_entity_progress` table (primary); `_progress_user_{id}` meta (legacy fallback) |
+| `lessons_index`      | `entity.capability.lessons_index.data@1`    | lessons.block.disyl         | slot 6        | `cms_content` parent join      |
+| `media_gallery`      | `entity.capability.media_gallery.data@1`    | media-gallery.block.disyl   | slot 1        | `_gallery` meta (JSON array)   |
 
 ---
 
@@ -313,11 +313,11 @@ admin configures when attaching a capability to an entity.
 | booking           | advance_days           | integer | 30        | —        |
 | inquiry           | label                  | string  | "Inquire" | —        |
 | inquiry           | form_fields            | string  | "name,email,message" | — |
-| progresstracking  | unit                   | string  | "percent" | —        |
-| lessonsindex      | child_type             | string  | "lesson"  | —        |
-| lessonsindex      | show_numbers           | boolean | true      | —        |
-| mediagallery      | columns                | integer | 3         | —        |
-| mediagallery      | lightbox               | boolean | true      | —        |
+| progress_tracking  | unit                   | string  | "percent" | —        |
+| lessons_index      | child_type             | string  | "lesson"  | —        |
+| lessons_index      | show_numbers           | boolean | true      | —        |
+| media_gallery      | columns                | integer | 3         | —        |
+| media_gallery      | lightbox               | boolean | true      | —        |
 
 ---
 
@@ -425,9 +425,9 @@ items[]
   .capability_data.pricing.price      → displayed value
   .capability_data.pricing.sale_price → sale display
   .capability_data.pricing.currency   → currency prefix
-  .capabilities.progresstracking      → progress bar on card
-  .capability_data.progresstracking.percent → bar width
-  .capability_data.progresstracking.authenticated → controls bar visibility
+  .capabilities.progress_tracking      → progress bar on card
+  .capability_data.progress_tracking.percent → bar width
+  .capability_data.progress_tracking.authenticated → controls bar visibility
 ```
 
 Only pricing and progress are rendered on list cards. Other capabilities are
@@ -456,3 +456,181 @@ Block root elements use stable CSS classes for theme token targeting:
 Themes MUST NOT override structural layout (grid, flex, order). They MAY
 override color tokens, border-radius, and typography tokens via the design
 token system.
+
+---
+
+## 10. Capability Dependency Rules
+
+Some capabilities are not independent — they modify or constrain each other's
+rendering behaviour. This layer is currently encoded inside blocks; as the
+system grows it will be extracted into an explicit rules table.
+
+**Current implicit rules (documented for auditing):**
+
+| Capability      | Relationship        | Affected capability / block |
+|-----------------|---------------------|-----------------------------|
+| `inventory`     | modifies            | `pricing` CTA (disables buy button when `in_stock = false`) |
+| `pricing`       | required by         | action block buy sub-block (gate: `capabilities.pricing`) |
+| `pricing`       | required for        | `cart_enabled` evaluation |
+| `progress_tracking` | requires auth context | user session must be checked before percent is meaningful |
+
+**Conflict pairs (only one should be attached per entity):**
+
+| Pair                        | Reason                                  |
+|-----------------------------|-----------------------------------------|
+| `booking` + `inquiry`       | Both produce secondary CTA buttons; simultaneous use creates UX ambiguity. Allowed but discouraged. |
+
+**Planned: explicit rules schema**
+
+When an external module or adapter attaches capabilities programmatically, it
+should declare relationships in its module manifest:
+
+```json
+{
+  "capability_rules": {
+    "inventory": { "modifies": ["pricing", "action"] },
+    "booking":   { "conflicts_with": ["inquiry"] }
+  }
+}
+```
+
+The kernel will validate these rules at capability-attach time via
+`cmsEntityAttachCapability()`. Not yet enforced — tracked in cms-roadmap.md.
+
+---
+
+## 11. Layout Profiles
+
+The block rendering order defined in §2 is fixed and MUST NOT be freely
+reordered by themes. However, distinct canonical orderings for different
+Editorial contexts are valid — these are called **layout profiles**.
+
+A layout profile is declared in the entity's builder page settings or by the
+active theme's entity preset. It selects among a fixed set of approved orderings
+rather than allowing arbitrary rearrangement.
+
+**Currently defined profiles:**
+
+| Profile ID  | Block order                                          | Use case              |
+|-------------|------------------------------------------------------|-----------------------|
+| `default`   | media → header → pricing → inventory → body → lessons → action | General purpose        |
+| `commerce`  | media → header → pricing → inventory → body → action | Product / shop entity  |
+| `content`   | header → media → body → lessons → action             | Course / article       |
+
+**Rules:**
+- Themes declare a preferred profile in their manifest under `entity_layout_profile`.
+- If no profile is declared, `default` applies.
+- Profiles that do not appear in this table are rejected at render time.
+- New profiles require a doc update here AND a kernel-level registration.
+
+**Adding a new profile:** update this table, register the order in
+`cmsEntityViewRender()`, add a test case to `cms_entity_capability_view_test.php`.
+
+---
+
+## 12. Capability Data Versioning
+
+CapabilityBus data providers return typed arrays. As capabilities evolve (new
+fields, changed semantics), a versioning field allows downstream consumers
+(adapters, importers, analytics) to handle data safely.
+
+**Convention:** every provider return array SHOULD include a `_version` integer
+key matching the `@N` suffix of its CapabilityBus key.
+
+**Current target shape (not yet emitted — planned for next iteration):**
+
+```
+capability_data.pricing = {
+  "_version": 1,
+  "price":      float|null,
+  "currency":   string,
+  "sale_price": float|null
+}
+
+capability_data.progress_tracking = {
+  "_version": 1,
+  "percent":       int,
+  "authenticated": bool
+}
+```
+
+**Migration strategy when a provider bumps to v2:**
+
+1. Register a new bus key `entity.capability.pricing.data@2` alongside the old one.
+2. Keep v1 registered until all consumers confirm v2 compatibility.
+3. Remove v1 after one minor release cycle.
+4. The `_version` field allows consumers to branch: `if ($data['_version'] >= 2) ...`
+
+**Implementation note:** `_version` must be treated as opaque metadata by
+DiSyL templates — never render it directly.
+
+---
+
+## 13. External CMS Normalization Contract
+
+When data originates from an external CMS (WordPress, headless APIs, import
+adapters) rather than from native CMS capabilities, it passes through a
+**normalization layer** before reaching `cmsEntityCapabilityData()`.
+
+The rendering engine (DiSyL + PHP blocks) assumes ALL capability_data is
+already normalized. It MUST NOT contain:
+
+- `null` values where a typed default is defined
+- Missing required keys (e.g. `percent` absent from `progress_tracking`)
+- Unexpected key types (e.g. `price` as string `"29.99"` instead of float)
+
+**Normalization guarantees each provider MUST enforce:**
+
+| Field                            | Guarantee                                   |
+|----------------------------------|---------------------------------------------|
+| `pricing.price`                  | `null` or `float` — never missing key       |
+| `pricing.currency`               | Non-empty string, default `"USD"`           |
+| `inventory.in_stock`             | Always present bool (never absent)          |
+| `inventory.track_inventory`      | Always present bool                         |
+| `progress_tracking.percent`      | Integer, clamped `0–100`                    |
+| `progress_tracking.authenticated`| Bool derived from session, never absent     |
+| `lessons_index.items`            | Array (empty array if no children)          |
+| `media_gallery.items`            | Array (empty array if no images)            |
+| `media_gallery.columns`          | Integer ≥ 1                                 |
+
+**Adapter responsibility:** external system adapters (e.g. `WordPressCapabilityAdapter`)
+are responsible for normalizing raw source data to these contracts before
+calling `cmsEntityAttachCapability()` or injecting `capability_data` into the
+render context. The CMS rendering layer never normalizes — it only validates
+at the template block gate level.
+
+---
+
+## 14. Action Block Semantic Slots
+
+The action block currently renders three contextually gated sub-blocks. As new
+action types are introduced (subscriptions, downloads, external checkout,
+API-triggered flows), the interior of `.cms-action-block` should be organised
+into semantic slots rather than growing as a flat list.
+
+**Planned slot model (not yet implemented — feeds §7.4 hook design):**
+
+```
+action.primary    — single dominant CTA (buy, subscribe, enroll)
+                    → only ONE provider wins this slot
+                    → priority: cart_enabled buy > subscription > enrollment
+
+action.secondary  — supporting CTAs (book, inquire, download sample)
+                    → multiple providers; rendered as outline buttons
+
+action.external   — third-party or API-triggered flows (external checkout,
+                    affiliate links, webhook-triggered purchase)
+                    → rendered with rel="noopener" and explicit trust indicator
+```
+
+**Transition plan:**
+1. The `cms.entity.action_block.sections` hook (§7.4) is the current escape
+   hatch — use it to prototype new slot content.
+2. Once slot patterns stabilise, promote to first-class named hooks:
+   `cms.entity.action_block.primary`, `...secondary`, `...external`.
+3. The built-in buy/book/inquire sub-blocks become default providers for
+   `primary` (buy) and `secondary` (book, inquire) slots respectively.
+
+**Constraint:** exactly one `action.primary` provider renders at a time.
+Multiple providers must declare their priority; the highest-priority registered
+provider that passes its own inner gate wins the primary slot.

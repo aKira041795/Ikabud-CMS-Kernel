@@ -1,12 +1,12 @@
 {* lessons.block.disyl — ordered chapter/lesson index *}
-{* @requires entity.capability.lessonsindex.data@1 *}
-{if capability_data.lessonsindex and capability_data.lessonsindex.items}
+{* @requires entity.capability.lessons_index.data@1 *}
+{if capability_data.lessons_index and capability_data.lessons_index.items}
 <div class="cms-lessons-block my-8 border border-gray-100 rounded-xl overflow-hidden">
     <div class="bg-gray-50 px-5 py-3 border-b border-gray-100">
         <h3 class="text-base font-semibold text-gray-800">Contents</h3>
     </div>
     <ol class="divide-y divide-gray-100">
-        {foreach capability_data.lessonsindex.items as lesson loop}
+        {foreach capability_data.lessons_index.items as lesson loop}
         <li class="flex items-center gap-3 px-5 py-3 hover:bg-gray-50 transition-colors">
             <span class="text-sm font-mono text-gray-400 w-6 shrink-0">{loop.index1}.</span>
             <a href="{base_url}/{lesson.slug}"

@@ -2,8 +2,8 @@
  * Ikabud Page Builder - Capability Panel
  *
  * Allows editors to attach and configure entity capability feature profiles
- * (pricing, inventory, booking, inquiry, progresstracking, lessonsindex,
- * mediagallery) and to apply configuration presets (ecommerce, education,
+ * (pricing, inventory, booking, inquiry, progress_tracking, lessons_index,
+ * media_gallery) and to apply configuration presets (ecommerce, education,
  * business, portfolio) to the current content entity.
  */
 

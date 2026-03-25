@@ -9,7 +9,7 @@
 <article class="cms-entity-view w-full max-w-5xl mx-auto px-4 py-8">
 
     {* ── Media (featured image / gallery) ─────────────────────────────── *}
-    {if capabilities.mediagallery}
+    {if capabilities.media_gallery}
         {include "modules/cms/public/blocks/media-gallery.block.disyl"}
     {elseif entity.featured_image}
     <div class="cms-entity-hero mb-8">
@@ -26,7 +26,7 @@
         {include "modules/cms/public/blocks/meta.block.disyl"}
 
         {* Progress bar — courses / challenges *}
-        {if capabilities.progresstracking}
+        {if capabilities.progress_tracking}
             {include "modules/cms/public/blocks/progress.block.disyl"}
         {/if}
     </header>
@@ -53,7 +53,7 @@
     {/if}
 
     {* ── Lessons / Chapter index ──────────────────────────────────────── *}
-    {if capabilities.lessonsindex}
+    {if capabilities.lessons_index}
         {include "modules/cms/public/blocks/lessons.block.disyl"}
     {/if}
 
