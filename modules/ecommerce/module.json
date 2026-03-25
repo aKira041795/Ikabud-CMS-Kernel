@@ -4,6 +4,7 @@
     "version": "1.0.0",
     "description": "Full-featured ecommerce module — products, cart, checkout, orders, POS, inventory, categories, coupons, and sales reports.",
     "author": "Noah C. Omamalin",
+    "depends": ["cms"],
     "owns_tables": [
         "ec_carts",
         "ec_cart_items",

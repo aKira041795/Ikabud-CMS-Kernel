@@ -8,14 +8,30 @@ declare(strict_types=1);
 
 /**
  * GET /ecommerce/shop  — product grid
+ * Delegates to CMS universal entity list (capability-driven) when available.
  */
 function ecPublicShop(): void
 {
     $search     = trim((string)(ecInput()['search'] ?? ''));
     $categoryId = (int)(ecInput()['cat'] ?? 0);
-    $page       = max(1, (int)(ecInput()['page'] ?? 1));
     $perPage    = (int)ecSettings('products_per_page', 12);
-    $offset     = ($page - 1) * $perPage;
+
+    if (function_exists('cmsPublicEntityList') && function_exists('moduleWithContext')) {
+        moduleWithContext('cms', static function () use ($search, $categoryId, $perPage): void {
+            cmsPublicEntityList([
+                'type'          => 'product',
+                'search'        => $search,
+                'category_id'   => $categoryId ?: null,
+                'per_page'      => $perPage,
+                'base_list_url' => '/ecommerce/shop',
+            ]);
+        });
+        return;
+    }
+
+    // Fallback: parallel ecommerce shop template
+    $page   = max(1, (int)(ecInput()['page'] ?? 1));
+    $offset = ($page - 1) * $perPage;
 
     $productResult = ecProductList([
         'search'      => $search,
@@ -25,7 +41,6 @@ function ecPublicShop(): void
         'offset'      => $offset,
     ]);
 
-    // Categories for filter sidebar (product taxonomy)
     $categories = ecDb()->query(
         ecCmsCategorySelectSql('id, name, slug', 'name ASC')
     )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
@@ -47,7 +62,8 @@ function ecPublicShop(): void
 }
 
 /**
- * GET /shop/category/{slug}  — product grid filtered by category
+ * GET /ecommerce/shop/category/{slug}  — product grid filtered by category
+ * Delegates to CMS universal entity list (capability-driven) when available.
  */
 function ecPublicCategory(): void
 {
@@ -57,6 +73,20 @@ function ecPublicCategory(): void
         exit;
     }
 
+    if (function_exists('cmsPublicEntityList') && function_exists('moduleWithContext')) {
+        $perPage = (int)ecSettings('products_per_page', 12);
+        moduleWithContext('cms', static function () use ($slug, $perPage): void {
+            cmsPublicEntityList([
+                'type'          => 'product',
+                'category_slug' => $slug,
+                'per_page'      => $perPage,
+                'base_list_url' => '/ecommerce/shop/category/' . rawurlencode($slug),
+            ]);
+        });
+        return;
+    }
+
+    // Fallback
     $db  = ecDb();
     $cat = $db->query(
         "SELECT * FROM cms_categories WHERE slug = ? LIMIT 1",

@@ -983,14 +983,36 @@ function cmsPublicEntityList(array $params = []): void
         return;
     }
 
-    $input = cmsInput();
-    $page = max(1, (int)($input['page'] ?? 1));
-    $perPage = 12;
-    $offset = ($page - 1) * $perPage;
+    // ── Optional caller overrides ────────────────────────────────────
+    $perPageOverride = isset($params['per_page']) ? (int)$params['per_page'] : 0;
+    $categoryId      = isset($params['category_id']) ? (int)$params['category_id'] : 0;
+    $categorySlug    = trim((string)($params['category_slug'] ?? ''));
+    $searchOverride  = array_key_exists('search', $params) ? trim((string)$params['search']) : null;
+    $baseListUrl     = trim((string)($params['base_list_url'] ?? ''));
+
+    $input   = cmsInput();
+    $page    = max(1, (int)($input['page'] ?? 1));
+    $perPage = $perPageOverride > 0 && $perPageOverride <= 100 ? $perPageOverride : 12;
+    $offset  = ($page - 1) * $perPage;
+    $search  = $searchOverride !== null ? $searchOverride : trim((string)($input['search'] ?? ''));
 
     $baseUrl = rtrim((string)(defined('BASE_URL') ? BASE_URL : ''), '/');
 
-    $cacheKey = 'cms:entity_list:' . $type . ':p' . $page;
+    // Resolve category_id from slug if only slug provided
+    if ($categorySlug !== '' && $categoryId === 0) {
+        try {
+            $row = cmsDb()->query("SELECT id FROM cms_categories WHERE slug = ? LIMIT 1", [$categorySlug])->fetch(PDO::FETCH_ASSOC);
+            if ($row) {
+                $categoryId = (int)$row['id'];
+            }
+        } catch (\Throwable $e) {}
+    }
+
+    $cacheKey = 'cms:entity_list:' . $type . ':p' . $page
+        . ($perPage !== 12 ? ':pp' . $perPage : '')
+        . ($categoryId > 0 ? ':cat' . $categoryId : '')
+        . ($search !== '' ? ':s' . md5($search) : '');
+
     $cached = cmsCacheGet($cacheKey);
     if ($cached !== null && isset($cached['html'])) {
         if (!empty($cached['etag']) && !empty($cached['updated_at'])) {
@@ -1004,25 +1026,43 @@ function cmsPublicEntityList(array $params = []): void
 
     $db = cmsDb();
 
+    // ── Build dynamic SQL fragments ──────────────────────────────────
+    $categoryJoin   = '';
+    $bindParams     = [':type' => $type];
+
+    if ($categoryId > 0) {
+        $categoryJoin = " INNER JOIN cms_content_categories ccc ON ccc.content_id = c.id AND ccc.category_id = :cat_id";
+        $bindParams[':cat_id'] = $categoryId;
+    }
+
+    $searchClause = '';
+    if ($search !== '') {
+        $searchClause = " AND c.title LIKE :search";
+        $bindParams[':search'] = '%' . $search . '%';
+    }
+
+    $visibilityWhere = cmsPublicVisibilitySql('c');
+
     // Get total count
     $cStmt = $db->prepare(
-        "SELECT COUNT(*) FROM cms_content c WHERE c.deleted_at IS NULL AND c.type = :type AND " . cmsPublicVisibilitySql('c')
+        "SELECT COUNT(*) FROM cms_content c{$categoryJoin}"
+        . " WHERE c.deleted_at IS NULL AND c.type = :type AND {$visibilityWhere}{$searchClause}"
     );
-    $cStmt->execute([':type' => $type]);
+    $cStmt->execute($bindParams);
     $total = (int)$cStmt->fetchColumn();
 
     // Fetch items
     $stmt = $db->prepare(
         "SELECT c.id, c.uuid, c.title, c.slug, c.excerpt, c.type, c.status, c.published_at,
                 c.author_id, c.featured_image_id, u.display_name as author_name, m.file_path as featured_image
-         FROM cms_content c
+         FROM cms_content c{$categoryJoin}
          LEFT JOIN cms_users u ON u.id = c.author_id
          LEFT JOIN cms_media m ON m.id = c.featured_image_id
-         WHERE c.deleted_at IS NULL AND c.type = :type AND " . cmsPublicVisibilitySql('c') . "
+         WHERE c.deleted_at IS NULL AND c.type = :type AND {$visibilityWhere}{$searchClause}
          ORDER BY c.published_at DESC, c.created_at DESC
          LIMIT {$perPage} OFFSET {$offset}"
     );
-    $stmt->execute([':type' => $type]);
+    $stmt->execute($bindParams);
     $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
     // Enrich each item with capabilities, capability_data, and url
@@ -1041,12 +1081,13 @@ function cmsPublicEntityList(array $params = []): void
     }
 
     // Pagination
-    $totalPages = max(1, (int)ceil($total / $perPage));
+    $totalPages  = max(1, (int)ceil($total / $perPage));
+    $listBase    = $baseListUrl !== '' ? $baseListUrl : ($baseUrl . '/cms/' . rawurlencode($type));
     $pagination = [
         'current'  => $page,
         'total'    => $totalPages,
-        'prev_url' => $page > 1 ? $baseUrl . '/cms/' . rawurlencode($type) . '?page=' . ($page - 1) : '',
-        'next_url' => $page < $totalPages ? $baseUrl . '/cms/' . rawurlencode($type) . '?page=' . ($page + 1) : '',
+        'prev_url' => $page > 1 ? $listBase . '?page=' . ($page - 1) : '',
+        'next_url' => $page < $totalPages ? $listBase . '?page=' . ($page + 1) : '',
     ];
 
     // Resolve content type label for list title
