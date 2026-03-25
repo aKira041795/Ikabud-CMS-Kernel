@@ -38,7 +38,8 @@
         "cms_theme_customizer",
         "cms_ai_content_plans",
         "cms_ai_content_runs",
-        "cms_entity_capabilities"
+        "cms_entity_capabilities",
+        "cms_entity_progress"
     ],
     "reads_tables": [
         "kernel_event_triggers",
@@ -68,7 +69,8 @@
         "database/migrations/018_cms_ai_plan_content_mode.sql",
         "database/migrations/019_cms_ai_plan_auto_refine_policy.sql",
         "database/migrations/020_cms_ai_plan_auto_publish_policy.sql",
-        "database/migrations/021_cms_entity_capabilities.sql"
+        "database/migrations/021_cms_entity_capabilities.sql",
+        "database/migrations/022_cms_entity_progress.sql"
     ],
     "seeds": [
         "database/seeds/001_cms_baseline_content_types.sql"

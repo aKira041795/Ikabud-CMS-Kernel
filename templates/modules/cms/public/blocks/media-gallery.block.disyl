@@ -1,4 +1,5 @@
 {* media-gallery.block.disyl — image gallery with optional lightbox *}
+{* @requires entity.capability.mediagallery.data@1 *}
 {if capability_data.mediagallery}
 <div class="cms-gallery-block mb-8"
      {if capability_data.mediagallery.lightbox}data-gallery-lightbox="true"{/if}>

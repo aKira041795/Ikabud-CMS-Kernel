@@ -1,4 +1,5 @@
 {* lessons.block.disyl — ordered chapter/lesson index *}
+{* @requires entity.capability.lessonsindex.data@1 *}
 {if capability_data.lessonsindex and capability_data.lessonsindex.items}
 <div class="cms-lessons-block my-8 border border-gray-100 rounded-xl overflow-hidden">
     <div class="bg-gray-50 px-5 py-3 border-b border-gray-100">

@@ -267,6 +267,151 @@ function cmsValidateSettings(array $input): array
     return $clean;
 }
 
+// ── Theme CSS Structural Validator ──────────────────────────────────────────
+
+/**
+ * Validate a theme's CSS against structural property restrictions.
+ *
+ * Entity block CSS classes (.cms-entity-view, .cms-pricing-block, etc.) must
+ * not override structural layout properties (display, flex-direction, grid,
+ * order, position). Only color, typography, border-radius, and spacing tokens
+ * are allowed.
+ *
+ * Returns an array of violation descriptions. Empty = valid.
+ *
+ * @param  string $css  Raw CSS content to validate
+ * @return array<int,string>  List of violations
+ */
+function cmsValidateThemeCss(string $css): array
+{
+    $violations = [];
+
+    // Protected block selectors
+    $protectedSelectors = [
+        '.cms-entity-view',
+        '.cms-entity-hero',
+        '.cms-entity-header',
+        '.cms-entity-meta',
+        '.cms-entity-body',
+        '.cms-pricing-block',
+        '.cms-inventory-block',
+        '.cms-gallery-block',
+        '.cms-lessons-block',
+        '.cms-progress-block',
+        '.cms-action-block',
+        '.cms-btn-primary',
+        '.cms-btn-secondary',
+    ];
+
+    // Structural properties that themes must not override on protected selectors
+    $forbiddenProperties = [
+        'display',
+        'flex-direction',
+        'flex-wrap',
+        'grid-template-columns',
+        'grid-template-rows',
+        'grid-template-areas',
+        'order',
+        'position',
+        'float',
+        'clear',
+        'overflow',
+    ];
+
+    // Strip CSS comments to avoid false positives
+    $stripped = preg_replace('/\/\*.*?\*\//s', '', $css) ?? $css;
+
+    // Extract rule blocks: selector { ... }
+    if (!preg_match_all('/([^{}]+)\{([^{}]+)\}/s', $stripped, $matches, PREG_SET_ORDER)) {
+        return [];
+    }
+
+    foreach ($matches as $match) {
+        $selector = trim($match[1]);
+        $body     = trim($match[2]);
+
+        // Check if this rule targets any protected selector
+        $targetedSelectors = [];
+        foreach ($protectedSelectors as $protected) {
+            if (stripos($selector, $protected) !== false) {
+                $targetedSelectors[] = $protected;
+            }
+        }
+
+        if (empty($targetedSelectors)) {
+            continue;
+        }
+
+        // Parse properties from the rule body
+        $declarations = array_filter(array_map('trim', explode(';', $body)));
+        foreach ($declarations as $decl) {
+            $parts = explode(':', $decl, 2);
+            if (count($parts) !== 2) {
+                continue;
+            }
+            $prop = strtolower(trim($parts[0]));
+
+            foreach ($forbiddenProperties as $forbidden) {
+                if ($prop === $forbidden) {
+                    $violations[] = sprintf(
+                        'Structural override: "%s" sets "%s" on protected selector "%s"',
+                        $selector,
+                        $forbidden,
+                        implode(', ', $targetedSelectors)
+                    );
+                }
+            }
+        }
+    }
+
+    return $violations;
+}
+
+/**
+ * Validate the active theme's CSS files for structural violations.
+ * Returns violations array (empty = clean).
+ */
+function cmsValidateActiveThemeCss(): array
+{
+    $theme = cmsActiveTheme();
+    if ($theme === null) {
+        return [];
+    }
+
+    $violations = [];
+
+    // Check theme storage CSS files
+    $themeDir = cmsThemesPath() . '/' . $theme;
+    if (is_dir($themeDir)) {
+        foreach (glob($themeDir . '/**/*.css') ?: [] as $cssFile) {
+            $css = @file_get_contents($cssFile);
+            if ($css !== false && $css !== '') {
+                $fileViolations = cmsValidateThemeCss($css);
+                foreach ($fileViolations as $v) {
+                    $violations[] = basename($cssFile) . ': ' . $v;
+                }
+            }
+        }
+    }
+
+    // Check public assets CSS
+    $basePath  = rtrim((string)(defined('BASE_PATH') ? BASE_PATH : dirname(__DIR__, 2)), '/');
+    $publicDir = $basePath . '/public/assets/cms/themes/' . $theme;
+    if (is_dir($publicDir)) {
+        foreach (glob($publicDir . '/*.css') ?: [] as $cssFile) {
+            $css = @file_get_contents($cssFile);
+            if ($css !== false && $css !== '') {
+                $fileViolations = cmsValidateThemeCss($css);
+                foreach ($fileViolations as $v) {
+                    $violations[] = basename($cssFile) . ': ' . $v;
+                }
+            }
+        }
+    }
+
+    return $violations;
+}
+
 /**
  * Reset in-process CMS theme runtime caches.
  */

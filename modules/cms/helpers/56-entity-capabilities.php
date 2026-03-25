@@ -398,9 +398,28 @@ function cms_cap_entity_capability_progress_tracking_data_1(mixed $payload, stri
     if (!$user) {
         return ['percent' => 0, 'authenticated' => false];
     }
+
+    $userId = (int)$user['id'];
+
+    // Primary: dedicated progress table (scales to large user counts)
+    try {
+        $db   = cmsDb();
+        $stmt = $db->prepare(
+            "SELECT percent FROM cms_entity_progress WHERE entity_id = :eid AND user_id = :uid LIMIT 1"
+        );
+        $stmt->execute([':eid' => $entityId, ':uid' => $userId]);
+        $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+        if ($row) {
+            return ['percent' => min(100, max(0, (int)$row['percent'])), 'authenticated' => true];
+        }
+    } catch (\Throwable $e) {
+        // Table may not exist yet (migration pending) — fall through to legacy
+    }
+
+    // Legacy fallback: cms_content_meta pattern (pre-022 migration)
     try {
         $db          = cmsDb();
-        $progressKey = '_progress_user_' . (int)$user['id'];
+        $progressKey = '_progress_user_' . $userId;
         $stmt        = $db->prepare(
             "SELECT meta_value FROM cms_content_meta WHERE content_id = :cid AND meta_key = :key LIMIT 1"
         );
@@ -468,4 +487,26 @@ function cms_cap_entity_capability_media_gallery_data_1(mixed $payload, string $
         'columns'  => (int)($config['columns'] ?? 3),
         'lightbox' => !empty($config['lightbox']),
     ];
+}
+
+// ── Progress Write Helper ────────────────────────────────────────────────────
+
+/**
+ * Update progress for a user on an entity (writes to dedicated table).
+ */
+function cmsEntityProgressUpdate(int $entityId, int $userId, int $percent): void
+{
+    $percent = min(100, max(0, $percent));
+    $db      = cmsDb();
+    $stmt    = $db->prepare(
+        "INSERT INTO cms_entity_progress (entity_id, user_id, percent)
+         VALUES (:eid, :uid, :pct)
+         ON DUPLICATE KEY UPDATE percent = :pct2, updated_at = CURRENT_TIMESTAMP"
+    );
+    $stmt->execute([
+        ':eid'  => $entityId,
+        ':uid'  => $userId,
+        ':pct'  => $percent,
+        ':pct2' => $percent,
+    ]);
 }

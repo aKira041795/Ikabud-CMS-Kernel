@@ -175,6 +175,30 @@ function cmsPublicContext(array $extra = []): array
             $ctx['capabilities']    = [];
             $ctx['capability_data'] = [];
         }
+
+        // Risk 1: Cart availability — gate buy-button on cart.add capability
+        $ctx['cart_enabled']    = false;
+        $ctx['cart_action_url'] = '';
+        try {
+            if (!empty($ctx['capabilities']['pricing']) && app()->capabilities()->has('cms.cart.add@1')) {
+                $ctx['cart_enabled']    = true;
+                $ctx['cart_action_url'] = $baseUrl . '/api/v1/cms/cart/add';
+            }
+        } catch (\Throwable $e) {}
+
+        // Risk 4: Hook-based action sections for extensibility
+        $ctx['action_sections'] = '';
+        try {
+            $sections = app()->hooks()->filter('cms.entity.action_block.sections', [], [
+                'entity'          => $extra['entity'],
+                'capabilities'    => $ctx['capabilities'],
+                'capability_data' => $ctx['capability_data'],
+                'base_url'        => $baseUrl,
+            ]);
+            if (is_string($sections) && $sections !== '') {
+                $ctx['action_sections'] = $sections;
+            }
+        } catch (\Throwable $e) {}
     } else {
         $ctx['capabilities']    = [];
         $ctx['capability_data'] = [];

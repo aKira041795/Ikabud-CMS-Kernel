@@ -261,9 +261,26 @@ function cmsApiThemeActivate(array $params = []): void
     // Flush all cached pages since theme-dependent rendering has changed
     cmsCacheFlushAll();
     cmsTemplateCacheFlush();
+
+    // Structural CSS validation — warn but don't block activation
+    $cssWarnings = [];
+    try {
+        $cssWarnings = cmsValidateActiveThemeCss();
+        if (!empty($cssWarnings)) {
+            write_log('warn', 'cms.theme.structural_violations', [
+                'theme'      => $slug,
+                'violations' => $cssWarnings,
+            ]);
+        }
+    } catch (\Throwable $e) {}
+
     _cmsAuditInstaller('theme.activate', 'theme', $slug, 'success', 'Theme activated.');
 
-    echo json_encode(['ok' => true, 'message' => 'Theme "' . $slug . '" activated.']);
+    $response = ['ok' => true, 'message' => 'Theme "' . $slug . '" activated.'];
+    if (!empty($cssWarnings)) {
+        $response['warnings'] = $cssWarnings;
+    }
+    echo json_encode($response);
     exit;
 }
 

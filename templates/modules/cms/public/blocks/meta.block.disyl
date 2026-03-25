@@ -1,4 +1,5 @@
 {* meta.block.disyl — author, date, type badge *}
+{* @requires entity.fields (no capability provider) *}
 <div class="cms-entity-meta flex flex-wrap items-center gap-3 text-sm text-gray-400">
     {if entity.content_type_label}
     <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-sky-50 text-sky-700 border border-sky-100">{entity.content_type_label}</span>
