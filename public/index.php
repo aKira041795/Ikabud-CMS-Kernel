@@ -1346,7 +1346,12 @@ switch ($handler) {
         }
         $body = json_decode(file_get_contents('php://input'), true);
         if (!is_array($body)) $body = [];
-        app()->verifyCsrf($body['_token'] ?? '');
+        $csrfToken = $body['_token'] ?? ($_SERVER['HTTP_X_CSRF_TOKEN'] ?? '');
+        if (!is_string($csrfToken) || $csrfToken === '' || !hash_equals(app()->csrfToken(), $csrfToken)) {
+            http_response_code(419);
+            echo json_encode(['ok' => false, 'error' => 'Invalid CSRF token']);
+            exit;
+        }
 
         $modId = trim((string)($body['module_id'] ?? ''));
         $enabled = (bool)($body['enabled'] ?? false);
