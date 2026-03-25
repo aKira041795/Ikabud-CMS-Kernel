@@ -14,6 +14,20 @@ declare(strict_types=1);
 
 // ── Core accessor helpers ────────────────────────────────────────────
 
+/**
+ * Returns the base URL for the current request (scheme + host).
+ * Falls back to app.url config when HTTP_HOST is unavailable (e.g. CLI).
+ */
+function ecGetBaseUrl(): string
+{
+    $host = (string)($_SERVER['HTTP_HOST'] ?? '');
+    if ($host === '') {
+        return rtrim((string)app()->config('app.url', ''), '/');
+    }
+    $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+    return $scheme . '://' . $host;
+}
+
 function ecDb(): \Ikabud\Kernel\Contracts\ModuleDB
 {
     $ctx = module('ecommerce');
