@@ -396,7 +396,7 @@
         fetch(BASE + endpoint, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ module_id: moduleId })
+            body: JSON.stringify({ module_id: moduleId, _token: CSRF })
         })
         .then(function(r) { return r.json(); })
         .then(function(res) {
