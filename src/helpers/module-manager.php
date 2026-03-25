@@ -2248,7 +2248,14 @@ function getModuleNavItems(?string $role = null): array
         $navItems[] = ['label' => 'Profile', 'url' => '/admin/profile', 'icon' => 'user', 'module' => '_kernel'];
         $navItems[] = ['label' => 'Users', 'url' => '/admin/users', 'icon' => 'users', 'module' => '_kernel'];
         $navItems[] = ['label' => 'Triggers', 'url' => '/admin/kernel/triggers', 'icon' => 'bolt', 'module' => '_kernel'];
-        $navItems[] = ['label' => 'AI', 'url' => '/admin/ai', 'icon' => 'sparkles', 'module' => '_kernel'];
+        // AI link: only show when the ai module is enabled and allows kernel admin access.
+        $allEnabledMods = getEnabledModules();
+        if (isset($allEnabledMods['ai'])) {
+            $aiSettings = $allEnabledMods['ai']['_settings'] ?? [];
+            if (!empty($aiSettings['allow_kernel_admin'])) {
+                $navItems[] = ['label' => 'AI', 'url' => '/admin/ai', 'icon' => 'sparkles', 'module' => 'ai'];
+            }
+        }
         $navItems[] = ['label' => 'Tenants', 'url' => '/admin/tenants', 'icon' => 'building', 'module' => '_kernel'];
         $navItems[] = ['label' => 'Modules', 'url' => '/admin/modules', 'icon' => 'puzzle', 'module' => '_kernel'];
     }
