@@ -228,12 +228,13 @@ function cmsEntityCapabilityData(int $entityId, array $entity): array
         return [];
     }
 
-    $data = [];
-    $bus  = app()->capabilities();
+    $data     = [];
+    $registry = app()->capabilities();
+    $bus      = app()->cap();
 
     foreach ($attached as $capId => $config) {
         $providerKey = "entity.capability.{$capId}.data@1";
-        if (!$bus->has($providerKey)) {
+        if (!$registry->has($providerKey)) {
             $data[$capId] = [];
             continue;
         }
@@ -391,7 +392,7 @@ function cms_cap_entity_capability_progress_tracking_data_1(mixed $payload, stri
 
     $user = null;
     try {
-        $userResult = app()->capabilities()->call('kernel.auth.user@1');
+        $userResult = app()->cap()->call('kernel.auth.user@1');
         $user = is_array($userResult) ? $userResult : null;
     } catch (\Throwable $e) {}
 
