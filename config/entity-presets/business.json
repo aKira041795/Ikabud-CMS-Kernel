@@ -13,14 +13,18 @@
             "config": { "slot_duration_minutes": 60, "advance_days": 30 }
         },
         {
-            "id": "mediagallery",
+            "id": "media_gallery",
             "config": { "columns": 2, "lightbox": true }
         }
     ],
     "token_overrides": {
-        "color-accent":      "#16a34a",
-        "color-accent-dark": "#15803d",
-        "btn-radius":        "0.25rem"
+        "color": {
+            "primary":   "#16a34a",
+            "secondary": "#15803d"
+        },
+        "component": {
+            "button": { "radius": "0.25rem" }
+        }
     },
     "builder_defaults": {
         "layout": "service",

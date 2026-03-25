@@ -13,14 +13,18 @@
             "config": { "track_stock": true, "stock_qty": 0 }
         },
         {
-            "id": "mediagallery",
+            "id": "media_gallery",
             "config": { "columns": 3, "lightbox": true }
         }
     ],
     "token_overrides": {
-        "color-accent":      "#0ea5e9",
-        "color-accent-dark": "#0369a1",
-        "btn-radius":        "0.5rem"
+        "color": {
+            "primary":   "#0ea5e9",
+            "secondary": "#0369a1"
+        },
+        "component": {
+            "button": { "radius": "0.5rem" }
+        }
     },
     "builder_defaults": {
         "layout": "product",

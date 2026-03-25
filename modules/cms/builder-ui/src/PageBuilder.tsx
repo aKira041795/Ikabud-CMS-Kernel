@@ -37,7 +37,7 @@ import {
 } from 'lucide-react';
 
 import { useBuilderState, DiSyLNode, createNode, createEmptyDocument, CMS_COMPONENTS } from './builder/core';
-import { NodeRenderer, ComponentPanelEnhanced, PropertiesPanel, LayersPanel, ContextMenu, GlobalStylesPanel, defaultGlobalStyles, VersionHistory, OnboardingTooltips, TemplatesPanel, SaveTemplateModal, SaveBlockModal, BlocksPanel, SEOPanel, defaultSEOSettings } from './builder/components';
+import { NodeRenderer, ComponentPanelEnhanced, PropertiesPanel, LayersPanel, ContextMenu, GlobalStylesPanel, defaultGlobalStyles, VersionHistory, OnboardingTooltips, TemplatesPanel, SaveTemplateModal, SaveBlockModal, BlocksPanel, SEOPanel, defaultSEOSettings, CapabilityPanel } from './builder/components';
 import type { GlobalStyles, SEOSettings } from './builder/components';
 import { initBuilderPreviewRuntime } from './builder/runtime/previewRuntime';
 import { Clock } from 'lucide-react';
@@ -80,7 +80,7 @@ export default function PageBuilder() {
   // Right: Navigator + Global Settings
   // Bottom: Component drawer
   const [leftPanelCollapsed, setLeftPanelCollapsed] = useState(true); // Collapsed when no selection
-  const [rightPanelTab, setRightPanelTab] = useState<'navigator' | 'templates' | 'blocks' | 'global' | 'seo'>('navigator');
+  const [rightPanelTab, setRightPanelTab] = useState<'navigator' | 'templates' | 'blocks' | 'global' | 'seo' | 'capabilities'>('navigator');
   const [rightPanelCollapsed, setRightPanelCollapsed] = useState(false);
   const [componentDrawerOpen, setComponentDrawerOpen] = useState(true);
   const [zoom, setZoom] = useState(100);
@@ -1363,6 +1363,16 @@ export default function PageBuilder() {
                 >
                   SEO
                 </button>
+                <button
+                  onClick={() => setRightPanelTab('capabilities')}
+                  className={`px-2 py-1 text-xs transition-colors ${
+                    rightPanelTab === 'capabilities'
+                      ? 'text-white bg-[#0078d4]'
+                      : 'text-white/60 hover:text-white/90'
+                  }`}
+                >
+                  Features
+                </button>
               </div>
             )}
           </div>
@@ -1414,6 +1424,9 @@ export default function PageBuilder() {
                   pageTitle={pageData.title}
                   pageUrl={pageData.slug ? `/${pageData.slug}` : ''}
                 />
+              )}
+              {rightPanelTab === 'capabilities' && pageData && pageData.id > 0 && (
+                <CapabilityPanel contentId={pageData.id} />
               )}
             </>
           )}

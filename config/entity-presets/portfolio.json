@@ -5,7 +5,7 @@
     "icon": "aperture",
     "default_capabilities": [
         {
-            "id": "mediagallery",
+            "id": "media_gallery",
             "config": { "columns": 3, "lightbox": true }
         },
         {
@@ -14,9 +14,13 @@
         }
     ],
     "token_overrides": {
-        "color-accent":      "#db2777",
-        "color-accent-dark": "#be185d",
-        "btn-radius":        "9999px"
+        "color": {
+            "primary":   "#db2777",
+            "secondary": "#be185d"
+        },
+        "component": {
+            "button": { "radius": "9999px" }
+        }
     },
     "builder_defaults": {
         "layout": "portfolio",

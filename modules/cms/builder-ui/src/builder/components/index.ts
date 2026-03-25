@@ -21,3 +21,5 @@ export type { SavedBlock } from './SaveBlockModal';
 export { default as BlocksPanel } from './BlocksPanel';
 export { default as SEOPanel, defaultSEOSettings } from './SEOPanel';
 export type { SEOSettings } from './SEOPanel';
+export { CapabilityPanel } from './CapabilityPanel';
+export type { CapabilityPanelProps } from './CapabilityPanel';
