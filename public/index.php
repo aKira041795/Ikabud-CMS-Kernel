@@ -1034,6 +1034,13 @@ switch ($handler) {
                         $tenantRelevantModules[$_capModId] = true;
                     }
                 }
+
+                // Anti-spam is a kernel-applied API protection feature. It may not
+                // appear in module capability dependency graphs, but it should still
+                // be configurable per tenant from superadmin feature settings.
+                if (isset($allModules['anti-spam']) && isModuleEnabledForTenant('anti-spam', $selectedTenantId)) {
+                    $tenantRelevantModules['anti-spam'] = true;
+                }
             }
             // If entry_module_id is empty, show all enabled (no whitelist filter)
         }
@@ -1666,11 +1673,12 @@ switch ($handler) {
 
         // Issue new JWT
         $payload = [
-            'sub' => (int) $rtRow['user_id'],
+            'sub' => (string) $rtRow['user_id'],
             'id' => (int) $rtRow['user_id'],
             'username' => $rtRow['username'],
             'name' => $rtRow['full_name'],
             'role' => $rtRow['role'],
+            'source' => 'kernel',
         ];
 
         // Bind JWT to current tenant when multi-tenancy is active
@@ -1704,6 +1712,25 @@ switch ($handler) {
         exit;
 
     case 'authLogout':
+        $logoutUser = app()->user();
+        $logoutInput = app()->input();
+        $presentedRefreshToken = trim((string)($logoutInput['refresh_token'] ?? ''));
+
+        try {
+            if (is_array($logoutUser) && (($logoutUser['source'] ?? 'kernel') === 'kernel')) {
+                $logoutUserId = (int)($logoutUser['id'] ?? 0);
+                if ($logoutUserId > 0) {
+                    $revokeStmt = app()->db()->prepare('UPDATE refresh_tokens SET revoked = 1 WHERE user_id = :user_id AND revoked = 0');
+                    $revokeStmt->execute([':user_id' => $logoutUserId]);
+                }
+            } elseif ($presentedRefreshToken !== '') {
+                $revokeStmt = app()->db()->prepare('UPDATE refresh_tokens SET revoked = 1 WHERE token_hash = :token_hash');
+                $revokeStmt->execute([':token_hash' => hash('sha256', $presentedRefreshToken)]);
+            }
+        } catch (Throwable $e) {
+            write_log('authLogout refresh-token revoke failed: ' . $e->getMessage(), 'warning');
+        }
+
         $cookieName = config('app.cookie_name', 'app_token');
         clearAuthCookie($cookieName);
 
@@ -2609,6 +2636,8 @@ switch ($handler) {
             exit;
         }
 
+            app()->csrfEnforce();
+
         $input = app()->input();
         $providerId = trim((string)($input['provider_module_id'] ?? ''));
         $capabilityId = trim((string)($input['capability_id'] ?? ''));
@@ -2640,6 +2669,8 @@ switch ($handler) {
             exit;
         }
 
+            app()->csrfEnforce();
+
         $input = app()->input();
         $moduleId = trim((string)($input['module_id'] ?? ''));
         $depends = $input['depends'] ?? [];
@@ -2669,6 +2700,8 @@ switch ($handler) {
             echo json_encode(['ok' => false, 'error' => 'Admin only']);
             exit;
         }
+
+            app()->csrfEnforce();
 
         $upload = $_FILES['module_zip'] ?? null;
         if (!is_array($upload)) {
@@ -2815,6 +2848,9 @@ switch ($handler) {
             echo json_encode(['ok' => false, 'error' => 'Admin only']);
             exit;
         }
+
+            app()->csrfEnforce();
+
         $modInput = app()->input();
         $modId = trim((string)($modInput['module_id'] ?? ''));
         $allMods = discoverModules();
@@ -2867,6 +2903,9 @@ switch ($handler) {
             echo json_encode(['ok' => false, 'error' => 'Admin only']);
             exit;
         }
+
+            app()->csrfEnforce();
+
         $modInput = app()->input();
         $modId = trim((string)($modInput['module_id'] ?? ''));
         $allMods = discoverModules();

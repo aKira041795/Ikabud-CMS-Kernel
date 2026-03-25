@@ -31,6 +31,8 @@ CREATE TABLE IF NOT EXISTS antispam_settings (
 
 INSERT IGNORE INTO antispam_settings (setting_key, setting_value) VALUES
 ('enabled', '1'),
+('auto_protect_web_apis', '1'),
+('skip_authenticated_api_users', '1'),
 ('honeypot_enabled', '1'),
 ('rate_limit_enabled', '1'),
 ('rate_limit_window', '60'),

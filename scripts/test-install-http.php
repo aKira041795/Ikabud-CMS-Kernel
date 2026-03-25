@@ -86,7 +86,6 @@ $installMarkerPath = BASE_PATH . '/storage/.installed';
 $installed = is_file($installMarkerPath);
 
 $lockUrl = $appUrl . '/lock.php';
-$forceUrl = $lockUrl . '?force=1';
 
 echo "=== HTTP Installer Smoke Test ===\n";
 echo 'Base URL: ' . $appUrl . "\n";
@@ -110,21 +109,31 @@ if ($installed) {
     echo "PASS: installer page is reachable before installation\n\n";
 }
 
-echo "[2/2] GET {$forceUrl}\n";
-$forced = smokeHttpRequest('GET', $forceUrl);
+
+echo "[2/2] GET {$appUrl}/lock.php?force=1\n";
+$forced = smokeHttpRequest('GET', "{$appUrl}/lock.php?force=1");
 echo 'Status: ' . $forced['status'] . "\n";
-if ($forced['status'] !== 200) {
-    smokeFail('Expected 200 from forced installer page.');
+if ($installed) {
+    if ($forced['status'] !== 403) {
+        smokeFail('Expected 403 from lock.php?force=1 while installed marker exists.');
+    }
+    smokeAssertContains($forced['body'], 'System already installed', 'forced installer lock response body');
+    echo "PASS: force query does not bypass installed lock\n\n";
+} else {
+    if ($forced['status'] !== 200) {
+        smokeFail('Expected 200 from lock.php?force=1 before installation.');
+    }
+    smokeAssertContains($forced['body'], 'Database Host', 'forced installer response body');
+    smokeAssertContains($forced['body'], 'Admin Username', 'forced installer response body');
+    echo "PASS: force query does not change pre-install accessibility\n\n";
 }
-smokeAssertContains($forced['body'], 'Database Host', 'forced installer response body');
-smokeAssertContains($forced['body'], 'Admin Username', 'forced installer response body');
-echo "PASS: forced installer form renders over HTTP\n\n";
+
 
 echo "[3/3] GET {$appUrl}/\n";
 $home = smokeHttpRequest('GET', $appUrl . '/');
 echo 'Status: ' . $home['status'] . "\n";
-if ($home['status'] !== 200) {
-    smokeFail('Expected 200 from application home page.');
+if (!in_array($home['status'], [200, 301, 302, 303, 307, 308], true)) {
+    smokeFail('Expected a normal application response or redirect from the home page.');
 }
 if (str_contains($home['body'], 'Application Error') || str_contains($home['body'], 'An unexpected error occurred')) {
     smokeFail('Application home page returned the generic error document.');

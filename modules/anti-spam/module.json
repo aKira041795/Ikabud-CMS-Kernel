@@ -41,15 +41,71 @@
         ],
         "depends": [],
         "policy": {
-            "capabilities": {
-                "antispam.check@1": {
-                    "allow_callers": [
-                        "cms"
-                    ]
-                }
-            }
+            "capabilities": {}
         }
     },
+    "settings_fields": [
+        {
+            "key": "enabled",
+            "type": "checkbox",
+            "label": "Enable Anti-Spam",
+            "description": "Master switch for anti-spam protections on this tenant."
+        },
+        {
+            "key": "auto_protect_web_apis",
+            "type": "checkbox",
+            "label": "Protect Public Web APIs",
+            "description": "Apply anti-spam checks automatically to unauthenticated module API requests handled through the web runtime."
+        },
+        {
+            "key": "skip_authenticated_api_users",
+            "type": "checkbox",
+            "label": "Skip Authenticated API Users",
+            "description": "Avoid applying the default API anti-spam gate to already-authenticated users."
+        },
+        {
+            "key": "honeypot_enabled",
+            "type": "checkbox",
+            "label": "Enable Honeypot Detection",
+            "description": "Allow forms to use honeypot fields for bot detection."
+        },
+        {
+            "key": "rate_limit_enabled",
+            "type": "checkbox",
+            "label": "Enable Rate Limiting",
+            "description": "Limit repeated requests from the same client IP."
+        },
+        {
+            "key": "rate_limit_window",
+            "type": "number",
+            "label": "Rate Limit Window (seconds)",
+            "description": "How far back to count recent requests when rate limiting."
+        },
+        {
+            "key": "rate_limit_max",
+            "type": "number",
+            "label": "Rate Limit Max Requests",
+            "description": "Maximum allowed requests per IP within the configured window."
+        },
+        {
+            "key": "keyword_block_enabled",
+            "type": "checkbox",
+            "label": "Enable Keyword Blocklist",
+            "description": "Scan request bodies for blocked phrases."
+        },
+        {
+            "key": "blocked_keywords",
+            "type": "text",
+            "label": "Blocked Keywords",
+            "description": "Comma-separated words or phrases that should trigger a block."
+        },
+        {
+            "key": "log_retention_days",
+            "type": "number",
+            "label": "Log Retention Days",
+            "description": "How many days of anti-spam log history to keep when clearing old records."
+        }
+    ],
     "events": [
         {
             "key": "antispam.blocked",

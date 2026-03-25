@@ -13,9 +13,9 @@ declare(strict_types=1);
 
 // ── Guard: already installed ────────────────────────────────────────────
 $installLock = __DIR__ . '/../storage/.installed';
-if (is_file($installLock) && !isset($_GET['force'])) {
+if (is_file($installLock)) {
     http_response_code(403);
-    die('System already installed. Remove storage/.installed to reinstall.');
+    die('System already installed. Remove storage/.installed during an intentional maintenance reinstall.');
 }
 
 $errors  = [];

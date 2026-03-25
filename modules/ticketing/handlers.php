@@ -819,8 +819,12 @@ function apiPublicSubmitTicket(array $params = []): void
         }
     }
 
+    $honeypotTriggered = function_exists('antispamHoneypotTriggered')
+        ? antispamHoneypotTriggered($input, '_hp_name')
+        : !empty($input['_hp_name']);
+
     // Honeypot — silently accept but do nothing
-    if (!empty($input['_hp_name'])) {
+    if ($honeypotTriggered) {
         http_response_code(200);
         echo json_encode(['ok' => true, 'ticket_no' => 'TK-' . strtoupper(substr(md5(microtime()), 0, 6))]);
         return;

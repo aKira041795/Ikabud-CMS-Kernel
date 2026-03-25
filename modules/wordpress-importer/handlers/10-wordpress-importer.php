@@ -46,17 +46,19 @@ function wordpressImporterApiImport(array $params = []): void
 {
     header('Content-Type: application/json');
     $user = cmsRequireCap('import_export.manage');
+    app()->csrfEnforce();
 
-    if (empty($_FILES['file']) || $_FILES['file']['error'] !== UPLOAD_ERR_OK) {
-        http_response_code(422);
-        echo json_encode(['ok' => false, 'error' => 'No valid WordPress XML file uploaded']);
+    $upload = cmsImportReadUploadedFile('file');
+    if (empty($upload['ok'])) {
+        http_response_code((int)($upload['status'] ?? 422));
+        echo json_encode(['ok' => false, 'error' => $upload['error'] ?? 'No valid WordPress XML file uploaded']);
         exit;
     }
 
-    $raw = file_get_contents($_FILES['file']['tmp_name']);
-    if (!is_string($raw) || trim($raw) === '') {
+    $raw = (string)($upload['raw'] ?? '');
+    if (!cmsLooksLikeXmlImport($raw)) {
         http_response_code(422);
-        echo json_encode(['ok' => false, 'error' => 'Uploaded file is empty']);
+        echo json_encode(['ok' => false, 'error' => 'Uploaded file does not look like a WordPress XML export']);
         exit;
     }
 

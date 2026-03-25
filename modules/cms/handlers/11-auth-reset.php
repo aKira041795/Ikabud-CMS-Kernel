@@ -46,6 +46,53 @@ function cmsResetPasswordPage(array $params = []): void
     ]);
 }
 
+function cmsForgotPasswordRateLimitSnapshot(string $scope, string $value): array
+{
+    $normalized = strtolower(trim($value));
+    if ($normalized === '') {
+        $normalized = 'unknown';
+    }
+
+    $key = 'cms_forgot_password:' . $scope . ':' . sha1($normalized);
+    $cached = app()->cache()->get('security_rate_limits', $key);
+    if (!is_array($cached)) {
+        return ['key' => $key, 'count' => 0];
+    }
+
+    return [
+        'key' => $key,
+        'count' => max(0, (int)($cached['count'] ?? 0)),
+    ];
+}
+
+function cmsForgotPasswordRateLimitExceeded(string $ip, string $identity): bool
+{
+    $ipState = cmsForgotPasswordRateLimitSnapshot('ip', $ip !== '' ? $ip : 'unknown');
+    if ((int)$ipState['count'] >= 5) {
+        return true;
+    }
+
+    $identityState = cmsForgotPasswordRateLimitSnapshot('identity', $identity);
+    return (int)$identityState['count'] >= 3;
+}
+
+function cmsForgotPasswordRateLimitRecord(string $ip, string $identity): void
+{
+    $entries = [
+        cmsForgotPasswordRateLimitSnapshot('ip', $ip !== '' ? $ip : 'unknown'),
+        cmsForgotPasswordRateLimitSnapshot('identity', $identity),
+    ];
+
+    foreach ($entries as $entry) {
+        app()->cache()->set(
+            'security_rate_limits',
+            (string)$entry['key'],
+            ['count' => ((int)($entry['count'] ?? 0)) + 1],
+            900
+        );
+    }
+}
+
 function cmsApiForgotPassword(array $params = []): void
 {
     header('Content-Type: application/json');
@@ -57,6 +104,18 @@ function cmsApiForgotPassword(array $params = []): void
         echo json_encode(['ok' => false, 'error' => 'Username or email is required.']);
         exit;
     }
+
+    $requestIp = (string)($_SERVER['REMOTE_ADDR'] ?? '');
+    if (cmsForgotPasswordRateLimitExceeded($requestIp, $identity)) {
+        http_response_code(429);
+        echo json_encode([
+            'ok' => false,
+            'error' => 'Too many password reset requests. Please wait before trying again.',
+        ]);
+        exit;
+    }
+
+    cmsForgotPasswordRateLimitRecord($requestIp, $identity);
 
     try {
         $db = cmsDb();
@@ -72,7 +131,7 @@ function cmsApiForgotPassword(array $params = []): void
         if (is_array($user)) {
             $rawToken = bin2hex(random_bytes(32));
             $tokenHash = hash('sha256', $rawToken);
-            $ip = (string)($_SERVER['REMOTE_ADDR'] ?? '');
+            $ip = $requestIp;
 
             $ins = $db->prepare(
                 'INSERT INTO cms_password_resets (user_id, token_hash, requester_ip, expires_at, created_at)

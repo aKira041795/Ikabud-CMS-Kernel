@@ -8,6 +8,141 @@
 
 declare(strict_types=1);
 
+function antispamDefaultSettings(): array
+{
+    return [
+        'enabled' => '1',
+        'auto_protect_web_apis' => '1',
+        'skip_authenticated_api_users' => '1',
+        'honeypot_enabled' => '1',
+        'rate_limit_enabled' => '1',
+        'rate_limit_window' => '60',
+        'rate_limit_max' => '10',
+        'keyword_block_enabled' => '1',
+        'blocked_keywords' => 'viagra,casino,lottery,nigerian prince,click here now,buy now cheap',
+        'log_retention_days' => '30',
+    ];
+}
+
+function antispamNormalizeSettingValue(string $key, mixed $value): string
+{
+    $boolKeys = [
+        'enabled',
+        'auto_protect_web_apis',
+        'skip_authenticated_api_users',
+        'honeypot_enabled',
+        'rate_limit_enabled',
+        'keyword_block_enabled',
+    ];
+    $intKeys = [
+        'rate_limit_window',
+        'rate_limit_max',
+        'log_retention_days',
+    ];
+
+    if (in_array($key, $boolKeys, true)) {
+        return !empty($value) && !in_array(strtolower((string)$value), ['0', 'false', 'off', 'no'], true) ? '1' : '0';
+    }
+
+    if (in_array($key, $intKeys, true)) {
+        return (string)max(0, (int)$value);
+    }
+
+    return trim((string)$value);
+}
+
+function antispamResetSettingsCache(): void
+{
+    unset($GLOBALS['_antispam_settings_cache']);
+}
+
+function antispamReadLegacySettings(): array
+{
+    try {
+        $ctx = module();
+        $db  = $ctx ? $ctx->db() : app()->db();
+        $stmt = $db->query('SELECT setting_key, setting_value FROM antispam_settings');
+        $rows = $stmt->fetchAll(\PDO::FETCH_KEY_PAIR);
+        return is_array($rows) ? $rows : [];
+    } catch (\Throwable $e) {
+        return [];
+    }
+}
+
+function antispamModuleSettings(): array
+{
+    try {
+        $settings = getModuleSettings('anti-spam');
+        return is_array($settings) ? $settings : [];
+    } catch (\Throwable $e) {
+        return [];
+    }
+}
+
+function antispamBuildRequestBodyText(mixed $input = null, int $maxLength = 2000): string
+{
+    if ($input === null) {
+        $input = app()->input();
+    }
+
+    $pieces = [];
+    $walk = static function (mixed $value, string $path = '') use (&$walk, &$pieces, $maxLength): void {
+        if (strlen(implode(' ', $pieces)) >= $maxLength) {
+            return;
+        }
+
+        if (is_array($value)) {
+            foreach ($value as $key => $nested) {
+                $keyStr = is_string($key) ? $key : (string)$key;
+                if (preg_match('/token|password|secret|csrf|refresh/i', $keyStr) === 1) {
+                    continue;
+                }
+                $walk($nested, $path === '' ? $keyStr : $path . '.' . $keyStr);
+            }
+            return;
+        }
+
+        if (is_scalar($value) || $value === null) {
+            $string = trim((string)$value);
+            if ($string === '') {
+                return;
+            }
+            $pieces[] = substr($string, 0, 250);
+        }
+    };
+
+    $walk($input);
+    return substr(implode(' ', $pieces), 0, $maxLength);
+}
+
+function antispamShouldProtectModuleApiRequest(string $moduleId, ?array $user, string $requestUri, string $requestMethod): bool
+{
+    if ($moduleId === 'anti-spam') {
+        return false;
+    }
+
+    if (!str_starts_with($requestUri, '/api/') && preg_match('#^/[a-zA-Z0-9\-]+/api/#', $requestUri) !== 1) {
+        return false;
+    }
+
+    if (!in_array(strtoupper($requestMethod), ['POST', 'PUT', 'DELETE', 'PATCH'], true)) {
+        return false;
+    }
+
+    $settings = antispamGetSettings();
+    if (($settings['enabled'] ?? '1') !== '1') {
+        return false;
+    }
+    if (($settings['auto_protect_web_apis'] ?? '1') !== '1') {
+        return false;
+    }
+    if (($settings['skip_authenticated_api_users'] ?? '1') === '1' && is_array($user) && !empty($user)) {
+        return false;
+    }
+
+    return true;
+}
+
 // ── Public API ────────────────────────────────────────────────────────────
 
 /**
@@ -84,28 +219,45 @@ function antispamGetSettings(): array
 {
     // Cache keyed by tenant ID so different tenants in the same process
     // don't share each other's antispam configuration.
-    static $cache = [];
+    $cache = $GLOBALS['_antispam_settings_cache'] ?? [];
     $tid = (function_exists('moduleTenantSettingsTenantId') ? moduleTenantSettingsTenantId() : null) ?? 0;
     if (array_key_exists($tid, $cache)) return $cache[$tid];
 
-    try {
-        $ctx = module();
-        $db  = $ctx ? $ctx->db() : app()->db();
-        $stmt = $db->query('SELECT setting_key, setting_value FROM antispam_settings');
-        $rows = $stmt->fetchAll(\PDO::FETCH_KEY_PAIR);
-        $cache[$tid] = $rows ?: [];
-    } catch (\Throwable $e) {
-        $cache[$tid] = [];
+    $merged = array_merge(
+        antispamDefaultSettings(),
+        antispamReadLegacySettings(),
+        antispamModuleSettings()
+    );
+
+    $normalized = [];
+    foreach ($merged as $key => $value) {
+        $key = trim((string)$key);
+        if ($key === '' || str_starts_with($key, '_')) {
+            continue;
+        }
+        $normalized[$key] = antispamNormalizeSettingValue($key, $value);
     }
-    return $cache[$tid];
+
+    $cache[$tid] = $normalized;
+    $GLOBALS['_antispam_settings_cache'] = $cache;
+    return $normalized;
 }
 
 function antispamSaveSetting(string $key, string $value): void
 {
+    $normalized = antispamNormalizeSettingValue($key, $value);
     $ctx = module();
     $db  = $ctx ? $ctx->db() : app()->db();
     $stmt = $db->prepare('INSERT INTO antispam_settings (setting_key, setting_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)');
-    $stmt->execute([$key, $value]);
+    $stmt->execute([$key, $normalized]);
+
+    try {
+        saveModuleSettings('anti-spam', [$key => $normalized]);
+    } catch (\Throwable $e) {
+        write_log('antispamSaveSetting module-settings sync failed: ' . $e->getMessage(), 'warning', ['key' => $key]);
+    }
+
+    antispamResetSettingsCache();
 }
 
 // ── IP Blocking ───────────────────────────────────────────────────────────

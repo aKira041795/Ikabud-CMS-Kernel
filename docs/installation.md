@@ -235,7 +235,7 @@ HTTP smoke test for the installer without `curl`:
 php scripts/test-install-http.php
 ```
 
-This checks the live `lock.php` endpoint over HTTP, verifies the installed lock behavior, and verifies that `lock.php?force=1` still renders the installer form.
+This checks the live `lock.php` endpoint over HTTP and verifies that installed systems keep the web installer locked.
 
 ---
 

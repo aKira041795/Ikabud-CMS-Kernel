@@ -66,6 +66,7 @@ function cmsApiThemeUpload(array $params = []): void
 {
     header('Content-Type: application/json');
     cmsRequireCap('settings.manage');
+    app()->csrfEnforce();
 
     $file = kernelUploadedFile('theme');
     if (!$file || !empty($file['error']) || empty($file['tmp_name'])) {
@@ -93,6 +94,12 @@ function cmsApiThemeUpload(array $params = []): void
     }
 
     $tmpPath = $file['tmp_name'];
+    if (PHP_SAPI !== 'cli' && function_exists('is_uploaded_file') && !is_uploaded_file($tmpPath)) {
+        _cmsAuditInstaller('theme.upload', 'theme', 'unknown', 'failed', 'Theme upload did not arrive through the HTTP upload pipeline.', ['filename' => (string)$name]);
+        http_response_code(400);
+        echo json_encode(['ok' => false, 'error' => 'Upload did not arrive through the HTTP upload pipeline.']);
+        exit;
+    }
 
     // Extract to temp directory first for validation
     $extractDir = sys_get_temp_dir() . '/cms_theme_' . uniqid();
@@ -219,6 +226,7 @@ function cmsApiThemeActivate(array $params = []): void
 {
     header('Content-Type: application/json');
     cmsRequireCap('settings.manage');
+    app()->csrfEnforce();
 
     $input = cmsInput();
     $slug = trim((string)($input['slug'] ?? ''));
@@ -266,6 +274,7 @@ function cmsApiThemeDelete(array $params = []): void
 {
     header('Content-Type: application/json');
     cmsRequireCap('settings.manage');
+    app()->csrfEnforce();
 
     $slug = trim((string)($params['slug'] ?? ''));
     if ($slug === '') {
@@ -314,6 +323,7 @@ function cmsApiModuleUpload(array $params = []): void
 {
     header('Content-Type: application/json');
     cmsRequireCap('settings.manage');
+    app()->csrfEnforce();
 
     $file = kernelUploadedFile('module');
     if (!$file || !empty($file['error']) || empty($file['tmp_name'])) {
@@ -338,6 +348,13 @@ function cmsApiModuleUpload(array $params = []): void
     }
 
     $tmpPath = $file['tmp_name'];
+    if (PHP_SAPI !== 'cli' && function_exists('is_uploaded_file') && !is_uploaded_file($tmpPath)) {
+        _cmsAuditInstaller('module.upload', 'module', 'unknown', 'failed', 'Module upload did not arrive through the HTTP upload pipeline.', ['filename' => (string)($file['name'] ?? '')]);
+        http_response_code(400);
+        echo json_encode(['ok' => false, 'error' => 'Upload did not arrive through the HTTP upload pipeline.']);
+        exit;
+    }
+
     $extractDir = sys_get_temp_dir() . '/cms_module_' . uniqid();
     @mkdir($extractDir, 0775, true);
 
@@ -500,6 +517,7 @@ function cmsApiModuleToggle(array $params = []): void
 {
     header('Content-Type: application/json');
     cmsRequireCap('settings.manage');
+    app()->csrfEnforce();
 
     $input = cmsInput();
     $moduleId = trim((string)($input['module_id'] ?? ''));
@@ -544,6 +562,7 @@ function cmsApiModuleDelete(array $params = []): void
 {
     header('Content-Type: application/json');
     cmsRequireCap('settings.manage');
+    app()->csrfEnforce();
 
     $moduleId = trim((string)($params['module_id'] ?? ''));
     if ($moduleId === '') {

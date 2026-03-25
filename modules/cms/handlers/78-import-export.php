@@ -193,6 +193,39 @@ function cmsApiExport(array $params = []): void
     exit;
 }
 
+function cmsImportReadUploadedFile(string $field, int $maxBytes = 10485760): array
+{
+    $file = kernelUploadedFile($field);
+    if (!is_array($file) || (int)($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
+        return ['ok' => false, 'status' => 422, 'error' => 'No valid file uploaded'];
+    }
+
+    $tmpPath = (string)($file['tmp_name'] ?? '');
+    if ($tmpPath === '' || !is_file($tmpPath)) {
+        return ['ok' => false, 'status' => 422, 'error' => 'Uploaded file is not available'];
+    }
+
+    if (PHP_SAPI !== 'cli' && function_exists('is_uploaded_file') && !is_uploaded_file($tmpPath)) {
+        return ['ok' => false, 'status' => 422, 'error' => 'Upload did not arrive through the HTTP upload pipeline'];
+    }
+
+    $size = (int)($file['size'] ?? 0);
+    if ($size <= 0) {
+        return ['ok' => false, 'status' => 422, 'error' => 'Uploaded file is empty'];
+    }
+
+    if ($size > $maxBytes) {
+        return ['ok' => false, 'status' => 422, 'error' => 'Uploaded file exceeds the maximum allowed size'];
+    }
+
+    $raw = @file_get_contents($tmpPath);
+    if (!is_string($raw) || trim($raw) === '') {
+        return ['ok' => false, 'status' => 422, 'error' => 'Uploaded file is empty'];
+    }
+
+    return ['ok' => true, 'file' => $file, 'raw' => $raw];
+}
+
 // ── Import API ───────────────────────────────────────────────────────
 
 /**
@@ -207,19 +240,16 @@ function cmsApiImport(array $params = []): void
 {
     header('Content-Type: application/json');
     cmsRequireCap('import_export.manage');
+    app()->csrfEnforce();
 
-    if (empty($_FILES['file']) || $_FILES['file']['error'] !== UPLOAD_ERR_OK) {
-        http_response_code(422);
-        echo json_encode(['ok' => false, 'error' => 'No valid file uploaded']);
+    $upload = cmsImportReadUploadedFile('file');
+    if (empty($upload['ok'])) {
+        http_response_code((int)($upload['status'] ?? 422));
+        echo json_encode(['ok' => false, 'error' => $upload['error'] ?? 'No valid file uploaded']);
         exit;
     }
 
-    $raw = file_get_contents($_FILES['file']['tmp_name']);
-    if (!is_string($raw) || trim($raw) === '') {
-        http_response_code(422);
-        echo json_encode(['ok' => false, 'error' => 'Uploaded file is empty']);
-        exit;
-    }
+    $raw = (string)($upload['raw'] ?? '');
 
     if (cmsLooksLikeXmlImport($raw)) {
         if (cmsHasEnabledWordpressImporter()) {

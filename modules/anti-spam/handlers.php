@@ -120,6 +120,7 @@ function apiSaveSettings(array $params = []): void
     $ctx = module();
     if (!$ctx) { http_response_code(500); echo json_encode(['ok' => false]); return; }
     $ctx->requireAnyRole('admin');
+    app()->csrfEnforce();
 
     $input = json_decode(file_get_contents('php://input'), true) ?? [];
 
@@ -147,6 +148,7 @@ function apiBlockIp(array $params = []): void
     $ctx = module();
     if (!$ctx) { http_response_code(500); echo json_encode(['ok' => false]); return; }
     $ctx->requireAnyRole('admin');
+    app()->csrfEnforce();
 
     $input = json_decode(file_get_contents('php://input'), true) ?? [];
 
@@ -175,6 +177,7 @@ function apiUnblockIp(array $params = []): void
     $ctx = module();
     if (!$ctx) { http_response_code(500); echo json_encode(['ok' => false]); return; }
     $ctx->requireAnyRole('admin');
+    app()->csrfEnforce();
 
     $input = json_decode(file_get_contents('php://input'), true) ?? [];
     $ip = trim((string)($input['ip'] ?? ''));
@@ -198,6 +201,7 @@ function apiClearLog(array $params = []): void
     $ctx = module();
     if (!$ctx) { http_response_code(500); echo json_encode(['ok' => false]); return; }
     $ctx->requireAnyRole('admin');
+    app()->csrfEnforce();
 
     $settings = antispamGetSettings();
     $days = max(1, (int)($settings['log_retention_days'] ?? 30));

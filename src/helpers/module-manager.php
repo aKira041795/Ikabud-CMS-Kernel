@@ -2086,6 +2086,55 @@ function executeModuleHandler(string $handler, array $params = []): void
         app()->csrfEnforce();
     }
 
+    // ── Default anti-spam gate for public module web APIs ─────────────
+    // When the anti-spam module is enabled, future modules automatically
+    // inherit rate limiting / keyword checks for unauthenticated web API
+    // traffic unless tenant settings disable it.
+    if (
+        $isApiRoute
+        && function_exists('antispamShouldProtectModuleApiRequest')
+        && function_exists('antispamBuildRequestBodyText')
+        && app()->capabilities()->has('antispam.check@1')
+        && antispamShouldProtectModuleApiRequest($moduleId, is_array($user) ? $user : null, $requestUri, $requestMethod)
+    ) {
+        try {
+            $antiSpamResult = app()->cap()->call('antispam.check@1', [
+                'body' => antispamBuildRequestBodyText(app()->input()),
+                'ip' => $_SERVER['REMOTE_ADDR'] ?? '',
+            ], ['mode' => 'first']);
+
+            if (is_array($antiSpamResult) && empty($antiSpamResult['pass'])) {
+                $check = (string)($antiSpamResult['check'] ?? 'blocked');
+                $detail = (string)($antiSpamResult['detail'] ?? 'Request blocked');
+                $status = match ($check) {
+                    'rate_limit' => 429,
+                    'ip_block' => 403,
+                    default => 422,
+                };
+
+                if (!headers_sent()) {
+                    http_response_code($status);
+                    header('Content-Type: application/json');
+                }
+                echo json_encode([
+                    'ok' => false,
+                    'error' => 'Request blocked by anti-spam',
+                    'check' => $check,
+                    'detail' => $detail,
+                ]);
+                modulePopContext();
+                unset($GLOBALS['_capability_call_context']);
+                return;
+            }
+        } catch (\Throwable $e) {
+            write_log('Default anti-spam gate failed: ' . $e->getMessage(), 'warning', [
+                'module' => $moduleId,
+                'uri' => $requestUri,
+                'method' => $requestMethod,
+            ]);
+        }
+    }
+
     // ── Output-buffered, exception-safe handler execution ────────────
     // Prevents stray echo/print from corrupting responses and ensures
     // uncaught exceptions produce a clean error page, not a white screen.
