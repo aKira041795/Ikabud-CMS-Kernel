@@ -1,0 +1,76 @@
+{extends "modules/cms/layouts/public.disyl"}
+
+{block head}
+{if cms_head}{cms_head | raw}{/if}
+{/block}
+
+{block content}
+<section class="cms-entity-list w-full max-w-5xl mx-auto px-4 py-8">
+
+    {if list_title}
+    <header class="mb-6">
+        <h1 class="text-2xl font-bold text-gray-900">{list_title}</h1>
+        {if list_description}<p class="text-gray-500 mt-1">{list_description}</p>{/if}
+    </header>
+    {/if}
+
+    {if items}
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+        {foreach items as item}
+        <a href="{item.url}" class="group block bg-white rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow overflow-hidden no-underline">
+
+            {if item.featured_image}
+            <div class="aspect-video overflow-hidden bg-gray-100">
+                <img class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                     src="/assets/modules/cms/uploads/{item.featured_image}"
+                     alt="{item.title}">
+            </div>
+            {/if}
+
+            <div class="p-4">
+                <h2 class="text-base font-semibold text-gray-900 group-hover:text-sky-600 leading-snug mb-1">{item.title}</h2>
+
+                {if item.excerpt}
+                <p class="text-sm text-gray-500 line-clamp-2">{item.excerpt}</p>
+                {/if}
+
+                {* Inline price for list cards when pricing is attached *}
+                {if item.capabilities.pricing and item.capability_data.pricing.price}
+                <div class="mt-2">
+                    {if item.capability_data.pricing.sale_price}
+                    <span class="text-sky-600 font-bold text-sm">{item.capability_data.pricing.currency} {item.capability_data.pricing.sale_price | number_format:2}</span>
+                    <span class="text-gray-400 line-through text-xs ml-1">{item.capability_data.pricing.price | number_format:2}</span>
+                    {else}
+                    <span class="text-sky-600 font-bold text-sm">{item.capability_data.pricing.currency} {item.capability_data.pricing.price | number_format:2}</span>
+                    {/if}
+                </div>
+                {/if}
+
+                {* Progress pill for enrolled courses *}
+                {if item.capabilities.progresstracking and item.capability_data.progresstracking.authenticated}
+                <div class="mt-2">
+                    <div class="h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
+                        <div class="h-full bg-sky-400 rounded-full" style="width:{item.capability_data.progresstracking.percent}%"></div>
+                    </div>
+                    <span class="text-xs text-gray-400 mt-0.5 block">{item.capability_data.progresstracking.percent}% complete</span>
+                </div>
+                {/if}
+            </div>
+        </a>
+        {/foreach}
+    </div>
+
+    {if pagination}
+    <nav class="mt-8 flex items-center justify-center gap-2" aria-label="Pagination">
+        {if pagination.prev_url}<a href="{pagination.prev_url}" class="px-4 py-2 text-sm rounded-lg border border-gray-200 hover:bg-gray-50">&larr; Previous</a>{/if}
+        <span class="text-sm text-gray-500">Page {pagination.current} of {pagination.total}</span>
+        {if pagination.next_url}<a href="{pagination.next_url}" class="px-4 py-2 text-sm rounded-lg border border-gray-200 hover:bg-gray-50">Next &rarr;</a>{/if}
+    </nav>
+    {/if}
+
+    {else}
+    <p class="text-gray-500">No items found.</p>
+    {/if}
+
+</section>
+{/block}

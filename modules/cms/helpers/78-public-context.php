@@ -161,6 +161,25 @@ function cmsPublicContext(array $extra = []): array
         $ctx['theme_settings'] = cmsThemeLayoutSettingsDefaults();
     }
 
+    // Inject entity capability context when rendering a specific entity
+    if (!empty($extra['entity']['id'])) {
+        $entityId = (int)$extra['entity']['id'];
+        try {
+            $ctx['capabilities']    = cmsEntityCapabilityContext($entityId);
+            $ctx['capability_data'] = cmsEntityCapabilityData($entityId, $extra['entity']);
+        } catch (\Throwable $e) {
+            write_log('warn', 'cms.public_context.capability_data_error', [
+                'entity_id' => $entityId,
+                'error'     => $e->getMessage(),
+            ]);
+            $ctx['capabilities']    = [];
+            $ctx['capability_data'] = [];
+        }
+    } else {
+        $ctx['capabilities']    = [];
+        $ctx['capability_data'] = [];
+    }
+
     return array_merge($ctx, $extra);
 }
 

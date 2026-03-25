@@ -57,6 +57,11 @@ return [
         '/api/v1/cms/builder/widgets' => 'cms:cmsApiBuilderWidgetList',
         '/api/v1/cms/builder/dynamic-sources' => 'cms:cmsApiBuilderDynamicSources',
         '/api/v1/cms/content-types'        => 'cms:cmsApiContentTypesList',
+
+        // ── Entity Capability API (GET) ──────────────────────────
+        '/api/v1/cms/entity-capabilities'              => 'cms:cmsApiEntityCapabilityTypes',
+        '/api/v1/cms/entity-presets'                   => 'cms:cmsApiEntityPresets',
+        '/api/v1/cms/content/{id}/capabilities'        => 'cms:cmsApiEntityCapabilitiesGet',
         '/api/v1/cms/categories'              => 'cms:cmsApiCategoryList',
         '/api/v1/cms/content-types/{id}/fields' => 'cms:cmsApiContentTypeFieldsList',
 
@@ -125,6 +130,11 @@ return [
         '/api/v1/cms/content/{id}/revisions/{rid}/restore' => 'cms:cmsApiRevisionRestore',
         '/api/v1/cms/content/{id}/autosave'   => 'cms:cmsApiContentAutosave',
         '/api/v1/cms/content/{id}/duplicate'  => 'cms:cmsApiContentDuplicate',
+
+        // ── Entity Capability API (POST) ─────────────────────────
+        '/api/v1/cms/content/{id}/capabilities'        => 'cms:cmsApiEntityCapabilityAttach',
+        '/api/v1/cms/content/{id}/capabilities/preset' => 'cms:cmsApiEntityCapabilityPreset',
+        '/api/v1/cms/content/{id}/capabilities/{cap_id}/detach' => 'cms:cmsApiEntityCapabilityDetach',
 
         // ── Media API ────────────────────────────────────────────
         '/api/v1/cms/media/upload'        => 'cms:cmsApiMediaUpload',

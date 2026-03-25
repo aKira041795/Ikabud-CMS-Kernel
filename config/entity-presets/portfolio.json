@@ -1,0 +1,25 @@
+{
+    "id": "portfolio",
+    "label": "Portfolio Item",
+    "description": "A showcase piece with an extended media gallery and an inquiry CTA.",
+    "icon": "aperture",
+    "default_capabilities": [
+        {
+            "id": "mediagallery",
+            "config": { "columns": 3, "lightbox": true }
+        },
+        {
+            "id": "inquiry",
+            "config": { "label": "Work with Me", "form_fields": "name,email,project_type,message" }
+        }
+    ],
+    "token_overrides": {
+        "color-accent":      "#db2777",
+        "color-accent-dark": "#be185d",
+        "btn-radius":        "9999px"
+    },
+    "builder_defaults": {
+        "layout": "portfolio",
+        "show_sidebar": false
+    }
+}

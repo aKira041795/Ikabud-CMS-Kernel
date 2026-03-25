@@ -1,0 +1,12 @@
+{* meta.block.disyl — author, date, type badge *}
+<div class="cms-entity-meta flex flex-wrap items-center gap-3 text-sm text-gray-400">
+    {if entity.content_type_label}
+    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-sky-50 text-sky-700 border border-sky-100">{entity.content_type_label}</span>
+    {/if}
+    {if theme_settings.single_show_author and entity.author_name}
+    <span>By <span class="text-gray-600">{entity.author_name}</span></span>
+    {/if}
+    {if theme_settings.single_show_date and entity.published_at}
+    <span>{entity.published_at}</span>
+    {/if}
+</div>

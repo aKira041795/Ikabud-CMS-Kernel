@@ -1,0 +1,66 @@
+{extends "modules/cms/layouts/public.disyl"}
+
+{block head}
+{if cms_head}{cms_head | raw}{/if}
+{if structured_data}{structured_data | raw}{/if}
+{/block}
+
+{block content}
+<article class="cms-entity-view w-full max-w-5xl mx-auto px-4 py-8">
+
+    {* ── Media (featured image / gallery) ─────────────────────────────── *}
+    {if capabilities.mediagallery}
+        {include "modules/cms/public/blocks/media-gallery.block.disyl"}
+    {elseif entity.featured_image}
+    <div class="cms-entity-hero mb-8">
+        <img class="w-full max-h-[420px] object-cover rounded-xl"
+             src="/assets/modules/cms/uploads/{entity.featured_image}"
+             alt="{entity.title}">
+    </div>
+    {/if}
+
+    {* ── Header / Meta ────────────────────────────────────────────────── *}
+    <header class="cms-entity-header mb-6">
+        <h1 class="text-3xl font-bold text-gray-900 leading-tight mb-2">{entity.title}</h1>
+
+        {include "modules/cms/public/blocks/meta.block.disyl"}
+
+        {* Progress bar — courses / challenges *}
+        {if capabilities.progresstracking}
+            {include "modules/cms/public/blocks/progress.block.disyl"}
+        {/if}
+    </header>
+
+    {* ── Pricing ──────────────────────────────────────────────────────── *}
+    {if capabilities.pricing}
+        {include "modules/cms/public/blocks/pricing.block.disyl"}
+    {/if}
+
+    {* ── Inventory badge ─────────────────────────────────────────────── *}
+    {if capabilities.inventory}
+        {include "modules/cms/public/blocks/inventory.block.disyl"}
+    {/if}
+
+    {* ── Primary body content ─────────────────────────────────────────── *}
+    {if builder_enabled}
+    <div class="cms-entity-body {builder_page_settings.container_class}">
+        {post_html | raw}
+    </div>
+    {else}
+    <div class="cms-entity-body prose text-gray-700 leading-relaxed">
+        {post_html | raw}
+    </div>
+    {/if}
+
+    {* ── Lessons / Chapter index ──────────────────────────────────────── *}
+    {if capabilities.lessonsindex}
+        {include "modules/cms/public/blocks/lessons.block.disyl"}
+    {/if}
+
+    {* ── Action (booking / inquiry / buy) ────────────────────────────── *}
+    {if capabilities.pricing or capabilities.booking or capabilities.inquiry}
+        {include "modules/cms/public/blocks/action.block.disyl"}
+    {/if}
+
+</article>
+{/block}

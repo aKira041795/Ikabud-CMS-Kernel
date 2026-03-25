@@ -464,8 +464,116 @@ function cmsResolveTemplate(string $subPath): string
         return '_cms_active_theme/' . $subPath;
     }
     return $default;
+    // Respect restrict_to_tokens: only allow overrides listed in overridable_blocks
+    $manifest = cmsActiveThemeManifest();
+    if (!empty($manifest['restrict_to_tokens'])) {
+        $allowed = array_map('trim', (array)($manifest['overridable_blocks'] ?? []));
+        // Normalise subPath to a block-relative name for comparison
+        $baseName = basename($subPath);
+        if (!in_array($baseName, $allowed, true) && !in_array($subPath, $allowed, true)) {
+            return $default;
+        }
+    }
+
+    return '_cms_active_theme/' . $subPath;
 }
 
+/**
+ * Read the active theme's theme.json manifest.
+ * Returns an empty array when no theme is active or the file is missing.
+ * Relevant keys:
+ *   restrict_to_tokens   (bool) — when true, theme may NOT override full templates
+ *   overridable_blocks   (string[]) — allowlist of block filenames the theme may override
+ *   tokens               (array<string,string>) — CSS custom property token overrides
+ */
+function cmsActiveThemeManifest(): array
+{
+    static $cache = null;
+    if ($cache !== null) {
+        return $cache;
+    }
+
+    $active = cmsActiveTheme();
+    if ($active === null) {
+        $cache = [];
+        return $cache;
+    }
+
+    $manifestFile = cmsThemesPath() . '/' . $active . '/theme.json';
+    if (!is_file($manifestFile)) {
+        $cache = ['slug' => $active];
+        return $cache;
+    }
+
+    $decoded = kernelReadJsonFile($manifestFile);
+    $cache   = is_array($decoded) ? $decoded : [];
+    $cache['slug'] = $active;
+    return $cache;
+}
+
+/**
+ * Generate a <style> block with CSS custom properties from a flat token map.
+ * Keys become --{key}, values are CSS values.
+ * Escapes values to prevent CSS injection.
+ *
+ * Usage: echo cmsThemeTokensCss($manifest['tokens'] ?? []);
+ */
+function cmsThemeTokensCss(array $tokens): string
+{
+    if (empty($tokens)) {
+        return '';
+    }
+    $props = '';
+    foreach ($tokens as $key => $value) {
+        // Sanitise: allow only safe CSS value characters
+        $safeKey   = preg_replace('/[^a-zA-Z0-9_\-]/', '', (string)$key);
+        $safeValue = str_replace(['<', '>', '"', "'", ';', '{', '}', '\\'], '', (string)$value);
+        if ($safeKey === '' || $safeValue === '') {
+            continue;
+        }
+        $props .= "    --{$safeKey}: {$safeValue};\n";
+    }
+    if ($props === '') {
+        return '';
+    }
+    return "<style>\n:root {\n{$props}}\n</style>\n";
+}
+
+/**
+ * Resolve a block template path, gating theme overrides by the overridable_blocks
+ * allowlist. Falls back to the default CMS block template unconditionally when
+ * the theme's restrict_to_tokens flag is set and the block is not in the allowlist.
+ *
+ * @param  string $block  Relative path under templates/, e.g. "modules/cms/public/blocks/pricing.block.disyl"
+ * @return string         Path relative to templates/ for TemplateEngine::render()
+ */
+function cmsResolveBlockTemplate(string $block): string
+{
+    $manifest = cmsActiveThemeManifest();
+
+    if (empty($manifest['slug'])) {
+        return $block;
+    }
+
+    if (!empty($manifest['restrict_to_tokens'])) {
+        $allowed  = array_map('trim', (array)($manifest['overridable_blocks'] ?? []));
+        $baseName = basename($block);
+        if (!in_array($baseName, $allowed, true) && !in_array($block, $allowed, true)) {
+            // Theme is token-only; block override not permitted
+            return $block;
+        }
+    }
+
+    cmsEnsureThemeSymlink();
+    // Strip a leading "modules/cms/" prefix to find the theme-relative path
+    $themeRelative = preg_replace('#^modules/cms/#', '', $block);
+    $overridePath  = (string)CMS_THEME_SYMLINK . '/' . $themeRelative;
+    if (is_file($overridePath)) {
+        return '_cms_active_theme/' . $themeRelative;
+    }
+
+    return $block;
+}
 /**
  * Render a resolved template path that may depend on the active theme symlink.
  */

@@ -6,6 +6,13 @@ function cms_capability_handlers(): array
 {
     return [
         'cms.content.get@1' => 'cms_cap_cms_content_get_1',
+        'entity.capability.pricing.data@1'           => 'cms_cap_entity_capability_pricing_data_1',
+        'entity.capability.inventory.data@1'         => 'cms_cap_entity_capability_inventory_data_1',
+        'entity.capability.booking.data@1'           => 'cms_cap_entity_capability_booking_data_1',
+        'entity.capability.inquiry.data@1'           => 'cms_cap_entity_capability_inquiry_data_1',
+        'entity.capability.progresstracking.data@1'  => 'cms_cap_entity_capability_progress_tracking_data_1',
+        'entity.capability.lessonsindex.data@1'      => 'cms_cap_entity_capability_lessons_index_data_1',
+        'entity.capability.mediagallery.data@1'      => 'cms_cap_entity_capability_media_gallery_data_1',
         'cms.content.list@1' => 'cms_cap_cms_content_list_1',
         'cms.content.create@1' => 'cms_cap_cms_content_create_1',
         'kernel.auth.authenticate@1' => 'cms_cap_kernel_auth_authenticate_1',

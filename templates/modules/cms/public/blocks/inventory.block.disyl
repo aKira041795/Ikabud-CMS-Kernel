@@ -1,0 +1,19 @@
+{* inventory.block.disyl — stock badge *}
+{if capability_data.inventory}
+<div class="cms-inventory-block my-2">
+    {if capability_data.inventory.in_stock}
+    <span class="inline-flex items-center gap-1 text-sm text-green-700 bg-green-50 border border-green-100 rounded-full px-2.5 py-0.5">
+        <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 00-1.414 0L8 12.586l-3.293-3.293a1 1 0 00-1.414 1.414l4 4a1 1 0 001.414 0l8-8a1 1 0 000-1.414z" clip-rule="evenodd"/></svg>
+        In Stock
+        {if capability_data.inventory.track_inventory and capability_data.inventory.stock != null}
+        <span class="text-green-500">({capability_data.inventory.stock} left)</span>
+        {/if}
+    </span>
+    {else}
+    <span class="inline-flex items-center gap-1 text-sm text-red-600 bg-red-50 border border-red-100 rounded-full px-2.5 py-0.5">Out of Stock</span>
+    {/if}
+    {if capability_data.inventory.sku}
+    <span class="ml-2 text-xs text-gray-400">SKU: {capability_data.inventory.sku}</span>
+    {/if}
+</div>
+{/if}

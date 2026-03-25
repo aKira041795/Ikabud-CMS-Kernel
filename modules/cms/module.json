@@ -37,7 +37,8 @@
         "workflow_transition_logs",
         "cms_theme_customizer",
         "cms_ai_content_plans",
-        "cms_ai_content_runs"
+        "cms_ai_content_runs",
+        "cms_entity_capabilities"
     ],
     "reads_tables": [
         "kernel_event_triggers",
@@ -66,7 +67,8 @@
         "database/migrations/017_cms_ai_plan_search_grounding.sql",
         "database/migrations/018_cms_ai_plan_content_mode.sql",
         "database/migrations/019_cms_ai_plan_auto_refine_policy.sql",
-        "database/migrations/020_cms_ai_plan_auto_publish_policy.sql"
+        "database/migrations/020_cms_ai_plan_auto_publish_policy.sql",
+        "database/migrations/021_cms_entity_capabilities.sql"
     ],
     "seeds": [
         "database/seeds/001_cms_baseline_content_types.sql"
@@ -142,6 +144,41 @@
                 "modes": [
                     "first"
                 ]
+            },
+            {
+                "id": "entity.capability.pricing.data@1",
+                "priority": 50,
+                "modes": ["first"]
+            },
+            {
+                "id": "entity.capability.inventory.data@1",
+                "priority": 50,
+                "modes": ["first"]
+            },
+            {
+                "id": "entity.capability.booking.data@1",
+                "priority": 10,
+                "modes": ["first"]
+            },
+            {
+                "id": "entity.capability.inquiry.data@1",
+                "priority": 50,
+                "modes": ["first"]
+            },
+            {
+                "id": "entity.capability.progresstracking.data@1",
+                "priority": 50,
+                "modes": ["first"]
+            },
+            {
+                "id": "entity.capability.lessonsindex.data@1",
+                "priority": 50,
+                "modes": ["first"]
+            },
+            {
+                "id": "entity.capability.mediagallery.data@1",
+                "priority": 50,
+                "modes": ["first"]
             }
         ],
         "depends": [
@@ -169,7 +206,6 @@
                     "allow_callers": [
                         "media",
                         "search",
-                        "users",
                         "workflow"
                     ]
                 },
@@ -177,8 +213,12 @@
                     "allow_callers": [
                         "media",
                         "search",
-                        "users",
                         "workflow"
+                    ]
+                },
+                "cms.settings.get@1": {
+                    "allow_callers": [
+                        "contact-form"
                     ]
                 }
             }

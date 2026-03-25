@@ -56,11 +56,16 @@ function antispamResetSettingsCache(): void
     unset($GLOBALS['_antispam_settings_cache']);
 }
 
+function antispamDb(): \PDO
+{
+    $ctx = module('anti-spam');
+    return $ctx ? $ctx->db() : app()->db();
+}
+
 function antispamReadLegacySettings(): array
 {
     try {
-        $ctx = module();
-        $db  = $ctx ? $ctx->db() : app()->db();
+        $db = antispamDb();
         $stmt = $db->query('SELECT setting_key, setting_value FROM antispam_settings');
         $rows = $stmt->fetchAll(\PDO::FETCH_KEY_PAIR);
         return is_array($rows) ? $rows : [];
@@ -246,8 +251,7 @@ function antispamGetSettings(): array
 function antispamSaveSetting(string $key, string $value): void
 {
     $normalized = antispamNormalizeSettingValue($key, $value);
-    $ctx = module();
-    $db  = $ctx ? $ctx->db() : app()->db();
+    $db = antispamDb();
     $stmt = $db->prepare('INSERT INTO antispam_settings (setting_key, setting_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)');
     $stmt->execute([$key, $normalized]);
 
@@ -264,8 +268,7 @@ function antispamSaveSetting(string $key, string $value): void
 
 function antispamIsIpBlocked(string $ip): bool
 {
-    $ctx = module();
-    $db  = $ctx ? $ctx->db() : app()->db();
+    $db = antispamDb();
     $stmt = $db->prepare(
         'SELECT id FROM antispam_blocked_ips WHERE ip_address = ? AND (is_permanent = 1 OR blocked_until > NOW())'
     );
@@ -280,8 +283,7 @@ function antispamIsIpBlocked(string $ip): bool
 
 function antispamBlockIp(string $ip, string $reason, ?int $durationMinutes = null): void
 {
-    $ctx = module();
-    $db  = $ctx ? $ctx->db() : app()->db();
+    $db = antispamDb();
 
     $permanent   = $durationMinutes === null ? 1 : 0;
     $blockedUntil = $durationMinutes !== null
@@ -297,8 +299,7 @@ function antispamBlockIp(string $ip, string $reason, ?int $durationMinutes = nul
 
 function antispamUnblockIp(string $ip): void
 {
-    $ctx = module();
-    $db  = $ctx ? $ctx->db() : app()->db();
+    $db = antispamDb();
     $db->prepare('DELETE FROM antispam_blocked_ips WHERE ip_address = ?')->execute([$ip]);
 }
 
@@ -306,8 +307,7 @@ function antispamUnblockIp(string $ip): void
 
 function antispamIsRateLimited(string $ip, int $windowSeconds, int $maxRequests): bool
 {
-    $ctx = module();
-    $db  = $ctx ? $ctx->db() : app()->db();
+    $db = antispamDb();
     $stmt = $db->prepare(
         'SELECT COUNT(*) FROM antispam_log WHERE ip_address = ? AND created_at >= DATE_SUB(NOW(), INTERVAL ? SECOND)'
     );
@@ -333,8 +333,7 @@ function antispamMatchesKeywords(string $text, array $keywords): ?string
 function antispamLog(string $ip, string $checkType, string $result, string $detail): void
 {
     try {
-        $ctx = module();
-        $db  = $ctx ? $ctx->db() : app()->db();
+        $db = antispamDb();
         $uri = $_SERVER['REQUEST_URI'] ?? '';
         $stmt = $db->prepare(
             'INSERT INTO antispam_log (ip_address, request_uri, check_type, result, detail) VALUES (?, ?, ?, ?, ?)'
@@ -411,8 +410,7 @@ function anti_spam_cap_antispam_check_1(mixed $payload, string $capabilityId = '
 
 function antispamGetStats(): array
 {
-    $ctx = module();
-    $db  = $ctx ? $ctx->db() : app()->db();
+    $db = antispamDb();
 
     $today = date('Y-m-d');
 

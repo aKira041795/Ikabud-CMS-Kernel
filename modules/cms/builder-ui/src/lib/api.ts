@@ -138,4 +138,24 @@ export const cmsApi = {
     authFetch(`${API}/media${params ? '?' + params.toString() : ''}`),
   uploadMedia: (formData: FormData) =>
     authFetch(`${API}/media/upload`, { method: 'POST', body: formData }),
+
+  // Entity Capabilities
+  listEntityCapabilityTypes: () =>
+    authFetch(`${API}/entity-capabilities`),
+  listEntityPresets: () =>
+    authFetch(`${API}/entity-presets`),
+  getEntityCapabilities: (contentId: number) =>
+    authFetch(`${API}/content/${contentId}/capabilities`),
+  attachEntityCapability: (contentId: number, capabilityId: string, config: Record<string, unknown>) =>
+    authFetch(`${API}/content/${contentId}/capabilities`, {
+      method: 'POST',
+      body: JSON.stringify({ capability_id: capabilityId, config }),
+    }),
+  detachEntityCapability: (contentId: number, capabilityId: string) =>
+    authFetch(`${API}/content/${contentId}/capabilities/${capabilityId}/detach`, { method: 'POST' }),
+  applyEntityPreset: (contentId: number, presetId: string) =>
+    authFetch(`${API}/content/${contentId}/capabilities/preset`, {
+      method: 'POST',
+      body: JSON.stringify({ preset_id: presetId }),
+    }),
 };
