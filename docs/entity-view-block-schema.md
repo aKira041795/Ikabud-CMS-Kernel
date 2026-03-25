@@ -51,6 +51,9 @@ root keys are available to capability blocks.
   .single_show_date       — bool
 {cms_head}                — string(raw)|null: injected <head> content
 {structured_data}         — string(raw)|null: JSON-LD structured data
+{cart_enabled}            — bool: true when cms.cart.add@1 is registered on CapabilityBus AND entity has pricing
+{cart_action_url}         — string: POST endpoint for cart add ("{base_url}/api/v1/cms/cart/add") or empty string
+{action_sections}         — string(raw): output of cms.entity.action_block.sections hook, or empty string
 ```
 
 ---
@@ -149,7 +152,7 @@ capability_data.progresstracking
 
 **CapabilityBus provider:** `entity.capability.progresstracking.data@1`  
 **PHP function:** `cms_cap_entity_capability_progress_tracking_data_1()`  
-**Data source:** `cms_content_meta` where `meta_key = '_progress_user_{userId}'` (JSON or int)
+**Data source:** `cms_entity_progress` table (primary — `entity_id`, `user_id`, `percent` columns; inserted/upserted on progress update, range-clamped 0–100); falls back to `cms_content_meta` where `meta_key = '_progress_user_{userId}'` for pre-migration 022 data
 
 ---
 
@@ -240,9 +243,15 @@ capability_data.lessonsindex
 This is a compound block — it renders multiple CTAs based on which action
 capabilities are attached. Each sub-section has its own inner gate.
 
+**Action-sections override (all sub-blocks)**
+- Gate: `{if action_sections}` — when non-empty, renders the hook output verbatim and skips all built-in sub-blocks below
+- Hook: `cms.entity.action_block.sections` receives `(entity, capabilities, capability_data, base_url)`; return a raw HTML string to replace the entire action block interior
+
 **Sub-block: Buy (pricing)**
 - Gate: `{if capabilities.pricing}` AND (no inventory capability OR `capability_data.inventory.in_stock`)
-- HTML: `<form method="POST" action="{base_url}/api/v1/cms/cart/add">` with CSRF + entity_id
+- Cart availability gate: renders buy form only when `{cart_enabled}` is `true` (requires `cms.cart.add@1` registered on CapabilityBus AND pricing capability attached)
+- HTML (cart enabled): `<form method="POST" action="{cart_action_url}">` with CSRF + entity_id; primary CTA button
+- HTML (cart disabled): `<p class="cms-cart-pending">`"Price shown — cart coming soon"` </p>` fallback paragraph
 - Disabled state: gray button with "Out of Stock" when inventory attached and not in stock
 
 **Sub-block: Book (booking)**
@@ -281,7 +290,7 @@ capabilities are attached. Each sub-section has its own inner gate.
 | `inventory`         | `entity.capability.inventory.data@1`       | inventory.block.disyl       | slot 4        | `_sku`, `_stock_qty`, `_track_inventory` meta |
 | `booking`           | `entity.capability.booking.data@1`         | action.block.disyl (sub)    | slot 7        | stub (future module)           |
 | `inquiry`           | `entity.capability.inquiry.data@1`         | action.block.disyl (sub)    | slot 7        | config passthrough             |
-| `progresstracking`  | `entity.capability.progresstracking.data@1`| progress.block.disyl        | slot 2b       | `_progress_user_{id}` meta     |
+| `progresstracking`  | `entity.capability.progresstracking.data@1`| progress.block.disyl        | slot 2b       | `cms_entity_progress` table (primary); `_progress_user_{id}` meta (legacy fallback) |
 | `lessonsindex`      | `entity.capability.lessonsindex.data@1`    | lessons.block.disyl         | slot 6        | `cms_content` parent join      |
 | `mediagallery`      | `entity.capability.mediagallery.data@1`    | media-gallery.block.disyl   | slot 1        | `_gallery` meta (JSON array)   |
 
@@ -379,6 +388,29 @@ are batch-attached via `cmsApplyEntityPreset()`. Each preset entry:
 ```
 The preset system calls `cmsEntityAttachCapability()` per entry, merging
 provided config over the type's `default_config`.
+
+### 7.4 Action Block Sections Hook
+
+**Hook:** `cms.entity.action_block.sections`
+
+**Args passed to each listener:** `entity, capabilities, capability_data, base_url`
+
+**Return value:** string — raw HTML that replaces the entire interior of `.cms-action-block`. An empty string or absent return leaves built-in sub-blocks intact.
+
+**Evaluation order:** Hook is resolved in `cmsPublicEntityRender()` before the DiSyL render call; result is injected into the context as `{action_sections}`.
+
+**Use cases:**
+- Inject custom subscription-tier CTAs (e.g. free / pro / enterprise tier buttons)
+- Render comparison CTAs from an external payment provider
+- Fully replace all buy/book/inquire sub-blocks with a third-party cart widget
+
+**Example:**
+```php
+app()->hooks()->on('cms.entity.action_block.sections', function($entity, $caps, $data, $base) {
+    if (!$caps['pricing'] ?? false) return '';
+    return '<a class="cms-btn-primary" href="' . $base . '/subscribe/' . $entity['slug'] . '">Subscribe</a>';
+});
+```
 
 ---
 
