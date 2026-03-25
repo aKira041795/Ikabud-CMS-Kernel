@@ -874,5 +874,216 @@ function cmsPublicPage(array $params = []): void
 }
 
 // ═══════════════════════════════════════════════════════════════════════
+// ENTITY VIEW / LIST (custom content types)
+// ═══════════════════════════════════════════════════════════════════════
+
+/**
+ * Public single entity view for custom content types (not post/page).
+ * Route: /cms/{type}/{slug}
+ */
+function cmsPublicEntityView(array $params = []): void
+{
+    $type = trim((string)($params['type'] ?? ''));
+    $slug = trim((string)($params['slug'] ?? ''));
+
+    // Reserved prefixes handled by dedicated routes
+    if ($type === '' || $slug === '' || in_array($type, ['blog', 'page', 'admin', 'search', 'category', 'tag', 'feed'], true)) {
+        http_response_code(404);
+        echo cmsRender('pages/404.disyl', ['page_title' => 'Not Found']);
+        return;
+    }
+
+    $cacheKey = 'cms:entity:' . $type . ':' . $slug;
+
+    // Check cache
+    $cached = cmsCacheGet($cacheKey);
+    if ($cached !== null && isset($cached['html'])) {
+        if (!empty($cached['etag']) && !empty($cached['updated_at'])) {
+            if (cmsSendCacheHeaders($cached['etag'], $cached['updated_at'])) {
+                exit;
+            }
+        }
+        echo $cached['html'];
+        return;
+    }
+
+    $db = cmsDb();
+    $stmt = $db->prepare(
+        "SELECT c.*, u.display_name as author_name, m.file_path as featured_image
+         FROM cms_content c
+         LEFT JOIN cms_users u ON u.id = c.author_id
+         LEFT JOIN cms_media m ON m.id = c.featured_image_id
+         WHERE c.slug = :slug AND c.type = :type AND c.deleted_at IS NULL AND " . cmsPublicVisibilitySql('c') . "
+         LIMIT 1"
+    );
+    $stmt->execute([':slug' => $slug, ':type' => $type]);
+    $entity = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    if (!$entity) {
+        // Check for slug redirect
+        $redirect = cmsLookupSlugRedirect($slug);
+        if ($redirect && ($redirect['type'] ?? '') === $type) {
+            $baseUrl = rtrim((string)(defined('BASE_URL') ? BASE_URL : ''), '/');
+            header('Location: ' . $baseUrl . '/cms/' . rawurlencode($type) . '/' . rawurlencode($redirect['slug']), true, 301);
+            exit;
+        }
+        http_response_code(404);
+        echo cmsRender('pages/404.disyl', ['page_title' => 'Not Found']);
+        return;
+    }
+
+    $meta = cmsLoadContentMeta($db, (int)$entity['id']);
+    $entity['meta'] = $meta;
+
+    $renderedHtml = cmsFilterRenderedContent(cmsContentRenderedHtml($entity), $entity);
+    $publicHead = cmsGetPublicHeadHtml($entity);
+    $builderEnabled = cmsPageBuilderEnabled($meta);
+    $builderSettings = cmsPageBuilderSettings($meta);
+    $structuredData = cmsStructuredDataJsonLd($entity);
+
+    $templatePath = cmsResolveContentTemplate('public/entity.view.disyl', $meta, $type);
+    $sidebarTemplateKey = cmsSidebarTemplateKeyFromPath($templatePath, 'entity-view');
+    $html = cmsRenderThemeAwareTemplate($templatePath, cmsPublicContext([
+        'page_title'            => $entity['title'],
+        'entity'                => $entity,
+        'entity_meta'           => $meta,
+        'post_html'             => $renderedHtml,
+        'cms_head'              => $publicHead,
+        'structured_data'       => $structuredData,
+        'builder_enabled'       => $builderEnabled,
+        'builder_page_settings' => $builderSettings,
+        'sidebar_template'      => $sidebarTemplateKey,
+        'content_type'          => $type,
+    ]));
+
+    $updatedAt = (string)($entity['updated_at'] ?? $entity['published_at'] ?? date('Y-m-d H:i:s'));
+    $etag = md5($html);
+    cmsCacheSet($cacheKey, [
+        'html'       => $html,
+        'etag'       => $etag,
+        'updated_at' => $updatedAt,
+    ], ['cms:entity:' . $type . ':' . $slug, 'cms:content:' . (int)$entity['id'], 'cms:type:' . $type]);
+
+    cmsSendCacheHeaders($etag, $updatedAt);
+    echo $html;
+}
+
+/**
+ * Public entity listing for custom content types.
+ * Route: /cms/{type}
+ */
+function cmsPublicEntityList(array $params = []): void
+{
+    $type = trim((string)($params['type'] ?? ''));
+
+    // Reserved prefixes handled by dedicated routes
+    if ($type === '' || in_array($type, ['blog', 'admin', 'search', 'feed'], true)) {
+        http_response_code(404);
+        echo cmsRender('pages/404.disyl', ['page_title' => 'Not Found']);
+        return;
+    }
+
+    $input = cmsInput();
+    $page = max(1, (int)($input['page'] ?? 1));
+    $perPage = 12;
+    $offset = ($page - 1) * $perPage;
+
+    $baseUrl = rtrim((string)(defined('BASE_URL') ? BASE_URL : ''), '/');
+
+    $cacheKey = 'cms:entity_list:' . $type . ':p' . $page;
+    $cached = cmsCacheGet($cacheKey);
+    if ($cached !== null && isset($cached['html'])) {
+        if (!empty($cached['etag']) && !empty($cached['updated_at'])) {
+            if (cmsSendCacheHeaders($cached['etag'], $cached['updated_at'])) {
+                exit;
+            }
+        }
+        echo $cached['html'];
+        return;
+    }
+
+    $db = cmsDb();
+
+    // Get total count
+    $cStmt = $db->prepare(
+        "SELECT COUNT(*) FROM cms_content c WHERE c.deleted_at IS NULL AND c.type = :type AND " . cmsPublicVisibilitySql('c')
+    );
+    $cStmt->execute([':type' => $type]);
+    $total = (int)$cStmt->fetchColumn();
+
+    // Fetch items
+    $stmt = $db->prepare(
+        "SELECT c.id, c.uuid, c.title, c.slug, c.excerpt, c.type, c.status, c.published_at,
+                c.author_id, c.featured_image_id, u.display_name as author_name, m.file_path as featured_image
+         FROM cms_content c
+         LEFT JOIN cms_users u ON u.id = c.author_id
+         LEFT JOIN cms_media m ON m.id = c.featured_image_id
+         WHERE c.deleted_at IS NULL AND c.type = :type AND " . cmsPublicVisibilitySql('c') . "
+         ORDER BY c.published_at DESC, c.created_at DESC
+         LIMIT {$perPage} OFFSET {$offset}"
+    );
+    $stmt->execute([':type' => $type]);
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+    // Enrich each item with capabilities, capability_data, and url
+    $items = [];
+    foreach ($rows as $row) {
+        $entityId = (int)($row['id'] ?? 0);
+        $row['url'] = $baseUrl . '/cms/' . rawurlencode($type) . '/' . rawurlencode((string)($row['slug'] ?? ''));
+        try {
+            $row['capabilities']    = $entityId > 0 ? cmsEntityCapabilityContext($entityId) : [];
+            $row['capability_data'] = $entityId > 0 ? cmsEntityCapabilityData($entityId, $row) : [];
+        } catch (\Throwable $e) {
+            $row['capabilities']    = [];
+            $row['capability_data'] = [];
+        }
+        $items[] = $row;
+    }
+
+    // Pagination
+    $totalPages = max(1, (int)ceil($total / $perPage));
+    $pagination = [
+        'current'  => $page,
+        'total'    => $totalPages,
+        'prev_url' => $page > 1 ? $baseUrl . '/cms/' . rawurlencode($type) . '?page=' . ($page - 1) : '',
+        'next_url' => $page < $totalPages ? $baseUrl . '/cms/' . rawurlencode($type) . '?page=' . ($page + 1) : '',
+    ];
+
+    // Resolve content type label for list title
+    $listTitle = ucfirst($type);
+    try {
+        $tStmt = $db->prepare("SELECT name FROM cms_content_types WHERE slug = :slug LIMIT 1");
+        $tStmt->execute([':slug' => $type]);
+        $typeName = $tStmt->fetchColumn();
+        if ($typeName) {
+            $listTitle = (string)$typeName;
+        }
+    } catch (\Throwable $e) {}
+
+    $templatePath = cmsResolveContentTemplate('public/entity.list.disyl', [], $type);
+    $sidebarTemplateKey = cmsSidebarTemplateKeyFromPath($templatePath, 'entity-list');
+    $html = cmsRenderThemeAwareTemplate($templatePath, cmsPublicContext([
+        'page_title'       => $listTitle,
+        'list_title'       => $listTitle,
+        'list_description' => '',
+        'items'            => $items,
+        'pagination'       => $pagination,
+        'content_type'     => $type,
+        'sidebar_template' => $sidebarTemplateKey,
+    ]));
+
+    $updatedAt = date('Y-m-d H:i:s');
+    $etag = md5($html);
+    cmsCacheSet($cacheKey, [
+        'html'       => $html,
+        'etag'       => $etag,
+        'updated_at' => $updatedAt,
+    ], ['cms:type:' . $type]);
+
+    cmsSendCacheHeaders($etag, $updatedAt);
+    echo $html;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
 // INTERNAL HELPERS
 // ═══════════════════════════════════════════════════════════════════════

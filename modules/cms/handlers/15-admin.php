@@ -301,6 +301,7 @@ function cmsAdminContentCreate(array $params = []): void
         'can_workflow'    => cmsCanPublish($user),
         'ai_tools'        => cmsRoleAtLeast($role, 'contributor') || $isKernelAdmin,
         'ai_seo_suggest'  => cmsRoleAtLeast($role, 'contributor') || $isKernelAdmin,
+        'ai_refine'       => (cmsRoleAtLeast($role, 'contributor') || $isKernelAdmin) && function_exists('cmsUserCan') && cmsUserCan($user, 'ai.refine'),
         'can_duplicate'   => false,
         'builder_access'  => $builderSupported,
     ];
@@ -346,6 +347,7 @@ function cmsAdminContentCreate(array $params = []): void
         'duplicate_url'                 => '',
         'permalink'                     => '',
         'capabilities'                  => $capabilities,
+        'ai_automation_json'            => '{}',
     ]));
 }
 

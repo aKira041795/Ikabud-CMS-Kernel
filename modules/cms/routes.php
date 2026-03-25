@@ -81,6 +81,8 @@ return [
         '/cms/tag/{slug}'                  => 'cms:cmsPublicTagArchive',
         '/cms/blog/{slug}'                => 'cms:cmsPublicSingle',
         '/cms/page/{slug}'                => 'cms:cmsPublicPage',
+        '/cms/{type}'                     => 'cms:cmsPublicEntityList',
+        '/cms/{type}/{slug}'              => 'cms:cmsPublicEntityView',
 
         // ── Tags API (GET) ─────────────────────────────────────
         '/api/v1/cms/tags'                => 'cms:cmsApiTagList',

@@ -299,7 +299,10 @@ function cmsContentPermalink(array $content): string
     if ($type === 'page') {
         return $base . '/cms/page/' . $slug;
     }
-    return $base . '/cms/blog/' . $slug;
+    if ($type === 'post') {
+        return $base . '/cms/blog/' . $slug;
+    }
+    return $base . '/cms/' . $type . '/' . $slug;
 }
 
 // ── Media-usage helpers (requires DB) ────────────────────────────────────
