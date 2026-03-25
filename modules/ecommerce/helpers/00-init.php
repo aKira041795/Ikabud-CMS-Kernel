@@ -7,7 +7,7 @@ declare(strict_types=1);
 //
 // Responsibilities:
 //  1. Auto-page installation guard (once per tenant)
-//  2. CMS admin nav injection via kernel.nav_items hook
+//  2. CMS admin nav injection via cms.admin.nav_items hook
 //  3. CapabilityBus provider registration (pricing + inventory overrides)
 //  4. Module CapabilityBus handlers (products.list, products.get, etc.)
 // ─────────────────────────────────────────────────────────────────────────
@@ -135,36 +135,23 @@ function ecInstallPages(): void
 
 // ── CMS Admin Nav Injection ──────────────────────────────────────────
 
-app()->hooks()->on('kernel.nav_items', function (array $items, ?array $user) {
-    if (!$user) {
-        return $items;
-    }
+app()->hooks()->on('cms.admin.nav_items', function (array $items): array {
+    $baseUrl = rtrim((string)(defined('BASE_URL') ? BASE_URL : ''), '/');
 
-    $role = $user['role'] ?? '';
-    $source = $user['source'] ?? '';
-    $adminRoles = ['superadmin', 'administrator', 'editor'];
-
-    if ($source !== 'cms' || !in_array($role, $adminRoles, true)) {
-        return $items;
-    }
-
-    $ecNav = [
+    $items[] = [
         'label'    => 'Ecommerce',
-        'icon'     => 'shopping-bag',
         'section'  => true,
         'children' => [
-            ['label' => 'Dashboard',  'url' => '/ecommerce/admin',             'icon' => 'grid'],
-            ['label' => 'Products',   'url' => '/ecommerce/admin/products',    'icon' => 'package'],
-            ['label' => 'Orders',     'url' => '/ecommerce/admin/orders',      'icon' => 'clipboard-list'],
-            ['label' => 'Categories', 'url' => '/ecommerce/admin/categories',  'icon' => 'tag'],
-            ['label' => 'Coupons',    'url' => '/ecommerce/admin/coupons',     'icon' => 'percent'],
-            ['label' => 'Reports',    'url' => '/ecommerce/admin/reports',     'icon' => 'bar-chart-2'],
-            ['label' => 'POS',        'url' => '/ecommerce/pos',               'icon' => 'monitor'],
-            ['label' => 'Settings',   'url' => '/ecommerce/admin/settings',    'icon' => 'settings'],
+            ['label' => 'Dashboard',  'url' => $baseUrl . '/ecommerce/admin',            'icon' => '📊', 'active_key' => 'ec_dashboard'],
+            ['label' => 'Products',   'url' => $baseUrl . '/ecommerce/admin/products',   'icon' => '📦', 'active_key' => 'ec_products'],
+            ['label' => 'Orders',     'url' => $baseUrl . '/ecommerce/admin/orders',     'icon' => '📋', 'active_key' => 'ec_orders'],
+            ['label' => 'Categories', 'url' => $baseUrl . '/ecommerce/admin/categories', 'icon' => '🏷️', 'active_key' => 'ec_categories'],
+            ['label' => 'Coupons',    'url' => $baseUrl . '/ecommerce/admin/coupons',    'icon' => '🎟️', 'active_key' => 'ec_coupons'],
+            ['label' => 'Reports',    'url' => $baseUrl . '/ecommerce/admin/reports',    'icon' => '📈', 'active_key' => 'ec_reports'],
+            ['label' => 'POS',        'url' => $baseUrl . '/ecommerce/pos',              'icon' => '🖥️', 'active_key' => 'ec_pos'],
+            ['label' => 'Settings',   'url' => $baseUrl . '/ecommerce/admin/settings',   'icon' => '⚙️', 'active_key' => 'ec_settings'],
         ],
     ];
-
-    $items[] = $ecNav;
     return $items;
 }, priority: 20);
 
