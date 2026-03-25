@@ -16,7 +16,7 @@ function ecPosTerminal(): void
     ecRender('modules/ecommerce/admin/pos.disyl', [
         'page_title'    => 'Point of Sale',
         'user'          => $user,
-        'csrf_token'    => csrf_token(),
+        'csrf_token'    => app()->csrfToken(),
         'ec_settings'   => ecSettings(),
         'currency_sym'  => ecSettings('currency_symbol', '$'),
     ]);

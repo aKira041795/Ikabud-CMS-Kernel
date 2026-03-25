@@ -66,7 +66,7 @@
                         <span>Total</span><span>{cart.totals.total_fmt}</span>
                     </div>
                 </div>
-                <a href="{base_url}/checkout"
+                <a href="{base_url}/ecommerce/checkout"
                    class="block w-full text-center py-3 bg-orange-600 text-white font-medium rounded-lg hover:bg-orange-700">
                     Proceed to Checkout
                 </a>

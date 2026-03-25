@@ -37,7 +37,7 @@ function ecAdminSettings(): void
         saveTenantModuleSettings('ecommerce', $settings);
 
         $_SESSION['ec_message'] = ['type' => 'success', 'text' => 'Settings saved.'];
-        header('Location: /admin/ecommerce/settings');
+        header('Location: /ecommerce/admin/settings');
         exit;
     }
 

@@ -58,7 +58,7 @@ function ecAdminCoupons(): void
             }
         }
 
-        header('Location: /admin/ecommerce/coupons');
+        header('Location: /ecommerce/admin/coupons');
         exit;
     }
 

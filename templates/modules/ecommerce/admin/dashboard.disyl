@@ -26,13 +26,13 @@
     <div class="lg:col-span-2 bg-white rounded-lg border border-gray-200">
         <div class="px-5 py-3 border-b border-gray-200 flex items-center justify-between">
             <span class="font-semibold text-sm text-gray-700">Recent Orders</span>
-            <a href="{base_url}/admin/orders" class="text-xs text-orange-600 hover:text-orange-700">View all →</a>
+            <a href="{base_url}/ecommerce/admin/orders" class="text-xs text-orange-600 hover:text-orange-700">View all →</a>
         </div>
         {if recent_orders | count == 0}
         <div class="px-5 py-10 text-center text-gray-400 text-sm">No orders yet.</div>
         {/if}
         {foreach recent_orders as order}
-        <a href="{base_url}/admin/orders/{order.id}" class="flex items-center gap-3 px-5 py-3 border-b border-gray-100 last:border-b-0 hover:bg-gray-50 transition-colors no-underline">
+        <a href="{base_url}/ecommerce/admin/orders/{order.id}" class="flex items-center gap-3 px-5 py-3 border-b border-gray-100 last:border-b-0 hover:bg-gray-50 transition-colors no-underline">
             <div class="flex-1 min-w-0">
                 <div class="text-sm font-medium text-gray-900">{order.order_number}</div>
                 <div class="text-xs text-gray-400 truncate">{order.guest_name | default:order.guest_email}</div>
@@ -60,7 +60,7 @@
         <div class="px-5 py-10 text-center text-gray-400 text-sm">All products in stock.</div>
         {/if}
         {foreach low_stock.items as item}
-        <a href="{base_url}/admin/products/{item.id}/edit" class="flex items-center justify-between px-5 py-3 border-b border-gray-100 last:border-b-0 hover:bg-gray-50 no-underline">
+        <a href="{base_url}/ecommerce/admin/products/{item.id}/edit" class="flex items-center justify-between px-5 py-3 border-b border-gray-100 last:border-b-0 hover:bg-gray-50 no-underline">
             <div class="min-w-0">
                 <div class="text-sm font-medium text-gray-900 truncate">{item.title}</div>
                 <div class="text-xs text-gray-400">{item.sku}</div>

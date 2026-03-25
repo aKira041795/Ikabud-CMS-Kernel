@@ -28,7 +28,7 @@ function ecAdminProducts(): void
     ]);
 
     $categories = ecDb()->query(
-        "SELECT id, name, slug FROM cms_categories WHERE taxonomy = 'product' OR taxonomy IS NULL ORDER BY name"
+        ecCmsCategorySelectSql('id, name, slug', 'name ASC')
     )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
 
     $ctx = ecAdminContext($user, 'products', [
@@ -74,7 +74,7 @@ function ecAdminProductCreate(): void
             ], (int)$user['id']);
 
             $_SESSION['ec_message'] = ['type' => 'success', 'text' => 'Product created.'];
-            header('Location: /admin/products/' . $productId . '/edit');
+            header('Location: /ecommerce/admin/products/' . $productId . '/edit');
             exit;
         } catch (\Throwable $e) {
             write_log('ecAdminProductCreate error: ' . $e->getMessage(), 'error', ['module' => 'ecommerce']);
@@ -83,7 +83,7 @@ function ecAdminProductCreate(): void
     }
 
     $categories = ecDb()->query(
-        "SELECT id, name FROM cms_categories WHERE taxonomy = 'product' OR taxonomy IS NULL ORDER BY name"
+        ecCmsCategorySelectSql('id, name', 'name ASC')
     )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
 
     $ctx = ecAdminContext($user, 'products', [
@@ -134,7 +134,7 @@ function ecAdminProductEdit(): void
             ]);
 
             $_SESSION['ec_message'] = ['type' => 'success', 'text' => 'Product saved.'];
-            header('Location: /admin/products/' . $productId . '/edit');
+            header('Location: /ecommerce/admin/products/' . $productId . '/edit');
             exit;
         } catch (\Throwable $e) {
             $error = 'Save failed: ' . $e->getMessage();
@@ -142,7 +142,7 @@ function ecAdminProductEdit(): void
     }
 
     $categories = ecDb()->query(
-        "SELECT id, name FROM cms_categories WHERE taxonomy = 'product' OR taxonomy IS NULL ORDER BY name"
+        ecCmsCategorySelectSql('id, name', 'name ASC')
     )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
 
     // Refresh product after save

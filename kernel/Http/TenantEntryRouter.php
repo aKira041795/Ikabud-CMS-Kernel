@@ -168,6 +168,13 @@ class TenantEntryRouter
             return true;
         }
 
+        // Never rewrite URIs whose first path segment is another enabled module.
+        // Each module owns its own route prefix (e.g. /ecommerce/*, /contact-form/*).
+        $firstSegment = strtok(ltrim($uri, '/'), '/');
+        if ($firstSegment !== false && $firstSegment !== '' && function_exists('moduleIsLoadable') && moduleIsLoadable($firstSegment)) {
+            return true;
+        }
+
         return false;
     }
 }

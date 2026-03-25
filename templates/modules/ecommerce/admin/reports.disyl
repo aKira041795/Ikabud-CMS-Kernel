@@ -63,7 +63,7 @@
         <div class="px-5 py-8 text-center text-gray-400 text-sm">All products in stock.</div>
         {/if}
         {foreach inventory.items as item}
-        <a href="{base_url}/admin/products/{item.id}/edit" class="flex items-center justify-between px-5 py-3 border-b border-gray-100 last:border-b-0 hover:bg-gray-50 no-underline">
+        <a href="{base_url}/ecommerce/admin/products/{item.id}/edit" class="flex items-center justify-between px-5 py-3 border-b border-gray-100 last:border-b-0 hover:bg-gray-50 no-underline">
             <div>
                 <div class="text-sm font-medium text-gray-900">{item.title}</div>
                 <div class="text-xs text-gray-400">{item.sku}</div>

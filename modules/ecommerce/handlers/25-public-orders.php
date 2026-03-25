@@ -13,7 +13,7 @@ function ecPublicMyOrders(): void
 {
     $user = app()->user();
     if (!$user || !in_array($user['role'] ?? '', ['subscriber', 'customer', 'editor', 'administrator'], true)) {
-        header('Location: /login?redirect=' . urlencode('/my-orders'));
+        header('Location: /cms/login?redirect=' . urlencode('/ecommerce/my-orders'));
         exit;
     }
 
@@ -39,7 +39,7 @@ function ecPublicOrderDetail(): void
 {
     $user = app()->user();
     if (!$user) {
-        header('Location: /login');
+        header('Location: /cms/login?redirect=' . urlencode('/ecommerce/my-orders'));
         exit;
     }
 

@@ -16,10 +16,19 @@ require_once __DIR__ . '/helpers/60-pos.php';
 function ecommerce_capability_handlers(): array
 {
 	return [
+		'cms.cart.add@1' => 'ec_cap_cms_cart_add_1',
 		'ecommerce.products.list@1' => 'ec_cap_products_list_1',
 		'ecommerce.products.get@1' => 'ec_cap_products_get_1',
 		'ecommerce.cart.get@1' => 'ec_cap_cart_get_1',
 		'ecommerce.orders.create@1' => 'ec_cap_orders_create_1',
 		'ecommerce.orders.get@1' => 'ec_cap_orders_get_1',
+	];
+}
+
+function ec_cap_cms_cart_add_1(mixed $payload, string $capabilityId = '', string $providerId = ''): array
+{
+	return [
+		'ok' => true,
+		'action_url' => rtrim((string)(defined('BASE_URL') ? BASE_URL : ''), '/') . '/api/v1/cms/cart/add',
 	];
 }

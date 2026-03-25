@@ -28,12 +28,21 @@ function ecAdminCategories(): void
             if ($name !== '' && $slug !== '') {
                 // Ensure product taxonomy
                 try {
-                    $db->execute(
-                        "INSERT INTO cms_categories (name, slug, taxonomy, created_at, updated_at)
-                         VALUES (?, ?, 'product', NOW(), NOW())
-                         ON DUPLICATE KEY UPDATE name = VALUES(name), taxonomy = 'product'",
-                        [$name, $slug]
-                    );
+                    if (ecHasCmsCategoryTaxonomy()) {
+                        $db->execute(
+                            "INSERT INTO cms_categories (name, slug, taxonomy, created_at, updated_at)
+                             VALUES (?, ?, 'product', NOW(), NOW())
+                             ON DUPLICATE KEY UPDATE name = VALUES(name), taxonomy = 'product'",
+                            [$name, $slug]
+                        );
+                    } else {
+                        $db->execute(
+                            "INSERT INTO cms_categories (name, slug, created_at, updated_at)
+                             VALUES (?, ?, NOW(), NOW())
+                             ON DUPLICATE KEY UPDATE name = VALUES(name)",
+                            [$name, $slug]
+                        );
+                    }
                     $_SESSION['ec_message'] = ['type' => 'success', 'text' => 'Category created.'];
                 } catch (\Throwable $e) {
                     $_SESSION['ec_message'] = ['type' => 'error', 'text' => 'Could not create: ' . $e->getMessage()];
@@ -50,17 +59,18 @@ function ecAdminCategories(): void
             }
         }
 
-        header('Location: /admin/products/categories');
+        header('Location: /ecommerce/admin/categories');
         exit;
     }
 
+    $categoryWhere = ecHasCmsCategoryTaxonomy() ? "WHERE cat.taxonomy = 'product' OR cat.taxonomy IS NULL" : '';
     $categories = $db->query(
         "SELECT cat.id, cat.name, cat.slug,
                 COUNT(cc.content_id) as product_count
          FROM cms_categories cat
          LEFT JOIN cms_content_categories cc ON cc.category_id = cat.id
          LEFT JOIN cms_content c ON c.id = cc.content_id AND c.type = 'product' AND c.deleted_at IS NULL
-         WHERE cat.taxonomy = 'product' OR cat.taxonomy IS NULL
+         {$categoryWhere}
          GROUP BY cat.id
          ORDER BY cat.name"
     )->fetchAll(\PDO::FETCH_ASSOC) ?: [];

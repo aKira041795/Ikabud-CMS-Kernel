@@ -1172,18 +1172,21 @@ function applyModuleSqlArtifacts(PDO $db, string $moduleId, string $manifestKey,
     $applied = tenantAppliedModuleMigrations($db, $moduleId);
     $executed = [];
 
-    foreach ($declared as $relativePath) {
-        $relativePath = ltrim((string)$relativePath, '/');
-        if ($relativePath === '') {
+    foreach ($declared as $artifactPath) {
+        $artifactPath = ltrim((string)$artifactPath, '/');
+        if ($artifactPath === '') {
             continue;
         }
 
-        $artifactName = $trackingPrefix . basename($relativePath);
+        $artifactName = $trackingPrefix . basename($artifactPath);
         if (isset($applied[$artifactName])) {
             continue;
         }
 
-        $fullPath = $modulePath . '/' . $relativePath;
+        $fullPath = BASE_PATH . '/' . $artifactPath;
+        if (!is_file($fullPath)) {
+            $fullPath = $modulePath . '/' . $artifactPath;
+        }
         if (!is_file($fullPath)) {
             continue;
         }

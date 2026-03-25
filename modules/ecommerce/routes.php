@@ -32,6 +32,7 @@ return [
         '/api/v1/ecommerce/products'              => 'ecommerce:ecApiProductsList',
         '/api/v1/ecommerce/products/{id}'         => 'ecommerce:ecApiProductGet',
         '/api/v1/ecommerce/categories'            => 'ecommerce:ecApiCategoryList',
+        '/api/v1/cms/cart/add'                    => 'ecommerce:ecApiCartAdd',
         '/api/v1/ecommerce/cart'                  => 'ecommerce:ecApiCartGet',
         '/api/v1/ecommerce/orders'                => 'ecommerce:ecApiOrdersList',
         '/api/v1/ecommerce/orders/my'             => 'ecommerce:ecApiMyOrders',

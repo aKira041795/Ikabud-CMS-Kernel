@@ -1153,12 +1153,19 @@ switch ($handler) {
                     $options = [];
                     if ($isSelect && is_array($field['options'] ?? null)) {
                         foreach ($field['options'] as $opt) {
-                            if (!is_array($opt)) continue;
-                            $options[] = [
-                                'value' => (string)($opt['value'] ?? ''),
-                                'label' => (string)($opt['label'] ?? $opt['value'] ?? ''),
-                                'selected' => ((string)$currentValue === (string)($opt['value'] ?? '')),
-                            ];
+                            if (is_string($opt)) {
+                                $options[] = [
+                                    'value' => $opt,
+                                    'label' => $opt,
+                                    'selected' => ((string)$currentValue === $opt),
+                                ];
+                            } elseif (is_array($opt)) {
+                                $options[] = [
+                                    'value' => (string)($opt['value'] ?? ''),
+                                    'label' => (string)($opt['label'] ?? $opt['value'] ?? ''),
+                                    'selected' => ((string)$currentValue === (string)($opt['value'] ?? '')),
+                                ];
+                            }
                         }
                     }
 
@@ -1352,7 +1359,9 @@ switch ($handler) {
             if ($type === 'select' && is_array($field['options'] ?? null)) {
                 $allowedValues = [];
                 foreach ($field['options'] as $opt) {
-                    if (is_array($opt) && array_key_exists('value', $opt)) {
+                    if (is_string($opt)) {
+                        $allowedValues[$opt] = true;
+                    } elseif (is_array($opt) && array_key_exists('value', $opt)) {
                         $allowedValues[(string)$opt['value']] = true;
                     }
                 }
@@ -3068,7 +3077,9 @@ switch ($handler) {
             if ($type === 'select' && is_array($field['options'] ?? null)) {
                 $allowedValues = [];
                 foreach ($field['options'] as $opt) {
-                    if (is_array($opt) && array_key_exists('value', $opt)) {
+                    if (is_string($opt)) {
+                        $allowedValues[$opt] = true;
+                    } elseif (is_array($opt) && array_key_exists('value', $opt)) {
                         $allowedValues[(string)$opt['value']] = true;
                     }
                 }

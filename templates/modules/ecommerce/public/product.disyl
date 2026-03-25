@@ -22,7 +22,7 @@
                 <a href="{base_url}/ecommerce/shop" class="hover:text-gray-600">Shop</a>
                 {if product.categories | count > 0}
                 <span class="mx-1">›</span>
-                <a href="{base_url}/shop/category/{product.categories.0.slug}" class="hover:text-gray-600">{product.categories.0.name}</a>
+                <a href="{base_url}/ecommerce/shop/category/{product.categories.0.slug}" class="hover:text-gray-600">{product.categories.0.name}</a>
                 {/if}
             </nav>
 

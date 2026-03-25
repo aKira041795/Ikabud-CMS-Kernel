@@ -27,7 +27,7 @@ function ecPublicShop(): void
 
     // Categories for filter sidebar (product taxonomy)
     $categories = ecDb()->query(
-        "SELECT id, name, slug FROM cms_categories WHERE taxonomy = 'product' OR taxonomy IS NULL ORDER BY name ASC"
+        ecCmsCategorySelectSql('id, name, slug', 'name ASC')
     )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
 
     $totalPages = $perPage > 0 ? (int)ceil($productResult['total'] / $perPage) : 1;
@@ -108,6 +108,13 @@ function ecPublicProduct(): void
     if (!$product || $product['status'] !== 'published') {
         http_response_code(404);
         ecRender('modules/ecommerce/public/404.disyl', ['message' => 'Product not found']);
+        return;
+    }
+
+    if (function_exists('cmsPublicEntityView') && function_exists('moduleWithContext')) {
+        moduleWithContext('cms', static function () use ($slug): void {
+            cmsPublicEntityView(['type' => 'product', 'slug' => $slug]);
+        });
         return;
     }
 

@@ -32,9 +32,36 @@ function ecCtx(): \Ikabud\Kernel\Contracts\ModuleContext
     return $ctx;
 }
 
-function ecRender(string $template, array $context = []): string
+function ecRender(string $template, array $context = []): void
 {
-    return ecCtx()->render($template, $context);
+    echo ecCtx()->render($template, $context);
+}
+
+function ecHasCmsCategoryTaxonomy(): bool
+{
+    static $hasTaxonomy = null;
+    if ($hasTaxonomy !== null) {
+        return $hasTaxonomy;
+    }
+
+    try {
+        $row = ecDb()->query("SHOW COLUMNS FROM cms_categories LIKE 'taxonomy'")->fetch(\PDO::FETCH_ASSOC);
+        $hasTaxonomy = is_array($row) && !empty($row);
+    } catch (\Throwable $e) {
+        $hasTaxonomy = false;
+    }
+
+    return $hasTaxonomy;
+}
+
+function ecCmsCategorySelectSql(string $columns = 'id, name, slug', string $orderBy = 'name ASC'): string
+{
+    $sql = "SELECT {$columns} FROM cms_categories";
+    if (ecHasCmsCategoryTaxonomy()) {
+        $sql .= " WHERE taxonomy = 'product' OR taxonomy IS NULL";
+    }
+    $sql .= " ORDER BY {$orderBy}";
+    return $sql;
 }
 
 /**

@@ -13,7 +13,7 @@ function ecPublicCheckout(): void
 {
     $cart = ecCartGet();
     if (empty($cart['items'])) {
-        header('Location: /cart');
+        header('Location: /ecommerce/cart');
         exit;
     }
 
@@ -22,7 +22,7 @@ function ecPublicCheckout(): void
     $guestAllowed    = (bool)ecSettings('guest_checkout', true);
 
     if (!$isCustomer && !$guestAllowed) {
-        header('Location: /login?redirect=' . urlencode('/checkout'));
+        header('Location: /cms/login?redirect=' . urlencode('/ecommerce/checkout'));
         exit;
     }
 
@@ -36,7 +36,7 @@ function ecPublicCheckout(): void
         'is_customer'     => $isCustomer,
         'shipping_rates'  => $shippingRates,
         'payment_label'   => $paymentLabel,
-        'csrf_token'      => csrf_token(),
+        'csrf_token'      => app()->csrfToken(),
     ]);
 }
 
@@ -49,7 +49,7 @@ function ecPublicCheckoutProcess(): void
 {
     // All checkout logic lives in the API handler.
     // This POST route exists only for non-JS fallback; redirect to checkout GET.
-    header('Location: /checkout');
+    header('Location: /ecommerce/checkout');
     exit;
 }
 

@@ -48,7 +48,7 @@
                 <div class="flex gap-2">
                     <button type="submit" class="flex-1 px-4 py-2 bg-orange-600 text-white text-sm font-medium rounded-lg hover:bg-orange-700">Save</button>
                     {if product.id}
-                    <a href="{base_url}/shop/{product.slug}" target="_blank" class="px-3 py-2 border text-sm rounded-lg hover:bg-gray-50">View</a>
+                    <a href="{base_url}/cms/product/{product.slug}" target="_blank" class="px-3 py-2 border text-sm rounded-lg hover:bg-gray-50">View</a>
                     {/if}
                 </div>
             </div>

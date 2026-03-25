@@ -46,7 +46,7 @@
                         {ec_settings.currency_symbol | default:'$'}{o.total_amount}
                     </td>
                     <td class="px-4 py-3 text-right">
-                        <a href="{base_url}/my-orders/{o.id}" class="text-orange-600 hover:text-orange-700 text-xs font-medium">View →</a>
+                        <a href="{base_url}/ecommerce/my-orders/{o.id}" class="text-orange-600 hover:text-orange-700 text-xs font-medium">View →</a>
                     </td>
                 </tr>
                 {/foreach}

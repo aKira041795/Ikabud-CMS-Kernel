@@ -13,9 +13,9 @@
         <a href="{base_url}/ecommerce/shop" class="font-bold text-xl text-gray-900">Shop</a>
         <nav class="hidden md:flex items-center gap-6 text-sm">
             <a href="{base_url}/ecommerce/shop" class="text-gray-600 hover:text-gray-900">Products</a>
-            <a href="{base_url}/my-orders" class="text-gray-600 hover:text-gray-900">My Orders</a>
+            <a href="{base_url}/ecommerce/my-orders" class="text-gray-600 hover:text-gray-900">My Orders</a>
         </nav>
-        <a href="{base_url}/cart" class="relative inline-flex items-center gap-1.5 px-4 py-2 bg-orange-600 text-white text-sm font-medium rounded-lg hover:bg-orange-700">
+        <a href="{base_url}/ecommerce/cart" class="relative inline-flex items-center gap-1.5 px-4 py-2 bg-orange-600 text-white text-sm font-medium rounded-lg hover:bg-orange-700">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/></svg>
             Cart
             {if cart_count > 0}

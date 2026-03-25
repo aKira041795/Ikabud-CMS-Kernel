@@ -72,7 +72,7 @@ function ecAdminOrderDetail(): void
             $_SESSION['ec_message'] = ['type' => 'success', 'text' => 'Order marked as paid.'];
         }
 
-        header('Location: /admin/orders/' . $orderId);
+        header('Location: /ecommerce/admin/orders/' . $orderId);
         exit;
     }
 

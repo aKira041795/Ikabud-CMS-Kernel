@@ -45,6 +45,11 @@
     "capabilities": {
         "exposes": [
             {
+                "id": "cms.cart.add@1",
+                "priority": 50,
+                "modes": ["first"]
+            },
+            {
                 "id": "ecommerce.products.list@1",
                 "priority": 50,
                 "modes": ["first"],
@@ -97,6 +102,7 @@
         "depends": [],
         "policy": {
             "capabilities": {
+                "cms.cart.add@1":           { "allow_callers": ["cms", "ecommerce"] },
                 "ecommerce.products.list@1": { "allow_callers": ["ecommerce", "cms"] },
                 "ecommerce.products.get@1":  { "allow_callers": ["ecommerce", "cms"] },
                 "ecommerce.cart.get@1":      { "allow_callers": ["ecommerce"] },
