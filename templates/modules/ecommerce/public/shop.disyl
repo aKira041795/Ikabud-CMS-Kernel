@@ -1,0 +1,78 @@
+{extends "modules/ecommerce/layouts/public.disyl"}
+
+{block content}
+<div class="flex gap-8">
+    <!-- Sidebar: categories -->
+    {if categories | count > 0}
+    <aside class="w-44 shrink-0 hidden md:block">
+        <h3 class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-3">Categories</h3>
+        <nav class="space-y-1">
+            <a href="{base_url}/ecommerce/shop" class="block text-sm px-3 py-1.5 rounded hover:bg-gray-50 {if category_id == 0}font-semibold text-orange-600{else}text-gray-700{/if}">All Products</a>
+            {foreach categories as cat}
+            <a href="{base_url}/shop/category/{cat.slug}" class="block text-sm px-3 py-1.5 rounded hover:bg-gray-50 {if category_id == cat.id}font-semibold text-orange-600{else}text-gray-700{/if}">{cat.name}</a>
+            {/foreach}
+        </nav>
+    </aside>
+    {/if}
+
+    <!-- Main: product grid -->
+    <div class="flex-1">
+        <div class="flex items-center justify-between mb-5">
+            <h1 class="text-2xl font-bold text-gray-900">{page_title}</h1>
+            <form method="get" action="{base_url}/ecommerce/shop" class="flex gap-2">
+                <input type="text" name="search" value="{search}" placeholder="Search…"
+                       class="border border-gray-300 rounded-lg px-3 py-2 text-sm">
+                <button type="submit" class="px-4 py-2 bg-orange-600 text-white text-sm rounded-lg hover:bg-orange-700">Search</button>
+            </form>
+        </div>
+
+        {if total == 0}
+        <div class="text-center py-20 text-gray-400">
+            <p class="text-lg">No products found.</p>
+            <a href="{base_url}/ecommerce/shop" class="text-orange-600 text-sm mt-2 inline-block">Browse all →</a>
+        </div>
+        {/if}
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-6">
+            {foreach products as p}
+            <a href="{base_url}/shop/{p.slug}" class="group rounded-xl border border-gray-200 overflow-hidden hover:shadow-md transition-shadow no-underline bg-white">
+                {if p.featured_image}
+                <div class="aspect-square overflow-hidden bg-gray-100">
+                    <img src="{base_url}/{p.featured_image}" alt="{p.title}"
+                         class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300">
+                </div>
+                {else}
+                <div class="aspect-square bg-gray-100 flex items-center justify-center">
+                    <svg class="w-12 h-12 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+                </div>
+                {/if}
+                <div class="p-4">
+                    <h3 class="font-medium text-gray-900 truncate text-sm">{p.title}</h3>
+                    {if p.excerpt}<p class="text-xs text-gray-400 mt-1 line-clamp-2">{p.excerpt}</p>{/if}
+                    <div class="mt-2 flex items-center gap-2">
+                        {if p.pricing.on_sale}
+                        <span class="font-bold text-orange-600">{p.pricing.formatted}</span>
+                        <span class="text-xs text-gray-400 line-through">{p.pricing.regular_fmt}</span>
+                        {else}
+                        <span class="font-bold text-gray-900">{p.pricing.formatted | default:'—'}</span>
+                        {/if}
+                    </div>
+                    {if p.inventory.track_stock && !p.inventory.in_stock}
+                    <div class="mt-1 text-xs text-red-500 font-medium">Out of stock</div>
+                    {/if}
+                </div>
+            </a>
+            {/foreach}
+        </div>
+
+        <!-- Pagination -->
+        {if total_pages > 1}
+        <div class="mt-10 flex items-center justify-center gap-2">
+            {if page > 1}<a href="?page={page - 1}" class="px-4 py-2 border rounded-lg text-sm hover:bg-gray-50">← Prev</a>{/if}
+            <span class="px-4 py-2 text-sm text-gray-500">Page {page} of {total_pages}</span>
+            {if page < total_pages}<a href="?page={page + 1}" class="px-4 py-2 border rounded-lg text-sm hover:bg-gray-50">Next →</a>{/if}
+        </div>
+        {/if}
+    </div>
+</div>
+{/block}

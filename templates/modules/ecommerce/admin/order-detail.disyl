@@ -1,0 +1,143 @@
+{extends "modules/ecommerce/layouts/admin.disyl"}
+
+{block content}
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <div class="lg:col-span-2 space-y-4">
+        <!-- Order header -->
+        <div class="bg-white rounded-lg border border-gray-200 p-5">
+            <div class="flex items-center justify-between mb-4">
+                <div>
+                    <h2 class="text-lg font-bold text-gray-900">{order.order_number}</h2>
+                    <p class="text-sm text-gray-400">{order.created_at}</p>
+                </div>
+                <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold
+                    {if order.status == 'pending'}bg-amber-50 text-amber-700
+                    {elseif order.status == 'processing'}bg-blue-50 text-blue-700
+                    {elseif order.status == 'shipped'}bg-purple-50 text-purple-700
+                    {elseif order.status == 'delivered'}bg-emerald-50 text-emerald-700
+                    {else}bg-gray-100 text-gray-600{/if}">{order.status}</span>
+            </div>
+
+            <!-- Items -->
+            <table class="w-full text-sm">
+                <thead class="border-b border-gray-200">
+                    <tr class="text-left text-xs text-gray-500 uppercase tracking-wider">
+                        <th class="pb-2">Product</th>
+                        <th class="pb-2 text-right">Unit Price</th>
+                        <th class="pb-2 text-center">Qty</th>
+                        <th class="pb-2 text-right">Line Total</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100">
+                    {foreach order.items as item}
+                    <tr>
+                        <td class="py-2">
+                            <div class="font-medium text-gray-900">{item.product_title}</div>
+                            {if item.sku}<div class="text-xs text-gray-400">{item.sku}</div>{/if}
+                            {if item.variant_label}<div class="text-xs text-gray-500">{item.variant_label}</div>{/if}
+                        </td>
+                        <td class="py-2 text-right text-gray-700">{currency_symbol}{item.unit_price}</td>
+                        <td class="py-2 text-center text-gray-700">{item.qty}</td>
+                        <td class="py-2 text-right font-semibold text-gray-900">{currency_symbol}{item.line_total}</td>
+                    </tr>
+                    {/foreach}
+                </tbody>
+            </table>
+
+            <!-- Totals -->
+            <div class="mt-4 pt-4 border-t border-gray-200 space-y-1 text-sm">
+                <div class="flex justify-between text-gray-600"><span>Subtotal</span><span>{currency_symbol}{order.subtotal}</span></div>
+                {if order.discount_amount > 0}
+                <div class="flex justify-between text-emerald-600"><span>Discount</span><span>−{currency_symbol}{order.discount_amount}</span></div>
+                {/if}
+                {if order.tax_amount > 0}
+                <div class="flex justify-between text-gray-600"><span>Tax</span><span>{currency_symbol}{order.tax_amount}</span></div>
+                {/if}
+                {if order.shipping_amount > 0}
+                <div class="flex justify-between text-gray-600"><span>Shipping</span><span>{currency_symbol}{order.shipping_amount}</span></div>
+                {/if}
+                <div class="flex justify-between font-bold text-gray-900 text-base pt-1 border-t border-gray-200">
+                    <span>Total</span><span>{currency_symbol}{order.total}</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Addresses -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="bg-white rounded-lg border border-gray-200 p-5">
+                <h3 class="text-sm font-semibold text-gray-700 mb-3">Billing Address</h3>
+                <address class="text-sm text-gray-600 not-italic space-y-0.5">
+                    <div class="font-medium">{order.meta.billing_first_name} {order.meta.billing_last_name}</div>
+                    <div>{order.meta.billing_email}</div>
+                    <div>{order.meta.billing_address_line1}</div>
+                    {if order.meta.billing_address_line2}<div>{order.meta.billing_address_line2}</div>{/if}
+                    <div>{order.meta.billing_city}, {order.meta.billing_state} {order.meta.billing_postal_code}</div>
+                    <div>{order.meta.billing_country}</div>
+                    {if order.meta.billing_phone}<div>{order.meta.billing_phone}</div>{/if}
+                </address>
+            </div>
+            <div class="bg-white rounded-lg border border-gray-200 p-5">
+                <h3 class="text-sm font-semibold text-gray-700 mb-3">Shipping Address</h3>
+                <address class="text-sm text-gray-600 not-italic space-y-0.5">
+                    <div class="font-medium">{order.meta.shipping_first_name | default:order.meta.billing_first_name} {order.meta.shipping_last_name | default:order.meta.billing_last_name}</div>
+                    <div>{order.meta.shipping_address_line1 | default:order.meta.billing_address_line1}</div>
+                    {if order.meta.shipping_address_line2}<div>{order.meta.shipping_address_line2}</div>{/if}
+                    <div>{order.meta.shipping_city | default:order.meta.billing_city}, {order.meta.shipping_state | default:order.meta.billing_state} {order.meta.shipping_postal_code | default:order.meta.billing_postal_code}</div>
+                    <div>{order.meta.shipping_country | default:order.meta.billing_country}</div>
+                </address>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sidebar -->
+    <div class="space-y-4">
+        <!-- Update status -->
+        {if allowed_statuses | count > 0}
+        <div class="bg-white rounded-lg border border-gray-200 p-5">
+            <h3 class="text-sm font-semibold text-gray-700 mb-3">Update Status</h3>
+            <form method="post" action="" class="space-y-3">
+                <input type="hidden" name="_csrf" value="{csrf_token}">
+                <input type="hidden" name="action" value="update_status">
+                <select name="status" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
+                    {foreach allowed_statuses as s}
+                    <option value="{s}">{s}</option>
+                    {/foreach}
+                </select>
+                <input type="text" name="note" placeholder="Note (optional)"
+                       class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
+                <button type="submit" class="w-full px-4 py-2 bg-orange-600 text-white text-sm font-medium rounded-lg hover:bg-orange-700">Update Status</button>
+            </form>
+        </div>
+        {/if}
+
+        <!-- Payment -->
+        <div class="bg-white rounded-lg border border-gray-200 p-5">
+            <h3 class="text-sm font-semibold text-gray-700 mb-3">Payment</h3>
+            <div class="text-sm text-gray-600 space-y-1">
+                <div class="flex justify-between">
+                    <span>Status</span>
+                    <span class="font-semibold {if order.payment_status == 'paid'}text-emerald-600{else}text-amber-600{/if}">{order.payment_status}</span>
+                </div>
+                {if order.payment}
+                <div class="flex justify-between"><span>Method</span><span>{order.payment.gateway}</span></div>
+                {/if}
+            </div>
+            {if order.payment_status == 'pending'}
+            <form method="post" action="" class="mt-3">
+                <input type="hidden" name="_csrf" value="{csrf_token}">
+                <input type="hidden" name="action" value="mark_paid">
+                <button type="submit" class="w-full px-4 py-2 bg-emerald-600 text-white text-sm font-medium rounded-lg hover:bg-emerald-700">Mark as Paid</button>
+            </form>
+            {/if}
+        </div>
+
+        <!-- Customer note -->
+        {if order.customer_note}
+        <div class="bg-white rounded-lg border border-gray-200 p-5">
+            <h3 class="text-sm font-semibold text-gray-700 mb-2">Customer Note</h3>
+            <p class="text-sm text-gray-600">{order.customer_note}</p>
+        </div>
+        {/if}
+    </div>
+</div>
+{/block}

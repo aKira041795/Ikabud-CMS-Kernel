@@ -1,0 +1,215 @@
+{
+    "id": "ecommerce",
+    "name": "Ecommerce",
+    "version": "1.0.0",
+    "description": "Full-featured ecommerce module — products, cart, checkout, orders, POS, inventory, categories, coupons, and sales reports.",
+    "author": "Noah C. Omamalin",
+    "owns_tables": [
+        "ec_carts",
+        "ec_cart_items",
+        "ec_orders",
+        "ec_order_items",
+        "ec_order_meta",
+        "ec_coupons",
+        "ec_payment_transactions",
+        "ec_product_variants",
+        "ec_wishlist",
+        "ec_pos_sessions",
+        "ec_shipping_zones",
+        "ec_shipping_rates",
+        "ec_customer_addresses"
+    ],
+    "reads_tables": [
+        "cms_content",
+        "cms_content_meta",
+        "cms_categories",
+        "cms_content_categories",
+        "cms_tags",
+        "cms_content_tags",
+        "cms_entity_capabilities",
+        "cms_media",
+        "cms_users",
+        "audit_logs",
+        "rate_limits"
+    ],
+    "migrations": [
+        "modules/ecommerce/database/migrations/001_ec_core_schema.sql",
+        "modules/ecommerce/database/migrations/002_ec_coupons.sql",
+        "modules/ecommerce/database/migrations/003_ec_payment.sql",
+        "modules/ecommerce/database/migrations/004_ec_pos.sql",
+        "modules/ecommerce/database/migrations/005_ec_shipping.sql",
+        "modules/ecommerce/database/migrations/006_ec_variants_wishlist.sql",
+        "modules/ecommerce/database/migrations/007_ec_customers.sql",
+        "modules/ecommerce/database/migrations/008_ec_cms_categories_taxonomy.sql"
+    ],
+    "capabilities": {
+        "exposes": [
+            {
+                "id": "ecommerce.products.list@1",
+                "priority": 50,
+                "modes": ["first"],
+                "schema": {
+                    "type": "object",
+                    "properties": {
+                        "category_id": { "type": "integer" },
+                        "search":      { "type": "string" },
+                        "limit":       { "type": "integer" },
+                        "offset":      { "type": "integer" },
+                        "status":      { "type": "string" }
+                    }
+                }
+            },
+            {
+                "id": "ecommerce.products.get@1",
+                "priority": 50,
+                "modes": ["first"],
+                "schema": {
+                    "type": "object",
+                    "required": ["id"],
+                    "properties": {
+                        "id": { "type": "integer" }
+                    }
+                }
+            },
+            {
+                "id": "ecommerce.cart.get@1",
+                "priority": 50,
+                "modes": ["first"]
+            },
+            {
+                "id": "ecommerce.orders.create@1",
+                "priority": 50,
+                "modes": ["first"]
+            },
+            {
+                "id": "ecommerce.orders.get@1",
+                "priority": 50,
+                "modes": ["first"],
+                "schema": {
+                    "type": "object",
+                    "required": ["id"],
+                    "properties": {
+                        "id": { "type": "integer" }
+                    }
+                }
+            }
+        ],
+        "depends": [],
+        "policy": {
+            "capabilities": {
+                "ecommerce.products.list@1": { "allow_callers": ["ecommerce", "cms"] },
+                "ecommerce.products.get@1":  { "allow_callers": ["ecommerce", "cms"] },
+                "ecommerce.cart.get@1":      { "allow_callers": ["ecommerce"] },
+                "ecommerce.orders.create@1": { "allow_callers": ["ecommerce"] },
+                "ecommerce.orders.get@1":    { "allow_callers": ["ecommerce", "cms"] }
+            }
+        }
+    },
+    "settings_fields": [
+        {
+            "key": "currency",
+            "type": "select",
+            "label": "Currency",
+            "options": ["USD", "PHP", "EUR", "GBP", "AUD", "CAD", "SGD"],
+            "default": "USD",
+            "description": "Default currency for all prices."
+        },
+        {
+            "key": "currency_symbol",
+            "type": "text",
+            "label": "Currency Symbol",
+            "default": "$",
+            "description": "Symbol shown before prices."
+        },
+        {
+            "key": "tax_rate",
+            "type": "number",
+            "label": "Tax Rate (%)",
+            "default": "0",
+            "description": "Default tax percentage applied at checkout."
+        },
+        {
+            "key": "tax_inclusive",
+            "type": "checkbox",
+            "label": "Prices are tax-inclusive",
+            "default": false,
+            "description": "If checked, displayed prices already include tax."
+        },
+        {
+            "key": "order_number_prefix",
+            "type": "text",
+            "label": "Order Number Prefix",
+            "default": "EC",
+            "description": "Prefix for order numbers, e.g. EC-2026-0001."
+        },
+        {
+            "key": "low_stock_threshold",
+            "type": "number",
+            "label": "Low Stock Threshold",
+            "default": "5",
+            "description": "Warn when product stock falls below this number."
+        },
+        {
+            "key": "guest_checkout",
+            "type": "checkbox",
+            "label": "Allow Guest Checkout",
+            "default": true,
+            "description": "Allow customers to check out without creating an account."
+        },
+        {
+            "key": "payment_method_label",
+            "type": "text",
+            "label": "Payment Method Label",
+            "default": "Pay on Delivery",
+            "description": "Label shown to customers at checkout for the manual payment method."
+        },
+        {
+            "key": "payment_instructions",
+            "type": "textarea",
+            "label": "Payment Instructions",
+            "default": "",
+            "description": "Instructions shown after placing order (e.g. bank account details)."
+        },
+        {
+            "key": "shop_page_title",
+            "type": "text",
+            "label": "Shop Page Title",
+            "default": "Shop",
+            "description": "Heading displayed on the public shop page."
+        },
+        {
+            "key": "products_per_page",
+            "type": "number",
+            "label": "Products Per Page",
+            "default": "12",
+            "description": "How many products to show per page in the shop."
+        }
+    ],
+    "events": [
+        {
+            "key": "ecommerce.order.created",
+            "description": "Fired when a new order is placed",
+            "available_vars": ["order_id", "order_number", "customer_email", "total", "source"]
+        },
+        {
+            "key": "ecommerce.order.paid",
+            "description": "Fired when an order is marked as paid",
+            "available_vars": ["order_id", "order_number", "total"]
+        },
+        {
+            "key": "ecommerce.order.shipped",
+            "description": "Fired when an order is marked as shipped",
+            "available_vars": ["order_id", "order_number", "tracking_number"]
+        },
+        {
+            "key": "ecommerce.order.cancelled",
+            "description": "Fired when an order is cancelled",
+            "available_vars": ["order_id", "order_number"]
+        },
+        {
+            "key": "ecommerce.product.out_of_stock",
+            "description": "Fired when a product stock reaches zero",
+            "available_vars": ["product_id", "product_title", "sku"]
+        }
+    ]
+}

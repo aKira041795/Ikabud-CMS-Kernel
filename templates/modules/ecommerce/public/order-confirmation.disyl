@@ -1,0 +1,83 @@
+{extends "modules/ecommerce/layouts/public.disyl"}
+
+{block content}
+<div class="max-w-2xl mx-auto text-center py-10">
+    <div class="mb-6 flex items-center justify-center">
+        <div class="w-16 h-16 rounded-full bg-emerald-100 flex items-center justify-center">
+            <svg class="w-8 h-8 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+        </div>
+    </div>
+    <h1 class="text-2xl font-bold text-gray-900">Order placed — thank you!</h1>
+    <p class="text-gray-500 mt-2">
+        Order <span class="font-semibold text-gray-900">#{order.order_number}</span> has been received.
+        Confirmation sent to <strong>{order.billing_email}</strong>.
+    </p>
+
+    <!-- Payment instructions -->
+    {if payment_label}
+    <div class="mt-6 rounded-xl border border-blue-200 bg-blue-50 p-5 text-left text-sm text-blue-900">
+        <div class="font-semibold mb-1">Next step: Payment</div>
+        <p>{payment_label}</p>
+    </div>
+    {/if}
+
+    <!-- Order details -->
+    <div class="mt-8 bg-white rounded-xl border border-gray-200 text-left overflow-hidden">
+        <div class="px-5 py-4 border-b border-gray-200">
+            <h2 class="font-semibold text-gray-900">Order Details</h2>
+        </div>
+        <table class="w-full text-sm">
+            <tbody class="divide-y divide-gray-100">
+                {foreach order.items as item}
+                <tr class="px-5">
+                    <td class="px-5 py-3 text-gray-700">{item.product_title}</td>
+                    <td class="px-5 py-3 text-gray-400 text-center">× {item.qty}</td>
+                    <td class="px-5 py-3 text-gray-900 font-medium text-right">{order.currency_symbol | default:'$'}{item.line_total}</td>
+                </tr>
+                {/foreach}
+            </tbody>
+            <tfoot class="bg-gray-50">
+                {if order.discount_amount > 0}
+                <tr>
+                    <td colspan="2" class="px-5 py-2 text-sm text-emerald-700">Discount</td>
+                    <td class="px-5 py-2 text-sm text-emerald-700 text-right">−{order.currency_symbol | default:'$'}{order.discount_amount}</td>
+                </tr>
+                {/if}
+                {if order.tax_amount > 0}
+                <tr>
+                    <td colspan="2" class="px-5 py-2 text-sm text-gray-600">Tax</td>
+                    <td class="px-5 py-2 text-sm text-gray-600 text-right">{order.currency_symbol | default:'$'}{order.tax_amount}</td>
+                </tr>
+                {/if}
+                {if order.shipping_amount > 0}
+                <tr>
+                    <td colspan="2" class="px-5 py-2 text-sm text-gray-600">Shipping</td>
+                    <td class="px-5 py-2 text-sm text-gray-600 text-right">{order.currency_symbol | default:'$'}{order.shipping_amount}</td>
+                </tr>
+                {/if}
+                <tr class="border-t border-gray-200">
+                    <td colspan="2" class="px-5 py-3 font-bold text-gray-900">Total</td>
+                    <td class="px-5 py-3 font-bold text-gray-900 text-right">{order.currency_symbol | default:'$'}{order.total_amount}</td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+
+    <!-- Billing address -->
+    <div class="mt-4 bg-white rounded-xl border border-gray-200 p-5 text-left text-sm text-gray-700">
+        <div class="font-semibold text-gray-900 mb-2">Shipping to</div>
+        <div>{order.billing.first_name} {order.billing.last_name}</div>
+        <div>{order.billing.address_line1}</div>
+        {if order.billing.address_line2}<div>{order.billing.address_line2}</div>{/if}
+        <div>{order.billing.city}{if order.billing.state}, {order.billing.state}{/if} {order.billing.postal_code}</div>
+        {if order.billing.country}<div>{order.billing.country}</div>{/if}
+    </div>
+
+    <div class="mt-6 flex items-center justify-center gap-4">
+        {if is_logged_in}
+        <a href="{base_url}/my-orders" class="px-6 py-2.5 bg-orange-600 text-white text-sm font-medium rounded-lg hover:bg-orange-700">View My Orders</a>
+        {/if}
+        <a href="{base_url}/ecommerce/shop" class="px-6 py-2.5 border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50">Continue Shopping</a>
+    </div>
+</div>
+{/block}

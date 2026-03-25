@@ -1,0 +1,83 @@
+{extends "modules/ecommerce/layouts/admin.disyl"}
+
+{block content}
+<div class="max-w-2xl">
+    <form method="post" action="" class="space-y-5">
+        <input type="hidden" name="_csrf" value="{csrf_token}">
+        <div class="bg-white rounded-lg border border-gray-200 p-5 space-y-4">
+            <h3 class="font-semibold text-gray-700">Store</h3>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Currency Code</label>
+                    <input type="text" name="currency" value="{ec_settings.currency | default:'USD'}" placeholder="USD"
+                           class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono focus:border-orange-500 outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Currency Symbol</label>
+                    <input type="text" name="currency_symbol" value="{ec_settings.currency_symbol | default:'$'}"
+                           class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none">
+                </div>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Tax Rate (%)</label>
+                    <input type="number" name="tax_rate" step="0.01" min="0" max="100"
+                           value="{ec_settings.tax_rate | default:'0'}"
+                           class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none">
+                </div>
+                <div class="flex items-center gap-2 mt-5">
+                    <input type="checkbox" name="tax_inclusive" id="tax_inclusive" value="1"
+                           {if ec_settings.tax_inclusive == '1'}checked{/if} class="rounded">
+                    <label for="tax_inclusive" class="text-sm font-medium text-gray-700">Tax inclusive prices</label>
+                </div>
+            </div>
+        </div>
+        <div class="bg-white rounded-lg border border-gray-200 p-5 space-y-4">
+            <h3 class="font-semibold text-gray-700">Orders</h3>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Order Number Prefix</label>
+                    <input type="text" name="order_number_prefix" value="{ec_settings.order_number_prefix | default:'EC'}"
+                           class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono focus:border-orange-500 outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Low Stock Threshold</label>
+                    <input type="number" name="low_stock_threshold" min="0"
+                           value="{ec_settings.low_stock_threshold | default:'5'}"
+                           class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none">
+                </div>
+            </div>
+            <div class="flex items-center gap-2">
+                <input type="checkbox" name="guest_checkout" id="guest_checkout" value="1"
+                       {if ec_settings.guest_checkout != '0'}checked{/if} class="rounded">
+                <label for="guest_checkout" class="text-sm font-medium text-gray-700">Allow guest checkout</label>
+            </div>
+        </div>
+        <div class="bg-white rounded-lg border border-gray-200 p-5 space-y-4">
+            <h3 class="font-semibold text-gray-700">Shop</h3>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Shop Page Title</label>
+                    <input type="text" name="shop_page_title" value="{ec_settings.shop_page_title | default:'Shop'}"
+                           class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Products Per Page</label>
+                    <input type="number" name="products_per_page" min="1" max="100"
+                           value="{ec_settings.products_per_page | default:'12'}"
+                           class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none">
+                </div>
+            </div>
+            <div>
+                <label class="block text-xs font-semibold text-gray-600 mb-1">Payment Method Label</label>
+                <input type="text" name="payment_method_label"
+                       value="{ec_settings.payment_method_label | default:'Cash on Delivery / Bank Transfer'}"
+                       class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none">
+            </div>
+        </div>
+        <div>
+            <button type="submit" class="px-6 py-2 bg-orange-600 text-white text-sm font-medium rounded-lg hover:bg-orange-700">Save Settings</button>
+        </div>
+    </form>
+</div>
+{/block}

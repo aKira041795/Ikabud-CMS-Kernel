@@ -1,0 +1,110 @@
+{extends "modules/ecommerce/layouts/public.disyl"}
+
+{block content}
+<div class="max-w-3xl mx-auto">
+    <h1 class="text-2xl font-bold text-gray-900 mb-6">Your Cart</h1>
+
+    {if cart.items | count == 0}
+    <div class="text-center py-20">
+        <svg class="w-16 h-16 text-gray-200 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/></svg>
+        <p class="text-gray-500">Your cart is empty.</p>
+        <a href="{base_url}/ecommerce/shop" class="mt-4 inline-block text-orange-600 hover:text-orange-700 font-medium">Continue Shopping →</a>
+    </div>
+    {else}
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <!-- Cart items -->
+        <div class="lg:col-span-2 space-y-3">
+            {foreach cart.items as item}
+            <div class="bg-white rounded-xl border border-gray-200 p-4 flex items-center gap-4">
+                <div class="flex-1 min-w-0">
+                    <div class="font-medium text-gray-900">{item.product_title}</div>
+                    {if item.sku}<div class="text-xs text-gray-400">{item.sku}</div>{/if}
+                    <div class="text-sm text-orange-600 font-semibold mt-1">{ec_settings.currency_symbol | default:'$'}{item.price_snapshot} each</div>
+                </div>
+                <div class="flex items-center gap-2">
+                    <form method="post" action="{base_url}/api/v1/ecommerce/cart/update">
+                        <input type="hidden" name="item_index" value="{loop.index}">
+                        <input type="number" name="qty" value="{item.qty}" min="0" style="width:4rem"
+                               class="border border-gray-300 rounded px-2 py-1 text-sm text-center"
+                               onchange="updateCartItem({loop.index}, this.value)">
+                    </form>
+                    <button onclick="removeCartItem({loop.index})" class="text-sm text-red-500 hover:text-red-700 ml-1">Remove</button>
+                </div>
+                <div class="text-sm font-bold text-gray-900 pl-2">{ec_settings.currency_symbol | default:'$'}{item.qty * item.price_snapshot}</div>
+            </div>
+            {/foreach}
+
+            <!-- Coupon -->
+            <div class="bg-white rounded-xl border border-gray-200 p-4">
+                <form id="coupon-form" class="flex gap-2">
+                    <input type="text" id="coupon-code" placeholder="Coupon code" value="{cart.coupon_code}"
+                           class="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none">
+                    <button type="button" onclick="applyCoupon()" class="px-4 py-2 bg-gray-900 text-white text-sm rounded-lg hover:bg-gray-800">Apply</button>
+                </form>
+                {if cart.totals.coupon}
+                <div class="mt-2 text-sm text-emerald-600 font-medium">
+                    Coupon "{cart.coupon_code}" applied — saving {cart.totals.discount_fmt}
+                </div>
+                {/if}
+            </div>
+        </div>
+
+        <!-- Totals & checkout -->
+        <div>
+            <div class="bg-white rounded-xl border border-gray-200 p-5 space-y-3">
+                <h2 class="font-semibold text-gray-900">Order Summary</h2>
+                <div class="space-y-1.5 text-sm">
+                    <div class="flex justify-between text-gray-600"><span>Subtotal</span><span>{cart.totals.subtotal_fmt}</span></div>
+                    {if cart.totals.discount > 0}
+                    <div class="flex justify-between text-emerald-600"><span>Discount</span><span>−{cart.totals.discount_fmt}</span></div>
+                    {/if}
+                    {if cart.totals.tax > 0}
+                    <div class="flex justify-between text-gray-600"><span>Tax ({cart.totals.tax_rate}%)</span><span>{cart.totals.tax_fmt}</span></div>
+                    {/if}
+                    <div class="flex justify-between font-bold text-gray-900 text-base border-t border-gray-200 pt-2">
+                        <span>Total</span><span>{cart.totals.total_fmt}</span>
+                    </div>
+                </div>
+                <a href="{base_url}/checkout"
+                   class="block w-full text-center py-3 bg-orange-600 text-white font-medium rounded-lg hover:bg-orange-700">
+                    Proceed to Checkout
+                </a>
+                <a href="{base_url}/ecommerce/shop" class="block w-full text-center py-2 border text-sm rounded-lg hover:bg-gray-50 text-gray-700">
+                    Continue Shopping
+                </a>
+            </div>
+        </div>
+    </div>
+
+    {/if}
+</div>
+
+<script>
+async function updateCartItem(idx, qty) {
+    await fetch('{base_url}/api/v1/ecommerce/cart/update', {
+        method: 'POST', headers: {'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest'},
+        body: JSON.stringify({ item_index: idx, qty: parseInt(qty) }),
+    });
+    location.reload();
+}
+
+async function removeCartItem(idx) {
+    await fetch('{base_url}/api/v1/ecommerce/cart/remove', {
+        method: 'POST', headers: {'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest'},
+        body: JSON.stringify({ item_index: idx }),
+    });
+    location.reload();
+}
+
+async function applyCoupon() {
+    const code = document.getElementById('coupon-code').value;
+    const res = await fetch('{base_url}/api/v1/ecommerce/cart/coupon', {
+        method: 'POST', headers: {'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest'},
+        body: JSON.stringify({ code }),
+    });
+    const data = await res.json();
+    if (data.ok) { location.reload(); } else { alert(data.error || 'Invalid coupon'); }
+}
+</script>
+{/block}

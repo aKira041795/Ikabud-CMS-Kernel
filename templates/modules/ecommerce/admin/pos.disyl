@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Point of Sale</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script defer src="https://unpkg.com/alpinejs@3.14.3/dist/cdn.min.js"></script>
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <style>[x-cloak]{display:none !important;}</style>
+</head>
+<body class="bg-gray-900 text-white h-screen overflow-hidden"
+      x-data="posApp()" x-init="init()">
+
+<div class="flex h-full">
+    <!-- Left: Product search & list -->
+    <div class="flex-1 flex flex-col border-r border-gray-700">
+        <div class="p-4 border-b border-gray-700">
+            <div class="flex items-center gap-3">
+                <span class="text-orange-400 font-bold text-lg">POS</span>
+                <input type="text" x-model="searchQuery" @input.debounce.300ms="searchProducts()"
+                       placeholder="Search products or SKU…"
+                       class="flex-1 bg-gray-800 border border-gray-600 rounded-lg px-4 py-2 text-sm text-white placeholder-gray-400 focus:border-orange-500 outline-none">
+            </div>
+        </div>
+
+        <!-- Product grid -->
+        <div class="flex-1 overflow-y-auto p-4 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 content-start">
+            <template x-for="product in products" :key="product.id">
+                <button @click="addToCart(product)"
+                        :disabled="product.inventory.track_stock && !product.inventory.in_stock"
+                        class="bg-gray-800 rounded-lg p-3 text-left hover:bg-gray-700 transition-colors border border-gray-700 hover:border-orange-500 disabled:opacity-40 disabled:cursor-not-allowed">
+                    <div class="font-medium text-sm text-white truncate" x-text="product.title"></div>
+                    <div class="text-xs text-gray-400 mt-0.5" x-text="product.inventory.sku || ''"></div>
+                    <div class="mt-2 font-bold text-orange-400" x-text="product.pricing.formatted || '—'"></div>
+                    <div class="text-xs mt-0.5" :class="product.inventory.in_stock ? 'text-emerald-400' : 'text-red-400'"
+                         x-text="product.inventory.track_stock ? (product.inventory.in_stock ? product.inventory.stock_qty + ' in stock' : 'Out of stock') : 'In stock'"></div>
+                </button>
+            </template>
+            <template x-if="products.length === 0 && searchQuery !== ''">
+                <div class="col-span-full text-center text-gray-500 py-10 text-sm">No products found</div>
+            </template>
+        </div>
+    </div>
+
+    <!-- Right: Cart & checkout -->
+    <div class="w-80 xl:w-96 flex flex-col bg-gray-800">
+        <div class="p-4 border-b border-gray-700 font-semibold text-sm text-gray-300">Cart</div>
+
+        <!-- Cart items -->
+        <div class="flex-1 overflow-y-auto">
+            <template x-if="cart.length === 0">
+                <div class="p-6 text-center text-gray-500 text-sm">No items. Click a product to add.</div>
+            </template>
+            <template x-for="(item, idx) in cart" :key="idx">
+                <div class="flex items-center gap-3 px-4 py-3 border-b border-gray-700">
+                    <div class="flex-1 min-w-0">
+                        <div class="text-sm font-medium text-white truncate" x-text="item.product_title"></div>
+                        <div class="text-xs text-orange-400" x-text="'$' + item.price_snapshot.toFixed(2) + ' each'"></div>
+                    </div>
+                    <div class="flex items-center gap-1 shrink-0">
+                        <button @click="decQty(idx)" class="w-6 h-6 rounded bg-gray-700 hover:bg-gray-600 text-white text-sm font-bold flex items-center justify-center">−</button>
+                        <span class="text-sm w-6 text-center" x-text="item.qty"></span>
+                        <button @click="incQty(idx)" class="w-6 h-6 rounded bg-gray-700 hover:bg-gray-600 text-white text-sm font-bold flex items-center justify-center">+</button>
+                        <button @click="removeItem(idx)" class="ml-1 w-6 h-6 rounded bg-red-800/50 hover:bg-red-700 text-red-300 text-sm flex items-center justify-center">×</button>
+                    </div>
+                </div>
+            </template>
+        </div>
+
+        <!-- Totals & checkout -->
+        <div class="p-4 border-t border-gray-700 space-y-3">
+            <div class="space-y-1 text-sm">
+                <div class="flex justify-between text-gray-400"><span>Subtotal</span><span x-text="'$' + subtotal.toFixed(2)"></span></div>
+                <div class="flex justify-between font-bold text-white text-lg"><span>Total</span><span x-text="'$' + subtotal.toFixed(2)"></span></div>
+            </div>
+            <div>
+                <label class="block text-xs font-semibold text-gray-400 mb-1">Cash Tendered</label>
+                <input type="number" x-model.number="tender" step="0.01" min="0" placeholder="0.00"
+                       class="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white focus:border-orange-500 outline-none">
+            </div>
+            <div x-show="tender > 0 && tender >= subtotal" class="text-sm text-emerald-400 font-semibold text-center">
+                Change: <span x-text="'$' + (tender - subtotal).toFixed(2)"></span>
+            </div>
+            <button @click="completeSale()" :disabled="cart.length === 0 || submitting"
+                    class="w-full py-3 bg-orange-600 text-white font-bold rounded-lg hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed">
+                <span x-show="!submitting">Complete Sale</span>
+                <span x-show="submitting" x-cloak>Processing…</span>
+            </button>
+            <button @click="clearCart()" :disabled="cart.length === 0"
+                    class="w-full py-2 text-xs text-gray-400 hover:text-gray-200 disabled:opacity-30">Clear Cart</button>
+        </div>
+    </div>
+</div>
+
+<!-- Receipt modal -->
+<div x-show="receipt" x-cloak class="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+    <div class="bg-white rounded-xl shadow-2xl w-full max-w-sm p-6 text-gray-900" @click.stop>
+        <div class="text-center mb-4">
+            <svg class="w-12 h-12 text-emerald-500 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            <h2 class="text-xl font-bold">Sale Complete</h2>
+            <p class="text-sm text-gray-500" x-text="receipt ? receipt.order_number : ''"></p>
+        </div>
+        <div class="text-center space-y-1 text-sm mb-4">
+            <div>Total: <strong x-text="receipt ? '$' + receipt.total.toFixed(2) : ''"></strong></div>
+            <div x-show="receipt && receipt.change > 0" class="text-emerald-600 font-semibold">
+                Change: <span x-text="receipt ? '$' + receipt.change.toFixed(2) : ''"></span>
+            </div>
+        </div>
+        <button @click="receipt = null; clearCart()" class="w-full py-2 bg-orange-600 text-white font-medium rounded-lg hover:bg-orange-700">New Sale</button>
+    </div>
+</div>
+
+{block scripts}{/block}
+<script>
+function posApp() {
+    return {
+        products: [],
+        cart: [],
+        tender: 0,
+        searchQuery: '',
+        submitting: false,
+        receipt: null,
+        csrfToken: '{csrf_token}',
+
+        get subtotal() {
+            return this.cart.reduce((s, i) => s + i.price_snapshot * i.qty, 0);
+        },
+
+        async init() {
+            await this.searchProducts();
+        },
+
+        async searchProducts() {
+            const url = '{base_url}/api/v1/ecommerce/pos/products?search=' + encodeURIComponent(this.searchQuery);
+            const res = await fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+            const data = await res.json();
+            this.products = data.products || [];
+        },
+
+        addToCart(product) {
+            const existing = this.cart.find(i => i.product_id === product.id);
+            if (existing) {
+                existing.qty++;
+            } else {
+                this.cart.push({
+                    product_id: product.id,
+                    product_title: product.title,
+                    sku: product.inventory.sku || '',
+                    price_snapshot: product.pricing.price || 0,
+                    qty: 1,
+                    variant_id: null,
+                });
+            }
+        },
+
+        incQty(idx) { this.cart[idx].qty++; },
+        decQty(idx) { if (this.cart[idx].qty > 1) { this.cart[idx].qty--; } else { this.removeItem(idx); } },
+        removeItem(idx) { this.cart.splice(idx, 1); },
+        clearCart() { this.cart = []; this.tender = 0; },
+
+        async completeSale() {
+            if (!this.cart.length) return;
+            this.submitting = true;
+            try {
+                const res = await fetch('{base_url}/api/v1/ecommerce/pos/transaction', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-Token': this.csrfToken,
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                    body: JSON.stringify({
+                        items: this.cart,
+                        tender_amount: this.tender || this.subtotal,
+                    }),
+                });
+                const data = await res.json();
+                if (data.ok) {
+                    this.receipt = data;
+                } else {
+                    alert('Sale failed: ' + (data.error || 'Unknown error'));
+                }
+            } catch (e) {
+                alert('Network error. Please try again.');
+            } finally {
+                this.submitting = false;
+            }
+        },
+    };
+}
+</script>
+</body>
+</html>

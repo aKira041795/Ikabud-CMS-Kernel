@@ -1,0 +1,68 @@
+{extends "modules/ecommerce/layouts/public.disyl"}
+
+{block content}
+<div class="max-w-3xl mx-auto">
+    <h1 class="text-2xl font-bold text-gray-900 mb-6">My Orders</h1>
+
+    {if orders | count == 0}
+    <div class="text-center py-20">
+        <svg class="w-16 h-16 text-gray-200 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+        <p class="text-gray-500">You haven't placed any orders yet.</p>
+        <a href="{base_url}/ecommerce/shop" class="mt-4 inline-block text-orange-600 hover:text-orange-700 font-medium">Start Shopping →</a>
+    </div>
+    {else}
+    <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <table class="w-full text-sm">
+            <thead class="bg-gray-50 border-b border-gray-200">
+                <tr>
+                    <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Order</th>
+                    <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase hidden sm:table-cell">Date</th>
+                    <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Status</th>
+                    <th class="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Total</th>
+                    <th class="px-4 py-3"></th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">
+                {foreach orders as o}
+                <tr class="hover:bg-gray-50">
+                    <td class="px-4 py-3 font-medium text-gray-900">#{o.order_number}</td>
+                    <td class="px-4 py-3 text-gray-500 hidden sm:table-cell">{o.created_at | date:'M j, Y'}</td>
+                    <td class="px-4 py-3">
+                        {if o.status == 'pending'}
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">Pending</span>
+                        {elseif o.status == 'processing'}
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">Processing</span>
+                        {elseif o.status == 'shipped'}
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">Shipped</span>
+                        {elseif o.status == 'completed'}
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800">Completed</span>
+                        {elseif o.status == 'cancelled'}
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">Cancelled</span>
+                        {else}
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">{o.status}</span>
+                        {/if}
+                    </td>
+                    <td class="px-4 py-3 text-right font-semibold text-gray-900">
+                        {ec_settings.currency_symbol | default:'$'}{o.total_amount}
+                    </td>
+                    <td class="px-4 py-3 text-right">
+                        <a href="{base_url}/my-orders/{o.id}" class="text-orange-600 hover:text-orange-700 text-xs font-medium">View →</a>
+                    </td>
+                </tr>
+                {/foreach}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Pagination -->
+    {if total_pages > 1}
+    <div class="mt-6 flex items-center justify-center gap-2">
+        {if page > 1}<a href="?page={page - 1}" class="px-4 py-2 border rounded-lg text-sm hover:bg-gray-50">← Prev</a>{/if}
+        <span class="px-4 py-2 text-sm text-gray-500">Page {page} of {total_pages}</span>
+        {if page < total_pages}<a href="?page={page + 1}" class="px-4 py-2 border rounded-lg text-sm hover:bg-gray-50">Next →</a>{/if}
+    </div>
+    {/if}
+
+    {/if}
+</div>
+{/block}
