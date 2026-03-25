@@ -235,9 +235,28 @@ Recommended manifest fields:
     "action.block.disyl"
   ],
   "tokens": {
-    "color-accent": "#0ea5e9",
-    "color-accent-dark": "#0369a1",
-    "btn-radius": "0.5rem"
+    "color": {
+      "primary":   "#0ea5e9",
+      "secondary": "#0369a1",
+      "accent":    "#f59e0b",
+      "danger":    "#ef4444",
+      "neutral":   "#6b7280"
+    },
+    "component": {
+      "button": {
+        "radius":  "0.5rem",
+        "padding": "0.5rem 1.25rem"
+      },
+      "card": {
+        "radius":  "0.75rem",
+        "shadow":  "0 1px 3px rgba(0,0,0,.12)"
+      }
+    },
+    "typography": {
+      "font-sans":   "'Inter', sans-serif",
+      "size-base":   "1rem",
+      "leading-body":"1.6"
+    }
   }
 }
 ```
@@ -251,6 +270,18 @@ If `restrict_to_tokens` is true:
 - everything else falls back to CMS defaults
 
 This preserves template determinism and prevents theme packages from silently redefining application behavior.
+
+### 5.4 Token hierarchy rules
+
+Theme tokens are resolved in a three-level hierarchy:
+
+1. **Kernel defaults** — baseline values in CMS core (deepest, always present)
+2. **Theme manifest tokens** — overrides declared in the theme's `tokens` block
+3. **Preset token_overrides** — per-preset adjustments applied on top of theme values
+
+When a preset and a theme both declare a token, the preset wins (it is more specific). When neither declares a token, the kernel default applies.
+
+Flat legacy token keys (e.g. `"color-accent"`) are accepted for backwards compatibility but the nested form is canonical for new themes. The CSS emitter flattens both forms into CSS custom properties: `--cms-color-primary`, `--cms-component-button-radius`, etc.
 
 ---
 
@@ -369,6 +400,25 @@ These presets can also provide token overrides so the same template system prese
 - some highly specialized layouts may still need explicit block allowlisting
 - modules that override capability providers must preserve response shape discipline
 
+### Preset governance boundary
+
+Presets **configure**. They must not **redefine structure**.
+
+Allowed in a preset:
+- `default_capabilities[]` — which capabilities to attach and with what defaults
+- `token_overrides` — style token values
+- `builder_defaults` — default page-builder container class
+- `block_variants` — which display variant to select for a block (see §13)
+- `layout_profile` — which approved rendering order to use (see entity-view-block-schema.md §11)
+
+Forever forbidden in a preset:
+- injecting raw HTML into blocks
+- altering CapabilityBus key resolution
+- declaring new PHP functions or hook callbacks
+- bypassing `restrict_to_tokens` policy
+
+If a preset needs to change rendering logic it must become a module — not a richer preset.
+
 ---
 
 ## 10. Recommended Extension Pattern
@@ -400,14 +450,121 @@ The current implementation lives across these areas:
 
 ---
 
-## 12. Future Work
+---
 
-Logical next extensions include:
+## 12. Capability Contract Spec
 
-- richer block token contracts
-- server-side block override audit tooling
-- dedicated booking module override provider
-- capability-aware builder sections and starter layouts
-- formal schema/version docs for capability provider payloads
+Every capability data provider must declare a formal contract. This is the enforcement layer that makes external system integration (WordPress, future adapters) safe.
 
-The design should continue to move toward configuration-driven specialization, not template-system fragmentation.
+### 12.1 Contract structure
+
+```json
+{
+  "capability":       "pricing",
+  "version":          1,
+  "required_fields":  ["price", "currency"],
+  "optional_fields":  ["sale_price"],
+  "guarantees": {
+    "price":      "number|null — null when not set, float >= 0 when present",
+    "currency":   "non-empty ISO 4217 string, default 'USD'",
+    "sale_price": "number|null"
+  }
+}
+```
+
+### 12.2 Contracts for all built-in capabilities
+
+| Capability         | Required fields                                  | Guaranteed types / defaults                            |
+|--------------------|--------------------------------------------------|--------------------------------------------------------|
+| `pricing`          | `price`, `currency`                              | price: float\|null; currency: string (default "USD")   |
+| `inventory`        | `in_stock`, `track_inventory`                    | both always bool; stock: int\|null; sku: string\|null   |
+| `booking`          | `available_slots`, `stub`                        | slots: array (possibly empty); stub: bool               |
+| `inquiry`          | `label`, `form_fields`                           | label: string (default "Inquire"); fields: string[]     |
+| `progress_tracking`| `percent`, `authenticated`                       | percent: int 0–100 clamped; authenticated: bool         |
+| `lessons_index`    | `items`, `child_type`                            | items: array (never null, possibly empty); type: string |
+| `media_gallery`    | `items`, `columns`, `lightbox`                   | items: array; columns: int >= 1; lightbox: bool         |
+
+### 12.3 Enforcement point
+
+Contracts are enforced in `cmsEntityCapabilityData()` before the data is merged into the render context. If a provider returns a value that violates a required-field or type guarantee, the CMS logs a warning and substitutes the default value rather than passing broken data to templates.
+
+This means: **DiSyL templates may always assume the contract is satisfied.** They must never defensively handle missing keys beyond the gates already defined in each block.
+
+### 12.4 External adapter obligation
+
+Any module feeding capability data from an external CMS (see entity-view-block-schema.md §13) is responsible for mapping and normalizing source data to these contracts before calling `cmsEntityCapabilityData()`. The render layer does not normalize — it only validates at the contract boundary.
+
+---
+
+## 13. Block Variant System
+
+Blocks exist in one canonical form today. As the system grows, a given block may need multiple approved display modes without requiring template duplication or block overrides.
+
+### 13.1 Variant model
+
+Variants are declared in the theme manifest or preset under `block_variants`:
+
+```json
+{
+  "block_variants": {
+    "pricing":       "featured",
+    "media_gallery": "carousel"
+  }
+}
+```
+
+The block resolver (`cmsResolveBlockTemplate()`) checks for a variant-specific template before falling back to the default:
+
+```
+modules/cms/public/blocks/pricing.featured.block.disyl  ← variant
+modules/cms/public/blocks/pricing.block.disyl           ← default fallback
+```
+
+### 13.2 Approved variants per block (current)
+
+| Block               | Available variants               | Default     |
+|---------------------|----------------------------------|-------------|
+| `pricing`           | `compact`, `featured`, `minimal` | *(none)*    |
+| `media_gallery`     | `carousel`, `grid`               | `grid`      |
+| `action`            | `inline`, `sticky-footer`        | `inline`    |
+| `inventory`         | `compact`                        | *(none)*    |
+
+Variants not in this table are rejected by `cmsResolveBlockTemplate()`. New variants require: (a) a block template file, (b) an entry in this table, (c) a test.
+
+### 13.3 Rules
+
+- Variants control **presentation** only (layout density, visual style)
+- Variants must never alter the capability data contract or block gate conditions
+- A missing variant template file is a hard error, not a silent fallback
+- Themes may declare variants; presets may declare variants; entity-level overrides are not supported
+
+---
+
+## 14. External CMS Readiness
+
+This design is intentionally compatible with the WordPress adapter plan and future external system integrations. The key design choices that enable this are already in place:
+
+1. **Hard input contract** — `{entity}`, `{capabilities}`, `{capability_data}` are the only root keys the render engine consumes. External adapters must produce exactly these three objects.
+
+2. **Normalization guarantee** — the §12 contract layer ensures capability data is validated before it reaches DiSyL. External data is no different from native data from the template's perspective.
+
+3. **CapabilityBus override** — external modules can register higher-priority providers for any capability ID. The WordPress adapter will register `entity.capability.pricing.data@1` at priority 20, returning Woo-sourced pricing data normalized to the same contract.
+
+4. **No HTML-as-source** — the render engine consumes structured data, not raw HTML. External CMSes that store rich-text blocks must normalize through `{post_html}` (the single allowed raw-HTML injection point).
+
+For the detailed normalization contract (per-field guarantees), see entity-view-block-schema.md §13.
+
+---
+
+## 15. Future Work
+
+Remaining extensions, in priority order:
+
+1. **Block variant templates** — create the actual `.featured.block.disyl`, `.carousel.block.disyl`, etc. files declared in §13.2
+2. **Contract enforcement in cmsEntityCapabilityData()** — implement the runtime validation described in §12.3 (currently documented as a requirement; enforcement code not yet written)
+3. **CSS token flattener** — update `cmsThemeTokensCss()` to handle nested token hierarchy (§5.4) in addition to the legacy flat form
+4. **Server-side block override audit** — tooling to verify a theme's `overridable_blocks` entries all have matching template files
+5. **Booking module override provider** — real `entity.capability.booking.data@1` replacement when a booking module ships
+6. **Capability-aware builder sections** — builder UI auto-populates starter layouts based on attached capabilities
+
+The design continues to move toward configuration-driven specialization. The invariant is: **presets and themes configure; modules add behaviour; the kernel enforces contracts.**
