@@ -89,8 +89,6 @@ function ecMaybeInstallPages(): void
 
 function ecInstallPages(): void
 {
-    $db = ecDb();
-
     $pages = [
         ['title' => 'Shop',               'slug' => 'shop',               'body' => ''],
         ['title' => 'Cart',               'slug' => 'cart',               'body' => ''],
@@ -99,23 +97,40 @@ function ecInstallPages(): void
         ['title' => 'My Orders',          'slug' => 'my-orders',          'body' => ''],
     ];
 
-    foreach ($pages as $page) {
-        // Skip if slug already exists
-        $existing = $db->query(
-            "SELECT id FROM cms_content WHERE slug = ? AND type = 'page' AND deleted_at IS NULL LIMIT 1",
-            [$page['slug']]
-        )->fetchColumn();
-
-        if ($existing) {
-            continue;
+    moduleWithContext('cms', static function () use ($pages): void {
+        $cmsCtx = module('cms');
+        if (!$cmsCtx) {
+            throw new \RuntimeException('CMS module context unavailable');
         }
 
-        $db->execute(
-            "INSERT INTO cms_content (title, slug, body, type, status, content_mode, created_at, updated_at)
-             VALUES (?, ?, ?, 'page', 'published', 'standard', NOW(), NOW())",
-            [$page['title'], $page['slug'], $page['body']]
-        );
-    }
+        $db = $cmsCtx->db();
+        $authorId = (int)$db->query('SELECT id FROM cms_users ORDER BY id ASC LIMIT 1')->fetchColumn();
+        if ($authorId <= 0) {
+            throw new \RuntimeException('No CMS author available for ecommerce page install');
+        }
+
+        foreach ($pages as $page) {
+            $stmt = $db->prepare(
+                "SELECT id FROM cms_content WHERE slug = :slug AND type = 'page' AND deleted_at IS NULL LIMIT 1"
+            );
+            $stmt->execute([':slug' => $page['slug']]);
+            if ($stmt->fetchColumn()) {
+                continue;
+            }
+
+            $insert = $db->prepare(
+                "INSERT INTO cms_content (uuid, title, slug, body, type, status, author_id, created_at, updated_at)
+                 VALUES (:uuid, :title, :slug, :body, 'page', 'published', :author_id, NOW(), NOW())"
+            );
+            $insert->execute([
+                ':uuid' => function_exists('cmsUuid') ? cmsUuid() : bin2hex(random_bytes(16)),
+                ':title' => $page['title'],
+                ':slug' => $page['slug'],
+                ':body' => $page['body'],
+                ':author_id' => $authorId,
+            ]);
+        }
+    });
 }
 
 // ── CMS Admin Nav Injection ──────────────────────────────────────────
@@ -173,12 +188,6 @@ app()->capabilities()->register(
 );
 
 // Own capabilities
-app()->capabilities()->register('ecommerce.products.list@1', 'ecommerce', 'ec_cap_products_list_1', 50, ['first']);
-app()->capabilities()->register('ecommerce.products.get@1',  'ecommerce', 'ec_cap_products_get_1',  50, ['first']);
-app()->capabilities()->register('ecommerce.cart.get@1',      'ecommerce', 'ec_cap_cart_get_1',      50, ['first']);
-app()->capabilities()->register('ecommerce.orders.create@1', 'ecommerce', 'ec_cap_orders_create_1', 50, ['first']);
-app()->capabilities()->register('ecommerce.orders.get@1',    'ecommerce', 'ec_cap_orders_get_1',    50, ['first']);
-
 // ── CapabilityBus handler functions ─────────────────────────────────
 
 function ec_cap_pricing_data_1(mixed $payload, string $capabilityId = '', string $providerId = ''): array

@@ -144,8 +144,6 @@ function ecProductGetBySlug(string $slug): ?array
  */
 function ecProductCreate(array $data, int $authorId = 0): int
 {
-    $db = ecDb();
-
     $title    = trim((string)($data['title'] ?? 'New Product'));
     $slug     = ecProductSlug($data['slug'] ?? $title);
     $excerpt  = trim((string)($data['excerpt'] ?? ''));
@@ -155,13 +153,17 @@ function ecProductCreate(array $data, int $authorId = 0): int
     $authorId = $authorId ?: ((int)($data['author_id'] ?? 0));
     $featuredImageId = ($data['featured_image_id'] ?? null) ? (int)$data['featured_image_id'] : null;
 
-    $db->execute(
-        "INSERT INTO cms_content (title, slug, excerpt, body, type, status, author_id, featured_image_id, content_mode, created_at, updated_at)
-         VALUES (?, ?, ?, ?, 'product', ?, ?, ?, 'standard', NOW(), NOW())",
-        [$title, $slug, $excerpt, $body, $status, $authorId, $featuredImageId]
-    );
-
-    $productId = (int)$db->lastInsertId();
+    // Write to CMS-owned table requires CMS module context
+    $productId = moduleWithContext('cms', static function () use ($title, $slug, $excerpt, $body, $status, $authorId, $featuredImageId): int {
+        $db = cmsDb();
+        $uuid = function_exists('cmsUuid') ? cmsUuid() : bin2hex(random_bytes(16));
+        $db->execute(
+            "INSERT INTO cms_content (uuid, title, slug, excerpt, body, type, status, author_id, featured_image_id, content_mode, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, 'product', ?, ?, ?, 'standard', NOW(), NOW())",
+            [$uuid, $title, $slug, $excerpt, $body, $status, $authorId, $featuredImageId]
+        );
+        return (int)$db->lastInsertId();
+    });
 
     // Apply ecommerce preset: attaches pricing + inventory + media_gallery capabilities
     if (function_exists('cmsApplyEntityPreset')) {
@@ -198,8 +200,6 @@ function ecProductCreate(array $data, int $authorId = 0): int
  */
 function ecProductUpdate(int $id, array $data): void
 {
-    $db = ecDb();
-
     $fields = [];
     $params = [];
 
@@ -228,17 +228,18 @@ function ecProductUpdate(int $id, array $data): void
         $params[]  = $data['featured_image_id'] ? (int)$data['featured_image_id'] : null;
     }
 
-    if (empty($fields)) {
-        return;
+    if (!empty($fields)) {
+        $fields[]  = 'updated_at = NOW()';
+        $params[]  = $id;
+
+        // Write to CMS-owned table requires CMS module context
+        moduleWithContext('cms', static function () use ($fields, $params): void {
+            cmsDb()->execute(
+                'UPDATE cms_content SET ' . implode(', ', $fields) . ' WHERE id = ? AND type = \'product\'',
+                $params
+            );
+        });
     }
-
-    $fields[]  = 'updated_at = NOW()';
-    $params[]  = $id;
-
-    $db->execute(
-        'UPDATE cms_content SET ' . implode(', ', $fields) . ' WHERE id = ? AND type = \'product\'',
-        $params
-    );
 
     if (!empty($data['price']) || isset($data['sale_price'])) {
         ecProductUpdatePricing($id, $data);
@@ -258,10 +259,13 @@ function ecProductUpdate(int $id, array $data): void
  */
 function ecProductDelete(int $id): void
 {
-    ecDb()->execute(
-        "UPDATE cms_content SET deleted_at = NOW() WHERE id = ? AND type = 'product'",
-        [$id]
-    );
+    // Write to CMS-owned table requires CMS module context
+    moduleWithContext('cms', static function () use ($id): void {
+        cmsDb()->execute(
+            "UPDATE cms_content SET deleted_at = NOW() WHERE id = ? AND type = 'product'",
+            [$id]
+        );
+    });
 }
 
 /**
@@ -366,8 +370,8 @@ function ecProductUpdateInventory(int $productId, array $data): void
 
 function ecProductDecrementStock(int $productId, int $qty): void
 {
-    $db  = ecDb();
-    $row = $db->query(
+    // Read is fine via ecDb() (reads_tables), but update needs CMS context
+    $row = ecDb()->query(
         "SELECT id, config FROM cms_entity_capabilities WHERE entity_id = ? AND capability_id = 'inventory' LIMIT 1",
         [$productId]
     )->fetch(\PDO::FETCH_ASSOC);
@@ -385,10 +389,13 @@ function ecProductDecrementStock(int $productId, int $qty): void
     $newQty = max(0, (int)($config['stock_qty'] ?? 0) - $qty);
     $config['stock_qty'] = $newQty;
 
-    $db->execute(
-        "UPDATE cms_entity_capabilities SET config = ?, updated_at = NOW() WHERE id = ?",
-        [json_encode($config), (int)$row['id']]
-    );
+    // Write to CMS-owned table requires CMS module context
+    moduleWithContext('cms', static function () use ($config, $row): void {
+        cmsDb()->execute(
+            "UPDATE cms_entity_capabilities SET config = ?, updated_at = NOW() WHERE id = ?",
+            [json_encode($config), (int)$row['id']]
+        );
+    });
 
     // Fire out-of-stock event if reached zero
     if ($newQty === 0) {
@@ -419,10 +426,13 @@ function ecProductCategories(int $productId): array
 function ecProductAssignCategory(int $productId, int $categoryId): void
 {
     try {
-        ecDb()->execute(
-            "INSERT IGNORE INTO cms_content_categories (content_id, category_id) VALUES (?, ?)",
-            [$productId, $categoryId]
-        );
+        // Write to CMS-owned table requires CMS module context
+        moduleWithContext('cms', static function () use ($productId, $categoryId): void {
+            cmsDb()->execute(
+                "INSERT IGNORE INTO cms_content_categories (content_id, category_id) VALUES (?, ?)",
+                [$productId, $categoryId]
+            );
+        });
     } catch (\Throwable $e) {
         write_log('ecProductAssignCategory error: ' . $e->getMessage(), 'error', ['module' => 'ecommerce']);
     }

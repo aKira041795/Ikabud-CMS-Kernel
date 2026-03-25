@@ -1000,6 +1000,18 @@ switch ($handler) {
                     }
                 }
 
+                $entryRelatedTables = [];
+                if (isset($allModules[$selectedEntryModule]) && is_array($allModules[$selectedEntryModule])) {
+                    foreach (['owns_tables', 'reads_tables'] as $_tableField) {
+                        foreach ($allModules[$selectedEntryModule][$_tableField] ?? [] as $_tableName) {
+                            $_tableName = trim((string)$_tableName);
+                            if ($_tableName !== '') {
+                                $entryRelatedTables[$_tableName] = true;
+                            }
+                        }
+                    }
+                }
+
                 // Include capability-providing modules whose exposed
                 // capabilities are actually depended on by the entry module
                 // or its submodules (e.g. AI for CMS).
@@ -1032,6 +1044,43 @@ switch ($handler) {
                     }
                     if ($needed && isModuleEnabledForTenant($_capModId, $selectedTenantId)) {
                         $tenantRelevantModules[$_capModId] = true;
+                    }
+                }
+
+                // Include modules explicitly attached to the tenant via a
+                // tenant-scoped enable override, and CMS-integrated modules
+                // that declare table overlap with the tenant's entry module.
+                foreach ($allModules as $_candidateMod) {
+                    $_candidateModId = (string)($_candidateMod['id'] ?? '');
+                    if ($_candidateModId === '' || isset($tenantRelevantModules[$_candidateModId])) {
+                        continue;
+                    }
+                    if (empty($_candidateMod['settings_fields'])) {
+                        continue;
+                    }
+
+                    $_candidateTenantSettings = readTenantModuleSettingsForTenant($_candidateModId, $selectedTenantId);
+                    if (array_key_exists('_module_enabled', $_candidateTenantSettings)) {
+                        $tenantRelevantModules[$_candidateModId] = true;
+                        continue;
+                    }
+
+                    if (empty($entryRelatedTables) || !isModuleEnabledForTenant($_candidateModId, $selectedTenantId)) {
+                        continue;
+                    }
+
+                    $_candidateTables = [];
+                    foreach (['owns_tables', 'reads_tables'] as $_tableField) {
+                        foreach ($_candidateMod[$_tableField] ?? [] as $_tableName) {
+                            $_tableName = trim((string)$_tableName);
+                            if ($_tableName !== '') {
+                                $_candidateTables[] = $_tableName;
+                            }
+                        }
+                    }
+
+                    if (!empty(array_intersect(array_keys($entryRelatedTables), $_candidateTables))) {
+                        $tenantRelevantModules[$_candidateModId] = true;
                     }
                 }
 
@@ -1363,7 +1412,7 @@ switch ($handler) {
             exit;
         }
 
-        $toggleMultiTenant = !empty(config('app.multi_tenant_enabled'));
+        $toggleMultiTenant = (bool) config('app.multi_tenant.enabled', false);
         if ($toggleMultiTenant && $toggleTenantId === null) {
             http_response_code(400);
             echo json_encode(['ok' => false, 'error' => 'tenant_id is required']);

@@ -1051,7 +1051,7 @@ Renders the superadmin feature-settings page (HTML). In multi-tenant mode, accep
 
 **Behavior:**
 - Queries `kernel_tenants` + `kernel_tenant_domains` to populate the tenant picker dropdown.
-- Builds a relevance whitelist from the selected tenant's `entry_module_id` and (for CMS tenants) `_installed_submodules`.
+- Builds a relevance whitelist from the selected tenant's `entry_module_id`, CMS `_installed_submodules`, capability-provider dependencies, explicit tenant module overrides, and modules that declare table overlap with the tenant's entry module.
 - Filters modules by both whitelist relevance and `isModuleEnabledForTenant()`.
 - Only modules with non-empty `settings_fields` in their manifest are shown.
 

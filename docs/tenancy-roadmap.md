@@ -174,7 +174,7 @@ Add a control-plane registry such as `kernel_tenant_modules(tenant_id, module_id
 
 A `superadmin` kernel role provides cross-tenant feature settings management without requiring tenant-context switching:
 
-- **Superadmin settings page** (`/superadmin/settings?tenant_id=X`): presents a tenant picker, loads only modules relevant to the selected tenant (filtered by `entry_module_id` + CMS `_installed_submodules` whitelist), and persists changes to the target tenant's `tenant_module_settings` rows.
+- **Superadmin settings page** (`/superadmin/settings?tenant_id=X`): presents a tenant picker, loads only modules relevant to the selected tenant (filtered by `entry_module_id`, CMS `_installed_submodules`, capability-provider dependencies, explicit tenant module overrides, and entry-module table overlap), and persists changes to the target tenant's `tenant_module_settings` rows.
 - **Tenant DB isolation**: cross-tenant helpers use `app()->dbForTenant($tenantId)` to connect to each tenant's own database. This is essential because tenants may have separate databases (e.g., `cmsmoduletwo` has its own `cmsmoduletwo` DB distinct from the main tenant DB). Connections are looked up from `kernel_tenant_db_connections` and cached per request.
 - **Tenant-specific API helpers**: `readTenantModuleSettingsForTenant()`, `saveTenantModuleSettingsForTenant()`, `getModuleSettingsForTenant()`, and `isModuleEnabledForTenant()` all accept an explicit `tenant_id` parameter and connect to the target tenant's DB.
 - **Relevance filtering**: tenants with an `entry_module_id` only see that entry module (and, for CMS tenants, installed sub-modules). Tenants without an entry module see all globally enabled modules.
