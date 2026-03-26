@@ -435,13 +435,17 @@ function cmsRenderWidget_slideshow(array $props, array $style, array $attrs, str
     // Full-width support
     $wrapStyle = ['position' => 'relative', 'overflow' => 'hidden'];
     if ($fullWidth) {
+        // Remove conflicting node styles that would override the breakout
+        unset($style['width'], $style['margin'], $style['marginLeft'], $style['marginRight']);
         $wrapStyle['width'] = '100vw';
         $wrapStyle['marginLeft'] = 'calc(-50vw + 50%)';
+        // Prevent flex cross-axis centering from shifting the breakout
+        $wrapStyle['alignSelf'] = 'flex-start';
     }
     $dataAttrs = ' data-interval="' . $interval . '"'
         . ' data-autoplay="' . ($autoplay ? 'true' : 'false') . '"'
         . ' data-animation="' . $animationStyle . '"';
-    $html = '<div' . cmsBuilderAttrString($attrs) . $dataAttrs . cmsBuilderStyleAttr(array_merge($wrapStyle, $style)) . '>';
+    $html = '<div' . cmsBuilderAttrString($attrs) . $dataAttrs . cmsBuilderStyleAttr(array_merge($style, $wrapStyle)) . '>';
     // For slide animation: use a flex track wrapper; for fade/kenburns/zoom: stack slides
     $useSlideTrack = in_array($animationStyle, ['slide', 'carousel', 'coverflow']);
     if ($useSlideTrack) {
