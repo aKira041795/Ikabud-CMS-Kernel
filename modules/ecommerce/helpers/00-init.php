@@ -20,12 +20,7 @@ declare(strict_types=1);
  */
 function ecGetBaseUrl(): string
 {
-    $host = (string)($_SERVER['HTTP_HOST'] ?? '');
-    if ($host === '') {
-        return rtrim((string)app()->config('app.url', ''), '/');
-    }
-    $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
-    return $scheme . '://' . $host;
+    return external_base_url((string)app()->config('app.url', ''));
 }
 
 function ecDb(): \Ikabud\Kernel\Contracts\ModuleDB
@@ -149,15 +144,74 @@ function ecMaybeInstallPages(): void
     $done = true;
 
     $settings = readTenantModuleSettings('ecommerce');
+
+    // Ensure 'product' content type exists (idempotent, runs once per tenant).
+    if (empty($settings['_product_type_registered'])) {
+        try {
+            moduleWithContext('cms', static function (): void {
+                $cmsCtx = module('cms');
+                if (!$cmsCtx) {
+                    return;
+                }
+                $cmsCtx->db()->execute(
+                    "INSERT INTO cms_content_types (slug, label, icon, supports, is_active, sort_order)
+                     VALUES ('product', 'Products', 'shopping-bag',
+                             '[\"title\",\"body\",\"excerpt\",\"featured_image\",\"slug\"]', 1, 50)
+                     ON DUPLICATE KEY UPDATE is_active = 1"
+                );
+            });
+            saveTenantModuleSettings('ecommerce', ['_product_type_registered' => true]);
+        } catch (\Throwable $e) {
+            // Non-fatal — shop falls back to ecommerce handler
+        }
+    }
+
     if (!empty($settings['_pages_installed'])) {
         return;
     }
 
-    try {
+    $installPages = static function (): void {
         ecInstallPages();
         saveTenantModuleSettings('ecommerce', ['_pages_installed' => true]);
-    } catch (\Throwable $e) {
-        write_log('ecMaybeInstallPages failed: ' . $e->getMessage(), 'warning', ['module' => 'ecommerce']);
+    };
+
+    $tenantId = app()->tenant()->current();
+    $maxAttempts = 2;
+    for ($attempt = 1; $attempt <= $maxAttempts; $attempt++) {
+        try {
+            $installPages();
+            return;
+        } catch (\Throwable $e) {
+            if (!dbConnectionLost($e) || $attempt >= $maxAttempts) {
+                write_log('ecMaybeInstallPages failed: ' . $e->getMessage(), 'warning', [
+                    'module' => 'ecommerce',
+                    'attempt' => $attempt,
+                    'tenant_id' => $tenantId,
+                ]);
+                return;
+            }
+
+            try {
+                if ($tenantId !== null && $tenantId > 0) {
+                    app()->reconnectDbForTenant((int)$tenantId);
+                } else {
+                    app()->reconnectDb();
+                }
+                invalidateTenantModuleSettingsCache();
+                write_log('ecMaybeInstallPages retrying after DB reconnect', 'info', [
+                    'module' => 'ecommerce',
+                    'attempt' => $attempt,
+                    'tenant_id' => $tenantId,
+                ]);
+            } catch (\Throwable $reconnectError) {
+                write_log('ecMaybeInstallPages reconnect failed: ' . $reconnectError->getMessage(), 'warning', [
+                    'module' => 'ecommerce',
+                    'attempt' => $attempt,
+                    'tenant_id' => $tenantId,
+                ]);
+                return;
+            }
+        }
     }
 }
 
@@ -203,6 +257,20 @@ function ecInstallPages(): void
                 ':body' => $page['body'],
                 ':author_id' => $authorId,
             ]);
+        }
+
+        // Register the 'product' content type so the CMS entity list can resolve it.
+        // The entity list handler (cmsPublicEntityList) requires a matching active
+        // row in cms_content_types for the type passed by ecPublicShop.
+        try {
+            $db->execute(
+                "INSERT INTO cms_content_types (slug, label, icon, supports, is_active, sort_order)
+                 VALUES ('product', 'Products', 'shopping-bag',
+                         '[\"title\",\"body\",\"excerpt\",\"featured_image\",\"slug\"]', 1, 50)
+                 ON DUPLICATE KEY UPDATE is_active = 1"
+            );
+        } catch (\Throwable $e) {
+            // Non-fatal: shop will still work via fallback handler
         }
     });
 }

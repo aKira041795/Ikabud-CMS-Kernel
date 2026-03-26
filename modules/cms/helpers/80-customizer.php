@@ -126,6 +126,115 @@ function cmsValidateColorsSettings(array $input): array
     return $validated;
 }
 
+function cmsCustomizerRequestCacheKey(string $suffix): string
+{
+    return 'cms_customizer_' . $suffix . '_t' . cmsRuntimeTenantId();
+}
+
+function cmsCustomizerPersistentCacheTtl(): int
+{
+    return max(0, (int)($_ENV['CMS_CUSTOMIZER_CACHE_TTL'] ?? 300));
+}
+
+function cmsCustomizerPersistentCacheInstance(): string
+{
+    return 'cms_customizer_t' . cmsRuntimeTenantId();
+}
+
+function cmsCustomizerPersistentCacheKey(string $section): string
+{
+    return 'customizer:section:' . $section . ':v1';
+}
+
+function cmsCustomizerFragmentCacheKey(string $fragment): string
+{
+    return 'customizer:fragment:' . $fragment . ':v1';
+}
+
+function cmsCustomizerFragmentCacheGet(string $fragment): ?array
+{
+    return cmsCacheGet(cmsCustomizerFragmentCacheKey($fragment));
+}
+
+function cmsCustomizerFragmentCacheSet(string $fragment, array $data, array $tags = []): void
+{
+    $defaultTags = ['cms:customizer', 'cms:customizer:fragment:' . $fragment];
+    cmsCacheSet(
+        cmsCustomizerFragmentCacheKey($fragment),
+        $data,
+        array_values(array_unique(array_merge($defaultTags, $tags)))
+    );
+}
+
+function cmsCustomizerCurrentPathCacheToken(): string
+{
+    $path = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH);
+    $path = rtrim((string)$path, '/');
+    return $path !== '' ? $path : '/';
+}
+
+function cmsCustomizerClearPersistentCache(?string $section = null): void
+{
+    if (cmsCustomizerPersistentCacheTtl() <= 0) {
+        return;
+    }
+
+    $tags = ['cms:customizer'];
+    if ($section !== null && $section !== '') {
+        $tags[] = 'cms:customizer:' . $section;
+    }
+
+    app()->cache()->clearByTags(cmsCustomizerPersistentCacheInstance(), $tags);
+}
+
+function cmsCustomizerSectionRecord(object $db, string $section): ?array
+{
+    $cacheKey = cmsCustomizerRequestCacheKey('section_row');
+    $cache = $GLOBALS[$cacheKey] ?? [];
+    if (array_key_exists($section, $cache)) {
+        return $cache[$section];
+    }
+
+    if (cmsCustomizerPersistentCacheTtl() > 0) {
+        $persistent = app()->cache()->get(cmsCustomizerPersistentCacheInstance(), cmsCustomizerPersistentCacheKey($section));
+        if (is_array($persistent)) {
+            $cache[$section] = $persistent;
+            $GLOBALS[$cacheKey] = $cache;
+            return $persistent;
+        }
+    }
+
+    $row = null;
+    try {
+        $stmt = $db->prepare("SELECT settings_json, widgets_json FROM cms_theme_customizer WHERE section = :s LIMIT 1");
+        $stmt->execute([':s' => $section]);
+        $fetched = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (is_array($fetched)) {
+            $row = $fetched;
+        }
+    } catch (Throwable $e) {
+        $row = null;
+    }
+
+    $cache[$section] = $row;
+    $GLOBALS[$cacheKey] = $cache;
+    if (cmsCustomizerPersistentCacheTtl() > 0) {
+        app()->cache()->setWithTags(
+            cmsCustomizerPersistentCacheInstance(),
+            cmsCustomizerPersistentCacheKey($section),
+            $row,
+            ['cms:customizer', 'cms:customizer:' . $section],
+            cmsCustomizerPersistentCacheTtl()
+        );
+    }
+    return $row;
+}
+
+function cmsCustomizerSectionExists(object $db, string $section): bool
+{
+    return cmsCustomizerSectionRecord($db, $section) !== null;
+}
+
 /**
  * Render <style> tag with general/body CSS custom properties from Colors settings.
  * Injected into <head> or start of <body> in the public template.
@@ -133,19 +242,18 @@ function cmsValidateColorsSettings(array $input): array
 
 function cmsRenderColorsStyle(object $db): string
 {
-    $data = cmsCustomizerGet($db, 'colors');
-    $s = $data['settings'];
+    $cached = cmsCustomizerFragmentCacheGet('colors_style');
+    if (is_array($cached) && array_key_exists('html', $cached)) {
+        return (string)$cached['html'];
+    }
 
-    // Check if anything has been persisted
-    try {
-        $stmt = $db->prepare("SELECT id FROM cms_theme_customizer WHERE section = 'colors' LIMIT 1");
-        $stmt->execute();
-        if (!$stmt->fetch()) {
-            return '';
-        }
-    } catch (Throwable $e) {
+    if (!cmsCustomizerSectionExists($db, 'colors')) {
+        cmsCustomizerFragmentCacheSet('colors_style', ['html' => ''], ['cms:customizer:colors']);
         return '';
     }
+
+    $data = cmsCustomizerGet($db, 'colors');
+    $s = $data['settings'];
 
     $fontBody    = htmlspecialchars($s['font_body'] ?? 'Inter');
     $fontHeading = htmlspecialchars($s['font_heading'] ?? 'Inter');
@@ -203,7 +311,9 @@ function cmsRenderColorsStyle(object $db): string
     $css .= 'h3{font-size:' . ($s['h3_size'] ?? '1.5') . 'rem;}';
     $css .= 'h4{font-size:' . ($s['h4_size'] ?? '1.25') . 'rem;}';
 
-    return $googleFontsHtml . '<style id="cz-colors-override">' . $css . '</style>';
+    $html = $googleFontsHtml . '<style id="cz-colors-override">' . $css . '</style>';
+    cmsCustomizerFragmentCacheSet('colors_style', ['html' => $html], ['cms:customizer:colors']);
+    return $html;
 }
 
 // ── Custom Code / Advanced ──────────────────────────────────────────────
@@ -301,14 +411,15 @@ function cmsValidateCustomCodeSettings(array $input): array
 
 function cmsRenderCustomCodeOutput(object $db): array
 {
+    $cached = cmsCustomizerFragmentCacheGet('custom_code_output');
+    if (is_array($cached) && array_key_exists('custom_css', $cached)) {
+        return $cached;
+    }
+
     $output = ['custom_css' => '', 'head_code' => '', 'body_end_code' => ''];
 
-    try {
-        $stmt = $db->prepare("SELECT settings_json FROM cms_theme_customizer WHERE section = 'custom_code' LIMIT 1");
-        $stmt->execute();
-        $row = $stmt->fetch(PDO::FETCH_ASSOC);
-        if (!$row) return $output;
-    } catch (Throwable $e) {
+    if (!cmsCustomizerSectionExists($db, 'custom_code')) {
+        cmsCustomizerFragmentCacheSet('custom_code_output', $output, ['cms:customizer:custom_code']);
         return $output;
     }
 
@@ -394,6 +505,7 @@ function cmsRenderCustomCodeOutput(object $db): array
 
     $output['body_end_code'] = $bodyEnd;
 
+    cmsCustomizerFragmentCacheSet('custom_code_output', $output, ['cms:customizer:custom_code']);
     return $output;
 }
 
@@ -605,19 +717,18 @@ function cmsValidateThemeLayoutSettings(array $input): array
  */
 function cmsRenderThemeLayoutStyle(object $db): string
 {
-    $data = cmsCustomizerGet($db, 'theme');
-    $s = $data['settings'];
+    $cached = cmsCustomizerFragmentCacheGet('theme_layout_style');
+    if (is_array($cached) && array_key_exists('html', $cached)) {
+        return (string)$cached['html'];
+    }
 
-    // Only output if something has been persisted
-    try {
-        $stmt = $db->prepare("SELECT id FROM cms_theme_customizer WHERE section = 'theme' LIMIT 1");
-        $stmt->execute();
-        if (!$stmt->fetch()) {
-            return '';
-        }
-    } catch (Throwable $e) {
+    if (!cmsCustomizerSectionExists($db, 'theme')) {
+        cmsCustomizerFragmentCacheSet('theme_layout_style', ['html' => ''], ['cms:customizer:theme']);
         return '';
     }
+
+    $data = cmsCustomizerGet($db, 'theme');
+    $s = $data['settings'];
 
     $css = ':root{';
     $css .= '--theme-site-max-width:' . ($s['site_max_width'] ?? '1280') . 'px;';
@@ -672,7 +783,9 @@ function cmsRenderThemeLayoutStyle(object $db): string
         $css .= '.cms-blog-listing article:hover{box-shadow:0 4px 12px rgba(0,0,0,0.1);}';
     }
 
-    return '<style id="cz-theme-layout-override">' . $css . '</style>';
+    $html = '<style id="cz-theme-layout-override">' . $css . '</style>';
+    cmsCustomizerFragmentCacheSet('theme_layout_style', ['html' => $html], ['cms:customizer:theme']);
+    return $html;
 }
 
 /**
@@ -693,11 +806,8 @@ function cmsCustomizerGet(object $db, string $section): array
     $defaults = isset($sectionDefaults[$section]) ? ($sectionDefaults[$section])() : [];
 
     try {
-        $stmt = $db->prepare("SELECT settings_json, widgets_json FROM cms_theme_customizer WHERE section = :s LIMIT 1");
-        $stmt->execute([':s' => $section]);
-        $row = $stmt->fetch(PDO::FETCH_ASSOC);
-
-        if ($row) {
+        $row = cmsCustomizerSectionRecord($db, $section);
+        if (is_array($row)) {
             $settings = json_decode($row['settings_json'] ?? '{}', true) ?: [];
             $widgets  = json_decode($row['widgets_json'] ?? '[]', true) ?: [];
             return [
@@ -992,6 +1102,11 @@ function cmsGetSocialIcon(string $name): string
 
 function cmsRenderCustomizedFooter(object $db): string
 {
+    $cached = cmsCustomizerFragmentCacheGet('footer_html');
+    if (is_array($cached) && array_key_exists('html', $cached)) {
+        return (string)$cached['html'];
+    }
+
     $data = cmsCustomizerGet($db, 'footer');
     $settings = $data['settings'];
     $widgets  = $data['widgets'];
@@ -1030,6 +1145,7 @@ function cmsRenderCustomizedFooter(object $db): string
         $html .= '</div></div>';
     }
 
+    cmsCustomizerFragmentCacheSet('footer_html', ['html' => $html], ['cms:customizer:footer', 'cms:settings', 'cms:menus']);
     return $html;
 }
 
@@ -1055,6 +1171,19 @@ function cmsRenderCustomizedSidebar(object $db, array $publicCtx = []): array
     $showForThisTemplate = ($scopeMode === 'general') || ($scopeMode === 'template' && $templateScope === $templateKey);
     if (!$showForThisTemplate) {
         return ['enabled' => false, 'position' => ($settings['placement'] ?? 'right'), 'width' => ($settings['width'] ?? '300'), 'html' => ''];
+    }
+
+    $cacheFragment = 'sidebar_html:' . sha1($templateKey);
+    $cached = cmsCustomizerFragmentCacheGet($cacheFragment);
+    if (is_array($cached)
+        && isset($cached['enabled'], $cached['position'], $cached['width'])
+        && array_key_exists('html', $cached)) {
+        return [
+            'enabled' => (bool)$cached['enabled'],
+            'position' => (string)$cached['position'],
+            'width' => (string)$cached['width'],
+            'html' => (string)$cached['html'],
+        ];
     }
 
     $cmsSettings = readCmsSettings();
@@ -1120,12 +1249,16 @@ function cmsRenderCustomizedSidebar(object $db, array $publicCtx = []): array
 
     $html = $styleHtml . $bodyHtml;
 
-    return [
+    $result = [
         'enabled' => true,
         'position' => in_array(($settings['placement'] ?? ''), ['left', 'right'], true) ? $settings['placement'] : 'right',
         'width' => (string)$width,
         'html' => $html,
     ];
+
+    cmsCustomizerFragmentCacheSet($cacheFragment, $result, ['cms:customizer:sidebar', 'cms:settings', 'cms:menus']);
+
+    return $result;
 }
 
 function cmsRenderSingleSidebarWidget(array $widget, object $db, array $cmsSettings, string $baseUrl): string
@@ -1474,20 +1607,19 @@ function cmsValidateHeaderSettings(array $input): array
 
 function cmsRenderCustomizedHeader(object $db, array $publicCtx = []): string
 {
+    $cached = cmsCustomizerFragmentCacheGet('header_html:' . sha1(cmsCustomizerCurrentPathCacheToken()));
+    if (is_array($cached) && array_key_exists('html', $cached)) {
+        return (string)$cached['html'];
+    }
+
+    if (!cmsCustomizerSectionExists($db, 'header')) {
+        cmsCustomizerFragmentCacheSet('header_html:' . sha1(cmsCustomizerCurrentPathCacheToken()), ['html' => ''], ['cms:customizer:header', 'cms:settings', 'cms:menus']);
+        return '';
+    }
+
     $data = cmsCustomizerGet($db, 'header');
     $settings = $data['settings'];
     $widgets  = $data['widgets'] ?? [];
-
-    // If nothing has been persisted, return empty to use template's default header.
-    try {
-        $stmt = $db->prepare("SELECT id FROM cms_theme_customizer WHERE section = 'header' LIMIT 1");
-        $stmt->execute();
-        if (!$stmt->fetch()) {
-            return '';
-        }
-    } catch (Throwable $e) {
-        return '';
-    }
 
     $cmsSettings = readCmsSettings();
     $baseUrl = rtrim((string)(defined('BASE_URL') ? BASE_URL : ''), '/');
@@ -1895,6 +2027,7 @@ function cmsRenderCustomizedHeader(object $db, array $publicCtx = []): string
         $html .= $transparentJs;
     }
 
+    cmsCustomizerFragmentCacheSet('header_html:' . sha1(cmsCustomizerCurrentPathCacheToken()), ['html' => $html], ['cms:customizer:header', 'cms:settings', 'cms:menus']);
     return $html;
 }
 

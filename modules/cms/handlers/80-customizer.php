@@ -6,6 +6,15 @@ function cmsAdminCustomizer(array $params = []): void
 {
     $user = cmsRequireCap('customizer.manage');
 
+    $cacheKey = 'cms.customizer';
+    $cached = adminViewCacheGet($cacheKey, $user);
+    if (is_array($cached)) {
+        echo cmsRender('modules/cms/admin/theme-customizer.disyl', array_merge(cmsAdminContext($user, 'customize', [
+            ['label' => 'Theme Customizer', 'url' => ''],
+        ]), $cached));
+        return;
+    }
+
     $db = cmsDb();
 
     // Load footer customizer data
@@ -49,9 +58,7 @@ function cmsAdminCustomizer(array $params = []): void
 
     $settings = readCmsSettings();
 
-    echo cmsRender('modules/cms/admin/theme-customizer.disyl', array_merge(cmsAdminContext($user, 'customize', [
-        ['label' => 'Theme Customizer', 'url' => ''],
-    ]), [
+    $payload = [
         'page_title'          => 'Theme Customizer',
         'footer_settings'     => $footer['settings'],
         'footer_widgets'      => $footer['widgets'],
@@ -82,7 +89,13 @@ function cmsAdminCustomizer(array $params = []): void
         'site_title'          => $settings['site_title'] ?? '',
         'site_tagline'        => $settings['site_tagline'] ?? '',
         'social_links_json'   => json_encode(cmsPublicSocialLinks($settings)),
-    ]));
+    ];
+
+    adminViewCacheSet($cacheKey, $payload, ['cms:admin', 'cms:admin:customizer'], $user);
+
+    echo cmsRender('modules/cms/admin/theme-customizer.disyl', array_merge(cmsAdminContext($user, 'customize', [
+        ['label' => 'Theme Customizer', 'url' => ''],
+    ]), $payload));
 }
 
 /**
@@ -153,9 +166,17 @@ function cmsApiCustomizerSave(array $params = []): void
     $userId = (int)($user['id'] ?? 0);
 
     $settingsJson = json_encode($settings, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-    $widgetsJson = is_array($widgets)
-        ? json_encode($widgets, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)
-        : '[]';
+
+    // When widgets are not provided in the request, preserve existing widgets
+    // rather than wiping them. This allows settings-only saves to work safely.
+    if (is_array($widgets)) {
+        $widgetsJson = json_encode($widgets, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+    } else {
+        // Read existing widgets from the database
+        $existingStmt = $db->prepare("SELECT widgets_json FROM cms_theme_customizer WHERE section = :section LIMIT 1");
+        $existingStmt->execute([':section' => $section]);
+        $widgetsJson = $existingStmt->fetchColumn() ?: '[]';
+    }
 
     $stmt = $db->prepare(
         "INSERT INTO cms_theme_customizer (section, settings_json, widgets_json, updated_by)
@@ -172,9 +193,16 @@ function cmsApiCustomizerSave(array $params = []): void
         ':uid'      => $userId ?: null,
     ]);
 
-    // Flush CMS cache
+    cmsCustomizerClearPersistentCache($section);
+
+    $response = json_encode(['ok' => true]);
+    echo $response;
+    finish_response_if_possible();
+
+    // Customizer saves change runtime data, not compiled templates. Avoid
+    // synchronous template cache wipes on every save.
     cmsCacheFlushAll();
-    cmsTemplateCacheFlush();
+    adminViewCacheInvalidate(['cms:admin']);
 
     // Audit
     if ($ctx = module('cms')) {
@@ -183,8 +211,6 @@ function cmsApiCustomizerSave(array $params = []): void
             'settings' => $settings,
         ]);
     }
-
-    echo json_encode(['ok' => true]);
     exit;
 }
 
