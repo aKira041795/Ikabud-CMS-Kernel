@@ -44,10 +44,10 @@ function ecAdminOrders(): void
  * GET  /admin/orders/{id}  — order detail
  * POST /admin/orders/{id}  — update status / add note
  */
-function ecAdminOrderDetail(): void
+function ecAdminOrderDetail(array $params = []): void
 {
     $user    = ecRequireAdmin();
-    $orderId = (int)(ecCtx()['params']['id'] ?? 0);
+    $orderId = (int)($params['id'] ?? 0);
     $order   = ecOrderGet($orderId);
 
     if (!$order) {

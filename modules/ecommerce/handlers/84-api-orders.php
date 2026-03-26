@@ -47,10 +47,10 @@ function ecApiMyOrders(): void
 /**
  * GET /api/v1/ecommerce/orders/{id}  — admin view of one order
  */
-function ecApiOrderGet(): void
+function ecApiOrderGet(array $params = []): void
 {
     ecRequireAdmin();
-    $id    = (int)(ecCtx()['params']['id'] ?? 0);
+    $id    = (int)($params['id'] ?? 0);
     $order = ecOrderGet($id);
 
     if (!$order) {
@@ -62,10 +62,10 @@ function ecApiOrderGet(): void
 /**
  * POST /api/v1/ecommerce/orders/{id}/status  — update status
  */
-function ecApiOrderStatus(): void
+function ecApiOrderStatus(array $params = []): void
 {
     ecRequireAdmin();
-    $id     = (int)(ecCtx()['params']['id'] ?? 0);
+    $id     = (int)($params['id'] ?? 0);
     $input  = ecInput();
     $status = trim((string)($input['status'] ?? ''));
     $note   = trim((string)($input['note']   ?? ''));
@@ -80,10 +80,10 @@ function ecApiOrderStatus(): void
 /**
  * POST /api/v1/ecommerce/orders/{id}/note  — add meta note
  */
-function ecApiOrderNote(): void
+function ecApiOrderNote(array $params = []): void
 {
     ecRequireAdmin();
-    $id    = (int)(ecCtx()['params']['id'] ?? 0);
+    $id    = (int)($params['id'] ?? 0);
     $input = ecInput();
     $note  = trim((string)($input['note'] ?? ''));
 

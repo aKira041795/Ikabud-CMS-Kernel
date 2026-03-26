@@ -56,12 +56,12 @@ function ecPublicCheckoutProcess(): void
 /**
  * GET /order/{token}  — order confirmation page (guest + customer)
  */
-function ecPublicOrderConfirm(): void
+function ecPublicOrderConfirm(array $params = []): void
 {
-    $token = ecCtx()['params']['token'] ?? '';
+    $token = (string)($params['token'] ?? '');
     if (!$token) {
         http_response_code(404);
-        ecRender('modules/ecommerce/public/404.disyl', ['message' => 'Order not found']);
+        ecRender('pages/404.disyl', ['page_title' => 'Order Not Found']);
         return;
     }
 
@@ -78,7 +78,7 @@ function ecPublicOrderConfirm(): void
 
     if (!$order) {
         http_response_code(404);
-        ecRender('modules/ecommerce/public/404.disyl', ['message' => 'Order not found']);
+        ecRender('pages/404.disyl', ['page_title' => 'Order Not Found']);
         return;
     }
 

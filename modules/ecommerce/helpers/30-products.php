@@ -106,6 +106,12 @@ function ecProductGet(int $id): ?array
             return null;
         }
 
+        if (!empty($row['featured_image']) && function_exists('cmsResolveUploadUrl')) {
+            $row['featured_image_url'] = cmsResolveUploadUrl((string)$row['featured_image']);
+        } else {
+            $row['featured_image_url'] = '';
+        }
+
         $row['pricing']   = ecProductPricing($id);
         $row['inventory'] = ecProductInventory($id);
         $row['categories'] = ecProductCategories($id);
@@ -167,7 +173,9 @@ function ecProductCreate(array $data, int $authorId = 0): int
 
     // Apply ecommerce preset: attaches pricing + inventory + media_gallery capabilities
     if (function_exists('cmsApplyEntityPreset')) {
-        cmsApplyEntityPreset($productId, 'ecommerce');
+        moduleWithContext('cms', static function () use ($productId): void {
+            cmsApplyEntityPreset($productId, 'ecommerce');
+        });
     }
 
     // Set initial pricing/inventory if provided
@@ -179,17 +187,21 @@ function ecProductCreate(array $data, int $authorId = 0): int
         ]);
     }
 
-    if (isset($data['stock_qty']) || !empty($data['sku'])) {
-        ecProductUpdateInventory($productId, [
-            'track_stock' => (bool)($data['track_stock'] ?? true),
-            'stock_qty'   => (int)($data['stock_qty']   ?? 0),
-            'sku'         => $data['sku'] ?? '',
-        ]);
-    }
+    ecProductUpdateInventory($productId, [
+        'track_stock' => (bool)($data['track_stock'] ?? true),
+        'stock_qty'   => (int)($data['stock_qty']   ?? 0),
+        'sku'         => $data['sku'] ?? '',
+    ]);
 
     // Assign category if provided
-    if (!empty($data['category_id'])) {
-        ecProductAssignCategory($productId, (int)$data['category_id']);
+    if (array_key_exists('category_id', $data)) {
+        ecProductAssignCategory($productId, (int)($data['category_id'] ?? 0));
+    }
+
+    if (function_exists('cmsSyncMediaUsage')) {
+        moduleWithContext('cms', static function () use ($productId, $featuredImageId): void {
+            cmsSyncMediaUsage($productId, ['featured_image_id' => $featuredImageId], null);
+        });
     }
 
     return $productId;
@@ -251,6 +263,12 @@ function ecProductUpdate(int $id, array $data): void
 
     if (isset($data['category_id'])) {
         ecProductAssignCategory($id, (int)$data['category_id']);
+    }
+
+    if (array_key_exists('featured_image_id', $data) && function_exists('cmsSyncMediaUsage')) {
+        moduleWithContext('cms', static function () use ($id, $data): void {
+            cmsSyncMediaUsage($id, ['featured_image_id' => $data['featured_image_id'] ?? null], null);
+        });
     }
 }
 
@@ -350,7 +368,7 @@ function ecProductUpdatePricing(int $productId, array $data): void
         'sale_price' => isset($data['sale_price'])  ? (float)$data['sale_price'] : ($existing['sale_price'] ?? null),
     ], fn($v) => $v !== null);
 
-    cmsEntityAttachCapability($productId, 'pricing', $config);
+    ecAttachCmsEntityCapability($productId, 'pricing', $config);
 }
 
 function ecProductUpdateInventory(int $productId, array $data): void
@@ -359,13 +377,14 @@ function ecProductUpdateInventory(int $productId, array $data): void
         return;
     }
     $existing = ecProductInventory($productId);
+    $sku = ecProductNormalizeSku($productId, $data['sku'] ?? ($existing['sku'] ?? ''));
     $config = [
         'track_stock' => isset($data['track_stock']) ? (bool)$data['track_stock'] : ($existing['track_stock'] ?? true),
         'stock_qty'   => isset($data['stock_qty'])   ? (int)$data['stock_qty']    : ($existing['stock_qty']   ?? 0),
-        'sku'         => $data['sku']                ?? ($existing['sku']         ?? ''),
+        'sku'         => $sku,
     ];
 
-    cmsEntityAttachCapability($productId, 'inventory', $config);
+    ecAttachCmsEntityCapability($productId, 'inventory', $config);
 }
 
 function ecProductDecrementStock(int $productId, int $qty): void
@@ -400,7 +419,7 @@ function ecProductDecrementStock(int $productId, int $qty): void
     // Fire out-of-stock event if reached zero
     if ($newQty === 0) {
         $product = ecProductGet($productId);
-        app()->events()->publish('ecommerce.product.out_of_stock', [
+        app()->events()->fire('ecommerce.product.out_of_stock', [
             'product_id'    => $productId,
             'product_title' => $product['title'] ?? '',
             'sku'           => $config['sku']    ?? '',
@@ -428,10 +447,14 @@ function ecProductAssignCategory(int $productId, int $categoryId): void
     try {
         // Write to CMS-owned table requires CMS module context
         moduleWithContext('cms', static function () use ($productId, $categoryId): void {
-            cmsDb()->execute(
-                "INSERT IGNORE INTO cms_content_categories (content_id, category_id) VALUES (?, ?)",
-                [$productId, $categoryId]
-            );
+            $db = cmsDb();
+            $db->execute("DELETE FROM cms_content_categories WHERE content_id = ?", [$productId]);
+            if ($categoryId > 0) {
+                $db->execute(
+                    "INSERT IGNORE INTO cms_content_categories (content_id, category_id) VALUES (?, ?)",
+                    [$productId, $categoryId]
+                );
+            }
         });
     } catch (\Throwable $e) {
         write_log('ecProductAssignCategory error: ' . $e->getMessage(), 'error', ['module' => 'ecommerce']);
@@ -477,4 +500,154 @@ function ecProductSlug(string $slug, int $excludeId = 0): string
         $candidate = $base . '-' . $n;
         $n++;
     }
+}
+
+function ecProductNormalizeSku(int $productId, string $sku = ''): string
+{
+    $base = strtoupper(trim($sku));
+    $base = preg_replace('/[^A-Z0-9]+/', '-', $base);
+    $base = trim((string)$base, '-');
+
+    if ($base === '') {
+        $product = ecDb()->query(
+            "SELECT title, slug FROM cms_content WHERE id = ? AND type = 'product' LIMIT 1",
+            [$productId]
+        )->fetch(\PDO::FETCH_ASSOC) ?: [];
+        $seed = (string)($product['slug'] ?? $product['title'] ?? 'product');
+        $base = strtoupper(trim((string)preg_replace('/[^a-z0-9]+/i', '-', $seed), '-'));
+    }
+
+    $base = substr($base !== '' ? $base : 'PRODUCT', 0, 80);
+    $candidate = $base;
+    $suffix = 1;
+
+    while (ecProductSkuExists($candidate, $productId)) {
+        $candidate = substr($base, 0, 72) . '-' . $suffix;
+        $suffix++;
+    }
+
+    return $candidate;
+}
+
+function ecProductSkuExists(string $sku, int $excludeProductId = 0): bool
+{
+    $existing = ecDb()->query(
+        "SELECT entity_id
+         FROM cms_entity_capabilities
+         WHERE capability_id = 'inventory'
+           AND JSON_UNQUOTE(JSON_EXTRACT(config, '$.sku')) = ?
+         LIMIT 1",
+        [$sku]
+    )->fetchColumn();
+
+    return $existing !== false && (int)$existing !== $excludeProductId;
+}
+
+function ecAttachCmsEntityCapability(int $entityId, string $capabilityId, array $config): void
+{
+    moduleWithContext('cms', static function () use ($entityId, $capabilityId, $config): void {
+        cmsEntityAttachCapability($entityId, $capabilityId, $config);
+    });
+}
+
+function ecUploadProductFeaturedImage(array $file, int $uploadedBy): ?array
+{
+    if (empty($file) || !is_array($file)) {
+        return null;
+    }
+
+    $errorCode = (int)($file['error'] ?? UPLOAD_ERR_NO_FILE);
+    if ($errorCode === UPLOAD_ERR_NO_FILE) {
+        return null;
+    }
+    if ($errorCode !== UPLOAD_ERR_OK) {
+        throw new \RuntimeException('Upload error: ' . $errorCode);
+    }
+
+    $tmpName = (string)($file['tmp_name'] ?? '');
+    if ($tmpName === '' || !is_uploaded_file($tmpName)) {
+        throw new \RuntimeException('Uploaded file was not received correctly.');
+    }
+
+    $cmsSettings = function_exists('readCmsSettings') ? readCmsSettings() : [];
+    $maxMb = max(1, min(64, (int)($cmsSettings['max_upload_mb'] ?? 2)));
+    $maxSize = $maxMb * 1024 * 1024;
+    $size = (int)($file['size'] ?? 0);
+    if ($size > $maxSize) {
+        throw new \RuntimeException('Image exceeds ' . $maxMb . 'MB limit.');
+    }
+
+    $finfo = new \finfo(FILEINFO_MIME_TYPE);
+    $mimeType = (string)$finfo->file($tmpName);
+    $allowedMimes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml'];
+    if (!in_array($mimeType, $allowedMimes, true)) {
+        throw new \RuntimeException('Unsupported image type: ' . $mimeType);
+    }
+
+    if (function_exists('cmsCheckDangerousFileSignature')) {
+        $danger = cmsCheckDangerousFileSignature($tmpName);
+        if ($danger !== null) {
+            throw new \RuntimeException($danger);
+        }
+    }
+
+    if (!function_exists('cmsUploadsPath') || !function_exists('cmsResolveUploadUrl')) {
+        throw new \RuntimeException('CMS uploads helpers are unavailable.');
+    }
+
+    $ext = strtolower((string)pathinfo((string)($file['name'] ?? ''), PATHINFO_EXTENSION));
+    $safeExts = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'];
+    if (!in_array($ext, $safeExts, true)) {
+        $ext = $mimeType === 'image/jpeg' ? 'jpg' : ($mimeType === 'image/png' ? 'png' : ($mimeType === 'image/gif' ? 'gif' : ($mimeType === 'image/webp' ? 'webp' : 'svg')));
+    }
+
+    $filename = date('Ymd_His') . '_' . substr(bin2hex(random_bytes(4)), 0, 8) . '.' . $ext;
+    $subDir = date('Y') . '/' . date('m');
+    $uploadDir = cmsUploadsPath() . '/' . $subDir;
+    if (!is_dir($uploadDir)) {
+        kernelEnsureDirectory($uploadDir);
+    }
+
+    $destPath = $uploadDir . '/' . $filename;
+    if (!move_uploaded_file($tmpName, $destPath)) {
+        throw new \RuntimeException('Failed to save uploaded image.');
+    }
+
+    $relativePath = $subDir . '/' . $filename;
+    if (function_exists('cmsGenerateThumbnails') && in_array($mimeType, ['image/jpeg', 'image/png', 'image/gif', 'image/webp'], true)) {
+        $filenameBase = pathinfo($filename, PATHINFO_FILENAME);
+        cmsGenerateThumbnails($destPath, $subDir, $filenameBase, $ext);
+    }
+
+    $mediaId = moduleWithContext('cms', static function () use ($filename, $file, $mimeType, $size, $relativePath, $uploadedBy): int {
+        $db = cmsDb();
+        $stmt = $db->prepare(
+            "INSERT INTO cms_media (filename, original_name, mime_type, file_size, file_path, uploaded_by, created_at)
+             VALUES (:fname, :oname, :mime, :size, :path, :uid, NOW())"
+        );
+        $stmt->execute([
+            ':fname' => $filename,
+            ':oname' => (string)($file['name'] ?? $filename),
+            ':mime'  => $mimeType,
+            ':size'  => $size,
+            ':path'  => $relativePath,
+            ':uid'   => $uploadedBy,
+        ]);
+
+        return (int)$db->lastInsertId();
+    });
+
+    if ($ctx = module('cms')) {
+        $ctx->fireEvent('cms.media.uploaded', [
+            'media_id' => $mediaId,
+            'filename' => $filename,
+            'mime_type' => $mimeType,
+        ]);
+    }
+
+    return [
+        'id' => $mediaId,
+        'url' => cmsResolveUploadUrl($relativePath),
+        'file_path' => $relativePath,
+    ];
 }

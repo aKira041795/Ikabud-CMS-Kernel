@@ -65,9 +65,9 @@ function ecPublicShop(): void
  * GET /ecommerce/shop/category/{slug}  — product grid filtered by category
  * Delegates to CMS universal entity list (capability-driven) when available.
  */
-function ecPublicCategory(): void
+function ecPublicCategory(array $params = []): void
 {
-    $slug = ecCtx()['params']['slug'] ?? '';
+    $slug = (string)($params['slug'] ?? '');
     if (!$slug) {
         header('Location: /ecommerce/shop');
         exit;
@@ -95,7 +95,7 @@ function ecPublicCategory(): void
 
     if (!$cat) {
         http_response_code(404);
-        ecRender('modules/ecommerce/public/404.disyl', ['message' => 'Category not found']);
+        ecRender('pages/404.disyl', ['page_title' => 'Category Not Found']);
         return;
     }
 
@@ -130,21 +130,19 @@ function ecPublicCategory(): void
 /**
  * GET /shop/{slug}  — product detail page
  */
-function ecPublicProduct(): void
+function ecPublicProduct(array $params = []): void
 {
-    $slug    = ecCtx()['params']['slug'] ?? '';
+    $slug    = (string)($params['slug'] ?? '');
     $product = ecProductGetBySlug($slug);
 
     if (!$product || $product['status'] !== 'published') {
         http_response_code(404);
-        ecRender('modules/ecommerce/public/404.disyl', ['message' => 'Product not found']);
+        ecRender('pages/404.disyl', ['page_title' => 'Product Not Found']);
         return;
     }
 
-    if (function_exists('cmsPublicEntityView') && function_exists('moduleWithContext')) {
-        moduleWithContext('cms', static function () use ($slug): void {
-            cmsPublicEntityView(['type' => 'product', 'slug' => $slug]);
-        });
+    if (function_exists('executeModuleHandler')) {
+        executeModuleHandler('cms:cmsPublicEntityView', ['type' => 'product', 'slug' => $slug]);
         return;
     }
 

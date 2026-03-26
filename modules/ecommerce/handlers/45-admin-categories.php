@@ -26,23 +26,25 @@ function ecAdminCategories(): void
             $slug = trim($slug, '-');
 
             if ($name !== '' && $slug !== '') {
-                // Ensure product taxonomy
                 try {
-                    if (ecHasCmsCategoryTaxonomy()) {
-                        $db->execute(
-                            "INSERT INTO cms_categories (name, slug, taxonomy, created_at, updated_at)
-                             VALUES (?, ?, 'product', NOW(), NOW())
-                             ON DUPLICATE KEY UPDATE name = VALUES(name), taxonomy = 'product'",
-                            [$name, $slug]
-                        );
-                    } else {
-                        $db->execute(
-                            "INSERT INTO cms_categories (name, slug, created_at, updated_at)
-                             VALUES (?, ?, NOW(), NOW())
-                             ON DUPLICATE KEY UPDATE name = VALUES(name)",
-                            [$name, $slug]
-                        );
-                    }
+                    moduleWithContext('cms', static function () use ($name, $slug): void {
+                        $cmsDb = cmsDb();
+                        if (ecHasCmsCategoryTaxonomy()) {
+                            $cmsDb->execute(
+                                "INSERT INTO cms_categories (name, slug, taxonomy, created_at, updated_at)
+                                 VALUES (?, ?, 'product', NOW(), NOW())
+                                 ON DUPLICATE KEY UPDATE name = VALUES(name), taxonomy = 'product'",
+                                [$name, $slug]
+                            );
+                        } else {
+                            $cmsDb->execute(
+                                "INSERT INTO cms_categories (name, slug, created_at, updated_at)
+                                 VALUES (?, ?, NOW(), NOW())
+                                 ON DUPLICATE KEY UPDATE name = VALUES(name)",
+                                [$name, $slug]
+                            );
+                        }
+                    });
                     $_SESSION['ec_message'] = ['type' => 'success', 'text' => 'Category created.'];
                 } catch (\Throwable $e) {
                     $_SESSION['ec_message'] = ['type' => 'error', 'text' => 'Could not create: ' . $e->getMessage()];
@@ -53,8 +55,11 @@ function ecAdminCategories(): void
         } elseif ($action === 'delete') {
             $catId = (int)($input['id'] ?? 0);
             if ($catId > 0) {
-                $db->execute("DELETE FROM cms_content_categories WHERE category_id = ?", [$catId]);
-                $db->execute("DELETE FROM cms_categories WHERE id = ?", [$catId]);
+                moduleWithContext('cms', static function () use ($catId): void {
+                    $cmsDb = cmsDb();
+                    $cmsDb->execute("DELETE FROM cms_content_categories WHERE category_id = ?", [$catId]);
+                    $cmsDb->execute("DELETE FROM cms_categories WHERE id = ?", [$catId]);
+                });
                 $_SESSION['ec_message'] = ['type' => 'success', 'text' => 'Category deleted.'];
             }
         }

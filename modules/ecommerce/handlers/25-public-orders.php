@@ -35,7 +35,7 @@ function ecPublicMyOrders(): void
 /**
  * GET /my-orders/{id}  — single order detail for customer
  */
-function ecPublicOrderDetail(): void
+function ecPublicOrderDetail(array $params = []): void
 {
     $user = app()->user();
     if (!$user) {
@@ -43,12 +43,12 @@ function ecPublicOrderDetail(): void
         exit;
     }
 
-    $orderId = (int)(ecCtx()['params']['id'] ?? 0);
+    $orderId = (int)($params['id'] ?? 0);
     $order   = ecOrderGet($orderId, (int)$user['id']);
 
     if (!$order) {
         http_response_code(404);
-        ecRender('modules/ecommerce/public/404.disyl', ['message' => 'Order not found']);
+        ecRender('pages/404.disyl', ['page_title' => 'Order Not Found']);
         return;
     }
 

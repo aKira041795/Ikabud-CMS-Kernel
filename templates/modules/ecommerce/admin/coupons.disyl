@@ -28,7 +28,7 @@
             </div>
             <div class="flex items-center gap-2 shrink-0 ml-3">
                 <form method="post" action="">
-                    <input type="hidden" name="_csrf" value="{csrf_token}">
+                    <input type="hidden" name="_token" value="{csrf_token}">
                     <input type="hidden" name="action" value="toggle">
                     <input type="hidden" name="id" value="{c.id}">
                     <button type="submit" class="text-xs text-blue-500 hover:text-blue-700">
@@ -36,7 +36,7 @@
                     </button>
                 </form>
                 <form method="post" action="" onsubmit="return confirm('Delete coupon {c.code}?')">
-                    <input type="hidden" name="_csrf" value="{csrf_token}">
+                    <input type="hidden" name="_token" value="{csrf_token}">
                     <input type="hidden" name="action" value="delete">
                     <input type="hidden" name="id" value="{c.id}">
                     <button type="submit" class="text-xs text-red-500 hover:text-red-700">Delete</button>
@@ -50,7 +50,7 @@
     <div class="bg-white rounded-lg border border-gray-200 p-5">
         <h3 class="font-semibold text-sm text-gray-700 mb-4">Create Coupon</h3>
         <form method="post" action="" class="space-y-3">
-            <input type="hidden" name="_csrf" value="{csrf_token}">
+            <input type="hidden" name="_token" value="{csrf_token}">
             <input type="hidden" name="action" value="create">
             <div>
                 <label class="block text-xs font-semibold text-gray-600 mb-1">Code</label>

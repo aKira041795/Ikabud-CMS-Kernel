@@ -59,8 +59,8 @@ function ecHasCmsCategoryTaxonomy(): bool
     }
 
     try {
-        $row = ecDb()->query("SHOW COLUMNS FROM cms_categories LIKE 'taxonomy'")->fetch(\PDO::FETCH_ASSOC);
-        $hasTaxonomy = is_array($row) && !empty($row);
+        ecDb()->query('SELECT taxonomy FROM cms_categories WHERE 1 = 0');
+        $hasTaxonomy = true;
     } catch (\Throwable $e) {
         $hasTaxonomy = false;
     }

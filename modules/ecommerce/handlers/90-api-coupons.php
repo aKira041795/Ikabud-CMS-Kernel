@@ -37,10 +37,10 @@ function ecApiCouponCreate(): void
     }
 }
 
-function ecApiCouponUpdate(): void
+function ecApiCouponUpdate(array $params = []): void
 {
     ecRequireAdmin();
-    $id    = (int)(ecCtx()['params']['id'] ?? 0);
+    $id    = (int)($params['id'] ?? 0);
     $input = ecInput();
 
     $fields = [];
@@ -74,10 +74,10 @@ function ecApiCouponUpdate(): void
     ecJsonOk(['ok' => true]);
 }
 
-function ecApiCouponDelete(): void
+function ecApiCouponDelete(array $params = []): void
 {
     ecRequireAdmin();
-    $id = (int)(ecCtx()['params']['id'] ?? 0);
+    $id = (int)($params['id'] ?? 0);
     ecDb()->execute("DELETE FROM ec_coupons WHERE id = ?", [$id]);
     ecJsonOk(['deleted' => true]);
 }

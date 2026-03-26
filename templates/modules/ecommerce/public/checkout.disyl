@@ -117,7 +117,7 @@
                         <span>Total</span><span>{cart.totals.total_fmt}</span>
                     </div>
                 </div>
-                <input type="hidden" name="_csrf" value="{csrf_token}">
+                <input type="hidden" name="_token" value="{csrf_token}">
                 <button type="button" onclick="submitCheckout()"
                         class="mt-4 w-full py-3 bg-orange-600 text-white font-medium rounded-lg hover:bg-orange-700 text-sm" id="place-order-btn">
                     Place Order
@@ -151,8 +151,8 @@ async function submitCheckout() {
             data.shipping_rate_id = parseInt(val);
         } else if (key === 'customer_note') {
             data.customer_note = val;
-        } else if (key === '_csrf') {
-            data._csrf = val;
+        } else if (key === '_token') {
+            data._token = val;
         }
     }
 

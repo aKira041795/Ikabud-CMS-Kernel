@@ -48,6 +48,14 @@ return [
         // ── Public Checkout ──────────────────────────────────────────
         '/ecommerce/checkout'                        => 'ecommerce:ecPublicCheckoutProcess',
 
+        // ── Admin Pages (form submissions) ──────────────────────────
+        '/ecommerce/admin/products/create'          => 'ecommerce:ecAdminProductCreate',
+        '/ecommerce/admin/products/{id}/edit'       => 'ecommerce:ecAdminProductEdit',
+        '/ecommerce/admin/orders/{id}'              => 'ecommerce:ecAdminOrderDetail',
+        '/ecommerce/admin/categories'               => 'ecommerce:ecAdminCategories',
+        '/ecommerce/admin/coupons'                  => 'ecommerce:ecAdminCoupons',
+        '/ecommerce/admin/settings'                 => 'ecommerce:ecAdminSettings',
+
         // ── REST API — Products ──────────────────────────────────────
         '/api/v1/ecommerce/products'                 => 'ecommerce:ecApiProductCreate',
         '/api/v1/ecommerce/products/{id}'            => 'ecommerce:ecApiProductUpdate',

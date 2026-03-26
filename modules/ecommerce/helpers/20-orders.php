@@ -41,8 +41,7 @@ function ecOrderCreate(array $data): array
     $currency     = $data['currency'] ?? ecSettings('currency', 'USD');
 
     // Begin DB transaction
-    $pdo = $db->pdo();
-    $pdo->beginTransaction();
+    $db->beginTransaction();
 
     try {
         // Insert order
@@ -144,10 +143,10 @@ function ecOrderCreate(array $data): array
             ecCouponUse((string)$data['coupon_code']);
         }
 
-        $pdo->commit();
+        $db->commit();
 
     } catch (\Throwable $e) {
-        $pdo->rollBack();
+        $db->rollBack();
         write_log('ecOrderCreate failed: ' . $e->getMessage(), 'error', [
             'module' => 'ecommerce',
             'trace'  => $e->getTraceAsString(),
@@ -157,7 +156,7 @@ function ecOrderCreate(array $data): array
 
     // Fire event
     try {
-        app()->events()->publish('ecommerce.order.created', [
+        app()->events()->fire('ecommerce.order.created', [
             'order_id'       => $orderId,
             'order_number'   => $orderNumber,
             'customer_email' => $data['guest_email'] ?? ($data['billing']['email'] ?? ''),
@@ -328,7 +327,7 @@ function ecOrderUpdateStatus(int $orderId, string $newStatus, ?string $note = nu
     };
     if ($eventKey) {
         try {
-            app()->events()->publish($eventKey, ['order_id' => $orderId, 'order_number' => $order['order_number']]);
+            app()->events()->fire($eventKey, ['order_id' => $orderId, 'order_number' => $order['order_number']]);
         } catch (\Throwable $e) {}
     }
 
@@ -347,7 +346,7 @@ function ecOrderMarkPaid(int $orderId): void
     $order = ecOrderGet($orderId);
     if ($order) {
         try {
-            app()->events()->publish('ecommerce.order.paid', [
+            app()->events()->fire('ecommerce.order.paid', [
                 'order_id'     => $orderId,
                 'order_number' => $order['order_number'],
                 'total'        => $order['total'],

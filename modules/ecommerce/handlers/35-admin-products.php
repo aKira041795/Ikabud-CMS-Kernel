@@ -58,6 +58,12 @@ function ecAdminProductCreate(): void
         $input = ecInput();
 
         try {
+            $featuredImageId = $input['featured_image_id'] ?? null;
+            $uploadedImage = ecUploadProductFeaturedImage(kernelUploadedFile('featured_image') ?? [], (int)$user['id']);
+            if (is_array($uploadedImage) && !empty($uploadedImage['id'])) {
+                $featuredImageId = (int)$uploadedImage['id'];
+            }
+
             $productId = ecProductCreate([
                 'title'            => $input['title']            ?? 'New Product',
                 'slug'             => $input['slug']             ?? '',
@@ -70,7 +76,7 @@ function ecAdminProductCreate(): void
                 'stock_qty'        => $input['stock_qty']        ?? 0,
                 'track_stock'      => ($input['track_stock']     ?? 'on') === 'on',
                 'category_id'      => $input['category_id']      ?? null,
-                'featured_image_id' => $input['featured_image_id'] ?? null,
+                'featured_image_id' => $featuredImageId,
             ], (int)$user['id']);
 
             $_SESSION['ec_message'] = ['type' => 'success', 'text' => 'Product created.'];
@@ -89,6 +95,8 @@ function ecAdminProductCreate(): void
     $ctx = ecAdminContext($user, 'products', [
         'product'    => null,
         'categories' => $categories,
+        'selected_category_id' => 0,
+        'featured_image_url' => '',
         'error'      => $error ?? null,
         'message'    => $_SESSION['ec_message'] ?? null,
     ]);
@@ -101,10 +109,10 @@ function ecAdminProductCreate(): void
  * GET  /admin/products/{id}/edit  — edit product form
  * POST /admin/products/{id}/edit  — save product
  */
-function ecAdminProductEdit(): void
+function ecAdminProductEdit(array $params = []): void
 {
     $user      = ecRequireAdmin();
-    $productId = (int)(ecCtx()['params']['id'] ?? 0);
+    $productId = (int)($params['id'] ?? 0);
     $product   = ecProductGet($productId);
 
     if (!$product) {
@@ -118,6 +126,16 @@ function ecAdminProductEdit(): void
         $input = ecInput();
 
         try {
+            $featuredImageId = array_key_exists('featured_image_id', $input) ? $input['featured_image_id'] : ($product['featured_image_id'] ?? null);
+            if (($input['remove_featured_image'] ?? '') === '1') {
+                $featuredImageId = null;
+            }
+
+            $uploadedImage = ecUploadProductFeaturedImage(kernelUploadedFile('featured_image') ?? [], (int)$user['id']);
+            if (is_array($uploadedImage) && !empty($uploadedImage['id'])) {
+                $featuredImageId = (int)$uploadedImage['id'];
+            }
+
             ecProductUpdate($productId, [
                 'title'            => $input['title']            ?? $product['title'],
                 'slug'             => $input['slug']             ?? $product['slug'],
@@ -130,7 +148,7 @@ function ecAdminProductEdit(): void
                 'stock_qty'        => $input['stock_qty']        ?? 0,
                 'track_stock'      => ($input['track_stock']     ?? 'on') === 'on',
                 'category_id'      => $input['category_id']      ?? null,
-                'featured_image_id' => $input['featured_image_id'] ?? null,
+                'featured_image_id' => $featuredImageId,
             ]);
 
             $_SESSION['ec_message'] = ['type' => 'success', 'text' => 'Product saved.'];
@@ -151,6 +169,8 @@ function ecAdminProductEdit(): void
     $ctx = ecAdminContext($user, 'products', [
         'product'    => $product,
         'categories' => $categories,
+        'selected_category_id' => (int)($product['categories'][0]['id'] ?? 0),
+        'featured_image_url' => (string)($product['featured_image_url'] ?? ''),
         'error'      => $error ?? null,
         'message'    => $_SESSION['ec_message'] ?? null,
     ]);

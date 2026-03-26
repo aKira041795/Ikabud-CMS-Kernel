@@ -38,3 +38,7 @@ android/
 
 # Debug artifacts
 public/debug-opcache.php
+debug_cap_test.php
+
+# Test/validation upload artifacts (runtime-generated, not source)
+modules/cms/assets/uploads/test/

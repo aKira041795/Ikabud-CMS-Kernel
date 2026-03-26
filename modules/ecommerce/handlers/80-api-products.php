@@ -20,9 +20,9 @@ function ecApiProductsList(): void
     ecJsonOk($result);
 }
 
-function ecApiProductGet(): void
+function ecApiProductGet(array $params = []): void
 {
-    $id      = (int)(ecCtx()['params']['id'] ?? 0);
+    $id      = (int)($params['id'] ?? 0);
     $product = ecProductGet($id);
 
     if (!$product) {
@@ -45,10 +45,10 @@ function ecApiProductCreate(): void
     }
 }
 
-function ecApiProductUpdate(): void
+function ecApiProductUpdate(array $params = []): void
 {
     ecRequireAdmin();
-    $id   = (int)(ecCtx()['params']['id'] ?? 0);
+    $id   = (int)($params['id'] ?? 0);
     $data = ecInput();
 
     if (!ecProductGet($id)) {
@@ -63,10 +63,10 @@ function ecApiProductUpdate(): void
     }
 }
 
-function ecApiProductDelete(): void
+function ecApiProductDelete(array $params = []): void
 {
     ecRequireAdmin();
-    $id = (int)(ecCtx()['params']['id'] ?? 0);
+    $id = (int)($params['id'] ?? 0);
 
     if (!ecProductGet($id)) {
         ecJsonError('Product not found', 404);

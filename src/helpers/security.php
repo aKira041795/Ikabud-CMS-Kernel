@@ -23,6 +23,11 @@ function csrfEnforce(): void
     app()->csrfEnforce();
 }
 
+function csrf_verify(): void
+{
+    app()->csrfEnforce();
+}
+
 function clearAuthCookie(string $cookieName): void
 {
     setcookie($cookieName, '', [
