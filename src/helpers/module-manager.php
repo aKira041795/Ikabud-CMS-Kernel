@@ -1909,6 +1909,20 @@ $_loadedModuleHandlers = [];
 /** @var array<string, array<string, callable>> */
 $_moduleRouteCallableRegistry = [];
 
+/**
+ * Clear cached module contexts so the next module() call rebuilds them
+ * with a fresh PDO handle. Call after app()->reconnectDb() or reconnectDbForTenant().
+ */
+function invalidateModuleContextCache(?string $moduleId = null): void
+{
+    global $_moduleContextCache;
+    if ($moduleId !== null) {
+        unset($_moduleContextCache[trim($moduleId)]);
+    } else {
+        $_moduleContextCache = [];
+    }
+}
+
 function moduleContextFor(string $moduleId): ?\Ikabud\Kernel\Contracts\ModuleContext
 {
     global $_moduleContextCache;

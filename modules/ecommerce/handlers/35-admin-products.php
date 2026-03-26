@@ -103,6 +103,10 @@ function ecAdminProductCreate(): void
     unset($_SESSION['ec_message']);
 
     ecRender('modules/ecommerce/admin/product-edit.disyl', $ctx);
+    
+    if (function_exists('releaseSessionAfterRender')) {
+        releaseSessionAfterRender();
+    }
 }
 
 /**
@@ -177,4 +181,8 @@ function ecAdminProductEdit(array $params = []): void
     unset($_SESSION['ec_message']);
 
     ecRender('modules/ecommerce/admin/product-edit.disyl', $ctx);
+    
+    if (function_exists('releaseSessionAfterRender')) {
+        releaseSessionAfterRender();
+    }
 }

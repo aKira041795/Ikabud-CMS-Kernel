@@ -148,4 +148,8 @@ function ecAdminSettings(): void
     unset($_SESSION['ec_message']);
 
     ecRender('modules/ecommerce/admin/settings.disyl', $ctx);
+    
+    if (function_exists('releaseSessionAfterRender')) {
+        releaseSessionAfterRender();
+    }
 }

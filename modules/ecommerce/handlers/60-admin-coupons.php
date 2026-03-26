@@ -74,4 +74,8 @@ function ecAdminCoupons(): void
     unset($_SESSION['ec_message']);
 
     ecRender('modules/ecommerce/admin/coupons.disyl', $ctx);
+    
+    if (function_exists('releaseSessionAfterRender')) {
+        releaseSessionAfterRender();
+    }
 }

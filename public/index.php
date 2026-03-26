@@ -20,6 +20,24 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
+/**
+ * Release PHP session write lock for safe GET/HEAD requests after render.
+ * This allows concurrent subsequent requests to proceed instead of being blocked.
+ * Mutating requests (POST/PUT/DELETE) keep the lock until exit/redirect.
+ */
+function releaseSessionAfterRender(): void
+{
+    if (PHP_SAPI === 'cli') {
+        return;
+    }
+    $method = strtoupper((string)($_SERVER['REQUEST_METHOD'] ?? 'GET'));
+    if ($method === 'GET' || $method === 'HEAD') {
+        if (session_status() === PHP_SESSION_ACTIVE) {
+            session_write_close();
+        }
+    }
+}
+
 function capability_cache_path(string $filename): string
 {
     return rtrim(defined('STORAGE_PATH') ? STORAGE_PATH : __DIR__, '/') . '/cache/' . ltrim($filename, '/');
@@ -159,6 +177,15 @@ function normalizeTenantEntryModuleId($value, bool $requireLoadable = false): ar
     return ['ok' => true, 'value' => $entryModuleId, 'error' => null];
 }
 
+if (should_enforce_https() && !is_https()) {
+    $host = trim((string)($_SERVER['HTTP_HOST'] ?? ''));
+    if ($host !== '') {
+        $target = 'https://' . $host . ($_SERVER['REQUEST_URI'] ?? '/');
+        header('Location: ' . $target, true, 301);
+        exit;
+    }
+}
+
 header('X-Content-Type-Options: nosniff');
 header('X-Frame-Options: SAMEORIGIN');
 header('X-XSS-Protection: 1; mode=block');
@@ -283,6 +310,12 @@ if (!empty($_SERVER['IK_ENTRY_MODULE_UNAVAILABLE'])) {
         'page_title' => 'Tenant Unavailable',
         'entry_module_id' => (string)($_SERVER['IK_ENTRY_MODULE_ID'] ?? ''),
     ]);
+    exit;
+}
+
+if (!empty($_SERVER['IK_FAST_404'])) {
+    http_response_code(404);
+    echo app()->render('pages/404.disyl', ['page_title' => 'Not Found']);
     exit;
 }
 
@@ -3360,7 +3393,9 @@ switch ($handler) {
             exit;
         }
 
-        kernelUpdatesMaybeAutoSync($user);
+        if (kernelUpdatesAutoSyncOnPlatformEnabled()) {
+            kernelUpdatesMaybeAutoSync($user);
+        }
 
         $platformId = app()->platformIdentity();
         $skippedModules = array_values(getSkippedModules());

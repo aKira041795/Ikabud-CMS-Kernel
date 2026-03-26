@@ -87,4 +87,8 @@ function ecAdminCategories(): void
     unset($_SESSION['ec_message']);
 
     ecRender('modules/ecommerce/admin/categories.disyl', $ctx);
+    
+    if (function_exists('releaseSessionAfterRender')) {
+        releaseSessionAfterRender();
+    }
 }

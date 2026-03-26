@@ -22,6 +22,10 @@ function ecPublicCart(): void
         'shipping_rates' => $rates,
         'message'        => $message,
     ]);
+    
+    if (function_exists('releaseSessionAfterRender')) {
+        releaseSessionAfterRender();
+    }
 }
 
 /**

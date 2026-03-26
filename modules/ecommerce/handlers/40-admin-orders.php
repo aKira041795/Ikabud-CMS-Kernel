@@ -88,4 +88,8 @@ function ecAdminOrderDetail(array $params = []): void
     unset($_SESSION['ec_message']);
 
     ecRender('modules/ecommerce/admin/order-detail.disyl', $ctx);
+    
+    if (function_exists('releaseSessionAfterRender')) {
+        releaseSessionAfterRender();
+    }
 }

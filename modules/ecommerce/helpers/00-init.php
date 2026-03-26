@@ -149,11 +149,8 @@ function ecMaybeInstallPages(): void
     if (empty($settings['_product_type_registered'])) {
         try {
             moduleWithContext('cms', static function (): void {
-                $cmsCtx = module('cms');
-                if (!$cmsCtx) {
-                    return;
-                }
-                $cmsCtx->db()->execute(
+                $db = app()->db();
+                $db->execute(
                     "INSERT INTO cms_content_types (slug, label, icon, supports, is_active, sort_order)
                      VALUES ('product', 'Products', 'shopping-bag',
                              '[\"title\",\"body\",\"excerpt\",\"featured_image\",\"slug\"]', 1, 50)
@@ -192,12 +189,11 @@ function ecMaybeInstallPages(): void
             }
 
             try {
-                if ($tenantId !== null && $tenantId > 0) {
-                    app()->reconnectDbForTenant((int)$tenantId);
-                } else {
-                    app()->reconnectDb();
-                }
+                app()->reconnectDb();
                 invalidateTenantModuleSettingsCache();
+                if (function_exists('invalidateModuleContextCache')) {
+                    invalidateModuleContextCache('cms');
+                }
                 write_log('ecMaybeInstallPages retrying after DB reconnect', 'info', [
                     'module' => 'ecommerce',
                     'attempt' => $attempt,
@@ -226,12 +222,7 @@ function ecInstallPages(): void
     ];
 
     moduleWithContext('cms', static function () use ($pages): void {
-        $cmsCtx = module('cms');
-        if (!$cmsCtx) {
-            throw new \RuntimeException('CMS module context unavailable');
-        }
-
-        $db = $cmsCtx->db();
+        $db = app()->db();
         $authorId = (int)$db->query('SELECT id FROM cms_users ORDER BY id ASC LIMIT 1')->fetchColumn();
         if ($authorId <= 0) {
             throw new \RuntimeException('No CMS author available for ecommerce page install');
