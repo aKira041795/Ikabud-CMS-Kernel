@@ -404,6 +404,8 @@ function cms_cap_entity_capability_inventory_data_1(mixed $payload, string $capa
                 'track_inventory' => $trackStock,
                 'track_stock' => $trackStock,
                 'in_stock' => !$trackStock || $stockQty > 0,
+                'out_of_stock' => $trackStock && $stockQty <= 0,
+                'low_stock' => $trackStock && $stockQty > 0 && $stockQty <= 5,
             ];
         }
     } catch (\Throwable $e) {
@@ -431,6 +433,8 @@ function cms_cap_entity_capability_inventory_data_1(mixed $payload, string $capa
         'track_inventory' => $trackInventory,
         'track_stock' => $trackInventory,
         'in_stock' => !isset($rows['_stock_qty']) || (int)$rows['_stock_qty'] > 0,
+        'out_of_stock' => $trackInventory && isset($rows['_stock_qty']) && (int)$rows['_stock_qty'] <= 0,
+        'low_stock' => $trackInventory && isset($rows['_stock_qty']) && (int)$rows['_stock_qty'] > 0 && (int)$rows['_stock_qty'] <= 5,
     ];
 }
 

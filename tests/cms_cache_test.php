@@ -324,6 +324,7 @@ t('cmsPublicHome uses cmsCacheGet', str_contains($publicHandlerCode, "cmsCacheGe
 t('cmsPublicHome uses cmsCacheSet', str_contains($publicHandlerCode, 'cmsCacheSet($cacheKey'));
 t('cmsPublicSingle uses cmsCacheGet', str_contains($publicHandlerCode, "\$cacheKey = 'cms:post:' . \$slug") && str_contains($publicHandlerCode, 'cmsCacheGet($cacheKey)'));
 t('cmsPublicPage uses cmsCacheSet', str_contains($publicHandlerCode, "\$cacheKey = 'cms:page:' . \$slug") && str_contains($publicHandlerCode, 'cmsCacheSet($cacheKey'));
+t('cmsPublicEntityList versions cache by template fingerprint', str_contains($publicHandlerCode, '$templateVersion = md5(') && str_contains($publicHandlerCode, ":tpl:"));
 t('cmsApiContentUpdate fires updated event', str_contains($contentHandlerCode . $contentActionsCode, 'cms.content.updated'));
 t('cmsApiContentTrash fires deleted event', str_contains($contentHandlerCode . $contentActionsCode, 'cms.content.deleted'));
 t('cmsApiContentPublish calls cmsCacheInvalidateContent', str_contains($contentHandlerCode . $contentActionsCode, 'cmsCacheInvalidateContent('));

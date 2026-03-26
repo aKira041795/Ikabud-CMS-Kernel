@@ -50,17 +50,26 @@
             {if product.inventory.track_stock}
             <div class="flex items-center gap-2 mb-4">
                 {if product.inventory.in_stock}
-                <span class="inline-block w-2 h-2 rounded-full bg-emerald-400"></span>
-                <span class="text-sm text-emerald-700">In stock ({product.inventory.stock_qty} available)</span>
-                {else}
+                <span class="inline-block w-2 h-2 rounded-full {if product.inventory.low_stock}bg-amber-400{else}bg-emerald-400{/if}"></span>
+                <span class="text-sm {if product.inventory.low_stock}text-amber-700 font-medium{else}text-emerald-700{/if}">
+                    {if product.inventory.low_stock}
+                    Low stock ({product.inventory.stock_qty} left)
+                    {else}
+                    In stock ({product.inventory.stock_qty} available)
+                    {/if}
+                </span>
+                {elseif product.inventory.out_of_stock or not product.inventory.in_stock}
                 <span class="inline-block w-2 h-2 rounded-full bg-red-400"></span>
                 <span class="text-sm text-red-600 font-medium">Out of stock</span>
+                {else}
+                <span class="inline-block w-2 h-2 rounded-full bg-emerald-400"></span>
+                <span class="text-sm text-emerald-700">In stock</span>
                 {/if}
             </div>
             {/if}
 
             <!-- Add to cart -->
-            {if product.inventory.in_stock}
+            {if not product.inventory.out_of_stock and product.inventory.in_stock}
             <div class="flex gap-3 mb-6" id="add-to-cart-form">
                 <input type="number" id="qty-input" value="1" min="1"
                        {if product.inventory.track_stock}max="{product.inventory.stock_qty}"{/if}

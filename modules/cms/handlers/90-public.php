@@ -1138,10 +1138,15 @@ function cmsPublicEntityList(array $params = []): void
         } catch (\Throwable $e) {}
     }
 
+    $templatePath = cmsResolveContentTemplate('public/entity.list.disyl', [], $type);
+    $templateAbsolutePath = BASE_PATH . '/templates/' . ltrim($templatePath, '/');
+    $templateVersion = md5($templatePath . '|' . @filemtime($templateAbsolutePath));
+
     $cacheKey = 'cms:entity_list:' . $type . ':p' . $page
         . ($perPage !== 12 ? ':pp' . $perPage : '')
         . ($categoryId > 0 ? ':cat' . $categoryId : '')
-        . ($search !== '' ? ':s' . md5($search) : '');
+        . ($search !== '' ? ':s' . md5($search) : '')
+        . ':tpl:' . $templateVersion;
 
     $cached = cmsCacheGet($cacheKey);
     if ($cached !== null && isset($cached['html'])) {
@@ -1242,7 +1247,6 @@ function cmsPublicEntityList(array $params = []): void
         }
     } catch (\Throwable $e) {}
 
-    $templatePath = cmsResolveContentTemplate('public/entity.list.disyl', [], $type);
     $sidebarTemplateKey = cmsSidebarTemplateKeyFromPath($templatePath, 'entity-list');
     $html = cmsRenderThemeAwareTemplate($templatePath, cmsPublicContext([
         'page_title'       => $listTitle,

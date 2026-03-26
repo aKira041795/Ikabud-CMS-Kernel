@@ -333,6 +333,7 @@ function ec_cap_inventory_data_1(mixed $payload, string $capabilityId = '', stri
         'stock_qty'   => $stockQty,
         'sku'         => $sku,
         'in_stock'    => !$trackStock || $stockQty > 0,
+        'out_of_stock' => $trackStock && $stockQty <= 0,
         'low_stock'   => $trackStock && $stockQty > 0 && $stockQty <= $threshold,
     ];
 }

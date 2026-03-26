@@ -481,6 +481,7 @@ function ecProductInventory(int $productId): array
             'stock_qty'   => $stockQty,
             'sku'         => $config['sku'] ?? '',
             'in_stock'    => !$trackStock || $stockQty > 0,
+            'out_of_stock' => $trackStock && $stockQty <= 0,
             'low_stock'   => $trackStock && $stockQty > 0 && $stockQty <= $threshold,
         ];
     } catch (\Throwable $e) {

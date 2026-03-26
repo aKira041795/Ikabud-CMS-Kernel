@@ -46,6 +46,16 @@
                 </div>
                 {/if}
 
+                {if item.capabilities.inventory and item.capability_data.inventory.track_stock}
+                <div class="mt-2 text-xs font-medium">
+                    {if item.capability_data.inventory.out_of_stock or not item.capability_data.inventory.in_stock}
+                    <span class="text-red-600">Out of stock</span>
+                    {elseif item.capability_data.inventory.low_stock}
+                    <span class="text-amber-600">Low stock - only {item.capability_data.inventory.stock_qty} left</span>
+                    {/if}
+                </div>
+                {/if}
+
                 {* Progress pill for enrolled courses *}
                 {if item.capabilities.progress_tracking and item.capability_data.progress_tracking.authenticated}
                 <div class="mt-2">

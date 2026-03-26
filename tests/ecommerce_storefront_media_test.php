@@ -112,6 +112,7 @@ echo "\n=== ECOMMERCE STOREFRONT MEDIA ===\n";
 
 $featuredMedia = createTestMedia('featured');
 $galleryMedia = createTestMedia('gallery');
+$lowStockThreshold = (int)ecSettings('low_stock_threshold');
 
 $cmsUserId = existingCmsUserId();
 
@@ -137,7 +138,25 @@ $noImageProductId = ecProductCreate([
     'status' => 'published',
 ], $cmsUserId);
 
-$cleanupProductIds = [$featuredProductId, $galleryOnlyProductId, $noImageProductId];
+$outOfStockProductId = ecProductCreate([
+    'title' => 'Storefront Out Of Stock ' . substr(bin2hex(random_bytes(3)), 0, 6),
+    'slug' => 'storefront-out-of-stock-' . substr(bin2hex(random_bytes(3)), 0, 6),
+    'excerpt' => 'out of stock product',
+    'status' => 'published',
+    'stock_qty' => 0,
+    'track_stock' => true,
+], $cmsUserId);
+
+$lowStockProductId = ecProductCreate([
+    'title' => 'Storefront Low Stock ' . substr(bin2hex(random_bytes(3)), 0, 6),
+    'slug' => 'storefront-low-stock-' . substr(bin2hex(random_bytes(3)), 0, 6),
+    'excerpt' => 'threshold stock product',
+    'status' => 'published',
+    'stock_qty' => $lowStockThreshold,
+    'track_stock' => true,
+], $cmsUserId);
+
+$cleanupProductIds = [$featuredProductId, $galleryOnlyProductId, $noImageProductId, $lowStockProductId, $outOfStockProductId];
 
 $db = app()->db();
 $galleryMeta = json_encode([
@@ -156,6 +175,8 @@ $stmt->execute([':content_id' => $galleryOnlyProductId, ':meta_value' => $galler
 $featuredProduct = ecProductGet($featuredProductId);
 $galleryOnlyProduct = ecProductGet($galleryOnlyProductId);
 $noImageProduct = ecProductGet($noImageProductId);
+$lowStockProduct = ecProductGet($lowStockProductId);
+$outOfStockProduct = ecProductGet($outOfStockProductId);
 $list = ecProductList(['status' => 'published', 'limit' => 100, 'offset' => 0]);
 
 $itemsById = [];
@@ -171,15 +192,25 @@ t('featured product primary_image_url uses featured image', ($featuredProduct['p
 t('gallery-only product exposes gallery image', count($galleryOnlyProduct['gallery_images'] ?? []) === 1);
 t('gallery-only product primary_image_url falls back to gallery', ($galleryOnlyProduct['primary_image_url'] ?? '') === $expectedGalleryUrl);
 t('no-image product helper leaves primary_image_url empty', ($noImageProduct['primary_image_url'] ?? '') === '');
+t('threshold stock product is flagged low_stock', ($lowStockProduct['inventory']['low_stock'] ?? false) === true);
+t('threshold stock product remains in stock', ($lowStockProduct['inventory']['in_stock'] ?? false) === true);
+t('zero-stock product is flagged out_of_stock', ($outOfStockProduct['inventory']['out_of_stock'] ?? false) === true);
+t('zero-stock product is not in stock', ($outOfStockProduct['inventory']['in_stock'] ?? true) === false);
 
 t('featured product list item has primary_image_url', (($itemsById[$featuredProductId]['primary_image_url'] ?? '') === $expectedFeaturedUrl));
 t('gallery-only list item has primary_image_url', (($itemsById[$galleryOnlyProductId]['primary_image_url'] ?? '') === $expectedGalleryUrl));
 t('no-image list item has empty primary_image_url', (($itemsById[$noImageProductId]['primary_image_url'] ?? '') === ''));
+t('threshold stock list item keeps low_stock flag', (($itemsById[$lowStockProductId]['inventory']['low_stock'] ?? false) === true));
+t('zero-stock list item keeps out_of_stock flag', (($itemsById[$outOfStockProductId]['inventory']['out_of_stock'] ?? false) === true));
 
 $shopTemplate = file_get_contents(__DIR__ . '/../templates/modules/ecommerce/public/shop.disyl') ?: '';
 $productTemplate = file_get_contents(__DIR__ . '/../templates/modules/ecommerce/public/product.disyl') ?: '';
 t('shop template includes placeholder fallback', str_contains($shopTemplate, 'product-placeholder.svg'));
 t('product template includes placeholder fallback', str_contains($productTemplate, 'product-placeholder.svg'));
+t('shop template includes low stock notice', str_contains($shopTemplate, 'Low stock - only'));
+t('product template includes low stock notice', str_contains($productTemplate, 'Low stock ('));
+t('shop template uses out_of_stock flag', str_contains($shopTemplate, 'p.inventory.out_of_stock'));
+t('product template uses out_of_stock flag', str_contains($productTemplate, 'product.inventory.out_of_stock'));
 
 cleanupStorefrontMediaFixtures();
 
