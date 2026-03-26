@@ -187,6 +187,81 @@ function cmsCustomizerClearPersistentCache(?string $section = null): void
     app()->cache()->clearByTags(cmsCustomizerPersistentCacheInstance(), $tags);
 }
 
+/**
+ * Preload all customizer sections into request cache in a single DB query.
+ * Call once at the start of public context building to avoid N separate
+ * queries when each section is read individually.
+ */
+function cmsCustomizerPreloadAll(object $db): void
+{
+    $cacheKey = cmsCustomizerRequestCacheKey('section_row');
+    if (!empty($GLOBALS[$cacheKey])) {
+        return; // Already preloaded this request
+    }
+
+    $knownSections = ['footer', 'header', 'sidebar', 'colors', 'custom_code', 'theme'];
+    $cache = [];
+    $ttl = cmsCustomizerPersistentCacheTtl();
+    $instance = cmsCustomizerPersistentCacheInstance();
+
+    // Try persistent cache first
+    if ($ttl > 0) {
+        $allCached = true;
+        foreach ($knownSections as $s) {
+            $persistent = app()->cache()->get($instance, cmsCustomizerPersistentCacheKey($s));
+            if (is_array($persistent)) {
+                if (isset($persistent['_empty']) && $persistent['_empty'] === true) {
+                    $cache[$s] = null;
+                } else {
+                    $cache[$s] = $persistent;
+                }
+            } else {
+                $allCached = false;
+                break;
+            }
+        }
+        if ($allCached) {
+            $GLOBALS[$cacheKey] = $cache;
+            return;
+        }
+    }
+
+    // Persistent cache incomplete — batch-load from DB
+    $cache = [];
+    try {
+        $stmt = $db->query("SELECT section, settings_json, widgets_json FROM cms_theme_customizer");
+        while ($row = $stmt->fetch(\PDO::FETCH_ASSOC)) {
+            $section = $row['section'];
+            $cache[$section] = ['settings_json' => $row['settings_json'], 'widgets_json' => $row['widgets_json']];
+        }
+    } catch (\Throwable $e) {
+        // Table may not exist yet; leave cache empty
+    }
+
+    // Fill in missing sections as null so individual lookups won't re-query
+    foreach ($knownSections as $s) {
+        if (!array_key_exists($s, $cache)) {
+            $cache[$s] = null;
+        }
+    }
+
+    $GLOBALS[$cacheKey] = $cache;
+
+    // Populate persistent cache for each section
+    if ($ttl > 0) {
+        foreach ($knownSections as $s) {
+            $cacheValue = $cache[$s] ?? ['_empty' => true];
+            app()->cache()->setWithTags(
+                $instance,
+                cmsCustomizerPersistentCacheKey($s),
+                $cacheValue,
+                ['cms:customizer', 'cms:customizer:' . $s],
+                $ttl
+            );
+        }
+    }
+}
+
 function cmsCustomizerSectionRecord(object $db, string $section): ?array
 {
     $cacheKey = cmsCustomizerRequestCacheKey('section_row');

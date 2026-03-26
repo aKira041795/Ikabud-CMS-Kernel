@@ -40,6 +40,32 @@ function cmsCheckDangerousFileSignature(string $filePath): ?string
     return null;
 }
 
+function cmsPublicContextTimingEnabled(): bool
+{
+    return timing_logs_enabled('CMS_PUBLIC_CONTEXT_TIMING') || timing_logs_enabled('APP_TIMING_LOGS');
+}
+
+function cmsPublicContextTimingThresholdMs(): int
+{
+    $threshold = timing_logs_threshold_ms('CMS_PUBLIC_CONTEXT_TIMING_THRESHOLD_MS', -1);
+    if ($threshold >= 0) {
+        return $threshold;
+    }
+
+    return timing_logs_threshold_ms('APP_TIMING_THRESHOLD_MS', 0);
+}
+
+function cmsPublicContextLogStage(string $stage, float $startTime, array $context = []): ?float
+{
+    return log_timing(
+        'cms.public_context.' . $stage,
+        $startTime,
+        $context,
+        'CMS_PUBLIC_CONTEXT_TIMING',
+        'CMS_PUBLIC_CONTEXT_TIMING_THRESHOLD_MS'
+    );
+}
+
 // ── Public Context Enrichment ────────────────────────────────────────
 
 /**
@@ -49,23 +75,41 @@ function cmsCheckDangerousFileSignature(string $filePath): ?string
 
 function cmsPublicContext(array $extra = []): array
 {
+    $timingEnabled = cmsPublicContextTimingEnabled();
+    $totalStart = $timingEnabled ? microtime(true) : 0.0;
     $settings = readCmsSettings();
     $baseUrl = rtrim((string)(defined('BASE_URL') ? BASE_URL : ''), '/');
     $activeThemeSlug = cmsActiveTheme() ?? 'native-default';
+    $requestType = !empty($extra['entity']['id']) ? 'entity' : (!empty($extra['content']['id']) ? 'content' : 'generic');
+
+    // Preload all customizer sections in one DB query instead of 6 separate ones
+    try {
+        cmsCustomizerPreloadAll(cmsDb());
+    } catch (Throwable $e) {
+        // Non-fatal — individual lookups will fall back to per-section queries
+    }
 
     // Build primary menu
     $primaryMenu = '';
+    $stageStart = $timingEnabled ? microtime(true) : 0.0;
     try {
         $primaryMenu = cmsRenderMenu('primary');
     } catch (Throwable $e) {
         // Menu may not exist yet
     }
+    if ($timingEnabled) {
+        cmsPublicContextLogStage('primary_menu', $stageStart, ['theme' => $activeThemeSlug, 'request_type' => $requestType]);
+    }
 
     // Build footer menu
     $footerMenu = '';
+    $stageStart = $timingEnabled ? microtime(true) : 0.0;
     try {
         $footerMenu = cmsRenderMenu('footer');
     } catch (Throwable $e) {}
+    if ($timingEnabled) {
+        cmsPublicContextLogStage('footer_menu', $stageStart, ['theme' => $activeThemeSlug, 'request_type' => $requestType]);
+    }
 
     // Social links from settings
     $socialLinks = [];
@@ -92,6 +136,7 @@ function cmsPublicContext(array $extra = []): array
     ];
 
     // Render customized footer if customizer data exists
+    $stageStart = $timingEnabled ? microtime(true) : 0.0;
     try {
         $db = cmsDb();
         $customizedFooter = cmsRenderCustomizedFooter($db);
@@ -101,8 +146,12 @@ function cmsPublicContext(array $extra = []): array
         $ctx['customized_footer'] = '';
         $ctx['has_customized_footer'] = false;
     }
+    if ($timingEnabled) {
+        cmsPublicContextLogStage('customized_footer', $stageStart, ['theme' => $activeThemeSlug, 'request_type' => $requestType]);
+    }
 
     // Render customized header if customizer data exists
+    $stageStart = $timingEnabled ? microtime(true) : 0.0;
     try {
         $db = $db ?? cmsDb();
         $customizedHeader = cmsRenderCustomizedHeader($db, $ctx);
@@ -112,8 +161,12 @@ function cmsPublicContext(array $extra = []): array
         $ctx['customized_header'] = '';
         $ctx['has_customized_header'] = false;
     }
+    if ($timingEnabled) {
+        cmsPublicContextLogStage('customized_header', $stageStart, ['theme' => $activeThemeSlug, 'request_type' => $requestType]);
+    }
 
     // Render customized sidebar if enabled by customizer settings
+    $stageStart = $timingEnabled ? microtime(true) : 0.0;
     try {
         $db = $db ?? cmsDb();
         $sidebarCtx = array_merge($ctx, $extra);
@@ -128,16 +181,24 @@ function cmsPublicContext(array $extra = []): array
         $ctx['sidebar_position'] = 'right';
         $ctx['sidebar_width'] = '300';
     }
+    if ($timingEnabled) {
+        cmsPublicContextLogStage('customized_sidebar', $stageStart, ['theme' => $activeThemeSlug, 'request_type' => $requestType]);
+    }
 
     // Render colors/general <style> override (injected by public layout into <head>)
+    $stageStart = $timingEnabled ? microtime(true) : 0.0;
     try {
         $db = $db ?? cmsDb();
         $ctx['colors_style'] = cmsRenderColorsStyle($db);
     } catch (Throwable $e) {
         $ctx['colors_style'] = '';
     }
+    if ($timingEnabled) {
+        cmsPublicContextLogStage('colors_style', $stageStart, ['theme' => $activeThemeSlug, 'request_type' => $requestType]);
+    }
 
     // Render custom code output (CSS overrides, head/body code, scroll-to-top, etc.)
+    $stageStart = $timingEnabled ? microtime(true) : 0.0;
     try {
         $db = $db ?? cmsDb();
         $cc = cmsRenderCustomCodeOutput($db);
@@ -149,8 +210,12 @@ function cmsPublicContext(array $extra = []): array
         $ctx['head_code']     = '';
         $ctx['body_end_code'] = '';
     }
+    if ($timingEnabled) {
+        cmsPublicContextLogStage('custom_code', $stageStart, ['theme' => $activeThemeSlug, 'request_type' => $requestType]);
+    }
 
     // Render theme layout style (CSS custom properties + layout rules)
+    $stageStart = $timingEnabled ? microtime(true) : 0.0;
     try {
         $db = $db ?? cmsDb();
         $ctx['theme_layout_style'] = cmsRenderThemeLayoutStyle($db);
@@ -160,10 +225,14 @@ function cmsPublicContext(array $extra = []): array
         $ctx['theme_layout_style'] = '';
         $ctx['theme_settings'] = cmsThemeLayoutSettingsDefaults();
     }
+    if ($timingEnabled) {
+        cmsPublicContextLogStage('theme_layout', $stageStart, ['theme' => $activeThemeSlug, 'request_type' => $requestType]);
+    }
 
     // Inject entity capability context when rendering a specific entity
     if (!empty($extra['entity']['id'])) {
         $entityId = (int)$extra['entity']['id'];
+        $stageStart = $timingEnabled ? microtime(true) : 0.0;
         try {
             $ctx['capabilities']    = cmsEntityCapabilityContext($entityId);
             $ctx['capability_data'] = cmsEntityCapabilityData($entityId, $extra['entity']);
@@ -174,6 +243,13 @@ function cmsPublicContext(array $extra = []): array
             ]);
             $ctx['capabilities']    = [];
             $ctx['capability_data'] = [];
+        }
+        if ($timingEnabled) {
+            cmsPublicContextLogStage('entity_capabilities', $stageStart, [
+                'theme' => $activeThemeSlug,
+                'request_type' => $requestType,
+                'entity_id' => $entityId,
+            ]);
         }
 
         // Risk 1: Cart availability — gate buy-button on cart.add capability
@@ -202,6 +278,16 @@ function cmsPublicContext(array $extra = []): array
     } else {
         $ctx['capabilities']    = [];
         $ctx['capability_data'] = [];
+    }
+
+    if ($timingEnabled) {
+        cmsPublicContextLogStage('total', $totalStart, [
+            'theme' => $activeThemeSlug,
+            'request_type' => $requestType,
+            'has_sidebar' => !empty($ctx['has_customized_sidebar']),
+            'has_header' => !empty($ctx['has_customized_header']),
+            'has_footer' => !empty($ctx['has_customized_footer']),
+        ]);
     }
 
     return array_merge($ctx, $extra);
