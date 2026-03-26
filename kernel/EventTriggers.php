@@ -181,6 +181,22 @@ function kernelValidateTriggerConfig(string $eventKey, string $capabilityId, ?st
  * @param string $moduleId
  * @param array<int, array<string, mixed>> $events
  */
+function kernelEventRegistrySyncTtl(): int
+{
+    return max(0, (int)($_ENV['KERNEL_EVENT_REGISTRY_SYNC_TTL'] ?? 300));
+}
+
+function kernelEventRegistrySyncInstance(): string
+{
+    $tenantId = app()->tenant()->current();
+    return 'kernel_event_registry_t' . ($tenantId ?? 0);
+}
+
+function kernelEventRegistrySyncKey(string $moduleId, array $events): string
+{
+    return 'events:' . $moduleId . ':' . sha1((string)json_encode($events, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+}
+
 function kernelRegisterModuleEvents(string $moduleId, array $events): void
 {
     $moduleId = trim($moduleId);
@@ -188,7 +204,34 @@ function kernelRegisterModuleEvents(string $moduleId, array $events): void
         return;
     }
 
-    try {
+    // Collect events for deferred batch sync instead of syncing per-module
+    $GLOBALS['_kernel_pending_event_registrations'][$moduleId] = $events;
+}
+
+/**
+ * Flush all pending module event registrations in a single batch.
+ * Called once after all modules have been loaded (from loadModuleRoutes).
+ */
+function kernelFlushPendingEventRegistrations(): void
+{
+    $pending = $GLOBALS['_kernel_pending_event_registrations'] ?? [];
+    unset($GLOBALS['_kernel_pending_event_registrations']);
+    if (empty($pending)) {
+        return;
+    }
+
+    // Build a single composite cache key from all pending modules+events
+    $syncTtl = kernelEventRegistrySyncTtl();
+    if ($syncTtl > 0) {
+        $compositeHash = sha1((string)json_encode($pending, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+        $compositeKey = 'events:batch:' . $compositeHash;
+        $cached = app()->cache()->get(kernelEventRegistrySyncInstance(), $compositeKey);
+        if (is_array($cached) && !empty($cached['synced'])) {
+            return; // All events already synced
+        }
+    }
+
+    $register = static function () use ($pending): void {
         $pdo = app()->db();
         $stmt = $pdo->prepare(
             'INSERT INTO kernel_events (module, event_key, description, available_vars) '
@@ -199,39 +242,62 @@ function kernelRegisterModuleEvents(string $moduleId, array $events): void
             . 'updated_at = CURRENT_TIMESTAMP'
         );
 
-        foreach ($events as $e) {
-            if (!is_array($e)) {
-                continue;
-            }
-            $key = trim((string)($e['key'] ?? ''));
-            if ($key === '') {
-                continue;
-            }
-
-            $desc = null;
-            if (isset($e['description'])) {
-                $d = trim((string)$e['description']);
-                if ($d !== '') {
-                    $desc = $d;
+        foreach ($pending as $moduleId => $events) {
+            foreach ($events as $e) {
+                if (!is_array($e)) {
+                    continue;
                 }
-            }
+                $key = trim((string)($e['key'] ?? ''));
+                if ($key === '') {
+                    continue;
+                }
 
-            $vars = $e['available_vars'] ?? null;
-            if ($vars !== null && !is_array($vars)) {
-                $vars = null;
-            }
+                $desc = null;
+                if (isset($e['description'])) {
+                    $d = trim((string)$e['description']);
+                    if ($d !== '') {
+                        $desc = $d;
+                    }
+                }
 
-            $stmt->execute([
-                ':module' => $moduleId,
-                ':event_key' => $key,
-                ':description' => $desc,
-                ':available_vars' => $vars !== null ? json_encode(array_values($vars)) : null,
-            ]);
+                $vars = $e['available_vars'] ?? null;
+                if ($vars !== null && !is_array($vars)) {
+                    $vars = null;
+                }
+
+                $stmt->execute([
+                    ':module' => $moduleId,
+                    ':event_key' => $key,
+                    ':description' => $desc,
+                    ':available_vars' => $vars !== null ? json_encode(array_values($vars)) : null,
+                ]);
+            }
+        }
+    };
+
+    try {
+        $register();
+        if ($syncTtl > 0) {
+            app()->cache()->set(kernelEventRegistrySyncInstance(), $compositeKey, ['synced' => true], $syncTtl);
         }
     } catch (Throwable $e) {
+        if (\dbConnectionLost($e)) {
+            try {
+                app()->reconnectDb();
+                $register();
+                if ($syncTtl > 0) {
+                    app()->cache()->set(kernelEventRegistrySyncInstance(), $compositeKey, ['synced' => true], $syncTtl);
+                }
+                write_log('kernelFlushPendingEventRegistrations recovered after DB reconnect', 'info');
+                return;
+            } catch (Throwable $retryError) {
+                $e = $retryError;
+            }
+        }
+
         // Non-fatal: event registry is additive.
-        write_log('kernelRegisterModuleEvents failed: ' . $e->getMessage(), 'warning', [
-            'module' => $moduleId,
+        write_log('kernelFlushPendingEventRegistrations failed: ' . $e->getMessage(), 'warning', [
+            'modules' => array_keys($pending),
         ]);
     }
 }

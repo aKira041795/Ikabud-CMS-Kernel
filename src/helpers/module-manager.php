@@ -98,6 +98,65 @@ function moduleRegistryPath(): string
     return STORAGE_PATH . '/modules.json';
 }
 
+/**
+ * Return declared auth cookie names without triggering module enablement or tenant-setting resolution.
+ * This is used from app()->user(), so it must stay bootstrap-safe and recursion-free.
+ *
+ * @return array<int, string>
+ */
+function declaredModuleAuthCookieNames(): array
+{
+    static $names = null;
+    if (is_array($names)) {
+        return $names;
+    }
+
+    $ttl = max(0, (int)($_ENV['MODULE_AUTH_COOKIE_CACHE_TTL'] ?? 300));
+    if ($ttl > 0) {
+        $cached = app()->cache()->get('kernel_bootstrap', 'module_auth_cookies:v1');
+        if (is_array($cached) && isset($cached['names']) && is_array($cached['names'])) {
+            $names = array_values(array_filter($cached['names'], fn($name) => is_string($name) && $name !== ''));
+            return $names;
+        }
+    }
+
+    $names = [];
+    $dir = modulesPath();
+    if (!is_dir($dir)) {
+        return $names;
+    }
+
+    foreach (scandir($dir) as $entry) {
+        if ($entry === '.' || $entry === '..') {
+            continue;
+        }
+        if (preg_match('/\.bak_\d{8}_\d{6}$/', $entry)) {
+            continue;
+        }
+
+        $manifestPath = $dir . '/' . $entry . '/module.json';
+        if (!is_file($manifestPath)) {
+            continue;
+        }
+
+        $manifest = json_decode((string)file_get_contents($manifestPath), true);
+        if (!is_array($manifest)) {
+            continue;
+        }
+
+        $cookie = trim((string)($manifest['auth_cookie'] ?? ''));
+        if ($cookie !== '' && !in_array($cookie, $names, true)) {
+            $names[] = $cookie;
+        }
+    }
+
+    sort($names);
+    if ($ttl > 0) {
+        app()->cache()->set('kernel_bootstrap', 'module_auth_cookies:v1', ['names' => $names], $ttl);
+    }
+    return $names;
+}
+
 function moduleTenantSettingsTable(): string
 {
     return 'tenant_module_settings';
@@ -783,6 +842,11 @@ function discoverModules(): array
  */
 function getEnabledModules(): array
 {
+    static $cached = null;
+    if (is_array($cached)) {
+        return $cached;
+    }
+
     resetSkippedModules();
 
     $enabled = array_filter(discoverModules(), fn($m) => !empty($m['_enabled']));
@@ -860,7 +924,8 @@ function getEnabledModules(): array
 
         $safe[$id] = $m;
     }
-    return $safe;
+    $cached = $safe;
+    return $cached;
 }
 
 /**
@@ -1062,6 +1127,11 @@ function tenantEntryModuleIdForTenant(int $tenantId): ?string
 
 function tenantEnsureMigrationTrackingTable(PDO $db): void
 {
+    static $ensured = [];
+    $key = spl_object_id($db);
+    if (isset($ensured[$key])) {
+        return;
+    }
     $db->exec(
         'CREATE TABLE IF NOT EXISTS `_migrations` ('
         . 'id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY, '
@@ -1072,6 +1142,7 @@ function tenantEnsureMigrationTrackingTable(PDO $db): void
         . 'UNIQUE KEY uq_module_migration (module, migration)'
         . ') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4'
     );
+    $ensured[$key] = true;
 }
 
 function tenantAppliedModuleMigrations(PDO $db, string $moduleId): array
@@ -1090,6 +1161,31 @@ function tenantAppliedModuleMigrations(PDO $db, string $moduleId): array
             }
         }
         return $applied;
+    } catch (Throwable $e) {
+        return [];
+    }
+}
+
+/**
+ * Batch-load all applied migrations for all modules in one query.
+ * Returns ['moduleId' => ['migration_name' => true, ...], ...].
+ */
+function tenantAllAppliedMigrations(PDO $db): array
+{
+    tenantEnsureMigrationTrackingTable($db);
+
+    try {
+        $stmt = $db->query('SELECT module, migration FROM _migrations');
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        $result = [];
+        foreach ($rows as $row) {
+            $mod = trim((string)($row['module'] ?? ''));
+            $mig = trim((string)($row['migration'] ?? ''));
+            if ($mod !== '' && $mig !== '') {
+                $result[$mod][$mig] = true;
+            }
+        }
+        return $result;
     } catch (Throwable $e) {
         return [];
     }
@@ -1114,7 +1210,7 @@ function tenantRecordModuleMigration(PDO $db, string $moduleId, string $migratio
     ]);
 }
 
-function tenantSyncKernelMigrations(PDO $db): array
+function tenantSyncKernelMigrations(PDO $db, ?array $preloadedApplied = null): array
 {
     $artifacts = [
         '001_kernel_events_and_triggers.sql' => BASE_PATH . '/migrations/001_kernel_events_and_triggers.sql',
@@ -1122,7 +1218,7 @@ function tenantSyncKernelMigrations(PDO $db): array
         '007_kernel_runtime_tables.sql' => BASE_PATH . '/database/migrations/007_kernel_runtime_tables.sql',
     ];
 
-    $applied = tenantAppliedModuleMigrations($db, '_kernel');
+    $applied = $preloadedApplied !== null ? ($preloadedApplied['_kernel'] ?? []) : tenantAppliedModuleMigrations($db, '_kernel');
     $executed = [];
 
     foreach ($artifacts as $artifactName => $fullPath) {
@@ -1144,7 +1240,7 @@ function tenantSyncKernelMigrations(PDO $db): array
     return $executed;
 }
 
-function applyModuleSqlArtifacts(PDO $db, string $moduleId, string $manifestKey, ?array $manifest = null, string $trackingPrefix = ''): array
+function applyModuleSqlArtifacts(PDO $db, string $moduleId, string $manifestKey, ?array $manifest = null, string $trackingPrefix = '', ?array $preloadedApplied = null): array
 {
     $moduleId = trim($moduleId);
     if ($moduleId === '') {
@@ -1169,7 +1265,7 @@ function applyModuleSqlArtifacts(PDO $db, string $moduleId, string $manifestKey,
         return [];
     }
 
-    $applied = tenantAppliedModuleMigrations($db, $moduleId);
+    $applied = $preloadedApplied !== null ? ($preloadedApplied[$moduleId] ?? []) : tenantAppliedModuleMigrations($db, $moduleId);
     $executed = [];
 
     foreach ($declared as $artifactPath) {
@@ -1204,14 +1300,14 @@ function applyModuleSqlArtifacts(PDO $db, string $moduleId, string $manifestKey,
     return $executed;
 }
 
-function tenantSyncModuleMigrations(PDO $db, string $moduleId, ?array $manifest = null): array
+function tenantSyncModuleMigrations(PDO $db, string $moduleId, ?array $manifest = null, ?array $preloadedApplied = null): array
 {
-    return applyModuleSqlArtifacts($db, $moduleId, 'migrations', $manifest);
+    return applyModuleSqlArtifacts($db, $moduleId, 'migrations', $manifest, '', $preloadedApplied);
 }
 
-function tenantSyncModuleSeeds(PDO $db, string $moduleId, ?array $manifest = null): array
+function tenantSyncModuleSeeds(PDO $db, string $moduleId, ?array $manifest = null, ?array $preloadedApplied = null): array
 {
-    return applyModuleSqlArtifacts($db, $moduleId, 'seeds', $manifest, 'seed:');
+    return applyModuleSqlArtifacts($db, $moduleId, 'seeds', $manifest, 'seed:', $preloadedApplied);
 }
 
 function syncTenantMigrationsForTenant(int $tenantId, ?string $entryModuleId = null): array
@@ -1231,7 +1327,10 @@ function syncTenantMigrationsForTenant(int $tenantId, ?string $entryModuleId = n
     $results = [];
 
     try {
-        $kernelApplied = tenantSyncKernelMigrations($db);
+        // Batch-load all applied migrations in one query instead of per-module SELECTs
+        $allApplied = tenantAllAppliedMigrations($db);
+
+        $kernelApplied = tenantSyncKernelMigrations($db, $allApplied);
         if ($kernelApplied !== []) {
             $results['_kernel'] = $kernelApplied;
         }
@@ -1241,8 +1340,8 @@ function syncTenantMigrationsForTenant(int $tenantId, ?string $entryModuleId = n
             if (!is_array($manifest)) {
                 continue;
             }
-            $executed = tenantSyncModuleMigrations($db, $moduleId, $manifest);
-            $seeded = tenantSyncModuleSeeds($db, $moduleId, $manifest);
+            $executed = tenantSyncModuleMigrations($db, $moduleId, $manifest, $allApplied);
+            $seeded = tenantSyncModuleSeeds($db, $moduleId, $manifest, $allApplied);
             $applied = array_merge($executed, $seeded);
             if ($applied !== []) {
                 $results[$moduleId] = $applied;
@@ -1284,7 +1383,43 @@ function syncTenantMigrationsForCurrentRequest(): array
         return $done;
     }
 
+    $syncEnabledRaw = $_ENV['APP_REQUEST_TENANT_MIGRATION_SYNC'] ?? '1';
+    $syncEnabled = filter_var($syncEnabledRaw, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+    if ($syncEnabled === false) {
+        $done = ['ok' => true, 'skipped' => 'request_sync_disabled'];
+        return $done;
+    }
+
+    $syncTtl = max(0, (int)($_ENV['APP_REQUEST_TENANT_MIGRATION_SYNC_TTL'] ?? 300));
+    if (PHP_SAPI !== 'cli' && $syncTtl > 0) {
+        $cacheKey = 'tenant_migration_sync:' . $tenantId;
+        $cached = app()->cache()->get('kernel_tenant_request_sync', $cacheKey);
+        if (is_array($cached) && !empty($cached['ok'])) {
+            $done = [
+                'ok' => true,
+                'skipped' => 'recent_sync',
+                'tenant_id' => $tenantId,
+                'last_checked_at' => $cached['checked_at'] ?? null,
+            ];
+            return $done;
+        }
+    }
+
     $done = syncTenantMigrationsForTenant($tenantId);
+
+    if (PHP_SAPI !== 'cli' && $syncTtl > 0 && !empty($done['ok'])) {
+        app()->cache()->set(
+            'kernel_tenant_request_sync',
+            'tenant_migration_sync:' . $tenantId,
+            [
+                'ok' => true,
+                'checked_at' => date('c'),
+                'tenant_id' => $tenantId,
+            ],
+            $syncTtl
+        );
+    }
+
     return $done;
 }
 
@@ -1747,6 +1882,11 @@ function loadModuleRoutes(array $routes): array
                 $methodPatterns[$method][$pattern] = $moduleId;
             }
         }
+    }
+
+    // Flush all deferred event registrations in a single batch (1 cache check + 1 batch DB write)
+    if (function_exists('kernelFlushPendingEventRegistrations')) {
+        kernelFlushPendingEventRegistrations();
     }
 
     return $routes;
@@ -2316,9 +2456,8 @@ function registerModuleManagerHooks(): void
     // kernel.auth_cookie_names: allow modules to register additional auth cookie names
     // so kernel-level app()->user() can recognize module-authenticated sessions.
     $hooks->on('kernel.auth_cookie_names', function (array $names, string $defaultCookie) {
-        foreach (getEnabledModules() as $m) {
-            $cookie = (string)($m['auth_cookie'] ?? '');
-            if ($cookie !== '' && $cookie !== $defaultCookie && !in_array($cookie, $names, true)) {
+        foreach (declaredModuleAuthCookieNames() as $cookie) {
+            if ($cookie !== $defaultCookie && !in_array($cookie, $names, true)) {
                 $names[] = $cookie;
             }
         }
