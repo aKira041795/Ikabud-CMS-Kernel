@@ -198,6 +198,12 @@ function cmsCustomizerSectionRecord(object $db, string $section): ?array
     if (cmsCustomizerPersistentCacheTtl() > 0) {
         $persistent = app()->cache()->get(cmsCustomizerPersistentCacheInstance(), cmsCustomizerPersistentCacheKey($section));
         if (is_array($persistent)) {
+            // Sentinel value means "section does not exist in DB"
+            if (isset($persistent['_empty']) && $persistent['_empty'] === true) {
+                $cache[$section] = null;
+                $GLOBALS[$cacheKey] = $cache;
+                return null;
+            }
             $cache[$section] = $persistent;
             $GLOBALS[$cacheKey] = $cache;
             return $persistent;
@@ -219,10 +225,12 @@ function cmsCustomizerSectionRecord(object $db, string $section): ?array
     $cache[$section] = $row;
     $GLOBALS[$cacheKey] = $cache;
     if (cmsCustomizerPersistentCacheTtl() > 0) {
+        // Cache both hits and misses; use sentinel for missing sections
+        $cacheValue = $row ?? ['_empty' => true];
         app()->cache()->setWithTags(
             cmsCustomizerPersistentCacheInstance(),
             cmsCustomizerPersistentCacheKey($section),
-            $row,
+            $cacheValue,
             ['cms:customizer', 'cms:customizer:' . $section],
             cmsCustomizerPersistentCacheTtl()
         );
