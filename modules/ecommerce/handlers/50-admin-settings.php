@@ -10,31 +10,131 @@ declare(strict_types=1);
  * GET  /admin/ecommerce/settings  — settings page
  * POST /admin/ecommerce/settings  — save settings
  */
+function ecAdminSettingsFields(): array
+{
+    $modules = discoverModules();
+    $manifest = $modules['ecommerce'] ?? [];
+    $fields = moduleEditableSettingsFields($manifest);
+    $rendered = [];
+
+    foreach ($fields as $field) {
+        if (!is_array($field)) {
+            continue;
+        }
+
+        $key = trim((string)($field['key'] ?? ''));
+        if ($key === '') {
+            continue;
+        }
+
+        $type = strtolower(trim((string)($field['type'] ?? 'text')));
+        $currentValue = ecSettings($key);
+        $isCheckbox = in_array($type, ['checkbox', 'bool', 'boolean'], true);
+        $isSelect = ($type === 'select');
+        $isTextarea = ($type === 'textarea');
+        $inputType = in_array($type, ['number', 'int', 'integer'], true) ? 'number' : ($type === 'email' ? 'email' : 'text');
+        $controlClass = trim((string)($field['control_class'] ?? $field['input_class'] ?? ''));
+
+        $options = [];
+        if ($isSelect && is_array($field['options'] ?? null)) {
+            foreach ($field['options'] as $opt) {
+                if (is_string($opt)) {
+                    $options[] = [
+                        'value' => $opt,
+                        'label' => $opt,
+                        'selected' => ((string)$currentValue === $opt),
+                    ];
+                } elseif (is_array($opt)) {
+                    $value = (string)($opt['value'] ?? '');
+                    $options[] = [
+                        'value' => $value,
+                        'label' => (string)($opt['label'] ?? $value),
+                        'selected' => ((string)$currentValue === $value),
+                    ];
+                }
+            }
+        }
+
+        $rendered[] = [
+            'key' => $key,
+            'label' => (string)($field['label'] ?? $key),
+            'description' => (string)($field['description'] ?? ''),
+            'type' => $type,
+            'is_checkbox' => $isCheckbox,
+            'is_select' => $isSelect,
+            'is_textarea' => $isTextarea,
+            'is_text' => (!$isCheckbox && !$isSelect && !$isTextarea),
+            'input_type' => $inputType,
+            'control_class' => $controlClass,
+            'current_value' => $isCheckbox ? '' : (string)$currentValue,
+            'is_checked' => $isCheckbox ? !empty($currentValue) : false,
+            'options' => $options,
+        ];
+    }
+
+    return $rendered;
+}
+
 function ecAdminSettings(): void
 {
     $user = ecRequireAdmin();
+    $modules = discoverModules();
+    $manifest = $modules['ecommerce'] ?? [];
+    $fields = moduleEditableSettingsFields($manifest);
 
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         csrf_verify();
         $input = ecInput();
 
-        $allowed = [
-            'currency', 'currency_symbol', 'tax_rate', 'tax_inclusive',
-            'low_stock_threshold', 'guest_checkout', 'payment_method_label',
-            'order_number_prefix', 'shop_page_title', 'products_per_page',
-        ];
-
-        $settings = readTenantModuleSettings('ecommerce');
-        foreach ($allowed as $key) {
-            if (array_key_exists($key, $input)) {
-                $settings[$key] = $input[$key];
+        $settings = getModuleSettings('ecommerce');
+        foreach ($fields as $field) {
+            if (!is_array($field)) {
+                continue;
             }
-        }
-        // Normalize booleans
-        $settings['tax_inclusive']  = !empty($input['tax_inclusive'])  ? '1' : '0';
-        $settings['guest_checkout'] = !empty($input['guest_checkout']) ? '1' : '0';
 
-        saveTenantModuleSettings('ecommerce', $settings);
+            $key = trim((string)($field['key'] ?? ''));
+            if ($key === '') {
+                continue;
+            }
+
+            $type = strtolower(trim((string)($field['type'] ?? 'text')));
+            $raw = $input[$key] ?? null;
+
+            if (in_array($type, ['checkbox', 'bool', 'boolean'], true)) {
+                $settings[$key] = !empty($input[$key]);
+                continue;
+            }
+
+            if ($raw === null) {
+                continue;
+            }
+
+            if (in_array($type, ['number', 'int', 'integer'], true)) {
+                $settings[$key] = (string)(0 + (float)$raw);
+                continue;
+            }
+
+            if ($type === 'select' && is_array($field['options'] ?? null)) {
+                $allowedValues = [];
+                foreach ($field['options'] as $opt) {
+                    if (is_string($opt)) {
+                        $allowedValues[$opt] = true;
+                    } elseif (is_array($opt) && array_key_exists('value', $opt)) {
+                        $allowedValues[(string)$opt['value']] = true;
+                    }
+                }
+                $val = (string)$raw;
+                if (!empty($allowedValues) && !isset($allowedValues[$val])) {
+                    continue;
+                }
+                $settings[$key] = $val;
+                continue;
+            }
+
+            $settings[$key] = trim((string)$raw);
+        }
+
+        saveModuleSettings('ecommerce', $settings);
 
         $_SESSION['ec_message'] = ['type' => 'success', 'text' => 'Settings saved.'];
         header('Location: /ecommerce/admin/settings');
@@ -43,6 +143,7 @@ function ecAdminSettings(): void
 
     $ctx = ecAdminContext($user, 'settings', [
         'message' => $_SESSION['ec_message'] ?? null,
+        'settings_fields' => ecAdminSettingsFields(),
     ]);
     unset($_SESSION['ec_message']);
 

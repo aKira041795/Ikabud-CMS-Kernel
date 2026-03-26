@@ -77,7 +77,7 @@ function ecAdminOrderDetail(array $params = []): void
     }
 
     $allowedStatuses = EC_ORDER_STATUS_TRANSITIONS[$order['status']] ?? [];
-    $symbol          = ecSettings('currency_symbol', '$');
+    $symbol          = (string)($order['currency_symbol'] ?? ecSettings('currency_symbol'));
 
     $ctx = ecAdminContext($user, 'orders', [
         'order'           => $order,

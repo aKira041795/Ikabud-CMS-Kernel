@@ -77,11 +77,11 @@ function pageSmsSettings(array $params = []): void
     $ctx->requireRole('admin');
     
     $settings = smsGetSettings();
-    $manifest = kernelReadJsonFile(__DIR__ . '/module.json');
+    $settingDefs = smsSettingsFieldDefinitions();
     
     // Pre-resolve each field so the template doesn't need dynamic key lookups
     $fields = [];
-    foreach ($manifest['settings'] ?? [] as $def) {
+    foreach ($settingDefs as $def) {
         $key = $def['key'];
         $type = $def['type'] ?? 'text';
         $value = $settings[$key] ?? ($def['default'] ?? '');
@@ -366,8 +366,7 @@ function apiSmsSettingsSave(array $params = []): void
     $ctx->requireRole('admin');
     
     $input = smsInput();
-    $manifest = kernelReadJsonFile(__DIR__ . '/module.json');
-    $settingDefs = $manifest['settings'] ?? [];
+    $settingDefs = smsSettingsFieldDefinitions();
 
     $old = getModuleSettings('sms');
     if (!is_array($old)) {

@@ -182,7 +182,7 @@ function cmsPublicContext(array $extra = []): array
         try {
             if (!empty($ctx['capabilities']['pricing']) && app()->capabilities()->has('cms.cart.add@1')) {
                 $ctx['cart_enabled']    = true;
-                $ctx['cart_action_url'] = $baseUrl . '/api/v1/cms/cart/add';
+                $ctx['cart_action_url'] = $baseUrl . '/ecommerce/cart/add';
             }
         } catch (\Throwable $e) {}
 

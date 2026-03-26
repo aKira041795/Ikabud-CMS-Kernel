@@ -38,7 +38,7 @@ function ecOrderCreate(array $data): array
     $token        = bin2hex(random_bytes(32));
     $customerId   = isset($data['customer_id']) ? (int)$data['customer_id'] : null;
     $source       = in_array($data['source'] ?? '', ['web', 'pos', 'api'], true) ? $data['source'] : 'web';
-    $currency     = $data['currency'] ?? ecSettings('currency', 'USD');
+    $currency     = $data['currency'] ?? ecSettings('currency');
 
     // Begin DB transaction
     $db->beginTransaction();
@@ -174,6 +174,50 @@ function ecOrderCreate(array $data): array
     ];
 }
 
+function ecOrderHydrateData(array $order): array
+{
+    $meta = is_array($order['meta'] ?? null) ? $order['meta'] : [];
+
+    $billing = [
+        'first_name'    => (string)($meta['billing_first_name'] ?? ''),
+        'last_name'     => (string)($meta['billing_last_name'] ?? ''),
+        'email'         => (string)($meta['billing_email'] ?? ($order['guest_email'] ?? '')),
+        'phone'         => (string)($meta['billing_phone'] ?? ''),
+        'address_line1' => (string)($meta['billing_address_line1'] ?? ''),
+        'address_line2' => (string)($meta['billing_address_line2'] ?? ''),
+        'city'          => (string)($meta['billing_city'] ?? ''),
+        'state'         => (string)($meta['billing_state'] ?? ''),
+        'postal_code'   => (string)($meta['billing_postal_code'] ?? ''),
+        'country'       => (string)($meta['billing_country'] ?? ''),
+    ];
+
+    $shipping = [
+        'first_name'    => (string)($meta['shipping_first_name'] ?? $billing['first_name']),
+        'last_name'     => (string)($meta['shipping_last_name'] ?? $billing['last_name']),
+        'email'         => (string)($meta['shipping_email'] ?? $billing['email']),
+        'phone'         => (string)($meta['shipping_phone'] ?? $billing['phone']),
+        'address_line1' => (string)($meta['shipping_address_line1'] ?? $billing['address_line1']),
+        'address_line2' => (string)($meta['shipping_address_line2'] ?? $billing['address_line2']),
+        'city'          => (string)($meta['shipping_city'] ?? $billing['city']),
+        'state'         => (string)($meta['shipping_state'] ?? $billing['state']),
+        'postal_code'   => (string)($meta['shipping_postal_code'] ?? $billing['postal_code']),
+        'country'       => (string)($meta['shipping_country'] ?? $billing['country']),
+    ];
+
+    $order['currency_symbol'] = (string)ecSettings('currency_symbol');
+    $order['total_amount'] = isset($order['total']) ? (float)$order['total'] : (float)($order['total_amount'] ?? 0);
+    $order['subtotal_amount'] = isset($order['subtotal']) ? (float)$order['subtotal'] : (float)($order['subtotal_amount'] ?? 0);
+    $order['discount_amount'] = (float)($order['discount_amount'] ?? 0);
+    $order['tax_amount'] = (float)($order['tax_amount'] ?? 0);
+    $order['shipping_amount'] = (float)($order['shipping_amount'] ?? 0);
+    $order['billing'] = $billing;
+    $order['shipping'] = $shipping;
+    $order['customer_email'] = $billing['email'] !== '' ? $billing['email'] : (string)($order['guest_email'] ?? '');
+    $order['customer_name'] = trim($billing['first_name'] . ' ' . $billing['last_name']);
+
+    return $order;
+}
+
 /**
  * Fetch a single order with items and meta.
  * ACL: admins see all; customers see own orders; guests need confirmation token.
@@ -224,7 +268,7 @@ function ecOrderGet(int $id, ?int $customerId = null, ?string $token = null): ?a
             [$id]
         )->fetch(\PDO::FETCH_ASSOC) ?: null;
 
-        return $order;
+        return ecOrderHydrateData($order);
     } catch (\Throwable $e) {
         write_log('ecOrderGet error: ' . $e->getMessage(), 'error', ['module' => 'ecommerce']);
         return null;
@@ -361,7 +405,7 @@ function ecOrderMarkPaid(int $orderId): void
  */
 function ecOrderGenerateNumber(): string
 {
-    $prefix = strtoupper(ecSettings('order_number_prefix', 'EC'));
+    $prefix = strtoupper((string)ecSettings('order_number_prefix'));
     $year   = date('Y');
 
     try {
@@ -394,7 +438,13 @@ function ecCustomerOrders(int $customerId, int $limit = 20, int $offset = 0): ar
             [$customerId, $limit, $offset]
         )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
 
-        return ['items' => $rows, 'total' => $total];
+        $items = array_map(static function (array $row): array {
+            $row['currency_symbol'] = (string)ecSettings('currency_symbol');
+            $row['total_amount'] = isset($row['total']) ? (float)$row['total'] : 0.0;
+            return $row;
+        }, $rows);
+
+        return ['items' => $items, 'total' => $total];
     } catch (\Throwable $e) {
         return ['items' => [], 'total' => 0];
     }

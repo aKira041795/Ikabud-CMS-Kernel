@@ -14,18 +14,17 @@ function ecPublicShop(): void
 {
     $search     = trim((string)(ecInput()['search'] ?? ''));
     $categoryId = (int)(ecInput()['cat'] ?? 0);
-    $perPage    = (int)ecSettings('products_per_page', 12);
+    $perPage    = (int)ecSettings('products_per_page');
 
-    if (function_exists('cmsPublicEntityList') && function_exists('moduleWithContext')) {
-        moduleWithContext('cms', static function () use ($search, $categoryId, $perPage): void {
-            cmsPublicEntityList([
-                'type'          => 'product',
-                'search'        => $search,
-                'category_id'   => $categoryId ?: null,
-                'per_page'      => $perPage,
-                'base_list_url' => '/ecommerce/shop',
-            ]);
-        });
+    if (function_exists('executeModuleHandler')) {
+        executeModuleHandler('cms:cmsPublicEntityList', [
+            'type'          => 'product',
+            'search'        => $search,
+            'category_id'   => $categoryId ?: null,
+            'per_page'      => $perPage,
+            'base_list_url' => '/ecommerce/shop',
+            'item_base_url' => '/ecommerce/shop',
+        ]);
         return;
     }
 
@@ -48,7 +47,7 @@ function ecPublicShop(): void
     $totalPages = $perPage > 0 ? (int)ceil($productResult['total'] / $perPage) : 1;
 
     ecRender('modules/ecommerce/public/shop.disyl', [
-        'page_title'  => ecSettings('shop_page_title', 'Shop'),
+        'page_title'  => ecSettings('shop_page_title'),
         'products'    => $productResult['items'],
         'total'       => $productResult['total'],
         'categories'  => $categories,
@@ -73,16 +72,15 @@ function ecPublicCategory(array $params = []): void
         exit;
     }
 
-    if (function_exists('cmsPublicEntityList') && function_exists('moduleWithContext')) {
-        $perPage = (int)ecSettings('products_per_page', 12);
-        moduleWithContext('cms', static function () use ($slug, $perPage): void {
-            cmsPublicEntityList([
-                'type'          => 'product',
-                'category_slug' => $slug,
-                'per_page'      => $perPage,
-                'base_list_url' => '/ecommerce/shop/category/' . rawurlencode($slug),
-            ]);
-        });
+    if (function_exists('executeModuleHandler')) {
+        $perPage = (int)ecSettings('products_per_page');
+        executeModuleHandler('cms:cmsPublicEntityList', [
+            'type'          => 'product',
+            'category_slug' => $slug,
+            'per_page'      => $perPage,
+            'base_list_url' => '/ecommerce/shop/category/' . rawurlencode($slug),
+            'item_base_url' => '/ecommerce/shop',
+        ]);
         return;
     }
 
@@ -100,7 +98,7 @@ function ecPublicCategory(array $params = []): void
     }
 
     $page    = max(1, (int)(ecInput()['page'] ?? 1));
-    $perPage = (int)ecSettings('products_per_page', 12);
+    $perPage = (int)ecSettings('products_per_page');
     $offset  = ($page - 1) * $perPage;
 
     $productResult = ecProductList([

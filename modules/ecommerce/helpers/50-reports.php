@@ -61,7 +61,7 @@ function ecReportSales(array $params = []): array
             $baseParams
         )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
 
-        $sym = ecSettings('currency_symbol', '$');
+        $sym = (string)ecSettings('currency_symbol');
 
         $data = [
             'date_from'       => $dateFrom,
@@ -93,7 +93,7 @@ function ecReportSales(array $params = []): array
  */
 function ecReportInventory(): array
 {
-    $threshold = (int)ecSettings('low_stock_threshold', 5);
+    $threshold = (int)ecSettings('low_stock_threshold');
 
     try {
         $rows = ecDb()->query(

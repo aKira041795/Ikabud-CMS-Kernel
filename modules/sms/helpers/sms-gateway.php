@@ -13,6 +13,32 @@ declare(strict_types=1);
 /**
  * Get SMS module settings from registry (modules.json)
  */
+function smsSettingsFieldDefinitions(): array
+{
+    $manifest = kernelReadJsonFile(__DIR__ . '/../module.json');
+    $fields = $manifest['settings_fields'] ?? ($manifest['settings'] ?? []);
+    return is_array($fields) ? array_values(array_filter($fields, 'is_array')) : [];
+}
+
+function smsSettingsDefaults(): array
+{
+    static $defaults = null;
+    if ($defaults !== null) {
+        return $defaults;
+    }
+
+    $defaults = [];
+    foreach (smsSettingsFieldDefinitions() as $field) {
+        $key = trim((string)($field['key'] ?? ''));
+        if ($key === '' || !array_key_exists('default', $field)) {
+            continue;
+        }
+        $defaults[$key] = (string)$field['default'];
+    }
+
+    return $defaults;
+}
+
 function smsGetSettings(): array
 {
     // Cache keyed by tenant ID so different tenants in the same process
@@ -21,19 +47,7 @@ function smsGetSettings(): array
     $tid = (function_exists('moduleTenantSettingsTenantId') ? moduleTenantSettingsTenantId() : null) ?? 0;
     if (array_key_exists($tid, $cache)) return $cache[$tid];
 
-    $cache[$tid] = getModuleSettings('sms');
-    
-    // Apply defaults from module.json
-    $defaults = [
-        'sms_provider' => 'semaphore',
-        'sms_api_key' => '',
-        'sms_api_secret' => '',
-        'sms_sender_name' => 'BARON',
-        'sms_country_code' => '+63',
-        'sms_test_mode' => '1',
-    ];
-    
-    $cache[$tid] = array_merge($defaults, $cache[$tid]);
+    $cache[$tid] = array_merge(smsSettingsDefaults(), getModuleSettings('sms'));
 
     return $cache[$tid];
 }

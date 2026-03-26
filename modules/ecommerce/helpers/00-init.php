@@ -48,6 +48,11 @@ function ecCtx(): \Ikabud\Kernel\Contracts\ModuleContext
 
 function ecRender(string $template, array $context = []): void
 {
+    if (!array_key_exists('cart_count', $context)) {
+        $cart = ecCartGet();
+        $context['cart_count'] = (int)($cart['totals']['item_count'] ?? 0);
+    }
+
     echo ecCtx()->render($template, $context);
 }
 
@@ -89,11 +94,39 @@ function ecInput(?string $key = null, mixed $default = null): mixed
 /**
  * Module settings — reads tenant-scoped ecommerce settings.
  */
+function ecSettingsDefaults(): array
+{
+    static $defaults = null;
+    if ($defaults !== null) {
+        return $defaults;
+    }
+
+    $defaults = [];
+    $modules = discoverModules();
+    $manifest = $modules['ecommerce'] ?? [];
+    $fields = is_array($manifest['settings_fields'] ?? null) ? $manifest['settings_fields'] : [];
+
+    foreach ($fields as $field) {
+        if (!is_array($field)) {
+            continue;
+        }
+
+        $key = trim((string)($field['key'] ?? ''));
+        if ($key === '' || !array_key_exists('default', $field)) {
+            continue;
+        }
+
+        $defaults[$key] = $field['default'];
+    }
+
+    return $defaults;
+}
+
 function ecSettings(?string $key = null, mixed $default = null): mixed
 {
     static $cache = null;
     if ($cache === null) {
-        $cache = readTenantModuleSettings('ecommerce');
+        $cache = array_merge(ecSettingsDefaults(), getModuleSettings('ecommerce'));
     }
     if ($key === null) {
         return $cache;
@@ -245,8 +278,8 @@ function ec_cap_pricing_data_1(mixed $payload, string $capabilityId = '', string
 
     $price     = isset($config['price'])      ? (float)$config['price']      : null;
     $salePrice = isset($config['sale_price']) ? (float)$config['sale_price'] : null;
-    $currency  = $config['currency'] ?? ecSettings('currency', 'USD');
-    $symbol    = ecSettings('currency_symbol', '$');
+    $currency  = $config['currency'] ?? ecSettings('currency');
+    $symbol    = (string)ecSettings('currency_symbol');
 
     if ($price === null) {
         return ['price' => null, 'sale_price' => null, 'currency' => $currency, 'on_sale' => false, 'formatted' => null];
@@ -293,7 +326,7 @@ function ec_cap_inventory_data_1(mixed $payload, string $capabilityId = '', stri
     $trackStock = (bool)($config['track_stock'] ?? true);
     $stockQty   = (int)($config['stock_qty']   ?? 0);
     $sku        = $config['sku'] ?? '';
-    $threshold  = (int)ecSettings('low_stock_threshold', 5);
+    $threshold  = (int)ecSettings('low_stock_threshold');
 
     return [
         'track_stock' => $trackStock,

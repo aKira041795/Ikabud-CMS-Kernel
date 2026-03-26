@@ -19,10 +19,10 @@
         {foreach items as item}
         <a href="{item.url}" class="group block bg-white rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow overflow-hidden no-underline">
 
-            {if item.featured_image}
+            {if item.primary_image_url}
             <div class="aspect-video overflow-hidden bg-gray-100">
                 <img class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                     src="/assets/modules/cms/uploads/{item.featured_image}"
+                     src="{item.primary_image_url}"
                      alt="{item.title}">
             </div>
             {/if}

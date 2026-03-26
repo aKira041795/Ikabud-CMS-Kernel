@@ -16,6 +16,27 @@ function cmsSeoStrip(string $s): string
     return trim((string)$s);
 }
 
+function cmsSeoAbsoluteUploadUrl(string $path, string $appUrl): string
+{
+    if ($path === '') {
+        return '';
+    }
+    if (str_starts_with($path, 'http://') || str_starts_with($path, 'https://')) {
+        return $path;
+    }
+
+    $resolved = cmsResolveUploadUrl($path);
+    if ($resolved === '') {
+        return '';
+    }
+
+    if ($appUrl !== '' && str_starts_with($resolved, '/')) {
+        return $appUrl . $resolved;
+    }
+
+    return $resolved;
+}
+
 /**
  * Build default SEO head HTML for a public CMS content page.
  *
@@ -90,7 +111,7 @@ function cmsDefaultSeoHeadHtml(array $content = []): string
     } else {
         $imgPath = (string)($content['featured_image'] ?? ($content['featured_image_path'] ?? ''));
         if ($imgPath !== '') {
-            $ogImage = $appUrl !== '' ? ($appUrl . '/assets/modules/cms/uploads/' . ltrim($imgPath, '/')) : '';
+            $ogImage = cmsSeoAbsoluteUploadUrl($imgPath, $appUrl);
         } elseif ($siteSeoOgImage !== '') {
             $ogImage = $siteSeoOgImage;
         }
@@ -258,7 +279,7 @@ function cmsStructuredDataJsonLd(array $content): string
             $data['publisher'] = ['@type' => 'Organization', 'name' => $siteTitle];
         }
         if ($featuredImage !== '') {
-            $imgUrl = (str_starts_with($featuredImage, 'http') ? $featuredImage : ($appUrl . '/assets/modules/cms/uploads/' . ltrim($featuredImage, '/')));
+            $imgUrl = cmsSeoAbsoluteUploadUrl($featuredImage, $appUrl);
             $data['image'] = $imgUrl;
         }
     } else {

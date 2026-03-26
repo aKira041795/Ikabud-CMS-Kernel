@@ -73,6 +73,7 @@
             "key": "production_output_enabled",
             "type": "checkbox",
             "label": "Enable Production Output",
+            "default": "0",
             "description": "Show the Production Output page and allow production output entries to be recorded."
         }
     ],

@@ -117,6 +117,7 @@
             "key": "currency",
             "type": "select",
             "label": "Currency",
+            "control_class": "font-mono",
             "options": ["USD", "PHP", "EUR", "GBP", "AUD", "CAD", "SGD"],
             "default": "USD",
             "description": "Default currency for all prices."
@@ -125,6 +126,7 @@
             "key": "currency_symbol",
             "type": "text",
             "label": "Currency Symbol",
+            "control_class": "font-mono",
             "default": "$",
             "description": "Symbol shown before prices."
         },
@@ -146,6 +148,7 @@
             "key": "order_number_prefix",
             "type": "text",
             "label": "Order Number Prefix",
+            "control_class": "font-mono",
             "default": "EC",
             "description": "Prefix for order numbers, e.g. EC-2026-0001."
         },

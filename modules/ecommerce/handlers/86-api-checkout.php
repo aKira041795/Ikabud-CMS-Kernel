@@ -46,7 +46,7 @@ function ecApiCheckout(): void
         ? (int)$user['id'] : null;
 
     // Guest checkout — ensure allowed
-    if (!$customerId && !(bool)ecSettings('guest_checkout', true)) {
+    if (!$customerId && !(bool)ecSettings('guest_checkout')) {
         ecJsonError('Guest checkout is not enabled', 403);
     }
 
@@ -57,7 +57,7 @@ function ecApiCheckout(): void
         'tax_amount'       => $totals['tax'],
         'shipping_amount'  => $totals['shipping'],
         'total'            => $totals['total'],
-        'currency'         => ecSettings('currency', 'USD'),
+        'currency'         => ecSettings('currency'),
         'coupon_code'      => $couponCode,
         'shipping_rate_id' => $shippingRateId,
         'source'           => 'web',
@@ -83,6 +83,6 @@ function ecApiCheckout(): void
         'order_id'     => $result['order_id'],
         'order_number' => $result['order_number'],
         'token'        => $result['confirmation_token'],
-        'redirect_url' => '/order/' . $result['confirmation_token'],
+        'redirect_url' => '/ecommerce/order/' . $result['confirmation_token'],
     ], 201);
 }

@@ -295,11 +295,43 @@ function cmsResolveMenuItemUrl(array $item): string
     $ref = (string)($item['link_ref'] ?? '');
     $url = (string)($item['url'] ?? '');
 
-    if ($type === 'page' && $ref !== '') return $baseUrl . '/cms/page/' . $ref;
+    $ecommercePageMap = [
+        'shop' => '/ecommerce/shop',
+        'cart' => '/ecommerce/cart',
+        'checkout' => '/ecommerce/checkout',
+        'my-orders' => '/ecommerce/my-orders',
+    ];
+
+    if ($type === 'page' && $ref !== '') {
+        if (isset($ecommercePageMap[$ref])) {
+            return $baseUrl . $ecommercePageMap[$ref];
+        }
+        return $baseUrl . '/cms/page/' . $ref;
+    }
+
     if ($type === 'post' && $ref !== '') return $baseUrl . '/cms/blog/' . $ref;
     if ($type === 'category' && $ref !== '') return $baseUrl . '/cms/category/' . $ref;
     if ($type === 'tag' && $ref !== '') return $baseUrl . '/cms/tag/' . $ref;
     if ($type === 'home') return $baseUrl . '/cms';
+
+    if ($url !== '') {
+        $normalizedUrl = rtrim($url, '/');
+        $cmsPagePrefix = $baseUrl . '/cms/page/';
+        if (str_starts_with($normalizedUrl, $cmsPagePrefix)) {
+            $slug = substr($normalizedUrl, strlen($cmsPagePrefix));
+            if ($slug !== '' && isset($ecommercePageMap[$slug])) {
+                return $baseUrl . $ecommercePageMap[$slug];
+            }
+        }
+
+        if (str_starts_with($normalizedUrl, '/cms/page/')) {
+            $slug = substr($normalizedUrl, strlen('/cms/page/'));
+            if ($slug !== '' && isset($ecommercePageMap[$slug])) {
+                return $baseUrl . $ecommercePageMap[$slug];
+            }
+        }
+    }
+
     return $url;
 }
 

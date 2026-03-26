@@ -11,10 +11,10 @@
     {* ── Media (featured image / gallery) ─────────────────────────────── *}
     {if capabilities.media_gallery}
         {include "modules/cms/public/blocks/media-gallery.block.disyl"}
-    {elseif entity.featured_image}
+    {elseif entity.featured_image_url}
     <div class="cms-entity-hero mb-8">
         <img class="w-full max-h-[420px] object-cover rounded-xl"
-             src="/assets/modules/cms/uploads/{entity.featured_image}"
+             src="{entity.featured_image_url}"
              alt="{entity.title}">
     </div>
     {/if}

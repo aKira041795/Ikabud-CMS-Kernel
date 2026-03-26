@@ -467,7 +467,8 @@ class TemplateEngine
      */
     private function removeComments(string $content): string
     {
-        return preg_replace('/\{!--.*?--\}/s', '', $content);
+        $content = preg_replace('/\{!--.*?--\}/s', '', $content);
+        return preg_replace('/\{\*.*?\*\}/s', '', $content);
     }
     
     /**

@@ -20,8 +20,8 @@
         </div>
     </header>
 
-    {if post.featured_image}
-    <img class="w-full max-h-[400px] object-cover rounded-xl mb-8" src="/assets/modules/cms/uploads/{post.featured_image}" alt="{post.title}">
+    {if post.featured_image_url}
+    <img class="w-full max-h-[400px] object-cover rounded-xl mb-8" src="{post.featured_image_url}" alt="{post.title}">
     {/if}
 
     <div class="prose text-gray-700 leading-relaxed text-base">

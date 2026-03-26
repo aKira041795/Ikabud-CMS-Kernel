@@ -6,17 +6,24 @@ declare(strict_types=1);
 // Entity Capability API Handlers — handlers/88-entity-capabilities.php
 // ──────────────────────────────────────────────────────────────────────────────
 
+function cmsEntityCapabilityJsonResponse(array $payload, int $status = 200): void
+{
+    http_response_code($status);
+    header('Content-Type: application/json');
+    echo json_encode($payload);
+}
+
 /**
  * GET /api/v1/cms/entity-capabilities
  * Returns all registered entity capability type definitions.
  */
 function cmsApiEntityCapabilityTypes(): void
 {
-    $user = cmsRequireRole(['administrator', 'editor', 'author', 'contributor', 'superadmin']);
+    $user = cmsRequireRole('contributor');
 
     $types = array_values(cmsEntityCapabilityTypes());
 
-    jsonResponse(['success' => true, 'capabilities' => $types]);
+    cmsEntityCapabilityJsonResponse(['success' => true, 'capabilities' => $types]);
 }
 
 /**
@@ -25,30 +32,30 @@ function cmsApiEntityCapabilityTypes(): void
  */
 function cmsApiEntityPresets(): void
 {
-    $user = cmsRequireRole(['administrator', 'editor', 'author', 'contributor', 'superadmin']);
+    $user = cmsRequireRole('contributor');
 
     $presets = array_values(cmsEntityPresets());
 
-    jsonResponse(['success' => true, 'presets' => $presets]);
+    cmsEntityCapabilityJsonResponse(['success' => true, 'presets' => $presets]);
 }
 
 /**
  * GET /api/v1/cms/content/{id}/capabilities
  * Returns the capabilities attached to a specific entity.
  */
-function cmsApiEntityCapabilitiesGet(): void
+function cmsApiEntityCapabilitiesGet(array $params = []): void
 {
-    $user     = cmsRequireRole(['administrator', 'editor', 'author', 'contributor', 'superadmin']);
-    $entityId = (int)(routeParam('id') ?? 0);
+    $user     = cmsRequireRole('contributor');
+    $entityId = (int)($params['id'] ?? 0);
     if ($entityId <= 0) {
-        jsonResponse(['success' => false, 'error' => 'Invalid entity id'], 400);
+        cmsEntityCapabilityJsonResponse(['success' => false, 'error' => 'Invalid entity id'], 400);
         return;
     }
 
     $attached = cmsEntityGetCapabilities($entityId);
     $context  = cmsEntityCapabilityContext($entityId);
 
-    jsonResponse(['success' => true, 'attached' => $attached, 'context' => $context]);
+    cmsEntityCapabilityJsonResponse(['success' => true, 'attached' => $attached, 'context' => $context]);
 }
 
 /**
@@ -57,19 +64,19 @@ function cmsApiEntityCapabilitiesGet(): void
  *
  * Body JSON: { "capability_id": "pricing", "config": { ... } }
  */
-function cmsApiEntityCapabilityAttach(): void
+function cmsApiEntityCapabilityAttach(array $params = []): void
 {
-    $user     = cmsRequireRole(['administrator', 'editor', 'superadmin']);
-    $entityId = (int)(routeParam('id') ?? 0);
+    $user     = cmsRequireRole('editor');
+    $entityId = (int)($params['id'] ?? 0);
     if ($entityId <= 0) {
-        jsonResponse(['success' => false, 'error' => 'Invalid entity id'], 400);
+        cmsEntityCapabilityJsonResponse(['success' => false, 'error' => 'Invalid entity id'], 400);
         return;
     }
 
-    $body  = jsonBody();
+    $body  = cmsInput();
     $capId = trim((string)($body['capability_id'] ?? ''));
     if ($capId === '') {
-        jsonResponse(['success' => false, 'error' => 'capability_id is required'], 422);
+        cmsEntityCapabilityJsonResponse(['success' => false, 'error' => 'capability_id is required'], 422);
         return;
     }
 
@@ -78,31 +85,31 @@ function cmsApiEntityCapabilityAttach(): void
     try {
         cmsEntityAttachCapability($entityId, $capId, $config);
     } catch (\InvalidArgumentException $e) {
-        jsonResponse(['success' => false, 'error' => $e->getMessage()], 422);
+        cmsEntityCapabilityJsonResponse(['success' => false, 'error' => $e->getMessage()], 422);
         return;
     }
 
-    jsonResponse(['success' => true, 'attached' => cmsEntityGetCapabilities($entityId)]);
+    cmsEntityCapabilityJsonResponse(['success' => true, 'attached' => cmsEntityGetCapabilities($entityId)]);
 }
 
 /**
  * POST /api/v1/cms/content/{id}/capabilities/{cap_id}/detach
  * Detach a capability from an entity.
  */
-function cmsApiEntityCapabilityDetach(): void
+function cmsApiEntityCapabilityDetach(array $params = []): void
 {
-    $user     = cmsRequireRole(['administrator', 'editor', 'superadmin']);
-    $entityId = (int)(routeParam('id') ?? 0);
+    $user     = cmsRequireRole('editor');
+    $entityId = (int)($params['id'] ?? 0);
     $capId    = trim((string)(routeParam('cap_id') ?? ''));
 
     if ($entityId <= 0 || $capId === '') {
-        jsonResponse(['success' => false, 'error' => 'Invalid parameters'], 400);
+        cmsEntityCapabilityJsonResponse(['success' => false, 'error' => 'Invalid parameters'], 400);
         return;
     }
 
     cmsEntityDetachCapability($entityId, $capId);
 
-    jsonResponse(['success' => true, 'attached' => cmsEntityGetCapabilities($entityId)]);
+    cmsEntityCapabilityJsonResponse(['success' => true, 'attached' => cmsEntityGetCapabilities($entityId)]);
 }
 
 /**
@@ -111,28 +118,28 @@ function cmsApiEntityCapabilityDetach(): void
  *
  * Body JSON: { "preset_id": "ecommerce" }
  */
-function cmsApiEntityCapabilityPreset(): void
+function cmsApiEntityCapabilityPreset(array $params = []): void
 {
-    $user     = cmsRequireRole(['administrator', 'editor', 'superadmin']);
-    $entityId = (int)(routeParam('id') ?? 0);
+    $user     = cmsRequireRole('editor');
+    $entityId = (int)($params['id'] ?? 0);
     if ($entityId <= 0) {
-        jsonResponse(['success' => false, 'error' => 'Invalid entity id'], 400);
+        cmsEntityCapabilityJsonResponse(['success' => false, 'error' => 'Invalid entity id'], 400);
         return;
     }
 
-    $body     = jsonBody();
+    $body     = cmsInput();
     $presetId = trim((string)($body['preset_id'] ?? ''));
     if ($presetId === '') {
-        jsonResponse(['success' => false, 'error' => 'preset_id is required'], 422);
+        cmsEntityCapabilityJsonResponse(['success' => false, 'error' => 'preset_id is required'], 422);
         return;
     }
 
     try {
         cmsApplyEntityPreset($entityId, $presetId);
     } catch (\InvalidArgumentException $e) {
-        jsonResponse(['success' => false, 'error' => $e->getMessage()], 422);
+        cmsEntityCapabilityJsonResponse(['success' => false, 'error' => $e->getMessage()], 422);
         return;
     }
 
-    jsonResponse(['success' => true, 'preset_id' => $presetId, 'attached' => cmsEntityGetCapabilities($entityId)]);
+    cmsEntityCapabilityJsonResponse(['success' => true, 'preset_id' => $presetId, 'attached' => cmsEntityGetCapabilities($entityId)]);
 }

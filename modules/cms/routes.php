@@ -82,6 +82,8 @@ return [
         '/cms/blog/{slug}'                => 'cms:cmsPublicSingle',
         '/cms/page/{slug}'                => 'cms:cmsPublicPage',
         '/cms/{type}'                     => 'cms:cmsPublicEntityList',
+        '/cms/{type}/{slug}/book'         => 'cms:cmsPublicEntityBook',
+        '/cms/{type}/{slug}/inquire'      => 'cms:cmsPublicEntityInquiry',
         '/cms/{type}/{slug}'              => 'cms:cmsPublicEntityView',
 
         // ── Tags API (GET) ─────────────────────────────────────

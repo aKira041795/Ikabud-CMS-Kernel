@@ -348,6 +348,12 @@ function cmsPublicHome(array $params = []): void
     $stmt->execute($bind);
     $posts = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     $posts = cmsProcessPostExcerpts($posts);
+    foreach ($posts as &$postRow) {
+        if (!empty($postRow['featured_image'])) {
+            $postRow['featured_image_url'] = cmsResolveUploadUrl((string)$postRow['featured_image']);
+        }
+    }
+    unset($postRow);
 
     $totalStmt = $db->prepare(
         "SELECT COUNT(*) FROM cms_content c WHERE {$whereSql}"
@@ -654,6 +660,45 @@ function cmsPublicSitemapXml(array $params = []): void
     echo $xml;
 }
 
+function cmsPublicListItemPrimaryImageUrl(array $item): string
+{
+    $featuredImageUrl = trim((string)($item['featured_image_url'] ?? ''));
+    if ($featuredImageUrl !== '') {
+        return $featuredImageUrl;
+    }
+
+    $capabilityData = $item['capability_data'] ?? [];
+    $mediaGallery = is_array($capabilityData) ? ($capabilityData['media_gallery'] ?? null) : null;
+    $galleryItems = is_array($mediaGallery) ? ($mediaGallery['items'] ?? null) : null;
+
+    if (is_array($galleryItems)) {
+        foreach ($galleryItems as $galleryItem) {
+            if (!is_array($galleryItem)) {
+                continue;
+            }
+
+            foreach (['thumb', 'url', 'src'] as $key) {
+                $candidate = trim((string)($galleryItem[$key] ?? ''));
+                if ($candidate === '') {
+                    continue;
+                }
+
+                if (preg_match('#^(https?:)?//#i', $candidate) === 1 || str_starts_with($candidate, '/')) {
+                    return $candidate;
+                }
+
+                return cmsResolveUploadUrl($candidate);
+            }
+        }
+    }
+
+    if ((string)($item['type'] ?? '') === 'product') {
+        return '/assets/ecommerce/product-placeholder.svg';
+    }
+
+    return '';
+}
+
 // ── RSS Feed ─────────────────────────────────────────────────────────
 
 function cmsPublicRssFeed(array $params = []): void
@@ -748,6 +793,9 @@ function cmsPublicSingle(array $params = []): void
     $meta = cmsLoadContentMeta($db, (int)$post['id']);
 
     $post['meta'] = $meta;
+    if (!empty($post['featured_image'])) {
+        $post['featured_image_url'] = cmsResolveUploadUrl((string)$post['featured_image']);
+    }
 
     $renderedHtml = cmsFilterRenderedContent(cmsContentRenderedHtml($post), $post);
     $publicHead = cmsGetPublicHeadHtml($post);
@@ -795,6 +843,17 @@ function cmsPublicPage(array $params = []): void
     if ($slug === '') {
         http_response_code(404);
         echo cmsRender('pages/404.disyl', ['page_title' => 'Not Found']);
+        return;
+    }
+
+    $ecommercePages = [
+        'shop' => 'ecommerce:ecPublicShop',
+        'cart' => 'ecommerce:ecPublicCart',
+        'checkout' => 'ecommerce:ecPublicCheckout',
+        'my-orders' => 'ecommerce:ecPublicMyOrders',
+    ];
+    if (isset($ecommercePages[$slug]) && function_exists('executeModuleHandler')) {
+        executeModuleHandler($ecommercePages[$slug]);
         return;
     }
 
@@ -873,6 +932,72 @@ function cmsPublicPage(array $params = []): void
     echo $html;
 }
 
+function cmsPublicEntityBook(array $params = []): void
+{
+    $type = trim((string)($params['type'] ?? ''));
+    $slug = trim((string)($params['slug'] ?? ''));
+    if ($type === '' || $slug === '') {
+        http_response_code(404);
+        echo cmsRender('pages/404.disyl', ['page_title' => 'Not Found']);
+        return;
+    }
+
+    $db = cmsDb();
+    $stmt = $db->prepare(
+        "SELECT c.*, u.display_name as author_name
+         FROM cms_content c
+         LEFT JOIN cms_users u ON u.id = c.author_id
+         WHERE c.slug = :slug AND c.type = :type AND c.deleted_at IS NULL AND " . cmsPublicVisibilitySql('c') . "
+         LIMIT 1"
+    );
+    $stmt->execute([':slug' => $slug, ':type' => $type]);
+    $entity = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$entity) {
+        http_response_code(404);
+        echo cmsRender('pages/404.disyl', ['page_title' => 'Not Found']);
+        return;
+    }
+
+    echo cmsRenderThemeAwareTemplate('modules/cms/public/entity.book.disyl', cmsPublicContext([
+        'page_title' => 'Book ' . (string)$entity['title'],
+        'entity' => $entity,
+        'content_type' => $type,
+    ]));
+}
+
+function cmsPublicEntityInquiry(array $params = []): void
+{
+    $type = trim((string)($params['type'] ?? ''));
+    $slug = trim((string)($params['slug'] ?? ''));
+    if ($type === '' || $slug === '') {
+        http_response_code(404);
+        echo cmsRender('pages/404.disyl', ['page_title' => 'Not Found']);
+        return;
+    }
+
+    $db = cmsDb();
+    $stmt = $db->prepare(
+        "SELECT c.*, u.display_name as author_name
+         FROM cms_content c
+         LEFT JOIN cms_users u ON u.id = c.author_id
+         WHERE c.slug = :slug AND c.type = :type AND c.deleted_at IS NULL AND " . cmsPublicVisibilitySql('c') . "
+         LIMIT 1"
+    );
+    $stmt->execute([':slug' => $slug, ':type' => $type]);
+    $entity = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$entity) {
+        http_response_code(404);
+        echo cmsRender('pages/404.disyl', ['page_title' => 'Not Found']);
+        return;
+    }
+
+    echo cmsRenderThemeAwareTemplate('modules/cms/public/entity.inquire.disyl', cmsPublicContext([
+        'page_title' => 'Inquire About ' . (string)$entity['title'],
+        'entity' => $entity,
+        'content_type' => $type,
+    ]));
+}
+
 // ═══════════════════════════════════════════════════════════════════════
 // ENTITY VIEW / LIST (custom content types)
 // ═══════════════════════════════════════════════════════════════════════
@@ -909,10 +1034,11 @@ function cmsPublicEntityView(array $params = []): void
 
     $db = cmsDb();
     $stmt = $db->prepare(
-        "SELECT c.*, u.display_name as author_name, m.file_path as featured_image
+        "SELECT c.*, u.display_name as author_name, m.file_path as featured_image, ct.label as content_type_label
          FROM cms_content c
          LEFT JOIN cms_users u ON u.id = c.author_id
          LEFT JOIN cms_media m ON m.id = c.featured_image_id
+         LEFT JOIN cms_content_types ct ON ct.slug = c.type
          WHERE c.slug = :slug AND c.type = :type AND c.deleted_at IS NULL AND " . cmsPublicVisibilitySql('c') . "
          LIMIT 1"
     );
@@ -934,6 +1060,9 @@ function cmsPublicEntityView(array $params = []): void
 
     $meta = cmsLoadContentMeta($db, (int)$entity['id']);
     $entity['meta'] = $meta;
+    if (!empty($entity['featured_image'])) {
+        $entity['featured_image_url'] = cmsResolveUploadUrl((string)$entity['featured_image']);
+    }
 
     $renderedHtml = cmsFilterRenderedContent(cmsContentRenderedHtml($entity), $entity);
     $publicHead = cmsGetPublicHeadHtml($entity);
@@ -989,6 +1118,7 @@ function cmsPublicEntityList(array $params = []): void
     $categorySlug    = trim((string)($params['category_slug'] ?? ''));
     $searchOverride  = array_key_exists('search', $params) ? trim((string)$params['search']) : null;
     $baseListUrl     = trim((string)($params['base_list_url'] ?? ''));
+    $itemBaseUrl     = trim((string)($params['item_base_url'] ?? ''));
 
     $input   = cmsInput();
     $page    = max(1, (int)($input['page'] ?? 1));
@@ -1054,10 +1184,12 @@ function cmsPublicEntityList(array $params = []): void
     // Fetch items
     $stmt = $db->prepare(
         "SELECT c.id, c.uuid, c.title, c.slug, c.excerpt, c.type, c.status, c.published_at,
-                c.author_id, c.featured_image_id, u.display_name as author_name, m.file_path as featured_image
+            c.author_id, c.featured_image_id, u.display_name as author_name, m.file_path as featured_image,
+            ct.label as content_type_label
          FROM cms_content c{$categoryJoin}
          LEFT JOIN cms_users u ON u.id = c.author_id
          LEFT JOIN cms_media m ON m.id = c.featured_image_id
+         LEFT JOIN cms_content_types ct ON ct.slug = c.type
          WHERE c.deleted_at IS NULL AND c.type = :type AND {$visibilityWhere}{$searchClause}
          ORDER BY c.published_at DESC, c.created_at DESC
          LIMIT {$perPage} OFFSET {$offset}"
@@ -1069,7 +1201,12 @@ function cmsPublicEntityList(array $params = []): void
     $items = [];
     foreach ($rows as $row) {
         $entityId = (int)($row['id'] ?? 0);
-        $row['url'] = $baseUrl . '/cms/' . rawurlencode($type) . '/' . rawurlencode((string)($row['slug'] ?? ''));
+        $itemSlug = rawurlencode((string)($row['slug'] ?? ''));
+        if ($itemBaseUrl !== '') {
+            $row['url'] = rtrim($itemBaseUrl, '/') . '/' . $itemSlug;
+        } else {
+            $row['url'] = $baseUrl . '/cms/' . rawurlencode($type) . '/' . $itemSlug;
+        }
         try {
             $row['capabilities']    = $entityId > 0 ? cmsEntityCapabilityContext($entityId) : [];
             $row['capability_data'] = $entityId > 0 ? cmsEntityCapabilityData($entityId, $row) : [];
@@ -1077,6 +1214,10 @@ function cmsPublicEntityList(array $params = []): void
             $row['capabilities']    = [];
             $row['capability_data'] = [];
         }
+        if (!empty($row['featured_image'])) {
+            $row['featured_image_url'] = cmsResolveUploadUrl((string)$row['featured_image']);
+        }
+        $row['primary_image_url'] = cmsPublicListItemPrimaryImageUrl($row);
         $items[] = $row;
     }
 
@@ -1093,7 +1234,7 @@ function cmsPublicEntityList(array $params = []): void
     // Resolve content type label for list title
     $listTitle = ucfirst($type);
     try {
-        $tStmt = $db->prepare("SELECT name FROM cms_content_types WHERE slug = :slug LIMIT 1");
+        $tStmt = $db->prepare("SELECT label FROM cms_content_types WHERE slug = :slug LIMIT 1");
         $tStmt->execute([':slug' => $type]);
         $typeName = $tStmt->fetchColumn();
         if ($typeName) {

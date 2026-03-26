@@ -85,10 +85,10 @@ function ecCartAdd(int $productId, int $qty = 1, ?int $variantId = null): array
         if (!$variant) {
             return ['ok' => false, 'error' => 'Variant not found'];
         }
-        $price = $variant['price_override'] !== null ? (float)$variant['price_override'] : (float)($pricing['price'] ?? 0);
+        $price = $variant['price_override'] !== null ? (float)$variant['price_override'] : (float)($pricing['active_price'] ?? $pricing['price'] ?? 0);
         $sku   = $variant['sku'] ?: $sku;
     } else {
-        $price = (float)($pricing['price'] ?? 0);
+        $price = (float)($pricing['active_price'] ?? $pricing['price'] ?? 0);
     }
 
     $item = [

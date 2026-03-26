@@ -357,6 +357,11 @@ Attaches:
 - `inventory`
 - `media_gallery`
 
+Implementation note:
+
+- the dedicated ecommerce storefront should resolve product imagery in this order: `featured_image`, then the first `media_gallery` item, then a static placeholder asset
+- product detail views should render attached `media_gallery` items when available instead of ignoring them
+
 ### `education`
 
 Attaches:

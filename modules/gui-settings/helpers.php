@@ -44,54 +44,29 @@ function guiSettingsRender(string $template, array $context = []): string
  */
 function guiSettingsDefaults(): array
 {
-    return [
-        // Branding
-        'app_name'          => 'Baron Bakeshop',
-        'app_name_accent'   => 'Baron',
-        'app_name_rest'     => 'Bakeshop',
+    static $defaults = null;
+    if ($defaults !== null) {
+        return $defaults;
+    }
 
-        // Colors
-        'color_bg'          => '#f4f5f7',
-        'color_surface'     => '#ffffff',
-        'color_border'      => '#dfe3e8',
-        'color_text'        => '#2d3748',
-        'color_text_muted'  => '#5a6577',
-        'color_text_light'  => '#8895a7',
-        'color_primary'     => '#2563eb',
-        'color_primary_hover' => '#1d4ed8',
-        'color_primary_light' => '#dbeafe',
-        'color_success'     => '#0d9f4f',
-        'color_success_light' => '#d4f5e0',
-        'color_warning'     => '#c87e08',
-        'color_warning_light' => '#fef3c7',
-        'color_danger'      => '#d42828',
-        'color_danger_light' => '#fee2e2',
-        'color_header_bg'   => '#1e293b',
-        'color_header_text' => '#ffffff',
-        'color_header_accent' => '#60a5fa',
+    $defaults = [];
+    $manifest = discoverModules()['gui-settings'] ?? [];
+    $fields = is_array($manifest['settings_fields'] ?? null) ? $manifest['settings_fields'] : [];
 
-        // Typography
-        'font_family'       => "'Inter', system-ui, sans-serif",
-        'font_url'          => 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap',
-        'font_size_base'    => '14px',
-        'font_size_small'   => '12px',
-        'font_size_h1'      => '24px',
-        'font_size_h2'      => '18px',
-        'font_size_nav'     => '13px',
+    foreach ($fields as $field) {
+        if (!is_array($field)) {
+            continue;
+        }
 
-        // Layout
-        'border_radius'     => '8px',
-        'header_height'     => '56px',
-        'nav_height'        => '44px',
-        'max_width'         => '1200px',
+        $key = trim((string)($field['key'] ?? ''));
+        if ($key === '' || !array_key_exists('default', $field)) {
+            continue;
+        }
 
-        // Navigation
-        'nav_layout'        => 'top',
-        'sidebar_position'  => 'left',
+        $defaults[$key] = (string)$field['default'];
+    }
 
-        // Mobile / tablet navigation
-        'mobile_menu'       => 'canvas',
-    ];
+    return $defaults;
 }
 
 /**

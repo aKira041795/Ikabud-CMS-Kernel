@@ -7,8 +7,8 @@
     {if capabilities.pricing and cart_enabled}
         {if not capabilities.inventory or capability_data.inventory.in_stock}
         <form method="POST" action="{cart_action_url}" class="inline">
-            <input type="hidden" name="entity_id" value="{entity.id}">
-            <input type="hidden" name="_csrf" value="{csrf_token}">
+            <input type="hidden" name="product_id" value="{entity.id}">
+            <input type="hidden" name="qty" value="1">
             <button type="submit"
                     class="cms-btn-primary inline-flex items-center gap-2 px-6 py-2.5 rounded-lg bg-sky-600 text-white font-semibold text-sm hover:bg-sky-700 active:bg-sky-800 transition-colors">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -36,7 +36,7 @@
 
     {* booking: opens booking flow *}
     {if capabilities.booking}
-    <a href="{base_url}/{entity.slug}/book"
+    <a href="{base_url}/cms/{entity.type}/{entity.slug}/book"
        class="cms-btn-secondary inline-flex items-center gap-2 px-6 py-2.5 rounded-lg border border-sky-600 text-sky-600 font-semibold text-sm hover:bg-sky-50 transition-colors">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -48,7 +48,7 @@
 
     {* inquiry: opens a simple contact form *}
     {if capabilities.inquiry}
-    <a href="{base_url}/{entity.slug}/inquire"
+    <a href="{base_url}/cms/{entity.type}/{entity.slug}/inquire"
        class="cms-btn-secondary inline-flex items-center gap-2 px-6 py-2.5 rounded-lg border border-gray-300 text-gray-700 font-semibold text-sm hover:bg-gray-50 transition-colors">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"

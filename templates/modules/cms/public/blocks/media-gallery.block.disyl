@@ -7,19 +7,19 @@
     <div class="grid gap-2"
          style="grid-template-columns: repeat({capability_data.media_gallery.columns}, minmax(0, 1fr));">
         {foreach capability_data.media_gallery.items as img loop}
-        <a href="{if img.url}{img.url}{else}/assets/modules/cms/uploads/{img.src}{/if}"
+        <a href="{if img.url}{img.url}{else}{img.src}{/if}"
            class="block aspect-square overflow-hidden rounded-lg bg-gray-100 group"
            {if capability_data.media_gallery.lightbox}data-lightbox="gallery" data-title="{img.caption}"{/if}>
             <img class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                 src="{if img.thumb}{img.thumb}{else}/assets/modules/cms/uploads/{img.src}{/if}"
+                 src="{if img.thumb}{img.thumb}{else}{if img.url}{img.url}{else}{img.src}{/if}{/if}"
                  alt="{if img.caption}{img.caption}{else}Gallery image {loop.index1}{/if}"
                  loading="lazy">
         </a>
         {/foreach}
     </div>
-    {elseif entity.featured_image}
+    {elseif entity.featured_image_url}
     <img class="w-full max-h-[420px] object-cover rounded-xl"
-         src="/assets/modules/cms/uploads/{entity.featured_image}"
+         src="{entity.featured_image_url}"
          alt="{entity.title}">
     {/if}
 </div>

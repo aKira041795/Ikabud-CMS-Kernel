@@ -5,13 +5,16 @@
     <div class="grid grid-cols-1 md:grid-cols-2 gap-10">
         <!-- Image -->
         <div>
-            {if product.featured_image}
             <div class="aspect-square rounded-xl overflow-hidden bg-gray-100">
-                <img src="{base_url}/{product.featured_image}" alt="{product.title}" class="w-full h-full object-cover">
+                <img src="{if product.primary_image_url}{product.primary_image_url}{else}{base_url}/assets/ecommerce/product-placeholder.svg{/if}" alt="{product.title}" class="w-full h-full object-cover">
             </div>
-            {else}
-            <div class="aspect-square rounded-xl bg-gray-100 flex items-center justify-center">
-                <svg class="w-24 h-24 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+            {if product.gallery_images | count > 0}
+            <div class="mt-4 grid grid-cols-4 gap-3">
+                {foreach product.gallery_images as image}
+                <a href="{image.url}" class="block aspect-square overflow-hidden rounded-lg border border-gray-200 bg-gray-50" target="_blank" rel="noopener noreferrer">
+                    <img src="{image.thumb}" alt="{if image.caption}{image.caption}{else}{product.title}{/if}" class="w-full h-full object-cover">
+                </a>
+                {/foreach}
             </div>
             {/if}
         </div>
@@ -82,6 +85,24 @@
 </div>
 
 <script>
+function updateCartBadge(count) {
+    const badge = document.getElementById('cart-count-badge');
+    if (!badge) {
+        return;
+    }
+
+    const nextCount = Number(count || 0);
+    if (nextCount > 0) {
+        badge.textContent = String(nextCount);
+        badge.classList.remove('hidden');
+        badge.classList.add('inline-flex');
+    } else {
+        badge.textContent = '0';
+        badge.classList.add('hidden');
+        badge.classList.remove('inline-flex');
+    }
+}
+
 async function addToCart(productId, qty) {
     const btn = event.target;
     btn.disabled = true;
@@ -94,6 +115,7 @@ async function addToCart(productId, qty) {
         });
         const data = await res.json();
         if (data.ok) {
+            updateCartBadge(data.cart && data.cart.totals ? data.cart.totals.item_count : 0);
             btn.textContent = 'Added!';
             btn.classList.remove('bg-orange-600', 'hover:bg-orange-700');
             btn.classList.add('bg-emerald-600');

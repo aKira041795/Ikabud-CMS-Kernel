@@ -58,7 +58,7 @@
     "reads_tables": [
         "users"
     ],
-    "settings": [
+    "settings_fields": [
         {
             "key": "sms_provider",
             "label": "SMS Provider",

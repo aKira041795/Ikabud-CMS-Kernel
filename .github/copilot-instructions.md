@@ -51,3 +51,11 @@
 - Prefer minimal, surgical changes in existing files over introducing new patterns.
 - When touching CMS builder behavior, verify both preview behavior (React builder) and server-rendered output (PHP renderers/helpers).
 - If behavior changes affect persistence schema/format, update docs in [docs/page-builder-technical-spec.md](docs/page-builder-technical-spec.md) or related builder docs.
+
+## Current Stabilization Test Priorities
+- Prefer plain PHP integration-style tests under [tests](tests) that bootstrap the app directly, clear [storage/logs/app.log](storage/logs/app.log) and [storage/logs/error.log](storage/logs/error.log), and assert on concrete behavior rather than mocks.
+- When adding wrap-up coverage for the current repo state, prioritize these three seams first:
+  1. Manifest-settings default contract tests across all settings-bearing modules.
+  2. Ecommerce storefront media tests covering featured image, gallery fallback, and placeholder fallback.
+  3. CMS entity-list product-card image tests for the `/ecommerce/shop` rendering path.
+- Treat `/ecommerce/shop` as a CMS entity-list integration path first and an ecommerce template path second when choosing where to test storefront card behavior.

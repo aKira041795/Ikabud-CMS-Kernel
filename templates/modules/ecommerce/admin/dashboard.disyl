@@ -5,7 +5,7 @@
 <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
     <div class="bg-white rounded-lg border border-gray-200 p-5">
         <div class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">Today's Revenue</div>
-        <div class="text-3xl font-bold text-gray-900">{ec_settings.currency_symbol | default:'$'}{today_revenue}</div>
+        <div class="text-3xl font-bold text-gray-900">{ec_settings.currency_symbol}{today_revenue}</div>
     </div>
     <div class="bg-white rounded-lg border border-gray-200 p-5">
         <div class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">Today's Orders</div>
@@ -17,7 +17,7 @@
     </div>
     <div class="bg-white rounded-lg border border-gray-200 p-5">
         <div class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">This Month</div>
-        <div class="text-3xl font-bold text-gray-900">{ec_settings.currency_symbol | default:'$'}{month_revenue}</div>
+        <div class="text-3xl font-bold text-gray-900">{ec_settings.currency_symbol}{month_revenue}</div>
     </div>
 </div>
 
@@ -43,7 +43,7 @@
                 {elseif order.status == 'shipped'}bg-purple-50 text-purple-700
                 {elseif order.status == 'delivered'}bg-emerald-50 text-emerald-700
                 {else}bg-gray-100 text-gray-600{/if}">{order.status}</span>
-            <span class="text-sm font-semibold text-gray-900">{ec_settings.currency_symbol | default:'$'}{order.total}</span>
+            <span class="text-sm font-semibold text-gray-900">{ec_settings.currency_symbol}{order.total}</span>
         </a>
         {/foreach}
     </div>

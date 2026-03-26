@@ -51,7 +51,7 @@
                 <div class="text-sm font-medium text-gray-900">{prod.product_title}</div>
                 <div class="text-xs text-gray-400">{prod.units_sold} units sold</div>
             </div>
-            <span class="text-sm font-semibold text-gray-900">{ec_settings.currency_symbol | default:'$'}{prod.revenue}</span>
+            <span class="text-sm font-semibold text-gray-900">{ec_settings.currency_symbol}{prod.revenue}</span>
         </div>
         {/foreach}
     </div>

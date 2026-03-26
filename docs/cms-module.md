@@ -72,6 +72,11 @@ Implemented public features include:
 - Customizer-driven header, footer, sidebar, layout, colors, fonts, and custom code
 - Tag-based cache plus `ETag` / `Last-Modified`
 
+Entity-capability note:
+
+- content using the `ecommerce` preset carries `pricing`, `inventory`, and `media_gallery`
+- dedicated ecommerce storefront views are expected to honor CMS media attachments by preferring `featured_image`, then attached `media_gallery` items, and only falling back to a placeholder when neither exists
+
 ---
 
 ## 3. Module architecture

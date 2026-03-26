@@ -70,7 +70,7 @@
                         <input type="radio" name="shipping_rate_id" value="{rate.id}" class="text-orange-600" {if loop.first}checked{/if}>
                         <span class="flex-1 text-sm font-medium text-gray-900">{rate.name}</span>
                         <span class="text-sm font-semibold text-gray-900">
-                            {if rate.rate == 0}Free{else}{ec_settings.currency_symbol | default:'$'}{rate.rate}{/if}
+                            {if rate.rate == 0}Free{else}{ec_settings.currency_symbol}{rate.rate}{/if}
                         </span>
                     </label>
                     {/foreach}
@@ -101,7 +101,7 @@
                     {foreach cart.items as item}
                     <div class="flex justify-between">
                         <span class="text-gray-600 truncate mr-2">{item.product_title} × {item.qty}</span>
-                        <span class="text-gray-900 font-medium shrink-0">{ec_settings.currency_symbol | default:'$'}{item.qty * item.price_snapshot}</span>
+                        <span class="text-gray-900 font-medium shrink-0">{ec_settings.currency_symbol}{item.qty * item.price_snapshot}</span>
                     </div>
                     {/foreach}
                 </div>

@@ -34,8 +34,8 @@ function ecCalculateTotals(array $items, ?string $couponCode = null, ?int $shipp
     }
 
     // Tax
-    $taxRate    = (float)ecSettings('tax_rate', 0);
-    $taxInclusive = (bool)ecSettings('tax_inclusive', false);
+    $taxRate    = (float)ecSettings('tax_rate');
+    $taxInclusive = (bool)ecSettings('tax_inclusive');
     $taxable    = max(0.0, $subtotal - $discount);
     $tax        = 0.00;
     if ($taxRate > 0) {
@@ -62,7 +62,7 @@ function ecCalculateTotals(array $items, ?string $couponCode = null, ?int $shipp
 
     $total = max(0.0, $subtotal - $discount + ($taxInclusive ? 0 : $tax) + $shipping);
 
-    $sym = ecSettings('currency_symbol', '$');
+    $sym = (string)ecSettings('currency_symbol');
 
     return [
         'subtotal'       => round($subtotal, 2),

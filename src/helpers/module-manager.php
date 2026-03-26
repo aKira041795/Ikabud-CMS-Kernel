@@ -2086,7 +2086,8 @@ function executeModuleHandler(string $handler, array $params = []): void
     $requestMethod = $_SERVER['REQUEST_METHOD'] ?? 'GET';
     $isModuleLogin = (bool)preg_match('#^/[a-zA-Z0-9\-]+/auth/login$#', $requestUri);
     $isApiRoute = str_starts_with($requestUri, '/api/') || (bool)preg_match('#^/[a-zA-Z0-9\-]+/api/#', $requestUri);
-    if (in_array($requestMethod, ['POST', 'PUT', 'DELETE'], true) && !$isApiRoute && !$isModuleLogin) {
+    $isCacheSafePublicCartAdd = $requestUri === '/ecommerce/cart/add';
+    if (in_array($requestMethod, ['POST', 'PUT', 'DELETE'], true) && !$isApiRoute && !$isModuleLogin && !$isCacheSafePublicCartAdd) {
         app()->csrfEnforce();
     }
 

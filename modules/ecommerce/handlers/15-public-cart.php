@@ -23,3 +23,29 @@ function ecPublicCart(): void
         'message'        => $message,
     ]);
 }
+
+/**
+ * POST /ecommerce/cart/add — storefront-friendly cart add that redirects to cart
+ */
+function ecPublicCartAdd(): void
+{
+    $input     = app()->input();
+    $productId = (int)($input['product_id'] ?? $input['entity_id'] ?? 0);
+    $qty       = max(1, (int)($input['qty'] ?? 1));
+    $variantId = isset($input['variant_id']) ? (int)$input['variant_id'] : null;
+
+    if (!$productId) {
+        $_SESSION['ec_message'] = ['type' => 'error', 'text' => 'Product could not be added to cart.'];
+        header('Location: /ecommerce/cart');
+        exit;
+    }
+
+    $result = ecCartAdd($productId, $qty, $variantId);
+
+    $_SESSION['ec_message'] = $result['ok']
+        ? ['type' => 'success', 'text' => 'Item added to cart.']
+        : ['type' => 'error', 'text' => (string)($result['error'] ?? 'Could not add item to cart.')];
+
+    header('Location: /ecommerce/cart');
+    exit;
+}

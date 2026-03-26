@@ -1,0 +1,105 @@
+{extends "modules/cms/layouts/public.disyl"}
+
+{block content}
+<section class="max-w-3xl mx-auto px-4 py-10">
+    <div class="bg-white border border-gray-200 rounded-2xl p-8 shadow-sm">
+        <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-sky-50 text-sky-700 border border-sky-100 mb-4">Booking</span>
+        <h1 class="text-3xl font-bold text-gray-900 mb-3">Book {entity.title}</h1>
+        <p class="text-gray-600 mb-6">This booking page now submits a real booking request through the site contact workflow and preserves the stable public route for future scheduling integrations.</p>
+        <form id="entity-booking-form" class="grid gap-4" novalidate>
+            <div class="grid gap-4 md:grid-cols-2">
+                <input type="text" name="name" placeholder="Your name" required class="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm">
+                <input type="email" name="email" placeholder="Your email" required class="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm">
+            </div>
+            <div class="grid gap-4 md:grid-cols-2">
+                <input type="text" name="phone" placeholder="Phone number" required class="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm">
+                <input type="text" name="party_size" placeholder="Party size or attendee count" class="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm">
+            </div>
+            <div class="grid gap-4 md:grid-cols-2">
+                <input type="date" name="preferred_date" required class="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm">
+                <input type="time" name="preferred_time" required class="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm">
+            </div>
+            <textarea name="notes" rows="5" placeholder="Add any booking notes or requirements" class="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm"></textarea>
+            <div id="entity-booking-status" class="hidden rounded-lg px-4 py-3 text-sm font-medium"></div>
+            <button type="submit" class="inline-flex w-fit items-center gap-2 px-5 py-2.5 rounded-lg bg-sky-600 text-white font-semibold text-sm hover:bg-sky-700">Send Booking Request</button>
+        </form>
+        <div class="mt-6">
+            <a href="{base_url}/cms/{entity.type}/{entity.slug}" class="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-sky-600 text-white font-semibold text-sm hover:bg-sky-700 no-underline">Back to {entity.title}</a>
+        </div>
+    </div>
+</section>
+
+<script>
+(function () {
+    const form = document.getElementById('entity-booking-form');
+    const statusEl = document.getElementById('entity-booking-status');
+    if (!form || !statusEl) return;
+
+    form.addEventListener('submit', async function (event) {
+        event.preventDefault();
+
+        const submitButton = form.querySelector('button[type="submit"]');
+        const formData = new FormData(form);
+        const name = String(formData.get('name') || '').trim();
+        const email = String(formData.get('email') || '').trim();
+        const phone = String(formData.get('phone') || '').trim();
+        const partySize = String(formData.get('party_size') || '').trim();
+        const preferredDate = String(formData.get('preferred_date') || '').trim();
+        const preferredTime = String(formData.get('preferred_time') || '').trim();
+        const notes = String(formData.get('notes') || '').trim();
+
+        if (!name || !email || !phone || !preferredDate || !preferredTime) {
+            statusEl.textContent = 'Please complete the required booking fields.';
+            statusEl.className = 'rounded-lg px-4 py-3 text-sm font-medium bg-red-50 text-red-700 border border-red-200';
+            return;
+        }
+
+        const messageLines = [
+            'Inquiry type: Booking request',
+            'Entity: {entity.title}',
+            'Content type: {entity.type}',
+            'Public URL: {base_url}/cms/{entity.type}/{entity.slug}',
+            'Phone: ' + phone,
+            'Preferred date: ' + preferredDate,
+            'Preferred time: ' + preferredTime,
+            partySize ? 'Party size / attendees: ' + partySize : '',
+            '',
+            'Booking notes:',
+            notes !== '' ? notes : 'No additional notes provided.'
+        ].filter(Boolean);
+
+        submitButton.disabled = true;
+        statusEl.className = 'hidden rounded-lg px-4 py-3 text-sm font-medium';
+
+        try {
+            const response = await fetch('{base_url}/api/v1/contact-form/submit', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                body: JSON.stringify({
+                    name: name,
+                    email: email,
+                    message: messageLines.join('\n')
+                })
+            });
+
+            const result = await response.json();
+            statusEl.textContent = result.ok
+                ? 'Your booking request has been sent. We will confirm availability with you shortly.'
+                : (result.error || 'Unable to send your booking request right now.');
+            statusEl.className = result.ok
+                ? 'rounded-lg px-4 py-3 text-sm font-medium bg-emerald-50 text-emerald-700 border border-emerald-200'
+                : 'rounded-lg px-4 py-3 text-sm font-medium bg-red-50 text-red-700 border border-red-200';
+
+            if (result.ok) {
+                form.reset();
+            }
+        } catch (error) {
+            statusEl.textContent = 'A network error occurred. Please try again.';
+            statusEl.className = 'rounded-lg px-4 py-3 text-sm font-medium bg-red-50 text-red-700 border border-red-200';
+        } finally {
+            submitButton.disabled = false;
+        }
+    });
+})();
+</script>
+{/block}

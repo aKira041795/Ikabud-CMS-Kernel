@@ -117,6 +117,7 @@
             "key": "provider",
             "type": "select",
             "label": "AI Provider",
+            "default": "openai",
             "description": "Which AI service to use: OpenAI (requires API key), Groq (OpenAI-compatible, requires API key), or Ollama (local server).",
             "options": [
                 {
@@ -153,6 +154,7 @@
             "key": "tier",
             "type": "select",
             "label": "Model Tier",
+            "default": "free",
             "description": "Quality tier: free tier (cost-optimized), paid tier (higher quality), or custom (specify which model).",
             "options": [
                 {
@@ -179,12 +181,14 @@
             "key": "openai_model_free",
             "type": "text",
             "label": "OpenAI Free Model (preset)",
+            "default": "gpt-4o-mini",
             "description": "Model used for free tier (e.g., gpt-4o-mini)."
         },
         {
             "key": "openai_model_paid",
             "type": "text",
             "label": "OpenAI Paid Model (preset)",
+            "default": "gpt-4o",
             "description": "Model used for paid tier (e.g., gpt-4o)."
         },
         {
@@ -203,12 +207,14 @@
             "key": "groq_model_free",
             "type": "text",
             "label": "Groq Free Model (preset)",
+            "default": "llama-3.1-8b-instant",
             "description": "Model used for free tier (e.g., llama-3.1-8b-instant)."
         },
         {
             "key": "groq_model_paid",
             "type": "text",
             "label": "Groq Paid Model (preset)",
+            "default": "llama-3.3-70b-versatile",
             "description": "Model used for paid tier (e.g., llama-3.3-70b-versatile)."
         },
         {
@@ -227,12 +233,14 @@
             "key": "gemini_model_free",
             "type": "text",
             "label": "Gemini Free Model (preset)",
+            "default": "gemini-2.5-flash",
             "description": "Model used for free tier (default: gemini-2.5-flash)."
         },
         {
             "key": "gemini_model_paid",
             "type": "text",
             "label": "Gemini Paid Model (preset)",
+            "default": "gemini-2.5-pro",
             "description": "Model used for paid tier (default: gemini-2.5-pro)."
         },
         {
@@ -251,12 +259,14 @@
             "key": "cerebras_model_free",
             "type": "text",
             "label": "Cerebras Free Model (preset)",
+            "default": "llama-4-scout-17b-16e-instruct",
             "description": "Model used for free tier (default: llama-4-scout-17b-16e-instruct). 30 RPM free."
         },
         {
             "key": "cerebras_model_paid",
             "type": "text",
             "label": "Cerebras Paid Model (preset)",
+            "default": "llama3.1-70b",
             "description": "Model used for paid tier (default: llama3.1-70b)."
         },
         {
@@ -275,12 +285,14 @@
             "key": "openrouter_model_free",
             "type": "text",
             "label": "OpenRouter Free Model (preset)",
+            "default": "meta-llama/llama-4-scout:free",
             "description": "Model used for free tier (default: meta-llama/llama-4-scout:free). Many free models available."
         },
         {
             "key": "openrouter_model_paid",
             "type": "text",
             "label": "OpenRouter Paid Model (preset)",
+            "default": "anthropic/claude-sonnet-4",
             "description": "Model used for paid tier (default: anthropic/claude-sonnet-4)."
         },
         {
@@ -299,12 +311,14 @@
             "key": "mistral_model_free",
             "type": "text",
             "label": "Mistral Free Model (preset)",
+            "default": "mistral-small-latest",
             "description": "Model used for free tier (default: mistral-small-latest)."
         },
         {
             "key": "mistral_model_paid",
             "type": "text",
             "label": "Mistral Paid Model (preset)",
+            "default": "mistral-large-latest",
             "description": "Model used for paid tier (default: mistral-large-latest)."
         },
         {
@@ -317,18 +331,21 @@
             "key": "ollama_base_url",
             "type": "text",
             "label": "Ollama Base URL",
+            "default": "http://localhost:11434",
             "description": "URL to your local Ollama server (e.g., http://localhost:11434)."
         },
         {
             "key": "ollama_model_free",
             "type": "text",
             "label": "Ollama Free Model (preset)",
+            "default": "llama3.2:3b",
             "description": "Model used for free tier (e.g., llama3.2:3b)."
         },
         {
             "key": "ollama_model_paid",
             "type": "text",
             "label": "Ollama Paid Model (preset)",
+            "default": "llama3.1:8b",
             "description": "Model used for paid tier (e.g., llama3.1:8b)."
         },
         {

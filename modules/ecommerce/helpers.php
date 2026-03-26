@@ -29,6 +29,6 @@ function ec_cap_cms_cart_add_1(mixed $payload, string $capabilityId = '', string
 {
 	return [
 		'ok' => true,
-		'action_url' => rtrim((string)(defined('BASE_URL') ? BASE_URL : ''), '/') . '/api/v1/cms/cart/add',
+		'action_url' => rtrim((string)(defined('BASE_URL') ? BASE_URL : ''), '/') . '/api/v1/ecommerce/cart/add',
 	];
 }

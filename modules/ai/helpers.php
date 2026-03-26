@@ -47,9 +47,43 @@ function aiGlobalSettings(): array
     return [];
 }
 
+function aiSettingsDefaults(): array
+{
+    static $defaults = null;
+    if ($defaults !== null) {
+        return $defaults;
+    }
+
+    $defaults = [];
+    $manifest = discoverModules()['ai'] ?? [];
+    $fields = is_array($manifest['settings_fields'] ?? null) ? $manifest['settings_fields'] : [];
+
+    foreach ($fields as $field) {
+        if (!is_array($field)) {
+            continue;
+        }
+
+        $key = trim((string)($field['key'] ?? ''));
+        if ($key === '' || !array_key_exists('default', $field)) {
+            continue;
+        }
+
+        $defaults[$key] = $field['default'];
+    }
+
+    return $defaults;
+}
+
 function aiResolvedSettings(): array
 {
-    $global = aiGlobalSettings();
+    $resolved = aiSettingsDefaults();
+
+    foreach (aiGlobalSettings() as $key => $value) {
+        if (is_string($value) && trim($value) === '') {
+            continue;
+        }
+        $resolved[$key] = $value;
+    }
 
     try {
         if (function_exists('getModuleSettings')) {
@@ -61,7 +95,7 @@ function aiResolvedSettings(): array
                     if (is_string($value) && trim($value) === '') {
                         continue;
                     }
-                    $global[$key] = $value;
+                    $resolved[$key] = $value;
                 }
             }
         }
@@ -72,10 +106,10 @@ function aiResolvedSettings(): array
         if (is_string($value) && trim($value) === '') {
             continue;
         }
-        $global[$key] = $value;
+        $resolved[$key] = $value;
     }
 
-    return $global;
+    return $resolved;
 }
 
 function ai_capability_handlers(): array

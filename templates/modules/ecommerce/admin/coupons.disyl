@@ -20,7 +20,7 @@
                     {/if}
                 </div>
                 <div class="text-xs text-gray-400 mt-0.5">
-                    {if c.type == 'percent'}{c.value}% off{else}{ec_settings.currency_symbol | default:'$'}{c.value} off{/if}
+                    {if c.type == 'percent'}{c.value}% off{else}{ec_settings.currency_symbol}{c.value} off{/if}
                     · {c.uses_count} uses {if c.max_uses}/ {c.max_uses}{/if}
                     {if c.expires_at}· expires {c.expires_at}{/if}
                 </div>

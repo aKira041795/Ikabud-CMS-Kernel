@@ -46,6 +46,7 @@ return [
     'POST' => [
 
         // ── Public Checkout ──────────────────────────────────────────
+        '/ecommerce/cart/add'                       => 'ecommerce:ecPublicCartAdd',
         '/ecommerce/checkout'                        => 'ecommerce:ecPublicCheckoutProcess',
 
         // ── Admin Pages (form submissions) ──────────────────────────
@@ -67,6 +68,7 @@ return [
         '/api/v1/ecommerce/categories/{id}/delete'   => 'ecommerce:ecApiCategoryDelete',
 
         // ── REST API — Cart ──────────────────────────────────────────
+        '/api/v1/cms/cart/add'                       => 'ecommerce:ecApiCartAdd',
         '/api/v1/ecommerce/cart/add'                 => 'ecommerce:ecApiCartAdd',
         '/api/v1/ecommerce/cart/update'              => 'ecommerce:ecApiCartUpdate',
         '/api/v1/ecommerce/cart/remove'              => 'ecommerce:ecApiCartRemove',

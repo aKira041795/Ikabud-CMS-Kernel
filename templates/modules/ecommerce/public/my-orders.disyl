@@ -43,7 +43,7 @@
                         {/if}
                     </td>
                     <td class="px-4 py-3 text-right font-semibold text-gray-900">
-                        {ec_settings.currency_symbol | default:'$'}{o.total_amount}
+                        {o.currency_symbol | default:ec_settings.currency_symbol}{o.total_amount | default:o.total}
                     </td>
                     <td class="px-4 py-3 text-right">
                         <a href="{base_url}/ecommerce/my-orders/{o.id}" class="text-orange-600 hover:text-orange-700 text-xs font-medium">View →</a>

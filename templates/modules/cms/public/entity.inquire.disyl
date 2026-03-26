@@ -1,0 +1,90 @@
+{extends "modules/cms/layouts/public.disyl"}
+
+{block content}
+<section class="max-w-3xl mx-auto px-4 py-10">
+    <div class="bg-white border border-gray-200 rounded-2xl p-8 shadow-sm">
+        <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-gray-50 text-gray-700 border border-gray-200 mb-4">Inquiry</span>
+        <h1 class="text-3xl font-bold text-gray-900 mb-3">Inquire About {entity.title}</h1>
+        <p class="text-gray-600 mb-6">This form submits a real inquiry through the site contact workflow while keeping the entity route stable for future CRM integrations.</p>
+        <form id="entity-inquiry-form" class="grid gap-4" novalidate>
+            <input type="text" name="name" placeholder="Your name" required class="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm">
+            <input type="email" name="email" placeholder="Your email" required class="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm">
+            <input type="text" name="phone" placeholder="Phone number (optional)" class="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm">
+            <textarea name="details" rows="5" required placeholder="Tell us what you need" class="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm"></textarea>
+            <div id="entity-inquiry-status" class="hidden rounded-lg px-4 py-3 text-sm font-medium"></div>
+            <button type="submit" class="inline-flex w-fit items-center gap-2 px-5 py-2.5 rounded-lg bg-gray-900 text-white font-semibold text-sm hover:bg-gray-800">Send Inquiry</button>
+        </form>
+        <div class="mt-6">
+            <a href="{base_url}/cms/{entity.type}/{entity.slug}" class="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg border border-gray-300 text-gray-700 font-semibold text-sm hover:bg-gray-50 no-underline">Back to {entity.title}</a>
+        </div>
+    </div>
+</section>
+
+<script>
+(function () {
+    const form = document.getElementById('entity-inquiry-form');
+    const statusEl = document.getElementById('entity-inquiry-status');
+    if (!form || !statusEl) return;
+
+    form.addEventListener('submit', async function (event) {
+        event.preventDefault();
+
+        const submitButton = form.querySelector('button[type="submit"]');
+        const formData = new FormData(form);
+        const name = String(formData.get('name') || '').trim();
+        const email = String(formData.get('email') || '').trim();
+        const phone = String(formData.get('phone') || '').trim();
+        const details = String(formData.get('details') || '').trim();
+
+        if (!name || !email || !details) {
+            statusEl.textContent = 'Please complete the required fields.';
+            statusEl.className = 'rounded-lg px-4 py-3 text-sm font-medium bg-red-50 text-red-700 border border-red-200';
+            return;
+        }
+
+        const messageLines = [
+            'Inquiry type: Entity inquiry',
+            'Entity: {entity.title}',
+            'Content type: {entity.type}',
+            'Public URL: {base_url}/cms/{entity.type}/{entity.slug}',
+            phone ? 'Phone: ' + phone : '',
+            '',
+            'Inquiry details:',
+            details
+        ].filter(Boolean);
+
+        submitButton.disabled = true;
+        statusEl.className = 'hidden rounded-lg px-4 py-3 text-sm font-medium';
+
+        try {
+            const response = await fetch('{base_url}/api/v1/contact-form/submit', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                body: JSON.stringify({
+                    name: name,
+                    email: email,
+                    message: messageLines.join('\n')
+                })
+            });
+
+            const result = await response.json();
+            statusEl.textContent = result.ok
+                ? 'Your inquiry has been sent. We will get back to you soon.'
+                : (result.error || 'Unable to send your inquiry right now.');
+            statusEl.className = result.ok
+                ? 'rounded-lg px-4 py-3 text-sm font-medium bg-emerald-50 text-emerald-700 border border-emerald-200'
+                : 'rounded-lg px-4 py-3 text-sm font-medium bg-red-50 text-red-700 border border-red-200';
+
+            if (result.ok) {
+                form.reset();
+            }
+        } catch (error) {
+            statusEl.textContent = 'A network error occurred. Please try again.';
+            statusEl.className = 'rounded-lg px-4 py-3 text-sm font-medium bg-red-50 text-red-700 border border-red-200';
+        } finally {
+            submitButton.disabled = false;
+        }
+    });
+})();
+</script>
+{/block}

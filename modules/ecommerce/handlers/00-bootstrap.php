@@ -67,8 +67,8 @@ function ecAdminContext(array $user, string $currentPage, array $extra = []): ar
         'csrf_token'    => app()->csrfToken(),
         'csrf_field'    => app()->csrfField(),
         'ec_settings'   => $ecSettings,
-        'currency'      => $ecSettings['currency']        ?? 'USD',
-        'currency_sym'  => $ecSettings['currency_symbol'] ?? '$',
+        'currency'      => (string)($ecSettings['currency'] ?? ''),
+        'currency_sym'  => (string)($ecSettings['currency_symbol'] ?? ''),
     ], $extra);
 }
 

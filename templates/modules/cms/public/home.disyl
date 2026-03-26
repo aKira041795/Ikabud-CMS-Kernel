@@ -16,9 +16,9 @@
 <div class="cms-blog-listing space-y-5">
     {foreach posts as post}
     <article class="cms-blog-card bg-white rounded-lg border border-gray-200 p-6 hover:shadow-md transition-shadow">
-        {if post.featured_image}
+        {if post.featured_image_url}
         <div class="cms-post-image">
-        <img class="w-full h-52 object-cover rounded-lg mb-4" src="/assets/modules/cms/uploads/{post.featured_image}" alt="{post.title}" loading="lazy">
+        <img class="w-full h-52 object-cover rounded-lg mb-4" src="{post.featured_image_url}" alt="{post.title}" loading="lazy">
         </div>
         {/if}
         <h2 class="text-xl font-bold mb-2">

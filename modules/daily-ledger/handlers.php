@@ -99,6 +99,38 @@ function dl_defaultRolePermissions(): array
     ];
 }
 
+function dlSettingsDefaults(): array
+{
+    static $defaults = null;
+    if ($defaults !== null) {
+        return $defaults;
+    }
+
+    $defaults = [];
+    $manifest = discoverModules()['daily-ledger'] ?? [];
+    $fields = is_array($manifest['settings_fields'] ?? null) ? $manifest['settings_fields'] : [];
+
+    foreach ($fields as $field) {
+        if (!is_array($field)) {
+            continue;
+        }
+
+        $key = trim((string)($field['key'] ?? ''));
+        if ($key === '' || !array_key_exists('default', $field)) {
+            continue;
+        }
+
+        $defaults[$key] = $field['default'];
+    }
+
+    return $defaults;
+}
+
+function dlModuleSettings(): array
+{
+    return array_merge(dlSettingsDefaults(), getModuleSettings('daily-ledger'));
+}
+
 function dl_rolePermissions(): array
 {
     $defaults = dl_defaultRolePermissions();
@@ -150,7 +182,7 @@ function dl_isKernelAdmin(array $user): bool
 
 function dl_featureSettings(): array
 {
-    $settings = getModuleSettings('daily-ledger');
+    $settings = dlModuleSettings();
 
     return [
         'production_output_enabled' => dl_settingToBool($settings['production_output_enabled'] ?? false),

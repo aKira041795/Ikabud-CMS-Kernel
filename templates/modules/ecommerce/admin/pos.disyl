@@ -147,7 +147,7 @@ function posApp() {
                     product_id: product.id,
                     product_title: product.title,
                     sku: product.inventory.sku || '',
-                    price_snapshot: product.pricing.price || 0,
+                    price_snapshot: product.pricing.active_price || product.pricing.price || 0,
                     qty: 1,
                     variant_id: null,
                 });

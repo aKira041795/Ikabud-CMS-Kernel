@@ -2482,6 +2482,33 @@ function pageGuidanceSettings(): void
     ));
 }
 
+function guidanceSettingsDefaults(): array
+{
+    static $defaults = null;
+    if ($defaults !== null) {
+        return $defaults;
+    }
+
+    $defaults = [];
+    $manifest = discoverModules()['guidance'] ?? [];
+    $fields = is_array($manifest['settings_fields'] ?? null) ? $manifest['settings_fields'] : [];
+
+    foreach ($fields as $field) {
+        if (!is_array($field)) {
+            continue;
+        }
+
+        $key = trim((string)($field['key'] ?? ''));
+        if ($key === '' || !array_key_exists('default', $field)) {
+            continue;
+        }
+
+        $defaults[$key] = (string)$field['default'];
+    }
+
+    return $defaults;
+}
+
 function guidanceGetAllSettings(): array
 {
     $db = guidanceDb();
@@ -2514,17 +2541,7 @@ function guidanceGetAllSettings(): array
         $settings = [];
     }
 
-    $defaults = [
-        'retention_active_years' => '7',
-        'retention_closed_years' => '5',
-        'reminder_hours_before' => '24',
-        'email_notifications' => '1',
-        'two_fa_login' => '0',
-        'two_fa_booking' => '0',
-        'app_country' => 'PH',
-        'app_region' => 'Manila',
-        'app_timezone' => 'Asia/Manila',
-    ];
+    $defaults = guidanceSettingsDefaults();
     foreach ($defaults as $k => $v) {
         if (!array_key_exists($k, $settings)) {
             $settings[$k] = $v;

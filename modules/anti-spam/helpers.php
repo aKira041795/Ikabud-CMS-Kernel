@@ -10,18 +10,29 @@ declare(strict_types=1);
 
 function antispamDefaultSettings(): array
 {
-    return [
-        'enabled' => '1',
-        'auto_protect_web_apis' => '1',
-        'skip_authenticated_api_users' => '1',
-        'honeypot_enabled' => '1',
-        'rate_limit_enabled' => '1',
-        'rate_limit_window' => '60',
-        'rate_limit_max' => '10',
-        'keyword_block_enabled' => '1',
-        'blocked_keywords' => 'viagra,casino,lottery,nigerian prince,click here now,buy now cheap',
-        'log_retention_days' => '30',
-    ];
+    static $defaults = null;
+    if ($defaults !== null) {
+        return $defaults;
+    }
+
+    $defaults = [];
+    $manifest = discoverModules()['anti-spam'] ?? [];
+    $fields = is_array($manifest['settings_fields'] ?? null) ? $manifest['settings_fields'] : [];
+
+    foreach ($fields as $field) {
+        if (!is_array($field)) {
+            continue;
+        }
+
+        $key = trim((string)($field['key'] ?? ''));
+        if ($key === '' || !array_key_exists('default', $field)) {
+            continue;
+        }
+
+        $defaults[$key] = (string)$field['default'];
+    }
+
+    return $defaults;
 }
 
 function antispamNormalizeSettingValue(string $key, mixed $value): string
@@ -56,14 +67,42 @@ function antispamResetSettingsCache(): void
     unset($GLOBALS['_antispam_settings_cache']);
 }
 
-function antispamDb(): \PDO
+function antispamDb()
 {
-    $ctx = module('anti-spam');
-    return $ctx ? $ctx->db() : app()->db();
+    return app()->db();
+}
+
+function antispamTableExists(string $table): bool
+{
+    static $cache = [];
+
+    $table = trim($table);
+    if ($table === '') {
+        return false;
+    }
+
+    if (array_key_exists($table, $cache)) {
+        return $cache[$table];
+    }
+
+    try {
+        $db = antispamDb();
+        $stmt = $db->prepare('SHOW TABLES LIKE ?');
+        $stmt->execute([$table]);
+        $cache[$table] = (bool)$stmt->fetchColumn();
+    } catch (\Throwable $e) {
+        $cache[$table] = false;
+    }
+
+    return $cache[$table];
 }
 
 function antispamReadLegacySettings(): array
 {
+    if (!antispamTableExists('antispam_settings')) {
+        return [];
+    }
+
     try {
         $db = antispamDb();
         $stmt = $db->query('SELECT setting_key, setting_value FROM antispam_settings');
@@ -268,21 +307,33 @@ function antispamSaveSetting(string $key, string $value): void
 
 function antispamIsIpBlocked(string $ip): bool
 {
-    $db = antispamDb();
-    $stmt = $db->prepare(
-        'SELECT id FROM antispam_blocked_ips WHERE ip_address = ? AND (is_permanent = 1 OR blocked_until > NOW())'
-    );
-    $stmt->execute([$ip]);
-    if ($stmt->fetch()) {
-        // Increment hit counter
-        $db->prepare('UPDATE antispam_blocked_ips SET hits = hits + 1 WHERE ip_address = ?')->execute([$ip]);
-        return true;
+    if (!antispamTableExists('antispam_blocked_ips')) {
+        return false;
+    }
+
+    try {
+        $db = antispamDb();
+        $stmt = $db->prepare(
+            'SELECT id FROM antispam_blocked_ips WHERE ip_address = ? AND (is_permanent = 1 OR blocked_until > NOW())'
+        );
+        $stmt->execute([$ip]);
+        if ($stmt->fetch()) {
+            // Increment hit counter
+            $db->prepare('UPDATE antispam_blocked_ips SET hits = hits + 1 WHERE ip_address = ?')->execute([$ip]);
+            return true;
+        }
+    } catch (\Throwable $e) {
+        write_log('antispamIsIpBlocked failed: ' . $e->getMessage(), 'warning');
     }
     return false;
 }
 
 function antispamBlockIp(string $ip, string $reason, ?int $durationMinutes = null): void
 {
+    if (!antispamTableExists('antispam_blocked_ips')) {
+        return;
+    }
+
     $db = antispamDb();
 
     $permanent   = $durationMinutes === null ? 1 : 0;
@@ -299,6 +350,10 @@ function antispamBlockIp(string $ip, string $reason, ?int $durationMinutes = nul
 
 function antispamUnblockIp(string $ip): void
 {
+    if (!antispamTableExists('antispam_blocked_ips')) {
+        return;
+    }
+
     $db = antispamDb();
     $db->prepare('DELETE FROM antispam_blocked_ips WHERE ip_address = ?')->execute([$ip]);
 }
@@ -307,12 +362,21 @@ function antispamUnblockIp(string $ip): void
 
 function antispamIsRateLimited(string $ip, int $windowSeconds, int $maxRequests): bool
 {
-    $db = antispamDb();
-    $stmt = $db->prepare(
-        'SELECT COUNT(*) FROM antispam_log WHERE ip_address = ? AND created_at >= DATE_SUB(NOW(), INTERVAL ? SECOND)'
-    );
-    $stmt->execute([$ip, $windowSeconds]);
-    return (int)$stmt->fetchColumn() >= $maxRequests;
+    if (!antispamTableExists('antispam_log')) {
+        return false;
+    }
+
+    try {
+        $db = antispamDb();
+        $stmt = $db->prepare(
+            'SELECT COUNT(*) FROM antispam_log WHERE ip_address = ? AND created_at >= DATE_SUB(NOW(), INTERVAL ? SECOND)'
+        );
+        $stmt->execute([$ip, $windowSeconds]);
+        return (int)$stmt->fetchColumn() >= $maxRequests;
+    } catch (\Throwable $e) {
+        write_log('antispamIsRateLimited failed: ' . $e->getMessage(), 'warning');
+        return false;
+    }
 }
 
 // ── Keyword Matching ──────────────────────────────────────────────────────
@@ -332,6 +396,10 @@ function antispamMatchesKeywords(string $text, array $keywords): ?string
 
 function antispamLog(string $ip, string $checkType, string $result, string $detail): void
 {
+    if (!antispamTableExists('antispam_log')) {
+        return;
+    }
+
     try {
         $db = antispamDb();
         $uri = $_SERVER['REQUEST_URI'] ?? '';

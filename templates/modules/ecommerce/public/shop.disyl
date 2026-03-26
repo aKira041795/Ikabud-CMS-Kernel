@@ -35,17 +35,11 @@
 
         <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-6">
             {foreach products as p}
-            <a href="{base_url}/cms/product/{p.slug}" class="group rounded-xl border border-gray-200 overflow-hidden hover:shadow-md transition-shadow no-underline bg-white">
-                {if p.featured_image}
+            <a href="{base_url}/ecommerce/shop/{p.slug}" class="group rounded-xl border border-gray-200 overflow-hidden hover:shadow-md transition-shadow no-underline bg-white">
                 <div class="aspect-square overflow-hidden bg-gray-100">
-                    <img src="{base_url}/{p.featured_image}" alt="{p.title}"
+                    <img src="{if p.primary_image_url}{p.primary_image_url}{else}{base_url}/assets/ecommerce/product-placeholder.svg{/if}" alt="{p.title}"
                          class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300">
                 </div>
-                {else}
-                <div class="aspect-square bg-gray-100 flex items-center justify-center">
-                    <svg class="w-12 h-12 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
-                </div>
-                {/if}
                 <div class="p-4">
                     <h3 class="font-medium text-gray-900 truncate text-sm">{p.title}</h3>
                     {if p.excerpt}<p class="text-xs text-gray-400 mt-1 line-clamp-2">{p.excerpt}</p>{/if}

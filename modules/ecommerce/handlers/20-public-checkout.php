@@ -19,7 +19,7 @@ function ecPublicCheckout(): void
 
     $user            = app()->user();
     $isCustomer      = $user && in_array($user['role'] ?? '', ['subscriber', 'customer', 'editor', 'administrator'], true);
-    $guestAllowed    = (bool)ecSettings('guest_checkout', true);
+    $guestAllowed    = (bool)ecSettings('guest_checkout');
 
     if (!$isCustomer && !$guestAllowed) {
         header('Location: /cms/login?redirect=' . urlencode('/ecommerce/checkout'));
@@ -27,7 +27,7 @@ function ecPublicCheckout(): void
     }
 
     $shippingRates   = ecShippingRates();
-    $paymentLabel    = ecSettings('payment_method_label', 'Cash on Delivery / Bank Transfer');
+    $paymentLabel    = (string)ecSettings('payment_method_label');
 
     ecRender('modules/ecommerce/public/checkout.disyl', [
         'page_title'      => 'Checkout',
@@ -85,7 +85,8 @@ function ecPublicOrderConfirm(array $params = []): void
     $fullOrder = ecOrderGet((int)$order['id'], $customerId, $token);
 
     ecRender('modules/ecommerce/public/order-confirmation.disyl', [
-        'page_title' => 'Order Confirmed',
-        'order'      => $fullOrder,
+        'page_title'   => 'Order Confirmed',
+        'order'        => $fullOrder,
+        'is_logged_in' => $customerId !== null,
     ]);
 }

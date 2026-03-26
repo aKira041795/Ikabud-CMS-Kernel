@@ -4,6 +4,12 @@
 <div class="max-w-3xl mx-auto">
     <h1 class="text-2xl font-bold text-gray-900 mb-6">Your Cart</h1>
 
+    {if message}
+    <div class="mb-6 rounded-lg border px-4 py-3 text-sm {if message.type == 'error'}border-red-200 bg-red-50 text-red-700{else}border-emerald-200 bg-emerald-50 text-emerald-700{/if}">
+        {message.text}
+    </div>
+    {/if}
+
     {if cart.items | count == 0}
     <div class="text-center py-20">
         <svg class="w-16 h-16 text-gray-200 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/></svg>
@@ -20,7 +26,7 @@
                 <div class="flex-1 min-w-0">
                     <div class="font-medium text-gray-900">{item.product_title}</div>
                     {if item.sku}<div class="text-xs text-gray-400">{item.sku}</div>{/if}
-                    <div class="text-sm text-orange-600 font-semibold mt-1">{ec_settings.currency_symbol | default:'$'}{item.price_snapshot} each</div>
+                    <div class="text-sm text-orange-600 font-semibold mt-1">{ec_settings.currency_symbol}{item.price_snapshot} each</div>
                 </div>
                 <div class="flex items-center gap-2">
                     <form method="post" action="{base_url}/api/v1/ecommerce/cart/update">
@@ -31,7 +37,7 @@
                     </form>
                     <button onclick="removeCartItem({loop.index})" class="text-sm text-red-500 hover:text-red-700 ml-1">Remove</button>
                 </div>
-                <div class="text-sm font-bold text-gray-900 pl-2">{ec_settings.currency_symbol | default:'$'}{item.qty * item.price_snapshot}</div>
+                <div class="text-sm font-bold text-gray-900 pl-2">{ec_settings.currency_symbol}{item.qty * item.price_snapshot}</div>
             </div>
             {/foreach}
 

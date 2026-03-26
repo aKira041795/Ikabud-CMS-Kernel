@@ -23,7 +23,7 @@ function ecProductList(array $filters = []): array
     $categoryId = isset($filters['category_id']) ? (int)$filters['category_id'] : null;
     $search     = trim((string)($filters['search'] ?? ''));
     $status     = trim((string)($filters['status'] ?? 'published'));
-    $limit      = min(100, max(1, (int)($filters['limit']  ?? (int)ecSettings('products_per_page', 12))));
+    $limit      = min(100, max(1, (int)($filters['limit']  ?? (int)ecSettings('products_per_page'))));
     $offset     = max(0, (int)($filters['offset'] ?? 0));
     $orderBy    = in_array($filters['order_by'] ?? '', ['created_at', 'title', 'updated_at'], true)
         ? $filters['order_by'] : 'created_at';
@@ -69,8 +69,18 @@ function ecProductList(array $filters = []): array
             array_merge($params, [$limit, $offset])
         )->fetchAll(\PDO::FETCH_ASSOC);
 
+        $galleryMap = ecProductGalleryImagesForProducts(array_map(
+            static fn(array $row): int => (int)($row['id'] ?? 0),
+            is_array($rows) ? $rows : []
+        ));
+
         // Attach pricing + inventory capability data to each product
         foreach ($rows as &$row) {
+            $galleryImages = $galleryMap[(int)($row['id'] ?? 0)] ?? [];
+            $row['gallery_images'] = $galleryImages;
+            $row['featured_image_url'] = ecProductResolveFeaturedImageUrl((string)($row['featured_image'] ?? ''));
+            $row['primary_image_url'] = ecProductPrimaryImageUrl($row['featured_image_url'], $galleryImages);
+
             $row['pricing']   = ecProductPricing((int)$row['id']);
             $row['inventory'] = ecProductInventory((int)$row['id']);
         }
@@ -106,11 +116,9 @@ function ecProductGet(int $id): ?array
             return null;
         }
 
-        if (!empty($row['featured_image']) && function_exists('cmsResolveUploadUrl')) {
-            $row['featured_image_url'] = cmsResolveUploadUrl((string)$row['featured_image']);
-        } else {
-            $row['featured_image_url'] = '';
-        }
+        $row['gallery_images'] = ecProductGalleryImages($id);
+        $row['featured_image_url'] = ecProductResolveFeaturedImageUrl((string)($row['featured_image'] ?? ''));
+        $row['primary_image_url'] = ecProductPrimaryImageUrl((string)$row['featured_image_url'], $row['gallery_images']);
 
         $row['pricing']   = ecProductPricing($id);
         $row['inventory'] = ecProductInventory($id);
@@ -140,6 +148,129 @@ function ecProductGetBySlug(string $slug): ?array
     } catch (\Throwable $e) {
         return null;
     }
+}
+
+function ecProductResolveFeaturedImageUrl(string $relativePath): string
+{
+    $relativePath = trim($relativePath);
+    if ($relativePath === '' || !function_exists('cmsResolveUploadUrl')) {
+        return '';
+    }
+
+    return cmsResolveUploadUrl($relativePath);
+}
+
+function ecProductResolveMediaUrl(string $path): string
+{
+    $path = trim($path);
+    if ($path === '') {
+        return '';
+    }
+
+    if (preg_match('#^(https?:)?//#i', $path) === 1 || str_starts_with($path, '/')) {
+        return $path;
+    }
+
+    if (preg_match('#^t\d+/#', $path) === 1 && function_exists('cmsLegacyUploadsUrl')) {
+        return cmsLegacyUploadsUrl($path);
+    }
+
+    if (function_exists('cmsResolveUploadUrl')) {
+        return cmsResolveUploadUrl($path);
+    }
+
+    return $path;
+}
+
+function ecProductNormalizeGalleryImages(array $items): array
+{
+    $normalized = [];
+
+    foreach ($items as $item) {
+        if (!is_array($item)) {
+            continue;
+        }
+
+        $url = ecProductResolveMediaUrl((string)($item['url'] ?? ''));
+        $src = ecProductResolveMediaUrl((string)($item['src'] ?? ''));
+        $thumb = ecProductResolveMediaUrl((string)($item['thumb'] ?? ''));
+        $fullUrl = $url !== '' ? $url : $src;
+        $thumbUrl = $thumb !== '' ? $thumb : $fullUrl;
+
+        if ($fullUrl === '') {
+            continue;
+        }
+
+        $normalized[] = [
+            'url' => $fullUrl,
+            'thumb' => $thumbUrl,
+            'caption' => trim((string)($item['caption'] ?? '')),
+        ];
+    }
+
+    return $normalized;
+}
+
+function ecProductGalleryImages(int $productId): array
+{
+    if ($productId <= 0) {
+        return [];
+    }
+
+    return ecProductGalleryImagesForProducts([$productId])[$productId] ?? [];
+}
+
+function ecProductGalleryImagesForProducts(array $productIds): array
+{
+    $productIds = array_values(array_filter(array_map(static fn($id): int => (int)$id, $productIds), static fn(int $id): bool => $id > 0));
+    if ($productIds === []) {
+        return [];
+    }
+
+    $placeholders = implode(', ', array_fill(0, count($productIds), '?'));
+
+    try {
+        $rows = ecDb()->query(
+            "SELECT content_id, meta_value FROM cms_content_meta WHERE meta_key = '_gallery' AND content_id IN ($placeholders)",
+            $productIds
+        )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+    } catch (\Throwable $e) {
+        return [];
+    }
+
+    $map = [];
+    foreach ($rows as $row) {
+        $productId = (int)($row['content_id'] ?? 0);
+        if ($productId <= 0) {
+            continue;
+        }
+
+        $decoded = json_decode((string)($row['meta_value'] ?? '[]'), true);
+        $map[$productId] = ecProductNormalizeGalleryImages(is_array($decoded) ? $decoded : []);
+    }
+
+    return $map;
+}
+
+function ecProductPrimaryImageUrl(string $featuredImageUrl, array $galleryImages): string
+{
+    $featuredImageUrl = trim($featuredImageUrl);
+    if ($featuredImageUrl !== '') {
+        return $featuredImageUrl;
+    }
+
+    foreach ($galleryImages as $image) {
+        if (!is_array($image)) {
+            continue;
+        }
+
+        $candidate = trim((string)($image['thumb'] ?? $image['url'] ?? ''));
+        if ($candidate !== '') {
+            return $candidate;
+        }
+    }
+
+    return '';
 }
 
 /**
@@ -182,7 +313,7 @@ function ecProductCreate(array $data, int $authorId = 0): int
     if (!empty($data['price'])) {
         ecProductUpdatePricing($productId, [
             'price'      => (float)$data['price'],
-            'currency'   => $data['currency']   ?? ecSettings('currency', 'USD'),
+            'currency'   => $data['currency']   ?? ecSettings('currency'),
             'sale_price' => isset($data['sale_price']) ? (float)$data['sale_price'] : null,
         ]);
     }
@@ -299,24 +430,25 @@ function ecProductPricing(int $productId): array
         )->fetch(\PDO::FETCH_ASSOC);
 
         if (!$row) {
-            return ['price' => null, 'currency' => ecSettings('currency', 'USD'), 'on_sale' => false, 'formatted' => null];
+            return ['price' => null, 'currency' => ecSettings('currency'), 'on_sale' => false, 'formatted' => null];
         }
 
         $config    = (array)json_decode($row['config'] ?? '{}', true);
         $price     = isset($config['price'])      ? (float)$config['price']      : null;
         $salePrice = isset($config['sale_price']) ? (float)$config['sale_price'] : null;
-        $currency  = $config['currency'] ?? ecSettings('currency', 'USD');
-        $symbol    = ecSettings('currency_symbol', '$');
+        $currency  = $config['currency'] ?? ecSettings('currency');
+        $symbol    = (string)ecSettings('currency_symbol');
         $onSale    = $price !== null && $salePrice !== null && $salePrice < $price;
         $active    = $onSale ? $salePrice : $price;
 
         return [
-            'price'       => $price,
-            'sale_price'  => $salePrice,
-            'currency'    => $currency,
-            'on_sale'     => $onSale,
-            'formatted'   => $price !== null ? ($symbol . number_format($active, 2)) : null,
-            'regular_fmt' => $price !== null ? ($symbol . number_format($price, 2)) : null,
+            'price'        => $price,
+            'sale_price'   => $salePrice,
+            'active_price' => $active,
+            'currency'     => $currency,
+            'on_sale'      => $onSale,
+            'formatted'    => $price !== null ? ($symbol . number_format($active, 2)) : null,
+            'regular_fmt'  => $price !== null ? ($symbol . number_format($price, 2)) : null,
         ];
     } catch (\Throwable $e) {
         return [];
@@ -342,7 +474,7 @@ function ecProductInventory(int $productId): array
         $config     = (array)json_decode($row['config'] ?? '{}', true);
         $trackStock = (bool)($config['track_stock'] ?? true);
         $stockQty   = (int)($config['stock_qty']   ?? 0);
-        $threshold  = (int)ecSettings('low_stock_threshold', 5);
+        $threshold  = (int)ecSettings('low_stock_threshold');
 
         return [
             'track_stock' => $trackStock,
@@ -364,7 +496,7 @@ function ecProductUpdatePricing(int $productId, array $data): void
     $existing = ecProductPricing($productId);
     $config = array_filter([
         'price'      => isset($data['price'])      ? (float)$data['price']      : ($existing['price']      ?? null),
-        'currency'   => $data['currency']           ?? ($existing['currency']     ?? ecSettings('currency', 'USD')),
+        'currency'   => $data['currency']           ?? ($existing['currency']     ?? ecSettings('currency')),
         'sale_price' => isset($data['sale_price'])  ? (float)$data['sale_price'] : ($existing['sale_price'] ?? null),
     ], fn($v) => $v !== null);
 

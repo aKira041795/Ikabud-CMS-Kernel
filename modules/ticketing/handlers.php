@@ -490,7 +490,34 @@ function tkGetSettings(): array
         $cache[$tid] = [];
     }
 
-    return $cache[$tid];
+    return array_merge(tkSettingsDefaults(), $cache[$tid]);
+}
+
+function tkSettingsDefaults(): array
+{
+    static $defaults = null;
+    if ($defaults !== null) {
+        return $defaults;
+    }
+
+    $defaults = [];
+    $manifest = discoverModules()['ticketing'] ?? [];
+    $fields = is_array($manifest['settings_fields'] ?? null) ? $manifest['settings_fields'] : [];
+
+    foreach ($fields as $field) {
+        if (!is_array($field)) {
+            continue;
+        }
+
+        $key = trim((string)($field['key'] ?? ''));
+        if ($key === '' || !array_key_exists('default', $field)) {
+            continue;
+        }
+
+        $defaults[$key] = (string)$field['default'];
+    }
+
+    return $defaults;
 }
 
 function tkSaveSetting(string $key, string $value): void

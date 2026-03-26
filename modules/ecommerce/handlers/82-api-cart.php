@@ -14,7 +14,7 @@ function ecApiCartGet(): void
 function ecApiCartAdd(): void
 {
     $input     = ecInput();
-    $productId = (int)($input['product_id'] ?? 0);
+    $productId = (int)($input['product_id'] ?? $input['entity_id'] ?? 0);
     $qty       = max(1, (int)($input['qty'] ?? 1));
     $variantId = isset($input['variant_id']) ? (int)$input['variant_id'] : null;
 

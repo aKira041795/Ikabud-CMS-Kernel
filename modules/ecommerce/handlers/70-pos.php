@@ -18,6 +18,6 @@ function ecPosTerminal(): void
         'user'          => $user,
         'csrf_token'    => app()->csrfToken(),
         'ec_settings'   => ecSettings(),
-        'currency_sym'  => ecSettings('currency_symbol', '$'),
+        'currency_sym'  => (string)ecSettings('currency_symbol'),
     ]);
 }

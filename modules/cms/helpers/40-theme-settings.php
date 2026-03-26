@@ -18,73 +18,29 @@ if (!defined('CMS_THEME_SYMLINK')) {
 
 function cmsSettingsDefaults(): array
 {
-    return [
-        // ── General ──────────────────────────────────
-        'site_title'           => '',
-        'site_tagline'         => '',
-        'posts_per_page'       => '10',
+    static $defaults = null;
+    if ($defaults !== null) {
+        return $defaults;
+    }
 
-        // ── Content ──────────────────────────────────
-        'default_post_status'  => 'draft',
-        'comments_enabled'     => '1',
-        'excerpt_length'       => '160',
+    $defaults = [];
+    $manifest = discoverModules()['cms'] ?? [];
+    $fields = is_array($manifest['settings_fields'] ?? null) ? $manifest['settings_fields'] : [];
 
-        // ── Media ────────────────────────────────────
-        'max_upload_mb'        => '2',
+    foreach ($fields as $field) {
+        if (!is_array($field)) {
+            continue;
+        }
 
-        // ── SEO ──────────────────────────────────────
-        'seo_title_separator'  => '|',
-        'seo_meta_description' => '',
-        'seo_og_image'         => '',
-        'seo_robots'           => 'index, follow',
+        $key = trim((string)($field['key'] ?? ''));
+        if ($key === '' || !array_key_exists('default', $field)) {
+            continue;
+        }
 
-        // ── Permalinks / Reading ─────────────────────
-        'homepage_type'        => 'posts',
-        'homepage_page_id'     => '',
-        'date_format'          => 'M j, Y',
-        'time_format'          => 'g:i A',
+        $defaults[$key] = (string)$field['default'];
+    }
 
-        // ── Performance ──────────────────────────────
-        'cache_enabled'        => '1',
-        'cache_ttl'            => '600',
-
-        // ── Social ───────────────────────────────────
-        'social_facebook'      => '',
-        'social_twitter'       => '',
-        'social_instagram'     => '',
-        'social_youtube'       => '',
-        'social_linkedin'      => '',
-
-        // ── Theme ────────────────────────────────────
-        'active_theme'         => 'default',
-        // ── Builder ──────────────────────────────────
-        // Comma-separated list of content types that support the Page Builder
-        'builder_enabled_types'     => 'page',
-        // '1' = content built with builder cannot be edited in the classic editor
-        'builder_enforce_lock'      => '1',
-
-        // ── Comments ─────────────────────────────────
-        'default_comment_status'    => 'open',
-
-        // ── Post Formats ─────────────────────────────
-        // Comma-separated list of enabled post formats (leave empty to hide UI)
-        'enabled_post_formats'      => 'standard,aside,gallery,link,image,quote,video,audio',
-
-        // ── Media ────────────────────────────────────
-        'media_alt_required'        => '0',
-        // Comma-separated additional allowed upload extensions
-        'media_extra_allowed_exts'  => '',
-        // Enable media usage tracking (records which content uses which media)
-        'media_usage_tracking'      => '1',
-
-        // ── Reading time ─────────────────────────────
-        'reading_time_enabled'      => '1',
-        // Average words-per-minute for reading time calculation
-        'reading_time_wpm'          => '200',
-
-        // ── Permissions (JSON-encoded overrides) ──
-        'role_permissions'          => '',
-    ];
+    return $defaults;
 }
 
 /**

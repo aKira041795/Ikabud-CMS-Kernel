@@ -327,6 +327,33 @@ function cms_cap_entity_capability_pricing_data_1(mixed $payload, string $capabi
     $entityId = (int)(is_array($payload) ? ($payload['entity']['id'] ?? 0) : 0);
     if ($entityId <= 0) return [];
     $config = is_array($payload) ? ($payload['config'] ?? []) : [];
+
+    try {
+        $db = cmsDb();
+        $stmt = $db->prepare(
+            "SELECT config FROM cms_entity_capabilities
+             WHERE entity_id = :id AND capability_id = 'pricing' LIMIT 1"
+        );
+        $stmt->execute([':id' => $entityId]);
+        $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+        if ($row) {
+            $capConfig = (array)json_decode((string)($row['config'] ?? '{}'), true);
+            $price = isset($capConfig['price']) ? (float)$capConfig['price'] : null;
+            $salePrice = isset($capConfig['sale_price']) ? (float)$capConfig['sale_price'] : null;
+            $currency = (string)($capConfig['currency'] ?? $config['currency'] ?? 'USD');
+            $onSale = $price !== null && $salePrice !== null && $salePrice < $price;
+
+            return [
+                'price' => $price,
+                'currency' => $currency,
+                'sale_price' => $onSale ? $salePrice : null,
+                'active_price' => $onSale ? $salePrice : $price,
+                'on_sale' => $onSale,
+            ];
+        }
+    } catch (\Throwable $e) {
+    }
+
     try {
         $db   = cmsDb();
         $stmt = $db->prepare(
@@ -338,10 +365,17 @@ function cms_cap_entity_capability_pricing_data_1(mixed $payload, string $capabi
     } catch (\Throwable $e) {
         return [];
     }
+
+    $price = isset($rows['_price']) ? (float)$rows['_price'] : null;
+    $salePrice = isset($rows['_sale_price']) ? (float)$rows['_sale_price'] : null;
+    $onSale = $price !== null && $salePrice !== null && $salePrice < $price;
+
     return [
-        'price'      => isset($rows['_price'])     ? (float)$rows['_price']     : null,
-        'currency'   => (string)($rows['_currency'] ?? $config['currency'] ?? 'USD'),
-        'sale_price' => isset($rows['_sale_price']) ? (float)$rows['_sale_price'] : null,
+        'price' => $price,
+        'currency' => (string)($rows['_currency'] ?? $config['currency'] ?? 'USD'),
+        'sale_price' => $onSale ? $salePrice : null,
+        'active_price' => $onSale ? $salePrice : $price,
+        'on_sale' => $onSale,
     ];
 }
 
@@ -349,6 +383,32 @@ function cms_cap_entity_capability_inventory_data_1(mixed $payload, string $capa
 {
     $entityId = (int)(is_array($payload) ? ($payload['entity']['id'] ?? 0) : 0);
     if ($entityId <= 0) return [];
+
+    try {
+        $db = cmsDb();
+        $stmt = $db->prepare(
+            "SELECT config FROM cms_entity_capabilities
+             WHERE entity_id = :id AND capability_id = 'inventory' LIMIT 1"
+        );
+        $stmt->execute([':id' => $entityId]);
+        $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+        if ($row) {
+            $config = (array)json_decode((string)($row['config'] ?? '{}'), true);
+            $trackStock = (bool)($config['track_stock'] ?? true);
+            $stockQty = isset($config['stock_qty']) ? (int)$config['stock_qty'] : 0;
+
+            return [
+                'sku' => $config['sku'] ?? null,
+                'stock' => $stockQty,
+                'stock_qty' => $stockQty,
+                'track_inventory' => $trackStock,
+                'track_stock' => $trackStock,
+                'in_stock' => !$trackStock || $stockQty > 0,
+            ];
+        }
+    } catch (\Throwable $e) {
+    }
+
     try {
         $db   = cmsDb();
         $stmt = $db->prepare(
@@ -360,11 +420,17 @@ function cms_cap_entity_capability_inventory_data_1(mixed $payload, string $capa
     } catch (\Throwable $e) {
         return [];
     }
+
+    $trackInventory = !empty($rows['_track_inventory']);
+    $stockQty = isset($rows['_stock_qty']) ? (int)$rows['_stock_qty'] : null;
+
     return [
-        'sku'             => $rows['_sku'] ?? null,
-        'stock'           => isset($rows['_stock_qty'])    ? (int)$rows['_stock_qty']   : null,
-        'track_inventory' => !empty($rows['_track_inventory']),
-        'in_stock'        => !isset($rows['_stock_qty']) || (int)$rows['_stock_qty'] > 0,
+        'sku' => $rows['_sku'] ?? null,
+        'stock' => $stockQty,
+        'stock_qty' => $stockQty,
+        'track_inventory' => $trackInventory,
+        'track_stock' => $trackInventory,
+        'in_stock' => !isset($rows['_stock_qty']) || (int)$rows['_stock_qty'] > 0,
     ];
 }
 
