@@ -23,5 +23,6 @@ require_once __DIR__ . '/helpers/70-menu.php';
 require_once __DIR__ . '/helpers/72-saved-blocks.php';
 require_once __DIR__ . '/helpers/74-revisions.php';
 require_once __DIR__ . '/helpers/76-extensions-editor.php';
+require_once __DIR__ . '/helpers/77-import-export.php';
 require_once __DIR__ . '/helpers/78-public-context.php';
 require_once __DIR__ . '/helpers/80-customizer.php';

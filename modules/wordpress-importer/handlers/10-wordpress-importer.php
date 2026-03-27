@@ -11,7 +11,7 @@ function wordpressImporterRenderTemplate(string $relativePath, array $context = 
 
     $source = (string) file_get_contents($fullPath);
     $app = app();
-    $appUrl = (string) $app->config('app.url', '');
+    $appUrl = external_base_url((string)$app->config('app.url', ''));
     $baseUrl = rtrim((string) (parse_url($appUrl, PHP_URL_PATH) ?: ''), '/');
     $user = $app->user();
 
@@ -376,6 +376,81 @@ function wordpressImporterNormalizeDate(mixed $value): ?string
     return date('Y-m-d H:i:s', $timestamp);
 }
 
+function wordpressImporterNormalizedBaseUrl(string $url): string
+{
+    $url = trim($url);
+    if ($url === '') {
+        return '';
+    }
+
+    $parts = parse_url($url);
+    if (!is_array($parts)) {
+        return rtrim($url, '/');
+    }
+
+    $scheme = strtolower((string)($parts['scheme'] ?? ''));
+    $host = strtolower((string)($parts['host'] ?? ''));
+    if ($host === '') {
+        return '';
+    }
+
+    $port = isset($parts['port']) ? (int)$parts['port'] : null;
+    $path = rtrim((string)($parts['path'] ?? ''), '/');
+
+    $normalized = $scheme !== '' ? ($scheme . '://') : '';
+    $normalized .= $host;
+    if ($port !== null && $port > 0) {
+        $normalized .= ':' . $port;
+    }
+    $normalized .= $path;
+
+    return rtrim($normalized, '/');
+}
+
+function wordpressImporterSourceBaseUrls(\SimpleXMLElement $channel, \SimpleXMLElement $channelWp): array
+{
+    $candidates = [
+        trim((string)($channel->link ?? '')),
+        trim((string)($channelWp->base_site_url ?? '')),
+        trim((string)($channelWp->base_blog_url ?? '')),
+    ];
+
+    $urls = [];
+    foreach ($candidates as $candidate) {
+        $normalized = wordpressImporterNormalizedBaseUrl($candidate);
+        if ($normalized !== '') {
+            $urls[$normalized] = true;
+        }
+    }
+
+    return array_keys($urls);
+}
+
+function wordpressImporterRewriteInternalUrls(string $value, array $sourceBaseUrls): string
+{
+    $value = trim($value) === '' ? $value : $value;
+    if ($value === '' || empty($sourceBaseUrls)) {
+        return $value;
+    }
+
+    $currentBase = wordpressImporterNormalizedBaseUrl(cmsExternalBaseUrl());
+    if ($currentBase === '') {
+        return $value;
+    }
+
+    foreach ($sourceBaseUrls as $sourceBaseUrl) {
+        $sourceBaseUrl = wordpressImporterNormalizedBaseUrl((string)$sourceBaseUrl);
+        if ($sourceBaseUrl === '' || $sourceBaseUrl === $currentBase) {
+            continue;
+        }
+
+        $value = str_replace($sourceBaseUrl . '/', $currentBase . '/', $value);
+        $value = str_replace($sourceBaseUrl, $currentBase, $value);
+    }
+
+    return $value;
+}
+
 function wordpressImporterParseWxr(string $raw): array
 {
     if (!function_exists('simplexml_load_string')) {
@@ -402,6 +477,7 @@ function wordpressImporterParseWxr(string $raw): array
     $contentNs = $namespaces['content'] ?? null;
     $excerptNs = $namespaces['excerpt'] ?? null;
     $channelWp = $channel->children($wpNs);
+    $sourceBaseUrls = wordpressImporterSourceBaseUrls($channel, $channelWp);
 
     $categoriesBySlug = [];
     $categoryIdBySlug = [];
@@ -439,7 +515,7 @@ function wordpressImporterParseWxr(string $raw): array
         $registerCategory(
             $slug,
             $name,
-            trim((string)$categoryNode->category_description),
+            wordpressImporterRewriteInternalUrls(trim((string)$categoryNode->category_description), $sourceBaseUrls),
             trim((string)$categoryNode->category_parent),
             (int)$categoryNode->term_id
         );
@@ -485,7 +561,7 @@ function wordpressImporterParseWxr(string $raw): array
             $registerCategory(
                 $slug,
                 $name,
-                trim((string)$termNode->term_description),
+                wordpressImporterRewriteInternalUrls(trim((string)$termNode->term_description), $sourceBaseUrls),
                 trim((string)$termNode->term_parent),
                 $termId
             );
@@ -527,6 +603,8 @@ function wordpressImporterParseWxr(string $raw): array
         $excerptNode = $excerptNs !== null ? $item->children($excerptNs) : null;
         $body = $contentNode !== null ? (string)$contentNode->encoded : (string)$item->description;
         $excerpt = $excerptNode !== null ? trim((string)$excerptNode->encoded) : '';
+        $body = wordpressImporterRewriteInternalUrls($body, $sourceBaseUrls);
+        $excerpt = wordpressImporterRewriteInternalUrls($excerpt, $sourceBaseUrls);
 
         $content[] = [
             'id' => $postId,
