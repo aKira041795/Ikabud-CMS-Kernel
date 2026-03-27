@@ -4,6 +4,8 @@
 
 This guide explains how CMS themes are structured, activated, rendered, and customized.
 
+For a relationship-focused overview of how themes interact with universal entity rendering, see `docs/theme-entity-view-primer.md`.
+
 ## 1. Theme philosophy
 
 CMS themes are intentionally lightweight.

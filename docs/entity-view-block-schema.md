@@ -3,6 +3,8 @@
 > Canonical reference for the universal entity rendering path.  
 > Source of truth: `templates/modules/cms/public/entity.view.disyl`
 
+For a higher-level explanation of how this schema relates to CMS theme design and the kernel modular system, see `docs/theme-entity-view-primer.md`.
+
 ---
 
 ## 1. Entity Contract (Template Input Shape)
