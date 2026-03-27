@@ -77,8 +77,37 @@ final class WorkflowRuntime
         ]);
     }
 
+    private function definitionSyncTtl(): int
+    {
+        return max(0, (int)($_ENV['WORKFLOW_DEFINITION_SYNC_TTL'] ?? 300));
+    }
+
+    private function definitionSyncInstance(): string
+    {
+        $tenantId = $this->app->tenant()->current();
+        return 'workflow_definition_seed_t' . ($tenantId ?? 0);
+    }
+
+    private function definitionSyncKey(string $workflowKey, string $module, string $entityType, string $initialState, array $states, array $transitions): string
+    {
+        return 'definition:' . sha1(json_encode([
+            'workflow_key' => $workflowKey,
+            'module' => $module,
+            'entity_type' => $entityType,
+            'initial_state' => $initialState,
+            'states' => $states,
+            'transitions' => $transitions,
+        ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+    }
+
     public function ensureDefinition(string $workflowKey, string $module, string $entityType, string $initialState, array $states, array $transitions): void
     {
+        $syncTtl = $this->definitionSyncTtl();
+        $syncKey = $this->definitionSyncKey($workflowKey, $module, $entityType, $initialState, $states, $transitions);
+        if ($syncTtl > 0 && $this->app->cache()->get($this->definitionSyncInstance(), $syncKey)) {
+            return;
+        }
+
         try {
             $stmt = $this->app->db()->prepare(
                 'INSERT INTO workflow_definitions (workflow_key, module, entity_type, initial_state, states_json, transitions_json, is_active, created_at) '
@@ -93,6 +122,9 @@ final class WorkflowRuntime
                 ':states' => json_encode($states),
                 ':trans' => json_encode($transitions),
             ]);
+            if ($syncTtl > 0) {
+                $this->app->cache()->set($this->definitionSyncInstance(), $syncKey, ['synced' => true], $syncTtl);
+            }
         } catch (Throwable $e) {
             $this->log('workflow definition seed failed', [
                 'workflow_key' => $workflowKey,

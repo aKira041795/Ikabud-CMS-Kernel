@@ -7,7 +7,7 @@ CREATE TABLE IF NOT EXISTS cms_entity_capabilities (
     id            INT UNSIGNED NOT NULL AUTO_INCREMENT,
     entity_id     INT UNSIGNED NOT NULL,
     capability_id VARCHAR(64)  NOT NULL,
-    config        JSON         NOT NULL DEFAULT (JSON_OBJECT()),
+    config        JSON         NOT NULL,
     created_at    TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at    TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 

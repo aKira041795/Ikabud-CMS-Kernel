@@ -11,6 +11,20 @@ final class CapabilityBus
     ) {
     }
 
+    private function traceEnabled(): bool
+    {
+        $env = $_ENV['APP_CAPABILITY_TRACE_LOGS'] ?? null;
+        if (is_string($env) && $env !== '') {
+            return filter_var($env, FILTER_VALIDATE_BOOLEAN);
+        }
+
+        if (function_exists('config')) {
+            return strtolower((string) config('app.env', 'development')) === 'development';
+        }
+
+        return false;
+    }
+
     /**
      * Call a capability.
      *
@@ -205,6 +219,10 @@ final class CapabilityBus
         ?string $requestedCapabilityId = null
     ): void
     {
+        if (!$this->traceEnabled()) {
+            return;
+        }
+
         try {
             $requestId = $caller['request_id'] ?? (function_exists('request_id') ? request_id() : null);
             $callerModule = $caller['module'] ?? null;

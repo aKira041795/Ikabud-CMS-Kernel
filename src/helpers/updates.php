@@ -48,6 +48,11 @@ function kernelUpdatesAutoCheckIntervalMinutes(): int
     return max(1, (int) (kernelUpdatesConfig()['auto_check_interval_minutes'] ?? 60));
 }
 
+function kernelUpdatesAutoSyncOnPlatformEnabled(): bool
+{
+    return (bool) (kernelUpdatesConfig()['auto_sync_on_platform'] ?? false);
+}
+
 function kernelUpdatesHttpJson(string $url): array
 {
     $headers = [

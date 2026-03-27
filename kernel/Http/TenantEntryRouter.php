@@ -36,11 +36,22 @@ class TenantEntryRouter
             $status = strtolower(trim((string)($row['status'] ?? 'active')));
             if ($status !== 'active') {
                 $_SERVER['IK_TENANT_SUSPENDED'] = '1';
+                $this->logRewriteWarning('tenant_suspended', [
+                    'host' => $host,
+                    'uri' => $uri,
+                    'tenant_id' => $tenantId,
+                    'status' => $status,
+                ]);
                 return $uri;
             }
 
             $entry = trim((string)($row['entry_module_id'] ?? ''));
             if ($entry === '') {
+                return $uri;
+            }
+
+            if ($this->shouldFastReject($uri)) {
+                $_SERVER['IK_FAST_404'] = '1';
                 return $uri;
             }
 
@@ -176,5 +187,66 @@ class TenantEntryRouter
         }
 
         return false;
+    }
+
+    private function shouldFastReject(string $uri): bool
+    {
+        $normalized = strtolower(trim($uri));
+        if ($normalized === '' || $normalized === '/') {
+            return false;
+        }
+
+        if (
+            $normalized === '/favicon.ico'
+            || $normalized === '/robots.txt'
+            || $normalized === '/sitemap.xml'
+            || $normalized === '/manifest.json'
+            || $normalized === '/site.webmanifest'
+            || str_starts_with($normalized, '/.well-known/')
+            || str_starts_with($normalized, '/apple-touch-icon')
+        ) {
+            return false;
+        }
+
+        $firstSegment = (string) strtok(ltrim($normalized, '/'), '/');
+        $basename = basename($normalized);
+
+        $blockedFirstSegments = [
+            '.git',
+            '.env',
+            'wp-admin',
+            'wp-content',
+            'wp-includes',
+            'wordpress',
+            'phpmyadmin',
+            'pma',
+            'adminer',
+            'cgi-bin',
+            'server-status',
+            'server-info',
+        ];
+        if (in_array($firstSegment, $blockedFirstSegments, true)) {
+            return true;
+        }
+
+        $blockedBasenames = [
+            '.env',
+            'wp-login.php',
+            'xmlrpc.php',
+            'swagger-ui.html',
+            'trace.axd',
+            'login.action',
+            'server-status',
+            'server-info',
+        ];
+        if (in_array($basename, $blockedBasenames, true)) {
+            return true;
+        }
+
+        if (str_contains($normalized, '/.git/') || str_contains($normalized, '/.env')) {
+            return true;
+        }
+
+        return preg_match('/\.(?:php\d*|phtml|phar|asp|aspx|axd|jsp|cgi|pl|env|sql|bak|old|ini|log|swp)$/i', $basename) === 1;
     }
 }
