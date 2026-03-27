@@ -205,12 +205,16 @@ t('zero-stock list item keeps out_of_stock flag', (($itemsById[$outOfStockProduc
 
 $shopTemplate = file_get_contents(__DIR__ . '/../templates/modules/ecommerce/public/shop.disyl') ?: '';
 $productTemplate = file_get_contents(__DIR__ . '/../templates/modules/ecommerce/public/product.disyl') ?: '';
+$adminOrderTemplate = file_get_contents(__DIR__ . '/../templates/modules/ecommerce/admin/order-detail.disyl') ?: '';
 t('shop template includes placeholder fallback', str_contains($shopTemplate, 'product-placeholder.svg'));
 t('product template includes placeholder fallback', str_contains($productTemplate, 'product-placeholder.svg'));
 t('shop template includes low stock notice', str_contains($shopTemplate, 'Low stock - only'));
 t('product template includes low stock notice', str_contains($productTemplate, 'Low stock ('));
 t('shop template uses out_of_stock flag', str_contains($shopTemplate, 'p.inventory.out_of_stock'));
 t('product template uses out_of_stock flag', str_contains($productTemplate, 'product.inventory.out_of_stock'));
+t('admin order detail uses hydrated billing address object', str_contains($adminOrderTemplate, 'order.billing.first_name'));
+t('admin order detail uses hydrated shipping address object', str_contains($adminOrderTemplate, 'order.shipping.first_name'));
+t('admin order detail does not use raw shipping meta fallback expressions', !str_contains($adminOrderTemplate, 'order.meta.shipping_first_name | default:order.meta.billing_first_name'));
 
 cleanupStorefrontMediaFixtures();
 

@@ -67,23 +67,24 @@
             <div class="bg-white rounded-lg border border-gray-200 p-5">
                 <h3 class="text-sm font-semibold text-gray-700 mb-3">Billing Address</h3>
                 <address class="text-sm text-gray-600 not-italic space-y-0.5">
-                    <div class="font-medium">{order.meta.billing_first_name} {order.meta.billing_last_name}</div>
-                    <div>{order.meta.billing_email}</div>
-                    <div>{order.meta.billing_address_line1}</div>
-                    {if order.meta.billing_address_line2}<div>{order.meta.billing_address_line2}</div>{/if}
-                    <div>{order.meta.billing_city}, {order.meta.billing_state} {order.meta.billing_postal_code}</div>
-                    <div>{order.meta.billing_country}</div>
-                    {if order.meta.billing_phone}<div>{order.meta.billing_phone}</div>{/if}
+                    <div class="font-medium">{order.billing.first_name} {order.billing.last_name}</div>
+                    {if order.billing.email}<div>{order.billing.email}</div>{/if}
+                    <div>{order.billing.address_line1}</div>
+                    {if order.billing.address_line2}<div>{order.billing.address_line2}</div>{/if}
+                    <div>{order.billing.city}{if order.billing.state}, {order.billing.state}{/if} {order.billing.postal_code}</div>
+                    {if order.billing.country}<div>{order.billing.country}</div>{/if}
+                    {if order.billing.phone}<div>{order.billing.phone}</div>{/if}
                 </address>
             </div>
             <div class="bg-white rounded-lg border border-gray-200 p-5">
                 <h3 class="text-sm font-semibold text-gray-700 mb-3">Shipping Address</h3>
                 <address class="text-sm text-gray-600 not-italic space-y-0.5">
-                    <div class="font-medium">{order.meta.shipping_first_name | default:order.meta.billing_first_name} {order.meta.shipping_last_name | default:order.meta.billing_last_name}</div>
-                    <div>{order.meta.shipping_address_line1 | default:order.meta.billing_address_line1}</div>
-                    {if order.meta.shipping_address_line2}<div>{order.meta.shipping_address_line2}</div>{/if}
-                    <div>{order.meta.shipping_city | default:order.meta.billing_city}, {order.meta.shipping_state | default:order.meta.billing_state} {order.meta.shipping_postal_code | default:order.meta.billing_postal_code}</div>
-                    <div>{order.meta.shipping_country | default:order.meta.billing_country}</div>
+                    <div class="font-medium">{order.shipping.first_name} {order.shipping.last_name}</div>
+                    <div>{order.shipping.address_line1}</div>
+                    {if order.shipping.address_line2}<div>{order.shipping.address_line2}</div>{/if}
+                    <div>{order.shipping.city}{if order.shipping.state}, {order.shipping.state}{/if} {order.shipping.postal_code}</div>
+                    {if order.shipping.country}<div>{order.shipping.country}</div>{/if}
+                    {if order.shipping.phone}<div>{order.shipping.phone}</div>{/if}
                 </address>
             </div>
         </div>
