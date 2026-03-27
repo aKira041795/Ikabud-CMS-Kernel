@@ -605,6 +605,175 @@ function cmsBuilderAttrString(array $attrs): string
     return $html;
 }
 
+function cmsBuilderVisibilityClass(string $visibility): string
+{
+    return match ($visibility) {
+        'desktop' => 'desktop-only',
+        'tablet' => 'tablet-only',
+        'mobile' => 'mobile-only',
+        'desktop-tablet' => 'desktop-tablet',
+        'tablet-mobile' => 'tablet-mobile',
+        default => preg_replace('/[^a-z0-9-]/i', '', $visibility) ?: '',
+    };
+}
+
+function cmsBuilderCurrentUser(): ?array
+{
+    if (!function_exists('cmsCtxUser')) {
+        return null;
+    }
+
+    try {
+        $user = cmsCtxUser();
+        return is_array($user) ? $user : null;
+    } catch (\Throwable) {
+        return null;
+    }
+}
+
+function cmsBuilderResolveDynamicValue(string $path, array $context = []): mixed
+{
+    $path = trim($path);
+    $path = preg_replace('/^\{\{\s*|\s*\}\}$/', '', $path) ?? $path;
+    if ($path === '') {
+        return null;
+    }
+
+    $dynamicContext = [
+        'page' => [
+            'id' => $context['id'] ?? null,
+            'title' => $context['title'] ?? $context['page_title'] ?? null,
+            'slug' => $context['slug'] ?? null,
+            'excerpt' => $context['excerpt'] ?? null,
+            'featured_image' => $context['featured_image'] ?? $context['featured_image_url'] ?? null,
+        ],
+        'content' => $context,
+        'context' => $context,
+        'user' => cmsBuilderCurrentUser(),
+    ];
+
+    if (array_key_exists($path, $dynamicContext)) {
+        return $dynamicContext[$path];
+    }
+    if (array_key_exists($path, $context)) {
+        return $context[$path];
+    }
+
+    $segments = array_values(array_filter(explode('.', $path), static fn(string $segment): bool => $segment !== ''));
+    if ($segments === []) {
+        return null;
+    }
+
+    $value = null;
+    $first = array_shift($segments);
+    if (array_key_exists($first, $dynamicContext)) {
+        $value = $dynamicContext[$first];
+    } elseif (array_key_exists($first, $context)) {
+        $value = $context[$first];
+    } else {
+        return null;
+    }
+
+    foreach ($segments as $segment) {
+        if (is_array($value) && array_key_exists($segment, $value)) {
+            $value = $value[$segment];
+            continue;
+        }
+        return null;
+    }
+
+    return $value;
+}
+
+function cmsBuilderIsEmptyValue(mixed $value): bool
+{
+    if ($value === null) {
+        return true;
+    }
+    if (is_string($value)) {
+        return trim($value) === '';
+    }
+    if (is_array($value)) {
+        return $value === [];
+    }
+    return false;
+}
+
+function cmsBuilderEvaluateCondition(array $props, array $context = []): bool
+{
+    $conditionalField = trim((string)($props['conditionalField'] ?? ''));
+    if ($conditionalField === '') {
+        return true;
+    }
+
+    if ($conditionalField === 'user_logged_in') {
+        return cmsBuilderCurrentUser() !== null;
+    }
+    if ($conditionalField === 'user_logged_out') {
+        return cmsBuilderCurrentUser() === null;
+    }
+    if ($conditionalField !== 'custom') {
+        return true;
+    }
+
+    $fieldPath = trim((string)($props['customConditionField'] ?? ''));
+    if ($fieldPath === '') {
+        return true;
+    }
+
+    $actualValue = cmsBuilderResolveDynamicValue($fieldPath, $context);
+    $operator = (string)($props['conditionOperator'] ?? 'equals');
+    $expectedValue = (string)($props['conditionValue'] ?? '');
+
+    return match ($operator) {
+        'not_equals' => (string)$actualValue !== $expectedValue,
+        'contains' => str_contains(strtolower(is_scalar($actualValue) ? (string)$actualValue : (json_encode($actualValue) ?: '')), strtolower($expectedValue)),
+        'not_empty' => !cmsBuilderIsEmptyValue($actualValue),
+        'empty' => cmsBuilderIsEmptyValue($actualValue),
+        default => (string)$actualValue === $expectedValue,
+    };
+}
+
+function cmsBuilderParseCustomAttributes(mixed $rawAttributes): array
+{
+    if (!is_string($rawAttributes) || trim($rawAttributes) === '') {
+        return [];
+    }
+
+    $reserved = ['class', 'data-node-id', 'draggable', 'id', 'role', 'style', 'tabindex'];
+    $attributes = [];
+    $lines = preg_split('/\r\n|\r|\n/', $rawAttributes) ?: [];
+    foreach ($lines as $line) {
+        $line = trim($line);
+        if ($line === '') {
+            continue;
+        }
+
+        if (!preg_match('/^([a-zA-Z_:][a-zA-Z0-9_.:-]*)(?:\s*=\s*(.+))?$/', $line, $matches)) {
+            continue;
+        }
+
+        $name = $matches[1];
+        $lowerName = strtolower($name);
+        if (in_array($lowerName, $reserved, true) || str_starts_with($lowerName, 'on')) {
+            continue;
+        }
+
+        $value = trim((string)($matches[2] ?? ''));
+        if ($value === '') {
+            continue;
+        }
+
+        if ((str_starts_with($value, '"') && str_ends_with($value, '"')) || (str_starts_with($value, "'") && str_ends_with($value, "'"))) {
+            $value = substr($value, 1, -1);
+        }
+
+        $attributes[$name] = html_entity_decode($value, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    }
+
+    return $attributes;
+}
+
 function cmsBuilderNormalizeItems(mixed $items, string $kind = 'text'): array
 {
     if (is_string($items) && trim($items) !== '') {
@@ -800,6 +969,15 @@ function cmsBuilderRenderNode(array $node, array $context = []): string
     $type = (string)($node['type'] ?? 'text');
     $props = isset($node['props']) && is_array($node['props']) ? $node['props'] : [];
     $props = cmsBuilderMergeDefaults($props, $type);
+    if (!cmsBuilderEvaluateCondition($props, $context)) {
+        return '';
+    }
+
+    $visibility = (string)($props['visibility'] ?? '');
+    if ($visibility === 'hidden') {
+        return '';
+    }
+
     $rawStyle = isset($node['style']) && is_array($node['style']) ? $node['style'] : [];
     // Strip null/empty values so they don't accidentally override component defaults
     // (React stores null for unset style properties; we must treat them as "not set").
@@ -819,13 +997,18 @@ function cmsBuilderRenderNode(array $node, array $context = []): string
     if ($customClasses !== '') {
         // Sanitize: only allow word chars, hyphens, spaces
         $customClasses = preg_replace('/[^a-zA-Z0-9_ -]/', '', $customClasses);
-        $cssClass .= ' ' . $customClasses;
+        $customClasses = trim((string)preg_replace('/\s+/', ' ', (string)$customClasses));
+        if ($customClasses !== '') {
+            $cssClass .= ' ' . $customClasses;
+        }
     }
 
     // ── Responsive visibility (Advanced tab) ─────────────────────────────
-    $visibility = (string)($props['visibility'] ?? '');
     if ($visibility !== '' && $visibility !== 'all') {
-        $cssClass .= ' cms-builder-visible--' . preg_replace('/[^a-z0-9-]/i', '', $visibility);
+        $visibilityClass = cmsBuilderVisibilityClass($visibility);
+        if ($visibilityClass !== '') {
+            $cssClass .= ' cms-builder-visible--' . $visibilityClass;
+        }
     }
 
     // ── Entrance / hover animations (Advanced tab) ──────────────────────
@@ -842,6 +1025,8 @@ function cmsBuilderRenderNode(array $node, array $context = []): string
     if ($customId !== '') {
         $attrs['id'] = preg_replace('/[^a-zA-Z0-9_-]/', '', $customId);
     }
+
+    $attrs = array_merge($attrs, cmsBuilderParseCustomAttributes($props['customAttributes'] ?? null));
 
     // Animation data attributes (via centralized definitions) for builder-public.js
     $animDuration = (string)($props['animationDuration'] ?? '');

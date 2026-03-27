@@ -364,7 +364,7 @@ const CategorySelector: React.FC<CategorySelectorProps> = ({ value, onChange }) 
   useEffect(() => {
     const fetchCategories = async () => {
       try {
-        const response = await fetch('/api/v1/cms/categories', {
+        const response = await fetch('/api/v1/cms/categories?exclude_taxonomy=product', {
           credentials: 'include',
           headers: { 'Accept': 'application/json' },
         });

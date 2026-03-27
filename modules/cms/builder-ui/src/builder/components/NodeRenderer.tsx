@@ -116,6 +116,95 @@ function nodeStyleToCSS(
   return baseStyle;
 }
 
+function sanitizeCustomId(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const sanitized = value.trim().replace(/[^a-zA-Z0-9_-]/g, '');
+  return sanitized || undefined;
+}
+
+function sanitizeCustomClasses(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const sanitized = value.trim().replace(/[^a-zA-Z0-9_ -]/g, ' ').replace(/\s+/g, ' ').trim();
+  return sanitized || undefined;
+}
+
+function parseCustomAttributes(value: unknown): Record<string, string> {
+  if (typeof value !== 'string' || value.trim() === '') return {};
+
+  const reserved = new Set(['class', 'className', 'data-node-id', 'draggable', 'id', 'role', 'style', 'tabIndex']);
+  const attributes: Record<string, string> = {};
+
+  value.split(/\r\n|\r|\n/).forEach((line) => {
+    const trimmed = line.trim();
+    if (!trimmed) return;
+
+    const match = trimmed.match(/^([a-zA-Z_:][a-zA-Z0-9_.:-]*)(?:\s*=\s*(.+))?$/);
+    if (!match) return;
+
+    const [, name, rawValue = ''] = match;
+    const lowerName = name.toLowerCase();
+    if (reserved.has(name) || reserved.has(lowerName) || lowerName.startsWith('on')) return;
+
+    const valueText = rawValue.trim();
+    if (!valueText) return;
+
+    let normalizedValue = valueText;
+    if ((normalizedValue.startsWith('"') && normalizedValue.endsWith('"')) || (normalizedValue.startsWith("'") && normalizedValue.endsWith("'"))) {
+      normalizedValue = normalizedValue.slice(1, -1);
+    }
+
+    attributes[name] = normalizedValue;
+  });
+
+  return attributes;
+}
+
+function mapVisibilityClassName(value: unknown): string | undefined {
+  switch (value) {
+    case 'desktop':
+      return 'cms-builder-visible--desktop-only';
+    case 'tablet':
+      return 'cms-builder-visible--tablet-only';
+    case 'mobile':
+      return 'cms-builder-visible--mobile-only';
+    case 'desktop-tablet':
+      return 'cms-builder-visible--desktop-tablet';
+    case 'tablet-mobile':
+      return 'cms-builder-visible--tablet-mobile';
+    default:
+      return undefined;
+  }
+}
+
+function getPreviewVisibilityStyle(value: unknown, viewport: 'desktop' | 'tablet' | 'mobile'): CSSProperties {
+  const visibility = typeof value === 'string' ? value : 'all';
+
+  if (visibility === 'hidden') {
+    return {
+      opacity: 0.25,
+      filter: 'grayscale(1)',
+    };
+  }
+
+  const isVisible =
+    visibility === 'all'
+    || visibility === ''
+    || (visibility === 'desktop' && viewport === 'desktop')
+    || (visibility === 'tablet' && viewport === 'tablet')
+    || (visibility === 'mobile' && viewport === 'mobile')
+    || (visibility === 'desktop-tablet' && (viewport === 'desktop' || viewport === 'tablet'))
+    || (visibility === 'tablet-mobile' && (viewport === 'tablet' || viewport === 'mobile'));
+
+  if (isVisible) {
+    return {};
+  }
+
+  return {
+    opacity: 0.35,
+    filter: 'grayscale(0.9)',
+  };
+}
+
 // =============================================================================
 // Component Props
 // =============================================================================
@@ -3238,6 +3327,11 @@ const NodeRenderer: React.FC<NodeRendererProps> = memo(({
 }) => {
   const nodeRef = useRef<HTMLDivElement>(null);
   const style = nodeStyleToCSS(node.style, viewport, node.type);
+  const customId = sanitizeCustomId(node.props.customId);
+  const customClasses = sanitizeCustomClasses(node.props.customClasses);
+  const customAttributes = parseCustomAttributes(node.props.customAttributes);
+  const visibilityClassName = mapVisibilityClassName(node.props.visibility);
+  const visibilityPreviewStyle = getPreviewVisibilityStyle(node.props.visibility, viewport);
   const [isEditing, setIsEditing] = useState(false);
   const [dropPosition, setDropPosition] = useState<'before' | 'after' | 'inside' | null>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -3538,6 +3632,7 @@ const NodeRenderer: React.FC<NodeRendererProps> = memo(({
     alignSelf: style.alignSelf,
     // Hover animation styles
     ...getHoverAnimationStyles(),
+    ...visibilityPreviewStyle,
   };
 
   const entranceAnimationStyles = getEntranceAnimationStyles();
@@ -3757,6 +3852,9 @@ const NodeRenderer: React.FC<NodeRendererProps> = memo(({
   return (
     <div
       ref={nodeRef}
+      {...customAttributes}
+      id={customId}
+      className={[customClasses, visibilityClassName].filter(Boolean).join(' ') || undefined}
       style={wrapperStyle}
       onClick={handleClick}
       onMouseEnter={handleMouseEnter}
