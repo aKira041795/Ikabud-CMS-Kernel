@@ -56,7 +56,7 @@ function cmsBuilderWidgetRenderers(): array
         'alert'           => 'cmsRenderWidget_alert',
         'anchor'          => 'cmsRenderWidget_anchor',
         'posts_grid'      => 'cmsRenderWidget_posts_grid',
-        'products_grid'   => 'cmsRenderWidget_placeholder_grid',
+        'products_grid'   => 'cmsRenderWidget_products_grid',
         'team_grid'       => 'cmsRenderWidget_placeholder_grid',
         'entity_view'     => 'cmsRenderWidget_entity_view',
         'entity_list'     => 'cmsRenderWidget_entity_list',
@@ -712,6 +712,87 @@ function cmsRenderWidget_posts_grid(array $props, array $style, array $attrs, st
         }
         $html .= '</div>';
     }
+    return $html . '</div>';
+}
+
+function cmsRenderWidget_products_grid(array $props, array $style, array $attrs, string $children, array $node, array $context): string
+{
+    if (!function_exists('ecProductList')) {
+        return '<div' . cmsBuilderAttrString($attrs) . cmsBuilderStyleAttr($style) . '><p style="color:#6b7280;text-align:center;padding:24px">Ecommerce module not active.</p></div>';
+    }
+
+    $itemCount   = max(1, min(50, (int)($props['itemCount']   ?? 6)));
+    $gridCols    = max(1, min(6,  (int)($props['gridColumns'] ?? 3)));
+    $showImage   = ($props['showImage']   ?? true) !== false;
+    $showTitle   = ($props['showTitle']   ?? true) !== false;
+    $showExcerpt = ($props['showExcerpt'] ?? true) !== false;
+    $showMeta    = ($props['showMeta']    ?? true) !== false;
+    $showAction  = ($props['showAction']  ?? true) !== false;
+    $excerptLen  = max(20, (int)($props['excerptLength'] ?? 120));
+    $orderBy     = in_array($props['orderBy'] ?? '', ['title', 'updated_at'], true) ? $props['orderBy'] : 'created_at';
+    $actionText  = trim((string)($props['actionText'] ?? 'View Product'));
+
+    // Resolve category filter — supports array or empty (= all products).
+    $categoryIds = [];
+    if (!empty($props['categoryIds']) && is_array($props['categoryIds'])) {
+        $categoryIds = array_values(array_unique(array_map('intval', $props['categoryIds'])));
+    }
+
+    $result = ecProductList([
+        'category_ids' => $categoryIds,
+        'limit'        => $itemCount,
+        'offset'       => 0,
+        'order_by'     => $orderBy,
+        'status'       => 'published',
+    ]);
+    $products = $result['items'] ?? [];
+
+    if (empty($products)) {
+        return '<div' . cmsBuilderAttrString($attrs) . cmsBuilderStyleAttr($style) . '><p style="color:#6b7280;text-align:center;padding:24px">No products found.</p></div>';
+    }
+
+    $baseUrl = rtrim((string)(defined('BASE_URL') ? BASE_URL : ''), '/');
+    $html = '<div' . cmsBuilderAttrString($attrs) . cmsBuilderStyleAttr(array_merge(['display' => 'grid', 'gridTemplateColumns' => 'repeat(' . $gridCols . ', 1fr)', 'gap' => '24px', 'width' => '100%'], $style)) . '>';
+
+    foreach ($products as $p) {
+        $pTitle    = cmsBuilderEsc((string)($p['title'] ?? 'Untitled'));
+        $pSlug     = cmsBuilderEsc((string)($p['slug']  ?? ''));
+        $pExcerpt  = cmsBuilderEsc(mb_strimwidth((string)($p['excerpt'] ?? ''), 0, $excerptLen, '...'));
+        $pUrl      = $baseUrl . '/shop/product/' . $pSlug;
+        $imgUrl    = (string)($p['primary_image_url'] ?? $p['featured_image_url'] ?? '');
+        $pricing   = is_array($p['pricing'] ?? null) ? $p['pricing'] : [];
+        $price     = isset($pricing['price']) ? number_format((float)$pricing['price'], 2) : null;
+        $currency  = cmsBuilderEsc((string)($pricing['currency'] ?? 'USD'));
+
+        $html .= '<div style="background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.1);display:flex;flex-direction:column">';
+
+        if ($showImage) {
+            if ($imgUrl !== '') {
+                $html .= '<a href="' . cmsBuilderEsc($pUrl) . '"><img src="' . cmsBuilderEsc($imgUrl) . '" alt="' . $pTitle . '" loading="lazy" style="display:block;width:100%;aspect-ratio:4/3;object-fit:cover"></a>';
+            } else {
+                $html .= '<a href="' . cmsBuilderEsc($pUrl) . '"><div style="width:100%;aspect-ratio:4/3;background:#f3f4f6;display:flex;align-items:center;justify-content:center"><span style="font-size:48px">&#128247;</span></div></a>';
+            }
+        }
+
+        $html .= '<div style="padding:16px;flex:1;display:flex;flex-direction:column;gap:8px">';
+        if ($showTitle) {
+            $html .= '<h3 style="margin:0;font-size:16px;font-weight:600"><a href="' . cmsBuilderEsc($pUrl) . '" style="color:#1f2937;text-decoration:none">' . $pTitle . '</a></h3>';
+        }
+        if ($showExcerpt && $pExcerpt !== '') {
+            $html .= '<p style="font-size:13px;color:#6b7280;line-height:1.5;margin:0">' . $pExcerpt . '</p>';
+        }
+        if ($showMeta && $price !== null) {
+            $html .= '<div style="font-size:18px;font-weight:700;color:#111827;margin-top:auto">' . $currency . ' ' . cmsBuilderEsc($price) . '</div>';
+        }
+        $html .= '</div>';
+
+        if ($showAction) {
+            $html .= '<div style="padding:12px 16px;border-top:1px solid #f3f4f6"><a href="' . cmsBuilderEsc($pUrl) . '" style="display:block;text-align:center;background:#0f172a;color:#fff;font-size:13px;font-weight:500;padding:8px 16px;border-radius:6px;text-decoration:none">' . cmsBuilderEsc($actionText) . '</a></div>';
+        }
+
+        $html .= '</div>';
+    }
+
     return $html . '</div>';
 }
 

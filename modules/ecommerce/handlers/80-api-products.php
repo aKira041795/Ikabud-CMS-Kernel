@@ -9,15 +9,36 @@ declare(strict_types=1);
 function ecApiProductsList(): void
 {
     $input  = ecInput();
+
+    // Accept ?cats[]=1&cats[]=2 (multi-category) or legacy ?cat=1 (single).
+    $categoryIds = [];
+    if (!empty($input['cats'])) {
+        $categoryIds = array_values(array_unique(array_map('intval', (array)$input['cats'])));
+    } elseif (isset($input['cat'])) {
+        $categoryIds = [(int)$input['cat']];
+    }
+
     $result = ecProductList([
-        'search'      => $input['search']      ?? '',
-        'category_id' => isset($input['cat'])  ? (int)$input['cat'] : null,
-        'status'      => $input['status']      ?? 'published',
-        'limit'       => min(50, (int)($input['limit']  ?? 12)),
-        'offset'      => max(0,  (int)($input['offset'] ?? 0)),
+        'search'       => $input['search']  ?? '',
+        'category_ids' => $categoryIds,
+        'status'       => $input['status']  ?? 'published',
+        'limit'        => min(50, (int)($input['limit']  ?? 12)),
+        'offset'       => max(0,  (int)($input['offset'] ?? 0)),
     ]);
 
     ecJsonOk($result);
+}
+
+function ecApiCategoryList(): void
+{
+    try {
+        $db = ecDb();
+        $rows = $db->query(ecCmsCategorySelectSql('id, name, slug'), [])->fetchAll(\PDO::FETCH_ASSOC);
+        ecJsonOk(['categories' => is_array($rows) ? $rows : []]);
+    } catch (\Throwable $e) {
+        write_log('ecApiCategoryList error: ' . $e->getMessage(), 'error', ['module' => 'ecommerce']);
+        ecJsonOk(['categories' => []]);
+    }
 }
 
 function ecApiProductGet(array $params = []): void

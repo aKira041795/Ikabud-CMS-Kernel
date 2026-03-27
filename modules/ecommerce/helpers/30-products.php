@@ -20,7 +20,14 @@ function ecProductList(array $filters = []): array
 {
     $db = ecDb();
 
-    $categoryId = isset($filters['category_id']) ? (int)$filters['category_id'] : null;
+    // Support category_ids (array) or legacy category_id (single int).
+    $categoryIds = [];
+    if (!empty($filters['category_ids']) && is_array($filters['category_ids'])) {
+        $categoryIds = array_values(array_unique(array_map('intval', $filters['category_ids'])));
+    } elseif (isset($filters['category_id']) && $filters['category_id'] !== null) {
+        $categoryIds = [(int)$filters['category_id']];
+    }
+
     $search     = trim((string)($filters['search'] ?? ''));
     $status     = trim((string)($filters['status'] ?? 'published'));
     $limit      = min(100, max(1, (int)($filters['limit']  ?? (int)ecSettings('products_per_page'))));
@@ -43,9 +50,10 @@ function ecProductList(array $filters = []): array
     }
 
     $join = '';
-    if ($categoryId !== null) {
-        $join     = 'INNER JOIN cms_content_categories cc ON cc.content_id = c.id AND cc.category_id = ?';
-        $params   = array_merge([$categoryId], $params);
+    if (!empty($categoryIds)) {
+        $placeholders = implode(',', array_fill(0, count($categoryIds), '?'));
+        $join     = "INNER JOIN cms_content_categories cc ON cc.content_id = c.id AND cc.category_id IN ($placeholders)";
+        $params   = array_merge($categoryIds, $params);
     }
 
     $whereClause = implode(' AND ', $where);
