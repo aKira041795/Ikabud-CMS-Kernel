@@ -136,6 +136,8 @@ function cmsApiMediaUpload(array $params = []): void
         ]);
     }
 
+    adminViewCacheInvalidate(['cms:admin', 'cms:admin:media']);
+
     $thumbUrls = [];
     foreach ($thumbnails as $size => $thumbRelPath) {
         $thumbUrls[$size] = cmsResolveUploadUrl($thumbRelPath);
@@ -329,6 +331,8 @@ function cmsApiMediaEdit(array $params = []): void
         $resultId = $id;
     }
 
+    adminViewCacheInvalidate(['cms:admin', 'cms:admin:media']);
+
     echo json_encode([
         'ok' => true,
         'id' => $resultId,
@@ -366,6 +370,7 @@ function cmsApiMediaDelete(array $params = []): void
     }
 
     $db->prepare("DELETE FROM cms_media WHERE id = :id")->execute([':id' => $id]);
+    adminViewCacheInvalidate(['cms:admin', 'cms:admin:media']);
     echo json_encode(['ok' => true]);
     exit;
 }

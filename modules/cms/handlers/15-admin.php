@@ -6,6 +6,13 @@ function cmsAdminDashboard(array $params = []): void
 {
     $user = cmsRequireCap('dashboard.view');
 
+    $cacheKey = 'cms.dashboard';
+    $cached = adminViewCacheGet($cacheKey, $user);
+    if (is_array($cached)) {
+        echo cmsRender('modules/cms/admin/dashboard.disyl', array_merge(cmsAdminContext($user, 'dashboard', []), $cached));
+        return;
+    }
+
     $db = cmsDb();
 
     $contentCounts = [];
@@ -65,7 +72,7 @@ function cmsAdminDashboard(array $params = []): void
         elseif ($type === 'page') $pageTotal = $typeSum;
     }
 
-    echo cmsRender('modules/cms/admin/dashboard.disyl', array_merge(cmsAdminContext($user, 'dashboard', []), [
+    $payload = [
         'page_title'     => 'CMS Dashboard',
         'post_total'     => $postTotal,
         'page_total'     => $pageTotal,
@@ -73,7 +80,10 @@ function cmsAdminDashboard(array $params = []): void
         'user_count'     => $userCnt,
         'recent_content' => $recentContent,
         'activity_feed'  => $activityFeed,
-    ]));
+    ];
+
+    adminViewCacheSet($cacheKey, $payload, ['cms:admin', 'cms:admin:dashboard'], $user);
+    echo cmsRender('modules/cms/admin/dashboard.disyl', array_merge(cmsAdminContext($user, 'dashboard', []), $payload));
 }
 
 function cmsAdminContentList(array $params = []): void
@@ -85,6 +95,33 @@ function cmsAdminContentList(array $params = []): void
     $status = trim((string)($input['status'] ?? ''));
     $q      = trim((string)($input['q'] ?? ''));
     $page   = max(1, (int)($input['page'] ?? 1));
+
+    $cacheKey = 'cms.content_list:' . md5(json_encode([
+        'type' => $type,
+        'status' => $status,
+        'q' => $q,
+        'page' => $page,
+        'author_id' => $input['author_id'] ?? null,
+        'category_id' => $input['category_id'] ?? null,
+        'tag' => $input['tag'] ?? null,
+        'date_from' => $input['date_from'] ?? null,
+        'date_to' => $input['date_to'] ?? null,
+        'is_sticky' => $input['is_sticky'] ?? null,
+        'is_featured' => $input['is_featured'] ?? null,
+        'role' => $user['role'] ?? null,
+        'source' => $user['source'] ?? null,
+        'user_id' => $user['id'] ?? null,
+    ]));
+    $currentPage = $type === 'page' ? 'pages' : 'posts';
+    $baseUrl = rtrim((string)(defined('BASE_URL') ? BASE_URL : ''), '/');
+    $breadcrumbs = [
+        ['label' => ucfirst($type) . 's', 'url' => $baseUrl . '/cms/admin/content?type=' . $type],
+    ];
+    $cached = adminViewCacheGet($cacheKey, $user);
+    if (is_array($cached)) {
+        echo cmsRender('modules/cms/admin/content-list.disyl', array_merge(cmsAdminContext($user, $currentPage, $breadcrumbs), $cached));
+        return;
+    }
 
     $cmsSettings = readCmsSettings();
     $perPage = max(5, min(100, (int)($cmsSettings['posts_per_page'] ?? 20)));
@@ -227,11 +264,7 @@ function cmsAdminContentList(array $params = []): void
         $categoryList = $catListStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     } catch (Throwable $e) {}
 
-    $currentPage = $type === 'page' ? 'pages' : 'posts';
-    $baseUrl = rtrim((string)(defined('BASE_URL') ? BASE_URL : ''), '/');
-    echo cmsRender('modules/cms/admin/content-list.disyl', array_merge(cmsAdminContext($user, $currentPage, [
-        ['label' => ucfirst($type) . 's', 'url' => $baseUrl . '/cms/admin/content?type=' . $type],
-    ]), [
+    $payload = [
         'page_title'         => ucfirst($type) . 's',
         'content_type'       => $type,
         'rows'               => $rows,
@@ -251,7 +284,10 @@ function cmsAdminContentList(array $params = []): void
         'is_featured_filter' => $isFeatured,
         'author_list'        => $authorList,
         'category_list'      => $categoryList,
-    ]));
+    ];
+
+    adminViewCacheSet($cacheKey, $payload, ['cms:admin', 'cms:admin:content', 'cms:type:' . $type], $user);
+    echo cmsRender('modules/cms/admin/content-list.disyl', array_merge(cmsAdminContext($user, $currentPage, $breadcrumbs), $payload));
 }
 
 function cmsAdminContentCreate(array $params = []): void
@@ -563,8 +599,17 @@ function cmsAdminMedia(array $params = []): void
     $user = cmsRequireCap('media.list');
     $input = cmsInput();
 
+    $page = max(1, (int)($input['page'] ?? 1));
+    $cacheKey = 'cms.media:' . $page;
+    $cached = adminViewCacheGet($cacheKey, $user);
+    if (is_array($cached)) {
+        echo cmsRender('modules/cms/admin/media-library.disyl', array_merge(cmsAdminContext($user, 'media', [
+            ['label' => 'Media', 'url' => ''],
+        ]), $cached));
+        return;
+    }
+
     $db = cmsDb();
-    $page    = max(1, (int)($input['page'] ?? 1));
     $perPage = 24;
     $offset  = ($page - 1) * $perPage;
 
@@ -594,16 +639,19 @@ function cmsAdminMedia(array $params = []): void
     }
     unset($_mr);
 
-    echo cmsRender('modules/cms/admin/media-library.disyl', array_merge(cmsAdminContext($user, 'media', [
-        ['label' => 'Media', 'url' => ''],
-    ]), [
+    $payload = [
         'page_title'  => 'Media Library',
         'media'       => $rows,
         'total'       => $total,
         'page_num'    => $page,
         'total_pages' => $totalPages,
         'next_page'   => min($page + 1, $totalPages),
-    ]));
+    ];
+
+    adminViewCacheSet($cacheKey, $payload, ['cms:admin', 'cms:admin:media'], $user);
+    echo cmsRender('modules/cms/admin/media-library.disyl', array_merge(cmsAdminContext($user, 'media', [
+        ['label' => 'Media', 'url' => ''],
+    ]), $payload));
 }
 
 function cmsAdminUsers(array $params = []): void
@@ -611,8 +659,17 @@ function cmsAdminUsers(array $params = []): void
     $user = cmsRequireCap('users.manage');
     $input = cmsInput();
 
-    $db = cmsDb();
     $q = trim((string)($input['q'] ?? ''));
+    $cacheKey = 'cms.users:' . md5($q);
+    $cached = adminViewCacheGet($cacheKey, $user);
+    if (is_array($cached)) {
+        echo cmsRender('modules/cms/admin/users.disyl', array_merge(cmsAdminContext($user, 'users', [
+            ['label' => 'Users', 'url' => ''],
+        ]), $cached));
+        return;
+    }
+
+    $db = cmsDb();
 
     $where = ['1=1'];
     $bind  = [];
@@ -629,18 +686,30 @@ function cmsAdminUsers(array $params = []): void
     $stmt->execute($bind);
     $users = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
-    echo cmsRender('modules/cms/admin/users.disyl', array_merge(cmsAdminContext($user, 'users', [
-        ['label' => 'Users', 'url' => ''],
-    ]), [
+    $payload = [
         'page_title' => 'CMS Users',
         'cms_users'  => $users,
         'search'     => $q,
-    ]));
+    ];
+
+    adminViewCacheSet($cacheKey, $payload, ['cms:admin', 'cms:admin:users'], $user);
+    echo cmsRender('modules/cms/admin/users.disyl', array_merge(cmsAdminContext($user, 'users', [
+        ['label' => 'Users', 'url' => ''],
+    ]), $payload));
 }
 
 function cmsAdminSettings(array $params = []): void
 {
     $user = cmsRequireCap('settings.manage');
+
+    $cacheKey = 'cms.settings';
+    $cached = adminViewCacheGet($cacheKey, $user);
+    if (is_array($cached)) {
+        echo cmsRender('modules/cms/admin/settings.disyl', array_merge(cmsAdminContext($user, 'settings', [
+            ['label' => 'Settings', 'url' => ''],
+        ]), $cached));
+        return;
+    }
 
     $settings = readCmsSettings();
     $defaults = cmsSettingsDefaults();
@@ -654,9 +723,7 @@ function cmsAdminSettings(array $params = []): void
         // pages list optional
     }
 
-    echo cmsRender('modules/cms/admin/settings.disyl', array_merge(cmsAdminContext($user, 'settings', [
-        ['label' => 'Settings', 'url' => ''],
-    ]), [
+    $payload = [
         'page_title'       => 'CMS Settings',
         'cms_settings'     => $settings,
         'cms_settings_json'=> json_encode(array_merge($settings, [
@@ -667,7 +734,12 @@ function cmsAdminSettings(array $params = []): void
         'available_themes' => cmsAvailableThemes(),
         'active_theme'     => cmsActiveTheme() ?? 'default',
         'pages'            => $pages,
-    ]));
+    ];
+
+    adminViewCacheSet($cacheKey, $payload, ['cms:admin', 'cms:admin:settings'], $user);
+    echo cmsRender('modules/cms/admin/settings.disyl', array_merge(cmsAdminContext($user, 'settings', [
+        ['label' => 'Settings', 'url' => ''],
+    ]), $payload));
 }
 
 function cmsAdminContentTypes(array $params = []): void

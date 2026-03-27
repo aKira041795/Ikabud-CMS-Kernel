@@ -17,6 +17,26 @@ function cmsGetMenuLocations(): array
     }
 }
 
+function cmsMenuCacheTags(string $location = '', ?int $menuId = null): array
+{
+    $tags = ['cms:menus'];
+    $location = trim($location);
+    if ($location !== '') {
+        $tags[] = 'cms:menu:location:' . $location;
+    }
+    if ($menuId !== null && $menuId > 0) {
+        $tags[] = 'cms:menu:' . $menuId;
+    }
+    return $tags;
+}
+
+function cmsMenuCurrentPath(): string
+{
+    $path = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH);
+    $path = rtrim((string)$path, '/');
+    return $path !== '' ? $path : '/';
+}
+
 /**
  * Assign a menu to a location.
  */
@@ -391,10 +411,27 @@ function cmsRenderMenu(string $location, $options = []): string
         'link_after'             => '',
     ], $options);
 
+    $currentPath = cmsMenuCurrentPath();
+    $cacheKey = 'menu:render:' . md5(json_encode([
+        'location' => $location,
+        'path' => $currentPath,
+        'opts' => $opts,
+    ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+    $cached = cmsCacheGet($cacheKey);
+    if (is_array($cached) && array_key_exists('html', $cached)) {
+        return (string)$cached['html'];
+    }
+
     $menu = cmsGetMenuByLocation($location);
-    if (!$menu) return '';
+    if (!$menu) {
+        cmsCacheSet($cacheKey, ['html' => ''], cmsMenuCacheTags($location));
+        return '';
+    }
     $tree = cmsGetMenuItemsTree((int)$menu['id']);
-    if (empty($tree)) return '';
+    if (empty($tree)) {
+        cmsCacheSet($cacheKey, ['html' => ''], cmsMenuCacheTags($location, (int)$menu['id']));
+        return '';
+    }
 
     $renderItems = function (array $items, int $depth = 0) use (&$renderItems, $opts): string {
         $maxD = (int)$opts['max_depth'];
@@ -464,7 +501,9 @@ function cmsRenderMenu(string $location, $options = []): string
         return $out;
     };
 
-    return '<nav class="' . htmlspecialchars($opts['css_class'], ENT_QUOTES) . '">' . $renderItems($tree) . '</nav>';
+    $html = '<nav class="' . htmlspecialchars($opts['css_class'], ENT_QUOTES) . '">' . $renderItems($tree) . '</nav>';
+    cmsCacheSet($cacheKey, ['html' => $html], cmsMenuCacheTags($location, (int)$menu['id']));
+    return $html;
 }
 
 // ── Saved / Reusable Blocks ────────────────────────────────────────

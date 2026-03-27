@@ -628,6 +628,8 @@ function cmsApiContentCreate(array $params = []): void
         ]);
     }
 
+    adminViewCacheInvalidate(['cms:admin', 'cms:admin:dashboard', 'cms:admin:content']);
+
     echo json_encode(['ok' => true, 'id' => $contentId, 'slug' => $slug]);
     exit;
 }
@@ -841,6 +843,7 @@ function cmsApiContentUpdate(array $params = []): void
         ]);
     }
     cmsCacheInvalidateContent($existing);
+    adminViewCacheInvalidate(['cms:admin', 'cms:admin:dashboard', 'cms:admin:content']);
 
     echo json_encode(['ok' => true]);
     exit;
@@ -888,6 +891,7 @@ function cmsApiContentTrash(array $params = []): void
         ]);
     }
     cmsCacheInvalidateContent($existing);
+    adminViewCacheInvalidate(['cms:admin', 'cms:admin:dashboard', 'cms:admin:content']);
 
     echo json_encode(['ok' => true]);
     exit;
@@ -955,6 +959,7 @@ function cmsApiContentPublish(array $params = []): void
         ]);
     }
     cmsCacheInvalidateContent($existing);
+    adminViewCacheInvalidate(['cms:admin', 'cms:admin:dashboard', 'cms:admin:content']);
 
     echo json_encode(['ok' => true]);
     exit;
@@ -977,6 +982,7 @@ function cmsApiContentRestore(array $params = []): void
     if ($restoredRow) {
         cmsCacheInvalidateContent($restoredRow);
     }
+    adminViewCacheInvalidate(['cms:admin', 'cms:admin:dashboard', 'cms:admin:content']);
 
     echo json_encode(['ok' => true]);
     exit;

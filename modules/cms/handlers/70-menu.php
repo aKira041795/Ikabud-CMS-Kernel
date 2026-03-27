@@ -64,6 +64,10 @@ function cmsApiMenuCreate(array $params = []): void
     $desc = trim((string)($input['description'] ?? ''));
     $loc = isset($input['location']) ? trim((string)$input['location']) : null;
     $result = cmsMenuCreate($name, $desc, $loc ?: null);
+    if (($result['ok'] ?? false) === true) {
+        cmsCacheInvalidateByTags(['cms:menus']);
+        adminViewCacheInvalidate(['cms:admin']);
+    }
     app()->json($result);
 }
 
@@ -99,6 +103,9 @@ function cmsApiMenuSave(array $params = []): void
         }
     }
 
+    cmsCacheInvalidateByTags(['cms:menus']);
+    adminViewCacheInvalidate(['cms:admin']);
+
     app()->json(['ok' => true, 'id' => $menuId]);
 }
 
@@ -110,7 +117,12 @@ function cmsApiMenuDelete(array $params = []): void
         app()->json(['ok' => false, 'error' => 'Invalid menu ID']);
         return;
     }
-    app()->json(cmsMenuDelete($id));
+    $result = cmsMenuDelete($id);
+    if (($result['ok'] ?? false) === true) {
+        cmsCacheInvalidateByTags(['cms:menus']);
+        adminViewCacheInvalidate(['cms:admin']);
+    }
+    app()->json($result);
 }
 
 function cmsApiMenuLocations(array $params = []): void
@@ -131,5 +143,9 @@ function cmsApiMenuLocationAssign(array $params = []): void
     foreach ($assignments as $locSlug => $menuId) {
         cmsAssignMenuToLocation((string)$locSlug, $menuId ? (int)$menuId : null);
     }
+
+    cmsCacheInvalidateByTags(['cms:menus']);
+    adminViewCacheInvalidate(['cms:admin']);
+
     app()->json(['ok' => true]);
 }

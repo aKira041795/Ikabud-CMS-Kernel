@@ -64,6 +64,8 @@ function cmsApiUserCreate(array $params = []): void
             ]);
         }
 
+        adminViewCacheInvalidate(['cms:admin', 'cms:admin:users']);
+
         echo json_encode(['ok' => true, 'id' => $newId]);
     } catch (Throwable $e) {
         http_response_code(422);
@@ -106,6 +108,7 @@ function cmsApiUserUpdate(array $params = []): void
     $setStr = implode(', ', $fields);
     $db = cmsDb();
     $db->prepare("UPDATE cms_users SET {$setStr} WHERE id = :id")->execute($bind);
+    adminViewCacheInvalidate(['cms:admin', 'cms:admin:users']);
     echo json_encode(['ok' => true]);
     exit;
 }
