@@ -47,7 +47,17 @@ Public rendering for posts/pages follows this shape:
 4. build shared context through `cmsPublicContext()`
 5. inject theme/customizer HTML and CSS
 6. optionally transform output via CMS hooks
-7. cache the response and send HTTP cache validators
+7. cache the response, send HTTP cache validators, and finish through `cmsPublicRespond()` so session locks are released consistently after public renders
+
+### Public-loading conventions now in force
+
+- public GET handlers should render once and return through `cmsPublicRespond()` rather than `echo` directly
+- `cmsPublicContext()` is the shared enrichment point and should stay the only place where public theme/customizer fragments are assembled
+- customizer data should be preloaded in one pass, then reused for the request; avoid per-section duplicate reads on the hot path
+- builder-enabled pages should skip sidebar work that cannot affect the final layout
+- public theme rendering must resolve the template before taking a shared symlink lock; symlink mutation belongs only to exclusive lock paths
+- animation or page-transition concealment must ship a no-JS / stalled-JS reveal fallback so the page never remains blank after the backend render finishes
+- critical CTA or availability decisions in DiSyL should use simple nested branches instead of brittle compound boolean expressions
 
 ### Builder path
 
@@ -131,13 +141,18 @@ The CMS emits content, media, settings, and builder lifecycle events. However, n
 - cache invalidation is tag-based
 - public pages use `ETag` and `Last-Modified`
 - runtime settings and active-theme lookups use lightweight request-level caching
+- public handlers now centralize final output through `cmsPublicRespond()`, which releases the PHP session lock after render
+- public-context assembly now preloads the customizer bundle, reuses a shared DB handle, and skips absent sections on the request hot path
+- theme renders use shared locks without re-entering symlink mutation, removing a deadlock class from public requests
+- timing diagnostics keep total request timings available while detailed fragment timings stay opt-in
+- public layouts include reveal fallbacks so frontend animation gating cannot leave the page blank when JS stalls
 
 ### Current opportunities
 
 1. Add more targeted cache tags for taxonomy archives, search pages, and menu-dependent pages
 2. Add a documented manual cache flush operation in the admin
 3. Add cache-busting for theme assets after install/upgrade
-4. Review repeated theme/customizer DB reads inside complex public requests
+4. Keep narrowing remaining repeated theme/customizer reads outside `cmsPublicContext()` and render helpers
 
 ---
 

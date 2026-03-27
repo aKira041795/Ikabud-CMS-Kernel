@@ -71,6 +71,10 @@ Implemented public features include:
 - Theme-based template overrides
 - Customizer-driven header, footer, sidebar, layout, colors, fonts, and custom code
 - Tag-based cache plus `ETag` / `Last-Modified`
+- Session-safe public responses via `cmsPublicRespond()`
+- Public-context preloading and section-aware hot-path skips for faster cold renders
+- Theme render locking that separates shared read locks from exclusive symlink mutation
+- No-JS / stalled-JS reveal fallbacks in public layouts so animation gates cannot blank rendered pages
 
 Entity-capability note:
 
@@ -107,7 +111,7 @@ Entity-capability note:
 - `handlers/80-customizer.php` — theme customizer
 - `handlers/82-permissions.php` — granular role permissions
 - `handlers/84-extensions.php` — theme installer and CMS sub-module installer
-- `handlers/90-public.php` — public routes and headless APIs
+- `handlers/90-public.php` — public routes, headless APIs, cache-aware public response flow, and public timing instrumentation
 
 #### Helpers
 
@@ -115,11 +119,27 @@ Entity-capability note:
 - `helpers/40-theme-settings.php` — theme discovery, symlink activation, template resolution, settings defaults
 - `helpers/50-builder.php` — builder document registry, widgets, rendering, templates, dynamic sources
 - `helpers/55-capabilities.php` — CapabilityBus adapters exposed by the module
+- `helpers/56-entity-capabilities.php` — capability data formatters used by universal entity views and storefront integrations
 - `helpers/60-cache.php` — cache helpers and invalidation
 - `helpers/65-taxonomy.php`, `70-menu.php`, `74-revisions.php` — domain helpers
 - `helpers/76-extensions-editor.php` — extension hooks for editor/public/builder integration
-- `helpers/78-public-context.php` — shared public render context
+- `helpers/78-public-context.php` — shared public render context, customizer preloading, and request-level public timing hooks
 - `helpers/80-customizer.php` — customizer rendering and CSS/HTML generation
+
+---
+
+## 3.1 Public-loading conventions
+
+When changing CMS public rendering, follow these rules:
+
+1. Public HTML responses should exit through `cmsPublicRespond()` so session locks are released consistently after the body is sent.
+2. Cache lookup should happen before expensive render work, and cache writes should keep `ETag` / `Last-Modified` metadata with tag-based invalidation.
+3. `cmsPublicContext()` is the shared assembly point for theme/customizer context. Do not re-fetch the same customizer sections in handlers or templates.
+4. Theme render paths must not mutate the active-theme symlink while holding a shared render lock.
+5. Builder pages should keep frontend JS optional for visibility. If CSS/JS can hide content before hydration, ship a synchronous reveal fallback.
+6. For critical stock / booking / CTA states in DiSyL, prefer small nested boolean checks over compound expressions.
+
+The detailed implementation checklist lives in [docs/cms-implementation-guide.md](cms-implementation-guide.md).
 
 ---
 
@@ -252,6 +272,7 @@ See `docs/cms-capability-map.md` and `docs/cms-extension-points.md` for capabili
 
 - `docs/cms-module.md` — current-state module guide
 - `docs/cms-architecture.md` — architecture review, risks, and optimization plan
+- `docs/cms-implementation-guide.md` — implementation conventions and hot-path checklist for CMS public/page loading
 - `docs/cms-capability-map.md` — actual capabilities, hooks, events, and route/API map
 - `docs/cms-extension-points.md` — extension hooks and examples
 - `docs/cms-roadmap.md` — forward roadmap from the current baseline

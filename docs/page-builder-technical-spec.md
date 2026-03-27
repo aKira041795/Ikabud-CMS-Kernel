@@ -547,10 +547,17 @@ If a `raw-html` widget exists:
 - minimal frontend JS required for published pages
 - bounded DOM depth
 - bounded style output
+- builder pages must remain readable even if frontend runtime JS does not finish; any animation-gated UI must include a synchronous reveal fallback
 
 ## 12.2 Cache Strategy
 
 Builder pages should integrate with CMS cache tags using builder-aware invalidation.
+
+Implementation conventions already adopted in the CMS hot path:
+
+- public responses flow through the shared CMS public-response helper so session locks are released after render
+- builder pages reuse `cmsPublicContext()` and should avoid sidebar/customizer work that does not affect builder output
+- total request timings may be logged in production, while fragment-level timings stay opt-in for incident debugging
 
 Suggested tags:
 
@@ -568,6 +575,9 @@ Invalidate builder pages on:
 - builder document publish/update
 - reusable section update if globally linked in future
 - theme switch or token changes affecting public page output
+- layout/customizer changes that alter public page framing or visibility behavior
+
+See [docs/cms-implementation-guide.md](cms-implementation-guide.md) for the current CMS runtime conventions that builder changes must preserve.
 
 ---
 
