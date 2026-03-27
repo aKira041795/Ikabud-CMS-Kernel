@@ -4492,7 +4492,7 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
 
       {/* Dynamic / Conditional */}
       <CollapsibleSection title="Dynamic" defaultOpen={false}>
-        <p className="text-[9px] text-white/40 mb-2">Control visibility and data binding</p>
+        <p className="text-[9px] text-white/40 mb-2">Control visibility, conditions, and advanced attributes</p>
 
         <SelectInput
           label="Visibility"
@@ -4556,28 +4556,14 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
 
         <div className="mt-3 pt-2 border-t border-[#3c3c3c]">
           <p className="text-[9px] text-white/30 uppercase tracking-wide mb-2">Data Binding</p>
-          <TextInput
-            label="Data Source"
-            value={node.props.dataSource as string || ''}
-            onChange={(v) => handlePropChange('dataSource', v)}
-            placeholder="e.g., {{posts}} or API endpoint"
-          />
-          {(node.props.dataSource as string) && (
-            <>
-              <TextInput
-                label="Item Variable"
-                value={node.props.itemVariable as string || 'item'}
-                onChange={(v) => handlePropChange('itemVariable', v)}
-                placeholder="item"
-              />
-              <TextInput
-                label="Limit"
-                value={node.props.dataLimit as string || ''}
-                onChange={(v) => handlePropChange('dataLimit', v)}
-                placeholder="No limit"
-                type="number"
-              />
-            </>
+          <div className="rounded border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[10px] leading-relaxed text-white/70">
+            Generic collection binding is not available on all widgets yet.
+            Use Posts Grid, Products Grid, Team Grid, Current Entity View, or Entity List for live data-backed content.
+          </div>
+          {(node.props.dataSource as string || node.props.itemVariable as string || node.props.dataLimit as string) && (
+            <div className="mt-2 rounded border border-red-500/25 bg-red-500/10 px-3 py-2 text-[10px] leading-relaxed text-white/70">
+              Existing generic binding values on this node are currently ignored by the builder runtime.
+            </div>
           )}
         </div>
 
