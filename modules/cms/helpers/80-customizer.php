@@ -206,6 +206,20 @@ function cmsCustomizerPreloadAll(object $db): void
 
     // Try persistent cache first
     if ($ttl > 0) {
+        // Fast path: single bundle read instead of 6 individual reads
+        $bundleCacheKey = 'customizer:bundle:v1';
+        $bundle = app()->cache()->get($instance, $bundleCacheKey);
+        if (is_array($bundle)) {
+            $complete = true;
+            foreach ($knownSections as $s) {
+                if (!array_key_exists($s, $bundle)) { $complete = false; break; }
+            }
+            if ($complete) {
+                $GLOBALS[$cacheKey] = $bundle;
+                return;
+            }
+        }
+        // Fallback: read individual section keys (and promote to bundle on success)
         $allCached = true;
         foreach ($knownSections as $s) {
             $persistent = app()->cache()->get($instance, cmsCustomizerPersistentCacheKey($s));
@@ -222,6 +236,8 @@ function cmsCustomizerPreloadAll(object $db): void
         }
         if ($allCached) {
             $GLOBALS[$cacheKey] = $cache;
+            // Promote to bundle for future requests (1 read instead of 6)
+            app()->cache()->setWithTags($instance, $bundleCacheKey, $cache, ['cms:customizer'], $ttl);
             return;
         }
     }
@@ -259,6 +275,14 @@ function cmsCustomizerPreloadAll(object $db): void
                 $ttl
             );
         }
+        // Write bundle so the next request pays 1 cache read instead of 6
+        app()->cache()->setWithTags(
+            $instance,
+            'customizer:bundle:v1',
+            $cache,
+            ['cms:customizer'],
+            $ttl
+        );
     }
 }
 

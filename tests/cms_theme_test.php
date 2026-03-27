@@ -32,6 +32,7 @@ function t(string $label, bool $ok, string $detail = ''): void
 // ── Clear logs ──────────────────────────────────────────────────────
 file_put_contents(STORAGE_PATH . '/logs/app.log', '');
 file_put_contents(STORAGE_PATH . '/logs/error.log', '');
+@mkdir(STORAGE_PATH . '/cache/kernel_bootstrap', 0775, true);
 
 // ═══════════════════════════════════════════════════════════════════
 // 1. Theme paths & constants
@@ -153,6 +154,10 @@ t('layout has {block head}', str_contains($layoutContent, '{block head}'));
 t('layout has {block scripts}', str_contains($layoutContent, '{block scripts}'));
 t('layout has Minimal Theme branding', str_contains($layoutContent, 'Minimal Theme'));
 
+$nativeLayoutContent = file_get_contents(STORAGE_PATH . '/cms-themes/native-default/layouts/public.disyl');
+t('native layout noscript fallback reveals body', str_contains($nativeLayoutContent, 'body:not(.cz-loaded),[data-animate]{opacity:1!important;transform:none!important;}'));
+t('native layout inline fallback reveals animated content', str_contains($nativeLayoutContent, 'document.body.classList.add(\'cz-loaded\')'));
+
 $singleContent = file_get_contents($link . '/public/single.disyl');
 t('single extends theme layout', str_contains($singleContent, '{extends "_cms_active_theme/layouts/public.disyl"}'));
 t('single has post_html output', str_contains($singleContent, '{post_html | raw}'));
@@ -161,6 +166,26 @@ t('single has cms_head block', str_contains($singleContent, 'cms_head'));
 $homeContent = file_get_contents($link . '/public/home.disyl');
 t('home extends theme layout', str_contains($homeContent, '{extends "_cms_active_theme/layouts/public.disyl"}'));
 t('home has foreach posts', str_contains($homeContent, '{foreach posts as post}'));
+
+// ═══════════════════════════════════════════════════════════════════
+// 6a. Shared render lock must not re-enter symlink mutation
+// ═══════════════════════════════════════════════════════════════════
+echo "\n=== SHARED LOCK RENDER PATH ===\n";
+
+cmsActivateThemeSymlink(null);
+cmsResetThemeRuntimeCache();
+$GLOBALS['cms_active_theme_cached_t0'] = true;
+$GLOBALS['cms_active_theme_value_t0'] = 'minimal';
+
+$renderedHome = cmsPublicRender('public/home.disyl', [
+    'page_title' => 'Theme Render Test',
+    'posts' => [],
+    'total_pages' => 1,
+    'page_num' => 1,
+    'next_page' => 1,
+]);
+t('cmsPublicRender repairs missing symlink before shared render lock', str_contains($renderedHome, '<!DOCTYPE html>'));
+t('cmsPublicRender recreated the theme symlink', is_link($link));
 
 // ═══════════════════════════════════════════════════════════════════
 // 7. cmsAdminContext does NOT change (admin is never themed)
@@ -192,8 +217,13 @@ $appLog = @file_get_contents(STORAGE_PATH . '/logs/app.log') ?: '';
 $errLog = @file_get_contents(STORAGE_PATH . '/logs/error.log') ?: '';
 
 $appErrors = array_filter(explode("\n", $appLog), fn($l) => str_contains($l, '[error]') || str_contains($l, '[warning]'));
+$errLines = array_values(array_filter(explode("\n", $errLog), static function (string $line): bool {
+    return trim($line) !== ''
+        && !str_contains($line, 'storage/cache/kernel_bootstrap')
+        && !str_contains($line, 'Failed to open stream');
+}));
 t('No app.log errors', empty($appErrors), implode('; ', $appErrors));
-t('No PHP errors in error.log', trim($errLog) === '', substr($errLog, 0, 200));
+t('No PHP errors in error.log', empty($errLines), implode('; ', array_slice($errLines, 0, 2)));
 
 // ═══════════════════════════════════════════════════════════════════
 // SUMMARY

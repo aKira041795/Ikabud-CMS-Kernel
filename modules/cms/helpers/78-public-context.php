@@ -66,6 +66,43 @@ function cmsPublicContextLogStage(string $stage, float $startTime, array $contex
     );
 }
 
+function cmsPublicContextDetailedTimingEnabled(): bool
+{
+    $value = $_ENV['CMS_PUBLIC_CONTEXT_TIMING_VERBOSE'] ?? null;
+    if ($value === null || $value === '') {
+        return false;
+    }
+
+    return filter_var($value, FILTER_VALIDATE_BOOLEAN);
+}
+
+function cmsPublicContextSectionAvailability(): array
+{
+    $cache = $GLOBALS[cmsCustomizerRequestCacheKey('section_row')] ?? null;
+    if (!is_array($cache)) {
+        return [];
+    }
+
+    $availability = [];
+    foreach ($cache as $section => $row) {
+        if (!is_string($section) || $section === '') {
+            continue;
+        }
+        $availability[$section] = $row !== null;
+    }
+
+    return $availability;
+}
+
+function cmsPublicContextHasSection(array $availability, string $section): bool
+{
+    if (!array_key_exists($section, $availability)) {
+        return true;
+    }
+
+    return $availability[$section] === true;
+}
+
 // ── Public Context Enrichment ────────────────────────────────────────
 
 /**
@@ -76,17 +113,29 @@ function cmsPublicContextLogStage(string $stage, float $startTime, array $contex
 function cmsPublicContext(array $extra = []): array
 {
     $timingEnabled = cmsPublicContextTimingEnabled();
+    $detailedTimingEnabled = $timingEnabled && cmsPublicContextDetailedTimingEnabled();
     $totalStart = $timingEnabled ? microtime(true) : 0.0;
+    $stageStart = $timingEnabled ? microtime(true) : 0.0;
     $settings = readCmsSettings();
+    $db = cmsDb();
     $baseUrl = rtrim((string)(defined('BASE_URL') ? BASE_URL : ''), '/');
     $activeThemeSlug = cmsActiveTheme() ?? 'native-default';
     $requestType = !empty($extra['entity']['id']) ? 'entity' : (!empty($extra['content']['id']) ? 'content' : 'generic');
+    $builderEnabled = !empty($extra['builder_enabled']);
+    if ($detailedTimingEnabled) {
+        cmsPublicContextLogStage('init', $stageStart, ['theme' => $activeThemeSlug, 'request_type' => $requestType]);
+    }
 
     // Preload all customizer sections in one DB query instead of 6 separate ones
+    $stageStart = $timingEnabled ? microtime(true) : 0.0;
     try {
-        cmsCustomizerPreloadAll(cmsDb());
+        cmsCustomizerPreloadAll($db);
     } catch (Throwable $e) {
         // Non-fatal — individual lookups will fall back to per-section queries
+    }
+    $sectionAvailability = cmsPublicContextSectionAvailability();
+    if ($detailedTimingEnabled) {
+        cmsPublicContextLogStage('customizer_preload', $stageStart, ['theme' => $activeThemeSlug, 'request_type' => $requestType]);
     }
 
     // Build primary menu
@@ -97,7 +146,7 @@ function cmsPublicContext(array $extra = []): array
     } catch (Throwable $e) {
         // Menu may not exist yet
     }
-    if ($timingEnabled) {
+    if ($detailedTimingEnabled) {
         cmsPublicContextLogStage('primary_menu', $stageStart, ['theme' => $activeThemeSlug, 'request_type' => $requestType]);
     }
 
@@ -107,20 +156,12 @@ function cmsPublicContext(array $extra = []): array
     try {
         $footerMenu = cmsRenderMenu('footer');
     } catch (Throwable $e) {}
-    if ($timingEnabled) {
+    if ($detailedTimingEnabled) {
         cmsPublicContextLogStage('footer_menu', $stageStart, ['theme' => $activeThemeSlug, 'request_type' => $requestType]);
     }
 
     // Social links from settings
-    $socialLinks = [];
-    $socialKeys = ['social_facebook', 'social_twitter', 'social_instagram', 'social_youtube', 'social_linkedin'];
-    foreach ($socialKeys as $key) {
-        $url = trim((string)($settings[$key] ?? ''));
-        if ($url !== '') {
-            $name = str_replace('social_', '', $key);
-            $socialLinks[] = ['name' => $name, 'url' => $url, 'label' => ucfirst($name)];
-        }
-    }
+    $socialLinks = cmsPublicSocialLinks($settings);
 
     $ctx = [
         'site_title'    => (string)($settings['site_title'] ?? ''),
@@ -138,70 +179,86 @@ function cmsPublicContext(array $extra = []): array
     // Render customized footer if customizer data exists
     $stageStart = $timingEnabled ? microtime(true) : 0.0;
     try {
-        $db = cmsDb();
+        if (cmsPublicContextHasSection($sectionAvailability, 'footer')) {
         $customizedFooter = cmsRenderCustomizedFooter($db);
         $ctx['customized_footer'] = $customizedFooter;
         $ctx['has_customized_footer'] = ($customizedFooter !== '');
+        } else {
+            $ctx['customized_footer'] = '';
+            $ctx['has_customized_footer'] = false;
+        }
     } catch (Throwable $e) {
         $ctx['customized_footer'] = '';
         $ctx['has_customized_footer'] = false;
     }
-    if ($timingEnabled) {
+    if ($detailedTimingEnabled) {
         cmsPublicContextLogStage('customized_footer', $stageStart, ['theme' => $activeThemeSlug, 'request_type' => $requestType]);
     }
 
     // Render customized header if customizer data exists
     $stageStart = $timingEnabled ? microtime(true) : 0.0;
     try {
-        $db = $db ?? cmsDb();
-        $customizedHeader = cmsRenderCustomizedHeader($db, $ctx);
-        $ctx['customized_header'] = $customizedHeader;
-        $ctx['has_customized_header'] = ($customizedHeader !== '');
+        if (cmsPublicContextHasSection($sectionAvailability, 'header')) {
+            $customizedHeader = cmsRenderCustomizedHeader($db, $ctx);
+            $ctx['customized_header'] = $customizedHeader;
+            $ctx['has_customized_header'] = ($customizedHeader !== '');
+        } else {
+            $ctx['customized_header'] = '';
+            $ctx['has_customized_header'] = false;
+        }
     } catch (Throwable $e) {
         $ctx['customized_header'] = '';
         $ctx['has_customized_header'] = false;
     }
-    if ($timingEnabled) {
+    if ($detailedTimingEnabled) {
         cmsPublicContextLogStage('customized_header', $stageStart, ['theme' => $activeThemeSlug, 'request_type' => $requestType]);
     }
 
     // Render customized sidebar if enabled by customizer settings
     $stageStart = $timingEnabled ? microtime(true) : 0.0;
     try {
-        $db = $db ?? cmsDb();
-        $sidebarCtx = array_merge($ctx, $extra);
-        $sidebar = cmsRenderCustomizedSidebar($db, $sidebarCtx);
-        $ctx['customized_sidebar'] = (string)($sidebar['html'] ?? '');
-        $ctx['has_customized_sidebar'] = (bool)($sidebar['enabled'] ?? false);
-        $ctx['sidebar_position'] = (string)($sidebar['position'] ?? 'right');
-        $ctx['sidebar_width'] = (string)($sidebar['width'] ?? '300');
+        if ($builderEnabled || !cmsPublicContextHasSection($sectionAvailability, 'sidebar')) {
+            $ctx['customized_sidebar'] = '';
+            $ctx['has_customized_sidebar'] = false;
+            $ctx['sidebar_position'] = 'right';
+            $ctx['sidebar_width'] = '300';
+        } else {
+            $sidebarCtx = array_merge($ctx, $extra);
+            $sidebar = cmsRenderCustomizedSidebar($db, $sidebarCtx);
+            $ctx['customized_sidebar'] = (string)($sidebar['html'] ?? '');
+            $ctx['has_customized_sidebar'] = (bool)($sidebar['enabled'] ?? false);
+            $ctx['sidebar_position'] = (string)($sidebar['position'] ?? 'right');
+            $ctx['sidebar_width'] = (string)($sidebar['width'] ?? '300');
+        }
     } catch (Throwable $e) {
         $ctx['customized_sidebar'] = '';
         $ctx['has_customized_sidebar'] = false;
         $ctx['sidebar_position'] = 'right';
         $ctx['sidebar_width'] = '300';
     }
-    if ($timingEnabled) {
+    if ($detailedTimingEnabled) {
         cmsPublicContextLogStage('customized_sidebar', $stageStart, ['theme' => $activeThemeSlug, 'request_type' => $requestType]);
     }
 
     // Render colors/general <style> override (injected by public layout into <head>)
     $stageStart = $timingEnabled ? microtime(true) : 0.0;
     try {
-        $db = $db ?? cmsDb();
-        $ctx['colors_style'] = cmsRenderColorsStyle($db);
+        $ctx['colors_style'] = cmsPublicContextHasSection($sectionAvailability, 'colors')
+            ? cmsRenderColorsStyle($db)
+            : '';
     } catch (Throwable $e) {
         $ctx['colors_style'] = '';
     }
-    if ($timingEnabled) {
+    if ($detailedTimingEnabled) {
         cmsPublicContextLogStage('colors_style', $stageStart, ['theme' => $activeThemeSlug, 'request_type' => $requestType]);
     }
 
     // Render custom code output (CSS overrides, head/body code, scroll-to-top, etc.)
     $stageStart = $timingEnabled ? microtime(true) : 0.0;
     try {
-        $db = $db ?? cmsDb();
-        $cc = cmsRenderCustomCodeOutput($db);
+        $cc = cmsPublicContextHasSection($sectionAvailability, 'custom_code')
+            ? cmsRenderCustomCodeOutput($db)
+            : ['custom_css' => '', 'head_code' => '', 'body_end_code' => ''];
         $ctx['custom_css']      = $cc['custom_css'] ?? '';
         $ctx['head_code']       = $cc['head_code'] ?? '';
         $ctx['body_end_code']   = $cc['body_end_code'] ?? '';
@@ -210,22 +267,26 @@ function cmsPublicContext(array $extra = []): array
         $ctx['head_code']     = '';
         $ctx['body_end_code'] = '';
     }
-    if ($timingEnabled) {
+    if ($detailedTimingEnabled) {
         cmsPublicContextLogStage('custom_code', $stageStart, ['theme' => $activeThemeSlug, 'request_type' => $requestType]);
     }
 
     // Render theme layout style (CSS custom properties + layout rules)
     $stageStart = $timingEnabled ? microtime(true) : 0.0;
     try {
-        $db = $db ?? cmsDb();
-        $ctx['theme_layout_style'] = cmsRenderThemeLayoutStyle($db);
-        $themeLayout = cmsCustomizerGet($db, 'theme');
-        $ctx['theme_settings'] = $themeLayout['settings'];
+        if (cmsPublicContextHasSection($sectionAvailability, 'theme')) {
+            $ctx['theme_layout_style'] = cmsRenderThemeLayoutStyle($db);
+            $themeLayout = cmsCustomizerGet($db, 'theme');
+            $ctx['theme_settings'] = $themeLayout['settings'];
+        } else {
+            $ctx['theme_layout_style'] = '';
+            $ctx['theme_settings'] = cmsThemeLayoutSettingsDefaults();
+        }
     } catch (Throwable $e) {
         $ctx['theme_layout_style'] = '';
         $ctx['theme_settings'] = cmsThemeLayoutSettingsDefaults();
     }
-    if ($timingEnabled) {
+    if ($detailedTimingEnabled) {
         cmsPublicContextLogStage('theme_layout', $stageStart, ['theme' => $activeThemeSlug, 'request_type' => $requestType]);
     }
 
@@ -244,7 +305,7 @@ function cmsPublicContext(array $extra = []): array
             $ctx['capabilities']    = [];
             $ctx['capability_data'] = [];
         }
-        if ($timingEnabled) {
+        if ($detailedTimingEnabled) {
             cmsPublicContextLogStage('entity_capabilities', $stageStart, [
                 'theme' => $activeThemeSlug,
                 'request_type' => $requestType,

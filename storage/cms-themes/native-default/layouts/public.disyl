@@ -64,7 +64,7 @@
             .cms-content-with-sidebar .cms-sidebar-slot { margin-top: 1.5rem; }
         }
     </style>
-    <noscript><style>[data-animate]{opacity:1!important;transform:none!important;}</style></noscript>
+    <noscript><style>body:not(.cz-loaded),[data-animate]{opacity:1!important;transform:none!important;}</style></noscript>
     {block head}{/block}
 </head>
 <body class="native-theme {if builder_enabled && builder_page_settings.body_class}{builder_page_settings.body_class}{/if}">
@@ -148,6 +148,24 @@
         {/if}
     </footer>
 
+    <script>
+        (function () {
+            function revealCmsContent() {
+                if (document.body) {
+                    document.body.classList.add('cz-loaded');
+                }
+                document.querySelectorAll('[data-animate]').forEach(function (el) {
+                    el.classList.add('cms-animated');
+                });
+            }
+
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', revealCmsContent, { once: true });
+            } else {
+                revealCmsContent();
+            }
+        })();
+    </script>
     {if theme_script_url}<script src="{theme_script_url}" defer></script>{/if}
     {if builder_enabled}<script src="{base_url}/assets/cms/builder-public.js" defer></script>{/if}
     {if body_end_code}{body_end_code|raw}{/if}

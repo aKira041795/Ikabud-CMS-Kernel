@@ -464,7 +464,7 @@ function cmsThemeSymlinkLockPath(): string
 /**
  * Execute callback while holding an exclusive lock for theme symlink operations.
  */
-function cmsWithThemeSymlinkLock(callable $callback): mixed
+function cmsWithThemeSymlinkLock(callable $callback, int $lockMode = LOCK_EX): mixed
 {
     $lockPath = cmsThemeSymlinkLockPath();
     $handle = @fopen($lockPath, 'c+');
@@ -472,12 +472,39 @@ function cmsWithThemeSymlinkLock(callable $callback): mixed
         return $callback();
     }
 
+    $timingEnabled = timing_logs_enabled('CMS_THEME_TIMING_LOGS') || timing_logs_enabled('APP_TIMING_LOGS');
+    $waitStart = $timingEnabled ? microtime(true) : 0.0;
+    $callbackStart = 0.0;
+    $lockAcquired = false;
+    $lockWaitMs = null;
+
     try {
-        if (@flock($handle, LOCK_EX)) {
-            return $callback();
+        if (@flock($handle, $lockMode)) {
+            $lockAcquired = true;
+            if ($timingEnabled) {
+                $lockWaitMs = round((microtime(true) - $waitStart) * 1000, 2);
+                $callbackStart = microtime(true);
+            }
+
+            $result = $callback();
+
+            if ($timingEnabled && $callbackStart > 0.0) {
+                $context = [
+                    'lock_mode' => $lockMode === LOCK_SH ? 'shared' : 'exclusive',
+                    'lock_wait_ms' => $lockWaitMs,
+                ];
+                log_timing('cms.theme_symlink_lock', $callbackStart, $context, 'CMS_THEME_TIMING_LOGS', 'CMS_THEME_TIMING_THRESHOLD_MS');
+            }
+
+            return $result;
         }
         return $callback();
     } finally {
+        if ($timingEnabled && !$lockAcquired) {
+            log_timing('cms.theme_symlink_lock_unavailable', $waitStart, [
+                'lock_mode' => $lockMode === LOCK_SH ? 'shared' : 'exclusive',
+            ], 'CMS_THEME_TIMING_LOGS', 'CMS_THEME_TIMING_THRESHOLD_MS');
+        }
         @flock($handle, LOCK_UN);
         @fclose($handle);
     }
@@ -507,7 +534,7 @@ function cmsActivateThemeSymlink(?string $slug): void
             @symlink($target, $link);
         }
         kernelFlushCodeCaches();
-    });
+    }, LOCK_EX);
 }
 
 /**
@@ -685,12 +712,8 @@ function cmsRenderThemeAwareTemplate(string $template, array $context = []): str
     }
 
     return cmsWithThemeSymlinkLock(function () use ($template, $context): string {
-        // Force re-verification inside the lock — another process may have
-        // changed the shared symlink between cmsResolveTemplate() and here.
-        $GLOBALS['cms_theme_symlink_checked_t' . cmsRuntimeTenantId()] = false;
-        cmsEnsureThemeSymlink();
         return cmsRender($template, $context);
-    });
+    }, LOCK_SH);
 }
 
 /**
@@ -700,10 +723,14 @@ function cmsRenderThemeAwareTemplate(string $template, array $context = []): str
 
 function cmsPublicRender(string $subPath, array $context = []): string
 {
-    return cmsWithThemeSymlinkLock(function () use ($subPath, $context): string {
-        $template = cmsResolveTemplate($subPath);
+    $template = cmsResolveTemplate($subPath);
+    if (!str_starts_with($template, '_cms_active_theme/')) {
         return cmsRender($template, $context);
-    });
+    }
+
+    return cmsWithThemeSymlinkLock(function () use ($template, $context): string {
+        return cmsRender($template, $context);
+    }, LOCK_SH);
 }
 
 /**

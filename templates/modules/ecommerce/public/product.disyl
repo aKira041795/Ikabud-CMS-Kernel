@@ -69,7 +69,10 @@
             {/if}
 
             <!-- Add to cart -->
-            {if not product.inventory.out_of_stock and product.inventory.in_stock}
+            {if product.inventory.in_stock}
+                {if product.inventory.out_of_stock}
+            <button disabled class="w-full px-6 py-3 bg-gray-200 text-gray-400 font-medium rounded-lg cursor-not-allowed mb-6">Out of Stock</button>
+                {else}
             <div class="flex gap-3 mb-6" id="add-to-cart-form">
                 <input type="number" id="qty-input" value="1" min="1"
                        {if product.inventory.track_stock}max="{product.inventory.stock_qty}"{/if}
@@ -79,6 +82,7 @@
                     Add to Cart
                 </button>
             </div>
+                {/if}
             {else}
             <button disabled class="w-full px-6 py-3 bg-gray-200 text-gray-400 font-medium rounded-lg cursor-not-allowed mb-6">Out of Stock</button>
             {/if}

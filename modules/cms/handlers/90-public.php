@@ -2,6 +2,30 @@
 
 declare(strict_types=1);
 
+function cmsPublicRenderTimingEnabled(): bool
+{
+    return timing_logs_enabled('CMS_PUBLIC_RENDER_TIMING') || timing_logs_enabled('APP_TIMING_LOGS');
+}
+
+function cmsPublicRenderLogTiming(string $message, float $startTime, array $context = []): ?float
+{
+    return log_timing(
+        $message,
+        $startTime,
+        $context,
+        'CMS_PUBLIC_RENDER_TIMING',
+        'CMS_PUBLIC_RENDER_TIMING_THRESHOLD_MS'
+    );
+}
+
+function cmsPublicRespond(string $body): void
+{
+    echo $body;
+    if (function_exists('releaseSessionAfterRender')) {
+        releaseSessionAfterRender();
+    }
+}
+
 function cmsApiPublicPosts(array $params = []): void
 {
     cmsApiPublicListByType('post');
@@ -238,6 +262,8 @@ function cmsApiPublicGetBySlug(string $type, array $params): void
 
 function cmsPublicHome(array $params = []): void
 {
+    $timingEnabled = cmsPublicRenderTimingEnabled();
+    $requestStart = $timingEnabled ? microtime(true) : 0.0;
     $cmsSettings = readCmsSettings();
     $forcePostsListing = !empty($params['force_posts_listing']);
 
@@ -280,7 +306,13 @@ function cmsPublicHome(array $params = []): void
                     'is_front_page' => true,
                 ]));
 
-                echo $html;
+                if ($timingEnabled) {
+                    cmsPublicRenderLogTiming('cms.public.home.static_page.total', $requestStart, [
+                        'page_id' => (int)($staticPage['id'] ?? 0),
+                        'cache_status' => 'bypass_static_page',
+                    ]);
+                }
+                cmsPublicRespond($html);
                 return;
             }
             // Fall through to posts listing if static page not found
@@ -307,14 +339,30 @@ function cmsPublicHome(array $params = []): void
     $cacheKey = 'cms:home:page:' . $page . ':archive:' . ($archiveKey !== '' ? $archiveKey : 'all');
 
     // Check cache
+    $cacheStageStart = $timingEnabled ? microtime(true) : 0.0;
     $cached = cmsCacheGet($cacheKey);
+    if ($timingEnabled) {
+        cmsPublicRenderLogTiming('cms.public.home.cache_lookup', $cacheStageStart, [
+            'page' => $page,
+            'archive' => $archiveKey !== '' ? $archiveKey : 'all',
+            'cache_hit' => $cached !== null && isset($cached['html']),
+        ]);
+    }
     if ($cached !== null && isset($cached['html'])) {
         if (!empty($cached['etag']) && !empty($cached['updated_at'])) {
             if (cmsSendCacheHeaders($cached['etag'], $cached['updated_at'])) {
                 exit;
             }
         }
-        echo $cached['html'];
+        if ($timingEnabled) {
+            cmsPublicRenderLogTiming('cms.public.home.total', $requestStart, [
+                'page' => $page,
+                'archive' => $archiveKey !== '' ? $archiveKey : 'all',
+                'cache_status' => 'hit',
+                'post_count' => null,
+            ]);
+        }
+        cmsPublicRespond((string)$cached['html']);
         return;
     }
 
@@ -335,6 +383,7 @@ function cmsPublicHome(array $params = []): void
         $bind[':archive_end'] = $archiveEnd;
     }
 
+    $queryStageStart = $timingEnabled ? microtime(true) : 0.0;
     $stmt = $db->prepare(
         "SELECT c.id, c.title, c.slug, c.excerpt, c.body, c.type, c.published_at,
                 c.featured_image_id, u.display_name as author_name, m.file_path as featured_image
@@ -360,9 +409,19 @@ function cmsPublicHome(array $params = []): void
     );
     $totalStmt->execute($bind);
     $total = (int)$totalStmt->fetchColumn();
+    if ($timingEnabled) {
+        cmsPublicRenderLogTiming('cms.public.home.db_fetch', $queryStageStart, [
+            'page' => $page,
+            'archive' => $archiveKey !== '' ? $archiveKey : 'all',
+            'post_count' => count($posts),
+            'total_posts' => $total,
+            'per_page' => $perPage,
+        ]);
+    }
 
     $totalPages = max(1, (int)ceil($total / $perPage));
 
+    $renderStageStart = $timingEnabled ? microtime(true) : 0.0;
     $html = cmsPublicRender('public/home.disyl', cmsPublicContext([
         'page_title'  => $archiveLabel !== '' ? ('Archive: ' . $archiveLabel) : 'Blog',
         'posts'       => $posts,
@@ -372,6 +431,13 @@ function cmsPublicHome(array $params = []): void
         'archive_month' => $archiveKey,
         'sidebar_template' => 'home',
     ]));
+    if ($timingEnabled) {
+        cmsPublicRenderLogTiming('cms.public.home.render', $renderStageStart, [
+            'page' => $page,
+            'archive' => $archiveKey !== '' ? $archiveKey : 'all',
+            'post_count' => count($posts),
+        ]);
+    }
 
     // Cache the rendered output
     $updatedAt = !empty($posts) ? ($posts[0]['published_at'] ?? date('Y-m-d H:i:s')) : date('Y-m-d H:i:s');
@@ -380,14 +446,31 @@ function cmsPublicHome(array $params = []): void
     if ($archiveKey !== '') {
         $cacheTags[] = 'cms:archive:' . $archiveKey;
     }
+    $cacheWriteStageStart = $timingEnabled ? microtime(true) : 0.0;
     cmsCacheSet($cacheKey, [
         'html'       => $html,
         'etag'       => $etag,
         'updated_at' => $updatedAt,
     ], $cacheTags);
+    if ($timingEnabled) {
+        cmsPublicRenderLogTiming('cms.public.home.cache_store', $cacheWriteStageStart, [
+            'page' => $page,
+            'archive' => $archiveKey !== '' ? $archiveKey : 'all',
+            'tag_count' => count($cacheTags),
+        ]);
+    }
 
     cmsSendCacheHeaders($etag, $updatedAt);
-    echo $html;
+    if ($timingEnabled) {
+        cmsPublicRenderLogTiming('cms.public.home.total', $requestStart, [
+            'page' => $page,
+            'archive' => $archiveKey !== '' ? $archiveKey : 'all',
+            'cache_status' => 'miss',
+            'post_count' => count($posts),
+            'total_posts' => $total,
+        ]);
+    }
+    cmsPublicRespond($html);
 }
 
 function cmsPublicArchive(array $params = []): void
@@ -401,7 +484,7 @@ function cmsPublicCategoryArchive(array $params = []): void
     $slug = trim((string)($params['slug'] ?? ''));
     if ($slug === '') {
         http_response_code(404);
-        echo cmsPublicRender('pages/404.disyl', ['page_title' => 'Not Found']);
+        cmsPublicRespond(cmsPublicRender('pages/404.disyl', ['page_title' => 'Not Found']));
         return;
     }
 
@@ -416,7 +499,7 @@ function cmsPublicCategoryArchive(array $params = []): void
                 exit;
             }
         }
-        echo $cached['html'];
+        cmsPublicRespond((string)$cached['html']);
         return;
     }
 
@@ -426,7 +509,7 @@ function cmsPublicCategoryArchive(array $params = []): void
     $category = $catStmt->fetch(PDO::FETCH_ASSOC);
     if (!$category) {
         http_response_code(404);
-        echo cmsPublicRender('pages/404.disyl', ['page_title' => 'Category Not Found']);
+        cmsPublicRespond(cmsPublicRender('pages/404.disyl', ['page_title' => 'Category Not Found']));
         return;
     }
 
@@ -479,7 +562,7 @@ function cmsPublicCategoryArchive(array $params = []): void
     ], ['cms:category:' . $slug, 'cms:type:post']);
 
     cmsSendCacheHeaders($etag, $updatedAt);
-    echo $html;
+    cmsPublicRespond($html);
 }
 
 function cmsPublicTagArchive(array $params = []): void
@@ -487,7 +570,7 @@ function cmsPublicTagArchive(array $params = []): void
     $slug = trim((string)($params['slug'] ?? ''));
     if ($slug === '') {
         http_response_code(404);
-        echo cmsPublicRender('pages/404.disyl', ['page_title' => 'Not Found']);
+        cmsPublicRespond(cmsPublicRender('pages/404.disyl', ['page_title' => 'Not Found']));
         return;
     }
 
@@ -502,7 +585,7 @@ function cmsPublicTagArchive(array $params = []): void
                 exit;
             }
         }
-        echo $cached['html'];
+        cmsPublicRespond((string)$cached['html']);
         return;
     }
 
@@ -512,7 +595,7 @@ function cmsPublicTagArchive(array $params = []): void
     $tag = $tagStmt->fetch(PDO::FETCH_ASSOC);
     if (!$tag) {
         http_response_code(404);
-        echo cmsPublicRender('pages/404.disyl', ['page_title' => 'Tag Not Found']);
+        cmsPublicRespond(cmsPublicRender('pages/404.disyl', ['page_title' => 'Tag Not Found']));
         return;
     }
 
@@ -565,7 +648,7 @@ function cmsPublicTagArchive(array $params = []): void
     ], ['cms:tag:' . $slug, 'cms:type:post']);
 
     cmsSendCacheHeaders($etag, $updatedAt);
-    echo $html;
+    cmsPublicRespond($html);
 }
 
 // ── Tag API ──────────────────────────────────────────────────────────
@@ -609,7 +692,7 @@ function cmsPublicSearch(array $params = []): void
 
     $totalPages = max(1, (int)ceil(max($total, 1) / $perPage));
 
-    echo cmsPublicRender('public/search.disyl', cmsPublicContext([
+    cmsPublicRespond(cmsPublicRender('public/search.disyl', cmsPublicContext([
         'page_title'  => $q !== '' ? 'Search: ' . htmlspecialchars($q) : 'Search',
         'query'       => $q,
         'posts'       => $posts,
@@ -618,7 +701,7 @@ function cmsPublicSearch(array $params = []): void
         'total_pages' => $totalPages,
         'next_page'   => min($page + 1, $totalPages),
         'sidebar_template' => 'search',
-    ]));
+    ])));
 }
 
 function cmsPublicSitemapXml(array $params = []): void
@@ -633,7 +716,7 @@ function cmsPublicSitemapXml(array $params = []): void
                 exit;
             }
         }
-        echo $cached['xml'];
+        cmsPublicRespond((string)$cached['xml']);
         return;
     }
 
@@ -657,7 +740,7 @@ function cmsPublicSitemapXml(array $params = []): void
     ], ['cms:sitemap']);
 
     cmsSendCacheHeaders($etag, $updatedAt);
-    echo $xml;
+    cmsPublicRespond($xml);
 }
 
 function cmsPublicListItemPrimaryImageUrl(array $item): string
@@ -713,7 +796,7 @@ function cmsPublicRssFeed(array $params = []): void
                 exit;
             }
         }
-        echo $cached['xml'];
+        cmsPublicRespond((string)$cached['xml']);
         return;
     }
 
@@ -739,7 +822,7 @@ function cmsPublicRssFeed(array $params = []): void
     ], ['cms:feed']);
 
     cmsSendCacheHeaders($etag, $updatedAt);
-    echo $xml;
+    cmsPublicRespond($xml);
 }
 
 function cmsPublicSingle(array $params = []): void
@@ -747,7 +830,7 @@ function cmsPublicSingle(array $params = []): void
     $slug = trim((string)($params['slug'] ?? ''));
     if ($slug === '') {
         http_response_code(404);
-        echo cmsRender('pages/404.disyl', ['page_title' => 'Not Found']);
+        cmsPublicRespond(cmsRender('pages/404.disyl', ['page_title' => 'Not Found']));
         return;
     }
 
@@ -761,7 +844,7 @@ function cmsPublicSingle(array $params = []): void
                 exit;
             }
         }
-        echo $cached['html'];
+        cmsPublicRespond((string)$cached['html']);
         return;
     }
 
@@ -786,7 +869,7 @@ function cmsPublicSingle(array $params = []): void
             exit;
         }
         http_response_code(404);
-        echo cmsRender('pages/404.disyl', ['page_title' => 'Not Found']);
+        cmsPublicRespond(cmsRender('pages/404.disyl', ['page_title' => 'Not Found']));
         return;
     }
 
@@ -834,7 +917,7 @@ function cmsPublicSingle(array $params = []): void
     ], ['cms:post:' . $slug, 'cms:content:' . (int)$post['id'], 'cms:type:post']);
 
     cmsSendCacheHeaders($etag, $updatedAt);
-    echo $html;
+    cmsPublicRespond($html);
 }
 
 function cmsPublicPage(array $params = []): void
@@ -842,7 +925,7 @@ function cmsPublicPage(array $params = []): void
     $slug = trim((string)($params['slug'] ?? ''));
     if ($slug === '') {
         http_response_code(404);
-        echo cmsRender('pages/404.disyl', ['page_title' => 'Not Found']);
+        cmsPublicRespond(cmsRender('pages/404.disyl', ['page_title' => 'Not Found']));
         return;
     }
 
@@ -867,7 +950,7 @@ function cmsPublicPage(array $params = []): void
                 exit;
             }
         }
-        echo $cached['html'];
+        cmsPublicRespond((string)$cached['html']);
         return;
     }
 
@@ -891,7 +974,7 @@ function cmsPublicPage(array $params = []): void
             exit;
         }
         http_response_code(404);
-        echo cmsRender('pages/404.disyl', ['page_title' => 'Not Found']);
+        cmsPublicRespond(cmsRender('pages/404.disyl', ['page_title' => 'Not Found']));
         return;
     }
 
@@ -929,7 +1012,7 @@ function cmsPublicPage(array $params = []): void
     ], ['cms:page:' . $slug, 'cms:content:' . (int)$page['id'], 'cms:type:page']);
 
     cmsSendCacheHeaders($etag, $updatedAt);
-    echo $html;
+    cmsPublicRespond($html);
 }
 
 function cmsPublicEntityBook(array $params = []): void
@@ -938,7 +1021,7 @@ function cmsPublicEntityBook(array $params = []): void
     $slug = trim((string)($params['slug'] ?? ''));
     if ($type === '' || $slug === '') {
         http_response_code(404);
-        echo cmsRender('pages/404.disyl', ['page_title' => 'Not Found']);
+        cmsPublicRespond(cmsRender('pages/404.disyl', ['page_title' => 'Not Found']));
         return;
     }
 
@@ -954,15 +1037,15 @@ function cmsPublicEntityBook(array $params = []): void
     $entity = $stmt->fetch(PDO::FETCH_ASSOC);
     if (!$entity) {
         http_response_code(404);
-        echo cmsRender('pages/404.disyl', ['page_title' => 'Not Found']);
+        cmsPublicRespond(cmsRender('pages/404.disyl', ['page_title' => 'Not Found']));
         return;
     }
 
-    echo cmsRenderThemeAwareTemplate('modules/cms/public/entity.book.disyl', cmsPublicContext([
+    cmsPublicRespond(cmsRenderThemeAwareTemplate('modules/cms/public/entity.book.disyl', cmsPublicContext([
         'page_title' => 'Book ' . (string)$entity['title'],
         'entity' => $entity,
         'content_type' => $type,
-    ]));
+    ])));
 }
 
 function cmsPublicEntityInquiry(array $params = []): void
@@ -971,7 +1054,7 @@ function cmsPublicEntityInquiry(array $params = []): void
     $slug = trim((string)($params['slug'] ?? ''));
     if ($type === '' || $slug === '') {
         http_response_code(404);
-        echo cmsRender('pages/404.disyl', ['page_title' => 'Not Found']);
+        cmsPublicRespond(cmsRender('pages/404.disyl', ['page_title' => 'Not Found']));
         return;
     }
 
@@ -987,15 +1070,15 @@ function cmsPublicEntityInquiry(array $params = []): void
     $entity = $stmt->fetch(PDO::FETCH_ASSOC);
     if (!$entity) {
         http_response_code(404);
-        echo cmsRender('pages/404.disyl', ['page_title' => 'Not Found']);
+        cmsPublicRespond(cmsRender('pages/404.disyl', ['page_title' => 'Not Found']));
         return;
     }
 
-    echo cmsRenderThemeAwareTemplate('modules/cms/public/entity.inquire.disyl', cmsPublicContext([
+    cmsPublicRespond(cmsRenderThemeAwareTemplate('modules/cms/public/entity.inquire.disyl', cmsPublicContext([
         'page_title' => 'Inquire About ' . (string)$entity['title'],
         'entity' => $entity,
         'content_type' => $type,
-    ]));
+    ])));
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -1014,7 +1097,7 @@ function cmsPublicEntityView(array $params = []): void
     // Reserved prefixes handled by dedicated routes
     if ($type === '' || $slug === '' || in_array($type, ['blog', 'page', 'admin', 'search', 'category', 'tag', 'feed'], true)) {
         http_response_code(404);
-        echo cmsRender('pages/404.disyl', ['page_title' => 'Not Found']);
+        cmsPublicRespond(cmsRender('pages/404.disyl', ['page_title' => 'Not Found']));
         return;
     }
 
@@ -1028,7 +1111,7 @@ function cmsPublicEntityView(array $params = []): void
                 exit;
             }
         }
-        echo $cached['html'];
+        cmsPublicRespond((string)$cached['html']);
         return;
     }
 
@@ -1054,7 +1137,7 @@ function cmsPublicEntityView(array $params = []): void
             exit;
         }
         http_response_code(404);
-        echo cmsRender('pages/404.disyl', ['page_title' => 'Not Found']);
+        cmsPublicRespond(cmsRender('pages/404.disyl', ['page_title' => 'Not Found']));
         return;
     }
 
@@ -1094,7 +1177,7 @@ function cmsPublicEntityView(array $params = []): void
     ], ['cms:entity:' . $type . ':' . $slug, 'cms:content:' . (int)$entity['id'], 'cms:type:' . $type]);
 
     cmsSendCacheHeaders($etag, $updatedAt);
-    echo $html;
+    cmsPublicRespond($html);
 }
 
 /**
@@ -1106,9 +1189,9 @@ function cmsPublicEntityList(array $params = []): void
     $type = trim((string)($params['type'] ?? ''));
 
     // Reserved prefixes handled by dedicated routes
-    if ($type === '' || in_array($type, ['blog', 'admin', 'search', 'feed'], true)) {
+    if ($type === '' || in_array($type, ['blog', 'page', 'admin', 'search', 'category', 'tag', 'feed', 'sitemap.xml'], true)) {
         http_response_code(404);
-        echo cmsRender('pages/404.disyl', ['page_title' => 'Not Found']);
+        cmsPublicRespond(cmsRender('pages/404.disyl', ['page_title' => 'Not Found']));
         return;
     }
 
@@ -1155,11 +1238,28 @@ function cmsPublicEntityList(array $params = []): void
                 exit;
             }
         }
-        echo $cached['html'];
+        cmsPublicRespond((string)$cached['html']);
         return;
     }
 
     $db = cmsDb();
+    $listTitle = '';
+
+    try {
+        $typeStmt = $db->prepare("SELECT label FROM cms_content_types WHERE slug = :slug AND is_active = 1 LIMIT 1");
+        $typeStmt->execute([':slug' => $type]);
+        $typeName = $typeStmt->fetchColumn();
+        if (!is_string($typeName) || trim($typeName) === '') {
+            http_response_code(404);
+            cmsPublicRespond(cmsRender('pages/404.disyl', ['page_title' => 'Not Found']));
+            return;
+        }
+        $listTitle = trim($typeName);
+    } catch (\Throwable $e) {
+        http_response_code(404);
+        cmsPublicRespond(cmsRender('pages/404.disyl', ['page_title' => 'Not Found']));
+        return;
+    }
 
     // ── Build dynamic SQL fragments ──────────────────────────────────
     $categoryJoin   = '';
@@ -1236,17 +1336,6 @@ function cmsPublicEntityList(array $params = []): void
         'next_url' => $page < $totalPages ? $listBase . '?page=' . ($page + 1) : '',
     ];
 
-    // Resolve content type label for list title
-    $listTitle = ucfirst($type);
-    try {
-        $tStmt = $db->prepare("SELECT label FROM cms_content_types WHERE slug = :slug LIMIT 1");
-        $tStmt->execute([':slug' => $type]);
-        $typeName = $tStmt->fetchColumn();
-        if ($typeName) {
-            $listTitle = (string)$typeName;
-        }
-    } catch (\Throwable $e) {}
-
     $sidebarTemplateKey = cmsSidebarTemplateKeyFromPath($templatePath, 'entity-list');
     $html = cmsRenderThemeAwareTemplate($templatePath, cmsPublicContext([
         'page_title'       => $listTitle,
@@ -1267,7 +1356,7 @@ function cmsPublicEntityList(array $params = []): void
     ], ['cms:type:' . $type]);
 
     cmsSendCacheHeaders($etag, $updatedAt);
-    echo $html;
+    cmsPublicRespond($html);
 }
 
 // ═══════════════════════════════════════════════════════════════════════

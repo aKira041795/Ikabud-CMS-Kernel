@@ -329,7 +329,14 @@ t('cmsApiContentUpdate fires updated event', str_contains($contentHandlerCode . 
 t('cmsApiContentTrash fires deleted event', str_contains($contentHandlerCode . $contentActionsCode, 'cms.content.deleted'));
 t('cmsApiContentPublish calls cmsCacheInvalidateContent', str_contains($contentHandlerCode . $contentActionsCode, 'cmsCacheInvalidateContent('));
 t('cmsApiBuilderDocumentPublish invalidates cache tags', str_contains($builderHandlerCode, 'cmsCacheInvalidateByTags'));
-t('cmsApiSettingsSave calls cmsCacheFlushAll', str_contains($settingsHandlerCode, 'cmsCacheFlushAll()'));
+t('cmsApiSettingsSave fires cms.settings.updated event', str_contains($settingsHandlerCode, "fireEvent('cms.settings.updated'") || str_contains($settingsHandlerCode, 'fireEvent("cms.settings.updated"'));
+t('settings updated listener flushes CMS cache', str_contains(file_get_contents(BASE_PATH . '/modules/cms/helpers/99-misc.php') ?: '', "listen('cms.settings.updated'") && str_contains(file_get_contents(BASE_PATH . '/modules/cms/helpers/99-misc.php') ?: '', 'cmsCacheFlushAll()'));
+t('public handlers centralize output through cmsPublicRespond', str_contains($publicHandlerCode, 'function cmsPublicRespond(string $body): void'));
+t('cmsPublicRespond releases session lock after render', str_contains($publicHandlerCode, 'releaseSessionAfterRender()'));
+t('cms public context detailed timing helper exists', str_contains(file_get_contents(BASE_PATH . '/modules/cms/helpers/78-public-context.php') ?: '', 'function cmsPublicContextDetailedTimingEnabled(): bool'));
+t('.env.example documents CMS public context verbose timing flag', str_contains(file_get_contents(BASE_PATH . '/.env.example') ?: '', 'CMS_PUBLIC_CONTEXT_TIMING_VERBOSE='));
+t('cmsPublicHome logs cache lookup timing', str_contains($publicHandlerCode, 'cms.public.home.cache_lookup'));
+t('cmsPublicHome logs total timing', str_contains($publicHandlerCode, 'cms.public.home.total'));
 
 $publicLayoutCode = file_get_contents(BASE_PATH . '/templates/modules/cms/layouts/public.disyl');
 t('public layout loads builder runtime for builder pages', str_contains($publicLayoutCode, '/assets/cms/builder-public.js'));

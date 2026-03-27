@@ -328,6 +328,23 @@ function cms_cap_entity_capability_pricing_data_1(mixed $payload, string $capabi
     if ($entityId <= 0) return [];
     $config = is_array($payload) ? ($payload['config'] ?? []) : [];
 
+    if (is_array($config) && array_key_exists('price', $config)) {
+        $price = $config['price'] !== '' && $config['price'] !== null ? (float)$config['price'] : null;
+        $salePrice = array_key_exists('sale_price', $config) && $config['sale_price'] !== '' && $config['sale_price'] !== null
+            ? (float)$config['sale_price']
+            : null;
+        $currency = (string)($config['currency'] ?? 'USD');
+        $onSale = $price !== null && $salePrice !== null && $salePrice < $price;
+
+        return [
+            'price' => $price,
+            'currency' => $currency,
+            'sale_price' => $onSale ? $salePrice : null,
+            'active_price' => $onSale ? $salePrice : $price,
+            'on_sale' => $onSale,
+        ];
+    }
+
     try {
         $db = cmsDb();
         $stmt = $db->prepare(
@@ -383,6 +400,43 @@ function cms_cap_entity_capability_inventory_data_1(mixed $payload, string $capa
 {
     $entityId = (int)(is_array($payload) ? ($payload['entity']['id'] ?? 0) : 0);
     if ($entityId <= 0) return [];
+    $config = is_array($payload) ? ($payload['config'] ?? []) : [];
+
+    $inventoryState = static function (bool $trackStock, int $stockQty, ?int $threshold = null): array {
+        if ($threshold === null) {
+            $threshold = 5;
+            if (function_exists('ecSettings')) {
+                try {
+                    $threshold = max(0, (int)ecSettings('low_stock_threshold'));
+                } catch (Throwable $e) {
+                    $threshold = 5;
+                }
+            }
+        }
+
+        return [
+            'in_stock' => !$trackStock || $stockQty > 0,
+            'out_of_stock' => $trackStock && $stockQty <= 0,
+            'low_stock' => $trackStock && $stockQty > 0 && $stockQty <= $threshold,
+        ];
+    };
+
+    if (is_array($config) && (array_key_exists('track_stock', $config) || array_key_exists('stock_qty', $config) || array_key_exists('sku', $config))) {
+        $trackStock = (bool)($config['track_stock'] ?? true);
+        $stockQty = isset($config['stock_qty']) && $config['stock_qty'] !== '' ? (int)$config['stock_qty'] : 0;
+        $state = $inventoryState($trackStock, $stockQty);
+
+        return [
+            'sku' => $config['sku'] ?? null,
+            'stock' => $stockQty,
+            'stock_qty' => $stockQty,
+            'track_inventory' => $trackStock,
+            'track_stock' => $trackStock,
+            'in_stock' => $state['in_stock'],
+            'out_of_stock' => $state['out_of_stock'],
+            'low_stock' => $state['low_stock'],
+        ];
+    }
 
     try {
         $db = cmsDb();
@@ -396,6 +450,7 @@ function cms_cap_entity_capability_inventory_data_1(mixed $payload, string $capa
             $config = (array)json_decode((string)($row['config'] ?? '{}'), true);
             $trackStock = (bool)($config['track_stock'] ?? true);
             $stockQty = isset($config['stock_qty']) ? (int)$config['stock_qty'] : 0;
+            $state = $inventoryState($trackStock, $stockQty);
 
             return [
                 'sku' => $config['sku'] ?? null,
@@ -403,9 +458,9 @@ function cms_cap_entity_capability_inventory_data_1(mixed $payload, string $capa
                 'stock_qty' => $stockQty,
                 'track_inventory' => $trackStock,
                 'track_stock' => $trackStock,
-                'in_stock' => !$trackStock || $stockQty > 0,
-                'out_of_stock' => $trackStock && $stockQty <= 0,
-                'low_stock' => $trackStock && $stockQty > 0 && $stockQty <= 5,
+                'in_stock' => $state['in_stock'],
+                'out_of_stock' => $state['out_of_stock'],
+                'low_stock' => $state['low_stock'],
             ];
         }
     } catch (\Throwable $e) {
@@ -425,6 +480,7 @@ function cms_cap_entity_capability_inventory_data_1(mixed $payload, string $capa
 
     $trackInventory = !empty($rows['_track_inventory']);
     $stockQty = isset($rows['_stock_qty']) ? (int)$rows['_stock_qty'] : null;
+    $state = $inventoryState($trackInventory, (int)($stockQty ?? 0));
 
     return [
         'sku' => $rows['_sku'] ?? null,
@@ -432,9 +488,9 @@ function cms_cap_entity_capability_inventory_data_1(mixed $payload, string $capa
         'stock_qty' => $stockQty,
         'track_inventory' => $trackInventory,
         'track_stock' => $trackInventory,
-        'in_stock' => !isset($rows['_stock_qty']) || (int)$rows['_stock_qty'] > 0,
-        'out_of_stock' => $trackInventory && isset($rows['_stock_qty']) && (int)$rows['_stock_qty'] <= 0,
-        'low_stock' => $trackInventory && isset($rows['_stock_qty']) && (int)$rows['_stock_qty'] > 0 && (int)$rows['_stock_qty'] <= 5,
+        'in_stock' => !isset($rows['_stock_qty']) ? true : $state['in_stock'],
+        'out_of_stock' => isset($rows['_stock_qty']) ? $state['out_of_stock'] : false,
+        'low_stock' => isset($rows['_stock_qty']) ? $state['low_stock'] : false,
     ];
 }
 
@@ -537,6 +593,15 @@ function cms_cap_entity_capability_media_gallery_data_1(mixed $payload, string $
 {
     $entityId = (int)(is_array($payload) ? ($payload['entity']['id'] ?? 0) : 0);
     $config   = is_array($payload) ? ($payload['config'] ?? []) : [];
+
+    if (is_array($config) && array_key_exists('items', $config) && is_array($config['items'])) {
+        return [
+            'items'    => $config['items'],
+            'columns'  => (int)($config['columns'] ?? 3),
+            'lightbox' => !empty($config['lightbox']),
+        ];
+    }
+
     if ($entityId <= 0) return ['items' => []];
     try {
         $db   = cmsDb();

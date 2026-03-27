@@ -68,6 +68,7 @@
     {if builder_enabled && theme_style_url}
     <link rel="stylesheet" href="{theme_style_url}">
     {/if}
+    <noscript><style>body:not(.cz-loaded),[data-animate]{opacity:1!important;transform:none!important;}</style></noscript>
 </head>
 <body class="bg-gray-50 text-gray-800 min-h-screen {if builder_enabled && builder_page_settings.body_class}{builder_page_settings.body_class}{/if}">
     <!-- Public header -->
@@ -102,6 +103,24 @@
             &copy; {current_year|default:"2025"} {site_title|default:"CMS"}. Powered by CMS Module.
         </div>
     </footer>
+    <script>
+        (function () {
+            function revealCmsContent() {
+                if (document.body) {
+                    document.body.classList.add('cz-loaded');
+                }
+                document.querySelectorAll('[data-animate]').forEach(function (el) {
+                    el.classList.add('cms-animated');
+                });
+            }
+
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', revealCmsContent, { once: true });
+            } else {
+                revealCmsContent();
+            }
+        })();
+    </script>
     {if builder_enabled}
     <script src="{base_url}/assets/cms/builder-public.js"></script>
     {/if}
