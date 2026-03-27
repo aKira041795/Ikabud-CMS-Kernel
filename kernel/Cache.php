@@ -134,7 +134,7 @@ class Cache
         $dir = $this->cacheDir . '/' . $safeId;
         
         if (!is_dir($dir)) {
-            mkdir($dir, 0755, true);
+            @mkdir($dir, 0755, true);
         }
         
         return $dir;
@@ -163,7 +163,7 @@ class Cache
         // Check if cache is expired
         $age = time() - filemtime($file);
         if ($age > $this->ttl) {
-            unlink($file);
+            @unlink($file);
             return false;
         }
         
@@ -306,17 +306,15 @@ class Cache
             }
             
             // Atomic write: write to temp file, then rename
-            $result = file_put_contents($tempFile, $data, LOCK_EX);
+            $result = @file_put_contents($tempFile, $data, LOCK_EX);
             
             if ($result === false) {
-                error_log("Cache write error: Failed to write to $tempFile");
                 $this->incrementStat('errors');
                 return;
             }
             
             // Atomic rename
-            if (!rename($tempFile, $file)) {
-                error_log("Cache write error: Failed to rename $tempFile to $file");
+            if (!@rename($tempFile, $file)) {
                 @unlink($tempFile);
                 $this->incrementStat('errors');
                 return;
@@ -328,7 +326,6 @@ class Cache
             }
             
         } catch (\Exception $e) {
-            error_log("Cache write error: " . $e->getMessage());
             @unlink($tempFile);
             $this->incrementStat('errors');
         }

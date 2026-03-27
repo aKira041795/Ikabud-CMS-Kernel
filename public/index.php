@@ -32,9 +32,7 @@ function releaseSessionAfterRender(): void
     }
     $method = strtoupper((string)($_SERVER['REQUEST_METHOD'] ?? 'GET'));
     if ($method === 'GET' || $method === 'HEAD') {
-        if (session_status() === PHP_SESSION_ACTIVE) {
-            session_write_close();
-        }
+        release_session_lock_if_active();
     }
 }
 

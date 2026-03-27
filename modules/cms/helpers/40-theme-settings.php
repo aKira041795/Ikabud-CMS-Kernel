@@ -378,6 +378,8 @@ function cmsResetThemeRuntimeCache(): void
     $GLOBALS['cms_active_theme_cached_t' . $tid] = false;
     $GLOBALS['cms_active_theme_value_t' . $tid] = null;
     $GLOBALS['cms_theme_symlink_checked_t' . $tid] = false;
+    $GLOBALS['cms_active_theme_manifest_cached_t' . $tid] = false;
+    $GLOBALS['cms_active_theme_manifest_value_t' . $tid] = null;
 }
 
 /**
@@ -581,17 +583,7 @@ function cmsEnsureThemeSymlink(): void
 function cmsResolveTemplate(string $subPath): string
 {
     $default = 'modules/cms/' . $subPath;
-    $activeTheme = cmsActiveTheme();
-    if ($activeTheme === null) {
-        return $default;
-    }
-    cmsEnsureThemeSymlink();
-    // Check if theme override exists via the symlink
-    $overridePath = (string)CMS_THEME_SYMLINK . '/' . $subPath;
-    if (is_file($overridePath)) {
-        return '_cms_active_theme/' . $subPath;
-    }
-    return $default;
+
     // Respect restrict_to_tokens: only allow overrides listed in overridable_blocks
     $manifest = cmsActiveThemeManifest();
     if (!empty($manifest['restrict_to_tokens'])) {
@@ -601,6 +593,17 @@ function cmsResolveTemplate(string $subPath): string
         if (!in_array($baseName, $allowed, true) && !in_array($subPath, $allowed, true)) {
             return $default;
         }
+    }
+
+    $activeTheme = cmsActiveTheme();
+    if ($activeTheme === null) {
+        return $default;
+    }
+
+    cmsEnsureThemeSymlink();
+    $overridePath = (string)CMS_THEME_SYMLINK . '/' . $subPath;
+    if (!is_file($overridePath)) {
+        return $default;
     }
 
     return '_cms_active_theme/' . $subPath;
@@ -616,27 +619,31 @@ function cmsResolveTemplate(string $subPath): string
  */
 function cmsActiveThemeManifest(): array
 {
-    static $cache = null;
-    if ($cache !== null) {
-        return $cache;
+    $tid = cmsRuntimeTenantId();
+    $cachedKey = 'cms_active_theme_manifest_cached_t' . $tid;
+    $valueKey = 'cms_active_theme_manifest_value_t' . $tid;
+    if (!empty($GLOBALS[$cachedKey])) {
+        return is_array($GLOBALS[$valueKey] ?? null) ? $GLOBALS[$valueKey] : [];
     }
 
+    $GLOBALS[$cachedKey] = true;
     $active = cmsActiveTheme();
     if ($active === null) {
-        $cache = [];
-        return $cache;
+        $GLOBALS[$valueKey] = [];
+        return [];
     }
 
     $manifestFile = cmsThemesPath() . '/' . $active . '/theme.json';
     if (!is_file($manifestFile)) {
-        $cache = ['slug' => $active];
-        return $cache;
+        $GLOBALS[$valueKey] = ['slug' => $active];
+        return $GLOBALS[$valueKey];
     }
 
     $decoded = kernelReadJsonFile($manifestFile);
-    $cache   = is_array($decoded) ? $decoded : [];
-    $cache['slug'] = $active;
-    return $cache;
+    $manifest = is_array($decoded) ? $decoded : [];
+    $manifest['slug'] = $active;
+    $GLOBALS[$valueKey] = $manifest;
+    return $manifest;
 }
 
 /**

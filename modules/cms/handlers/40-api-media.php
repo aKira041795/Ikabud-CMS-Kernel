@@ -43,50 +43,17 @@ function cmsApiMediaUpload(array $params = []): void
         exit;
     }
 
-    // Use max_upload_mb from CMS settings (default 2MB)
-    $cmsSettings = readCmsSettings();
-    $maxMb = max(1, min(64, (int)($cmsSettings['max_upload_mb'] ?? 2)));
-    $maxSize = $maxMb * 1024 * 1024;
-    if ($file['size'] > $maxSize) {
+    $validation = cmsValidateMediaUploadFile((string)$file['tmp_name'], (string)$file['name'], (int)($file['size'] ?? 0));
+    if (empty($validation['ok'])) {
         http_response_code(422);
-        echo json_encode(['ok' => false, 'error' => 'File exceeds ' . $maxMb . 'MB limit']);
+        echo json_encode(['ok' => false, 'error' => (string)($validation['error'] ?? 'Upload validation failed')]);
         exit;
     }
 
-    // Whitelist MIME types
-    $allowedMimes = [
-        'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml',
-        'application/pdf',
-        'text/plain', 'text/csv',
-        'application/msword',
-        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-        'application/vnd.ms-excel',
-        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    ];
-
-    $finfo = new finfo(FILEINFO_MIME_TYPE);
-    $mimeType = $finfo->file($file['tmp_name']);
-    if (!in_array($mimeType, $allowedMimes, true)) {
-        http_response_code(422);
-        echo json_encode(['ok' => false, 'error' => 'File type not allowed: ' . $mimeType]);
-        exit;
-    }
-
-    // Check for dangerous file signatures (PHP, shell scripts, executables)
-    $dangerCheck = cmsCheckDangerousFileSignature($file['tmp_name']);
-    if ($dangerCheck !== null) {
-        http_response_code(422);
-        echo json_encode(['ok' => false, 'error' => $dangerCheck]);
-        exit;
-    }
-
-    // Generate safe filename
-    $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
-    $safeExts = ['jpg','jpeg','png','gif','webp','svg','pdf','txt','csv','doc','docx','xls','xlsx'];
-    if (!in_array($ext, $safeExts, true)) {
-        $ext = 'bin';
-    }
-    $filename = date('Ymd_His') . '_' . substr(bin2hex(random_bytes(4)), 0, 8) . '.' . $ext;
+    $mimeType = (string)$validation['mime_type'];
+    $filename = (string)$validation['filename'];
+    $ext = (string)$validation['extension'];
+    $fileSize = (int)($validation['file_size'] ?? (int)($file['size'] ?? 0));
 
     // Organize by year/month
     $subDir = date('Y') . '/' . date('m');
@@ -122,7 +89,7 @@ function cmsApiMediaUpload(array $params = []): void
         ':fname' => $filename,
         ':oname' => $file['name'],
         ':mime'  => $mimeType,
-        ':size'  => $file['size'],
+        ':size'  => $fileSize,
         ':path'  => $relPath,
         ':uid'   => $authorId,
     ]);

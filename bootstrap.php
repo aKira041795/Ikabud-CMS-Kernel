@@ -180,6 +180,16 @@ function write_log(string $message, string $level = 'error', array $context = []
     @file_put_contents($logDir . '/app.log', $line, FILE_APPEND | LOCK_EX);
 }
 
+function release_session_lock_if_active(): bool
+{
+    if (session_status() !== PHP_SESSION_ACTIVE) {
+        return false;
+    }
+
+    session_write_close();
+    return true;
+}
+
 function finish_response_if_possible(): void
 {
     if (PHP_SAPI === 'cli') {

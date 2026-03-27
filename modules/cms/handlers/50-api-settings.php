@@ -93,6 +93,7 @@ function cmsApiSettingsSave(array $params = []): void
 
     $response = json_encode(['ok' => true]);
     echo $response;
+    release_session_lock_if_active();
     finish_response_if_possible();
 
     // If active_theme changed, update the symlink after the response so the
@@ -140,6 +141,7 @@ function cmsApiSettingsReset(array $params = []): void
 
     $response = json_encode(['ok' => true, 'settings' => $defaults]);
     echo $response;
+    release_session_lock_if_active();
     finish_response_if_possible();
 
     // Reset theme to default

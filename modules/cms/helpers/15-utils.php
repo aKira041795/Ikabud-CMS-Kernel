@@ -200,6 +200,95 @@ function cmsResolveUploadUrl(string $relativePath): string
     return cmsUploadsUrl($relativePath);
 }
 
+function cmsAllowedMediaMimeTypes(): array
+{
+    return [
+        'image/jpeg',
+        'image/png',
+        'image/gif',
+        'image/webp',
+        'image/svg+xml',
+        'application/pdf',
+        'text/plain',
+        'text/csv',
+        'application/msword',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'application/vnd.ms-excel',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    ];
+}
+
+function cmsAllowedMediaExtensions(): array
+{
+    return ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'pdf', 'txt', 'csv', 'doc', 'docx', 'xls', 'xlsx'];
+}
+
+function cmsMediaMaxUploadMb(): int
+{
+    $settings = function_exists('readCmsSettings') ? readCmsSettings() : [];
+    return max(1, min(64, (int)($settings['max_upload_mb'] ?? 2)));
+}
+
+function cmsMediaMaxUploadBytes(): int
+{
+    return cmsMediaMaxUploadMb() * 1024 * 1024;
+}
+
+function cmsSafeMediaExtension(string $originalName): string
+{
+    $ext = strtolower(pathinfo($originalName, PATHINFO_EXTENSION));
+    if (!in_array($ext, cmsAllowedMediaExtensions(), true)) {
+        return 'bin';
+    }
+
+    return $ext;
+}
+
+function cmsGenerateMediaFilename(string $originalName): string
+{
+    return date('Ymd_His') . '_' . substr(bin2hex(random_bytes(4)), 0, 8) . '.' . cmsSafeMediaExtension($originalName);
+}
+
+/**
+ * Validate an uploadable media file using the shared CMS policy.
+ * Returns ['ok' => true, 'mime_type' => ..., 'file_size' => ...] on success.
+ */
+function cmsValidateMediaUploadFile(string $filePath, string $originalName, int $declaredSize = 0): array
+{
+    if ($filePath === '' || !is_file($filePath)) {
+        return ['ok' => false, 'error' => 'No file uploaded'];
+    }
+
+    $actualSize = (int)(@filesize($filePath) ?: 0);
+    $effectiveSize = max($declaredSize, $actualSize);
+    $maxMb = cmsMediaMaxUploadMb();
+    $maxSize = cmsMediaMaxUploadBytes();
+    if ($effectiveSize > $maxSize) {
+        return ['ok' => false, 'error' => 'File exceeds ' . $maxMb . 'MB limit'];
+    }
+
+    $finfo = new finfo(FILEINFO_MIME_TYPE);
+    $mimeType = (string)($finfo->file($filePath) ?: '');
+    if ($mimeType === '' || !in_array($mimeType, cmsAllowedMediaMimeTypes(), true)) {
+        return ['ok' => false, 'error' => 'File type not allowed: ' . ($mimeType !== '' ? $mimeType : 'unknown')];
+    }
+
+    if (function_exists('cmsCheckDangerousFileSignature')) {
+        $dangerCheck = cmsCheckDangerousFileSignature($filePath);
+        if ($dangerCheck !== null) {
+            return ['ok' => false, 'error' => $dangerCheck];
+        }
+    }
+
+    return [
+        'ok' => true,
+        'mime_type' => $mimeType,
+        'file_size' => $effectiveSize,
+        'extension' => cmsSafeMediaExtension($originalName),
+        'filename' => cmsGenerateMediaFilename($originalName),
+    ];
+}
+
 /**
  * Generate thumbnail(s) for an uploaded image using GD.
  * Returns array of generated thumbnail relative paths, keyed by size name.

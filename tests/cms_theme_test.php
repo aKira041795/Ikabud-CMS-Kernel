@@ -29,6 +29,27 @@ function t(string $label, bool $ok, string $detail = ''): void
     }
 }
 
+function deleteTree(string $path): void
+{
+    if ($path === '' || !file_exists($path)) {
+        return;
+    }
+
+    if (is_file($path) || is_link($path)) {
+        @unlink($path);
+        return;
+    }
+
+    foreach (scandir($path) ?: [] as $entry) {
+        if ($entry === '.' || $entry === '..') {
+            continue;
+        }
+        deleteTree($path . '/' . $entry);
+    }
+
+    @rmdir($path);
+}
+
 // ── Clear logs ──────────────────────────────────────────────────────
 file_put_contents(STORAGE_PATH . '/logs/app.log', '');
 file_put_contents(STORAGE_PATH . '/logs/error.log', '');
@@ -168,7 +189,67 @@ t('home extends theme layout', str_contains($homeContent, '{extends "_cms_active
 t('home has foreach posts', str_contains($homeContent, '{foreach posts as post}'));
 
 // ═══════════════════════════════════════════════════════════════════
-// 6a. Shared render lock must not re-enter symlink mutation
+// 6a. Token-only theme enforcement + manifest cache reset
+// ═══════════════════════════════════════════════════════════════════
+echo "\n=== TOKEN-ONLY THEME POLICY ===\n";
+
+$tokenThemeA = 'token-only-regression-a';
+$tokenThemeB = 'token-only-regression-b';
+$tokenThemeADir = cmsThemesPath() . '/' . $tokenThemeA;
+$tokenThemeBDir = cmsThemesPath() . '/' . $tokenThemeB;
+
+foreach ([$tokenThemeADir, $tokenThemeBDir] as $dir) {
+    @mkdir($dir . '/layouts', 0775, true);
+    @mkdir($dir . '/public/blocks', 0775, true);
+}
+
+file_put_contents($tokenThemeADir . '/theme.json', json_encode([
+    'name' => 'Token Only Regression A',
+    'version' => '1.0',
+    'restrict_to_tokens' => true,
+    'overridable_blocks' => ['allowed.block.disyl'],
+    'tokens' => ['color_primary' => '#111111'],
+], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+file_put_contents($tokenThemeADir . '/layouts/public.disyl', "<!DOCTYPE html>\n{block content}{/block}\n");
+file_put_contents($tokenThemeADir . '/public/home.disyl', "{extends \"_cms_active_theme/layouts/public.disyl\"}\n{block content}token only home{/block}\n");
+file_put_contents($tokenThemeADir . '/public/blocks/allowed.block.disyl', '<div>allowed block override</div>');
+
+file_put_contents($tokenThemeBDir . '/theme.json', json_encode([
+    'name' => 'Token Only Regression B',
+    'version' => '1.0',
+    'restrict_to_tokens' => true,
+    'overridable_blocks' => ['allowed.block.disyl'],
+    'tokens' => ['color_primary' => '#222222'],
+], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+file_put_contents($tokenThemeBDir . '/layouts/public.disyl', "<!DOCTYPE html>\n{block content}{/block}\n");
+file_put_contents($tokenThemeBDir . '/public/home.disyl', "{extends \"_cms_active_theme/layouts/public.disyl\"}\n{block content}token only home b{/block}\n");
+file_put_contents($tokenThemeBDir . '/public/blocks/allowed.block.disyl', '<div>allowed block override b</div>');
+
+$tokenSettings = $oldSettings;
+$tokenSettings['active_theme'] = $tokenThemeA;
+saveModuleSettings('cms', $tokenSettings);
+cmsResetThemeRuntimeCache();
+
+$tokenTemplate = cmsResolveTemplate('public/home.disyl');
+t('token-only theme cannot override full public template', $tokenTemplate === 'modules/cms/public/home.disyl', $tokenTemplate);
+
+$allowedBlock = cmsResolveBlockTemplate('modules/cms/public/blocks/allowed.block.disyl');
+t('token-only theme can override allowlisted block', $allowedBlock === '_cms_active_theme/public/blocks/allowed.block.disyl', $allowedBlock);
+
+$manifestA = cmsActiveThemeManifest();
+t('active theme manifest loads first token-only theme', ($manifestA['slug'] ?? '') === $tokenThemeA);
+t('active theme manifest exposes token payload for first theme', (($manifestA['tokens']['color_primary'] ?? '') === '#111111'));
+
+$tokenSettings['active_theme'] = $tokenThemeB;
+saveModuleSettings('cms', $tokenSettings);
+cmsResetThemeRuntimeCache();
+
+$manifestB = cmsActiveThemeManifest();
+t('manifest cache resets when active theme changes', ($manifestB['slug'] ?? '') === $tokenThemeB, json_encode($manifestB));
+t('manifest cache refresh picks up new token payload', (($manifestB['tokens']['color_primary'] ?? '') === '#222222'));
+
+// ═══════════════════════════════════════════════════════════════════
+// 6b. Shared render lock must not re-enter symlink mutation
 // ═══════════════════════════════════════════════════════════════════
 echo "\n=== SHARED LOCK RENDER PATH ===\n";
 
@@ -207,6 +288,10 @@ t('symlink cleaned up', !is_link($link));
 // Restore original settings
 saveModuleSettings('cms', $oldSettings);
 t('settings restored', true);
+
+deleteTree($tokenThemeADir);
+deleteTree($tokenThemeBDir);
+t('temporary token-only themes cleaned up', !is_dir($tokenThemeADir) && !is_dir($tokenThemeBDir));
 
 // ═══════════════════════════════════════════════════════════════════
 // LOG CHECK

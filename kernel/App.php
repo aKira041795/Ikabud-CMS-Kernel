@@ -593,10 +593,11 @@ class App
     }
 
     /**
-     * Resolve the tenant database connection config from the control plane.
-     * Returns null when multi-tenancy is disabled or tenant cannot be resolved.
+     * Resolve whether the current request should use a tenant-specific database.
+     * Returns the tenant ID only when multi-tenancy is enabled and the active
+     * strategy is backed by the control plane.
      */
-    private function resolveTenantDatabaseConfig(): ?array
+    private function resolveCurrentTenantDbTarget(): ?int
     {
         $mt = $this->config['app']['multi_tenant'] ?? [];
         if (empty($mt['enabled'])) {
@@ -608,9 +609,40 @@ class App
             return null;
         }
 
-        // Only the control-plane strategies should trigger DB switching.
         $strategy = (string)($mt['strategy'] ?? '');
         if ($strategy !== 'control_host' && $strategy !== 'control' && $strategy !== 'auto') {
+            return null;
+        }
+
+        return (int)$tenantId;
+    }
+
+    /**
+     * Build a consistent context payload for tenant DB resolution failures.
+     */
+    private function tenantDbFailureContext(int $tenantId, array $extra = []): array
+    {
+        $context = [
+            'tenant_id' => $tenantId,
+            'request_id' => function_exists('request_id') ? request_id() : null,
+            'strategy' => (string)(($this->config['app']['multi_tenant']['strategy'] ?? '')),
+        ];
+
+        if (!empty($_SERVER['HTTP_HOST'])) {
+            $context['host'] = (string)$_SERVER['HTTP_HOST'];
+        }
+
+        return array_merge($context, $extra);
+    }
+
+    /**
+     * Resolve the tenant database connection config from the control plane.
+     * Returns null when multi-tenancy is disabled or tenant cannot be resolved.
+     */
+    private function resolveTenantDatabaseConfig(): ?array
+    {
+        $tenantId = $this->resolveCurrentTenantDbTarget();
+        if ($tenantId === null) {
             return null;
         }
 
@@ -625,7 +657,7 @@ class App
             $stmt->execute([':tid' => $tenantId]);
             $row = $stmt->fetch(\PDO::FETCH_ASSOC);
             if (!is_array($row) || empty($row['db_host']) || empty($row['db_name']) || empty($row['db_user'])) {
-                return null;
+                throw new \UnexpectedValueException('Tenant database configuration is missing or incomplete for tenant ' . $tenantId);
             }
 
             $password = (string)($row['db_pass'] ?? '');
@@ -649,7 +681,12 @@ class App
                 'options' => ($this->config['database']['options'] ?? null),
             ];
         } catch (\Throwable $e) {
-            return null;
+            $this->log(
+                'Tenant DB resolution failed: ' . $e->getMessage(),
+                'error',
+                $this->tenantDbFailureContext($tenantId, ['exception' => get_class($e)])
+            );
+            throw new \RuntimeException('Tenant database configuration could not be resolved for tenant ' . $tenantId, 0, $e);
         } finally {
             $GLOBALS['_kernel_db_unguarded'] = $previousUnguarded;
         }

@@ -69,20 +69,16 @@ function mediaDelete(int $id, ?string $uploadsPath = null): array
 function mediaUpload(array $payload): array
 {
     $original = trim((string)($payload['original_name'] ?? ''));
-    $mime = trim((string)($payload['mime_type'] ?? ''));
     $size = (int)($payload['file_size'] ?? 0);
     $uploadedBy = (int)($payload['uploaded_by'] ?? 0);
     $tmpPath = trim((string)($payload['tmp_path'] ?? ''));
     $b64 = (string)($payload['contents_base64'] ?? '');
 
-    if ($original === '' || $mime === '' || $uploadedBy <= 0) {
-        return ['ok' => false, 'error' => 'original_name, mime_type, uploaded_by are required'];
-    }
-    if ($size > (2 * 1024 * 1024)) {
-        return ['ok' => false, 'error' => 'File exceeds 2MB limit'];
+    if ($original === '' || $uploadedBy <= 0) {
+        return ['ok' => false, 'error' => 'original_name and uploaded_by are required'];
     }
 
-    if (!function_exists('cmsUploadsPath') || !function_exists('cmsUploadsUrl')) {
+    if (!function_exists('cmsUploadsPath') || !function_exists('cmsResolveUploadUrl') || !function_exists('cmsValidateMediaUploadFile')) {
         return ['ok' => false, 'error' => 'CMS uploads helpers not available'];
     }
 
@@ -91,12 +87,42 @@ function mediaUpload(array $payload): array
         return ['ok' => false, 'error' => 'Module context unavailable'];
     }
 
-    $ext = strtolower(pathinfo($original, PATHINFO_EXTENSION));
-    $safeExts = ['jpg','jpeg','png','gif','webp','svg','pdf','txt','csv','doc','docx','xls','xlsx'];
-    if (!in_array($ext, $safeExts, true)) {
-        $ext = 'bin';
+    $sourcePath = '';
+    $cleanupSourcePath = false;
+    if ($tmpPath !== '' && is_file($tmpPath)) {
+        $sourcePath = $tmpPath;
+    } elseif ($b64 !== '') {
+        $raw = base64_decode($b64, true);
+        if ($raw === false) {
+            return ['ok' => false, 'error' => 'Invalid base64 payload'];
+        }
+
+        $sourcePath = tempnam(sys_get_temp_dir(), 'media_cap_') ?: '';
+        if ($sourcePath === '' || !kernelWriteFile($sourcePath, $raw)) {
+            if ($sourcePath !== '' && is_file($sourcePath)) {
+                @unlink($sourcePath);
+            }
+            return ['ok' => false, 'error' => 'Failed to stage upload'];
+        }
+        $cleanupSourcePath = true;
     }
-    $filename = date('Ymd_His') . '_' . substr(bin2hex(random_bytes(4)), 0, 8) . '.' . $ext;
+
+    if ($sourcePath === '') {
+        return ['ok' => false, 'error' => 'No upload contents provided'];
+    }
+
+    $validation = cmsValidateMediaUploadFile($sourcePath, $original, $size);
+    if (empty($validation['ok'])) {
+        if ($cleanupSourcePath && is_file($sourcePath)) {
+            @unlink($sourcePath);
+        }
+        return ['ok' => false, 'error' => (string)($validation['error'] ?? 'Upload validation failed')];
+    }
+
+    $mime = (string)$validation['mime_type'];
+    $size = (int)($validation['file_size'] ?? $size);
+    $filename = (string)$validation['filename'];
+    $ext = (string)$validation['extension'];
     $subDir = date('Y') . '/' . date('m');
     $uploadDir = cmsUploadsPath() . '/' . $subDir;
     if (!is_dir($uploadDir)) {
@@ -105,16 +131,10 @@ function mediaUpload(array $payload): array
     $destPath = $uploadDir . '/' . $filename;
 
     $written = false;
-    if ($tmpPath !== '' && is_file($tmpPath)) {
-        $written = kernelCopyFile($tmpPath, $destPath);
-    } elseif ($b64 !== '') {
-        $raw = base64_decode($b64, true);
-        if ($raw !== false) {
-            $written = kernelWriteFile($destPath, $raw);
-            if ($size <= 0) {
-                $size = is_file($destPath) ? (int)filesize($destPath) : 0;
-            }
-        }
+    $written = kernelCopyFile($sourcePath, $destPath);
+
+    if ($cleanupSourcePath && is_file($sourcePath)) {
+        @unlink($sourcePath);
     }
 
     if (!$written) {
@@ -124,6 +144,14 @@ function mediaUpload(array $payload): array
     $relPath = $subDir . '/' . $filename;
     try {
         $db = $ctx->db();
+
+        $thumbnails = [];
+        $imageMimes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+        if (function_exists('cmsGenerateThumbnails') && in_array($mime, $imageMimes, true)) {
+            $filenameBase = pathinfo($filename, PATHINFO_FILENAME);
+            $thumbnails = cmsGenerateThumbnails($destPath, $subDir, $filenameBase, $ext);
+        }
+
         $stmt = $db->prepare(
             "INSERT INTO cms_media (filename, original_name, mime_type, file_size, file_path, uploaded_by, created_at)\n             VALUES (:fname, :oname, :mime, :size, :path, :uid, NOW())"
         );
@@ -143,8 +171,24 @@ function mediaUpload(array $payload): array
             'mime_type' => $mime,
         ]);
 
-        return ['ok' => true, 'id' => $mediaId, 'url' => cmsUploadsUrl($relPath), 'filename' => $filename];
+        $thumbUrls = [];
+        foreach ($thumbnails as $thumbSize => $thumbRelPath) {
+            $thumbUrls[$thumbSize] = cmsResolveUploadUrl($thumbRelPath);
+        }
+
+        return [
+            'ok' => true,
+            'id' => $mediaId,
+            'url' => cmsResolveUploadUrl($relPath),
+            'filename' => $filename,
+            'mime_type' => $mime,
+            'file_path' => $relPath,
+            'thumbnails' => $thumbUrls,
+        ];
     } catch (Throwable $e) {
+        if (is_file($destPath)) {
+            @unlink($destPath);
+        }
         return ['ok' => false, 'error' => 'Database error'];
     }
 }

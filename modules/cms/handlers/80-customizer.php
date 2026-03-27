@@ -197,6 +197,7 @@ function cmsApiCustomizerSave(array $params = []): void
 
     $response = json_encode(['ok' => true]);
     echo $response;
+    release_session_lock_if_active();
     finish_response_if_possible();
 
     // Customizer saves change runtime data, not compiled templates. Avoid
