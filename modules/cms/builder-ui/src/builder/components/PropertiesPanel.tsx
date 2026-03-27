@@ -369,8 +369,8 @@ const CategorySelector: React.FC<CategorySelectorProps> = ({ value, onChange }) 
           headers: { 'Accept': 'application/json' },
         });
         const data = await response.json();
-        if ((data.ok || data.success) && data.data) {
-          setCategories(data.data.filter((cat: any) => cat.post_count > 0));
+        if ((data.ok || data.success) && Array.isArray(data.data)) {
+          setCategories(data.data);
         }
       } catch (error) {
         console.error('Failed to fetch categories:', error);
@@ -415,6 +415,64 @@ const CategorySelector: React.FC<CategorySelectorProps> = ({ value, onChange }) 
   );
 };
 
+const DepartmentSelector: React.FC<CategorySelectorProps> = ({ value, onChange }) => {
+  const [departments, setDepartments] = useState<Array<{ id: number; name: string; slug: string }>>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchDepartments = async () => {
+      try {
+        const response = await fetch('/api/v1/cms/categories?exclude_taxonomy=product', {
+          credentials: 'include',
+          headers: { 'Accept': 'application/json' },
+        });
+        const data = await response.json();
+        if ((data.ok || data.success) && Array.isArray(data.data)) {
+          setDepartments(data.data);
+        }
+      } catch (error) {
+        console.error('Failed to fetch departments:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchDepartments();
+  }, []);
+
+  const handleToggle = (departmentId: number) => {
+    if (value.includes(departmentId)) {
+      onChange(value.filter(id => id !== departmentId));
+    } else {
+      onChange([...value, departmentId]);
+    }
+  };
+
+  if (loading) {
+    return <div className="text-xs text-white/60">Loading departments...</div>;
+  }
+
+  if (departments.length === 0) {
+    return <div className="text-xs text-white/60">No departments found</div>;
+  }
+
+  return (
+    <div className="space-y-2 max-h-32 overflow-y-auto">
+      {departments.map(department => (
+        <label key={department.id} className="flex items-center gap-2 text-xs text-white/80 cursor-pointer hover:text-white">
+          <input
+            type="checkbox"
+            checked={value.includes(department.id)}
+            onChange={() => handleToggle(department.id)}
+            className="w-3 h-3 bg-[#1e1e1e] border border-[#3c3c3c] rounded focus:outline-none focus:border-[#0078d4]"
+          />
+          <span>{department.name}</span>
+        </label>
+      ))}
+    </div>
+  );
+};
+
 const ProductCategorySelector: React.FC<CategorySelectorProps> = ({ value, onChange }) => {
   const [categories, setCategories] = useState<Array<{ id: number; name: string; slug: string }>>([]);
   const [loading, setLoading] = useState(true);
@@ -427,8 +485,16 @@ const ProductCategorySelector: React.FC<CategorySelectorProps> = ({ value, onCha
           headers: { 'Accept': 'application/json' },
         });
         const data = await response.json();
-        if ((data.ok || data.success) && data.categories) {
-          setCategories(data.categories);
+        const nextCategories = Array.isArray(data.categories)
+          ? data.categories
+          : Array.isArray(data.data?.categories)
+            ? data.data.categories
+            : Array.isArray(data.data)
+              ? data.data
+              : [];
+
+        if ((data.ok || data.success) && nextCategories.length > 0) {
+          setCategories(nextCategories);
         }
       } catch (error) {
         console.error('Failed to fetch product categories:', error);
@@ -1174,6 +1240,8 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
                 { value: '2', label: '2 Columns' },
                 { value: '3', label: '3 Columns' },
                 { value: '4', label: '4 Columns' },
+                { value: '5', label: '5 Columns' },
+                { value: '6', label: '6 Columns' },
               ]}
             />
           </CollapsibleSection>
@@ -1236,6 +1304,15 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
                   />
                 </button>
               </div>
+
+              {node.props.showReadMore !== false && (
+                <TextInput
+                  label="Link Label"
+                  value={String(node.props.readMoreText || 'Read More')}
+                  onChange={(v) => handlePropChange('readMoreText', v)}
+                  placeholder="Read More"
+                />
+              )}
             </div>
           </CollapsibleSection>
 
@@ -1337,7 +1414,7 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
           <div className="mb-3 p-3 bg-[#1a1a2e] rounded-lg border border-white/10">
             <div className="text-[10px] font-medium text-white/40 uppercase tracking-wide mb-2">This block currently shows</div>
             <div className="text-xs text-white/80 space-y-1">
-              <div><span className="text-white/50">Source:</span> {(node.props.categoryIds as number[])?.length > 0 ? `${(node.props.categoryIds as number[]).length} categories` : 'All products'}</div>
+              <div><span className="text-white/50">Categories:</span> {(node.props.categoryIds as number[])?.length > 0 ? `${(node.props.categoryIds as number[]).length} selected` : 'All categories'}</div>
               <div><span className="text-white/50">Display:</span> {String(node.props.itemCount || 6)} products in {String(node.props.gridColumns || 3)} columns</div>
               <div><span className="text-white/50">Order:</span> {node.props.orderBy === 'title' ? 'By name' : node.props.orderBy === 'price' ? 'By price' : node.props.orderBy === 'random' ? 'Random' : 'Newest first'}</div>
             </div>
@@ -1363,9 +1440,12 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
               value={String(node.props.gridColumns || 3)}
               onChange={(v) => handlePropChange('gridColumns', parseInt(v))}
               options={[
+                { value: '1', label: '1 Column' },
                 { value: '2', label: '2 Columns' },
                 { value: '3', label: '3 Columns' },
                 { value: '4', label: '4 Columns' },
+                { value: '5', label: '5 Columns' },
+                { value: '6', label: '6 Columns' },
               ]}
             />
           </CollapsibleSection>
@@ -1456,6 +1536,15 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
                   />
                 </button>
               </div>
+
+              {node.props.showAction !== false && (
+                <TextInput
+                  label="Button Label"
+                  value={String(node.props.actionText || 'View Product')}
+                  onChange={(v) => handlePropChange('actionText', v)}
+                  placeholder="View Product"
+                />
+              )}
             </div>
           </CollapsibleSection>
 
@@ -1505,6 +1594,7 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
           <div className="mb-3 p-3 bg-[#1a1a2e] rounded-lg border border-white/10">
             <div className="text-[10px] font-medium text-white/40 uppercase tracking-wide mb-2">This block currently shows</div>
             <div className="text-xs text-white/80 space-y-1">
+              <div><span className="text-white/50">Content Type:</span> {(node.props.teamType as string || '').trim() !== '' ? String(node.props.teamType) : 'Auto detect'}</div>
               <div><span className="text-white/50">Source:</span> {(node.props.departmentIds as number[])?.length > 0 ? `${(node.props.departmentIds as number[]).length} departments` : 'All team members'}</div>
               <div><span className="text-white/50">Display:</span> {String(node.props.itemCount || 4)} members in {String(node.props.gridColumns || 4)} columns</div>
               <div><span className="text-white/50">Order:</span> {node.props.orderBy === 'role' ? 'By role' : node.props.orderBy === 'date' ? 'By join date' : node.props.orderBy === 'random' ? 'Random' : 'By name'}</div>
@@ -1530,9 +1620,12 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
               value={String(node.props.gridColumns || 4)}
               onChange={(v) => handlePropChange('gridColumns', parseInt(v))}
               options={[
+                { value: '1', label: '1 Column' },
                 { value: '2', label: '2 Columns' },
                 { value: '3', label: '3 Columns' },
                 { value: '4', label: '4 Columns' },
+                { value: '5', label: '5 Columns' },
+                { value: '6', label: '6 Columns' },
               ]}
             />
           </CollapsibleSection>
@@ -1615,14 +1708,23 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
           {/* LEVEL 3: Advanced - Opt-in */}
           <CollapsibleSection title="Advanced Options" icon={<Settings className="w-3 h-3" />} defaultOpen={false}>
             <div className="text-[10px] text-white/50 mb-3 pb-2 border-b border-white/10">
-              Filter and sort team members
+              Choose the team content type, then filter and sort team members
+            </div>
+            <TextInput
+              label="Team Content Type"
+              value={node.props.teamType as string || ''}
+              onChange={(v) => handlePropChange('teamType', v)}
+              placeholder="team_member"
+            />
+            <div className="text-[10px] text-white/50 -mt-2 mb-3">
+              Leave empty to auto-detect common team types like team_member or team.
             </div>
             <div className="mb-3">
               <label className="block text-[10px] font-medium text-white/40 uppercase tracking-wide mb-1">Filter by Department</label>
               <div className="text-[10px] text-white/50 mb-2">
-                Leave empty to show all team members
+                Uses CMS categories and excludes product taxonomy categories.
               </div>
-              <CategorySelector
+              <DepartmentSelector
                 value={(node.props.departmentIds as number[]) || []}
                 onChange={(ids) => handlePropChange('departmentIds', ids)}
               />
@@ -1646,6 +1748,310 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
                 { value: 'asc', label: 'A to Z' },
                 { value: 'desc', label: 'Z to A' },
               ]}
+            />
+          </CollapsibleSection>
+        </>
+      )}
+
+      {node.type === 'entity_view' && (
+        <>
+          <div className="mb-3 p-3 bg-[#1a1a2e] rounded-lg border border-white/10">
+            <div className="text-[10px] font-medium text-white/40 uppercase tracking-wide mb-2">This block currently shows</div>
+            <div className="text-xs text-white/80 space-y-1">
+              <div><span className="text-white/50">Context:</span> The current entity page</div>
+              <div><span className="text-white/50">Modules:</span> {node.props.showPricing !== false || node.props.showInventory !== false ? 'Content plus capability data' : 'Content only'}</div>
+            </div>
+          </div>
+
+          <CollapsibleSection title="What to show?" icon={<Settings className="w-3 h-3" />} defaultOpen>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <label className="text-xs text-white/70">Show Media</label>
+                <button
+                  onClick={() => handlePropChange('showFeaturedImage', node.props.showFeaturedImage === false ? true : false)}
+                  className={`relative w-10 h-5 rounded-full transition-colors ${node.props.showFeaturedImage !== false ? 'bg-[#0078d4]' : 'bg-[#3c3c3c]'}`}
+                >
+                  <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform ${node.props.showFeaturedImage !== false ? 'translate-x-5' : 'translate-x-0'}`} />
+                </button>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <label className="text-xs text-white/70">Show Title</label>
+                <button
+                  onClick={() => handlePropChange('showTitle', node.props.showTitle === false ? true : false)}
+                  className={`relative w-10 h-5 rounded-full transition-colors ${node.props.showTitle !== false ? 'bg-[#0078d4]' : 'bg-[#3c3c3c]'}`}
+                >
+                  <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform ${node.props.showTitle !== false ? 'translate-x-5' : 'translate-x-0'}`} />
+                </button>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <label className="text-xs text-white/70">Show Meta</label>
+                <button
+                  onClick={() => handlePropChange('showMeta', node.props.showMeta === false ? true : false)}
+                  className={`relative w-10 h-5 rounded-full transition-colors ${node.props.showMeta !== false ? 'bg-[#0078d4]' : 'bg-[#3c3c3c]'}`}
+                >
+                  <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform ${node.props.showMeta !== false ? 'translate-x-5' : 'translate-x-0'}`} />
+                </button>
+              </div>
+
+              {node.props.showMeta !== false && (
+                <>
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs text-white/70">Show Type Label</label>
+                    <button
+                      onClick={() => handlePropChange('showTypeLabel', node.props.showTypeLabel === false ? true : false)}
+                      className={`relative w-10 h-5 rounded-full transition-colors ${node.props.showTypeLabel !== false ? 'bg-[#0078d4]' : 'bg-[#3c3c3c]'}`}
+                    >
+                      <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform ${node.props.showTypeLabel !== false ? 'translate-x-5' : 'translate-x-0'}`} />
+                    </button>
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs text-white/70">Show Author</label>
+                    <button
+                      onClick={() => handlePropChange('showAuthor', node.props.showAuthor === false ? true : false)}
+                      className={`relative w-10 h-5 rounded-full transition-colors ${node.props.showAuthor !== false ? 'bg-[#0078d4]' : 'bg-[#3c3c3c]'}`}
+                    >
+                      <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform ${node.props.showAuthor !== false ? 'translate-x-5' : 'translate-x-0'}`} />
+                    </button>
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs text-white/70">Show Publish Date</label>
+                    <button
+                      onClick={() => handlePropChange('showDate', node.props.showDate === false ? true : false)}
+                      className={`relative w-10 h-5 rounded-full transition-colors ${node.props.showDate !== false ? 'bg-[#0078d4]' : 'bg-[#3c3c3c]'}`}
+                    >
+                      <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform ${node.props.showDate !== false ? 'translate-x-5' : 'translate-x-0'}`} />
+                    </button>
+                  </div>
+                </>
+              )}
+
+              <div className="flex items-center justify-between">
+                <label className="text-xs text-white/70">Show Pricing</label>
+                <button
+                  onClick={() => handlePropChange('showPricing', node.props.showPricing === false ? true : false)}
+                  className={`relative w-10 h-5 rounded-full transition-colors ${node.props.showPricing !== false ? 'bg-[#0078d4]' : 'bg-[#3c3c3c]'}`}
+                >
+                  <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform ${node.props.showPricing !== false ? 'translate-x-5' : 'translate-x-0'}`} />
+                </button>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <label className="text-xs text-white/70">Show Inventory</label>
+                <button
+                  onClick={() => handlePropChange('showInventory', node.props.showInventory === false ? true : false)}
+                  className={`relative w-10 h-5 rounded-full transition-colors ${node.props.showInventory !== false ? 'bg-[#0078d4]' : 'bg-[#3c3c3c]'}`}
+                >
+                  <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform ${node.props.showInventory !== false ? 'translate-x-5' : 'translate-x-0'}`} />
+                </button>
+              </div>
+
+              {node.props.showInventory !== false && (
+                <div className="flex items-center justify-between">
+                  <label className="text-xs text-white/70">Show SKU</label>
+                  <button
+                    onClick={() => handlePropChange('showSku', node.props.showSku === false ? true : false)}
+                    className={`relative w-10 h-5 rounded-full transition-colors ${node.props.showSku !== false ? 'bg-[#0078d4]' : 'bg-[#3c3c3c]'}`}
+                  >
+                    <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform ${node.props.showSku !== false ? 'translate-x-5' : 'translate-x-0'}`} />
+                  </button>
+                </div>
+              )}
+
+              <div className="flex items-center justify-between">
+                <label className="text-xs text-white/70">Show Progress</label>
+                <button
+                  onClick={() => handlePropChange('showProgress', node.props.showProgress === false ? true : false)}
+                  className={`relative w-10 h-5 rounded-full transition-colors ${node.props.showProgress !== false ? 'bg-[#0078d4]' : 'bg-[#3c3c3c]'}`}
+                >
+                  <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform ${node.props.showProgress !== false ? 'translate-x-5' : 'translate-x-0'}`} />
+                </button>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <label className="text-xs text-white/70">Show Lessons</label>
+                <button
+                  onClick={() => handlePropChange('showLessons', node.props.showLessons === false ? true : false)}
+                  className={`relative w-10 h-5 rounded-full transition-colors ${node.props.showLessons !== false ? 'bg-[#0078d4]' : 'bg-[#3c3c3c]'}`}
+                >
+                  <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform ${node.props.showLessons !== false ? 'translate-x-5' : 'translate-x-0'}`} />
+                </button>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <label className="text-xs text-white/70">Show Actions</label>
+                <button
+                  onClick={() => handlePropChange('showActions', node.props.showActions === false ? true : false)}
+                  className={`relative w-10 h-5 rounded-full transition-colors ${node.props.showActions !== false ? 'bg-[#0078d4]' : 'bg-[#3c3c3c]'}`}
+                >
+                  <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform ${node.props.showActions !== false ? 'translate-x-5' : 'translate-x-0'}`} />
+                </button>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <label className="text-xs text-white/70">Show Body</label>
+                <button
+                  onClick={() => handlePropChange('showBody', node.props.showBody === false ? true : false)}
+                  className={`relative w-10 h-5 rounded-full transition-colors ${node.props.showBody !== false ? 'bg-[#0078d4]' : 'bg-[#3c3c3c]'}`}
+                >
+                  <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform ${node.props.showBody !== false ? 'translate-x-5' : 'translate-x-0'}`} />
+                </button>
+              </div>
+            </div>
+          </CollapsibleSection>
+        </>
+      )}
+
+      {node.type === 'entity_list' && (
+        <>
+          <div className="mb-3 p-3 bg-[#1a1a2e] rounded-lg border border-white/10">
+            <div className="text-[10px] font-medium text-white/40 uppercase tracking-wide mb-2">This block currently shows</div>
+            <div className="text-xs text-white/80 space-y-1">
+              <div><span className="text-white/50">Entity Type:</span> {String(node.props.entityType || 'post')}</div>
+              <div><span className="text-white/50">Display:</span> {String(node.props.itemCount || 6)} items in {String(node.props.layout || 'grid')} mode{String(node.props.layout || 'grid') !== 'list' ? `, ${String(node.props.gridColumns || 3)} columns` : ''}</div>
+              <div><span className="text-white/50">Order:</span> {node.props.orderBy === 'title' || node.props.orderBy === 'name' ? 'By name' : 'Newest first'}</div>
+            </div>
+          </div>
+
+          <CollapsibleSection title="Source" icon={<Layers className="w-3 h-3" />} defaultOpen>
+            <TextInput
+              label="Entity Type Slug"
+              value={String(node.props.entityType || 'post')}
+              onChange={(v) => handlePropChange('entityType', v.trim() || 'post')}
+              placeholder="post"
+            />
+            <SelectInput
+              label="Layout"
+              value={String(node.props.layout || 'grid')}
+              onChange={(v) => handlePropChange('layout', v)}
+              options={[
+                { value: 'grid', label: 'Grid' },
+                { value: 'list', label: 'List' },
+              ]}
+            />
+            <SelectInput
+              label="Item Count"
+              value={String(node.props.itemCount || 6)}
+              onChange={(v) => handlePropChange('itemCount', parseInt(v))}
+              options={[
+                { value: '3', label: '3 Items' },
+                { value: '6', label: '6 Items' },
+                { value: '9', label: '9 Items' },
+                { value: '12', label: '12 Items' },
+              ]}
+            />
+            {String(node.props.layout || 'grid') !== 'list' && (
+              <SelectInput
+                label="Columns"
+                value={String(node.props.gridColumns || 3)}
+                onChange={(v) => handlePropChange('gridColumns', parseInt(v))}
+                options={[
+                  { value: '1', label: '1 Column' },
+                  { value: '2', label: '2 Columns' },
+                  { value: '3', label: '3 Columns' },
+                  { value: '4', label: '4 Columns' },
+                  { value: '5', label: '5 Columns' },
+                  { value: '6', label: '6 Columns' },
+                ]}
+              />
+            )}
+          </CollapsibleSection>
+
+          <CollapsibleSection title="What to show?" icon={<Settings className="w-3 h-3" />} defaultOpen>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <label className="text-xs text-white/70">Show Featured Image</label>
+                <button
+                  onClick={() => handlePropChange('showFeaturedImage', node.props.showFeaturedImage === false ? true : false)}
+                  className={`relative w-10 h-5 rounded-full transition-colors ${node.props.showFeaturedImage !== false ? 'bg-[#0078d4]' : 'bg-[#3c3c3c]'}`}
+                >
+                  <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform ${node.props.showFeaturedImage !== false ? 'translate-x-5' : 'translate-x-0'}`} />
+                </button>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <label className="text-xs text-white/70">Show Title</label>
+                <button
+                  onClick={() => handlePropChange('showTitle', node.props.showTitle === false ? true : false)}
+                  className={`relative w-10 h-5 rounded-full transition-colors ${node.props.showTitle !== false ? 'bg-[#0078d4]' : 'bg-[#3c3c3c]'}`}
+                >
+                  <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform ${node.props.showTitle !== false ? 'translate-x-5' : 'translate-x-0'}`} />
+                </button>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <label className="text-xs text-white/70">Show Excerpt</label>
+                <button
+                  onClick={() => handlePropChange('showExcerpt', node.props.showExcerpt === false ? true : false)}
+                  className={`relative w-10 h-5 rounded-full transition-colors ${node.props.showExcerpt !== false ? 'bg-[#0078d4]' : 'bg-[#3c3c3c]'}`}
+                >
+                  <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform ${node.props.showExcerpt !== false ? 'translate-x-5' : 'translate-x-0'}`} />
+                </button>
+              </div>
+
+              {node.props.showExcerpt !== false && (
+                <SelectInput
+                  label="Excerpt Length"
+                  value={String(node.props.excerptLength || 120)}
+                  onChange={(v) => handlePropChange('excerptLength', parseInt(v))}
+                  options={[
+                    { value: '60', label: 'Short (60 chars)' },
+                    { value: '90', label: 'Medium (90 chars)' },
+                    { value: '120', label: 'Default (120 chars)' },
+                    { value: '160', label: 'Long (160 chars)' },
+                  ]}
+                />
+              )}
+
+              <div className="flex items-center justify-between">
+                <label className="text-xs text-white/70">Show Pricing</label>
+                <button
+                  onClick={() => handlePropChange('showPricing', node.props.showPricing === false ? true : false)}
+                  className={`relative w-10 h-5 rounded-full transition-colors ${node.props.showPricing !== false ? 'bg-[#0078d4]' : 'bg-[#3c3c3c]'}`}
+                >
+                  <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform ${node.props.showPricing !== false ? 'translate-x-5' : 'translate-x-0'}`} />
+                </button>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <label className="text-xs text-white/70">Show Inventory</label>
+                <button
+                  onClick={() => handlePropChange('showInventory', node.props.showInventory === false ? true : false)}
+                  className={`relative w-10 h-5 rounded-full transition-colors ${node.props.showInventory !== false ? 'bg-[#0078d4]' : 'bg-[#3c3c3c]'}`}
+                >
+                  <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform ${node.props.showInventory !== false ? 'translate-x-5' : 'translate-x-0'}`} />
+                </button>
+              </div>
+            </div>
+          </CollapsibleSection>
+
+          <CollapsibleSection title="Advanced Options" icon={<Settings className="w-3 h-3" />} defaultOpen={false}>
+            <SelectInput
+              label="Sort By"
+              value={String(node.props.orderBy || 'date')}
+              onChange={(v) => handlePropChange('orderBy', v)}
+              options={[
+                { value: 'date', label: 'Date Added' },
+                { value: 'title', label: 'Name' },
+              ]}
+            />
+            <SelectInput
+              label="Sort Order"
+              value={String(node.props.order || 'desc')}
+              onChange={(v) => handlePropChange('order', v)}
+              options={[
+                { value: 'desc', label: 'Newest First' },
+                { value: 'asc', label: 'Oldest First' },
+              ]}
+            />
+            <TextInput
+              label="Empty State Message"
+              value={String(node.props.emptyMessage || 'No items found.')}
+              onChange={(v) => handlePropChange('emptyMessage', v)}
+              placeholder="No items found."
             />
           </CollapsibleSection>
         </>
@@ -1748,12 +2154,6 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
                 placeholder="/month"
               />
             </div>
-            <TextInput
-              label="Ribbon"
-              value={node.props.ribbon as string || ''}
-              onChange={(v) => handlePropChange('ribbon', v)}
-              placeholder="Most Popular"
-            />
             <div className="flex items-center gap-2 mt-3">
               <input
                 type="checkbox"
@@ -1764,6 +2164,14 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
               />
               <label htmlFor="pricing-highlighted" className="text-[10px] text-white/70">Highlight this plan</label>
             </div>
+            {Boolean(node.props.highlighted) && (
+              <TextInput
+                label="Ribbon Label"
+                value={node.props.ribbon as string || ''}
+                onChange={(v) => handlePropChange('ribbon', v)}
+                placeholder="Most Popular"
+              />
+            )}
           </CollapsibleSection>
 
           <CollapsibleSection title="Features" icon={<List className="w-3 h-3" />} defaultOpen>
@@ -2392,12 +2800,47 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
       {/* Map */}
       {node.type === 'map' && (
         <CollapsibleSection title="Map" icon={<Navigation className="w-3 h-3" />} defaultOpen>
-          <TextInput
-            label="Address"
-            value={node.props.address as string || ''}
-            onChange={(v) => handlePropChange('address', v)}
-            placeholder="123 Main St, City, State"
+          <SelectInput
+            label="Map Source"
+            value={node.props.mapType as string || 'embed'}
+            onChange={(v) => handlePropChange('mapType', v)}
+            options={[
+              { value: 'embed', label: 'Custom Embed URL' },
+              { value: 'openstreetmap', label: 'Coordinates (OpenStreetMap)' },
+              { value: 'google', label: 'Google / External Embed' },
+            ]}
           />
+          {((node.props.mapType as string) || 'embed') !== 'openstreetmap' ? (
+            <TextInput
+              label="Embed URL"
+              value={node.props.embedUrl as string || ''}
+              onChange={(v) => handlePropChange('embedUrl', v)}
+              placeholder="https://www.google.com/maps/embed?..."
+            />
+          ) : (
+            <>
+              <div className="grid grid-cols-2 gap-2">
+                <TextInput
+                  label="Latitude"
+                  value={node.props.latitude as string || '14.5995'}
+                  onChange={(v) => handlePropChange('latitude', v)}
+                  placeholder="14.5995"
+                />
+                <TextInput
+                  label="Longitude"
+                  value={node.props.longitude as string || '120.9842'}
+                  onChange={(v) => handlePropChange('longitude', v)}
+                  placeholder="120.9842"
+                />
+              </div>
+              <TextInput
+                label="Marker Title"
+                value={node.props.markerTitle as string || 'Our Location'}
+                onChange={(v) => handlePropChange('markerTitle', v)}
+                placeholder="Our Location"
+              />
+            </>
+          )}
           <SelectInput
             label="Zoom Level"
             value={String(node.props.zoom ?? '14')}
@@ -2541,32 +2984,6 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
             />
           </CollapsibleSection>
           <CollapsibleSection title="Labels & Visibility" icon={<Settings className="w-3 h-3" />}>
-            <div className="grid grid-cols-2 gap-2">
-              <TextInput
-                label="Days Label"
-                value={(node.props.labels as any)?.days as string || 'Days'}
-                onChange={(v) => handlePropChange('labels', { ...(node.props.labels as object || {}), days: v })}
-                placeholder="Days"
-              />
-              <TextInput
-                label="Hours Label"
-                value={(node.props.labels as any)?.hours as string || 'Hours'}
-                onChange={(v) => handlePropChange('labels', { ...(node.props.labels as object || {}), hours: v })}
-                placeholder="Hours"
-              />
-              <TextInput
-                label="Minutes Label"
-                value={(node.props.labels as any)?.minutes as string || 'Minutes'}
-                onChange={(v) => handlePropChange('labels', { ...(node.props.labels as object || {}), minutes: v })}
-                placeholder="Minutes"
-              />
-              <TextInput
-                label="Seconds Label"
-                value={(node.props.labels as any)?.seconds as string || 'Seconds'}
-                onChange={(v) => handlePropChange('labels', { ...(node.props.labels as object || {}), seconds: v })}
-                placeholder="Seconds"
-              />
-            </div>
             <div className="flex items-center justify-between">
               <label className="text-xs text-white/70">Show Days</label>
               <button
@@ -2578,6 +2995,14 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
                   }`} />
               </button>
             </div>
+            {node.props.showDays !== false && (
+              <TextInput
+                label="Days Label"
+                value={(node.props.labels as any)?.days as string || 'Days'}
+                onChange={(v) => handlePropChange('labels', { ...(node.props.labels as object || {}), days: v })}
+                placeholder="Days"
+              />
+            )}
             <div className="flex items-center justify-between">
               <label className="text-xs text-white/70">Show Hours</label>
               <button
@@ -2589,6 +3014,14 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
                   }`} />
               </button>
             </div>
+            {node.props.showHours !== false && (
+              <TextInput
+                label="Hours Label"
+                value={(node.props.labels as any)?.hours as string || 'Hours'}
+                onChange={(v) => handlePropChange('labels', { ...(node.props.labels as object || {}), hours: v })}
+                placeholder="Hours"
+              />
+            )}
             <div className="flex items-center justify-between">
               <label className="text-xs text-white/70">Show Minutes</label>
               <button
@@ -2600,6 +3033,14 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
                   }`} />
               </button>
             </div>
+            {node.props.showMinutes !== false && (
+              <TextInput
+                label="Minutes Label"
+                value={(node.props.labels as any)?.minutes as string || 'Minutes'}
+                onChange={(v) => handlePropChange('labels', { ...(node.props.labels as object || {}), minutes: v })}
+                placeholder="Minutes"
+              />
+            )}
             <div className="flex items-center justify-between">
               <label className="text-xs text-white/70">Show Seconds</label>
               <button
@@ -2611,6 +3052,14 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
                   }`} />
               </button>
             </div>
+            {node.props.showSeconds !== false && (
+              <TextInput
+                label="Seconds Label"
+                value={(node.props.labels as any)?.seconds as string || 'Seconds'}
+                onChange={(v) => handlePropChange('labels', { ...(node.props.labels as object || {}), seconds: v })}
+                placeholder="Seconds"
+              />
+            )}
           </CollapsibleSection>
         </>
       )}
@@ -2713,12 +3162,14 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
               onChange={(v) => handlePropChange('secondaryButtonText', v)}
               placeholder="Learn More"
             />
-            <TextInput
-              label="Secondary Button URL"
-              value={node.props.secondaryButtonUrl as string || ''}
-              onChange={(v) => handlePropChange('secondaryButtonUrl', v)}
-              placeholder="https://..."
-            />
+            {(node.props.secondaryButtonText as string || '').trim() !== '' && (
+              <TextInput
+                label="Secondary Button URL"
+                value={node.props.secondaryButtonUrl as string || ''}
+                onChange={(v) => handlePropChange('secondaryButtonUrl', v)}
+                placeholder="https://..."
+              />
+            )}
           </CollapsibleSection>
         </>
       )}
@@ -3251,8 +3702,8 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
                         key={preset.cols}
                         onClick={() => handleStyleChange('gridTemplateColumns', preset.cols)}
                         className={`px-2 py-1 text-[9px] border transition-colors ${getStyleValue('gridTemplateColumns') === preset.cols
-                            ? 'bg-[#0078d4] border-[#0078d4] text-white'
-                            : 'bg-[#2d2d2d] border-[#3c3c3c] text-white/60 hover:border-[#0078d4]'
+                          ? 'bg-[#0078d4] border-[#0078d4] text-white'
+                          : 'bg-[#2d2d2d] border-[#3c3c3c] text-white/60 hover:border-[#0078d4]'
                           }`}
                       >
                         {preset.label}
@@ -3309,8 +3760,8 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
         <button
           onClick={() => handleViewportChange('desktop')}
           className={`flex-1 flex items-center justify-center gap-1 py-1.5 text-[10px] transition-colors ${styleViewport === 'desktop'
-              ? 'bg-[#0078d4] text-white'
-              : 'text-white/50 hover:text-white/80 hover:bg-white/5'
+            ? 'bg-[#0078d4] text-white'
+            : 'text-white/50 hover:text-white/80 hover:bg-white/5'
             }`}
           title="Desktop styles (base)"
         >
@@ -3320,8 +3771,8 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
         <button
           onClick={() => handleViewportChange('tablet')}
           className={`flex-1 flex items-center justify-center gap-1 py-1.5 text-[10px] transition-colors ${styleViewport === 'tablet'
-              ? 'bg-[#0078d4] text-white'
-              : 'text-white/50 hover:text-white/80 hover:bg-white/5'
+            ? 'bg-[#0078d4] text-white'
+            : 'text-white/50 hover:text-white/80 hover:bg-white/5'
             }`}
           title="Tablet overrides (≤1024px)"
         >
@@ -3331,8 +3782,8 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
         <button
           onClick={() => handleViewportChange('mobile')}
           className={`flex-1 flex items-center justify-center gap-1 py-1.5 text-[10px] transition-colors ${styleViewport === 'mobile'
-              ? 'bg-[#0078d4] text-white'
-              : 'text-white/50 hover:text-white/80 hover:bg-white/5'
+            ? 'bg-[#0078d4] text-white'
+            : 'text-white/50 hover:text-white/80 hover:bg-white/5'
             }`}
           title="Mobile overrides (≤640px)"
         >
@@ -4169,8 +4620,8 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
         <button
           onClick={() => setActiveTab('content')}
           className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-[10px] font-medium uppercase tracking-wide transition-colors ${activeTab === 'content'
-              ? 'text-white bg-[#0078d4]'
-              : 'text-white/50 hover:text-white/80 hover:bg-white/5'
+            ? 'text-white bg-[#0078d4]'
+            : 'text-white/50 hover:text-white/80 hover:bg-white/5'
             }`}
         >
           <Type className="w-3 h-3" />
@@ -4179,8 +4630,8 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
         <button
           onClick={() => setActiveTab('style')}
           className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-[10px] font-medium uppercase tracking-wide transition-colors ${activeTab === 'style'
-              ? 'text-white bg-[#0078d4]'
-              : 'text-white/50 hover:text-white/80 hover:bg-white/5'
+            ? 'text-white bg-[#0078d4]'
+            : 'text-white/50 hover:text-white/80 hover:bg-white/5'
             }`}
         >
           <Palette className="w-3 h-3" />
@@ -4189,8 +4640,8 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
         <button
           onClick={() => setActiveTab('advanced')}
           className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-[10px] font-medium uppercase tracking-wide transition-colors ${activeTab === 'advanced'
-              ? 'text-white bg-[#0078d4]'
-              : 'text-white/50 hover:text-white/80 hover:bg-white/5'
+            ? 'text-white bg-[#0078d4]'
+            : 'text-white/50 hover:text-white/80 hover:bg-white/5'
             }`}
         >
           <Settings className="w-3 h-3" />

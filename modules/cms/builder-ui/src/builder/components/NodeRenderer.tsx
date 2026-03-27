@@ -2266,7 +2266,9 @@ const PostsGridRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties; viewp
     const showExcerpt = node.props.showExcerpt !== false;
     const excerptLength = (node.props.excerptLength as number) || 120;
     const showFeaturedImage = node.props.showFeaturedImage !== false;
+    const showAuthor = node.props.showAuthor === true;
     const showReadMore = node.props.showReadMore !== false;
+    const readMoreText = String(node.props.readMoreText || 'Read More');
     const desktopCols = (node.props.gridColumns as number) || 3;
     const gridColumns = viewport === 'mobile' ? 1 : viewport === 'tablet' ? Math.min(2, desktopCols) : desktopCols;
     const categoryIds = (node.props.categoryIds as number[]) || [];
@@ -2279,14 +2281,16 @@ const PostsGridRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties; viewp
       date: new Date(Date.now() - i * 86400000).toLocaleDateString('en-US', {
         year: 'numeric', month: 'long', day: 'numeric'
       }),
+      author: `Author ${i + 1}`,
       image: `https://images.unsplash.com/photo-${1499750310107 + i * 1000}-5fef28a66643?w=400&h=250&fit=crop`,
     }));
 
     const gridStyle: CSSProperties = {
+      ...previewShellStyle(style),
+      position: 'relative',
       display: 'grid',
       gridTemplateColumns: `repeat(${gridColumns}, 1fr)`,
       gap: '24px',
-      ...style,
     };
 
     return (
@@ -2318,6 +2322,11 @@ const PostsGridRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties; viewp
                   {post.date}
                 </span>
               )}
+              {showAuthor && (
+                <span style={{ fontSize: '12px', color: '#94a3b8' }}>
+                  By {post.author}
+                </span>
+              )}
               <h3 style={{ fontSize: '18px', fontWeight: '600', color: '#1f2937', margin: 0, lineHeight: '1.4' }}>
                 {post.title}
               </h3>
@@ -2328,7 +2337,7 @@ const PostsGridRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties; viewp
               )}
               {showReadMore && (
                 <a href="#" style={{ fontSize: '14px', color: '#3B82F6', textDecoration: 'none', marginTop: 'auto' }}>
-                  Read More →
+                  {readMoreText} →
                 </a>
               )}
             </div>
@@ -2356,71 +2365,137 @@ const PostsGridRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties; viewp
 // Products Grid Renderer
 // =============================================================================
 
+const previewShellStyle = (style: React.CSSProperties): React.CSSProperties => {
+  const {
+    display: _display,
+    gridTemplateColumns: _gridTemplateColumns,
+    gridTemplateRows: _gridTemplateRows,
+    gridAutoFlow: _gridAutoFlow,
+    gap: _gap,
+    rowGap: _rowGap,
+    columnGap: _columnGap,
+    ...rest
+  } = style || {};
+
+  return {
+    width: '100%',
+    boxSizing: 'border-box',
+    ...rest,
+    display: 'block',
+  };
+};
+
 const ProductsGridRenderer: React.FC<{ node: DiSyLNode; style: React.CSSProperties; viewport?: 'desktop' | 'tablet' | 'mobile' }> = memo(({ node, style, viewport }) => {
-  const { itemCount = 6, categoryIds = [] } = node.props as { itemCount?: number; categoryIds?: number[] };
-  const gridCols = viewport === 'mobile' ? 1 : viewport === 'tablet' ? 2 : 3;
+  const {
+    itemCount = 6,
+    categoryIds = [],
+    gridColumns = 3,
+    showImage = true,
+    showTitle = true,
+    showExcerpt = true,
+    showMeta = true,
+    showAction = true,
+  } = node.props as {
+    itemCount?: number;
+    categoryIds?: number[];
+    gridColumns?: number;
+    showImage?: boolean;
+    showTitle?: boolean;
+    showExcerpt?: boolean;
+    showMeta?: boolean;
+    showAction?: boolean;
+  };
+  const gridCols = viewport === 'mobile' ? 1 : viewport === 'tablet' ? Math.min(2, gridColumns) : gridColumns;
 
   return (
-    <div style={style} className="pb-products-grid-preview">
+    <div style={previewShellStyle(style)} className="pb-products-grid-preview">
       <div style={{
-        display: 'grid',
-        gridTemplateColumns: `repeat(${gridCols}, 1fr)`,
-        gap: '16px',
-        padding: '16px',
-        backgroundColor: '#f8f9fa',
-        borderRadius: '8px',
-        border: '2px dashed #dee2e6'
+        width: '100%',
+        boxSizing: 'border-box',
+        padding: '14px',
+        backgroundColor: '#f8fafc',
+        borderRadius: '12px',
+        border: '2px dashed #cbd5e1'
       }}>
-        {Array.from({ length: Math.min(itemCount, 6) }).map((_, index) => (
-          <div key={index} style={{
-            backgroundColor: '#ffffff',
-            border: '1px solid #dee2e6',
-            borderRadius: '6px',
-            padding: '12px',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '8px'
-          }}>
-            <div style={{
-              height: '120px',
-              backgroundColor: '#e9ecef',
-              borderRadius: '4px',
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          gap: '10px',
+          flexWrap: 'wrap',
+          marginBottom: '14px',
+          fontSize: '11px',
+          color: '#64748b'
+        }}>
+          <span>Products Grid</span>
+          <span>{itemCount} products</span>
+          <span>{categoryIds.length > 0 ? `${categoryIds.length} categories` : 'All categories'}</span>
+        </div>
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: `repeat(${gridCols}, minmax(0, 1fr))`,
+          gap: '16px',
+          width: '100%'
+        }}>
+          {Array.from({ length: Math.min(itemCount, 6) }).map((_, index) => (
+            <div key={index} style={{
+              backgroundColor: '#ffffff',
+              border: '1px solid #dee2e6',
+              borderRadius: '6px',
+              padding: '12px',
               display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: '#6c757d',
-              fontSize: '12px'
+              flexDirection: 'column',
+              gap: '8px'
             }}>
-              Product Image
+              {showImage && (
+                <div style={{
+                  height: '120px',
+                  backgroundColor: '#e9ecef',
+                  borderRadius: '4px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#6c757d',
+                  fontSize: '12px'
+                }}>
+                  Product Image
+                </div>
+              )}
+              {showTitle && (
+                <div style={{
+                  height: '8px',
+                  backgroundColor: '#dee2e6',
+                  borderRadius: '4px',
+                  width: '80%'
+                }} />
+              )}
+              {showExcerpt && (
+                <div style={{
+                  height: '6px',
+                  backgroundColor: '#e9ecef',
+                  borderRadius: '4px',
+                  width: '60%'
+                }} />
+              )}
+              {showMeta && (
+                <div style={{
+                  height: '6px',
+                  backgroundColor: '#0f766e',
+                  borderRadius: '4px',
+                  width: '45%'
+                }} />
+              )}
+              {showAction && (
+                <div style={{
+                  marginTop: 'auto',
+                  height: '28px',
+                  backgroundColor: '#0f172a',
+                  borderRadius: '6px',
+                  width: '100%'
+                }} />
+              )}
             </div>
-            <div style={{
-              height: '8px',
-              backgroundColor: '#dee2e6',
-              borderRadius: '4px',
-              width: '80%'
-            }} />
-            <div style={{
-              height: '6px',
-              backgroundColor: '#e9ecef',
-              borderRadius: '4px',
-              width: '60%'
-            }} />
-            <div style={{
-              height: '6px',
-              backgroundColor: '#0078d4',
-              borderRadius: '4px',
-              width: '40%'
-            }} />
-          </div>
-        ))}
-      </div>
-      <div style={{
-        marginTop: '8px',
-        fontSize: '11px',
-        color: '#6c757d',
-        textAlign: 'center'
-      }}>
-        Products Grid • {itemCount} products{categoryIds.length > 0 ? ` • ${categoryIds.length} categories` : ''}
+          ))}
+        </div>
       </div>
     </div>
   );
@@ -2431,72 +2506,107 @@ const ProductsGridRenderer: React.FC<{ node: DiSyLNode; style: React.CSSProperti
 // =============================================================================
 
 const TeamGridRenderer: React.FC<{ node: DiSyLNode; style: React.CSSProperties; viewport?: 'desktop' | 'tablet' | 'mobile' }> = memo(({ node, style, viewport }) => {
-  const { itemCount = 4, departmentIds = [] } = node.props as { itemCount?: number; departmentIds?: number[] };
-  const gridCols = viewport === 'mobile' ? 1 : viewport === 'tablet' ? 2 : 4;
+  const {
+    itemCount = 4,
+    departmentIds = [],
+    gridColumns = 4,
+    showImage = true,
+    showTitle = true,
+    showExcerpt = true,
+    showAction = true,
+  } = node.props as {
+    itemCount?: number;
+    departmentIds?: number[];
+    gridColumns?: number;
+    showImage?: boolean;
+    showTitle?: boolean;
+    showExcerpt?: boolean;
+    showAction?: boolean;
+  };
+  const gridCols = viewport === 'mobile' ? 1 : viewport === 'tablet' ? Math.min(2, gridColumns) : gridColumns;
 
   return (
-    <div style={style} className="pb-team-grid-preview">
+    <div style={previewShellStyle(style)} className="pb-team-grid-preview">
       <div style={{
-        display: 'grid',
-        gridTemplateColumns: `repeat(${gridCols}, 1fr)`,
-        gap: '16px',
-        padding: '16px',
-        backgroundColor: '#f8f9fa',
-        borderRadius: '8px',
-        border: '2px dashed #dee2e6'
+        width: '100%',
+        boxSizing: 'border-box',
+        padding: '14px',
+        backgroundColor: '#f8fafc',
+        borderRadius: '12px',
+        border: '2px dashed #cbd5e1'
       }}>
-        {Array.from({ length: Math.min(itemCount, 8) }).map((_, index) => (
-          <div key={index} style={{
-            backgroundColor: '#ffffff',
-            border: '1px solid #dee2e6',
-            borderRadius: '6px',
-            padding: '12px',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            gap: '8px'
-          }}>
-            <div style={{
-              width: '60px',
-              height: '60px',
-              backgroundColor: '#e9ecef',
-              borderRadius: '50%',
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          gap: '10px',
+          flexWrap: 'wrap',
+          marginBottom: '14px',
+          fontSize: '11px',
+          color: '#64748b'
+        }}>
+          <span>Team Grid</span>
+          <span>{itemCount} members</span>
+          <span>{departmentIds.length > 0 ? `${departmentIds.length} departments` : 'All departments'}</span>
+        </div>
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: `repeat(${gridCols}, minmax(0, 1fr))`,
+          gap: '16px',
+          width: '100%'
+        }}>
+          {Array.from({ length: Math.min(itemCount, 8) }).map((_, index) => (
+            <div key={index} style={{
+              backgroundColor: '#ffffff',
+              border: '1px solid #dee2e6',
+              borderRadius: '6px',
+              padding: '12px',
               display: 'flex',
+              flexDirection: 'column',
               alignItems: 'center',
-              justifyContent: 'center',
-              color: '#6c757d',
-              fontSize: '10px'
+              gap: '8px'
             }}>
-              Photo
+              {showImage && (
+                <div style={{
+                  width: '60px',
+                  height: '60px',
+                  backgroundColor: '#e9ecef',
+                  borderRadius: '50%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#6c757d',
+                  fontSize: '10px'
+                }}>
+                  Photo
+                </div>
+              )}
+              {showTitle && (
+                <div style={{
+                  height: '6px',
+                  backgroundColor: '#dee2e6',
+                  borderRadius: '4px',
+                  width: '80%'
+                }} />
+              )}
+              {showExcerpt && (
+                <div style={{
+                  height: '4px',
+                  backgroundColor: '#e9ecef',
+                  borderRadius: '4px',
+                  width: '60%'
+                }} />
+              )}
+              {showAction && (
+                <div style={{
+                  height: '26px',
+                  backgroundColor: '#0f172a',
+                  borderRadius: '6px',
+                  width: '100%'
+                }} />
+              )}
             </div>
-            <div style={{
-              height: '6px',
-              backgroundColor: '#dee2e6',
-              borderRadius: '4px',
-              width: '80%'
-            }} />
-            <div style={{
-              height: '4px',
-              backgroundColor: '#e9ecef',
-              borderRadius: '4px',
-              width: '60%'
-            }} />
-            <div style={{
-              height: '4px',
-              backgroundColor: '#0078d4',
-              borderRadius: '4px',
-              width: '50%'
-            }} />
-          </div>
-        ))}
-      </div>
-      <div style={{
-        marginTop: '8px',
-        fontSize: '11px',
-        color: '#6c757d',
-        textAlign: 'center'
-      }}>
-        Team Grid • {itemCount} members{departmentIds.length > 0 ? ` • ${departmentIds.length} departments` : ''}
+          ))}
+        </div>
       </div>
     </div>
   );
@@ -2506,28 +2616,48 @@ const EntityViewRenderer: React.FC<{ node: DiSyLNode; style: React.CSSProperties
   const showFeaturedImage = node.props.showFeaturedImage !== false;
   const showTitle = node.props.showTitle !== false;
   const showMeta = node.props.showMeta !== false;
+  const showTypeLabel = node.props.showTypeLabel !== false;
+  const showAuthor = node.props.showAuthor !== false;
+  const showDate = node.props.showDate !== false;
   const showPricing = node.props.showPricing !== false;
   const showInventory = node.props.showInventory !== false;
+  const showSku = node.props.showSku !== false;
+  const showProgress = node.props.showProgress !== false;
+  const showLessons = node.props.showLessons !== false;
+  const showActions = node.props.showActions !== false;
   const showBody = node.props.showBody !== false;
 
   return (
     <article style={{ display: 'flex', flexDirection: 'column', gap: '20px', maxWidth: '860px', margin: '0 auto', ...style }}>
       {showFeaturedImage && (
-        <div style={{ borderRadius: '18px', overflow: 'hidden', backgroundColor: '#e5e7eb' }}>
-          <img
-            src={placeholderSvg(1200, 560, '#cbd5e1', 'Current Entity Hero')}
-            alt="Current entity preview"
-            style={{ display: 'block', width: '100%', height: 'auto' }}
-          />
+        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '12px' }}>
+          <div style={{ borderRadius: '18px', overflow: 'hidden', backgroundColor: '#e5e7eb' }}>
+            <img
+              src={placeholderSvg(1200, 560, '#cbd5e1', 'Current Entity Media')}
+              alt="Current entity preview"
+              style={{ display: 'block', width: '100%', height: '100%', objectFit: 'cover' }}
+            />
+          </div>
+          <div style={{ display: 'grid', gap: '12px' }}>
+            {[1, 2].map((item) => (
+              <div key={item} style={{ borderRadius: '16px', overflow: 'hidden', backgroundColor: item === 1 ? '#dbeafe' : '#fef3c7' }}>
+                <img
+                  src={placeholderSvg(480, 270, item === 1 ? '#bfdbfe' : '#fcd34d', `Gallery ${item}`)}
+                  alt={`Gallery ${item}`}
+                  style={{ display: 'block', width: '100%', height: '100%', objectFit: 'cover' }}
+                />
+              </div>
+            ))}
+          </div>
         </div>
       )}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
         {showTitle && <h2 style={{ margin: 0, fontSize: '32px', lineHeight: 1.2, color: '#0f172a' }}>Current Entity Title</h2>}
         {showMeta && (
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', fontSize: '13px', color: '#64748b' }}>
-            <span>Published content</span>
-            <span>March 27, 2026</span>
-            <span>By CMS Author</span>
+            {showTypeLabel && <span style={{ padding: '6px 10px', borderRadius: '999px', backgroundColor: '#e0f2fe', color: '#0369a1', fontWeight: 600 }}>Product</span>}
+            {showDate && <span>March 27, 2026</span>}
+            {showAuthor && <span>By CMS Author</span>}
           </div>
         )}
         {(showPricing || showInventory) && (
@@ -2542,13 +2672,46 @@ const EntityViewRenderer: React.FC<{ node: DiSyLNode; style: React.CSSProperties
                 Inventory status
               </span>
             )}
+            {showInventory && showSku && (
+              <span style={{ padding: '8px 12px', borderRadius: '999px', backgroundColor: '#f8fafc', color: '#475569', fontSize: '13px', fontWeight: 600 }}>
+                SKU-ENTITY-001
+              </span>
+            )}
           </div>
         )}
       </div>
+      {showProgress && (
+        <div style={{ border: '1px solid #dbeafe', borderRadius: '16px', padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px', backgroundColor: '#f8fbff' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: '#0369a1', fontWeight: 600 }}>
+            <span>Learning Progress</span>
+            <span>72%</span>
+          </div>
+          <div style={{ height: '10px', borderRadius: '999px', backgroundColor: '#dbeafe', overflow: 'hidden' }}>
+            <div style={{ width: '72%', height: '100%', backgroundColor: '#0ea5e9' }} />
+          </div>
+        </div>
+      )}
+      {showLessons && (
+        <div style={{ border: '1px solid #e2e8f0', borderRadius: '18px', padding: '18px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          <h3 style={{ margin: 0, fontSize: '18px', color: '#0f172a' }}>Contents</h3>
+          {[1, 2, 3].map((item) => (
+            <div key={item} style={{ display: 'flex', gap: '12px', alignItems: 'center', color: '#475569', fontSize: '14px' }}>
+              <span style={{ width: '24px', height: '24px', borderRadius: '999px', backgroundColor: '#e2e8f0', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700 }}>{item}</span>
+              <span>Lesson {item}</span>
+            </div>
+          ))}
+        </div>
+      )}
+      {showActions && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px' }}>
+          <a href="#" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '12px 18px', borderRadius: '12px', backgroundColor: '#0f172a', color: '#ffffff', textDecoration: 'none', fontSize: '14px', fontWeight: 600 }}>Buy Now</a>
+          <a href="#" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '12px 18px', borderRadius: '12px', backgroundColor: '#ffffff', border: '1px solid #cbd5e1', color: '#0f172a', textDecoration: 'none', fontSize: '14px', fontWeight: 600 }}>Inquire</a>
+        </div>
+      )}
       {showBody && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', color: '#475569', lineHeight: 1.7, fontSize: '15px' }}>
           <p style={{ margin: 0 }}>This component uses the current entity context when rendered on the public site. In the builder it previews the same structure the theme uses for media, metadata, capability blocks, and body content.</p>
-          <p style={{ margin: 0 }}>Use it when you want a page-builder section to stay aligned with the entity view contract instead of duplicating post, product, or course details by hand.</p>
+          <p style={{ margin: 0 }}>Use it when you want a page-builder section to stay aligned with the current entity view contract instead of duplicating post, product, or course details by hand.</p>
         </div>
       )}
     </article>
@@ -2561,7 +2724,9 @@ const EntityListRenderer: React.FC<{ node: DiSyLNode; style: React.CSSProperties
     itemCount = 6,
     layout = 'grid',
     showFeaturedImage = true,
+    showTitle = true,
     showExcerpt = true,
+    excerptLength = 120,
     showPricing = true,
     showInventory = true,
     gridColumns = 3,
@@ -2570,7 +2735,9 @@ const EntityListRenderer: React.FC<{ node: DiSyLNode; style: React.CSSProperties
     itemCount?: number;
     layout?: 'grid' | 'list';
     showFeaturedImage?: boolean;
+    showTitle?: boolean;
     showExcerpt?: boolean;
+    excerptLength?: number;
     showPricing?: boolean;
     showInventory?: boolean;
     gridColumns?: number;
@@ -2593,7 +2760,7 @@ const EntityListRenderer: React.FC<{ node: DiSyLNode; style: React.CSSProperties
   }));
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: `repeat(${columns}, 1fr)`, gap: '20px', ...style }}>
+    <div style={{ ...previewShellStyle(style), display: 'grid', gridTemplateColumns: `repeat(${columns}, 1fr)`, gap: '20px' }}>
       {items.map((item) => (
         <article key={item.id} style={{ backgroundColor: '#ffffff', borderRadius: '18px', border: '1px solid #e2e8f0', overflow: 'hidden', boxShadow: '0 10px 30px rgba(15, 23, 42, 0.06)' }}>
           {showFeaturedImage && (
@@ -2606,8 +2773,8 @@ const EntityListRenderer: React.FC<{ node: DiSyLNode; style: React.CSSProperties
             </div>
           )}
           <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            <h3 style={{ margin: 0, fontSize: '18px', lineHeight: 1.35, color: '#0f172a' }}>{item.title}</h3>
-            {showExcerpt && <p style={{ margin: 0, fontSize: '14px', lineHeight: 1.6, color: '#64748b' }}>{item.excerpt}</p>}
+            {showTitle && <h3 style={{ margin: 0, fontSize: '18px', lineHeight: 1.35, color: '#0f172a' }}>{item.title}</h3>}
+            {showExcerpt && <p style={{ margin: 0, fontSize: '14px', lineHeight: 1.6, color: '#64748b' }}>{item.excerpt.substring(0, excerptLength)}{item.excerpt.length > excerptLength ? '...' : ''}</p>}
             {(showPricing || showInventory) && (
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '4px' }}>
                 {showPricing && <span style={{ fontSize: '13px', fontWeight: 700, color: '#0f766e' }}>{item.price}</span>}
@@ -2626,7 +2793,7 @@ const EntityListRenderer: React.FC<{ node: DiSyLNode; style: React.CSSProperties
 // =============================================================================
 
 const PricingTableRenderer: React.FC<{ node: DiSyLNode; style: React.CSSProperties }> = memo(({ node, style }) => {
-  const { planName = 'Professional', price = '49', currency = '$', period = '/month', features = [], buttonText = 'Get Started', highlighted = false } = node.props as any;
+  const { planName = 'Professional', price = '49', currency = '$', period = '/month', features = [], buttonText = 'Get Started', highlighted = false, ribbon = '' } = node.props as any;
 
   return (
     <div style={{
@@ -2634,9 +2801,9 @@ const PricingTableRenderer: React.FC<{ node: DiSyLNode; style: React.CSSProperti
       position: 'relative',
       ...style,
     }}>
-      {highlighted && (
+      {highlighted && ribbon && (
         <div style={{ position: 'absolute', top: '-12px', left: '50%', transform: 'translateX(-50%)', backgroundColor: '#3b82f6', color: 'white', padding: '4px 16px', borderRadius: '12px', fontSize: '11px', fontWeight: 600 }}>
-          Most Popular
+          {ribbon}
         </div>
       )}
       <div style={{ fontSize: '18px', fontWeight: 600, color: '#1f2937', marginBottom: '8px' }}>{planName}</div>
@@ -2665,7 +2832,13 @@ const PricingTableRenderer: React.FC<{ node: DiSyLNode; style: React.CSSProperti
 // =============================================================================
 
 const CountdownRenderer: React.FC<{ node: DiSyLNode; style: React.CSSProperties; viewport?: 'desktop' | 'tablet' | 'mobile' }> = memo(({ node, style, viewport }) => {
-  const { labels = { days: 'Days', hours: 'Hours', minutes: 'Minutes', seconds: 'Seconds' } } = node.props as any;
+  const {
+    labels = { days: 'Days', hours: 'Hours', minutes: 'Minutes', seconds: 'Seconds' },
+    showDays = true,
+    showHours = true,
+    showMinutes = true,
+    showSeconds = true,
+  } = node.props as any;
   const isMobile = viewport === 'mobile';
 
   const TimeBox = ({ value, label }: { value: string; label: string }) => (
@@ -2677,15 +2850,27 @@ const CountdownRenderer: React.FC<{ node: DiSyLNode; style: React.CSSProperties;
     </div>
   );
 
+  const parts = [
+    showDays ? { value: '07', label: labels.days } : null,
+    showHours ? { value: '12', label: labels.hours } : null,
+    showMinutes ? { value: '45', label: labels.minutes } : null,
+    showSeconds ? { value: '30', label: labels.seconds } : null,
+  ].filter(Boolean) as Array<{ value: string; label: string }>;
+
+  if (parts.length === 0) {
+    return <div style={{ color: '#6b7280', textAlign: 'center', ...style }}>Enable at least one time unit.</div>;
+  }
+
   return (
     <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: isMobile ? '8px' : '16px', ...style }}>
-      <TimeBox value="07" label={labels.days} />
-      <div style={{ fontSize: isMobile ? '22px' : '32px', fontWeight: 700, color: '#1f2937', alignSelf: 'flex-start', paddingTop: isMobile ? '10px' : '16px' }}>:</div>
-      <TimeBox value="12" label={labels.hours} />
-      <div style={{ fontSize: isMobile ? '22px' : '32px', fontWeight: 700, color: '#1f2937', alignSelf: 'flex-start', paddingTop: isMobile ? '10px' : '16px' }}>:</div>
-      <TimeBox value="45" label={labels.minutes} />
-      <div style={{ fontSize: isMobile ? '22px' : '32px', fontWeight: 700, color: '#1f2937', alignSelf: 'flex-start', paddingTop: isMobile ? '10px' : '16px' }}>:</div>
-      <TimeBox value="30" label={labels.seconds} />
+      {parts.map((part, index) => (
+        <React.Fragment key={`${part.label}-${index}`}>
+          <TimeBox value={part.value} label={part.label} />
+          {index < parts.length - 1 && (
+            <div style={{ fontSize: isMobile ? '22px' : '32px', fontWeight: 700, color: '#1f2937', alignSelf: 'flex-start', paddingTop: isMobile ? '10px' : '16px' }}>:</div>
+          )}
+        </React.Fragment>
+      ))}
     </div>
   );
 });
@@ -2721,7 +2906,7 @@ const StarRatingRenderer: React.FC<{ node: DiSyLNode; style: React.CSSProperties
 // =============================================================================
 
 const CallToActionRenderer: React.FC<{ node: DiSyLNode; style: React.CSSProperties; viewport?: 'desktop' | 'tablet' | 'mobile' }> = memo(({ node, style, viewport }) => {
-  const { title = 'Ready to Get Started?', description = 'Join thousands of satisfied customers.', buttonText = 'Start Free Trial', layout = 'horizontal' } = node.props as any;
+  const { title = 'Ready to Get Started?', description = 'Join thousands of satisfied customers.', buttonText = 'Start Free Trial', secondaryButtonText = '', layout = 'horizontal' } = node.props as any;
 
   // Horizontal CTA stacks to column on mobile
   const isHorizontal = layout === 'horizontal' && viewport !== 'mobile';
@@ -2732,9 +2917,16 @@ const CallToActionRenderer: React.FC<{ node: DiSyLNode; style: React.CSSProperti
         <h3 style={{ fontSize: '28px', fontWeight: 700, marginBottom: '8px', color: 'inherit' }}>{title}</h3>
         <p style={{ fontSize: '16px', opacity: 0.9, margin: 0 }}>{description}</p>
       </div>
-      <button style={{ padding: '14px 32px', backgroundColor: 'white', color: '#3b82f6', border: 'none', borderRadius: '8px', fontSize: '16px', fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}>
-        {buttonText}
-      </button>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', justifyContent: isHorizontal ? 'flex-end' : 'center' }}>
+        <button style={{ padding: '14px 32px', backgroundColor: 'white', color: '#3b82f6', border: 'none', borderRadius: '8px', fontSize: '16px', fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+          {buttonText}
+        </button>
+        {secondaryButtonText && (
+          <button style={{ padding: '14px 32px', backgroundColor: 'transparent', color: 'white', border: '1px solid rgba(255,255,255,0.45)', borderRadius: '8px', fontSize: '16px', fontWeight: 500, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+            {secondaryButtonText}
+          </button>
+        )}
+      </div>
     </div>
   );
 });

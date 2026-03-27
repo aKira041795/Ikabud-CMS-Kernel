@@ -22,6 +22,8 @@ function ecApiProductsList(): void
         'search'       => $input['search']  ?? '',
         'category_ids' => $categoryIds,
         'status'       => $input['status']  ?? 'published',
+        'order_by'     => $input['orderBy'] ?? ($input['order_by'] ?? 'created_at'),
+        'order'        => $input['order'] ?? 'desc',
         'limit'        => min(50, (int)($input['limit']  ?? 12)),
         'offset'       => max(0,  (int)($input['offset'] ?? 0)),
     ]);

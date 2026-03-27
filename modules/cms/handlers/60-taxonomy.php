@@ -9,7 +9,17 @@ function cmsApiCategoryList(array $params = []): void
 
     $input = cmsInput();
     $tree = (($input['tree'] ?? '') === '1');
-    $categories = cmsGetCategories($tree);
+    $options = [];
+    $taxonomy = trim((string)($input['taxonomy'] ?? ''));
+    $excludeTaxonomy = trim((string)($input['exclude_taxonomy'] ?? ''));
+    if ($taxonomy !== '') {
+        $options['taxonomy'] = $taxonomy;
+    }
+    if ($excludeTaxonomy !== '') {
+        $options['exclude_taxonomy'] = $excludeTaxonomy;
+    }
+
+    $categories = cmsGetCategories($tree, $options);
     echo json_encode(['ok' => true, 'data' => $categories]);
     exit;
 }

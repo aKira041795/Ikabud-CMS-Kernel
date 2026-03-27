@@ -2,12 +2,52 @@
 
 declare(strict_types=1);
 
-function cmsGetCategories(bool $tree = false): array
+function cmsCategoriesHasTaxonomyNamespace(): bool
+{
+    static $hasTaxonomy = null;
+    if ($hasTaxonomy !== null) {
+        return $hasTaxonomy;
+    }
+
+    try {
+        cmsDb()->query('SELECT taxonomy FROM cms_categories WHERE 1 = 0');
+        $hasTaxonomy = true;
+    } catch (Throwable $e) {
+        $hasTaxonomy = false;
+    }
+
+    return $hasTaxonomy;
+}
+
+function cmsGetCategories(bool $tree = false, array $options = []): array
 {
     try {
-        $rows = cmsDb()->query(
-            "SELECT id, name, slug, description, parent_id, sort_order FROM cms_categories ORDER BY sort_order ASC, name ASC"
-        )->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        $sql = "SELECT id, name, slug, description, parent_id, sort_order FROM cms_categories";
+        $params = [];
+        $where = [];
+
+        if (cmsCategoriesHasTaxonomyNamespace()) {
+            $taxonomy = trim((string)($options['taxonomy'] ?? ''));
+            $excludeTaxonomy = trim((string)($options['exclude_taxonomy'] ?? ''));
+
+            if ($taxonomy !== '') {
+                $where[] = '(taxonomy = :taxonomy OR taxonomy IS NULL)';
+                $params[':taxonomy'] = $taxonomy;
+            }
+
+            if ($excludeTaxonomy !== '') {
+                $where[] = '(taxonomy IS NULL OR taxonomy <> :exclude_taxonomy)';
+                $params[':exclude_taxonomy'] = $excludeTaxonomy;
+            }
+        }
+
+        if ($where !== []) {
+            $sql .= ' WHERE ' . implode(' AND ', $where);
+        }
+
+        $sql .= ' ORDER BY sort_order ASC, name ASC';
+
+        $rows = cmsDb()->query($sql, $params)->fetchAll(PDO::FETCH_ASSOC) ?: [];
     } catch (Throwable $e) {
         return [];
     }

@@ -170,14 +170,17 @@ export interface NodeProps {
   postCount?: number;
   itemCount?: number;
   categoryIds?: number[];
+  departmentIds?: number[];
   showDate?: boolean;
   showExcerpt?: boolean;
   excerptLength?: number;
   showFeaturedImage?: boolean;
   showAuthor?: boolean;
   showReadMore?: boolean;
+  readMoreText?: string;
   gridColumns?: number;
   postType?: 'post' | 'page';
+  teamType?: string;
   orderBy?: 'date' | 'title' | 'name' | 'price' | 'role' | 'random';
   order?: 'desc' | 'asc';
 
@@ -185,8 +188,13 @@ export interface NodeProps {
   entityType?: string;
   showTitle?: boolean;
   showMeta?: boolean;
+  showTypeLabel?: boolean;
   showPricing?: boolean;
   showInventory?: boolean;
+  showSku?: boolean;
+  showProgress?: boolean;
+  showLessons?: boolean;
+  showActions?: boolean;
   showBody?: boolean;
   emptyMessage?: string;
   layout?: 'grid' | 'list' | 'horizontal' | 'vertical' | 'split';

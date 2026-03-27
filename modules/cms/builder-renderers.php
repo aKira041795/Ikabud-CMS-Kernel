@@ -57,7 +57,7 @@ function cmsBuilderWidgetRenderers(): array
         'anchor'          => 'cmsRenderWidget_anchor',
         'posts_grid'      => 'cmsRenderWidget_posts_grid',
         'products_grid'   => 'cmsRenderWidget_products_grid',
-        'team_grid'       => 'cmsRenderWidget_placeholder_grid',
+        'team_grid'       => 'cmsRenderWidget_team_grid',
         'entity_view'     => 'cmsRenderWidget_entity_view',
         'entity_list'     => 'cmsRenderWidget_entity_list',
         'pricing_table'   => 'cmsRenderWidget_pricing_table',
@@ -668,15 +668,29 @@ function cmsRenderWidget_anchor(array $props, array $style, array $attrs, string
     return '<div id="' . $anchorId . '"' . cmsBuilderAttrString($attrs) . ' style="display:block;height:0;visibility:hidden"></div>';
 }
 
+function cmsBuilderGridStyle(array $style, string $templateColumns, string $gap = '24px'): array
+{
+    unset($style['display'], $style['gridTemplateColumns'], $style['gridTemplateRows'], $style['gridAutoFlow'], $style['gap'], $style['rowGap'], $style['columnGap']);
+
+    return array_merge([
+        'display' => 'grid',
+        'gridTemplateColumns' => $templateColumns,
+        'gap' => $gap,
+        'width' => '100%',
+    ], $style);
+}
+
 function cmsRenderWidget_posts_grid(array $props, array $style, array $attrs, string $children, array $node, array $context): string
 {
     $postCount = max(1, min(12, (int)($props['postCount'] ?? 3)));
     $gridCols = max(1, min(6, (int)($props['gridColumns'] ?? 3)));
     $showDate = ($props['showDate'] ?? true) !== false;
+    $showAuthor = ($props['showAuthor'] ?? false) !== false;
     $showExcerpt = ($props['showExcerpt'] ?? true) !== false;
     $showReadMore = ($props['showReadMore'] ?? true) !== false;
     $excerptLen = max(20, (int)($props['excerptLength'] ?? 120));
     $postType = (string)($props['postType'] ?? 'post');
+    $readMoreText = trim((string)($props['readMoreText'] ?? 'Read More')) ?: 'Read More';
     $posts = [];
     try {
         $db = cmsDb();
@@ -690,29 +704,60 @@ function cmsRenderWidget_posts_grid(array $props, array $style, array $attrs, st
     if (empty($posts)) {
         return '<div' . cmsBuilderAttrString($attrs) . cmsBuilderStyleAttr($style) . '><p style="color:#6b7280;text-align:center">No posts found.</p></div>';
     }
-    $baseUrl = rtrim((string)(defined('BASE_URL') ? BASE_URL : ''), '/');
-    $html = '<div' . cmsBuilderAttrString($attrs) . cmsBuilderStyleAttr(array_merge(['display' => 'grid', 'gridTemplateColumns' => 'repeat(' . $gridCols . ', 1fr)', 'gap' => '24px', 'width' => '100%'], $style)) . '>';
+    $html = '<div' . cmsBuilderAttrString($attrs) . cmsBuilderStyleAttr(cmsBuilderGridStyle($style, 'repeat(' . $gridCols . ', 1fr)')) . '>';
     foreach ($posts as $p) {
         $pTitle = cmsBuilderEsc((string)($p['title'] ?? 'Untitled'));
-        $pSlug = cmsBuilderEsc((string)($p['slug'] ?? ''));
         $pExcerpt = cmsBuilderEsc(mb_strimwidth((string)($p['excerpt'] ?? ''), 0, $excerptLen, '...'));
         $pDate = !empty($p['published_at']) ? date('M j, Y', strtotime((string)$p['published_at'])) : '';
-        $pUrl = $baseUrl . '/cms/blog/' . $pSlug;
+        $authorName = trim((string)($p['author_name'] ?? ''));
+        $pUrl = cmsBuilderEntityPermalink($postType, (string)($p['slug'] ?? ''));
         $html .= '<div style="background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.1);display:flex;flex-direction:column">';
         $html .= '<div style="padding:20px;flex:1"><h3 style="margin:0 0 8px;font-size:18px;font-weight:600"><a href="' . cmsBuilderEsc($pUrl) . '" style="color:#1f2937;text-decoration:none">' . $pTitle . '</a></h3>';
         if ($showDate && $pDate !== '') {
             $html .= '<div style="font-size:12px;color:#9ca3af;margin-bottom:8px">' . cmsBuilderEsc($pDate) . '</div>';
+        }
+        if ($showAuthor && $authorName !== '') {
+            $html .= '<div style="font-size:12px;color:#94a3b8;margin-bottom:8px">By ' . cmsBuilderEsc($authorName) . '</div>';
         }
         if ($showExcerpt && $pExcerpt !== '') {
             $html .= '<p style="font-size:14px;color:#6b7280;line-height:1.5;margin:0">' . $pExcerpt . '</p>';
         }
         $html .= '</div>';
         if ($showReadMore) {
-            $html .= '<div style="padding:12px 20px;border-top:1px solid #f3f4f6"><a href="' . cmsBuilderEsc($pUrl) . '" style="font-size:13px;color:#3B82F6;text-decoration:none;font-weight:500">Read more &rarr;</a></div>';
+            $html .= '<div style="padding:12px 20px;border-top:1px solid #f3f4f6"><a href="' . cmsBuilderEsc($pUrl) . '" style="font-size:13px;color:#3B82F6;text-decoration:none;font-weight:500">' . cmsBuilderEsc($readMoreText) . ' &rarr;</a></div>';
         }
         $html .= '</div>';
     }
     return $html . '</div>';
+}
+
+function cmsBuilderEntityPermalink(string $type, string $slug): string
+{
+    $baseUrl = rtrim((string)(defined('BASE_URL') ? BASE_URL : ''), '/');
+    $type = trim($type);
+    $slug = trim($slug);
+
+    if ($slug === '') {
+        return $baseUrl !== '' ? $baseUrl : '#';
+    }
+
+    if ($type === 'product' && function_exists('ecProductGetBySlug')) {
+        return $baseUrl . '/ecommerce/shop/' . rawurlencode($slug);
+    }
+
+    if (function_exists('cmsContentPermalink')) {
+        return cmsContentPermalink(['type' => $type, 'slug' => $slug]);
+    }
+
+    if ($type === 'page') {
+        return $baseUrl . '/cms/page/' . rawurlencode($slug);
+    }
+
+    if ($type === 'post') {
+        return $baseUrl . '/cms/blog/' . rawurlencode($slug);
+    }
+
+    return $baseUrl . '/cms/' . rawurlencode($type) . '/' . rawurlencode($slug);
 }
 
 function cmsRenderWidget_products_grid(array $props, array $style, array $attrs, string $children, array $node, array $context): string
@@ -729,8 +774,16 @@ function cmsRenderWidget_products_grid(array $props, array $style, array $attrs,
     $showMeta    = ($props['showMeta']    ?? true) !== false;
     $showAction  = ($props['showAction']  ?? true) !== false;
     $excerptLen  = max(20, (int)($props['excerptLength'] ?? 120));
-    $orderBy     = in_array($props['orderBy'] ?? '', ['title', 'updated_at'], true) ? $props['orderBy'] : 'created_at';
+    $orderBy     = match ((string)($props['orderBy'] ?? 'date')) {
+        'title' => 'title',
+        'price' => 'price',
+        'random' => 'random',
+        'updated_at' => 'updated_at',
+        default => 'created_at',
+    };
+    $order       = strtolower((string)($props['order'] ?? 'desc')) === 'asc' ? 'asc' : 'desc';
     $actionText  = trim((string)($props['actionText'] ?? 'View Product'));
+    $emptyMessage = cmsBuilderEsc((string)($props['emptyMessage'] ?? 'No products found.'));
 
     // Resolve category filter — supports array or empty (= all products).
     $categoryIds = [];
@@ -743,26 +796,28 @@ function cmsRenderWidget_products_grid(array $props, array $style, array $attrs,
         'limit'        => $itemCount,
         'offset'       => 0,
         'order_by'     => $orderBy,
+        'order'        => $order,
         'status'       => 'published',
     ]);
     $products = $result['items'] ?? [];
 
     if (empty($products)) {
-        return '<div' . cmsBuilderAttrString($attrs) . cmsBuilderStyleAttr($style) . '><p style="color:#6b7280;text-align:center;padding:24px">No products found.</p></div>';
+        return '<div' . cmsBuilderAttrString($attrs) . cmsBuilderStyleAttr($style) . '><p style="color:#6b7280;text-align:center;padding:24px">' . $emptyMessage . '</p></div>';
     }
 
-    $baseUrl = rtrim((string)(defined('BASE_URL') ? BASE_URL : ''), '/');
-    $html = '<div' . cmsBuilderAttrString($attrs) . cmsBuilderStyleAttr(array_merge(['display' => 'grid', 'gridTemplateColumns' => 'repeat(' . $gridCols . ', 1fr)', 'gap' => '24px', 'width' => '100%'], $style)) . '>';
+    $html = '<div' . cmsBuilderAttrString($attrs) . cmsBuilderStyleAttr(cmsBuilderGridStyle($style, 'repeat(' . $gridCols . ', 1fr)')) . '>';
 
     foreach ($products as $p) {
         $pTitle    = cmsBuilderEsc((string)($p['title'] ?? 'Untitled'));
         $pSlug     = cmsBuilderEsc((string)($p['slug']  ?? ''));
         $pExcerpt  = cmsBuilderEsc(mb_strimwidth((string)($p['excerpt'] ?? ''), 0, $excerptLen, '...'));
-        $pUrl      = $baseUrl . '/shop/product/' . $pSlug;
+        $pUrl      = cmsBuilderEntityPermalink('product', (string)($p['slug'] ?? ''));
         $imgUrl    = (string)($p['primary_image_url'] ?? $p['featured_image_url'] ?? '');
         $pricing   = is_array($p['pricing'] ?? null) ? $p['pricing'] : [];
-        $price     = isset($pricing['price']) ? number_format((float)$pricing['price'], 2) : null;
-        $currency  = cmsBuilderEsc((string)($pricing['currency'] ?? 'USD'));
+        $priceText = trim((string)($pricing['formatted'] ?? ''));
+        if ($priceText === '' && isset($pricing['active_price'])) {
+            $priceText = number_format((float)$pricing['active_price'], 2);
+        }
 
         $html .= '<div style="background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.1);display:flex;flex-direction:column">';
 
@@ -781,8 +836,8 @@ function cmsRenderWidget_products_grid(array $props, array $style, array $attrs,
         if ($showExcerpt && $pExcerpt !== '') {
             $html .= '<p style="font-size:13px;color:#6b7280;line-height:1.5;margin:0">' . $pExcerpt . '</p>';
         }
-        if ($showMeta && $price !== null) {
-            $html .= '<div style="font-size:18px;font-weight:700;color:#111827;margin-top:auto">' . $currency . ' ' . cmsBuilderEsc($price) . '</div>';
+        if ($showMeta && $priceText !== '') {
+            $html .= '<div style="font-size:18px;font-weight:700;color:#111827;margin-top:auto">' . cmsBuilderEsc($priceText) . '</div>';
         }
         $html .= '</div>';
 
@@ -791,6 +846,152 @@ function cmsRenderWidget_products_grid(array $props, array $style, array $attrs,
         }
 
         $html .= '</div>';
+    }
+
+    return $html . '</div>';
+}
+
+function cmsBuilderResolveTeamContentType(array $props = []): string
+{
+    $requestedType = trim((string)($props['teamType'] ?? ''));
+    if ($requestedType !== '') {
+        return $requestedType;
+    }
+
+    static $cachedType = null;
+    if ($cachedType !== null) {
+        return $cachedType;
+    }
+
+    try {
+        $rows = cmsDb()->query(
+            "SELECT slug, label FROM cms_content_types WHERE is_active = 1 ORDER BY sort_order ASC, slug ASC"
+        )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+    } catch (\Throwable $e) {
+        $rows = [];
+    }
+
+    if ($rows === []) {
+        $cachedType = '';
+        return $cachedType;
+    }
+
+    foreach (['team_member', 'team', 'staff_member', 'staff'] as $candidate) {
+        foreach ($rows as $row) {
+            if ((string)($row['slug'] ?? '') === $candidate) {
+                $cachedType = $candidate;
+                return $cachedType;
+            }
+        }
+    }
+
+    foreach ($rows as $row) {
+        $slug = strtolower(trim((string)($row['slug'] ?? '')));
+        $label = strtolower(trim((string)($row['label'] ?? '')));
+        if ($slug !== '' && (str_contains($slug, 'team') || str_contains($slug, 'staff') || str_contains($label, 'team') || str_contains($label, 'staff'))) {
+            $cachedType = (string)$row['slug'];
+            return $cachedType;
+        }
+    }
+
+    $cachedType = '';
+    return $cachedType;
+}
+
+function cmsRenderWidget_team_grid(array $props, array $style, array $attrs, string $children, array $node, array $context): string
+{
+    $teamType = cmsBuilderResolveTeamContentType($props);
+    $itemCount = max(1, min(24, (int)($props['itemCount'] ?? 4)));
+    $gridCols = max(1, min(6, (int)($props['gridColumns'] ?? 4)));
+    $showImage = ($props['showImage'] ?? true) !== false;
+    $showTitle = ($props['showTitle'] ?? true) !== false;
+    $showExcerpt = ($props['showExcerpt'] ?? true) !== false;
+    $showAction = ($props['showAction'] ?? true) !== false;
+    $excerptLen = max(20, (int)($props['excerptLength'] ?? 100));
+    $orderBy = match ((string)($props['orderBy'] ?? 'name')) {
+        'role' => 'c.excerpt',
+        'date' => 'COALESCE(c.published_at, c.created_at)',
+        'random' => 'RAND()',
+        default => 'c.title',
+    };
+    $order = strtolower((string)($props['order'] ?? 'asc')) === 'desc' ? 'DESC' : 'ASC';
+    $emptyMessage = cmsBuilderEsc((string)($props['emptyMessage'] ?? 'No team members found.'));
+    $departmentIds = [];
+    if (!empty($props['departmentIds']) && is_array($props['departmentIds'])) {
+        $departmentIds = array_values(array_unique(array_filter(array_map('intval', $props['departmentIds']), static fn (int $id): bool => $id > 0)));
+    }
+
+    if ($teamType === '') {
+        return '<div' . cmsBuilderAttrString($attrs) . cmsBuilderStyleAttr($style) . '><p style="color:#6b7280;text-align:center;padding:24px">' . $emptyMessage . '</p></div>';
+    }
+
+    $params = [':type' => $teamType];
+    $sql = 'SELECT DISTINCT c.id, c.title, c.slug, c.excerpt, c.published_at, c.created_at, c.featured_image_id, m.file_path AS featured_image '
+        . 'FROM cms_content c '
+        . 'LEFT JOIN cms_media m ON m.id = c.featured_image_id ';
+
+    if ($departmentIds !== []) {
+        $sql .= 'INNER JOIN cms_content_categories cc ON cc.content_id = c.id ';
+    }
+
+    $sql .= 'WHERE c.deleted_at IS NULL AND c.type = :type AND ' . cmsPublicVisibilitySql('c') . ' ';
+
+    if ($departmentIds !== []) {
+        $placeholders = [];
+        foreach ($departmentIds as $index => $departmentId) {
+            $placeholder = ':department_' . $index;
+            $placeholders[] = $placeholder;
+            $params[$placeholder] = $departmentId;
+        }
+        $sql .= 'AND cc.category_id IN (' . implode(', ', $placeholders) . ') ';
+    }
+
+    $sql .= 'ORDER BY ' . $orderBy;
+    if ($orderBy !== 'RAND()') {
+        $sql .= ' ' . $order;
+    }
+    $sql .= ' LIMIT ' . $itemCount;
+
+    try {
+        $teamMembers = cmsDb()->query($sql, $params)->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+    } catch (\Throwable $e) {
+        $teamMembers = [];
+    }
+
+    if ($teamMembers === []) {
+        return '<div' . cmsBuilderAttrString($attrs) . cmsBuilderStyleAttr($style) . '><p style="color:#6b7280;text-align:center;padding:24px">' . $emptyMessage . '</p></div>';
+    }
+
+    $wrapperStyle = cmsBuilderGridStyle($style, 'repeat(' . $gridCols . ', 1fr)');
+    $html = '<div' . cmsBuilderAttrString($attrs) . cmsBuilderStyleAttr($wrapperStyle) . '>';
+
+    foreach ($teamMembers as $member) {
+        $title = cmsBuilderEsc((string)($member['title'] ?? 'Untitled'));
+        $role = cmsBuilderEsc(mb_strimwidth((string)($member['excerpt'] ?? ''), 0, $excerptLen, '...'));
+        $memberUrl = cmsBuilderEntityPermalink($teamType, (string)($member['slug'] ?? ''));
+        $imageUrl = '';
+        if (!empty($member['featured_image'])) {
+            $imageUrl = function_exists('cmsResolveUploadUrl') ? cmsResolveUploadUrl((string)$member['featured_image']) : (string)$member['featured_image'];
+        }
+
+        $html .= '<article style="background:#ffffff;border:1px solid #e2e8f0;border-radius:18px;padding:20px;display:flex;flex-direction:column;align-items:center;gap:12px;text-align:center;box-shadow:0 10px 30px rgba(15,23,42,0.06)">';
+        if ($showImage) {
+            if ($imageUrl !== '') {
+                $html .= '<a href="' . cmsBuilderEsc($memberUrl) . '" style="display:block;width:88px;height:88px;border-radius:999px;overflow:hidden;background:#e2e8f0"><img src="' . cmsBuilderEsc($imageUrl) . '" alt="' . $title . '" loading="lazy" style="display:block;width:100%;height:100%;object-fit:cover"></a>';
+            } else {
+                $html .= '<a href="' . cmsBuilderEsc($memberUrl) . '" style="display:flex;width:88px;height:88px;border-radius:999px;overflow:hidden;background:#e2e8f0;align-items:center;justify-content:center;color:#94a3b8;font-size:32px;text-decoration:none">&#128100;</a>';
+            }
+        }
+        if ($showTitle) {
+            $html .= '<h3 style="margin:0;font-size:18px;line-height:1.35;color:#0f172a"><a href="' . cmsBuilderEsc($memberUrl) . '" style="color:inherit;text-decoration:none">' . $title . '</a></h3>';
+        }
+        if ($showExcerpt && $role !== '') {
+            $html .= '<p style="margin:0;font-size:14px;line-height:1.6;color:#64748b">' . $role . '</p>';
+        }
+        if ($showAction) {
+            $html .= '<a href="' . cmsBuilderEsc($memberUrl) . '" style="margin-top:auto;display:inline-flex;align-items:center;justify-content:center;padding:10px 16px;border-radius:10px;background:#0f172a;color:#ffffff;text-decoration:none;font-size:13px;font-weight:600">View Profile</a>';
+        }
+        $html .= '</article>';
     }
 
     return $html . '</div>';
@@ -828,16 +1029,41 @@ function cmsBuilderEntityFeaturedImageUrl(array $entity): string
 
 function cmsBuilderEntityViewContext(array $context): array
 {
-    $entity = $context;
+    $entity = isset($context['entity']) && is_array($context['entity']) ? $context['entity'] : $context;
     $entityId = (int)($entity['id'] ?? 0);
+    $attachedCapabilities = [];
 
     if ($entityId > 0) {
         try {
+            $attachedCapabilities = cmsEntityGetCapabilities($entityId);
             $entity['capabilities'] = cmsEntityCapabilityContext($entityId);
             $entity['capability_data'] = cmsEntityCapabilityData($entityId, $entity);
         } catch (\Throwable $e) {
             $entity['capabilities'] = [];
             $entity['capability_data'] = [];
+        }
+
+        foreach (['inquiry', 'lessons_index', 'media_gallery'] as $capabilityId) {
+            if (empty($entity['capabilities'][$capabilityId])) {
+                continue;
+            }
+            if (!empty($entity['capability_data'][$capabilityId])) {
+                continue;
+            }
+
+            $fallbackFunction = 'cms_cap_entity_capability_' . $capabilityId . '_data_1';
+            if (!function_exists($fallbackFunction)) {
+                continue;
+            }
+
+            try {
+                $entity['capability_data'][$capabilityId] = $fallbackFunction([
+                    'entity' => $entity,
+                    'config' => $attachedCapabilities[$capabilityId] ?? [],
+                    'entity_id' => $entityId,
+                ]);
+            } catch (\Throwable $e) {
+            }
         }
     } else {
         $entity['capabilities'] = [];
@@ -851,43 +1077,157 @@ function cmsBuilderEntityViewContext(array $context): array
 
 function cmsRenderWidget_entity_view(array $props, array $style, array $attrs, string $children, array $node, array $context): string
 {
+    $rootContext = $context;
     $entity = cmsBuilderEntityViewContext($context);
     $showFeaturedImage = ($props['showFeaturedImage'] ?? true) !== false;
     $showTitle = ($props['showTitle'] ?? true) !== false;
     $showMeta = ($props['showMeta'] ?? true) !== false;
+    $showTypeLabel = ($props['showTypeLabel'] ?? true) !== false;
+    $showAuthor = ($props['showAuthor'] ?? true) !== false;
+    $showDate = ($props['showDate'] ?? true) !== false;
     $showPricing = ($props['showPricing'] ?? true) !== false;
     $showInventory = ($props['showInventory'] ?? true) !== false;
+    $showSku = ($props['showSku'] ?? true) !== false;
+    $showProgress = ($props['showProgress'] ?? true) !== false;
+    $showLessons = ($props['showLessons'] ?? true) !== false;
+    $showActions = ($props['showActions'] ?? true) !== false;
     $showBody = ($props['showBody'] ?? true) !== false;
 
     $title = cmsBuilderEsc((string)($entity['title'] ?? 'Current Entity'));
     $excerpt = trim((string)($entity['excerpt'] ?? ''));
     $body = trim((string)($entity['body'] ?? ''));
-    $contentHtml = $body !== '' ? nl2br(cmsBuilderEsc($body)) : ($excerpt !== '' ? '<p>' . cmsBuilderEsc($excerpt) . '</p>' : '');
+    $postHtml = trim((string)($rootContext['post_html'] ?? ''));
+    $contentHtml = $postHtml !== '' ? $postHtml : ($body !== '' ? nl2br(cmsBuilderEsc($body)) : ($excerpt !== '' ? '<p>' . cmsBuilderEsc($excerpt) . '</p>' : ''));
     $publishedAt = !empty($entity['published_at']) ? date('M j, Y', strtotime((string)$entity['published_at'])) : '';
     $pricing = is_array($entity['capability_data']['pricing'] ?? null) ? $entity['capability_data']['pricing'] : [];
     $inventory = is_array($entity['capability_data']['inventory'] ?? null) ? $entity['capability_data']['inventory'] : [];
+    $progress = is_array($entity['capability_data']['progress_tracking'] ?? null) ? $entity['capability_data']['progress_tracking'] : [];
+    $lessons = is_array($entity['capability_data']['lessons_index'] ?? null) ? $entity['capability_data']['lessons_index'] : [];
+    $gallery = is_array($entity['capability_data']['media_gallery'] ?? null) ? $entity['capability_data']['media_gallery'] : [];
+    $inquiry = is_array($entity['capability_data']['inquiry'] ?? null) ? $entity['capability_data']['inquiry'] : [];
+    $capabilities = is_array($entity['capabilities'] ?? null) ? $entity['capabilities'] : [];
+    $typeLabel = trim((string)($entity['content_type_label'] ?? $entity['type'] ?? ''));
+    $authorName = trim((string)($entity['author_name'] ?? ''));
+    $entityType = trim((string)($entity['type'] ?? '')) ?: 'post';
+    $entitySlug = trim((string)($entity['slug'] ?? ''));
+    $entityUrl = cmsBuilderEntityPermalink($entityType, $entitySlug);
+    $pricingText = trim((string)($pricing['formatted'] ?? ''));
+    if ($pricingText === '' && isset($pricing['active_price'])) {
+        $currency = trim((string)($pricing['currency'] ?? 'USD'));
+        $pricingText = $currency . ' ' . number_format((float)$pricing['active_price'], 2);
+    }
 
     $html = '<article' . cmsBuilderAttrString($attrs) . cmsBuilderStyleAttr(array_merge(['display' => 'flex', 'flexDirection' => 'column', 'gap' => '24px', 'width' => '100%'], $style)) . '>';
-    if ($showFeaturedImage && !empty($entity['featured_image_url'])) {
-        $html .= '<div style="overflow:hidden;border-radius:18px;background:#e2e8f0"><img src="' . cmsBuilderEsc((string)$entity['featured_image_url']) . '" alt="' . $title . '" loading="lazy" style="display:block;width:100%;height:auto"></div>';
+    if ($showFeaturedImage) {
+        $galleryItems = is_array($gallery['items'] ?? null) ? array_slice($gallery['items'], 0, 3) : [];
+        if ($galleryItems !== []) {
+            $html .= '<div style="display:grid;grid-template-columns:2fr 1fr;gap:12px">';
+            foreach ($galleryItems as $index => $item) {
+                if (!is_array($item)) {
+                    continue;
+                }
+                $candidate = trim((string)($item['url'] ?? $item['src'] ?? $item['thumb'] ?? ''));
+                if ($candidate === '') {
+                    continue;
+                }
+                $imageUrl = preg_match('#^(https?:)?//#i', $candidate) === 1 || str_starts_with($candidate, '/')
+                    ? $candidate
+                    : (function_exists('cmsResolveUploadUrl') ? cmsResolveUploadUrl($candidate) : $candidate);
+                $cellStyle = $index === 0
+                    ? 'overflow:hidden;border-radius:18px;background:#e2e8f0;grid-row:1 / span 2'
+                    : 'overflow:hidden;border-radius:18px;background:#e2e8f0';
+                $html .= '<div style="' . $cellStyle . '"><img src="' . cmsBuilderEsc($imageUrl) . '" alt="' . $title . '" loading="lazy" style="display:block;width:100%;height:100%;object-fit:cover"></div>';
+            }
+            $html .= '</div>';
+        } elseif (!empty($entity['featured_image_url'])) {
+            $html .= '<div style="overflow:hidden;border-radius:18px;background:#e2e8f0"><img src="' . cmsBuilderEsc((string)$entity['featured_image_url']) . '" alt="' . $title . '" loading="lazy" style="display:block;width:100%;height:auto"></div>';
+        }
     }
 
     $html .= '<div style="display:flex;flex-direction:column;gap:12px">';
     if ($showTitle) {
         $html .= '<h2 style="margin:0;font-size:32px;line-height:1.2;color:#0f172a">' . $title . '</h2>';
     }
-    if ($showMeta && $publishedAt !== '') {
-        $html .= '<div style="display:flex;flex-wrap:wrap;gap:12px;font-size:13px;color:#64748b"><span>' . cmsBuilderEsc((string)($entity['type'] ?? 'content')) . '</span><span>' . cmsBuilderEsc($publishedAt) . '</span></div>';
+    if ($showMeta) {
+        $metaParts = [];
+        if ($showTypeLabel && $typeLabel !== '') {
+            $metaParts[] = '<span style="padding:6px 10px;border-radius:999px;background:#e0f2fe;color:#0369a1;font-weight:600">' . cmsBuilderEsc($typeLabel) . '</span>';
+        }
+        if ($showDate && $publishedAt !== '') {
+            $metaParts[] = '<span>' . cmsBuilderEsc($publishedAt) . '</span>';
+        }
+        if ($showAuthor && $authorName !== '') {
+            $metaParts[] = '<span>By ' . cmsBuilderEsc($authorName) . '</span>';
+        }
+        if ($metaParts !== []) {
+            $html .= '<div style="display:flex;flex-wrap:wrap;gap:12px;font-size:13px;color:#64748b">' . implode('', $metaParts) . '</div>';
+        }
     }
-    if ($showPricing && !empty($pricing['formatted'])) {
-        $html .= '<div style="font-size:15px;font-weight:700;color:#0f766e">' . cmsBuilderEsc((string)$pricing['formatted']) . '</div>';
+    if ($showPricing && $pricingText !== '') {
+        $html .= '<div style="font-size:15px;font-weight:700;color:#0f766e">' . cmsBuilderEsc($pricingText) . '</div>';
     }
     if ($showInventory && !empty($inventory)) {
         $inventoryText = !empty($inventory['out_of_stock']) ? 'Out of stock' : (!empty($inventory['low_stock']) ? 'Low stock' : 'In stock');
         $inventoryColor = !empty($inventory['out_of_stock']) ? '#dc2626' : (!empty($inventory['low_stock']) ? '#d97706' : '#16a34a');
-        $html .= '<div style="font-size:13px;font-weight:600;color:' . $inventoryColor . '">' . $inventoryText . '</div>';
+        $skuText = $showSku && !empty($inventory['sku']) ? ' <span style="color:#64748b;font-weight:500">SKU ' . cmsBuilderEsc((string)$inventory['sku']) . '</span>' : '';
+        $html .= '<div style="font-size:13px;font-weight:600;color:' . $inventoryColor . '">' . $inventoryText . $skuText . '</div>';
     }
     $html .= '</div>';
+
+    if ($showProgress && !empty($capabilities['progress_tracking'])) {
+        $percent = max(0, min(100, (int)($progress['percent'] ?? 0)));
+        if (($progress['authenticated'] ?? true) === false) {
+            $html .= '<div style="padding:16px 18px;border:1px solid #dbeafe;border-radius:16px;background:#f8fbff;color:#0369a1;font-size:14px;font-weight:600">Sign in to track progress</div>';
+        } else {
+            $html .= '<div style="padding:16px 18px;border:1px solid #dbeafe;border-radius:16px;background:#f8fbff;display:flex;flex-direction:column;gap:10px">';
+            $html .= '<div style="display:flex;justify-content:space-between;font-size:13px;color:#0369a1;font-weight:600"><span>Progress</span><span>' . $percent . '%</span></div>';
+            $html .= '<div style="height:10px;border-radius:999px;background:#dbeafe;overflow:hidden"><div style="width:' . $percent . '%;height:100%;background:#0ea5e9"></div></div>';
+            $html .= '</div>';
+        }
+    }
+
+    if ($showLessons && !empty($capabilities['lessons_index']) && !empty($lessons['items']) && is_array($lessons['items'])) {
+        $childType = trim((string)($lessons['child_type'] ?? 'lesson')) ?: 'lesson';
+        $html .= '<div style="padding:18px;border:1px solid #e2e8f0;border-radius:18px;display:flex;flex-direction:column;gap:12px">';
+        $html .= '<h3 style="margin:0;font-size:18px;color:#0f172a">Contents</h3>';
+        $html .= '<ol style="margin:0;padding-left:20px;display:flex;flex-direction:column;gap:8px;color:#475569">';
+        foreach ($lessons['items'] as $lesson) {
+            if (!is_array($lesson)) {
+                continue;
+            }
+            $lessonTitle = cmsBuilderEsc((string)($lesson['title'] ?? 'Lesson'));
+            $lessonUrl = cmsBuilderEntityPermalink($childType, (string)($lesson['slug'] ?? ''));
+            $html .= '<li><a href="' . cmsBuilderEsc($lessonUrl) . '" style="color:#0f172a;text-decoration:none">' . $lessonTitle . '</a></li>';
+        }
+        $html .= '</ol></div>';
+    }
+
+    if ($showActions) {
+        $actionHtml = trim((string)($rootContext['action_sections'] ?? ''));
+        if ($actionHtml !== '') {
+            $html .= '<div style="display:flex;flex-wrap:wrap;gap:12px">' . $actionHtml . '</div>';
+        } else {
+            $buttons = [];
+            if (!empty($capabilities['pricing'])) {
+                if (!empty($inventory['out_of_stock'])) {
+                    $buttons[] = '<span style="display:inline-flex;align-items:center;justify-content:center;padding:12px 18px;border-radius:12px;background:#e2e8f0;color:#64748b;font-size:14px;font-weight:600">Out of Stock</span>';
+                } else {
+                    $buttons[] = '<a href="' . cmsBuilderEsc($entityUrl) . '" style="display:inline-flex;align-items:center;justify-content:center;padding:12px 18px;border-radius:12px;background:#0f172a;color:#ffffff;text-decoration:none;font-size:14px;font-weight:600">Buy Now</a>';
+                }
+            }
+            if (!empty($capabilities['booking']) && $entitySlug !== '') {
+                $buttons[] = '<a href="' . cmsBuilderEsc(rtrim((string)(defined('BASE_URL') ? BASE_URL : ''), '/') . '/cms/' . rawurlencode($entityType) . '/' . rawurlencode($entitySlug) . '/book') . '" style="display:inline-flex;align-items:center;justify-content:center;padding:12px 18px;border-radius:12px;background:#ffffff;border:1px solid #cbd5e1;color:#0f172a;text-decoration:none;font-size:14px;font-weight:600">Book Now</a>';
+            }
+            if (!empty($capabilities['inquiry']) && $entitySlug !== '') {
+                $label = trim((string)($inquiry['label'] ?? 'Inquire')) ?: 'Inquire';
+                $buttons[] = '<a href="' . cmsBuilderEsc(rtrim((string)(defined('BASE_URL') ? BASE_URL : ''), '/') . '/cms/' . rawurlencode($entityType) . '/' . rawurlencode($entitySlug) . '/inquire') . '" style="display:inline-flex;align-items:center;justify-content:center;padding:12px 18px;border-radius:12px;background:#ffffff;border:1px solid #cbd5e1;color:#0f172a;text-decoration:none;font-size:14px;font-weight:600">' . cmsBuilderEsc($label) . '</a>';
+            }
+
+            if ($buttons !== []) {
+                $html .= '<div style="display:flex;flex-wrap:wrap;gap:12px">' . implode('', $buttons) . '</div>';
+            }
+        }
+    }
 
     if ($showBody && $contentHtml !== '') {
         $html .= '<div style="font-size:15px;line-height:1.7;color:#475569">' . $contentHtml . '</div>';
@@ -900,10 +1240,12 @@ function cmsRenderWidget_entity_list(array $props, array $style, array $attrs, s
 {
     $entityType = trim((string)($props['entityType'] ?? 'post')) ?: 'post';
     $itemCount = max(1, min(12, (int)($props['itemCount'] ?? 6)));
-    $gridCols = max(1, min(4, (int)($props['gridColumns'] ?? 3)));
+    $gridCols = max(1, min(6, (int)($props['gridColumns'] ?? 3)));
     $layout = (string)($props['layout'] ?? 'grid');
     $showFeaturedImage = ($props['showFeaturedImage'] ?? true) !== false;
+    $showTitle = ($props['showTitle'] ?? true) !== false;
     $showExcerpt = ($props['showExcerpt'] ?? true) !== false;
+    $excerptLen = max(20, (int)($props['excerptLength'] ?? 120));
     $showPricing = ($props['showPricing'] ?? true) !== false;
     $showInventory = ($props['showInventory'] ?? true) !== false;
     $emptyMessage = cmsBuilderEsc((string)($props['emptyMessage'] ?? 'No items found.'));
@@ -933,13 +1275,7 @@ function cmsRenderWidget_entity_list(array $props, array $style, array $attrs, s
         return '<div' . cmsBuilderAttrString($attrs) . cmsBuilderStyleAttr($style) . '><p style="color:#6b7280;text-align:center;padding:24px">' . $emptyMessage . '</p></div>';
     }
 
-    $baseUrl = rtrim((string)(defined('BASE_URL') ? BASE_URL : ''), '/');
-    $wrapperStyle = array_merge([
-        'display' => 'grid',
-        'gridTemplateColumns' => $layout === 'list' ? '1fr' : 'repeat(' . $gridCols . ', 1fr)',
-        'gap' => '24px',
-        'width' => '100%',
-    ], $style);
+    $wrapperStyle = cmsBuilderGridStyle($style, $layout === 'list' ? '1fr' : 'repeat(' . $gridCols . ', 1fr)');
     $html = '<div' . cmsBuilderAttrString($attrs) . cmsBuilderStyleAttr($wrapperStyle) . '>';
 
     foreach ($items as $item) {
@@ -953,16 +1289,18 @@ function cmsRenderWidget_entity_list(array $props, array $style, array $attrs, s
         $pricing = is_array($capabilityData['pricing'] ?? null) ? $capabilityData['pricing'] : [];
         $inventory = is_array($capabilityData['inventory'] ?? null) ? $capabilityData['inventory'] : [];
         $imageUrl = !empty($item['featured_image']) && function_exists('cmsResolveUploadUrl') ? cmsResolveUploadUrl((string)$item['featured_image']) : '';
-        $itemUrl = $baseUrl . '/cms/' . rawurlencode($entityType) . '/' . rawurlencode((string)($item['slug'] ?? ''));
+        $itemUrl = cmsBuilderEntityPermalink($entityType, (string)($item['slug'] ?? ''));
 
         $html .= '<a href="' . cmsBuilderEsc($itemUrl) . '" style="display:block;text-decoration:none;background:#ffffff;border:1px solid #e2e8f0;border-radius:18px;overflow:hidden;box-shadow:0 10px 30px rgba(15,23,42,0.06)">';
         if ($showFeaturedImage && $imageUrl !== '') {
             $html .= '<div style="aspect-ratio:16 / 9;overflow:hidden;background:#e2e8f0"><img src="' . cmsBuilderEsc($imageUrl) . '" alt="' . cmsBuilderEsc((string)($item['title'] ?? '')) . '" loading="lazy" style="display:block;width:100%;height:100%;object-fit:cover"></div>';
         }
         $html .= '<div style="padding:16px;display:flex;flex-direction:column;gap:10px">';
-        $html .= '<h3 style="margin:0;font-size:18px;line-height:1.35;color:#0f172a">' . cmsBuilderEsc((string)($item['title'] ?? 'Untitled')) . '</h3>';
+        if ($showTitle) {
+            $html .= '<h3 style="margin:0;font-size:18px;line-height:1.35;color:#0f172a">' . cmsBuilderEsc((string)($item['title'] ?? 'Untitled')) . '</h3>';
+        }
         if ($showExcerpt && !empty($item['excerpt'])) {
-            $html .= '<p style="margin:0;font-size:14px;line-height:1.6;color:#64748b">' . cmsBuilderEsc((string)$item['excerpt']) . '</p>';
+            $html .= '<p style="margin:0;font-size:14px;line-height:1.6;color:#64748b">' . cmsBuilderEsc(mb_strimwidth((string)$item['excerpt'], 0, $excerptLen, '...')) . '</p>';
         }
         if ($showPricing && !empty($pricing['formatted'])) {
             $html .= '<div style="font-size:13px;font-weight:700;color:#0f766e">' . cmsBuilderEsc((string)$pricing['formatted']) . '</div>';
@@ -1081,7 +1419,7 @@ function cmsRenderWidget_flip_box(array $props, array $style, array $attrs, stri
 {
     $fIcon = cmsBuilderEsc((string)($props['frontIcon'] ?? 'Zap'));
     $fTitle = cmsBuilderEsc((string)($props['frontTitle'] ?? 'Front Title'));
-    $fDesc = cmsBuilderEsc((string)($props['frontDescription'] ?? ''));
+    $fDesc = cmsBuilderEsc((string)($props['frontDescription'] ?? 'Hover to see more'));
     $bTitle = cmsBuilderEsc((string)($props['backTitle'] ?? 'Back Title'));
     $bDesc = cmsBuilderEsc((string)($props['backDescription'] ?? ''));
     $bBtnText = cmsBuilderEsc((string)($props['backButtonText'] ?? 'Learn More'));

@@ -32,8 +32,14 @@ function ecProductList(array $filters = []): array
     $status     = trim((string)($filters['status'] ?? 'published'));
     $limit      = min(100, max(1, (int)($filters['limit']  ?? (int)ecSettings('products_per_page'))));
     $offset     = max(0, (int)($filters['offset'] ?? 0));
-    $orderBy    = in_array($filters['order_by'] ?? '', ['created_at', 'title', 'updated_at'], true)
-        ? $filters['order_by'] : 'created_at';
+    $orderInput = (string)($filters['order_by'] ?? 'created_at');
+    $orderInput = match ($orderInput) {
+        'date' => 'created_at',
+        default => $orderInput,
+    };
+    $orderBy    = in_array($orderInput, ['created_at', 'title', 'updated_at', 'price', 'random'], true)
+        ? $orderInput : 'created_at';
+    $orderDir   = strtolower((string)($filters['order'] ?? 'desc')) === 'asc' ? 'ASC' : 'DESC';
 
     $where  = ["c.type = 'product'", 'c.deleted_at IS NULL'];
     $params = [];
@@ -57,6 +63,15 @@ function ecProductList(array $filters = []): array
     }
 
     $whereClause = implode(' AND ', $where);
+    $pricingJoin = '';
+    $orderClause = 'c.' . $orderBy . ' ' . $orderDir;
+
+    if ($orderBy === 'price') {
+        $pricingJoin = " LEFT JOIN cms_entity_capabilities pricing_cap ON pricing_cap.entity_id = c.id AND pricing_cap.capability_id = 'pricing'";
+        $orderClause = "COALESCE(CAST(JSON_UNQUOTE(JSON_EXTRACT(pricing_cap.config, '$.sale_price')) AS DECIMAL(12,2)), CAST(JSON_UNQUOTE(JSON_EXTRACT(pricing_cap.config, '$.price')) AS DECIMAL(12,2)), 0) " . $orderDir;
+    } elseif ($orderBy === 'random') {
+        $orderClause = 'RAND()';
+    }
 
     try {
         $total = (int)$db->query(
@@ -70,9 +85,10 @@ function ecProductList(array $filters = []): array
                     m.file_path AS featured_image
              FROM cms_content c
              $join
+             $pricingJoin
              LEFT JOIN cms_media m ON m.id = c.featured_image_id
              WHERE $whereClause
-             ORDER BY c.$orderBy DESC
+             ORDER BY $orderClause
              LIMIT ? OFFSET ?",
             array_merge($params, [$limit, $offset])
         )->fetchAll(\PDO::FETCH_ASSOC);

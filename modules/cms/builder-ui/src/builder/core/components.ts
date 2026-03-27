@@ -649,6 +649,7 @@ export const CMS_COMPONENTS: ComponentDefinition[] = [
       showFeaturedImage: true,
       showAuthor: false,
       showReadMore: true,
+      readMoreText: 'Read More',
       gridColumns: 3,
       postType: 'post',
       orderBy: 'date',
@@ -681,6 +682,7 @@ export const CMS_COMPONENTS: ComponentDefinition[] = [
       excerptLength: 120,
       showMeta: true, // Shows price
       showAction: true, // Add to cart/view button
+      actionText: 'View Product',
       gridColumns: 3,
       orderBy: 'date',
       order: 'desc',
@@ -706,6 +708,7 @@ export const CMS_COMPONENTS: ComponentDefinition[] = [
     description: 'Dynamic grid of team members with roles and departments',
     defaultProps: {
       itemCount: 4, // Works out of the box
+      teamType: '', // Auto-detect common team content types when left empty
       departmentIds: [], // Empty = show all (intuitive)
       showImage: true, // Visual appeal
       showTitle: true,
@@ -730,16 +733,23 @@ export const CMS_COMPONENTS: ComponentDefinition[] = [
   },
   {
     type: 'entity_view',
-    name: 'Entity View',
+    name: 'Current Entity View',
     icon: 'FileText',
     category: 'content',
-    description: 'Render the current entity using the public theme view contract',
+    description: 'Render the current page entity using the public theme view contract',
     defaultProps: {
       showFeaturedImage: true,
       showTitle: true,
       showMeta: true,
+      showTypeLabel: true,
+      showAuthor: true,
+      showDate: true,
       showPricing: true,
       showInventory: true,
+      showSku: true,
+      showProgress: true,
+      showLessons: true,
+      showActions: true,
       showBody: true,
     },
     defaultStyle: {
@@ -764,6 +774,7 @@ export const CMS_COMPONENTS: ComponentDefinition[] = [
       showFeaturedImage: true,
       showTitle: true,
       showExcerpt: true,
+      excerptLength: 120,
       showPricing: true,
       showInventory: true,
       emptyMessage: 'No items found.',
