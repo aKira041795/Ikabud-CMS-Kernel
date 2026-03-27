@@ -159,7 +159,7 @@ function aiOpenRouterHttp(string $url, array $payload, string $apiKey, int $time
 
     $siteUrl = '';
     try {
-        $siteUrl = trim((string)config('app.url', ''));
+        $siteUrl = external_base_url((string)config('app.url', ''));
     } catch (Throwable $e) {
     }
 

@@ -51,8 +51,10 @@ $appSqlFiles = [
     'migrations/004_remove_legacy_kernel_roles.sql',
     'migrations/005_add_update_catalog_tables.sql',
     'database/migrations/006_kernel_workflow_tables.sql',
+    'database/migrations/007_kernel_runtime_tables.sql',
     'database/migrations/007_tenant_module_settings.sql',
     'database/migrations/008_drop_legacy_tables.sql',
+    'database/migrations/009_add_superadmin_role.sql',
 ];
 
 $controlSqlFiles = [
@@ -70,6 +72,8 @@ $appSqlFiles = array_merge($appSqlFiles, $moduleMigrationFiles);
 $tenantSqlFiles = [
     'migrations/001_kernel_events_and_triggers.sql',
     'database/migrations/006_kernel_workflow_tables.sql',
+    'database/migrations/007_kernel_runtime_tables.sql',
+    'database/migrations/009_add_superadmin_role.sql',
 ];
 $tenantSqlFiles = array_merge($tenantSqlFiles, $moduleMigrationFiles);
 

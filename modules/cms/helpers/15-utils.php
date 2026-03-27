@@ -107,25 +107,7 @@ function cmsUuid(): string
  */
 function cmsExternalBaseUrl(): string
 {
-    $appUrl = trim((string) config('app.url', ''));
-    $fallback = rtrim($appUrl, '/');
-
-    $host = trim((string) ($_SERVER['HTTP_HOST'] ?? ''));
-    if ($host === '') {
-        return $fallback;
-    }
-
-    $forwardedProto = trim((string) ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? ''));
-    if ($forwardedProto !== '') {
-        $parts = explode(',', $forwardedProto);
-        $scheme = strtolower(trim((string) ($parts[0] ?? 'http')));
-    } else {
-        $https = strtolower((string) ($_SERVER['HTTPS'] ?? ''));
-        $scheme = ($https !== '' && $https !== 'off') ? 'https' : 'http';
-    }
-
-    $basePath = rtrim((string) parse_url($appUrl, PHP_URL_PATH), '/');
-    return rtrim($scheme . '://' . $host . $basePath, '/');
+    return external_base_url((string)config('app.url', ''));
 }
 
 /**

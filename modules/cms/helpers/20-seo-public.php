@@ -71,7 +71,7 @@ function cmsDefaultSeoHeadHtml(array $content = []): string
         if (is_array($decoded)) $builderSeo = $decoded;
     }
 
-    $appUrl = rtrim((string)app()->config('app.url', ''), '/');
+    $appUrl = external_base_url((string)app()->config('app.url', ''));
     $path = '';
     if ($type === 'post' && $slug !== '') {
         $path = '/cms/blog/' . $slug;
@@ -167,8 +167,7 @@ function cmsDefaultSeoHeadHtml(array $content = []): string
 
 function cmsBuildSitemapUrls(): array
 {
-    $urls = [];
-    $appUrl = rtrim((string)app()->config('app.url', ''), '/');
+    $appUrl = external_base_url((string)app()->config('app.url', ''));
     $urls = [];
 
     // Home
@@ -247,7 +246,7 @@ function cmsStructuredDataJsonLd(array $content): string
 
     $cmsSettings = readCmsSettings();
     $siteTitle = trim((string)($cmsSettings['site_title'] ?? ''));
-    $appUrl = rtrim((string)app()->config('app.url', ''), '/');
+    $appUrl = external_base_url((string)app()->config('app.url', ''));
 
     $path = '';
     if ($type === 'post' && $slug !== '') {
@@ -308,10 +307,10 @@ function cmsBuildRssFeedXml(int $limit = 20): string
     $settings = readCmsSettings();
     $siteTitle    = trim((string)($settings['site_title'] ?? ''));
     $siteTagline  = trim((string)($settings['site_tagline'] ?? ''));
-    $appUrl       = rtrim((string)app()->config('app.url', ''), '/');
+    $appUrl       = external_base_url((string)app()->config('app.url', ''));
 
     if ($siteTitle === '') $siteTitle = 'Blog';
-    if ($appUrl === '')    $appUrl = rtrim((string)($_SERVER['REQUEST_SCHEME'] ?? 'https') . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost'), '/');
+    if ($appUrl === '')    $appUrl = rtrim(request_scheme() . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost'), '/');
 
     $db = cmsDb();
     $vis = cmsPublicVisibilitySql('c');

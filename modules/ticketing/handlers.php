@@ -539,7 +539,7 @@ function tkUploadsPath(): string
 
 function tkUploadsUrl(string $relPath): string
 {
-    $base = rtrim(config('app.url', ''), '/');
+    $base = external_base_url((string)config('app.url', ''));
     return $base . '/uploads/tickets/' . ltrim($relPath, '/');
 }
 
@@ -728,7 +728,7 @@ function tkNotifyAdmins(array $ticket): void
         $email = trim((string) ($settings['admin_email'] ?? ''));
         if ($email !== '' && filter_var($email, FILTER_VALIDATE_EMAIL)) {
             try {
-                $baseUrl = rtrim(config('app.url', ''), '/');
+                $baseUrl = external_base_url((string)config('app.url', ''));
                 $link    = $baseUrl . '/tickets/' . $id;
 
                 $content = '<p style="margin:0 0 16px;color:#4b5563;">A new maintenance request has been submitted.</p>'
@@ -785,7 +785,7 @@ function handlePublicSubmitForm(array $params = []): void
         'page_title'      => 'Submit a Maintenance Request',
         'captcha_question' => $captcha['question'],
         'captcha_token'   => $captcha['token'],
-        'base_url'        => rtrim(config('app.url', ''), '/'),
+        'base_url'        => external_base_url((string)config('app.url', '')),
     ]);
 }
 
@@ -805,7 +805,7 @@ function handlePublicSubmitSuccess(array $params = []): void
     echo $ctx->render('modules/ticketing/public-success.disyl', [
         'page_title' => 'Request Submitted',
         'ticket_no'  => $ticketNo,
-        'base_url'   => rtrim(config('app.url', ''), '/'),
+        'base_url'   => external_base_url((string)config('app.url', '')),
     ]);
 }
 
@@ -973,7 +973,7 @@ function apiPublicSubmitTicket(array $params = []): void
         'contact_name' => $contactName,
     ]);
 
-    $baseUrl  = rtrim(config('app.url', ''), '/');
+    $baseUrl  = external_base_url((string)config('app.url', ''));
     $redirect = $baseUrl . '/submit-ticket/success?t=' . urlencode($ticketNo);
 
     echo json_encode(['ok' => true, 'ticket_no' => $ticketNo, 'redirect' => $redirect]);
@@ -1073,7 +1073,7 @@ function tkCmsBlockRenderer(array $payload): string
     }
 
     $captcha = tkGenerateCaptcha();
-    $base    = rtrim(config('app.url', ''), '/');
+    $base    = external_base_url((string)config('app.url', ''));
     $heading = htmlspecialchars((string) ($payload['block']['props']['heading'] ?? 'Submit a Maintenance Request'));
 
     ob_start();

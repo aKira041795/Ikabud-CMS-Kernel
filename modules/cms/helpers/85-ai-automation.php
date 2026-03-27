@@ -3871,15 +3871,7 @@ function cmsAiAutomationSendApprovalNotification(int $contentId): bool
     }
 
     $appUrl = '';
-    $host = (string)($_SERVER['HTTP_HOST'] ?? '');
-    if ($host !== '') {
-        $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
-        $appUrl = $scheme . '://' . $host;
-    }
-    if ($appUrl === '') {
-        $appUrl = trim((string)config('app.url', ''));
-    }
-    $baseUrl = rtrim($appUrl, '/');
+    $baseUrl = external_base_url((string)config('app.url', ''));
     $reviewUrl = $baseUrl . '/cms/admin/content/edit/' . $contentId;
     $desiredPublishAt = trim((string)($meta['_ai_desired_publish_at'] ?? ''));
     $summary = trim((string)($content['excerpt'] ?? ''));

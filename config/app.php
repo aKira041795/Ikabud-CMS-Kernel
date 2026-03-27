@@ -82,5 +82,6 @@ return [
         'release_limit' => max(1, min(20, (int) ($_ENV['APP_UPDATES_RELEASE_LIMIT'] ?? 5))),
         'user_agent' => trim((string) ($_ENV['APP_UPDATES_USER_AGENT'] ?? 'Ikabud-Kernel-Updater/1.0')),
         'auto_check_interval_minutes' => max(1, (int) ($_ENV['APP_UPDATES_AUTO_CHECK_INTERVAL_MINUTES'] ?? 60)),
+        'auto_sync_on_platform' => (bool) ($_ENV['APP_UPDATES_AUTO_SYNC_ON_PLATFORM'] ?? false),
     ],
 ];

@@ -43,6 +43,7 @@ class App
     private ?CapabilityRegistry $capabilityRegistry = null;
     private ?CapabilityBus $capabilityBus = null;
     private ?array $currentUser = null;
+    private bool $resolvingCurrentUser = false;
     private bool $booted = false;
     private ?array $cachedNavItems = null;
     private ?array $cachedGuiContext = null;
@@ -201,7 +202,7 @@ class App
                 $template = (string)$payload['template'];
             }
 
-            $appUrl = $this->config('app.url', '');
+            $appUrl = external_base_url((string)$this->config('app.url', ''));
             $baseUrl = rtrim(parse_url($appUrl, PHP_URL_PATH) ?: '', '/');
 
             $user = $this->user();
@@ -613,6 +614,8 @@ class App
             return null;
         }
 
+        $previousUnguarded = (bool)($GLOBALS['_kernel_db_unguarded'] ?? false);
+        $GLOBALS['_kernel_db_unguarded'] = true;
         try {
             $stmt = $this->controlDb()->prepare(
                 'SELECT db_driver, db_host, db_port, db_name, db_user, db_pass, db_charset, '
@@ -647,6 +650,8 @@ class App
             ];
         } catch (\Throwable $e) {
             return null;
+        } finally {
+            $GLOBALS['_kernel_db_unguarded'] = $previousUnguarded;
         }
     }
     
@@ -674,6 +679,7 @@ class App
                     PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
                     PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
                     PDO::ATTR_EMULATE_PREPARES => false,
+                    PDO::MYSQL_ATTR_INIT_COMMAND => "SET NAMES 'utf8mb4' COLLATE 'utf8mb4_unicode_ci'",
                 ]
             );
         }
@@ -700,6 +706,7 @@ class App
                     PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
                     PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
                     PDO::ATTR_EMULATE_PREPARES => false,
+                    PDO::MYSQL_ATTR_INIT_COMMAND => "SET NAMES 'utf8mb4' COLLATE 'utf8mb4_unicode_ci'",
                 ]
             );
         }
@@ -726,6 +733,8 @@ class App
             return $this->tenantDbPool[$tenantId];
         }
 
+        $previousUnguarded = (bool)($GLOBALS['_kernel_db_unguarded'] ?? false);
+        $GLOBALS['_kernel_db_unguarded'] = true;
         try {
             $stmt = $this->controlDb()->prepare(
                 'SELECT db_driver, db_host, db_port, db_name, db_user, db_pass, db_charset, '
@@ -762,6 +771,7 @@ class App
                 \PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION,
                 \PDO::ATTR_DEFAULT_FETCH_MODE => \PDO::FETCH_ASSOC,
                 \PDO::ATTR_EMULATE_PREPARES => false,
+                \PDO::MYSQL_ATTR_INIT_COMMAND => "SET NAMES 'utf8mb4' COLLATE 'utf8mb4_unicode_ci'",
             ];
 
             $pdoClass = '\\Ikabud\\Kernel\\Database\\KernelPDO';
@@ -770,7 +780,34 @@ class App
             return $pdo;
         } catch (\Throwable $e) {
             return null;
+        } finally {
+            $GLOBALS['_kernel_db_unguarded'] = $previousUnguarded;
         }
+    }
+
+    public function reconnectDb(): PDO
+    {
+        $this->db = null;
+        return $this->db();
+    }
+
+    public function reconnectControlDb(): PDO
+    {
+        $this->controlDb = null;
+        return $this->controlDb();
+    }
+
+    public function reconnectDbForTenant(int $tenantId): ?PDO
+    {
+        // When the tenant is the current request's tenant, dbForTenant() delegates
+        // to $this->db(). We must reset $this->db too, otherwise the stale PDO is
+        // returned and the retry still fails with "server has gone away".
+        $currentTid = $this->tenant()->current();
+        if (PHP_SAPI !== 'cli' && $currentTid !== null && (int)$currentTid === $tenantId) {
+            $this->db = null;
+        }
+        unset($this->tenantDbPool[$tenantId]);
+        return $this->dbForTenant($tenantId);
     }
 
     /**
@@ -787,7 +824,7 @@ class App
             
             $this->templateEngine->setGlobals([
                 'app_name' => $this->config('app.name', 'Ikabud System'),
-                'app_url' => $this->config('app.url', '/guidance'),
+                'app_url' => external_base_url((string)$this->config('app.url', '/guidance')),
                 'app_version' => $this->config('app.version', '1.0.0'),
                 'hour' => (int) date('G'),
             ]);
@@ -875,7 +912,7 @@ class App
      */
     public function render(string $template, array $context = []): string
     {
-        $appUrl = $this->config('app.url', '');
+        $appUrl = external_base_url((string)$this->config('app.url', ''));
         $baseUrl = rtrim(parse_url($appUrl, PHP_URL_PATH) ?: '', '/');
         
         $user = $this->user();
@@ -1003,61 +1040,68 @@ class App
             return $this->currentUser;
         }
 
-        // Try cookies first (for page requests). The kernel has a default cookie_name,
-        // but modules may also declare their own auth cookies. We allow modules to
-        // supply additional cookie names via a hook to keep auth routing stable.
-        $cookieName = $this->config('app.cookie_name', 'guidance_token');
-        $cookieCandidates = [$cookieName];
+        if ($this->resolvingCurrentUser) {
+            return null;
+        }
+
+        $this->resolvingCurrentUser = true;
+
         try {
-            $extra = $this->hooks()->filter('kernel.auth_cookie_names', [], $cookieName);
-            if (is_array($extra)) {
-                foreach ($extra as $c) {
+            // Try cookies first (for page requests). The kernel has a default cookie_name,
+            // but modules may also declare their own auth cookies. Resolve those directly
+            // from manifests here to avoid hook/module-context recursion during bootstrap.
+            $cookieName = $this->config('app.cookie_name', 'guidance_token');
+            $cookieCandidates = [$cookieName];
+
+            if (function_exists('declaredModuleAuthCookieNames')) {
+                foreach (declaredModuleAuthCookieNames() as $c) {
                     if (is_string($c) && $c !== '' && !in_array($c, $cookieCandidates, true)) {
                         $cookieCandidates[] = $c;
                     }
                 }
             }
-        } catch (\Throwable $ignored) {
-        }
 
-        $token = null;
-        foreach ($cookieCandidates as $cName) {
-            $candidate = $_COOKIE[$cName] ?? null;
-            if (is_string($candidate) && $candidate !== '') {
-                $token = $candidate;
-                break;
-            }
-        }
-        
-        // Then try Authorization header (for API requests)
-        if (!$token) {
-            $authHeader = $_SERVER['HTTP_AUTHORIZATION'] ?? '';
-            if (preg_match('/Bearer\s+(.+)$/i', $authHeader, $matches)) {
-                $token = $matches[1];
-            }
-        }
-        
-        if (!$token) {
-            return null;
-        }
-        
-        try {
-            $this->currentUser = $this->jwt()->verify($token);
-
-            // Multi-tenant JWT cross-validation: reject tokens issued for a
-            // different tenant.  Skipped when multi-tenancy is disabled.
-            if ($this->currentUser !== null && ($this->config['app']['multi_tenant']['enabled'] ?? false)) {
-                $jwtTid = $this->currentUser['tenant_id'] ?? null;
-                $curTid = $this->tenant()->current();
-                if ($jwtTid !== null && $curTid !== null && (int) $jwtTid !== $curTid) {
-                    $this->currentUser = null;
-                    return null;
+            $token = null;
+            foreach ($cookieCandidates as $cName) {
+                $candidate = $_COOKIE[$cName] ?? null;
+                if (is_string($candidate) && $candidate !== '') {
+                    $token = $candidate;
+                    break;
                 }
             }
+            
+            // Then try Authorization header (for API requests)
+            if (!$token) {
+                $authHeader = $_SERVER['HTTP_AUTHORIZATION'] ?? '';
+                if (preg_match('/Bearer\s+(.+)$/i', $authHeader, $matches)) {
+                    $token = $matches[1];
+                }
+            }
+            
+            if (!$token) {
+                return null;
+            }
+            
+            try {
+                $this->currentUser = $this->jwt()->verify($token);
 
-            return $this->currentUser;
-        } catch (\Exception $e) {
-            return null;
+                // Multi-tenant JWT cross-validation: reject tokens issued for a
+                // different tenant.  Skipped when multi-tenancy is disabled.
+                if ($this->currentUser !== null && ($this->config['app']['multi_tenant']['enabled'] ?? false)) {
+                    $jwtTid = $this->currentUser['tenant_id'] ?? null;
+                    $curTid = $this->tenant()->current();
+                    if ($jwtTid !== null && $curTid !== null && (int) $jwtTid !== $curTid) {
+                        $this->currentUser = null;
+                        return null;
+                    }
+                }
+
+                return $this->currentUser;
+            } catch (\Exception $e) {
+                return null;
+            }
+        } finally {
+            $this->resolvingCurrentUser = false;
         }
     }
     

@@ -116,6 +116,43 @@ function is_https(): bool
     return false;
 }
 
+function request_scheme(): string
+{
+    return is_https() ? 'https' : 'http';
+}
+
+function external_base_url(?string $appUrl = null): string
+{
+    $configured = trim((string)($appUrl ?? config('app.url', '')));
+    $fallback = rtrim($configured, '/');
+    $host = trim((string)($_SERVER['HTTP_HOST'] ?? ''));
+    if ($host === '') {
+        return $fallback;
+    }
+
+    $basePath = rtrim((string)parse_url($configured, PHP_URL_PATH), '/');
+    return rtrim(request_scheme() . '://' . $host . $basePath, '/');
+}
+
+function should_enforce_https(): bool
+{
+    if (PHP_SAPI === 'cli') {
+        return false;
+    }
+
+    $env = $_ENV['APP_FORCE_HTTPS'] ?? null;
+    if ($env !== null && $env !== '') {
+        return filter_var($env, FILTER_VALIDATE_BOOLEAN);
+    }
+
+    if (strtolower((string)config('app.env', 'development')) !== 'development') {
+        return true;
+    }
+
+    $configured = trim((string)config('app.url', ''));
+    return strtolower((string)parse_url($configured, PHP_URL_SCHEME)) === 'https';
+}
+
 function capability_call_context(): ?array
 {
     $ctx = $GLOBALS['_capability_call_context'] ?? null;
@@ -141,6 +178,98 @@ function write_log(string $message, string $level = 'error', array $context = []
         $context ? json_encode($context, JSON_UNESCAPED_SLASHES) : ''
     );
     @file_put_contents($logDir . '/app.log', $line, FILE_APPEND | LOCK_EX);
+}
+
+function finish_response_if_possible(): void
+{
+    if (PHP_SAPI === 'cli') {
+        return;
+    }
+
+    if (function_exists('fastcgi_finish_request')) {
+        @fastcgi_finish_request();
+        return;
+    }
+
+    // Apache mod_php fallback: tell the client the response is complete so it
+    // disconnects immediately, even though the PHP process continues running.
+    ignore_user_abort(true);
+
+    // Collect any buffered output and send it with proper Content-Length +
+    // Connection: close so the browser/client releases the request.
+    $output = '';
+    while (ob_get_level() > 0) {
+        $output .= ob_get_clean();
+    }
+
+    if (!headers_sent()) {
+        header('Connection: close');
+        header('Content-Encoding: none');
+        header('Content-Length: ' . strlen($output));
+    }
+
+    echo $output;
+    @flush();
+}
+
+function timing_logs_enabled(string $envKey = 'APP_TIMING_LOGS'): bool
+{
+    $value = $_ENV[$envKey] ?? null;
+    if ($value === null || $value === '') {
+        return false;
+    }
+
+    return filter_var($value, FILTER_VALIDATE_BOOLEAN);
+}
+
+function timing_logs_threshold_ms(string $envKey = 'APP_TIMING_THRESHOLD_MS', int $default = 0): int
+{
+    $raw = $_ENV[$envKey] ?? null;
+    if ($raw === null || $raw === '') {
+        return $default;
+    }
+
+    return max(0, (int)$raw);
+}
+
+function log_timing(string $message, float $startTime, array $context = [], string $enableEnvKey = 'APP_TIMING_LOGS', string $thresholdEnvKey = 'APP_TIMING_THRESHOLD_MS'): ?float
+{
+    if (!timing_logs_enabled($enableEnvKey)) {
+        return null;
+    }
+
+    $durationMs = round((microtime(true) - $startTime) * 1000, 2);
+    $thresholdMs = timing_logs_threshold_ms($thresholdEnvKey, 0);
+    if ($durationMs < $thresholdMs) {
+        return $durationMs;
+    }
+
+    $context['duration_ms'] = $durationMs;
+    write_log($message, 'info', $context);
+    return $durationMs;
+}
+
+function dbConnectionLost(Throwable $e): bool
+{
+    $message = strtolower(trim($e->getMessage()));
+    if ($message === '') {
+        return false;
+    }
+
+    if (
+        str_contains($message, 'server has gone away')
+        || str_contains($message, 'lost connection to mysql server')
+        || str_contains($message, 'error while sending')
+        || str_contains($message, 'packets out of order')
+        || str_contains($message, 'no connection to the server')
+        || str_contains($message, 'is dead or not enabled')
+        || str_contains($message, 'sqlstate[hy000]: general error: 2006')
+        || str_contains($message, 'sqlstate[hy000]: general error: 2013')
+    ) {
+        return true;
+    }
+
+    return false;
 }
 
 set_exception_handler(function (Throwable $e): void {
@@ -188,6 +317,10 @@ function config(string $key, mixed $default = null): mixed
     }
 
     return $value;
+}
+
+if (!defined('BASE_URL')) {
+    define('BASE_URL', external_base_url());
 }
 
 function kernelReadJsonFile(string $path, array $default = []): array
