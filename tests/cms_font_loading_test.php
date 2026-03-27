@@ -32,6 +32,8 @@ $nativeLayout = file_get_contents(__DIR__ . '/../storage/cms-themes/native-defau
 
 t('customizer font helper no longer emits preconnect tags', !str_contains($customizerHelper, 'rel="preconnect"'));
 t('customizer font helper builds a consolidated css2 Google Fonts URL', str_contains($customizerHelper, 'https://fonts.googleapis.com/css2?'));
+t('customizer font helper defers Google Fonts stylesheet loading', str_contains($customizerHelper, 'media="print"') && str_contains($customizerHelper, 'onload="this.media='));
+t('customizer font helper includes a noscript font fallback', str_contains($customizerHelper, '<noscript><link rel="stylesheet" href="'));
 t('native default public layout does not hardcode Google Fonts preconnect', !str_contains($nativeLayout, 'fonts.gstatic.com'));
 t('native default public layout does not hardcode Inter stylesheet', !str_contains($nativeLayout, 'family=Inter'));
 

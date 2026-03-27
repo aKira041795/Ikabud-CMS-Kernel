@@ -148,7 +148,7 @@ function cmsCustomizerPersistentCacheKey(string $section): string
 
 function cmsCustomizerFragmentCacheKey(string $fragment): string
 {
-    return 'customizer:fragment:' . $fragment . ':v1';
+    return 'customizer:fragment:' . $fragment . ':v2';
 }
 
 function cmsCustomizerFragmentCacheGet(string $fragment): ?array
@@ -365,9 +365,7 @@ function cmsRenderColorsStyle(object $db): string
     $fontBody    = htmlspecialchars($s['font_body'] ?? 'Inter');
     $fontHeading = htmlspecialchars($s['font_heading'] ?? 'Inter');
 
-    // Google Fonts that need a <link> tag (non-system fonts)
     $systemFonts = ['system-ui', 'Georgia', 'serif', 'sans-serif', 'monospace'];
-    $googleFontsHtml = '';
     $loadedFamilies = [];
     foreach ([$fontBody, $fontHeading] as $face) {
         if (!in_array($face, $systemFonts, true) && !isset($loadedFamilies[$face])) {
@@ -375,12 +373,16 @@ function cmsRenderColorsStyle(object $db): string
         }
     }
 
+    $googleFontsHtml = '';
     if ($loadedFamilies !== []) {
         $fontParams = [];
         foreach ($loadedFamilies as $familyParam) {
             $fontParams[] = 'family=' . $familyParam . ':wght@400;500;600;700';
         }
-        $googleFontsHtml = '<link href="https://fonts.googleapis.com/css2?' . implode('&', $fontParams) . '&display=swap" rel="stylesheet">';
+        $fontHref = 'https://fonts.googleapis.com/css2?' . implode('&', $fontParams) . '&display=swap';
+        $escapedFontHref = htmlspecialchars($fontHref, ENT_QUOTES, 'UTF-8');
+        $googleFontsHtml = '<link rel="stylesheet" href="' . $escapedFontHref . '" media="print" onload="this.media=\'all\'">'
+            . '<noscript><link rel="stylesheet" href="' . $escapedFontHref . '"></noscript>';
     }
 
     $css  = ':root{';
