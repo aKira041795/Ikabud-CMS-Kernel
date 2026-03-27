@@ -23,7 +23,7 @@ export interface DiSyLNode {
 // =============================================================================
 
 // CMS Page Builder components (content-focused)
-export type CMSComponentType = 
+export type CMSComponentType =
   | 'document'  // Root wrapper that contains sections
   | 'section'
   | 'container'
@@ -56,6 +56,8 @@ export type CMSComponentType =
   | 'posts_grid'
   | 'products_grid'
   | 'team_grid'
+  | 'entity_view'
+  | 'entity_list'
   // New components (Jan 2026) - Elementor-level
   | 'pricing_table'
   | 'countdown'
@@ -71,7 +73,7 @@ export type CMSComponentType =
   | 'code_block';
 
 // Admin Theme Builder additional components (template-focused)
-export type ThemeComponentType = 
+export type ThemeComponentType =
   | CMSComponentType
   | 'for'
   | 'if'
@@ -92,57 +94,57 @@ export type ComponentType = CMSComponentType | ThemeComponentType;
 export interface NodeProps {
   // Text content
   content?: string;
-  
+
   // Media
   src?: string;
   alt?: string;
-  
+
   // Links
   href?: string;
   target?: '_self' | '_blank';
-  
+
   // Heading level
   level?: 1 | 2 | 3 | 4 | 5 | 6;
-  
+
   // Button
   variant?: 'primary' | 'secondary' | 'outline' | 'ghost';
   size?: 'sm' | 'md' | 'lg' | string;
-  
+
   // Spacer/Divider
   height?: string;
-  
+
   // Video
   autoplay?: boolean;
   loop?: boolean;
   muted?: boolean;
   controls?: boolean;
-  
+
   // Icon
   icon?: string;
-  
+
   // Icon Box
   title?: string;
   description?: string;
-  
+
   // Tabs
   tabs?: Array<{ id: string; label: string; content: string }>;
   activeTab?: string;
-  
+
   // Accordion / Generic items (flexible for various components)
   items?: string | string[] | Array<{ id?: string; title?: string; content?: string; isOpen?: boolean; label?: string; url?: string; text?: string; included?: boolean }>;
   allowMultiple?: boolean;
-  
+
   // Form
   formType?: 'contact' | 'newsletter' | 'custom';
   fields?: Array<{ id: string; type: string; label: string; placeholder?: string; required?: boolean }>;
   submitText?: string;
   successMessage?: string;
-  
+
   // Gallery
   images?: Array<{ id: string; src: string; alt?: string; caption?: string }>;
   columns?: number;
   lightbox?: boolean;
-  
+
   // Map
   mapType?: 'google' | 'openstreetmap' | 'embed';
   embedUrl?: string;
@@ -150,22 +152,23 @@ export interface NodeProps {
   longitude?: string;
   zoom?: number;
   markerTitle?: string;
-  
+
   // Table
   headers?: string[];
   rows?: string[][];
   striped?: boolean;
   bordered?: boolean;
-  
+
   // Alert
   alertType?: 'info' | 'success' | 'warning' | 'error';
   dismissible?: boolean;
-  
+
   // Anchor
   anchorId?: string;
-  
+
   // Posts Grid
   postCount?: number;
+  itemCount?: number;
   categoryIds?: number[];
   showDate?: boolean;
   showExcerpt?: boolean;
@@ -177,18 +180,28 @@ export interface NodeProps {
   postType?: 'post' | 'page';
   orderBy?: 'date' | 'title' | 'name' | 'price' | 'role' | 'random';
   order?: 'desc' | 'asc';
-  
+
+  // Entity view/list
+  entityType?: string;
+  showTitle?: boolean;
+  showMeta?: boolean;
+  showPricing?: boolean;
+  showInventory?: boolean;
+  showBody?: boolean;
+  emptyMessage?: string;
+  layout?: 'grid' | 'list' | 'horizontal' | 'vertical' | 'split';
+
   // Social Icons
   icons?: Array<{ platform: string; url: string }>;
   style?: string;
-  
+
   // List
   listType?: 'bullet' | 'number' | 'check';
-  
+
   // Template logic (Theme Builder only)
   expression?: string;
   condition?: string;
-  
+
   // Generic extensibility
   [key: string]: unknown;
 }
@@ -206,18 +219,18 @@ export interface NodeStyle {
   flexWrap?: 'nowrap' | 'wrap' | 'wrap-reverse';
   flex?: string;
   gap?: string;
-  
+
   // Self Alignment (for flex children)
   alignSelf?: 'auto' | 'flex-start' | 'flex-end' | 'center' | 'stretch' | 'baseline';
   flexGrow?: string;
   flexShrink?: string;
   flexBasis?: string;
   order?: string;
-  
+
   // Grid
   gridTemplateColumns?: string;
   gridTemplateRows?: string;
-  
+
   // Spacing
   padding?: string;
   paddingTop?: string;
@@ -229,7 +242,7 @@ export interface NodeStyle {
   marginRight?: string;
   marginBottom?: string;
   marginLeft?: string;
-  
+
   // Sizing
   width?: string;
   height?: string;
@@ -238,7 +251,7 @@ export interface NodeStyle {
   maxWidth?: string;
   maxHeight?: string;
   boxSizing?: 'border-box' | 'content-box';
-  
+
   // Typography
   fontSize?: string;
   fontWeight?: string;
@@ -250,14 +263,14 @@ export interface NodeStyle {
   textTransform?: 'none' | 'uppercase' | 'lowercase' | 'capitalize';
   fontStyle?: string;
   color?: string;
-  
+
   // Background
   backgroundColor?: string;
   backgroundImage?: string;
   backgroundSize?: string;
   backgroundPosition?: string;
   backgroundRepeat?: string;
-  
+
   // Border
   border?: string;
   borderWidth?: string;
@@ -268,17 +281,17 @@ export interface NodeStyle {
   borderRight?: string;
   borderBottom?: string;
   borderLeft?: string;
-  
+
   // Effects
   boxShadow?: string;
   opacity?: string;
   overflow?: 'visible' | 'hidden' | 'scroll' | 'auto';
   visibility?: 'visible' | 'hidden' | 'collapse';
-  
+
   // Object (for images)
   objectFit?: 'cover' | 'contain' | 'fill' | 'none' | 'scale-down';
   objectPosition?: string;
-  
+
   // Position
   position?: 'static' | 'relative' | 'absolute' | 'fixed' | 'sticky';
   top?: string;
@@ -286,7 +299,7 @@ export interface NodeStyle {
   bottom?: string;
   left?: string;
   zIndex?: string;
-  
+
   // Responsive overrides
   tablet?: Partial<Omit<NodeStyle, 'tablet' | 'mobile'>>;
   mobile?: Partial<Omit<NodeStyle, 'tablet' | 'mobile'>>;
@@ -330,17 +343,17 @@ export interface BuilderState {
   // Document
   document: DiSyLNode;
   isDirty: boolean;
-  
+
   // Selection
   selectedIds: string[];
   hoveredId: string | null;
-  
+
   // UI State
   activeTool: 'select' | 'text';
   sidebarTab: 'components' | 'layers' | 'settings';
   zoom: number;
   viewport: 'desktop' | 'tablet' | 'mobile';
-  
+
   // Clipboard
   clipboard: DiSyLNode[] | null;
 }
@@ -389,16 +402,16 @@ export interface Operation {
 export const LAYOUT_CONSTRAINTS = {
   /** Maximum nesting depth for containers (prevents layout complexity) */
   MAX_NESTING_DEPTH: 4,
-  
+
   /** Maximum columns in a single row/grid (prevents mobile chaos) */
   MAX_COLUMNS: 6,
-  
+
   /** Default gap for flex/grid layouts */
   DEFAULT_GAP: '24px',
-  
+
   /** Minimum section height to prevent collapse */
   MIN_SECTION_HEIGHT: '100px',
-  
+
   /** Default container max-width */
   DEFAULT_MAX_WIDTH: '1200px',
 } as const;

@@ -32,16 +32,16 @@ function nodeStyleToCSS(
   nodeType?: string,
 ): CSSProperties {
   const baseStyle: CSSProperties = {};
-  
+
   // Copy all style properties except responsive overrides
   const { tablet, mobile, ...rest } = style;
-  
+
   Object.entries(rest).forEach(([key, value]) => {
     if (value !== undefined && value !== null && value !== '') {
       (baseStyle as Record<string, unknown>)[key] = value;
     }
   });
-  
+
   // Apply responsive overrides
   if (viewport === 'tablet' && tablet) {
     Object.entries(tablet).forEach(([key, value]) => {
@@ -112,7 +112,7 @@ function nodeStyleToCSS(
       }
     }
   }
-  
+
   return baseStyle;
 }
 
@@ -153,10 +153,10 @@ interface ElementLabelBarProps {
 
 const ElementLabelBar: React.FC<ElementLabelBarProps> = memo(({ nodeType, nodeName, isSelected, isHovered }) => {
   if (!isSelected && !isHovered) return null;
-  
+
   // Format type name for display
   const displayName = nodeName || nodeType.charAt(0).toUpperCase() + nodeType.slice(1).replace(/_/g, ' ');
-  
+
   return (
     <div
       data-drag-handle
@@ -213,45 +213,45 @@ interface ResizeHandlesProps {
 const ResizeHandles: React.FC<ResizeHandlesProps> = memo(({ onResize, onResizeEnd, resizable = { horizontal: true, vertical: true }, nodeRef, showDimensions = true, lockAspectRatio = false }) => {
   const [dimensions, setDimensions] = useState<{ width: number; height: number; locked?: boolean } | null>(null);
   const [tooltipPosition, setTooltipPosition] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
-  
+
   const handleMouseDown = useCallback((direction: string) => (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    
+
     // Capture initial size at the start of drag
     const element = nodeRef.current;
     if (!element) return;
-    
+
     const rect = element.getBoundingClientRect();
     const computedStyle = window.getComputedStyle(element);
-    
+
     // Use computed width/height which respects CSS box-sizing
     const initialWidth = parseFloat(computedStyle.width) || rect.width;
     const initialHeight = parseFloat(computedStyle.height) || rect.height;
     const aspectRatio = initialWidth / initialHeight;
     const startX = e.clientX;
     const startY = e.clientY;
-    
+
     // Show initial dimensions
     setDimensions({ width: Math.round(initialWidth), height: Math.round(initialHeight), locked: lockAspectRatio });
     setTooltipPosition({ x: e.clientX, y: e.clientY - 40 });
-    
+
     const handleMouseMove = (moveEvent: MouseEvent) => {
       let deltaX = moveEvent.clientX - startX;
       let deltaY = moveEvent.clientY - startY;
-      
+
       // Calculate new dimensions
       let newWidth = initialWidth;
       let newHeight = initialHeight;
-      
+
       if (direction.includes('e')) newWidth += deltaX;
       if (direction.includes('w')) newWidth -= deltaX;
       if (direction.includes('s')) newHeight += deltaY;
       if (direction.includes('n')) newHeight -= deltaY;
-      
+
       newWidth = Math.max(40, newWidth);
       newHeight = Math.max(20, newHeight);
-      
+
       // Apply aspect ratio lock (for images)
       // Hold Shift to temporarily unlock, or if lockAspectRatio is true, hold Shift to lock
       const shouldLock = lockAspectRatio ? !moveEvent.shiftKey : moveEvent.shiftKey;
@@ -259,67 +259,67 @@ const ResizeHandles: React.FC<ResizeHandlesProps> = memo(({ onResize, onResizeEn
         // Determine which dimension changed more and adjust the other
         const widthChange = Math.abs(newWidth - initialWidth);
         const heightChange = Math.abs(newHeight - initialHeight);
-        
+
         if (widthChange > heightChange || direction === 'e' || direction === 'w') {
           newHeight = newWidth / aspectRatio;
         } else {
           newWidth = newHeight * aspectRatio;
         }
-        
+
         // Recalculate deltas for the adjusted dimensions
         if (direction.includes('e')) deltaX = newWidth - initialWidth;
         if (direction.includes('w')) deltaX = initialWidth - newWidth;
         if (direction.includes('s')) deltaY = newHeight - initialHeight;
         if (direction.includes('n')) deltaY = initialHeight - newHeight;
       }
-      
+
       // Update tooltip
-      setDimensions({ 
-        width: Math.round(newWidth), 
+      setDimensions({
+        width: Math.round(newWidth),
         height: Math.round(newHeight),
         locked: shouldLock
       });
       setTooltipPosition({ x: moveEvent.clientX, y: moveEvent.clientY - 40 });
-      
+
       onResize(direction, deltaX, deltaY, initialWidth, initialHeight);
     };
-    
+
     const handleMouseUp = () => {
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
       setDimensions(null);
       onResizeEnd?.();
     };
-    
+
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseup', handleMouseUp);
   }, [onResize, onResizeEnd, nodeRef, lockAspectRatio]);
-  
+
   const handleStyle: CSSProperties = {
     position: 'absolute',
     backgroundColor: '#0078d4',
     border: '1px solid #fff',
     zIndex: 1000,
   };
-  
+
   const cornerStyle: CSSProperties = {
     ...handleStyle,
     width: '8px',
     height: '8px',
   };
-  
+
   const edgeStyleH: CSSProperties = {
     ...handleStyle,
     width: '20px',
     height: '6px',
   };
-  
+
   const edgeStyleV: CSSProperties = {
     ...handleStyle,
     width: '6px',
     height: '20px',
   };
-  
+
   return (
     <>
       {/* Corners */}
@@ -343,7 +343,7 @@ const ResizeHandles: React.FC<ResizeHandlesProps> = memo(({ onResize, onResizeEn
           />
         </>
       )}
-      
+
       {/* Edges */}
       {resizable.horizontal && (
         <>
@@ -369,7 +369,7 @@ const ResizeHandles: React.FC<ResizeHandlesProps> = memo(({ onResize, onResizeEn
           />
         </>
       )}
-      
+
       {/* Live Dimensions Tooltip */}
       {showDimensions && dimensions && (
         <div
@@ -439,9 +439,9 @@ const QuickWidthToolbar: React.FC<QuickWidthToolbarProps> = memo(({ currentWidth
     }
     return null;
   };
-  
+
   const activePreset = getActivePreset();
-  
+
   return (
     <div
       style={{
@@ -508,10 +508,10 @@ QuickWidthToolbar.displayName = 'QuickWidthToolbar';
 // =============================================================================
 
 // Document is the root wrapper - stacks sections vertically
-const DocumentRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties; children: React.ReactNode }> = 
+const DocumentRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties; children: React.ReactNode }> =
   ({ style, children }) => (
-    <div style={{ 
-      ...style, 
+    <div style={{
+      ...style,
       display: 'flex',
       flexDirection: 'column',
       width: '100%',
@@ -525,11 +525,11 @@ const DocumentRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties; childr
 // Outlines are added via selection/hover states in the main NodeRenderer
 // IMPORTANT: User styles must be spread LAST to allow overriding defaults
 
-const SectionRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties; children: React.ReactNode }> = 
+const SectionRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties; children: React.ReactNode }> =
   ({ style, children }) => (
-    <section style={{ 
+    <section style={{
       // Defaults first — must match cmsBuilderDefaultStyle('section') in helpers.php
-      width: '100%', 
+      width: '100%',
       boxSizing: 'border-box',
       minHeight: '80px',
       display: 'flex',
@@ -544,7 +544,7 @@ const SectionRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties; childre
     </section>
   );
 
-const ContainerRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties; children: React.ReactNode }> = 
+const ContainerRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties; children: React.ReactNode }> =
   ({ node, style, children }) => {
     const isLayoutItem = Boolean(style.flex || style.flexBasis || style.order || style.alignSelf);
     const isExplicitLayout = style.display === 'flex' || style.display === 'grid';
@@ -552,15 +552,15 @@ const ContainerRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties; child
 
     const wrapperDefaults: CSSProperties = !isLayoutItem && !isExplicitLayout && !hasExplicitConstraint
       ? {
-          maxWidth: '1200px',
-          margin: '0 auto',
-          padding: (style.padding as CSSProperties['padding']) ?? '0 24px',
-        }
+        maxWidth: '1200px',
+        margin: '0 auto',
+        padding: (style.padding as CSSProperties['padding']) ?? '0 24px',
+      }
       : {};
 
     return (
       <div
-        style={{ 
+        style={{
           minHeight: '60px',
           boxSizing: 'border-box',
           ...wrapperDefaults,
@@ -576,12 +576,12 @@ const ContainerRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties; child
     );
   };
 
-const RowRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties; children: React.ReactNode }> = 
+const RowRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties; children: React.ReactNode }> =
   ({ style, children }) => (
-    <div style={{ 
+    <div style={{
       // Defaults first — must match cmsBuilderDefaultStyle('row') in helpers.php
-      display: 'flex', 
-      flexDirection: 'row', 
+      display: 'flex',
+      flexDirection: 'row',
       flexWrap: 'wrap',
       gap: '24px',
       justifyContent: 'center',
@@ -597,18 +597,18 @@ const RowRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties; children: R
     </div>
   );
 
-const ColumnRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties; children: React.ReactNode }> = 
+const ColumnRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties; children: React.ReactNode }> =
   ({ style, children }) => {
     // Check if column has explicit flex or width set
     const hasExplicitSize = style.flex || style.width;
     // Check if children array is empty (React passes empty array for no children)
     const isEmpty = !children || (Array.isArray(children) && children.length === 0);
-    
+
     return (
-      <div style={{ 
+      <div style={{
         // Defaults — must match cmsBuilderDefaultStyle('column') in helpers.php
-        display: 'flex', 
-        flexDirection: 'column', 
+        display: 'flex',
+        flexDirection: 'column',
         gap: '16px',
         alignItems: 'stretch',
         ...(hasExplicitSize ? {} : { flex: 1 }),
@@ -655,29 +655,29 @@ interface EditableTextProps {
   placeholder?: string;
 }
 
-const EditableText: React.FC<EditableTextProps> = memo(({ 
-  node, 
-  style, 
-  isEditing, 
-  onStartEdit, 
+const EditableText: React.FC<EditableTextProps> = memo(({
+  node,
+  style,
+  isEditing,
+  onStartEdit,
   onEndEdit,
   tag: Tag = 'p',
   placeholder = 'Enter text...'
 }) => {
   const [localContent, setLocalContent] = useState(node.props.content as string || '');
-  
+
   useEffect(() => {
     setLocalContent(node.props.content as string || '');
   }, [node.props.content]);
-  
+
   const handleSave = useCallback((content: string) => {
     onEndEdit(content);
   }, [onEndEdit]);
-  
+
   const handleCancel = useCallback(() => {
     onEndEdit(localContent);
   }, [onEndEdit, localContent]);
-  
+
   if (isEditing) {
     return (
       <Suspense fallback={
@@ -695,10 +695,10 @@ const EditableText: React.FC<EditableTextProps> = memo(({
       </Suspense>
     );
   }
-  
+
   return (
-    <Tag 
-      style={style} 
+    <Tag
+      style={style}
       onDoubleClick={(e) => {
         e.stopPropagation();
         onStartEdit();
@@ -710,8 +710,8 @@ const EditableText: React.FC<EditableTextProps> = memo(({
 
 EditableText.displayName = 'EditableText';
 
-const HeadingRenderer: React.FC<{ 
-  node: DiSyLNode; 
+const HeadingRenderer: React.FC<{
+  node: DiSyLNode;
   style: CSSProperties;
   isEditing: boolean;
   onStartEdit: () => void;
@@ -719,7 +719,7 @@ const HeadingRenderer: React.FC<{
 }> = ({ node, style, isEditing, onStartEdit, onEndEdit }) => {
   const level = node.props.level || 2;
   const Tag = `h${level}` as keyof JSX.IntrinsicElements;
-  
+
   return (
     <EditableText
       node={node}
@@ -733,8 +733,8 @@ const HeadingRenderer: React.FC<{
   );
 };
 
-const TextRenderer: React.FC<{ 
-  node: DiSyLNode; 
+const TextRenderer: React.FC<{
+  node: DiSyLNode;
   style: CSSProperties;
   isEditing: boolean;
   onStartEdit: () => void;
@@ -764,16 +764,16 @@ const ImageRenderer: React.FC<ImageRendererProps> = ({ node, style, onOpenMediaL
     marginLeft: style.marginLeft,
     marginRight: style.marginRight,
   };
-  
+
   if (!node.props.src) {
     return (
-      <div 
-        style={{ 
-          ...style, 
-          backgroundColor: '#f8f9fa', 
-          display: 'flex', 
+      <div
+        style={{
+          ...style,
+          backgroundColor: '#f8f9fa',
+          display: 'flex',
           flexDirection: 'column',
-          alignItems: 'center', 
+          alignItems: 'center',
           justifyContent: 'center',
           minHeight: '120px',
           maxWidth: '100%',
@@ -787,25 +787,25 @@ const ImageRenderer: React.FC<ImageRendererProps> = ({ node, style, onOpenMediaL
         }}
       >
         <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#adb5bd" strokeWidth="1.5">
-          <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
-          <circle cx="8.5" cy="8.5" r="1.5"/>
-          <polyline points="21,15 16,10 5,21"/>
+          <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+          <circle cx="8.5" cy="8.5" r="1.5" />
+          <polyline points="21,15 16,10 5,21" />
         </svg>
         <span style={{ color: '#6c757d', fontSize: '12px', fontWeight: 500 }}>Double-click to add image</span>
       </div>
     );
   }
   return (
-    <img 
-      src={node.props.src} 
-      alt={node.props.alt || ''} 
-      style={{ 
+    <img
+      src={node.props.src}
+      alt={node.props.alt || ''}
+      style={{
         ...style,
         ...alignmentStyle,
         maxWidth: '100%',
         height: style.height || 'auto',
         objectFit: (style.objectFit as CSSProperties['objectFit']) || (node.props.objectFit as CSSProperties['objectFit']) || 'cover',
-      }} 
+      }}
       onDoubleClick={(e) => {
         e.stopPropagation();
         onOpenMediaLibrary?.();
@@ -814,8 +814,8 @@ const ImageRenderer: React.FC<ImageRendererProps> = ({ node, style, onOpenMediaL
   );
 };
 
-const ButtonRenderer: React.FC<{ 
-  node: DiSyLNode; 
+const ButtonRenderer: React.FC<{
+  node: DiSyLNode;
   style: CSSProperties;
   isEditing: boolean;
   onStartEdit: () => void;
@@ -828,8 +828,8 @@ const ButtonRenderer: React.FC<{
     outline: { backgroundColor: 'transparent', border: '2px solid currentColor', color: '#3b82f6' },
     ghost: { backgroundColor: 'transparent', color: '#3b82f6' },
   };
-  
-  const buttonStyle: CSSProperties = { 
+
+  const buttonStyle: CSSProperties = {
     cursor: 'pointer',
     border: 'none',
     padding: '12px 24px',
@@ -840,7 +840,7 @@ const ButtonRenderer: React.FC<{
     ...variantStyles[variant],
     ...style,
   };
-  
+
   return (
     <EditableText
       node={node}
@@ -854,33 +854,33 @@ const ButtonRenderer: React.FC<{
   );
 };
 
-const SpacerRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties }> = 
+const SpacerRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties }> =
   ({ node, style }) => (
     <div style={{ height: node.props.height || '48px', ...style }} />
   );
 
-const DividerRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties }> = 
+const DividerRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties }> =
   ({ style }) => (
-    <hr style={{ 
-      border: 'none', 
+    <hr style={{
+      border: 'none',
       width: '100%',
-      height: '1px', 
-      backgroundColor: '#E5E7EB', 
+      height: '1px',
+      backgroundColor: '#E5E7EB',
       margin: '24px 0',
-      ...style 
+      ...style
     }} />
   );
 
-const VideoRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties }> = 
+const VideoRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties }> =
   ({ node, style }) => {
     if (!node.props.src) {
       return (
-        <div 
-          style={{ 
-            ...style, 
-            backgroundColor: '#212529', 
-            display: 'flex', 
-            alignItems: 'center', 
+        <div
+          style={{
+            ...style,
+            backgroundColor: '#212529',
+            display: 'flex',
+            alignItems: 'center',
             justifyContent: 'center',
             minHeight: '180px',
           }}
@@ -890,7 +890,7 @@ const VideoRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties }> =
       );
     }
     return (
-      <video 
+      <video
         src={node.props.src}
         controls={node.props.controls !== false}
         autoPlay={node.props.autoplay}
@@ -905,27 +905,27 @@ const VideoRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties }> =
 // Icon Renderer
 // =============================================================================
 
-const IconRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties }> = 
+const IconRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties }> =
   ({ node, style }) => {
     const iconName = (node.props.icon as string) || 'Star';
     const size = parseInt(node.props.size as string) || 24;
-    
+
     // Dynamic icon lookup from lucide-react
     const iconMap: Record<string, React.FC<{ size?: number; style?: CSSProperties }>> = {
-      Star: ({ size, style }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" style={style}><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>,
-      Heart: ({ size, style }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" style={style}><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>,
-      Check: ({ size, style }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={style}><polyline points="20 6 9 17 4 12"/></svg>,
-      ArrowRight: ({ size, style }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={style}><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>,
-      Mail: ({ size, style }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={style}><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>,
-      Phone: ({ size, style }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={style}><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>,
-      MapPin: ({ size, style }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={style}><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>,
-      Zap: ({ size, style }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" style={style}><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>,
-      Shield: ({ size, style }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={style}><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>,
-      Clock: ({ size, style }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={style}><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>,
+      Star: ({ size, style }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" style={style}><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" /></svg>,
+      Heart: ({ size, style }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" style={style}><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" /></svg>,
+      Check: ({ size, style }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={style}><polyline points="20 6 9 17 4 12" /></svg>,
+      ArrowRight: ({ size, style }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={style}><line x1="5" y1="12" x2="19" y2="12" /><polyline points="12 5 19 12 12 19" /></svg>,
+      Mail: ({ size, style }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={style}><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" /><polyline points="22,6 12,13 2,6" /></svg>,
+      Phone: ({ size, style }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={style}><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" /></svg>,
+      MapPin: ({ size, style }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={style}><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" /></svg>,
+      Zap: ({ size, style }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" style={style}><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" /></svg>,
+      Shield: ({ size, style }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={style}><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>,
+      Clock: ({ size, style }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={style}><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>,
     };
-    
+
     const IconComponent = iconMap[iconName] || iconMap.Star;
-    
+
     return (
       <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', ...style }}>
         <IconComponent size={size} style={{ color: 'inherit' }} />
@@ -937,26 +937,26 @@ const IconRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties }> =
 // Icon Box Renderer
 // =============================================================================
 
-const IconBoxRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties }> = 
+const IconBoxRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties }> =
   ({ node, style }) => {
     const iconName = (node.props.icon as string) || 'Star';
     const title = (node.props.title as string) || 'Feature Title';
     const description = (node.props.description as string) || 'Feature description';
-    
+
     return (
-      <div style={{ 
-        display: 'flex', 
-        flexDirection: 'column', 
-        alignItems: 'center', 
+      <div style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
         textAlign: 'center',
         padding: '24px',
         gap: '12px',
-        ...style 
+        ...style
       }}>
-        <div style={{ 
-          width: '64px', 
-          height: '64px', 
-          borderRadius: '50%', 
+        <div style={{
+          width: '64px',
+          height: '64px',
+          borderRadius: '50%',
           backgroundColor: '#EBF5FF',
           display: 'flex',
           alignItems: 'center',
@@ -981,20 +981,20 @@ interface TabItem {
   content: string;
 }
 
-const TabsRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties }> = 
+const TabsRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties }> =
   ({ node, style }) => {
     const tabs = (node.props.tabs as TabItem[]) || [
       { id: 'tab1', label: 'Tab 1', content: 'Content for tab 1' },
       { id: 'tab2', label: 'Tab 2', content: 'Content for tab 2' },
     ];
     const [activeTab, setActiveTab] = useState(tabs[0]?.id || 'tab1');
-    
+
     const activeContent = tabs.find(t => t.id === activeTab)?.content || '';
-    
+
     return (
       <div style={{ width: '100%', ...style }}>
-        <div style={{ 
-          display: 'flex', 
+        <div style={{
+          display: 'flex',
           borderBottom: '1px solid #e5e7eb',
           gap: '4px',
           marginBottom: '16px',
@@ -1038,36 +1038,36 @@ interface AccordionItem {
   isOpen?: boolean;
 }
 
-const AccordionRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties }> = 
+const AccordionRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties }> =
   ({ node, style }) => {
     const items = (node.props.items as AccordionItem[]) || [
       { id: 'item1', title: 'Accordion Item 1', content: 'Content for item 1', isOpen: true },
       { id: 'item2', title: 'Accordion Item 2', content: 'Content for item 2', isOpen: false },
     ];
     const allowMultiple = node.props.allowMultiple as boolean ?? false;
-    
+
     const [openItems, setOpenItems] = useState<string[]>(
       items.filter(i => i.isOpen).map(i => i.id)
     );
-    
+
     const toggleItem = (id: string) => {
       if (allowMultiple) {
-        setOpenItems(prev => 
+        setOpenItems(prev =>
           prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
         );
       } else {
         setOpenItems(prev => prev.includes(id) ? [] : [id]);
       }
     };
-    
+
     return (
       <div style={{ width: '100%', ...style }}>
         {items.map((item, index) => {
           const isOpen = openItems.includes(item.id);
           return (
-            <div 
-              key={item.id} 
-              style={{ 
+            <div
+              key={item.id}
+              style={{
                 borderBottom: index < items.length - 1 ? '1px solid #e5e7eb' : 'none',
               }}
             >
@@ -1089,26 +1089,26 @@ const AccordionRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties }> =
                 }}
               >
                 {item.title}
-                <svg 
-                  width="20" 
-                  height="20" 
-                  viewBox="0 0 24 24" 
-                  fill="none" 
-                  stroke="currentColor" 
+                <svg
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
                   strokeWidth="2"
-                  style={{ 
+                  style={{
                     transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)',
                     transition: 'transform 0.2s',
                     color: '#9ca3af',
                   }}
                 >
-                  <polyline points="6 9 12 15 18 9"/>
+                  <polyline points="6 9 12 15 18 9" />
                 </svg>
               </button>
               {isOpen && (
-                <div style={{ 
-                  padding: '0 0 16px 0', 
-                  color: '#6b7280', 
+                <div style={{
+                  padding: '0 0 16px 0',
+                  color: '#6b7280',
                   fontSize: '14px',
                   lineHeight: 1.6,
                 }}>
@@ -1131,7 +1131,7 @@ interface SocialIcon {
   url: string;
 }
 
-const SocialIconsRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties }> = 
+const SocialIconsRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties }> =
   ({ node, style }) => {
     const icons = (node.props.icons as SocialIcon[]) || [
       { platform: 'facebook', url: '#' },
@@ -1139,16 +1139,16 @@ const SocialIconsRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties }> =
       { platform: 'instagram', url: '#' },
     ];
     const size = parseInt(node.props.size as string) || 24;
-    
+
     const socialIcons: Record<string, React.ReactNode> = {
-      facebook: <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg>,
-      twitter: <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor"><path d="M23 3a10.9 10.9 0 0 1-3.14 1.53 4.48 4.48 0 0 0-7.86 3v1A10.66 10.66 0 0 1 3 4s-4 9 5 13a11.64 11.64 0 0 1-7 2c9 5 20 0 20-11.5a4.5 4.5 0 0 0-.08-.83A7.72 7.72 0 0 0 23 3z"/></svg>,
-      instagram: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg>,
-      linkedin: <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor"><path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"/><rect x="2" y="9" width="4" height="12"/><circle cx="4" cy="4" r="2"/></svg>,
-      youtube: <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor"><path d="M22.54 6.42a2.78 2.78 0 0 0-1.94-2C18.88 4 12 4 12 4s-6.88 0-8.6.46a2.78 2.78 0 0 0-1.94 2A29 29 0 0 0 1 11.75a29 29 0 0 0 .46 5.33A2.78 2.78 0 0 0 3.4 19c1.72.46 8.6.46 8.6.46s6.88 0 8.6-.46a2.78 2.78 0 0 0 1.94-2 29 29 0 0 0 .46-5.25 29 29 0 0 0-.46-5.33z"/><polygon points="9.75 15.02 15.5 11.75 9.75 8.48 9.75 15.02" fill="white"/></svg>,
-      github: <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"/></svg>,
+      facebook: <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z" /></svg>,
+      twitter: <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor"><path d="M23 3a10.9 10.9 0 0 1-3.14 1.53 4.48 4.48 0 0 0-7.86 3v1A10.66 10.66 0 0 1 3 4s-4 9 5 13a11.64 11.64 0 0 1-7 2c9 5 20 0 20-11.5a4.5 4.5 0 0 0-.08-.83A7.72 7.72 0 0 0 23 3z" /></svg>,
+      instagram: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="2" width="20" height="20" rx="5" ry="5" /><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" /><line x1="17.5" y1="6.5" x2="17.51" y2="6.5" /></svg>,
+      linkedin: <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor"><path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z" /><rect x="2" y="9" width="4" height="12" /><circle cx="4" cy="4" r="2" /></svg>,
+      youtube: <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor"><path d="M22.54 6.42a2.78 2.78 0 0 0-1.94-2C18.88 4 12 4 12 4s-6.88 0-8.6.46a2.78 2.78 0 0 0-1.94 2A29 29 0 0 0 1 11.75a29 29 0 0 0 .46 5.33A2.78 2.78 0 0 0 3.4 19c1.72.46 8.6.46 8.6.46s6.88 0 8.6-.46a2.78 2.78 0 0 0 1.94-2 29 29 0 0 0 .46-5.25 29 29 0 0 0-.46-5.33z" /><polygon points="9.75 15.02 15.5 11.75 9.75 8.48 9.75 15.02" fill="white" /></svg>,
+      github: <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22" /></svg>,
     };
-    
+
     return (
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', alignItems: 'center', ...style }}>
         {icons.map((icon, index) => (
@@ -1181,11 +1181,11 @@ const SocialIconsRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties }> =
 // List Renderer
 // =============================================================================
 
-const ListRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties }> = 
+const ListRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties }> =
   ({ node, style }) => {
     const items = (node.props.items as string[]) || ['List item 1', 'List item 2', 'List item 3'];
     const listType = (node.props.listType as string) || 'bullet';
-    
+
     const getBullet = (index: number) => {
       if (listType === 'number') {
         return <span style={{ fontWeight: 600, color: '#3B82F6', minWidth: '24px' }}>{index + 1}.</span>;
@@ -1193,29 +1193,29 @@ const ListRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties }> =
       if (listType === 'check') {
         return (
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#10B981" strokeWidth="2" style={{ flexShrink: 0 }}>
-            <polyline points="20 6 9 17 4 12"/>
+            <polyline points="20 6 9 17 4 12" />
           </svg>
         );
       }
       return <span style={{ color: '#3B82F6', marginRight: '8px' }}>•</span>;
     };
-    
+
     return (
-      <ul style={{ 
-        listStyle: 'none', 
-        padding: 0, 
+      <ul style={{
+        listStyle: 'none',
+        padding: 0,
         margin: 0,
         display: 'flex',
         flexDirection: 'column',
         gap: '8px',
-        ...style 
+        ...style
       }}>
         {items.map((item, index) => (
-          <li 
-            key={index} 
-            style={{ 
-              display: 'flex', 
-              alignItems: 'flex-start', 
+          <li
+            key={index}
+            style={{
+              display: 'flex',
+              alignItems: 'flex-start',
               gap: '12px',
               fontSize: '14px',
               color: '#374151',
@@ -1234,20 +1234,20 @@ const ListRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties }> =
 // Counter Renderer
 // =============================================================================
 
-const CounterRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties }> = 
+const CounterRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties }> =
   ({ node, style }) => {
     const startValue = parseInt(node.props.startValue as string) || 0;
     const endValue = parseInt(node.props.endValue as string) || 100;
     const prefix = (node.props.prefix as string) || '';
     const suffix = (node.props.suffix as string) || '';
     const title = (node.props.title as string) || '';
-    
+
     // In builder, just show the end value (animation would be for preview)
     return (
       <div style={{ textAlign: 'center', padding: '24px', ...style }}>
-        <div style={{ 
-          fontSize: '48px', 
-          fontWeight: 700, 
+        <div style={{
+          fontSize: '48px',
+          fontWeight: 700,
           color: '#1f2937',
           lineHeight: 1,
           marginBottom: '8px',
@@ -1268,37 +1268,37 @@ const CounterRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties }> =
 // Progress Bar Renderer
 // =============================================================================
 
-const ProgressRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties }> = 
+const ProgressRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties }> =
   ({ node, style }) => {
     const value = parseInt(node.props.value as string) || 75;
     const max = parseInt(node.props.max as string) || 100;
     const label = (node.props.label as string) || 'Progress';
     const showValue = node.props.showValue !== false;
     const color = (node.props.color as string) || '#3B82F6';
-    
+
     const percentage = Math.min(100, Math.max(0, (value / max) * 100));
-    
+
     return (
       <div style={{ width: '100%', ...style }}>
-        <div style={{ 
-          display: 'flex', 
-          justifyContent: 'space-between', 
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
           marginBottom: '8px',
           fontSize: '14px',
         }}>
           <span style={{ color: '#374151', fontWeight: 500 }}>{label}</span>
           {showValue && <span style={{ color: '#6b7280' }}>{value}/{max}</span>}
         </div>
-        <div style={{ 
-          width: '100%', 
-          height: '8px', 
+        <div style={{
+          width: '100%',
+          height: '8px',
           backgroundColor: '#e5e7eb',
           borderRadius: '4px',
           overflow: 'hidden',
         }}>
-          <div style={{ 
-            width: `${percentage}%`, 
-            height: '100%', 
+          <div style={{
+            width: `${percentage}%`,
+            height: '100%',
             backgroundColor: color,
             borderRadius: '4px',
             transition: 'width 0.3s ease',
@@ -1312,75 +1312,75 @@ const ProgressRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties }> =
 // Testimonial Renderer
 // =============================================================================
 
-const TestimonialRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties }> = 
+const TestimonialRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties }> =
   ({ node, style }) => {
     const quote = (node.props.quote as string) || 'Great product!';
     const author = (node.props.author as string) || 'John Doe';
     const role = (node.props.role as string) || '';
     const avatar = (node.props.avatar as string) || '';
     const rating = parseInt(node.props.rating as string) || 5;
-    
+
     return (
-      <div style={{ 
-        padding: '24px', 
-        backgroundColor: '#f9fafb', 
+      <div style={{
+        padding: '24px',
+        backgroundColor: '#f9fafb',
         borderRadius: '8px',
-        ...style 
+        ...style
       }}>
         {/* Quote Icon */}
-        <svg 
-          width="32" 
-          height="32" 
-          viewBox="0 0 24 24" 
+        <svg
+          width="32"
+          height="32"
+          viewBox="0 0 24 24"
           fill="#d1d5db"
           style={{ marginBottom: '16px' }}
         >
-          <path d="M14.017 21v-7.391c0-5.704 3.731-9.57 8.983-10.609l.995 2.151c-2.432.917-3.995 3.638-3.995 5.849h4v10h-9.983zm-14.017 0v-7.391c0-5.704 3.748-9.57 9-10.609l.996 2.151c-2.433.917-3.996 3.638-3.996 5.849h3.983v10h-9.983z"/>
+          <path d="M14.017 21v-7.391c0-5.704 3.731-9.57 8.983-10.609l.995 2.151c-2.432.917-3.995 3.638-3.995 5.849h4v10h-9.983zm-14.017 0v-7.391c0-5.704 3.748-9.57 9-10.609l.996 2.151c-2.433.917-3.996 3.638-3.996 5.849h3.983v10h-9.983z" />
         </svg>
-        
+
         {/* Quote Text */}
-        <p style={{ 
-          fontSize: '16px', 
-          lineHeight: 1.6, 
+        <p style={{
+          fontSize: '16px',
+          lineHeight: 1.6,
           color: '#374151',
           marginBottom: '16px',
           fontStyle: 'italic',
         }}>
           "{quote}"
         </p>
-        
+
         {/* Rating Stars */}
         <div style={{ display: 'flex', gap: '4px', marginBottom: '16px' }}>
           {[1, 2, 3, 4, 5].map(star => (
-            <svg 
+            <svg
               key={star}
-              width="16" 
-              height="16" 
-              viewBox="0 0 24 24" 
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
               fill={star <= rating ? '#FBBF24' : '#E5E7EB'}
             >
-              <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+              <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
             </svg>
           ))}
         </div>
-        
+
         {/* Author */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           {avatar ? (
-            <img 
-              src={avatar} 
+            <img
+              src={avatar}
               alt={author}
-              style={{ 
-                width: '48px', 
-                height: '48px', 
+              style={{
+                width: '48px',
+                height: '48px',
                 borderRadius: '50%',
                 objectFit: 'cover',
               }}
             />
           ) : (
-            <div style={{ 
-              width: '48px', 
-              height: '48px', 
+            <div style={{
+              width: '48px',
+              height: '48px',
               borderRadius: '50%',
               backgroundColor: '#3B82F6',
               display: 'flex',
@@ -1415,14 +1415,14 @@ interface SlideItem {
   ctaText?: string;
 }
 
-const SlideshowRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties }> = 
+const SlideshowRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties }> =
   ({ node, style }) => {
     const slides = (node.props.slides as SlideItem[]) || [
       { id: 'slide1', image: placeholderSvg(1200, 500, '#3B82F6', 'Slide 1'), title: 'Slide 1', description: 'First slide description' },
       { id: 'slide2', image: placeholderSvg(1200, 500, '#10B981', 'Slide 2'), title: 'Slide 2', description: 'Second slide description' },
       { id: 'slide3', image: placeholderSvg(1200, 500, '#F59E0B', 'Slide 3'), title: 'Slide 3', description: 'Third slide description' },
     ];
-    
+
     const [currentSlide, setCurrentSlide] = useState(0);
     const [kenBurnsIndex, setKenBurnsIndex] = useState(0);
     const showArrows = node.props.showArrows !== false;
@@ -1437,48 +1437,48 @@ const SlideshowRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties }> =
     const animationStyle = (node.props.animationStyle as string) || 'slide';
     const autoplay = node.props.autoplay === true;
     const interval = (node.props.interval as number) || 5000;
-    
+
     const nextSlide = useCallback(() => {
       setCurrentSlide((prev) => (prev + 1) % slides.length);
       if (animationStyle === 'kenburns') setKenBurnsIndex((prev) => (prev + 1) % 4);
     }, [slides.length, animationStyle]);
-    
+
     const prevSlide = () => {
       setCurrentSlide((prev) => (prev - 1 + slides.length) % slides.length);
       if (animationStyle === 'kenburns') setKenBurnsIndex((prev) => (prev + 1) % 4);
     };
-    
+
     const goToSlide = (index: number) => {
       setCurrentSlide(index);
     };
-    
+
     // Autoplay timer
     useEffect(() => {
       if (!autoplay || slides.length < 2) return;
       const timer = setInterval(nextSlide, interval);
       return () => clearInterval(timer);
     }, [autoplay, interval, slides.length, nextSlide]);
-    
+
     return (
-      <div style={{ 
-        position: 'relative', 
+      <div style={{
+        position: 'relative',
         width: fullWidth ? '100vw' : '100%',
         marginLeft: fullWidth ? 'calc(-50vw + 50%)' : '0',
         overflow: 'hidden',
         backgroundColor: '#000',
-        ...style 
+        ...style
       }}>
         {/* Slides */}
         {animationStyle === 'slide' || animationStyle === 'carousel' || animationStyle === 'coverflow' ? (
-          <div style={{ 
-            position: 'relative', 
+          <div style={{
+            position: 'relative',
             height: slideHeight,
             display: 'flex',
             transition: 'transform 0.5s ease-in-out',
             transform: `translateX(-${currentSlide * 100}%)`,
           }}>
             {slides.map((slide, slideIdx) => (
-              <div 
+              <div
                 key={slide.id}
                 style={{
                   minWidth: '100%',
@@ -1489,8 +1489,8 @@ const SlideshowRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties }> =
                   justifyContent: 'center',
                 }}
               >
-                <img 
-                  src={slide.image} 
+                <img
+                  src={slide.image}
                   alt={slide.title || 'Slide'}
                   style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                 />
@@ -1572,7 +1572,7 @@ const SlideshowRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties }> =
             })}
           </div>
         )}
-        
+
         {/* Navigation Arrows */}
         {showArrows && slides.length > 1 && (
           <>
@@ -1597,7 +1597,7 @@ const SlideshowRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties }> =
               }}
             >
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <polyline points="15 18 9 12 15 6"/>
+                <polyline points="15 18 9 12 15 6" />
               </svg>
             </button>
             <button
@@ -1621,12 +1621,12 @@ const SlideshowRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties }> =
               }}
             >
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <polyline points="9 18 15 12 9 6"/>
+                <polyline points="9 18 15 12 9 6" />
               </svg>
             </button>
           </>
         )}
-        
+
         {/* Dots Navigation */}
         {showDots && slides.length > 1 && (
           <div style={{
@@ -1672,7 +1672,7 @@ interface FormField {
   required?: boolean;
 }
 
-const FormRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties }> = 
+const FormRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties }> =
   ({ node, style }) => {
     const formType = (node.props.formType as string) || 'contact';
     const fields = (node.props.fields as FormField[]) || [
@@ -1680,7 +1680,7 @@ const FormRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties }> =
       { id: 'email', type: 'email', label: 'Email', placeholder: 'your@email.com', required: true },
     ];
     const submitText = (node.props.submitText as string) || 'Submit';
-    
+
     const inputStyle: CSSProperties = {
       width: '100%',
       padding: '12px 16px',
@@ -1690,7 +1690,7 @@ const FormRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties }> =
       outline: 'none',
       transition: 'border-color 0.2s, box-shadow 0.2s',
     };
-    
+
     const labelStyle: CSSProperties = {
       display: 'block',
       fontSize: '14px',
@@ -1698,16 +1698,16 @@ const FormRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties }> =
       color: '#374151',
       marginBottom: '6px',
     };
-    
+
     return (
-      <form 
-        style={{ 
-          width: '100%', 
+      <form
+        style={{
+          width: '100%',
           maxWidth: '500px',
           display: 'flex',
           flexDirection: 'column',
           gap: '20px',
-          ...style 
+          ...style
         }}
         onSubmit={(e) => e.preventDefault()}
       >
@@ -1796,7 +1796,7 @@ interface GalleryImage {
   caption?: string;
 }
 
-const GalleryRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties; viewport?: 'desktop' | 'tablet' | 'mobile' }> = 
+const GalleryRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties; viewport?: 'desktop' | 'tablet' | 'mobile' }> =
   ({ node, style, viewport }) => {
     const images = (node.props.images as GalleryImage[]) || [];
     const desktopCols = (node.props.columns as number) || 3;
@@ -1807,7 +1807,7 @@ const GalleryRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties; viewpor
     const layout = (node.props.layout as string) || 'grid';
     const imageSize = (node.props.imageSize as string) || 'medium';
     const [selectedImage, setSelectedImage] = useState<GalleryImage | null>(null);
-    
+
     // Get aspect ratio and max height based on image size
     const getImageStyle = () => {
       switch (imageSize) {
@@ -1825,9 +1825,9 @@ const GalleryRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties; viewpor
           return { aspectRatio: '16/9', maxHeight: '300px' };
       }
     };
-    
+
     const imageStyle = getImageStyle();
-    
+
     // Get container style based on layout
     const getContainerStyle = () => {
       const baseStyle = {
@@ -1835,7 +1835,7 @@ const GalleryRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties; viewpor
         gap: `${gap}px`,
         ...style
       };
-      
+
       if (layout === 'masonry') {
         return {
           ...baseStyle,
@@ -1845,21 +1845,21 @@ const GalleryRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties; viewpor
           alignContent: 'start',
         };
       }
-      
+
       return {
         ...baseStyle,
         display: 'grid',
         gridTemplateColumns: `repeat(${columns}, 1fr)`,
       };
     };
-    
+
     return (
       <>
-        <div 
+        <div
           style={getContainerStyle()}
         >
           {images.map((image) => (
-            <div 
+            <div
               key={image.id}
               style={{
                 position: 'relative',
@@ -1921,7 +1921,7 @@ const GalleryRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties; viewpor
             </div>
           ))}
         </div>
-        
+
         {/* Lightbox Modal */}
         {lightbox && selectedImage && (
           <div
@@ -1988,32 +1988,32 @@ const GalleryRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties; viewpor
 // Map Renderer
 // =============================================================================
 
-const MapRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties }> = 
+const MapRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties }> =
   ({ node, style }) => {
     const mapType = (node.props.mapType as string) || 'embed';
     const embedUrl = (node.props.embedUrl as string) || '';
     const latitude = (node.props.latitude as string) || '14.5995';
     const longitude = (node.props.longitude as string) || '120.9842';
     const markerTitle = (node.props.markerTitle as string) || 'Location';
-    
+
     // Generate OpenStreetMap embed URL if no custom embed URL
     const getMapUrl = () => {
       if (embedUrl) return embedUrl;
-      
+
       if (mapType === 'openstreetmap' || mapType === 'embed') {
         // OpenStreetMap embed
-        return `https://www.openstreetmap.org/export/embed.html?bbox=${parseFloat(longitude)-0.01}%2C${parseFloat(latitude)-0.01}%2C${parseFloat(longitude)+0.01}%2C${parseFloat(latitude)+0.01}&layer=mapnik&marker=${latitude}%2C${longitude}`;
+        return `https://www.openstreetmap.org/export/embed.html?bbox=${parseFloat(longitude) - 0.01}%2C${parseFloat(latitude) - 0.01}%2C${parseFloat(longitude) + 0.01}%2C${parseFloat(latitude) + 0.01}&layer=mapnik&marker=${latitude}%2C${longitude}`;
       }
-      
+
       return '';
     };
-    
+
     const mapUrl = getMapUrl();
-    
+
     if (!mapUrl) {
       return (
-        <div 
-          style={{ 
+        <div
+          style={{
             width: '100%',
             height: '400px',
             backgroundColor: '#f3f4f6',
@@ -2023,12 +2023,12 @@ const MapRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties }> =
             justifyContent: 'center',
             borderRadius: '8px',
             gap: '12px',
-            ...style 
+            ...style
           }}
         >
           <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="1.5">
-            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
-            <circle cx="12" cy="10" r="3"/>
+            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+            <circle cx="12" cy="10" r="3" />
           </svg>
           <span style={{ color: '#6b7280', fontSize: '14px' }}>
             Add a map embed URL or coordinates
@@ -2039,7 +2039,7 @@ const MapRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties }> =
         </div>
       );
     }
-    
+
     return (
       <div style={{ width: '100%', ...style }}>
         <iframe
@@ -2062,7 +2062,7 @@ const MapRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties }> =
 // Table Renderer
 // =============================================================================
 
-const TableRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties }> = 
+const TableRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties }> =
   ({ node, style }) => {
     const headers = (node.props.headers as string[]) || ['Column 1', 'Column 2', 'Column 3'];
     const rows = (node.props.rows as string[][]) || [
@@ -2071,14 +2071,14 @@ const TableRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties }> =
     ];
     const striped = node.props.striped !== false;
     const bordered = node.props.bordered !== false;
-    
+
     const cellStyle: CSSProperties = {
       padding: '12px 16px',
       textAlign: 'left',
       borderBottom: '1px solid #e5e7eb',
       ...(bordered ? { border: '1px solid #e5e7eb' } : {}),
     };
-    
+
     const headerCellStyle: CSSProperties = {
       ...cellStyle,
       backgroundColor: '#f9fafb',
@@ -2088,11 +2088,11 @@ const TableRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties }> =
       textTransform: 'uppercase',
       letterSpacing: '0.05em',
     };
-    
+
     return (
       <div style={{ width: '100%', overflowX: 'auto', ...style }}>
-        <table style={{ 
-          width: '100%', 
+        <table style={{
+          width: '100%',
           borderCollapse: 'collapse',
           fontSize: '14px',
           color: '#374151',
@@ -2108,7 +2108,7 @@ const TableRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties }> =
           </thead>
           <tbody>
             {rows.map((row, rowIndex) => (
-              <tr 
+              <tr
                 key={rowIndex}
                 style={{
                   backgroundColor: striped && rowIndex % 2 === 1 ? '#f9fafb' : 'transparent',
@@ -2131,47 +2131,47 @@ const TableRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties }> =
 // Alert Renderer
 // =============================================================================
 
-const AlertRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties }> = 
+const AlertRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties }> =
   ({ node, style }) => {
     const content = (node.props.content as string) || 'This is an alert message.';
     const alertType = (node.props.alertType as string) || 'info';
     const dismissible = node.props.dismissible !== false;
     const [dismissed, setDismissed] = useState(false);
-    
+
     if (dismissed) return null;
-    
+
     const alertStyles: Record<string, { bg: string; border: string; text: string; icon: React.ReactNode }> = {
       info: {
         bg: '#EFF6FF',
         border: '#3B82F6',
         text: '#1E40AF',
-        icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>,
+        icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" /><line x1="12" y1="16" x2="12" y2="12" /><line x1="12" y1="8" x2="12.01" y2="8" /></svg>,
       },
       success: {
         bg: '#F0FDF4',
         border: '#22C55E',
         text: '#166534',
-        icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>,
+        icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" /></svg>,
       },
       warning: {
         bg: '#FFFBEB',
         border: '#F59E0B',
         text: '#92400E',
-        icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>,
+        icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>,
       },
       error: {
         bg: '#FEF2F2',
         border: '#EF4444',
         text: '#991B1B',
-        icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>,
+        icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" /><line x1="15" y1="9" x2="9" y2="15" /><line x1="9" y1="9" x2="15" y2="15" /></svg>,
       },
     };
-    
+
     const alertStyle = alertStyles[alertType] || alertStyles.info;
-    
+
     return (
-      <div 
-        style={{ 
+      <div
+        style={{
           width: '100%',
           padding: '16px 20px',
           backgroundColor: alertStyle.bg,
@@ -2181,7 +2181,7 @@ const AlertRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties }> =
           alignItems: 'flex-start',
           gap: '12px',
           color: alertStyle.text,
-          ...style 
+          ...style
         }}
       >
         <div style={{ flexShrink: 0, marginTop: '2px' }}>
@@ -2204,7 +2204,7 @@ const AlertRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties }> =
             }}
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+              <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
             </svg>
           </button>
         )}
@@ -2216,17 +2216,17 @@ const AlertRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties }> =
 // Anchor Renderer
 // =============================================================================
 
-const AnchorRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties }> = 
+const AnchorRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties }> =
   ({ node, style }) => {
     const anchorId = (node.props.anchorId as string) || 'anchor';
-    
+
     return (
-      <div 
+      <div
         id={anchorId}
-        style={{ 
+        style={{
           position: 'relative',
           height: '0',
-          ...style 
+          ...style
         }}
       >
         {/* Visual indicator in builder only */}
@@ -2246,8 +2246,8 @@ const AnchorRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties }> =
           whiteSpace: 'nowrap',
         }}>
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
-            <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+            <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+            <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
           </svg>
           #{anchorId}
         </div>
@@ -2259,7 +2259,7 @@ const AnchorRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties }> =
 // Posts Grid Renderer
 // =============================================================================
 
-const PostsGridRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties; viewport?: 'desktop' | 'tablet' | 'mobile' }> = 
+const PostsGridRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties; viewport?: 'desktop' | 'tablet' | 'mobile' }> =
   ({ node, style, viewport }) => {
     const postCount = (node.props.postCount as number) || 3;
     const showDate = node.props.showDate !== false;
@@ -2270,14 +2270,14 @@ const PostsGridRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties; viewp
     const desktopCols = (node.props.gridColumns as number) || 3;
     const gridColumns = viewport === 'mobile' ? 1 : viewport === 'tablet' ? Math.min(2, desktopCols) : desktopCols;
     const categoryIds = (node.props.categoryIds as number[]) || [];
-    
+
     // Placeholder posts for builder preview
     const placeholderPosts = Array.from({ length: postCount }, (_, i) => ({
       id: i + 1,
       title: `Sample Post Title ${i + 1}`,
       excerpt: 'This is a sample excerpt that will be replaced with actual post content when rendered on the frontend.',
-      date: new Date(Date.now() - i * 86400000).toLocaleDateString('en-US', { 
-        year: 'numeric', month: 'long', day: 'numeric' 
+      date: new Date(Date.now() - i * 86400000).toLocaleDateString('en-US', {
+        year: 'numeric', month: 'long', day: 'numeric'
       }),
       image: `https://images.unsplash.com/photo-${1499750310107 + i * 1000}-5fef28a66643?w=400&h=250&fit=crop`,
     }));
@@ -2292,7 +2292,7 @@ const PostsGridRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties; viewp
     return (
       <div style={gridStyle}>
         {placeholderPosts.map((post) => (
-          <div 
+          <div
             key={post.id}
             style={{
               backgroundColor: '#ffffff',
@@ -2304,8 +2304,8 @@ const PostsGridRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties; viewp
             }}
           >
             {showFeaturedImage && (
-              <div style={{ 
-                height: '180px', 
+              <div style={{
+                height: '180px',
                 backgroundColor: '#f3f4f6',
                 backgroundImage: `url(${post.image})`,
                 backgroundSize: 'cover',
@@ -2359,12 +2359,12 @@ const PostsGridRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties; viewp
 const ProductsGridRenderer: React.FC<{ node: DiSyLNode; style: React.CSSProperties; viewport?: 'desktop' | 'tablet' | 'mobile' }> = memo(({ node, style, viewport }) => {
   const { itemCount = 6, categoryIds = [] } = node.props as { itemCount?: number; categoryIds?: number[] };
   const gridCols = viewport === 'mobile' ? 1 : viewport === 'tablet' ? 2 : 3;
-  
+
   return (
     <div style={style} className="pb-products-grid-preview">
-      <div style={{ 
-        display: 'grid', 
-        gridTemplateColumns: `repeat(${gridCols}, 1fr)`, 
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: `repeat(${gridCols}, 1fr)`,
         gap: '16px',
         padding: '16px',
         backgroundColor: '#f8f9fa',
@@ -2433,12 +2433,12 @@ const ProductsGridRenderer: React.FC<{ node: DiSyLNode; style: React.CSSProperti
 const TeamGridRenderer: React.FC<{ node: DiSyLNode; style: React.CSSProperties; viewport?: 'desktop' | 'tablet' | 'mobile' }> = memo(({ node, style, viewport }) => {
   const { itemCount = 4, departmentIds = [] } = node.props as { itemCount?: number; departmentIds?: number[] };
   const gridCols = viewport === 'mobile' ? 1 : viewport === 'tablet' ? 2 : 4;
-  
+
   return (
     <div style={style} className="pb-team-grid-preview">
-      <div style={{ 
-        display: 'grid', 
-        gridTemplateColumns: `repeat(${gridCols}, 1fr)`, 
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: `repeat(${gridCols}, 1fr)`,
         gap: '16px',
         padding: '16px',
         backgroundColor: '#f8f9fa',
@@ -2502,15 +2502,134 @@ const TeamGridRenderer: React.FC<{ node: DiSyLNode; style: React.CSSProperties; 
   );
 });
 
+const EntityViewRenderer: React.FC<{ node: DiSyLNode; style: React.CSSProperties }> = memo(({ node, style }) => {
+  const showFeaturedImage = node.props.showFeaturedImage !== false;
+  const showTitle = node.props.showTitle !== false;
+  const showMeta = node.props.showMeta !== false;
+  const showPricing = node.props.showPricing !== false;
+  const showInventory = node.props.showInventory !== false;
+  const showBody = node.props.showBody !== false;
+
+  return (
+    <article style={{ display: 'flex', flexDirection: 'column', gap: '20px', maxWidth: '860px', margin: '0 auto', ...style }}>
+      {showFeaturedImage && (
+        <div style={{ borderRadius: '18px', overflow: 'hidden', backgroundColor: '#e5e7eb' }}>
+          <img
+            src={placeholderSvg(1200, 560, '#cbd5e1', 'Current Entity Hero')}
+            alt="Current entity preview"
+            style={{ display: 'block', width: '100%', height: 'auto' }}
+          />
+        </div>
+      )}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        {showTitle && <h2 style={{ margin: 0, fontSize: '32px', lineHeight: 1.2, color: '#0f172a' }}>Current Entity Title</h2>}
+        {showMeta && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', fontSize: '13px', color: '#64748b' }}>
+            <span>Published content</span>
+            <span>March 27, 2026</span>
+            <span>By CMS Author</span>
+          </div>
+        )}
+        {(showPricing || showInventory) && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
+            {showPricing && (
+              <span style={{ padding: '8px 12px', borderRadius: '999px', backgroundColor: '#e0f2fe', color: '#0369a1', fontSize: '13px', fontWeight: 600 }}>
+                Pricing block
+              </span>
+            )}
+            {showInventory && (
+              <span style={{ padding: '8px 12px', borderRadius: '999px', backgroundColor: '#ecfccb', color: '#3f6212', fontSize: '13px', fontWeight: 600 }}>
+                Inventory status
+              </span>
+            )}
+          </div>
+        )}
+      </div>
+      {showBody && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', color: '#475569', lineHeight: 1.7, fontSize: '15px' }}>
+          <p style={{ margin: 0 }}>This component uses the current entity context when rendered on the public site. In the builder it previews the same structure the theme uses for media, metadata, capability blocks, and body content.</p>
+          <p style={{ margin: 0 }}>Use it when you want a page-builder section to stay aligned with the entity view contract instead of duplicating post, product, or course details by hand.</p>
+        </div>
+      )}
+    </article>
+  );
+});
+
+const EntityListRenderer: React.FC<{ node: DiSyLNode; style: React.CSSProperties; viewport?: 'desktop' | 'tablet' | 'mobile' }> = memo(({ node, style, viewport }) => {
+  const {
+    entityType = 'post',
+    itemCount = 6,
+    layout = 'grid',
+    showFeaturedImage = true,
+    showExcerpt = true,
+    showPricing = true,
+    showInventory = true,
+    gridColumns = 3,
+  } = node.props as {
+    entityType?: string;
+    itemCount?: number;
+    layout?: 'grid' | 'list';
+    showFeaturedImage?: boolean;
+    showExcerpt?: boolean;
+    showPricing?: boolean;
+    showInventory?: boolean;
+    gridColumns?: number;
+  };
+
+  const columns = layout === 'list'
+    ? 1
+    : viewport === 'mobile'
+      ? 1
+      : viewport === 'tablet'
+        ? Math.min(2, gridColumns)
+        : gridColumns;
+
+  const items = Array.from({ length: Math.min(itemCount, 6) }, (_, index) => ({
+    id: index + 1,
+    title: `Sample ${entityType} ${index + 1}`,
+    excerpt: 'This item previews the shared entity-list contract used by the public theme, including media, pricing, and stock states.',
+    price: `$${(29 + index * 5).toFixed(2)}`,
+    stock: index % 3 === 0 ? 'Low stock' : index % 2 === 0 ? 'In stock' : 'Out of stock',
+  }));
+
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: `repeat(${columns}, 1fr)`, gap: '20px', ...style }}>
+      {items.map((item) => (
+        <article key={item.id} style={{ backgroundColor: '#ffffff', borderRadius: '18px', border: '1px solid #e2e8f0', overflow: 'hidden', boxShadow: '0 10px 30px rgba(15, 23, 42, 0.06)' }}>
+          {showFeaturedImage && (
+            <div style={{ aspectRatio: '16 / 9', backgroundColor: '#e2e8f0' }}>
+              <img
+                src={placeholderSvg(720, 405, item.id % 2 === 0 ? '#93c5fd' : '#fcd34d', item.title)}
+                alt={item.title}
+                style={{ display: 'block', width: '100%', height: '100%', objectFit: 'cover' }}
+              />
+            </div>
+          )}
+          <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <h3 style={{ margin: 0, fontSize: '18px', lineHeight: 1.35, color: '#0f172a' }}>{item.title}</h3>
+            {showExcerpt && <p style={{ margin: 0, fontSize: '14px', lineHeight: 1.6, color: '#64748b' }}>{item.excerpt}</p>}
+            {(showPricing || showInventory) && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '4px' }}>
+                {showPricing && <span style={{ fontSize: '13px', fontWeight: 700, color: '#0f766e' }}>{item.price}</span>}
+                {showInventory && <span style={{ fontSize: '12px', color: item.stock === 'Out of stock' ? '#dc2626' : item.stock === 'Low stock' ? '#d97706' : '#16a34a' }}>{item.stock}</span>}
+              </div>
+            )}
+          </div>
+        </article>
+      ))}
+    </div>
+  );
+});
+
 // =============================================================================
 // Pricing Table Renderer (Jan 2026)
 // =============================================================================
 
 const PricingTableRenderer: React.FC<{ node: DiSyLNode; style: React.CSSProperties }> = memo(({ node, style }) => {
   const { planName = 'Professional', price = '49', currency = '$', period = '/month', features = [], buttonText = 'Get Started', highlighted = false } = node.props as any;
-  
+
   return (
-    <div style={{ 
+    <div style={{
       border: highlighted ? '2px solid #3b82f6' : '1px solid #e5e7eb',
       position: 'relative',
       ...style,
@@ -2548,7 +2667,7 @@ const PricingTableRenderer: React.FC<{ node: DiSyLNode; style: React.CSSProperti
 const CountdownRenderer: React.FC<{ node: DiSyLNode; style: React.CSSProperties; viewport?: 'desktop' | 'tablet' | 'mobile' }> = memo(({ node, style, viewport }) => {
   const { labels = { days: 'Days', hours: 'Hours', minutes: 'Minutes', seconds: 'Seconds' } } = node.props as any;
   const isMobile = viewport === 'mobile';
-  
+
   const TimeBox = ({ value, label }: { value: string; label: string }) => (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
       <div style={{ backgroundColor: '#f9fafb', color: '#1f2937', padding: isMobile ? '10px 14px' : '16px 20px', borderRadius: '8px', fontSize: isMobile ? '24px' : '36px', fontWeight: 700, minWidth: isMobile ? '56px' : '80px', textAlign: 'center' }}>
@@ -2557,7 +2676,7 @@ const CountdownRenderer: React.FC<{ node: DiSyLNode; style: React.CSSProperties;
       <span style={{ fontSize: isMobile ? '10px' : '12px', color: '#6b7280', marginTop: '4px', textTransform: 'uppercase' }}>{label}</span>
     </div>
   );
-  
+
   return (
     <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: isMobile ? '8px' : '16px', ...style }}>
       <TimeBox value="07" label={labels.days} />
@@ -2577,7 +2696,7 @@ const CountdownRenderer: React.FC<{ node: DiSyLNode; style: React.CSSProperties;
 
 const StarRatingRenderer: React.FC<{ node: DiSyLNode; style: React.CSSProperties }> = memo(({ node, style }) => {
   const { rating = 4.5, maxRating = 5, showNumber = true, color = '#fbbf24', emptyColor = '#e5e7eb' } = node.props as any;
-  
+
   const stars = [];
   for (let i = 1; i <= maxRating; i++) {
     const filled = i <= Math.floor(rating);
@@ -2588,7 +2707,7 @@ const StarRatingRenderer: React.FC<{ node: DiSyLNode; style: React.CSSProperties
       </span>
     );
   }
-  
+
   return (
     <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', ...style }}>
       <div style={{ display: 'flex', gap: '2px' }}>{stars}</div>
@@ -2603,10 +2722,10 @@ const StarRatingRenderer: React.FC<{ node: DiSyLNode; style: React.CSSProperties
 
 const CallToActionRenderer: React.FC<{ node: DiSyLNode; style: React.CSSProperties; viewport?: 'desktop' | 'tablet' | 'mobile' }> = memo(({ node, style, viewport }) => {
   const { title = 'Ready to Get Started?', description = 'Join thousands of satisfied customers.', buttonText = 'Start Free Trial', layout = 'horizontal' } = node.props as any;
-  
+
   // Horizontal CTA stacks to column on mobile
   const isHorizontal = layout === 'horizontal' && viewport !== 'mobile';
-  
+
   return (
     <div style={{ display: 'flex', flexDirection: isHorizontal ? 'row' : 'column', alignItems: 'center', justifyContent: 'space-between', gap: '24px', ...style }}>
       <div style={{ flex: 1, textAlign: isHorizontal ? 'left' : 'center' }}>
@@ -2626,12 +2745,12 @@ const CallToActionRenderer: React.FC<{ node: DiSyLNode; style: React.CSSProperti
 
 const FlipBoxRenderer: React.FC<{ node: DiSyLNode; style: React.CSSProperties; viewport?: 'desktop' | 'tablet' | 'mobile' }> = memo(({ node, style, viewport }) => {
   const { frontTitle = 'Front Title', frontDescription = 'Hover to see more', backTitle = 'Back Title' } = node.props as any;
-  
+
   return (
     <div style={{ perspective: '1000px', maxWidth: '100%', ...style }}>
-      <div style={{ 
-        width: '100%', 
-        height: '100%', 
+      <div style={{
+        width: '100%',
+        height: '100%',
         minHeight: '250px',
         position: 'relative',
         backgroundColor: '#3b82f6',
@@ -2661,16 +2780,16 @@ const FlipBoxRenderer: React.FC<{ node: DiSyLNode; style: React.CSSProperties; v
 
 const ImageBoxRenderer: React.FC<{ node: DiSyLNode; style: React.CSSProperties }> = memo(({ node, style }) => {
   const { src = '', title = 'Image Title', description = 'A brief description.' } = node.props as any;
-  
+
   return (
     <div style={{ textAlign: 'center' as const, ...style }}>
-      <div style={{ 
-        width: '100%', 
-        height: '200px', 
-        backgroundColor: '#f3f4f6', 
-        borderRadius: '8px', 
-        display: 'flex', 
-        alignItems: 'center', 
+      <div style={{
+        width: '100%',
+        height: '200px',
+        backgroundColor: '#f3f4f6',
+        borderRadius: '8px',
+        display: 'flex',
+        alignItems: 'center',
         justifyContent: 'center',
         marginBottom: '16px',
         overflow: 'hidden'
@@ -2694,16 +2813,16 @@ const ImageBoxRenderer: React.FC<{ node: DiSyLNode; style: React.CSSProperties }
 const LogoGridRenderer: React.FC<{ node: DiSyLNode; style: React.CSSProperties; viewport?: 'desktop' | 'tablet' | 'mobile' }> = memo(({ node, style, viewport }) => {
   const { logos = [], columns: desktopCols = 4, grayscale = true } = node.props as any;
   const columns = viewport === 'mobile' ? Math.min(2, desktopCols) : viewport === 'tablet' ? Math.min(3, desktopCols) : desktopCols;
-  
+
   return (
     <div style={{ display: 'grid', gridTemplateColumns: `repeat(${columns}, 1fr)`, gap: '32px', alignItems: 'center', ...style }}>
       {(logos.length > 0 ? logos : Array(4).fill({ id: '', src: '', alt: 'Logo' })).map((logo: any, idx: number) => (
-        <div key={logo.id || idx} style={{ 
-          height: '60px', 
-          backgroundColor: '#f9fafb', 
-          borderRadius: '8px', 
-          display: 'flex', 
-          alignItems: 'center', 
+        <div key={logo.id || idx} style={{
+          height: '60px',
+          backgroundColor: '#f9fafb',
+          borderRadius: '8px',
+          display: 'flex',
+          alignItems: 'center',
           justifyContent: 'center',
           filter: grayscale ? 'grayscale(100%)' : 'none',
           transition: 'filter 0.3s'
@@ -2725,7 +2844,7 @@ const LogoGridRenderer: React.FC<{ node: DiSyLNode; style: React.CSSProperties; 
 
 const BlockquoteRenderer: React.FC<{ node: DiSyLNode; style: React.CSSProperties }> = memo(({ node, style }) => {
   const { content = 'The only way to do great work is to love what you do.', author = 'Steve Jobs', authorTitle = 'Co-founder, Apple Inc.' } = node.props as any;
-  
+
   return (
     <blockquote style={{ margin: 0, ...style }}>
       <div style={{ fontSize: '24px', color: '#3b82f6', marginBottom: '8px' }}>"</div>
@@ -2749,14 +2868,14 @@ const BlockquoteRenderer: React.FC<{ node: DiSyLNode; style: React.CSSProperties
 
 const ToggleRenderer: React.FC<{ node: DiSyLNode; style: React.CSSProperties }> = memo(({ node, style }) => {
   const { title = 'Click to expand', content = 'Hidden content here.', isOpen = false } = node.props as any;
-  
+
   return (
     <div style={{ overflow: 'hidden', ...style }}>
-      <div style={{ 
-        display: 'flex', 
-        alignItems: 'center', 
-        justifyContent: 'space-between', 
-        padding: '16px', 
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        padding: '16px',
         backgroundColor: '#f9fafb',
         cursor: 'pointer'
       }}>
@@ -2778,29 +2897,29 @@ const ToggleRenderer: React.FC<{ node: DiSyLNode; style: React.CSSProperties }> 
 
 const SearchBoxRenderer: React.FC<{ node: DiSyLNode; style: React.CSSProperties }> = memo(({ node, style }) => {
   const { placeholder = 'Search...', buttonText = 'Search', showButton = true, style: inputStyle = 'rounded' } = node.props as any;
-  
+
   const borderRadius = inputStyle === 'pill' ? '50px' : inputStyle === 'rounded' ? '8px' : '0';
-  
+
   return (
     <div style={{ display: 'flex', gap: '8px', ...style }}>
-      <input 
-        type="text" 
+      <input
+        type="text"
         placeholder={placeholder}
-        style={{ 
-          flex: 1, 
-          padding: '12px 16px', 
-          border: '1px solid #d1d5db', 
+        style={{
+          flex: 1,
+          padding: '12px 16px',
+          border: '1px solid #d1d5db',
           borderRadius,
           fontSize: '14px',
           outline: 'none'
         }}
       />
       {showButton && (
-        <button style={{ 
-          padding: '12px 24px', 
-          backgroundColor: '#3b82f6', 
-          color: 'white', 
-          border: 'none', 
+        <button style={{
+          padding: '12px 24px',
+          backgroundColor: '#3b82f6',
+          color: 'white',
+          border: 'none',
           borderRadius,
           fontSize: '14px',
           fontWeight: 500,
@@ -2819,12 +2938,12 @@ const SearchBoxRenderer: React.FC<{ node: DiSyLNode; style: React.CSSProperties 
 
 const BreadcrumbsRenderer: React.FC<{ node: DiSyLNode; style: React.CSSProperties }> = memo(({ node, style }) => {
   const { items = [{ label: 'Home' }, { label: 'Products' }, { label: 'Current' }], separator = '/' } = node.props as any;
-  
+
   return (
     <nav style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' as const, ...style }}>
       {(items as any[]).map((item: any, idx: number) => (
         <span key={idx} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span style={{ 
+          <span style={{
             color: idx === items.length - 1 ? '#1f2937' : '#3b82f6',
             fontWeight: idx === items.length - 1 ? 500 : 400,
             cursor: idx === items.length - 1 ? 'default' : 'pointer'
@@ -2846,24 +2965,24 @@ const BreadcrumbsRenderer: React.FC<{ node: DiSyLNode; style: React.CSSPropertie
 
 const CodeBlockRenderer: React.FC<{ node: DiSyLNode; style: React.CSSProperties }> = memo(({ node, style }) => {
   const { code = 'const greeting = "Hello, World!";', language = 'javascript', showLineNumbers = true, theme = 'dark' } = node.props as any;
-  
+
   const isDark = theme === 'dark';
   const lines = code.split('\n');
-  
+
   return (
     <div style={{ overflow: 'hidden', ...style }}>
-      <div style={{ 
-        display: 'flex', 
-        alignItems: 'center', 
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
         justifyContent: 'space-between',
         padding: '8px 16px',
         backgroundColor: isDark ? '#1f2937' : '#f3f4f6',
         borderBottom: `1px solid ${isDark ? '#374151' : '#e5e7eb'}`
       }}>
         <span style={{ fontSize: '12px', color: isDark ? '#9ca3af' : '#6b7280' }}>{language}</span>
-        <button style={{ 
-          padding: '4px 8px', 
-          backgroundColor: 'transparent', 
+        <button style={{
+          padding: '4px 8px',
+          backgroundColor: 'transparent',
           border: `1px solid ${isDark ? '#4b5563' : '#d1d5db'}`,
           borderRadius: '4px',
           color: isDark ? '#9ca3af' : '#6b7280',
@@ -2873,8 +2992,8 @@ const CodeBlockRenderer: React.FC<{ node: DiSyLNode; style: React.CSSProperties 
           Copy
         </button>
       </div>
-      <pre style={{ 
-        margin: 0, 
+      <pre style={{
+        margin: 0,
         padding: '16px',
         backgroundColor: isDark ? '#111827' : '#ffffff',
         color: isDark ? '#e5e7eb' : '#1f2937',
@@ -2886,8 +3005,8 @@ const CodeBlockRenderer: React.FC<{ node: DiSyLNode; style: React.CSSProperties 
         {lines.map((line: string, idx: number) => (
           <div key={idx} style={{ display: 'flex' }}>
             {showLineNumbers && (
-              <span style={{ 
-                width: '32px', 
+              <span style={{
+                width: '32px',
                 color: isDark ? '#4b5563' : '#9ca3af',
                 userSelect: 'none',
                 textAlign: 'right',
@@ -2932,13 +3051,13 @@ const NodeRenderer: React.FC<NodeRendererProps> = memo(({
   const [isDragging, setIsDragging] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
   const [showMediaLibrary, setShowMediaLibrary] = useState(false);
-  
+
   // Check if any child is selected (for parent highlighting)
-  const hasSelectedChild = node.children.some(child => 
-    selectedIds.includes(child.id) || 
+  const hasSelectedChild = node.children.some(child =>
+    selectedIds.includes(child.id) ||
     child.children.some(grandchild => selectedIds.includes(grandchild.id))
   );
-  
+
   // Determine resize behavior based on node type
   // - Sections: height only (always full width)
   // - Containers/Columns: width and height (flex children need width control)
@@ -2962,40 +3081,40 @@ const NodeRenderer: React.FC<NodeRendererProps> = memo(({
         return { resizable: true, horizontal: true, vertical: true };
     }
   };
-  
+
   const resizeConfig = getResizeConfig();
   const isResizable = resizeConfig.resizable;
-  
+
   // Determine if label bar should show (not for document)
   // Also keep visible while dragging so the handle doesn't vanish mid-drag
   const showLabelBar = node.type !== 'document' && (isSelected || isHovered || structureMode || isDragging);
-  
+
   // Handle resize - receives the initial size and current deltas from ResizeHandles
   // For containers/columns in flex parents, we update flex property for proper sizing
   const handleResize = useCallback((direction: string, deltaX: number, deltaY: number, initialWidth: number, initialHeight: number) => {
     if (!onStyleChange) return;
-    
+
     setIsResizing(true);
-    
+
     let newWidth = initialWidth;
     let newHeight = initialHeight;
-    
+
     // Calculate new dimensions based on direction
     if (direction.includes('e')) newWidth += deltaX;
     if (direction.includes('w')) newWidth -= deltaX;
     if (direction.includes('s')) newHeight += deltaY;
     if (direction.includes('n')) newHeight -= deltaY;
-    
+
     // Enforce minimum size
     newWidth = Math.max(40, newWidth);
     newHeight = Math.max(20, newHeight);
-    
+
     // Apply the new size
     const newStyle: Partial<NodeStyle> = {};
     if (direction.includes('e') || direction.includes('w')) {
       const widthPx = `${Math.round(newWidth)}px`;
       newStyle.width = widthPx;
-      
+
       // For containers/columns, also set flex to use the width as flex-basis
       // This ensures the width is respected in flex layouts
       if (node.type === 'container' || node.type === 'column') {
@@ -3007,41 +3126,41 @@ const NodeRenderer: React.FC<NodeRendererProps> = memo(({
     if (direction.includes('s') || direction.includes('n')) {
       newStyle.height = `${Math.round(newHeight)}px`;
     }
-    
+
     onStyleChange(node.id, newStyle);
   }, [node.id, node.type, onStyleChange]);
-  
+
   // Handle resize end
   const handleResizeEnd = useCallback(() => {
     setIsResizing(false);
   }, []);
-  
+
   const handleClick = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
     if (!isEditing) {
       onSelect(node.id, e.shiftKey);
     }
   }, [node.id, onSelect, isEditing]);
-  
+
   const handleMouseEnter = useCallback(() => {
     onHover(node.id);
   }, [node.id, onHover]);
-  
+
   const handleMouseLeave = useCallback(() => {
     onHover(null);
   }, [onHover]);
-  
+
   const handleStartEdit = useCallback(() => {
     setIsEditing(true);
   }, []);
-  
+
   const handleEndEdit = useCallback((content: string) => {
     setIsEditing(false);
     if (onContentChange) {
       onContentChange(node.id, content);
     }
   }, [node.id, onContentChange]);
-  
+
   // Drag & Drop handlers — any element can be dragged (unless editing text)
   const handleDragStart = useCallback((e: React.DragEvent) => {
     const target = e.target as HTMLElement;
@@ -3073,12 +3192,12 @@ const NodeRenderer: React.FC<NodeRendererProps> = memo(({
     e.dataTransfer.setDragImage(preview, 0, 12);
     requestAnimationFrame(() => preview.remove());
   }, [node.id, node.meta?.name, node.type]);
-  
+
   const handleDragEnd = useCallback(() => {
     setIsDragging(false);
     setDropPosition(null);
   }, []);
-  
+
   const handleDragOver = useCallback((e: React.DragEvent) => {
     const dragTypes = Array.from(e.dataTransfer.types || []);
     // Only respond to internal node drags — ignore component-panel or external drags
@@ -3088,14 +3207,14 @@ const NodeRenderer: React.FC<NodeRendererProps> = memo(({
 
     e.preventDefault();
     e.stopPropagation();
-    
+
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
     const y = e.clientY - rect.top;
     const height = rect.height;
-    
+
     // Determine drop position based on mouse position
     const isContainer = ['document', 'section', 'container', 'row', 'column'].includes(node.type);
-    
+
     if (isContainer && y > height * 0.25 && y < height * 0.75) {
       setDropPosition('inside');
     } else if (y < height * 0.5) {
@@ -3103,16 +3222,16 @@ const NodeRenderer: React.FC<NodeRendererProps> = memo(({
     } else {
       setDropPosition('after');
     }
-    
+
     e.dataTransfer.dropEffect = 'move';
   }, [node.type]);
-  
+
   const handleDragLeave = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
     setDropPosition(null);
   }, []);
-  
+
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -3124,7 +3243,7 @@ const NodeRenderer: React.FC<NodeRendererProps> = memo(({
       setDropPosition(null);
       return;
     }
-    
+
     // Handle the drop based on position
     if (dropPosition === 'inside') {
       // Drop inside this container
@@ -3134,10 +3253,10 @@ const NodeRenderer: React.FC<NodeRendererProps> = memo(({
       const newIndex = dropPosition === 'before' ? indexInParent : indexInParent + 1;
       onMoveNode(draggedNodeId, parentId, newIndex);
     }
-    
+
     setDropPosition(null);
   }, [node.id, node.children.length, dropPosition, onMoveNode, parentId, indexInParent]);
-  
+
   // Selection/hover outline styles - professional minimal styling
   // Structure mode: always show outlines, dim content
   const getOutlineStyle = () => {
@@ -3152,17 +3271,17 @@ const NodeRenderer: React.FC<NodeRendererProps> = memo(({
     if (isHovered) return '1px dashed #0078d4';
     return 'none';
   };
-  
+
   // Get animation styles from node props
   const getHoverAnimationStyles = (): CSSProperties => {
     const animStyles: CSSProperties = {};
     const hoverAnimation = node.props.hoverAnimation as string;
-    
+
     // Hover animations need transition
     if (hoverAnimation) {
       animStyles.transition = 'transform 0.3s ease, box-shadow 0.3s ease';
     }
-    
+
     return animStyles;
   };
 
@@ -3178,7 +3297,7 @@ const NodeRenderer: React.FC<NodeRendererProps> = memo(({
 
     return animStyles;
   };
-  
+
   // Determine wrapper display based on node type and alignment
   const getWrapperDisplay = (): CSSProperties['display'] => {
     // Buttons are inline-block
@@ -3187,7 +3306,7 @@ const NodeRenderer: React.FC<NodeRendererProps> = memo(({
     if (node.type === 'image') return 'block';
     return undefined;
   };
-  
+
   const wrapperStyle: CSSProperties = {
     position: 'relative',
     outline: getOutlineStyle(),
@@ -3196,8 +3315,8 @@ const NodeRenderer: React.FC<NodeRendererProps> = memo(({
     transition: 'outline 0.1s ease, background-color 0.1s ease',
     opacity: isDragging ? 0.5 : 1,
     // Parent highlighting: subtle background when child is selected
-    backgroundColor: hasSelectedChild && !isSelected 
-      ? 'rgba(0, 120, 212, 0.03)' 
+    backgroundColor: hasSelectedChild && !isSelected
+      ? 'rgba(0, 120, 212, 0.03)'
       : undefined,
     // Display mode based on node type
     display: getWrapperDisplay(),
@@ -3215,12 +3334,12 @@ const NodeRenderer: React.FC<NodeRendererProps> = memo(({
     width: node.type === 'button'
       ? 'fit-content'
       : (style.width || (
-          ['slideshow', 'gallery', 'tabs', 'accordion', 'form', 'progress', 'alert', 'video', 'table', 'divider',
-           'heading', 'toggle', 'posts_grid', 'products_grid', 'team_grid', 'logo_grid', 'call_to_action',
-           'countdown', 'search_box'].includes(node.type)
-            ? '100%'
-            : undefined
-        )),
+        ['slideshow', 'gallery', 'tabs', 'accordion', 'form', 'progress', 'alert', 'video', 'table', 'divider',
+          'heading', 'toggle', 'posts_grid', 'products_grid', 'team_grid', 'entity_view', 'entity_list', 'logo_grid', 'call_to_action',
+          'countdown', 'search_box'].includes(node.type)
+          ? '100%'
+          : undefined
+      )),
     // Pass through text alignment to wrapper for block elements
     textAlign: style.textAlign,
     // Pass through vertical alignment (alignSelf) for flex children
@@ -3231,11 +3350,11 @@ const NodeRenderer: React.FC<NodeRendererProps> = memo(({
 
   const entranceAnimationStyles = getEntranceAnimationStyles();
   const hasEntranceAnimation = Object.keys(entranceAnimationStyles).length > 0;
-  
+
   // Drop indicator styles — prominent visual cues for drag targets
   const getDropIndicatorStyle = (): CSSProperties | null => {
     if (!dropPosition) return null;
-    
+
     if (dropPosition === 'before') {
       return {
         position: 'absolute',
@@ -3292,9 +3411,9 @@ const NodeRenderer: React.FC<NodeRendererProps> = memo(({
       ...(dropPosition === 'before' ? { top: '-5px' } : { bottom: '-5px' }),
     };
   };
-  
+
   const dropIndicatorStyle = getDropIndicatorStyle();
-  
+
   // Render children recursively
   const renderChildren = () => {
     if (node.children.length === 0) return null;
@@ -3319,7 +3438,7 @@ const NodeRenderer: React.FC<NodeRendererProps> = memo(({
       />
     ));
   };
-  
+
   // Render based on node type
   const renderContent = () => {
     switch (node.type) {
@@ -3385,6 +3504,10 @@ const NodeRenderer: React.FC<NodeRendererProps> = memo(({
         return <ProductsGridRenderer node={node} style={style} viewport={viewport} />;
       case 'team_grid':
         return <TeamGridRenderer node={node} style={style} viewport={viewport} />;
+      case 'entity_view':
+        return <EntityViewRenderer node={node} style={style} />;
+      case 'entity_list':
+        return <EntityListRenderer node={node} style={style} viewport={viewport} />;
       // New components (Jan 2026) - Elementor-level
       case 'pricing_table':
         return <PricingTableRenderer node={node} style={style} />;
@@ -3414,11 +3537,11 @@ const NodeRenderer: React.FC<NodeRendererProps> = memo(({
         return <div style={style}>{renderChildren()}</div>;
     }
   };
-  
+
   // Handle keyboard navigation
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (isEditing) return;
-    
+
     switch (e.key) {
       case 'Enter':
         e.preventDefault();
@@ -3438,7 +3561,7 @@ const NodeRenderer: React.FC<NodeRendererProps> = memo(({
         break;
     }
   }, [isEditing, node.type, onSelect]);
-  
+
   return (
     <div
       ref={nodeRef}
@@ -3482,7 +3605,7 @@ const NodeRenderer: React.FC<NodeRendererProps> = memo(({
       ) : renderContent()}
       {/* Resize handles - show only when selected and resizable */}
       {isSelected && isResizable && onStyleChange && (
-        <ResizeHandles 
+        <ResizeHandles
           onResize={handleResize}
           onResizeEnd={handleResizeEnd}
           resizable={{ horizontal: resizeConfig.horizontal, vertical: resizeConfig.vertical }}
@@ -3490,7 +3613,7 @@ const NodeRenderer: React.FC<NodeRendererProps> = memo(({
           lockAspectRatio={node.type === 'image'}
         />
       )}
-      
+
       {/* Quick Width Presets Toolbar - show for containers/columns when selected */}
       {isSelected && ['container', 'column'].includes(node.type) && onStyleChange && (
         <QuickWidthToolbar
@@ -3499,7 +3622,7 @@ const NodeRenderer: React.FC<NodeRendererProps> = memo(({
           onFlexChange={(flex) => onStyleChange(node.id, { flex, width: undefined })}
         />
       )}
-      
+
       {/* Media Library Modal for image selection */}
       {showMediaLibrary && (
         <MediaLibrary

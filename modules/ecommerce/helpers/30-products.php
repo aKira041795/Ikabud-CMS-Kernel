@@ -282,7 +282,7 @@ function ecProductPrimaryImageUrl(string $featuredImageUrl, array $galleryImages
 function ecProductCreate(array $data, int $authorId = 0): int
 {
     $title    = trim((string)($data['title'] ?? 'New Product'));
-    $slug     = ecProductSlug($data['slug'] ?? $title);
+    $slug     = ecProductSlug(ecProductResolveSlugSource($data));
     $excerpt  = trim((string)($data['excerpt'] ?? ''));
     $body     = $data['body'] ?? '';
     $status   = in_array($data['status'] ?? '', ['draft', 'published', 'private'], true)
@@ -352,7 +352,7 @@ function ecProductUpdate(int $id, array $data): void
     }
     if (isset($data['slug'])) {
         $fields[]  = 'slug = ?';
-        $params[]  = ecProductSlug($data['slug'], $id);
+        $params[]  = ecProductSlug(ecProductResolveSlugSource($data, $id), $id);
     }
     if (isset($data['excerpt'])) {
         $fields[]  = 'excerpt = ?';
@@ -401,6 +401,33 @@ function ecProductUpdate(int $id, array $data): void
             cmsSyncMediaUsage($id, ['featured_image_id' => $data['featured_image_id'] ?? null], null);
         });
     }
+}
+
+function ecProductResolveSlugSource(array $data, int $productId = 0): string
+{
+    $slug = trim((string)($data['slug'] ?? ''));
+    if ($slug !== '') {
+        return $slug;
+    }
+
+    $title = trim((string)($data['title'] ?? ''));
+    if ($title !== '') {
+        return $title;
+    }
+
+    if ($productId > 0) {
+        $row = ecDb()->query(
+            "SELECT title, slug FROM cms_content WHERE id = ? AND type = 'product' LIMIT 1",
+            [$productId]
+        )->fetch(\PDO::FETCH_ASSOC) ?: [];
+
+        $fallback = trim((string)($row['title'] ?? $row['slug'] ?? ''));
+        if ($fallback !== '') {
+            return $fallback;
+        }
+    }
+
+    return 'product';
 }
 
 /**

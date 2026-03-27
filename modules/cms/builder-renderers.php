@@ -58,6 +58,8 @@ function cmsBuilderWidgetRenderers(): array
         'posts_grid'      => 'cmsRenderWidget_posts_grid',
         'products_grid'   => 'cmsRenderWidget_placeholder_grid',
         'team_grid'       => 'cmsRenderWidget_placeholder_grid',
+        'entity_view'     => 'cmsRenderWidget_entity_view',
+        'entity_list'     => 'cmsRenderWidget_entity_list',
         'pricing_table'   => 'cmsRenderWidget_pricing_table',
         'countdown'       => 'cmsRenderWidget_countdown',
         'star_rating'     => 'cmsRenderWidget_star_rating',
@@ -717,6 +719,182 @@ function cmsRenderWidget_placeholder_grid(array $props, array $style, array $att
 {
     $emptyMsg = cmsBuilderEsc((string)($props['emptyMessage'] ?? 'No items found.'));
     return '<div' . cmsBuilderAttrString($attrs) . cmsBuilderStyleAttr($style) . '><p style="color:#6b7280;text-align:center;padding:24px">' . $emptyMsg . '</p></div>';
+}
+
+function cmsBuilderEntityFeaturedImageUrl(array $entity): string
+{
+    if (!empty($entity['featured_image_url'])) {
+        return (string)$entity['featured_image_url'];
+    }
+
+    $featuredImageId = (int)($entity['featured_image_id'] ?? 0);
+    if ($featuredImageId <= 0) {
+        return '';
+    }
+
+    try {
+        $path = cmsDb()->query('SELECT file_path FROM cms_media WHERE id = ? LIMIT 1', [$featuredImageId])->fetchColumn();
+    } catch (\Throwable $e) {
+        $path = false;
+    }
+
+    if (!is_string($path) || $path === '' || !function_exists('cmsResolveUploadUrl')) {
+        return '';
+    }
+
+    return cmsResolveUploadUrl($path);
+}
+
+function cmsBuilderEntityViewContext(array $context): array
+{
+    $entity = $context;
+    $entityId = (int)($entity['id'] ?? 0);
+
+    if ($entityId > 0) {
+        try {
+            $entity['capabilities'] = cmsEntityCapabilityContext($entityId);
+            $entity['capability_data'] = cmsEntityCapabilityData($entityId, $entity);
+        } catch (\Throwable $e) {
+            $entity['capabilities'] = [];
+            $entity['capability_data'] = [];
+        }
+    } else {
+        $entity['capabilities'] = [];
+        $entity['capability_data'] = [];
+    }
+
+    $entity['featured_image_url'] = cmsBuilderEntityFeaturedImageUrl($entity);
+
+    return $entity;
+}
+
+function cmsRenderWidget_entity_view(array $props, array $style, array $attrs, string $children, array $node, array $context): string
+{
+    $entity = cmsBuilderEntityViewContext($context);
+    $showFeaturedImage = ($props['showFeaturedImage'] ?? true) !== false;
+    $showTitle = ($props['showTitle'] ?? true) !== false;
+    $showMeta = ($props['showMeta'] ?? true) !== false;
+    $showPricing = ($props['showPricing'] ?? true) !== false;
+    $showInventory = ($props['showInventory'] ?? true) !== false;
+    $showBody = ($props['showBody'] ?? true) !== false;
+
+    $title = cmsBuilderEsc((string)($entity['title'] ?? 'Current Entity'));
+    $excerpt = trim((string)($entity['excerpt'] ?? ''));
+    $body = trim((string)($entity['body'] ?? ''));
+    $contentHtml = $body !== '' ? nl2br(cmsBuilderEsc($body)) : ($excerpt !== '' ? '<p>' . cmsBuilderEsc($excerpt) . '</p>' : '');
+    $publishedAt = !empty($entity['published_at']) ? date('M j, Y', strtotime((string)$entity['published_at'])) : '';
+    $pricing = is_array($entity['capability_data']['pricing'] ?? null) ? $entity['capability_data']['pricing'] : [];
+    $inventory = is_array($entity['capability_data']['inventory'] ?? null) ? $entity['capability_data']['inventory'] : [];
+
+    $html = '<article' . cmsBuilderAttrString($attrs) . cmsBuilderStyleAttr(array_merge(['display' => 'flex', 'flexDirection' => 'column', 'gap' => '24px', 'width' => '100%'], $style)) . '>';
+    if ($showFeaturedImage && !empty($entity['featured_image_url'])) {
+        $html .= '<div style="overflow:hidden;border-radius:18px;background:#e2e8f0"><img src="' . cmsBuilderEsc((string)$entity['featured_image_url']) . '" alt="' . $title . '" loading="lazy" style="display:block;width:100%;height:auto"></div>';
+    }
+
+    $html .= '<div style="display:flex;flex-direction:column;gap:12px">';
+    if ($showTitle) {
+        $html .= '<h2 style="margin:0;font-size:32px;line-height:1.2;color:#0f172a">' . $title . '</h2>';
+    }
+    if ($showMeta && $publishedAt !== '') {
+        $html .= '<div style="display:flex;flex-wrap:wrap;gap:12px;font-size:13px;color:#64748b"><span>' . cmsBuilderEsc((string)($entity['type'] ?? 'content')) . '</span><span>' . cmsBuilderEsc($publishedAt) . '</span></div>';
+    }
+    if ($showPricing && !empty($pricing['formatted'])) {
+        $html .= '<div style="font-size:15px;font-weight:700;color:#0f766e">' . cmsBuilderEsc((string)$pricing['formatted']) . '</div>';
+    }
+    if ($showInventory && !empty($inventory)) {
+        $inventoryText = !empty($inventory['out_of_stock']) ? 'Out of stock' : (!empty($inventory['low_stock']) ? 'Low stock' : 'In stock');
+        $inventoryColor = !empty($inventory['out_of_stock']) ? '#dc2626' : (!empty($inventory['low_stock']) ? '#d97706' : '#16a34a');
+        $html .= '<div style="font-size:13px;font-weight:600;color:' . $inventoryColor . '">' . $inventoryText . '</div>';
+    }
+    $html .= '</div>';
+
+    if ($showBody && $contentHtml !== '') {
+        $html .= '<div style="font-size:15px;line-height:1.7;color:#475569">' . $contentHtml . '</div>';
+    }
+
+    return $html . '</article>';
+}
+
+function cmsRenderWidget_entity_list(array $props, array $style, array $attrs, string $children, array $node, array $context): string
+{
+    $entityType = trim((string)($props['entityType'] ?? 'post')) ?: 'post';
+    $itemCount = max(1, min(12, (int)($props['itemCount'] ?? 6)));
+    $gridCols = max(1, min(4, (int)($props['gridColumns'] ?? 3)));
+    $layout = (string)($props['layout'] ?? 'grid');
+    $showFeaturedImage = ($props['showFeaturedImage'] ?? true) !== false;
+    $showExcerpt = ($props['showExcerpt'] ?? true) !== false;
+    $showPricing = ($props['showPricing'] ?? true) !== false;
+    $showInventory = ($props['showInventory'] ?? true) !== false;
+    $emptyMessage = cmsBuilderEsc((string)($props['emptyMessage'] ?? 'No items found.'));
+    $order = strtolower((string)($props['order'] ?? 'desc')) === 'asc' ? 'ASC' : 'DESC';
+    $orderByMap = [
+        'title' => 'c.title',
+        'name' => 'c.title',
+        'date' => 'COALESCE(c.published_at, c.created_at)',
+    ];
+    $orderBy = $orderByMap[(string)($props['orderBy'] ?? 'date')] ?? 'COALESCE(c.published_at, c.created_at)';
+
+    try {
+        $stmt = cmsDb()->prepare(
+            'SELECT c.id, c.title, c.slug, c.excerpt, c.type, c.published_at, c.featured_image_id, m.file_path AS featured_image '
+            . 'FROM cms_content c '
+            . 'LEFT JOIN cms_media m ON m.id = c.featured_image_id '
+            . 'WHERE c.deleted_at IS NULL AND c.type = :type AND ' . cmsPublicVisibilitySql('c') . ' '
+            . 'ORDER BY ' . $orderBy . ' ' . $order . ' LIMIT ' . $itemCount
+        );
+        $stmt->execute([':type' => $entityType]);
+        $items = $stmt->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+    } catch (\Throwable $e) {
+        $items = [];
+    }
+
+    if ($items === []) {
+        return '<div' . cmsBuilderAttrString($attrs) . cmsBuilderStyleAttr($style) . '><p style="color:#6b7280;text-align:center;padding:24px">' . $emptyMessage . '</p></div>';
+    }
+
+    $baseUrl = rtrim((string)(defined('BASE_URL') ? BASE_URL : ''), '/');
+    $wrapperStyle = array_merge([
+        'display' => 'grid',
+        'gridTemplateColumns' => $layout === 'list' ? '1fr' : 'repeat(' . $gridCols . ', 1fr)',
+        'gap' => '24px',
+        'width' => '100%',
+    ], $style);
+    $html = '<div' . cmsBuilderAttrString($attrs) . cmsBuilderStyleAttr($wrapperStyle) . '>';
+
+    foreach ($items as $item) {
+        $entityId = (int)($item['id'] ?? 0);
+        try {
+            $capabilityData = $entityId > 0 ? cmsEntityCapabilityData($entityId, $item) : [];
+        } catch (\Throwable $e) {
+            $capabilityData = [];
+        }
+
+        $pricing = is_array($capabilityData['pricing'] ?? null) ? $capabilityData['pricing'] : [];
+        $inventory = is_array($capabilityData['inventory'] ?? null) ? $capabilityData['inventory'] : [];
+        $imageUrl = !empty($item['featured_image']) && function_exists('cmsResolveUploadUrl') ? cmsResolveUploadUrl((string)$item['featured_image']) : '';
+        $itemUrl = $baseUrl . '/cms/' . rawurlencode($entityType) . '/' . rawurlencode((string)($item['slug'] ?? ''));
+
+        $html .= '<a href="' . cmsBuilderEsc($itemUrl) . '" style="display:block;text-decoration:none;background:#ffffff;border:1px solid #e2e8f0;border-radius:18px;overflow:hidden;box-shadow:0 10px 30px rgba(15,23,42,0.06)">';
+        if ($showFeaturedImage && $imageUrl !== '') {
+            $html .= '<div style="aspect-ratio:16 / 9;overflow:hidden;background:#e2e8f0"><img src="' . cmsBuilderEsc($imageUrl) . '" alt="' . cmsBuilderEsc((string)($item['title'] ?? '')) . '" loading="lazy" style="display:block;width:100%;height:100%;object-fit:cover"></div>';
+        }
+        $html .= '<div style="padding:16px;display:flex;flex-direction:column;gap:10px">';
+        $html .= '<h3 style="margin:0;font-size:18px;line-height:1.35;color:#0f172a">' . cmsBuilderEsc((string)($item['title'] ?? 'Untitled')) . '</h3>';
+        if ($showExcerpt && !empty($item['excerpt'])) {
+            $html .= '<p style="margin:0;font-size:14px;line-height:1.6;color:#64748b">' . cmsBuilderEsc((string)$item['excerpt']) . '</p>';
+        }
+        if ($showPricing && !empty($pricing['formatted'])) {
+            $html .= '<div style="font-size:13px;font-weight:700;color:#0f766e">' . cmsBuilderEsc((string)$pricing['formatted']) . '</div>';
+        }
+        if ($showInventory && !empty($inventory)) {
+            $inventoryText = !empty($inventory['out_of_stock']) ? 'Out of stock' : (!empty($inventory['low_stock']) ? 'Low stock' : 'In stock');
+            $inventoryColor = !empty($inventory['out_of_stock']) ? '#dc2626' : (!empty($inventory['low_stock']) ? '#d97706' : '#16a34a');
+            $html .= '<div style="font-size:12px;font-weight:600;color:' . $inventoryColor . '">' . $inventoryText . '</div>';
+        }
+        $html .= '</div></a>';
+    }
+
+    return $html . '</div>';
 }
 
 function cmsRenderWidget_pricing_table(array $props, array $style, array $attrs, string $children, array $node, array $context): string

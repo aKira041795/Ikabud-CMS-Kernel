@@ -728,6 +728,58 @@ export const CMS_COMPONENTS: ComponentDefinition[] = [
     allowedParents: null,
     isLeaf: true,
   },
+  {
+    type: 'entity_view',
+    name: 'Entity View',
+    icon: 'FileText',
+    category: 'content',
+    description: 'Render the current entity using the public theme view contract',
+    defaultProps: {
+      showFeaturedImage: true,
+      showTitle: true,
+      showMeta: true,
+      showPricing: true,
+      showInventory: true,
+      showBody: true,
+    },
+    defaultStyle: {
+      width: '100%',
+      display: 'block',
+    },
+    allowedChildren: [],
+    allowedParents: null,
+    isLeaf: true,
+  },
+  {
+    type: 'entity_list',
+    name: 'Entity List',
+    icon: 'LayoutGrid',
+    category: 'content',
+    description: 'Render a themed list of entities from a content type',
+    defaultProps: {
+      entityType: 'post',
+      itemCount: 6,
+      layout: 'grid',
+      gridColumns: 3,
+      showFeaturedImage: true,
+      showTitle: true,
+      showExcerpt: true,
+      showPricing: true,
+      showInventory: true,
+      emptyMessage: 'No items found.',
+      orderBy: 'date',
+      order: 'desc',
+    },
+    defaultStyle: {
+      display: 'grid',
+      gridTemplateColumns: 'repeat(3, 1fr)',
+      gap: '24px',
+      width: '100%',
+    },
+    allowedChildren: [],
+    allowedParents: null,
+    isLeaf: true,
+  },
 
   // =============================================================================
   // New Components (Jan 2026) - Elementor-Level Features
@@ -1053,7 +1105,7 @@ export const CMS_COMPONENTS: ComponentDefinition[] = [
 // Component Registry
 // =============================================================================
 
-export const COMPONENT_REGISTRY: Record<ComponentType, ComponentDefinition> = 
+export const COMPONENT_REGISTRY: Record<ComponentType, ComponentDefinition> =
   CMS_COMPONENTS.reduce((acc, comp) => {
     acc[comp.type] = comp;
     return acc;

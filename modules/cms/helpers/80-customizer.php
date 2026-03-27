@@ -371,13 +371,16 @@ function cmsRenderColorsStyle(object $db): string
     $loadedFamilies = [];
     foreach ([$fontBody, $fontHeading] as $face) {
         if (!in_array($face, $systemFonts, true) && !isset($loadedFamilies[$face])) {
-            $loadedFamilies[$face] = true;
-            $familyParam = str_replace(' ', '+', $face);
-            $googleFontsHtml .= '<link rel="preconnect" href="https://fonts.googleapis.com">';
-            $googleFontsHtml .= '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>';
-            $googleFontsHtml .= '<link href="https://fonts.googleapis.com/css2?family=' . $familyParam
-                . ':wght@400;500;600;700&display=swap" rel="stylesheet">';
+            $loadedFamilies[$face] = str_replace('%20', '+', rawurlencode($face));
         }
+    }
+
+    if ($loadedFamilies !== []) {
+        $fontParams = [];
+        foreach ($loadedFamilies as $familyParam) {
+            $fontParams[] = 'family=' . $familyParam . ':wght@400;500;600;700';
+        }
+        $googleFontsHtml = '<link href="https://fonts.googleapis.com/css2?' . implode('&', $fontParams) . '&display=swap" rel="stylesheet">';
     }
 
     $css  = ':root{';
