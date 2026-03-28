@@ -203,6 +203,8 @@ t('active customizer scope switches to ecommerce for entity-commerce-poc', cmsAc
 t('forced customizer scope resolves ecommerce route override', cmsRequestedCustomizerScope(['scope' => 'ecommerce']) === 'ecommerce');
 t('invalid customizer scope falls back to active theme scope', cmsRequestedCustomizerScope(['scope' => 'unknown-scope']) === 'ecommerce');
 t('ecommerce customizer section keys are namespaced', cmsCustomizerStorageSection('sidebar', 'ecommerce') === 'ecommerce:sidebar');
+t('storefront customizer section keys are namespaced', cmsCustomizerStorageSection('storefront', 'ecommerce') === 'ecommerce:storefront');
+t('known customizer sections include storefront', in_array('storefront', cmsKnownCustomizerSections(), true));
 
 $routes = require BASE_PATH . '/modules/cms/routes.php';
 $getRoutes = is_array($routes['GET'] ?? null) ? $routes['GET'] : [];
@@ -215,7 +217,11 @@ t('scoped customizer POST API route exists', ($postRoutes['/api/v1/cms/customize
 $db = cmsDb();
 cmsEnsureCustomizerScopeSeeded($db, 'ecommerce');
 $ecommerceSidebar = cmsCustomizerGet($db, 'sidebar', 'ecommerce');
+$ecommerceStorefront = cmsCustomizerGet($db, 'storefront', 'ecommerce');
+t('ecommerce header section is seeded', cmsCustomizerSectionExists($db, 'header', 'ecommerce'));
+t('ecommerce footer section is seeded', cmsCustomizerSectionExists($db, 'footer', 'ecommerce'));
 t('ecommerce customizer sidebar defaults disabled to avoid shared sidebar pollution', (int)($ecommerceSidebar['settings']['enabled'] ?? 0) === 0);
+t('ecommerce storefront section seeds entity presentation settings', array_key_exists('entity_layout_profile', $ecommerceStorefront['settings'] ?? []));
 
 $entityViewTemplate = cmsResolveTemplate('public/entity.view.disyl');
 $entityListTemplate = cmsResolveTemplate('public/entity.list.disyl');
@@ -285,6 +291,27 @@ t('layout has Minimal Theme branding', str_contains($layoutContent, 'Minimal The
 $nativeLayoutContent = file_get_contents(STORAGE_PATH . '/cms-themes/native-default/layouts/public.disyl');
 t('native layout noscript fallback reveals body', str_contains($nativeLayoutContent, 'body:not(.cz-loaded),[data-animate]{opacity:1!important;transform:none!important;}'));
 t('native layout inline fallback reveals animated content', str_contains($nativeLayoutContent, 'document.body.classList.add(\'cz-loaded\')'));
+
+$customizerTemplateContent = file_get_contents(BASE_PATH . '/templates/modules/cms/admin/theme-customizer.disyl');
+t('customizer tracks per-section dirty state for scoped saves', str_contains($customizerTemplateContent, 'dirtySections: { footer: false, header: false, sidebar: false, colors: false, custom_code: false, theme: false, storefront: false }'));
+t('customizer save resolves only dirty sections', str_contains($customizerTemplateContent, 'const sections = this.sectionsToSave();'));
+t('customizer bootstraps dedicated storefront settings payload', str_contains($customizerTemplateContent, 'id="cz-storefront-settings"'));
+t('customizer saves dedicated storefront section payload', str_contains($customizerTemplateContent, "return { settings: this.storefrontSettings }"));
+
+$ecommerceLayoutContent = file_get_contents(BASE_PATH . '/templates/modules/ecommerce/layouts/public.disyl');
+t('ecommerce public layout consumes customized header output', str_contains($ecommerceLayoutContent, '{customized_header|raw}'));
+t('ecommerce public layout consumes customized footer output', str_contains($ecommerceLayoutContent, '{customized_footer|raw}'));
+t('ecommerce public layout loads storefront theme assets', str_contains($ecommerceLayoutContent, '{if theme_style_url}<link rel="stylesheet" href="{theme_style_url}">{/if}'));
+
+$pocStyleContent = file_get_contents(cmsThemesPath() . '/entity-commerce-poc/style.css');
+t('entity-commerce-poc styles generic customizer site header', str_contains($pocStyleContent, '.site-header {'));
+t('entity-commerce-poc provides customized header inner shell styles', str_contains($pocStyleContent, '.poc-header__inner--customized {'));
+t('entity-commerce-poc keeps customized header inner layout contained', str_contains($pocStyleContent, '.poc-header--customized .header-inner,'));
+t('entity-commerce-poc keeps customized header container max-width disabled', str_contains($pocStyleContent, 'max-width: none;'));
+t('entity-commerce-poc styles generic customizer footer widgets', str_contains($pocStyleContent, '.footer-widgets-grid {'));
+t('entity-commerce-poc styles generic customizer footer bottom', str_contains($pocStyleContent, '.footer-bottom {'));
+t('entity-commerce-poc provides a storefront header partial', is_file(cmsThemesPath() . '/entity-commerce-poc/public/header.disyl'));
+t('entity-commerce-poc provides a storefront footer partial', is_file(cmsThemesPath() . '/entity-commerce-poc/public/footer.disyl'));
 
 $singleContent = file_get_contents($link . '/public/single.disyl');
 t('single extends theme layout', str_contains($singleContent, '{extends "_cms_active_theme/layouts/public.disyl"}'));
@@ -366,6 +393,7 @@ cmsResetThemeRuntimeCache();
 cmsActivateThemeSymlink('minimal');
 
 $entityDefaults = cmsThemeLayoutSettingsDefaults();
+$storefrontDefaults = cmsStorefrontSettingsDefaults();
 t('entity layout profile default is default', ($entityDefaults['entity_layout_profile'] ?? '') === 'default');
 t('entity pricing variant default is empty', ($entityDefaults['entity_pricing_variant'] ?? 'x') === '');
 t('entity action variant default is empty', ($entityDefaults['entity_action_variant'] ?? 'x') === '');
@@ -374,6 +402,8 @@ t('entity summary sticky default is enabled', ($entityDefaults['entity_summary_s
 t('entity media ratio default is auto', ($entityDefaults['entity_media_ratio'] ?? '') === 'auto');
 t('entity spacing scale default is comfortable', ($entityDefaults['entity_spacing_scale'] ?? '') === 'comfortable');
 t('entity action size default is md', ($entityDefaults['entity_action_size'] ?? '') === 'md');
+t('storefront defaults mirror canonical entity profile default', ($storefrontDefaults['entity_layout_profile'] ?? '') === 'default');
+t('storefront defaults mirror canonical summary width default', ($storefrontDefaults['entity_summary_width'] ?? '') === '320');
 
 $colorsDefaults = cmsColorsSettingsDefaults();
 t('storefront surface background default exists', ($colorsDefaults['storefront_surface_bg'] ?? '') === '#ffffff');
@@ -390,6 +420,16 @@ $validatedEntity = cmsValidateThemeLayoutSettings([
     'entity_spacing_scale' => 'airy',
     'entity_action_size' => 'lg',
 ]);
+$validatedStorefront = cmsValidateStorefrontSettings([
+    'entity_layout_profile' => 'commerce',
+    'entity_pricing_variant' => 'featured',
+    'entity_action_variant' => 'sticky-footer',
+    'entity_summary_width' => '390',
+    'entity_summary_sticky' => '1',
+    'entity_media_ratio' => '4:3',
+    'entity_spacing_scale' => 'compact',
+    'entity_action_size' => 'lg',
+]);
 t('entity layout profile validates approved profile', ($validatedEntity['entity_layout_profile'] ?? '') === 'commerce');
 t('entity pricing variant validates approved variant', ($validatedEntity['entity_pricing_variant'] ?? '') === 'featured');
 t('entity action variant validates approved variant', ($validatedEntity['entity_action_variant'] ?? '') === 'sticky-footer');
@@ -398,6 +438,9 @@ t('entity summary sticky validates boolean', (int)($validatedEntity['entity_summ
 t('entity media ratio validates approved option', ($validatedEntity['entity_media_ratio'] ?? '') === '16:9');
 t('entity spacing scale validates approved option', ($validatedEntity['entity_spacing_scale'] ?? '') === 'airy');
 t('entity action size validates approved option', ($validatedEntity['entity_action_size'] ?? '') === 'lg');
+t('storefront settings validate approved profile', ($validatedStorefront['entity_layout_profile'] ?? '') === 'commerce');
+t('storefront settings validate storefront summary width', ($validatedStorefront['entity_summary_width'] ?? '') === '390');
+t('storefront settings validate storefront media ratio', ($validatedStorefront['entity_media_ratio'] ?? '') === '4:3');
 
 $invalidEntity = cmsValidateThemeLayoutSettings([
     'entity_layout_profile' => 'wild',
@@ -448,6 +491,9 @@ upsertCustomizerSection($db, 'colors', array_merge(cmsColorsSettingsDefaults(), 
     'storefront_badge_text' => '#1d4ed8',
     'storefront_warning_bg' => '#fffbeb',
     'storefront_warning_text' => '#b45309',
+    'font_body' => 'Nunito',
+    'font_heading' => 'Playfair Display',
+    'container_width' => '1320',
 ]));
 upsertCustomizerSection($db, 'theme', array_merge(cmsThemeLayoutSettingsDefaults(), $validatedEntity));
 cmsCacheInvalidateByTags(['cms:customizer']);
@@ -460,12 +506,52 @@ t('colors render exposes storefront CSS variables', str_contains($colorsStyle, '
 t('colors render styles semantic price class', str_contains($colorsStyle, '.cms-price-current{color:var(--storefront-price-color);'), $colorsStyle);
 t('colors render styles semantic badge class', str_contains($colorsStyle, '.cms-price-badge{background:var(--storefront-badge-bg);'), $colorsStyle);
 t('colors render styles semantic inventory states', str_contains($colorsStyle, '.cms-inventory-pill--low{background:var(--storefront-warning-bg);'), $colorsStyle);
+t('colors render applies body font token to public body', str_contains($colorsStyle, 'body{font-family:var(--font-body);'), $colorsStyle);
+t('colors render applies heading font token to public headings', str_contains($colorsStyle, 'h1,h2,h3,h4,h5,h6{font-family:var(--font-heading);'), $colorsStyle);
+t('colors render wires container width into entity theme container token', str_contains($colorsStyle, '--container-max:1320px;'), $colorsStyle);
+t('colors render syncs entity-commerce-poc container width override', str_contains($colorsStyle, '.entity-commerce-poc{--container-max:var(--container-width);}'), $colorsStyle);
 
 $themeStyle = cmsRenderThemeLayoutStyle($db);
 t('theme render exposes entity summary width variable', str_contains($themeStyle, '--theme-entity-summary-width:'), $themeStyle);
 t('theme render styles commerce entity layout rail', str_contains($themeStyle, '.cms-entity-profile-commerce .cms-entity-layout{display:grid;'), $themeStyle);
 t('theme render styles sticky entity summary rail', str_contains($themeStyle, '.cms-entity-profile-commerce .cms-entity-summary{position:sticky;'), $themeStyle);
 t('theme render styles action button sizing', str_contains($themeStyle, '.cms-action-block .cms-btn-primary,.cms-action-block .cms-btn-secondary,.cms-action-block .cms-btn-disabled{padding:'), $themeStyle);
+
+$pocSettings = $oldSettings;
+$pocSettings['active_theme'] = 'entity-commerce-poc';
+saveModuleSettings('cms', $pocSettings);
+cmsResetThemeRuntimeCache();
+cmsActivateThemeSymlink('entity-commerce-poc');
+
+upsertCustomizerSection($db, 'theme', array_merge(cmsThemeLayoutSettingsDefaults(), [
+    'layout_mode' => 'contained',
+    'site_max_width' => '1280',
+]), [], 'ecommerce');
+upsertCustomizerSection($db, 'storefront', array_merge(cmsStorefrontSettingsDefaults(), $validatedStorefront), [], 'ecommerce');
+cmsCacheInvalidateByTags(['cms:customizer']);
+cmsCustomizerClearPersistentCache('theme', 'ecommerce');
+cmsCustomizerClearPersistentCache('storefront', 'ecommerce');
+$GLOBALS[cmsCustomizerRequestCacheKey('section_row', 'ecommerce')] = [];
+
+$storefrontStyle = cmsRenderStorefrontStyle($db);
+t('storefront render emits dedicated ecommerce override style tag', str_contains($storefrontStyle, 'id="cz-storefront-override"'), $storefrontStyle);
+t('storefront render styles commerce entity layout rail', str_contains($storefrontStyle, '.cms-entity-profile-commerce .cms-entity-layout{display:grid;'), $storefrontStyle);
+
+$publicCtx = cmsPublicContext();
+t('public context exposes dedicated storefront settings for ecommerce scope', ($publicCtx['storefront_settings']['entity_layout_profile'] ?? '') === 'commerce');
+t('public context merges storefront settings into theme settings for ecommerce scope', ($publicCtx['theme_settings']['entity_summary_width'] ?? '') === '390');
+t('public context appends storefront override style for ecommerce scope', str_contains((string)($publicCtx['theme_layout_style'] ?? ''), 'id="cz-storefront-override"'), (string)($publicCtx['theme_layout_style'] ?? ''));
+
+$customizedHeaderHtml = cmsRenderCustomizedHeader($db, $publicCtx);
+$customizedFooterHtml = cmsRenderCustomizedFooter($db);
+t('customized storefront header renders through theme partial wrapper', str_contains($customizedHeaderHtml, 'poc-header--customized'), $customizedHeaderHtml);
+t('customized storefront header renders through theme inner shell', str_contains($customizedHeaderHtml, 'poc-header__inner--customized'), $customizedHeaderHtml);
+t('customized storefront footer renders through theme partial wrapper', str_contains($customizedFooterHtml, 'poc-footer--customized'), $customizedFooterHtml);
+
+$tokenSettings['active_theme'] = 'minimal';
+saveModuleSettings('cms', $tokenSettings);
+cmsResetThemeRuntimeCache();
+cmsActivateThemeSymlink('minimal');
 
 $variantPricingTemplate = cmsResolveBlockTemplate('modules/cms/public/blocks/pricing.block.disyl', [
     'theme_settings' => $validatedEntity,

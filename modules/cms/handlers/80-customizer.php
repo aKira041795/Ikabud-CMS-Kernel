@@ -46,6 +46,9 @@ function cmsAdminCustomizer(array $params = []): void
     // Load theme layout customizer data
     $themeLayout = cmsCustomizerGet($db, 'theme', $scope);
 
+    // Load storefront presentation customizer data
+    $storefront = cmsCustomizerGet($db, 'storefront', $scope);
+
     // Load available menus for the nav_menu widget type
     $menus = [];
     try {
@@ -105,6 +108,8 @@ function cmsAdminCustomizer(array $params = []): void
         'custom_code_settings_json' => json_encode($customCode['settings'], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
         'theme_layout_settings'     => $themeLayout['settings'],
         'theme_layout_settings_json' => json_encode($themeLayout['settings'], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+        'storefront_settings'     => $storefront['settings'],
+        'storefront_settings_json' => json_encode($storefront['settings'], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
         'site_title'          => $settings['site_title'] ?? '',
         'site_tagline'        => $settings['site_tagline'] ?? '',
         'social_links_json'   => json_encode(cmsPublicSocialLinks($settings)),
@@ -184,6 +189,8 @@ function cmsApiCustomizerSave(array $params = []): void
         $settings = cmsValidateCustomCodeSettings($settings);
     } elseif ($section === 'theme') {
         $settings = cmsValidateThemeLayoutSettings($settings);
+    } elseif ($section === 'storefront') {
+        $settings = cmsValidateStorefrontSettings($settings);
     }
 
     $db = cmsDb();

@@ -279,13 +279,23 @@ function cmsPublicContext(array $extra = []): array
             $ctx['theme_layout_style'] = cmsRenderThemeLayoutStyle($db);
             $themeLayout = cmsCustomizerGet($db, 'theme');
             $ctx['theme_settings'] = $themeLayout['settings'];
+            if (cmsActiveCustomizerScope() === 'ecommerce' && cmsPublicContextHasSection($sectionAvailability, 'storefront')) {
+                $storefront = cmsCustomizerGet($db, 'storefront');
+                $ctx['storefront_settings'] = $storefront['settings'];
+                $ctx['theme_settings'] = array_merge($ctx['theme_settings'], $storefront['settings']);
+                $ctx['theme_layout_style'] .= cmsRenderStorefrontStyle($db);
+            } else {
+                $ctx['storefront_settings'] = cmsStorefrontSettingsDefaults();
+            }
         } else {
             $ctx['theme_layout_style'] = '';
             $ctx['theme_settings'] = cmsThemeLayoutSettingsDefaults();
+            $ctx['storefront_settings'] = cmsStorefrontSettingsDefaults();
         }
     } catch (Throwable $e) {
         $ctx['theme_layout_style'] = '';
         $ctx['theme_settings'] = cmsThemeLayoutSettingsDefaults();
+        $ctx['storefront_settings'] = cmsStorefrontSettingsDefaults();
     }
     if ($detailedTimingEnabled) {
         cmsPublicContextLogStage('theme_layout', $stageStart, ['theme' => $activeThemeSlug, 'request_type' => $requestType]);

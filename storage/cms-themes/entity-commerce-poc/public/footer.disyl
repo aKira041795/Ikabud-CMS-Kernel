@@ -1,0 +1,3 @@
+<footer class="poc-footer poc-footer--customized">
+    {footer_html|raw}
+</footer>

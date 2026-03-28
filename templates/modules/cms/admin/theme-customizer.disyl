@@ -759,7 +759,7 @@
                                             <div class="h-1 bg-gray-200 rounded w-full"></div>
                                             <div class="h-1 bg-gray-200 rounded w-5/6"></div>
                                         </div>
-                                        <div x-show="themeLayoutSettings.entity_layout_profile === 'commerce'" :style="entityPreviewSummaryStyle()">
+                                        <div x-show="storefrontSettings.entity_layout_profile === 'commerce'" :style="entityPreviewSummaryStyle()">
                                             <div class="text-[10px] uppercase tracking-[0.16em] text-gray-400 mb-2">Summary Rail</div>
                                             <div class="flex items-end gap-2 mb-2">
                                                 <span class="text-base font-bold" :style="'color:' + (colorsSettings.storefront_price_color || '#0f172a')">USD 79.00</span>
@@ -2353,7 +2353,7 @@
                     <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
                         <div>
                             <label class="cz-label">Layout Profile</label>
-                            <select x-model="themeLayoutSettings.entity_layout_profile" class="cz-select">
+                            <select x-model="storefrontSettings.entity_layout_profile" class="cz-select">
                                 <option value="default">Default</option>
                                 <option value="commerce">Commerce</option>
                                 <option value="content">Content</option>
@@ -2362,7 +2362,7 @@
                         </div>
                         <div>
                             <label class="cz-label">Pricing Variant</label>
-                            <select x-model="themeLayoutSettings.entity_pricing_variant" class="cz-select">
+                            <select x-model="storefrontSettings.entity_pricing_variant" class="cz-select">
                                 <option value="">Default</option>
                                 <option value="compact">Compact</option>
                                 <option value="featured">Featured</option>
@@ -2371,7 +2371,7 @@
                         </div>
                         <div>
                             <label class="cz-label">Action Variant</label>
-                            <select x-model="themeLayoutSettings.entity_action_variant" class="cz-select">
+                            <select x-model="storefrontSettings.entity_action_variant" class="cz-select">
                                 <option value="">Default</option>
                                 <option value="sticky-footer">Sticky Footer</option>
                             </select>
@@ -2598,7 +2598,7 @@
                                         <div class="h-1 bg-gray-200 rounded w-4/5"></div>
                                     </div>
                                 </div>
-                                <div x-show="themeLayoutSettings.entity_layout_profile === 'commerce'" :style="entityPreviewSummaryStyle()">
+                                <div x-show="storefrontSettings.entity_layout_profile === 'commerce'" :style="entityPreviewSummaryStyle()">
                                     <div class="text-[10px] uppercase tracking-[0.16em] text-gray-400 mb-2">Summary Rail</div>
                                     <div class="flex items-end gap-2 mb-2">
                                         <span class="text-lg font-bold" :style="'color:' + (colorsSettings.storefront_price_color || '#0f172a')">USD 79.00</span>
@@ -2641,12 +2641,12 @@
                             <div class="flex justify-between"><span class="text-gray-400">Action Variant</span><span class="font-medium capitalize" x-text="themeLayoutSettings.entity_action_variant || 'Default'"></span></div>
                             {else}
                             <hr class="border-gray-100">
-                            <div class="flex justify-between"><span class="text-gray-400">Entity Profile</span><span class="font-medium capitalize" x-text="themeLayoutSettings.entity_layout_profile"></span></div>
-                            <div class="flex justify-between"><span class="text-gray-400">Summary Width</span><span class="font-medium" x-text="themeLayoutSettings.entity_summary_width + 'px'"></span></div>
-                            <div class="flex justify-between"><span class="text-gray-400">Summary Sticky</span><span class="font-medium" x-text="themeLayoutSettings.entity_summary_sticky == 1 ? 'On' : 'Off'"></span></div>
-                            <div class="flex justify-between"><span class="text-gray-400">Media Ratio</span><span class="font-medium" x-text="themeLayoutSettings.entity_media_ratio"></span></div>
-                            <div class="flex justify-between"><span class="text-gray-400">Spacing</span><span class="font-medium capitalize" x-text="themeLayoutSettings.entity_spacing_scale"></span></div>
-                            <div class="flex justify-between"><span class="text-gray-400">Action Size</span><span class="font-medium uppercase" x-text="themeLayoutSettings.entity_action_size"></span></div>
+                            <div class="flex justify-between"><span class="text-gray-400">Entity Profile</span><span class="font-medium capitalize" x-text="storefrontSettings.entity_layout_profile"></span></div>
+                            <div class="flex justify-between"><span class="text-gray-400">Summary Width</span><span class="font-medium" x-text="storefrontSettings.entity_summary_width + 'px'"></span></div>
+                            <div class="flex justify-between"><span class="text-gray-400">Summary Sticky</span><span class="font-medium" x-text="storefrontSettings.entity_summary_sticky == 1 ? 'On' : 'Off'"></span></div>
+                            <div class="flex justify-between"><span class="text-gray-400">Media Ratio</span><span class="font-medium" x-text="storefrontSettings.entity_media_ratio"></span></div>
+                            <div class="flex justify-between"><span class="text-gray-400">Spacing</span><span class="font-medium capitalize" x-text="storefrontSettings.entity_spacing_scale"></span></div>
+                            <div class="flex justify-between"><span class="text-gray-400">Action Size</span><span class="font-medium uppercase" x-text="storefrontSettings.entity_action_size"></span></div>
                             {/if}
                         </div>
                         <!-- Content ratio visual -->
@@ -2703,7 +2703,7 @@
                     <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                         <div>
                             <label class="cz-label">Layout Profile</label>
-                            <select x-model="themeLayoutSettings.entity_layout_profile" class="cz-select">
+                            <select x-model="storefrontSettings.entity_layout_profile" class="cz-select">
                                 <option value="default">Default</option>
                                 <option value="commerce">Commerce</option>
                                 <option value="content">Content</option>
@@ -2712,7 +2712,7 @@
                         </div>
                         <div>
                             <label class="cz-label">Pricing Variant</label>
-                            <select x-model="themeLayoutSettings.entity_pricing_variant" class="cz-select">
+                            <select x-model="storefrontSettings.entity_pricing_variant" class="cz-select">
                                 <option value="">Default</option>
                                 <option value="compact">Compact</option>
                                 <option value="featured">Featured</option>
@@ -2721,7 +2721,7 @@
                         </div>
                         <div>
                             <label class="cz-label">Action Variant</label>
-                            <select x-model="themeLayoutSettings.entity_action_variant" class="cz-select">
+                            <select x-model="storefrontSettings.entity_action_variant" class="cz-select">
                                 <option value="">Default</option>
                                 <option value="sticky-footer">Sticky Footer</option>
                             </select>
@@ -2732,13 +2732,13 @@
                         <div>
                             <label class="cz-label">Summary Width</label>
                             <div class="cz-range-row">
-                                <input type="range" min="260" max="420" step="10" x-model="themeLayoutSettings.entity_summary_width">
-                                <span class="cz-range-value" x-text="themeLayoutSettings.entity_summary_width + 'px'"></span>
+                                <input type="range" min="260" max="420" step="10" x-model="storefrontSettings.entity_summary_width">
+                                <span class="cz-range-value" x-text="storefrontSettings.entity_summary_width + 'px'"></span>
                             </div>
                         </div>
                         <div>
                             <label class="cz-label">Media Ratio</label>
-                            <select x-model="themeLayoutSettings.entity_media_ratio" class="cz-select">
+                            <select x-model="storefrontSettings.entity_media_ratio" class="cz-select">
                                 <option value="auto">Auto</option>
                                 <option value="16:9">16:9</option>
                                 <option value="4:3">4:3</option>
@@ -2747,7 +2747,7 @@
                         </div>
                         <div>
                             <label class="cz-label">Action Size</label>
-                            <select x-model="themeLayoutSettings.entity_action_size" class="cz-select">
+                            <select x-model="storefrontSettings.entity_action_size" class="cz-select">
                                 <option value="sm">Small</option>
                                 <option value="md">Medium</option>
                                 <option value="lg">Large</option>
@@ -2755,7 +2755,7 @@
                         </div>
                         <div>
                             <label class="cz-label">Spacing Scale</label>
-                            <select x-model="themeLayoutSettings.entity_spacing_scale" class="cz-select">
+                            <select x-model="storefrontSettings.entity_spacing_scale" class="cz-select">
                                 <option value="compact">Compact</option>
                                 <option value="comfortable">Comfortable</option>
                                 <option value="airy">Airy</option>
@@ -2767,9 +2767,9 @@
                                     <div class="cz-toggle-label">Sticky Summary Rail</div>
                                     <p class="text-[10px] text-slate-500 mt-1">Keeps the storefront purchase rail anchored while the narrative content scrolls.</p>
                                 </div>
-                                <button type="button" @click="themeLayoutSettings.entity_summary_sticky = themeLayoutSettings.entity_summary_sticky == 1 ? 0 : 1"
-                                    class="cz-toggle" :class="themeLayoutSettings.entity_summary_sticky == 1 ? 'cz-toggle-on' : 'cz-toggle-off'">
-                                    <span class="cz-toggle-knob" :class="themeLayoutSettings.entity_summary_sticky == 1 ? 'cz-toggle-knob-on' : 'cz-toggle-knob-off'"></span>
+                                <button type="button" @click="storefrontSettings.entity_summary_sticky = storefrontSettings.entity_summary_sticky == 1 ? 0 : 1"
+                                    class="cz-toggle" :class="storefrontSettings.entity_summary_sticky == 1 ? 'cz-toggle-on' : 'cz-toggle-off'">
+                                    <span class="cz-toggle-knob" :class="storefrontSettings.entity_summary_sticky == 1 ? 'cz-toggle-knob-on' : 'cz-toggle-knob-off'"></span>
                                 </button>
                             </div>
                         </div>
@@ -2777,9 +2777,9 @@
 
                     <div class="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600">
                         <div class="font-semibold text-slate-800 mb-1">Profile behavior</div>
-                        <div x-show="themeLayoutSettings.entity_layout_profile === 'default'">Default keeps pricing and actions in the main reading flow ahead of the body.</div>
-                        <div x-show="themeLayoutSettings.entity_layout_profile === 'commerce'">Commerce moves pricing and actions into a dedicated summary rail for storefront-oriented entities.</div>
-                        <div x-show="themeLayoutSettings.entity_layout_profile === 'content'">Content prioritizes the title and body first, then places pricing and actions after the narrative content.</div>
+                        <div x-show="storefrontSettings.entity_layout_profile === 'default'">Default keeps pricing and actions in the main reading flow ahead of the body.</div>
+                        <div x-show="storefrontSettings.entity_layout_profile === 'commerce'">Commerce moves pricing and actions into a dedicated summary rail for storefront-oriented entities.</div>
+                        <div x-show="storefrontSettings.entity_layout_profile === 'content'">Content prioritizes the title and body first, then places pricing and actions after the narrative content.</div>
                     </div>
                 </div>
             </div>
@@ -2799,14 +2799,14 @@
                         <span class="text-amber-700">Ecommerce Scope</span>
                     </div>
                     <div class="space-y-3 text-sm">
-                        <div class="flex justify-between"><span class="text-gray-400">Entity Profile</span><span class="font-medium capitalize" x-text="themeLayoutSettings.entity_layout_profile"></span></div>
-                        <div class="flex justify-between"><span class="text-gray-400">Pricing Variant</span><span class="font-medium capitalize" x-text="themeLayoutSettings.entity_pricing_variant || 'Default'"></span></div>
-                        <div class="flex justify-between"><span class="text-gray-400">Action Variant</span><span class="font-medium capitalize" x-text="themeLayoutSettings.entity_action_variant || 'Default'"></span></div>
-                        <div class="flex justify-between"><span class="text-gray-400">Summary Width</span><span class="font-medium" x-text="themeLayoutSettings.entity_summary_width + 'px'"></span></div>
-                        <div class="flex justify-between"><span class="text-gray-400">Sticky Rail</span><span class="font-medium" x-text="themeLayoutSettings.entity_summary_sticky == 1 ? 'On' : 'Off'"></span></div>
-                        <div class="flex justify-between"><span class="text-gray-400">Media Ratio</span><span class="font-medium" x-text="themeLayoutSettings.entity_media_ratio"></span></div>
-                        <div class="flex justify-between"><span class="text-gray-400">Spacing</span><span class="font-medium capitalize" x-text="themeLayoutSettings.entity_spacing_scale"></span></div>
-                        <div class="flex justify-between"><span class="text-gray-400">Action Size</span><span class="font-medium uppercase" x-text="themeLayoutSettings.entity_action_size"></span></div>
+                        <div class="flex justify-between"><span class="text-gray-400">Entity Profile</span><span class="font-medium capitalize" x-text="storefrontSettings.entity_layout_profile"></span></div>
+                        <div class="flex justify-between"><span class="text-gray-400">Pricing Variant</span><span class="font-medium capitalize" x-text="storefrontSettings.entity_pricing_variant || 'Default'"></span></div>
+                        <div class="flex justify-between"><span class="text-gray-400">Action Variant</span><span class="font-medium capitalize" x-text="storefrontSettings.entity_action_variant || 'Default'"></span></div>
+                        <div class="flex justify-between"><span class="text-gray-400">Summary Width</span><span class="font-medium" x-text="storefrontSettings.entity_summary_width + 'px'"></span></div>
+                        <div class="flex justify-between"><span class="text-gray-400">Sticky Rail</span><span class="font-medium" x-text="storefrontSettings.entity_summary_sticky == 1 ? 'On' : 'Off'"></span></div>
+                        <div class="flex justify-between"><span class="text-gray-400">Media Ratio</span><span class="font-medium" x-text="storefrontSettings.entity_media_ratio"></span></div>
+                        <div class="flex justify-between"><span class="text-gray-400">Spacing</span><span class="font-medium capitalize" x-text="storefrontSettings.entity_spacing_scale"></span></div>
+                        <div class="flex justify-between"><span class="text-gray-400">Action Size</span><span class="font-medium uppercase" x-text="storefrontSettings.entity_action_size"></span></div>
                     </div>
                     <div class="rounded-lg border border-gray-200 bg-white p-3 space-y-3">
                         <div :style="entityPreviewHeroStyle()">
@@ -2820,7 +2820,7 @@
                                     <div class="h-1 bg-gray-200 rounded w-5/6"></div>
                                 </div>
                             </div>
-                            <div x-show="themeLayoutSettings.entity_layout_profile === 'commerce'" :style="entityPreviewSummaryStyle()">
+                            <div x-show="storefrontSettings.entity_layout_profile === 'commerce'" :style="entityPreviewSummaryStyle()">
                                 <div class="flex items-end gap-2 mb-2">
                                     <span class="text-lg font-bold" :style="'color:' + (colorsSettings.storefront_price_color || '#0f172a')">USD 79.00</span>
                                     <span class="text-xs line-through text-gray-400">99.00</span>
@@ -2856,6 +2856,7 @@ function themeCustomizer() {
         activeTab: '{if customizer_scope == 'ecommerce'}commerce{else}footer{/if}',
         saving: false,
         dirty: false,
+        dirtySections: { footer: false, header: false, sidebar: false, colors: false, custom_code: false, theme: false, storefront: false },
         customizerScope: '{if customizer_scope}{customizer_scope}{else}native{/if}',
         customizerApiBase: '{if customizer_api_base}{customizer_api_base}{else}{base_url}/api/v1/cms/customizer{/if}',
         draggedWidgetId: null,
@@ -2870,6 +2871,9 @@ function themeCustomizer() {
 
         // Theme layout settings (hydrated from server)
         themeLayoutSettings: {},
+
+        // Storefront entity presentation settings (hydrated from server)
+        storefrontSettings: {},
 
         // Footer settings (hydrated from server)
         footerSettings: {},
@@ -3066,7 +3070,8 @@ function themeCustomizer() {
         },
 
         entitySpacingConfig() {
-            const scale = this.themeLayoutSettings.entity_spacing_scale || 'comfortable';
+            const settings = this.entitySettings();
+            const scale = settings.entity_spacing_scale || 'comfortable';
             if (scale === 'compact') {
                 return { gap: '12px', pad: '12px' };
             }
@@ -3077,7 +3082,8 @@ function themeCustomizer() {
         },
 
         entityActionConfig() {
-            const size = this.themeLayoutSettings.entity_action_size || 'md';
+            const settings = this.entitySettings();
+            const size = settings.entity_action_size || 'md';
             if (size === 'sm') {
                 return { px: '12px', py: '8px', font: '11px' };
             }
@@ -3088,7 +3094,8 @@ function themeCustomizer() {
         },
 
         entityPreviewHeroStyle() {
-            const ratio = this.themeLayoutSettings.entity_media_ratio || 'auto';
+            const settings = this.entitySettings();
+            const ratio = settings.entity_media_ratio || 'auto';
             let css = 'background:linear-gradient(135deg,#dbeafe 0%,#e0f2fe 100%);border-radius:12px;display:flex;align-items:center;justify-content:center;color:#64748b;';
             if (ratio === '16:9') css += 'aspect-ratio:16 / 9;';
             else if (ratio === '4:3') css += 'aspect-ratio:4 / 3;';
@@ -3098,11 +3105,16 @@ function themeCustomizer() {
         },
 
         entityPreviewLayoutStyle() {
+            const settings = this.entitySettings();
             const gap = this.entitySpacingConfig().gap;
-            if ((this.themeLayoutSettings.entity_layout_profile || 'default') === 'commerce') {
-                return 'display:grid;grid-template-columns:minmax(0,1fr) ' + (this.themeLayoutSettings.entity_summary_width || 320) + 'px;gap:' + gap + ';align-items:start;';
+            if ((settings.entity_layout_profile || 'default') === 'commerce') {
+                return 'display:grid;grid-template-columns:minmax(0,1fr) ' + (settings.entity_summary_width || 320) + 'px;gap:' + gap + ';align-items:start;';
             }
             return 'display:block;';
+        },
+
+        entitySettings() {
+            return this.customizerScope === 'ecommerce' ? this.storefrontSettings : this.themeLayoutSettings;
         },
 
         entityPreviewSummaryStyle() {
@@ -3166,6 +3178,54 @@ function themeCustomizer() {
             const explicitHeight = this.headerSettings.height && this.headerSettings.height !== 'auto' ? parseInt(this.headerSettings.height, 10) : 64;
             const topbarHeight = this.headerSettings.show_topbar == 1 && this.headerWidgets.length > 0 ? 24 : 0;
             return (explicitHeight + topbarHeight + 16) + 'px';
+        },
+
+        markSectionDirty(section) {
+            if (Object.prototype.hasOwnProperty.call(this.dirtySections, section)) {
+                this.dirtySections[section] = true;
+                this.dirty = true;
+            }
+        },
+
+        syncDirtyState() {
+            this.dirty = Object.values(this.dirtySections).some(Boolean);
+        },
+
+        sectionsToSave() {
+            return Object.keys(this.dirtySections).filter(section => this.dirtySections[section]);
+        },
+
+        sectionPayload(section) {
+            if (section === 'footer') {
+                return { settings: this.footerSettings, widgets: this.footerWidgets };
+            }
+            if (section === 'header') {
+                return { settings: this.headerSettings, widgets: this.headerWidgets };
+            }
+            if (section === 'sidebar') {
+                return { settings: this.sidebarSettings, widgets: this.sidebarWidgets };
+            }
+            if (section === 'colors') {
+                return { settings: this.colorsSettings };
+            }
+            if (section === 'custom_code') {
+                return { settings: this.customCodeSettings };
+            }
+            if (section === 'storefront') {
+                return { settings: this.storefrontSettings };
+            }
+            return { settings: this.themeLayoutSettings };
+        },
+
+        async saveSection(apiBase, section) {
+            const res = await fetch(apiBase + '/' + section, {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CMS_CSRF },
+                body: JSON.stringify(Object.assign({ _token: CMS_CSRF }, this.sectionPayload(section))),
+            });
+            const data = await res.json();
+            return { section, ok: !!data.ok, error: data.error || '', data };
         },
 
         init() {
@@ -3396,16 +3456,35 @@ function themeCustomizer() {
                 };
             }
 
+            // Hydrate storefront settings
+            try {
+                this.storefrontSettings = JSON.parse(document.getElementById('cz-storefront-settings').textContent);
+                if (this.storefrontSettings.entity_layout_profile === undefined) this.storefrontSettings.entity_layout_profile = 'default';
+                if (this.storefrontSettings.entity_pricing_variant === undefined) this.storefrontSettings.entity_pricing_variant = '';
+                if (this.storefrontSettings.entity_action_variant === undefined) this.storefrontSettings.entity_action_variant = '';
+                if (this.storefrontSettings.entity_summary_width === undefined) this.storefrontSettings.entity_summary_width = 320;
+                if (this.storefrontSettings.entity_summary_sticky === undefined) this.storefrontSettings.entity_summary_sticky = 1;
+                if (this.storefrontSettings.entity_media_ratio === undefined) this.storefrontSettings.entity_media_ratio = 'auto';
+                if (this.storefrontSettings.entity_spacing_scale === undefined) this.storefrontSettings.entity_spacing_scale = 'comfortable';
+                if (this.storefrontSettings.entity_action_size === undefined) this.storefrontSettings.entity_action_size = 'md';
+            } catch (e) {
+                this.storefrontSettings = {
+                    entity_layout_profile: 'default', entity_pricing_variant: '', entity_action_variant: '',
+                    entity_summary_width: 320, entity_summary_sticky: 1, entity_media_ratio: 'auto', entity_spacing_scale: 'comfortable', entity_action_size: 'md',
+                };
+            }
+
             // Watch for changes
-            this.$watch('footerSettings', () => { this.dirty = true; }, { deep: true });
-            this.$watch('footerWidgets', () => { this.dirty = true; }, { deep: true });
-            this.$watch('headerSettings', () => { this.dirty = true; }, { deep: true });
-            this.$watch('headerWidgets', () => { this.dirty = true; }, { deep: true });
-            this.$watch('sidebarSettings', () => { this.dirty = true; }, { deep: true });
-            this.$watch('sidebarWidgets', () => { this.dirty = true; }, { deep: true });
-            this.$watch('colorsSettings', () => { this.dirty = true; }, { deep: true });
-            this.$watch('customCodeSettings', () => { this.dirty = true; }, { deep: true });
-            this.$watch('themeLayoutSettings', () => { this.dirty = true; }, { deep: true });
+            this.$watch('footerSettings', () => { this.markSectionDirty('footer'); }, { deep: true });
+            this.$watch('footerWidgets', () => { this.markSectionDirty('footer'); }, { deep: true });
+            this.$watch('headerSettings', () => { this.markSectionDirty('header'); }, { deep: true });
+            this.$watch('headerWidgets', () => { this.markSectionDirty('header'); }, { deep: true });
+            this.$watch('sidebarSettings', () => { this.markSectionDirty('sidebar'); }, { deep: true });
+            this.$watch('sidebarWidgets', () => { this.markSectionDirty('sidebar'); }, { deep: true });
+            this.$watch('colorsSettings', () => { this.markSectionDirty('colors'); }, { deep: true });
+            this.$watch('customCodeSettings', () => { this.markSectionDirty('custom_code'); }, { deep: true });
+            this.$watch('themeLayoutSettings', () => { this.markSectionDirty('theme'); }, { deep: true });
+            this.$watch('storefrontSettings', () => { this.markSectionDirty('storefront'); }, { deep: true });
         },
 
         // Widget helpers
@@ -3648,69 +3727,27 @@ function themeCustomizer() {
         },
 
         async save() {
+            const sections = this.sectionsToSave();
+            if (sections.length === 0) {
+                toast('No changes to save', 'success');
+                return;
+            }
+
             this.saving = true;
             try {
                 const apiBase = this.customizerApiBase;
 
-                // Save footer settings
-                const footerRes = await fetch(apiBase + '/footer', {
-                    method: 'POST',
-                    credentials: 'same-origin',
-                    headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CMS_CSRF },
-                    body: JSON.stringify({ _token: CMS_CSRF, settings: this.footerSettings, widgets: this.footerWidgets }),
-                });
-                const footerData = await footerRes.json();
+                const results = await Promise.all(sections.map(section => this.saveSection(apiBase, section)));
+                const failed = results.find(result => !result.ok);
 
-                // Save header settings
-                const headerRes = await fetch(apiBase + '/header', {
-                    method: 'POST',
-                    credentials: 'same-origin',
-                    headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CMS_CSRF },
-                    body: JSON.stringify({ _token: CMS_CSRF, settings: this.headerSettings, widgets: this.headerWidgets }),
-                });
-                const headerData = await headerRes.json();
-
-                // Save sidebar settings
-                const sidebarRes = await fetch(apiBase + '/sidebar', {
-                    method: 'POST',
-                    credentials: 'same-origin',
-                    headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CMS_CSRF },
-                    body: JSON.stringify({ _token: CMS_CSRF, settings: this.sidebarSettings, widgets: this.sidebarWidgets }),
-                });
-                const sidebarData = await sidebarRes.json();
-
-                // Save colors & typography settings
-                const colorsRes = await fetch(apiBase + '/colors', {
-                    method: 'POST',
-                    credentials: 'same-origin',
-                    headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CMS_CSRF },
-                    body: JSON.stringify({ _token: CMS_CSRF, settings: this.colorsSettings }),
-                });
-                const colorsData = await colorsRes.json();
-
-                // Save custom code settings
-                const ccRes = await fetch(apiBase + '/custom_code', {
-                    method: 'POST',
-                    credentials: 'same-origin',
-                    headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CMS_CSRF },
-                    body: JSON.stringify({ _token: CMS_CSRF, settings: this.customCodeSettings }),
-                });
-                const ccData = await ccRes.json();
-
-                // Save theme layout settings
-                const themeRes = await fetch(apiBase + '/theme', {
-                    method: 'POST',
-                    credentials: 'same-origin',
-                    headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CMS_CSRF },
-                    body: JSON.stringify({ _token: CMS_CSRF, settings: this.themeLayoutSettings }),
-                });
-                const themeData = await themeRes.json();
-
-                if (footerData.ok && headerData.ok && sidebarData.ok && colorsData.ok && ccData.ok && themeData.ok) {
-                    this.dirty = false;
+                if (!failed) {
+                    sections.forEach(section => {
+                        this.dirtySections[section] = false;
+                    });
+                    this.syncDirtyState();
                     toast('Customization saved', 'success');
                 } else {
-                    toast(footerData.error || headerData.error || sidebarData.error || colorsData.error || ccData.error || themeData.error || 'Save failed', 'error');
+                    toast(failed.error || 'Save failed', 'error');
                 }
             } catch (e) {
                 toast('Network error: ' + e.message, 'error');
@@ -3769,7 +3806,7 @@ function themeCustomizer() {
                 this.headerWidgets = [];
             } else if (this.activeTab === 'commerce') {
                 if (!confirm('Reset storefront presentation settings to defaults? This resets only the ecommerce entity presentation controls.')) return;
-                this.themeLayoutSettings = Object.assign({}, this.themeLayoutSettings, {
+                this.storefrontSettings = {
                     entity_layout_profile: 'default',
                     entity_pricing_variant: '',
                     entity_action_variant: '',
@@ -3778,7 +3815,7 @@ function themeCustomizer() {
                     entity_media_ratio: 'auto',
                     entity_spacing_scale: 'comfortable',
                     entity_action_size: 'md',
-                });
+                };
             } else if (this.activeTab === 'theme') {
                 if (!confirm('Reset all theme layout settings to defaults? This cannot be undone.')) return;
                 this.themeLayoutSettings = {
@@ -3835,6 +3872,7 @@ function themeCustomizer() {
 <script type="application/json" id="cz-colors-settings">{colors_settings_json|raw}</script>
 <script type="application/json" id="cz-custom-code-settings">{custom_code_settings_json|raw}</script>
 <script type="application/json" id="cz-theme-layout-settings">{theme_layout_settings_json|raw}</script>
+<script type="application/json" id="cz-storefront-settings">{storefront_settings_json|raw}</script>
 <script type="application/json" id="cz-available-menus">{available_menus_json|raw}</script>
 <script type="application/json" id="cz-menu-locations">{menu_locations_json|raw}</script>
 <div id="cz-site-title" hidden>{site_title}</div>

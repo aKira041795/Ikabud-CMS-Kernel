@@ -6,8 +6,20 @@
     <title>{page_title}</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    {if theme_style_url}<link rel="stylesheet" href="{theme_style_url}">{/if}
+    {if colors_style}{colors_style|raw}{/if}
+    {if theme_layout_style}{theme_layout_style|raw}{/if}
+    {if custom_css}{custom_css|raw}{/if}
+    {if head_code}{head_code|raw}{/if}
+    {block head}{/block}
 </head>
-<body class="bg-white text-gray-900 min-h-screen">
+<body class="{if active_theme_slug}{active_theme_slug}{/if} ecommerce-public bg-white text-gray-900 min-h-screen">
+<div class="{if active_theme_slug == 'entity-commerce-poc'}poc-shell{/if}">
+    {if active_theme_slug == 'entity-commerce-poc'}<div class="poc-shell__backdrop"></div>{/if}
+
+{if has_customized_header}
+{customized_header|raw}
+{else}
 <header class="border-b border-gray-200 bg-white sticky top-0 z-10">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
         <a href="{base_url}/ecommerce/shop" class="font-bold text-xl text-gray-900">Shop</a>
@@ -22,11 +34,27 @@
         </a>
     </div>
 </header>
-<main class="max-w-7xl mx-auto px-4 sm:px-6 py-8">
+{/if}
+
+<main class="{if active_theme_slug == 'entity-commerce-poc'}poc-main{else}max-w-7xl mx-auto px-4 sm:px-6 py-8{/if}">
+    {if active_theme_slug == 'entity-commerce-poc'}<div class="poc-main__inner"><div class="poc-content">{/if}
+    <div class="{if active_theme_slug == 'entity-commerce-poc'}px-6 py-8 sm:px-8 sm:py-10{else}{/if}">
     {block content}{/block}
+</div>
+    {if active_theme_slug == 'entity-commerce-poc'}</div></div>{/if}
 </main>
+
+{if has_customized_footer}
+{customized_footer|raw}
+{else}
 <footer class="mt-16 border-t border-gray-200 py-8 text-center text-sm text-gray-400">
     &copy; {year} Shop. Powered by Ikabud CMS.
 </footer>
+{/if}
+
+{if theme_script_url}<script src="{theme_script_url}" defer></script>{/if}
+{if body_end_code}{body_end_code|raw}{/if}
+{block scripts}{/block}
+</div>
 </body>
 </html>

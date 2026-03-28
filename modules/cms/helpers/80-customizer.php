@@ -168,7 +168,21 @@ function cmsRequestedCustomizerScope(array $params = []): string
 
 function cmsKnownCustomizerSections(): array
 {
-    return ['footer', 'header', 'sidebar', 'colors', 'custom_code', 'theme'];
+    return ['footer', 'header', 'sidebar', 'colors', 'custom_code', 'theme', 'storefront'];
+}
+
+function cmsCustomizerSectionDefaults(string $section): array
+{
+    return match ($section) {
+        'footer' => cmsFooterSettingsDefaults(),
+        'header' => cmsHeaderSettingsDefaults(),
+        'sidebar' => cmsSidebarSettingsDefaults(),
+        'colors' => cmsColorsSettingsDefaults(),
+        'custom_code' => cmsCustomCodeSettingsDefaults(),
+        'theme' => cmsThemeLayoutSettingsDefaults(),
+        'storefront' => cmsStorefrontSettingsDefaults(),
+        default => [],
+    };
 }
 
 function cmsThemeCustomizerScopeFromManifest(array $manifest): string
@@ -285,6 +299,9 @@ function cmsEnsureCustomizerScopeSeeded(object $db, ?string $scope = null): void
         return;
     }
 
+    $requestCacheKey = cmsCustomizerRequestCacheKey('section_row', $scope);
+    $requestCache = $GLOBALS[$requestCacheKey] ?? [];
+
     $flag = 'cms_customizer_seeded_' . $scope . '_t' . cmsRuntimeTenantId();
     if (!empty($GLOBALS[$flag])) {
         return;
@@ -301,11 +318,27 @@ function cmsEnsureCustomizerScopeSeeded(object $db, ?string $scope = null): void
         if ($section === 'sidebar') {
             $settings = cmsSidebarSettingsDefaults();
             $settings['enabled'] = 0;
+        } elseif ($section === 'storefront') {
+            $settings = cmsStorefrontSettingsDefaults();
+
+            $legacyScopeSource = cmsCustomizerSectionRecord($db, 'theme', $scope);
+            if ($legacyScopeSource !== null) {
+                $legacyScopeSettings = json_decode((string)($legacyScopeSource['settings_json'] ?? '{}'), true) ?: [];
+                $settings = array_merge($settings, cmsValidateStorefrontSettings($legacyScopeSettings));
+            } else {
+                $nativeSource = cmsCustomizerSectionRecord($db, 'theme', 'native');
+                if ($nativeSource !== null) {
+                    $nativeSettings = json_decode((string)($nativeSource['settings_json'] ?? '{}'), true) ?: [];
+                    $settings = array_merge($settings, cmsValidateStorefrontSettings($nativeSettings));
+                }
+            }
         } else {
             $source = cmsCustomizerSectionRecord($db, $section, 'native');
             if ($source !== null) {
                 $settings = json_decode((string)($source['settings_json'] ?? '{}'), true) ?: [];
                 $widgets = json_decode((string)($source['widgets_json'] ?? '[]'), true) ?: [];
+            } else {
+                $settings = cmsCustomizerSectionDefaults($section);
             }
         }
 
@@ -323,8 +356,14 @@ function cmsEnsureCustomizerScopeSeeded(object $db, ?string $scope = null): void
             ':settings' => json_encode($settings, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
             ':widgets' => json_encode($widgets, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
         ]);
+
+        $requestCache[$section] = [
+            'settings_json' => json_encode($settings, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+            'widgets_json' => json_encode($widgets, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+        ];
     }
 
+    $GLOBALS[$requestCacheKey] = $requestCache;
     cmsCustomizerClearPersistentCache(null, $scope);
 }
 
@@ -500,6 +539,54 @@ function cmsCustomizerSectionExists(object $db, string $section, ?string $scope 
     return cmsCustomizerSectionRecord($db, $section, $scope) !== null;
 }
 
+function cmsEntityPresentationSettingsDefaults(): array
+{
+    return [
+        'entity_layout_profile'   => 'default',
+        'entity_pricing_variant'  => '',
+        'entity_action_variant'   => '',
+        'entity_summary_width'    => '320',
+        'entity_summary_sticky'   => '1',
+        'entity_media_ratio'      => 'auto',
+        'entity_spacing_scale'    => 'comfortable',
+        'entity_action_size'      => 'md',
+    ];
+}
+
+function cmsValidateEntityPresentationSettings(array $input, ?array $defaults = null): array
+{
+    $defaults = is_array($defaults) ? $defaults : cmsEntityPresentationSettingsDefaults();
+    $validated = [];
+
+    $validated['entity_layout_profile'] = in_array(($input['entity_layout_profile'] ?? ''), cmsEntityLayoutProfiles(), true)
+        ? (string)$input['entity_layout_profile']
+        : $defaults['entity_layout_profile'];
+
+    $validated['entity_pricing_variant'] = cmsNormalizeThemeBlockVariant(
+        'pricing',
+        trim((string)($input['entity_pricing_variant'] ?? $defaults['entity_pricing_variant']))
+    );
+    $validated['entity_action_variant'] = cmsNormalizeThemeBlockVariant(
+        'action',
+        trim((string)($input['entity_action_variant'] ?? $defaults['entity_action_variant']))
+    );
+
+    $summaryWidth = (int)($input['entity_summary_width'] ?? $defaults['entity_summary_width']);
+    $validated['entity_summary_width'] = (string)max(260, min(420, $summaryWidth ?: 320));
+    $validated['entity_summary_sticky'] = (int)(bool)($input['entity_summary_sticky'] ?? $defaults['entity_summary_sticky']);
+    $validated['entity_media_ratio'] = in_array(($input['entity_media_ratio'] ?? ''), ['auto', '16:9', '4:3', '1:1'], true)
+        ? (string)$input['entity_media_ratio']
+        : $defaults['entity_media_ratio'];
+    $validated['entity_spacing_scale'] = in_array(($input['entity_spacing_scale'] ?? ''), ['compact', 'comfortable', 'airy'], true)
+        ? (string)$input['entity_spacing_scale']
+        : $defaults['entity_spacing_scale'];
+    $validated['entity_action_size'] = in_array(($input['entity_action_size'] ?? ''), ['sm', 'md', 'lg'], true)
+        ? (string)$input['entity_action_size']
+        : $defaults['entity_action_size'];
+
+    return $validated;
+}
+
 /**
  * Render <style> tag with general/body CSS custom properties from Colors settings.
  * Injected into <head> or start of <body> in the public template.
@@ -573,6 +660,7 @@ function cmsRenderColorsStyle(object $db): string
     $css .= '--font-body:\'' . $fontBody . '\',-apple-system,BlinkMacSystemFont,sans-serif;';
     $css .= '--font-heading:\'' . $fontHeading . '\',-apple-system,BlinkMacSystemFont,sans-serif;';
     $css .= '--container-width:' . ($s['container_width'] ?? '1200') . 'px;';
+    $css .= '--container-max:' . ($s['container_width'] ?? '1200') . 'px;';
     $css .= '--radius-sm:' . round(((float)($s['border_radius'] ?? 0.5)) * 0.5, 2) . 'rem;';
     $css .= '--radius-md:' . ($s['border_radius'] ?? '0.5') . 'rem;';
     $css .= '--radius-lg:' . round(((float)($s['border_radius'] ?? 0.5)) * 2, 2) . 'rem;';
@@ -580,7 +668,7 @@ function cmsRenderColorsStyle(object $db): string
 
     // Body base
     $css .= 'html{font-size:' . ($s['font_size_base'] ?? '16') . 'px;}';
-    $css .= 'body{line-height:' . ($s['line_height'] ?? '1.6') . ';';
+    $css .= 'body{font-family:var(--font-body);line-height:' . ($s['line_height'] ?? '1.6') . ';';
     $css .= 'color:var(--color-text);background-color:var(--color-background);}';
 
     // Links
@@ -589,13 +677,18 @@ function cmsRenderColorsStyle(object $db): string
 
     // Headings
     $headingColor = trim((string)($s['heading_color'] ?? ''));
+    $css .= 'h1,h2,h3,h4,h5,h6{font-family:var(--font-heading);';
     if ($headingColor !== '') {
-        $css .= 'h1,h2,h3,h4,h5,h6{color:' . $headingColor . ';}';
+        $css .= 'color:' . $headingColor . ';';
     }
+    $css .= '}';
     $css .= 'h1{font-size:' . ($s['h1_size'] ?? '2.5') . 'rem;}';
     $css .= 'h2{font-size:' . ($s['h2_size'] ?? '2') . 'rem;}';
     $css .= 'h3{font-size:' . ($s['h3_size'] ?? '1.5') . 'rem;}';
     $css .= 'h4{font-size:' . ($s['h4_size'] ?? '1.25') . 'rem;}';
+    $css .= '.entity-commerce-poc{--container-max:var(--container-width);}';
+    $css .= '.entity-commerce-poc .poc-branding__tag,.entity-commerce-poc .poc-nav a,.entity-commerce-poc .poc-footer__menu a,.entity-commerce-poc .nav-menu a,.entity-commerce-poc .nav-menu-sub a,.entity-commerce-poc .header-cta,.entity-commerce-poc .poc-kicker,.entity-commerce-poc .poc-summary,.entity-commerce-poc .poc-entity-view__header-note,.entity-commerce-poc .poc-product-card__excerpt,.entity-commerce-poc .poc-footer__copy,.entity-commerce-poc .poc-footer__meta,.entity-commerce-poc .poc-progress-label,.entity-commerce-poc .poc-price-pill,.entity-commerce-poc .poc-stock-tag,.entity-commerce-poc .poc-pagination__link,.entity-commerce-poc .poc-empty-state,.entity-commerce-poc .poc-pricing-block__label,.entity-commerce-poc .poc-action-strip__label,.entity-commerce-poc .poc-pricing-block__previous,.entity-commerce-poc .poc-pricing-block__badge,.entity-commerce-poc .poc-action-strip__button,.entity-commerce-poc .poc-action-strip__status,.entity-commerce-poc .cms-entity-meta,.entity-commerce-poc .cms-progress-block,.entity-commerce-poc .cms-pricing-block,.entity-commerce-poc .cms-inventory-block,.entity-commerce-poc .cms-action-block,.entity-commerce-poc .cms-gallery-block,.entity-commerce-poc .cms-lessons-block{font-family:var(--font-body);}';
+    $css .= '.entity-commerce-poc .poc-branding__mark,.entity-commerce-poc .poc-title,.entity-commerce-poc .poc-product-card__title,.entity-commerce-poc .poc-pricing-block__value,.entity-commerce-poc .cms-price-current{font-family:var(--font-heading);}';
     $css .= '.cms-entity-summary-stack-rail > *{background:var(--storefront-surface-bg);border:1px solid var(--storefront-surface-border);border-radius:var(--radius-lg);box-shadow:0 8px 24px rgba(15,23,42,0.05);}';
     $css .= '.cms-entity-summary-stack-inline > *{border-radius:var(--radius-lg);}';
     $css .= '.cms-price-current{color:var(--storefront-price-color);}';
@@ -922,28 +1015,15 @@ function cmsNormalizeThemeBlockVariant(string $block, string $variant): string
 
 function cmsEntityPresentationConfig(array $themeSettings): array
 {
-    $profile = (string)($themeSettings['entity_layout_profile'] ?? 'default');
-    if (!in_array($profile, cmsEntityLayoutProfiles(), true)) {
-        $profile = 'default';
-    }
-
-    $pricingVariant = cmsNormalizeThemeBlockVariant('pricing', trim((string)($themeSettings['entity_pricing_variant'] ?? '')));
-    $actionVariant = cmsNormalizeThemeBlockVariant('action', trim((string)($themeSettings['entity_action_variant'] ?? '')));
-    $summaryWidth = (int)($themeSettings['entity_summary_width'] ?? 320);
-    $summaryWidth = max(260, min(420, $summaryWidth));
-    $mediaRatio = (string)($themeSettings['entity_media_ratio'] ?? 'auto');
-    if (!in_array($mediaRatio, ['auto', '16:9', '4:3', '1:1'], true)) {
-        $mediaRatio = 'auto';
-    }
-    $spacingScale = (string)($themeSettings['entity_spacing_scale'] ?? 'comfortable');
-    if (!in_array($spacingScale, ['compact', 'comfortable', 'airy'], true)) {
-        $spacingScale = 'comfortable';
-    }
-    $actionSize = (string)($themeSettings['entity_action_size'] ?? 'md');
-    if (!in_array($actionSize, ['sm', 'md', 'lg'], true)) {
-        $actionSize = 'md';
-    }
-    $summarySticky = !empty($themeSettings['entity_summary_sticky']) ? 1 : 0;
+    $presentationSettings = cmsValidateEntityPresentationSettings($themeSettings);
+    $profile = (string)$presentationSettings['entity_layout_profile'];
+    $pricingVariant = cmsNormalizeThemeBlockVariant('pricing', trim((string)$presentationSettings['entity_pricing_variant']));
+    $actionVariant = cmsNormalizeThemeBlockVariant('action', trim((string)$presentationSettings['entity_action_variant']));
+    $summaryWidth = (int)$presentationSettings['entity_summary_width'];
+    $mediaRatio = (string)$presentationSettings['entity_media_ratio'];
+    $spacingScale = (string)$presentationSettings['entity_spacing_scale'];
+    $actionSize = (string)$presentationSettings['entity_action_size'];
+    $summarySticky = !empty($presentationSettings['entity_summary_sticky']) ? 1 : 0;
 
     return [
         'layout_profile'      => $profile,
@@ -967,7 +1047,7 @@ function cmsEntityPresentationConfig(array $themeSettings): array
  */
 function cmsThemeLayoutSettingsDefaults(): array
 {
-    return [
+    return array_merge([
         // ── Site Layout ──────────────────────────────
         'layout_mode'             => 'contained',       // contained | boxed | full-width
         'site_max_width'          => '1280',             // px – max width of outer container (boxed/contained)
@@ -999,17 +1079,12 @@ function cmsThemeLayoutSettingsDefaults(): array
         'single_show_categories'  => '1',
         'single_show_tags'        => '1',
         'single_show_nav'         => '1',                // prev/next navigation
+    ], cmsEntityPresentationSettingsDefaults());
+}
 
-        // ── Entity View Presentation ────────────────
-        'entity_layout_profile'   => 'default',          // default | commerce | content
-        'entity_pricing_variant'  => '',                 // default | compact | featured | minimal
-        'entity_action_variant'   => '',                 // default | sticky-footer
-        'entity_summary_width'    => '320',              // px width of commerce summary rail
-        'entity_summary_sticky'   => '1',                // stick the commerce summary rail
-        'entity_media_ratio'      => 'auto',             // auto | 16:9 | 4:3 | 1:1
-        'entity_spacing_scale'    => 'comfortable',      // compact | comfortable | airy
-        'entity_action_size'      => 'md',               // sm | md | lg
-    ];
+function cmsStorefrontSettingsDefaults(): array
+{
+    return cmsEntityPresentationSettingsDefaults();
 }
 
 /**
@@ -1078,32 +1153,68 @@ function cmsValidateThemeLayoutSettings(array $input): array
         $validated['blog_readmore_text'] = $defaults['blog_readmore_text'];
     }
 
-    $validated['entity_layout_profile'] = in_array(($input['entity_layout_profile'] ?? ''), cmsEntityLayoutProfiles(), true)
-        ? (string)$input['entity_layout_profile']
-        : $defaults['entity_layout_profile'];
+    return array_merge($validated, cmsValidateEntityPresentationSettings($input, $defaults));
+}
 
-    $validated['entity_pricing_variant'] = cmsNormalizeThemeBlockVariant(
-        'pricing',
-        trim((string)($input['entity_pricing_variant'] ?? $defaults['entity_pricing_variant']))
-    );
-    $validated['entity_action_variant'] = cmsNormalizeThemeBlockVariant(
-        'action',
-        trim((string)($input['entity_action_variant'] ?? $defaults['entity_action_variant']))
-    );
-    $summaryWidth = (int)($input['entity_summary_width'] ?? $defaults['entity_summary_width']);
-    $validated['entity_summary_width'] = (string)max(260, min(420, $summaryWidth ?: 320));
-    $validated['entity_summary_sticky'] = (int)(bool)($input['entity_summary_sticky'] ?? $defaults['entity_summary_sticky']);
-    $validated['entity_media_ratio'] = in_array(($input['entity_media_ratio'] ?? ''), ['auto', '16:9', '4:3', '1:1'], true)
-        ? (string)$input['entity_media_ratio']
-        : $defaults['entity_media_ratio'];
-    $validated['entity_spacing_scale'] = in_array(($input['entity_spacing_scale'] ?? ''), ['compact', 'comfortable', 'airy'], true)
-        ? (string)$input['entity_spacing_scale']
-        : $defaults['entity_spacing_scale'];
-    $validated['entity_action_size'] = in_array(($input['entity_action_size'] ?? ''), ['sm', 'md', 'lg'], true)
-        ? (string)$input['entity_action_size']
-        : $defaults['entity_action_size'];
+function cmsValidateStorefrontSettings(array $input): array
+{
+    return cmsValidateEntityPresentationSettings($input, cmsStorefrontSettingsDefaults());
+}
 
-    return $validated;
+function cmsRenderEntityPresentationCss(array $settings): string
+{
+    $presentation = cmsValidateEntityPresentationSettings($settings);
+    $css = ':root{';
+    $css .= '--theme-entity-summary-width:' . ($presentation['entity_summary_width'] ?? '320') . 'px;';
+    $css .= '}';
+
+    $entitySpacingScale = (string)($presentation['entity_spacing_scale'] ?? 'comfortable');
+    $entityGap = '2rem';
+    $entityPanelPadding = '1rem';
+    if ($entitySpacingScale === 'compact') {
+        $entityGap = '1rem';
+        $entityPanelPadding = '0.875rem';
+    } elseif ($entitySpacingScale === 'airy') {
+        $entityGap = '2.75rem';
+        $entityPanelPadding = '1.25rem';
+    }
+
+    $entityActionSize = (string)($presentation['entity_action_size'] ?? 'md');
+    $actionPadY = '0.75rem';
+    $actionPadX = '1.5rem';
+    $actionFontSize = '0.875rem';
+    if ($entityActionSize === 'sm') {
+        $actionPadY = '0.625rem';
+        $actionPadX = '1rem';
+        $actionFontSize = '0.8125rem';
+    } elseif ($entityActionSize === 'lg') {
+        $actionPadY = '0.875rem';
+        $actionPadX = '1.75rem';
+        $actionFontSize = '0.9375rem';
+    }
+
+    $entityMediaRatio = (string)($presentation['entity_media_ratio'] ?? 'auto');
+
+    $css .= '.cms-entity-summary-stack{display:flex;flex-direction:column;gap:' . $entityGap . ';}';
+    $css .= '.cms-entity-summary-stack-rail > *{padding:' . $entityPanelPadding . ';}';
+    $css .= '.cms-entity-profile-commerce .cms-entity-layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(260px,var(--theme-entity-summary-width));gap:' . $entityGap . ';align-items:start;}';
+    if (!empty($presentation['entity_summary_sticky'])) {
+        $css .= '.cms-entity-profile-commerce .cms-entity-summary{position:sticky;top:1.5rem;}';
+    } else {
+        $css .= '.cms-entity-profile-commerce .cms-entity-summary{position:static;}';
+    }
+    $css .= '.cms-entity-profile-content .cms-entity-header{max-width:var(--theme-single-max-width);margin-left:auto;margin-right:auto;}';
+    $css .= '.cms-entity-profile-content .cms-entity-body,.cms-entity-profile-content .cms-entity-summary-stack{max-width:var(--theme-single-max-width);margin-left:auto;margin-right:auto;}';
+    if ($entityMediaRatio !== 'auto') {
+        $ratioMap = ['16:9' => '16 / 9', '4:3' => '4 / 3', '1:1' => '1 / 1'];
+        $ratioValue = $ratioMap[$entityMediaRatio] ?? '16 / 9';
+        $css .= '.cms-entity-hero{aspect-ratio:' . $ratioValue . ';overflow:hidden;border-radius:1rem;}';
+        $css .= '.cms-entity-hero img{width:100%;height:100%;object-fit:cover;max-height:none;border-radius:0;}';
+    }
+    $css .= '.cms-action-block .cms-btn-primary,.cms-action-block .cms-btn-secondary,.cms-action-block .cms-btn-disabled{padding:' . $actionPadY . ' ' . $actionPadX . ';font-size:' . $actionFontSize . ';border-radius:var(--radius-md);}';
+    $css .= '@media(max-width:1024px){.cms-entity-profile-commerce .cms-entity-layout{grid-template-columns:1fr;}.cms-entity-profile-commerce .cms-entity-summary{position:static;}}';
+
+    return $css;
 }
 
 /**
@@ -1136,35 +1247,7 @@ function cmsRenderThemeLayoutStyle(object $db): string
     $css .= '--theme-blog-cols:' . ($s['blog_columns'] ?? '2') . ';';
     $css .= '--theme-card-radius:' . ($s['blog_card_radius'] ?? '8') . 'px;';
     $css .= '--theme-image-height:' . ($s['blog_image_height'] ?? '208') . 'px;';
-    $css .= '--theme-entity-summary-width:' . ($s['entity_summary_width'] ?? '320') . 'px;';
     $css .= '}';
-
-    $entitySpacingScale = (string)($s['entity_spacing_scale'] ?? 'comfortable');
-    $entityGap = '2rem';
-    $entityPanelPadding = '1rem';
-    if ($entitySpacingScale === 'compact') {
-        $entityGap = '1rem';
-        $entityPanelPadding = '0.875rem';
-    } elseif ($entitySpacingScale === 'airy') {
-        $entityGap = '2.75rem';
-        $entityPanelPadding = '1.25rem';
-    }
-
-    $entityActionSize = (string)($s['entity_action_size'] ?? 'md');
-    $actionPadY = '0.75rem';
-    $actionPadX = '1.5rem';
-    $actionFontSize = '0.875rem';
-    if ($entityActionSize === 'sm') {
-        $actionPadY = '0.625rem';
-        $actionPadX = '1rem';
-        $actionFontSize = '0.8125rem';
-    } elseif ($entityActionSize === 'lg') {
-        $actionPadY = '0.875rem';
-        $actionPadX = '1.75rem';
-        $actionFontSize = '0.9375rem';
-    }
-
-    $entityMediaRatio = (string)($s['entity_media_ratio'] ?? 'auto');
 
     $mode = $s['layout_mode'] ?? 'contained';
     if ($mode === 'boxed') {
@@ -1206,27 +1289,30 @@ function cmsRenderThemeLayoutStyle(object $db): string
         $css .= '.cms-blog-listing article:hover{box-shadow:0 4px 12px rgba(0,0,0,0.1);}';
     }
 
-    $css .= '.cms-entity-summary-stack{display:flex;flex-direction:column;gap:' . $entityGap . ';}';
-    $css .= '.cms-entity-summary-stack-rail > *{padding:' . $entityPanelPadding . ';}';
-    $css .= '.cms-entity-profile-commerce .cms-entity-layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(260px,var(--theme-entity-summary-width));gap:' . $entityGap . ';align-items:start;}';
-    if (!empty($s['entity_summary_sticky'])) {
-        $css .= '.cms-entity-profile-commerce .cms-entity-summary{position:sticky;top:1.5rem;}';
-    } else {
-        $css .= '.cms-entity-profile-commerce .cms-entity-summary{position:static;}';
+    if (cmsActiveCustomizerScope() !== 'ecommerce') {
+        $css .= cmsRenderEntityPresentationCss($s);
     }
-    $css .= '.cms-entity-profile-content .cms-entity-header{max-width:var(--theme-single-max-width);margin-left:auto;margin-right:auto;}';
-    $css .= '.cms-entity-profile-content .cms-entity-body,.cms-entity-profile-content .cms-entity-summary-stack{max-width:var(--theme-single-max-width);margin-left:auto;margin-right:auto;}';
-    if ($entityMediaRatio !== 'auto') {
-        $ratioMap = ['16:9' => '16 / 9', '4:3' => '4 / 3', '1:1' => '1 / 1'];
-        $ratioValue = $ratioMap[$entityMediaRatio] ?? '16 / 9';
-        $css .= '.cms-entity-hero{aspect-ratio:' . $ratioValue . ';overflow:hidden;border-radius:1rem;}';
-        $css .= '.cms-entity-hero img{width:100%;height:100%;object-fit:cover;max-height:none;border-radius:0;}';
-    }
-    $css .= '.cms-action-block .cms-btn-primary,.cms-action-block .cms-btn-secondary,.cms-action-block .cms-btn-disabled{padding:' . $actionPadY . ' ' . $actionPadX . ';font-size:' . $actionFontSize . ';border-radius:var(--radius-md);}';
-    $css .= '@media(max-width:1024px){.cms-entity-profile-commerce .cms-entity-layout{grid-template-columns:1fr;}.cms-entity-profile-commerce .cms-entity-summary{position:static;}}';
 
     $html = '<style id="cz-theme-layout-override">' . $css . '</style>';
     cmsCustomizerFragmentCacheSet('theme_layout_style', ['html' => $html], ['cms:customizer:theme']);
+    return $html;
+}
+
+function cmsRenderStorefrontStyle(object $db): string
+{
+    $cached = cmsCustomizerFragmentCacheGet('storefront_style');
+    if (is_array($cached) && array_key_exists('html', $cached)) {
+        return (string)$cached['html'];
+    }
+
+    if (!cmsCustomizerSectionExists($db, 'storefront')) {
+        cmsCustomizerFragmentCacheSet('storefront_style', ['html' => ''], ['cms:customizer:storefront']);
+        return '';
+    }
+
+    $data = cmsCustomizerGet($db, 'storefront');
+    $html = '<style id="cz-storefront-override">' . cmsRenderEntityPresentationCss($data['settings']) . '</style>';
+    cmsCustomizerFragmentCacheSet('storefront_style', ['html' => $html], ['cms:customizer:storefront']);
     return $html;
 }
 
@@ -1238,15 +1324,7 @@ function cmsRenderThemeLayoutStyle(object $db): string
 function cmsCustomizerGet(object $db, string $section, ?string $scope = null): array
 {
     $scope = $scope !== null ? trim($scope) : cmsActiveCustomizerScope();
-    $sectionDefaults = [
-        'footer'      => 'cmsFooterSettingsDefaults',
-        'sidebar'     => 'cmsSidebarSettingsDefaults',
-        'header'      => 'cmsHeaderSettingsDefaults',
-        'colors'      => 'cmsColorsSettingsDefaults',
-        'custom_code' => 'cmsCustomCodeSettingsDefaults',
-        'theme'       => 'cmsThemeLayoutSettingsDefaults',
-    ];
-    $defaults = isset($sectionDefaults[$section]) ? ($sectionDefaults[$section])() : [];
+    $defaults = cmsCustomizerSectionDefaults($section);
 
     try {
         $row = cmsCustomizerSectionRecord($db, $section, $scope);
@@ -1586,6 +1664,16 @@ function cmsRenderCustomizedFooter(object $db): string
             $html .= ' <a href="' . $baseUrl . '/cms/admin" style="color:' . $barLink . ';margin-left:0.5rem;font-size:0.8rem;">Admin</a>';
         }
         $html .= '</div></div>';
+    }
+
+    $themeWrapped = cmsRenderActiveThemeCustomizerPartial('footer', [
+        'footer_html' => $html,
+        'footer_settings' => $settings,
+        'footer_widgets' => $widgets,
+        'cms_settings' => $cmsSettings,
+    ]);
+    if ($themeWrapped !== '') {
+        $html = $themeWrapped;
     }
 
     cmsCustomizerFragmentCacheSet('footer_html', ['html' => $html], ['cms:customizer:footer', 'cms:settings', 'cms:menus']);
@@ -2470,8 +2558,46 @@ function cmsRenderCustomizedHeader(object $db, array $publicCtx = []): string
         $html .= $transparentJs;
     }
 
+    $themeWrapped = cmsRenderActiveThemeCustomizerPartial('header', [
+        'header_html' => $html,
+        'header_settings' => $settings,
+        'header_widgets' => $widgets,
+        'cms_settings' => $cmsSettings,
+    ]);
+    if ($themeWrapped !== '') {
+        $html = $themeWrapped;
+    }
+
     cmsCustomizerFragmentCacheSet('header_html:' . sha1(cmsCustomizerCurrentPathCacheToken()), ['html' => $html], ['cms:customizer:header', 'cms:settings', 'cms:menus']);
     return $html;
+}
+
+function cmsRenderActiveThemeCustomizerPartial(string $partialName, array $context = []): string
+{
+    $partialName = trim($partialName);
+    if ($partialName === '') {
+        return '';
+    }
+
+    try {
+        cmsEnsureThemeSymlink();
+    } catch (Throwable $e) {
+        return '';
+    }
+
+    $relativePath = 'public/' . $partialName . '.disyl';
+    $fullPath = CMS_THEME_SYMLINK . '/' . $relativePath;
+    if (!is_file($fullPath)) {
+        return '';
+    }
+
+    try {
+        return cmsWithThemeSymlinkLock(static function () use ($relativePath, $context): string {
+            return cmsRender('_cms_active_theme/' . $relativePath, $context);
+        }, LOCK_SH);
+    } catch (Throwable $e) {
+        return '';
+    }
 }
 
 /**

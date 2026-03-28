@@ -48,6 +48,27 @@ function ecRender(string $template, array $context = []): void
         $context['cart_count'] = (int)($cart['totals']['item_count'] ?? 0);
     }
 
+    if (!array_key_exists('ec_settings', $context)) {
+        $context['ec_settings'] = ecSettings();
+    }
+
+    if (!array_key_exists('base_url', $context)) {
+        $context['base_url'] = ecGetBaseUrl();
+    }
+
+    if (!array_key_exists('year', $context)) {
+        $context['year'] = date('Y');
+    }
+
+    $isPublicTemplate = str_starts_with($template, 'modules/ecommerce/public/') || $template === 'pages/404.disyl';
+    if ($isPublicTemplate && function_exists('cmsPublicContext') && function_exists('cmsWithThemeSymlinkLock') && function_exists('cmsRender')) {
+        $renderContext = array_merge(cmsPublicContext($context), $context);
+        echo cmsWithThemeSymlinkLock(static function () use ($template, $renderContext): string {
+            return cmsRender($template, $renderContext);
+        }, LOCK_SH);
+        return;
+    }
+
     echo ecCtx()->render($template, $context);
 }
 
