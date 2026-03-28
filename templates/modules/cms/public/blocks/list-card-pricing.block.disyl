@@ -1,0 +1,11 @@
+{if capability_data.pricing and capability_data.pricing.price}
+<div class="cms-entity-card__pricing mt-2">
+    {if capability_data.pricing.sale_price}
+    <span class="cms-price-current text-sm font-bold text-sky-600">{capability_data.pricing.currency} {capability_data.pricing.sale_price | number_format:2}</span>
+    <span class="cms-price-previous ml-1 text-xs text-gray-400 line-through">{capability_data.pricing.price | number_format:2}</span>
+    <span class="cms-price-badge ml-2 inline-flex items-center rounded-full border border-red-100 bg-red-50 px-2 py-0.5 text-[11px] font-semibold text-red-600">Sale</span>
+    {else}
+    <span class="cms-price-current text-sm font-bold text-sky-600">{capability_data.pricing.currency} {capability_data.pricing.price | number_format:2}</span>
+    {/if}
+</div>
+{/if}

@@ -1166,6 +1166,9 @@ function cmsPublicEntityView(array $params = []): void
         'builder_page_settings' => $builderSettings,
         'sidebar_template'      => $sidebarTemplateKey,
         'content_type'          => $type,
+        'public_render_origin'  => (string)($params['public_render_origin'] ?? 'cms'),
+        'public_route_kind'     => (string)($params['public_route_kind'] ?? 'generic'),
+        'public_presentation_mode' => (string)($params['public_presentation_mode'] ?? 'traditional'),
     ]);
     $viewContext['entity_presentation'] = cmsEntityPresentationConfig(
         is_array($viewContext['theme_settings'] ?? null) ? $viewContext['theme_settings'] : []
@@ -1198,6 +1201,43 @@ function cmsPublicEntityView(array $params = []): void
 
     cmsSendCacheHeaders($etag, $updatedAt);
     cmsPublicRespond($html);
+}
+
+function cmsEntityListPageUrl(string $baseUrl, int $page, array $query = []): string
+{
+    $baseUrl = trim($baseUrl);
+    if ($baseUrl === '') {
+        $baseUrl = '/';
+    }
+
+    $query = array_filter($query, static function ($value): bool {
+        if ($value === null) {
+            return false;
+        }
+        if (is_string($value)) {
+            return trim($value) !== '';
+        }
+        return true;
+    });
+
+    $query['page'] = max(1, $page);
+    $separator = str_contains($baseUrl, '?') ? '&' : '?';
+    return $baseUrl . $separator . http_build_query($query);
+}
+
+function cmsEntityListResultLabel(int $count): string
+{
+    return number_format(max(0, $count)) . (max(0, $count) === 1 ? ' result' : ' results');
+}
+
+function cmsPublicEntityListItemBlockContext(array $item, array $pageContext, string $defaultType): array
+{
+    $itemContext = $pageContext;
+    $itemContext['entity'] = $item;
+    $itemContext['content_type'] = trim((string)($item['type'] ?? $defaultType));
+    $itemContext['capabilities'] = is_array($item['capabilities'] ?? null) ? $item['capabilities'] : [];
+    $itemContext['capability_data'] = is_array($item['capability_data'] ?? null) ? $item['capability_data'] : [];
+    return $itemContext;
 }
 
 /**
@@ -1264,6 +1304,8 @@ function cmsPublicEntityList(array $params = []): void
 
     $db = cmsDb();
     $listTitle = '';
+    $listDescription = '';
+    $activeCategory = null;
 
     try {
         $typeStmt = $db->prepare("SELECT label FROM cms_content_types WHERE slug = :slug AND is_active = 1 LIMIT 1");
@@ -1279,6 +1321,16 @@ function cmsPublicEntityList(array $params = []): void
         http_response_code(404);
         cmsPublicRespond(cmsRender('pages/404.disyl', ['page_title' => 'Not Found']));
         return;
+    }
+
+    if ($categoryId > 0) {
+        try {
+            $categoryStmt = $db->prepare('SELECT id, name, slug FROM cms_categories WHERE id = :id LIMIT 1');
+            $categoryStmt->execute([':id' => $categoryId]);
+            $activeCategory = $categoryStmt->fetch(PDO::FETCH_ASSOC) ?: null;
+        } catch (\Throwable $e) {
+            $activeCategory = null;
+        }
     }
 
     // ── Build dynamic SQL fragments ──────────────────────────────────
@@ -1305,6 +1357,26 @@ function cmsPublicEntityList(array $params = []): void
     );
     $cStmt->execute($bindParams);
     $total = (int)$cStmt->fetchColumn();
+
+    $resultLabel = cmsEntityListResultLabel($total);
+    $activeFilterCount = 0;
+    if ($search !== '') {
+        $activeFilterCount++;
+    }
+    if (is_array($activeCategory)) {
+        $activeFilterCount++;
+        $listTitle = trim((string)($activeCategory['name'] ?? '')) ?: $listTitle;
+    }
+
+    if ($search !== '' && is_array($activeCategory)) {
+        $listDescription = $resultLabel . ' in ' . (string)($activeCategory['name'] ?? $listTitle) . ' for "' . $search . '"';
+    } elseif ($search !== '') {
+        $listDescription = $resultLabel . ' for "' . $search . '"';
+    } elseif (is_array($activeCategory)) {
+        $listDescription = $resultLabel . ' in ' . (string)($activeCategory['name'] ?? $listTitle);
+    } else {
+        $listDescription = $resultLabel . ' in ' . $listTitle;
+    }
 
     // Fetch items
     $stmt = $db->prepare(
@@ -1349,23 +1421,69 @@ function cmsPublicEntityList(array $params = []): void
     // Pagination
     $totalPages  = max(1, (int)ceil($total / $perPage));
     $listBase    = $baseListUrl !== '' ? $baseListUrl : ($baseUrl . '/cms/' . rawurlencode($type));
+    $paginationQuery = [];
+    if ($search !== '') {
+        $paginationQuery['search'] = $search;
+    }
+    if ($categoryId > 0 && $categorySlug === '') {
+        $paginationQuery['cat'] = $categoryId;
+    }
     $pagination = [
         'current'  => $page,
         'total'    => $totalPages,
-        'prev_url' => $page > 1 ? $listBase . '?page=' . ($page - 1) : '',
-        'next_url' => $page < $totalPages ? $listBase . '?page=' . ($page + 1) : '',
+        'prev_url' => $page > 1 ? cmsEntityListPageUrl($listBase, $page - 1, $paginationQuery) : '',
+        'next_url' => $page < $totalPages ? cmsEntityListPageUrl($listBase, $page + 1, $paginationQuery) : '',
+    ];
+
+    $listContext = [
+        'content_type' => $type,
+        'base_list_url' => $listBase,
+        'item_base_url' => $itemBaseUrl,
+        'search' => $search,
+        'category_id' => $categoryId,
+        'category_slug' => $categorySlug !== '' ? $categorySlug : (string)($activeCategory['slug'] ?? ''),
+        'category_name' => is_array($activeCategory) ? (string)($activeCategory['name'] ?? '') : '',
+        'result_count' => $total,
+        'result_label' => $resultLabel,
+        'active_filter_count' => $activeFilterCount,
+        'summary_text' => $listDescription,
     ];
 
     $sidebarTemplateKey = cmsSidebarTemplateKeyFromPath($templatePath, 'entity-list');
-    $html = cmsRenderThemeAwareTemplate($templatePath, cmsPublicContext([
+    $pageContext = cmsPublicContext([
         'page_title'       => $listTitle,
         'list_title'       => $listTitle,
-        'list_description' => '',
-        'items'            => $items,
+        'list_description' => $listDescription,
         'pagination'       => $pagination,
+        'entity_list_context' => $listContext,
         'content_type'     => $type,
         'sidebar_template' => $sidebarTemplateKey,
-    ]));
+        'public_render_origin' => (string)($params['public_render_origin'] ?? 'cms'),
+        'public_route_kind' => (string)($params['public_route_kind'] ?? 'generic'),
+        'public_presentation_mode' => (string)($params['public_presentation_mode'] ?? 'traditional'),
+    ]);
+    $pageContext['entity_presentation'] = cmsEntityPresentationConfig(
+        is_array($pageContext['theme_settings'] ?? null) ? $pageContext['theme_settings'] : []
+    );
+
+    foreach ($items as &$item) {
+        $itemContext = cmsPublicEntityListItemBlockContext($item, $pageContext, $type);
+        $capabilities = is_array($itemContext['capabilities'] ?? null) ? $itemContext['capabilities'] : [];
+
+        $item['list_card_pricing_html'] = !empty($capabilities['pricing'])
+            ? cmsRenderThemeAwareBlockTemplate('modules/cms/public/blocks/list-card-pricing.block.disyl', $itemContext)
+            : '';
+        $item['list_card_inventory_html'] = !empty($capabilities['inventory'])
+            ? cmsRenderThemeAwareBlockTemplate('modules/cms/public/blocks/list-card-inventory.block.disyl', $itemContext)
+            : '';
+        $item['list_card_progress_html'] = !empty($capabilities['progress_tracking'])
+            ? cmsRenderThemeAwareBlockTemplate('modules/cms/public/blocks/list-card-progress.block.disyl', $itemContext)
+            : '';
+    }
+    unset($item);
+
+    $pageContext['items'] = $items;
+    $html = cmsRenderThemeAwareTemplate($templatePath, $pageContext);
 
     $updatedAt = date('Y-m-d H:i:s');
     $etag = md5($html);

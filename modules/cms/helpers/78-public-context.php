@@ -122,6 +122,13 @@ function cmsPublicContext(array $extra = []): array
     $activeThemeSlug = cmsActiveTheme() ?? 'native-default';
     $requestType = !empty($extra['entity']['id']) ? 'entity' : (!empty($extra['content']['id']) ? 'content' : 'generic');
     $builderEnabled = !empty($extra['builder_enabled']);
+    $publicRenderOrigin = trim((string)($extra['public_render_origin'] ?? 'cms'));
+    $publicRouteKind = function_exists('cmsNormalizeEcommercePublicRouteKind')
+        ? cmsNormalizeEcommercePublicRouteKind((string)($extra['public_route_kind'] ?? $extra['ecommerce_public_route'] ?? 'generic'))
+        : trim((string)($extra['public_route_kind'] ?? $extra['ecommerce_public_route'] ?? 'generic'));
+    $publicPresentationMode = function_exists('cmsEcommercePublicPresentationMode')
+        ? cmsEcommercePublicPresentationMode(array_merge($extra, ['public_route_kind' => $publicRouteKind]))
+        : trim((string)($extra['public_presentation_mode'] ?? 'traditional'));
     if ($detailedTimingEnabled) {
         cmsPublicContextLogStage('init', $stageStart, ['theme' => $activeThemeSlug, 'request_type' => $requestType]);
     }
@@ -175,6 +182,10 @@ function cmsPublicContext(array $extra = []): array
         'footer_menu'   => $footerMenu,
         'social_links'  => $socialLinks,
         'cms_settings'  => $settings,
+        'public_render_origin' => $publicRenderOrigin,
+        'public_route_kind' => $publicRouteKind !== '' ? $publicRouteKind : 'generic',
+        'public_presentation_mode' => $publicPresentationMode !== '' ? $publicPresentationMode : 'traditional',
+        'is_ecommerce_public' => $publicRenderOrigin === 'ecommerce',
     ];
 
     // Render customized footer if customizer data exists

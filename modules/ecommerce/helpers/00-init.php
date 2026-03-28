@@ -41,6 +41,61 @@ function ecCtx(): \Ikabud\Kernel\Contracts\ModuleContext
     return $ctx;
 }
 
+function ecIsPublicTemplate(string $template): bool
+{
+    return str_starts_with($template, 'modules/ecommerce/public/') || $template === 'pages/404.disyl';
+}
+
+function ecInferPublicRouteKind(string $template, array $context = []): string
+{
+    $routeKind = trim((string)($context['public_route_kind'] ?? $context['ecommerce_public_route'] ?? ''));
+    if ($routeKind !== '') {
+        return $routeKind;
+    }
+
+    return match ($template) {
+        'modules/ecommerce/public/shop.disyl' => 'shop_index',
+        'modules/ecommerce/public/product.disyl' => 'product_detail',
+        'modules/ecommerce/public/cart.disyl' => 'cart',
+        'modules/ecommerce/public/checkout.disyl' => 'checkout',
+        'modules/ecommerce/public/order-confirmation.disyl' => 'order_confirmation',
+        'modules/ecommerce/public/my-orders.disyl' => 'my_orders',
+        'modules/ecommerce/public/order-detail.disyl' => 'order_detail',
+        'pages/404.disyl' => 'not_found',
+        default => 'generic',
+    };
+}
+
+function ecResolvePublicPresentationMode(?string $routeKind = null, array $context = []): string
+{
+    $resolvedContext = $context;
+    if ($routeKind !== null && $routeKind !== '') {
+        $resolvedContext['public_route_kind'] = $routeKind;
+    }
+
+    if (function_exists('cmsEcommercePublicPresentationMode')) {
+        return cmsEcommercePublicPresentationMode($resolvedContext);
+    }
+
+    return 'traditional';
+}
+
+function ecPublicRenderContext(string $template, array $context = []): array
+{
+    if (!ecIsPublicTemplate($template)) {
+        return $context;
+    }
+
+    $routeKind = ecInferPublicRouteKind($template, $context);
+    $presentationMode = ecResolvePublicPresentationMode($routeKind, $context);
+
+    return array_merge($context, [
+        'public_render_origin' => 'ecommerce',
+        'public_route_kind' => $routeKind,
+        'public_presentation_mode' => $presentationMode,
+    ]);
+}
+
 function ecRender(string $template, array $context = []): void
 {
     if (!array_key_exists('cart_count', $context)) {
@@ -60,12 +115,16 @@ function ecRender(string $template, array $context = []): void
         $context['year'] = date('Y');
     }
 
-    $isPublicTemplate = str_starts_with($template, 'modules/ecommerce/public/') || $template === 'pages/404.disyl';
+    $context = ecPublicRenderContext($template, $context);
+    $isPublicTemplate = ecIsPublicTemplate($template);
     if ($isPublicTemplate && function_exists('cmsPublicContext') && function_exists('cmsWithThemeSymlinkLock') && function_exists('cmsRender')) {
-        $renderContext = array_merge(cmsPublicContext($context), $context);
-        echo cmsWithThemeSymlinkLock(static function () use ($template, $renderContext): string {
-            return cmsRender($template, $renderContext);
-        }, LOCK_SH);
+        $html = moduleWithContext('cms', static function () use ($template, $context): string {
+            $renderContext = array_merge(cmsPublicContext($context), $context);
+            return cmsWithThemeSymlinkLock(static function () use ($template, $renderContext): string {
+                return cmsRender($template, $renderContext);
+            }, LOCK_SH);
+        });
+        echo $html;
         return;
     }
 

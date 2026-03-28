@@ -15,8 +15,9 @@ function ecPublicShop(): void
     $search     = trim((string)(ecInput()['search'] ?? ''));
     $categoryId = (int)(ecInput()['cat'] ?? 0);
     $perPage    = (int)ecSettings('products_per_page');
+    $presentationMode = ecResolvePublicPresentationMode('shop_index');
 
-    if (function_exists('executeModuleHandler')) {
+    if ($presentationMode === 'entity_view' && function_exists('executeModuleHandler')) {
         executeModuleHandler('cms:cmsPublicEntityList', [
             'type'          => 'product',
             'search'        => $search,
@@ -24,6 +25,9 @@ function ecPublicShop(): void
             'per_page'      => $perPage,
             'base_list_url' => '/ecommerce/shop',
             'item_base_url' => '/ecommerce/shop',
+            'public_render_origin' => 'ecommerce',
+            'public_route_kind' => 'shop_index',
+            'public_presentation_mode' => $presentationMode,
         ]);
         return;
     }
@@ -57,6 +61,8 @@ function ecPublicShop(): void
         'per_page'    => $perPage,
         'total_pages' => $totalPages,
         'cart_count'  => (int)(ecCartGet()['totals']['item_count'] ?? 0),
+        'public_route_kind' => 'shop_index',
+        'public_presentation_mode' => $presentationMode,
     ]);
 }
 
@@ -72,7 +78,9 @@ function ecPublicCategory(array $params = []): void
         exit;
     }
 
-    if (function_exists('executeModuleHandler')) {
+    $presentationMode = ecResolvePublicPresentationMode('shop_category');
+
+    if ($presentationMode === 'entity_view' && function_exists('executeModuleHandler')) {
         $perPage = (int)ecSettings('products_per_page');
         executeModuleHandler('cms:cmsPublicEntityList', [
             'type'          => 'product',
@@ -80,6 +88,9 @@ function ecPublicCategory(array $params = []): void
             'per_page'      => $perPage,
             'base_list_url' => '/ecommerce/shop/category/' . rawurlencode($slug),
             'item_base_url' => '/ecommerce/shop',
+            'public_render_origin' => 'ecommerce',
+            'public_route_kind' => 'shop_category',
+            'public_presentation_mode' => $presentationMode,
         ]);
         return;
     }
@@ -122,6 +133,8 @@ function ecPublicCategory(array $params = []): void
         'per_page'    => $perPage,
         'total_pages' => $totalPages,
         'cart_count'  => (int)(ecCartGet()['totals']['item_count'] ?? 0),
+        'public_route_kind' => 'shop_category',
+        'public_presentation_mode' => $presentationMode,
     ]);
 }
 
@@ -131,6 +144,19 @@ function ecPublicCategory(array $params = []): void
 function ecPublicProduct(array $params = []): void
 {
     $slug    = (string)($params['slug'] ?? '');
+    $presentationMode = ecResolvePublicPresentationMode('product_detail');
+
+    if ($presentationMode === 'entity_view' && function_exists('executeModuleHandler')) {
+        executeModuleHandler('cms:cmsPublicEntityView', [
+            'type' => 'product',
+            'slug' => $slug,
+            'public_render_origin' => 'ecommerce',
+            'public_route_kind' => 'product_detail',
+            'public_presentation_mode' => $presentationMode,
+        ]);
+        return;
+    }
+
     $product = ecProductGetBySlug($slug);
 
     if (!$product || $product['status'] !== 'published') {
@@ -139,14 +165,11 @@ function ecPublicProduct(array $params = []): void
         return;
     }
 
-    if (function_exists('executeModuleHandler')) {
-        executeModuleHandler('cms:cmsPublicEntityView', ['type' => 'product', 'slug' => $slug]);
-        return;
-    }
-
     ecRender('modules/ecommerce/public/product.disyl', [
         'page_title'  => $product['title'],
         'product'     => $product,
         'cart_count'  => (int)(ecCartGet()['totals']['item_count'] ?? 0),
+        'public_route_kind' => 'product_detail',
+        'public_presentation_mode' => $presentationMode,
     ]);
 }

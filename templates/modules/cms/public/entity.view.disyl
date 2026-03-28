@@ -6,7 +6,7 @@
 {/block}
 
 {block content}
-<article class="cms-entity-view w-full max-w-5xl mx-auto px-4 py-8 {if entity_presentation.root_class}{entity_presentation.root_class}{/if}">
+<article class="cms-entity-view w-full max-w-5xl mx-auto px-4 py-8 {if entity_presentation.root_class}{entity_presentation.root_class}{/if}"{if public_render_origin} data-public-render-origin="{public_render_origin}"{/if}{if public_route_kind} data-public-route-kind="{public_route_kind}"{/if}{if public_presentation_mode} data-public-presentation-mode="{public_presentation_mode}"{/if}>
 
     {if entity_presentation.header_before_media}
         {* ── Header / Meta ────────────────────────────────────────────── *}

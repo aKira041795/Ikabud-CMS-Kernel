@@ -166,6 +166,52 @@ function cmsRequestedCustomizerScope(array $params = []): string
     return cmsNormalizeCustomizerScope($requested, cmsActiveCustomizerScope());
 }
 
+function cmsEcommerceEntityViewRouteKinds(): array
+{
+    return ['shop_index', 'shop_category', 'product_detail'];
+}
+
+function cmsNormalizeEcommercePublicRouteKind(?string $routeKind = null): string
+{
+    $routeKind = trim((string)$routeKind);
+    if ($routeKind === '') {
+        return 'generic';
+    }
+
+    $allowed = [
+        'generic',
+        'shop_index',
+        'shop_category',
+        'product_detail',
+        'cart',
+        'checkout',
+        'order_confirmation',
+        'my_orders',
+        'order_detail',
+        'not_found',
+    ];
+
+    return in_array($routeKind, $allowed, true) ? $routeKind : 'generic';
+}
+
+function cmsEcommercePublicPresentationMode(array $context = []): string
+{
+    $mode = trim((string)($context['public_presentation_mode'] ?? ''));
+    if (in_array($mode, ['traditional', 'entity_view'], true)) {
+        return $mode;
+    }
+
+    $routeKind = cmsNormalizeEcommercePublicRouteKind(
+        (string)($context['public_route_kind'] ?? $context['ecommerce_public_route'] ?? 'generic')
+    );
+
+    if (cmsActiveCustomizerScope() !== 'ecommerce') {
+        return 'traditional';
+    }
+
+    return in_array($routeKind, cmsEcommerceEntityViewRouteKinds(), true) ? 'entity_view' : 'traditional';
+}
+
 function cmsKnownCustomizerSections(): array
 {
     return ['footer', 'header', 'sidebar', 'colors', 'custom_code', 'theme', 'storefront'];
@@ -333,6 +379,65 @@ function cmsCustomizerClearPersistentCache(?string $section = null, ?string $sco
     }
 
     app()->cache()->clearByTags(cmsCustomizerPersistentCacheInstance($scope), $tags);
+}
+
+function cmsShellEntityToken(string $value, string $fallback = 'generic'): string
+{
+    $value = strtolower(trim($value));
+    $value = preg_replace('/[^a-z0-9\-]+/', '-', $value) ?? '';
+    $value = trim($value, '-');
+    return $value !== '' ? $value : $fallback;
+}
+
+function cmsRenderShellEntityView(string $region, string $html, array $options = []): string
+{
+    $region = cmsShellEntityToken($region, 'generic');
+    $extraClasses = $options['classes'] ?? [];
+    if (is_string($extraClasses) && $extraClasses !== '') {
+        $extraClasses = [$extraClasses];
+    }
+    if (!is_array($extraClasses)) {
+        $extraClasses = [];
+    }
+
+    $classes = array_values(array_filter(array_merge([
+        'cms-shell-entity-view',
+        'cms-shell-entity-view--' . $region,
+    ], array_map(static fn ($class): string => trim((string)$class), $extraClasses))));
+
+    $data = is_array($options['data'] ?? null) ? $options['data'] : [];
+    $data['shell-entity-view'] = '1';
+    $data['shell-entity-region'] = $region;
+
+    $attrs = ' class="' . htmlspecialchars(implode(' ', $classes), ENT_QUOTES) . '"';
+    foreach ($data as $key => $value) {
+        $key = cmsShellEntityToken((string)$key, 'meta');
+        $value = trim((string)$value);
+        if ($value === '') {
+            continue;
+        }
+        $attrs .= ' data-' . $key . '="' . htmlspecialchars($value, ENT_QUOTES) . '"';
+    }
+
+    return '<section' . $attrs . '><div class="cms-shell-entity-view__body">' . $html . '</div></section>';
+}
+
+function cmsRenderShellEntityWidget(string $region, array $widget, string $html): string
+{
+    $type = cmsShellEntityToken((string)($widget['type'] ?? ''), 'unknown');
+    $title = trim((string)(($widget['props'] ?? [])['title'] ?? ''));
+
+    return cmsRenderShellEntityView($region, $html, [
+        'classes' => [
+            'cms-shell-entity-view--widget',
+            'cms-shell-entity-view--widget-' . $type,
+        ],
+        'data' => [
+            'shell-entity-node' => 'widget',
+            'shell-entity-widget-type' => $type,
+            'shell-entity-widget-title' => $title,
+        ],
+    ]);
 }
 
 function cmsEnsureCustomizerScopeSeeded(object $db, ?string $scope = null): void
@@ -1301,6 +1406,10 @@ function cmsRenderThemeLayoutStyle(object $db): string
     $css .= '.cms-public-shell{width:100%;max-width:var(--theme-site-max-width);margin-left:auto;margin-right:auto;}';
     $css .= '.cms-public-main{max-width:var(--theme-site-max-width);margin-left:auto;margin-right:auto;';
     $css .= 'padding:var(--theme-content-pt) var(--theme-content-px) var(--theme-content-pb);}';
+    $css .= '.cms-shell-entity-view{display:block;width:100%;}';
+    $css .= '.cms-shell-entity-view__body{width:100%;}';
+    $css .= '.cms-shell-entity-view--sidebar{height:100%;}';
+    $css .= '.cms-shell-entity-view--widget .widget,.cms-shell-entity-view--widget .sidebar-widget,.cms-shell-entity-view--widget .header-widget{width:100%;}';
 
     if (cmsActiveCustomizerScope() === 'ecommerce') {
         $css .= '.header-topbar .cms-public-shell,.site-header .cms-public-shell,.footer-widgets .cms-public-shell,.footer-bottom .cms-public-shell{width:100%;max-width:var(--theme-site-max-width);margin-left:auto;margin-right:auto;}';
@@ -1644,7 +1753,7 @@ function cmsRenderSingleFooterWidget(array $widget, object $db, array $cmsSettin
     }
 
     $html .= '</div></div>';
-    return $html;
+    return cmsRenderShellEntityWidget('footer', $widget, $html);
 }
 
 /**
@@ -1723,6 +1832,14 @@ function cmsRenderCustomizedFooter(object $db): string
     if ($themeWrapped !== '') {
         $html = $themeWrapped;
     }
+
+    $html = cmsRenderShellEntityView('footer', $html, [
+        'data' => [
+            'shell-entity-node' => 'region',
+            'shell-entity-kind' => 'footer',
+            'public-render-origin' => 'cms',
+        ],
+    ]);
 
     cmsCustomizerFragmentCacheSet('footer_html', ['html' => $html], ['cms:customizer:footer', 'cms:settings', 'cms:menus']);
     return $html;
@@ -1826,7 +1943,16 @@ function cmsRenderCustomizedSidebar(object $db, array $publicCtx = []): array
         }
     }
 
-    $html = $styleHtml . $bodyHtml;
+    $wrappedBodyHtml = cmsRenderShellEntityView('sidebar', $bodyHtml, [
+        'data' => [
+            'shell-entity-node' => 'region',
+            'shell-entity-kind' => 'sidebar',
+            'public-render-origin' => (string)($publicCtx['public_render_origin'] ?? 'cms'),
+            'public-presentation-mode' => (string)($publicCtx['public_presentation_mode'] ?? 'traditional'),
+        ],
+    ]);
+
+    $html = $styleHtml . $wrappedBodyHtml;
 
     $result = [
         'enabled' => true,
@@ -2037,7 +2163,7 @@ function cmsRenderSingleSidebarWidget(array $widget, object $db, array $cmsSetti
     }
 
     $html .= '</div>';
-    return $html;
+    return cmsRenderShellEntityWidget('sidebar', $widget, $html);
 }
 
 /**
@@ -2624,6 +2750,15 @@ function cmsRenderCustomizedHeader(object $db, array $publicCtx = []): string
         $html = $themeWrapped;
     }
 
+    $html = cmsRenderShellEntityView('header', $html, [
+        'data' => [
+            'shell-entity-node' => 'region',
+            'shell-entity-kind' => 'header',
+            'public-render-origin' => (string)($publicCtx['public_render_origin'] ?? 'cms'),
+            'public-presentation-mode' => (string)($publicCtx['public_presentation_mode'] ?? 'traditional'),
+        ],
+    ]);
+
     cmsCustomizerFragmentCacheSet('header_html:' . sha1(cmsCustomizerCurrentPathCacheToken()), ['html' => $html], ['cms:customizer:header', 'cms:settings', 'cms:menus']);
     return $html;
 }
@@ -2770,7 +2905,7 @@ function cmsRenderSingleHeaderWidget(array $widget, object $db, array $cmsSettin
     }
 
     $html .= '</div>';
-    return $html;
+    return cmsRenderShellEntityWidget('header', $widget, $html);
 }
 
 // ── Hook Registrations ──────────────────────────────────────────────

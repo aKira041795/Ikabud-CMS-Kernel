@@ -200,6 +200,10 @@ $pocManifest = cmsActiveThemeManifest();
 t('entity-commerce-poc manifest loads as active theme', ($pocManifest['slug'] ?? '') === 'entity-commerce-poc');
 t('entity-commerce-poc manifest declares ecommerce customizer scope', ($pocManifest['customizer_scope'] ?? '') === 'ecommerce');
 t('active customizer scope switches to ecommerce for entity-commerce-poc', cmsActiveCustomizerScope() === 'ecommerce');
+t('ecommerce storefront shop route resolves entity-view presentation mode', cmsEcommercePublicPresentationMode(['public_route_kind' => 'shop_index']) === 'entity_view');
+t('ecommerce storefront category route resolves entity-view presentation mode', cmsEcommercePublicPresentationMode(['public_route_kind' => 'shop_category']) === 'entity_view');
+t('ecommerce storefront product route resolves entity-view presentation mode', cmsEcommercePublicPresentationMode(['public_route_kind' => 'product_detail']) === 'entity_view');
+t('non-entity ecommerce routes remain traditional under ecommerce scope', cmsEcommercePublicPresentationMode(['public_route_kind' => 'cart']) === 'traditional');
 t('forced customizer scope resolves ecommerce route override', cmsRequestedCustomizerScope(['scope' => 'ecommerce']) === 'ecommerce');
 t('invalid customizer scope falls back to active theme scope', cmsRequestedCustomizerScope(['scope' => 'unknown-scope']) === 'ecommerce');
 t('ecommerce customizer section keys are namespaced', cmsCustomizerStorageSection('sidebar', 'ecommerce') === 'ecommerce:sidebar');
@@ -273,8 +277,13 @@ t('entity-commerce-poc theme stylesheet resolves to public assets', str_contains
 
 saveModuleSettings('cms', $oldSettings);
 cmsResetThemeRuntimeCache();
+$minimalScopeSettings = $oldSettings;
+$minimalScopeSettings['active_theme'] = 'minimal';
+saveModuleSettings('cms', $minimalScopeSettings);
+cmsResetThemeRuntimeCache();
 cmsActivateThemeSymlink('minimal');
 t('minimal theme manifest defaults to native customizer scope', cmsThemeCustomizerScopeFromManifest(['slug' => 'minimal']) === 'native');
+t('native scope storefront shop route resolves traditional mode', cmsEcommercePublicPresentationMode(['public_route_kind' => 'shop_index']) === 'traditional');
 
 // ═══════════════════════════════════════════════════════════════════
 // 6. Theme template content validation
@@ -297,6 +306,14 @@ t('customizer tracks per-section dirty state for scoped saves', str_contains($cu
 t('customizer save resolves only dirty sections', str_contains($customizerTemplateContent, 'const sections = this.sectionsToSave();'));
 t('customizer bootstraps dedicated storefront settings payload', str_contains($customizerTemplateContent, 'id="cz-storefront-settings"'));
 t('customizer saves dedicated storefront section payload', str_contains($customizerTemplateContent, "return { settings: this.storefrontSettings }"));
+
+$ecInitContent = file_get_contents(BASE_PATH . '/modules/ecommerce/helpers/00-init.php');
+$ecPublicShopHandlerContent = file_get_contents(BASE_PATH . '/modules/ecommerce/handlers/10-public-shop.php');
+t('ecommerce public render delegates CMS shell rendering through cms module context', str_contains($ecInitContent, "moduleWithContext('cms', static function () use (") && str_contains($ecInitContent, 'cmsPublicContext($context)'), $ecInitContent);
+t('ecommerce public render defines explicit presentation mode resolver', str_contains($ecInitContent, 'function ecResolvePublicPresentationMode('), $ecInitContent);
+t('ecommerce public render injects presentation mode into public context', str_contains($ecInitContent, "'public_presentation_mode' => "), $ecInitContent);
+t('product detail handler delegates canonical entity-view before ecommerce product preload', (($delegatePos = strpos($ecPublicShopHandlerContent, "executeModuleHandler('cms:cmsPublicEntityView'")) !== false) && (($productLoadPos = strpos($ecPublicShopHandlerContent, 'ecProductGetBySlug($slug)')) !== false) && $delegatePos < $productLoadPos, $ecPublicShopHandlerContent);
+t('product detail canonical delegation preserves ecommerce route metadata', str_contains($ecPublicShopHandlerContent, "'public_route_kind' => 'product_detail'") && str_contains($ecPublicShopHandlerContent, "'public_render_origin' => 'ecommerce'"), $ecPublicShopHandlerContent);
 
 $ecommerceLayoutContent = file_get_contents(BASE_PATH . '/templates/modules/ecommerce/layouts/public.disyl');
 t('ecommerce public layout consumes customized header output', str_contains($ecommerceLayoutContent, '{customized_header|raw}'));
@@ -485,6 +502,15 @@ t('entity presentation config exposes media ratio', ($presentation['media_ratio'
 t('entity presentation config exposes spacing scale', ($presentation['spacing_scale'] ?? '') === 'airy');
 t('entity presentation config exposes action size', ($presentation['action_size'] ?? '') === 'lg');
 
+$storefrontPublicContext = cmsPublicContext([
+    'public_render_origin' => 'ecommerce',
+    'public_route_kind' => 'shop_index',
+]);
+t('cmsPublicContext preserves ecommerce render origin metadata', ($storefrontPublicContext['public_render_origin'] ?? '') === 'ecommerce');
+t('cmsPublicContext preserves ecommerce route kind metadata', ($storefrontPublicContext['public_route_kind'] ?? '') === 'shop_index');
+t('cmsPublicContext resolves ecommerce presentation mode metadata', ($storefrontPublicContext['public_presentation_mode'] ?? '') === 'traditional');
+t('cmsPublicContext flags ecommerce-origin public rendering', !empty($storefrontPublicContext['is_ecommerce_public']));
+
 cmsCacheInvalidateByTags(['cms:customizer']);
 cmsCustomizerClearPersistentCache('colors');
 cmsCustomizerClearPersistentCache('theme');
@@ -556,12 +582,40 @@ t('public context appends storefront override style for ecommerce scope', str_co
 $customizedHeaderHtml = cmsRenderCustomizedHeader($db, $publicCtx);
 $customizedFooterHtml = cmsRenderCustomizedFooter($db);
 t('customized storefront header renders through theme partial wrapper', str_contains($customizedHeaderHtml, 'poc-header--customized'), $customizedHeaderHtml);
+t('customized storefront header emits shell entity-view wrapper', str_contains($customizedHeaderHtml, 'data-shell-entity-region="header"') && str_contains($customizedHeaderHtml, 'data-shell-entity-node="region"'), $customizedHeaderHtml);
 t('customized storefront header renders through theme inner shell', str_contains($customizedHeaderHtml, 'poc-header__inner--customized'), $customizedHeaderHtml);
 t('customized storefront header links site branding to shop root', str_contains($customizedHeaderHtml, '/ecommerce/shop'), $customizedHeaderHtml);
 t('customized storefront header fallback nav stays on storefront routes', str_contains($customizedHeaderHtml, '>Shop<') && str_contains($customizedHeaderHtml, '/ecommerce/my-orders'), $customizedHeaderHtml);
 t('customized storefront header search overlay posts to storefront query endpoint', str_contains($customizedHeaderHtml, '/ecommerce/shop') && str_contains($customizedHeaderHtml, 'name="search"'), $customizedHeaderHtml);
 t('customized storefront header exposes shared shell class for contained layout', str_contains($customizedHeaderHtml, 'container cms-public-shell'), $customizedHeaderHtml);
 t('customized storefront footer renders through theme partial wrapper', str_contains($customizedFooterHtml, 'poc-footer--customized'), $customizedFooterHtml);
+t('customized storefront footer emits shell entity-view wrapper', str_contains($customizedFooterHtml, 'data-shell-entity-region="footer"') && str_contains($customizedFooterHtml, 'data-shell-entity-node="region"'), $customizedFooterHtml);
+
+$headerWidgetEntityHtml = cmsRenderSingleHeaderWidget([
+    'type' => 'text',
+    'props' => [
+        'content' => 'Store hours',
+        'title' => 'Header Promo',
+    ],
+], $db, readCmsSettings(), '');
+t('header widget emits shell entity-view wrapper', str_contains($headerWidgetEntityHtml, 'data-shell-entity-node="widget"') && str_contains($headerWidgetEntityHtml, 'data-shell-entity-widget-type="text"') && str_contains($headerWidgetEntityHtml, 'data-shell-entity-region="header"'), $headerWidgetEntityHtml);
+
+$footerWidgetEntityHtml = cmsRenderSingleFooterWidget([
+    'type' => 'text',
+    'props' => [
+        'title' => 'Footer Note',
+        'content' => '<p>Footer body</p>',
+    ],
+], $db, readCmsSettings(), '');
+t('footer widget emits shell entity-view wrapper', str_contains($footerWidgetEntityHtml, 'data-shell-entity-node="widget"') && str_contains($footerWidgetEntityHtml, 'data-shell-entity-widget-type="text"') && str_contains($footerWidgetEntityHtml, 'data-shell-entity-region="footer"'), $footerWidgetEntityHtml);
+
+$sidebarWidgetEntityHtml = cmsRenderSingleSidebarWidget([
+    'type' => 'search_box',
+    'props' => [
+        'title' => 'Search the catalog',
+    ],
+], $db, readCmsSettings(), '');
+t('sidebar widget emits shell entity-view wrapper', str_contains($sidebarWidgetEntityHtml, 'data-shell-entity-node="widget"') && str_contains($sidebarWidgetEntityHtml, 'data-shell-entity-widget-type="search-box"') && str_contains($sidebarWidgetEntityHtml, 'data-shell-entity-region="sidebar"'), $sidebarWidgetEntityHtml);
 
 $menuHomeUrl = cmsResolveMenuItemUrl(['link_type' => 'home'], 'ecommerce');
 t('scope-aware home menu resolves to storefront home for ecommerce scope', str_ends_with($menuHomeUrl, '/ecommerce/shop'), $menuHomeUrl);
@@ -583,6 +637,9 @@ t('action block variant resolves to sticky-footer template', $variantActionTempl
 $entityTemplateContext = [
     'cms_head' => '',
     'structured_data' => '',
+    'public_render_origin' => 'ecommerce',
+    'public_route_kind' => 'product_detail',
+    'public_presentation_mode' => 'entity_view',
     'entity' => [
         'id' => 77,
         'title' => 'Entity Presentation Test',
@@ -618,6 +675,7 @@ $commerceHtml = cmsRender('modules/cms/public/entity.view.disyl', array_merge($e
     'entity_presentation' => $presentation,
 ]));
 t('commerce profile adds root class to canonical entity view', str_contains($commerceHtml, 'cms-entity-profile-commerce'), $commerceHtml);
+t('canonical entity view exposes storefront origin metadata', str_contains($commerceHtml, 'data-public-render-origin="ecommerce"') && str_contains($commerceHtml, 'data-public-route-kind="product_detail"') && str_contains($commerceHtml, 'data-public-presentation-mode="entity_view"'), $commerceHtml);
 t('commerce profile renders dedicated entity layout rail', str_contains($commerceHtml, 'cms-entity-layout'), $commerceHtml);
 
 $contentSettings = cmsValidateThemeLayoutSettings([
@@ -634,6 +692,69 @@ $contentBodyPos = strpos($contentHtml, 'cms-entity-body');
 $contentSummaryPos = strpos($contentHtml, 'test-pricing');
 t('content profile renders header before media', $contentHeaderPos !== false && $contentHeroPos !== false && $contentHeaderPos < $contentHeroPos);
 t('content profile renders summary after body', $contentBodyPos !== false && $contentSummaryPos !== false && $contentBodyPos < $contentSummaryPos);
+
+$pocEntityTemplateContent = file_get_contents(cmsThemesPath() . '/entity-commerce-poc/public/entity.view.disyl') ?: '';
+t('poc entity view template carries storefront origin metadata attributes', str_contains($pocEntityTemplateContent, 'data-public-render-origin="{public_render_origin}"') && str_contains($pocEntityTemplateContent, 'data-public-route-kind="{public_route_kind}"') && str_contains($pocEntityTemplateContent, 'data-public-presentation-mode="{public_presentation_mode}"'), $pocEntityTemplateContent);
+
+$listPageUrl = cmsEntityListPageUrl('/ecommerce/shop', 3, [
+    'search' => 'sourdough',
+    'cat' => 12,
+]);
+t('entity list page URL preserves storefront filters', $listPageUrl === '/ecommerce/shop?search=sourdough&cat=12&page=3', $listPageUrl);
+
+$listTemplateContext = [
+    'cms_head' => '',
+    'public_render_origin' => 'ecommerce',
+    'public_route_kind' => 'shop_index',
+    'public_presentation_mode' => 'entity_view',
+    'content_type' => 'product',
+    'list_title' => 'Catalog',
+    'list_description' => '3 results in Bread for "sourdough"',
+    'entity_list_context' => [
+        'result_count' => 3,
+        'result_label' => '3 results',
+        'active_filter_count' => 2,
+        'search' => 'sourdough',
+        'category_name' => 'Bread',
+        'category_slug' => 'bread',
+    ],
+    'item_base_url' => '/ecommerce/product',
+    'items' => [[
+        'id' => 55,
+        'entity_type' => 'product',
+        'slug' => 'rustic-loaf',
+        'title' => 'Rustic Loaf',
+        'url' => '/ecommerce/product/rustic-loaf',
+        'excerpt' => 'Slow-fermented bread.',
+        'primary_image_url' => '',
+        'capabilities' => [
+            'pricing' => false,
+            'inventory' => false,
+            'progress_tracking' => false,
+        ],
+        'capability_data' => [],
+        'list_card_pricing_html' => '<div class="card-price">$8.00</div>',
+        'list_card_inventory_html' => '<div class="card-stock">Low stock</div>',
+        'list_card_progress_html' => '<div class="card-progress">25% complete</div>',
+    ]],
+    'pagination' => [
+        'current' => 1,
+        'total' => 1,
+        'prev_url' => '',
+        'next_url' => '',
+    ],
+];
+$listHtml = cmsRender('modules/cms/public/entity.list.disyl', $listTemplateContext);
+t('canonical entity list exposes storefront metadata', str_contains($listHtml, 'data-public-render-origin="ecommerce"') && str_contains($listHtml, 'data-public-route-kind="shop_index"') && str_contains($listHtml, 'data-public-presentation-mode="entity_view"'), $listHtml);
+t('canonical entity list exposes list filter metadata', str_contains($listHtml, 'data-list-search="sourdough"') && str_contains($listHtml, 'data-list-category-slug="bread"') && str_contains($listHtml, 'data-list-result-count="3"') && str_contains($listHtml, 'data-list-active-filter-count="2"'), $listHtml);
+t('canonical entity list renders summary badges', str_contains($listHtml, '3 results') && str_contains($listHtml, 'Category: Bread') && str_contains($listHtml, 'Search: &quot;sourdough&quot;'), $listHtml);
+t('canonical entity list annotates list cards with entity metadata', str_contains($listHtml, 'data-entity-kind="list-item"') && str_contains($listHtml, 'data-entity-id="55"') && str_contains($listHtml, 'data-entity-slug="rustic-loaf"'), $listHtml);
+t('canonical entity list emits pre-rendered card capability fragments', str_contains($listHtml, '<div class="card-price">$8.00</div>') && str_contains($listHtml, '<div class="card-stock">Low stock</div>') && str_contains($listHtml, '<div class="card-progress">25% complete</div>'), $listHtml);
+
+$pocListTemplateContent = file_get_contents(cmsThemesPath() . '/entity-commerce-poc/public/entity.list.disyl') ?: '';
+t('poc entity list template carries storefront metadata attributes', str_contains($pocListTemplateContent, 'data-public-render-origin="{public_render_origin|default:\'cms\'}"') && str_contains($pocListTemplateContent, 'data-public-route-kind="{public_route_kind|default:\'generic\'}"') && str_contains($pocListTemplateContent, 'data-public-presentation-mode="{public_presentation_mode|default:\'traditional\'}"'), $pocListTemplateContent);
+t('poc entity list template carries list metadata attributes', str_contains($pocListTemplateContent, 'data-list-search="{entity_list_context.search|default:\'\'}"') && str_contains($pocListTemplateContent, 'data-list-category-slug="{entity_list_context.category_slug|default:\'\'}"') && str_contains($pocListTemplateContent, 'data-list-result-count="{entity_list_context.result_count|default:0}"') && str_contains($pocListTemplateContent, 'data-entity-kind="list-item"'), $pocListTemplateContent);
+t('poc entity list template renders handler-provided card fragments', str_contains($pocListTemplateContent, 'item.list_card_pricing_html') && str_contains($pocListTemplateContent, 'item.list_card_inventory_html') && str_contains($pocListTemplateContent, 'item.list_card_progress_html'), $pocListTemplateContent);
 
 // ═══════════════════════════════════════════════════════════════════
 // 6b. Shared render lock must not re-enter symlink mutation

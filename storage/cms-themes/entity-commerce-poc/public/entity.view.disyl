@@ -6,7 +6,7 @@
 {/block}
 
 {block content}
-<article class="poc-entity-view">
+<article class="poc-entity-view"{if public_render_origin} data-public-render-origin="{public_render_origin}"{/if}{if public_route_kind} data-public-route-kind="{public_route_kind}"{/if}{if public_presentation_mode} data-public-presentation-mode="{public_presentation_mode}"{/if}>
 
     <header class="poc-entity-view__header">
         <div>

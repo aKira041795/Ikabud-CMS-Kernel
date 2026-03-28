@@ -5,19 +5,42 @@
 {/block}
 
 {block content}
-<section class="cms-entity-list w-full max-w-5xl mx-auto px-4 py-8">
+<section
+    class="cms-entity-list w-full max-w-5xl mx-auto px-4 py-8"
+    data-public-render-origin="{public_render_origin|default:'cms'}"
+    data-public-route-kind="{public_route_kind|default:'generic'}"
+    data-public-presentation-mode="{public_presentation_mode|default:'traditional'}"
+    data-list-search="{entity_list_context.search|default:''}"
+    data-list-category-slug="{entity_list_context.category_slug|default:''}"
+    data-list-result-count="{entity_list_context.result_count|default:0}"
+    data-list-active-filter-count="{entity_list_context.active_filter_count|default:0}"
+>
 
     {if list_title}
     <header class="mb-6">
         <h1 class="text-2xl font-bold text-gray-900">{list_title}</h1>
         {if list_description}<p class="text-gray-500 mt-1">{list_description}</p>{/if}
+        {if entity_list_context.result_label or entity_list_context.category_name or entity_list_context.search}
+        <div class="mt-3 flex flex-wrap gap-2 text-xs font-medium text-gray-500">
+            {if entity_list_context.result_label}<span class="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-1">{entity_list_context.result_label}</span>{/if}
+            {if entity_list_context.category_name}<span class="inline-flex items-center rounded-full bg-sky-50 px-2.5 py-1 text-sky-700">Category: {entity_list_context.category_name}</span>{/if}
+            {if entity_list_context.search}<span class="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-1 text-amber-700">Search: &quot;{entity_list_context.search}&quot;</span>{/if}
+        </div>
+        {/if}
     </header>
     {/if}
 
     {if items}
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
         {foreach items as item}
-        <a href="{item.url}" class="group block bg-white rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow overflow-hidden no-underline">
+        <a
+            href="{item.url}"
+            class="group block bg-white rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow overflow-hidden no-underline"
+            data-entity-kind="list-item"
+            data-entity-type="{item.entity_type|default:content_type|default:'generic'}"
+            data-entity-id="{item.id|default:''}"
+            data-entity-slug="{item.slug|default:''}"
+        >
 
             {if item.primary_image_url}
             <div class="aspect-video overflow-hidden bg-gray-100">
@@ -34,37 +57,9 @@
                 <p class="text-sm text-gray-500 line-clamp-2">{item.excerpt}</p>
                 {/if}
 
-                {* Inline price for list cards when pricing is attached *}
-                {if item.capabilities.pricing and item.capability_data.pricing.price}
-                <div class="mt-2">
-                    {if item.capability_data.pricing.sale_price}
-                    <span class="text-sky-600 font-bold text-sm">{item.capability_data.pricing.currency} {item.capability_data.pricing.sale_price | number_format:2}</span>
-                    <span class="text-gray-400 line-through text-xs ml-1">{item.capability_data.pricing.price | number_format:2}</span>
-                    {else}
-                    <span class="text-sky-600 font-bold text-sm">{item.capability_data.pricing.currency} {item.capability_data.pricing.price | number_format:2}</span>
-                    {/if}
-                </div>
-                {/if}
-
-                {if item.capabilities.inventory and item.capability_data.inventory.track_stock}
-                <div class="mt-2 text-xs font-medium">
-                    {if item.capability_data.inventory.out_of_stock or not item.capability_data.inventory.in_stock}
-                    <span class="text-red-600">Out of stock</span>
-                    {elseif item.capability_data.inventory.low_stock}
-                    <span class="text-amber-600">Low stock - only {item.capability_data.inventory.stock_qty} left</span>
-                    {/if}
-                </div>
-                {/if}
-
-                {* Progress pill for enrolled courses *}
-                {if item.capabilities.progress_tracking and item.capability_data.progress_tracking.authenticated}
-                <div class="mt-2">
-                    <div class="h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
-                        <div class="h-full bg-sky-400 rounded-full" style="width:{item.capability_data.progress_tracking.percent}%"></div>
-                    </div>
-                    <span class="text-xs text-gray-400 mt-0.5 block">{item.capability_data.progress_tracking.percent}% complete</span>
-                </div>
-                {/if}
+                {if item.list_card_pricing_html}{item.list_card_pricing_html | raw}{/if}
+                {if item.list_card_inventory_html}{item.list_card_inventory_html | raw}{/if}
+                {if item.list_card_progress_html}{item.list_card_progress_html | raw}{/if}
             </div>
         </a>
         {/foreach}

@@ -84,15 +84,20 @@ t('product without image uses ecommerce placeholder', cmsPublicListItemPrimaryIm
 t('non-product without image stays empty', cmsPublicListItemPrimaryImageUrl($nonProduct) === '');
 
 $template = file_get_contents(__DIR__ . '/../templates/modules/cms/public/entity.list.disyl') ?: '';
-$inventoryTemplate = file_get_contents(__DIR__ . '/../templates/modules/cms/public/blocks/inventory.block.disyl') ?: '';
+$inventoryTemplate = file_get_contents(__DIR__ . '/../templates/modules/cms/public/blocks/list-card-inventory.block.disyl') ?: '';
+$pricingTemplate = file_get_contents(__DIR__ . '/../templates/modules/cms/public/blocks/list-card-pricing.block.disyl') ?: '';
+$progressTemplate = file_get_contents(__DIR__ . '/../templates/modules/cms/public/blocks/list-card-progress.block.disyl') ?: '';
 t('entity list template reads primary_image_url', str_contains($template, 'item.primary_image_url'));
 t('entity list template no longer renders featured_image_url directly for src', !str_contains($template, 'src="{item.featured_image_url}"'));
-t('entity list template includes low stock notice', str_contains($template, 'item.capability_data.inventory.low_stock'));
-t('entity list template includes out of stock notice', str_contains($template, 'item.capability_data.inventory.out_of_stock'));
+t('entity list template renders prebuilt inventory fragment', str_contains($template, 'item.list_card_inventory_html'));
+t('entity list template renders prebuilt pricing fragment', str_contains($template, 'item.list_card_pricing_html'));
+t('entity list template renders prebuilt progress fragment', str_contains($template, 'item.list_card_progress_html'));
 t('inventory block uses low_stock flag', str_contains($inventoryTemplate, 'capability_data.inventory.low_stock'));
 t('inventory block uses out_of_stock flag', str_contains($inventoryTemplate, 'capability_data.inventory.out_of_stock'));
 t('inventory block uses track_stock key', str_contains($inventoryTemplate, 'capability_data.inventory.track_stock'));
 t('inventory block uses stock_qty key', str_contains($inventoryTemplate, 'capability_data.inventory.stock_qty'));
+t('pricing block uses sale_price key', str_contains($pricingTemplate, 'capability_data.pricing.sale_price'));
+t('progress block uses percent key', str_contains($progressTemplate, 'capability_data.progress_tracking.percent'));
 
 if (is_string($cleanupFile) && is_file($cleanupFile)) {
     @unlink($cleanupFile);

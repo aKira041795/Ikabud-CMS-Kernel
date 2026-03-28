@@ -1,0 +1,6 @@
+{if capability_data.progress_tracking and capability_data.progress_tracking.authenticated}
+<div class="poc-progress-rail" aria-label="Progress">
+    <span class="poc-progress-rail__bar" style="width:{capability_data.progress_tracking.percent}%"></span>
+</div>
+<span class="poc-progress-label">{capability_data.progress_tracking.percent}% complete</span>
+{/if}

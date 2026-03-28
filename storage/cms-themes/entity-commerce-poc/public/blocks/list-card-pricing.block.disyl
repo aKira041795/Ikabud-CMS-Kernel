@@ -1,0 +1,10 @@
+{if capability_data.pricing and capability_data.pricing.price}
+<div class="poc-price-pill">
+    {if capability_data.pricing.sale_price}
+    <span class="poc-price-pill__current">{capability_data.pricing.currency} {capability_data.pricing.sale_price | number_format:2}</span>
+    <span class="poc-price-pill__previous">{capability_data.pricing.currency} {capability_data.pricing.price | number_format:2}</span>
+    {else}
+    <span class="poc-price-pill__current">{capability_data.pricing.currency} {capability_data.pricing.price | number_format:2}</span>
+    {/if}
+</div>
+{/if}
