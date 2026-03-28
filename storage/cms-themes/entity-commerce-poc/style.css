@@ -292,6 +292,14 @@ body.entity-commerce-poc {
     gap: 22px;
 }
 
+.poc-catalog-grid--compact {
+    gap: 16px;
+}
+
+.poc-catalog-grid--airy {
+    gap: 30px;
+}
+
 .poc-product-card {
     display: block;
     color: inherit;
@@ -334,6 +342,16 @@ body.entity-commerce-poc {
     display: grid;
     gap: 18px;
     padding: 20px;
+}
+
+.poc-product-card__body--compact {
+    gap: 14px;
+    padding: 16px;
+}
+
+.poc-product-card__body--airy {
+    gap: 22px;
+    padding: 24px;
 }
 
 .poc-product-card__title {

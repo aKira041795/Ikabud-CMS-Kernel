@@ -6,7 +6,7 @@
 
 {block content}
 <section
-    class="poc-entity-list"
+    class="poc-entity-list poc-entity-list--density-{entity_presentation.list_card_density|default:'comfortable'}"
     data-public-render-origin="{public_render_origin|default:'cms'}"
     data-public-route-kind="{public_route_kind|default:'generic'}"
     data-public-presentation-mode="{public_presentation_mode|default:'traditional'}"
@@ -25,7 +25,7 @@
             {else}
             <p class="poc-summary">This storefront grid is powered by the CMS universal entity list contract, not a storefront-only template family.</p>
             {/if}
-            {if entity_list_context.result_label or entity_list_context.category_name or entity_list_context.search}
+            {if entity_presentation.list_show_filter_summary and (entity_list_context.result_label or entity_list_context.category_name or entity_list_context.search)}
             <div class="poc-entity-list__filters">
                 {if entity_list_context.result_label}<span class="poc-entity-list__filter">{entity_list_context.result_label}</span>{/if}
                 {if entity_list_context.category_name}<span class="poc-entity-list__filter poc-entity-list__filter--category">{entity_list_context.category_name}</span>{/if}
@@ -39,7 +39,7 @@
     </div>
 
     {if items}
-    <div class="poc-catalog-grid">
+    <div class="poc-catalog-grid poc-catalog-grid--{entity_presentation.list_card_density|default:'comfortable'}">
         {foreach items as item}
         <a
             href="{item.url}"
@@ -57,11 +57,11 @@
                 {/if}
             </div>
 
-            <div class="poc-product-card__body">
+            <div class="poc-product-card__body poc-product-card__body--{entity_presentation.list_card_density|default:'comfortable'}">
                 <div class="poc-product-card__copy">
                     <h2 class="poc-product-card__title">{item.title}</h2>
-                    {if item.excerpt}
-                    <p class="poc-product-card__excerpt">{item.excerpt}</p>
+                    {if item.list_card_excerpt}
+                    <p class="poc-product-card__excerpt">{item.list_card_excerpt}</p>
                     {/if}
                 </div>
 

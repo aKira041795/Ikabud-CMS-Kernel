@@ -698,6 +698,10 @@ function cmsEntityPresentationSettingsDefaults(): array
         'entity_media_ratio'      => 'auto',
         'entity_spacing_scale'    => 'comfortable',
         'entity_action_size'      => 'md',
+        'entity_list_show_filter_summary' => '1',
+        'entity_list_card_density' => 'comfortable',
+        'entity_list_show_excerpt' => '1',
+        'entity_list_excerpt_length' => '120',
     ];
 }
 
@@ -731,6 +735,13 @@ function cmsValidateEntityPresentationSettings(array $input, ?array $defaults = 
     $validated['entity_action_size'] = in_array(($input['entity_action_size'] ?? ''), ['sm', 'md', 'lg'], true)
         ? (string)$input['entity_action_size']
         : $defaults['entity_action_size'];
+    $validated['entity_list_show_filter_summary'] = (int)(bool)($input['entity_list_show_filter_summary'] ?? $defaults['entity_list_show_filter_summary']);
+    $validated['entity_list_card_density'] = in_array(($input['entity_list_card_density'] ?? ''), ['compact', 'comfortable', 'airy'], true)
+        ? (string)$input['entity_list_card_density']
+        : $defaults['entity_list_card_density'];
+    $validated['entity_list_show_excerpt'] = (int)(bool)($input['entity_list_show_excerpt'] ?? $defaults['entity_list_show_excerpt']);
+    $excerptLength = (int)($input['entity_list_excerpt_length'] ?? $defaults['entity_list_excerpt_length']);
+    $validated['entity_list_excerpt_length'] = (string)max(40, min(220, $excerptLength ?: 120));
 
     return $validated;
 }
@@ -1172,6 +1183,10 @@ function cmsEntityPresentationConfig(array $themeSettings): array
     $spacingScale = (string)$presentationSettings['entity_spacing_scale'];
     $actionSize = (string)$presentationSettings['entity_action_size'];
     $summarySticky = !empty($presentationSettings['entity_summary_sticky']) ? 1 : 0;
+    $listShowFilterSummary = !empty($presentationSettings['entity_list_show_filter_summary']) ? 1 : 0;
+    $listCardDensity = (string)($presentationSettings['entity_list_card_density'] ?? 'comfortable');
+    $listShowExcerpt = !empty($presentationSettings['entity_list_show_excerpt']) ? 1 : 0;
+    $listExcerptLength = (int)($presentationSettings['entity_list_excerpt_length'] ?? 120);
 
     return [
         'layout_profile'      => $profile,
@@ -1186,6 +1201,10 @@ function cmsEntityPresentationConfig(array $themeSettings): array
         'media_ratio'         => $mediaRatio,
         'spacing_scale'       => $spacingScale,
         'action_size'         => $actionSize,
+        'list_show_filter_summary' => $listShowFilterSummary,
+        'list_card_density'   => $listCardDensity,
+        'list_show_excerpt'   => $listShowExcerpt,
+        'list_excerpt_length' => $listExcerptLength,
     ];
 }
 
@@ -1360,6 +1379,20 @@ function cmsRenderEntityPresentationCss(array $settings): string
         $css .= '.cms-entity-hero img{width:100%;height:100%;object-fit:cover;max-height:none;border-radius:0;}';
     }
     $css .= '.cms-action-block .cms-btn-primary,.cms-action-block .cms-btn-secondary,.cms-action-block .cms-btn-disabled{padding:' . $actionPadY . ' ' . $actionPadX . ';font-size:' . $actionFontSize . ';border-radius:var(--radius-md);}';
+    $listDensity = (string)($presentation['entity_list_card_density'] ?? 'comfortable');
+    $listGap = '1.5rem';
+    $listCardPadding = '1rem';
+    if ($listDensity === 'compact') {
+        $listGap = '1rem';
+        $listCardPadding = '0.875rem';
+    } elseif ($listDensity === 'airy') {
+        $listGap = '2rem';
+        $listCardPadding = '1.25rem';
+    }
+    $css .= '.cms-entity-list{--theme-entity-list-gap:' . $listGap . ';--theme-entity-list-card-padding:' . $listCardPadding . ';}';
+    $css .= '.cms-entity-list__grid{gap:var(--theme-entity-list-gap);}';
+    $css .= '.cms-entity-card__body{display:flex;flex-direction:column;gap:calc(var(--theme-entity-list-gap) * 0.5);padding:var(--theme-entity-list-card-padding);}';
+    $css .= '.cms-entity-card__excerpt{margin:0;}';
     $css .= '@media(max-width:1024px){.cms-entity-profile-commerce .cms-entity-layout{grid-template-columns:1fr;}.cms-entity-profile-commerce .cms-entity-summary{position:static;}}';
 
     return $css;

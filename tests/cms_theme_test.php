@@ -442,6 +442,10 @@ $validatedEntity = cmsValidateThemeLayoutSettings([
     'entity_media_ratio' => '16:9',
     'entity_spacing_scale' => 'airy',
     'entity_action_size' => 'lg',
+    'entity_list_show_filter_summary' => '1',
+    'entity_list_card_density' => 'airy',
+    'entity_list_show_excerpt' => '1',
+    'entity_list_excerpt_length' => '180',
 ]);
 $validatedStorefront = cmsValidateStorefrontSettings([
     'entity_layout_profile' => 'commerce',
@@ -452,6 +456,10 @@ $validatedStorefront = cmsValidateStorefrontSettings([
     'entity_media_ratio' => '4:3',
     'entity_spacing_scale' => 'compact',
     'entity_action_size' => 'lg',
+    'entity_list_show_filter_summary' => '0',
+    'entity_list_card_density' => 'compact',
+    'entity_list_show_excerpt' => '0',
+    'entity_list_excerpt_length' => '90',
 ]);
 t('entity layout profile validates approved profile', ($validatedEntity['entity_layout_profile'] ?? '') === 'commerce');
 t('entity pricing variant validates approved variant', ($validatedEntity['entity_pricing_variant'] ?? '') === 'featured');
@@ -461,9 +469,17 @@ t('entity summary sticky validates boolean', (int)($validatedEntity['entity_summ
 t('entity media ratio validates approved option', ($validatedEntity['entity_media_ratio'] ?? '') === '16:9');
 t('entity spacing scale validates approved option', ($validatedEntity['entity_spacing_scale'] ?? '') === 'airy');
 t('entity action size validates approved option', ($validatedEntity['entity_action_size'] ?? '') === 'lg');
+t('entity list filter summary validates boolean', (int)($validatedEntity['entity_list_show_filter_summary'] ?? 0) === 1);
+t('entity list card density validates approved option', ($validatedEntity['entity_list_card_density'] ?? '') === 'airy');
+t('entity list excerpt toggle validates boolean', (int)($validatedEntity['entity_list_show_excerpt'] ?? 0) === 1);
+t('entity list excerpt length validates approved range', ($validatedEntity['entity_list_excerpt_length'] ?? '') === '180');
 t('storefront settings validate approved profile', ($validatedStorefront['entity_layout_profile'] ?? '') === 'commerce');
 t('storefront settings validate storefront summary width', ($validatedStorefront['entity_summary_width'] ?? '') === '390');
 t('storefront settings validate storefront media ratio', ($validatedStorefront['entity_media_ratio'] ?? '') === '4:3');
+t('storefront settings validate list card density', ($validatedStorefront['entity_list_card_density'] ?? '') === 'compact');
+t('storefront settings validate filter summary toggle', (int)($validatedStorefront['entity_list_show_filter_summary'] ?? 1) === 0);
+t('storefront settings validate excerpt toggle', (int)($validatedStorefront['entity_list_show_excerpt'] ?? 1) === 0);
+t('storefront settings validate excerpt length', ($validatedStorefront['entity_list_excerpt_length'] ?? '') === '90');
 
 $invalidEntity = cmsValidateThemeLayoutSettings([
     'entity_layout_profile' => 'wild',
@@ -474,6 +490,10 @@ $invalidEntity = cmsValidateThemeLayoutSettings([
     'entity_media_ratio' => '2:1',
     'entity_spacing_scale' => 'dense',
     'entity_action_size' => 'xl',
+    'entity_list_show_filter_summary' => '',
+    'entity_list_card_density' => 'dense',
+    'entity_list_show_excerpt' => '',
+    'entity_list_excerpt_length' => '999',
 ]);
 t('invalid entity profile falls back to default', ($invalidEntity['entity_layout_profile'] ?? '') === 'default');
 t('invalid pricing variant falls back to default block', ($invalidEntity['entity_pricing_variant'] ?? 'x') === '');
@@ -483,6 +503,10 @@ t('invalid entity summary sticky falls back to disabled boolean', (int)($invalid
 t('invalid entity media ratio falls back to auto', ($invalidEntity['entity_media_ratio'] ?? '') === 'auto');
 t('invalid entity spacing scale falls back to comfortable', ($invalidEntity['entity_spacing_scale'] ?? '') === 'comfortable');
 t('invalid entity action size falls back to md', ($invalidEntity['entity_action_size'] ?? '') === 'md');
+t('invalid entity list filter summary falls back to disabled boolean', (int)($invalidEntity['entity_list_show_filter_summary'] ?? 1) === 0);
+t('invalid entity list density falls back to comfortable', ($invalidEntity['entity_list_card_density'] ?? '') === 'comfortable');
+t('invalid entity list excerpt toggle falls back to disabled boolean', (int)($invalidEntity['entity_list_show_excerpt'] ?? 1) === 0);
+t('invalid entity list excerpt length clamps to max', ($invalidEntity['entity_list_excerpt_length'] ?? '') === '220');
 
 $validatedColors = cmsValidateColorsSettings([
     'storefront_surface_bg' => '#101820',
@@ -501,6 +525,10 @@ t('entity presentation config exposes sticky summary flag', (int)($presentation[
 t('entity presentation config exposes media ratio', ($presentation['media_ratio'] ?? '') === '16:9');
 t('entity presentation config exposes spacing scale', ($presentation['spacing_scale'] ?? '') === 'airy');
 t('entity presentation config exposes action size', ($presentation['action_size'] ?? '') === 'lg');
+t('entity presentation config exposes list filter summary flag', (int)($presentation['list_show_filter_summary'] ?? 0) === 1);
+t('entity presentation config exposes list card density', ($presentation['list_card_density'] ?? '') === 'airy');
+t('entity presentation config exposes list excerpt flag', (int)($presentation['list_show_excerpt'] ?? 0) === 1);
+t('entity presentation config exposes list excerpt length', (int)($presentation['list_excerpt_length'] ?? 0) === 180);
 
 $storefrontPublicContext = cmsPublicContext([
     'public_render_origin' => 'ecommerce',
@@ -548,6 +576,7 @@ t('theme render exposes entity summary width variable', str_contains($themeStyle
 t('theme render styles commerce entity layout rail', str_contains($themeStyle, '.cms-entity-profile-commerce .cms-entity-layout{display:grid;'), $themeStyle);
 t('theme render styles sticky entity summary rail', str_contains($themeStyle, '.cms-entity-profile-commerce .cms-entity-summary{position:sticky;'), $themeStyle);
 t('theme render styles action button sizing', str_contains($themeStyle, '.cms-action-block .cms-btn-primary,.cms-action-block .cms-btn-secondary,.cms-action-block .cms-btn-disabled{padding:'), $themeStyle);
+t('theme render styles entity list density contract', str_contains($themeStyle, '.cms-entity-list{--theme-entity-list-gap:') && str_contains($themeStyle, '.cms-entity-card__body{display:flex;'), $themeStyle);
 
 $pocSettings = $oldSettings;
 $pocSettings['active_theme'] = 'entity-commerce-poc';
@@ -733,10 +762,17 @@ $listTemplateContext = [
             'progress_tracking' => false,
         ],
         'capability_data' => [],
+        'list_card_excerpt' => 'Slow-fermented bread.',
         'list_card_pricing_html' => '<div class="card-price">$8.00</div>',
         'list_card_inventory_html' => '<div class="card-stock">Low stock</div>',
         'list_card_progress_html' => '<div class="card-progress">25% complete</div>',
     ]],
+    'entity_presentation' => [
+        'list_show_filter_summary' => 1,
+        'list_card_density' => 'compact',
+        'list_show_excerpt' => 1,
+        'list_excerpt_length' => 90,
+    ],
     'pagination' => [
         'current' => 1,
         'total' => 1,
@@ -748,13 +784,44 @@ $listHtml = cmsRender('modules/cms/public/entity.list.disyl', $listTemplateConte
 t('canonical entity list exposes storefront metadata', str_contains($listHtml, 'data-public-render-origin="ecommerce"') && str_contains($listHtml, 'data-public-route-kind="shop_index"') && str_contains($listHtml, 'data-public-presentation-mode="entity_view"'), $listHtml);
 t('canonical entity list exposes list filter metadata', str_contains($listHtml, 'data-list-search="sourdough"') && str_contains($listHtml, 'data-list-category-slug="bread"') && str_contains($listHtml, 'data-list-result-count="3"') && str_contains($listHtml, 'data-list-active-filter-count="2"'), $listHtml);
 t('canonical entity list renders summary badges', str_contains($listHtml, '3 results') && str_contains($listHtml, 'Category: Bread') && str_contains($listHtml, 'Search: &quot;sourdough&quot;'), $listHtml);
+t('canonical entity list applies density class and excerpt rendering', str_contains($listHtml, 'cms-entity-list--density-compact') && str_contains($listHtml, 'Slow-fermented bread.'), $listHtml);
 t('canonical entity list annotates list cards with entity metadata', str_contains($listHtml, 'data-entity-kind="list-item"') && str_contains($listHtml, 'data-entity-id="55"') && str_contains($listHtml, 'data-entity-slug="rustic-loaf"'), $listHtml);
 t('canonical entity list emits pre-rendered card capability fragments', str_contains($listHtml, '<div class="card-price">$8.00</div>') && str_contains($listHtml, '<div class="card-stock">Low stock</div>') && str_contains($listHtml, '<div class="card-progress">25% complete</div>'), $listHtml);
+
+$listWithoutSummaryHtml = cmsRender('modules/cms/public/entity.list.disyl', array_merge($listTemplateContext, [
+    'entity_presentation' => [
+        'list_show_filter_summary' => 0,
+        'list_card_density' => 'airy',
+        'list_show_excerpt' => 0,
+        'list_excerpt_length' => 120,
+    ],
+    'items' => [[
+        'id' => 55,
+        'entity_type' => 'product',
+        'slug' => 'rustic-loaf',
+        'title' => 'Rustic Loaf',
+        'url' => '/ecommerce/product/rustic-loaf',
+        'excerpt' => 'Slow-fermented bread.',
+        'primary_image_url' => '',
+        'capabilities' => [
+            'pricing' => false,
+            'inventory' => false,
+            'progress_tracking' => false,
+        ],
+        'capability_data' => [],
+        'list_card_excerpt' => '',
+        'list_card_pricing_html' => '',
+        'list_card_inventory_html' => '',
+        'list_card_progress_html' => '',
+    ]],
+]));
+t('canonical entity list can suppress summary badges and excerpts', !str_contains($listWithoutSummaryHtml, 'Category: Bread') && !str_contains($listWithoutSummaryHtml, 'Slow-fermented bread.'), $listWithoutSummaryHtml);
 
 $pocListTemplateContent = file_get_contents(cmsThemesPath() . '/entity-commerce-poc/public/entity.list.disyl') ?: '';
 t('poc entity list template carries storefront metadata attributes', str_contains($pocListTemplateContent, 'data-public-render-origin="{public_render_origin|default:\'cms\'}"') && str_contains($pocListTemplateContent, 'data-public-route-kind="{public_route_kind|default:\'generic\'}"') && str_contains($pocListTemplateContent, 'data-public-presentation-mode="{public_presentation_mode|default:\'traditional\'}"'), $pocListTemplateContent);
 t('poc entity list template carries list metadata attributes', str_contains($pocListTemplateContent, 'data-list-search="{entity_list_context.search|default:\'\'}"') && str_contains($pocListTemplateContent, 'data-list-category-slug="{entity_list_context.category_slug|default:\'\'}"') && str_contains($pocListTemplateContent, 'data-list-result-count="{entity_list_context.result_count|default:0}"') && str_contains($pocListTemplateContent, 'data-entity-kind="list-item"'), $pocListTemplateContent);
 t('poc entity list template renders handler-provided card fragments', str_contains($pocListTemplateContent, 'item.list_card_pricing_html') && str_contains($pocListTemplateContent, 'item.list_card_inventory_html') && str_contains($pocListTemplateContent, 'item.list_card_progress_html'), $pocListTemplateContent);
+t('poc entity list template exposes density and excerpt controls', str_contains($pocListTemplateContent, 'poc-entity-list--density-{entity_presentation.list_card_density|default:\'comfortable\'}') && str_contains($pocListTemplateContent, 'item.list_card_excerpt') && str_contains($pocListTemplateContent, 'entity_presentation.list_show_filter_summary'), $pocListTemplateContent);
 
 // ═══════════════════════════════════════════════════════════════════
 // 6b. Shared render lock must not re-enter symlink mutation

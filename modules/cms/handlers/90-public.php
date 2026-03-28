@@ -1240,6 +1240,25 @@ function cmsPublicEntityListItemBlockContext(array $item, array $pageContext, st
     return $itemContext;
 }
 
+function cmsEntityListCardExcerpt(string $excerpt, int $length): string
+{
+    $excerpt = trim($excerpt);
+    if ($excerpt === '') {
+        return '';
+    }
+
+    $length = max(40, min(220, $length));
+    if (function_exists('mb_strimwidth')) {
+        return mb_strimwidth($excerpt, 0, $length, '...');
+    }
+
+    if (strlen($excerpt) <= $length) {
+        return $excerpt;
+    }
+
+    return rtrim(substr($excerpt, 0, max(0, $length - 3))) . '...';
+}
+
 /**
  * Public entity listing for custom content types.
  * Route: /cms/{type}
@@ -1469,6 +1488,10 @@ function cmsPublicEntityList(array $params = []): void
     foreach ($items as &$item) {
         $itemContext = cmsPublicEntityListItemBlockContext($item, $pageContext, $type);
         $capabilities = is_array($itemContext['capabilities'] ?? null) ? $itemContext['capabilities'] : [];
+        $presentation = is_array($pageContext['entity_presentation'] ?? null) ? $pageContext['entity_presentation'] : [];
+        $item['list_card_excerpt'] = !empty($presentation['list_show_excerpt'])
+            ? cmsEntityListCardExcerpt((string)($item['excerpt'] ?? ''), (int)($presentation['list_excerpt_length'] ?? 120))
+            : '';
 
         $item['list_card_pricing_html'] = !empty($capabilities['pricing'])
             ? cmsRenderThemeAwareBlockTemplate('modules/cms/public/blocks/list-card-pricing.block.disyl', $itemContext)
