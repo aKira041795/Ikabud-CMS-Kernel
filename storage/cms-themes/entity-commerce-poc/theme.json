@@ -1,8 +1,8 @@
 {
-    "name": "Entity Commerce POC",
-    "version": "0.1.0",
+    "name": "Entity Commerce",
+    "version": "1.0.0",
     "author": "GitHub Copilot",
-    "description": "Proof-of-concept theme showing ecommerce storefront routes through the CMS universal entity list and entity view contracts.",
+    "description": "Ecommerce storefront theme with product showcase, pricing, inventory, and cart integration through the CMS universal entity rendering system.",
     "customizer_scope": "ecommerce",
     "supports": {
         "menus": [

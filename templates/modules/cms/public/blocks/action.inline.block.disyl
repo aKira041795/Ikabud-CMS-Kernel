@@ -5,6 +5,7 @@
     <form method="POST" action="{cart_action_url}" class="inline">
         <input type="hidden" name="product_id" value="{entity.id}">
         <input type="hidden" name="qty" value="1">
+        <input type="hidden" name="csrf_token" value="{csrf_token}">
         <button type="submit"
                 class="cms-btn-primary inline-flex items-center gap-2 rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-slate-800 active:bg-slate-950">
             Add to Cart
@@ -17,7 +18,7 @@
         {/if}
     {elseif capabilities.pricing and not cart_enabled}
     <span class="cms-btn-disabled inline-flex items-center gap-2 rounded-xl bg-slate-100 px-5 py-2.5 text-sm font-semibold text-slate-500">
-        Price shown - cart coming soon
+        Coming Soon
     </span>
     {/if}
 

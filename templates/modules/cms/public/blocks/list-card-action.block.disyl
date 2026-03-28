@@ -4,6 +4,7 @@
     <form method="POST" action="{cart_action_url}" class="cms-list-card-action inline">
         <input type="hidden" name="product_id" value="{entity.id}">
         <input type="hidden" name="qty" value="1">
+        <input type="hidden" name="csrf_token" value="{csrf_token}">
         <button type="submit" class="cms-btn-primary inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-sky-600 text-white text-xs font-semibold hover:bg-sky-700 transition-colors">
             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-9H5.4M7 13l-1.5 6h13M7 13L5.4 5M17 13l1.5 6M9 21a1 1 0 100-2 1 1 0 000 2zm8 0a1 1 0 100-2 1 1 0 000 2z"/></svg>
             Add to Cart
