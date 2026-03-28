@@ -1,0 +1,15 @@
+{if capability_data.pricing and capability_data.pricing.price}
+<div class="cms-entity-card__pricing cms-entity-card__pricing--minimal mt-2 text-xs font-medium uppercase tracking-[0.14em] text-slate-500">
+    <span>Price</span>
+    <span class="cms-price-current ml-2 text-sm font-semibold normal-case text-slate-900">
+        {if capability_data.pricing.sale_price}
+            {capability_data.pricing.currency} {capability_data.pricing.sale_price | number_format:2}
+        {else}
+            {capability_data.pricing.currency} {capability_data.pricing.price | number_format:2}
+        {/if}
+    </span>
+    {if capability_data.pricing.sale_price}
+    <span class="cms-price-previous ml-2 text-xs normal-case text-slate-400 line-through">{capability_data.pricing.currency} {capability_data.pricing.price | number_format:2}</span>
+    {/if}
+</div>
+{/if}

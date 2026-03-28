@@ -556,6 +556,9 @@ modules/cms/public/blocks/pricing.block.disyl           ← default fallback
 | `media_gallery`     | `carousel`, `grid`               | `grid`      |
 | `action`            | `inline`, `sticky-footer`        | `inline`    |
 | `inventory`         | `compact`                        | *(none)*    |
+| `list-card-pricing` | `featured`, `minimal`            | *(none)*    |
+| `list-card-inventory` | `compact`                      | *(none)*    |
+| `list-card-progress` | `inline`                        | *(none)*    |
 
 Variants not in this table are rejected by `cmsResolveBlockTemplate()`. New variants require: (a) a block template file, (b) an entry in this table, (c) a test.
 

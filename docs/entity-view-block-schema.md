@@ -432,8 +432,9 @@ app()->hooks()->on('cms.entity.action_block.sections', function($entity, $caps, 
 
 ## 8. Entity.List Block Integration
 
-`entity.list.disyl` renders card-level capability summaries inline. Each list
-item carries its own `capabilities` and `capability_data` sub-objects:
+`entity.list.disyl` renders card-level capability summaries through canonical
+list-card block fragments prepared by the handler. Each list item carries its
+own `capabilities`, `capability_data`, and pre-rendered list-card HTML:
 
 ```
 items[]
@@ -441,12 +442,24 @@ items[]
   .capability_data.pricing.price      → displayed value
   .capability_data.pricing.sale_price → sale display
   .capability_data.pricing.currency   → currency prefix
+  .capabilities.inventory             → inventory pill on card when enabled
+  .capability_data.inventory.*        → compact stock state summary
   .capabilities.progress_tracking      → progress bar on card
   .capability_data.progress_tracking.percent → bar width
   .capability_data.progress_tracking.authenticated → controls bar visibility
+  .list_card_pricing_html             → rendered pricing fragment
+  .list_card_inventory_html           → rendered inventory fragment
+  .list_card_progress_html            → rendered progress fragment
 ```
+Approved list-card block variants follow the same resolver contract as entity
+view blocks. Current list-card variants are:
 
-Only pricing and progress are rendered on list cards. Other capabilities are
+- `list-card-pricing`: `featured`, `minimal`
+- `list-card-inventory`: `compact`
+- `list-card-progress`: `inline`
+
+These variants change presentation only; they do not alter capability gates or
+data contracts.
 detail-view only.
 
 ---

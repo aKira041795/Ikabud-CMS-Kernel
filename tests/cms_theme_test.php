@@ -234,8 +234,14 @@ t('entity-commerce-poc overrides entity.list.disyl', $entityListTemplate === '_c
 
 $pricingBlockTemplate = cmsResolveBlockTemplate('modules/cms/public/blocks/pricing.block.disyl');
 $actionBlockTemplate = cmsResolveBlockTemplate('modules/cms/public/blocks/action.block.disyl');
+$listPricingManifestTemplate = cmsResolveBlockTemplate('modules/cms/public/blocks/list-card-pricing.block.disyl');
+$listInventoryManifestTemplate = cmsResolveBlockTemplate('modules/cms/public/blocks/list-card-inventory.block.disyl');
+$listProgressManifestTemplate = cmsResolveBlockTemplate('modules/cms/public/blocks/list-card-progress.block.disyl');
 t('entity-commerce-poc overrides pricing block', $pricingBlockTemplate === '_cms_active_theme/public/blocks/pricing.block.disyl', $pricingBlockTemplate);
 t('entity-commerce-poc overrides action block', $actionBlockTemplate === '_cms_active_theme/public/blocks/action.block.disyl', $actionBlockTemplate);
+t('entity-commerce-poc manifest default resolves featured list-card pricing variant', $listPricingManifestTemplate === '_cms_active_theme/public/blocks/list-card-pricing.featured.block.disyl', $listPricingManifestTemplate);
+t('entity-commerce-poc manifest default resolves compact list-card inventory variant', $listInventoryManifestTemplate === '_cms_active_theme/public/blocks/list-card-inventory.compact.block.disyl', $listInventoryManifestTemplate);
+t('entity-commerce-poc manifest default resolves inline list-card progress variant', $listProgressManifestTemplate === '_cms_active_theme/public/blocks/list-card-progress.inline.block.disyl', $listProgressManifestTemplate);
 
 $renderedPricingBlock = cmsRenderThemeAwareBlockTemplate('modules/cms/public/blocks/pricing.block.disyl', [
     'capability_data' => [
@@ -272,6 +278,17 @@ $renderedActionBlock = cmsRenderThemeAwareBlockTemplate('modules/cms/public/bloc
 ]);
 t('entity-commerce-poc action block render uses themed markup', str_contains($renderedActionBlock, 'poc-action-strip'), $renderedActionBlock);
 
+$renderedManifestListPricing = cmsRenderThemeAwareBlockTemplate('modules/cms/public/blocks/list-card-pricing.block.disyl', [
+    'capability_data' => [
+        'pricing' => [
+            'currency' => 'USD',
+            'price' => 32.0,
+            'sale_price' => 28.0,
+        ],
+    ],
+]);
+t('entity-commerce-poc manifest list-card pricing render uses featured themed markup', str_contains($renderedManifestListPricing, 'poc-price-pill--featured'), $renderedManifestListPricing);
+
 $pocStyleUrl = cmsThemeAssetUrl('style.css');
 t('entity-commerce-poc theme stylesheet resolves to public assets', str_contains($pocStyleUrl, '/assets/cms/themes/entity-commerce-poc/style.css'), $pocStyleUrl);
 
@@ -306,6 +323,10 @@ t('customizer tracks per-section dirty state for scoped saves', str_contains($cu
 t('customizer save resolves only dirty sections', str_contains($customizerTemplateContent, 'const sections = this.sectionsToSave();'));
 t('customizer bootstraps dedicated storefront settings payload', str_contains($customizerTemplateContent, 'id="cz-storefront-settings"'));
 t('customizer saves dedicated storefront section payload', str_contains($customizerTemplateContent, "return { settings: this.storefrontSettings }"));
+t('customizer exposes storefront list-card pricing variant control', str_contains($customizerTemplateContent, 'storefrontSettings.entity_list_pricing_variant'));
+t('customizer exposes storefront action inline variant option', str_contains($customizerTemplateContent, '<option value="inline">Inline</option>'));
+t('customizer hydrates theme manifest block variants for preview fidelity', str_contains($customizerTemplateContent, 'cz-theme-manifest-block-variants'));
+t('customizer preview resolves effective storefront list-card variants', str_contains($customizerTemplateContent, 'entityPreviewListPricingVariant()') && str_contains($customizerTemplateContent, 'entityPreviewEffectiveVariant('));
 
 $ecInitContent = file_get_contents(BASE_PATH . '/modules/ecommerce/helpers/00-init.php');
 $ecPublicShopHandlerContent = file_get_contents(BASE_PATH . '/modules/ecommerce/handlers/10-public-shop.php');
@@ -420,6 +441,9 @@ $storefrontDefaults = cmsStorefrontSettingsDefaults();
 t('entity layout profile default is default', ($entityDefaults['entity_layout_profile'] ?? '') === 'default');
 t('entity pricing variant default is empty', ($entityDefaults['entity_pricing_variant'] ?? 'x') === '');
 t('entity action variant default is empty', ($entityDefaults['entity_action_variant'] ?? 'x') === '');
+t('entity list pricing variant default is empty', ($entityDefaults['entity_list_pricing_variant'] ?? 'x') === '');
+t('entity list inventory variant default is empty', ($entityDefaults['entity_list_inventory_variant'] ?? 'x') === '');
+t('entity list progress variant default is empty', ($entityDefaults['entity_list_progress_variant'] ?? 'x') === '');
 t('entity summary width default is 320', ($entityDefaults['entity_summary_width'] ?? '') === '320');
 t('entity summary sticky default is enabled', ($entityDefaults['entity_summary_sticky'] ?? '') === '1');
 t('entity media ratio default is auto', ($entityDefaults['entity_media_ratio'] ?? '') === 'auto');
@@ -427,6 +451,7 @@ t('entity spacing scale default is comfortable', ($entityDefaults['entity_spacin
 t('entity action size default is md', ($entityDefaults['entity_action_size'] ?? '') === 'md');
 t('storefront defaults mirror canonical entity profile default', ($storefrontDefaults['entity_layout_profile'] ?? '') === 'default');
 t('storefront defaults mirror canonical summary width default', ($storefrontDefaults['entity_summary_width'] ?? '') === '320');
+t('storefront defaults mirror canonical list-card pricing variant default', ($storefrontDefaults['entity_list_pricing_variant'] ?? 'x') === '');
 
 $colorsDefaults = cmsColorsSettingsDefaults();
 t('storefront surface background default exists', ($colorsDefaults['storefront_surface_bg'] ?? '') === '#ffffff');
@@ -446,6 +471,9 @@ $validatedEntity = cmsValidateThemeLayoutSettings([
     'entity_list_card_density' => 'airy',
     'entity_list_show_excerpt' => '1',
     'entity_list_excerpt_length' => '180',
+    'entity_list_pricing_variant' => 'featured',
+    'entity_list_inventory_variant' => 'compact',
+    'entity_list_progress_variant' => 'inline',
 ]);
 $validatedStorefront = cmsValidateStorefrontSettings([
     'entity_layout_profile' => 'commerce',
@@ -460,6 +488,9 @@ $validatedStorefront = cmsValidateStorefrontSettings([
     'entity_list_card_density' => 'compact',
     'entity_list_show_excerpt' => '0',
     'entity_list_excerpt_length' => '90',
+    'entity_list_pricing_variant' => 'minimal',
+    'entity_list_inventory_variant' => 'compact',
+    'entity_list_progress_variant' => 'inline',
 ]);
 t('entity layout profile validates approved profile', ($validatedEntity['entity_layout_profile'] ?? '') === 'commerce');
 t('entity pricing variant validates approved variant', ($validatedEntity['entity_pricing_variant'] ?? '') === 'featured');
@@ -473,6 +504,9 @@ t('entity list filter summary validates boolean', (int)($validatedEntity['entity
 t('entity list card density validates approved option', ($validatedEntity['entity_list_card_density'] ?? '') === 'airy');
 t('entity list excerpt toggle validates boolean', (int)($validatedEntity['entity_list_show_excerpt'] ?? 0) === 1);
 t('entity list excerpt length validates approved range', ($validatedEntity['entity_list_excerpt_length'] ?? '') === '180');
+t('entity list pricing variant validates approved option', ($validatedEntity['entity_list_pricing_variant'] ?? '') === 'featured');
+t('entity list inventory variant validates approved option', ($validatedEntity['entity_list_inventory_variant'] ?? '') === 'compact');
+t('entity list progress variant validates approved option', ($validatedEntity['entity_list_progress_variant'] ?? '') === 'inline');
 t('storefront settings validate approved profile', ($validatedStorefront['entity_layout_profile'] ?? '') === 'commerce');
 t('storefront settings validate storefront summary width', ($validatedStorefront['entity_summary_width'] ?? '') === '390');
 t('storefront settings validate storefront media ratio', ($validatedStorefront['entity_media_ratio'] ?? '') === '4:3');
@@ -480,6 +514,9 @@ t('storefront settings validate list card density', ($validatedStorefront['entit
 t('storefront settings validate filter summary toggle', (int)($validatedStorefront['entity_list_show_filter_summary'] ?? 1) === 0);
 t('storefront settings validate excerpt toggle', (int)($validatedStorefront['entity_list_show_excerpt'] ?? 1) === 0);
 t('storefront settings validate excerpt length', ($validatedStorefront['entity_list_excerpt_length'] ?? '') === '90');
+t('storefront settings validate list pricing variant', ($validatedStorefront['entity_list_pricing_variant'] ?? '') === 'minimal');
+t('storefront settings validate list inventory variant', ($validatedStorefront['entity_list_inventory_variant'] ?? '') === 'compact');
+t('storefront settings validate list progress variant', ($validatedStorefront['entity_list_progress_variant'] ?? '') === 'inline');
 
 $invalidEntity = cmsValidateThemeLayoutSettings([
     'entity_layout_profile' => 'wild',
@@ -494,6 +531,9 @@ $invalidEntity = cmsValidateThemeLayoutSettings([
     'entity_list_card_density' => 'dense',
     'entity_list_show_excerpt' => '',
     'entity_list_excerpt_length' => '999',
+    'entity_list_pricing_variant' => 'heroic',
+    'entity_list_inventory_variant' => 'full',
+    'entity_list_progress_variant' => 'stacked',
 ]);
 t('invalid entity profile falls back to default', ($invalidEntity['entity_layout_profile'] ?? '') === 'default');
 t('invalid pricing variant falls back to default block', ($invalidEntity['entity_pricing_variant'] ?? 'x') === '');
@@ -507,6 +547,9 @@ t('invalid entity list filter summary falls back to disabled boolean', (int)($in
 t('invalid entity list density falls back to comfortable', ($invalidEntity['entity_list_card_density'] ?? '') === 'comfortable');
 t('invalid entity list excerpt toggle falls back to disabled boolean', (int)($invalidEntity['entity_list_show_excerpt'] ?? 1) === 0);
 t('invalid entity list excerpt length clamps to max', ($invalidEntity['entity_list_excerpt_length'] ?? '') === '220');
+t('invalid entity list pricing variant falls back to default block', ($invalidEntity['entity_list_pricing_variant'] ?? 'x') === '');
+t('invalid entity list inventory variant falls back to default block', ($invalidEntity['entity_list_inventory_variant'] ?? 'x') === '');
+t('invalid entity list progress variant falls back to default block', ($invalidEntity['entity_list_progress_variant'] ?? 'x') === '');
 
 $validatedColors = cmsValidateColorsSettings([
     'storefront_surface_bg' => '#101820',
@@ -529,6 +572,9 @@ t('entity presentation config exposes list filter summary flag', (int)($presenta
 t('entity presentation config exposes list card density', ($presentation['list_card_density'] ?? '') === 'airy');
 t('entity presentation config exposes list excerpt flag', (int)($presentation['list_show_excerpt'] ?? 0) === 1);
 t('entity presentation config exposes list excerpt length', (int)($presentation['list_excerpt_length'] ?? 0) === 180);
+t('entity presentation config exposes list pricing variant', ($presentation['list_pricing_variant'] ?? '') === 'featured');
+t('entity presentation config exposes list inventory variant', ($presentation['list_inventory_variant'] ?? '') === 'compact');
+t('entity presentation config exposes list progress variant', ($presentation['list_progress_variant'] ?? '') === 'inline');
 
 $storefrontPublicContext = cmsPublicContext([
     'public_render_origin' => 'ecommerce',
@@ -660,8 +706,63 @@ $variantPricingTemplate = cmsResolveBlockTemplate('modules/cms/public/blocks/pri
 $variantActionTemplate = cmsResolveBlockTemplate('modules/cms/public/blocks/action.block.disyl', [
     'theme_settings' => $validatedEntity,
 ]);
+$variantListPricingTemplate = cmsResolveBlockTemplate('modules/cms/public/blocks/list-card-pricing.block.disyl', [
+    'theme_settings' => $validatedStorefront,
+]);
+$variantListInventoryTemplate = cmsResolveBlockTemplate('modules/cms/public/blocks/list-card-inventory.block.disyl', [
+    'theme_settings' => $validatedStorefront,
+]);
+$variantListProgressTemplate = cmsResolveBlockTemplate('modules/cms/public/blocks/list-card-progress.block.disyl', [
+    'theme_settings' => $validatedStorefront,
+]);
 t('pricing block variant resolves to featured template', $variantPricingTemplate === 'modules/cms/public/blocks/pricing.featured.block.disyl', $variantPricingTemplate);
 t('action block variant resolves to sticky-footer template', $variantActionTemplate === 'modules/cms/public/blocks/action.sticky-footer.block.disyl', $variantActionTemplate);
+t('list-card pricing variant resolves to minimal template', $variantListPricingTemplate === 'modules/cms/public/blocks/list-card-pricing.minimal.block.disyl', $variantListPricingTemplate);
+t('list-card inventory variant resolves to compact template', $variantListInventoryTemplate === 'modules/cms/public/blocks/list-card-inventory.compact.block.disyl', $variantListInventoryTemplate);
+t('list-card progress variant resolves to inline template', $variantListProgressTemplate === 'modules/cms/public/blocks/list-card-progress.inline.block.disyl', $variantListProgressTemplate);
+
+$renderedMinimalListPricing = cmsRenderThemeAwareBlockTemplate('modules/cms/public/blocks/list-card-pricing.block.disyl', [
+    'theme_settings' => $validatedStorefront,
+    'capability_data' => [
+        'pricing' => [
+            'currency' => 'USD',
+            'price' => 16.0,
+            'sale_price' => 12.0,
+        ],
+    ],
+]);
+t('list-card pricing variant render uses minimal markup', str_contains($renderedMinimalListPricing, 'cms-entity-card__pricing--minimal'), $renderedMinimalListPricing);
+
+$invalidListVariantThrown = false;
+$invalidListVariantDetail = '';
+try {
+    cmsResolveBlockTemplate('modules/cms/public/blocks/list-card-pricing.block.disyl', [
+        'theme_settings' => ['entity_list_pricing_variant' => 'heroic'],
+    ]);
+} catch (RuntimeException $e) {
+    $invalidListVariantThrown = str_contains($e->getMessage(), 'Unapproved block variant');
+    $invalidListVariantDetail = $e->getMessage();
+}
+t('unapproved list-card variant throws runtime exception', $invalidListVariantThrown, $invalidListVariantDetail);
+
+$missingListVariantThrown = false;
+$missingListVariantDetail = '';
+$missingVariantPath = BASE_PATH . '/templates/modules/cms/public/blocks/list-card-pricing.featured.block.disyl';
+$missingVariantBackup = $missingVariantPath . '.bak-test';
+$renamedMissingVariant = @rename($missingVariantPath, $missingVariantBackup);
+try {
+    cmsResolveBlockTemplate('modules/cms/public/blocks/list-card-pricing.block.disyl', [
+        'theme_settings' => ['entity_list_pricing_variant' => 'featured'],
+    ]);
+} catch (RuntimeException $e) {
+    $missingListVariantThrown = str_contains($e->getMessage(), 'Missing block variant template');
+    $missingListVariantDetail = $e->getMessage();
+} finally {
+    if ($renamedMissingVariant) {
+        @rename($missingVariantBackup, $missingVariantPath);
+    }
+}
+t('missing list-card variant template throws runtime exception', $missingListVariantThrown, $missingListVariantDetail);
 
 $entityTemplateContext = [
     'cms_head' => '',

@@ -20,6 +20,11 @@
             "style.css"
         ]
     },
+    "block_variants": {
+        "list-card-pricing": "featured",
+        "list-card-inventory": "compact",
+        "list-card-progress": "inline"
+    },
     "overridable_blocks": [
         "pricing.block.disyl",
         "action.block.disyl"

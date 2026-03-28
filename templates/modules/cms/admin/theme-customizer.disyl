@@ -2373,6 +2373,7 @@
                             <label class="cz-label">Action Variant</label>
                             <select x-model="storefrontSettings.entity_action_variant" class="cz-select">
                                 <option value="">Default</option>
+                                <option value="inline">Inline</option>
                                 <option value="sticky-footer">Sticky Footer</option>
                             </select>
                         </div>
@@ -2600,13 +2601,14 @@
                                 </div>
                                 <div x-show="storefrontSettings.entity_layout_profile === 'commerce'" :style="entityPreviewSummaryStyle()">
                                     <div class="text-[10px] uppercase tracking-[0.16em] text-gray-400 mb-2">Summary Rail</div>
-                                    <div class="flex items-end gap-2 mb-2">
-                                        <span class="text-lg font-bold" :style="'color:' + (colorsSettings.storefront_price_color || '#0f172a')">USD 79.00</span>
-                                        <span class="text-xs line-through text-gray-400">99.00</span>
+                                    <div :style="entityPreviewSummaryPricingStyle()">
+                                        <span :style="entityPreviewSummaryCurrentPriceStyle()">USD 79.00</span>
+                                        <span x-show="entityPreviewPricingVariant() !== 'minimal'" class="text-xs line-through text-gray-400">99.00</span>
+                                        <span x-show="entityPreviewPricingVariant() === 'featured'" class="inline-flex items-center rounded-full bg-slate-900 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-white">Offer</span>
                                     </div>
                                     <div class="space-y-2">
                                         <div class="inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-semibold" :style="entityPreviewInventoryStyle('low')">Only 3 left</div>
-                                        <div class="flex flex-col gap-2">
+                                        <div :style="entityPreviewActionGroupStyle()">
                                             <span :style="entityPreviewPrimaryActionStyle()">Add to Cart</span>
                                             <span :style="entityPreviewSecondaryActionStyle()">Ask a Question</span>
                                         </div>
@@ -2647,6 +2649,11 @@
                             <div class="flex justify-between"><span class="text-gray-400">Media Ratio</span><span class="font-medium" x-text="storefrontSettings.entity_media_ratio"></span></div>
                             <div class="flex justify-between"><span class="text-gray-400">Spacing</span><span class="font-medium capitalize" x-text="storefrontSettings.entity_spacing_scale"></span></div>
                             <div class="flex justify-between"><span class="text-gray-400">Action Size</span><span class="font-medium uppercase" x-text="storefrontSettings.entity_action_size"></span></div>
+                            <div class="flex justify-between"><span class="text-gray-400">Pricing Variant</span><span class="font-medium capitalize" x-text="entityPreviewVariantLabel(entityPreviewPricingVariant())"></span></div>
+                            <div class="flex justify-between"><span class="text-gray-400">Action Variant</span><span class="font-medium capitalize" x-text="entityPreviewVariantLabel(entityPreviewActionVariant())"></span></div>
+                            <div class="flex justify-between"><span class="text-gray-400">List Price Variant</span><span class="font-medium capitalize" x-text="entityPreviewVariantLabel(entityPreviewListPricingVariant())"></span></div>
+                            <div class="flex justify-between"><span class="text-gray-400">List Inventory Variant</span><span class="font-medium capitalize" x-text="entityPreviewVariantLabel(entityPreviewListInventoryVariant())"></span></div>
+                            <div class="flex justify-between"><span class="text-gray-400">List Progress Variant</span><span class="font-medium capitalize" x-text="entityPreviewVariantLabel(entityPreviewListProgressVariant())"></span></div>
                             {/if}
                         </div>
                         <!-- Content ratio visual -->
@@ -2804,6 +2811,31 @@
                         </div>
                     </div>
 
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <div>
+                            <label class="cz-label">List Pricing Variant</label>
+                            <select x-model="storefrontSettings.entity_list_pricing_variant" class="cz-select">
+                                <option value="">Default</option>
+                                <option value="featured">Featured</option>
+                                <option value="minimal">Minimal</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="cz-label">List Inventory Variant</label>
+                            <select x-model="storefrontSettings.entity_list_inventory_variant" class="cz-select">
+                                <option value="">Default</option>
+                                <option value="compact">Compact</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="cz-label">List Progress Variant</label>
+                            <select x-model="storefrontSettings.entity_list_progress_variant" class="cz-select">
+                                <option value="">Default</option>
+                                <option value="inline">Inline</option>
+                            </select>
+                        </div>
+                    </div>
+
                     <div class="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600">
                         <div class="font-semibold text-slate-800 mb-1">Profile behavior</div>
                         <div x-show="storefrontSettings.entity_layout_profile === 'default'">Default keeps pricing and actions in the main reading flow ahead of the body.</div>
@@ -2829,8 +2861,8 @@
                     </div>
                     <div class="space-y-3 text-sm">
                         <div class="flex justify-between"><span class="text-gray-400">Entity Profile</span><span class="font-medium capitalize" x-text="storefrontSettings.entity_layout_profile"></span></div>
-                        <div class="flex justify-between"><span class="text-gray-400">Pricing Variant</span><span class="font-medium capitalize" x-text="storefrontSettings.entity_pricing_variant || 'Default'"></span></div>
-                        <div class="flex justify-between"><span class="text-gray-400">Action Variant</span><span class="font-medium capitalize" x-text="storefrontSettings.entity_action_variant || 'Default'"></span></div>
+                        <div class="flex justify-between"><span class="text-gray-400">Pricing Variant</span><span class="font-medium capitalize" x-text="entityPreviewVariantLabel(entityPreviewPricingVariant())"></span></div>
+                        <div class="flex justify-between"><span class="text-gray-400">Action Variant</span><span class="font-medium capitalize" x-text="entityPreviewVariantLabel(entityPreviewActionVariant())"></span></div>
                         <div class="flex justify-between"><span class="text-gray-400">Summary Width</span><span class="font-medium" x-text="storefrontSettings.entity_summary_width + 'px'"></span></div>
                         <div class="flex justify-between"><span class="text-gray-400">Sticky Rail</span><span class="font-medium" x-text="storefrontSettings.entity_summary_sticky == 1 ? 'On' : 'Off'"></span></div>
                         <div class="flex justify-between"><span class="text-gray-400">Media Ratio</span><span class="font-medium" x-text="storefrontSettings.entity_media_ratio"></span></div>
@@ -2840,6 +2872,9 @@
                         <div class="flex justify-between"><span class="text-gray-400">Filter Summary</span><span class="font-medium" x-text="storefrontSettings.entity_list_show_filter_summary == 1 ? 'On' : 'Off'"></span></div>
                         <div class="flex justify-between"><span class="text-gray-400">Card Excerpts</span><span class="font-medium" x-text="storefrontSettings.entity_list_show_excerpt == 1 ? 'On' : 'Off'"></span></div>
                         <div class="flex justify-between"><span class="text-gray-400">Excerpt Length</span><span class="font-medium" x-text="storefrontSettings.entity_list_excerpt_length + ' chars'"></span></div>
+                        <div class="flex justify-between"><span class="text-gray-400">List Price Variant</span><span class="font-medium capitalize" x-text="entityPreviewVariantLabel(entityPreviewListPricingVariant())"></span></div>
+                        <div class="flex justify-between"><span class="text-gray-400">List Inventory Variant</span><span class="font-medium capitalize" x-text="entityPreviewVariantLabel(entityPreviewListInventoryVariant())"></span></div>
+                        <div class="flex justify-between"><span class="text-gray-400">List Progress Variant</span><span class="font-medium capitalize" x-text="entityPreviewVariantLabel(entityPreviewListProgressVariant())"></span></div>
                     </div>
                     <div class="rounded-lg border border-gray-200 bg-white p-3 space-y-3">
                         <div :style="entityPreviewHeroStyle()">
@@ -2854,15 +2889,42 @@
                                 </div>
                             </div>
                             <div x-show="storefrontSettings.entity_layout_profile === 'commerce'" :style="entityPreviewSummaryStyle()">
-                                <div class="flex items-end gap-2 mb-2">
-                                    <span class="text-lg font-bold" :style="'color:' + (colorsSettings.storefront_price_color || '#0f172a')">USD 79.00</span>
-                                    <span class="text-xs line-through text-gray-400">99.00</span>
+                                <div :style="entityPreviewSummaryPricingStyle()">
+                                    <span :style="entityPreviewSummaryCurrentPriceStyle()">USD 79.00</span>
+                                    <span x-show="entityPreviewPricingVariant() !== 'minimal'" class="text-xs line-through text-gray-400">99.00</span>
+                                    <span x-show="entityPreviewPricingVariant() === 'featured'" class="inline-flex items-center rounded-full bg-slate-900 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-white">Offer</span>
                                 </div>
                                 <div class="inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-semibold mb-2" :style="entityPreviewInventoryStyle('low')">Only 3 left</div>
-                                <div class="flex flex-col gap-2">
+                                <div :style="entityPreviewActionGroupStyle()">
                                     <span :style="entityPreviewPrimaryActionStyle()">Add to Cart</span>
                                     <span :style="entityPreviewSecondaryActionStyle()">Ask a Question</span>
                                 </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="rounded-lg border border-gray-200 bg-white p-3 space-y-3">
+                        <div class="flex items-center justify-between text-[10px] uppercase tracking-[0.14em] text-gray-400">
+                            <span>List Card Preview</span>
+                            <span x-text="entityPreviewVariantLabel(entityPreviewListPricingVariant()) + ' / ' + entityPreviewVariantLabel(entityPreviewListInventoryVariant()) + ' / ' + entityPreviewVariantLabel(entityPreviewListProgressVariant())"></span>
+                        </div>
+                        <div :style="entityPreviewListCardStyle()">
+                            <div class="space-y-1.5">
+                                <div class="h-2.5 bg-slate-800 rounded w-1/2"></div>
+                                <p x-show="storefrontSettings.entity_list_show_excerpt == 1" class="text-[11px] leading-5 text-slate-500">Small-batch loaf baked daily and finished with a blistered crust.</p>
+                            </div>
+                            <div class="flex flex-wrap items-center gap-2">
+                                <div :style="entityPreviewListPricingStyle()">
+                                    <span :style="entityPreviewListPricingCurrentStyle()">USD 12.00</span>
+                                    <span x-show="entityPreviewListPricingVariant() !== 'minimal'" class="text-[10px] line-through text-gray-400">16.00</span>
+                                    <span x-show="entityPreviewListPricingVariant() === 'featured'" class="inline-flex items-center rounded-full bg-slate-900 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-white">Offer</span>
+                                </div>
+                                <span :style="entityPreviewListInventoryStyle()" x-text="entityPreviewListInventoryLabel()"></span>
+                            </div>
+                            <div :style="entityPreviewListProgressStyle()">
+                                <span class="text-[10px] font-medium text-slate-500">25% complete</span>
+                                <span :style="entityPreviewListProgressTrackStyle()">
+                                    <span :style="entityPreviewListProgressBarStyle()"></span>
+                                </span>
                             </div>
                         </div>
                     </div>
@@ -2907,6 +2969,7 @@ function themeCustomizer() {
 
         // Storefront entity presentation settings (hydrated from server)
         storefrontSettings: {},
+        themeManifestBlockVariants: {},
 
         // Footer settings (hydrated from server)
         footerSettings: {},
@@ -3150,11 +3213,64 @@ function themeCustomizer() {
             return this.customizerScope === 'ecommerce' ? this.storefrontSettings : this.themeLayoutSettings;
         },
 
+        entityPreviewEffectiveVariant(blockId, selectedValue) {
+            const explicit = ((selectedValue ?? '') + '').trim();
+            if (explicit !== '') {
+                return explicit;
+            }
+            const manifestValue = ((this.themeManifestBlockVariants?.[blockId] ?? '') + '').trim();
+            return manifestValue !== '' ? manifestValue : 'default';
+        },
+
+        entityPreviewVariantLabel(variant) {
+            const normalized = (((variant || 'default') + '').replace(/-/g, ' ')).trim();
+            if (normalized === '') {
+                return 'Default';
+            }
+            return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+        },
+
+        entityPreviewPricingVariant() {
+            return this.entityPreviewEffectiveVariant('pricing', this.entitySettings().entity_pricing_variant);
+        },
+
+        entityPreviewActionVariant() {
+            return this.entityPreviewEffectiveVariant('action', this.entitySettings().entity_action_variant);
+        },
+
+        entityPreviewListPricingVariant() {
+            return this.entityPreviewEffectiveVariant('list-card-pricing', this.storefrontSettings.entity_list_pricing_variant);
+        },
+
+        entityPreviewListInventoryVariant() {
+            return this.entityPreviewEffectiveVariant('list-card-inventory', this.storefrontSettings.entity_list_inventory_variant);
+        },
+
+        entityPreviewListProgressVariant() {
+            return this.entityPreviewEffectiveVariant('list-card-progress', this.storefrontSettings.entity_list_progress_variant);
+        },
+
         entityPreviewSummaryStyle() {
             return 'background:' + (this.colorsSettings.storefront_surface_bg || '#ffffff')
                 + ';border:1px solid ' + (this.colorsSettings.storefront_surface_border || '#e2e8f0')
                 + ';border-radius:16px;padding:' + this.entitySpacingConfig().pad
                 + ';box-shadow:0 10px 24px rgba(15,23,42,0.06);';
+        },
+
+        entityPreviewSummaryPricingStyle() {
+            const variant = this.entityPreviewPricingVariant();
+            let css = 'display:flex;align-items:flex-end;flex-wrap:wrap;gap:8px;margin-bottom:8px;';
+            if (variant === 'featured') {
+                css += 'padding:12px;border:1px solid #dbeafe;background:#eff6ff;border-radius:16px;';
+            }
+            return css;
+        },
+
+        entityPreviewSummaryCurrentPriceStyle() {
+            const variant = this.entityPreviewPricingVariant();
+            return 'color:' + (this.colorsSettings.storefront_price_color || '#0f172a')
+                + ';font-weight:700;'
+                + (variant === 'minimal' ? 'font-size:15px;' : 'font-size:18px;');
         },
 
         entityPreviewPrimaryActionStyle() {
@@ -3176,6 +3292,12 @@ function themeCustomizer() {
                 + ';border-radius:12px;font-weight:600;display:inline-flex;align-items:center;justify-content:center;';
         },
 
+        entityPreviewActionGroupStyle() {
+            return this.entityPreviewActionVariant() === 'inline'
+                ? 'display:flex;flex-wrap:wrap;gap:8px;align-items:center;'
+                : 'display:flex;flex-direction:column;gap:8px;';
+        },
+
         entityPreviewInventoryStyle(kind) {
             if (kind === 'low') {
                 return 'background:' + (this.colorsSettings.storefront_warning_bg || '#fffbeb') + ';color:' + (this.colorsSettings.storefront_warning_text || '#b45309') + ';';
@@ -3184,6 +3306,60 @@ function themeCustomizer() {
                 return 'background:' + (this.colorsSettings.storefront_danger_bg || '#fef2f2') + ';color:' + (this.colorsSettings.storefront_danger_text || '#dc2626') + ';';
             }
             return 'background:' + (this.colorsSettings.storefront_success_bg || '#ecfdf5') + ';color:' + (this.colorsSettings.storefront_success_text || '#047857') + ';';
+        },
+
+        entityPreviewListCardStyle() {
+            const density = this.storefrontSettings.entity_list_card_density || 'comfortable';
+            let pad = '12px';
+            let gap = '10px';
+            if (density === 'compact') {
+                pad = '10px';
+                gap = '8px';
+            } else if (density === 'airy') {
+                pad = '16px';
+                gap = '14px';
+            }
+            return 'border:1px solid #e2e8f0;background:#ffffff;border-radius:16px;padding:' + pad + ';display:grid;gap:' + gap + ';';
+        },
+
+        entityPreviewListPricingStyle() {
+            const variant = this.entityPreviewListPricingVariant();
+            let css = 'display:inline-flex;align-items:center;flex-wrap:wrap;gap:8px;';
+            if (variant === 'featured') {
+                css += 'padding:8px 10px;border:1px solid #dbeafe;background:#eff6ff;border-radius:14px;';
+            }
+            return css;
+        },
+
+        entityPreviewListPricingCurrentStyle() {
+            const variant = this.entityPreviewListPricingVariant();
+            return 'color:' + (this.colorsSettings.storefront_price_color || '#0f172a')
+                + ';font-weight:700;'
+                + (variant === 'minimal' ? 'font-size:13px;text-transform:none;' : 'font-size:14px;');
+        },
+
+        entityPreviewListInventoryStyle() {
+            return 'display:inline-flex;align-items:center;border-radius:9999px;padding:4px 10px;font-size:10px;font-weight:600;'
+                + this.entityPreviewInventoryStyle('low');
+        },
+
+        entityPreviewListInventoryLabel() {
+            return this.entityPreviewListInventoryVariant() === 'compact' ? '3 left' : 'Only 3 left';
+        },
+
+        entityPreviewListProgressStyle() {
+            return this.entityPreviewListProgressVariant() === 'inline'
+                ? 'display:flex;align-items:center;gap:8px;'
+                : 'display:grid;gap:6px;';
+        },
+
+        entityPreviewListProgressTrackStyle() {
+            const width = this.entityPreviewListProgressVariant() === 'inline' ? '110px' : '100%';
+            return 'display:inline-flex;align-items:center;overflow:hidden;background:#e5e7eb;border-radius:9999px;height:6px;width:' + width + ';';
+        },
+
+        entityPreviewListProgressBarStyle() {
+            return 'display:block;height:100%;width:25%;background:' + (this.colorsSettings.storefront_cta_bg || '#0284c7') + ';border-radius:9999px;';
         },
 
         entityPreviewSidebarLayoutStyle() {
@@ -3463,6 +3639,12 @@ function themeCustomizer() {
 
             // Hydrate theme layout settings
             try {
+                this.themeManifestBlockVariants = JSON.parse(document.getElementById('cz-theme-manifest-block-variants').textContent) || {};
+            } catch (e) {
+                this.themeManifestBlockVariants = {};
+            }
+
+            try {
                 this.themeLayoutSettings = JSON.parse(document.getElementById('cz-theme-layout-settings').textContent);
                 if (this.themeLayoutSettings.entity_layout_profile === undefined) this.themeLayoutSettings.entity_layout_profile = 'default';
                 if (this.themeLayoutSettings.entity_pricing_variant === undefined) this.themeLayoutSettings.entity_pricing_variant = '';
@@ -3485,6 +3667,7 @@ function themeCustomizer() {
                     single_show_author: 1, single_show_date: 1, single_show_categories: 1,
                     single_show_tags: 1, single_show_nav: 1,
                     entity_layout_profile: 'default', entity_pricing_variant: '', entity_action_variant: '',
+                    entity_list_pricing_variant: '', entity_list_inventory_variant: '', entity_list_progress_variant: '',
                     entity_summary_width: 320, entity_summary_sticky: 1, entity_media_ratio: 'auto', entity_spacing_scale: 'comfortable', entity_action_size: 'md',
                 };
             }
@@ -3495,6 +3678,9 @@ function themeCustomizer() {
                 if (this.storefrontSettings.entity_layout_profile === undefined) this.storefrontSettings.entity_layout_profile = 'default';
                 if (this.storefrontSettings.entity_pricing_variant === undefined) this.storefrontSettings.entity_pricing_variant = '';
                 if (this.storefrontSettings.entity_action_variant === undefined) this.storefrontSettings.entity_action_variant = '';
+                if (this.storefrontSettings.entity_list_pricing_variant === undefined) this.storefrontSettings.entity_list_pricing_variant = '';
+                if (this.storefrontSettings.entity_list_inventory_variant === undefined) this.storefrontSettings.entity_list_inventory_variant = '';
+                if (this.storefrontSettings.entity_list_progress_variant === undefined) this.storefrontSettings.entity_list_progress_variant = '';
                 if (this.storefrontSettings.entity_summary_width === undefined) this.storefrontSettings.entity_summary_width = 320;
                 if (this.storefrontSettings.entity_summary_sticky === undefined) this.storefrontSettings.entity_summary_sticky = 1;
                 if (this.storefrontSettings.entity_media_ratio === undefined) this.storefrontSettings.entity_media_ratio = 'auto';
@@ -3507,6 +3693,7 @@ function themeCustomizer() {
             } catch (e) {
                 this.storefrontSettings = {
                     entity_layout_profile: 'default', entity_pricing_variant: '', entity_action_variant: '',
+                    entity_list_pricing_variant: '', entity_list_inventory_variant: '', entity_list_progress_variant: '',
                     entity_summary_width: 320, entity_summary_sticky: 1, entity_media_ratio: 'auto', entity_spacing_scale: 'comfortable', entity_action_size: 'md',
                     entity_list_show_filter_summary: 1, entity_list_card_density: 'comfortable', entity_list_show_excerpt: 1, entity_list_excerpt_length: 120,
                 };
@@ -3848,11 +4035,18 @@ function themeCustomizer() {
                     entity_layout_profile: 'default',
                     entity_pricing_variant: '',
                     entity_action_variant: '',
+                    entity_list_pricing_variant: '',
+                    entity_list_inventory_variant: '',
+                    entity_list_progress_variant: '',
                     entity_summary_width: 320,
                     entity_summary_sticky: 1,
                     entity_media_ratio: 'auto',
                     entity_spacing_scale: 'comfortable',
                     entity_action_size: 'md',
+                    entity_list_show_filter_summary: 1,
+                    entity_list_card_density: 'comfortable',
+                    entity_list_show_excerpt: 1,
+                    entity_list_excerpt_length: 120,
                 };
             } else if (this.activeTab === 'theme') {
                 if (!confirm('Reset all theme layout settings to defaults? This cannot be undone.')) return;
@@ -3868,7 +4062,9 @@ function themeCustomizer() {
                     single_show_author: 1, single_show_date: 1, single_show_categories: 1,
                     single_show_tags: 1, single_show_nav: 1,
                     entity_layout_profile: 'default', entity_pricing_variant: '', entity_action_variant: '',
+                    entity_list_pricing_variant: '', entity_list_inventory_variant: '', entity_list_progress_variant: '',
                     entity_summary_width: 320, entity_summary_sticky: 1, entity_media_ratio: 'auto', entity_spacing_scale: 'comfortable', entity_action_size: 'md',
+                    entity_list_show_filter_summary: 1, entity_list_card_density: 'comfortable', entity_list_show_excerpt: 1, entity_list_excerpt_length: 120,
                 };
             } else if (this.activeTab === 'sidebar') {
                 if (!confirm('Reset all sidebar settings to defaults? This cannot be undone.')) return;
@@ -3911,6 +4107,7 @@ function themeCustomizer() {
 <script type="application/json" id="cz-custom-code-settings">{custom_code_settings_json|raw}</script>
 <script type="application/json" id="cz-theme-layout-settings">{theme_layout_settings_json|raw}</script>
 <script type="application/json" id="cz-storefront-settings">{storefront_settings_json|raw}</script>
+<script type="application/json" id="cz-theme-manifest-block-variants">{theme_manifest_block_variants_json|raw}</script>
 <script type="application/json" id="cz-available-menus">{available_menus_json|raw}</script>
 <script type="application/json" id="cz-menu-locations">{menu_locations_json|raw}</script>
 <div id="cz-site-title" hidden>{site_title}</div>

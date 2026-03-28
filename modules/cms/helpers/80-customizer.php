@@ -693,6 +693,9 @@ function cmsEntityPresentationSettingsDefaults(): array
         'entity_layout_profile'   => 'default',
         'entity_pricing_variant'  => '',
         'entity_action_variant'   => '',
+        'entity_list_pricing_variant' => '',
+        'entity_list_inventory_variant' => '',
+        'entity_list_progress_variant' => '',
         'entity_summary_width'    => '320',
         'entity_summary_sticky'   => '1',
         'entity_media_ratio'      => 'auto',
@@ -721,6 +724,18 @@ function cmsValidateEntityPresentationSettings(array $input, ?array $defaults = 
     $validated['entity_action_variant'] = cmsNormalizeThemeBlockVariant(
         'action',
         trim((string)($input['entity_action_variant'] ?? $defaults['entity_action_variant']))
+    );
+    $validated['entity_list_pricing_variant'] = cmsNormalizeThemeBlockVariant(
+        'list-card-pricing',
+        trim((string)($input['entity_list_pricing_variant'] ?? $defaults['entity_list_pricing_variant']))
+    );
+    $validated['entity_list_inventory_variant'] = cmsNormalizeThemeBlockVariant(
+        'list-card-inventory',
+        trim((string)($input['entity_list_inventory_variant'] ?? $defaults['entity_list_inventory_variant']))
+    );
+    $validated['entity_list_progress_variant'] = cmsNormalizeThemeBlockVariant(
+        'list-card-progress',
+        trim((string)($input['entity_list_progress_variant'] ?? $defaults['entity_list_progress_variant']))
     );
 
     $summaryWidth = (int)($input['entity_summary_width'] ?? $defaults['entity_summary_width']);
@@ -1161,8 +1176,30 @@ function cmsThemeBlockVariantOptions(): array
 {
     return [
         'pricing' => ['', 'compact', 'featured', 'minimal'],
-        'action'  => ['', 'sticky-footer'],
+        'action'  => ['', 'inline', 'sticky-footer'],
+        'inventory' => ['', 'compact'],
+        'list-card-pricing' => ['', 'featured', 'minimal'],
+        'list-card-inventory' => ['', 'compact'],
+        'list-card-progress' => ['', 'inline'],
     ];
+}
+
+function cmsThemeBlockVariantSettingMap(): array
+{
+    return [
+        'pricing' => 'entity_pricing_variant',
+        'action' => 'entity_action_variant',
+        'list-card-pricing' => 'entity_list_pricing_variant',
+        'list-card-inventory' => 'entity_list_inventory_variant',
+        'list-card-progress' => 'entity_list_progress_variant',
+    ];
+}
+
+function cmsThemeManifestBlockVariants(?array $manifest = null): array
+{
+    $manifest = is_array($manifest) ? $manifest : cmsActiveThemeManifest();
+    $defaults = $manifest['entity_view_defaults']['block_variants'] ?? $manifest['block_variants'] ?? [];
+    return is_array($defaults) ? $defaults : [];
 }
 
 function cmsNormalizeThemeBlockVariant(string $block, string $variant): string
@@ -1178,6 +1215,9 @@ function cmsEntityPresentationConfig(array $themeSettings): array
     $profile = (string)$presentationSettings['entity_layout_profile'];
     $pricingVariant = cmsNormalizeThemeBlockVariant('pricing', trim((string)$presentationSettings['entity_pricing_variant']));
     $actionVariant = cmsNormalizeThemeBlockVariant('action', trim((string)$presentationSettings['entity_action_variant']));
+    $listPricingVariant = cmsNormalizeThemeBlockVariant('list-card-pricing', trim((string)$presentationSettings['entity_list_pricing_variant']));
+    $listInventoryVariant = cmsNormalizeThemeBlockVariant('list-card-inventory', trim((string)$presentationSettings['entity_list_inventory_variant']));
+    $listProgressVariant = cmsNormalizeThemeBlockVariant('list-card-progress', trim((string)$presentationSettings['entity_list_progress_variant']));
     $summaryWidth = (int)$presentationSettings['entity_summary_width'];
     $mediaRatio = (string)$presentationSettings['entity_media_ratio'];
     $spacingScale = (string)$presentationSettings['entity_spacing_scale'];
@@ -1192,6 +1232,9 @@ function cmsEntityPresentationConfig(array $themeSettings): array
         'layout_profile'      => $profile,
         'pricing_variant'     => $pricingVariant !== '' ? $pricingVariant : 'default',
         'action_variant'      => $actionVariant !== '' ? $actionVariant : 'default',
+        'list_pricing_variant' => $listPricingVariant !== '' ? $listPricingVariant : 'default',
+        'list_inventory_variant' => $listInventoryVariant !== '' ? $listInventoryVariant : 'default',
+        'list_progress_variant' => $listProgressVariant !== '' ? $listProgressVariant : 'default',
         'header_before_media' => $profile === 'content',
         'summary_mode'        => $profile === 'commerce' ? 'rail' : 'flow',
         'summary_after_body'  => $profile === 'content',

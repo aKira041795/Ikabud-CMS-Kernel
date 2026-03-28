@@ -689,16 +689,22 @@ function cmsResolveBlockTemplate(string $block, array $context = []): string
     $baseName = basename($block);
     if (preg_match('/^([a-z0-9\-]+)\.block\.disyl$/i', $baseName, $matches)) {
         $blockId = strtolower((string)($matches[1] ?? ''));
-        $settingMap = [
-            'pricing' => 'entity_pricing_variant',
-            'action'  => 'entity_action_variant',
-        ];
-
         $themeSettings = is_array($context['theme_settings'] ?? null) ? $context['theme_settings'] : [];
+        $manifest = cmsActiveThemeManifest();
+        $settingMap = function_exists('cmsThemeBlockVariantSettingMap') ? cmsThemeBlockVariantSettingMap() : [];
+        $manifestDefaults = function_exists('cmsThemeManifestBlockVariants') ? cmsThemeManifestBlockVariants($manifest) : [];
         $settingKey = $settingMap[$blockId] ?? null;
-        $variant = $settingKey !== null ? trim((string)($themeSettings[$settingKey] ?? '')) : '';
+        $rawVariant = $settingKey !== null ? trim((string)($themeSettings[$settingKey] ?? '')) : '';
+        if ($rawVariant === '' && isset($manifestDefaults[$blockId])) {
+            $rawVariant = trim((string)$manifestDefaults[$blockId]);
+        }
+
+        $variant = $rawVariant;
         if ($variant !== '' && function_exists('cmsNormalizeThemeBlockVariant')) {
             $variant = cmsNormalizeThemeBlockVariant($blockId, $variant);
+            if ($variant === '') {
+                throw new RuntimeException('Unapproved block variant "' . $rawVariant . '" for block "' . $blockId . '".');
+            }
         }
 
         if ($variant !== '') {
@@ -707,15 +713,12 @@ function cmsResolveBlockTemplate(string $block, array $context = []): string
             if ($variantTemplatePath !== '' && is_file($variantTemplatePath)) {
                 $candidateBlock = $variantBlock;
             } else {
-                write_log('CMS block variant template missing', 'warning', [
-                    'block' => $block,
-                    'variant' => $variant,
-                ]);
+                throw new RuntimeException('Missing block variant template for "' . $blockId . '" variant "' . $variant . '": ' . $variantBlock);
             }
         }
     }
 
-    $manifest = cmsActiveThemeManifest();
+    $manifest = $manifest ?? cmsActiveThemeManifest();
 
     if (empty($manifest['slug'])) {
         return $candidateBlock;

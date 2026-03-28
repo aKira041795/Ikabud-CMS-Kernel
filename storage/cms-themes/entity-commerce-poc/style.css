@@ -390,6 +390,18 @@ body.entity-commerce-poc {
     color: var(--color-primary);
 }
 
+.poc-price-pill--featured {
+    background: linear-gradient(135deg, rgba(15, 76, 129, 0.14), rgba(197, 106, 26, 0.12));
+    border-color: rgba(15, 76, 129, 0.24);
+}
+
+.poc-price-pill--minimal {
+    padding: 0;
+    background: transparent;
+    border: 0;
+    color: var(--color-text);
+}
+
 .poc-price-pill__current {
     font-weight: 700;
 }
@@ -407,6 +419,11 @@ body.entity-commerce-poc {
 .poc-stock-tag--low {
     background: rgba(197, 106, 26, 0.1);
     color: var(--color-accent);
+}
+
+.poc-stock-tag--compact {
+    padding: 6px 10px;
+    font-size: 0.76rem;
 }
 
 .poc-progress-rail {
@@ -427,6 +444,20 @@ body.entity-commerce-poc {
 
 .poc-progress-label {
     font-size: 0.8rem;
+}
+
+.poc-progress-inline {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--color-muted);
+    font-family: "Helvetica Neue", Arial, sans-serif;
+    font-size: 0.78rem;
+}
+
+.poc-progress-inline .poc-progress-rail {
+    max-width: 120px;
+    height: 6px;
 }
 
 .poc-pagination {
@@ -553,6 +584,12 @@ body.entity-commerce-poc {
     border-radius: calc(var(--radius-card) - 10px);
 }
 
+.poc-action-strip--inline {
+    gap: 12px;
+    margin-top: 20px;
+    padding: 16px 18px;
+}
+
 .poc-action-strip__row {
     display: flex;
     flex-wrap: wrap;
@@ -590,6 +627,13 @@ body.entity-commerce-poc {
     background: rgba(24, 33, 43, 0.06);
     color: var(--color-muted);
     border: 1px solid rgba(24, 33, 43, 0.08);
+}
+
+.poc-action-strip--inline .poc-action-strip__button,
+.poc-action-strip--inline .poc-action-strip__status {
+    min-height: 42px;
+    padding: 0 18px;
+    font-size: 0.86rem;
 }
 
 .cms-gallery-block,

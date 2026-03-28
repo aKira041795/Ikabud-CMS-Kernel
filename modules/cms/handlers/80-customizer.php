@@ -110,6 +110,7 @@ function cmsAdminCustomizer(array $params = []): void
         'theme_layout_settings_json' => json_encode($themeLayout['settings'], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
         'storefront_settings'     => $storefront['settings'],
         'storefront_settings_json' => json_encode($storefront['settings'], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+        'theme_manifest_block_variants_json' => json_encode(cmsThemeManifestBlockVariants(), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
         'site_title'          => $settings['site_title'] ?? '',
         'site_tagline'        => $settings['site_tagline'] ?? '',
         'social_links_json'   => json_encode(cmsPublicSocialLinks($settings)),
