@@ -13,7 +13,7 @@
         </div>
     </div>
     {if capability_data.pricing.sale_price}
-    <span class="cms-price-badge inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700">Save now</span>
+    <span class="cms-price-badge inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700">Sale</span>
     {/if}
 </div>
 {/if}

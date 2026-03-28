@@ -1,7 +1,7 @@
 {if action_sections}{action_sections | raw}{else}
 <div class="cms-action-block cms-action-block-inline my-6 flex flex-wrap items-center gap-2.5 rounded-xl border border-slate-200 bg-white/90 p-3">
     {if capabilities.pricing and cart_enabled}
-        {if not capabilities.inventory or capability_data.inventory.in_stock and not capability_data.inventory.out_of_stock}
+        {if not capabilities.inventory}
     <form method="POST" action="{cart_action_url}" class="inline">
         <input type="hidden" name="product_id" value="{entity.id}">
         <input type="hidden" name="qty" value="1">
@@ -11,6 +11,22 @@
             Add to Cart
         </button>
     </form>
+        {elseif capability_data.inventory.in_stock}
+            {if capability_data.inventory.out_of_stock}
+    <span class="cms-btn-disabled inline-flex items-center gap-2 rounded-xl bg-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-500">
+        Out of Stock
+    </span>
+            {else}
+    <form method="POST" action="{cart_action_url}" class="inline">
+        <input type="hidden" name="product_id" value="{entity.id}">
+        <input type="hidden" name="qty" value="1">
+        <input type="hidden" name="csrf_token" value="{csrf_token}">
+        <button type="submit"
+                class="cms-btn-primary inline-flex items-center gap-2 rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-slate-800 active:bg-slate-950">
+            Add to Cart
+        </button>
+    </form>
+            {/if}
         {else}
     <span class="cms-btn-disabled inline-flex items-center gap-2 rounded-xl bg-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-500">
         Out of Stock

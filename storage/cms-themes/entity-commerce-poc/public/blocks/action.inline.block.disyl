@@ -2,13 +2,24 @@
 <div class="poc-action-strip poc-action-strip--inline">
     <div class="poc-action-strip__row">
         {if capabilities.pricing and cart_enabled}
-            {if not capabilities.inventory or capability_data.inventory.in_stock and not capability_data.inventory.out_of_stock}
+            {if not capabilities.inventory}
         <form method="POST" action="{cart_action_url}" class="inline">
             <input type="hidden" name="product_id" value="{entity.id}">
             <input type="hidden" name="qty" value="1">
             <input type="hidden" name="csrf_token" value="{csrf_token}">
             <button type="submit" class="poc-action-strip__button poc-action-strip__button--primary">Add to Cart</button>
         </form>
+            {elseif capability_data.inventory.in_stock}
+                {if capability_data.inventory.out_of_stock}
+        <span class="poc-action-strip__status">Out of Stock</span>
+                {else}
+        <form method="POST" action="{cart_action_url}" class="inline">
+            <input type="hidden" name="product_id" value="{entity.id}">
+            <input type="hidden" name="qty" value="1">
+            <input type="hidden" name="csrf_token" value="{csrf_token}">
+            <button type="submit" class="poc-action-strip__button poc-action-strip__button--primary">Add to Cart</button>
+        </form>
+                {/if}
             {else}
         <span class="poc-action-strip__status">Out of Stock</span>
             {/if}

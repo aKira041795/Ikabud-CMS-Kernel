@@ -3,7 +3,7 @@
 <div class="cms-action-block cms-action-block-sticky-footer my-8 border border-slate-200 bg-white p-3 shadow-sm sm:rounded-2xl lg:sticky lg:bottom-4">
     <div class="flex flex-wrap items-center gap-3">
         {if capabilities.pricing and cart_enabled}
-            {if not capabilities.inventory or capability_data.inventory.in_stock and not capability_data.inventory.out_of_stock}
+            {if not capabilities.inventory}
         <form method="POST" action="{cart_action_url}" class="flex-1 min-w-[180px]">
             <input type="hidden" name="product_id" value="{entity.id}">
             <input type="hidden" name="qty" value="1">
@@ -17,6 +17,27 @@
                 Add to Cart
             </button>
         </form>
+            {elseif capability_data.inventory.in_stock}
+                {if capability_data.inventory.out_of_stock}
+        <button type="button" disabled
+                class="cms-btn-disabled inline-flex flex-1 min-w-[180px] items-center justify-center gap-2 rounded-xl bg-slate-200 px-5 py-3 text-sm font-semibold text-slate-500 cursor-not-allowed">
+            Out of Stock
+        </button>
+                {else}
+        <form method="POST" action="{cart_action_url}" class="flex-1 min-w-[180px]">
+            <input type="hidden" name="product_id" value="{entity.id}">
+            <input type="hidden" name="qty" value="1">
+            <input type="hidden" name="csrf_token" value="{csrf_token}">
+            <button type="submit"
+                    class="cms-btn-primary inline-flex w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-slate-800">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M3 3h2l.4 2M7 13h10l4-9H5.4M7 13l-1.5 6h13M7 13L5.4 5M17 13l1.5 6M9 21a1 1 0 100-2 1 1 0 000 2zm8 0a1 1 0 100-2 1 1 0 000 2z"/>
+                </svg>
+                Add to Cart
+            </button>
+        </form>
+                {/if}
             {else}
         <button type="button" disabled
                 class="cms-btn-disabled inline-flex flex-1 min-w-[180px] items-center justify-center gap-2 rounded-xl bg-slate-200 px-5 py-3 text-sm font-semibold text-slate-500 cursor-not-allowed">

@@ -19,6 +19,10 @@
             <div class="poc-entity-view__hero">
                 <img src="{entity.featured_image_url}" alt="{entity.title}" class="poc-entity-view__hero-image">
             </div>
+            {else}
+            <div class="poc-entity-view__media-placeholder">
+                <span class="poc-entity-view__media-placeholder-icon"></span>
+            </div>
             {/if}
         </div>
 
