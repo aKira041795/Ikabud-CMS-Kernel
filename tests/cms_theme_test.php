@@ -186,7 +186,17 @@ $pocManifest = cmsActiveThemeManifest();
 t('entity-commerce-poc manifest loads as active theme', ($pocManifest['slug'] ?? '') === 'entity-commerce-poc');
 t('entity-commerce-poc manifest declares ecommerce customizer scope', ($pocManifest['customizer_scope'] ?? '') === 'ecommerce');
 t('active customizer scope switches to ecommerce for entity-commerce-poc', cmsActiveCustomizerScope() === 'ecommerce');
+t('forced customizer scope resolves ecommerce route override', cmsRequestedCustomizerScope(['scope' => 'ecommerce']) === 'ecommerce');
+t('invalid customizer scope falls back to active theme scope', cmsRequestedCustomizerScope(['scope' => 'unknown-scope']) === 'ecommerce');
 t('ecommerce customizer section keys are namespaced', cmsCustomizerStorageSection('sidebar', 'ecommerce') === 'ecommerce:sidebar');
+
+$routes = require BASE_PATH . '/modules/cms/routes.php';
+$getRoutes = is_array($routes['GET'] ?? null) ? $routes['GET'] : [];
+$postRoutes = is_array($routes['POST'] ?? null) ? $routes['POST'] : [];
+t('native customizer admin route exists', ($getRoutes['/cms/admin/customize/native'] ?? '') === 'cms:cmsAdminCustomizer');
+t('ecommerce customizer admin route exists', ($getRoutes['/cms/admin/customize/ecommerce'] ?? '') === 'cms:cmsAdminCustomizer');
+t('scoped customizer GET API route exists', ($getRoutes['/api/v1/cms/customizer/{scope}/{section}'] ?? '') === 'cms:cmsApiCustomizerGet');
+t('scoped customizer POST API route exists', ($postRoutes['/api/v1/cms/customizer/{scope}/{section}'] ?? '') === 'cms:cmsApiCustomizerSave');
 
 $db = cmsDb();
 cmsEnsureCustomizerScopeSeeded($db, 'ecommerce');

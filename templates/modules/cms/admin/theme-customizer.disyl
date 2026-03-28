@@ -103,8 +103,15 @@
                 <h2 class="text-lg font-bold text-gray-900">{if customizer_title}{customizer_title}{else}Theme Customizer{/if}</h2>
                 {if customizer_scope == 'ecommerce'}<span class="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-700">Ecommerce Scope</span>{/if}
             </div>
-            <p class="text-sm text-gray-500 mt-0.5" x-text="activeTab === 'header' ? 'Customize your site\'s header layout, navigation, and styling' : activeTab === 'sidebar' ? 'Configure sidebar widgets, placement, and template targeting' : activeTab === 'colors' ? 'Global colors, typography, and body styles — fallback when not set in header/footer' : activeTab === 'custom_code' ? 'Custom CSS overrides, code injection, and advanced enhancements' : activeTab === 'theme' ? 'Site layout, entity-view profiles, approved block variants, and content display options' : 'Customize your site\'s footer layout, widgets, and styling'"></p>
+            <p class="text-sm text-gray-500 mt-0.5" x-text="tabDescription()"></p>
             {if customizer_intro}<p class="text-xs text-gray-400 mt-1">{customizer_intro}</p>{/if}
+            <div class="mt-3 flex flex-wrap items-center gap-2 text-xs">
+                <a href="{native_customizer_url}" class="inline-flex items-center rounded-full border px-3 py-1.5 font-medium transition-colors {if customizer_scope == 'native'}border-slate-900 bg-slate-900 text-white{else}border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-900{/if}">Native Workspace</a>
+                <a href="{ecommerce_customizer_url}" class="inline-flex items-center rounded-full border px-3 py-1.5 font-medium transition-colors {if customizer_scope == 'ecommerce'}border-amber-600 bg-amber-600 text-white{else}border-amber-200 bg-amber-50 text-amber-700 hover:border-amber-300{/if}">E-commerce Workspace</a>
+            </div>
+            {if customizer_scope_notice}
+            <div class="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">{customizer_scope_notice}</div>
+            {/if}
         </div>
         <div class="flex items-center gap-2">
             <button @click="resetDefaults()" class="cz-btn cz-btn-secondary" :disabled="saving">
@@ -124,28 +131,34 @@
         <nav class="flex gap-0">
             <button @click="activeTab = 'footer'" class="cz-tab" :class="activeTab === 'footer' ? 'cz-tab-active' : 'cz-tab-inactive'">
                 <svg class="w-4 h-4 inline -mt-0.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
-                Footer
+                {if customizer_scope == 'ecommerce'}Store Footer{else}Footer{/if}
             </button>
             <button @click="activeTab = 'header'" class="cz-tab" :class="activeTab === 'header' ? 'cz-tab-active' : 'cz-tab-inactive'">
                 <svg class="w-4 h-4 inline -mt-0.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5z"/></svg>
-                Header
+                {if customizer_scope == 'ecommerce'}Store Header{else}Header{/if}
             </button>
             <button @click="activeTab = 'sidebar'" class="cz-tab" :class="activeTab === 'sidebar' ? 'cz-tab-active' : 'cz-tab-inactive'">
                 <svg class="w-4 h-4 inline -mt-0.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 5a1 1 0 011-1h18a1 1 0 011 1v14a1 1 0 01-1 1H5a1 1 0 01-1-1V5zm5 0v14"/></svg>
-                Sidebar
+                {if customizer_scope == 'ecommerce'}Sidebar Rail{else}Sidebar{/if}
             </button>
             <button @click="activeTab = 'colors'" class="cz-tab" :class="activeTab === 'colors' ? 'cz-tab-active' : 'cz-tab-inactive'">
                 <svg class="w-4 h-4 inline -mt-0.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01"/></svg>
-                Colors &amp; Typography
+                {if customizer_scope == 'ecommerce'}Store Palette{else}Colors &amp; Typography{/if}
             </button>
             <button @click="activeTab = 'custom_code'" class="cz-tab" :class="activeTab === 'custom_code' ? 'cz-tab-active' : 'cz-tab-inactive'">
                 <svg class="w-4 h-4 inline -mt-0.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/></svg>
-                Custom Code
+                {if customizer_scope == 'ecommerce'}Store Code{else}Custom Code{/if}
             </button>
             <button @click="activeTab = 'theme'" class="cz-tab" :class="activeTab === 'theme' ? 'cz-tab-active' : 'cz-tab-inactive'">
                 <svg class="w-4 h-4 inline -mt-0.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v14a1 1 0 01-1 1H5a1 1 0 01-1-1V5zm0 5h16M9 5v14"/></svg>
-                Theme Settings
+                {if customizer_scope == 'ecommerce'}Shared Layout{else}Theme Settings{/if}
             </button>
+            {if customizer_scope == 'ecommerce'}
+            <button @click="activeTab = 'commerce'" class="cz-tab" :class="activeTab === 'commerce' ? 'cz-tab-active' : 'cz-tab-inactive'">
+                <svg class="w-4 h-4 inline -mt-0.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 7h18M6 12h12M8 17h8"/></svg>
+                Storefront
+            </button>
+            {/if}
         </nav>
     </div>
 
@@ -2169,6 +2182,7 @@
                 </div>
             </div>
 
+            {if customizer_scope != 'ecommerce'}
             <!-- Entity View Presentation Panel -->
             <div class="cz-panel">
                 <div class="cz-panel-header" @click="tlPanels.entity = !tlPanels.entity">
@@ -2215,6 +2229,7 @@
                     </div>
                 </div>
             </div>
+            {/if}
         </div>
 
         <!-- Right Column: Preview Summary -->
@@ -2414,10 +2429,12 @@
                             <div class="flex justify-between"><span class="text-gray-400">Single Width</span><span class="font-medium" x-text="themeLayoutSettings.single_max_width + 'px'"></span></div>
                             <div class="flex justify-between"><span class="text-gray-400">Blog Elements</span><span class="font-medium" x-text="[themeLayoutSettings.blog_show_author == 1 ? 'Author' : '', themeLayoutSettings.blog_show_date == 1 ? 'Date' : '', themeLayoutSettings.blog_show_excerpt == 1 ? 'Excerpt' : '', themeLayoutSettings.blog_show_readmore == 1 ? 'Read More' : ''].filter(Boolean).join(', ') || 'None'"></span></div>
                             <div class="flex justify-between"><span class="text-gray-400">Single Elements</span><span class="font-medium" x-text="[themeLayoutSettings.single_show_author == 1 ? 'Author' : '', themeLayoutSettings.single_show_date == 1 ? 'Date' : '', themeLayoutSettings.single_show_categories == 1 ? 'Cats' : '', themeLayoutSettings.single_show_tags == 1 ? 'Tags' : '', themeLayoutSettings.single_show_nav == 1 ? 'Nav' : ''].filter(Boolean).join(', ') || 'None'"></span></div>
+                            {if customizer_scope != 'ecommerce'}
                             <hr class="border-gray-100">
                             <div class="flex justify-between"><span class="text-gray-400">Entity Profile</span><span class="font-medium capitalize" x-text="themeLayoutSettings.entity_layout_profile"></span></div>
                             <div class="flex justify-between"><span class="text-gray-400">Pricing Variant</span><span class="font-medium capitalize" x-text="themeLayoutSettings.entity_pricing_variant || 'Default'"></span></div>
                             <div class="flex justify-between"><span class="text-gray-400">Action Variant</span><span class="font-medium capitalize" x-text="themeLayoutSettings.entity_action_variant || 'Default'"></span></div>
+                            {/if}
                         </div>
                         <!-- Content ratio visual -->
                         <div>
@@ -2437,6 +2454,88 @@
                                 </div>
                             </div>
                         </div>
+
+                        {if customizer_scope == 'ecommerce'}
+                        <div x-show="activeTab === 'commerce'" class="grid grid-cols-1 xl:grid-cols-12 gap-6">
+                            <div class="xl:col-span-8 space-y-5">
+                                <div class="cz-panel">
+                                    <div class="cz-panel-header" @click="tlPanels.commerceGuide = !tlPanels.commerceGuide">
+                                        <h3>
+                                            <svg class="w-4 h-4 inline -mt-0.5 mr-1.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6l4 2M12 22C6.477 22 2 17.523 2 12S6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z"/></svg>
+                                            Storefront Contract
+                                        </h3>
+                                        <svg class="w-4 h-4 text-gray-400 transition-transform" :class="tlPanels.commerceGuide ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                                    </div>
+                                    <div x-show="tlPanels.commerceGuide" x-collapse class="cz-panel-body space-y-3 text-sm text-slate-600">
+                                        <p>The ecommerce workspace edits the storefront presentation layer without forking the canonical CMS entity list and entity view contracts.</p>
+                                        <p>Use this tab for catalog-specific layout choices, pricing card variants, and purchase action treatment. Sidebar state stays isolated from the native theme unless you explicitly enable it in the sidebar rail tab.</p>
+                                    </div>
+                                </div>
+
+                                <div class="cz-panel">
+                                    <div class="cz-panel-header" @click="tlPanels.commerceEntity = !tlPanels.commerceEntity">
+                                        <h3>
+                                            <svg class="w-4 h-4 inline -mt-0.5 mr-1.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h10"/></svg>
+                                            Entity View Presentation
+                                        </h3>
+                                        <svg class="w-4 h-4 text-gray-400 transition-transform" :class="tlPanels.commerceEntity ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                                    </div>
+                                    <div x-show="tlPanels.commerceEntity" x-collapse class="cz-panel-body">
+                                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+                                            <div>
+                                                <label class="cz-label">Layout Profile</label>
+                                                <select x-model="themeLayoutSettings.entity_layout_profile" class="cz-select">
+                                                    <option value="default">Default</option>
+                                                    <option value="commerce">Commerce</option>
+                                                    <option value="content">Content</option>
+                                                </select>
+                                                <p class="text-[10px] text-gray-400 mt-1">Select from approved canonical entity orderings instead of creating a separate template family.</p>
+                                            </div>
+                                            <div>
+                                                <label class="cz-label">Pricing Variant</label>
+                                                <select x-model="themeLayoutSettings.entity_pricing_variant" class="cz-select">
+                                                    <option value="">Default</option>
+                                                    <option value="compact">Compact</option>
+                                                    <option value="featured">Featured</option>
+                                                    <option value="minimal">Minimal</option>
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <label class="cz-label">Action Variant</label>
+                                                <select x-model="themeLayoutSettings.entity_action_variant" class="cz-select">
+                                                    <option value="">Default</option>
+                                                    <option value="sticky-footer">Sticky Footer</option>
+                                                </select>
+                                            </div>
+                                        </div>
+
+                                        <div class="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600">
+                                            <div class="font-semibold text-slate-800 mb-1">Profile behavior</div>
+                                            <div x-show="themeLayoutSettings.entity_layout_profile === 'default'">Default keeps pricing and actions in the main reading flow ahead of the body.</div>
+                                            <div x-show="themeLayoutSettings.entity_layout_profile === 'commerce'">Commerce moves pricing and actions into a dedicated summary rail for storefront-oriented entities.</div>
+                                            <div x-show="themeLayoutSettings.entity_layout_profile === 'content'">Content prioritizes the title and body first, then places pricing and actions after the narrative content.</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="xl:col-span-4 space-y-5">
+                                <div class="cz-card cz-sticky">
+                                    <div class="flex items-center justify-between mb-4">
+                                        <h3 class="text-sm font-semibold text-gray-900">Storefront Summary</h3>
+                                        <span class="text-[10px] font-medium uppercase tracking-[0.12em] text-amber-700">Ecommerce Scope</span>
+                                    </div>
+                                    <div class="space-y-3 text-sm">
+                                        <div class="flex justify-between"><span class="text-gray-400">Entity Profile</span><span class="font-medium capitalize" x-text="themeLayoutSettings.entity_layout_profile"></span></div>
+                                        <div class="flex justify-between"><span class="text-gray-400">Pricing Variant</span><span class="font-medium capitalize" x-text="themeLayoutSettings.entity_pricing_variant || 'Default'"></span></div>
+                                        <div class="flex justify-between"><span class="text-gray-400">Action Variant</span><span class="font-medium capitalize" x-text="themeLayoutSettings.entity_action_variant || 'Default'"></span></div>
+                                        <hr class="border-gray-100">
+                                        <div class="text-xs text-slate-500">These settings only alter the ecommerce scope and keep the shared native theme controls isolated.</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {/if}
                     </div>
                 </div>
             </div>
@@ -2456,9 +2555,11 @@
 <script>
 function themeCustomizer() {
     return {
-        activeTab: 'footer',
+        activeTab: '{if customizer_scope == 'ecommerce'}commerce{else}footer{/if}',
         saving: false,
         dirty: false,
+        customizerScope: '{if customizer_scope}{customizer_scope}{else}native{/if}',
+        customizerApiBase: '{if customizer_api_base}{customizer_api_base}{else}{base_url}/api/v1/cms/customizer{/if}',
         draggedWidgetId: null,
         expandedWidgets: {},
         panels: { layout: true, colors: false, bar: true, widgets: true, help: false },
@@ -2466,7 +2567,7 @@ function themeCustomizer() {
         sPanels: { layout: true, appearance: false, widgets: true },
         cPanels: { brand: true, body: false, typo: false, layout: false },
         ccPanels: { css: true, head: false, body: false, enhancements: true },
-        tlPanels: { site: true, blog: true, single: false, entity: true },
+        tlPanels: { site: true, blog: true, single: false, entity: true, commerceGuide: true, commerceEntity: true },
         tlPreviewMode: 'page',
 
         // Theme layout settings (hydrated from server)
@@ -2624,6 +2725,25 @@ function themeCustomizer() {
             { value: 'Georgia',          label: 'Georgia' },
             { value: 'system-ui',        label: 'System UI' },
         ],
+
+        tabDescription() {
+            if (this.customizerScope === 'ecommerce') {
+                if (this.activeTab === 'header') return 'Customize the storefront header shell, navigation, and brand treatment.';
+                if (this.activeTab === 'sidebar') return 'Configure the isolated storefront sidebar rail used only when explicitly enabled.';
+                if (this.activeTab === 'colors') return 'Store palette, typography, and shared surface tokens for the ecommerce scope.';
+                if (this.activeTab === 'custom_code') return 'Scope-specific CSS and enhancement hooks for the storefront experience.';
+                if (this.activeTab === 'theme') return 'Shared layout rules the storefront can inherit without changing canonical entity templates.';
+                if (this.activeTab === 'commerce') return 'Catalog entity presentation, pricing blocks, and purchase action variants for the ecommerce scope.';
+                return 'Customize the storefront footer and merchandising support areas for the ecommerce scope.';
+            }
+
+            if (this.activeTab === 'header') return 'Customize your site\'s header layout, navigation, and styling.';
+            if (this.activeTab === 'sidebar') return 'Configure sidebar widgets, placement, and template targeting.';
+            if (this.activeTab === 'colors') return 'Global colors, typography, and body styles used when header and footer tabs do not override them.';
+            if (this.activeTab === 'custom_code') return 'Custom CSS overrides, code injection, and advanced enhancements.';
+            if (this.activeTab === 'theme') return 'Site layout, entity-view profiles, approved block variants, and content display options.';
+            return 'Customize your site\'s footer layout, widgets, and styling.';
+        },
 
         init() {
             // Hydrate from server-rendered JSON
@@ -3078,8 +3198,10 @@ function themeCustomizer() {
         async save() {
             this.saving = true;
             try {
+                const apiBase = this.customizerApiBase;
+
                 // Save footer settings
-                const footerRes = await fetch(CMS_BASE + '/api/v1/cms/customizer/footer', {
+                const footerRes = await fetch(apiBase + '/footer', {
                     method: 'POST',
                     credentials: 'same-origin',
                     headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CMS_CSRF },
@@ -3088,7 +3210,7 @@ function themeCustomizer() {
                 const footerData = await footerRes.json();
 
                 // Save header settings
-                const headerRes = await fetch(CMS_BASE + '/api/v1/cms/customizer/header', {
+                const headerRes = await fetch(apiBase + '/header', {
                     method: 'POST',
                     credentials: 'same-origin',
                     headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CMS_CSRF },
@@ -3097,7 +3219,7 @@ function themeCustomizer() {
                 const headerData = await headerRes.json();
 
                 // Save sidebar settings
-                const sidebarRes = await fetch(CMS_BASE + '/api/v1/cms/customizer/sidebar', {
+                const sidebarRes = await fetch(apiBase + '/sidebar', {
                     method: 'POST',
                     credentials: 'same-origin',
                     headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CMS_CSRF },
@@ -3106,7 +3228,7 @@ function themeCustomizer() {
                 const sidebarData = await sidebarRes.json();
 
                 // Save colors & typography settings
-                const colorsRes = await fetch(CMS_BASE + '/api/v1/cms/customizer/colors', {
+                const colorsRes = await fetch(apiBase + '/colors', {
                     method: 'POST',
                     credentials: 'same-origin',
                     headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CMS_CSRF },
@@ -3115,7 +3237,7 @@ function themeCustomizer() {
                 const colorsData = await colorsRes.json();
 
                 // Save custom code settings
-                const ccRes = await fetch(CMS_BASE + '/api/v1/cms/customizer/custom_code', {
+                const ccRes = await fetch(apiBase + '/custom_code', {
                     method: 'POST',
                     credentials: 'same-origin',
                     headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CMS_CSRF },
@@ -3124,7 +3246,7 @@ function themeCustomizer() {
                 const ccData = await ccRes.json();
 
                 // Save theme layout settings
-                const themeRes = await fetch(CMS_BASE + '/api/v1/cms/customizer/theme', {
+                const themeRes = await fetch(apiBase + '/theme', {
                     method: 'POST',
                     credentials: 'same-origin',
                     headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CMS_CSRF },
@@ -3188,6 +3310,13 @@ function themeCustomizer() {
                 this._mobileBgHex = '#ffffff';
                 this._mobileBgOpacity = 100;
                 this.headerWidgets = [];
+            } else if (this.activeTab === 'commerce') {
+                if (!confirm('Reset storefront presentation settings to defaults? This resets only the ecommerce entity presentation controls.')) return;
+                this.themeLayoutSettings = Object.assign({}, this.themeLayoutSettings, {
+                    entity_layout_profile: 'default',
+                    entity_pricing_variant: '',
+                    entity_action_variant: '',
+                });
             } else if (this.activeTab === 'theme') {
                 if (!confirm('Reset all theme layout settings to defaults? This cannot be undone.')) return;
                 this.themeLayoutSettings = {

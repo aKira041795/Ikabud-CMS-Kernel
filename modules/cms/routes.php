@@ -24,6 +24,8 @@ return [
         '/cms/admin/categories'            => 'cms:cmsAdminCategories',
         '/cms/admin/menus'                 => 'cms:cmsAdminMenus',
         '/cms/admin/customize'             => 'cms:cmsAdminCustomizer',
+        '/cms/admin/customize/native'      => 'cms:cmsAdminCustomizer',
+        '/cms/admin/customize/ecommerce'   => 'cms:cmsAdminCustomizer',
         '/cms/admin/redirects'             => 'cms:cmsAdminRedirects',
         '/cms/admin/import-export'         => 'cms:cmsAdminImportExport',
         '/cms/admin/permissions'           => 'cms:cmsAdminPermissions',
@@ -98,8 +100,9 @@ return [
         '/api/v1/cms/saved-blocks'        => 'cms:cmsApiSavedBlockList',
 
         // ── Theme Customizer API (GET) ──────────────────────────
-        '/api/v1/cms/customizer/{section}' => 'cms:cmsApiCustomizerGet',
         '/api/v1/cms/customizer/footer/preview' => 'cms:cmsApiCustomizerFooterPreview',
+        '/api/v1/cms/customizer/{scope}/{section}' => 'cms:cmsApiCustomizerGet',
+        '/api/v1/cms/customizer/{section}' => 'cms:cmsApiCustomizerGet',
         '/api/v1/cms/permissions'           => 'cms:cmsApiPermissionsGet',
     ],
     'POST' => [
@@ -181,6 +184,7 @@ return [
         '/api/v1/cms/saved-blocks/{id}/delete' => 'cms:cmsApiSavedBlockDelete',
 
         // ── Theme Customizer API ─────────────────────────────────
+        '/api/v1/cms/customizer/{scope}/{section}' => 'cms:cmsApiCustomizerSave',
         '/api/v1/cms/customizer/{section}'     => 'cms:cmsApiCustomizerSave',
 
         // ── Redirect API ─────────────────────────────────────────

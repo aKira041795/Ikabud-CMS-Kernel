@@ -6,9 +6,15 @@ function cmsAdminCustomizer(array $params = []): void
 {
     $user = cmsRequireCap('customizer.manage');
 
-    $scope = cmsActiveCustomizerScope();
+    $scope = cmsRequestedCustomizerScope($params);
+    $activeThemeScope = cmsActiveCustomizerScope();
     $customizerTitle = cmsCustomizerScopeLabel($scope);
     $customizerIntro = cmsCustomizerScopeIntro($scope);
+    $baseUrl = rtrim((string)(defined('BASE_URL') ? BASE_URL : ''), '/');
+    $scopeNotice = '';
+    if ($scope !== $activeThemeScope) {
+        $scopeNotice = 'This route is editing the ' . $scope . ' customizer scope while the active theme is currently using the ' . $activeThemeScope . ' scope.';
+    }
 
     $cacheKey = 'cms.customizer.' . $scope;
     $cached = adminViewCacheGet($cacheKey, $user);
@@ -68,6 +74,11 @@ function cmsAdminCustomizer(array $params = []): void
         'customizer_title'    => $customizerTitle,
         'customizer_intro'    => $customizerIntro,
         'customizer_scope'    => $scope,
+        'active_theme_customizer_scope' => $activeThemeScope,
+        'customizer_scope_notice' => $scopeNotice,
+        'customizer_api_base' => $baseUrl . '/api/v1/cms/customizer/' . $scope,
+        'native_customizer_url' => $baseUrl . '/cms/admin/customize/native',
+        'ecommerce_customizer_url' => $baseUrl . '/cms/admin/customize/ecommerce',
         'footer_settings'     => $footer['settings'],
         'footer_widgets'      => $footer['widgets'],
         'footer_settings_json' => json_encode($footer['settings'], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
@@ -115,7 +126,7 @@ function cmsApiCustomizerGet(array $params = []): void
     header('Content-Type: application/json');
     cmsRequireCap('customizer.manage');
 
-    $scope = cmsActiveCustomizerScope();
+    $scope = cmsRequestedCustomizerScope($params);
 
     $section = trim((string)($params['section'] ?? ''));
     if ($section === '') {
@@ -141,7 +152,7 @@ function cmsApiCustomizerSave(array $params = []): void
     $user = cmsRequireCap('customizer.manage');
     app()->csrfEnforce();
 
-    $scope = cmsActiveCustomizerScope();
+    $scope = cmsRequestedCustomizerScope($params);
 
     $section = trim((string)($params['section'] ?? ''));
     if ($section === '') {

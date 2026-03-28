@@ -126,6 +126,22 @@ function cmsValidateColorsSettings(array $input): array
     return $validated;
 }
 
+function cmsNormalizeCustomizerScope(?string $scope, string $fallback = 'native'): string
+{
+    $scope = trim((string)$scope);
+    return in_array($scope, ['native', 'ecommerce'], true) ? $scope : $fallback;
+}
+
+function cmsRequestedCustomizerScope(array $params = []): string
+{
+    $requested = trim((string)($params['scope'] ?? ''));
+    if ($requested === '') {
+        return cmsActiveCustomizerScope();
+    }
+
+    return cmsNormalizeCustomizerScope($requested, cmsActiveCustomizerScope());
+}
+
 function cmsKnownCustomizerSections(): array
 {
     return ['footer', 'header', 'sidebar', 'colors', 'custom_code', 'theme'];
@@ -133,8 +149,7 @@ function cmsKnownCustomizerSections(): array
 
 function cmsThemeCustomizerScopeFromManifest(array $manifest): string
 {
-    $scope = trim((string)($manifest['customizer_scope'] ?? 'native'));
-    return in_array($scope, ['native', 'ecommerce'], true) ? $scope : 'native';
+    return cmsNormalizeCustomizerScope((string)($manifest['customizer_scope'] ?? 'native'));
 }
 
 function cmsActiveCustomizerScope(): string
