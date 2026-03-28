@@ -1,0 +1,15 @@
+{if capabilities.pricing or capabilities.inventory or capabilities.booking or capabilities.inquiry}
+<div class="cms-entity-summary-stack {if entity_presentation.summary_mode == 'rail'}cms-entity-summary-stack-rail{else}cms-entity-summary-stack-inline{/if}">
+    {if capabilities.pricing}
+        {if pricing_block_html}{pricing_block_html | raw}{else}{include "modules/cms/public/blocks/pricing.block.disyl"}{/if}
+    {/if}
+
+    {if capabilities.inventory}
+        {include "modules/cms/public/blocks/inventory.block.disyl"}
+    {/if}
+
+    {if capabilities.pricing or capabilities.booking or capabilities.inquiry}
+        {if action_block_html}{action_block_html | raw}{else}{include "modules/cms/public/blocks/action.block.disyl"}{/if}
+    {/if}
+</div>
+{/if}

@@ -1167,6 +1167,9 @@ function cmsPublicEntityView(array $params = []): void
         'sidebar_template'      => $sidebarTemplateKey,
         'content_type'          => $type,
     ]);
+    $viewContext['entity_presentation'] = cmsEntityPresentationConfig(
+        is_array($viewContext['theme_settings'] ?? null) ? $viewContext['theme_settings'] : []
+    );
 
     $capabilities = is_array($viewContext['capabilities'] ?? null) ? $viewContext['capabilities'] : [];
     if (!empty($capabilities['pricing'])) {

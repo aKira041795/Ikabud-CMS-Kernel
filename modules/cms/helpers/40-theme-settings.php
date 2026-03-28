@@ -679,40 +679,71 @@ function cmsThemeTokensCss(array $tokens): string
  * allowlist. Falls back to the default CMS block template unconditionally when
  * the theme's restrict_to_tokens flag is set and the block is not in the allowlist.
  *
- * @param  string $block  Relative path under templates/, e.g. "modules/cms/public/blocks/pricing.block.disyl"
- * @return string         Path relative to templates/ for TemplateEngine::render()
+ * @param  string $block    Relative path under templates/, e.g. "modules/cms/public/blocks/pricing.block.disyl"
+ * @param  array  $context  Render context, used for customizer-driven block variants.
+ * @return string           Path relative to templates/ for TemplateEngine::render()
  */
-function cmsResolveBlockTemplate(string $block): string
+function cmsResolveBlockTemplate(string $block, array $context = []): string
 {
+    $candidateBlock = $block;
+    $baseName = basename($block);
+    if (preg_match('/^([a-z0-9\-]+)\.block\.disyl$/i', $baseName, $matches)) {
+        $blockId = strtolower((string)($matches[1] ?? ''));
+        $settingMap = [
+            'pricing' => 'entity_pricing_variant',
+            'action'  => 'entity_action_variant',
+        ];
+
+        $themeSettings = is_array($context['theme_settings'] ?? null) ? $context['theme_settings'] : [];
+        $settingKey = $settingMap[$blockId] ?? null;
+        $variant = $settingKey !== null ? trim((string)($themeSettings[$settingKey] ?? '')) : '';
+        if ($variant !== '' && function_exists('cmsNormalizeThemeBlockVariant')) {
+            $variant = cmsNormalizeThemeBlockVariant($blockId, $variant);
+        }
+
+        if ($variant !== '') {
+            $variantBlock = preg_replace('/\.block\.disyl$/', '.' . $variant . '.block.disyl', $block);
+            $variantTemplatePath = is_string($variantBlock) ? TEMPLATES_PATH . '/' . $variantBlock : '';
+            if ($variantTemplatePath !== '' && is_file($variantTemplatePath)) {
+                $candidateBlock = $variantBlock;
+            } else {
+                write_log('CMS block variant template missing', 'warning', [
+                    'block' => $block,
+                    'variant' => $variant,
+                ]);
+            }
+        }
+    }
+
     $manifest = cmsActiveThemeManifest();
 
     if (empty($manifest['slug'])) {
-        return $block;
+        return $candidateBlock;
     }
 
     if (!empty($manifest['restrict_to_tokens'])) {
         $allowed  = array_map('trim', (array)($manifest['overridable_blocks'] ?? []));
-        $baseName = basename($block);
-        if (!in_array($baseName, $allowed, true) && !in_array($block, $allowed, true)) {
+        $candidateBaseName = basename($candidateBlock);
+        if (!in_array($candidateBaseName, $allowed, true) && !in_array($candidateBlock, $allowed, true)) {
             // Theme is token-only; block override not permitted
-            return $block;
+            return $candidateBlock;
         }
     }
 
     cmsEnsureThemeSymlink();
     // Strip a leading "modules/cms/" prefix to find the theme-relative path
-    $themeRelative = preg_replace('#^modules/cms/#', '', $block);
+    $themeRelative = preg_replace('#^modules/cms/#', '', $candidateBlock);
     $overridePath  = (string)CMS_THEME_SYMLINK . '/' . $themeRelative;
     if (is_file($overridePath)) {
         return '_cms_active_theme/' . $themeRelative;
     }
 
-    return $block;
+    return $candidateBlock;
 }
 
 function cmsRenderThemeAwareBlockTemplate(string $block, array $context = []): string
 {
-    return cmsRenderThemeAwareTemplate(cmsResolveBlockTemplate($block), $context);
+    return cmsRenderThemeAwareTemplate(cmsResolveBlockTemplate($block, $context), $context);
 }
 
 /**

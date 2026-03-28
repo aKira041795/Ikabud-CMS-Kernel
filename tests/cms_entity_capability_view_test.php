@@ -590,6 +590,10 @@ $phpErrs = array_values(array_filter(explode("\n", $errLog), static function ($l
         return false;
     }
 
+    if (str_contains($line, 'Ikabud Cache: Cleared')) {
+        return false;
+    }
+
     return true;
 }));
 

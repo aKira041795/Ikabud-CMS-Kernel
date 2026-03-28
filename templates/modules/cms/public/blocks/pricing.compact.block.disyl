@@ -1,0 +1,19 @@
+{* pricing.compact.block.disyl — compact price row *}
+{if capability_data.pricing}
+<div class="cms-pricing-block cms-pricing-block-compact my-4 flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3">
+    <div>
+        <div class="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Price</div>
+        <div class="mt-1 flex items-baseline gap-2">
+            {if capability_data.pricing.sale_price}
+            <span class="text-xl font-semibold text-slate-900">{capability_data.pricing.currency} {capability_data.pricing.sale_price | number_format:2}</span>
+            <span class="text-sm text-slate-400 line-through">{capability_data.pricing.currency} {capability_data.pricing.price | number_format:2}</span>
+            {else}
+            <span class="text-xl font-semibold text-slate-900">{capability_data.pricing.currency} {capability_data.pricing.price | number_format:2}</span>
+            {/if}
+        </div>
+    </div>
+    {if capability_data.pricing.sale_price}
+    <span class="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700">Save now</span>
+    {/if}
+</div>
+{/if}

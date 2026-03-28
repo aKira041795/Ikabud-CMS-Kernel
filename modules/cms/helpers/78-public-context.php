@@ -129,6 +129,7 @@ function cmsPublicContext(array $extra = []): array
     // Preload all customizer sections in one DB query instead of 6 separate ones
     $stageStart = $timingEnabled ? microtime(true) : 0.0;
     try {
+        cmsEnsureCustomizerScopeSeeded($db);
         cmsCustomizerPreloadAll($db);
     } catch (Throwable $e) {
         // Non-fatal — individual lookups will fall back to per-section queries

@@ -3,19 +3,47 @@
     "version": "2.0.0",
     "author": "Ikabud Kernel",
     "description": "Modern theme with clean design, sticky header, responsive navigation, and full customization support. Ported from NativeCMS.",
+    "customizer_scope": "native",
     "license": "MIT",
     "supports": {
-        "menus": ["primary", "footer"],
-        "features": ["featured-images", "excerpts", "custom-templates"]
+        "menus": [
+            "primary",
+            "footer"
+        ],
+        "features": [
+            "featured-images",
+            "excerpts",
+            "custom-templates"
+        ]
     },
     "pageTemplates": [
-        { "slug": "default", "name": "Default", "description": "Standard page layout" },
-        { "slug": "full-width", "name": "Full Width", "description": "Full width without sidebar" },
-        { "slug": "landing", "name": "Landing Page", "description": "Clean landing page without header/footer widgets" },
-        { "slug": "blank", "name": "Blank Canvas", "description": "Minimal template for custom designs" }
+        {
+            "slug": "default",
+            "name": "Default",
+            "description": "Standard page layout"
+        },
+        {
+            "slug": "full-width",
+            "name": "Full Width",
+            "description": "Full width without sidebar"
+        },
+        {
+            "slug": "landing",
+            "name": "Landing Page",
+            "description": "Clean landing page without header/footer widgets"
+        },
+        {
+            "slug": "blank",
+            "name": "Blank Canvas",
+            "description": "Minimal template for custom designs"
+        }
     ],
     "assets": {
-        "css": ["style.css"],
-        "js": ["script.js"]
+        "css": [
+            "style.css"
+        ],
+        "js": [
+            "script.js"
+        ]
     }
 }

@@ -126,9 +126,56 @@ function cmsValidateColorsSettings(array $input): array
     return $validated;
 }
 
-function cmsCustomizerRequestCacheKey(string $suffix): string
+function cmsKnownCustomizerSections(): array
 {
-    return 'cms_customizer_' . $suffix . '_t' . cmsRuntimeTenantId();
+    return ['footer', 'header', 'sidebar', 'colors', 'custom_code', 'theme'];
+}
+
+function cmsThemeCustomizerScopeFromManifest(array $manifest): string
+{
+    $scope = trim((string)($manifest['customizer_scope'] ?? 'native'));
+    return in_array($scope, ['native', 'ecommerce'], true) ? $scope : 'native';
+}
+
+function cmsActiveCustomizerScope(): string
+{
+    return cmsThemeCustomizerScopeFromManifest(cmsActiveThemeManifest());
+}
+
+function cmsCustomizerScopeLabel(?string $scope = null): string
+{
+    $scope = $scope !== null ? trim($scope) : cmsActiveCustomizerScope();
+    return $scope === 'ecommerce' ? 'E-commerce Theme Customizer' : 'Theme Customizer';
+}
+
+function cmsCustomizerScopeIntro(?string $scope = null): string
+{
+    $scope = $scope !== null ? trim($scope) : cmsActiveCustomizerScope();
+    return $scope === 'ecommerce'
+        ? 'Customize the ecommerce presentation layer without inheriting native theme sidebar and layout concerns.'
+        : 'Customize your site\'s shared presentation layer for the native theme experience.';
+}
+
+function cmsCustomizerStorageSection(string $section, ?string $scope = null): string
+{
+    $scope = $scope !== null ? trim($scope) : cmsActiveCustomizerScope();
+    if ($scope === '' || $scope === 'native') {
+        return $section;
+    }
+
+    return $scope . ':' . $section;
+}
+
+function cmsCustomizerScopeTag(?string $scope = null): string
+{
+    $scope = $scope !== null ? trim($scope) : cmsActiveCustomizerScope();
+    return 'cms:customizer:scope:' . ($scope !== '' ? $scope : 'native');
+}
+
+function cmsCustomizerRequestCacheKey(string $suffix, ?string $scope = null): string
+{
+    $scope = $scope !== null ? trim($scope) : cmsActiveCustomizerScope();
+    return 'cms_customizer_' . ($scope !== '' ? $scope : 'native') . '_' . $suffix . '_t' . cmsRuntimeTenantId();
 }
 
 function cmsCustomizerPersistentCacheTtl(): int
@@ -136,31 +183,35 @@ function cmsCustomizerPersistentCacheTtl(): int
     return max(0, (int)($_ENV['CMS_CUSTOMIZER_CACHE_TTL'] ?? 300));
 }
 
-function cmsCustomizerPersistentCacheInstance(): string
+function cmsCustomizerPersistentCacheInstance(?string $scope = null): string
 {
-    return 'cms_customizer_t' . cmsRuntimeTenantId();
+    $scope = $scope !== null ? trim($scope) : cmsActiveCustomizerScope();
+    return 'cms_customizer_' . ($scope !== '' ? $scope : 'native') . '_t' . cmsRuntimeTenantId();
 }
 
-function cmsCustomizerPersistentCacheKey(string $section): string
+function cmsCustomizerPersistentCacheKey(string $section, ?string $scope = null): string
 {
-    return 'customizer:section:' . $section . ':v1';
+    $scope = $scope !== null ? trim($scope) : cmsActiveCustomizerScope();
+    return 'customizer:' . ($scope !== '' ? $scope : 'native') . ':section:' . cmsCustomizerStorageSection($section, $scope) . ':v1';
 }
 
-function cmsCustomizerFragmentCacheKey(string $fragment): string
+function cmsCustomizerFragmentCacheKey(string $fragment, ?string $scope = null): string
 {
-    return 'customizer:fragment:' . $fragment . ':v2';
+    $scope = $scope !== null ? trim($scope) : cmsActiveCustomizerScope();
+    return 'customizer:' . ($scope !== '' ? $scope : 'native') . ':fragment:' . $fragment . ':v2';
 }
 
-function cmsCustomizerFragmentCacheGet(string $fragment): ?array
+function cmsCustomizerFragmentCacheGet(string $fragment, ?string $scope = null): ?array
 {
-    return cmsCacheGet(cmsCustomizerFragmentCacheKey($fragment));
+    return cmsCacheGet(cmsCustomizerFragmentCacheKey($fragment, $scope));
 }
 
-function cmsCustomizerFragmentCacheSet(string $fragment, array $data, array $tags = []): void
+function cmsCustomizerFragmentCacheSet(string $fragment, array $data, array $tags = [], ?string $scope = null): void
 {
-    $defaultTags = ['cms:customizer', 'cms:customizer:fragment:' . $fragment];
+    $scope = $scope !== null ? trim($scope) : cmsActiveCustomizerScope();
+    $defaultTags = ['cms:customizer', cmsCustomizerScopeTag($scope), 'cms:customizer:fragment:' . $fragment, 'cms:customizer:fragment:' . ($scope !== '' ? $scope : 'native') . ':' . $fragment];
     cmsCacheSet(
-        cmsCustomizerFragmentCacheKey($fragment),
+        cmsCustomizerFragmentCacheKey($fragment, $scope),
         $data,
         array_values(array_unique(array_merge($defaultTags, $tags)))
     );
@@ -173,18 +224,69 @@ function cmsCustomizerCurrentPathCacheToken(): string
     return $path !== '' ? $path : '/';
 }
 
-function cmsCustomizerClearPersistentCache(?string $section = null): void
+function cmsCustomizerClearPersistentCache(?string $section = null, ?string $scope = null): void
 {
     if (cmsCustomizerPersistentCacheTtl() <= 0) {
         return;
     }
 
-    $tags = ['cms:customizer'];
+    $scope = $scope !== null ? trim($scope) : cmsActiveCustomizerScope();
+    $tags = ['cms:customizer', cmsCustomizerScopeTag($scope)];
     if ($section !== null && $section !== '') {
-        $tags[] = 'cms:customizer:' . $section;
+        $tags[] = 'cms:customizer:' . ($scope !== '' ? $scope : 'native') . ':' . $section;
     }
 
-    app()->cache()->clearByTags(cmsCustomizerPersistentCacheInstance(), $tags);
+    app()->cache()->clearByTags(cmsCustomizerPersistentCacheInstance($scope), $tags);
+}
+
+function cmsEnsureCustomizerScopeSeeded(object $db, ?string $scope = null): void
+{
+    $scope = $scope !== null ? trim($scope) : cmsActiveCustomizerScope();
+    if ($scope === '' || $scope === 'native') {
+        return;
+    }
+
+    $flag = 'cms_customizer_seeded_' . $scope . '_t' . cmsRuntimeTenantId();
+    if (!empty($GLOBALS[$flag])) {
+        return;
+    }
+    $GLOBALS[$flag] = true;
+
+    foreach (cmsKnownCustomizerSections() as $section) {
+        if (cmsCustomizerSectionRecord($db, $section, $scope) !== null) {
+            continue;
+        }
+
+        $settings = null;
+        $widgets = [];
+        if ($section === 'sidebar') {
+            $settings = cmsSidebarSettingsDefaults();
+            $settings['enabled'] = 0;
+        } else {
+            $source = cmsCustomizerSectionRecord($db, $section, 'native');
+            if ($source !== null) {
+                $settings = json_decode((string)($source['settings_json'] ?? '{}'), true) ?: [];
+                $widgets = json_decode((string)($source['widgets_json'] ?? '[]'), true) ?: [];
+            }
+        }
+
+        if ($settings === null) {
+            continue;
+        }
+
+        $stmt = $db->prepare(
+            "INSERT INTO cms_theme_customizer (section, settings_json, widgets_json, updated_by)\n"
+            . " VALUES (:section, :settings, :widgets, NULL)\n"
+            . " ON DUPLICATE KEY UPDATE settings_json = VALUES(settings_json), widgets_json = VALUES(widgets_json)"
+        );
+        $stmt->execute([
+            ':section' => cmsCustomizerStorageSection($section, $scope),
+            ':settings' => json_encode($settings, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+            ':widgets' => json_encode($widgets, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+        ]);
+    }
+
+    cmsCustomizerClearPersistentCache(null, $scope);
 }
 
 /**
@@ -192,22 +294,32 @@ function cmsCustomizerClearPersistentCache(?string $section = null): void
  * Call once at the start of public context building to avoid N separate
  * queries when each section is read individually.
  */
-function cmsCustomizerPreloadAll(object $db): void
+function cmsCustomizerPreloadAll(object $db, ?string $scope = null): void
 {
-    $cacheKey = cmsCustomizerRequestCacheKey('section_row');
+    $scope = $scope !== null ? trim($scope) : cmsActiveCustomizerScope();
+    cmsEnsureCustomizerScopeSeeded($db, $scope);
+
+    $cacheKey = cmsCustomizerRequestCacheKey('section_row', $scope);
     if (!empty($GLOBALS[$cacheKey])) {
         return; // Already preloaded this request
     }
 
-    $knownSections = ['footer', 'header', 'sidebar', 'colors', 'custom_code', 'theme'];
+    $knownSections = cmsKnownCustomizerSections();
+    $storageMap = [];
+    $storageLookup = [];
+    foreach ($knownSections as $knownSection) {
+        $storageSection = cmsCustomizerStorageSection($knownSection, $scope);
+        $storageMap[$knownSection] = $storageSection;
+        $storageLookup[$storageSection] = $knownSection;
+    }
     $cache = [];
     $ttl = cmsCustomizerPersistentCacheTtl();
-    $instance = cmsCustomizerPersistentCacheInstance();
+    $instance = cmsCustomizerPersistentCacheInstance($scope);
 
     // Try persistent cache first
     if ($ttl > 0) {
         // Fast path: single bundle read instead of 6 individual reads
-        $bundleCacheKey = 'customizer:bundle:v1';
+        $bundleCacheKey = 'customizer:' . ($scope !== '' ? $scope : 'native') . ':bundle:v1';
         $bundle = app()->cache()->get($instance, $bundleCacheKey);
         if (is_array($bundle)) {
             $complete = true;
@@ -222,7 +334,7 @@ function cmsCustomizerPreloadAll(object $db): void
         // Fallback: read individual section keys (and promote to bundle on success)
         $allCached = true;
         foreach ($knownSections as $s) {
-            $persistent = app()->cache()->get($instance, cmsCustomizerPersistentCacheKey($s));
+            $persistent = app()->cache()->get($instance, cmsCustomizerPersistentCacheKey($s, $scope));
             if (is_array($persistent)) {
                 if (isset($persistent['_empty']) && $persistent['_empty'] === true) {
                     $cache[$s] = null;
@@ -245,10 +357,16 @@ function cmsCustomizerPreloadAll(object $db): void
     // Persistent cache incomplete — batch-load from DB
     $cache = [];
     try {
-        $stmt = $db->query("SELECT section, settings_json, widgets_json FROM cms_theme_customizer");
+        $placeholders = implode(',', array_fill(0, count($storageMap), '?'));
+        $stmt = $db->prepare("SELECT section, settings_json, widgets_json FROM cms_theme_customizer WHERE section IN ({$placeholders})");
+        $stmt->execute(array_values($storageMap));
         while ($row = $stmt->fetch(\PDO::FETCH_ASSOC)) {
-            $section = $row['section'];
-            $cache[$section] = ['settings_json' => $row['settings_json'], 'widgets_json' => $row['widgets_json']];
+            $storageSection = (string)($row['section'] ?? '');
+            $baseSection = $storageLookup[$storageSection] ?? '';
+            if ($baseSection === '') {
+                continue;
+            }
+            $cache[$baseSection] = ['settings_json' => $row['settings_json'], 'widgets_json' => $row['widgets_json']];
         }
     } catch (\Throwable $e) {
         // Table may not exist yet; leave cache empty
@@ -269,33 +387,34 @@ function cmsCustomizerPreloadAll(object $db): void
             $cacheValue = $cache[$s] ?? ['_empty' => true];
             app()->cache()->setWithTags(
                 $instance,
-                cmsCustomizerPersistentCacheKey($s),
+                cmsCustomizerPersistentCacheKey($s, $scope),
                 $cacheValue,
-                ['cms:customizer', 'cms:customizer:' . $s],
+                ['cms:customizer', cmsCustomizerScopeTag($scope), 'cms:customizer:' . ($scope !== '' ? $scope : 'native') . ':' . $s],
                 $ttl
             );
         }
         // Write bundle so the next request pays 1 cache read instead of 6
         app()->cache()->setWithTags(
             $instance,
-            'customizer:bundle:v1',
+            $bundleCacheKey,
             $cache,
-            ['cms:customizer'],
+            ['cms:customizer', cmsCustomizerScopeTag($scope)],
             $ttl
         );
     }
 }
 
-function cmsCustomizerSectionRecord(object $db, string $section): ?array
+function cmsCustomizerSectionRecord(object $db, string $section, ?string $scope = null): ?array
 {
-    $cacheKey = cmsCustomizerRequestCacheKey('section_row');
+    $scope = $scope !== null ? trim($scope) : cmsActiveCustomizerScope();
+    $cacheKey = cmsCustomizerRequestCacheKey('section_row', $scope);
     $cache = $GLOBALS[$cacheKey] ?? [];
     if (array_key_exists($section, $cache)) {
         return $cache[$section];
     }
 
     if (cmsCustomizerPersistentCacheTtl() > 0) {
-        $persistent = app()->cache()->get(cmsCustomizerPersistentCacheInstance(), cmsCustomizerPersistentCacheKey($section));
+        $persistent = app()->cache()->get(cmsCustomizerPersistentCacheInstance($scope), cmsCustomizerPersistentCacheKey($section, $scope));
         if (is_array($persistent)) {
             // Sentinel value means "section does not exist in DB"
             if (isset($persistent['_empty']) && $persistent['_empty'] === true) {
@@ -312,7 +431,7 @@ function cmsCustomizerSectionRecord(object $db, string $section): ?array
     $row = null;
     try {
         $stmt = $db->prepare("SELECT settings_json, widgets_json FROM cms_theme_customizer WHERE section = :s LIMIT 1");
-        $stmt->execute([':s' => $section]);
+        $stmt->execute([':s' => cmsCustomizerStorageSection($section, $scope)]);
         $fetched = $stmt->fetch(PDO::FETCH_ASSOC);
         if (is_array($fetched)) {
             $row = $fetched;
@@ -327,19 +446,19 @@ function cmsCustomizerSectionRecord(object $db, string $section): ?array
         // Cache both hits and misses; use sentinel for missing sections
         $cacheValue = $row ?? ['_empty' => true];
         app()->cache()->setWithTags(
-            cmsCustomizerPersistentCacheInstance(),
-            cmsCustomizerPersistentCacheKey($section),
+            cmsCustomizerPersistentCacheInstance($scope),
+            cmsCustomizerPersistentCacheKey($section, $scope),
             $cacheValue,
-            ['cms:customizer', 'cms:customizer:' . $section],
+            ['cms:customizer', cmsCustomizerScopeTag($scope), 'cms:customizer:' . ($scope !== '' ? $scope : 'native') . ':' . $section],
             cmsCustomizerPersistentCacheTtl()
         );
     }
     return $row;
 }
 
-function cmsCustomizerSectionExists(object $db, string $section): bool
+function cmsCustomizerSectionExists(object $db, string $section, ?string $scope = null): bool
 {
-    return cmsCustomizerSectionRecord($db, $section) !== null;
+    return cmsCustomizerSectionRecord($db, $section, $scope) !== null;
 }
 
 /**
@@ -713,6 +832,47 @@ function cmsHeaderSettingsDefaults(): array
 
 // ── Theme Layout Settings ─────────────────────────────────────────────
 
+function cmsEntityLayoutProfiles(): array
+{
+    return ['default', 'commerce', 'content'];
+}
+
+function cmsThemeBlockVariantOptions(): array
+{
+    return [
+        'pricing' => ['', 'compact', 'featured', 'minimal'],
+        'action'  => ['', 'sticky-footer'],
+    ];
+}
+
+function cmsNormalizeThemeBlockVariant(string $block, string $variant): string
+{
+    $options = cmsThemeBlockVariantOptions();
+    $allowed = $options[$block] ?? [''];
+    return in_array($variant, $allowed, true) ? $variant : '';
+}
+
+function cmsEntityPresentationConfig(array $themeSettings): array
+{
+    $profile = (string)($themeSettings['entity_layout_profile'] ?? 'default');
+    if (!in_array($profile, cmsEntityLayoutProfiles(), true)) {
+        $profile = 'default';
+    }
+
+    $pricingVariant = cmsNormalizeThemeBlockVariant('pricing', trim((string)($themeSettings['entity_pricing_variant'] ?? '')));
+    $actionVariant = cmsNormalizeThemeBlockVariant('action', trim((string)($themeSettings['entity_action_variant'] ?? '')));
+
+    return [
+        'layout_profile'      => $profile,
+        'pricing_variant'     => $pricingVariant !== '' ? $pricingVariant : 'default',
+        'action_variant'      => $actionVariant !== '' ? $actionVariant : 'default',
+        'header_before_media' => $profile === 'content',
+        'summary_mode'        => $profile === 'commerce' ? 'rail' : 'flow',
+        'summary_after_body'  => $profile === 'content',
+        'root_class'          => 'cms-entity-profile-' . $profile,
+    ];
+}
+
 /**
  * Default settings for the Theme Layout customizer section.
  * Controls global layout structure, container sizing, and blog listing style.
@@ -751,6 +911,11 @@ function cmsThemeLayoutSettingsDefaults(): array
         'single_show_categories'  => '1',
         'single_show_tags'        => '1',
         'single_show_nav'         => '1',                // prev/next navigation
+
+        // ── Entity View Presentation ────────────────
+        'entity_layout_profile'   => 'default',          // default | commerce | content
+        'entity_pricing_variant'  => '',                 // default | compact | featured | minimal
+        'entity_action_variant'   => '',                 // default | sticky-footer
     ];
 }
 
@@ -819,6 +984,19 @@ function cmsValidateThemeLayoutSettings(array $input): array
     if ($validated['blog_readmore_text'] === '') {
         $validated['blog_readmore_text'] = $defaults['blog_readmore_text'];
     }
+
+    $validated['entity_layout_profile'] = in_array(($input['entity_layout_profile'] ?? ''), cmsEntityLayoutProfiles(), true)
+        ? (string)$input['entity_layout_profile']
+        : $defaults['entity_layout_profile'];
+
+    $validated['entity_pricing_variant'] = cmsNormalizeThemeBlockVariant(
+        'pricing',
+        trim((string)($input['entity_pricing_variant'] ?? $defaults['entity_pricing_variant']))
+    );
+    $validated['entity_action_variant'] = cmsNormalizeThemeBlockVariant(
+        'action',
+        trim((string)($input['entity_action_variant'] ?? $defaults['entity_action_variant']))
+    );
 
     return $validated;
 }
@@ -895,6 +1073,13 @@ function cmsRenderThemeLayoutStyle(object $db): string
         $css .= '.cms-blog-listing article:hover{box-shadow:0 4px 12px rgba(0,0,0,0.1);}';
     }
 
+    $css .= '.cms-entity-summary-stack{display:flex;flex-direction:column;gap:1rem;}';
+    $css .= '.cms-entity-profile-commerce .cms-entity-layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(280px,320px);gap:2rem;align-items:start;}';
+    $css .= '.cms-entity-profile-commerce .cms-entity-summary{position:sticky;top:1.5rem;}';
+    $css .= '.cms-entity-profile-content .cms-entity-header{max-width:var(--theme-single-max-width);margin-left:auto;margin-right:auto;}';
+    $css .= '.cms-entity-profile-content .cms-entity-body,.cms-entity-profile-content .cms-entity-summary-stack{max-width:var(--theme-single-max-width);margin-left:auto;margin-right:auto;}';
+    $css .= '@media(max-width:1024px){.cms-entity-profile-commerce .cms-entity-layout{grid-template-columns:1fr;}.cms-entity-profile-commerce .cms-entity-summary{position:static;}}';
+
     $html = '<style id="cz-theme-layout-override">' . $css . '</style>';
     cmsCustomizerFragmentCacheSet('theme_layout_style', ['html' => $html], ['cms:customizer:theme']);
     return $html;
@@ -905,8 +1090,9 @@ function cmsRenderThemeLayoutStyle(object $db): string
  * Returns ['settings' => [...], 'widgets' => [...]]
  */
 
-function cmsCustomizerGet(object $db, string $section): array
+function cmsCustomizerGet(object $db, string $section, ?string $scope = null): array
 {
+    $scope = $scope !== null ? trim($scope) : cmsActiveCustomizerScope();
     $sectionDefaults = [
         'footer'      => 'cmsFooterSettingsDefaults',
         'sidebar'     => 'cmsSidebarSettingsDefaults',
@@ -918,7 +1104,7 @@ function cmsCustomizerGet(object $db, string $section): array
     $defaults = isset($sectionDefaults[$section]) ? ($sectionDefaults[$section])() : [];
 
     try {
-        $row = cmsCustomizerSectionRecord($db, $section);
+        $row = cmsCustomizerSectionRecord($db, $section, $scope);
         if (is_array($row)) {
             $settings = json_decode($row['settings_json'] ?? '{}', true) ?: [];
             $widgets  = json_decode($row['widgets_json'] ?? '[]', true) ?: [];

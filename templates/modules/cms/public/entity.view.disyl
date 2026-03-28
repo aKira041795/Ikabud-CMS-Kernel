@@ -6,60 +6,116 @@
 {/block}
 
 {block content}
-<article class="cms-entity-view w-full max-w-5xl mx-auto px-4 py-8">
+<article class="cms-entity-view w-full max-w-5xl mx-auto px-4 py-8 {if entity_presentation.root_class}{entity_presentation.root_class}{/if}">
 
-    {* ── Media (featured image / gallery) ─────────────────────────────── *}
-    {if capabilities.media_gallery}
-        {include "modules/cms/public/blocks/media-gallery.block.disyl"}
-    {elseif entity.featured_image_url}
-    <div class="cms-entity-hero mb-8">
-        <img class="w-full max-h-[420px] object-cover rounded-xl"
-             src="{entity.featured_image_url}"
-             alt="{entity.title}">
-    </div>
-    {/if}
+    {if entity_presentation.header_before_media}
+        {* ── Header / Meta ────────────────────────────────────────────── *}
+        <header class="cms-entity-header mb-6">
+            <h1 class="text-3xl font-bold text-gray-900 leading-tight mb-2">{entity.title}</h1>
 
-    {* ── Header / Meta ────────────────────────────────────────────────── *}
-    <header class="cms-entity-header mb-6">
-        <h1 class="text-3xl font-bold text-gray-900 leading-tight mb-2">{entity.title}</h1>
+            {include "modules/cms/public/blocks/meta.block.disyl"}
 
-        {include "modules/cms/public/blocks/meta.block.disyl"}
+            {* Progress bar — courses / challenges *}
+            {if capabilities.progress_tracking}
+                {include "modules/cms/public/blocks/progress.block.disyl"}
+            {/if}
+        </header>
 
-        {* Progress bar — courses / challenges *}
-        {if capabilities.progress_tracking}
-            {include "modules/cms/public/blocks/progress.block.disyl"}
+        {* ── Media (featured image / gallery) ─────────────────────────── *}
+        {if capabilities.media_gallery}
+            {include "modules/cms/public/blocks/media-gallery.block.disyl"}
+        {elseif entity.featured_image_url}
+        <div class="cms-entity-hero mb-8">
+            <img class="w-full max-h-[420px] object-cover rounded-xl"
+                 src="{entity.featured_image_url}"
+                 alt="{entity.title}">
+        </div>
         {/if}
-    </header>
-
-    {* ── Pricing ──────────────────────────────────────────────────────── *}
-    {if capabilities.pricing}
-        {if pricing_block_html}{pricing_block_html | raw}{else}{include "modules/cms/public/blocks/pricing.block.disyl"}{/if}
-    {/if}
-
-    {* ── Inventory badge ─────────────────────────────────────────────── *}
-    {if capabilities.inventory}
-        {include "modules/cms/public/blocks/inventory.block.disyl"}
-    {/if}
-
-    {* ── Primary body content ─────────────────────────────────────────── *}
-    {if builder_enabled}
-    <div class="cms-entity-body {builder_page_settings.container_class}">
-        {post_html | raw}
-    </div>
     {else}
-    <div class="cms-entity-body prose text-gray-700 leading-relaxed">
-        {post_html | raw}
+        {* ── Media (featured image / gallery) ─────────────────────────── *}
+        {if capabilities.media_gallery}
+            {include "modules/cms/public/blocks/media-gallery.block.disyl"}
+        {elseif entity.featured_image_url}
+        <div class="cms-entity-hero mb-8">
+            <img class="w-full max-h-[420px] object-cover rounded-xl"
+                 src="{entity.featured_image_url}"
+                 alt="{entity.title}">
+        </div>
+        {/if}
+
+        {* ── Header / Meta ────────────────────────────────────────────── *}
+        <header class="cms-entity-header mb-6">
+            <h1 class="text-3xl font-bold text-gray-900 leading-tight mb-2">{entity.title}</h1>
+
+            {include "modules/cms/public/blocks/meta.block.disyl"}
+
+            {* Progress bar — courses / challenges *}
+            {if capabilities.progress_tracking}
+                {include "modules/cms/public/blocks/progress.block.disyl"}
+            {/if}
+        </header>
+    {/if}
+
+    {if entity_presentation.layout_profile == 'commerce'}
+    <div class="cms-entity-layout">
+        <div class="cms-entity-main space-y-8">
+            {* ── Primary body content ───────────────────────────────────── *}
+            {if builder_enabled}
+            <div class="cms-entity-body {builder_page_settings.container_class}">
+                {post_html | raw}
+            </div>
+            {else}
+            <div class="cms-entity-body prose text-gray-700 leading-relaxed">
+                {post_html | raw}
+            </div>
+            {/if}
+
+            {* ── Lessons / Chapter index ───────────────────────────────── *}
+            {if capabilities.lessons_index}
+                {include "modules/cms/public/blocks/lessons.block.disyl"}
+            {/if}
+        </div>
+
+        <aside class="cms-entity-summary">
+            {include "modules/cms/public/blocks/entity-summary.block.disyl"}
+        </aside>
     </div>
-    {/if}
+    {elseif entity_presentation.summary_after_body}
+        {* ── Primary body content ──────────────────────────────────────── *}
+        {if builder_enabled}
+        <div class="cms-entity-body {builder_page_settings.container_class}">
+            {post_html | raw}
+        </div>
+        {else}
+        <div class="cms-entity-body prose text-gray-700 leading-relaxed">
+            {post_html | raw}
+        </div>
+        {/if}
 
-    {* ── Lessons / Chapter index ──────────────────────────────────────── *}
-    {if capabilities.lessons_index}
-        {include "modules/cms/public/blocks/lessons.block.disyl"}
-    {/if}
+        {* ── Lessons / Chapter index ──────────────────────────────────── *}
+        {if capabilities.lessons_index}
+            {include "modules/cms/public/blocks/lessons.block.disyl"}
+        {/if}
 
-    {* ── Action (booking / inquiry / buy) ────────────────────────────── *}
-    {if capabilities.pricing or capabilities.booking or capabilities.inquiry}
-        {if action_block_html}{action_block_html | raw}{else}{include "modules/cms/public/blocks/action.block.disyl"}{/if}
+        {include "modules/cms/public/blocks/entity-summary.block.disyl"}
+    {else}
+        {include "modules/cms/public/blocks/entity-summary.block.disyl"}
+
+        {* ── Primary body content ──────────────────────────────────────── *}
+        {if builder_enabled}
+        <div class="cms-entity-body {builder_page_settings.container_class}">
+            {post_html | raw}
+        </div>
+        {else}
+        <div class="cms-entity-body prose text-gray-700 leading-relaxed">
+            {post_html | raw}
+        </div>
+        {/if}
+
+        {* ── Lessons / Chapter index ──────────────────────────────────── *}
+        {if capabilities.lessons_index}
+            {include "modules/cms/public/blocks/lessons.block.disyl"}
+        {/if}
     {/if}
 
 </article>

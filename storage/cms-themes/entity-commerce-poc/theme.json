@@ -3,6 +3,7 @@
     "version": "0.1.0",
     "author": "GitHub Copilot",
     "description": "Proof-of-concept theme showing ecommerce storefront routes through the CMS universal entity list and entity view contracts.",
+    "customizer_scope": "ecommerce",
     "supports": {
         "menus": [
             "primary",

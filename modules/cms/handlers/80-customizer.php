@@ -6,34 +6,39 @@ function cmsAdminCustomizer(array $params = []): void
 {
     $user = cmsRequireCap('customizer.manage');
 
-    $cacheKey = 'cms.customizer';
+    $scope = cmsActiveCustomizerScope();
+    $customizerTitle = cmsCustomizerScopeLabel($scope);
+    $customizerIntro = cmsCustomizerScopeIntro($scope);
+
+    $cacheKey = 'cms.customizer.' . $scope;
     $cached = adminViewCacheGet($cacheKey, $user);
     if (is_array($cached)) {
         echo cmsRender('modules/cms/admin/theme-customizer.disyl', array_merge(cmsAdminContext($user, 'customize', [
-            ['label' => 'Theme Customizer', 'url' => ''],
+            ['label' => $customizerTitle, 'url' => ''],
         ]), $cached));
         return;
     }
 
     $db = cmsDb();
+    cmsEnsureCustomizerScopeSeeded($db, $scope);
 
     // Load footer customizer data
-    $footer = cmsCustomizerGet($db, 'footer');
+    $footer = cmsCustomizerGet($db, 'footer', $scope);
 
     // Load header customizer data
-    $header = cmsCustomizerGet($db, 'header');
+    $header = cmsCustomizerGet($db, 'header', $scope);
 
     // Load sidebar customizer data
-    $sidebar = cmsCustomizerGet($db, 'sidebar');
+    $sidebar = cmsCustomizerGet($db, 'sidebar', $scope);
 
     // Load colors customizer data
-    $colors = cmsCustomizerGet($db, 'colors');
+    $colors = cmsCustomizerGet($db, 'colors', $scope);
 
     // Load custom code customizer data
-    $customCode = cmsCustomizerGet($db, 'custom_code');
+    $customCode = cmsCustomizerGet($db, 'custom_code', $scope);
 
     // Load theme layout customizer data
-    $themeLayout = cmsCustomizerGet($db, 'theme');
+    $themeLayout = cmsCustomizerGet($db, 'theme', $scope);
 
     // Load available menus for the nav_menu widget type
     $menus = [];
@@ -59,7 +64,10 @@ function cmsAdminCustomizer(array $params = []): void
     $settings = readCmsSettings();
 
     $payload = [
-        'page_title'          => 'Theme Customizer',
+        'page_title'          => $customizerTitle,
+        'customizer_title'    => $customizerTitle,
+        'customizer_intro'    => $customizerIntro,
+        'customizer_scope'    => $scope,
         'footer_settings'     => $footer['settings'],
         'footer_widgets'      => $footer['widgets'],
         'footer_settings_json' => json_encode($footer['settings'], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
@@ -94,7 +102,7 @@ function cmsAdminCustomizer(array $params = []): void
     adminViewCacheSet($cacheKey, $payload, ['cms:admin', 'cms:admin:customizer'], $user);
 
     echo cmsRender('modules/cms/admin/theme-customizer.disyl', array_merge(cmsAdminContext($user, 'customize', [
-        ['label' => 'Theme Customizer', 'url' => ''],
+        ['label' => $customizerTitle, 'url' => ''],
     ]), $payload));
 }
 
@@ -107,6 +115,8 @@ function cmsApiCustomizerGet(array $params = []): void
     header('Content-Type: application/json');
     cmsRequireCap('customizer.manage');
 
+    $scope = cmsActiveCustomizerScope();
+
     $section = trim((string)($params['section'] ?? ''));
     if ($section === '') {
         http_response_code(400);
@@ -115,7 +125,8 @@ function cmsApiCustomizerGet(array $params = []): void
     }
 
     $db = cmsDb();
-    $data = cmsCustomizerGet($db, $section);
+    cmsEnsureCustomizerScopeSeeded($db, $scope);
+    $data = cmsCustomizerGet($db, $section, $scope);
     echo json_encode(['ok' => true, 'data' => $data]);
     exit;
 }
@@ -129,6 +140,8 @@ function cmsApiCustomizerSave(array $params = []): void
     header('Content-Type: application/json');
     $user = cmsRequireCap('customizer.manage');
     app()->csrfEnforce();
+
+    $scope = cmsActiveCustomizerScope();
 
     $section = trim((string)($params['section'] ?? ''));
     if ($section === '') {
@@ -163,6 +176,7 @@ function cmsApiCustomizerSave(array $params = []): void
     }
 
     $db = cmsDb();
+    cmsEnsureCustomizerScopeSeeded($db, $scope);
     $userId = (int)($user['id'] ?? 0);
 
     $settingsJson = json_encode($settings, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
@@ -174,7 +188,7 @@ function cmsApiCustomizerSave(array $params = []): void
     } else {
         // Read existing widgets from the database
         $existingStmt = $db->prepare("SELECT widgets_json FROM cms_theme_customizer WHERE section = :section LIMIT 1");
-        $existingStmt->execute([':section' => $section]);
+        $existingStmt->execute([':section' => cmsCustomizerStorageSection($section, $scope)]);
         $widgetsJson = $existingStmt->fetchColumn() ?: '[]';
     }
 
@@ -187,13 +201,13 @@ function cmsApiCustomizerSave(array $params = []): void
             updated_by = VALUES(updated_by)"
     );
     $stmt->execute([
-        ':section'  => $section,
+        ':section'  => cmsCustomizerStorageSection($section, $scope),
         ':settings' => $settingsJson,
         ':widgets'  => $widgetsJson,
         ':uid'      => $userId ?: null,
     ]);
 
-    cmsCustomizerClearPersistentCache($section);
+    cmsCustomizerClearPersistentCache($section, $scope);
 
     $response = json_encode(['ok' => true]);
     echo $response;
@@ -209,6 +223,7 @@ function cmsApiCustomizerSave(array $params = []): void
     if ($ctx = module('cms')) {
         $ctx->audit('cms.customizer.save', null, 'cms_theme_customizer', $section, null, [
             'section'  => $section,
+            'scope'    => $scope,
             'settings' => $settings,
         ]);
     }

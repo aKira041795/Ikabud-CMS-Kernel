@@ -184,6 +184,14 @@ cmsActivateThemeSymlink('entity-commerce-poc');
 
 $pocManifest = cmsActiveThemeManifest();
 t('entity-commerce-poc manifest loads as active theme', ($pocManifest['slug'] ?? '') === 'entity-commerce-poc');
+t('entity-commerce-poc manifest declares ecommerce customizer scope', ($pocManifest['customizer_scope'] ?? '') === 'ecommerce');
+t('active customizer scope switches to ecommerce for entity-commerce-poc', cmsActiveCustomizerScope() === 'ecommerce');
+t('ecommerce customizer section keys are namespaced', cmsCustomizerStorageSection('sidebar', 'ecommerce') === 'ecommerce:sidebar');
+
+$db = cmsDb();
+cmsEnsureCustomizerScopeSeeded($db, 'ecommerce');
+$ecommerceSidebar = cmsCustomizerGet($db, 'sidebar', 'ecommerce');
+t('ecommerce customizer sidebar defaults disabled to avoid shared sidebar pollution', (int)($ecommerceSidebar['settings']['enabled'] ?? 0) === 0);
 
 $entityViewTemplate = cmsResolveTemplate('public/entity.view.disyl');
 $entityListTemplate = cmsResolveTemplate('public/entity.list.disyl');
@@ -236,6 +244,7 @@ t('entity-commerce-poc theme stylesheet resolves to public assets', str_contains
 saveModuleSettings('cms', $oldSettings);
 cmsResetThemeRuntimeCache();
 cmsActivateThemeSymlink('minimal');
+t('minimal theme manifest defaults to native customizer scope', cmsThemeCustomizerScopeFromManifest(['slug' => 'minimal']) === 'native');
 
 // ═══════════════════════════════════════════════════════════════════
 // 6. Theme template content validation
@@ -323,6 +332,107 @@ t('manifest cache resets when active theme changes', ($manifestB['slug'] ?? '') 
 t('manifest cache refresh picks up new token payload', (($manifestB['tokens']['color_primary'] ?? '') === '#222222'));
 
 // ═══════════════════════════════════════════════════════════════════
+// 6c. Customizer-driven entity presentation
+// ═══════════════════════════════════════════════════════════════════
+echo "\n=== ENTITY PRESENTATION SETTINGS ===\n";
+
+$tokenSettings['active_theme'] = 'minimal';
+saveModuleSettings('cms', $tokenSettings);
+cmsResetThemeRuntimeCache();
+cmsActivateThemeSymlink('minimal');
+
+$entityDefaults = cmsThemeLayoutSettingsDefaults();
+t('entity layout profile default is default', ($entityDefaults['entity_layout_profile'] ?? '') === 'default');
+t('entity pricing variant default is empty', ($entityDefaults['entity_pricing_variant'] ?? 'x') === '');
+t('entity action variant default is empty', ($entityDefaults['entity_action_variant'] ?? 'x') === '');
+
+$validatedEntity = cmsValidateThemeLayoutSettings([
+    'entity_layout_profile' => 'commerce',
+    'entity_pricing_variant' => 'featured',
+    'entity_action_variant' => 'sticky-footer',
+]);
+t('entity layout profile validates approved profile', ($validatedEntity['entity_layout_profile'] ?? '') === 'commerce');
+t('entity pricing variant validates approved variant', ($validatedEntity['entity_pricing_variant'] ?? '') === 'featured');
+t('entity action variant validates approved variant', ($validatedEntity['entity_action_variant'] ?? '') === 'sticky-footer');
+
+$invalidEntity = cmsValidateThemeLayoutSettings([
+    'entity_layout_profile' => 'wild',
+    'entity_pricing_variant' => 'giant',
+    'entity_action_variant' => 'floating',
+]);
+t('invalid entity profile falls back to default', ($invalidEntity['entity_layout_profile'] ?? '') === 'default');
+t('invalid pricing variant falls back to default block', ($invalidEntity['entity_pricing_variant'] ?? 'x') === '');
+t('invalid action variant falls back to default block', ($invalidEntity['entity_action_variant'] ?? 'x') === '');
+
+$presentation = cmsEntityPresentationConfig($validatedEntity);
+t('entity presentation config exposes commerce profile class', ($presentation['root_class'] ?? '') === 'cms-entity-profile-commerce');
+t('entity presentation config marks commerce profile as rail summary', ($presentation['summary_mode'] ?? '') === 'rail');
+
+$variantPricingTemplate = cmsResolveBlockTemplate('modules/cms/public/blocks/pricing.block.disyl', [
+    'theme_settings' => $validatedEntity,
+]);
+$variantActionTemplate = cmsResolveBlockTemplate('modules/cms/public/blocks/action.block.disyl', [
+    'theme_settings' => $validatedEntity,
+]);
+t('pricing block variant resolves to featured template', $variantPricingTemplate === 'modules/cms/public/blocks/pricing.featured.block.disyl', $variantPricingTemplate);
+t('action block variant resolves to sticky-footer template', $variantActionTemplate === 'modules/cms/public/blocks/action.sticky-footer.block.disyl', $variantActionTemplate);
+
+$entityTemplateContext = [
+    'cms_head' => '',
+    'structured_data' => '',
+    'entity' => [
+        'id' => 77,
+        'title' => 'Entity Presentation Test',
+        'type' => 'product',
+        'slug' => 'entity-presentation-test',
+        'featured_image_url' => '/uploads/entity-presentation.jpg',
+    ],
+    'capabilities' => [
+        'media_gallery' => false,
+        'progress_tracking' => false,
+        'pricing' => true,
+        'inventory' => false,
+        'lessons_index' => false,
+        'booking' => false,
+        'inquiry' => false,
+    ],
+    'capability_data' => [
+        'pricing' => [
+            'currency' => 'USD',
+            'price' => 99.0,
+            'sale_price' => 79.0,
+        ],
+    ],
+    'post_html' => '<p>Body copy</p>',
+    'builder_enabled' => false,
+    'pricing_block_html' => '<div class="test-pricing">pricing</div>',
+    'action_block_html' => '<div class="test-action">action</div>',
+    'action_sections' => '',
+];
+
+$commerceHtml = cmsRender('modules/cms/public/entity.view.disyl', array_merge($entityTemplateContext, [
+    'theme_settings' => $validatedEntity,
+    'entity_presentation' => $presentation,
+]));
+t('commerce profile adds root class to canonical entity view', str_contains($commerceHtml, 'cms-entity-profile-commerce'), $commerceHtml);
+t('commerce profile renders dedicated entity layout rail', str_contains($commerceHtml, 'cms-entity-layout'), $commerceHtml);
+
+$contentSettings = cmsValidateThemeLayoutSettings([
+    'entity_layout_profile' => 'content',
+]);
+$contentPresentation = cmsEntityPresentationConfig($contentSettings);
+$contentHtml = cmsRender('modules/cms/public/entity.view.disyl', array_merge($entityTemplateContext, [
+    'theme_settings' => $contentSettings,
+    'entity_presentation' => $contentPresentation,
+]));
+$contentHeaderPos = strpos($contentHtml, 'cms-entity-header');
+$contentHeroPos = strpos($contentHtml, 'cms-entity-hero');
+$contentBodyPos = strpos($contentHtml, 'cms-entity-body');
+$contentSummaryPos = strpos($contentHtml, 'test-pricing');
+t('content profile renders header before media', $contentHeaderPos !== false && $contentHeroPos !== false && $contentHeaderPos < $contentHeroPos);
+t('content profile renders summary after body', $contentBodyPos !== false && $contentSummaryPos !== false && $contentBodyPos < $contentSummaryPos);
+
+// ═══════════════════════════════════════════════════════════════════
 // 6b. Shared render lock must not re-enter symlink mutation
 // ═══════════════════════════════════════════════════════════════════
 echo "\n=== SHARED LOCK RENDER PATH ===\n";
@@ -379,7 +489,8 @@ $appErrors = array_filter(explode("\n", $appLog), fn($l) => str_contains($l, '[e
 $errLines = array_values(array_filter(explode("\n", $errLog), static function (string $line): bool {
     return trim($line) !== ''
         && !str_contains($line, 'storage/cache/kernel_bootstrap')
-        && !str_contains($line, 'Failed to open stream');
+    && !str_contains($line, 'Failed to open stream')
+    && !str_contains($line, 'Ikabud Cache: Cleared');
 }));
 t('No app.log errors', empty($appErrors), implode('; ', $appErrors));
 t('No PHP errors in error.log', empty($errLines), implode('; ', array_slice($errLines, 0, 2)));

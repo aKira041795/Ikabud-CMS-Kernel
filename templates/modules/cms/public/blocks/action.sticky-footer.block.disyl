@@ -1,0 +1,46 @@
+{* action.sticky-footer.block.disyl — sticky mobile purchase bar *}
+{if action_sections}{action_sections | raw}{else}
+<div class="cms-action-block cms-action-block-sticky-footer my-8 border border-slate-200 bg-white p-3 shadow-sm sm:rounded-2xl lg:sticky lg:bottom-4">
+    <div class="flex flex-wrap items-center gap-3">
+        {if capabilities.pricing and cart_enabled}
+            {if not capabilities.inventory or capability_data.inventory.in_stock and not capability_data.inventory.out_of_stock}
+        <form method="POST" action="{cart_action_url}" class="flex-1 min-w-[180px]">
+            <input type="hidden" name="product_id" value="{entity.id}">
+            <input type="hidden" name="qty" value="1">
+            <button type="submit"
+                    class="cms-btn-primary inline-flex w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-slate-800">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M3 3h2l.4 2M7 13h10l4-9H5.4M7 13l-1.5 6h13M7 13L5.4 5M17 13l1.5 6M9 21a1 1 0 100-2 1 1 0 000 2zm8 0a1 1 0 100-2 1 1 0 000 2z"/>
+                </svg>
+                Add to Cart
+            </button>
+        </form>
+            {else}
+        <button type="button" disabled
+                class="inline-flex flex-1 min-w-[180px] items-center justify-center gap-2 rounded-xl bg-slate-200 px-5 py-3 text-sm font-semibold text-slate-500 cursor-not-allowed">
+            Out of Stock
+        </button>
+            {/if}
+        {elseif capabilities.pricing and not cart_enabled}
+        <span class="inline-flex flex-1 min-w-[180px] items-center justify-center gap-2 rounded-xl bg-slate-100 px-5 py-3 text-sm font-semibold text-slate-500">
+            Price shown — cart coming soon
+        </span>
+        {/if}
+
+        {if capabilities.booking}
+        <a href="{base_url}/cms/{entity.type}/{entity.slug}/book"
+           class="inline-flex flex-1 min-w-[180px] items-center justify-center gap-2 rounded-xl border border-sky-600 px-5 py-3 text-sm font-semibold text-sky-600 hover:bg-sky-50 transition-colors">
+            Book Now
+        </a>
+        {/if}
+
+        {if capabilities.inquiry}
+        <a href="{base_url}/cms/{entity.type}/{entity.slug}/inquire"
+           class="inline-flex flex-1 min-w-[180px] items-center justify-center gap-2 rounded-xl border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors">
+            {if capability_data.inquiry.label}{capability_data.inquiry.label}{else}Inquire{/if}
+        </a>
+        {/if}
+    </div>
+</div>
+{/if}

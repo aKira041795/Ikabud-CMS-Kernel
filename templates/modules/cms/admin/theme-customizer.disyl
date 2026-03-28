@@ -99,8 +99,12 @@
     <!-- Header -->
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-            <h2 class="text-lg font-bold text-gray-900">Theme Customizer</h2>
-            <p class="text-sm text-gray-500 mt-0.5" x-text="activeTab === 'header' ? 'Customize your site\'s header layout, navigation, and styling' : activeTab === 'sidebar' ? 'Configure sidebar widgets, placement, and template targeting' : activeTab === 'colors' ? 'Global colors, typography, and body styles — fallback when not set in header/footer' : activeTab === 'custom_code' ? 'Custom CSS overrides, code injection, and advanced enhancements' : activeTab === 'theme' ? 'Site layout, container widths, blog listing style, and content display options' : 'Customize your site\'s footer layout, widgets, and styling'"></p>
+            <div class="flex items-center gap-2">
+                <h2 class="text-lg font-bold text-gray-900">{if customizer_title}{customizer_title}{else}Theme Customizer{/if}</h2>
+                {if customizer_scope == 'ecommerce'}<span class="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-700">Ecommerce Scope</span>{/if}
+            </div>
+            <p class="text-sm text-gray-500 mt-0.5" x-text="activeTab === 'header' ? 'Customize your site\'s header layout, navigation, and styling' : activeTab === 'sidebar' ? 'Configure sidebar widgets, placement, and template targeting' : activeTab === 'colors' ? 'Global colors, typography, and body styles — fallback when not set in header/footer' : activeTab === 'custom_code' ? 'Custom CSS overrides, code injection, and advanced enhancements' : activeTab === 'theme' ? 'Site layout, entity-view profiles, approved block variants, and content display options' : 'Customize your site\'s footer layout, widgets, and styling'"></p>
+            {if customizer_intro}<p class="text-xs text-gray-400 mt-1">{customizer_intro}</p>{/if}
         </div>
         <div class="flex items-center gap-2">
             <button @click="resetDefaults()" class="cz-btn cz-btn-secondary" :disabled="saving">
@@ -2164,6 +2168,53 @@
                     </div>
                 </div>
             </div>
+
+            <!-- Entity View Presentation Panel -->
+            <div class="cz-panel">
+                <div class="cz-panel-header" @click="tlPanels.entity = !tlPanels.entity">
+                    <h3>
+                        <svg class="w-4 h-4 inline -mt-0.5 mr-1.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h10"/></svg>
+                        Entity View Presentation
+                    </h3>
+                    <svg class="w-4 h-4 text-gray-400 transition-transform" :class="tlPanels.entity ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                </div>
+                <div x-show="tlPanels.entity" x-collapse class="cz-panel-body">
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+                        <div>
+                            <label class="cz-label">Layout Profile</label>
+                            <select x-model="themeLayoutSettings.entity_layout_profile" class="cz-select">
+                                <option value="default">Default</option>
+                                <option value="commerce">Commerce</option>
+                                <option value="content">Content</option>
+                            </select>
+                            <p class="text-[10px] text-gray-400 mt-1">Select from approved canonical entity orderings instead of creating a separate template family.</p>
+                        </div>
+                        <div>
+                            <label class="cz-label">Pricing Variant</label>
+                            <select x-model="themeLayoutSettings.entity_pricing_variant" class="cz-select">
+                                <option value="">Default</option>
+                                <option value="compact">Compact</option>
+                                <option value="featured">Featured</option>
+                                <option value="minimal">Minimal</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="cz-label">Action Variant</label>
+                            <select x-model="themeLayoutSettings.entity_action_variant" class="cz-select">
+                                <option value="">Default</option>
+                                <option value="sticky-footer">Sticky Footer</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600">
+                        <div class="font-semibold text-slate-800 mb-1">Profile behavior</div>
+                        <div x-show="themeLayoutSettings.entity_layout_profile === 'default'">Default keeps pricing and actions in the main reading flow ahead of the body.</div>
+                        <div x-show="themeLayoutSettings.entity_layout_profile === 'commerce'">Commerce moves pricing and actions into a dedicated summary rail for storefront-oriented entities.</div>
+                        <div x-show="themeLayoutSettings.entity_layout_profile === 'content'">Content prioritizes the title and body first, then places pricing and actions after the narrative content.</div>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <!-- Right Column: Preview Summary -->
@@ -2363,6 +2414,10 @@
                             <div class="flex justify-between"><span class="text-gray-400">Single Width</span><span class="font-medium" x-text="themeLayoutSettings.single_max_width + 'px'"></span></div>
                             <div class="flex justify-between"><span class="text-gray-400">Blog Elements</span><span class="font-medium" x-text="[themeLayoutSettings.blog_show_author == 1 ? 'Author' : '', themeLayoutSettings.blog_show_date == 1 ? 'Date' : '', themeLayoutSettings.blog_show_excerpt == 1 ? 'Excerpt' : '', themeLayoutSettings.blog_show_readmore == 1 ? 'Read More' : ''].filter(Boolean).join(', ') || 'None'"></span></div>
                             <div class="flex justify-between"><span class="text-gray-400">Single Elements</span><span class="font-medium" x-text="[themeLayoutSettings.single_show_author == 1 ? 'Author' : '', themeLayoutSettings.single_show_date == 1 ? 'Date' : '', themeLayoutSettings.single_show_categories == 1 ? 'Cats' : '', themeLayoutSettings.single_show_tags == 1 ? 'Tags' : '', themeLayoutSettings.single_show_nav == 1 ? 'Nav' : ''].filter(Boolean).join(', ') || 'None'"></span></div>
+                            <hr class="border-gray-100">
+                            <div class="flex justify-between"><span class="text-gray-400">Entity Profile</span><span class="font-medium capitalize" x-text="themeLayoutSettings.entity_layout_profile"></span></div>
+                            <div class="flex justify-between"><span class="text-gray-400">Pricing Variant</span><span class="font-medium capitalize" x-text="themeLayoutSettings.entity_pricing_variant || 'Default'"></span></div>
+                            <div class="flex justify-between"><span class="text-gray-400">Action Variant</span><span class="font-medium capitalize" x-text="themeLayoutSettings.entity_action_variant || 'Default'"></span></div>
                         </div>
                         <!-- Content ratio visual -->
                         <div>
@@ -2411,7 +2466,7 @@ function themeCustomizer() {
         sPanels: { layout: true, appearance: false, widgets: true },
         cPanels: { brand: true, body: false, typo: false, layout: false },
         ccPanels: { css: true, head: false, body: false, enhancements: true },
-        tlPanels: { site: true, blog: true, single: false },
+        tlPanels: { site: true, blog: true, single: false, entity: true },
         tlPreviewMode: 'page',
 
         // Theme layout settings (hydrated from server)
@@ -2750,6 +2805,9 @@ function themeCustomizer() {
             // Hydrate theme layout settings
             try {
                 this.themeLayoutSettings = JSON.parse(document.getElementById('cz-theme-layout-settings').textContent);
+                if (this.themeLayoutSettings.entity_layout_profile === undefined) this.themeLayoutSettings.entity_layout_profile = 'default';
+                if (this.themeLayoutSettings.entity_pricing_variant === undefined) this.themeLayoutSettings.entity_pricing_variant = '';
+                if (this.themeLayoutSettings.entity_action_variant === undefined) this.themeLayoutSettings.entity_action_variant = '';
             } catch (e) {
                 this.themeLayoutSettings = {
                     layout_mode: 'contained', site_max_width: 1280, content_max_width: 768,
@@ -2762,6 +2820,7 @@ function themeCustomizer() {
                     single_max_width: 768,
                     single_show_author: 1, single_show_date: 1, single_show_categories: 1,
                     single_show_tags: 1, single_show_nav: 1,
+                    entity_layout_profile: 'default', entity_pricing_variant: '', entity_action_variant: '',
                 };
             }
 
@@ -3142,6 +3201,7 @@ function themeCustomizer() {
                     single_max_width: 768,
                     single_show_author: 1, single_show_date: 1, single_show_categories: 1,
                     single_show_tags: 1, single_show_nav: 1,
+                    entity_layout_profile: 'default', entity_pricing_variant: '', entity_action_variant: '',
                 };
             } else if (this.activeTab === 'sidebar') {
                 if (!confirm('Reset all sidebar settings to defaults? This cannot be undone.')) return;
