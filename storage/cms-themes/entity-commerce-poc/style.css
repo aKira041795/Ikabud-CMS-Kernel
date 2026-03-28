@@ -301,7 +301,8 @@ body.entity-commerce-poc {
 }
 
 .poc-product-card {
-    display: block;
+    display: flex;
+    flex-direction: column;
     color: inherit;
     text-decoration: none;
     background: rgba(255, 255, 255, 0.78);
@@ -315,6 +316,13 @@ body.entity-commerce-poc {
     transform: translateY(-4px);
     box-shadow: 0 18px 42px rgba(24, 33, 43, 0.1);
     border-color: rgba(15, 76, 129, 0.3);
+}
+
+.poc-product-card__link {
+    display: block;
+    color: inherit;
+    text-decoration: none;
+    flex: 1;
 }
 
 .poc-product-card__media {
@@ -515,6 +523,174 @@ body.entity-commerce-poc {
 
 .poc-entity-view__body.prose {
     max-width: none;
+}
+
+/* ── Commerce layout (2-column: media + info) ─────────────────────── */
+
+.poc-entity-view__commerce-grid {
+    display: grid;
+    grid-template-columns: 1.2fr 1fr;
+    gap: 32px;
+    align-items: start;
+}
+
+.poc-entity-view__commerce-media .poc-entity-view__hero {
+    margin-bottom: 0;
+}
+
+.poc-entity-view__commerce-media .poc-entity-view__hero-image {
+    border-radius: calc(var(--radius-card) - 12px);
+}
+
+.poc-entity-view__commerce-info {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.poc-entity-view__commerce-info--sticky {
+    position: sticky;
+    top: 24px;
+}
+
+.poc-entity-view__header--commerce {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 0;
+}
+
+.poc-entity-view__header--commerce .poc-title--detail {
+    max-width: none;
+}
+
+.poc-entity-view__commerce-info .poc-pricing-block {
+    margin-top: 0;
+}
+
+.poc-entity-view__commerce-info .poc-action-strip {
+    margin-top: 0;
+}
+
+/* ── Type badge ─────────────────────────────────────────────────────── */
+
+.poc-entity-view__type-badge {
+    display: inline-flex;
+    align-items: center;
+    border-radius: var(--radius-pill);
+    padding: 6px 12px;
+    background: rgba(15, 76, 129, 0.08);
+    border: 1px solid rgba(15, 76, 129, 0.16);
+    color: var(--color-primary);
+    font-family: "Helvetica Neue", Arial, sans-serif;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    width: fit-content;
+}
+
+/* ── Card action area (list cards) ──────────────────────────────────── */
+
+.poc-product-card__actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 20px;
+    border-top: 1px solid rgba(215, 206, 193, 0.6);
+    background: rgba(255, 255, 255, 0.5);
+}
+
+.poc-card-action__button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    border: none;
+    border-radius: var(--radius-pill);
+    padding: 8px 16px;
+    font-family: "Helvetica Neue", Arial, sans-serif;
+    font-size: 0.82rem;
+    font-weight: 700;
+    cursor: pointer;
+    text-decoration: none;
+    transition: background 0.15s ease, transform 0.1s ease;
+}
+
+.poc-card-action__button--buy {
+    background: var(--color-primary);
+    color: #fff;
+}
+
+.poc-card-action__button--buy:hover {
+    background: color-mix(in srgb, var(--color-primary) 85%, #000);
+    transform: scale(1.02);
+}
+
+.poc-card-action__button--buy:active {
+    transform: scale(0.98);
+}
+
+.poc-card-action__status {
+    display: inline-flex;
+    align-items: center;
+    border-radius: var(--radius-pill);
+    padding: 8px 14px;
+    background: rgba(24, 33, 43, 0.06);
+    color: var(--color-muted);
+    font-family: "Helvetica Neue", Arial, sans-serif;
+    font-size: 0.82rem;
+    font-weight: 700;
+}
+
+/* ── Cart badge ─────────────────────────────────────────────────────── */
+
+.poc-cart-badge {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 42px;
+    height: 42px;
+    border-radius: 999px;
+    border: 1px solid rgba(215, 206, 193, 0.9);
+    background: rgba(255, 250, 242, 0.72);
+    color: var(--color-text);
+    text-decoration: none;
+    transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.poc-cart-badge:hover {
+    background: rgba(255, 255, 255, 0.95);
+    border-color: var(--color-primary);
+    color: var(--color-primary);
+}
+
+.poc-cart-badge__count {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    min-width: 18px;
+    height: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    background: var(--color-accent);
+    color: #fff;
+    font-family: "Helvetica Neue", Arial, sans-serif;
+    font-size: 0.68rem;
+    font-weight: 700;
+    padding: 0 5px;
+    line-height: 1;
+}
+
+/* ── Header actions area ────────────────────────────────────────────── */
+
+.poc-header__actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
 }
 
 .poc-pricing-block {
@@ -900,6 +1076,14 @@ body.entity-commerce-poc {
 
     .poc-sidebar {
         margin-top: 24px;
+    }
+
+    .poc-entity-view__commerce-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .poc-entity-view__commerce-info--sticky {
+        position: static;
     }
 }
 

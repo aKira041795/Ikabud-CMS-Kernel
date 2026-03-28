@@ -450,6 +450,7 @@ items[]
   .list_card_pricing_html             → rendered pricing fragment
   .list_card_inventory_html           → rendered inventory fragment
   .list_card_progress_html            → rendered progress fragment
+  .list_card_action_html              → rendered add-to-cart / action fragment (when cart_enabled + pricing)
 ```
 Approved list-card block variants follow the same resolver contract as entity
 view blocks. Current list-card variants are:
@@ -457,6 +458,7 @@ view blocks. Current list-card variants are:
 - `list-card-pricing`: `featured`, `minimal`
 - `list-card-inventory`: `compact`
 - `list-card-progress`: `inline`
+- `list-card-action`: (default only)
 
 These variants change presentation only; they do not alter capability gates or
 data contracts.

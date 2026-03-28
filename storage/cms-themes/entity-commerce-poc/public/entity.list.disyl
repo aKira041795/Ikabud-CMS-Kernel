@@ -18,12 +18,9 @@
 
     <div class="poc-entity-list__hero">
         <div>
-            <p class="poc-kicker">CMS Entity List</p>
-            <h1 class="poc-title">{if list_title}{list_title}{else}Storefront Collection{/if}</h1>
+            <h1 class="poc-title">{if list_title}{list_title}{else}Shop{/if}</h1>
             {if list_description}
             <p class="poc-summary">{list_description}</p>
-            {else}
-            <p class="poc-summary">This storefront grid is powered by the CMS universal entity list contract, not a storefront-only template family.</p>
             {/if}
             {if entity_presentation.list_show_filter_summary and (entity_list_context.result_label or entity_list_context.category_name or entity_list_context.search)}
             <div class="poc-entity-list__filters">
@@ -41,37 +38,44 @@
     {if items}
     <div class="poc-catalog-grid poc-catalog-grid--{entity_presentation.list_card_density|default:'comfortable'}">
         {foreach items as item}
-        <a
-            href="{item.url}"
+        <div
             class="poc-product-card"
             data-entity-kind="list-item"
             data-entity-type="{item.entity_type|default:content_type|default:'generic'}"
             data-entity-id="{item.id|default:''}"
             data-entity-slug="{item.slug|default:''}"
         >
-            <div class="poc-product-card__media">
-                {if item.primary_image_url}
-                <img src="{item.primary_image_url}" alt="{item.title}" class="poc-product-card__image">
-                {else}
-                <div class="poc-product-card__placeholder">{item.title}</div>
-                {/if}
-            </div>
-
-            <div class="poc-product-card__body poc-product-card__body--{entity_presentation.list_card_density|default:'comfortable'}">
-                <div class="poc-product-card__copy">
-                    <h2 class="poc-product-card__title">{item.title}</h2>
-                    {if item.list_card_excerpt}
-                    <p class="poc-product-card__excerpt">{item.list_card_excerpt}</p>
+            <a href="{item.url}" class="poc-product-card__link">
+                <div class="poc-product-card__media">
+                    {if item.primary_image_url}
+                    <img src="{item.primary_image_url}" alt="{item.title}" class="poc-product-card__image">
+                    {else}
+                    <div class="poc-product-card__placeholder">{item.title}</div>
                     {/if}
                 </div>
 
-                <div class="poc-product-card__meta">
-                    {if item.list_card_pricing_html}{item.list_card_pricing_html | raw}{/if}
-                    {if item.list_card_inventory_html}{item.list_card_inventory_html | raw}{/if}
-                    {if item.list_card_progress_html}{item.list_card_progress_html | raw}{/if}
+                <div class="poc-product-card__body poc-product-card__body--{entity_presentation.list_card_density|default:'comfortable'}">
+                    <div class="poc-product-card__copy">
+                        <h2 class="poc-product-card__title">{item.title}</h2>
+                        {if item.list_card_excerpt}
+                        <p class="poc-product-card__excerpt">{item.list_card_excerpt}</p>
+                        {/if}
+                    </div>
+
+                    <div class="poc-product-card__meta">
+                        {if item.list_card_pricing_html}{item.list_card_pricing_html | raw}{/if}
+                        {if item.list_card_inventory_html}{item.list_card_inventory_html | raw}{/if}
+                        {if item.list_card_progress_html}{item.list_card_progress_html | raw}{/if}
+                    </div>
                 </div>
+            </a>
+
+            {if item.list_card_action_html}
+            <div class="poc-product-card__actions">
+                {item.list_card_action_html | raw}
             </div>
-        </a>
+            {/if}
+        </div>
         {/foreach}
     </div>
 

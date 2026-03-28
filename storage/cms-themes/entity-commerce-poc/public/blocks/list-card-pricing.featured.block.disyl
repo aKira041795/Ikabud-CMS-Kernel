@@ -3,7 +3,7 @@
     {if capability_data.pricing.sale_price}
     <span class="poc-price-pill__current">{capability_data.pricing.currency} {capability_data.pricing.sale_price | number_format:2}</span>
     <span class="poc-price-pill__previous">{capability_data.pricing.currency} {capability_data.pricing.price | number_format:2}</span>
-    <span class="poc-stock-tag poc-stock-tag--compact">Offer</span>
+    <span class="poc-stock-tag poc-stock-tag--compact">Sale</span>
     {else}
     <span class="poc-price-pill__current">{capability_data.pricing.currency} {capability_data.pricing.price | number_format:2}</span>
     {/if}

@@ -12,7 +12,7 @@
         <span class="poc-action-strip__status">Out of Stock</span>
             {/if}
         {elseif capabilities.pricing and not cart_enabled}
-        <span class="poc-action-strip__status">Price shown, checkout wiring pending</span>
+        <span class="poc-action-strip__status">Coming Soon</span>
         {/if}
 
         {if capabilities.booking}

@@ -1544,7 +1544,9 @@ function cmsThemeLayoutSettingsDefaults(): array
 
 function cmsStorefrontSettingsDefaults(): array
 {
-    return cmsEntityPresentationSettingsDefaults();
+    return array_merge(cmsEntityPresentationSettingsDefaults(), [
+        'entity_layout_profile' => 'commerce',
+    ]);
 }
 
 /**

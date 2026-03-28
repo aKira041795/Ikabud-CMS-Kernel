@@ -33,35 +33,41 @@
     {if items}
     <div class="cms-entity-list__grid grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
         {foreach items as item}
-        <a
-            href="{item.url}"
-            class="cms-entity-card group block bg-white rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow overflow-hidden no-underline"
+        <div
+            class="cms-entity-card group bg-white rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow overflow-hidden"
             data-entity-kind="list-item"
             data-entity-type="{item.entity_type|default:content_type|default:'generic'}"
             data-entity-id="{item.id|default:''}"
             data-entity-slug="{item.slug|default:''}"
         >
-
-            {if item.primary_image_url}
-            <div class="aspect-video overflow-hidden bg-gray-100">
-                <img class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                     src="{item.primary_image_url}"
-                     alt="{item.title}">
-            </div>
-            {/if}
-
-            <div class="cms-entity-card__body p-4">
-                <h2 class="text-base font-semibold text-gray-900 group-hover:text-sky-600 leading-snug mb-1">{item.title}</h2>
-
-                {if item.list_card_excerpt}
-                <p class="cms-entity-card__excerpt text-sm text-gray-500 line-clamp-2">{item.list_card_excerpt}</p>
+            <a href="{item.url}" class="block no-underline text-inherit">
+                {if item.primary_image_url}
+                <div class="aspect-video overflow-hidden bg-gray-100">
+                    <img class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                         src="{item.primary_image_url}"
+                         alt="{item.title}">
+                </div>
                 {/if}
 
-                {if item.list_card_pricing_html}{item.list_card_pricing_html | raw}{/if}
-                {if item.list_card_inventory_html}{item.list_card_inventory_html | raw}{/if}
-                {if item.list_card_progress_html}{item.list_card_progress_html | raw}{/if}
+                <div class="cms-entity-card__body p-4">
+                    <h2 class="text-base font-semibold text-gray-900 group-hover:text-sky-600 leading-snug mb-1">{item.title}</h2>
+
+                    {if item.list_card_excerpt}
+                    <p class="cms-entity-card__excerpt text-sm text-gray-500 line-clamp-2">{item.list_card_excerpt}</p>
+                    {/if}
+
+                    {if item.list_card_pricing_html}{item.list_card_pricing_html | raw}{/if}
+                    {if item.list_card_inventory_html}{item.list_card_inventory_html | raw}{/if}
+                    {if item.list_card_progress_html}{item.list_card_progress_html | raw}{/if}
+                </div>
+            </a>
+
+            {if item.list_card_action_html}
+            <div class="cms-entity-card__actions px-4 pb-3 pt-2 border-t border-gray-50">
+                {item.list_card_action_html | raw}
             </div>
-        </a>
+            {/if}
+        </div>
         {/foreach}
     </div>
 

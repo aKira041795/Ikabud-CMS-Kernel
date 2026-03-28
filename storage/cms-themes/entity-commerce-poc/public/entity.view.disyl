@@ -6,14 +6,78 @@
 {/block}
 
 {block content}
-<article class="poc-entity-view"{if public_render_origin} data-public-render-origin="{public_render_origin}"{/if}{if public_route_kind} data-public-route-kind="{public_route_kind}"{/if}{if public_presentation_mode} data-public-presentation-mode="{public_presentation_mode}"{/if}>
+<article class="poc-entity-view poc-entity-view--{entity_presentation.layout_profile|default:'default'}"{if public_render_origin} data-public-render-origin="{public_render_origin}"{/if}{if public_route_kind} data-public-route-kind="{public_route_kind}"{/if}{if public_presentation_mode} data-public-presentation-mode="{public_presentation_mode}"{/if}>
 
+    {if entity_presentation.layout_profile == 'commerce'}
+
+    {* ── Commerce layout: media + info side-by-side ───────────────── *}
+    <div class="poc-entity-view__commerce-grid">
+        <div class="poc-entity-view__commerce-media">
+            {if capabilities.media_gallery}
+                {include "modules/cms/public/blocks/media-gallery.block.disyl"}
+            {elseif entity.featured_image_url}
+            <div class="poc-entity-view__hero">
+                <img src="{entity.featured_image_url}" alt="{entity.title}" class="poc-entity-view__hero-image">
+            </div>
+            {/if}
+        </div>
+
+        <div class="poc-entity-view__commerce-info{if entity_presentation.summary_sticky} poc-entity-view__commerce-info--sticky{/if}">
+            <header class="poc-entity-view__header poc-entity-view__header--commerce">
+                {if entity.content_type_label}
+                <span class="poc-entity-view__type-badge">{entity.content_type_label}</span>
+                {/if}
+                <h1 class="poc-title poc-title--detail">{entity.title}</h1>
+            </header>
+
+            {include "modules/cms/public/blocks/meta.block.disyl"}
+
+            {if capabilities.progress_tracking}
+                {include "modules/cms/public/blocks/progress.block.disyl"}
+            {/if}
+
+            {if capabilities.pricing}
+                {if pricing_block_html}{pricing_block_html | raw}{else}{include "modules/cms/public/blocks/pricing.block.disyl"}{/if}
+            {/if}
+
+            {if capabilities.inventory}
+                {include "modules/cms/public/blocks/inventory.block.disyl"}
+            {/if}
+
+            {if capabilities.pricing or capabilities.booking or capabilities.inquiry}
+                {if action_block_html}{action_block_html | raw}{else}{include "modules/cms/public/blocks/action.block.disyl"}{/if}
+            {/if}
+        </div>
+    </div>
+
+    {if post_html}
+    <section class="poc-entity-view__body-wrap">
+        {if builder_enabled}
+        <div class="cms-entity-body poc-entity-view__body {builder_page_settings.container_class}">
+            {post_html | raw}
+        </div>
+        {else}
+        <div class="cms-entity-body prose poc-entity-view__body">
+            {post_html | raw}
+        </div>
+        {/if}
+    </section>
+    {/if}
+
+    {if capabilities.lessons_index}
+        {include "modules/cms/public/blocks/lessons.block.disyl"}
+    {/if}
+
+    {else}
+
+    {* ── Default / content layout ─────────────────────────────────── *}
     <header class="poc-entity-view__header">
         <div>
-            <p class="poc-kicker">CMS Entity View</p>
+            {if entity.content_type_label}
+            <span class="poc-entity-view__type-badge">{entity.content_type_label}</span>
+            {/if}
             <h1 class="poc-title poc-title--detail">{entity.title}</h1>
         </div>
-        <div class="poc-entity-view__header-note">Themed detail page riding the universal capability contract</div>
     </header>
 
     {if capabilities.media_gallery}
@@ -58,6 +122,8 @@
 
     {if capabilities.pricing or capabilities.booking or capabilities.inquiry}
         {if action_block_html}{action_block_html | raw}{else}{include "modules/cms/public/blocks/action.block.disyl"}{/if}
+    {/if}
+
     {/if}
 
 </article>

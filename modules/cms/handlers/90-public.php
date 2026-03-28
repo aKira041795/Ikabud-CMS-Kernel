@@ -1502,6 +1502,9 @@ function cmsPublicEntityList(array $params = []): void
         $item['list_card_progress_html'] = !empty($capabilities['progress_tracking'])
             ? cmsRenderThemeAwareBlockTemplate('modules/cms/public/blocks/list-card-progress.block.disyl', $itemContext)
             : '';
+        $item['list_card_action_html'] = (!empty($capabilities['pricing']) && !empty($pageContext['cart_enabled']))
+            ? cmsRenderThemeAwareBlockTemplate('modules/cms/public/blocks/list-card-action.block.disyl', $itemContext)
+            : '';
     }
     unset($item);
 

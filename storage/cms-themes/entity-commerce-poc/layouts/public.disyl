@@ -24,8 +24,7 @@
         <header class="poc-header">
             <div class="poc-header__inner">
                 <div class="poc-branding">
-                    <a href="{base_url}/cms" class="poc-branding__mark">{site_title|default:gui.app_name|default:"Ikabud"}</a>
-                    <p class="poc-branding__tag">Capability-driven storefront proof of concept</p>
+                    <a href="{base_url}/ecommerce/shop" class="poc-branding__mark">{site_title|default:gui.app_name|default:"Ikabud"}</a>
                 </div>
                 <nav class="poc-nav" aria-label="Primary Navigation">
                     {if primary_menu}
@@ -34,10 +33,15 @@
                     <ul class="nav-menu">
                         <li><a href="{base_url}/cms">Home</a></li>
                         <li><a href="{base_url}/ecommerce/shop">Shop</a></li>
-                        <li><a href="{base_url}/cms/search">Search</a></li>
                     </ul>
                     {/if}
                 </nav>
+                <div class="poc-header__actions">
+                    <a href="{base_url}/ecommerce/cart" class="poc-cart-badge" aria-label="Shopping cart">
+                        <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-9H5.4M7 13l-1.5 6h13M7 13L5.4 5M17 13l1.5 6M9 21a1 1 0 100-2 1 1 0 000 2zm8 0a1 1 0 100-2 1 1 0 000 2z"/></svg>
+                        {if cart_count}<span class="poc-cart-badge__count">{cart_count}</span>{/if}
+                    </a>
+                </div>
             </div>
         </header>
         {/if}
@@ -62,8 +66,7 @@
         <footer class="poc-footer">
             <div class="poc-footer__inner">
                 <div>
-                    <p class="poc-footer__eyebrow">Universal entity rendering</p>
-                    <p class="poc-footer__copy">Products, courses, and services can share one public contract while themes own the presentation layer.</p>
+                    <p class="poc-footer__copy">{site_title|default:gui.app_name|default:"Ikabud"}</p>
                 </div>
                 <div class="poc-footer__meta">
                     {if footer_menu}

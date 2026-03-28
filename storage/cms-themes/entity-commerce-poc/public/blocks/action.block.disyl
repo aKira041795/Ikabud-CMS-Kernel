@@ -1,6 +1,5 @@
 {if action_sections}{action_sections | raw}{else}
 <div class="poc-action-strip">
-    <p class="poc-action-strip__label">Theme-approved action block</p>
     <div class="poc-action-strip__row">
         {if capabilities.pricing and cart_enabled}
             {if not capabilities.inventory}
@@ -29,7 +28,7 @@
                 {/if}
             {/if}
         {elseif capabilities.pricing and not cart_enabled}
-        <span class="poc-action-strip__status">Price shown, checkout wiring pending</span>
+        <span class="poc-action-strip__status">Coming Soon</span>
         {/if}
 
         {if capabilities.booking}

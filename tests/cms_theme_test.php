@@ -485,7 +485,7 @@ t('entity summary sticky default is enabled', ($entityDefaults['entity_summary_s
 t('entity media ratio default is auto', ($entityDefaults['entity_media_ratio'] ?? '') === 'auto');
 t('entity spacing scale default is comfortable', ($entityDefaults['entity_spacing_scale'] ?? '') === 'comfortable');
 t('entity action size default is md', ($entityDefaults['entity_action_size'] ?? '') === 'md');
-t('storefront defaults mirror canonical entity profile default', ($storefrontDefaults['entity_layout_profile'] ?? '') === 'default');
+t('storefront defaults use commerce entity profile', ($storefrontDefaults['entity_layout_profile'] ?? '') === 'commerce');
 t('storefront defaults mirror canonical summary width default', ($storefrontDefaults['entity_summary_width'] ?? '') === '320');
 t('storefront defaults mirror canonical list-card pricing variant default', ($storefrontDefaults['entity_list_pricing_variant'] ?? 'x') === '');
 

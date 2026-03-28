@@ -363,6 +363,30 @@ function cmsPublicContext(array $extra = []): array
         $ctx['capability_data'] = [];
     }
 
+    // Ensure cart_enabled/cart_action_url are available at page level for entity lists
+    if (!array_key_exists('cart_enabled', $ctx)) {
+        $ctx['cart_enabled']    = false;
+        $ctx['cart_action_url'] = '';
+        try {
+            if (app()->capabilities()->has('cms.cart.add@1')) {
+                $ctx['cart_enabled']    = true;
+                $ctx['cart_action_url'] = $baseUrl . '/ecommerce/cart/add';
+            }
+        } catch (\Throwable $e) {}
+    }
+
+    // Inject cart_count when ecommerce module is available
+    if (!array_key_exists('cart_count', $ctx) && !array_key_exists('cart_count', $extra)) {
+        try {
+            if (function_exists('ecCartGet')) {
+                $cart = ecCartGet();
+                $ctx['cart_count'] = (int)($cart['totals']['item_count'] ?? 0);
+            }
+        } catch (\Throwable $e) {
+            $ctx['cart_count'] = 0;
+        }
+    }
+
     if ($timingEnabled) {
         cmsPublicContextLogStage('total', $totalStart, [
             'theme' => $activeThemeSlug,
