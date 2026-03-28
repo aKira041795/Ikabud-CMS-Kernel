@@ -2,9 +2,15 @@
 
 **Updated:** March 2026
 
-This primer explains how CMS theme design and entity views fit together in Ikabud Kernel OS.
+This primer explains the intended relationship between CMS themes, the theme customizer, and universal entity rendering in Ikabud Kernel OS.
 
-It is not the canonical schema document for entity blocks and it is not the full theme implementation guide. Instead, it connects those two systems and explains why the relationship is intentionally designed around the application-kernel modular model.
+It replaces the weaker mental model of "a theme owns its own entity templates" with the stronger model:
+
+- one canonical entity-view contract
+- one shared public design system
+- one active theme customizer controlling presentation choices
+- modules supplying behavior and data
+- the kernel enforcing orchestration, safety, and tenant-aware runtime rules
 
 Primary references:
 
@@ -17,127 +23,208 @@ Primary references:
 
 ## 1. The short version
 
-Theme design controls how public pages look.
+The entity view is not supposed to be redesigned by swapping theme-owned entity templates.
 
-Entity views control what public entity pages are allowed to render and in what structural order.
+The stronger concept is:
 
-The kernel controls how data, capabilities, modules, routing, tenant isolation, and extension contracts are resolved before either of those layers render anything.
+- the CMS owns one canonical entity-view contract
+- the active theme package provides design tokens, component styling, and public shell defaults
+- the active theme customizer chooses how that canonical entity view is presented
+- modules add or change behavior through capabilities, providers, hooks, and contracts
 
-That means:
-
-- themes are presentation-first
-- entity views are contract-first
-- the kernel is policy-first
-
-This separation is the reason one public rendering system can support products, courses, services, galleries, and future module-driven entity types without creating a separate theme stack for each one.
+That means a product page, course page, service page, or other entity page should feel like part of one public design system, not like separate CMS and ecommerce worlds.
 
 ---
 
-## 2. What each layer owns
+## 2. The core correction
 
-### 2.1 Theme design owns presentation
+### Older theme-first thinking
 
-Themes are responsible for:
+The weaker model says:
 
-- public layouts
-- public template overrides
-- CSS, JS, tokens, and visual language
-- approved block-level styling or overrides
+- a theme ships templates
+- a theme overrides entity views
+- a customizer only tweaks colors, header, or footer
 
-Themes do not own:
+That still couples presentation too closely to theme file ownership.
 
-- capability resolution
-- module business logic
-- entity capability data loading
-- auth rules
-- tenant routing
-- database schema
+### Customizer-first entity presentation
 
-This keeps themes lightweight and safe.
+The stronger model says:
 
-### 2.2 Entity views own the public entity contract
+- `entity.view.disyl` is the canonical public entity contract
+- the active theme package defines the design language and default component rules
+- the active theme customizer controls presentation selections such as layout profile, block variants, spacing, visibility, and token values
+- behavioral changes still happen in modules or capability providers, not in theme files
+
+This is the direction that best matches the kernel-modular architecture.
+
+### Compatibility note
+
+The runtime may still support template or block override paths for compatibility and migration, but that should not be treated as the long-term customization model for entity presentation.
+
+For entity pages, the design target is:
+
+- one contract
+- approved presentation controls
+- customizer-owned layout decisions
+- module-owned behavior
+
+---
+
+## 3. What each layer owns
+
+### 3.1 Entity views own the public structure contract
 
 The universal entity view defines:
 
-- the render context shape
-- the deterministic block order
-- which blocks are always present
-- which blocks are capability-gated
-- which capability providers supply runtime data
+- the root render context shape
+- stable block order and gating rules
+- which capability-driven blocks may appear
+- what each block may assume about runtime data
 
-In practice, `entity.view.disyl` answers questions like:
+This is where the public entity structure becomes predictable and safe.
 
-- should pricing appear?
-- should inventory appear?
-- should lessons, gallery, or progress render?
-- what data shape is available to each block?
+### 3.2 Theme packages own the design system
 
-### 2.3 The kernel owns orchestration and safety
+The theme package is responsible for:
+
+- global public layout shell
+- typography, spacing, and component styling
+- token defaults
+- compatibility with customizer-generated header, footer, sidebar, and runtime CSS variables
+
+The theme package should not be the place where entity-specific behavior or structural divergence is invented.
+
+### 3.3 The theme customizer owns presentation choices
+
+The active theme customizer is the correct place for entity-view presentation changes such as:
+
+- layout profile selection
+- approved block variants
+- region emphasis or suppression
+- token overrides
+- shared storefront presentation choices that should apply consistently across entity types
+
+This is the key shift.
+
+Changing how entity pages look should happen in the customizer layer, not by scattering per-theme entity template forks.
+
+### 3.4 Modules own behavior and data
+
+Modules are responsible for:
+
+- capability registration
+- capability data providers
+- hooks and extension seams
+- business logic
+- integration with external systems
+
+If pricing, inventory, booking, inquiry, progress, or media behavior changes, that change belongs here.
+
+### 3.5 The kernel owns orchestration and safety
 
 Ikabud Kernel OS owns:
 
 - request lifecycle
 - module loading
 - capability-bus dispatch
-- hook and event execution
+- hook execution
 - tenant-aware settings resolution
-- security and policy enforcement
-- final render flow into DiSyL templates
+- policy enforcement
+- final render orchestration
 
-The theme and entity view layers only work cleanly because the kernel guarantees that the runtime context is assembled consistently before rendering starts.
+That is why the system can support one entity-view contract without collapsing into ad hoc theme logic.
 
 ---
 
-## 3. The relationship in one diagram
+## 4. Why ecommerce and CMS should not look like separate systems
+
+If ecommerce pages and CMS pages visibly feel like two different design systems, the architecture is leaking internal ownership boundaries into the public UX.
+
+That is a smell.
+
+The public user should experience:
+
+- one site shell
+- one brand system
+- one navigation model
+- one entity presentation language
+
+The fact that one route originated in ecommerce and another in CMS is an internal concern.
+
+The public rendering model should absorb that difference through:
+
+- shared entity contracts
+- shared capabilities
+- shared customizer-controlled presentation rules
+
+Not through a storefront-only template family that drifts away from the rest of the site.
+
+---
+
+## 5. The relationship in one diagram
 
 ```text
 Browser request
   -> Kernel front controller
-  -> CMS public handler
-  -> cmsPublicContext()
-  -> cmsEntityCapabilityContext()
-  -> cmsEntityCapabilityData()
-  -> entity.view.disyl block gating
-  -> active theme layout + theme tokens + approved block overrides
+  -> CMS public context assembly
+  -> capability presence + capability data resolution
+  -> canonical entity.view contract
+  -> active theme customizer selects approved presentation profile
+  -> active theme design system styles the result
   -> final public HTML
 ```
 
 Another way to say it:
 
-- the entity view decides the structural content contract
-- the theme decides the visual expression of that contract
-- the kernel guarantees that both are fed by module-safe runtime data
+- the entity view decides what can render
+- the theme customizer decides how the approved presentation is configured
+- the theme package supplies the visual system
+- the kernel guarantees that runtime data is valid and tenant-safe
 
 ---
 
-## 4. Why the relationship is designed this way
+## 6. Where entity-view changes should happen
 
-The system is intentionally not built as "pick an industry theme and let it do everything."
+### Use the theme customizer when you need to change:
 
-That older model creates coupling problems:
+- layout profile
+- block variant selection
+- visual density
+- token values
+- shared storefront presentation rules
 
-- product pages need one template family
-- course pages need another
-- service pages need another
-- each theme starts owning business logic it should not own
-- modules become harder to extend safely
-- multi-tenant behavior becomes more fragile
+### Use a module or capability provider when you need to change:
 
-Instead, Ikabud uses universal entity rendering with capability-driven blocks.
+- pricing logic
+- inventory logic
+- booking logic
+- inquiry logic
+- capability data shape
+- CTA behavior
 
-That gives a cleaner split:
+### Use the entity-view contract when you need to change:
 
-- modules define capabilities and data providers
-- entity views define stable render slots and contracts
-- themes apply brand and layout decisions to a stable surface area
+- block order rules
+- allowed block slots
+- render context guarantees
+- capability-to-block mapping
 
-This is the key architectural move that lets the CMS leverage the kernel OS model instead of bypassing it.
+### Use the kernel when you need to change:
+
+- request lifecycle
+- capability-bus policy
+- module contracts
+- tenant-safe settings flow
+
+This separation is the architectural point.
 
 ---
 
-## 5. Sample usage: one theme, different entity behaviors
+## 7. Sample usage: one theme customizer, different entity behaviors
 
-The same active theme can render two very different entities.
+The same active theme and customizer configuration should be able to render different entity types coherently.
 
 ### Example A: product-style entity
 
@@ -147,14 +234,12 @@ Attached capabilities:
 - `inventory`
 - `media_gallery`
 
-Rendered outcome:
+Rendered outcome through the same canonical entity view:
 
-- hero media or gallery
-- title and meta
-- pricing block
-- inventory block
-- body content
-- action block with buy CTA
+- media-first profile
+- pricing emphasis
+- inventory status
+- primary commerce CTA
 
 ### Example B: course-style entity
 
@@ -164,26 +249,33 @@ Attached capabilities:
 - `lessons_index`
 - `progress_tracking`
 
-Rendered outcome:
+Rendered outcome through the same canonical entity view:
 
-- header and meta
-- learner progress block
-- pricing block
-- body content
+- progress-aware summary
+- content-forward profile
 - lessons index
-- action block
+- enrollment-style CTA behavior
 
-The theme did not switch engines.
+What changed was not the theme engine.
 
-The entity view did not fork into a separate template family.
+What changed was:
 
-The difference came from capability data resolved through the kernel capability bus.
+- capability presence
+- capability data
+- approved presentation selections applied to the same entity contract
 
 ---
 
-## 6. Sample usage: a theme manifest that stays in its lane
+## 8. Sample usage: what a theme package should supply
 
-The recommended theme model is token-first, with narrow override points.
+The recommended theme package should primarily provide:
+
+- a public shell
+- token defaults
+- component styles
+- compatibility with customizer-generated markup
+
+Example concept:
 
 ```json
 {
@@ -198,10 +290,6 @@ The recommended theme model is token-first, with narrow override points.
     }
   ],
   "restrict_to_tokens": true,
-  "overridable_blocks": [
-    "pricing.block.disyl",
-    "action.block.disyl"
-  ],
   "tokens": {
     "color": {
       "primary": "#0f766e",
@@ -214,58 +302,30 @@ The recommended theme model is token-first, with narrow override points.
         "padding": "0.75rem 1.5rem"
       }
     }
+  },
+  "entity_view_defaults": {
+    "layout_profile": "commerce",
+    "block_variants": {
+      "pricing": "featured",
+      "action": "inline"
+    }
   }
 }
 ```
 
-Why this is important:
+The important point is not the exact manifest keys.
 
-- the theme brands pricing and action presentation
-- the theme does not become the pricing engine
-- the theme does not query inventory tables directly
-- the theme does not decide whether a capability exists
+The important point is the responsibility split:
 
-That responsibility stays with the CMS capability layer and the kernel.
-
----
-
-## 7. Sample usage: a safe block override
-
-If a theme is allowed to override a block, it should still treat the entity-view schema as the source of truth.
-
-Example concept:
-
-```text
-storage/cms-themes/studio-commerce/
-  theme.json
-  layouts/public.disyl
-  public/single.disyl
-  public/blocks/pricing.block.disyl
-  style.css
-```
-
-A pricing override should only assume the documented pricing contract:
-
-```text
-capability_data.pricing.price
-capability_data.pricing.currency
-capability_data.pricing.sale_price
-```
-
-It should not assume:
-
-- direct ecommerce table access
-- custom module globals
-- tenant-specific path hacks
-- undocumented root context keys
-
-That keeps the override compatible with the rest of the modular system.
+- the theme package supplies defaults
+- the customizer activates or changes presentation choices
+- the entity contract remains stable
 
 ---
 
-## 8. Sample usage: extending entity views through a module, not a theme
+## 9. Sample usage: extending behavior without theme hacks
 
-When the platform needs new entity behavior, the preferred extension path is a module capability provider, not a theme hack.
+When the platform needs new entity behavior, the preferred extension path is a module capability provider, not a theme-specific entity template.
 
 Example:
 
@@ -279,194 +339,113 @@ That module can then:
 
 1. register the new capability
 2. provide runtime data through the capability bus
-3. add an approved block or hook-driven action section
-4. let themes style the result through tokens or approved overrides
+3. expose a documented slot or block in the entity-view contract
+4. let the active theme customizer decide how the approved presentation should look
 
-This is exactly the sort of extension path the kernel modular system is designed for.
-
----
-
-## 9. Advantages of this approach
-
-### 9.1 One rendering path, many business cases
-
-Products, courses, services, memberships, and portfolio entries can all render through one universal entity-view contract.
-
-That reduces template sprawl and keeps public rendering predictable.
-
-### 9.2 Strong module boundaries
-
-Modules expose capabilities and data providers through declared contracts.
-
-Themes do not need to know which module owns the data source internally. They only need the public render contract.
-
-### 9.3 Safer multi-tenant behavior
-
-Active theme resolution, tenant module settings, and public render flow are handled in shared infrastructure.
-
-That makes cross-tenant leaks less likely than a theme-driven runtime that owns its own data access conventions.
-
-### 9.4 Better upgrade safety
-
-Because entity views and capabilities are documented contracts, themes have a narrower surface area to depend on.
-
-That improves compatibility when modules evolve behind the scenes.
-
-### 9.5 Easier capability overrides
-
-If a specialized module needs to replace how pricing, booking, or inquiry data is resolved, it can override the capability provider at the kernel contract layer without requiring a new theme system.
-
-### 9.6 More consistent public UX
-
-Deterministic block order and stable root classes mean themes can produce stronger design systems without guessing what structure will appear on each entity page.
+That is the kernel-modular extension path.
 
 ---
 
-## 10. Why this specifically fits the application-kernel modular system
+## 10. Advantages of the stronger model
 
-Ikabud is not just a CMS with plugin folders. It is an application-kernel modular infrastructure framework.
+### 10.1 One rendering path, one public language
 
-That matters here because the entity-view and theme relationship depends on kernel-level guarantees.
+Products, courses, services, memberships, and other entities can all render through one public presentation contract.
 
-### 10.1 Capability bus as the runtime contract layer
+### 10.2 Less divergence between ecommerce and CMS
 
-The capability bus lets modules publish typed services like:
+The site no longer drifts into separate storefront and CMS visual systems.
+
+### 10.3 Stronger upgrade safety
+
+Themes depend on stable tokens, variants, and customizer controls instead of fragile markup forks.
+
+### 10.4 Cleaner module boundaries
+
+Behavior stays in modules, presentation stays in the theme and customizer layers.
+
+### 10.5 Better tenant consistency
+
+Customizer-controlled presentation fits naturally with tenant-aware settings and shared public render infrastructure.
+
+---
+
+## 11. Why this fits the application-kernel modular system
+
+This model works because Ikabud is not just a themeable CMS. It is a kernel-governed modular application platform.
+
+### 11.1 The capability bus is the service contract layer
+
+Modules can expose typed services such as:
 
 - `entity.capability.pricing.data@1`
 - `entity.capability.inventory.data@1`
 - `entity.capability.progress_tracking.data@1`
 
-Entity views consume the results of those contracts.
+The entity-view contract consumes those results.
 
-Themes do not call those contracts directly. They benefit from them through the prepared render context.
+Themes and customizer controls do not own those data contracts.
 
-This is a clean OS-style separation between service provider, orchestrator, and presentation layer.
+### 11.2 Manifest-driven modules keep ownership clear
 
-### 10.2 Manifest-driven modules keep ownership clear
+Modules declare what they provide and what they depend on.
 
-Because modules declare capabilities, routes, and ownership in manifests, the system can keep feature logic where it belongs.
+That prevents themes from becoming shadow application modules.
 
-That prevents themes from quietly becoming shadow modules.
+### 11.3 Kernel-owned request flow prevents public drift
 
-### 10.3 Kernel-owned request lifecycle prevents template drift
+Every entity request goes through the same kernel-governed render pipeline before presentation decisions are applied.
 
-The front controller, public handlers, shared context assembly, and DiSyL render path are all kernel-governed.
+That is what makes one canonical entity contract viable.
 
-That means every entity page goes through the same policy and capability resolution path before a theme ever sees it.
+### 11.4 Tenant-aware settings fit naturally
 
-### 10.4 Hook and capability extension keeps custom work additive
+Theme activation, customizer settings, and module settings already live inside tenant-aware infrastructure.
 
-When a team needs custom CTA sections, specialized pricing, or external service integration, the extension model is additive:
-
-- hook into a documented render seam
-- register a capability provider
-- provide a block override if allowed
-
-That is much safer than replacing the entire public rendering stack.
-
-### 10.5 Tenant-aware settings fit naturally
-
-Theme activation, module enablement, and module settings already live inside tenant-aware kernel services.
-
-Because entity views consume shared public context, the theme layer inherits that tenant-aware behavior automatically instead of reinventing it.
+The entity-view system can inherit that model cleanly.
 
 ---
 
-## 11. Practical rules for implementers
+## 12. Practical rules for implementers
 
-If you are designing a theme:
+If you are designing a theme package:
 
-- treat entity views as a stable contract, not as raw free-form markup
-- prefer tokens and approved block overrides over full template replacement
-- assume capabilities and `capability_data` are the only supported feature switches
-- never query module tables directly from theme templates
+- think in design system defaults, not entity template ownership
+- support customizer-generated markup and variables
+- avoid creating separate entity template families for different business verticals
 
-If you are extending entity behavior:
+If you are working on the theme customizer:
 
-- add a capability or hook at the module layer
-- document the data contract
-- keep block structure deterministic
-- let themes consume the result as presentation
+- treat it as the control surface for entity presentation
+- expose approved layout profiles and block variants
+- keep controls shared and predictable across entity types
 
-If you are doing both:
+If you are extending behavior:
 
-- decide first whether the change is visual or behavioral
-- visual changes belong in the theme
-- behavioral changes belong in a module or capability provider
+- add or override a capability provider
+- document the capability contract
+- keep behavior out of theme files
 
----
+If you are changing the entity-view contract:
 
-## 12. Common mistakes this model avoids
-
-### Mistake 1: putting business logic in a theme
-
-Example of the wrong direction:
-
-- theme checks ecommerce tables directly
-- theme decides stock logic
-- theme injects its own per-product business rules
-
-That breaks modular ownership.
-
-### Mistake 2: creating separate theme families for each content vertical
-
-Example of the wrong direction:
-
-- one product theme
-- one course theme
-- one service theme
-
-That duplicates render logic that the capability-driven entity view already solves.
-
-### Mistake 3: bypassing documented entity context
-
-If a block override depends on undocumented root keys, it becomes fragile and hard to upgrade.
-
-The schema exists specifically to stop that drift.
+- update the schema docs
+- preserve deterministic block rules
+- avoid one-off route-specific template logic
 
 ---
 
-## 13. Decision guide
+## 13. Summary
 
-Use a theme change when you need to change:
+Theme design and entity views are not competing systems.
 
-- layout composition
-- typography
-- color system
-- spacing and radii
-- approved block presentation
+The entity view defines the canonical public contract.
 
-Use an entity-view or module change when you need to change:
+The theme package defines the design language.
 
-- what data is available
-- which capability-gated blocks render
-- CTA semantics
-- pricing, booking, inquiry, or progress behavior
-- cross-module entity functionality
+The theme customizer controls how that contract is presented.
 
-Use a kernel-level extension when you need to change:
+Modules provide behavior.
 
-- capability resolution rules
-- module contracts
-- tenant-safe settings flow
-- request or render lifecycle policy
+The kernel enforces the whole pipeline.
 
----
-
-## 14. Summary
-
-Theme design and entity views are complementary, not competing systems.
-
-Entity views give the CMS a universal, capability-driven public structure.
-
-Themes give that structure a brand, layout, and visual system.
-
-The reason this works well in Ikabud is that the kernel OS already provides the hard parts:
-
-- module boundaries
-- capability contracts
-- request orchestration
-- tenant-aware settings
-- deterministic public rendering flow
-
-That is why the relationship is stronger than a normal CMS theming model. It is not just a template convention. It is a direct use of the application-kernel modular architecture.
+That is the architectural direction that best supports a decoupled, multi-tenant, capability-driven storefront and CMS under one public experience.

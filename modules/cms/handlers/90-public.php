@@ -1155,7 +1155,7 @@ function cmsPublicEntityView(array $params = []): void
 
     $templatePath = cmsResolveContentTemplate('public/entity.view.disyl', $meta, $type);
     $sidebarTemplateKey = cmsSidebarTemplateKeyFromPath($templatePath, 'entity-view');
-    $html = cmsRenderThemeAwareTemplate($templatePath, cmsPublicContext([
+    $viewContext = cmsPublicContext([
         'page_title'            => $entity['title'],
         'entity'                => $entity,
         'entity_meta'           => $meta,
@@ -1166,7 +1166,24 @@ function cmsPublicEntityView(array $params = []): void
         'builder_page_settings' => $builderSettings,
         'sidebar_template'      => $sidebarTemplateKey,
         'content_type'          => $type,
-    ]));
+    ]);
+
+    $capabilities = is_array($viewContext['capabilities'] ?? null) ? $viewContext['capabilities'] : [];
+    if (!empty($capabilities['pricing'])) {
+        $viewContext['pricing_block_html'] = cmsRenderThemeAwareBlockTemplate(
+            'modules/cms/public/blocks/pricing.block.disyl',
+            $viewContext
+        );
+    }
+
+    if (!empty($capabilities['pricing']) || !empty($capabilities['booking']) || !empty($capabilities['inquiry'])) {
+        $viewContext['action_block_html'] = cmsRenderThemeAwareBlockTemplate(
+            'modules/cms/public/blocks/action.block.disyl',
+            $viewContext
+        );
+    }
+
+    $html = cmsRenderThemeAwareTemplate($templatePath, $viewContext);
 
     $updatedAt = (string)($entity['updated_at'] ?? $entity['published_at'] ?? date('Y-m-d H:i:s'));
     $etag = md5($html);

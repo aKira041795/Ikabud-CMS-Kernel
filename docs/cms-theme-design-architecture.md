@@ -15,6 +15,7 @@ They are responsible for the **public presentation layer only**:
 - public layouts
 - public page/post/archive/search templates
 - optional theme CSS/JS assets
+- design-system defaults that the theme customizer can activate or adjust
 
 Themes do **not** override:
 
@@ -22,6 +23,8 @@ Themes do **not** override:
 - CMS business logic
 - database schema
 - permissions or routing rules
+
+For universal entity pages, themes should also avoid acting as owners of entity-specific template families. The preferred model is one canonical entity-view contract with customizer-driven presentation.
 
 This keeps theming compatible with the CMS module boundary and safer for multi-tenant operation.
 
@@ -85,7 +88,9 @@ If the active theme is reset to default, the symlink is removed and CMS built-in
 
 ## 4. Template resolution order
 
-Public rendering uses an override-first strategy.
+Public rendering uses an override-first strategy for general public templates.
+
+For universal entity rendering, this compatibility behavior should not be confused with the preferred long-term design. Entity pages should converge on a canonical entity-view contract whose presentation is controlled by the active theme customizer rather than by per-theme entity template forks.
 
 ### Layout resolution
 
@@ -141,6 +146,8 @@ my-theme/
 ```
 
 You only need to include files you intend to override.
+
+For entity pages specifically, prefer supplying design defaults and customizer-compatible styling instead of shipping theme-specific `entity.view` forks as a primary customization strategy.
 
 ---
 
@@ -273,9 +280,18 @@ Implemented customizer sections include:
 - `custom_code`
 - `theme`
 
+Target direction for entity presentation controls:
+
+- approved entity layout profiles
+- approved block variants
+- region emphasis and visibility rules
+- token-level presentation adjustments shared across CMS and ecommerce entity pages
+
 ### What this means for theme authors
 
 - your theme should coexist with runtime-generated CSS variables and customizer HTML
+- your theme should assume the customizer, not the theme directory, is the correct control surface for entity presentation choices
+- your theme should keep ecommerce and CMS public presentation in the same design language
 
 
 ## 11. Theme authoring recommendations
@@ -303,6 +319,7 @@ The `cz-mobile-header` and `cz-header-dropdown` inline `<style>` blocks are inje
 - keep public layout overrides focused and deterministic
 - support CMS menus and content areas cleanly
 - design for customizer-generated colors/fonts/layout variables
+- design entity pages so customizer-selected presentation rules can apply consistently
 - provide optional content templates for page layouts
 - test with posts, pages, search, archives, and builder-driven pages
 
@@ -312,6 +329,8 @@ The `cz-mobile-header` and `cz-header-dropdown` inline `<style>` blocks are inje
 - hardcode tenant-specific URLs
 - assume only one menu location exists
 - rely on kernel-level modules or tables directly from theme files
+- build separate CMS-vs-ecommerce visual systems when both render through shared public contracts
+- treat entity-view presentation as something that should primarily be solved by per-theme entity templates
 
 ---
 
@@ -323,6 +342,7 @@ The `cz-mobile-header` and `cz-header-dropdown` inline `<style>` blocks are inje
 4. add `style.css`
 5. activate the theme from CMS admin
 6. verify menu rendering, sidebar behavior, builder pages, archives, search, RSS/sitemap unaffected, and customizer compatibility
+7. verify that entity pages can live inside the same design system without requiring a separate theme-owned entity template family
 
 ---
 

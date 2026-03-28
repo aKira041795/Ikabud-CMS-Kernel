@@ -76,10 +76,13 @@ t('cmsAvailableThemes returns array', is_array($themes));
 t('at least 1 theme found (minimal)', count($themes) >= 1);
 
 $minimal = null;
+$entityPoc = null;
 foreach ($themes as $th) {
     if (($th['slug'] ?? '') === 'minimal') {
         $minimal = $th;
-        break;
+    }
+    if (($th['slug'] ?? '') === 'entity-commerce-poc') {
+        $entityPoc = $th;
     }
 }
 t('minimal theme found', $minimal !== null);
@@ -88,6 +91,11 @@ if ($minimal) {
     t('minimal theme version is "1.0"', ($minimal['version'] ?? '') === '1.0');
     t('minimal theme has author', ($minimal['author'] ?? '') !== '');
     t('minimal theme override_count is 4', ($minimal['override_count'] ?? 0) === 4);
+}
+t('entity-commerce-poc theme found', $entityPoc !== null);
+if ($entityPoc) {
+    t('entity-commerce-poc has author', ($entityPoc['author'] ?? '') !== '');
+    t('entity-commerce-poc includes public asset stylesheet', is_file(BASE_PATH . '/public/assets/cms/themes/entity-commerce-poc/style.css'));
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -162,6 +170,72 @@ foreach ($subPaths as $sub) {
 $overridePath = CMS_THEME_SYMLINK . '/public/nonexistent.disyl';
 $resolved = is_file($overridePath) ? '_cms_active_theme/public/nonexistent.disyl' : 'modules/cms/public/nonexistent.disyl';
 t('nonexistent template falls back to default', $resolved === 'modules/cms/public/nonexistent.disyl');
+
+// ═══════════════════════════════════════════════════════════════════
+// 5a. Entity storefront POC theme
+// ═══════════════════════════════════════════════════════════════════
+echo "\n=== ENTITY STOREFRONT POC THEME ===\n";
+
+$pocSettings = $oldSettings;
+$pocSettings['active_theme'] = 'entity-commerce-poc';
+saveModuleSettings('cms', $pocSettings);
+cmsResetThemeRuntimeCache();
+cmsActivateThemeSymlink('entity-commerce-poc');
+
+$pocManifest = cmsActiveThemeManifest();
+t('entity-commerce-poc manifest loads as active theme', ($pocManifest['slug'] ?? '') === 'entity-commerce-poc');
+
+$entityViewTemplate = cmsResolveTemplate('public/entity.view.disyl');
+$entityListTemplate = cmsResolveTemplate('public/entity.list.disyl');
+t('entity-commerce-poc overrides entity.view.disyl', $entityViewTemplate === '_cms_active_theme/public/entity.view.disyl', $entityViewTemplate);
+t('entity-commerce-poc overrides entity.list.disyl', $entityListTemplate === '_cms_active_theme/public/entity.list.disyl', $entityListTemplate);
+
+$pricingBlockTemplate = cmsResolveBlockTemplate('modules/cms/public/blocks/pricing.block.disyl');
+$actionBlockTemplate = cmsResolveBlockTemplate('modules/cms/public/blocks/action.block.disyl');
+t('entity-commerce-poc overrides pricing block', $pricingBlockTemplate === '_cms_active_theme/public/blocks/pricing.block.disyl', $pricingBlockTemplate);
+t('entity-commerce-poc overrides action block', $actionBlockTemplate === '_cms_active_theme/public/blocks/action.block.disyl', $actionBlockTemplate);
+
+$renderedPricingBlock = cmsRenderThemeAwareBlockTemplate('modules/cms/public/blocks/pricing.block.disyl', [
+    'capability_data' => [
+        'pricing' => [
+            'currency' => 'USD',
+            'price' => 24.5,
+            'sale_price' => 19.0,
+        ],
+    ],
+]);
+t('entity-commerce-poc pricing block render uses themed markup', str_contains($renderedPricingBlock, 'poc-pricing-block'), $renderedPricingBlock);
+
+$renderedActionBlock = cmsRenderThemeAwareBlockTemplate('modules/cms/public/blocks/action.block.disyl', [
+    'capabilities' => [
+        'pricing' => true,
+        'inventory' => false,
+        'booking' => false,
+        'inquiry' => false,
+    ],
+    'cart_enabled' => true,
+    'cart_action_url' => '/cart/add',
+    'entity' => [
+        'id' => 55,
+        'type' => 'product',
+        'slug' => 'poc-item',
+    ],
+    'capability_data' => [
+        'inventory' => [
+            'in_stock' => true,
+            'out_of_stock' => false,
+        ],
+    ],
+    'base_url' => '',
+]);
+t('entity-commerce-poc action block render uses themed markup', str_contains($renderedActionBlock, 'poc-action-strip'), $renderedActionBlock);
+
+$pocStyleUrl = cmsThemeAssetUrl('style.css');
+t('entity-commerce-poc theme stylesheet resolves to public assets', str_contains($pocStyleUrl, '/assets/cms/themes/entity-commerce-poc/style.css'), $pocStyleUrl);
+
+saveModuleSettings('cms', $oldSettings);
+cmsResetThemeRuntimeCache();
+cmsActivateThemeSymlink('minimal');
 
 // ═══════════════════════════════════════════════════════════════════
 // 6. Theme template content validation

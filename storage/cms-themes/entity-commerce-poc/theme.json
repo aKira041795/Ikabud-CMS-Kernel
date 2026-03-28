@@ -1,0 +1,38 @@
+{
+    "name": "Entity Commerce POC",
+    "version": "0.1.0",
+    "author": "GitHub Copilot",
+    "description": "Proof-of-concept theme showing ecommerce storefront routes through the CMS universal entity list and entity view contracts.",
+    "supports": {
+        "menus": [
+            "primary",
+            "footer"
+        ],
+        "features": [
+            "featured-images",
+            "excerpts",
+            "custom-templates"
+        ]
+    },
+    "assets": {
+        "css": [
+            "style.css"
+        ]
+    },
+    "overridable_blocks": [
+        "pricing.block.disyl",
+        "action.block.disyl"
+    ],
+    "tokens": {
+        "color-primary": "#0f4c81",
+        "color-accent": "#c56a1a",
+        "color-background": "#f4efe6",
+        "color-surface": "#fffaf2",
+        "color-text": "#18212b",
+        "color-muted": "#68707a",
+        "color-border": "#d7cec1",
+        "radius-card": "28px",
+        "radius-pill": "999px",
+        "container-max": "1180px"
+    }
+}

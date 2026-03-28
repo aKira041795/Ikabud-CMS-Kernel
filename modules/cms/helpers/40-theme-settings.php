@@ -709,6 +709,12 @@ function cmsResolveBlockTemplate(string $block): string
 
     return $block;
 }
+
+function cmsRenderThemeAwareBlockTemplate(string $block, array $context = []): string
+{
+    return cmsRenderThemeAwareTemplate(cmsResolveBlockTemplate($block), $context);
+}
+
 /**
  * Render a resolved template path that may depend on the active theme symlink.
  */

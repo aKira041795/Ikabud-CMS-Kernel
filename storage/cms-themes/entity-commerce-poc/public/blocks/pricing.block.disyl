@@ -1,0 +1,14 @@
+{if capability_data.pricing}
+<div class="poc-pricing-block">
+    <p class="poc-pricing-block__label">Theme-approved pricing block</p>
+    <div class="poc-pricing-block__row">
+        {if capability_data.pricing.sale_price}
+        <span class="poc-pricing-block__value poc-pricing-block__value--sale">{capability_data.pricing.currency} {capability_data.pricing.sale_price | number_format:2}</span>
+        <span class="poc-pricing-block__previous">{capability_data.pricing.currency} {capability_data.pricing.price | number_format:2}</span>
+        <span class="poc-pricing-block__badge">Offer</span>
+        {else}
+        <span class="poc-pricing-block__value">{capability_data.pricing.currency} {capability_data.pricing.price | number_format:2}</span>
+        {/if}
+    </div>
+</div>
+{/if}

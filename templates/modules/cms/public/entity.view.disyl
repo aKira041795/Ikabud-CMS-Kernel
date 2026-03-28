@@ -33,7 +33,7 @@
 
     {* ── Pricing ──────────────────────────────────────────────────────── *}
     {if capabilities.pricing}
-        {include "modules/cms/public/blocks/pricing.block.disyl"}
+        {if pricing_block_html}{pricing_block_html | raw}{else}{include "modules/cms/public/blocks/pricing.block.disyl"}{/if}
     {/if}
 
     {* ── Inventory badge ─────────────────────────────────────────────── *}
@@ -59,7 +59,7 @@
 
     {* ── Action (booking / inquiry / buy) ────────────────────────────── *}
     {if capabilities.pricing or capabilities.booking or capabilities.inquiry}
-        {include "modules/cms/public/blocks/action.block.disyl"}
+        {if action_block_html}{action_block_html | raw}{else}{include "modules/cms/public/blocks/action.block.disyl"}{/if}
     {/if}
 
 </article>

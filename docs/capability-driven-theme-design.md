@@ -8,7 +8,8 @@ The core idea is straightforward:
 
 - templates stay universal
 - entities declare feature capabilities
-- themes style through tokens and approved block overrides
+- themes provide design-system defaults
+- the active theme customizer chooses approved presentation controls
 - presets configure behavior without forking template systems
 
 This avoids separate ecommerce, education, portfolio, or business theme stacks while still allowing materially different public experiences.
@@ -42,17 +43,25 @@ Public rendering should depend on explicit feature flags attached to the entity,
 - `lessons_index`
 - `media_gallery`
 
-### 1.3 Token-only theming by default
+### 1.3 Customizer-first theming by default
 
-Themes should not be able to replace the entire CMS public rendering system by default.
+Themes should not be treated as owners of the entity rendering tree.
 
-They should primarily control:
+The preferred model is:
+
+- the theme package provides defaults for a shared design system
+- the active theme customizer controls entity presentation choices
+- the universal entity template stays canonical
+
+The presentation layer should primarily control:
 
 - colors
 - spacing
 - radii
 - typography
 - visual block presentation
+
+It should not become a second application layer.
 
 ### 1.4 Presets as configuration, not forks
 
@@ -124,13 +133,19 @@ Supporting blocks:
 - `media-gallery.block.disyl`
 - `action.block.disyl`
 
-### 2.4 Theme control layer
+### 2.4 Theme and customizer control layer
 
-Theme resolution is constrained by manifest policy:
+Theme resolution should be understood as two cooperating layers:
+
+- the theme package defines public shell and design defaults
+- the active theme customizer selects approved entity presentation controls
+
+Relevant policy controls include:
 
 - `restrict_to_tokens`
-- `overridable_blocks`
 - `tokens`
+- approved layout profiles
+- approved block variants
 
 That allows themes to brand the experience without owning the full rendering tree.
 
@@ -211,11 +226,11 @@ will render course-like behavior without switching to a different template famil
 
 ---
 
-## 5. Theme Policy Model
+## 5. Theme and Customizer Policy Model
 
 ### 5.1 Default rule
 
-Themes are expected to be token-driven first.
+Themes are expected to be design-system driven first, with the customizer as the public control surface for entity presentation.
 
 The helper layer now supports:
 
@@ -223,17 +238,15 @@ The helper layer now supports:
 - `cmsThemeTokensCss()`
 - `cmsResolveBlockTemplate()`
 
-### 5.2 Manifest controls
+Conceptually, these helpers should support a stronger end state where entity presentation choices are selected through the active theme customizer instead of by relying on per-theme entity template forks.
+
+### 5.2 Package defaults and runtime controls
 
 Recommended manifest fields:
 
 ```json
 {
   "restrict_to_tokens": true,
-  "overridable_blocks": [
-    "pricing.block.disyl",
-    "action.block.disyl"
-  ],
   "tokens": {
     "color": {
       "primary":   "#0ea5e9",
@@ -261,6 +274,12 @@ Recommended manifest fields:
 }
 ```
 
+Recommended control split:
+
+- theme manifest defines defaults
+- theme customizer owns active runtime selections
+- entity views consume those selections only through approved schema controls
+
 ### 5.3 Resolution behavior
 
 If `restrict_to_tokens` is true:
@@ -270,6 +289,8 @@ If `restrict_to_tokens` is true:
 - everything else falls back to CMS defaults
 
 This preserves template determinism and prevents theme packages from silently redefining application behavior.
+
+Even where compatibility override paths exist, entity presentation should move toward approved customizer controls rather than deeper template ownership.
 
 ### 5.4 Token hierarchy rules
 
@@ -413,6 +434,8 @@ Allowed in a preset:
 - `default_capabilities[]` — which capabilities to attach and with what defaults
 - `token_overrides` — style token values
 - `builder_defaults` — default page-builder container class
+
+Allowed as a suggested theme-package default, but owned by the active theme customizer at runtime:
 - `block_variants` — which display variant to select for a block (see §13)
 - `layout_profile` — which approved rendering order to use (see entity-view-block-schema.md §11)
 
@@ -507,7 +530,7 @@ Blocks exist in one canonical form today. As the system grows, a given block may
 
 ### 13.1 Variant model
 
-Variants are declared in the theme manifest or preset under `block_variants`:
+Variants are selected by the active theme customizer, with optional theme-package defaults exposed under `block_variants`:
 
 ```json
 {
@@ -541,7 +564,7 @@ Variants not in this table are rejected by `cmsResolveBlockTemplate()`. New vari
 - Variants control **presentation** only (layout density, visual style)
 - Variants must never alter the capability data contract or block gate conditions
 - A missing variant template file is a hard error, not a silent fallback
-- Themes may declare variants; presets may declare variants; entity-level overrides are not supported
+- Theme packages may supply defaults; the active theme customizer owns the final variant selection; entity-level freeform overrides are not supported
 
 ---
 
@@ -570,6 +593,6 @@ Remaining extensions, in priority order:
 3. **CSS token flattener** — update `cmsThemeTokensCss()` to handle nested token hierarchy (§5.4) in addition to the legacy flat form
 4. **Server-side block override audit** — tooling to verify a theme's `overridable_blocks` entries all have matching template files
 5. **Booking module override provider** — real `entity.capability.booking.data@1` replacement when a booking module ships
-6. **Capability-aware builder sections** — builder UI auto-populates starter layouts based on attached capabilities
+6. **Customizer entity-view controls** — expose layout profiles and approved block variants directly in the theme customizer
 
-The design continues to move toward configuration-driven specialization. The invariant is: **presets and themes configure; modules add behaviour; the kernel enforces contracts.**
+The design continues to move toward configuration-driven specialization. The invariant is: **the theme package supplies defaults, the customizer configures presentation, modules add behaviour, and the kernel enforces contracts.**

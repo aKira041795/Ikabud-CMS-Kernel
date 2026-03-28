@@ -1,0 +1,64 @@
+{extends "_cms_active_theme/layouts/public.disyl"}
+
+{block head}
+{if cms_head}{cms_head | raw}{/if}
+{if structured_data}{structured_data | raw}{/if}
+{/block}
+
+{block content}
+<article class="poc-entity-view">
+
+    <header class="poc-entity-view__header">
+        <div>
+            <p class="poc-kicker">CMS Entity View</p>
+            <h1 class="poc-title poc-title--detail">{entity.title}</h1>
+        </div>
+        <div class="poc-entity-view__header-note">Themed detail page riding the universal capability contract</div>
+    </header>
+
+    {if capabilities.media_gallery}
+        {include "modules/cms/public/blocks/media-gallery.block.disyl"}
+    {elseif entity.featured_image_url}
+    <div class="poc-entity-view__hero">
+        <img src="{entity.featured_image_url}" alt="{entity.title}" class="poc-entity-view__hero-image">
+    </div>
+    {/if}
+
+    <section class="poc-entity-view__summary-card">
+        {include "modules/cms/public/blocks/meta.block.disyl"}
+
+        {if capabilities.progress_tracking}
+            {include "modules/cms/public/blocks/progress.block.disyl"}
+        {/if}
+
+        {if capabilities.pricing}
+            {if pricing_block_html}{pricing_block_html | raw}{else}{include "modules/cms/public/blocks/pricing.block.disyl"}{/if}
+        {/if}
+
+        {if capabilities.inventory}
+            {include "modules/cms/public/blocks/inventory.block.disyl"}
+        {/if}
+    </section>
+
+    <section class="poc-entity-view__body-wrap">
+        {if builder_enabled}
+        <div class="cms-entity-body poc-entity-view__body {builder_page_settings.container_class}">
+            {post_html | raw}
+        </div>
+        {else}
+        <div class="cms-entity-body prose poc-entity-view__body">
+            {post_html | raw}
+        </div>
+        {/if}
+    </section>
+
+    {if capabilities.lessons_index}
+        {include "modules/cms/public/blocks/lessons.block.disyl"}
+    {/if}
+
+    {if capabilities.pricing or capabilities.booking or capabilities.inquiry}
+        {if action_block_html}{action_block_html | raw}{else}{include "modules/cms/public/blocks/action.block.disyl"}{/if}
+    {/if}
+
+</article>
+{/block}
