@@ -50,6 +50,20 @@ function deleteTree(string $path): void
     @rmdir($path);
 }
 
+function upsertCustomizerSection(object $db, string $section, array $settings, array $widgets = [], string $scope = 'native'): void
+{
+    $stmt = $db->prepare(
+        "INSERT INTO cms_theme_customizer (section, settings_json, widgets_json, updated_by)\n"
+        . " VALUES (:section, :settings, :widgets, NULL)\n"
+        . " ON DUPLICATE KEY UPDATE settings_json = VALUES(settings_json), widgets_json = VALUES(widgets_json)"
+    );
+    $stmt->execute([
+        ':section' => cmsCustomizerStorageSection($section, $scope),
+        ':settings' => json_encode($settings, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+        ':widgets' => json_encode($widgets, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+    ]);
+}
+
 // ── Clear logs ──────────────────────────────────────────────────────
 file_put_contents(STORAGE_PATH . '/logs/app.log', '');
 file_put_contents(STORAGE_PATH . '/logs/error.log', '');
@@ -355,28 +369,103 @@ $entityDefaults = cmsThemeLayoutSettingsDefaults();
 t('entity layout profile default is default', ($entityDefaults['entity_layout_profile'] ?? '') === 'default');
 t('entity pricing variant default is empty', ($entityDefaults['entity_pricing_variant'] ?? 'x') === '');
 t('entity action variant default is empty', ($entityDefaults['entity_action_variant'] ?? 'x') === '');
+t('entity summary width default is 320', ($entityDefaults['entity_summary_width'] ?? '') === '320');
+t('entity summary sticky default is enabled', ($entityDefaults['entity_summary_sticky'] ?? '') === '1');
+t('entity media ratio default is auto', ($entityDefaults['entity_media_ratio'] ?? '') === 'auto');
+t('entity spacing scale default is comfortable', ($entityDefaults['entity_spacing_scale'] ?? '') === 'comfortable');
+t('entity action size default is md', ($entityDefaults['entity_action_size'] ?? '') === 'md');
+
+$colorsDefaults = cmsColorsSettingsDefaults();
+t('storefront surface background default exists', ($colorsDefaults['storefront_surface_bg'] ?? '') === '#ffffff');
+t('storefront primary CTA background default exists', ($colorsDefaults['storefront_cta_bg'] ?? '') === '#0284c7');
+t('storefront inventory danger text default exists', ($colorsDefaults['storefront_danger_text'] ?? '') === '#dc2626');
 
 $validatedEntity = cmsValidateThemeLayoutSettings([
     'entity_layout_profile' => 'commerce',
     'entity_pricing_variant' => 'featured',
     'entity_action_variant' => 'sticky-footer',
+    'entity_summary_width' => '410',
+    'entity_summary_sticky' => '1',
+    'entity_media_ratio' => '16:9',
+    'entity_spacing_scale' => 'airy',
+    'entity_action_size' => 'lg',
 ]);
 t('entity layout profile validates approved profile', ($validatedEntity['entity_layout_profile'] ?? '') === 'commerce');
 t('entity pricing variant validates approved variant', ($validatedEntity['entity_pricing_variant'] ?? '') === 'featured');
 t('entity action variant validates approved variant', ($validatedEntity['entity_action_variant'] ?? '') === 'sticky-footer');
+t('entity summary width validates approved range', ($validatedEntity['entity_summary_width'] ?? '') === '410');
+t('entity summary sticky validates boolean', (int)($validatedEntity['entity_summary_sticky'] ?? 0) === 1);
+t('entity media ratio validates approved option', ($validatedEntity['entity_media_ratio'] ?? '') === '16:9');
+t('entity spacing scale validates approved option', ($validatedEntity['entity_spacing_scale'] ?? '') === 'airy');
+t('entity action size validates approved option', ($validatedEntity['entity_action_size'] ?? '') === 'lg');
 
 $invalidEntity = cmsValidateThemeLayoutSettings([
     'entity_layout_profile' => 'wild',
     'entity_pricing_variant' => 'giant',
     'entity_action_variant' => 'floating',
+    'entity_summary_width' => '999',
+    'entity_summary_sticky' => '',
+    'entity_media_ratio' => '2:1',
+    'entity_spacing_scale' => 'dense',
+    'entity_action_size' => 'xl',
 ]);
 t('invalid entity profile falls back to default', ($invalidEntity['entity_layout_profile'] ?? '') === 'default');
 t('invalid pricing variant falls back to default block', ($invalidEntity['entity_pricing_variant'] ?? 'x') === '');
 t('invalid action variant falls back to default block', ($invalidEntity['entity_action_variant'] ?? 'x') === '');
+t('invalid entity summary width clamps to max', ($invalidEntity['entity_summary_width'] ?? '') === '420');
+t('invalid entity summary sticky falls back to disabled boolean', (int)($invalidEntity['entity_summary_sticky'] ?? 1) === 0);
+t('invalid entity media ratio falls back to auto', ($invalidEntity['entity_media_ratio'] ?? '') === 'auto');
+t('invalid entity spacing scale falls back to comfortable', ($invalidEntity['entity_spacing_scale'] ?? '') === 'comfortable');
+t('invalid entity action size falls back to md', ($invalidEntity['entity_action_size'] ?? '') === 'md');
+
+$validatedColors = cmsValidateColorsSettings([
+    'storefront_surface_bg' => '#101820',
+    'storefront_cta_bg' => '#ff6600',
+    'storefront_danger_text' => 'not-a-color',
+]);
+t('storefront colors validation keeps valid surface color', ($validatedColors['storefront_surface_bg'] ?? '') === '#101820');
+t('storefront colors validation keeps valid CTA color', ($validatedColors['storefront_cta_bg'] ?? '') === '#ff6600');
+t('storefront colors validation rejects invalid danger text color', ($validatedColors['storefront_danger_text'] ?? '') === '#dc2626');
 
 $presentation = cmsEntityPresentationConfig($validatedEntity);
 t('entity presentation config exposes commerce profile class', ($presentation['root_class'] ?? '') === 'cms-entity-profile-commerce');
 t('entity presentation config marks commerce profile as rail summary', ($presentation['summary_mode'] ?? '') === 'rail');
+t('entity presentation config exposes summary width', (int)($presentation['summary_width'] ?? 0) === 410);
+t('entity presentation config exposes sticky summary flag', (int)($presentation['summary_sticky'] ?? 0) === 1);
+t('entity presentation config exposes media ratio', ($presentation['media_ratio'] ?? '') === '16:9');
+t('entity presentation config exposes spacing scale', ($presentation['spacing_scale'] ?? '') === 'airy');
+t('entity presentation config exposes action size', ($presentation['action_size'] ?? '') === 'lg');
+
+cmsCacheInvalidateByTags(['cms:customizer']);
+cmsCustomizerClearPersistentCache('colors');
+cmsCustomizerClearPersistentCache('theme');
+
+$db = cmsDb();
+upsertCustomizerSection($db, 'colors', array_merge(cmsColorsSettingsDefaults(), [
+    'storefront_surface_bg' => '#f8fafc',
+    'storefront_price_color' => '#0f172a',
+    'storefront_badge_bg' => '#dbeafe',
+    'storefront_badge_text' => '#1d4ed8',
+    'storefront_warning_bg' => '#fffbeb',
+    'storefront_warning_text' => '#b45309',
+]));
+upsertCustomizerSection($db, 'theme', array_merge(cmsThemeLayoutSettingsDefaults(), $validatedEntity));
+cmsCacheInvalidateByTags(['cms:customizer']);
+cmsCustomizerClearPersistentCache('colors');
+cmsCustomizerClearPersistentCache('theme');
+$GLOBALS[cmsCustomizerRequestCacheKey('section_row', 'native')] = [];
+
+$colorsStyle = cmsRenderColorsStyle($db);
+t('colors render exposes storefront CSS variables', str_contains($colorsStyle, '--storefront-surface-bg:'), $colorsStyle);
+t('colors render styles semantic price class', str_contains($colorsStyle, '.cms-price-current{color:var(--storefront-price-color);'), $colorsStyle);
+t('colors render styles semantic badge class', str_contains($colorsStyle, '.cms-price-badge{background:var(--storefront-badge-bg);'), $colorsStyle);
+t('colors render styles semantic inventory states', str_contains($colorsStyle, '.cms-inventory-pill--low{background:var(--storefront-warning-bg);'), $colorsStyle);
+
+$themeStyle = cmsRenderThemeLayoutStyle($db);
+t('theme render exposes entity summary width variable', str_contains($themeStyle, '--theme-entity-summary-width:'), $themeStyle);
+t('theme render styles commerce entity layout rail', str_contains($themeStyle, '.cms-entity-profile-commerce .cms-entity-layout{display:grid;'), $themeStyle);
+t('theme render styles sticky entity summary rail', str_contains($themeStyle, '.cms-entity-profile-commerce .cms-entity-summary{position:sticky;'), $themeStyle);
+t('theme render styles action button sizing', str_contains($themeStyle, '.cms-action-block .cms-btn-primary,.cms-action-block .cms-btn-secondary,.cms-action-block .cms-btn-disabled{padding:'), $themeStyle);
 
 $variantPricingTemplate = cmsResolveBlockTemplate('modules/cms/public/blocks/pricing.block.disyl', [
     'theme_settings' => $validatedEntity,

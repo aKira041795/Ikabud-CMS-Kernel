@@ -48,6 +48,23 @@ function cmsColorsSettingsDefaults(): array
         // UI surfaces
         'border_color'        => '#e2e8f0',
         'light_bg_color'      => '#f8fafc',
+        // Storefront entity surfaces
+        'storefront_surface_bg'      => '#ffffff',
+        'storefront_surface_border'  => '#e2e8f0',
+        'storefront_price_color'     => '#0f172a',
+        'storefront_badge_bg'        => '#fee2e2',
+        'storefront_badge_text'      => '#b91c1c',
+        'storefront_cta_bg'          => '#0284c7',
+        'storefront_cta_text'        => '#ffffff',
+        'storefront_secondary_bg'    => '#ffffff',
+        'storefront_secondary_text'  => '#334155',
+        'storefront_secondary_border'=> '#cbd5e1',
+        'storefront_success_bg'      => '#ecfdf5',
+        'storefront_success_text'    => '#047857',
+        'storefront_warning_bg'      => '#fffbeb',
+        'storefront_warning_text'    => '#b45309',
+        'storefront_danger_bg'       => '#fef2f2',
+        'storefront_danger_text'     => '#dc2626',
         // Typography
         'font_body'           => 'Inter',
         'font_heading'        => 'Inter',
@@ -80,6 +97,13 @@ function cmsValidateColorsSettings(array $input): array
         'body_bg_color', 'body_text_color', 'body_text_light',
         'body_link_color', 'body_link_hover',
         'border_color', 'light_bg_color', 'heading_color',
+        'storefront_surface_bg', 'storefront_surface_border',
+        'storefront_price_color', 'storefront_badge_bg', 'storefront_badge_text',
+        'storefront_cta_bg', 'storefront_cta_text',
+        'storefront_secondary_bg', 'storefront_secondary_text', 'storefront_secondary_border',
+        'storefront_success_bg', 'storefront_success_text',
+        'storefront_warning_bg', 'storefront_warning_text',
+        'storefront_danger_bg', 'storefront_danger_text',
     ];
     foreach ($colorKeys as $key) {
         $val = trim((string)($input[$key] ?? $defaults[$key]));
@@ -530,6 +554,22 @@ function cmsRenderColorsStyle(object $db): string
     $css .= '--color-link-hover:' . ($s['body_link_hover'] ?? '#2563eb') . ';';
     $css .= '--color-border:' . ($s['border_color'] ?? '#e2e8f0') . ';';
     $css .= '--color-light-bg:' . ($s['light_bg_color'] ?? '#f8fafc') . ';';
+    $css .= '--storefront-surface-bg:' . ($s['storefront_surface_bg'] ?? '#ffffff') . ';';
+    $css .= '--storefront-surface-border:' . ($s['storefront_surface_border'] ?? '#e2e8f0') . ';';
+    $css .= '--storefront-price-color:' . ($s['storefront_price_color'] ?? '#0f172a') . ';';
+    $css .= '--storefront-badge-bg:' . ($s['storefront_badge_bg'] ?? '#fee2e2') . ';';
+    $css .= '--storefront-badge-text:' . ($s['storefront_badge_text'] ?? '#b91c1c') . ';';
+    $css .= '--storefront-cta-bg:' . ($s['storefront_cta_bg'] ?? '#0284c7') . ';';
+    $css .= '--storefront-cta-text:' . ($s['storefront_cta_text'] ?? '#ffffff') . ';';
+    $css .= '--storefront-secondary-bg:' . ($s['storefront_secondary_bg'] ?? '#ffffff') . ';';
+    $css .= '--storefront-secondary-text:' . ($s['storefront_secondary_text'] ?? '#334155') . ';';
+    $css .= '--storefront-secondary-border:' . ($s['storefront_secondary_border'] ?? '#cbd5e1') . ';';
+    $css .= '--storefront-success-bg:' . ($s['storefront_success_bg'] ?? '#ecfdf5') . ';';
+    $css .= '--storefront-success-text:' . ($s['storefront_success_text'] ?? '#047857') . ';';
+    $css .= '--storefront-warning-bg:' . ($s['storefront_warning_bg'] ?? '#fffbeb') . ';';
+    $css .= '--storefront-warning-text:' . ($s['storefront_warning_text'] ?? '#b45309') . ';';
+    $css .= '--storefront-danger-bg:' . ($s['storefront_danger_bg'] ?? '#fef2f2') . ';';
+    $css .= '--storefront-danger-text:' . ($s['storefront_danger_text'] ?? '#dc2626') . ';';
     $css .= '--font-body:\'' . $fontBody . '\',-apple-system,BlinkMacSystemFont,sans-serif;';
     $css .= '--font-heading:\'' . $fontHeading . '\',-apple-system,BlinkMacSystemFont,sans-serif;';
     $css .= '--container-width:' . ($s['container_width'] ?? '1200') . 'px;';
@@ -556,6 +596,19 @@ function cmsRenderColorsStyle(object $db): string
     $css .= 'h2{font-size:' . ($s['h2_size'] ?? '2') . 'rem;}';
     $css .= 'h3{font-size:' . ($s['h3_size'] ?? '1.5') . 'rem;}';
     $css .= 'h4{font-size:' . ($s['h4_size'] ?? '1.25') . 'rem;}';
+    $css .= '.cms-entity-summary-stack-rail > *{background:var(--storefront-surface-bg);border:1px solid var(--storefront-surface-border);border-radius:var(--radius-lg);box-shadow:0 8px 24px rgba(15,23,42,0.05);}';
+    $css .= '.cms-entity-summary-stack-inline > *{border-radius:var(--radius-lg);}';
+    $css .= '.cms-price-current{color:var(--storefront-price-color);}';
+    $css .= '.cms-price-badge{background:var(--storefront-badge-bg);color:var(--storefront-badge-text);border-color:var(--storefront-badge-bg);}';
+    $css .= '.cms-action-block .cms-btn-primary{background:var(--storefront-cta-bg);color:var(--storefront-cta-text);border:1px solid var(--storefront-cta-bg);}';
+    $css .= '.cms-action-block .cms-btn-primary:hover{filter:brightness(0.96);}';
+    $css .= '.cms-action-block .cms-btn-secondary{background:var(--storefront-secondary-bg);color:var(--storefront-secondary-text);border:1px solid var(--storefront-secondary-border);}';
+    $css .= '.cms-action-block .cms-btn-secondary:hover{background:var(--color-light-bg);}';
+    $css .= '.cms-action-block .cms-btn-disabled{background:var(--color-light-bg);color:var(--color-text-light);border:1px solid var(--color-border);}';
+    $css .= '.cms-inventory-pill{border-width:1px;border-style:solid;border-radius:999px;}';
+    $css .= '.cms-inventory-pill--ok{background:var(--storefront-success-bg);color:var(--storefront-success-text);border-color:var(--storefront-success-bg);}';
+    $css .= '.cms-inventory-pill--low{background:var(--storefront-warning-bg);color:var(--storefront-warning-text);border-color:var(--storefront-warning-bg);}';
+    $css .= '.cms-inventory-pill--out{background:var(--storefront-danger-bg);color:var(--storefront-danger-text);border-color:var(--storefront-danger-bg);}';
 
     $html = $googleFontsHtml . '<style id="cz-colors-override">' . $css . '</style>';
     cmsCustomizerFragmentCacheSet('colors_style', ['html' => $html], ['cms:customizer:colors']);
@@ -876,6 +929,21 @@ function cmsEntityPresentationConfig(array $themeSettings): array
 
     $pricingVariant = cmsNormalizeThemeBlockVariant('pricing', trim((string)($themeSettings['entity_pricing_variant'] ?? '')));
     $actionVariant = cmsNormalizeThemeBlockVariant('action', trim((string)($themeSettings['entity_action_variant'] ?? '')));
+    $summaryWidth = (int)($themeSettings['entity_summary_width'] ?? 320);
+    $summaryWidth = max(260, min(420, $summaryWidth));
+    $mediaRatio = (string)($themeSettings['entity_media_ratio'] ?? 'auto');
+    if (!in_array($mediaRatio, ['auto', '16:9', '4:3', '1:1'], true)) {
+        $mediaRatio = 'auto';
+    }
+    $spacingScale = (string)($themeSettings['entity_spacing_scale'] ?? 'comfortable');
+    if (!in_array($spacingScale, ['compact', 'comfortable', 'airy'], true)) {
+        $spacingScale = 'comfortable';
+    }
+    $actionSize = (string)($themeSettings['entity_action_size'] ?? 'md');
+    if (!in_array($actionSize, ['sm', 'md', 'lg'], true)) {
+        $actionSize = 'md';
+    }
+    $summarySticky = !empty($themeSettings['entity_summary_sticky']) ? 1 : 0;
 
     return [
         'layout_profile'      => $profile,
@@ -885,6 +953,11 @@ function cmsEntityPresentationConfig(array $themeSettings): array
         'summary_mode'        => $profile === 'commerce' ? 'rail' : 'flow',
         'summary_after_body'  => $profile === 'content',
         'root_class'          => 'cms-entity-profile-' . $profile,
+        'summary_width'       => $summaryWidth,
+        'summary_sticky'      => $summarySticky,
+        'media_ratio'         => $mediaRatio,
+        'spacing_scale'       => $spacingScale,
+        'action_size'         => $actionSize,
     ];
 }
 
@@ -931,6 +1004,11 @@ function cmsThemeLayoutSettingsDefaults(): array
         'entity_layout_profile'   => 'default',          // default | commerce | content
         'entity_pricing_variant'  => '',                 // default | compact | featured | minimal
         'entity_action_variant'   => '',                 // default | sticky-footer
+        'entity_summary_width'    => '320',              // px width of commerce summary rail
+        'entity_summary_sticky'   => '1',                // stick the commerce summary rail
+        'entity_media_ratio'      => 'auto',             // auto | 16:9 | 4:3 | 1:1
+        'entity_spacing_scale'    => 'comfortable',      // compact | comfortable | airy
+        'entity_action_size'      => 'md',               // sm | md | lg
     ];
 }
 
@@ -1012,6 +1090,18 @@ function cmsValidateThemeLayoutSettings(array $input): array
         'action',
         trim((string)($input['entity_action_variant'] ?? $defaults['entity_action_variant']))
     );
+    $summaryWidth = (int)($input['entity_summary_width'] ?? $defaults['entity_summary_width']);
+    $validated['entity_summary_width'] = (string)max(260, min(420, $summaryWidth ?: 320));
+    $validated['entity_summary_sticky'] = (int)(bool)($input['entity_summary_sticky'] ?? $defaults['entity_summary_sticky']);
+    $validated['entity_media_ratio'] = in_array(($input['entity_media_ratio'] ?? ''), ['auto', '16:9', '4:3', '1:1'], true)
+        ? (string)$input['entity_media_ratio']
+        : $defaults['entity_media_ratio'];
+    $validated['entity_spacing_scale'] = in_array(($input['entity_spacing_scale'] ?? ''), ['compact', 'comfortable', 'airy'], true)
+        ? (string)$input['entity_spacing_scale']
+        : $defaults['entity_spacing_scale'];
+    $validated['entity_action_size'] = in_array(($input['entity_action_size'] ?? ''), ['sm', 'md', 'lg'], true)
+        ? (string)$input['entity_action_size']
+        : $defaults['entity_action_size'];
 
     return $validated;
 }
@@ -1046,7 +1136,35 @@ function cmsRenderThemeLayoutStyle(object $db): string
     $css .= '--theme-blog-cols:' . ($s['blog_columns'] ?? '2') . ';';
     $css .= '--theme-card-radius:' . ($s['blog_card_radius'] ?? '8') . 'px;';
     $css .= '--theme-image-height:' . ($s['blog_image_height'] ?? '208') . 'px;';
+    $css .= '--theme-entity-summary-width:' . ($s['entity_summary_width'] ?? '320') . 'px;';
     $css .= '}';
+
+    $entitySpacingScale = (string)($s['entity_spacing_scale'] ?? 'comfortable');
+    $entityGap = '2rem';
+    $entityPanelPadding = '1rem';
+    if ($entitySpacingScale === 'compact') {
+        $entityGap = '1rem';
+        $entityPanelPadding = '0.875rem';
+    } elseif ($entitySpacingScale === 'airy') {
+        $entityGap = '2.75rem';
+        $entityPanelPadding = '1.25rem';
+    }
+
+    $entityActionSize = (string)($s['entity_action_size'] ?? 'md');
+    $actionPadY = '0.75rem';
+    $actionPadX = '1.5rem';
+    $actionFontSize = '0.875rem';
+    if ($entityActionSize === 'sm') {
+        $actionPadY = '0.625rem';
+        $actionPadX = '1rem';
+        $actionFontSize = '0.8125rem';
+    } elseif ($entityActionSize === 'lg') {
+        $actionPadY = '0.875rem';
+        $actionPadX = '1.75rem';
+        $actionFontSize = '0.9375rem';
+    }
+
+    $entityMediaRatio = (string)($s['entity_media_ratio'] ?? 'auto');
 
     $mode = $s['layout_mode'] ?? 'contained';
     if ($mode === 'boxed') {
@@ -1088,11 +1206,23 @@ function cmsRenderThemeLayoutStyle(object $db): string
         $css .= '.cms-blog-listing article:hover{box-shadow:0 4px 12px rgba(0,0,0,0.1);}';
     }
 
-    $css .= '.cms-entity-summary-stack{display:flex;flex-direction:column;gap:1rem;}';
-    $css .= '.cms-entity-profile-commerce .cms-entity-layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(280px,320px);gap:2rem;align-items:start;}';
-    $css .= '.cms-entity-profile-commerce .cms-entity-summary{position:sticky;top:1.5rem;}';
+    $css .= '.cms-entity-summary-stack{display:flex;flex-direction:column;gap:' . $entityGap . ';}';
+    $css .= '.cms-entity-summary-stack-rail > *{padding:' . $entityPanelPadding . ';}';
+    $css .= '.cms-entity-profile-commerce .cms-entity-layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(260px,var(--theme-entity-summary-width));gap:' . $entityGap . ';align-items:start;}';
+    if (!empty($s['entity_summary_sticky'])) {
+        $css .= '.cms-entity-profile-commerce .cms-entity-summary{position:sticky;top:1.5rem;}';
+    } else {
+        $css .= '.cms-entity-profile-commerce .cms-entity-summary{position:static;}';
+    }
     $css .= '.cms-entity-profile-content .cms-entity-header{max-width:var(--theme-single-max-width);margin-left:auto;margin-right:auto;}';
     $css .= '.cms-entity-profile-content .cms-entity-body,.cms-entity-profile-content .cms-entity-summary-stack{max-width:var(--theme-single-max-width);margin-left:auto;margin-right:auto;}';
+    if ($entityMediaRatio !== 'auto') {
+        $ratioMap = ['16:9' => '16 / 9', '4:3' => '4 / 3', '1:1' => '1 / 1'];
+        $ratioValue = $ratioMap[$entityMediaRatio] ?? '16 / 9';
+        $css .= '.cms-entity-hero{aspect-ratio:' . $ratioValue . ';overflow:hidden;border-radius:1rem;}';
+        $css .= '.cms-entity-hero img{width:100%;height:100%;object-fit:cover;max-height:none;border-radius:0;}';
+    }
+    $css .= '.cms-action-block .cms-btn-primary,.cms-action-block .cms-btn-secondary,.cms-action-block .cms-btn-disabled{padding:' . $actionPadY . ' ' . $actionPadX . ';font-size:' . $actionFontSize . ';border-radius:var(--radius-md);}';
     $css .= '@media(max-width:1024px){.cms-entity-profile-commerce .cms-entity-layout{grid-template-columns:1fr;}.cms-entity-profile-commerce .cms-entity-summary{position:static;}}';
 
     $html = '<style id="cz-theme-layout-override">' . $css . '</style>';

@@ -3,11 +3,11 @@
 {if capability_data.pricing}
 <div class="cms-pricing-block flex items-baseline gap-3 my-4">
     {if capability_data.pricing.sale_price}
-    <span class="text-2xl font-bold text-sky-600">{capability_data.pricing.currency} {capability_data.pricing.sale_price | number_format:2}</span>
-    <span class="text-lg text-gray-400 line-through">{capability_data.pricing.currency} {capability_data.pricing.price | number_format:2}</span>
-    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-red-50 text-red-600 border border-red-100">Sale</span>
+    <span class="cms-price-current text-2xl font-bold text-sky-600">{capability_data.pricing.currency} {capability_data.pricing.sale_price | number_format:2}</span>
+    <span class="cms-price-previous text-lg text-gray-400 line-through">{capability_data.pricing.currency} {capability_data.pricing.price | number_format:2}</span>
+    <span class="cms-price-badge inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-red-50 text-red-600 border border-red-100">Sale</span>
     {else}
-    <span class="text-2xl font-bold text-gray-900">{capability_data.pricing.currency} {capability_data.pricing.price | number_format:2}</span>
+    <span class="cms-price-current text-2xl font-bold text-gray-900">{capability_data.pricing.currency} {capability_data.pricing.price | number_format:2}</span>
     {/if}
 </div>
 {/if}

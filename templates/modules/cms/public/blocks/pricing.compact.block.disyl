@@ -5,15 +5,15 @@
         <div class="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Price</div>
         <div class="mt-1 flex items-baseline gap-2">
             {if capability_data.pricing.sale_price}
-            <span class="text-xl font-semibold text-slate-900">{capability_data.pricing.currency} {capability_data.pricing.sale_price | number_format:2}</span>
-            <span class="text-sm text-slate-400 line-through">{capability_data.pricing.currency} {capability_data.pricing.price | number_format:2}</span>
+            <span class="cms-price-current text-xl font-semibold text-slate-900">{capability_data.pricing.currency} {capability_data.pricing.sale_price | number_format:2}</span>
+            <span class="cms-price-previous text-sm text-slate-400 line-through">{capability_data.pricing.currency} {capability_data.pricing.price | number_format:2}</span>
             {else}
-            <span class="text-xl font-semibold text-slate-900">{capability_data.pricing.currency} {capability_data.pricing.price | number_format:2}</span>
+            <span class="cms-price-current text-xl font-semibold text-slate-900">{capability_data.pricing.currency} {capability_data.pricing.price | number_format:2}</span>
             {/if}
         </div>
     </div>
     {if capability_data.pricing.sale_price}
-    <span class="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700">Save now</span>
+    <span class="cms-price-badge inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700">Save now</span>
     {/if}
 </div>
 {/if}

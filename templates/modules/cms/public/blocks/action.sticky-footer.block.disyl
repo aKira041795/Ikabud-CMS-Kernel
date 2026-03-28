@@ -18,26 +18,26 @@
         </form>
             {else}
         <button type="button" disabled
-                class="inline-flex flex-1 min-w-[180px] items-center justify-center gap-2 rounded-xl bg-slate-200 px-5 py-3 text-sm font-semibold text-slate-500 cursor-not-allowed">
+                class="cms-btn-disabled inline-flex flex-1 min-w-[180px] items-center justify-center gap-2 rounded-xl bg-slate-200 px-5 py-3 text-sm font-semibold text-slate-500 cursor-not-allowed">
             Out of Stock
         </button>
             {/if}
         {elseif capabilities.pricing and not cart_enabled}
-        <span class="inline-flex flex-1 min-w-[180px] items-center justify-center gap-2 rounded-xl bg-slate-100 px-5 py-3 text-sm font-semibold text-slate-500">
+        <span class="cms-btn-disabled inline-flex flex-1 min-w-[180px] items-center justify-center gap-2 rounded-xl bg-slate-100 px-5 py-3 text-sm font-semibold text-slate-500">
             Price shown — cart coming soon
         </span>
         {/if}
 
         {if capabilities.booking}
         <a href="{base_url}/cms/{entity.type}/{entity.slug}/book"
-           class="inline-flex flex-1 min-w-[180px] items-center justify-center gap-2 rounded-xl border border-sky-600 px-5 py-3 text-sm font-semibold text-sky-600 hover:bg-sky-50 transition-colors">
+           class="cms-btn-secondary inline-flex flex-1 min-w-[180px] items-center justify-center gap-2 rounded-xl border border-sky-600 px-5 py-3 text-sm font-semibold text-sky-600 hover:bg-sky-50 transition-colors">
             Book Now
         </a>
         {/if}
 
         {if capabilities.inquiry}
         <a href="{base_url}/cms/{entity.type}/{entity.slug}/inquire"
-           class="inline-flex flex-1 min-w-[180px] items-center justify-center gap-2 rounded-xl border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors">
+           class="cms-btn-secondary inline-flex flex-1 min-w-[180px] items-center justify-center gap-2 rounded-xl border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors">
             {if capability_data.inquiry.label}{capability_data.inquiry.label}{else}Inquire{/if}
         </a>
         {/if}

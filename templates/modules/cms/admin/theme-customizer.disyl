@@ -738,9 +738,49 @@
             <div class="sticky top-4 cz-panel">
                 <div class="cz-panel-header"><h3>Sidebar Preview</h3></div>
                 <div class="p-3">
-                    <div class="border border-gray-200 rounded-lg p-3" :style="'background:' + sidebarSettings.widget_bg_color + ';border-color:' + sidebarSettings.widget_border_color">
+                    <div x-show="customizerScope !== 'ecommerce'" class="border border-gray-200 rounded-lg p-3" :style="'background:' + sidebarSettings.widget_bg_color + ';border-color:' + sidebarSettings.widget_border_color">
                         <div class="text-xs font-semibold mb-2" :style="'color:' + sidebarSettings.widget_title_color">Sample Widget</div>
                         <div class="text-[11px]" :style="'color:' + sidebarSettings.widget_text_color">Sidebar will appear on <span x-text="sidebarSettings.scope_mode === 'general' ? 'all templates' : (sidebarSettings.template_scope + ' template')"></span> and on the <span x-text="sidebarSettings.placement"></span> side.</div>
+                    </div>
+                    <div x-show="customizerScope === 'ecommerce'" class="space-y-3">
+                        <div class="rounded-lg border border-gray-200 bg-white p-3">
+                            <div class="flex items-center justify-between mb-2">
+                                <span class="text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-400">Entity + Rail Preview</span>
+                                <span class="text-[10px] text-amber-700">Storefront scope</span>
+                            </div>
+                            <div :style="entityPreviewSidebarLayoutStyle()">
+                                <div class="space-y-3">
+                                    <div :style="entityPreviewHeroStyle()">
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                                    </div>
+                                    <div class="space-y-2">
+                                        <div class="h-3 bg-slate-800 rounded w-2/3"></div>
+                                        <div class="space-y-1.5">
+                                            <div class="h-1 bg-gray-200 rounded w-full"></div>
+                                            <div class="h-1 bg-gray-200 rounded w-5/6"></div>
+                                        </div>
+                                        <div x-show="themeLayoutSettings.entity_layout_profile === 'commerce'" :style="entityPreviewSummaryStyle()">
+                                            <div class="text-[10px] uppercase tracking-[0.16em] text-gray-400 mb-2">Summary Rail</div>
+                                            <div class="flex items-end gap-2 mb-2">
+                                                <span class="text-base font-bold" :style="'color:' + (colorsSettings.storefront_price_color || '#0f172a')">USD 79.00</span>
+                                                <span class="text-xs line-through text-gray-400">99.00</span>
+                                            </div>
+                                            <div class="flex flex-col gap-2">
+                                                <span :style="entityPreviewPrimaryActionStyle()">Add to Cart</span>
+                                                <span :style="entityPreviewSecondaryActionStyle()">Inquire</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div x-show="sidebarSettings.enabled == 1" :style="entityPreviewSidebarRailStyle()" class="space-y-2">
+                                    <div class="text-xs font-semibold" :style="'color:' + sidebarSettings.widget_title_color">Merchandising Rail</div>
+                                    <div class="text-[11px]" :style="'color:' + sidebarSettings.widget_text_color">Placement: <span class="font-medium capitalize" x-text="sidebarSettings.placement"></span></div>
+                                    <div class="text-[11px]" :style="'color:' + sidebarSettings.widget_text_color">Scope: <span class="font-medium" x-text="sidebarSettings.scope_mode === 'general' ? 'All storefront templates' : sidebarSettings.template_scope"></span></div>
+                                    <div class="inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-semibold" :style="entityPreviewInventoryStyle('ok')">Sticky: <span class="ml-1" x-text="sidebarSettings.sticky == 1 ? 'On' : 'Off'"></span></div>
+                                </div>
+                            </div>
+                            <div x-show="sidebarSettings.enabled != 1" class="mt-3 text-[10px] text-gray-400">Sidebar remains isolated from the storefront until enabled here.</div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -1568,6 +1608,40 @@
                             </div>
                         </div>
                     </div>
+
+                    <div x-show="customizerScope === 'ecommerce'" class="mt-4 rounded-lg border border-gray-200 bg-white p-3 space-y-3">
+                        <div class="flex items-center justify-between">
+                            <p class="text-[10px] font-semibold uppercase tracking-wider text-gray-400">Entity Header Wiring</p>
+                            <span class="text-[10px] text-amber-700">Storefront scope</span>
+                        </div>
+                        <div class="rounded-lg border border-gray-100 overflow-hidden bg-white">
+                            <div :style="'background:' + headerSettings.bg_color + ';border-bottom:1px solid ' + headerSettings.border_color + ';padding:10px 14px;display:flex;align-items:center;justify-content:space-between;' + (headerSettings.sticky == 1 ? 'position:sticky;top:0;' : '')">
+                                <div class="flex items-center gap-2">
+                                    <div class="w-7 h-7 rounded-md bg-sky-100"></div>
+                                    <div>
+                                        <div class="text-xs font-semibold" :style="'color:' + headerSettings.logo_color">Storefront Header</div>
+                                        <div class="text-[10px]" :style="'color:' + headerSettings.text_color">Offset <span x-text="entityPreviewHeaderOffset()"></span></div>
+                                    </div>
+                                </div>
+                                <div class="flex items-center gap-2 text-[10px]" :style="'color:' + headerSettings.link_color">
+                                    <span>Catalog</span>
+                                    <span>Collections</span>
+                                    <span x-show="headerSettings.show_search == 1">Search</span>
+                                </div>
+                            </div>
+                            <div class="p-3 space-y-3 bg-slate-50">
+                                <div class="text-[10px] uppercase tracking-[0.16em] text-gray-400">Entity View Below Header</div>
+                                <div :style="entityPreviewHeroStyle()">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                                </div>
+                                <div class="flex items-center gap-2 text-[10px] text-gray-400">
+                                    <span class="inline-flex items-center rounded-full bg-white px-2 py-1 border border-gray-200">Sticky <span class="ml-1 font-medium" x-text="headerSettings.sticky == 1 ? 'On' : 'Off'"></span></span>
+                                    <span class="inline-flex items-center rounded-full bg-white px-2 py-1 border border-gray-200">Menu <span class="ml-1 font-medium capitalize" x-text="headerSettings.layout"></span></span>
+                                    <span class="inline-flex items-center rounded-full bg-white px-2 py-1 border border-gray-200">CTA <span class="ml-1 font-medium" x-text="headerSettings.show_cta_button == 1 ? 'On' : 'Off'"></span></span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -1748,6 +1822,62 @@
                     </div>
                 </div>
             </div>
+
+            {if customizer_scope == 'ecommerce'}
+            <div class="cz-panel">
+                <div class="cz-panel-header" @click="cPanels.storefront = !cPanels.storefront">
+                    <h3>
+                        <svg class="w-4 h-4 inline -mt-0.5 mr-1.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7h18M6 12h12M8 17h8"/></svg>
+                        Storefront Entity Palette
+                    </h3>
+                    <svg class="w-4 h-4 text-gray-400 transition-transform" :class="cPanels.storefront ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                </div>
+                <div x-show="cPanels.storefront" x-collapse class="cz-panel-body space-y-5">
+                    <div>
+                        <p class="text-xs text-gray-400 mb-3">These colors wire directly into canonical entity summary, pricing, CTA, and inventory surfaces for the ecommerce scope.</p>
+                        <div class="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                            <template x-for="cf in storefrontSurfaceColorFields" :key="cf.key">
+                                <div>
+                                    <label class="cz-label" x-text="cf.label"></label>
+                                    <div class="cz-color-wrap">
+                                        <input type="color" class="cz-color-input" :value="colorsSettings[cf.key]" @input="colorsSettings[cf.key] = $event.target.value">
+                                        <input type="text" class="cz-color-hex" :value="colorsSettings[cf.key]" @input="colorsSettings[cf.key] = $event.target.value" maxlength="9">
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                    <div>
+                        <h4 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Actions</h4>
+                        <div class="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                            <template x-for="cf in storefrontActionColorFields" :key="cf.key">
+                                <div>
+                                    <label class="cz-label" x-text="cf.label"></label>
+                                    <div class="cz-color-wrap">
+                                        <input type="color" class="cz-color-input" :value="colorsSettings[cf.key]" @input="colorsSettings[cf.key] = $event.target.value">
+                                        <input type="text" class="cz-color-hex" :value="colorsSettings[cf.key]" @input="colorsSettings[cf.key] = $event.target.value" maxlength="9">
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                    <div>
+                        <h4 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Inventory States</h4>
+                        <div class="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                            <template x-for="cf in storefrontInventoryColorFields" :key="cf.key">
+                                <div>
+                                    <label class="cz-label" x-text="cf.label"></label>
+                                    <div class="cz-color-wrap">
+                                        <input type="color" class="cz-color-input" :value="colorsSettings[cf.key]" @input="colorsSettings[cf.key] = $event.target.value">
+                                        <input type="text" class="cz-color-hex" :value="colorsSettings[cf.key]" @input="colorsSettings[cf.key] = $event.target.value" maxlength="9">
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {/if}
         </div>
 
         <!-- Right Column: Live Preview -->
@@ -1792,6 +1922,33 @@
                     <p class="text-[10px] text-gray-400 mt-3">
                         <strong>Cascade rule:</strong> These general settings apply everywhere unless a specific header or footer color is set in those tabs.
                     </p>
+                    {if customizer_scope == 'ecommerce'}
+                    <div class="mt-4 rounded-lg border border-gray-200 bg-white p-3 space-y-3">
+                        <div class="flex items-center justify-between">
+                            <p class="text-[10px] font-semibold uppercase tracking-wider text-gray-400">Entity Wiring Preview</p>
+                            <span class="text-[10px] text-amber-700">Storefront scope</span>
+                        </div>
+                        <div class="space-y-3">
+                            <div :style="entityPreviewSummaryStyle()">
+                                <div class="text-[10px] uppercase tracking-[0.16em] text-gray-400 mb-1">Summary Surface</div>
+                                <div class="flex items-end gap-2">
+                                    <span class="text-lg font-bold" :style="'color:' + (colorsSettings.storefront_price_color || '#0f172a')">USD 79.00</span>
+                                    <span class="text-xs line-through text-gray-400">99.00</span>
+                                    <span class="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold" :style="'background:' + colorsSettings.storefront_badge_bg + ';color:' + colorsSettings.storefront_badge_text">Sale</span>
+                                </div>
+                                <div class="mt-3 flex flex-wrap gap-2">
+                                    <span :style="entityPreviewPrimaryActionStyle()">Add to Cart</span>
+                                    <span :style="entityPreviewSecondaryActionStyle()">Inquire</span>
+                                </div>
+                                <div class="mt-3 flex flex-wrap gap-2 text-[10px] font-semibold">
+                                    <span class="inline-flex items-center rounded-full px-2.5 py-1" :style="entityPreviewInventoryStyle('ok')">In Stock</span>
+                                    <span class="inline-flex items-center rounded-full px-2.5 py-1" :style="entityPreviewInventoryStyle('low')">Low Stock</span>
+                                    <span class="inline-flex items-center rounded-full px-2.5 py-1" :style="entityPreviewInventoryStyle('out')">Out</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {/if}
                 </div>
             </div>
         </div>
@@ -2248,6 +2405,10 @@
                             :class="tlPreviewMode === 'page' ? 'bg-white shadow-sm text-gray-700' : 'text-gray-400 hover:text-gray-600'">Page</button>
                         <button @click="tlPreviewMode = 'blog'" class="flex-1 text-[10px] font-medium py-1 rounded-md transition-colors"
                             :class="tlPreviewMode === 'blog' ? 'bg-white shadow-sm text-gray-700' : 'text-gray-400 hover:text-gray-600'">Blog</button>
+                        {if customizer_scope == 'ecommerce'}
+                        <button @click="tlPreviewMode = 'entity'" class="flex-1 text-[10px] font-medium py-1 rounded-md transition-colors"
+                            :class="tlPreviewMode === 'entity' ? 'bg-white shadow-sm text-gray-700' : 'text-gray-400 hover:text-gray-600'">Entity</button>
+                        {/if}
                         <button @click="tlPreviewMode = 'stats'" class="flex-1 text-[10px] font-medium py-1 rounded-md transition-colors"
                             :class="tlPreviewMode === 'stats' ? 'bg-white shadow-sm text-gray-700' : 'text-gray-400 hover:text-gray-600'">Summary</button>
                     </div>
@@ -2412,6 +2573,50 @@
                         </div>
                     </div>
 
+                    {if customizer_scope == 'ecommerce'}
+                    <div x-show="tlPreviewMode === 'entity'" class="border border-gray-200 rounded-lg overflow-hidden bg-white p-3" style="min-height:280px;">
+                        <div class="flex items-center gap-1.5 px-2.5 py-1.5 bg-gray-100 border border-gray-200 rounded-md mb-3">
+                            <div class="flex gap-1"><span class="w-1.5 h-1.5 rounded-full bg-red-300"></span><span class="w-1.5 h-1.5 rounded-full bg-yellow-300"></span><span class="w-1.5 h-1.5 rounded-full bg-green-300"></span></div>
+                            <div class="flex-1 bg-white rounded-sm border border-gray-200 px-2 py-0.5 text-[8px] text-gray-400 truncate ml-1">example.com/ecommerce/shop/sample-item</div>
+                        </div>
+                        <div class="space-y-3">
+                            <div :style="entityPreviewHeroStyle()">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                            </div>
+                            <div :style="entityPreviewLayoutStyle()">
+                                <div class="space-y-3">
+                                    <div>
+                                        <div class="h-3 bg-slate-800 rounded w-2/3 mb-1"></div>
+                                        <div class="flex gap-2 text-[10px] text-gray-400 mb-2">
+                                            <span class="rounded-full bg-sky-50 px-2 py-0.5 text-sky-600">Product</span>
+                                            <span>Updated today</span>
+                                        </div>
+                                    </div>
+                                    <div class="space-y-1.5">
+                                        <div class="h-1 bg-gray-200 rounded w-full"></div>
+                                        <div class="h-1 bg-gray-200 rounded w-11/12"></div>
+                                        <div class="h-1 bg-gray-200 rounded w-4/5"></div>
+                                    </div>
+                                </div>
+                                <div x-show="themeLayoutSettings.entity_layout_profile === 'commerce'" :style="entityPreviewSummaryStyle()">
+                                    <div class="text-[10px] uppercase tracking-[0.16em] text-gray-400 mb-2">Summary Rail</div>
+                                    <div class="flex items-end gap-2 mb-2">
+                                        <span class="text-lg font-bold" :style="'color:' + (colorsSettings.storefront_price_color || '#0f172a')">USD 79.00</span>
+                                        <span class="text-xs line-through text-gray-400">99.00</span>
+                                    </div>
+                                    <div class="space-y-2">
+                                        <div class="inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-semibold" :style="entityPreviewInventoryStyle('low')">Only 3 left</div>
+                                        <div class="flex flex-col gap-2">
+                                            <span :style="entityPreviewPrimaryActionStyle()">Add to Cart</span>
+                                            <span :style="entityPreviewSecondaryActionStyle()">Ask a Question</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {/if}
+
                     <!-- ─── STATS SUMMARY ─── -->
                     <div x-show="tlPreviewMode === 'stats'" class="space-y-3">
                         <div class="space-y-2 text-xs text-gray-600">
@@ -2434,6 +2639,14 @@
                             <div class="flex justify-between"><span class="text-gray-400">Entity Profile</span><span class="font-medium capitalize" x-text="themeLayoutSettings.entity_layout_profile"></span></div>
                             <div class="flex justify-between"><span class="text-gray-400">Pricing Variant</span><span class="font-medium capitalize" x-text="themeLayoutSettings.entity_pricing_variant || 'Default'"></span></div>
                             <div class="flex justify-between"><span class="text-gray-400">Action Variant</span><span class="font-medium capitalize" x-text="themeLayoutSettings.entity_action_variant || 'Default'"></span></div>
+                            {else}
+                            <hr class="border-gray-100">
+                            <div class="flex justify-between"><span class="text-gray-400">Entity Profile</span><span class="font-medium capitalize" x-text="themeLayoutSettings.entity_layout_profile"></span></div>
+                            <div class="flex justify-between"><span class="text-gray-400">Summary Width</span><span class="font-medium" x-text="themeLayoutSettings.entity_summary_width + 'px'"></span></div>
+                            <div class="flex justify-between"><span class="text-gray-400">Summary Sticky</span><span class="font-medium" x-text="themeLayoutSettings.entity_summary_sticky == 1 ? 'On' : 'Off'"></span></div>
+                            <div class="flex justify-between"><span class="text-gray-400">Media Ratio</span><span class="font-medium" x-text="themeLayoutSettings.entity_media_ratio"></span></div>
+                            <div class="flex justify-between"><span class="text-gray-400">Spacing</span><span class="font-medium capitalize" x-text="themeLayoutSettings.entity_spacing_scale"></span></div>
+                            <div class="flex justify-between"><span class="text-gray-400">Action Size</span><span class="font-medium uppercase" x-text="themeLayoutSettings.entity_action_size"></span></div>
                             {/if}
                         </div>
                         <!-- Content ratio visual -->
@@ -2455,92 +2668,177 @@
                             </div>
                         </div>
 
-                        {if customizer_scope == 'ecommerce'}
-                        <div x-show="activeTab === 'commerce'" class="grid grid-cols-1 xl:grid-cols-12 gap-6">
-                            <div class="xl:col-span-8 space-y-5">
-                                <div class="cz-panel">
-                                    <div class="cz-panel-header" @click="tlPanels.commerceGuide = !tlPanels.commerceGuide">
-                                        <h3>
-                                            <svg class="w-4 h-4 inline -mt-0.5 mr-1.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6l4 2M12 22C6.477 22 2 17.523 2 12S6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z"/></svg>
-                                            Storefront Contract
-                                        </h3>
-                                        <svg class="w-4 h-4 text-gray-400 transition-transform" :class="tlPanels.commerceGuide ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-                                    </div>
-                                    <div x-show="tlPanels.commerceGuide" x-collapse class="cz-panel-body space-y-3 text-sm text-slate-600">
-                                        <p>The ecommerce workspace edits the storefront presentation layer without forking the canonical CMS entity list and entity view contracts.</p>
-                                        <p>Use this tab for catalog-specific layout choices, pricing card variants, and purchase action treatment. Sidebar state stays isolated from the native theme unless you explicitly enable it in the sidebar rail tab.</p>
-                                    </div>
-                                </div>
-
-                                <div class="cz-panel">
-                                    <div class="cz-panel-header" @click="tlPanels.commerceEntity = !tlPanels.commerceEntity">
-                                        <h3>
-                                            <svg class="w-4 h-4 inline -mt-0.5 mr-1.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h10"/></svg>
-                                            Entity View Presentation
-                                        </h3>
-                                        <svg class="w-4 h-4 text-gray-400 transition-transform" :class="tlPanels.commerceEntity ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-                                    </div>
-                                    <div x-show="tlPanels.commerceEntity" x-collapse class="cz-panel-body">
-                                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
-                                            <div>
-                                                <label class="cz-label">Layout Profile</label>
-                                                <select x-model="themeLayoutSettings.entity_layout_profile" class="cz-select">
-                                                    <option value="default">Default</option>
-                                                    <option value="commerce">Commerce</option>
-                                                    <option value="content">Content</option>
-                                                </select>
-                                                <p class="text-[10px] text-gray-400 mt-1">Select from approved canonical entity orderings instead of creating a separate template family.</p>
-                                            </div>
-                                            <div>
-                                                <label class="cz-label">Pricing Variant</label>
-                                                <select x-model="themeLayoutSettings.entity_pricing_variant" class="cz-select">
-                                                    <option value="">Default</option>
-                                                    <option value="compact">Compact</option>
-                                                    <option value="featured">Featured</option>
-                                                    <option value="minimal">Minimal</option>
-                                                </select>
-                                            </div>
-                                            <div>
-                                                <label class="cz-label">Action Variant</label>
-                                                <select x-model="themeLayoutSettings.entity_action_variant" class="cz-select">
-                                                    <option value="">Default</option>
-                                                    <option value="sticky-footer">Sticky Footer</option>
-                                                </select>
-                                            </div>
-                                        </div>
-
-                                        <div class="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600">
-                                            <div class="font-semibold text-slate-800 mb-1">Profile behavior</div>
-                                            <div x-show="themeLayoutSettings.entity_layout_profile === 'default'">Default keeps pricing and actions in the main reading flow ahead of the body.</div>
-                                            <div x-show="themeLayoutSettings.entity_layout_profile === 'commerce'">Commerce moves pricing and actions into a dedicated summary rail for storefront-oriented entities.</div>
-                                            <div x-show="themeLayoutSettings.entity_layout_profile === 'content'">Content prioritizes the title and body first, then places pricing and actions after the narrative content.</div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div class="xl:col-span-4 space-y-5">
-                                <div class="cz-card cz-sticky">
-                                    <div class="flex items-center justify-between mb-4">
-                                        <h3 class="text-sm font-semibold text-gray-900">Storefront Summary</h3>
-                                        <span class="text-[10px] font-medium uppercase tracking-[0.12em] text-amber-700">Ecommerce Scope</span>
-                                    </div>
-                                    <div class="space-y-3 text-sm">
-                                        <div class="flex justify-between"><span class="text-gray-400">Entity Profile</span><span class="font-medium capitalize" x-text="themeLayoutSettings.entity_layout_profile"></span></div>
-                                        <div class="flex justify-between"><span class="text-gray-400">Pricing Variant</span><span class="font-medium capitalize" x-text="themeLayoutSettings.entity_pricing_variant || 'Default'"></span></div>
-                                        <div class="flex justify-between"><span class="text-gray-400">Action Variant</span><span class="font-medium capitalize" x-text="themeLayoutSettings.entity_action_variant || 'Default'"></span></div>
-                                        <hr class="border-gray-100">
-                                        <div class="text-xs text-slate-500">These settings only alter the ecommerce scope and keep the shared native theme controls isolated.</div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        {/if}
                     </div>
                 </div>
             </div>
         </div>
     </div>
+
+    {if customizer_scope == 'ecommerce'}
+    <div x-show="activeTab === 'commerce'" class="grid grid-cols-1 xl:grid-cols-12 gap-6">
+        <div class="xl:col-span-8 space-y-5">
+            <div class="cz-panel">
+                <div class="cz-panel-header" @click="tlPanels.commerceGuide = !tlPanels.commerceGuide">
+                    <h3>
+                        <svg class="w-4 h-4 inline -mt-0.5 mr-1.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6l4 2M12 22C6.477 22 2 17.523 2 12S6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z"/></svg>
+                        Storefront Contract
+                    </h3>
+                    <svg class="w-4 h-4 text-gray-400 transition-transform" :class="tlPanels.commerceGuide ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                </div>
+                <div x-show="tlPanels.commerceGuide" x-collapse class="cz-panel-body space-y-3 text-sm text-slate-600">
+                    <p>The ecommerce workspace edits storefront presentation without forking the canonical CMS entity list and entity view contracts.</p>
+                    <p>Use this tab for approved layout variants, summary-rail tuning, and purchase action treatment. Header, sidebar, colors, and shared layout tabs stay wired to the same entity-view contract.</p>
+                </div>
+            </div>
+
+            <div class="cz-panel">
+                <div class="cz-panel-header" @click="tlPanels.commerceEntity = !tlPanels.commerceEntity">
+                    <h3>
+                        <svg class="w-4 h-4 inline -mt-0.5 mr-1.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h10"/></svg>
+                        Entity View Presentation
+                    </h3>
+                    <svg class="w-4 h-4 text-gray-400 transition-transform" :class="tlPanels.commerceEntity ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                </div>
+                <div x-show="tlPanels.commerceEntity" x-collapse class="cz-panel-body space-y-5">
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <div>
+                            <label class="cz-label">Layout Profile</label>
+                            <select x-model="themeLayoutSettings.entity_layout_profile" class="cz-select">
+                                <option value="default">Default</option>
+                                <option value="commerce">Commerce</option>
+                                <option value="content">Content</option>
+                            </select>
+                            <p class="text-[10px] text-gray-400 mt-1">Use approved canonical orderings rather than theme-specific template forks.</p>
+                        </div>
+                        <div>
+                            <label class="cz-label">Pricing Variant</label>
+                            <select x-model="themeLayoutSettings.entity_pricing_variant" class="cz-select">
+                                <option value="">Default</option>
+                                <option value="compact">Compact</option>
+                                <option value="featured">Featured</option>
+                                <option value="minimal">Minimal</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="cz-label">Action Variant</label>
+                            <select x-model="themeLayoutSettings.entity_action_variant" class="cz-select">
+                                <option value="">Default</option>
+                                <option value="sticky-footer">Sticky Footer</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                        <div>
+                            <label class="cz-label">Summary Width</label>
+                            <div class="cz-range-row">
+                                <input type="range" min="260" max="420" step="10" x-model="themeLayoutSettings.entity_summary_width">
+                                <span class="cz-range-value" x-text="themeLayoutSettings.entity_summary_width + 'px'"></span>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="cz-label">Media Ratio</label>
+                            <select x-model="themeLayoutSettings.entity_media_ratio" class="cz-select">
+                                <option value="auto">Auto</option>
+                                <option value="16:9">16:9</option>
+                                <option value="4:3">4:3</option>
+                                <option value="1:1">1:1</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="cz-label">Action Size</label>
+                            <select x-model="themeLayoutSettings.entity_action_size" class="cz-select">
+                                <option value="sm">Small</option>
+                                <option value="md">Medium</option>
+                                <option value="lg">Large</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="cz-label">Spacing Scale</label>
+                            <select x-model="themeLayoutSettings.entity_spacing_scale" class="cz-select">
+                                <option value="compact">Compact</option>
+                                <option value="comfortable">Comfortable</option>
+                                <option value="airy">Airy</option>
+                            </select>
+                        </div>
+                        <div class="sm:col-span-2 lg:col-span-2">
+                            <div class="cz-toggle-row h-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                                <div>
+                                    <div class="cz-toggle-label">Sticky Summary Rail</div>
+                                    <p class="text-[10px] text-slate-500 mt-1">Keeps the storefront purchase rail anchored while the narrative content scrolls.</p>
+                                </div>
+                                <button type="button" @click="themeLayoutSettings.entity_summary_sticky = themeLayoutSettings.entity_summary_sticky == 1 ? 0 : 1"
+                                    class="cz-toggle" :class="themeLayoutSettings.entity_summary_sticky == 1 ? 'cz-toggle-on' : 'cz-toggle-off'">
+                                    <span class="cz-toggle-knob" :class="themeLayoutSettings.entity_summary_sticky == 1 ? 'cz-toggle-knob-on' : 'cz-toggle-knob-off'"></span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600">
+                        <div class="font-semibold text-slate-800 mb-1">Profile behavior</div>
+                        <div x-show="themeLayoutSettings.entity_layout_profile === 'default'">Default keeps pricing and actions in the main reading flow ahead of the body.</div>
+                        <div x-show="themeLayoutSettings.entity_layout_profile === 'commerce'">Commerce moves pricing and actions into a dedicated summary rail for storefront-oriented entities.</div>
+                        <div x-show="themeLayoutSettings.entity_layout_profile === 'content'">Content prioritizes the title and body first, then places pricing and actions after the narrative content.</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="xl:col-span-4 space-y-5">
+            <div class="cz-panel sticky top-20">
+                <div class="cz-panel-header">
+                    <h3>
+                        <svg class="w-4 h-4 inline -mt-0.5 mr-1.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                        Storefront Summary
+                    </h3>
+                </div>
+                <div class="cz-panel-body space-y-4">
+                    <div class="flex items-center justify-between text-[10px] uppercase tracking-[0.14em] text-gray-400">
+                        <span>Canonical Entity Contract</span>
+                        <span class="text-amber-700">Ecommerce Scope</span>
+                    </div>
+                    <div class="space-y-3 text-sm">
+                        <div class="flex justify-between"><span class="text-gray-400">Entity Profile</span><span class="font-medium capitalize" x-text="themeLayoutSettings.entity_layout_profile"></span></div>
+                        <div class="flex justify-between"><span class="text-gray-400">Pricing Variant</span><span class="font-medium capitalize" x-text="themeLayoutSettings.entity_pricing_variant || 'Default'"></span></div>
+                        <div class="flex justify-between"><span class="text-gray-400">Action Variant</span><span class="font-medium capitalize" x-text="themeLayoutSettings.entity_action_variant || 'Default'"></span></div>
+                        <div class="flex justify-between"><span class="text-gray-400">Summary Width</span><span class="font-medium" x-text="themeLayoutSettings.entity_summary_width + 'px'"></span></div>
+                        <div class="flex justify-between"><span class="text-gray-400">Sticky Rail</span><span class="font-medium" x-text="themeLayoutSettings.entity_summary_sticky == 1 ? 'On' : 'Off'"></span></div>
+                        <div class="flex justify-between"><span class="text-gray-400">Media Ratio</span><span class="font-medium" x-text="themeLayoutSettings.entity_media_ratio"></span></div>
+                        <div class="flex justify-between"><span class="text-gray-400">Spacing</span><span class="font-medium capitalize" x-text="themeLayoutSettings.entity_spacing_scale"></span></div>
+                        <div class="flex justify-between"><span class="text-gray-400">Action Size</span><span class="font-medium uppercase" x-text="themeLayoutSettings.entity_action_size"></span></div>
+                    </div>
+                    <div class="rounded-lg border border-gray-200 bg-white p-3 space-y-3">
+                        <div :style="entityPreviewHeroStyle()">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                        </div>
+                        <div :style="entityPreviewLayoutStyle()">
+                            <div class="space-y-2">
+                                <div class="h-3 bg-slate-800 rounded w-2/3"></div>
+                                <div class="space-y-1.5">
+                                    <div class="h-1 bg-gray-200 rounded w-full"></div>
+                                    <div class="h-1 bg-gray-200 rounded w-5/6"></div>
+                                </div>
+                            </div>
+                            <div x-show="themeLayoutSettings.entity_layout_profile === 'commerce'" :style="entityPreviewSummaryStyle()">
+                                <div class="flex items-end gap-2 mb-2">
+                                    <span class="text-lg font-bold" :style="'color:' + (colorsSettings.storefront_price_color || '#0f172a')">USD 79.00</span>
+                                    <span class="text-xs line-through text-gray-400">99.00</span>
+                                </div>
+                                <div class="inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-semibold mb-2" :style="entityPreviewInventoryStyle('low')">Only 3 left</div>
+                                <div class="flex flex-col gap-2">
+                                    <span :style="entityPreviewPrimaryActionStyle()">Add to Cart</span>
+                                    <span :style="entityPreviewSecondaryActionStyle()">Ask a Question</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="text-xs text-slate-500">These controls alter storefront presentation only. The underlying CMS entity blocks and ordering contract stay shared.</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {/if}
 
     <!-- Unsaved changes indicator -->
     <div x-show="dirty" x-transition class="fixed bottom-4 left-1/2 -translate-x-1/2 z-30">
@@ -2565,10 +2863,10 @@ function themeCustomizer() {
         panels: { layout: true, colors: false, bar: true, widgets: true, help: false },
         hPanels: { layout: true, branding: false, cta: false, colors: false, dropdown: false, transparent: false, widgets: false, mobile: false },
         sPanels: { layout: true, appearance: false, widgets: true },
-        cPanels: { brand: true, body: false, typo: false, layout: false },
+        cPanels: { brand: true, body: false, typo: false, layout: false, storefront: true },
         ccPanels: { css: true, head: false, body: false, enhancements: true },
         tlPanels: { site: true, blog: true, single: false, entity: true, commerceGuide: true, commerceEntity: true },
-        tlPreviewMode: 'page',
+        tlPreviewMode: '{if customizer_scope == 'ecommerce'}entity{else}page{/if}',
 
         // Theme layout settings (hydrated from server)
         themeLayoutSettings: {},
@@ -2710,6 +3008,28 @@ function themeCustomizer() {
             { key: 'border_color',    label: 'Borders' },
             { key: 'light_bg_color',  label: 'Light Surface' },
         ],
+        storefrontSurfaceColorFields: [
+            { key: 'storefront_surface_bg', label: 'Summary Surface' },
+            { key: 'storefront_surface_border', label: 'Summary Border' },
+            { key: 'storefront_price_color', label: 'Price' },
+            { key: 'storefront_badge_bg', label: 'Badge Background' },
+            { key: 'storefront_badge_text', label: 'Badge Text' },
+        ],
+        storefrontActionColorFields: [
+            { key: 'storefront_cta_bg', label: 'Primary CTA Background' },
+            { key: 'storefront_cta_text', label: 'Primary CTA Text' },
+            { key: 'storefront_secondary_bg', label: 'Secondary Background' },
+            { key: 'storefront_secondary_text', label: 'Secondary Text' },
+            { key: 'storefront_secondary_border', label: 'Secondary Border' },
+        ],
+        storefrontInventoryColorFields: [
+            { key: 'storefront_success_bg', label: 'In Stock Background' },
+            { key: 'storefront_success_text', label: 'In Stock Text' },
+            { key: 'storefront_warning_bg', label: 'Low Stock Background' },
+            { key: 'storefront_warning_text', label: 'Low Stock Text' },
+            { key: 'storefront_danger_bg', label: 'Out Background' },
+            { key: 'storefront_danger_text', label: 'Out Text' },
+        ],
         fontOptions: [
             { value: 'Inter',            label: 'Inter' },
             { value: 'Roboto',           label: 'Roboto' },
@@ -2743,6 +3063,109 @@ function themeCustomizer() {
             if (this.activeTab === 'custom_code') return 'Custom CSS overrides, code injection, and advanced enhancements.';
             if (this.activeTab === 'theme') return 'Site layout, entity-view profiles, approved block variants, and content display options.';
             return 'Customize your site\'s footer layout, widgets, and styling.';
+        },
+
+        entitySpacingConfig() {
+            const scale = this.themeLayoutSettings.entity_spacing_scale || 'comfortable';
+            if (scale === 'compact') {
+                return { gap: '12px', pad: '12px' };
+            }
+            if (scale === 'airy') {
+                return { gap: '24px', pad: '20px' };
+            }
+            return { gap: '16px', pad: '16px' };
+        },
+
+        entityActionConfig() {
+            const size = this.themeLayoutSettings.entity_action_size || 'md';
+            if (size === 'sm') {
+                return { px: '12px', py: '8px', font: '11px' };
+            }
+            if (size === 'lg') {
+                return { px: '20px', py: '12px', font: '14px' };
+            }
+            return { px: '16px', py: '10px', font: '12px' };
+        },
+
+        entityPreviewHeroStyle() {
+            const ratio = this.themeLayoutSettings.entity_media_ratio || 'auto';
+            let css = 'background:linear-gradient(135deg,#dbeafe 0%,#e0f2fe 100%);border-radius:12px;display:flex;align-items:center;justify-content:center;color:#64748b;';
+            if (ratio === '16:9') css += 'aspect-ratio:16 / 9;';
+            else if (ratio === '4:3') css += 'aspect-ratio:4 / 3;';
+            else if (ratio === '1:1') css += 'aspect-ratio:1 / 1;';
+            else css += 'height:88px;';
+            return css;
+        },
+
+        entityPreviewLayoutStyle() {
+            const gap = this.entitySpacingConfig().gap;
+            if ((this.themeLayoutSettings.entity_layout_profile || 'default') === 'commerce') {
+                return 'display:grid;grid-template-columns:minmax(0,1fr) ' + (this.themeLayoutSettings.entity_summary_width || 320) + 'px;gap:' + gap + ';align-items:start;';
+            }
+            return 'display:block;';
+        },
+
+        entityPreviewSummaryStyle() {
+            return 'background:' + (this.colorsSettings.storefront_surface_bg || '#ffffff')
+                + ';border:1px solid ' + (this.colorsSettings.storefront_surface_border || '#e2e8f0')
+                + ';border-radius:16px;padding:' + this.entitySpacingConfig().pad
+                + ';box-shadow:0 10px 24px rgba(15,23,42,0.06);';
+        },
+
+        entityPreviewPrimaryActionStyle() {
+            const size = this.entityActionConfig();
+            return 'background:' + (this.colorsSettings.storefront_cta_bg || '#0284c7')
+                + ';color:' + (this.colorsSettings.storefront_cta_text || '#ffffff')
+                + ';padding:' + size.py + ' ' + size.px
+                + ';font-size:' + size.font
+                + ';border-radius:12px;font-weight:600;display:inline-flex;align-items:center;justify-content:center;';
+        },
+
+        entityPreviewSecondaryActionStyle() {
+            const size = this.entityActionConfig();
+            return 'background:' + (this.colorsSettings.storefront_secondary_bg || '#ffffff')
+                + ';color:' + (this.colorsSettings.storefront_secondary_text || '#334155')
+                + ';border:1px solid ' + (this.colorsSettings.storefront_secondary_border || '#cbd5e1')
+                + ';padding:' + size.py + ' ' + size.px
+                + ';font-size:' + size.font
+                + ';border-radius:12px;font-weight:600;display:inline-flex;align-items:center;justify-content:center;';
+        },
+
+        entityPreviewInventoryStyle(kind) {
+            if (kind === 'low') {
+                return 'background:' + (this.colorsSettings.storefront_warning_bg || '#fffbeb') + ';color:' + (this.colorsSettings.storefront_warning_text || '#b45309') + ';';
+            }
+            if (kind === 'out') {
+                return 'background:' + (this.colorsSettings.storefront_danger_bg || '#fef2f2') + ';color:' + (this.colorsSettings.storefront_danger_text || '#dc2626') + ';';
+            }
+            return 'background:' + (this.colorsSettings.storefront_success_bg || '#ecfdf5') + ';color:' + (this.colorsSettings.storefront_success_text || '#047857') + ';';
+        },
+
+        entityPreviewSidebarLayoutStyle() {
+            const gap = (this.sidebarSettings.gap || 32) + 'px';
+            const width = (this.sidebarSettings.width || 300) + 'px';
+            if (this.sidebarSettings.enabled != 1) {
+                return 'display:block;';
+            }
+            if (this.sidebarSettings.placement === 'left') {
+                return 'display:grid;grid-template-columns:' + width + ' minmax(0,1fr);gap:' + gap + ';align-items:start;';
+            }
+            return 'display:grid;grid-template-columns:minmax(0,1fr) ' + width + ';gap:' + gap + ';align-items:start;';
+        },
+
+        entityPreviewSidebarRailStyle() {
+            return 'background:' + (this.sidebarSettings.widget_bg_color || '#ffffff')
+                + ';border:1px solid ' + (this.sidebarSettings.widget_border_color || '#e2e8f0')
+                + ';border-radius:' + (this.sidebarSettings.widget_radius || 10) + 'px'
+                + ';padding:' + (this.sidebarSettings.widget_padding || 16) + 'px'
+                + ';color:' + (this.sidebarSettings.widget_text_color || '#334155') + ';';
+        },
+
+        entityPreviewHeaderOffset() {
+            if (this.headerSettings.sticky != 1) return '0px';
+            const explicitHeight = this.headerSettings.height && this.headerSettings.height !== 'auto' ? parseInt(this.headerSettings.height, 10) : 64;
+            const topbarHeight = this.headerSettings.show_topbar == 1 && this.headerWidgets.length > 0 ? 24 : 0;
+            return (explicitHeight + topbarHeight + 16) + 'px';
         },
 
         init() {
@@ -2898,12 +3321,35 @@ function themeCustomizer() {
             // Hydrate colors & typography settings
             try {
                 this.colorsSettings = JSON.parse(document.getElementById('cz-colors-settings').textContent);
+                if (this.colorsSettings.storefront_surface_bg === undefined) this.colorsSettings.storefront_surface_bg = '#ffffff';
+                if (this.colorsSettings.storefront_surface_border === undefined) this.colorsSettings.storefront_surface_border = '#e2e8f0';
+                if (this.colorsSettings.storefront_price_color === undefined) this.colorsSettings.storefront_price_color = '#0f172a';
+                if (this.colorsSettings.storefront_badge_bg === undefined) this.colorsSettings.storefront_badge_bg = '#fee2e2';
+                if (this.colorsSettings.storefront_badge_text === undefined) this.colorsSettings.storefront_badge_text = '#b91c1c';
+                if (this.colorsSettings.storefront_cta_bg === undefined) this.colorsSettings.storefront_cta_bg = '#0284c7';
+                if (this.colorsSettings.storefront_cta_text === undefined) this.colorsSettings.storefront_cta_text = '#ffffff';
+                if (this.colorsSettings.storefront_secondary_bg === undefined) this.colorsSettings.storefront_secondary_bg = '#ffffff';
+                if (this.colorsSettings.storefront_secondary_text === undefined) this.colorsSettings.storefront_secondary_text = '#334155';
+                if (this.colorsSettings.storefront_secondary_border === undefined) this.colorsSettings.storefront_secondary_border = '#cbd5e1';
+                if (this.colorsSettings.storefront_success_bg === undefined) this.colorsSettings.storefront_success_bg = '#ecfdf5';
+                if (this.colorsSettings.storefront_success_text === undefined) this.colorsSettings.storefront_success_text = '#047857';
+                if (this.colorsSettings.storefront_warning_bg === undefined) this.colorsSettings.storefront_warning_bg = '#fffbeb';
+                if (this.colorsSettings.storefront_warning_text === undefined) this.colorsSettings.storefront_warning_text = '#b45309';
+                if (this.colorsSettings.storefront_danger_bg === undefined) this.colorsSettings.storefront_danger_bg = '#fef2f2';
+                if (this.colorsSettings.storefront_danger_text === undefined) this.colorsSettings.storefront_danger_text = '#dc2626';
             } catch (e) {
                 this.colorsSettings = {
                     color_primary: '#3b82f6', color_secondary: '#64748b', color_accent: '#f59e0b',
                     body_bg_color: '#ffffff', body_text_color: '#1e293b', body_text_light: '#64748b',
                     body_link_color: '#3b82f6', body_link_hover: '#2563eb',
                     border_color: '#e2e8f0', light_bg_color: '#f8fafc',
+                    storefront_surface_bg: '#ffffff', storefront_surface_border: '#e2e8f0', storefront_price_color: '#0f172a',
+                    storefront_badge_bg: '#fee2e2', storefront_badge_text: '#b91c1c',
+                    storefront_cta_bg: '#0284c7', storefront_cta_text: '#ffffff',
+                    storefront_secondary_bg: '#ffffff', storefront_secondary_text: '#334155', storefront_secondary_border: '#cbd5e1',
+                    storefront_success_bg: '#ecfdf5', storefront_success_text: '#047857',
+                    storefront_warning_bg: '#fffbeb', storefront_warning_text: '#b45309',
+                    storefront_danger_bg: '#fef2f2', storefront_danger_text: '#dc2626',
                     font_body: 'Inter', font_heading: 'Inter', font_size_base: '16', line_height: '1.6',
                     heading_color: '', h1_size: '2.5', h2_size: '2', h3_size: '1.5', h4_size: '1.25',
                     container_width: '1200', border_radius: '0.5',
@@ -2928,6 +3374,11 @@ function themeCustomizer() {
                 if (this.themeLayoutSettings.entity_layout_profile === undefined) this.themeLayoutSettings.entity_layout_profile = 'default';
                 if (this.themeLayoutSettings.entity_pricing_variant === undefined) this.themeLayoutSettings.entity_pricing_variant = '';
                 if (this.themeLayoutSettings.entity_action_variant === undefined) this.themeLayoutSettings.entity_action_variant = '';
+                if (this.themeLayoutSettings.entity_summary_width === undefined) this.themeLayoutSettings.entity_summary_width = 320;
+                if (this.themeLayoutSettings.entity_summary_sticky === undefined) this.themeLayoutSettings.entity_summary_sticky = 1;
+                if (this.themeLayoutSettings.entity_media_ratio === undefined) this.themeLayoutSettings.entity_media_ratio = 'auto';
+                if (this.themeLayoutSettings.entity_spacing_scale === undefined) this.themeLayoutSettings.entity_spacing_scale = 'comfortable';
+                if (this.themeLayoutSettings.entity_action_size === undefined) this.themeLayoutSettings.entity_action_size = 'md';
             } catch (e) {
                 this.themeLayoutSettings = {
                     layout_mode: 'contained', site_max_width: 1280, content_max_width: 768,
@@ -2941,6 +3392,7 @@ function themeCustomizer() {
                     single_show_author: 1, single_show_date: 1, single_show_categories: 1,
                     single_show_tags: 1, single_show_nav: 1,
                     entity_layout_profile: 'default', entity_pricing_variant: '', entity_action_variant: '',
+                    entity_summary_width: 320, entity_summary_sticky: 1, entity_media_ratio: 'auto', entity_spacing_scale: 'comfortable', entity_action_size: 'md',
                 };
             }
 
@@ -3274,6 +3726,11 @@ function themeCustomizer() {
                     body_bg_color: '#ffffff', body_text_color: '#1e293b', body_text_light: '#64748b',
                     body_link_color: '#3b82f6', body_link_hover: '#2563eb',
                     border_color: '#e2e8f0', light_bg_color: '#f8fafc',
+                    storefront_surface_bg: '#ffffff', storefront_surface_border: '#e2e8f0', storefront_price_color: '#0f172a',
+                    storefront_badge_bg: '#fee2e2', storefront_badge_text: '#b91c1c', storefront_cta_bg: '#0284c7', storefront_cta_text: '#ffffff',
+                    storefront_secondary_bg: '#ffffff', storefront_secondary_text: '#334155', storefront_secondary_border: '#cbd5e1',
+                    storefront_success_bg: '#ecfdf5', storefront_success_text: '#047857', storefront_warning_bg: '#fffbeb', storefront_warning_text: '#b45309',
+                    storefront_danger_bg: '#fef2f2', storefront_danger_text: '#dc2626',
                     font_body: 'Inter', font_heading: 'Inter', font_size_base: '16', line_height: '1.6',
                     heading_color: '', h1_size: '2.5', h2_size: '2', h3_size: '1.5', h4_size: '1.25',
                     container_width: '1200', border_radius: '0.5',
@@ -3316,6 +3773,11 @@ function themeCustomizer() {
                     entity_layout_profile: 'default',
                     entity_pricing_variant: '',
                     entity_action_variant: '',
+                    entity_summary_width: 320,
+                    entity_summary_sticky: 1,
+                    entity_media_ratio: 'auto',
+                    entity_spacing_scale: 'comfortable',
+                    entity_action_size: 'md',
                 });
             } else if (this.activeTab === 'theme') {
                 if (!confirm('Reset all theme layout settings to defaults? This cannot be undone.')) return;
@@ -3331,6 +3793,7 @@ function themeCustomizer() {
                     single_show_author: 1, single_show_date: 1, single_show_categories: 1,
                     single_show_tags: 1, single_show_nav: 1,
                     entity_layout_profile: 'default', entity_pricing_variant: '', entity_action_variant: '',
+                    entity_summary_width: 320, entity_summary_sticky: 1, entity_media_ratio: 'auto', entity_spacing_scale: 'comfortable', entity_action_size: 'md',
                 };
             } else if (this.activeTab === 'sidebar') {
                 if (!confirm('Reset all sidebar settings to defaults? This cannot be undone.')) return;
