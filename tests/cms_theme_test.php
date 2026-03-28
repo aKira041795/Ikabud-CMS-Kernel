@@ -289,6 +289,40 @@ $renderedManifestListPricing = cmsRenderThemeAwareBlockTemplate('modules/cms/pub
 ]);
 t('entity-commerce-poc manifest list-card pricing render uses featured themed markup', str_contains($renderedManifestListPricing, 'poc-price-pill--featured'), $renderedManifestListPricing);
 
+$pocColorDefaults = cmsThemeManifestCustomizerDefaults('colors', $pocManifest, 'ecommerce');
+$pocThemeDefaults = cmsThemeManifestCustomizerDefaults('theme', $pocManifest, 'ecommerce');
+$pocStorefrontDefaults = cmsThemeManifestCustomizerDefaults('storefront', $pocManifest, 'ecommerce');
+t('entity-commerce-poc manifest colors inherit primary token into customizer defaults', ($pocColorDefaults['color_primary'] ?? '') === '#0f4c81');
+t('entity-commerce-poc manifest colors inherit background token into customizer defaults', ($pocColorDefaults['body_bg_color'] ?? '') === '#f4efe6');
+t('entity-commerce-poc manifest colors inherit container token into customizer defaults', ($pocColorDefaults['container_width'] ?? '') === '1180');
+t('entity-commerce-poc manifest theme layout inherits container token into site width', ($pocThemeDefaults['site_max_width'] ?? '') === '1180');
+t('entity-commerce-poc manifest storefront defaults inherit featured list pricing variant', ($pocStorefrontDefaults['entity_list_pricing_variant'] ?? '') === 'featured');
+
+cmsSeedActiveThemeCustomizerDefaults($db);
+$seededColors = cmsCustomizerGet($db, 'colors', 'ecommerce');
+$seededTheme = cmsCustomizerGet($db, 'theme', 'ecommerce');
+$seededStorefront = cmsCustomizerGet($db, 'storefront', 'ecommerce');
+t('theme activation seeding writes ecommerce colors defaults from manifest', ($seededColors['settings']['color_primary'] ?? '') === '#0f4c81');
+t('theme activation seeding writes ecommerce theme defaults from manifest', ($seededTheme['settings']['site_max_width'] ?? '') === '1180');
+t('theme activation seeding writes ecommerce storefront defaults from manifest', ($seededStorefront['settings']['entity_list_pricing_variant'] ?? '') === 'featured');
+
+$defaultColorsHtml = cmsRenderColorsStyle($db);
+$defaultThemeHtml = cmsRenderThemeLayoutStyle($db);
+$defaultStorefrontHtml = cmsRenderStorefrontStyle($db);
+t('entity-commerce-poc suppresses generic colors override when settings match manifest defaults', $defaultColorsHtml === '', $defaultColorsHtml);
+t('entity-commerce-poc suppresses generic theme layout override when settings match manifest defaults', $defaultThemeHtml === '', $defaultThemeHtml);
+t('entity-commerce-poc suppresses generic storefront override when settings match manifest defaults', $defaultStorefrontHtml === '', $defaultStorefrontHtml);
+
+upsertCustomizerSection($db, 'colors', array_merge($seededColors['settings'], ['color_primary' => '#112233']), [], 'ecommerce');
+cmsCustomizerClearPersistentCache('colors', 'ecommerce');
+$GLOBALS[cmsCustomizerRequestCacheKey('section_row', 'ecommerce')] = [];
+$customizedColorsHtml = cmsRenderColorsStyle($db);
+t('entity-commerce-poc renders colors override after explicit merchant customization', str_contains($customizedColorsHtml, 'cz-colors-override'), $customizedColorsHtml);
+
+$runtimeDiagnostics = cmsThemeRuntimeDiagnostics();
+t('theme runtime diagnostics expose active theme', ($runtimeDiagnostics['active_theme'] ?? '') === 'entity-commerce-poc');
+t('theme runtime diagnostics expose active customizer scope', ($runtimeDiagnostics['active_customizer_scope'] ?? '') === 'ecommerce');
+
 $pocStyleUrl = cmsThemeAssetUrl('style.css');
 t('entity-commerce-poc theme stylesheet resolves to public assets', str_contains($pocStyleUrl, '/assets/cms/themes/entity-commerce-poc/style.css'), $pocStyleUrl);
 
@@ -321,6 +355,8 @@ t('native layout inline fallback reveals animated content', str_contains($native
 $customizerTemplateContent = file_get_contents(BASE_PATH . '/templates/modules/cms/admin/theme-customizer.disyl');
 t('customizer tracks per-section dirty state for scoped saves', str_contains($customizerTemplateContent, 'dirtySections: { footer: false, header: false, sidebar: false, colors: false, custom_code: false, theme: false, storefront: false }'));
 t('customizer save resolves only dirty sections', str_contains($customizerTemplateContent, 'const sections = this.sectionsToSave();'));
+t('ecommerce customizer keeps shell controls in native workspace', str_contains($customizerTemplateContent, 'Shell controls stay in the native workspace. Use this ecommerce view only for storefront tokens and canonical entity presentation settings.'));
+t('ecommerce customizer save path is limited to storefront-facing sections', str_contains($customizerTemplateContent, "return sections.filter(section => section === 'colors' || section === 'storefront');"));
 t('customizer bootstraps dedicated storefront settings payload', str_contains($customizerTemplateContent, 'id="cz-storefront-settings"'));
 t('customizer saves dedicated storefront section payload', str_contains($customizerTemplateContent, "return { settings: this.storefrontSettings }"));
 t('customizer exposes storefront list-card pricing variant control', str_contains($customizerTemplateContent, 'storefrontSettings.entity_list_pricing_variant'));

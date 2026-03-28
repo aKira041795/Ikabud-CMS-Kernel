@@ -177,56 +177,24 @@ function cmsApiCustomizerSave(array $params = []): void
         exit;
     }
 
-    // Validate section-specific settings
-    if ($section === 'footer') {
-        $settings = cmsValidateFooterSettings($settings);
-    } elseif ($section === 'sidebar') {
-        $settings = cmsValidateSidebarSettings($settings);
-    } elseif ($section === 'header') {
-        $settings = cmsValidateHeaderSettings($settings);
-    } elseif ($section === 'colors') {
-        $settings = cmsValidateColorsSettings($settings);
-    } elseif ($section === 'custom_code') {
-        $settings = cmsValidateCustomCodeSettings($settings);
-    } elseif ($section === 'theme') {
-        $settings = cmsValidateThemeLayoutSettings($settings);
-    } elseif ($section === 'storefront') {
-        $settings = cmsValidateStorefrontSettings($settings);
-    }
+    $settings = cmsValidateCustomizerSectionSettings($section, $settings);
 
     $db = cmsDb();
     cmsEnsureCustomizerScopeSeeded($db, $scope);
     $userId = (int)($user['id'] ?? 0);
 
-    $settingsJson = json_encode($settings, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-
     // When widgets are not provided in the request, preserve existing widgets
     // rather than wiping them. This allows settings-only saves to work safely.
     if (is_array($widgets)) {
-        $widgetsJson = json_encode($widgets, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        $persistedWidgets = $widgets;
     } else {
         // Read existing widgets from the database
         $existingStmt = $db->prepare("SELECT widgets_json FROM cms_theme_customizer WHERE section = :section LIMIT 1");
         $existingStmt->execute([':section' => cmsCustomizerStorageSection($section, $scope)]);
-        $widgetsJson = $existingStmt->fetchColumn() ?: '[]';
+        $persistedWidgets = json_decode((string)($existingStmt->fetchColumn() ?: '[]'), true) ?: [];
     }
 
-    $stmt = $db->prepare(
-        "INSERT INTO cms_theme_customizer (section, settings_json, widgets_json, updated_by)
-         VALUES (:section, :settings, :widgets, :uid)
-         ON DUPLICATE KEY UPDATE
-            settings_json = VALUES(settings_json),
-            widgets_json = VALUES(widgets_json),
-            updated_by = VALUES(updated_by)"
-    );
-    $stmt->execute([
-        ':section'  => cmsCustomizerStorageSection($section, $scope),
-        ':settings' => $settingsJson,
-        ':widgets'  => $widgetsJson,
-        ':uid'      => $userId ?: null,
-    ]);
-
-    cmsCustomizerClearPersistentCache($section, $scope);
+    cmsUpsertCustomizerSection($db, $section, $settings, $persistedWidgets, $userId ?: null, $scope);
 
     $response = json_encode(['ok' => true]);
     echo $response;

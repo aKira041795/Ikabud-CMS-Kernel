@@ -15,6 +15,7 @@ function cmsAdminThemes(array $params = []): void
 
     $themes = cmsAvailableThemes();
     $active = cmsActiveTheme() ?? 'default';
+    $runtimeDiagnostics = cmsThemeRuntimeDiagnostics();
 
     echo cmsRender('modules/cms/admin/themes.disyl', array_merge(cmsAdminContext($user, 'themes', [
         ['label' => 'Themes', 'url' => ''],
@@ -22,6 +23,8 @@ function cmsAdminThemes(array $params = []): void
         'page_title'       => 'Themes',
         'themes_json'      => json_encode($themes),
         'active_theme'     => $active,
+        'theme_runtime_diagnostics' => $runtimeDiagnostics,
+        'theme_runtime_diagnostics_json' => json_encode($runtimeDiagnostics, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
     ]));
 }
 
@@ -241,7 +244,7 @@ function cmsApiThemeActivate(array $params = []): void
         cmsCacheFlushAll();
         cmsTemplateCacheFlush();
         _cmsAuditInstaller('theme.activate', 'theme', 'default', 'success', 'Reverted to default theme.');
-        echo json_encode(['ok' => true, 'message' => 'Reverted to default theme.']);
+        echo json_encode(['ok' => true, 'message' => 'Reverted to default theme.', 'runtime' => cmsThemeRuntimeDiagnostics()]);
         exit;
     }
 
@@ -258,6 +261,14 @@ function cmsApiThemeActivate(array $params = []): void
     saveModuleSettings('cms', ['active_theme' => $slug]);
     cmsResetSettingsCache();
     cmsResetThemeRuntimeCache();
+    try {
+        cmsSeedActiveThemeCustomizerDefaults(cmsDb(), (int)($user['id'] ?? 0) ?: null);
+    } catch (\Throwable $e) {
+        write_log('warn', 'cms.theme.seed_defaults_failed', [
+            'theme' => $slug,
+            'error' => $e->getMessage(),
+        ]);
+    }
     // Flush all cached pages since theme-dependent rendering has changed
     cmsCacheFlushAll();
     cmsTemplateCacheFlush();
@@ -280,6 +291,7 @@ function cmsApiThemeActivate(array $params = []): void
     if (!empty($cssWarnings)) {
         $response['warnings'] = $cssWarnings;
     }
+    $response['runtime'] = cmsThemeRuntimeDiagnostics();
     echo json_encode($response);
     exit;
 }

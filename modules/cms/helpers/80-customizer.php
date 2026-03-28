@@ -231,14 +231,234 @@ function cmsCustomizerSectionDefaults(string $section): array
     };
 }
 
+function cmsValidateCustomizerSectionSettings(string $section, array $settings): array
+{
+    return match ($section) {
+        'footer' => cmsValidateFooterSettings($settings),
+        'header' => cmsValidateHeaderSettings($settings),
+        'sidebar' => cmsValidateSidebarSettings($settings),
+        'colors' => cmsValidateColorsSettings($settings),
+        'custom_code' => cmsValidateCustomCodeSettings($settings),
+        'theme' => cmsValidateThemeLayoutSettings($settings),
+        'storefront' => cmsValidateStorefrontSettings($settings),
+        default => $settings,
+    };
+}
+
 function cmsThemeCustomizerScopeFromManifest(array $manifest): string
 {
     return cmsNormalizeCustomizerScope((string)($manifest['customizer_scope'] ?? 'native'));
 }
 
+function cmsThemeManifestEntityViewDefaults(?array $manifest = null): array
+{
+    $manifest = is_array($manifest) ? $manifest : cmsActiveThemeManifest();
+    $defaults = $manifest['entity_view_defaults'] ?? [];
+    return is_array($defaults) ? $defaults : [];
+}
+
+function cmsThemeManifestBlockVariantDefaults(?array $manifest = null): array
+{
+    $manifest = is_array($manifest) ? $manifest : cmsActiveThemeManifest();
+    $entityDefaults = cmsThemeManifestEntityViewDefaults($manifest);
+    $variants = $entityDefaults['block_variants'] ?? ($manifest['block_variants'] ?? []);
+    return is_array($variants) ? $variants : [];
+}
+
+function cmsThemeManifestTokenPxValue(array $tokens, string $key, int $fallback): int
+{
+    $raw = trim((string)($tokens[$key] ?? ''));
+    if ($raw === '') {
+        return $fallback;
+    }
+
+    if (preg_match('/^([0-9]+(?:\.[0-9]+)?)px$/i', $raw, $matches)) {
+        return (int)round((float)$matches[1]);
+    }
+    if (preg_match('/^[0-9]+(?:\.[0-9]+)?$/', $raw)) {
+        return (int)round((float)$raw);
+    }
+
+    return $fallback;
+}
+
+function cmsThemeManifestTokenRemValue(array $tokens, string $key, float $fallback): float
+{
+    $raw = trim((string)($tokens[$key] ?? ''));
+    if ($raw === '') {
+        return $fallback;
+    }
+
+    if (preg_match('/^([0-9]+(?:\.[0-9]+)?)rem$/i', $raw, $matches)) {
+        return (float)$matches[1];
+    }
+    if (preg_match('/^([0-9]+(?:\.[0-9]+)?)px$/i', $raw, $matches)) {
+        return ((float)$matches[1]) / 16;
+    }
+    if (preg_match('/^[0-9]+(?:\.[0-9]+)?$/', $raw)) {
+        return (float)$raw;
+    }
+
+    return $fallback;
+}
+
+function cmsThemeManifestColorsDefaults(?array $manifest = null): array
+{
+    $manifest = is_array($manifest) ? $manifest : cmsActiveThemeManifest();
+    $tokens = function_exists('cmsThemeManifestTokens') ? cmsThemeManifestTokens($manifest) : [];
+    $defaults = cmsColorsSettingsDefaults();
+
+    $overrides = [];
+    $map = [
+        'color-primary' => ['color_primary', 'body_link_color', 'storefront_cta_bg'],
+        'color-accent' => ['color_accent'],
+        'color-background' => ['body_bg_color'],
+        'color-surface' => ['light_bg_color', 'storefront_surface_bg', 'storefront_secondary_bg'],
+        'color-text' => ['body_text_color', 'storefront_price_color', 'storefront_secondary_text'],
+        'color-muted' => ['color_secondary', 'body_text_light'],
+        'color-border' => ['border_color', 'storefront_surface_border', 'storefront_secondary_border'],
+    ];
+    foreach ($map as $tokenKey => $settingKeys) {
+        $value = trim((string)($tokens[$tokenKey] ?? ''));
+        if ($value === '') {
+            continue;
+        }
+        foreach ($settingKeys as $settingKey) {
+            $overrides[$settingKey] = $value;
+        }
+    }
+
+    if (!isset($overrides['storefront_cta_text']) && isset($overrides['body_bg_color'])) {
+        $overrides['storefront_cta_text'] = $overrides['body_bg_color'];
+    }
+
+    $containerWidth = cmsThemeManifestTokenPxValue($tokens, 'container-max', (int)$defaults['container_width']);
+    if ($containerWidth > 0) {
+        $overrides['container_width'] = (string)$containerWidth;
+    }
+
+    $borderRadius = cmsThemeManifestTokenRemValue($tokens, 'radius-card', (float)$defaults['border_radius']);
+    if ($borderRadius > 0) {
+        $overrides['border_radius'] = (string)round($borderRadius, 2);
+    }
+
+    return cmsValidateColorsSettings(array_merge($defaults, $overrides));
+}
+
+function cmsThemeManifestThemeLayoutDefaults(?array $manifest = null, ?string $scope = null): array
+{
+    $manifest = is_array($manifest) ? $manifest : cmsActiveThemeManifest();
+    $scope = cmsNormalizeCustomizerScope($scope, cmsThemeCustomizerScopeFromManifest($manifest));
+    $tokens = function_exists('cmsThemeManifestTokens') ? cmsThemeManifestTokens($manifest) : [];
+    $defaults = cmsThemeLayoutSettingsDefaults();
+    $entityDefaults = cmsThemeManifestEntityViewDefaults($manifest);
+    $blockVariants = cmsThemeManifestBlockVariantDefaults($manifest);
+    $settingMap = cmsThemeBlockVariantSettingMap();
+
+    $overrides = [];
+    $containerMax = cmsThemeManifestTokenPxValue($tokens, 'container-max', (int)$defaults['site_max_width']);
+    if ($containerMax > 0) {
+        $overrides['site_max_width'] = (string)$containerMax;
+    }
+
+    $cardRadius = cmsThemeManifestTokenPxValue($tokens, 'radius-card', (int)$defaults['blog_card_radius']);
+    if ($cardRadius > 0) {
+        $overrides['blog_card_radius'] = (string)$cardRadius;
+    }
+
+    if ($scope !== 'ecommerce') {
+        if (isset($entityDefaults['layout_profile'])) {
+            $overrides['entity_layout_profile'] = (string)$entityDefaults['layout_profile'];
+        }
+        foreach ($blockVariants as $blockId => $variant) {
+            $settingKey = $settingMap[$blockId] ?? null;
+            if ($settingKey !== null) {
+                $overrides[$settingKey] = (string)$variant;
+            }
+        }
+        foreach (['summary_width' => 'entity_summary_width', 'summary_sticky' => 'entity_summary_sticky', 'media_ratio' => 'entity_media_ratio', 'spacing_scale' => 'entity_spacing_scale', 'action_size' => 'entity_action_size', 'list_show_filter_summary' => 'entity_list_show_filter_summary', 'list_card_density' => 'entity_list_card_density', 'list_show_excerpt' => 'entity_list_show_excerpt', 'list_excerpt_length' => 'entity_list_excerpt_length'] as $sourceKey => $settingKey) {
+            if (array_key_exists($sourceKey, $entityDefaults)) {
+                $overrides[$settingKey] = $entityDefaults[$sourceKey];
+            }
+        }
+    }
+
+    return cmsValidateThemeLayoutSettings(array_merge($defaults, $overrides));
+}
+
+function cmsThemeManifestStorefrontDefaults(?array $manifest = null): array
+{
+    $manifest = is_array($manifest) ? $manifest : cmsActiveThemeManifest();
+    $defaults = cmsStorefrontSettingsDefaults();
+    $entityDefaults = cmsThemeManifestEntityViewDefaults($manifest);
+    $blockVariants = cmsThemeManifestBlockVariantDefaults($manifest);
+    $settingMap = cmsThemeBlockVariantSettingMap();
+
+    $overrides = [];
+    if (isset($entityDefaults['layout_profile'])) {
+        $overrides['entity_layout_profile'] = (string)$entityDefaults['layout_profile'];
+    }
+    foreach ($blockVariants as $blockId => $variant) {
+        $settingKey = $settingMap[$blockId] ?? null;
+        if ($settingKey !== null) {
+            $overrides[$settingKey] = (string)$variant;
+        }
+    }
+    foreach (['summary_width' => 'entity_summary_width', 'summary_sticky' => 'entity_summary_sticky', 'media_ratio' => 'entity_media_ratio', 'spacing_scale' => 'entity_spacing_scale', 'action_size' => 'entity_action_size', 'list_show_filter_summary' => 'entity_list_show_filter_summary', 'list_card_density' => 'entity_list_card_density', 'list_show_excerpt' => 'entity_list_show_excerpt', 'list_excerpt_length' => 'entity_list_excerpt_length'] as $sourceKey => $settingKey) {
+        if (array_key_exists($sourceKey, $entityDefaults)) {
+            $overrides[$settingKey] = $entityDefaults[$sourceKey];
+        }
+    }
+
+    return cmsValidateStorefrontSettings(array_merge($defaults, $overrides));
+}
+
+function cmsThemeManifestCustomizerDefaults(string $section, ?array $manifest = null, ?string $scope = null): array
+{
+    return match ($section) {
+        'colors' => cmsThemeManifestColorsDefaults($manifest),
+        'theme' => cmsThemeManifestThemeLayoutDefaults($manifest, $scope),
+        'storefront' => cmsThemeManifestStorefrontDefaults($manifest),
+        default => cmsCustomizerSectionDefaults($section),
+    };
+}
+
 function cmsActiveCustomizerScope(): string
 {
     return cmsThemeCustomizerScopeFromManifest(cmsActiveThemeManifest());
+}
+
+function cmsThemeShouldDeferCustomizerPresentation(?array $manifest = null): bool
+{
+    $manifest = is_array($manifest) ? $manifest : cmsActiveThemeManifest();
+    if (($manifest['defer_customizer_presentation'] ?? null) !== null) {
+        return !empty($manifest['defer_customizer_presentation']);
+    }
+
+    return cmsThemeCustomizerScopeFromManifest($manifest) === 'ecommerce';
+}
+
+function cmsCustomizerSettingsEqual(array $left, array $right): bool
+{
+    ksort($left);
+    ksort($right);
+    return $left === $right;
+}
+
+function cmsShouldRenderCustomizerPresentationCss(string $section, array $settings, ?array $manifest = null, ?string $scope = null): bool
+{
+    $manifest = is_array($manifest) ? $manifest : cmsActiveThemeManifest();
+    $scope = $scope !== null ? trim($scope) : cmsActiveCustomizerScope();
+    if (!cmsThemeShouldDeferCustomizerPresentation($manifest)) {
+        return true;
+    }
+    if (!in_array($section, ['colors', 'theme', 'storefront'], true)) {
+        return true;
+    }
+
+    $current = cmsValidateCustomizerSectionSettings($section, $settings);
+    $themeDefaults = cmsThemeManifestCustomizerDefaults($section, $manifest, $scope);
+    return !cmsCustomizerSettingsEqual($current, $themeDefaults);
 }
 
 function cmsCustomizerScopeLabel(?string $scope = null): string
@@ -366,6 +586,52 @@ function cmsCustomizerCurrentPathCacheToken(): string
     return $path !== '' ? $path : '/';
 }
 
+function cmsUpsertCustomizerSection(object $db, string $section, array $settings, array $widgets = [], ?int $userId = null, ?string $scope = null): void
+{
+    $scope = $scope !== null ? trim($scope) : cmsActiveCustomizerScope();
+    $settings = cmsValidateCustomizerSectionSettings($section, $settings);
+    $settingsJson = json_encode($settings, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+    $widgetsJson = json_encode($widgets, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+
+    $stmt = $db->prepare(
+        "INSERT INTO cms_theme_customizer (section, settings_json, widgets_json, updated_by)\n"
+        . " VALUES (:section, :settings, :widgets, :uid)\n"
+        . " ON DUPLICATE KEY UPDATE settings_json = VALUES(settings_json), widgets_json = VALUES(widgets_json), updated_by = VALUES(updated_by)"
+    );
+    $stmt->execute([
+        ':section' => cmsCustomizerStorageSection($section, $scope),
+        ':settings' => $settingsJson,
+        ':widgets' => $widgetsJson,
+        ':uid' => $userId,
+    ]);
+
+    $cacheKey = cmsCustomizerRequestCacheKey('section_row', $scope);
+    $cache = $GLOBALS[$cacheKey] ?? [];
+    $cache[$section] = [
+        'settings_json' => $settingsJson,
+        'widgets_json' => $widgetsJson,
+    ];
+    $GLOBALS[$cacheKey] = $cache;
+
+    cmsCustomizerClearPersistentCache($section, $scope);
+}
+
+function cmsSeedActiveThemeCustomizerDefaults(object $db, ?int $userId = null): void
+{
+    $manifest = cmsActiveThemeManifest();
+    $scope = cmsThemeCustomizerScopeFromManifest($manifest);
+    foreach (['colors', 'theme', 'storefront'] as $section) {
+        cmsUpsertCustomizerSection(
+            $db,
+            $section,
+            cmsThemeManifestCustomizerDefaults($section, $manifest, $scope),
+            [],
+            $userId,
+            $scope
+        );
+    }
+}
+
 function cmsCustomizerClearPersistentCache(?string $section = null, ?string $scope = null): void
 {
     if (cmsCustomizerPersistentCacheTtl() <= 0) {
@@ -467,19 +733,9 @@ function cmsEnsureCustomizerScopeSeeded(object $db, ?string $scope = null): void
             $settings = cmsSidebarSettingsDefaults();
             $settings['enabled'] = 0;
         } elseif ($section === 'storefront') {
-            $settings = cmsStorefrontSettingsDefaults();
-
-            $legacyScopeSource = cmsCustomizerSectionRecord($db, 'theme', $scope);
-            if ($legacyScopeSource !== null) {
-                $legacyScopeSettings = json_decode((string)($legacyScopeSource['settings_json'] ?? '{}'), true) ?: [];
-                $settings = array_merge($settings, cmsValidateStorefrontSettings($legacyScopeSettings));
-            } else {
-                $nativeSource = cmsCustomizerSectionRecord($db, 'theme', 'native');
-                if ($nativeSource !== null) {
-                    $nativeSettings = json_decode((string)($nativeSource['settings_json'] ?? '{}'), true) ?: [];
-                    $settings = array_merge($settings, cmsValidateStorefrontSettings($nativeSettings));
-                }
-            }
+            $settings = cmsThemeManifestCustomizerDefaults('storefront', cmsActiveThemeManifest(), $scope);
+        } elseif ($section === 'colors' || $section === 'theme') {
+            $settings = cmsThemeManifestCustomizerDefaults($section, cmsActiveThemeManifest(), $scope);
         } else {
             $source = cmsCustomizerSectionRecord($db, $section, 'native');
             if ($source !== null) {
@@ -494,18 +750,8 @@ function cmsEnsureCustomizerScopeSeeded(object $db, ?string $scope = null): void
             continue;
         }
 
-        $stmt = $db->prepare(
-            "INSERT INTO cms_theme_customizer (section, settings_json, widgets_json, updated_by)\n"
-            . " VALUES (:section, :settings, :widgets, NULL)\n"
-            . " ON DUPLICATE KEY UPDATE settings_json = VALUES(settings_json), widgets_json = VALUES(widgets_json)"
-        );
-        $stmt->execute([
-            ':section' => cmsCustomizerStorageSection($section, $scope),
-            ':settings' => json_encode($settings, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
-            ':widgets' => json_encode($widgets, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
-        ]);
-
-        $requestCache[$section] = [
+        cmsUpsertCustomizerSection($db, $section, $settings, $widgets, null, $scope);
+        $requestCache[$section] = $GLOBALS[$requestCacheKey][$section] ?? [
             'settings_json' => json_encode($settings, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
             'widgets_json' => json_encode($widgets, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
         ];
@@ -779,6 +1025,10 @@ function cmsRenderColorsStyle(object $db): string
     }
 
     $data = cmsCustomizerGet($db, 'colors');
+    if (!cmsShouldRenderCustomizerPresentationCss('colors', $data['settings'])) {
+        cmsCustomizerFragmentCacheSet('colors_style', ['html' => ''], ['cms:customizer:colors']);
+        return '';
+    }
     $s = $data['settings'];
 
     $fontBody    = htmlspecialchars($s['font_body'] ?? 'Inter');
@@ -1458,6 +1708,10 @@ function cmsRenderThemeLayoutStyle(object $db): string
     }
 
     $data = cmsCustomizerGet($db, 'theme');
+    if (!cmsShouldRenderCustomizerPresentationCss('theme', $data['settings'])) {
+        cmsCustomizerFragmentCacheSet('theme_layout_style', ['html' => ''], ['cms:customizer:theme']);
+        return '';
+    }
     $s = $data['settings'];
 
     $css = ':root{';
@@ -1544,6 +1798,10 @@ function cmsRenderStorefrontStyle(object $db): string
     }
 
     $data = cmsCustomizerGet($db, 'storefront');
+    if (!cmsShouldRenderCustomizerPresentationCss('storefront', $data['settings'])) {
+        cmsCustomizerFragmentCacheSet('storefront_style', ['html' => ''], ['cms:customizer:storefront']);
+        return '';
+    }
     $html = '<style id="cz-storefront-override">' . cmsRenderEntityPresentationCss($data['settings']) . '</style>';
     cmsCustomizerFragmentCacheSet('storefront_style', ['html' => $html], ['cms:customizer:storefront']);
     return $html;

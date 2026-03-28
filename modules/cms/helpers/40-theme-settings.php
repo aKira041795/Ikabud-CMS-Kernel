@@ -674,6 +674,62 @@ function cmsThemeTokensCss(array $tokens): string
     return "<style>\n:root {\n{$props}}\n</style>\n";
 }
 
+function cmsThemeManifestFlattenTokens(array $tokens, string $prefix = ''): array
+{
+    $flattened = [];
+    foreach ($tokens as $key => $value) {
+        $segment = strtolower(trim((string)$key));
+        $segment = preg_replace('/[^a-z0-9]+/', '-', $segment) ?? '';
+        $segment = trim($segment, '-');
+        if ($segment === '') {
+            continue;
+        }
+
+        $tokenKey = $prefix !== '' ? $prefix . '-' . $segment : $segment;
+        if (is_array($value)) {
+            $flattened = array_merge($flattened, cmsThemeManifestFlattenTokens($value, $tokenKey));
+            continue;
+        }
+
+        $tokenValue = trim((string)$value);
+        if ($tokenValue === '') {
+            continue;
+        }
+        $flattened[$tokenKey] = $tokenValue;
+    }
+
+    return $flattened;
+}
+
+function cmsThemeManifestTokens(?array $manifest = null): array
+{
+    $manifest = is_array($manifest) ? $manifest : cmsActiveThemeManifest();
+    $tokens = $manifest['tokens'] ?? [];
+    return is_array($tokens) ? cmsThemeManifestFlattenTokens($tokens) : [];
+}
+
+function cmsThemeRuntimeDiagnostics(): array
+{
+    $manifest = cmsActiveThemeManifest();
+    $activeTheme = cmsActiveTheme() ?? 'default';
+    $host = trim((string)($_SERVER['HTTP_HOST'] ?? ''));
+    $symlinkTarget = '';
+    if (is_link(CMS_THEME_SYMLINK)) {
+        $target = readlink(CMS_THEME_SYMLINK);
+        $symlinkTarget = is_string($target) ? $target : '';
+    }
+
+    return [
+        'tenant_id' => cmsRuntimeTenantId(),
+        'host' => $host,
+        'active_theme' => $activeTheme,
+        'active_theme_name' => (string)($manifest['name'] ?? ($activeTheme === 'default' ? 'Default' : $activeTheme)),
+        'active_customizer_scope' => cmsThemeCustomizerScopeFromManifest($manifest),
+        'theme_style_url' => cmsThemeAssetUrl('style.css'),
+        'theme_symlink_target' => $symlinkTarget,
+    ];
+}
+
 /**
  * Resolve a block template path, gating theme overrides by the overridable_blocks
  * allowlist. Falls back to the default CMS block template unconditionally when

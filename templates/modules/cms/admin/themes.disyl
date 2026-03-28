@@ -48,6 +48,44 @@
         </div>
     </div>
 
+    <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+        <div class="flex items-center justify-between gap-4 mb-4">
+            <div>
+                <h2 class="text-sm font-semibold text-gray-900">Runtime Diagnostics</h2>
+                <p class="mt-1 text-xs text-gray-500">Current admin request context for theme resolution and scoped customizer behavior.</p>
+            </div>
+            <span class="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-1 text-[11px] font-medium text-gray-600" x-text="runtimeDiagnostics.active_customizer_scope || 'native'"></span>
+        </div>
+        <dl class="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4 text-sm">
+            <div class="rounded-lg border border-gray-100 bg-gray-50 px-4 py-3">
+                <dt class="text-[11px] font-semibold uppercase tracking-wide text-gray-500">Host</dt>
+                <dd class="mt-1 font-medium text-gray-900 break-all" x-text="runtimeDiagnostics.host || 'CLI / unresolved'"></dd>
+            </div>
+            <div class="rounded-lg border border-gray-100 bg-gray-50 px-4 py-3">
+                <dt class="text-[11px] font-semibold uppercase tracking-wide text-gray-500">Tenant</dt>
+                <dd class="mt-1 font-medium text-gray-900" x-text="runtimeDiagnostics.tenant_id ?? 0"></dd>
+            </div>
+            <div class="rounded-lg border border-gray-100 bg-gray-50 px-4 py-3">
+                <dt class="text-[11px] font-semibold uppercase tracking-wide text-gray-500">Active Theme</dt>
+                <dd class="mt-1 font-medium text-gray-900" x-text="runtimeDiagnostics.active_theme || 'default'"></dd>
+            </div>
+            <div class="rounded-lg border border-gray-100 bg-gray-50 px-4 py-3">
+                <dt class="text-[11px] font-semibold uppercase tracking-wide text-gray-500">Customizer Scope</dt>
+                <dd class="mt-1 font-medium text-gray-900" x-text="runtimeDiagnostics.active_customizer_scope || 'native'"></dd>
+            </div>
+        </dl>
+        <div class="mt-4 grid grid-cols-1 gap-3 xl:grid-cols-2 text-xs text-gray-500">
+            <div class="rounded-lg border border-dashed border-gray-200 px-4 py-3">
+                <p class="font-semibold uppercase tracking-wide text-gray-500">Theme Stylesheet</p>
+                <p class="mt-1 break-all text-gray-700" x-text="runtimeDiagnostics.theme_style_url || 'n/a'"></p>
+            </div>
+            <div class="rounded-lg border border-dashed border-gray-200 px-4 py-3">
+                <p class="font-semibold uppercase tracking-wide text-gray-500">Theme Symlink</p>
+                <p class="mt-1 break-all text-gray-700" x-text="runtimeDiagnostics.theme_symlink_target || 'not linked'"></p>
+            </div>
+        </div>
+    </div>
+
     <!-- Theme Grid -->
     <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
         <template x-for="theme in themes" :key="theme.slug">
@@ -115,6 +153,7 @@ function cmsThemeManager() {
     return {
         themes: JSON.parse('{themes_json|raw}'),
         activeTheme: '{active_theme}',
+        runtimeDiagnostics: JSON.parse('{theme_runtime_diagnostics_json|raw}'),
         showUpload: false,
         uploading: false,
         activating: false,
@@ -169,6 +208,9 @@ function cmsThemeManager() {
                 const data = await res.json();
                 if (data.ok) {
                     this.activeTheme = slug;
+                    if (data.runtime) {
+                        this.runtimeDiagnostics = data.runtime;
+                    }
                 } else {
                     alert(data.error || 'Activation failed.');
                 }
