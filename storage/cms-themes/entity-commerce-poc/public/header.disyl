@@ -1,5 +1,5 @@
 <div class="poc-header poc-header--customized">
-    <div class="poc-header__inner poc-header__inner--customized">
+    <div class="poc-header__slot poc-header__slot--customized poc-header__inner--customized">
         {header_html|raw}
     </div>
 </div>

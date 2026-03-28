@@ -21,7 +21,7 @@
 {customized_header|raw}
 {else}
 <header class="border-b border-gray-200 bg-white sticky top-0 z-10">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
+    <div class="cms-public-shell px-4 sm:px-6 py-4 flex items-center justify-between">
         <a href="{base_url}/ecommerce/shop" class="font-bold text-xl text-gray-900">Shop</a>
         <nav class="hidden md:flex items-center gap-6 text-sm">
             <a href="{base_url}/ecommerce/shop" class="text-gray-600 hover:text-gray-900">Products</a>
@@ -36,19 +36,17 @@
 </header>
 {/if}
 
-<main class="{if active_theme_slug == 'entity-commerce-poc'}poc-main{else}max-w-7xl mx-auto px-4 sm:px-6 py-8{/if}">
-    {if active_theme_slug == 'entity-commerce-poc'}<div class="poc-main__inner"><div class="poc-content">{/if}
-    <div class="{if active_theme_slug == 'entity-commerce-poc'}px-6 py-8 sm:px-8 sm:py-10{else}{/if}">
+<main class="{if active_theme_slug == 'entity-commerce-poc'}poc-main{else}cms-public-main{/if}">
+    {if active_theme_slug == 'entity-commerce-poc'}<div class="poc-main__inner"><div class="poc-content"><div class="px-6 py-8 sm:px-8 sm:py-10">{/if}
     {block content}{/block}
-</div>
-    {if active_theme_slug == 'entity-commerce-poc'}</div></div>{/if}
+    {if active_theme_slug == 'entity-commerce-poc'}</div></div></div>{/if}
 </main>
 
 {if has_customized_footer}
 {customized_footer|raw}
 {else}
 <footer class="mt-16 border-t border-gray-200 py-8 text-center text-sm text-gray-400">
-    &copy; {year} Shop. Powered by Ikabud CMS.
+    <div class="cms-public-shell px-4 sm:px-6">&copy; {year} Shop. Powered by Ikabud CMS.</div>
 </footer>
 {/if}
 

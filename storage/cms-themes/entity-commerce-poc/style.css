@@ -54,6 +54,12 @@ body.entity-commerce-poc {
     margin: 0 auto;
 }
 
+.poc-header__slot--customized {
+    width: min(var(--container-max), calc(100vw - 40px));
+    margin: 0 auto;
+    display: block;
+}
+
 .poc-header {
     padding: 28px 0 18px;
 }
@@ -806,6 +812,10 @@ body.entity-commerce-poc {
 }
 
 @media (max-width: 720px) {
+
+    .poc-header__slot--customized {
+        width: min(var(--container-max), calc(100vw - 28px));
+    }
 
     .poc-header--customized .header-wrapper,
     .poc-footer--customized .footer-widgets,

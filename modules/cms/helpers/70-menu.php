@@ -308,9 +308,12 @@ function cmsMenuItemsReplace(int $menuId, array $items): array
  * Resolve the actual URL for a menu item based on its link_type.
  */
 
-function cmsResolveMenuItemUrl(array $item): string
+function cmsResolveMenuItemUrl(array $item, ?string $scope = null): string
 {
     $baseUrl = rtrim((string)(defined('BASE_URL') ? BASE_URL : ''), '/');
+    $scope = function_exists('cmsNormalizeCustomizerScope')
+        ? cmsNormalizeCustomizerScope($scope, function_exists('cmsActiveCustomizerScope') ? cmsActiveCustomizerScope() : 'native')
+        : trim((string)$scope);
     $type = (string)($item['link_type'] ?? 'custom');
     $ref = (string)($item['link_ref'] ?? '');
     $url = (string)($item['url'] ?? '');
@@ -332,7 +335,9 @@ function cmsResolveMenuItemUrl(array $item): string
     if ($type === 'post' && $ref !== '') return $baseUrl . '/cms/blog/' . $ref;
     if ($type === 'category' && $ref !== '') return $baseUrl . '/cms/category/' . $ref;
     if ($type === 'tag' && $ref !== '') return $baseUrl . '/cms/tag/' . $ref;
-    if ($type === 'home') return $baseUrl . '/cms';
+    if ($type === 'home') {
+        return $baseUrl . ($scope === 'ecommerce' ? '/ecommerce/shop' : '/cms');
+    }
 
     if ($url !== '') {
         $normalizedUrl = rtrim($url, '/');
@@ -359,11 +364,11 @@ function cmsResolveMenuItemUrl(array $item): string
  * Detect if a menu item is "active" (matches current URL).
  */
 
-function cmsIsMenuItemActive(array $item): bool
+function cmsIsMenuItemActive(array $item, ?string $scope = null): bool
 {
     $currentPath = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH);
     $currentPath = rtrim((string)$currentPath, '/');
-    $itemUrl = cmsResolveMenuItemUrl($item);
+    $itemUrl = cmsResolveMenuItemUrl($item, $scope);
     $itemPath = parse_url($itemUrl, PHP_URL_PATH);
     $itemPath = rtrim((string)$itemPath, '/');
 
@@ -409,6 +414,7 @@ function cmsRenderMenu(string $location, $options = []): string
         'item_tag'               => 'li',
         'link_before'            => '',
         'link_after'             => '',
+        'scope'                  => null,
     ], $options);
 
     $currentPath = cmsMenuCurrentPath();
@@ -442,15 +448,15 @@ function cmsRenderMenu(string $location, $options = []): string
         $out = '<ul class="' . htmlspecialchars($ulCls, ENT_QUOTES) . '">';
 
         foreach ($items as $item) {
-            $url = cmsResolveMenuItemUrl($item);
-            $isActive = cmsIsMenuItemActive($item);
+            $url = cmsResolveMenuItemUrl($item, $opts['scope']);
+            $isActive = cmsIsMenuItemActive($item, $opts['scope']);
             $hasActiveChild = false;
 
             // Check if any descendant is active
             if (!empty($item['children'])) {
-                $checkActive = function (array $children) use (&$checkActive): bool {
+                $checkActive = function (array $children) use (&$checkActive, $opts): bool {
                     foreach ($children as $c) {
-                        if (cmsIsMenuItemActive($c)) return true;
+                        if (cmsIsMenuItemActive($c, $opts['scope'])) return true;
                         if (!empty($c['children']) && $checkActive($c['children'])) return true;
                     }
                     return false;
@@ -512,7 +518,7 @@ function cmsRenderMenu(string $location, $options = []): string
  * Get all saved blocks, optionally filtered by category.
  */
 
-function cmsRenderMenuById(object $db, int $menuId, string $cssClass = 'nav-menu'): string
+function cmsRenderMenuById(object $db, int $menuId, string $cssClass = 'nav-menu', ?string $scope = null): string
 {
     $stmt = $db->prepare(
         "SELECT id, label, url, link_type, link_ref, target, parent_id, sort_order
@@ -527,7 +533,7 @@ function cmsRenderMenuById(object $db, int $menuId, string $cssClass = 'nav-menu
     $html = '<ul class="' . htmlspecialchars($cssClass) . '">';
     foreach ($items as $item) {
         if ((int)($item['parent_id'] ?? 0) !== 0) continue; // top-level only for footer
-        $url = cmsResolveMenuItemUrl($item);
+        $url = cmsResolveMenuItemUrl($item, $scope);
         $target = (string)($item['target'] ?? '') === '_blank' ? ' target="_blank" rel="noopener noreferrer"' : '';
         $html .= '<li><a href="' . htmlspecialchars($url) . '"' . $target . '>' . htmlspecialchars((string)($item['label'] ?? '')) . '</a></li>';
     }

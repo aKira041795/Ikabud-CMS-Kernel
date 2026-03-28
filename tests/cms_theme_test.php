@@ -302,16 +302,22 @@ $ecommerceLayoutContent = file_get_contents(BASE_PATH . '/templates/modules/ecom
 t('ecommerce public layout consumes customized header output', str_contains($ecommerceLayoutContent, '{customized_header|raw}'));
 t('ecommerce public layout consumes customized footer output', str_contains($ecommerceLayoutContent, '{customized_footer|raw}'));
 t('ecommerce public layout loads storefront theme assets', str_contains($ecommerceLayoutContent, '{if theme_style_url}<link rel="stylesheet" href="{theme_style_url}">{/if}'));
+t('ecommerce public layout uses shared shell wrapper for fallback header and footer', str_contains($ecommerceLayoutContent, 'cms-public-shell'));
+t('ecommerce public layout uses shared main layout contract', str_contains($ecommerceLayoutContent, 'cms-public-main'));
 
 $pocStyleContent = file_get_contents(cmsThemesPath() . '/entity-commerce-poc/style.css');
 t('entity-commerce-poc styles generic customizer site header', str_contains($pocStyleContent, '.site-header {'));
 t('entity-commerce-poc provides customized header inner shell styles', str_contains($pocStyleContent, '.poc-header__inner--customized {'));
+t('entity-commerce-poc provides dedicated customized header slot shell styles', str_contains($pocStyleContent, '.poc-header__slot--customized {'));
 t('entity-commerce-poc keeps customized header inner layout contained', str_contains($pocStyleContent, '.poc-header--customized .header-inner,'));
 t('entity-commerce-poc keeps customized header container max-width disabled', str_contains($pocStyleContent, 'max-width: none;'));
 t('entity-commerce-poc styles generic customizer footer widgets', str_contains($pocStyleContent, '.footer-widgets-grid {'));
 t('entity-commerce-poc styles generic customizer footer bottom', str_contains($pocStyleContent, '.footer-bottom {'));
 t('entity-commerce-poc provides a storefront header partial', is_file(cmsThemesPath() . '/entity-commerce-poc/public/header.disyl'));
 t('entity-commerce-poc provides a storefront footer partial', is_file(cmsThemesPath() . '/entity-commerce-poc/public/footer.disyl'));
+
+$pocHeaderPartialContent = file_get_contents(cmsThemesPath() . '/entity-commerce-poc/public/header.disyl');
+t('entity-commerce-poc customized header partial uses dedicated slot shell', str_contains($pocHeaderPartialContent, 'poc-header__slot--customized'));
 
 $singleContent = file_get_contents($link . '/public/single.disyl');
 t('single extends theme layout', str_contains($singleContent, '{extends "_cms_active_theme/layouts/public.disyl"}'));
@@ -527,9 +533,14 @@ upsertCustomizerSection($db, 'theme', array_merge(cmsThemeLayoutSettingsDefaults
     'layout_mode' => 'contained',
     'site_max_width' => '1280',
 ]), [], 'ecommerce');
+upsertCustomizerSection($db, 'header', array_merge(cmsHeaderSettingsDefaults(), [
+    'show_search' => 1,
+    'menu_location' => '__missing_storefront_menu__',
+]), [], 'ecommerce');
 upsertCustomizerSection($db, 'storefront', array_merge(cmsStorefrontSettingsDefaults(), $validatedStorefront), [], 'ecommerce');
 cmsCacheInvalidateByTags(['cms:customizer']);
 cmsCustomizerClearPersistentCache('theme', 'ecommerce');
+cmsCustomizerClearPersistentCache('header', 'ecommerce');
 cmsCustomizerClearPersistentCache('storefront', 'ecommerce');
 $GLOBALS[cmsCustomizerRequestCacheKey('section_row', 'ecommerce')] = [];
 
@@ -546,7 +557,14 @@ $customizedHeaderHtml = cmsRenderCustomizedHeader($db, $publicCtx);
 $customizedFooterHtml = cmsRenderCustomizedFooter($db);
 t('customized storefront header renders through theme partial wrapper', str_contains($customizedHeaderHtml, 'poc-header--customized'), $customizedHeaderHtml);
 t('customized storefront header renders through theme inner shell', str_contains($customizedHeaderHtml, 'poc-header__inner--customized'), $customizedHeaderHtml);
+t('customized storefront header links site branding to shop root', str_contains($customizedHeaderHtml, '/ecommerce/shop'), $customizedHeaderHtml);
+t('customized storefront header fallback nav stays on storefront routes', str_contains($customizedHeaderHtml, '>Shop<') && str_contains($customizedHeaderHtml, '/ecommerce/my-orders'), $customizedHeaderHtml);
+t('customized storefront header search overlay posts to storefront query endpoint', str_contains($customizedHeaderHtml, '/ecommerce/shop') && str_contains($customizedHeaderHtml, 'name="search"'), $customizedHeaderHtml);
+t('customized storefront header exposes shared shell class for contained layout', str_contains($customizedHeaderHtml, 'container cms-public-shell'), $customizedHeaderHtml);
 t('customized storefront footer renders through theme partial wrapper', str_contains($customizedFooterHtml, 'poc-footer--customized'), $customizedFooterHtml);
+
+$menuHomeUrl = cmsResolveMenuItemUrl(['link_type' => 'home'], 'ecommerce');
+t('scope-aware home menu resolves to storefront home for ecommerce scope', str_ends_with($menuHomeUrl, '/ecommerce/shop'), $menuHomeUrl);
 
 $tokenSettings['active_theme'] = 'minimal';
 saveModuleSettings('cms', $tokenSettings);

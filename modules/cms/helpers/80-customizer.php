@@ -209,6 +209,49 @@ function cmsCustomizerScopeIntro(?string $scope = null): string
         : 'Customize your site\'s shared presentation layer for the native theme experience.';
 }
 
+function cmsCustomizerStorefrontScope(?string $scope = null): bool
+{
+    $scope = $scope !== null ? trim($scope) : cmsActiveCustomizerScope();
+    return $scope === 'ecommerce';
+}
+
+function cmsCustomizerHomeUrl(string $baseUrl, ?string $scope = null): string
+{
+    return $baseUrl . (cmsCustomizerStorefrontScope($scope) ? '/ecommerce/shop' : '/cms');
+}
+
+function cmsCustomizerSearchConfig(?string $scope = null): array
+{
+    if (cmsCustomizerStorefrontScope($scope)) {
+        return [
+            'action_path' => '/ecommerce/shop',
+            'query_param' => 'search',
+            'placeholder' => 'Search products...',
+        ];
+    }
+
+    return [
+        'action_path' => '/cms/search',
+        'query_param' => 'q',
+        'placeholder' => 'Search…',
+    ];
+}
+
+function cmsCustomizerFallbackNavItems(string $baseUrl, ?string $scope = null): array
+{
+    if (cmsCustomizerStorefrontScope($scope)) {
+        return [
+            ['label' => 'Shop', 'href' => $baseUrl . '/ecommerce/shop'],
+            ['label' => 'My Orders', 'href' => $baseUrl . '/ecommerce/my-orders'],
+        ];
+    }
+
+    return [
+        ['label' => 'Home', 'href' => $baseUrl . '/cms'],
+        ['label' => 'Blog', 'href' => $baseUrl . '/cms/blog'],
+    ];
+}
+
 function cmsCustomizerStorageSection(string $section, ?string $scope = null): string
 {
     $scope = $scope !== null ? trim($scope) : cmsActiveCustomizerScope();
@@ -1255,8 +1298,13 @@ function cmsRenderThemeLayoutStyle(object $db): string
     }
 
     // Main content area
+    $css .= '.cms-public-shell{width:100%;max-width:var(--theme-site-max-width);margin-left:auto;margin-right:auto;}';
     $css .= '.cms-public-main{max-width:var(--theme-site-max-width);margin-left:auto;margin-right:auto;';
     $css .= 'padding:var(--theme-content-pt) var(--theme-content-px) var(--theme-content-pb);}';
+
+    if (cmsActiveCustomizerScope() === 'ecommerce') {
+        $css .= '.header-topbar .cms-public-shell,.site-header .cms-public-shell,.footer-widgets .cms-public-shell,.footer-bottom .cms-public-shell{width:100%;max-width:var(--theme-site-max-width);margin-left:auto;margin-right:auto;}';
+    }
 
     // Prose / single column
     $css .= '.cms-content-prose{max-width:var(--theme-content-max-width);margin-left:auto;margin-right:auto;}';
@@ -1465,7 +1513,7 @@ function cmsRenderFooterWidgets(object $db): string
     $titleColor     = htmlspecialchars($settings['title_color'] ?? '#f1f5f9');
     $paddingTop     = (int)($settings['padding_top'] ?? 40);
     $paddingBottom  = (int)($settings['padding_bottom'] ?? 40);
-    $innerWidth     = ($settings['inner_width'] ?? 'contained') === 'full-width' ? '' : ' container';
+    $innerWidth     = ($settings['inner_width'] ?? 'contained') === 'full-width' ? '' : ' container cms-public-shell';
 
     $html = '<div class="footer-widgets" style="'
         . '--footer-bg:' . $bgColor . ';'
@@ -1815,7 +1863,7 @@ function cmsRenderSingleSidebarWidget(array $widget, object $db, array $cmsSetti
         case 'nav_menu':
             $menuId = (int)($props['menu_id'] ?? 0);
             if ($menuId > 0) {
-                $html .= cmsRenderMenuById($db, $menuId, 'sidebar-menu');
+                $html .= cmsRenderMenuById($db, $menuId, 'sidebar-menu', cmsActiveCustomizerScope());
             }
             break;
         case 'recent_posts':
@@ -1848,8 +1896,9 @@ function cmsRenderSingleSidebarWidget(array $widget, object $db, array $cmsSetti
             if ($buttonLabel === '') {
                 $buttonLabel = 'Search';
             }
-            $html .= '<form class="sidebar-search-form" action="' . htmlspecialchars($baseUrl . '/cms/blog') . '" method="get">';
-            $html .= '<input class="sidebar-search-input" type="search" name="q" placeholder="' . htmlspecialchars($placeholder) . '">';
+            $searchConfig = cmsCustomizerSearchConfig();
+            $html .= '<form class="sidebar-search-form" action="' . htmlspecialchars($baseUrl . $searchConfig['action_path']) . '" method="get">';
+            $html .= '<input class="sidebar-search-input" type="search" name="' . htmlspecialchars($searchConfig['query_param']) . '" placeholder="' . htmlspecialchars($placeholder) . '">';
             $html .= '<button class="sidebar-search-btn" type="submit">' . htmlspecialchars($buttonLabel) . '</button>';
             $html .= '</form>';
             break;
@@ -2154,6 +2203,10 @@ function cmsRenderCustomizedHeader(object $db, array $publicCtx = []): string
 
     $cmsSettings = readCmsSettings();
     $baseUrl = rtrim((string)(defined('BASE_URL') ? BASE_URL : ''), '/');
+    $scope = cmsActiveCustomizerScope();
+    $homeUrl = cmsCustomizerHomeUrl($baseUrl, $scope);
+    $searchConfig = cmsCustomizerSearchConfig($scope);
+    $searchAction = $baseUrl . $searchConfig['action_path'];
 
     $siteTitle   = htmlspecialchars($cmsSettings['site_title'] ?? 'Site');
     $siteTagline = htmlspecialchars($cmsSettings['site_tagline'] ?? '');
@@ -2175,7 +2228,7 @@ function cmsRenderCustomizedHeader(object $db, array $publicCtx = []): string
     $mobileBg      = htmlspecialchars($settings['mobile_bg_color'] ?? '#ffffff');
     $mobileText    = htmlspecialchars($settings['mobile_text_color'] ?? '#1f2937');
     $isSticky      = (int)($settings['sticky'] ?? 1);
-    $innerWidth    = ($settings['inner_width'] ?? 'contained') === 'full-width' ? '' : ' container';
+    $innerWidth    = ($settings['inner_width'] ?? 'contained') === 'full-width' ? '' : ' container cms-public-shell';
     $layout        = $settings['layout'] ?? 'default';
     $logoUrl       = trim((string)($settings['logo_image_url'] ?? ''));
     $logoMaxH      = (int)($settings['logo_max_height'] ?? 40);
@@ -2302,12 +2355,12 @@ function cmsRenderCustomizedHeader(object $db, array $publicCtx = []): string
     // Branding
     $html .= '<div class="site-branding">';
     if ($logoUrl !== '') {
-        $html .= '<a href="' . $baseUrl . '/cms" class="site-logo site-logo--image">'
+        $html .= '<a href="' . $homeUrl . '" class="site-logo site-logo--image">'
             . '<img src="' . htmlspecialchars($logoUrl, ENT_QUOTES) . '" alt="' . $siteTitle . '" '
             . 'style="max-height:' . $logoMaxH . 'px;width:auto;" class="header-logo-img">'
             . '</a>';
     } else {
-        $html .= '<a href="' . $baseUrl . '/cms" class="site-logo" style="color:var(--header-logo-color);">' . $siteTitle . '</a>';
+        $html .= '<a href="' . $homeUrl . '" class="site-logo" style="color:var(--header-logo-color);">' . $siteTitle . '</a>';
     }
     if ((int)($settings['show_tagline'] ?? 0) && $siteTagline !== '') {
         $html .= '<p class="site-tagline">' . $siteTagline . '</p>';
@@ -2327,6 +2380,7 @@ function cmsRenderCustomizedHeader(object $db, array $publicCtx = []): string
             'css_class'    => 'main-navigation',
             'menu_class'   => 'nav-menu',
             'submenu_class' => 'nav-menu-sub',
+            'scope' => $scope,
         ]);
     } catch (Throwable $e) {}
 
@@ -2335,8 +2389,9 @@ function cmsRenderCustomizedHeader(object $db, array $publicCtx = []): string
     } else {
         $html .= '<nav class="main-navigation">';
         $html .= '<ul class="nav-menu">';
-        $html .= '<li><a href="' . $baseUrl . '/cms">Home</a></li>';
-        $html .= '<li><a href="' . $baseUrl . '/cms/blog">Blog</a></li>';
+        foreach (cmsCustomizerFallbackNavItems($baseUrl, $scope) as $item) {
+            $html .= '<li><a href="' . htmlspecialchars($item['href'], ENT_QUOTES) . '">' . htmlspecialchars($item['label'], ENT_QUOTES) . '</a></li>';
+        }
         $html .= '</ul>';
         $html .= '</nav>';
     }
@@ -2407,6 +2462,7 @@ function cmsRenderCustomizedHeader(object $db, array $publicCtx = []): string
                 'css_class'    => 'canvas-navigation mobile-canvas-target',
                 'menu_class'   => 'nav-menu',
                 'submenu_class' => 'nav-menu-sub',
+                'scope' => $scope,
             ]);
         } catch (Throwable $e) {}
         if ($canvasNavHtml !== '') {
@@ -2415,8 +2471,9 @@ function cmsRenderCustomizedHeader(object $db, array $publicCtx = []): string
         } else {
             $html .= '<nav class="canvas-navigation mobile-canvas-target" style="' . $canvasVarStyle . '"><ul class="nav-menu">';
             $html .= $canvasHeaderHtml;
-            $html .= '<li><a href="' . $baseUrl . '/cms">Home</a></li>';
-            $html .= '<li><a href="' . $baseUrl . '/cms/blog">Blog</a></li>';
+            foreach (cmsCustomizerFallbackNavItems($baseUrl, $scope) as $item) {
+                $html .= '<li><a href="' . htmlspecialchars($item['href'], ENT_QUOTES) . '">' . htmlspecialchars($item['label'], ENT_QUOTES) . '</a></li>';
+            }
             $html .= '</ul></nav>';
         }
     }
@@ -2501,11 +2558,10 @@ function cmsRenderCustomizedHeader(object $db, array $publicCtx = []): string
 
     // Search overlay (outside wrapper for z-index stacking)
     if ((int)($settings['show_search'] ?? 0)) {
-        $searchAction = htmlspecialchars($baseUrl . '/cms/search');
         $html .= '<div id="header-search-overlay" class="header-search-overlay">'
             . '<div class="header-search-overlay-inner">'
             . '<form action="' . $searchAction . '" method="GET" class="header-search-form">'
-            . '<input type="text" name="q" class="header-search-input" placeholder="Search…" autocomplete="off" autofocus>'
+            . '<input type="text" name="' . htmlspecialchars($searchConfig['query_param'], ENT_QUOTES) . '" class="header-search-input" placeholder="' . htmlspecialchars($searchConfig['placeholder'], ENT_QUOTES) . '" autocomplete="off" autofocus>'
             . '<button type="submit" class="header-search-submit" aria-label="Search">'
             . '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>'
             . '</button>'
@@ -2680,6 +2736,7 @@ function cmsRenderSingleHeaderWidget(array $widget, object $db, array $cmsSettin
                             'menu_class'    => 'header-widget-menu',
                             'submenu_class' => 'header-widget-submenu',
                             'depth'         => 1,
+                            'scope'         => cmsActiveCustomizerScope(),
                         ]);
                     }
                 } catch (Throwable $e) {}
