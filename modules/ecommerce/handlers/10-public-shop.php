@@ -57,6 +57,54 @@ function ecPublicStorefrontPageUrl(string $basePath, int $page, array $query = [
     return $basePath . '?' . $queryString;
 }
 
+function ecPublicDecorateCatalogProducts(array $products): array
+{
+    $resolved = [];
+
+    foreach ($products as $product) {
+        if (!is_array($product)) {
+            continue;
+        }
+
+        $slug = trim((string)($product['slug'] ?? ''));
+        $product['detail_url'] = $slug !== ''
+            ? '/ecommerce/shop/' . rawurlencode($slug)
+            : '/ecommerce/shop';
+
+        $product['sale_badge_text'] = '';
+        $pricing = is_array($product['pricing'] ?? null) ? $product['pricing'] : [];
+        $regularPrice = isset($pricing['price']) ? (float)$pricing['price'] : null;
+        $salePrice = isset($pricing['sale_price']) ? (float)$pricing['sale_price'] : null;
+        if ($regularPrice !== null && $regularPrice > 0 && $salePrice !== null && $salePrice > 0 && $salePrice < $regularPrice) {
+            $discountPercent = (int)round((($regularPrice - $salePrice) / $regularPrice) * 100);
+            if ($discountPercent > 0) {
+                $product['sale_badge_text'] = $discountPercent . '% off';
+            }
+        }
+
+        $product['inventory_badge_text'] = '';
+        $product['inventory_badge_tone'] = 'muted';
+        $inventory = is_array($product['inventory'] ?? null) ? $product['inventory'] : [];
+        if ((bool)($inventory['track_stock'] ?? false)) {
+            if (!empty($inventory['out_of_stock']) || empty($inventory['in_stock'])) {
+                $product['inventory_badge_text'] = 'Sold out';
+                $product['inventory_badge_tone'] = 'danger';
+            } elseif (!empty($inventory['low_stock'])) {
+                $remaining = max(0, (int)($inventory['stock_qty'] ?? 0));
+                $product['inventory_badge_text'] = $remaining > 0 ? ($remaining . ' left') : 'Low stock';
+                $product['inventory_badge_tone'] = 'warning';
+            } else {
+                $product['inventory_badge_text'] = 'In stock';
+                $product['inventory_badge_tone'] = 'success';
+            }
+        }
+
+        $resolved[] = $product;
+    }
+
+    return $resolved;
+}
+
 /**
  * GET /ecommerce/shop  — product grid
  * Delegates to CMS universal entity list (capability-driven) when available.
@@ -116,11 +164,12 @@ function ecPublicShop(): void
             'limit' => $perPage,
             'offset' => $offset,
         ]);
+        $products = ecPublicDecorateCatalogProducts($productResult['items']);
         $totalPages = $perPage > 0 ? max(1, (int)ceil($productResult['total'] / $perPage)) : 1;
 
         ecRender('modules/ecommerce/public/shop.disyl', [
             'page_title' => trim((string)ecSettings('shop_page_title')) ?: 'Shop',
-            'products' => $productResult['items'],
+            'products' => $products,
             'total' => $productResult['total'],
             'categories' => $availableCategories,
             'available_categories' => $availableCategories,
@@ -132,6 +181,8 @@ function ecPublicShop(): void
             'total_pages' => $totalPages,
             'all_items_url' => '/ecommerce/shop',
             'search_action_url' => '/ecommerce/shop',
+            'visible_count' => count($products),
+            'catalog_category_count' => count($availableCategories),
             'pagination_first_url' => ecPublicStorefrontPageUrl('/ecommerce/shop', 1, [
                 'search' => $search,
                 'cat' => $categoryId,
@@ -218,12 +269,13 @@ function ecPublicCategory(array $params = []): void
             'limit'       => $perPage,
             'offset'      => $offset,
         ]);
+        $products = ecPublicDecorateCatalogProducts($productResult['items']);
 
         $totalPages = $perPage > 0 ? (int)ceil($productResult['total'] / $perPage) : 1;
 
         ecRender('modules/ecommerce/public/shop.disyl', [
             'page_title'  => $cat['name'],
-            'products'    => $productResult['items'],
+            'products'    => $products,
             'total'       => $productResult['total'],
             'categories'  => $availableCategories,
             'available_categories' => $availableCategories,
@@ -235,6 +287,8 @@ function ecPublicCategory(array $params = []): void
             'total_pages' => $totalPages,
             'all_items_url' => '/ecommerce/shop',
             'search_action_url' => '/ecommerce/shop/category/' . rawurlencode($slug),
+            'visible_count' => count($products),
+            'catalog_category_count' => count($availableCategories),
             'pagination_first_url' => ecPublicStorefrontPageUrl('/ecommerce/shop/category/' . rawurlencode($slug), 1, [
                 'search' => $search,
             ]),

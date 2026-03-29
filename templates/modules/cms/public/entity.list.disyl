@@ -44,13 +44,28 @@
             <button type="submit" class="inline-flex items-center justify-center rounded-xl bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-sky-700">Search</button>
         </form>
 
-        {if entity_list_context.available_categories | count > 0}
+        {if entity_presentation.list_category_navigation == 'dropdown'}
+        <form method="get" action="{entity_list_context.all_items_url|default:entity_list_context.base_list_url}" class="cms-entity-list__category-picker mt-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            {if entity_list_context.search}<input type="hidden" name="search" value="{entity_list_context.search}">{/if}
+            <label for="cms-entity-list-category" class="text-xs font-semibold uppercase tracking-[0.14em] text-gray-500">Shop Categories</label>
+            <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <select id="cms-entity-list-category" name="cat" class="min-w-[220px] rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-700 shadow-sm focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-100">
+                    <option value="" {if entity_list_context.category_id == 0 and entity_list_context.category_slug == ''}selected{/if}>All Products</option>
+                    {foreach entity_list_context.available_categories as category}
+                    <option value="{category.id}" {if category.is_active}selected{/if}>{category.name}</option>
+                    {/foreach}
+                </select>
+                <button type="submit" class="inline-flex items-center justify-center rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 transition-colors hover:border-sky-200 hover:text-sky-700">Browse</button>
+            </div>
+        </form>
+        {else}
         <nav class="mt-4 flex flex-wrap gap-2" aria-label="Categories">
             <a href="{entity_list_context.all_items_url|default:entity_list_context.base_list_url}" class="inline-flex items-center rounded-full border px-3 py-1.5 text-sm transition-colors {if entity_list_context.category_id == 0 and entity_list_context.category_slug == ''}border-sky-600 bg-sky-600 text-white{else}border-gray-200 bg-white text-gray-600 hover:border-sky-200 hover:text-sky-700{/if}">All Products</a>
             {foreach entity_list_context.available_categories as category}
             <a href="{category.url}" class="inline-flex items-center rounded-full border px-3 py-1.5 text-sm transition-colors {if category.is_active}border-sky-600 bg-sky-600 text-white{else}border-gray-200 bg-white text-gray-600 hover:border-sky-200 hover:text-sky-700{/if}">{category.name}</a>
             {/foreach}
         </nav>
+        {/if}
         {/if}
     </div>
     {/if}
@@ -75,7 +90,7 @@
                 {/if}
 
                 <div class="cms-entity-card__body p-4">
-                    <h2 class="text-base font-semibold text-gray-900 group-hover:text-sky-600 leading-snug mb-1">{item.title}</h2>
+                    <h2 class="cms-entity-card__title text-base font-semibold text-gray-900 group-hover:text-sky-600 leading-snug mb-1">{item.title}</h2>
 
                     {if item.list_card_excerpt}
                     <p class="cms-entity-card__excerpt text-sm text-gray-500 line-clamp-2">{item.list_card_excerpt}</p>

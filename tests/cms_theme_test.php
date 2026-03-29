@@ -570,6 +570,46 @@ $nativeShopHtml = captureEcRender('modules/ecommerce/public/shop.disyl', [
 ]);
 t('native storefront shop render uses archive-product theme template', str_contains($nativeShopHtml, 'data-native-ecommerce-template="archive-product"'), $nativeShopHtml);
 
+$nativeShopDropdownHtml = captureEcRender('modules/ecommerce/public/shop.disyl', [
+    'page_title' => 'Shop',
+    'products' => [[
+        'id' => 1,
+        'slug' => 'demo-product',
+        'title' => 'Demo Product',
+        'excerpt' => 'A short excerpt.',
+        'primary_image_url' => '',
+        'pricing' => [
+            'formatted' => '$19.00',
+            'on_sale' => false,
+            'regular_fmt' => '$19.00',
+        ],
+        'inventory' => [
+            'track_stock' => true,
+            'stock_qty' => 6,
+            'in_stock' => true,
+            'out_of_stock' => false,
+            'low_stock' => false,
+        ],
+    ]],
+    'total' => 1,
+    'categories' => [
+        ['id' => 12, 'name' => 'Bread', 'url' => '/ecommerce/shop?cat=12', 'is_active' => false],
+        ['id' => 18, 'name' => 'Wholegrain', 'url' => '/ecommerce/shop?cat=18', 'is_active' => true],
+    ],
+    'search' => 'sourdough',
+    'category_id' => 18,
+    'current_cat' => ['id' => 18, 'name' => 'Wholegrain'],
+    'page' => 1,
+    'per_page' => 12,
+    'total_pages' => 1,
+    'cart_count' => 0,
+    'public_render_origin' => 'ecommerce',
+    'public_route_kind' => 'shop_index',
+    'public_presentation_mode' => 'traditional',
+    'theme_settings' => array_merge(cmsThemeLayoutSettingsDefaults(), ['entity_list_category_navigation' => 'dropdown']),
+]);
+t('native storefront shop can render category dropdown navigation', str_contains($nativeShopDropdownHtml, 'native-shop-category-picker') && str_contains($nativeShopDropdownHtml, 'Shop categories') && str_contains($nativeShopDropdownHtml, 'name="cat"') && str_contains($nativeShopDropdownHtml, 'Browse'), $nativeShopDropdownHtml);
+
 $nativeProductHtml = captureEcRender('modules/ecommerce/public/product.disyl', [
     'page_title' => 'Demo Product',
     'product' => [
@@ -787,7 +827,7 @@ t('entity-commerce-poc styles shared progress block without Tailwind', str_conta
 t('entity-commerce-poc styles prose content without Tailwind typography utilities', str_contains($pocStyleContent, '.poc-entity-view__body.prose h2 {') && str_contains($pocStyleContent, '.poc-entity-view__body.prose blockquote {'));
 
 $entityPresentationCss = cmsRenderEntityPresentationCss(cmsStorefrontSettingsDefaults());
-t('entity presentation css exports global geometry variables for storefront themes', str_contains($entityPresentationCss, '--theme-entity-list-card-min-width:') && str_contains($entityPresentationCss, '--theme-entity-list-media-ratio:') && str_contains($entityPresentationCss, '--theme-entity-media-ratio:') && str_contains($entityPresentationCss, '--theme-entity-action-min-height:'), $entityPresentationCss);
+t('entity presentation css exports global geometry variables for storefront themes', str_contains($entityPresentationCss, '--theme-entity-list-card-min-width:') && str_contains($entityPresentationCss, '--theme-entity-list-title-font:') && str_contains($entityPresentationCss, '--theme-entity-list-price-size:') && str_contains($entityPresentationCss, '--theme-entity-list-media-ratio:') && str_contains($entityPresentationCss, '--theme-entity-media-ratio:') && str_contains($entityPresentationCss, '--theme-entity-action-min-height:'), $entityPresentationCss);
 
 $customizerTemplateContent = file_get_contents(BASE_PATH . '/templates/modules/cms/admin/theme-customizer.disyl');
 $entityListTemplateContent = file_get_contents(BASE_PATH . '/templates/modules/cms/public/entity.list.disyl') ?: '';
@@ -797,20 +837,29 @@ $nativeSingleProductTemplateContent = file_get_contents(BASE_PATH . '/storage/cm
 t('customizer tracks per-section dirty state for scoped saves', str_contains($customizerTemplateContent, 'dirtySections: { footer: false, header: false, sidebar: false, colors: false, custom_code: false, theme: false, storefront: false }'));
 t('customizer save resolves only dirty sections', str_contains($customizerTemplateContent, 'const sections = this.sectionsToSave();'));
 t('canonical entity list template extends the active theme public layout', str_contains($entityListTemplateContent, '{extends "_cms_active_theme/layouts/public.disyl"}'), $entityListTemplateContent);
+t('canonical entity list template exposes dedicated card title hook for catalog overrides', str_contains($entityListTemplateContent, 'cms-entity-card__title'), $entityListTemplateContent);
 t('canonical entity view template extends the active theme public layout', str_contains($entityViewTemplateContent, '{extends "_cms_active_theme/layouts/public.disyl"}'), $entityViewTemplateContent);
 t('native default theme ships dedicated archive-product storefront template', str_contains($nativeArchiveProductTemplateContent, 'data-native-ecommerce-template="archive-product"'), $nativeArchiveProductTemplateContent);
+t('native archive-product storefront template uses editorial catalog masthead and chip rail', str_contains($nativeArchiveProductTemplateContent, 'native-shop-masthead') && str_contains($nativeArchiveProductTemplateContent, 'native-shop-chip'), $nativeArchiveProductTemplateContent);
+t('native archive-product storefront template supports category dropdown navigation mode', str_contains($nativeArchiveProductTemplateContent, "theme_settings.entity_list_category_navigation == 'dropdown'") && str_contains($nativeArchiveProductTemplateContent, 'native-shop-category-picker'), $nativeArchiveProductTemplateContent);
 t('native default theme ships dedicated single-product storefront template', str_contains($nativeSingleProductTemplateContent, 'data-native-ecommerce-template="single-product"'), $nativeSingleProductTemplateContent);
 t('ecommerce customizer presents storefront studio workspace copy', str_contains($customizerTemplateContent, 'Shape the full storefront here: header, navigation behavior, footer composition, palette, and canonical entity-view presentation for the commerce shell.'));
 t('native customizer explains catalog controls stay inside the active theme shell', str_contains($customizerTemplateContent, 'The active theme shell stays in charge here. Use Catalog for shop, category, and product presentation inside that shell.'));
 t('native customizer describes catalog presentation inside the active theme shell', str_contains($customizerTemplateContent, 'Catalog presentation for shop, category, and product routes inside the active theme shell.'));
 t('ecommerce customizer exposes dedicated navigation tab', str_contains($customizerTemplateContent, "activeTab = 'navigation'") && str_contains($customizerTemplateContent, 'Menu Behavior'));
 t('ecommerce customizer keeps native-capable sidebar controls available', str_contains($customizerTemplateContent, "activeTab = 'sidebar'") && str_contains($customizerTemplateContent, 'Sidebar Rail'));
+t('customizer exposes sidebar include and exclude template scope modes', str_contains($customizerTemplateContent, 'All except selected templates') && str_contains($customizerTemplateContent, 'Only selected templates'), $customizerTemplateContent);
+t('customizer sidebar preview summarizes selected template scope', str_contains($customizerTemplateContent, 'sidebarScopeSummary()') && str_contains($customizerTemplateContent, 'sidebarNormalizeTemplateRules()'), $customizerTemplateContent);
 t('ecommerce customizer keeps native-capable custom code controls available', str_contains($customizerTemplateContent, "activeTab = 'custom_code'") && str_contains($customizerTemplateContent, 'Store Code'));
 t('ecommerce customizer saves all dirty scoped sections', str_contains($customizerTemplateContent, 'return sections;'));
 t('customizer menu locations normalize label fallback for navigation workspace', str_contains($customizerTemplateContent, 'loc.label || loc.name || loc.slug') && str_contains($customizerTemplateContent, 'this.availableMenuLocations = (Array.isArray(this.availableMenuLocations) ? this.availableMenuLocations : [])'));
 t('customizer bootstraps dedicated storefront settings payload', str_contains($customizerTemplateContent, 'id="cz-storefront-settings"'));
 t('customizer saves dedicated storefront section payload', str_contains($customizerTemplateContent, "return { settings: this.storefrontSettings }"));
 t('customizer exposes storefront list-card pricing variant control', str_contains($customizerTemplateContent, 'storefrontSettings.entity_list_pricing_variant'));
+t('customizer exposes catalog font and width override controls', str_contains($customizerTemplateContent, 'storefrontSettings.entity_list_title_font') && str_contains($customizerTemplateContent, 'storefrontSettings.entity_list_card_min_width') && str_contains($customizerTemplateContent, 'Catalog Title Font'), $customizerTemplateContent);
+t('customizer exposes catalog category navigation control', str_contains($customizerTemplateContent, 'storefrontSettings.entity_list_category_navigation') && str_contains($customizerTemplateContent, 'Shop Categories'), $customizerTemplateContent);
+t('customizer hydrates catalog category navigation defaults', str_contains($customizerTemplateContent, "this.themeLayoutSettings.entity_list_category_navigation === undefined") && str_contains($customizerTemplateContent, "this.storefrontSettings.entity_list_category_navigation === undefined"), $customizerTemplateContent);
+t('customizer preview includes catalog font helpers', str_contains($customizerTemplateContent, 'catalogFontLabel(') && str_contains($customizerTemplateContent, 'entityPreviewCatalogTitleStyle()') && str_contains($customizerTemplateContent, 'entityPreviewCatalogExcerptStyle()'), $customizerTemplateContent);
 t('customizer exposes storefront action inline variant option', str_contains($customizerTemplateContent, '<option value="inline">Inline</option>'));
 t('customizer hydrates theme manifest block variants for preview fidelity', str_contains($customizerTemplateContent, 'cz-theme-manifest-block-variants'));
 t('customizer preview resolves effective storefront list-card variants', str_contains($customizerTemplateContent, 'entityPreviewListPricingVariant()') && str_contains($customizerTemplateContent, 'entityPreviewEffectiveVariant('));
@@ -955,8 +1004,12 @@ t('entity summary sticky default is enabled', ($entityDefaults['entity_summary_s
 t('entity media ratio default is auto', ($entityDefaults['entity_media_ratio'] ?? '') === 'auto');
 t('entity spacing scale default is comfortable', ($entityDefaults['entity_spacing_scale'] ?? '') === 'comfortable');
 t('entity action size default is md', ($entityDefaults['entity_action_size'] ?? '') === 'md');
+t('entity list title font default inherits shared heading font', ($entityDefaults['entity_list_title_font'] ?? 'x') === '');
+t('entity list category navigation default is list', ($entityDefaults['entity_list_category_navigation'] ?? '') === 'list');
+t('entity list title clamp default is two lines', ($entityDefaults['entity_list_title_lines'] ?? '') === '2');
 t('storefront defaults use commerce entity profile', ($storefrontDefaults['entity_layout_profile'] ?? '') === 'commerce');
 t('storefront defaults mirror canonical summary width default', ($storefrontDefaults['entity_summary_width'] ?? '') === '320');
+t('storefront defaults mirror category navigation default', ($storefrontDefaults['entity_list_category_navigation'] ?? '') === 'list');
 t('storefront defaults mirror canonical list-card pricing variant default', ($storefrontDefaults['entity_list_pricing_variant'] ?? 'x') === '');
 
 $colorsDefaults = cmsColorsSettingsDefaults();
@@ -974,12 +1027,19 @@ $validatedEntity = cmsValidateThemeLayoutSettings([
     'entity_spacing_scale' => 'airy',
     'entity_action_size' => 'lg',
     'entity_list_show_filter_summary' => '1',
+    'entity_list_category_navigation' => 'dropdown',
     'entity_list_card_density' => 'airy',
     'entity_list_show_excerpt' => '1',
     'entity_list_excerpt_length' => '180',
     'entity_list_pricing_variant' => 'featured',
     'entity_list_inventory_variant' => 'compact',
     'entity_list_progress_variant' => 'inline',
+    'entity_list_title_font' => 'Playfair Display',
+    'entity_list_text_font' => 'DM Sans',
+    'entity_list_title_size' => '24',
+    'entity_list_price_size' => '20',
+    'entity_list_card_min_width' => '280',
+    'entity_list_title_lines' => '3',
 ]);
 $validatedStorefront = cmsValidateStorefrontSettings([
     'entity_layout_profile' => 'commerce',
@@ -991,12 +1051,19 @@ $validatedStorefront = cmsValidateStorefrontSettings([
     'entity_spacing_scale' => 'compact',
     'entity_action_size' => 'lg',
     'entity_list_show_filter_summary' => '0',
+    'entity_list_category_navigation' => 'dropdown',
     'entity_list_card_density' => 'compact',
     'entity_list_show_excerpt' => '0',
     'entity_list_excerpt_length' => '90',
     'entity_list_pricing_variant' => 'minimal',
     'entity_list_inventory_variant' => 'compact',
     'entity_list_progress_variant' => 'inline',
+    'entity_list_title_font' => 'Playfair Display',
+    'entity_list_text_font' => 'Nunito',
+    'entity_list_title_size' => '22',
+    'entity_list_price_size' => '18',
+    'entity_list_card_min_width' => '260',
+    'entity_list_title_lines' => '2',
 ]);
 t('entity layout profile validates approved profile', ($validatedEntity['entity_layout_profile'] ?? '') === 'commerce');
 t('entity pricing variant validates approved variant', ($validatedEntity['entity_pricing_variant'] ?? '') === 'featured');
@@ -1007,9 +1074,16 @@ t('entity media ratio validates approved option', ($validatedEntity['entity_medi
 t('entity spacing scale validates approved option', ($validatedEntity['entity_spacing_scale'] ?? '') === 'airy');
 t('entity action size validates approved option', ($validatedEntity['entity_action_size'] ?? '') === 'lg');
 t('entity list filter summary validates boolean', (int)($validatedEntity['entity_list_show_filter_summary'] ?? 0) === 1);
+t('entity list category navigation validates approved option', ($validatedEntity['entity_list_category_navigation'] ?? '') === 'dropdown');
 t('entity list card density validates approved option', ($validatedEntity['entity_list_card_density'] ?? '') === 'airy');
 t('entity list excerpt toggle validates boolean', (int)($validatedEntity['entity_list_show_excerpt'] ?? 0) === 1);
 t('entity list excerpt length validates approved range', ($validatedEntity['entity_list_excerpt_length'] ?? '') === '180');
+t('entity list title font validates safe catalog override', ($validatedEntity['entity_list_title_font'] ?? '') === 'Playfair Display');
+t('entity list text font validates safe catalog override', ($validatedEntity['entity_list_text_font'] ?? '') === 'DM Sans');
+t('entity list title size validates approved range', ($validatedEntity['entity_list_title_size'] ?? '') === '24');
+t('entity list price size validates approved range', ($validatedEntity['entity_list_price_size'] ?? '') === '20');
+t('entity list card min width validates approved range', ($validatedEntity['entity_list_card_min_width'] ?? '') === '280');
+t('entity list title clamp validates approved range', ($validatedEntity['entity_list_title_lines'] ?? '') === '3');
 t('entity list pricing variant validates approved option', ($validatedEntity['entity_list_pricing_variant'] ?? '') === 'featured');
 t('entity list inventory variant validates approved option', ($validatedEntity['entity_list_inventory_variant'] ?? '') === 'compact');
 t('entity list progress variant validates approved option', ($validatedEntity['entity_list_progress_variant'] ?? '') === 'inline');
@@ -1018,8 +1092,15 @@ t('storefront settings validate storefront summary width', ($validatedStorefront
 t('storefront settings validate storefront media ratio', ($validatedStorefront['entity_media_ratio'] ?? '') === '4:3');
 t('storefront settings validate list card density', ($validatedStorefront['entity_list_card_density'] ?? '') === 'compact');
 t('storefront settings validate filter summary toggle', (int)($validatedStorefront['entity_list_show_filter_summary'] ?? 1) === 0);
+t('storefront settings validate category navigation mode', ($validatedStorefront['entity_list_category_navigation'] ?? '') === 'dropdown');
 t('storefront settings validate excerpt toggle', (int)($validatedStorefront['entity_list_show_excerpt'] ?? 1) === 0);
 t('storefront settings validate excerpt length', ($validatedStorefront['entity_list_excerpt_length'] ?? '') === '90');
+t('storefront settings validate catalog title font override', ($validatedStorefront['entity_list_title_font'] ?? '') === 'Playfair Display');
+t('storefront settings validate catalog text font override', ($validatedStorefront['entity_list_text_font'] ?? '') === 'Nunito');
+t('storefront settings validate catalog title size', ($validatedStorefront['entity_list_title_size'] ?? '') === '22');
+t('storefront settings validate catalog price size', ($validatedStorefront['entity_list_price_size'] ?? '') === '18');
+t('storefront settings validate catalog min card width', ($validatedStorefront['entity_list_card_min_width'] ?? '') === '260');
+t('storefront settings validate catalog title clamp', ($validatedStorefront['entity_list_title_lines'] ?? '') === '2');
 t('storefront settings validate list pricing variant', ($validatedStorefront['entity_list_pricing_variant'] ?? '') === 'minimal');
 t('storefront settings validate list inventory variant', ($validatedStorefront['entity_list_inventory_variant'] ?? '') === 'compact');
 t('storefront settings validate list progress variant', ($validatedStorefront['entity_list_progress_variant'] ?? '') === 'inline');
@@ -1034,12 +1115,19 @@ $invalidEntity = cmsValidateThemeLayoutSettings([
     'entity_spacing_scale' => 'dense',
     'entity_action_size' => 'xl',
     'entity_list_show_filter_summary' => '',
+    'entity_list_category_navigation' => 'rail',
     'entity_list_card_density' => 'dense',
     'entity_list_show_excerpt' => '',
     'entity_list_excerpt_length' => '999',
     'entity_list_pricing_variant' => 'heroic',
     'entity_list_inventory_variant' => 'full',
     'entity_list_progress_variant' => 'stacked',
+    'entity_list_title_font' => '<bad>',
+    'entity_list_text_font' => '!!',
+    'entity_list_title_size' => '99',
+    'entity_list_price_size' => '3',
+    'entity_list_card_min_width' => '999',
+    'entity_list_title_lines' => '0',
 ]);
 t('invalid entity profile falls back to default', ($invalidEntity['entity_layout_profile'] ?? '') === 'default');
 t('invalid pricing variant falls back to default block', ($invalidEntity['entity_pricing_variant'] ?? 'x') === '');
@@ -1050,9 +1138,16 @@ t('invalid entity media ratio falls back to auto', ($invalidEntity['entity_media
 t('invalid entity spacing scale falls back to comfortable', ($invalidEntity['entity_spacing_scale'] ?? '') === 'comfortable');
 t('invalid entity action size falls back to md', ($invalidEntity['entity_action_size'] ?? '') === 'md');
 t('invalid entity list filter summary falls back to disabled boolean', (int)($invalidEntity['entity_list_show_filter_summary'] ?? 1) === 0);
+t('invalid entity list category navigation falls back to list', ($invalidEntity['entity_list_category_navigation'] ?? '') === 'list');
 t('invalid entity list density falls back to comfortable', ($invalidEntity['entity_list_card_density'] ?? '') === 'comfortable');
 t('invalid entity list excerpt toggle falls back to disabled boolean', (int)($invalidEntity['entity_list_show_excerpt'] ?? 1) === 0);
 t('invalid entity list excerpt length clamps to max', ($invalidEntity['entity_list_excerpt_length'] ?? '') === '220');
+t('invalid entity list title font strips unsafe input', ($invalidEntity['entity_list_title_font'] ?? '') === 'bad');
+t('invalid entity list text font falls back to empty when sanitized blank', ($invalidEntity['entity_list_text_font'] ?? 'x') === '');
+t('invalid entity list title size clamps to max', ($invalidEntity['entity_list_title_size'] ?? '') === '32');
+t('invalid entity list price size clamps to min', ($invalidEntity['entity_list_price_size'] ?? '') === '14');
+t('invalid entity list min width clamps to max', ($invalidEntity['entity_list_card_min_width'] ?? '') === '340');
+t('invalid entity list title clamp clamps to min', ($invalidEntity['entity_list_title_lines'] ?? '') === '1');
 t('invalid entity list pricing variant falls back to default block', ($invalidEntity['entity_list_pricing_variant'] ?? 'x') === '');
 t('invalid entity list inventory variant falls back to default block', ($invalidEntity['entity_list_inventory_variant'] ?? 'x') === '');
 t('invalid entity list progress variant falls back to default block', ($invalidEntity['entity_list_progress_variant'] ?? 'x') === '');
@@ -1075,9 +1170,16 @@ t('entity presentation config exposes media ratio', ($presentation['media_ratio'
 t('entity presentation config exposes spacing scale', ($presentation['spacing_scale'] ?? '') === 'airy');
 t('entity presentation config exposes action size', ($presentation['action_size'] ?? '') === 'lg');
 t('entity presentation config exposes list filter summary flag', (int)($presentation['list_show_filter_summary'] ?? 0) === 1);
+t('entity presentation config exposes category navigation mode', ($presentation['list_category_navigation'] ?? '') === 'dropdown');
 t('entity presentation config exposes list card density', ($presentation['list_card_density'] ?? '') === 'airy');
 t('entity presentation config exposes list excerpt flag', (int)($presentation['list_show_excerpt'] ?? 0) === 1);
 t('entity presentation config exposes list excerpt length', (int)($presentation['list_excerpt_length'] ?? 0) === 180);
+t('entity presentation config exposes catalog title font override', ($presentation['list_title_font'] ?? '') === 'Playfair Display');
+t('entity presentation config exposes catalog text font override', ($presentation['list_text_font'] ?? '') === 'DM Sans');
+t('entity presentation config exposes catalog title size', (int)($presentation['list_title_size'] ?? 0) === 24);
+t('entity presentation config exposes catalog price size', (int)($presentation['list_price_size'] ?? 0) === 20);
+t('entity presentation config exposes catalog min width', (int)($presentation['list_card_min_width'] ?? 0) === 280);
+t('entity presentation config exposes catalog title clamp', (int)($presentation['list_title_lines'] ?? 0) === 3);
 t('entity presentation config exposes list pricing variant', ($presentation['list_pricing_variant'] ?? '') === 'featured');
 t('entity presentation config exposes list inventory variant', ($presentation['list_inventory_variant'] ?? '') === 'compact');
 t('entity presentation config exposes list progress variant', ($presentation['list_progress_variant'] ?? '') === 'inline');
@@ -1189,6 +1291,7 @@ t('theme render styles commerce entity layout rail', str_contains($themeStyle, '
 t('theme render styles sticky entity summary rail', str_contains($themeStyle, '.cms-entity-profile-commerce .cms-entity-summary{position:sticky;'), $themeStyle);
 t('theme render styles action button sizing', str_contains($themeStyle, '.cms-action-block .cms-btn-primary,.cms-action-block .cms-btn-secondary,.cms-action-block .cms-btn-disabled{padding:'), $themeStyle);
 t('theme render styles entity list density contract', str_contains($themeStyle, '--theme-entity-list-gap:') && str_contains($themeStyle, '--theme-entity-list-card-min-width:') && str_contains($themeStyle, '.cms-entity-card__body{display:flex;'), $themeStyle);
+t('theme render styles catalog title clamp and font contract', str_contains($themeStyle, '--theme-entity-list-title-font:') && str_contains($themeStyle, '--theme-entity-list-title-lines:') && str_contains($themeStyle, '.cms-entity-card__title{margin:0;'), $themeStyle);
 t('theme render exports detail media ratio variable for theme overrides', str_contains($themeStyle, '--theme-entity-media-ratio:'), $themeStyle);
 
 $pocSettings = $oldSettings;
@@ -1290,6 +1393,63 @@ $tokenSettings['active_theme'] = 'minimal';
 saveModuleSettings('cms', $tokenSettings);
 cmsResetThemeRuntimeCache();
 cmsActivateThemeSymlink('minimal');
+
+$nativeSidebarTargets = array_values(array_filter(array_map(
+    static fn(array $target): string => (string)($target['key'] ?? ''),
+    cmsSidebarTemplateTargets()
+)));
+$sidebarExcludeTarget = $nativeSidebarTargets[0] ?? 'home';
+$sidebarAlternateTarget = $nativeSidebarTargets[1] ?? $sidebarExcludeTarget;
+$sidebarIncludeTargets = array_values(array_unique(array_slice($nativeSidebarTargets, 1, 2)));
+if ($sidebarIncludeTargets === []) {
+    $sidebarIncludeTargets = [$sidebarExcludeTarget];
+}
+$sidebarNotIncludedTarget = $sidebarExcludeTarget;
+if (in_array($sidebarNotIncludedTarget, $sidebarIncludeTargets, true)) {
+    $sidebarNotIncludedTarget = $nativeSidebarTargets[3] ?? $nativeSidebarTargets[2] ?? $sidebarExcludeTarget;
+}
+
+$validatedSidebarExclude = cmsValidateSidebarSettings([
+    'enabled' => 1,
+    'scope_mode' => 'exclude_templates',
+    'template_rules' => [$sidebarExcludeTarget, 'bogus-template'],
+    'placement' => 'left',
+]);
+t('sidebar validation preserves exclude-template mode and filters invalid template rules', ($validatedSidebarExclude['scope_mode'] ?? '') === 'exclude_templates' && ($validatedSidebarExclude['template_rules'] ?? []) === [$sidebarExcludeTarget] && ($validatedSidebarExclude['template_scope'] ?? '') === $sidebarExcludeTarget, json_encode($validatedSidebarExclude));
+
+$validatedSidebarInclude = cmsValidateSidebarSettings([
+    'enabled' => 1,
+    'scope_mode' => 'template',
+    'template_rules' => array_merge($sidebarIncludeTargets, ['bogus-template']),
+]);
+t('sidebar validation preserves include-template mode and keeps multiple valid template rules', ($validatedSidebarInclude['scope_mode'] ?? '') === 'template' && ($validatedSidebarInclude['template_rules'] ?? []) === $sidebarIncludeTargets && ($validatedSidebarInclude['template_scope'] ?? '') === $sidebarIncludeTargets[0], json_encode($validatedSidebarInclude));
+
+cmsUpsertCustomizerSection($db, 'sidebar', $validatedSidebarExclude, [[
+    'type' => 'text',
+    'props' => [
+        'title' => 'Sidebar Promo',
+        'content' => '<p>Promo block</p>',
+    ],
+]], null, 'native');
+
+$excludedTargetSidebar = cmsRenderCustomizedSidebar($db, ['sidebar_template' => $sidebarExcludeTarget]);
+$excludedAlternateSidebar = cmsRenderCustomizedSidebar($db, ['sidebar_template' => $sidebarAlternateTarget]);
+t('native sidebar scope can exempt selected templates from an otherwise global sidebar', ($excludedTargetSidebar['enabled'] ?? false) === false && ($excludedAlternateSidebar['enabled'] ?? false) === true, json_encode([$excludedTargetSidebar, $excludedAlternateSidebar]));
+t('native sidebar still renders widget markup outside the excluded templates', str_contains((string)($excludedAlternateSidebar['html'] ?? ''), 'Sidebar Promo'), (string)($excludedAlternateSidebar['html'] ?? ''));
+
+cmsUpsertCustomizerSection($db, 'sidebar', $validatedSidebarInclude, [[
+    'type' => 'text',
+    'props' => [
+        'title' => 'Sidebar Promo',
+        'content' => '<p>Promo block</p>',
+    ],
+]], null, 'native');
+
+$includedTargetSidebar = cmsRenderCustomizedSidebar($db, ['sidebar_template' => $sidebarIncludeTargets[0]]);
+$includedExcludedSidebar = cmsRenderCustomizedSidebar($db, ['sidebar_template' => $sidebarNotIncludedTarget]);
+t('native sidebar scope can target only explicitly selected templates', ($includedTargetSidebar['enabled'] ?? false) === true && ($includedExcludedSidebar['enabled'] ?? false) === in_array($sidebarNotIncludedTarget, $sidebarIncludeTargets, true), json_encode([$includedTargetSidebar, $includedExcludedSidebar]));
+
+cmsUpsertCustomizerSection($db, 'sidebar', cmsSidebarSettingsDefaults(), [], null, 'native');
 
 $variantPricingTemplate = cmsResolveBlockTemplate('modules/cms/public/blocks/pricing.block.disyl', [
     'theme_settings' => $validatedEntity,
@@ -1479,6 +1639,7 @@ $listTemplateContext = [
     ]],
     'entity_presentation' => [
         'list_show_filter_summary' => 1,
+        'list_category_navigation' => 'list',
         'list_card_density' => 'compact',
         'list_show_excerpt' => 1,
         'list_excerpt_length' => 90,
@@ -1499,9 +1660,21 @@ t('canonical entity list applies density class and excerpt rendering', str_conta
 t('canonical entity list annotates list cards with entity metadata', str_contains($listHtml, 'data-entity-kind="list-item"') && str_contains($listHtml, 'data-entity-id="55"') && str_contains($listHtml, 'data-entity-slug="rustic-loaf"'), $listHtml);
 t('canonical entity list emits pre-rendered card capability fragments', str_contains($listHtml, '<div class="card-price">$8.00</div>') && str_contains($listHtml, '<div class="card-stock">Low stock</div>') && str_contains($listHtml, '<div class="card-progress">25% complete</div>'), $listHtml);
 
+$listDropdownHtml = cmsRender('modules/cms/public/entity.list.disyl', array_merge($listTemplateContext, [
+    'entity_presentation' => [
+        'list_show_filter_summary' => 1,
+        'list_category_navigation' => 'dropdown',
+        'list_card_density' => 'compact',
+        'list_show_excerpt' => 1,
+        'list_excerpt_length' => 90,
+    ],
+]));
+t('canonical entity list can render category dropdown navigation', str_contains($listDropdownHtml, 'cms-entity-list__category-picker') && str_contains($listDropdownHtml, 'Shop Categories') && str_contains($listDropdownHtml, 'name="cat"') && str_contains($listDropdownHtml, 'Browse') && str_contains($listDropdownHtml, 'type="hidden" name="search" value="sourdough"'), $listDropdownHtml);
+
 $listWithoutSummaryHtml = cmsRender('modules/cms/public/entity.list.disyl', array_merge($listTemplateContext, [
     'entity_presentation' => [
         'list_show_filter_summary' => 0,
+        'list_category_navigation' => 'list',
         'list_card_density' => 'airy',
         'list_show_excerpt' => 0,
         'list_excerpt_length' => 120,
@@ -1535,7 +1708,9 @@ t('poc entity list template carries list metadata attributes', str_contains($poc
 t('poc entity list template renders handler-provided card fragments', str_contains($pocListTemplateContent, 'item.list_card_pricing_html') && str_contains($pocListTemplateContent, 'item.list_card_inventory_html') && str_contains($pocListTemplateContent, 'item.list_card_progress_html'), $pocListTemplateContent);
 t('poc entity list template exposes density and excerpt controls', str_contains($pocListTemplateContent, 'poc-entity-list--density-{entity_presentation.list_card_density|default:\'comfortable\'}') && str_contains($pocListTemplateContent, 'item.list_card_excerpt') && str_contains($pocListTemplateContent, 'entity_presentation.list_show_filter_summary'), $pocListTemplateContent);
 t('poc entity list template exposes storefront filter controls', str_contains($pocListTemplateContent, 'entity_list_context.available_categories') && str_contains($pocListTemplateContent, 'entity_list_context.search_action_url') && str_contains($pocListTemplateContent, 'poc-entity-list__search-input'), $pocListTemplateContent);
+t('poc entity list template supports category dropdown navigation mode', str_contains($pocListTemplateContent, "entity_presentation.list_category_navigation == 'dropdown'") && str_contains($pocListTemplateContent, 'poc-entity-list__category-picker') && str_contains($pocListTemplateContent, 'poc-entity-list__category-select'), $pocListTemplateContent);
 t('poc entity list stylesheet styles storefront filter controls', str_contains($pocListStyles, '.poc-entity-list__search') && str_contains($pocListStyles, '.poc-entity-list__category-link'), $pocListStyles);
+t('poc entity list stylesheet styles category picker controls', str_contains($pocListStyles, '.poc-entity-list__category-picker') && str_contains($pocListStyles, '.poc-entity-list__category-select') && str_contains($pocListStyles, '.poc-entity-list__category-submit'), $pocListStyles);
 
 // ═══════════════════════════════════════════════════════════════════
 // 6b. Shared render lock must not re-enter symlink mutation

@@ -44,12 +44,28 @@
         </form>
 
         {if entity_list_context.available_categories | count > 0}
-        <nav class="poc-entity-list__categories" aria-label="Categories">
-            <a href="{entity_list_context.all_items_url|default:entity_list_context.base_list_url}" class="poc-entity-list__category-link {if entity_list_context.category_id == 0 and entity_list_context.category_slug == ''}poc-entity-list__category-link--active{/if}">All Products</a>
-            {foreach entity_list_context.available_categories as category}
-            <a href="{category.url}" class="poc-entity-list__category-link {if category.is_active}poc-entity-list__category-link--active{/if}">{category.name}</a>
-            {/foreach}
-        </nav>
+            {if entity_presentation.list_category_navigation == 'dropdown'}
+            <form method="get" action="{entity_list_context.all_items_url|default:entity_list_context.base_list_url}" class="poc-entity-list__category-picker">
+                {if entity_list_context.search}<input type="hidden" name="search" value="{entity_list_context.search}">{/if}
+                <label for="poc-entity-list-category">Shop Categories</label>
+                <div class="poc-entity-list__category-picker-controls">
+                    <select id="poc-entity-list-category" name="cat" class="poc-entity-list__category-select">
+                        <option value="" {if entity_list_context.category_id == 0 and entity_list_context.category_slug == ''}selected{/if}>All Products</option>
+                        {foreach entity_list_context.available_categories as category}
+                        <option value="{category.id}" {if category.is_active}selected{/if}>{category.name}</option>
+                        {/foreach}
+                    </select>
+                    <button type="submit" class="poc-entity-list__category-submit">Browse</button>
+                </div>
+            </form>
+            {else}
+            <nav class="poc-entity-list__categories" aria-label="Categories">
+                <a href="{entity_list_context.all_items_url|default:entity_list_context.base_list_url}" class="poc-entity-list__category-link {if entity_list_context.category_id == 0 and entity_list_context.category_slug == ''}poc-entity-list__category-link--active{/if}">All Products</a>
+                {foreach entity_list_context.available_categories as category}
+                <a href="{category.url}" class="poc-entity-list__category-link {if category.is_active}poc-entity-list__category-link--active{/if}">{category.name}</a>
+                {/foreach}
+            </nav>
+            {/if}
         {/if}
     </div>
     {/if}

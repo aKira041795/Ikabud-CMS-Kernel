@@ -6,111 +6,167 @@
 
 {block content}
 <div class="native-storefront native-shop-archive" data-native-ecommerce-template="archive-product">
-    <header class="native-storefront-hero">
-        <div>
-            <p class="native-storefront-kicker">{if current_cat}Category Collection{else}Storefront{/if}</p>
+    <section class="native-shop-masthead">
+        <div class="native-shop-masthead__copy">
+            <div class="native-shop-masthead__eyebrow-row">
+                <p class="native-storefront-kicker">{if current_cat}Category Collection{else}Storefront{/if}</p>
+                <span class="native-shop-masthead__count">{total} pieces</span>
+            </div>
             <h1>{page_title | default:"Shop"}</h1>
             {if current_cat}
-            <p class="native-storefront-subtitle">Browse products filed under {current_cat.name}. The layout stays native to the active theme while catalog controls still apply.</p>
+            <p class="native-storefront-subtitle">Browse products filed under {current_cat.name}. The layout leans into a cleaner fashion-grid rhythm while keeping the native theme shell intact.</p>
             {elseif search}
             <p class="native-storefront-subtitle">Showing results for "{search}" across the current catalog.</p>
             {else}
-            <p class="native-storefront-subtitle">A traditional shop archive inside the native CMS theme shell, with product cards, category navigation, and the storefront presentation settings layered on top.</p>
+            <p class="native-storefront-subtitle">A more editorial storefront pass for the native theme: tighter cards, a horizontal category rail, and a cleaner price-first shopping rhythm.</p>
             {/if}
-        </div>
-        <form method="get" action="{search_action_url | default:'/ecommerce/shop'}" class="native-search native-storefront-search">
-            <input type="text" name="search" value="{search}" placeholder="Search products">
-            <button type="submit">Search</button>
-        </form>
-    </header>
 
-    <div class="native-shop-layout">
-        <aside class="native-storefront-panel">
-            <h2 class="native-panel-title">Browse Catalog</h2>
-            <ul class="native-category-list">
-                <li>
-                    <a href="{all_items_url | default:'/ecommerce/shop'}" class="native-category-link {if category_id == 0}is-active{/if}">
-                        <span>All Products</span>
-                        <small>Catalog</small>
-                    </a>
-                </li>
-                {foreach categories as cat}
-                <li>
-                    <a href="{cat.url}" class="native-category-link {if cat.is_active}is-active{/if}">
-                        <span>{cat.name}</span>
-                        <small>{if cat.is_active}Active{else}View{/if}</small>
-                    </a>
-                </li>
-                {/foreach}
-            </ul>
-        </aside>
-
-        <section>
-            {if total == 0}
-            <div class="native-empty-state">
-                <h2>No matching products</h2>
-                <p class="native-note">Try a broader search, clear the category filter, or return to the full catalog.</p>
-                <div class="native-actions" style="justify-content:center; margin-top:1rem;">
-                    <a href="{all_items_url | default:'/ecommerce/shop'}" class="button button-primary">Browse all products</a>
+            <div class="native-shop-masthead__metrics">
+                <div class="native-shop-metric">
+                    <span>Categories</span>
+                    <strong>{catalog_category_count | default:0}</strong>
+                </div>
+                <div class="native-shop-metric">
+                    <span>Visible</span>
+                    <strong>{visible_count | default:0}</strong>
+                </div>
+                <div class="native-shop-metric">
+                    <span>Basket</span>
+                    <strong>{cart_count | default:0}</strong>
                 </div>
             </div>
-            {else}
-            <div class="native-shop-grid">
-                {foreach products as p}
-                <article class="ikb-card native-shop-card">
-                    <a href="{base_url}/ecommerce/shop/{p.slug}" class="native-shop-card__media">
-                        <img src="{if p.primary_image_url}{p.primary_image_url}{else}{base_url}/assets/ecommerce/product-placeholder.svg{/if}" alt="{p.title}">
-                    </a>
-                    <div class="native-shop-card__body">
-                        <div class="native-card-meta">
-                            {if p.pricing.on_sale}
-                            <span class="native-pill native-pill--sale">On Sale</span>
-                            {/if}
-                            {if p.inventory.track_stock && p.inventory.low_stock}
-                            <span class="native-pill native-pill--warning">Low Stock</span>
-                            {/if}
-                            {if p.inventory.track_stock && (p.inventory.out_of_stock || !p.inventory.in_stock)}
-                            <span class="native-pill native-pill--danger">Sold Out</span>
-                            {/if}
-                        </div>
+        </div>
 
-                        <h2 class="native-shop-card__title"><a href="{base_url}/ecommerce/shop/{p.slug}">{p.title}</a></h2>
+        <div class="native-shop-masthead__utility">
+            <form method="get" action="{search_action_url | default:'/ecommerce/shop'}" class="native-shop-searchbar">
+                <label for="native-shop-search">Search the catalog</label>
+                <div class="native-shop-searchbar__controls">
+                    <input id="native-shop-search" type="text" name="search" value="{search}" placeholder="Search products">
+                    {if category_id > 0}<input type="hidden" name="cat" value="{category_id}">{/if}
+                    <button type="submit">Search</button>
+                </div>
+            </form>
 
-                        {if p.excerpt}
-                        <p class="native-shop-card__excerpt">{p.excerpt}</p>
-                        {/if}
+            <a href="{base_url}/ecommerce/cart" class="native-shop-service">
+                <span class="native-shop-service__eyebrow">Express checkout</span>
+                <strong>Review your basket</strong>
+                <small>{cart_count | default:0} item(s) ready for checkout</small>
+            </a>
+        </div>
+    </section>
 
-                        <div class="native-price-row">
-                            <span class="native-price-current">{p.pricing.formatted | default:'Contact for price'}</span>
-                            {if p.pricing.on_sale}
-                            <span class="native-price-compare">{p.pricing.regular_fmt}</span>
-                            {/if}
-                        </div>
+    <section class="native-shop-toolbar">
+        {if theme_settings.entity_list_category_navigation == 'dropdown'}
+        <form method="get" action="{all_items_url | default:'/ecommerce/shop'}" class="native-shop-category-picker">
+            {if search}<input type="hidden" name="search" value="{search}">{/if}
+            <label for="native-shop-category">Shop categories</label>
+            <div class="native-shop-category-picker__controls">
+                <select id="native-shop-category" name="cat">
+                    <option value="" {if category_id == 0}selected{/if}>All Products</option>
+                    {foreach categories as cat}
+                    <option value="{cat.id}" {if cat.is_active}selected{/if}>{cat.name}</option>
+                    {/foreach}
+                </select>
+                <button type="submit">Browse</button>
+            </div>
+        </form>
+        {else}
+        <div class="native-shop-toolbar__scroll">
+            <a href="{all_items_url | default:'/ecommerce/shop'}" class="native-shop-chip {if category_id == 0}is-active{/if}">All Products</a>
+            {foreach categories as cat}
+            <a href="{cat.url}" class="native-shop-chip {if cat.is_active}is-active{/if}">{cat.name}</a>
+            {/foreach}
+        </div>
+        {/if}
 
-                        <div class="native-actions">
-                            <a href="{base_url}/ecommerce/shop/{p.slug}" class="button button-primary">View Product</a>
-                        </div>
-                    </div>
-                </article>
-                {/foreach}
+        {if search || current_cat}
+        <div class="native-shop-toolbar__meta">
+            {if current_cat}
+            <span>Filtered by {current_cat.name}</span>
+            {elseif search}
+            <span>Search term: "{search}"</span>
+            {/if}
+            <a href="{all_items_url | default:'/ecommerce/shop'}">Reset</a>
+        </div>
+        {/if}
+    </section>
+
+    {if total == 0}
+    <div class="native-empty-state">
+        <h2>No matching products</h2>
+        <p class="native-note">Try a broader search, clear the category filter, or return to the full catalog.</p>
+        <div class="native-actions" style="justify-content:center; margin-top:1rem;">
+            <a href="{all_items_url | default:'/ecommerce/shop'}" class="button button-primary">Browse all products</a>
+        </div>
+    </div>
+    {else}
+    <section class="native-shop-grid native-shop-grid--fashion">
+        {foreach products as p}
+        <article class="native-shop-card native-shop-card--fashion">
+            <div class="native-shop-card__media-wrap">
+                <div class="native-shop-card__badge-row">
+                    {if p.sale_badge_text}
+                    <span class="native-pill native-pill--sale">{p.sale_badge_text}</span>
+                    {/if}
+                    {if p.inventory.track_stock && (p.inventory.out_of_stock || !p.inventory.in_stock)}
+                    <span class="native-pill native-pill--danger">Sold Out</span>
+                    {elseif p.inventory.track_stock && p.inventory.low_stock}
+                    <span class="native-pill native-pill--warning">Low Stock</span>
+                    {/if}
+                </div>
+
+                <a href="{p.detail_url | default:'/ecommerce/shop'}" class="native-shop-card__ghost" aria-label="View {p.title}">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M5 12h14"></path>
+                        <path d="M13 6l6 6-6 6"></path>
+                    </svg>
+                </a>
+
+                <a href="{p.detail_url | default:'/ecommerce/shop'}" class="native-shop-card__media">
+                    <img src="{if p.primary_image_url}{p.primary_image_url}{else}{base_url}/assets/ecommerce/product-placeholder.svg{/if}" alt="{p.title}">
+                </a>
             </div>
 
-            {if total_pages > 1}
-            <nav class="native-pagination">
-                <ul>
-                    {if pagination_prev_url}
-                    <li><a href="{pagination_first_url | default:all_items_url}">&laquo; First</a></li>
-                    <li><a href="{pagination_prev_url}">&larr; Prev</a></li>
+            <div class="native-shop-card__body native-shop-card__body--fashion">
+                <p class="native-shop-card__label">{if current_cat}{current_cat.name}{elseif search}Search Result{else}New In{/if}</p>
+                <h2 class="native-shop-card__title"><a href="{p.detail_url | default:'/ecommerce/shop'}">{p.title}</a></h2>
+
+                <div class="native-shop-card__pricing">
+                    {if p.pricing.on_sale}
+                    <span class="native-shop-card__price-compare">{p.pricing.regular_fmt}</span>
                     {/if}
-                    <li class="current"><span>Page {page} of {total_pages}</span></li>
-                    {if pagination_next_url}
-                    <li><a href="{pagination_next_url}">Next &rarr;</a></li>
+                    <span class="native-shop-card__price-current">{p.pricing.formatted | default:'Contact for price'}</span>
+                </div>
+
+                {if p.excerpt}
+                <p class="native-shop-card__excerpt">{p.excerpt}</p>
+                {/if}
+
+                <div class="native-shop-card__footer">
+                    {if p.inventory_badge_text}
+                    <span class="native-shop-card__inventory native-shop-card__inventory--{p.inventory_badge_tone}">{p.inventory_badge_text}</span>
                     {/if}
-                </ul>
-            </nav>
+                    <a href="{p.detail_url | default:'/ecommerce/shop'}" class="native-shop-card__cta">View details</a>
+                </div>
+            </div>
+        </article>
+        {/foreach}
+    </section>
+
+    {if total_pages > 1}
+    <nav class="native-pagination">
+        <ul>
+            {if pagination_prev_url}
+            <li><a href="{pagination_first_url | default:all_items_url}">&laquo; First</a></li>
+            <li><a href="{pagination_prev_url}">&larr; Prev</a></li>
             {/if}
+            <li class="current"><span>Page {page} of {total_pages}</span></li>
+            {if pagination_next_url}
+            <li><a href="{pagination_next_url}">Next &rarr;</a></li>
             {/if}
-        </section>
-    </div>
+        </ul>
+    </nav>
+    {/if}
+    {/if}
 </div>
 {/block}

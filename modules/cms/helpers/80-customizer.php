@@ -82,6 +82,60 @@ function cmsColorsSettingsDefaults(): array
     ];
 }
 
+function cmsCustomizerSanitizeFontFamily(string $value, string $fallback = ''): string
+{
+    $value = trim($value);
+    $value = preg_replace('/[^a-zA-Z0-9\s\-_,\'\"\.]/', '', $value) ?? '';
+    return $value !== '' ? $value : $fallback;
+}
+
+function cmsCustomizerFontIsSystem(string $font): bool
+{
+    return in_array(strtolower(trim($font)), ['system-ui', 'georgia', 'serif', 'sans-serif', 'monospace'], true);
+}
+
+function cmsCustomizerFontStylesheetHtml(array $faces): string
+{
+    $loadedFamilies = [];
+    foreach ($faces as $face) {
+        $normalized = cmsCustomizerSanitizeFontFamily((string)$face, '');
+        if ($normalized === '' || cmsCustomizerFontIsSystem($normalized) || isset($loadedFamilies[$normalized])) {
+            continue;
+        }
+        $loadedFamilies[$normalized] = str_replace('%20', '+', rawurlencode($normalized));
+    }
+
+    if ($loadedFamilies === []) {
+        return '';
+    }
+
+    $fontParams = [];
+    foreach ($loadedFamilies as $familyParam) {
+        $fontParams[] = 'family=' . $familyParam . ':wght@400;500;600;700';
+    }
+    $fontHref = 'https://fonts.googleapis.com/css2?' . implode('&', $fontParams) . '&display=swap';
+    $escapedFontHref = htmlspecialchars($fontHref, ENT_QUOTES, 'UTF-8');
+
+    return '<link rel="stylesheet" href="' . $escapedFontHref . '" media="print" onload="this.media=\'all\'">'
+        . '<noscript><link rel="stylesheet" href="' . $escapedFontHref . '"></noscript>';
+}
+
+function cmsCustomizerFontCssValue(string $font, string $fallbackCss): string
+{
+    $font = cmsCustomizerSanitizeFontFamily($font, '');
+    $lower = strtolower($font);
+
+    return match ($lower) {
+        '' => $fallbackCss,
+        'system-ui' => 'system-ui,-apple-system,BlinkMacSystemFont,sans-serif',
+        'sans-serif' => 'sans-serif',
+        'serif' => 'serif',
+        'monospace' => 'monospace',
+        'georgia' => '\'Georgia\',serif',
+        default => '\'' . $font . '\',-apple-system,BlinkMacSystemFont,sans-serif',
+    };
+}
+
 /**
  * Validate and sanitize Colors customizer settings.
  */
@@ -116,10 +170,7 @@ function cmsValidateColorsSettings(array $input): array
 
     // Font families — allow safe font names
     foreach (['font_body', 'font_heading'] as $key) {
-        $val = trim((string)($input[$key] ?? $defaults[$key]));
-        // Strip anything suspicious
-        $val = preg_replace('/[^a-zA-Z0-9\s\-_,\'\'"\.]/', '', $val);
-        $validated[$key] = $val !== '' ? $val : $defaults[$key];
+        $validated[$key] = cmsCustomizerSanitizeFontFamily((string)($input[$key] ?? $defaults[$key]), (string)$defaults[$key]);
     }
 
     // Font size base: 12-24px
@@ -377,7 +428,24 @@ function cmsThemeManifestThemeLayoutDefaults(?array $manifest = null, ?string $s
                 $overrides[$settingKey] = (string)$variant;
             }
         }
-        foreach (['summary_width' => 'entity_summary_width', 'summary_sticky' => 'entity_summary_sticky', 'media_ratio' => 'entity_media_ratio', 'spacing_scale' => 'entity_spacing_scale', 'action_size' => 'entity_action_size', 'list_show_filter_summary' => 'entity_list_show_filter_summary', 'list_card_density' => 'entity_list_card_density', 'list_show_excerpt' => 'entity_list_show_excerpt', 'list_excerpt_length' => 'entity_list_excerpt_length'] as $sourceKey => $settingKey) {
+        foreach ([
+            'summary_width' => 'entity_summary_width',
+            'summary_sticky' => 'entity_summary_sticky',
+            'media_ratio' => 'entity_media_ratio',
+            'spacing_scale' => 'entity_spacing_scale',
+            'action_size' => 'entity_action_size',
+            'list_show_filter_summary' => 'entity_list_show_filter_summary',
+            'list_category_navigation' => 'entity_list_category_navigation',
+            'list_card_density' => 'entity_list_card_density',
+            'list_show_excerpt' => 'entity_list_show_excerpt',
+            'list_excerpt_length' => 'entity_list_excerpt_length',
+            'list_title_font' => 'entity_list_title_font',
+            'list_text_font' => 'entity_list_text_font',
+            'list_title_size' => 'entity_list_title_size',
+            'list_price_size' => 'entity_list_price_size',
+            'list_card_min_width' => 'entity_list_card_min_width',
+            'list_title_lines' => 'entity_list_title_lines',
+        ] as $sourceKey => $settingKey) {
             if (array_key_exists($sourceKey, $entityDefaults)) {
                 $overrides[$settingKey] = $entityDefaults[$sourceKey];
             }
@@ -405,7 +473,24 @@ function cmsThemeManifestStorefrontDefaults(?array $manifest = null): array
             $overrides[$settingKey] = (string)$variant;
         }
     }
-    foreach (['summary_width' => 'entity_summary_width', 'summary_sticky' => 'entity_summary_sticky', 'media_ratio' => 'entity_media_ratio', 'spacing_scale' => 'entity_spacing_scale', 'action_size' => 'entity_action_size', 'list_show_filter_summary' => 'entity_list_show_filter_summary', 'list_card_density' => 'entity_list_card_density', 'list_show_excerpt' => 'entity_list_show_excerpt', 'list_excerpt_length' => 'entity_list_excerpt_length'] as $sourceKey => $settingKey) {
+    foreach ([
+        'summary_width' => 'entity_summary_width',
+        'summary_sticky' => 'entity_summary_sticky',
+        'media_ratio' => 'entity_media_ratio',
+        'spacing_scale' => 'entity_spacing_scale',
+        'action_size' => 'entity_action_size',
+        'list_show_filter_summary' => 'entity_list_show_filter_summary',
+        'list_category_navigation' => 'entity_list_category_navigation',
+        'list_card_density' => 'entity_list_card_density',
+        'list_show_excerpt' => 'entity_list_show_excerpt',
+        'list_excerpt_length' => 'entity_list_excerpt_length',
+        'list_title_font' => 'entity_list_title_font',
+        'list_text_font' => 'entity_list_text_font',
+        'list_title_size' => 'entity_list_title_size',
+        'list_price_size' => 'entity_list_price_size',
+        'list_card_min_width' => 'entity_list_card_min_width',
+        'list_title_lines' => 'entity_list_title_lines',
+    ] as $sourceKey => $settingKey) {
         if (array_key_exists($sourceKey, $entityDefaults)) {
             $overrides[$settingKey] = $entityDefaults[$sourceKey];
         }
@@ -954,9 +1039,16 @@ function cmsEntityPresentationSettingsDefaults(): array
         'entity_spacing_scale'    => 'comfortable',
         'entity_action_size'      => 'md',
         'entity_list_show_filter_summary' => '1',
+        'entity_list_category_navigation' => 'list',
         'entity_list_card_density' => 'comfortable',
         'entity_list_show_excerpt' => '1',
         'entity_list_excerpt_length' => '120',
+        'entity_list_title_font' => '',
+        'entity_list_text_font' => '',
+        'entity_list_title_size' => '19',
+        'entity_list_price_size' => '17',
+        'entity_list_card_min_width' => '240',
+        'entity_list_title_lines' => '2',
     ];
 }
 
@@ -1003,12 +1095,25 @@ function cmsValidateEntityPresentationSettings(array $input, ?array $defaults = 
         ? (string)$input['entity_action_size']
         : $defaults['entity_action_size'];
     $validated['entity_list_show_filter_summary'] = (int)(bool)($input['entity_list_show_filter_summary'] ?? $defaults['entity_list_show_filter_summary']);
+    $validated['entity_list_category_navigation'] = in_array(($input['entity_list_category_navigation'] ?? ''), ['list', 'dropdown'], true)
+        ? (string)$input['entity_list_category_navigation']
+        : $defaults['entity_list_category_navigation'];
     $validated['entity_list_card_density'] = in_array(($input['entity_list_card_density'] ?? ''), ['compact', 'comfortable', 'airy'], true)
         ? (string)$input['entity_list_card_density']
         : $defaults['entity_list_card_density'];
     $validated['entity_list_show_excerpt'] = (int)(bool)($input['entity_list_show_excerpt'] ?? $defaults['entity_list_show_excerpt']);
     $excerptLength = (int)($input['entity_list_excerpt_length'] ?? $defaults['entity_list_excerpt_length']);
     $validated['entity_list_excerpt_length'] = (string)max(40, min(220, $excerptLength ?: 120));
+    $validated['entity_list_title_font'] = cmsCustomizerSanitizeFontFamily((string)($input['entity_list_title_font'] ?? $defaults['entity_list_title_font']), (string)$defaults['entity_list_title_font']);
+    $validated['entity_list_text_font'] = cmsCustomizerSanitizeFontFamily((string)($input['entity_list_text_font'] ?? $defaults['entity_list_text_font']), (string)$defaults['entity_list_text_font']);
+    $titleSize = (int)($input['entity_list_title_size'] ?? $defaults['entity_list_title_size']);
+    $validated['entity_list_title_size'] = (string)max(16, min(32, $titleSize));
+    $priceSize = (int)($input['entity_list_price_size'] ?? $defaults['entity_list_price_size']);
+    $validated['entity_list_price_size'] = (string)max(14, min(28, $priceSize));
+    $cardMinWidth = (int)($input['entity_list_card_min_width'] ?? $defaults['entity_list_card_min_width']);
+    $validated['entity_list_card_min_width'] = (string)max(200, min(340, $cardMinWidth));
+    $titleLines = (int)($input['entity_list_title_lines'] ?? $defaults['entity_list_title_lines']);
+    $validated['entity_list_title_lines'] = (string)max(1, min(4, $titleLines));
 
     return $validated;
 }
@@ -1060,28 +1165,9 @@ function cmsRenderColorsStyle(object $db): string
         return $html;
     }
 
-    $fontBody    = htmlspecialchars($s['font_body'] ?? 'Inter');
-    $fontHeading = htmlspecialchars($s['font_heading'] ?? 'Inter');
-
-    $systemFonts = ['system-ui', 'Georgia', 'serif', 'sans-serif', 'monospace'];
-    $loadedFamilies = [];
-    foreach ([$fontBody, $fontHeading] as $face) {
-        if (!in_array($face, $systemFonts, true) && !isset($loadedFamilies[$face])) {
-            $loadedFamilies[$face] = str_replace('%20', '+', rawurlencode($face));
-        }
-    }
-
-    $googleFontsHtml = '';
-    if ($loadedFamilies !== []) {
-        $fontParams = [];
-        foreach ($loadedFamilies as $familyParam) {
-            $fontParams[] = 'family=' . $familyParam . ':wght@400;500;600;700';
-        }
-        $fontHref = 'https://fonts.googleapis.com/css2?' . implode('&', $fontParams) . '&display=swap';
-        $escapedFontHref = htmlspecialchars($fontHref, ENT_QUOTES, 'UTF-8');
-        $googleFontsHtml = '<link rel="stylesheet" href="' . $escapedFontHref . '" media="print" onload="this.media=\'all\'">'
-            . '<noscript><link rel="stylesheet" href="' . $escapedFontHref . '"></noscript>';
-    }
+    $fontBody = cmsCustomizerSanitizeFontFamily((string)($s['font_body'] ?? 'Inter'), 'Inter');
+    $fontHeading = cmsCustomizerSanitizeFontFamily((string)($s['font_heading'] ?? 'Inter'), 'Inter');
+    $googleFontsHtml = cmsCustomizerFontStylesheetHtml([$fontBody, $fontHeading]);
 
     $css  = ':root{';
     $css .= '--color-primary:' . ($s['color_primary'] ?? '#3b82f6') . ';';
@@ -1110,8 +1196,8 @@ function cmsRenderColorsStyle(object $db): string
     $css .= '--storefront-warning-text:' . ($s['storefront_warning_text'] ?? '#b45309') . ';';
     $css .= '--storefront-danger-bg:' . ($s['storefront_danger_bg'] ?? '#fef2f2') . ';';
     $css .= '--storefront-danger-text:' . ($s['storefront_danger_text'] ?? '#dc2626') . ';';
-    $css .= '--font-body:\'' . $fontBody . '\',-apple-system,BlinkMacSystemFont,sans-serif;';
-    $css .= '--font-heading:\'' . $fontHeading . '\',-apple-system,BlinkMacSystemFont,sans-serif;';
+    $css .= '--font-body:' . cmsCustomizerFontCssValue($fontBody, 'system-ui,-apple-system,BlinkMacSystemFont,sans-serif') . ';';
+    $css .= '--font-heading:' . cmsCustomizerFontCssValue($fontHeading, 'system-ui,-apple-system,BlinkMacSystemFont,sans-serif') . ';';
     $css .= '--container-width:' . ($s['container_width'] ?? '1200') . 'px;';
     $css .= '--container-max:' . ($s['container_width'] ?? '1200') . 'px;';
     $css .= '--radius-sm:' . round(((float)($s['border_radius'] ?? 0.5)) * 0.5, 2) . 'rem;';
@@ -1360,8 +1446,9 @@ function cmsSidebarSettingsDefaults(): array
     $defaultScope = !empty($targets) ? (string)($targets[0]['key'] ?? 'home') : 'home';
     return [
         'enabled'                 => 0,
-        'scope_mode'              => 'general', // general | template
+        'scope_mode'              => 'general', // general | exclude_templates | template
         'template_scope'          => $defaultScope,
+        'template_rules'          => [],
         'placement'               => 'right',   // left | right
         'width'                   => '300',
         'gap'                     => '32',
@@ -1375,6 +1462,73 @@ function cmsSidebarSettingsDefaults(): array
         'widget_padding'          => '16',
         'widget_radius'           => '10',
     ];
+}
+
+function cmsSidebarNormalizeTemplateRules(mixed $input, array $allowedTargets): array
+{
+    $rules = [];
+
+    if (is_array($input)) {
+        $rules = $input;
+    } elseif (is_string($input)) {
+        $trimmed = trim($input);
+        if ($trimmed !== '') {
+            $decoded = json_decode($trimmed, true);
+            if (is_array($decoded)) {
+                $rules = $decoded;
+            } else {
+                $rules = preg_split('/\s*,\s*/', $trimmed) ?: [];
+            }
+        }
+    }
+
+    $normalized = [];
+    foreach ($rules as $rule) {
+        $key = trim((string)$rule);
+        if ($key === '' || !in_array($key, $allowedTargets, true) || in_array($key, $normalized, true)) {
+            continue;
+        }
+        $normalized[] = $key;
+    }
+
+    return $normalized;
+}
+
+function cmsSidebarResolvedTemplateRules(array $settings): array
+{
+    $allowedTargets = array_map(static fn($t) => (string)($t['key'] ?? ''), cmsSidebarTemplateTargets());
+    $fallbackTarget = !empty($allowedTargets[0]) ? $allowedTargets[0] : (string)(cmsSidebarSettingsDefaults()['template_scope'] ?? 'home');
+    $rules = cmsSidebarNormalizeTemplateRules($settings['template_rules'] ?? [], $allowedTargets);
+
+    $legacyTemplateScope = trim((string)($settings['template_scope'] ?? ''));
+    if ($rules === [] && $legacyTemplateScope !== '' && in_array($legacyTemplateScope, $allowedTargets, true)) {
+        $rules[] = $legacyTemplateScope;
+    }
+
+    if ($rules === [] && $fallbackTarget !== '') {
+        $scopeMode = (string)($settings['scope_mode'] ?? 'general');
+        if ($scopeMode === 'template') {
+            $rules[] = $fallbackTarget;
+        }
+    }
+
+    return $rules;
+}
+
+function cmsSidebarTemplateMatchesScope(array $settings, string $templateKey): bool
+{
+    $scopeMode = (string)($settings['scope_mode'] ?? 'general');
+    if (!in_array($scopeMode, ['general', 'exclude_templates', 'template'], true)) {
+        $scopeMode = 'general';
+    }
+
+    $rules = cmsSidebarResolvedTemplateRules($settings);
+
+    return match ($scopeMode) {
+        'exclude_templates' => !in_array($templateKey, $rules, true),
+        'template' => in_array($templateKey, $rules, true),
+        default => true,
+    };
 }
 
 function cmsHeaderSettingsDefaults(): array
@@ -1503,9 +1657,16 @@ function cmsEntityPresentationConfig(array $themeSettings): array
     $actionSize = (string)$presentationSettings['entity_action_size'];
     $summarySticky = !empty($presentationSettings['entity_summary_sticky']) ? 1 : 0;
     $listShowFilterSummary = !empty($presentationSettings['entity_list_show_filter_summary']) ? 1 : 0;
+    $listCategoryNavigation = (string)($presentationSettings['entity_list_category_navigation'] ?? 'list');
     $listCardDensity = (string)($presentationSettings['entity_list_card_density'] ?? 'comfortable');
     $listShowExcerpt = !empty($presentationSettings['entity_list_show_excerpt']) ? 1 : 0;
     $listExcerptLength = (int)($presentationSettings['entity_list_excerpt_length'] ?? 120);
+    $listTitleFont = (string)($presentationSettings['entity_list_title_font'] ?? '');
+    $listTextFont = (string)($presentationSettings['entity_list_text_font'] ?? '');
+    $listTitleSize = (int)($presentationSettings['entity_list_title_size'] ?? 19);
+    $listPriceSize = (int)($presentationSettings['entity_list_price_size'] ?? 17);
+    $listCardMinWidth = (int)($presentationSettings['entity_list_card_min_width'] ?? 240);
+    $listTitleLines = (int)($presentationSettings['entity_list_title_lines'] ?? 2);
 
     return [
         'layout_profile'      => $profile,
@@ -1524,9 +1685,16 @@ function cmsEntityPresentationConfig(array $themeSettings): array
         'spacing_scale'       => $spacingScale,
         'action_size'         => $actionSize,
         'list_show_filter_summary' => $listShowFilterSummary,
+        'list_category_navigation' => $listCategoryNavigation,
         'list_card_density'   => $listCardDensity,
         'list_show_excerpt'   => $listShowExcerpt,
         'list_excerpt_length' => $listExcerptLength,
+        'list_title_font'     => $listTitleFont,
+        'list_text_font'      => $listTextFont,
+        'list_title_size'     => $listTitleSize,
+        'list_price_size'     => $listPriceSize,
+        'list_card_min_width' => $listCardMinWidth,
+        'list_title_lines'    => $listTitleLines,
     ];
 }
 
@@ -1693,8 +1861,12 @@ function cmsRenderEntityPresentationCss(array $settings): string
     $listDensity = (string)($presentation['entity_list_card_density'] ?? 'comfortable');
     $listGap = '1.5rem';
     $listCardPadding = '1rem';
-    $listCardMinWidth = '15.5rem';
-    $listTitleSize = '1.08rem';
+    $listCardMinWidth = (string)((int)($presentation['entity_list_card_min_width'] ?? 240)) . 'px';
+    $listTitleSize = (string)((int)($presentation['entity_list_title_size'] ?? 19)) . 'px';
+    $listPriceSize = (string)((int)($presentation['entity_list_price_size'] ?? 17)) . 'px';
+    $listTitleLines = (string)((int)($presentation['entity_list_title_lines'] ?? 2));
+    $listTitleFontCss = cmsCustomizerFontCssValue((string)($presentation['entity_list_title_font'] ?? ''), 'var(--font-heading)');
+    $listTextFontCss = cmsCustomizerFontCssValue((string)($presentation['entity_list_text_font'] ?? ''), 'var(--font-body)');
     $listExcerptSize = '0.9rem';
     $listPillFontSize = '0.82rem';
     $listPillPadY = '0.42rem';
@@ -1702,8 +1874,6 @@ function cmsRenderEntityPresentationCss(array $settings): string
     if ($listDensity === 'compact') {
         $listGap = '1rem';
         $listCardPadding = '0.875rem';
-        $listCardMinWidth = '14rem';
-        $listTitleSize = '1rem';
         $listExcerptSize = '0.84rem';
         $listPillFontSize = '0.76rem';
         $listPillPadY = '0.34rem';
@@ -1711,8 +1881,6 @@ function cmsRenderEntityPresentationCss(array $settings): string
     } elseif ($listDensity === 'airy') {
         $listGap = '2rem';
         $listCardPadding = '1.25rem';
-        $listCardMinWidth = '17rem';
-        $listTitleSize = '1.16rem';
         $listExcerptSize = '0.96rem';
         $listPillFontSize = '0.88rem';
         $listPillPadY = '0.48rem';
@@ -1729,6 +1897,10 @@ function cmsRenderEntityPresentationCss(array $settings): string
     $css .= '--theme-entity-list-card-padding:' . $listCardPadding . ';';
     $css .= '--theme-entity-list-card-min-width:' . $listCardMinWidth . ';';
     $css .= '--theme-entity-list-title-size:' . $listTitleSize . ';';
+    $css .= '--theme-entity-list-price-size:' . $listPriceSize . ';';
+    $css .= '--theme-entity-list-title-lines:' . $listTitleLines . ';';
+    $css .= '--theme-entity-list-title-font:' . $listTitleFontCss . ';';
+    $css .= '--theme-entity-list-text-font:' . $listTextFontCss . ';';
     $css .= '--theme-entity-list-excerpt-size:' . $listExcerptSize . ';';
     $css .= '--theme-entity-list-pill-font-size:' . $listPillFontSize . ';';
     $css .= '--theme-entity-list-pill-pad-y:' . $listPillPadY . ';';
@@ -1753,9 +1925,11 @@ function cmsRenderEntityPresentationCss(array $settings): string
         $css .= '.cms-entity-hero img{width:100%;height:100%;object-fit:cover;max-height:none;border-radius:0;}';
     }
     $css .= '.cms-action-block .cms-btn-primary,.cms-action-block .cms-btn-secondary,.cms-action-block .cms-btn-disabled{padding:var(--theme-entity-action-pad-y) var(--theme-entity-action-pad-x);font-size:var(--theme-entity-action-font-size);min-height:var(--theme-entity-action-min-height);border-radius:var(--radius-md);}';
-    $css .= '.cms-entity-list__grid{gap:var(--theme-entity-list-gap);}';
-    $css .= '.cms-entity-card__body{display:flex;flex-direction:column;gap:calc(var(--theme-entity-list-gap) * 0.5);padding:var(--theme-entity-list-card-padding);}';
-    $css .= '.cms-entity-card__excerpt{margin:0;}';
+    $css .= '.cms-entity-list__grid{gap:var(--theme-entity-list-gap);grid-template-columns:repeat(auto-fit,minmax(min(100%, var(--theme-entity-list-card-min-width)),1fr));}';
+    $css .= '.cms-entity-card__body{display:flex;flex-direction:column;gap:calc(var(--theme-entity-list-gap) * 0.5);padding:var(--theme-entity-list-card-padding);font-family:var(--theme-entity-list-text-font);}';
+    $css .= '.cms-entity-card__title{margin:0;font-family:var(--theme-entity-list-title-font);font-size:var(--theme-entity-list-title-size);line-height:1.12;letter-spacing:-0.02em;overflow-wrap:anywhere;word-break:break-word;display:-webkit-box;-webkit-line-clamp:var(--theme-entity-list-title-lines);-webkit-box-orient:vertical;overflow:hidden;min-height:calc(1.12em * var(--theme-entity-list-title-lines));}';
+    $css .= '.cms-entity-card__excerpt{margin:0;font-size:var(--theme-entity-list-excerpt-size);font-family:var(--theme-entity-list-text-font);}';
+    $css .= '.cms-entity-card .cms-price-current{font-size:var(--theme-entity-list-price-size);}';
     $css .= '@media(max-width:1024px){.cms-entity-profile-commerce .cms-entity-layout{grid-template-columns:1fr;}.cms-entity-profile-commerce .cms-entity-summary{position:static;}}';
 
     return $css;
@@ -1872,7 +2046,12 @@ function cmsRenderStorefrontStyle(object $db): string
         cmsCustomizerFragmentCacheSet('storefront_style', ['html' => ''], ['cms:customizer:storefront']);
         return '';
     }
-    $html = '<style id="cz-storefront-override">' . cmsRenderEntityPresentationCss($data['settings']) . '</style>';
+    $settings = cmsValidateStorefrontSettings($data['settings']);
+    $fontHtml = cmsCustomizerFontStylesheetHtml([
+        (string)($settings['entity_list_title_font'] ?? ''),
+        (string)($settings['entity_list_text_font'] ?? ''),
+    ]);
+    $html = $fontHtml . '<style id="cz-storefront-override">' . cmsRenderEntityPresentationCss($settings) . '</style>';
     cmsCustomizerFragmentCacheSet('storefront_style', ['html' => $html], ['cms:customizer:storefront']);
     return $html;
 }
@@ -1951,10 +2130,18 @@ function cmsValidateSidebarSettings(array $input): array
     $fallbackTarget = !empty($allowedTargets[0]) ? $allowedTargets[0] : (string)$defaults['template_scope'];
 
     $validated['enabled'] = (int)(bool)($input['enabled'] ?? $defaults['enabled']);
-    $validated['scope_mode'] = in_array(($input['scope_mode'] ?? ''), ['general', 'template'], true)
+    $validated['scope_mode'] = in_array(($input['scope_mode'] ?? ''), ['general', 'exclude_templates', 'template'], true)
         ? (string)$input['scope_mode'] : $defaults['scope_mode'];
-    $validated['template_scope'] = in_array((string)($input['template_scope'] ?? ''), $allowedTargets, true)
-        ? (string)$input['template_scope'] : $fallbackTarget;
+    $legacyTemplateScope = in_array((string)($input['template_scope'] ?? ''), $allowedTargets, true)
+        ? (string)$input['template_scope'] : '';
+    $validated['template_rules'] = cmsSidebarNormalizeTemplateRules($input['template_rules'] ?? [], $allowedTargets);
+    if ($validated['template_rules'] === [] && $legacyTemplateScope !== '') {
+        $validated['template_rules'] = [$legacyTemplateScope];
+    }
+    if ($validated['template_rules'] === [] && $validated['scope_mode'] === 'template') {
+        $validated['template_rules'] = [$fallbackTarget];
+    }
+    $validated['template_scope'] = $validated['template_rules'][0] ?? ($legacyTemplateScope !== '' ? $legacyTemplateScope : $fallbackTarget);
     $validated['placement'] = in_array(($input['placement'] ?? ''), ['left', 'right'], true)
         ? (string)$input['placement'] : $defaults['placement'];
     $validated['sticky'] = (int)(bool)($input['sticky'] ?? $defaults['sticky']);
@@ -2267,13 +2454,13 @@ function cmsRenderCustomizedSidebar(object $db, array $publicCtx = []): array
     }
 
     $scopeMode = (string)($settings['scope_mode'] ?? 'general');
-    $templateScope = (string)($settings['template_scope'] ?? $defaultTarget);
-    $showForThisTemplate = ($scopeMode === 'general') || ($scopeMode === 'template' && $templateScope === $templateKey);
+    $templateRules = cmsSidebarResolvedTemplateRules($settings);
+    $showForThisTemplate = cmsSidebarTemplateMatchesScope($settings, $templateKey);
     if (!$showForThisTemplate) {
         return ['enabled' => false, 'position' => ($settings['placement'] ?? 'right'), 'width' => ($settings['width'] ?? '300'), 'html' => ''];
     }
 
-    $cacheFragment = 'sidebar_html:' . sha1($templateKey);
+    $cacheFragment = 'sidebar_html:' . sha1($templateKey . '|' . $scopeMode . '|' . implode(',', $templateRules));
     $cached = cmsCustomizerFragmentCacheGet($cacheFragment);
     if (is_array($cached)
         && isset($cached['enabled'], $cached['position'], $cached['width'])
@@ -2335,6 +2522,8 @@ function cmsRenderCustomizedSidebar(object $db, array $publicCtx = []): array
                 'sidebar_widgets' => $widgets,
                 'sidebar_settings' => $settings,
                 'sidebar_template_key' => $templateKey,
+                'sidebar_scope_mode' => $scopeMode,
+                'sidebar_template_rules' => $templateRules,
                 'sidebar_position' => in_array(($settings['placement'] ?? ''), ['left', 'right'], true) ? $settings['placement'] : 'right',
                 'sidebar_width' => (string)$width,
                 'cms_settings' => $cmsSettings,

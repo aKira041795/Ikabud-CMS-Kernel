@@ -549,19 +549,29 @@
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
                             <label class="cz-label">Apply Scope</label>
-                            <select class="cz-select" x-model="sidebarSettings.scope_mode">
-                                <option value="general">General (all templates)</option>
-                                <option value="template">Specific template only</option>
+                            <select class="cz-select" x-model="sidebarSettings.scope_mode" @change="sidebarNormalizeTemplateRules()">
+                                <option value="general">All page templates</option>
+                                <option value="exclude_templates">All except selected templates</option>
+                                <option value="template">Only selected templates</option>
                             </select>
                         </div>
-                        <div x-show="sidebarSettings.scope_mode === 'template'">
-                            <label class="cz-label">Template</label>
-                            <select class="cz-select" x-model="sidebarSettings.template_scope">
+                        <div x-show="sidebarSettings.scope_mode !== 'general'" class="sm:col-span-2">
+                            <div class="flex items-start justify-between gap-3">
+                                <div>
+                                    <label class="cz-label" x-text="sidebarSettings.scope_mode === 'exclude_templates' ? 'Exempt Templates' : 'Included Templates'"></label>
+                                    <p class="text-[10px] text-gray-400 mt-1" x-text="sidebarSettings.scope_mode === 'exclude_templates' ? 'The sidebar will stay visible everywhere except the templates selected below.' : 'The sidebar will render only on the templates selected below.'"></p>
+                                </div>
+                                <span class="text-[10px] font-medium text-gray-500" x-text="sidebarSelectedTemplateCountLabel()"></span>
+                            </div>
+                            <div class="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-52 overflow-auto pr-1">
                                 <template x-for="t in availableSidebarTemplates" :key="t.key">
-                                    <option :value="t.key" x-text="t.label"></option>
+                                    <label class="flex items-center gap-3 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 hover:border-sky-300 hover:bg-sky-50 transition-colors cursor-pointer">
+                                        <input type="checkbox" class="rounded border-gray-300 text-sky-600 focus:ring-sky-500" :checked="sidebarTemplateRuleChecked(t.key)" @change="toggleSidebarTemplateRule(t.key)">
+                                        <span class="flex-1" x-text="t.label"></span>
+                                    </label>
                                 </template>
-                            </select>
-                            <p class="text-[10px] text-gray-400 mt-1">Targets templates discovered from the active theme.</p>
+                            </div>
+                            <p class="text-[10px] text-gray-400 mt-1">Uses page templates discovered from the active theme.</p>
                             <p x-show="sidebarTemplateFileExists" class="text-[10px] text-emerald-600 mt-1">Active theme includes `public/sidebar.disyl` override.</p>
                         </div>
                         <div>
@@ -752,7 +762,7 @@
                 <div class="p-3">
                     <div x-show="customizerScope !== 'ecommerce'" class="border border-gray-200 rounded-lg p-3" :style="'background:' + sidebarSettings.widget_bg_color + ';border-color:' + sidebarSettings.widget_border_color">
                         <div class="text-xs font-semibold mb-2" :style="'color:' + sidebarSettings.widget_title_color">Sample Widget</div>
-                        <div class="text-[11px]" :style="'color:' + sidebarSettings.widget_text_color">Sidebar will appear on <span x-text="sidebarSettings.scope_mode === 'general' ? 'all templates' : (sidebarSettings.template_scope + ' template')"></span> and on the <span x-text="sidebarSettings.placement"></span> side.</div>
+                        <div class="text-[11px]" :style="'color:' + sidebarSettings.widget_text_color">Sidebar will appear on <span x-text="sidebarScopeSummary()"></span> and on the <span x-text="sidebarSettings.placement"></span> side.</div>
                     </div>
                     <div x-show="customizerScope === 'ecommerce'" class="space-y-3">
                         <div class="rounded-lg border border-gray-200 bg-white p-3">
@@ -787,7 +797,7 @@
                                 <div x-show="sidebarSettings.enabled == 1" :style="entityPreviewSidebarRailStyle()" class="space-y-2">
                                     <div class="text-xs font-semibold" :style="'color:' + sidebarSettings.widget_title_color">Merchandising Rail</div>
                                     <div class="text-[11px]" :style="'color:' + sidebarSettings.widget_text_color">Placement: <span class="font-medium capitalize" x-text="sidebarSettings.placement"></span></div>
-                                    <div class="text-[11px]" :style="'color:' + sidebarSettings.widget_text_color">Scope: <span class="font-medium" x-text="sidebarSettings.scope_mode === 'general' ? 'All storefront templates' : sidebarSettings.template_scope"></span></div>
+                                    <div class="text-[11px]" :style="'color:' + sidebarSettings.widget_text_color">Scope: <span class="font-medium" x-text="sidebarScopeSummary()"></span></div>
                                     <div class="inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-semibold" :style="entityPreviewInventoryStyle('ok')">Sticky: <span class="ml-1" x-text="sidebarSettings.sticky == 1 ? 'On' : 'Off'"></span></div>
                                 </div>
                             </div>
@@ -3056,6 +3066,67 @@
 
                     <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                         <div>
+                            <label class="cz-label">Catalog Title Font</label>
+                            <select x-model="storefrontSettings.entity_list_title_font" class="cz-select">
+                                <option value="">Inherit Heading Font</option>
+                                <template x-for="f in fontOptions" :key="'catalog-title-' + f.value">
+                                    <option :value="f.value" x-text="f.label"></option>
+                                </template>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="cz-label">Catalog Text Font</label>
+                            <select x-model="storefrontSettings.entity_list_text_font" class="cz-select">
+                                <option value="">Inherit Body Font</option>
+                                <template x-for="f in fontOptions" :key="'catalog-text-' + f.value">
+                                    <option :value="f.value" x-text="f.label"></option>
+                                </template>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="cz-label">Shop Categories</label>
+                            <select x-model="storefrontSettings.entity_list_category_navigation" class="cz-select">
+                                <option value="list">List</option>
+                                <option value="dropdown">Dropdown</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div>
+                            <label class="cz-label">Title Size</label>
+                            <div class="cz-range-row">
+                                <input type="range" min="16" max="32" step="1" x-model="storefrontSettings.entity_list_title_size">
+                                <span class="cz-range-value" x-text="storefrontSettings.entity_list_title_size + 'px'"></span>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="cz-label">Price Size</label>
+                            <div class="cz-range-row">
+                                <input type="range" min="14" max="28" step="1" x-model="storefrontSettings.entity_list_price_size">
+                                <span class="cz-range-value" x-text="storefrontSettings.entity_list_price_size + 'px'"></span>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="cz-label">Card Min Width</label>
+                            <div class="cz-range-row">
+                                <input type="range" min="200" max="340" step="10" x-model="storefrontSettings.entity_list_card_min_width">
+                                <span class="cz-range-value" x-text="storefrontSettings.entity_list_card_min_width + 'px'"></span>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="cz-label">Title Clamp</label>
+                            <select x-model="storefrontSettings.entity_list_title_lines" class="cz-select">
+                                <option value="1">1 line</option>
+                                <option value="2">2 lines</option>
+                                <option value="3">3 lines</option>
+                                <option value="4">4 lines</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <div>
                             <label class="cz-label">List Pricing Variant</label>
                             <select x-model="storefrontSettings.entity_list_pricing_variant" class="cz-select">
                                 <option value="">Default</option>
@@ -3113,8 +3184,15 @@
                         <div class="flex justify-between"><span class="text-gray-400">Action Size</span><span class="font-medium uppercase" x-text="storefrontSettings.entity_action_size"></span></div>
                         <div class="flex justify-between"><span class="text-gray-400">Card Density</span><span class="font-medium capitalize" x-text="storefrontSettings.entity_list_card_density"></span></div>
                         <div class="flex justify-between"><span class="text-gray-400">Filter Summary</span><span class="font-medium" x-text="storefrontSettings.entity_list_show_filter_summary == 1 ? 'On' : 'Off'"></span></div>
+                        <div class="flex justify-between"><span class="text-gray-400">Shop Categories</span><span class="font-medium" x-text="storefrontSettings.entity_list_category_navigation === 'dropdown' ? 'Dropdown' : 'List'"></span></div>
                         <div class="flex justify-between"><span class="text-gray-400">Card Excerpts</span><span class="font-medium" x-text="storefrontSettings.entity_list_show_excerpt == 1 ? 'On' : 'Off'"></span></div>
                         <div class="flex justify-between"><span class="text-gray-400">Excerpt Length</span><span class="font-medium" x-text="storefrontSettings.entity_list_excerpt_length + ' chars'"></span></div>
+                        <div class="flex justify-between"><span class="text-gray-400">Title Font</span><span class="font-medium" x-text="catalogFontLabel(storefrontSettings.entity_list_title_font, 'Theme heading')"></span></div>
+                        <div class="flex justify-between"><span class="text-gray-400">Text Font</span><span class="font-medium" x-text="catalogFontLabel(storefrontSettings.entity_list_text_font, 'Theme body')"></span></div>
+                        <div class="flex justify-between"><span class="text-gray-400">Title Size</span><span class="font-medium" x-text="storefrontSettings.entity_list_title_size + 'px'"></span></div>
+                        <div class="flex justify-between"><span class="text-gray-400">Price Size</span><span class="font-medium" x-text="storefrontSettings.entity_list_price_size + 'px'"></span></div>
+                        <div class="flex justify-between"><span class="text-gray-400">Card Min Width</span><span class="font-medium" x-text="storefrontSettings.entity_list_card_min_width + 'px'"></span></div>
+                        <div class="flex justify-between"><span class="text-gray-400">Title Clamp</span><span class="font-medium" x-text="storefrontSettings.entity_list_title_lines + ' lines'"></span></div>
                         <div class="flex justify-between"><span class="text-gray-400">List Price Variant</span><span class="font-medium capitalize" x-text="entityPreviewVariantLabel(entityPreviewListPricingVariant())"></span></div>
                         <div class="flex justify-between"><span class="text-gray-400">List Inventory Variant</span><span class="font-medium capitalize" x-text="entityPreviewVariantLabel(entityPreviewListInventoryVariant())"></span></div>
                         <div class="flex justify-between"><span class="text-gray-400">List Progress Variant</span><span class="font-medium capitalize" x-text="entityPreviewVariantLabel(entityPreviewListProgressVariant())"></span></div>
@@ -3152,8 +3230,9 @@
                         </div>
                         <div :style="entityPreviewListCardStyle()">
                             <div class="space-y-1.5">
-                                <div class="h-2.5 bg-slate-800 rounded w-1/2"></div>
-                                <p x-show="storefrontSettings.entity_list_show_excerpt == 1" class="text-[11px] leading-5 text-slate-500">Small-batch loaf baked daily and finished with a blistered crust.</p>
+                                <div class="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400" :style="entityPreviewCatalogLabelStyle()">New in</div>
+                                <div class="text-slate-900" :style="entityPreviewCatalogTitleStyle()">Long catalog product names wrap cleanly without colliding with adjacent cards.</div>
+                                <p x-show="storefrontSettings.entity_list_show_excerpt == 1" class="text-[11px] leading-5 text-slate-500" :style="entityPreviewCatalogExcerptStyle()">Small-batch loaf baked daily and finished with a blistered crust.</p>
                             </div>
                             <div class="flex flex-wrap items-center gap-2">
                                 <div :style="entityPreviewListPricingStyle()">
@@ -3477,6 +3556,21 @@ function themeCustomizer() {
             return normalized.charAt(0).toUpperCase() + normalized.slice(1);
         },
 
+        catalogFontLabel(value, fallbackLabel) {
+            const normalized = ((value || '') + '').trim();
+            return normalized !== '' ? normalized : fallbackLabel;
+        },
+
+        previewFontFamily(value, fallback = 'system-ui,-apple-system,BlinkMacSystemFont,sans-serif') {
+            const normalized = ((value || '') + '').replace(/[\'"]/g, '').trim();
+            if (normalized === '') return fallback;
+            const lower = normalized.toLowerCase();
+            if (lower === 'system-ui') return 'system-ui,-apple-system,BlinkMacSystemFont,sans-serif';
+            if (lower === 'serif' || lower === 'sans-serif' || lower === 'monospace') return lower;
+            if (lower === 'georgia') return '\'Georgia\',serif';
+            return '\'' + normalized + '\',sans-serif';
+        },
+
         entityPreviewPricingVariant() {
             return this.entityPreviewEffectiveVariant('pricing', this.entitySettings().entity_pricing_variant);
         },
@@ -3577,6 +3671,23 @@ function themeCustomizer() {
             return 'background:' + (this.colorsSettings.storefront_success_bg || '#ecfdf5') + ';color:' + (this.colorsSettings.storefront_success_text || '#047857') + ';';
         },
 
+        entityPreviewCatalogLabelStyle() {
+            const font = this.previewFontFamily(this.storefrontSettings.entity_list_text_font || this.colorsSettings.font_body || 'Inter');
+            return 'font-family:' + font + ';';
+        },
+
+        entityPreviewCatalogTitleStyle() {
+            const font = this.previewFontFamily(this.storefrontSettings.entity_list_title_font || this.colorsSettings.font_heading || 'Inter');
+            const size = parseInt(this.storefrontSettings.entity_list_title_size || 19, 10) || 19;
+            const lines = Math.max(1, Math.min(4, parseInt(this.storefrontSettings.entity_list_title_lines || 2, 10) || 2));
+            return 'font-family:' + font + ';font-size:' + size + 'px;line-height:1.08;font-weight:700;letter-spacing:-0.03em;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:' + lines + ';overflow:hidden;overflow-wrap:anywhere;min-height:calc(1.08em * ' + lines + ');';
+        },
+
+        entityPreviewCatalogExcerptStyle() {
+            const font = this.previewFontFamily(this.storefrontSettings.entity_list_text_font || this.colorsSettings.font_body || 'Inter');
+            return 'font-family:' + font + ';';
+        },
+
         entityPreviewListCardStyle() {
             const density = this.storefrontSettings.entity_list_card_density || 'comfortable';
             let pad = '12px';
@@ -3606,9 +3717,10 @@ function themeCustomizer() {
 
         entityPreviewListPricingCurrentStyle() {
             const variant = this.entityPreviewListPricingVariant();
+            const priceSize = parseInt(this.storefrontSettings.entity_list_price_size || 17, 10) || 17;
             return 'color:' + (this.colorsSettings.storefront_price_color || '#0f172a')
                 + ';font-weight:700;'
-                + (variant === 'minimal' ? 'font-size:13px;text-transform:none;' : 'font-size:14px;');
+                + (variant === 'minimal' ? 'font-size:' + Math.max(12, priceSize - 2) + 'px;text-transform:none;' : 'font-size:' + priceSize + 'px;');
         },
 
         entityPreviewListInventoryStyle() {
@@ -3653,6 +3765,78 @@ function themeCustomizer() {
                 + ';border-radius:' + (this.sidebarSettings.widget_radius || 10) + 'px'
                 + ';padding:' + (this.sidebarSettings.widget_padding || 16) + 'px'
                 + ';color:' + (this.sidebarSettings.widget_text_color || '#334155') + ';';
+        },
+
+        sidebarDefaultTemplateKey() {
+            return (this.availableSidebarTemplates[0] && this.availableSidebarTemplates[0].key) ? this.availableSidebarTemplates[0].key : 'home';
+        },
+
+        sidebarNormalizeTemplateRules() {
+            const validKeys = new Set((Array.isArray(this.availableSidebarTemplates) ? this.availableSidebarTemplates : [])
+                .map((t) => (t && t.key ? t.key : ''))
+                .filter(Boolean));
+            let rules = Array.isArray(this.sidebarSettings.template_rules) ? this.sidebarSettings.template_rules : [];
+            if (rules.length === 0 && this.sidebarSettings.template_scope) {
+                rules = [this.sidebarSettings.template_scope];
+            }
+            rules = [...new Set(rules
+                .map((rule) => ((rule ?? '') + '').trim())
+                .filter((rule) => validKeys.has(rule)))];
+            if (this.sidebarSettings.scope_mode === 'template' && rules.length === 0) {
+                const fallback = this.sidebarDefaultTemplateKey();
+                if (fallback) {
+                    rules = [fallback];
+                }
+            }
+            this.sidebarSettings.template_rules = rules;
+            this.sidebarSettings.template_scope = rules[0] || this.sidebarDefaultTemplateKey();
+        },
+
+        sidebarTemplateRuleChecked(key) {
+            const rules = Array.isArray(this.sidebarSettings.template_rules) ? this.sidebarSettings.template_rules : [];
+            return rules.includes(key);
+        },
+
+        toggleSidebarTemplateRule(key) {
+            const rules = Array.isArray(this.sidebarSettings.template_rules) ? [...this.sidebarSettings.template_rules] : [];
+            const index = rules.indexOf(key);
+            if (index >= 0) {
+                rules.splice(index, 1);
+            } else {
+                rules.push(key);
+            }
+            this.sidebarSettings.template_rules = rules;
+            this.sidebarNormalizeTemplateRules();
+        },
+
+        sidebarSelectedTemplateCountLabel() {
+            const count = Array.isArray(this.sidebarSettings.template_rules) ? this.sidebarSettings.template_rules.length : 0;
+            if (count === 0) return 'No templates selected';
+            if (count === 1) return '1 template selected';
+            return count + ' templates selected';
+        },
+
+        sidebarScopeSummary() {
+            const rules = Array.isArray(this.sidebarSettings.template_rules) ? this.sidebarSettings.template_rules : [];
+            const labels = (Array.isArray(this.availableSidebarTemplates) ? this.availableSidebarTemplates : [])
+                .filter((template) => rules.includes(template.key))
+                .map((template) => (template.label || template.key || '').replace(/ Template$/, ''));
+
+            if (this.sidebarSettings.scope_mode === 'exclude_templates') {
+                if (labels.length === 0) return 'all page templates';
+                const preview = labels.slice(0, 3).join(', ');
+                const remainder = labels.length > 3 ? ' +' + (labels.length - 3) : '';
+                return 'all templates except ' + preview + remainder;
+            }
+
+            if (this.sidebarSettings.scope_mode === 'template') {
+                if (labels.length === 0) return 'selected templates';
+                const preview = labels.slice(0, 3).join(', ');
+                const remainder = labels.length > 3 ? ' +' + (labels.length - 3) : '';
+                return preview + remainder;
+            }
+
+            return 'all page templates';
         },
 
         entityPreviewHeaderOffset() {
@@ -3837,10 +4021,11 @@ function themeCustomizer() {
             try {
                 this.sidebarSettings = JSON.parse(document.getElementById('cz-sidebar-settings').textContent);
                 if (this.sidebarSettings.enabled === undefined) this.sidebarSettings.enabled = 0;
-                if (this.sidebarSettings.scope_mode === undefined) this.sidebarSettings.scope_mode = 'general';
-                const _defaultSidebarTpl = (this.availableSidebarTemplates[0] && this.availableSidebarTemplates[0].key) ? this.availableSidebarTemplates[0].key : 'home';
+                if (!['general', 'exclude_templates', 'template'].includes(this.sidebarSettings.scope_mode)) this.sidebarSettings.scope_mode = 'general';
+                const _defaultSidebarTpl = this.sidebarDefaultTemplateKey();
                 if (this.sidebarSettings.template_scope === undefined) this.sidebarSettings.template_scope = _defaultSidebarTpl;
                 if (!this.availableSidebarTemplates.find(t => t.key === this.sidebarSettings.template_scope)) this.sidebarSettings.template_scope = _defaultSidebarTpl;
+                if (!Array.isArray(this.sidebarSettings.template_rules)) this.sidebarSettings.template_rules = [];
                 if (this.sidebarSettings.placement === undefined) this.sidebarSettings.placement = 'right';
                 if (this.sidebarSettings.width === undefined) this.sidebarSettings.width = '300';
                 if (this.sidebarSettings.gap === undefined) this.sidebarSettings.gap = '32';
@@ -3853,10 +4038,12 @@ function themeCustomizer() {
                 if (this.sidebarSettings.widget_link_hover_color === undefined) this.sidebarSettings.widget_link_hover_color = '#1d4ed8';
                 if (this.sidebarSettings.widget_padding === undefined) this.sidebarSettings.widget_padding = '16';
                 if (this.sidebarSettings.widget_radius === undefined) this.sidebarSettings.widget_radius = '10';
+                this.sidebarNormalizeTemplateRules();
             } catch (e) {
-                const _defaultSidebarTpl = (this.availableSidebarTemplates[0] && this.availableSidebarTemplates[0].key) ? this.availableSidebarTemplates[0].key : 'home';
+                const _defaultSidebarTpl = this.sidebarDefaultTemplateKey();
                 this.sidebarSettings = {
                     enabled: 0, scope_mode: 'general', template_scope: _defaultSidebarTpl, placement: 'right',
+                    template_rules: [],
                     width: '300', gap: '32', sticky: 0,
                     widget_bg_color: '#ffffff', widget_text_color: '#334155', widget_title_color: '#0f172a',
                     widget_border_color: '#e2e8f0', widget_link_color: '#2563eb', widget_link_hover_color: '#1d4ed8',
@@ -3932,11 +4119,25 @@ function themeCustomizer() {
                 if (this.themeLayoutSettings.entity_layout_profile === undefined) this.themeLayoutSettings.entity_layout_profile = 'default';
                 if (this.themeLayoutSettings.entity_pricing_variant === undefined) this.themeLayoutSettings.entity_pricing_variant = '';
                 if (this.themeLayoutSettings.entity_action_variant === undefined) this.themeLayoutSettings.entity_action_variant = '';
+                if (this.themeLayoutSettings.entity_list_pricing_variant === undefined) this.themeLayoutSettings.entity_list_pricing_variant = '';
+                if (this.themeLayoutSettings.entity_list_inventory_variant === undefined) this.themeLayoutSettings.entity_list_inventory_variant = '';
+                if (this.themeLayoutSettings.entity_list_progress_variant === undefined) this.themeLayoutSettings.entity_list_progress_variant = '';
                 if (this.themeLayoutSettings.entity_summary_width === undefined) this.themeLayoutSettings.entity_summary_width = 320;
                 if (this.themeLayoutSettings.entity_summary_sticky === undefined) this.themeLayoutSettings.entity_summary_sticky = 1;
                 if (this.themeLayoutSettings.entity_media_ratio === undefined) this.themeLayoutSettings.entity_media_ratio = 'auto';
                 if (this.themeLayoutSettings.entity_spacing_scale === undefined) this.themeLayoutSettings.entity_spacing_scale = 'comfortable';
                 if (this.themeLayoutSettings.entity_action_size === undefined) this.themeLayoutSettings.entity_action_size = 'md';
+                if (this.themeLayoutSettings.entity_list_show_filter_summary === undefined) this.themeLayoutSettings.entity_list_show_filter_summary = 1;
+                if (this.themeLayoutSettings.entity_list_card_density === undefined) this.themeLayoutSettings.entity_list_card_density = 'comfortable';
+                if (this.themeLayoutSettings.entity_list_show_excerpt === undefined) this.themeLayoutSettings.entity_list_show_excerpt = 1;
+                if (this.themeLayoutSettings.entity_list_excerpt_length === undefined) this.themeLayoutSettings.entity_list_excerpt_length = 120;
+                if (this.themeLayoutSettings.entity_list_title_font === undefined) this.themeLayoutSettings.entity_list_title_font = '';
+                if (this.themeLayoutSettings.entity_list_text_font === undefined) this.themeLayoutSettings.entity_list_text_font = '';
+                if (this.themeLayoutSettings.entity_list_category_navigation === undefined) this.themeLayoutSettings.entity_list_category_navigation = 'list';
+                if (this.themeLayoutSettings.entity_list_title_size === undefined) this.themeLayoutSettings.entity_list_title_size = 19;
+                if (this.themeLayoutSettings.entity_list_price_size === undefined) this.themeLayoutSettings.entity_list_price_size = 17;
+                if (this.themeLayoutSettings.entity_list_card_min_width === undefined) this.themeLayoutSettings.entity_list_card_min_width = 240;
+                if (this.themeLayoutSettings.entity_list_title_lines === undefined) this.themeLayoutSettings.entity_list_title_lines = 2;
             } catch (e) {
                 this.themeLayoutSettings = {
                     layout_mode: 'contained', site_max_width: 1280, content_max_width: 768,
@@ -3952,6 +4153,9 @@ function themeCustomizer() {
                     entity_layout_profile: 'default', entity_pricing_variant: '', entity_action_variant: '',
                     entity_list_pricing_variant: '', entity_list_inventory_variant: '', entity_list_progress_variant: '',
                     entity_summary_width: 320, entity_summary_sticky: 1, entity_media_ratio: 'auto', entity_spacing_scale: 'comfortable', entity_action_size: 'md',
+                    entity_list_show_filter_summary: 1, entity_list_card_density: 'comfortable', entity_list_show_excerpt: 1, entity_list_excerpt_length: 120,
+                    entity_list_title_font: '', entity_list_text_font: '', entity_list_category_navigation: 'list', entity_list_title_size: 19, entity_list_price_size: 17,
+                    entity_list_card_min_width: 240, entity_list_title_lines: 2,
                 };
             }
 
@@ -3973,12 +4177,21 @@ function themeCustomizer() {
                 if (this.storefrontSettings.entity_list_card_density === undefined) this.storefrontSettings.entity_list_card_density = 'comfortable';
                 if (this.storefrontSettings.entity_list_show_excerpt === undefined) this.storefrontSettings.entity_list_show_excerpt = 1;
                 if (this.storefrontSettings.entity_list_excerpt_length === undefined) this.storefrontSettings.entity_list_excerpt_length = 120;
+                if (this.storefrontSettings.entity_list_title_font === undefined) this.storefrontSettings.entity_list_title_font = '';
+                if (this.storefrontSettings.entity_list_text_font === undefined) this.storefrontSettings.entity_list_text_font = '';
+                if (this.storefrontSettings.entity_list_category_navigation === undefined) this.storefrontSettings.entity_list_category_navigation = 'list';
+                if (this.storefrontSettings.entity_list_title_size === undefined) this.storefrontSettings.entity_list_title_size = 19;
+                if (this.storefrontSettings.entity_list_price_size === undefined) this.storefrontSettings.entity_list_price_size = 17;
+                if (this.storefrontSettings.entity_list_card_min_width === undefined) this.storefrontSettings.entity_list_card_min_width = 240;
+                if (this.storefrontSettings.entity_list_title_lines === undefined) this.storefrontSettings.entity_list_title_lines = 2;
             } catch (e) {
                 this.storefrontSettings = {
                     entity_layout_profile: 'commerce', entity_pricing_variant: '', entity_action_variant: '',
                     entity_list_pricing_variant: '', entity_list_inventory_variant: '', entity_list_progress_variant: '',
                     entity_summary_width: 320, entity_summary_sticky: 1, entity_media_ratio: 'auto', entity_spacing_scale: 'comfortable', entity_action_size: 'md',
                     entity_list_show_filter_summary: 1, entity_list_card_density: 'comfortable', entity_list_show_excerpt: 1, entity_list_excerpt_length: 120,
+                    entity_list_title_font: '', entity_list_text_font: '', entity_list_category_navigation: 'list', entity_list_title_size: 19, entity_list_price_size: 17,
+                    entity_list_card_min_width: 240, entity_list_title_lines: 2,
                 };
             }
 
@@ -4351,9 +4564,10 @@ function themeCustomizer() {
                 };
             } else if (this.activeTab === 'sidebar') {
                 if (!confirm('Reset all sidebar settings to defaults? This cannot be undone.')) return;
-                const _defaultSidebarTpl = (this.availableSidebarTemplates[0] && this.availableSidebarTemplates[0].key) ? this.availableSidebarTemplates[0].key : 'home';
+                const _defaultSidebarTpl = this.sidebarDefaultTemplateKey();
                 this.sidebarSettings = {
                     enabled: 0, scope_mode: 'general', template_scope: _defaultSidebarTpl, placement: 'right',
+                    template_rules: [],
                     width: '300', gap: '32', sticky: 0,
                     widget_bg_color: '#ffffff', widget_text_color: '#334155', widget_title_color: '#0f172a',
                     widget_border_color: '#e2e8f0', widget_link_color: '#2563eb', widget_link_hover_color: '#1d4ed8',
