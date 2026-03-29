@@ -91,6 +91,7 @@ t('entity list template reads primary_image_url', str_contains($template, 'item.
 t('entity list template no longer renders featured_image_url directly for src', !str_contains($template, 'src="{item.featured_image_url}"'));
 t('entity list template reads list density setting', str_contains($template, 'entity_presentation.list_card_density'));
 t('entity list template reads excerpt toggle setting', str_contains($template, 'entity_presentation.list_show_filter_summary') && str_contains($template, 'item.list_card_excerpt'));
+t('entity list template exposes storefront filter controls', str_contains($template, 'entity_list_context.available_categories') && str_contains($template, 'entity_list_context.search_action_url'));
 t('entity list template renders prebuilt inventory fragment', str_contains($template, 'item.list_card_inventory_html'));
 t('entity list template renders prebuilt pricing fragment', str_contains($template, 'item.list_card_pricing_html'));
 t('entity list template renders prebuilt progress fragment', str_contains($template, 'item.list_card_progress_html'));

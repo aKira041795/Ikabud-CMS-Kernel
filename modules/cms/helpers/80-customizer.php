@@ -196,9 +196,10 @@ function cmsNormalizeEcommercePublicRouteKind(?string $routeKind = null): string
 
 function cmsEcommercePublicPresentationMode(array $context = []): string
 {
-    $mode = trim((string)($context['public_presentation_mode'] ?? ''));
-    if (in_array($mode, ['traditional', 'entity_view'], true)) {
-        return $mode;
+    if (function_exists('cmsResolveEcommerceThemePolicy')) {
+        $policy = cmsResolveEcommerceThemePolicy($context);
+        $mode = trim((string)($policy['public_presentation_mode'] ?? 'traditional'));
+        return in_array($mode, ['traditional', 'entity_view'], true) ? $mode : 'traditional';
     }
 
     $routeKind = cmsNormalizeEcommercePublicRouteKind(
@@ -425,6 +426,11 @@ function cmsThemeManifestCustomizerDefaults(string $section, ?array $manifest = 
 
 function cmsActiveCustomizerScope(): string
 {
+    if (function_exists('cmsResolveEcommerceThemePolicy')) {
+        $policy = cmsResolveEcommerceThemePolicy(cmsCurrentPublicThemeContext());
+        return cmsNormalizeCustomizerScope((string)($policy['active_theme_scope'] ?? 'native'));
+    }
+
     return cmsThemeCustomizerScopeFromManifest(cmsActiveThemeManifest());
 }
 
@@ -1025,11 +1031,34 @@ function cmsRenderColorsStyle(object $db): string
     }
 
     $data = cmsCustomizerGet($db, 'colors');
-    if (!cmsShouldRenderCustomizerPresentationCss('colors', $data['settings'])) {
-        cmsCustomizerFragmentCacheSet('colors_style', ['html' => ''], ['cms:customizer:colors']);
-        return '';
-    }
     $s = $data['settings'];
+    $storefrontVarsCss  = ':root{';
+    $storefrontVarsCss .= '--storefront-surface-bg:' . ($s['storefront_surface_bg'] ?? '#ffffff') . ';';
+    $storefrontVarsCss .= '--storefront-surface-border:' . ($s['storefront_surface_border'] ?? '#e2e8f0') . ';';
+    $storefrontVarsCss .= '--storefront-price-color:' . ($s['storefront_price_color'] ?? '#0f172a') . ';';
+    $storefrontVarsCss .= '--storefront-badge-bg:' . ($s['storefront_badge_bg'] ?? '#fee2e2') . ';';
+    $storefrontVarsCss .= '--storefront-badge-text:' . ($s['storefront_badge_text'] ?? '#b91c1c') . ';';
+    $storefrontVarsCss .= '--storefront-cta-bg:' . ($s['storefront_cta_bg'] ?? '#0284c7') . ';';
+    $storefrontVarsCss .= '--storefront-cta-text:' . ($s['storefront_cta_text'] ?? '#ffffff') . ';';
+    $storefrontVarsCss .= '--storefront-secondary-bg:' . ($s['storefront_secondary_bg'] ?? '#ffffff') . ';';
+    $storefrontVarsCss .= '--storefront-secondary-text:' . ($s['storefront_secondary_text'] ?? '#334155') . ';';
+    $storefrontVarsCss .= '--storefront-secondary-border:' . ($s['storefront_secondary_border'] ?? '#cbd5e1') . ';';
+    $storefrontVarsCss .= '--storefront-success-bg:' . ($s['storefront_success_bg'] ?? '#ecfdf5') . ';';
+    $storefrontVarsCss .= '--storefront-success-text:' . ($s['storefront_success_text'] ?? '#047857') . ';';
+    $storefrontVarsCss .= '--storefront-warning-bg:' . ($s['storefront_warning_bg'] ?? '#fffbeb') . ';';
+    $storefrontVarsCss .= '--storefront-warning-text:' . ($s['storefront_warning_text'] ?? '#b45309') . ';';
+    $storefrontVarsCss .= '--storefront-danger-bg:' . ($s['storefront_danger_bg'] ?? '#fef2f2') . ';';
+    $storefrontVarsCss .= '--storefront-danger-text:' . ($s['storefront_danger_text'] ?? '#dc2626') . ';';
+    $storefrontVarsCss .= '}';
+    if (!cmsShouldRenderCustomizerPresentationCss('colors', $data['settings'])) {
+        if (cmsActiveCustomizerScope() !== 'ecommerce') {
+            cmsCustomizerFragmentCacheSet('colors_style', ['html' => ''], ['cms:customizer:colors']);
+            return '';
+        }
+        $html = '<style id="cz-colors-override">' . $storefrontVarsCss . '</style>';
+        cmsCustomizerFragmentCacheSet('colors_style', ['html' => $html], ['cms:customizer:colors']);
+        return $html;
+    }
 
     $fontBody    = htmlspecialchars($s['font_body'] ?? 'Inter');
     $fontHeading = htmlspecialchars($s['font_heading'] ?? 'Inter');
@@ -1628,7 +1657,6 @@ function cmsRenderEntityPresentationCss(array $settings): string
     $presentation = cmsValidateEntityPresentationSettings($settings);
     $css = ':root{';
     $css .= '--theme-entity-summary-width:' . ($presentation['entity_summary_width'] ?? '320') . 'px;';
-    $css .= '}';
 
     $entitySpacingScale = (string)($presentation['entity_spacing_scale'] ?? 'comfortable');
     $entityGap = '2rem';
@@ -1645,17 +1673,69 @@ function cmsRenderEntityPresentationCss(array $settings): string
     $actionPadY = '0.75rem';
     $actionPadX = '1.5rem';
     $actionFontSize = '0.875rem';
+    $actionMinHeight = '2.75rem';
     if ($entityActionSize === 'sm') {
         $actionPadY = '0.625rem';
         $actionPadX = '1rem';
         $actionFontSize = '0.8125rem';
+        $actionMinHeight = '2.5rem';
     } elseif ($entityActionSize === 'lg') {
         $actionPadY = '0.875rem';
         $actionPadX = '1.75rem';
         $actionFontSize = '0.9375rem';
+        $actionMinHeight = '3rem';
     }
 
     $entityMediaRatio = (string)($presentation['entity_media_ratio'] ?? 'auto');
+    $ratioMap = ['16:9' => '16 / 9', '4:3' => '4 / 3', '1:1' => '1 / 1'];
+    $entityMediaRatioValue = $ratioMap[$entityMediaRatio] ?? '4 / 3';
+
+    $listDensity = (string)($presentation['entity_list_card_density'] ?? 'comfortable');
+    $listGap = '1.5rem';
+    $listCardPadding = '1rem';
+    $listCardMinWidth = '15.5rem';
+    $listTitleSize = '1.08rem';
+    $listExcerptSize = '0.9rem';
+    $listPillFontSize = '0.82rem';
+    $listPillPadY = '0.42rem';
+    $listPillPadX = '0.75rem';
+    if ($listDensity === 'compact') {
+        $listGap = '1rem';
+        $listCardPadding = '0.875rem';
+        $listCardMinWidth = '14rem';
+        $listTitleSize = '1rem';
+        $listExcerptSize = '0.84rem';
+        $listPillFontSize = '0.76rem';
+        $listPillPadY = '0.34rem';
+        $listPillPadX = '0.625rem';
+    } elseif ($listDensity === 'airy') {
+        $listGap = '2rem';
+        $listCardPadding = '1.25rem';
+        $listCardMinWidth = '17rem';
+        $listTitleSize = '1.16rem';
+        $listExcerptSize = '0.96rem';
+        $listPillFontSize = '0.88rem';
+        $listPillPadY = '0.48rem';
+        $listPillPadX = '0.85rem';
+    }
+
+    $css .= '--theme-entity-gap:' . $entityGap . ';';
+    $css .= '--theme-entity-panel-padding:' . $entityPanelPadding . ';';
+    $css .= '--theme-entity-action-pad-y:' . $actionPadY . ';';
+    $css .= '--theme-entity-action-pad-x:' . $actionPadX . ';';
+    $css .= '--theme-entity-action-font-size:' . $actionFontSize . ';';
+    $css .= '--theme-entity-action-min-height:' . $actionMinHeight . ';';
+    $css .= '--theme-entity-list-gap:' . $listGap . ';';
+    $css .= '--theme-entity-list-card-padding:' . $listCardPadding . ';';
+    $css .= '--theme-entity-list-card-min-width:' . $listCardMinWidth . ';';
+    $css .= '--theme-entity-list-title-size:' . $listTitleSize . ';';
+    $css .= '--theme-entity-list-excerpt-size:' . $listExcerptSize . ';';
+    $css .= '--theme-entity-list-pill-font-size:' . $listPillFontSize . ';';
+    $css .= '--theme-entity-list-pill-pad-y:' . $listPillPadY . ';';
+    $css .= '--theme-entity-list-pill-pad-x:' . $listPillPadX . ';';
+    $css .= '--theme-entity-media-ratio:' . ($entityMediaRatio === 'auto' ? 'auto' : $entityMediaRatioValue) . ';';
+    $css .= '--theme-entity-list-media-ratio:' . $entityMediaRatioValue . ';';
+    $css .= '}';
 
     $css .= '.cms-entity-summary-stack{display:flex;flex-direction:column;gap:' . $entityGap . ';}';
     $css .= '.cms-entity-summary-stack-rail > *{padding:' . $entityPanelPadding . ';}';
@@ -1668,23 +1748,11 @@ function cmsRenderEntityPresentationCss(array $settings): string
     $css .= '.cms-entity-profile-content .cms-entity-header{max-width:var(--theme-single-max-width);margin-left:auto;margin-right:auto;}';
     $css .= '.cms-entity-profile-content .cms-entity-body,.cms-entity-profile-content .cms-entity-summary-stack{max-width:var(--theme-single-max-width);margin-left:auto;margin-right:auto;}';
     if ($entityMediaRatio !== 'auto') {
-        $ratioMap = ['16:9' => '16 / 9', '4:3' => '4 / 3', '1:1' => '1 / 1'];
         $ratioValue = $ratioMap[$entityMediaRatio] ?? '16 / 9';
         $css .= '.cms-entity-hero{aspect-ratio:' . $ratioValue . ';overflow:hidden;border-radius:1rem;}';
         $css .= '.cms-entity-hero img{width:100%;height:100%;object-fit:cover;max-height:none;border-radius:0;}';
     }
-    $css .= '.cms-action-block .cms-btn-primary,.cms-action-block .cms-btn-secondary,.cms-action-block .cms-btn-disabled{padding:' . $actionPadY . ' ' . $actionPadX . ';font-size:' . $actionFontSize . ';border-radius:var(--radius-md);}';
-    $listDensity = (string)($presentation['entity_list_card_density'] ?? 'comfortable');
-    $listGap = '1.5rem';
-    $listCardPadding = '1rem';
-    if ($listDensity === 'compact') {
-        $listGap = '1rem';
-        $listCardPadding = '0.875rem';
-    } elseif ($listDensity === 'airy') {
-        $listGap = '2rem';
-        $listCardPadding = '1.25rem';
-    }
-    $css .= '.cms-entity-list{--theme-entity-list-gap:' . $listGap . ';--theme-entity-list-card-padding:' . $listCardPadding . ';}';
+    $css .= '.cms-action-block .cms-btn-primary,.cms-action-block .cms-btn-secondary,.cms-action-block .cms-btn-disabled{padding:var(--theme-entity-action-pad-y) var(--theme-entity-action-pad-x);font-size:var(--theme-entity-action-font-size);min-height:var(--theme-entity-action-min-height);border-radius:var(--radius-md);}';
     $css .= '.cms-entity-list__grid{gap:var(--theme-entity-list-gap);}';
     $css .= '.cms-entity-card__body{display:flex;flex-direction:column;gap:calc(var(--theme-entity-list-gap) * 0.5);padding:var(--theme-entity-list-card-padding);}';
     $css .= '.cms-entity-card__excerpt{margin:0;}';
@@ -2984,6 +3052,9 @@ function cmsRenderCustomizedHeader(object $db, array $publicCtx = []): string
         $mobileCSS .= 'color:var(--header-mobile-text,var(--header-link,var(--color-text)));font-size:1rem;display:block;width:100%;text-align:' . $canvasTextAlign . ';padding-left:0.75rem;padding-right:0.75rem;border-radius:0.5rem;}';
         $mobileCSS .= '.mobile-canvas-target .nav-menu a:hover{background:' . $canvasHoverBg . ';}';
         $mobileCSS .= '.mobile-canvas-target .nav-menu li.current-menu-item>a{background:' . $canvasActiveBg . ';}';
+        $mobileCSS .= '.mobile-canvas-target .nav-menu-sub{position:static;top:auto;left:auto;min-width:0;width:100%;opacity:1;visibility:visible;transform:none;';
+        $mobileCSS .= 'display:block;margin:0;padding:0 0 0.5rem 0.75rem;border:none;border-radius:0;box-shadow:none;background:transparent;}';
+        $mobileCSS .= '.mobile-canvas-target .nav-menu-sub a{font-size:0.95rem;padding-top:0.625rem;padding-bottom:0.625rem;}';
         // Canvas header area (logo + close button)
         $mobileCSS .= '.mobile-canvas-header{display:flex;align-items:center;justify-content:space-between;padding:1rem 1.25rem;border-bottom:1px solid var(--header-border,var(--color-border,#e5e7eb));}';
         $mobileCSS .= '.mobile-canvas-close{background:none;border:none;cursor:pointer;color:var(--header-mobile-text,var(--color-text));padding:0.5rem;}';
@@ -2995,6 +3066,12 @@ function cmsRenderCustomizedHeader(object $db, array $publicCtx = []): string
         $mobileCSS .= '.mobile-canvas-header{display:none!important;}';
         $mobileCSS .= '}';
     }
+
+    $mobileCSS .= '@media(max-width:' . $breakpoint . 'px){';
+    $mobileCSS .= '.main-navigation .nav-menu-sub{position:static;top:auto;left:auto;min-width:0;width:100%;opacity:1;visibility:visible;transform:none;';
+    $mobileCSS .= 'display:block;margin:0;padding:0 0 0.5rem 0.75rem;border:none;border-radius:0;box-shadow:none;background:transparent;}';
+    $mobileCSS .= '.main-navigation .nav-menu-sub a{white-space:normal;}';
+    $mobileCSS .= '}';
 
     // Mobile logo swap
     if ($mobileLogoUrl !== '') {

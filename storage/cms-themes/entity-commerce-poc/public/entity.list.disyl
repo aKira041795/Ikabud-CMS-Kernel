@@ -35,6 +35,25 @@
         {/if}
     </div>
 
+    {if entity_list_context.search_action_url or entity_list_context.available_categories | count > 0}
+    <div class="poc-entity-list__toolbar">
+        <form method="get" action="{entity_list_context.search_action_url|default:entity_list_context.base_list_url}" class="poc-entity-list__search">
+            {if entity_list_context.category_id > 0 and entity_list_context.category_slug == ''}<input type="hidden" name="cat" value="{entity_list_context.category_id}">{/if}
+            <input type="text" name="search" value="{entity_list_context.search|default:''}" placeholder="Search products" class="poc-entity-list__search-input">
+            <button type="submit" class="poc-entity-list__search-submit">Search</button>
+        </form>
+
+        {if entity_list_context.available_categories | count > 0}
+        <nav class="poc-entity-list__categories" aria-label="Categories">
+            <a href="{entity_list_context.all_items_url|default:entity_list_context.base_list_url}" class="poc-entity-list__category-link {if entity_list_context.category_id == 0 and entity_list_context.category_slug == ''}poc-entity-list__category-link--active{/if}">All Products</a>
+            {foreach entity_list_context.available_categories as category}
+            <a href="{category.url}" class="poc-entity-list__category-link {if category.is_active}poc-entity-list__category-link--active{/if}">{category.name}</a>
+            {/foreach}
+        </nav>
+        {/if}
+    </div>
+    {/if}
+
     {if items}
     <div class="poc-catalog-grid poc-catalog-grid--{entity_presentation.list_card_density|default:'comfortable'}">
         {foreach items as item}
@@ -90,6 +109,9 @@
     {else}
     <div class="poc-empty-state">
         <p>No items found.</p>
+        {if entity_list_context.all_items_url and entity_list_context.active_filter_count > 0}
+        <a href="{entity_list_context.all_items_url}" class="poc-entity-list__category-link">Browse all products</a>
+        {/if}
     </div>
     {/if}
 

@@ -20,10 +20,23 @@
             "style.css"
         ]
     },
-    "block_variants": {
-        "list-card-pricing": "featured",
-        "list-card-inventory": "compact",
-        "list-card-progress": "inline"
+    "entity_view_defaults": {
+        "layout_profile": "commerce",
+        "summary_width": 360,
+        "summary_sticky": 1,
+        "media_ratio": "4:3",
+        "spacing_scale": "comfortable",
+        "action_size": "md",
+        "list_show_filter_summary": 1,
+        "list_card_density": "comfortable",
+        "list_show_excerpt": 1,
+        "list_excerpt_length": 120,
+        "block_variants": {
+            "action": "inline",
+            "list-card-pricing": "featured",
+            "list-card-inventory": "compact",
+            "list-card-progress": "inline"
+        }
     },
     "overridable_blocks": [
         "pricing.block.disyl",

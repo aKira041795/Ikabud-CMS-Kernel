@@ -103,6 +103,24 @@ function cmsPublicContextHasSection(array $availability, string $section): bool
     return $availability[$section] === true;
 }
 
+function cmsPublicContextShouldApplyStorefrontSettings(array $themePolicy, string $publicRenderOrigin, string $publicRouteKind): bool
+{
+    $activeScope = cmsNormalizeCustomizerScope((string)($themePolicy['active_theme_scope'] ?? ''), 'native');
+    if ($activeScope === 'ecommerce') {
+        return true;
+    }
+
+    if ($publicRenderOrigin !== 'ecommerce') {
+        return false;
+    }
+
+    if (!empty($themePolicy['is_ecommerce_entity_route'])) {
+        return true;
+    }
+
+    return in_array($publicRouteKind, function_exists('cmsEcommerceEntityViewRouteKinds') ? cmsEcommerceEntityViewRouteKinds() : ['shop_index', 'shop_category', 'product_detail'], true);
+}
+
 // ── Public Context Enrichment ────────────────────────────────────────
 
 /**
@@ -119,16 +137,32 @@ function cmsPublicContext(array $extra = []): array
     $settings = readCmsSettings();
     $db = cmsDb();
     $baseUrl = rtrim((string)(defined('BASE_URL') ? BASE_URL : ''), '/');
-    $activeThemeSlug = cmsActiveTheme() ?? 'native-default';
     $requestType = !empty($extra['entity']['id']) ? 'entity' : (!empty($extra['content']['id']) ? 'content' : 'generic');
     $builderEnabled = !empty($extra['builder_enabled']);
     $publicRenderOrigin = trim((string)($extra['public_render_origin'] ?? 'cms'));
     $publicRouteKind = function_exists('cmsNormalizeEcommercePublicRouteKind')
         ? cmsNormalizeEcommercePublicRouteKind((string)($extra['public_route_kind'] ?? $extra['ecommerce_public_route'] ?? 'generic'))
         : trim((string)($extra['public_route_kind'] ?? $extra['ecommerce_public_route'] ?? 'generic'));
-    $publicPresentationMode = function_exists('cmsEcommercePublicPresentationMode')
-        ? cmsEcommercePublicPresentationMode(array_merge($extra, ['public_route_kind' => $publicRouteKind]))
-        : trim((string)($extra['public_presentation_mode'] ?? 'traditional'));
+    $themePolicy = function_exists('cmsResolveEcommerceThemePolicy')
+        ? cmsResolveEcommerceThemePolicy(array_merge($extra, [
+            'public_render_origin' => $publicRenderOrigin,
+            'public_route_kind' => $publicRouteKind,
+        ]))
+        : [];
+    $activeThemeSlug = trim((string)($themePolicy['active_theme'] ?? (cmsActiveTheme() ?? 'native-default')));
+    if ($activeThemeSlug === '') {
+        $activeThemeSlug = 'native-default';
+    }
+    $publicPresentationMode = trim((string)($themePolicy['public_presentation_mode'] ?? (
+        function_exists('cmsEcommercePublicPresentationMode')
+            ? cmsEcommercePublicPresentationMode(array_merge($extra, ['public_route_kind' => $publicRouteKind]))
+            : trim((string)($extra['public_presentation_mode'] ?? 'traditional'))
+    )));
+    if ($publicPresentationMode === '') {
+        $publicPresentationMode = 'traditional';
+    }
+    $activeThemeSource = trim((string)($themePolicy['active_theme_source'] ?? 'site'));
+    $activeCustomizerScope = trim((string)($themePolicy['active_theme_scope'] ?? (function_exists('cmsActiveCustomizerScope') ? cmsActiveCustomizerScope() : 'native')));
     if ($detailedTimingEnabled) {
         cmsPublicContextLogStage('init', $stageStart, ['theme' => $activeThemeSlug, 'request_type' => $requestType]);
     }
@@ -182,10 +216,17 @@ function cmsPublicContext(array $extra = []): array
         'footer_menu'   => $footerMenu,
         'social_links'  => $socialLinks,
         'cms_settings'  => $settings,
+        'active_theme' => $activeThemeSlug,
+        'active_theme_source' => $activeThemeSource,
+        'active_customizer_scope' => $activeCustomizerScope,
+        'configured_site_theme' => (string)($themePolicy['configured_site_theme'] ?? ''),
+        'preferred_storefront_theme' => (string)($themePolicy['preferred_storefront_theme'] ?? ''),
         'public_render_origin' => $publicRenderOrigin,
         'public_route_kind' => $publicRouteKind !== '' ? $publicRouteKind : 'generic',
         'public_presentation_mode' => $publicPresentationMode !== '' ? $publicPresentationMode : 'traditional',
         'is_ecommerce_public' => $publicRenderOrigin === 'ecommerce',
+        'is_ecommerce_entity_route' => !empty($themePolicy['is_ecommerce_entity_route']),
+        'uses_storefront_presentation_settings' => false,
     ];
 
     // Render customized footer if customizer data exists
@@ -290,11 +331,13 @@ function cmsPublicContext(array $extra = []): array
             $ctx['theme_layout_style'] = cmsRenderThemeLayoutStyle($db);
             $themeLayout = cmsCustomizerGet($db, 'theme');
             $ctx['theme_settings'] = $themeLayout['settings'];
-            if (cmsActiveCustomizerScope() === 'ecommerce' && cmsPublicContextHasSection($sectionAvailability, 'storefront')) {
+            if (cmsPublicContextShouldApplyStorefrontSettings($themePolicy, $publicRenderOrigin, $publicRouteKind)
+                && cmsPublicContextHasSection($sectionAvailability, 'storefront')) {
                 $storefront = cmsCustomizerGet($db, 'storefront');
                 $ctx['storefront_settings'] = $storefront['settings'];
                 $ctx['theme_settings'] = array_merge($ctx['theme_settings'], $storefront['settings']);
                 $ctx['theme_layout_style'] .= cmsRenderStorefrontStyle($db);
+                $ctx['uses_storefront_presentation_settings'] = true;
             } else {
                 $ctx['storefront_settings'] = cmsStorefrontSettingsDefaults();
             }
@@ -377,9 +420,10 @@ function cmsPublicContext(array $extra = []): array
 
     // Inject cart_count when ecommerce module is available
     if (!array_key_exists('cart_count', $ctx) && !array_key_exists('cart_count', $extra)) {
+        $ctx['cart_count'] = 0;
         try {
-            if (function_exists('ecCartGet')) {
-                $cart = ecCartGet();
+            if (app()->capabilities()->has('ecommerce.cart.get@1')) {
+                $cart = app()->capabilities()->call('ecommerce.cart.get@1');
                 $ctx['cart_count'] = (int)($cart['totals']['item_count'] ?? 0);
             }
         } catch (\Throwable $e) {

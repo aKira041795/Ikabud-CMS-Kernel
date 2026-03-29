@@ -1281,6 +1281,33 @@ function cmsPublicEntityList(array $params = []): void
     $searchOverride  = array_key_exists('search', $params) ? trim((string)$params['search']) : null;
     $baseListUrl     = trim((string)($params['base_list_url'] ?? ''));
     $itemBaseUrl     = trim((string)($params['item_base_url'] ?? ''));
+    $requestedListTitle = trim((string)($params['list_title'] ?? ''));
+    $searchActionUrl = trim((string)($params['search_action_url'] ?? ''));
+    $allItemsUrl = trim((string)($params['all_items_url'] ?? ''));
+    $availableCategoriesRaw = is_array($params['available_categories'] ?? null)
+        ? $params['available_categories']
+        : [];
+
+    $availableCategories = [];
+    foreach ($availableCategoriesRaw as $category) {
+        if (!is_array($category)) {
+            continue;
+        }
+
+        $resolvedCategoryId = (int)($category['id'] ?? 0);
+        $resolvedCategoryName = trim((string)($category['name'] ?? ''));
+        if ($resolvedCategoryId <= 0 || $resolvedCategoryName === '') {
+            continue;
+        }
+
+        $availableCategories[] = [
+            'id' => $resolvedCategoryId,
+            'slug' => trim((string)($category['slug'] ?? '')),
+            'name' => $resolvedCategoryName,
+            'url' => trim((string)($category['url'] ?? '')),
+            'is_active' => (bool)($category['is_active'] ?? false),
+        ];
+    }
 
     $input   = cmsInput();
     $page    = max(1, (int)($input['page'] ?? 1));
@@ -1303,12 +1330,24 @@ function cmsPublicEntityList(array $params = []): void
     $templatePath = cmsResolveContentTemplate('public/entity.list.disyl', [], $type);
     $templateAbsolutePath = BASE_PATH . '/templates/' . ltrim($templatePath, '/');
     $templateVersion = md5($templatePath . '|' . @filemtime($templateAbsolutePath));
+    $renderContextVersion = md5((string)json_encode([
+        'base_list_url' => $baseListUrl,
+        'item_base_url' => $itemBaseUrl,
+        'list_title' => $requestedListTitle,
+        'search_action_url' => $searchActionUrl,
+        'all_items_url' => $allItemsUrl,
+        'available_categories' => $availableCategories,
+        'public_render_origin' => (string)($params['public_render_origin'] ?? 'cms'),
+        'public_route_kind' => (string)($params['public_route_kind'] ?? 'generic'),
+        'public_presentation_mode' => (string)($params['public_presentation_mode'] ?? 'traditional'),
+    ]));
 
     $cacheKey = 'cms:entity_list:' . $type . ':p' . $page
         . ($perPage !== 12 ? ':pp' . $perPage : '')
         . ($categoryId > 0 ? ':cat' . $categoryId : '')
         . ($search !== '' ? ':s' . md5($search) : '')
-        . ':tpl:' . $templateVersion;
+        . ':tpl:' . $templateVersion
+        . ':ctx:' . $renderContextVersion;
 
     $cached = cmsCacheGet($cacheKey);
     if ($cached !== null && isset($cached['html'])) {
@@ -1336,6 +1375,9 @@ function cmsPublicEntityList(array $params = []): void
             return;
         }
         $listTitle = trim($typeName);
+        if ($requestedListTitle !== '') {
+            $listTitle = $requestedListTitle;
+        }
     } catch (\Throwable $e) {
         http_response_code(404);
         cmsPublicRespond(cmsRender('pages/404.disyl', ['page_title' => 'Not Found']));
@@ -1384,7 +1426,9 @@ function cmsPublicEntityList(array $params = []): void
     }
     if (is_array($activeCategory)) {
         $activeFilterCount++;
-        $listTitle = trim((string)($activeCategory['name'] ?? '')) ?: $listTitle;
+        if ($requestedListTitle === '') {
+            $listTitle = trim((string)($activeCategory['name'] ?? '')) ?: $listTitle;
+        }
     }
 
     if ($search !== '' && is_array($activeCategory)) {
@@ -1466,6 +1510,9 @@ function cmsPublicEntityList(array $params = []): void
         'result_label' => $resultLabel,
         'active_filter_count' => $activeFilterCount,
         'summary_text' => $listDescription,
+        'available_categories' => $availableCategories,
+        'all_items_url' => $allItemsUrl,
+        'search_action_url' => $searchActionUrl,
     ];
 
     $sidebarTemplateKey = cmsSidebarTemplateKeyFromPath($templatePath, 'entity-list');

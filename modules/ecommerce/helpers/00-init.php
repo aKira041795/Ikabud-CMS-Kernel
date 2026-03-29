@@ -80,6 +80,74 @@ function ecResolvePublicPresentationMode(?string $routeKind = null, array $conte
     return 'traditional';
 }
 
+function ecWithPublicThemeRouteContext(array $context, callable $callback): mixed
+{
+    if (function_exists('cmsWithPublicThemeContext')) {
+        return cmsWithPublicThemeContext($context, $callback);
+    }
+
+    return $callback();
+}
+
+function ecRouteUsesCanonicalEntityRendering(?string $routeKind = null, array $context = []): bool
+{
+    $resolvedRouteKind = trim((string)($routeKind ?? ''));
+    if ($resolvedRouteKind === '') {
+        $resolvedRouteKind = trim((string)($context['public_route_kind'] ?? $context['ecommerce_public_route'] ?? 'generic'));
+    }
+    if (function_exists('cmsNormalizeEcommercePublicRouteKind')) {
+        $resolvedRouteKind = cmsNormalizeEcommercePublicRouteKind($resolvedRouteKind);
+    }
+
+    return ecResolvePublicPresentationMode($resolvedRouteKind, $context) === 'entity_view';
+}
+
+function ecAssertTraditionalEntityTemplateAllowed(string $template, array $context = []): void
+{
+    if (!ecIsPublicTemplate($template)) {
+        return;
+    }
+
+    $routeKind = ecInferPublicRouteKind($template, $context);
+    if (!in_array($routeKind, ['shop_index', 'shop_category', 'product_detail'], true)) {
+        return;
+    }
+
+    if (!ecRouteUsesCanonicalEntityRendering($routeKind, $context)) {
+        return;
+    }
+
+    throw new RuntimeException(
+        'Traditional ecommerce template "' . $template . '" is not allowed for entity-view storefront route "' . $routeKind . '".'
+    );
+}
+
+function ecDispatchCanonicalEntityRoute(string $handler, array $payload, array $context = []): bool
+{
+    $routeKind = trim((string)($context['public_route_kind'] ?? $payload['public_route_kind'] ?? $context['ecommerce_public_route'] ?? $payload['ecommerce_public_route'] ?? 'generic'));
+    if (function_exists('cmsNormalizeEcommercePublicRouteKind')) {
+        $routeKind = cmsNormalizeEcommercePublicRouteKind($routeKind);
+    }
+
+    $resolvedContext = array_merge($context, $payload, ['public_route_kind' => $routeKind]);
+    if (!ecRouteUsesCanonicalEntityRendering($routeKind, $resolvedContext)) {
+        return false;
+    }
+
+    if (!function_exists('executeModuleHandler')) {
+        throw new RuntimeException(
+            'Canonical ecommerce entity route "' . $routeKind . '" requires executeModuleHandler() while entity-view mode is active.'
+        );
+    }
+
+    executeModuleHandler($handler, array_merge($payload, [
+        'public_route_kind' => $routeKind,
+        'public_presentation_mode' => 'entity_view',
+    ]));
+
+    return true;
+}
+
 function ecPublicRenderContext(string $template, array $context = []): array
 {
     if (!ecIsPublicTemplate($template)) {
@@ -117,18 +185,28 @@ function ecRender(string $template, array $context = []): void
 
     $context = ecPublicRenderContext($template, $context);
     $isPublicTemplate = ecIsPublicTemplate($template);
-    if ($isPublicTemplate && function_exists('cmsPublicContext') && function_exists('cmsWithThemeSymlinkLock') && function_exists('cmsRender')) {
-        $html = moduleWithContext('cms', static function () use ($template, $context): string {
-            $renderContext = array_merge(cmsPublicContext($context), $context);
-            return cmsWithThemeSymlinkLock(static function () use ($template, $renderContext): string {
-                return cmsRender($template, $renderContext);
-            }, LOCK_SH);
-        });
-        echo $html;
+    ecAssertTraditionalEntityTemplateAllowed($template, $context);
+    $render = static function () use ($template, $context, $isPublicTemplate): void {
+        if ($isPublicTemplate && function_exists('cmsPublicContext') && function_exists('cmsWithThemeSymlinkLock') && function_exists('cmsRender')) {
+            $html = moduleWithContext('cms', static function () use ($template, $context): string {
+                $renderContext = array_merge(cmsPublicContext($context), $context);
+                return cmsWithThemeSymlinkLock(static function () use ($template, $renderContext): string {
+                    return cmsRender($template, $renderContext);
+                }, LOCK_SH);
+            });
+            echo $html;
+            return;
+        }
+
+        echo ecCtx()->render($template, $context);
+    };
+
+    if ($isPublicTemplate && function_exists('cmsWithPublicThemeContext')) {
+        cmsWithPublicThemeContext($context, $render);
         return;
     }
 
-    echo ecCtx()->render($template, $context);
+    $render();
 }
 
 function ecHasCmsCategoryTaxonomy(): bool

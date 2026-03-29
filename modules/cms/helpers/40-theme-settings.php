@@ -382,11 +382,45 @@ function cmsResetThemeRuntimeCache(): void
     $GLOBALS['cms_active_theme_manifest_value_t' . $tid] = null;
 }
 
-/**
- * Get the active theme slug from CMS settings, or null if using default.
- */
+function cmsCurrentPublicThemeContext(): array
+{
+    $tid = cmsRuntimeTenantId();
+    $context = $GLOBALS['cms_public_theme_context_t' . $tid] ?? null;
+    return is_array($context) ? $context : [];
+}
 
-function cmsActiveTheme(): ?string
+function cmsWithPublicThemeContext(array $context, callable $callback): mixed
+{
+    $tid = cmsRuntimeTenantId();
+    $key = 'cms_public_theme_context_t' . $tid;
+    $previous = $GLOBALS[$key] ?? null;
+    $merged = array_merge(is_array($previous) ? $previous : [], $context);
+    $GLOBALS[$key] = $merged;
+    cmsResetThemeRuntimeCache();
+
+    try {
+        return $callback();
+    } finally {
+        if (is_array($previous)) {
+            $GLOBALS[$key] = $previous;
+        } else {
+            unset($GLOBALS[$key]);
+        }
+        cmsResetThemeRuntimeCache();
+    }
+}
+
+function cmsThemeExists(string $slug): bool
+{
+    $slug = trim($slug);
+    if ($slug === '' || $slug === 'default') {
+        return false;
+    }
+
+    return is_dir(cmsThemesPath() . '/' . $slug);
+}
+
+function cmsConfiguredActiveTheme(): ?string
 {
     $tid = cmsRuntimeTenantId();
     $cachedKey = 'cms_active_theme_cached_t' . $tid;
@@ -403,14 +437,139 @@ function cmsActiveTheme(): ?string
         $GLOBALS[$valueKey] = null;
         return null;
     }
-    // Validate the theme directory exists
-    $dir = cmsThemesPath() . '/' . $slug;
-    if (!is_dir($dir)) {
+    if (!cmsThemeExists($slug)) {
         $GLOBALS[$valueKey] = null;
         return null;
     }
     $GLOBALS[$valueKey] = $slug;
     return $slug;
+}
+
+function cmsThemeManifestForSlug(?string $slug): array
+{
+    $slug = trim((string)$slug);
+    if ($slug === '' || !cmsThemeExists($slug)) {
+        return [];
+    }
+
+    $manifestFile = cmsThemesPath() . '/' . $slug . '/theme.json';
+    if (!is_file($manifestFile)) {
+        return ['slug' => $slug];
+    }
+
+    $decoded = kernelReadJsonFile($manifestFile);
+    $manifest = is_array($decoded) ? $decoded : [];
+    $manifest['slug'] = $slug;
+    return $manifest;
+}
+
+function cmsPreferredEcommerceTheme(): ?string
+{
+    $settings = getModuleSettings('cms');
+    $configured = trim((string)($settings['active_ecommerce_theme'] ?? ''));
+    if ($configured === '' || $configured === 'default') {
+        return null;
+    }
+
+    return cmsThemeExists($configured) ? $configured : null;
+}
+
+function cmsResolveEcommerceThemePolicy(array $context = []): array
+{
+    $currentContext = cmsCurrentPublicThemeContext();
+    $resolvedContext = array_merge($currentContext, $context);
+
+    $origin = trim((string)($resolvedContext['public_render_origin'] ?? ''));
+    $routeKind = function_exists('cmsNormalizeEcommercePublicRouteKind')
+        ? cmsNormalizeEcommercePublicRouteKind((string)($resolvedContext['public_route_kind'] ?? $resolvedContext['ecommerce_public_route'] ?? 'generic'))
+        : trim((string)($resolvedContext['public_route_kind'] ?? $resolvedContext['ecommerce_public_route'] ?? 'generic'));
+    if ($routeKind === '') {
+        $routeKind = 'generic';
+    }
+
+    $requestedMode = trim((string)($resolvedContext['public_presentation_mode'] ?? ''));
+    if (!in_array($requestedMode, ['traditional', 'entity_view'], true)) {
+        $requestedMode = '';
+    }
+
+    $entityRouteKinds = function_exists('cmsEcommerceEntityViewRouteKinds')
+        ? cmsEcommerceEntityViewRouteKinds()
+        : ['shop_index', 'shop_category', 'product_detail'];
+    $isEcommerceOrigin = $origin === 'ecommerce';
+    $isEcommerceEntityRouteKind = in_array($routeKind, $entityRouteKinds, true);
+    $isEcommerceEntityRoute = $isEcommerceOrigin && $isEcommerceEntityRouteKind;
+
+    $currentOrigin = trim((string)($currentContext['public_render_origin'] ?? ''));
+    $currentRouteKind = function_exists('cmsNormalizeEcommercePublicRouteKind')
+        ? cmsNormalizeEcommercePublicRouteKind((string)($currentContext['public_route_kind'] ?? $currentContext['ecommerce_public_route'] ?? 'generic'))
+        : trim((string)($currentContext['public_route_kind'] ?? $currentContext['ecommerce_public_route'] ?? 'generic'));
+    if ($currentRouteKind === '') {
+        $currentRouteKind = 'generic';
+    }
+    $hasScopedStorefrontContext = $currentOrigin === 'ecommerce' && in_array($currentRouteKind, $entityRouteKinds, true);
+
+    $configuredSiteTheme = cmsConfiguredActiveTheme();
+    $configuredSiteManifest = cmsThemeManifestForSlug($configuredSiteTheme);
+    $configuredSiteScope = !empty($configuredSiteManifest) && function_exists('cmsThemeCustomizerScopeFromManifest')
+        ? cmsThemeCustomizerScopeFromManifest($configuredSiteManifest)
+        : 'native';
+
+    $preferredStorefrontTheme = cmsPreferredEcommerceTheme();
+    $preferredStorefrontManifest = cmsThemeManifestForSlug($preferredStorefrontTheme);
+    $preferredStorefrontScope = !empty($preferredStorefrontManifest) && function_exists('cmsThemeCustomizerScopeFromManifest')
+        ? cmsThemeCustomizerScopeFromManifest($preferredStorefrontManifest)
+        : 'native';
+
+    $resolvedTheme = $configuredSiteTheme;
+    $resolvedThemeSource = $resolvedTheme !== null ? 'site' : 'default';
+
+    if ($hasScopedStorefrontContext) {
+        if ($configuredSiteTheme !== null && $configuredSiteScope === 'ecommerce') {
+            $resolvedTheme = $configuredSiteTheme;
+            $resolvedThemeSource = 'site';
+        } elseif ($preferredStorefrontTheme !== null) {
+            $resolvedTheme = $preferredStorefrontTheme;
+            $resolvedThemeSource = 'storefront';
+        }
+    }
+
+    $resolvedManifest = cmsThemeManifestForSlug($resolvedTheme);
+    $resolvedScope = !empty($resolvedManifest) && function_exists('cmsThemeCustomizerScopeFromManifest')
+        ? cmsThemeCustomizerScopeFromManifest($resolvedManifest)
+        : 'native';
+    $resolvedMode = ($isEcommerceEntityRouteKind && $resolvedScope === 'ecommerce') ? 'entity_view' : 'traditional';
+
+    return [
+        'public_render_origin' => $origin !== '' ? $origin : 'cms',
+        'public_route_kind' => $routeKind,
+        'is_ecommerce_origin' => $isEcommerceOrigin,
+        'is_ecommerce_entity_route' => $isEcommerceEntityRoute,
+        'configured_site_theme' => $configuredSiteTheme,
+        'configured_site_theme_scope' => $configuredSiteScope,
+        'preferred_storefront_theme' => $preferredStorefrontTheme,
+        'preferred_storefront_theme_scope' => $preferredStorefrontScope,
+        'active_theme' => $resolvedTheme,
+        'active_theme_scope' => $resolvedScope,
+        'active_theme_source' => $resolvedThemeSource,
+        'requested_public_presentation_mode' => $requestedMode,
+        'public_presentation_mode' => $resolvedMode,
+        'has_presentation_mode_conflict' => $requestedMode !== '' && $requestedMode !== $resolvedMode,
+    ];
+}
+
+/**
+ * Get the active theme slug from CMS settings, or null if using default.
+ */
+
+function cmsActiveTheme(): ?string
+{
+    $policy = cmsResolveEcommerceThemePolicy(cmsCurrentPublicThemeContext());
+    $activeTheme = trim((string)($policy['active_theme'] ?? ''));
+    if ($activeTheme === '' || $activeTheme === 'default') {
+        return null;
+    }
+
+    return $activeTheme;
 }
 
 /**
@@ -710,8 +869,13 @@ function cmsThemeManifestTokens(?array $manifest = null): array
 
 function cmsThemeRuntimeDiagnostics(): array
 {
-    $manifest = cmsActiveThemeManifest();
-    $activeTheme = cmsActiveTheme() ?? 'default';
+    $context = cmsCurrentPublicThemeContext();
+    $policy = cmsResolveEcommerceThemePolicy($context);
+    $activeTheme = trim((string)($policy['active_theme'] ?? ''));
+    if ($activeTheme === '') {
+        $activeTheme = 'default';
+    }
+    $manifest = $activeTheme !== 'default' ? cmsThemeManifestForSlug($activeTheme) : [];
     $host = trim((string)($_SERVER['HTTP_HOST'] ?? ''));
     $symlinkTarget = '';
     if (is_link(CMS_THEME_SYMLINK)) {
@@ -719,12 +883,29 @@ function cmsThemeRuntimeDiagnostics(): array
         $symlinkTarget = is_string($target) ? $target : '';
     }
 
+    $configuredSiteTheme = trim((string)($policy['configured_site_theme'] ?? ''));
+    if ($configuredSiteTheme === '') {
+        $configuredSiteTheme = 'default';
+    }
+
+    $preferredStorefrontTheme = trim((string)($policy['preferred_storefront_theme'] ?? ''));
+
     return [
         'tenant_id' => cmsRuntimeTenantId(),
         'host' => $host,
         'active_theme' => $activeTheme,
         'active_theme_name' => (string)($manifest['name'] ?? ($activeTheme === 'default' ? 'Default' : $activeTheme)),
-        'active_customizer_scope' => cmsThemeCustomizerScopeFromManifest($manifest),
+        'configured_site_theme' => $configuredSiteTheme,
+        'configured_site_theme_scope' => (string)($policy['configured_site_theme_scope'] ?? 'native'),
+        'preferred_storefront_theme' => $preferredStorefrontTheme,
+        'preferred_storefront_theme_scope' => (string)($policy['preferred_storefront_theme_scope'] ?? 'native'),
+        'active_theme_source' => (string)($policy['active_theme_source'] ?? 'site'),
+        'active_customizer_scope' => (string)($policy['active_theme_scope'] ?? 'native'),
+        'public_render_origin' => (string)($policy['public_render_origin'] ?? 'cms'),
+        'public_route_kind' => (string)($policy['public_route_kind'] ?? 'generic'),
+        'public_presentation_mode' => (string)($policy['public_presentation_mode'] ?? 'traditional'),
+        'is_ecommerce_entity_route' => !empty($policy['is_ecommerce_entity_route']),
+        'presentation_mode_conflict' => !empty($policy['has_presentation_mode_conflict']),
         'theme_style_url' => cmsThemeAssetUrl('style.css'),
         'theme_symlink_target' => $symlinkTarget,
     ];
@@ -810,7 +991,10 @@ function cmsRenderThemeAwareBlockTemplate(string $block, array $context = []): s
  */
 function cmsRenderThemeAwareTemplate(string $template, array $context = []): string
 {
-    if (!str_starts_with($template, '_cms_active_theme/')) {
+    $needsThemeLock = str_starts_with($template, '_cms_active_theme/')
+        || str_starts_with($template, 'modules/cms/public/');
+
+    if (!$needsThemeLock) {
         return cmsRender($template, $context);
     }
 

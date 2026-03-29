@@ -4,13 +4,13 @@
 <div class="cms-gallery-block mb-8"
      {if capability_data.media_gallery.lightbox}data-gallery-lightbox="true"{/if}>
     {if capability_data.media_gallery.items}
-    <div class="grid gap-2"
+    <div class="cms-gallery-grid grid gap-2"
          style="grid-template-columns: repeat({capability_data.media_gallery.columns}, minmax(0, 1fr));">
         {foreach capability_data.media_gallery.items as img loop}
         <a href="{if img.url}{img.url}{else}{img.src}{/if}"
-           class="block aspect-square overflow-hidden rounded-lg bg-gray-100 group"
+           class="cms-gallery-item-link block aspect-square overflow-hidden rounded-lg bg-gray-100 group"
            {if capability_data.media_gallery.lightbox}data-lightbox="gallery" data-title="{img.caption}"{/if}>
-            <img class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+            <img class="cms-gallery-image w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                  src="{if img.thumb}{img.thumb}{else}{if img.url}{img.url}{else}{img.src}{/if}{/if}"
                  alt="{if img.caption}{img.caption}{else}Gallery image {loop.index1}{/if}"
                  loading="lazy">
@@ -18,7 +18,7 @@
         {/foreach}
     </div>
     {elseif entity.featured_image_url}
-    <img class="w-full max-h-[420px] object-cover rounded-xl"
+    <img class="cms-gallery-featured w-full max-h-[420px] object-cover rounded-xl"
          src="{entity.featured_image_url}"
          alt="{entity.title}">
     {/if}

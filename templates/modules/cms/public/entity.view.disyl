@@ -1,4 +1,4 @@
-{extends "modules/cms/layouts/public.disyl"}
+{extends "_cms_active_theme/layouts/public.disyl"}
 
 {block head}
 {if cms_head}{cms_head | raw}{/if}

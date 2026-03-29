@@ -101,7 +101,7 @@
         <div>
             <div class="flex items-center gap-2">
                 <h2 class="text-lg font-bold text-gray-900">{if customizer_title}{customizer_title}{else}Theme Customizer{/if}</h2>
-                {if customizer_scope == 'ecommerce'}<span class="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-700">Ecommerce Scope</span>{/if}
+                {if customizer_scope == 'ecommerce'}<span class="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-700">Storefront Studio</span>{/if}
             </div>
             <p class="text-sm text-gray-500 mt-0.5" x-text="tabDescription()"></p>
             {if customizer_intro}<p class="text-xs text-gray-400 mt-1">{customizer_intro}</p>{/if}
@@ -110,8 +110,13 @@
                 <a href="{ecommerce_customizer_url}" class="inline-flex items-center rounded-full border px-3 py-1.5 font-medium transition-colors {if customizer_scope == 'ecommerce'}border-amber-600 bg-amber-600 text-white{else}border-amber-200 bg-amber-50 text-amber-700 hover:border-amber-300{/if}">E-commerce Workspace</a>
             </div>
             {if customizer_scope == 'ecommerce'}
-            <div class="mt-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
-                Shell controls stay in the native workspace. Use this ecommerce view only for storefront tokens and canonical entity presentation settings.
+            <div class="mt-3 rounded-xl border border-amber-200 bg-gradient-to-r from-amber-50 via-white to-sky-50 px-3 py-3 text-xs text-slate-700">
+                Shape the full storefront here: header, navigation behavior, footer composition, palette, and canonical entity-view presentation for the commerce shell.
+            </div>
+            {/if}
+            {if customizer_scope != 'ecommerce'}
+            <div class="mt-3 rounded-xl border border-slate-200 bg-gradient-to-r from-slate-50 via-white to-emerald-50 px-3 py-3 text-xs text-slate-700">
+                The active theme shell stays in charge here. Use Catalog for shop, category, and product presentation inside that shell.
             </div>
             {/if}
             {if customizer_scope_notice}
@@ -131,10 +136,9 @@
         </div>
     </div>
 
-    <!-- Tabs: will be expanded later — for now just Footer -->
+    <!-- Workspace Tabs -->
     <div class="border-b border-gray-200">
         <nav class="flex gap-0">
-            {if customizer_scope != 'ecommerce'}
             <button @click="activeTab = 'footer'" class="cz-tab" :class="activeTab === 'footer' ? 'cz-tab-active' : 'cz-tab-inactive'">
                 <svg class="w-4 h-4 inline -mt-0.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
                 {if customizer_scope == 'ecommerce'}Store Footer{else}Footer{/if}
@@ -143,31 +147,30 @@
                 <svg class="w-4 h-4 inline -mt-0.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5z"/></svg>
                 {if customizer_scope == 'ecommerce'}Store Header{else}Header{/if}
             </button>
+            <button @click="activeTab = 'navigation'" class="cz-tab" :class="activeTab === 'navigation' ? 'cz-tab-active' : 'cz-tab-inactive'">
+                <svg class="w-4 h-4 inline -mt-0.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 6h16M4 12h16M4 18h10"/></svg>
+                {if customizer_scope == 'ecommerce'}Menu Behavior{else}Navigation{/if}
+            </button>
             <button @click="activeTab = 'sidebar'" class="cz-tab" :class="activeTab === 'sidebar' ? 'cz-tab-active' : 'cz-tab-inactive'">
                 <svg class="w-4 h-4 inline -mt-0.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 5a1 1 0 011-1h18a1 1 0 011 1v14a1 1 0 01-1 1H5a1 1 0 01-1-1V5zm5 0v14"/></svg>
                 {if customizer_scope == 'ecommerce'}Sidebar Rail{else}Sidebar{/if}
             </button>
-            {/if}
             <button @click="activeTab = 'colors'" class="cz-tab" :class="activeTab === 'colors' ? 'cz-tab-active' : 'cz-tab-inactive'">
                 <svg class="w-4 h-4 inline -mt-0.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01"/></svg>
                 {if customizer_scope == 'ecommerce'}Store Palette{else}Colors &amp; Typography{/if}
             </button>
-            {if customizer_scope != 'ecommerce'}
             <button @click="activeTab = 'custom_code'" class="cz-tab" :class="activeTab === 'custom_code' ? 'cz-tab-active' : 'cz-tab-inactive'">
                 <svg class="w-4 h-4 inline -mt-0.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/></svg>
                 {if customizer_scope == 'ecommerce'}Store Code{else}Custom Code{/if}
             </button>
             <button @click="activeTab = 'theme'" class="cz-tab" :class="activeTab === 'theme' ? 'cz-tab-active' : 'cz-tab-inactive'">
                 <svg class="w-4 h-4 inline -mt-0.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v14a1 1 0 01-1 1H5a1 1 0 01-1-1V5zm0 5h16M9 5v14"/></svg>
-                {if customizer_scope == 'ecommerce'}Shared Layout{else}Theme Settings{/if}
+                {if customizer_scope == 'ecommerce'}Entity View{else}Theme Settings{/if}
             </button>
-            {/if}
-            {if customizer_scope == 'ecommerce'}
             <button @click="activeTab = 'commerce'" class="cz-tab" :class="activeTab === 'commerce' ? 'cz-tab-active' : 'cz-tab-inactive'">
                 <svg class="w-4 h-4 inline -mt-0.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 7h18M6 12h12M8 17h8"/></svg>
-                Storefront
+                Catalog
             </button>
-            {/if}
         </nav>
     </div>
 
@@ -1432,7 +1435,7 @@
                             <select class="cz-select" x-model="headerSettings.mobile_menu_location">
                                 <option value="">Same as desktop header</option>
                                 <template x-for="loc in availableMenuLocations" :key="loc.slug">
-                                    <option :value="loc.slug" x-text="(loc.name || loc.slug) + (loc.menu_name ? ' — ' + loc.menu_name : '')"></option>
+                                    <option :value="loc.slug" x-text="(loc.label || loc.name || loc.slug) + (loc.menu_name ? ' — ' + loc.menu_name : '')"></option>
                                 </template>
                             </select>
                             <p class="cz-hint">Select a different menu to show in the mobile canvas, or leave blank to reuse the desktop menu.</p>
@@ -1581,7 +1584,7 @@
                                 </span>
                                 <span x-show="headerSettings.show_cta_button == 1"
                                       class="px-2 py-0.5 rounded text-[10px] font-medium"
-                                      :style="headerSettings.cta_style === 'outline' ? 'border:1px solid currentColor;color:' + headerSettings.link_color : 'background:var(--color-primary,#2563eb);color:#fff;'"
+                                      :style="headerSettings.cta_style === 'outline' ? 'border:1px solid currentColor;color:' + headerSettings.link_color : 'background:' + ((customizerScope === 'ecommerce' ? colorsSettings.storefront_cta_bg : colorsSettings.color_primary) || '#2563eb') + ';color:' + ((customizerScope === 'ecommerce' ? colorsSettings.storefront_cta_text : '#ffffff') || '#ffffff') + ';'"
                                       x-text="headerSettings.cta_text || 'CTA'"></span>
                             </div>
                         </div>
@@ -1650,6 +1653,233 @@
                                 </div>
                             </div>
                         </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Navigation Tab Content -->
+    <div x-show="activeTab === 'navigation'" class="grid grid-cols-1 xl:grid-cols-12 gap-6">
+        <div class="xl:col-span-8 space-y-5">
+            <div class="cz-panel">
+                <div class="cz-panel-header" @click="nPanels.sources = !nPanels.sources">
+                    <h3>
+                        <svg class="w-4 h-4 inline -mt-0.5 mr-1.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h10"/></svg>
+                        Menu Sources
+                    </h3>
+                    <svg class="w-4 h-4 text-gray-400 transition-transform" :class="nPanels.sources ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                </div>
+                <div x-show="nPanels.sources" x-collapse class="cz-panel-body">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label class="cz-label">Desktop Menu Location</label>
+                            <select class="cz-select" x-model="headerSettings.menu_location">
+                                <template x-for="loc in availableMenuLocations" :key="loc.slug">
+                                    <option :value="loc.slug" x-text="(loc.label || loc.name || loc.slug) + (loc.menu_name ? ' · ' + loc.menu_name : '')"></option>
+                                </template>
+                            </select>
+                            <p class="cz-hint">Select which assigned menu drives the main storefront navigation.</p>
+                        </div>
+                        <div>
+                            <label class="cz-label">Canvas Menu Override</label>
+                            <select class="cz-select" x-model="headerSettings.mobile_menu_location">
+                                <option value="">Use desktop menu</option>
+                                <template x-for="loc in availableMenuLocations" :key="'mobile-' + loc.slug">
+                                    <option :value="loc.slug" x-text="(loc.label || loc.name || loc.slug) + (loc.menu_name ? ' · ' + loc.menu_name : '')"></option>
+                                </template>
+                            </select>
+                            <p class="cz-hint">Use a dedicated mobile menu when the canvas pattern needs a different information hierarchy.</p>
+                        </div>
+                    </div>
+                    <div class="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                        <p class="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Current Menu Assignments</p>
+                        <div class="mt-3 flex flex-wrap gap-2">
+                            <template x-for="loc in availableMenuLocations" :key="'pill-' + loc.slug">
+                                <span class="inline-flex items-center rounded-full border border-slate-200 bg-white px-3 py-1 text-[11px] text-slate-600">
+                                    <span x-text="loc.label || loc.name || loc.slug"></span>
+                                    <span class="mx-1 text-slate-300">·</span>
+                                    <span class="font-medium text-slate-900" x-text="loc.menu_name || 'Unassigned'"></span>
+                                </span>
+                            </template>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="cz-panel">
+                <div class="cz-panel-header" @click="nPanels.desktop = !nPanels.desktop">
+                    <h3>
+                        <svg class="w-4 h-4 inline -mt-0.5 mr-1.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5h18v10H3zM8 21h8"/></svg>
+                        Desktop Navigation Behavior
+                    </h3>
+                    <svg class="w-4 h-4 text-gray-400 transition-transform" :class="nPanels.desktop ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                </div>
+                <div x-show="nPanels.desktop" x-collapse class="cz-panel-body">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label class="cz-label">Header Layout</label>
+                            <select class="cz-select" x-model="headerSettings.layout">
+                                <option value="default">Default</option>
+                                <option value="centered">Centered</option>
+                                <option value="logo-left-menu-right">Logo Left / Menu Right</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="cz-label">Dropdown Min Width</label>
+                            <input type="number" class="cz-input" x-model="headerSettings.dropdown_min_width" min="160" max="420" step="10">
+                        </div>
+                        <div>
+                            <label class="cz-label">Dropdown Radius</label>
+                            <input type="number" class="cz-input" x-model="headerSettings.dropdown_radius" min="0" max="20" step="1">
+                        </div>
+                        <div>
+                            <label class="cz-label">Dropdown Item Padding</label>
+                            <input type="number" class="cz-input" x-model="headerSettings.dropdown_item_padding_y" min="6" max="20" step="1">
+                        </div>
+                    </div>
+                    <div class="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div class="cz-toggle-row rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
+                            <div>
+                                <div class="cz-toggle-label">Show Search</div>
+                                <div class="cz-toggle-desc">Adds the storefront search trigger to the main header.</div>
+                            </div>
+                            <button type="button" @click="headerSettings.show_search = headerSettings.show_search == 1 ? 0 : 1" class="cz-toggle" :class="headerSettings.show_search == 1 ? 'cz-toggle-on' : 'cz-toggle-off'">
+                                <span class="cz-toggle-knob" :class="headerSettings.show_search == 1 ? 'cz-toggle-knob-on' : 'cz-toggle-knob-off'"></span>
+                            </button>
+                        </div>
+                        <div class="cz-toggle-row rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
+                            <div>
+                                <div class="cz-toggle-label">Sticky Header</div>
+                                <div class="cz-toggle-desc">Keeps navigation pinned so entity actions stay easy to reach.</div>
+                            </div>
+                            <button type="button" @click="headerSettings.sticky = headerSettings.sticky == 1 ? 0 : 1" class="cz-toggle" :class="headerSettings.sticky == 1 ? 'cz-toggle-on' : 'cz-toggle-off'">
+                                <span class="cz-toggle-knob" :class="headerSettings.sticky == 1 ? 'cz-toggle-knob-on' : 'cz-toggle-knob-off'"></span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="cz-panel">
+                <div class="cz-panel-header" @click="nPanels.mobile = !nPanels.mobile">
+                    <h3>
+                        <svg class="w-4 h-4 inline -mt-0.5 mr-1.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 4h10a2 2 0 012 2v12a2 2 0 01-2 2H7a2 2 0 01-2-2V6a2 2 0 012-2z"/></svg>
+                        Mobile Menu Behavior
+                    </h3>
+                    <svg class="w-4 h-4 text-gray-400 transition-transform" :class="nPanels.mobile ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                </div>
+                <div x-show="nPanels.mobile" x-collapse class="cz-panel-body">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label class="cz-label">Mobile Menu Style</label>
+                            <select class="cz-select" x-model="headerSettings.mobile_menu_style">
+                                <option value="dropdown">Dropdown</option>
+                                <option value="canvas">Canvas</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="cz-label">Mobile Breakpoint</label>
+                            <select class="cz-select" x-model="headerSettings.mobile_breakpoint">
+                                <option value="640">640px</option>
+                                <option value="768">768px</option>
+                                <option value="1024">1024px</option>
+                            </select>
+                        </div>
+                        <div x-show="headerSettings.mobile_menu_style === 'canvas'">
+                            <label class="cz-label">Canvas Direction</label>
+                            <select class="cz-select" x-model="headerSettings.mobile_canvas_direction">
+                                <option value="left">Left</option>
+                                <option value="right">Right</option>
+                            </select>
+                        </div>
+                        <div x-show="headerSettings.mobile_menu_style === 'canvas'">
+                            <label class="cz-label">Canvas Width</label>
+                            <input type="number" class="cz-input" x-model="headerSettings.mobile_canvas_width" min="220" max="420">
+                        </div>
+                        <div x-show="headerSettings.mobile_menu_style === 'canvas'">
+                            <label class="cz-label">Canvas Alignment</label>
+                            <select class="cz-select" x-model="headerSettings.mobile_menu_align">
+                                <option value="left">Left</option>
+                                <option value="center">Center</option>
+                                <option value="right">Right</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="cz-label">Mobile Background</label>
+                            <div class="cz-color-wrap">
+                                <input type="color" class="cz-color-input" x-model="_mobileBgHex" @input="let c=_mobileBgHex;let r=parseInt(c.slice(1,3),16),g=parseInt(c.slice(3,5),16),b=parseInt(c.slice(5,7),16);headerSettings.mobile_bg_color='rgba('+r+','+g+','+b+','+(_mobileBgOpacity/100)+')';">
+                                <input type="text" class="cz-color-hex" x-model="_mobileBgHex" @input="if(/^#[0-9a-fA-F]{6}$/.test(_mobileBgHex)){let c=_mobileBgHex;let r=parseInt(c.slice(1,3),16),g=parseInt(c.slice(3,5),16),b=parseInt(c.slice(5,7),16);headerSettings.mobile_bg_color='rgba('+r+','+g+','+b+','+(_mobileBgOpacity/100)+')';}">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label class="cz-label">Mobile Background Opacity</label>
+                            <div class="cz-range-row">
+                                <input type="range" min="0" max="100" step="1" x-model="_mobileBgOpacity" @input="let c=_mobileBgHex||'#ffffff';let r=parseInt(c.slice(1,3),16),g=parseInt(c.slice(3,5),16),b=parseInt(c.slice(5,7),16);headerSettings.mobile_bg_color='rgba('+r+','+g+','+b+','+(_mobileBgOpacity/100)+')';">
+                                <span class="cz-range-value" x-text="_mobileBgOpacity + '%' "></span>
+                            </div>
+                        </div>
+                        <div class="cz-toggle-row rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
+                            <div>
+                                <div class="cz-toggle-label">Close On Link</div>
+                                <div class="cz-toggle-desc">Collapse the mobile menu immediately after a customer chooses a link.</div>
+                            </div>
+                            <button type="button" @click="headerSettings.mobile_close_on_link = headerSettings.mobile_close_on_link ? 0 : 1" class="cz-toggle" :class="headerSettings.mobile_close_on_link ? 'cz-toggle-on' : 'cz-toggle-off'">
+                                <span class="cz-toggle-knob" :class="headerSettings.mobile_close_on_link ? 'cz-toggle-knob-on' : 'cz-toggle-knob-off'"></span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="xl:col-span-4 space-y-5">
+            <div class="cz-panel sticky top-20">
+                <div class="cz-panel-header">
+                    <h3>
+                        <svg class="w-4 h-4 inline -mt-0.5 mr-1.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                        Navigation Preview
+                    </h3>
+                </div>
+                <div class="p-4 space-y-4">
+                    <div class="cz-preview-frame rounded-lg overflow-hidden border border-slate-200 bg-white">
+                        <div class="flex items-center justify-between border-b border-slate-200 px-4 py-3 text-xs" :style="'background:' + headerSettings.bg_color + ';color:' + headerSettings.text_color">
+                            <div class="font-semibold" x-text="siteTitle || 'Storefront'"></div>
+                            <div class="flex items-center gap-3" :style="'color:' + headerSettings.link_color">
+                                <span>Home</span>
+                                <span>Shop</span>
+                                <span>Contact</span>
+                                <span x-show="headerSettings.show_search == 1">Search</span>
+                            </div>
+                        </div>
+                        <div class="grid gap-3 px-4 py-4 text-[11px] text-slate-500" style="background:#f8fafc;">
+                            <div class="flex flex-wrap gap-2">
+                                <span class="inline-flex items-center rounded-full bg-white px-2.5 py-1 border border-slate-200">Desktop <span class="ml-1 font-medium text-slate-900" x-text="headerSettings.menu_location || 'primary'"></span></span>
+                                <span class="inline-flex items-center rounded-full bg-white px-2.5 py-1 border border-slate-200">Mobile <span class="ml-1 font-medium text-slate-900" x-text="headerSettings.mobile_menu_location || headerSettings.menu_location || 'primary'"></span></span>
+                            </div>
+                            <div class="rounded-lg border border-slate-200 bg-white p-3">
+                                <div class="flex items-center justify-between text-[10px] uppercase tracking-[0.14em] text-slate-400">
+                                    <span>Mobile Pattern</span>
+                                    <span x-text="headerSettings.mobile_menu_style"></span>
+                                </div>
+                                <div class="mt-3 rounded-lg border border-slate-200 px-3 py-3" :style="'background:' + headerSettings.mobile_bg_color + ';color:' + headerSettings.mobile_text_color">
+                                    <div class="flex items-center justify-between text-xs font-medium">
+                                        <span>Menu</span>
+                                        <span x-text="headerSettings.mobile_breakpoint + 'px'"></span>
+                                    </div>
+                                    <div class="mt-3 grid gap-2 text-[11px]">
+                                        <div class="rounded-md px-2 py-2" :style="'background:' + headerSettings.mobile_hover_bg_color">Shop</div>
+                                        <div class="rounded-md px-2 py-2" :style="'background:' + headerSettings.mobile_active_bg_color">Collections</div>
+                                        <div class="rounded-md px-2 py-2 border border-dashed border-slate-300">Checkout</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-xs text-slate-600">
+                        Use the menu manager for tree structure. This tab controls which assigned menus are used and how customers experience them across desktop and mobile.
                     </div>
                 </div>
             </div>
@@ -2354,7 +2584,7 @@
                 <div class="cz-panel-header" @click="tlPanels.entity = !tlPanels.entity">
                     <h3>
                         <svg class="w-4 h-4 inline -mt-0.5 mr-1.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h10"/></svg>
-                        Entity View Presentation
+                        General Entity Presentation
                     </h3>
                     <svg class="w-4 h-4 text-gray-400 transition-transform" :class="tlPanels.entity ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
                 </div>
@@ -2362,7 +2592,7 @@
                     <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
                         <div>
                             <label class="cz-label">Layout Profile</label>
-                            <select x-model="storefrontSettings.entity_layout_profile" class="cz-select">
+                            <select x-model="themeLayoutSettings.entity_layout_profile" class="cz-select">
                                 <option value="default">Default</option>
                                 <option value="commerce">Commerce</option>
                                 <option value="content">Content</option>
@@ -2371,7 +2601,7 @@
                         </div>
                         <div>
                             <label class="cz-label">Pricing Variant</label>
-                            <select x-model="storefrontSettings.entity_pricing_variant" class="cz-select">
+                            <select x-model="themeLayoutSettings.entity_pricing_variant" class="cz-select">
                                 <option value="">Default</option>
                                 <option value="compact">Compact</option>
                                 <option value="featured">Featured</option>
@@ -2380,7 +2610,7 @@
                         </div>
                         <div>
                             <label class="cz-label">Action Variant</label>
-                            <select x-model="storefrontSettings.entity_action_variant" class="cz-select">
+                            <select x-model="themeLayoutSettings.entity_action_variant" class="cz-select">
                                 <option value="">Default</option>
                                 <option value="inline">Inline</option>
                                 <option value="sticky-footer">Sticky Footer</option>
@@ -2690,7 +2920,6 @@
         </div>
     </div>
 
-    {if customizer_scope == 'ecommerce'}
     <div x-show="activeTab === 'commerce'" class="grid grid-cols-1 xl:grid-cols-12 gap-6">
         <div class="xl:col-span-8 space-y-5">
             <div class="cz-panel">
@@ -2702,8 +2931,13 @@
                     <svg class="w-4 h-4 text-gray-400 transition-transform" :class="tlPanels.commerceGuide ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
                 </div>
                 <div x-show="tlPanels.commerceGuide" x-collapse class="cz-panel-body space-y-3 text-sm text-slate-600">
+                    {if customizer_scope == 'ecommerce'}
                     <p>The ecommerce workspace edits storefront presentation without forking the canonical CMS entity list and entity view contracts.</p>
                     <p>Use this tab for approved layout variants, summary-rail tuning, and purchase action treatment. Header, sidebar, colors, and shared layout tabs stay wired to the same entity-view contract.</p>
+                    {else}
+                    <p>This catalog tab applies storefront presentation to shop, category, and product routes while the active theme shell keeps ownership of the site header, footer, and shared layout.</p>
+                    <p>Use this tab for approved layout variants, summary-rail tuning, and purchase action treatment without switching away from the active theme.</p>
+                    {/if}
                 </div>
             </div>
 
@@ -2866,7 +3100,7 @@
                 <div class="cz-panel-body space-y-4">
                     <div class="flex items-center justify-between text-[10px] uppercase tracking-[0.14em] text-gray-400">
                         <span>Canonical Entity Contract</span>
-                        <span class="text-amber-700">Ecommerce Scope</span>
+                        <span class="{if customizer_scope == 'ecommerce'}text-amber-700{else}text-emerald-700{/if}">{if customizer_scope == 'ecommerce'}Ecommerce Scope{else}Active Theme Shell{/if}</span>
                     </div>
                     <div class="space-y-3 text-sm">
                         <div class="flex justify-between"><span class="text-gray-400">Entity Profile</span><span class="font-medium capitalize" x-text="storefrontSettings.entity_layout_profile"></span></div>
@@ -2942,7 +3176,6 @@
             </div>
         </div>
     </div>
-    {/if}
 
     <!-- Unsaved changes indicator -->
     <div x-show="dirty" x-transition class="fixed bottom-4 left-1/2 -translate-x-1/2 z-30">
@@ -2957,7 +3190,7 @@
 <script>
 function themeCustomizer() {
     return {
-        activeTab: '{if customizer_scope == 'ecommerce'}commerce{else}footer{/if}',
+        activeTab: '{if customizer_scope == 'ecommerce'}navigation{else}footer{/if}',
         saving: false,
         dirty: false,
         dirtySections: { footer: false, header: false, sidebar: false, colors: false, custom_code: false, theme: false, storefront: false },
@@ -2966,6 +3199,7 @@ function themeCustomizer() {
         draggedWidgetId: null,
         expandedWidgets: {},
         panels: { layout: true, colors: false, bar: true, widgets: true, help: false },
+        nPanels: { sources: true, desktop: true, mobile: true },
         hPanels: { layout: true, branding: false, cta: false, colors: false, dropdown: false, transparent: false, widgets: false, mobile: false },
         sPanels: { layout: true, appearance: false, widgets: true },
         cPanels: { brand: true, body: false, typo: false, layout: false, storefront: true },
@@ -3157,16 +3391,24 @@ function themeCustomizer() {
 
         tabDescription() {
             if (this.customizerScope === 'ecommerce') {
-                if (this.activeTab === 'colors') return 'Store palette, typography, and shared surface tokens for the ecommerce scope.';
-                if (this.activeTab === 'commerce') return 'Catalog entity presentation, pricing blocks, and purchase action variants for the ecommerce scope.';
-                return 'Shell controls stay in the native workspace; use this view for storefront tokens and canonical entity presentation only.';
+                if (this.activeTab === 'header') return 'Branding, top bar content, sticky behavior, and the visual shell of the storefront header.';
+                if (this.activeTab === 'navigation') return 'Desktop and mobile menu selection, dropdown behavior, search visibility, and responsive navigation patterns.';
+                if (this.activeTab === 'sidebar') return 'Sidebar widgets, placement, template targeting, and storefront rail behavior for commerce pages.';
+                if (this.activeTab === 'footer') return 'Footer composition, widget columns, footer-bar content, and navigation-driven footer structure.';
+                if (this.activeTab === 'colors') return 'Store palette, typography, and shared surface tokens for the ecommerce storefront.';
+                if (this.activeTab === 'custom_code') return 'Custom CSS overrides, code injection, and advanced storefront enhancements scoped to ecommerce.';
+                if (this.activeTab === 'theme') return 'Shared layout decisions and canonical entity-view defaults that shape the storefront shell.';
+                if (this.activeTab === 'commerce') return 'Catalog entity presentation, pricing blocks, inventory emphasis, and purchase action variants.';
+                return 'Configure the storefront shell and entity-view presentation from one workspace.';
             }
 
             if (this.activeTab === 'header') return 'Customize your site\'s header layout, navigation, and styling.';
+            if (this.activeTab === 'navigation') return 'Choose desktop and mobile menu sources, dropdown behavior, and responsive navigation patterns.';
             if (this.activeTab === 'sidebar') return 'Configure sidebar widgets, placement, and template targeting.';
             if (this.activeTab === 'colors') return 'Global colors, typography, and body styles used when header and footer tabs do not override them.';
             if (this.activeTab === 'custom_code') return 'Custom CSS overrides, code injection, and advanced enhancements.';
             if (this.activeTab === 'theme') return 'Site layout, entity-view profiles, approved block variants, and content display options.';
+            if (this.activeTab === 'commerce') return 'Catalog presentation for shop, category, and product routes inside the active theme shell.';
             return 'Customize your site\'s footer layout, widgets, and styling.';
         },
 
@@ -3215,7 +3457,7 @@ function themeCustomizer() {
         },
 
         entitySettings() {
-            return this.customizerScope === 'ecommerce' ? this.storefrontSettings : this.themeLayoutSettings;
+            return this.customizerScope === 'ecommerce' || this.activeTab === 'commerce' ? this.storefrontSettings : this.themeLayoutSettings;
         },
 
         entityPreviewEffectiveVariant(blockId, selectedValue) {
@@ -3255,18 +3497,40 @@ function themeCustomizer() {
             return this.entityPreviewEffectiveVariant('list-card-progress', this.storefrontSettings.entity_list_progress_variant);
         },
 
+        colorAlpha(color, alpha, fallback = '#000000') {
+            const value = (color || fallback || '#000000').trim();
+            const hex = value.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i);
+            if (hex) {
+                let normalized = hex[1];
+                if (normalized.length === 3) {
+                    normalized = normalized.split('').map((ch) => ch + ch).join('');
+                }
+                const red = parseInt(normalized.slice(0, 2), 16);
+                const green = parseInt(normalized.slice(2, 4), 16);
+                const blue = parseInt(normalized.slice(4, 6), 16);
+                return 'rgba(' + red + ',' + green + ',' + blue + ',' + alpha + ')';
+            }
+            const rgb = value.match(/^rgba?\(\s*([0-9.]+)\s*,\s*([0-9.]+)\s*,\s*([0-9.]+)(?:\s*,\s*[0-9.]+\s*)?\)$/i);
+            if (rgb) {
+                return 'rgba(' + rgb[1] + ',' + rgb[2] + ',' + rgb[3] + ',' + alpha + ')';
+            }
+            return 'rgba(0,0,0,' + alpha + ')';
+        },
+
         entityPreviewSummaryStyle() {
             return 'background:' + (this.colorsSettings.storefront_surface_bg || '#ffffff')
                 + ';border:1px solid ' + (this.colorsSettings.storefront_surface_border || '#e2e8f0')
                 + ';border-radius:16px;padding:' + this.entitySpacingConfig().pad
-                + ';box-shadow:0 10px 24px rgba(15,23,42,0.06);';
+                + ';box-shadow:0 10px 24px ' + this.colorAlpha(this.colorsSettings.body_text_color || '#1e293b', 0.06) + ';';
         },
 
         entityPreviewSummaryPricingStyle() {
             const variant = this.entityPreviewPricingVariant();
             let css = 'display:flex;align-items:flex-end;flex-wrap:wrap;gap:8px;margin-bottom:8px;';
             if (variant === 'featured') {
-                css += 'padding:12px;border:1px solid #dbeafe;background:#eff6ff;border-radius:16px;';
+                css += 'padding:12px;border:1px solid ' + this.colorAlpha(this.colorsSettings.storefront_cta_bg || '#0284c7', 0.18)
+                    + ';background:' + this.colorAlpha(this.colorsSettings.storefront_cta_bg || '#0284c7', 0.1)
+                    + ';border-radius:16px;';
             }
             return css;
         },
@@ -3324,14 +3588,18 @@ function themeCustomizer() {
                 pad = '16px';
                 gap = '14px';
             }
-            return 'border:1px solid #e2e8f0;background:#ffffff;border-radius:16px;padding:' + pad + ';display:grid;gap:' + gap + ';';
+            return 'border:1px solid ' + (this.colorsSettings.storefront_surface_border || '#e2e8f0')
+                + ';background:' + (this.colorsSettings.storefront_surface_bg || '#ffffff')
+                + ';border-radius:16px;padding:' + pad + ';display:grid;gap:' + gap + ';';
         },
 
         entityPreviewListPricingStyle() {
             const variant = this.entityPreviewListPricingVariant();
             let css = 'display:inline-flex;align-items:center;flex-wrap:wrap;gap:8px;';
             if (variant === 'featured') {
-                css += 'padding:8px 10px;border:1px solid #dbeafe;background:#eff6ff;border-radius:14px;';
+                css += 'padding:8px 10px;border:1px solid ' + this.colorAlpha(this.colorsSettings.storefront_cta_bg || '#0284c7', 0.18)
+                    + ';background:' + this.colorAlpha(this.colorsSettings.storefront_cta_bg || '#0284c7', 0.1)
+                    + ';border-radius:14px;';
             }
             return css;
         },
@@ -3360,7 +3628,7 @@ function themeCustomizer() {
 
         entityPreviewListProgressTrackStyle() {
             const width = this.entityPreviewListProgressVariant() === 'inline' ? '110px' : '100%';
-            return 'display:inline-flex;align-items:center;overflow:hidden;background:#e5e7eb;border-radius:9999px;height:6px;width:' + width + ';';
+            return 'display:inline-flex;align-items:center;overflow:hidden;background:' + this.colorAlpha(this.colorsSettings.body_text_color || '#1e293b', 0.08) + ';border-radius:9999px;height:6px;width:' + width + ';';
         },
 
         entityPreviewListProgressBarStyle() {
@@ -3407,9 +3675,6 @@ function themeCustomizer() {
 
         sectionsToSave() {
             const sections = Object.keys(this.dirtySections).filter(section => this.dirtySections[section]);
-            if (this.customizerScope === 'ecommerce') {
-                return sections.filter(section => section === 'colors' || section === 'storefront');
-            }
             return sections;
         },
 
@@ -3476,6 +3741,15 @@ function themeCustomizer() {
                     .filter(m => m && m.location)
                     .map(m => ({ slug: m.location, name: m.location, menu_name: m.name || '' }));
             }
+            this.availableMenuLocations = (Array.isArray(this.availableMenuLocations) ? this.availableMenuLocations : [])
+                .filter(loc => loc && (loc.slug || loc.label || loc.name))
+                .map(loc => ({
+                    ...loc,
+                    slug: loc.slug || loc.location || loc.name || loc.label,
+                    label: loc.label || loc.name || loc.slug || loc.location || 'Menu',
+                    name: loc.name || loc.label || loc.slug || loc.location || 'Menu',
+                    menu_name: loc.menu_name || '',
+                }));
             try {
                 this.availableSidebarTemplates = JSON.parse(document.getElementById('cz-sidebar-templates').textContent);
                 if (!Array.isArray(this.availableSidebarTemplates) || this.availableSidebarTemplates.length === 0) {
@@ -3684,7 +3958,7 @@ function themeCustomizer() {
             // Hydrate storefront settings
             try {
                 this.storefrontSettings = JSON.parse(document.getElementById('cz-storefront-settings').textContent);
-                if (this.storefrontSettings.entity_layout_profile === undefined) this.storefrontSettings.entity_layout_profile = 'default';
+                if (this.storefrontSettings.entity_layout_profile === undefined) this.storefrontSettings.entity_layout_profile = 'commerce';
                 if (this.storefrontSettings.entity_pricing_variant === undefined) this.storefrontSettings.entity_pricing_variant = '';
                 if (this.storefrontSettings.entity_action_variant === undefined) this.storefrontSettings.entity_action_variant = '';
                 if (this.storefrontSettings.entity_list_pricing_variant === undefined) this.storefrontSettings.entity_list_pricing_variant = '';
@@ -3701,7 +3975,7 @@ function themeCustomizer() {
                 if (this.storefrontSettings.entity_list_excerpt_length === undefined) this.storefrontSettings.entity_list_excerpt_length = 120;
             } catch (e) {
                 this.storefrontSettings = {
-                    entity_layout_profile: 'default', entity_pricing_variant: '', entity_action_variant: '',
+                    entity_layout_profile: 'commerce', entity_pricing_variant: '', entity_action_variant: '',
                     entity_list_pricing_variant: '', entity_list_inventory_variant: '', entity_list_progress_variant: '',
                     entity_summary_width: 320, entity_summary_sticky: 1, entity_media_ratio: 'auto', entity_spacing_scale: 'comfortable', entity_action_size: 'md',
                     entity_list_show_filter_summary: 1, entity_list_card_density: 'comfortable', entity_list_show_excerpt: 1, entity_list_excerpt_length: 120,
@@ -4014,7 +4288,7 @@ function themeCustomizer() {
                     scroll_to_top_size: '44', scroll_to_top_radius: '50', scroll_to_top_position: 'right', scroll_to_top_offset: '24',
                     smooth_scroll: 0, page_transition: 0, page_transition_style: 'fade',
                 };
-            } else if (this.activeTab === 'header') {
+            } else if (this.activeTab === 'header' || this.activeTab === 'navigation') {
                 if (!confirm('Reset all header settings to defaults? This cannot be undone.')) return;
                 this.headerSettings = {
                     layout: 'default', sticky: 1, show_tagline: 0, show_search: 0, show_cta_button: 0,
@@ -4041,7 +4315,7 @@ function themeCustomizer() {
             } else if (this.activeTab === 'commerce') {
                 if (!confirm('Reset storefront presentation settings to defaults? This resets only the ecommerce entity presentation controls.')) return;
                 this.storefrontSettings = {
-                    entity_layout_profile: 'default',
+                    entity_layout_profile: 'commerce',
                     entity_pricing_variant: '',
                     entity_action_variant: '',
                     entity_list_pricing_variant: '',

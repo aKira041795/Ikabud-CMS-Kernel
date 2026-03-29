@@ -1,4 +1,4 @@
-{extends "modules/cms/layouts/public.disyl"}
+{extends "_cms_active_theme/layouts/public.disyl"}
 
 {block head}
 {if cms_head}{cms_head | raw}{/if}
@@ -28,6 +28,31 @@
         </div>
         {/if}
     </header>
+    {/if}
+
+    {if entity_list_context.search_action_url or entity_list_context.available_categories | count > 0}
+    <div class="cms-entity-list__controls mb-6 rounded-2xl border border-gray-100 bg-white/90 p-4 shadow-sm">
+        <form method="get" action="{entity_list_context.search_action_url|default:entity_list_context.base_list_url}" class="flex flex-col gap-3 md:flex-row md:items-center">
+            {if entity_list_context.category_id > 0 and entity_list_context.category_slug == ''}<input type="hidden" name="cat" value="{entity_list_context.category_id}">{/if}
+            <input
+                type="text"
+                name="search"
+                value="{entity_list_context.search|default:''}"
+                placeholder="Search products"
+                class="min-w-0 flex-1 rounded-xl border border-gray-200 px-4 py-2.5 text-sm text-gray-700 shadow-sm focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-100"
+            >
+            <button type="submit" class="inline-flex items-center justify-center rounded-xl bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-sky-700">Search</button>
+        </form>
+
+        {if entity_list_context.available_categories | count > 0}
+        <nav class="mt-4 flex flex-wrap gap-2" aria-label="Categories">
+            <a href="{entity_list_context.all_items_url|default:entity_list_context.base_list_url}" class="inline-flex items-center rounded-full border px-3 py-1.5 text-sm transition-colors {if entity_list_context.category_id == 0 and entity_list_context.category_slug == ''}border-sky-600 bg-sky-600 text-white{else}border-gray-200 bg-white text-gray-600 hover:border-sky-200 hover:text-sky-700{/if}">All Products</a>
+            {foreach entity_list_context.available_categories as category}
+            <a href="{category.url}" class="inline-flex items-center rounded-full border px-3 py-1.5 text-sm transition-colors {if category.is_active}border-sky-600 bg-sky-600 text-white{else}border-gray-200 bg-white text-gray-600 hover:border-sky-200 hover:text-sky-700{/if}">{category.name}</a>
+            {/foreach}
+        </nav>
+        {/if}
+    </div>
     {/if}
 
     {if items}
@@ -80,7 +105,12 @@
     {/if}
 
     {else}
-    <p class="text-gray-500">No items found.</p>
+    <div class="rounded-2xl border border-dashed border-gray-200 bg-white/70 px-6 py-12 text-center text-gray-500">
+        <p>No items found.</p>
+        {if entity_list_context.all_items_url and entity_list_context.active_filter_count > 0}
+        <a href="{entity_list_context.all_items_url}" class="mt-3 inline-flex items-center text-sm font-medium text-sky-600 hover:text-sky-700">Browse all products</a>
+        {/if}
+    </div>
     {/if}
 
 </section>

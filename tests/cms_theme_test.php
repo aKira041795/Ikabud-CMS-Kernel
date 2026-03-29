@@ -11,6 +11,7 @@ require __DIR__ . '/../bootstrap.php';
 require_once __DIR__ . '/../src/helpers/module-manager.php';
 require_once __DIR__ . '/../modules/cms/helpers.php';
 require_once __DIR__ . '/../modules/cms/handlers.php';
+require_once __DIR__ . '/../modules/ecommerce/helpers.php';
 
 $pass = 0;
 $fail = 0;
@@ -200,6 +201,14 @@ $pocManifest = cmsActiveThemeManifest();
 t('entity-commerce-poc manifest loads as active theme', ($pocManifest['slug'] ?? '') === 'entity-commerce-poc');
 t('entity-commerce-poc manifest declares ecommerce customizer scope', ($pocManifest['customizer_scope'] ?? '') === 'ecommerce');
 t('active customizer scope switches to ecommerce for entity-commerce-poc', cmsActiveCustomizerScope() === 'ecommerce');
+$pocStorefrontPolicy = cmsResolveEcommerceThemePolicy([
+    'public_render_origin' => 'ecommerce',
+    'public_route_kind' => 'shop_index',
+]);
+t('entity-commerce-poc storefront policy keeps the site theme active', ($pocStorefrontPolicy['active_theme'] ?? '') === 'entity-commerce-poc', json_encode($pocStorefrontPolicy));
+t('entity-commerce-poc storefront policy resolves theme source as site', ($pocStorefrontPolicy['active_theme_source'] ?? '') === 'site', json_encode($pocStorefrontPolicy));
+t('entity-commerce-poc storefront policy resolves ecommerce scope', ($pocStorefrontPolicy['active_theme_scope'] ?? '') === 'ecommerce', json_encode($pocStorefrontPolicy));
+t('entity-commerce-poc storefront policy resolves entity-view mode', ($pocStorefrontPolicy['public_presentation_mode'] ?? '') === 'entity_view', json_encode($pocStorefrontPolicy));
 t('ecommerce storefront shop route resolves entity-view presentation mode', cmsEcommercePublicPresentationMode(['public_route_kind' => 'shop_index']) === 'entity_view');
 t('ecommerce storefront category route resolves entity-view presentation mode', cmsEcommercePublicPresentationMode(['public_route_kind' => 'shop_category']) === 'entity_view');
 t('ecommerce storefront product route resolves entity-view presentation mode', cmsEcommercePublicPresentationMode(['public_route_kind' => 'product_detail']) === 'entity_view');
@@ -238,7 +247,7 @@ $listPricingManifestTemplate = cmsResolveBlockTemplate('modules/cms/public/block
 $listInventoryManifestTemplate = cmsResolveBlockTemplate('modules/cms/public/blocks/list-card-inventory.block.disyl');
 $listProgressManifestTemplate = cmsResolveBlockTemplate('modules/cms/public/blocks/list-card-progress.block.disyl');
 t('entity-commerce-poc overrides pricing block', $pricingBlockTemplate === '_cms_active_theme/public/blocks/pricing.block.disyl', $pricingBlockTemplate);
-t('entity-commerce-poc overrides action block', $actionBlockTemplate === '_cms_active_theme/public/blocks/action.block.disyl', $actionBlockTemplate);
+t('entity-commerce-poc manifest default resolves inline action block', $actionBlockTemplate === '_cms_active_theme/public/blocks/action.inline.block.disyl', $actionBlockTemplate);
 t('entity-commerce-poc manifest default resolves featured list-card pricing variant', $listPricingManifestTemplate === '_cms_active_theme/public/blocks/list-card-pricing.featured.block.disyl', $listPricingManifestTemplate);
 t('entity-commerce-poc manifest default resolves compact list-card inventory variant', $listInventoryManifestTemplate === '_cms_active_theme/public/blocks/list-card-inventory.compact.block.disyl', $listInventoryManifestTemplate);
 t('entity-commerce-poc manifest default resolves inline list-card progress variant', $listProgressManifestTemplate === '_cms_active_theme/public/blocks/list-card-progress.inline.block.disyl', $listProgressManifestTemplate);
@@ -296,6 +305,9 @@ t('entity-commerce-poc manifest colors inherit primary token into customizer def
 t('entity-commerce-poc manifest colors inherit background token into customizer defaults', ($pocColorDefaults['body_bg_color'] ?? '') === '#f4efe6');
 t('entity-commerce-poc manifest colors inherit container token into customizer defaults', ($pocColorDefaults['container_width'] ?? '') === '1180');
 t('entity-commerce-poc manifest theme layout inherits container token into site width', ($pocThemeDefaults['site_max_width'] ?? '') === '1180');
+t('entity-commerce-poc manifest storefront defaults set dedicated summary width', ($pocStorefrontDefaults['entity_summary_width'] ?? '') === '360');
+t('entity-commerce-poc manifest storefront defaults set dedicated detail media ratio', ($pocStorefrontDefaults['entity_media_ratio'] ?? '') === '4:3');
+t('entity-commerce-poc manifest storefront defaults set inline action variant', ($pocStorefrontDefaults['entity_action_variant'] ?? '') === 'inline');
 t('entity-commerce-poc manifest storefront defaults inherit featured list pricing variant', ($pocStorefrontDefaults['entity_list_pricing_variant'] ?? '') === 'featured');
 
 cmsSeedActiveThemeCustomizerDefaults($db);
@@ -304,12 +316,15 @@ $seededTheme = cmsCustomizerGet($db, 'theme', 'ecommerce');
 $seededStorefront = cmsCustomizerGet($db, 'storefront', 'ecommerce');
 t('theme activation seeding writes ecommerce colors defaults from manifest', ($seededColors['settings']['color_primary'] ?? '') === '#0f4c81');
 t('theme activation seeding writes ecommerce theme defaults from manifest', ($seededTheme['settings']['site_max_width'] ?? '') === '1180');
+t('theme activation seeding writes ecommerce storefront summary width from manifest', ($seededStorefront['settings']['entity_summary_width'] ?? '') === '360');
+t('theme activation seeding writes ecommerce storefront detail media ratio from manifest', ($seededStorefront['settings']['entity_media_ratio'] ?? '') === '4:3');
+t('theme activation seeding writes ecommerce storefront action variant from manifest', ($seededStorefront['settings']['entity_action_variant'] ?? '') === 'inline');
 t('theme activation seeding writes ecommerce storefront defaults from manifest', ($seededStorefront['settings']['entity_list_pricing_variant'] ?? '') === 'featured');
 
 $defaultColorsHtml = cmsRenderColorsStyle($db);
 $defaultThemeHtml = cmsRenderThemeLayoutStyle($db);
 $defaultStorefrontHtml = cmsRenderStorefrontStyle($db);
-t('entity-commerce-poc suppresses generic colors override when settings match manifest defaults', $defaultColorsHtml === '', $defaultColorsHtml);
+t('entity-commerce-poc emits storefront color contract when settings match manifest defaults', str_contains($defaultColorsHtml, '--storefront-success-bg:') && !str_contains($defaultColorsHtml, 'body{font-family:var(--font-body);'), $defaultColorsHtml);
 t('entity-commerce-poc suppresses generic theme layout override when settings match manifest defaults', $defaultThemeHtml === '', $defaultThemeHtml);
 t('entity-commerce-poc suppresses generic storefront override when settings match manifest defaults', $defaultStorefrontHtml === '', $defaultStorefrontHtml);
 
@@ -321,6 +336,8 @@ t('entity-commerce-poc renders colors override after explicit merchant customiza
 
 $runtimeDiagnostics = cmsThemeRuntimeDiagnostics();
 t('theme runtime diagnostics expose active theme', ($runtimeDiagnostics['active_theme'] ?? '') === 'entity-commerce-poc');
+t('theme runtime diagnostics expose active theme source', ($runtimeDiagnostics['active_theme_source'] ?? '') === 'site');
+t('theme runtime diagnostics expose configured site theme', ($runtimeDiagnostics['configured_site_theme'] ?? '') === 'entity-commerce-poc');
 t('theme runtime diagnostics expose active customizer scope', ($runtimeDiagnostics['active_customizer_scope'] ?? '') === 'ecommerce');
 
 $pocStyleUrl = cmsThemeAssetUrl('style.css');
@@ -330,11 +347,120 @@ saveModuleSettings('cms', $oldSettings);
 cmsResetThemeRuntimeCache();
 $minimalScopeSettings = $oldSettings;
 $minimalScopeSettings['active_theme'] = 'minimal';
+$minimalScopeSettings['active_ecommerce_theme'] = '';
 saveModuleSettings('cms', $minimalScopeSettings);
 cmsResetThemeRuntimeCache();
 cmsActivateThemeSymlink('minimal');
 t('minimal theme manifest defaults to native customizer scope', cmsThemeCustomizerScopeFromManifest(['slug' => 'minimal']) === 'native');
 t('native scope storefront shop route resolves traditional mode', cmsEcommercePublicPresentationMode(['public_route_kind' => 'shop_index']) === 'traditional');
+
+$scopedShopPolicy = cmsWithPublicThemeContext([
+    'public_render_origin' => 'ecommerce',
+    'public_route_kind' => 'shop_index',
+], static function (): array {
+    return cmsResolveEcommerceThemePolicy([
+        'public_render_origin' => 'ecommerce',
+        'public_route_kind' => 'shop_index',
+        'public_presentation_mode' => 'traditional',
+    ]);
+});
+t('ecommerce route policy preserves the configured site theme for diagnostics', ($scopedShopPolicy['configured_site_theme'] ?? '') === 'minimal', json_encode($scopedShopPolicy));
+t('ecommerce route policy leaves storefront theme unset when not explicitly configured', ($scopedShopPolicy['preferred_storefront_theme'] ?? '') === '', json_encode($scopedShopPolicy));
+t('ecommerce route policy keeps the configured site theme when no storefront theme is configured', ($scopedShopPolicy['active_theme'] ?? '') === 'minimal', json_encode($scopedShopPolicy));
+t('ecommerce route policy keeps theme source as site without storefront override', ($scopedShopPolicy['active_theme_source'] ?? '') === 'site', json_encode($scopedShopPolicy));
+t('ecommerce route policy keeps native customizer scope without storefront override', ($scopedShopPolicy['active_theme_scope'] ?? '') === 'native', json_encode($scopedShopPolicy));
+t('ecommerce route policy honors traditional mode without storefront override', ($scopedShopPolicy['public_presentation_mode'] ?? '') === 'traditional' && empty($scopedShopPolicy['has_presentation_mode_conflict']), json_encode($scopedShopPolicy));
+
+$scopedShopTheme = cmsWithPublicThemeContext([
+    'public_render_origin' => 'ecommerce',
+    'public_route_kind' => 'shop_index',
+], static function (): array {
+    return [
+        'theme' => cmsActiveTheme(),
+        'presentation_mode' => cmsEcommercePublicPresentationMode([
+            'public_render_origin' => 'ecommerce',
+            'public_route_kind' => 'shop_index',
+        ]),
+        'style_url' => cmsThemeAssetUrl('style.css'),
+    ];
+});
+t('ecommerce route context keeps native site theme when storefront override is unset', ($scopedShopTheme['theme'] ?? '') === 'minimal', json_encode($scopedShopTheme));
+t('ecommerce route context stays in traditional mode under native site theme', ($scopedShopTheme['presentation_mode'] ?? '') === 'traditional', json_encode($scopedShopTheme));
+t('ecommerce route context does not serve storefront theme assets without explicit storefront theme', !str_contains((string)($scopedShopTheme['style_url'] ?? ''), '/assets/cms/themes/entity-commerce-poc/style.css'), (string)($scopedShopTheme['style_url'] ?? ''));
+t('global active theme remains minimal outside ecommerce route context', cmsActiveTheme() === 'minimal', (string)cmsActiveTheme());
+
+$explicitStorefrontSettings = $minimalScopeSettings;
+$explicitStorefrontSettings['active_ecommerce_theme'] = 'entity-commerce-poc';
+saveModuleSettings('cms', $explicitStorefrontSettings);
+cmsResetThemeRuntimeCache();
+
+$explicitStorefrontPolicy = cmsWithPublicThemeContext([
+    'public_render_origin' => 'ecommerce',
+    'public_route_kind' => 'shop_index',
+], static function (): array {
+    return cmsResolveEcommerceThemePolicy([
+        'public_render_origin' => 'ecommerce',
+        'public_route_kind' => 'shop_index',
+    ]);
+});
+t('explicit ecommerce theme config promotes storefront theme on shop route', ($explicitStorefrontPolicy['active_theme'] ?? '') === 'entity-commerce-poc', json_encode($explicitStorefrontPolicy));
+t('explicit ecommerce theme config resolves storefront theme source', ($explicitStorefrontPolicy['active_theme_source'] ?? '') === 'storefront', json_encode($explicitStorefrontPolicy));
+t('explicit ecommerce theme config restores ecommerce customizer scope', ($explicitStorefrontPolicy['active_theme_scope'] ?? '') === 'ecommerce', json_encode($explicitStorefrontPolicy));
+t('explicit ecommerce theme config restores entity-view mode', ($explicitStorefrontPolicy['public_presentation_mode'] ?? '') === 'entity_view', json_encode($explicitStorefrontPolicy));
+
+saveModuleSettings('cms', $minimalScopeSettings);
+cmsResetThemeRuntimeCache();
+
+$traditionalTemplateAllowed = true;
+try {
+    ecAssertTraditionalEntityTemplateAllowed('modules/ecommerce/public/shop.disyl', [
+        'public_render_origin' => 'ecommerce',
+        'public_route_kind' => 'shop_index',
+    ]);
+} catch (Throwable $e) {
+    $traditionalTemplateAllowed = false;
+}
+t('traditional shop template remains allowed without storefront route context promotion', $traditionalTemplateAllowed === true);
+
+$scopedTraditionalTemplateError = '';
+cmsWithPublicThemeContext([
+    'public_render_origin' => 'ecommerce',
+    'public_route_kind' => 'shop_index',
+], static function () use (&$scopedTraditionalTemplateError): void {
+    try {
+        ecAssertTraditionalEntityTemplateAllowed('modules/ecommerce/public/shop.disyl', [
+            'public_render_origin' => 'ecommerce',
+            'public_route_kind' => 'shop_index',
+        ]);
+    } catch (Throwable $e) {
+        $scopedTraditionalTemplateError = $e->getMessage();
+    }
+});
+t('storefront route context keeps traditional shop template allowed without explicit storefront theme', $scopedTraditionalTemplateError === '', $scopedTraditionalTemplateError);
+t('storefront route context reports canonical entity rendering requirement', cmsWithPublicThemeContext([
+    'public_render_origin' => 'ecommerce',
+    'public_route_kind' => 'shop_index',
+], static function (): bool {
+    return ecRouteUsesCanonicalEntityRendering('shop_index', [
+        'public_render_origin' => 'ecommerce',
+        'public_route_kind' => 'shop_index',
+    ]);
+}) === false);
+t('without storefront route context canonical entity rendering is not required under native theme', ecRouteUsesCanonicalEntityRendering('shop_index', [
+    'public_render_origin' => 'ecommerce',
+    'public_route_kind' => 'shop_index',
+]) === false);
+
+$scopedRuntimeDiagnostics = cmsWithPublicThemeContext([
+    'public_render_origin' => 'ecommerce',
+    'public_route_kind' => 'shop_index',
+], static function (): array {
+    return cmsThemeRuntimeDiagnostics();
+});
+t('route-scoped diagnostics preserve configured site theme', ($scopedRuntimeDiagnostics['configured_site_theme'] ?? '') === 'minimal', json_encode($scopedRuntimeDiagnostics));
+t('route-scoped diagnostics keep site theme source without storefront override', ($scopedRuntimeDiagnostics['active_theme_source'] ?? '') === 'site', json_encode($scopedRuntimeDiagnostics));
+t('route-scoped diagnostics keep traditional presentation mode without storefront override', ($scopedRuntimeDiagnostics['public_presentation_mode'] ?? '') === 'traditional', json_encode($scopedRuntimeDiagnostics));
+t('route-scoped diagnostics expose ecommerce route kind', ($scopedRuntimeDiagnostics['public_route_kind'] ?? '') === 'shop_index', json_encode($scopedRuntimeDiagnostics));
 
 // ═══════════════════════════════════════════════════════════════════
 // 6. Theme template content validation
@@ -352,24 +478,53 @@ $nativeLayoutContent = file_get_contents(STORAGE_PATH . '/cms-themes/native-defa
 t('native layout noscript fallback reveals body', str_contains($nativeLayoutContent, 'body:not(.cz-loaded),[data-animate]{opacity:1!important;transform:none!important;}'));
 t('native layout inline fallback reveals animated content', str_contains($nativeLayoutContent, 'document.body.classList.add(\'cz-loaded\')'));
 
+$pocLayoutContent = file_get_contents(BASE_PATH . '/storage/cms-themes/entity-commerce-poc/layouts/public.disyl');
+$themeStylePos = strpos($pocLayoutContent, '{if theme_style_url}<link rel="stylesheet" href="{theme_style_url}">{/if}');
+t('entity-commerce-poc layout omits public Tailwind CDN for storefront isolation', !str_contains($pocLayoutContent, 'https://cdn.tailwindcss.com'));
+t('entity-commerce-poc layout still loads theme stylesheet', $themeStylePos !== false);
+
+$pocStyleContent = file_get_contents(BASE_PATH . '/storage/cms-themes/entity-commerce-poc/style.css');
+t('entity-commerce-poc styles shared gallery grid without Tailwind', str_contains($pocStyleContent, '.cms-gallery-grid {') && str_contains($pocStyleContent, '.cms-gallery-item-link {'));
+t('entity-commerce-poc styles shared progress block without Tailwind', str_contains($pocStyleContent, '.cms-progress-row {') && str_contains($pocStyleContent, '.cms-progress-track {'));
+t('entity-commerce-poc styles prose content without Tailwind typography utilities', str_contains($pocStyleContent, '.poc-entity-view__body.prose h2 {') && str_contains($pocStyleContent, '.poc-entity-view__body.prose blockquote {'));
+
+$entityPresentationCss = cmsRenderEntityPresentationCss(cmsStorefrontSettingsDefaults());
+t('entity presentation css exports global geometry variables for storefront themes', str_contains($entityPresentationCss, '--theme-entity-list-card-min-width:') && str_contains($entityPresentationCss, '--theme-entity-list-media-ratio:') && str_contains($entityPresentationCss, '--theme-entity-media-ratio:') && str_contains($entityPresentationCss, '--theme-entity-action-min-height:'), $entityPresentationCss);
+
 $customizerTemplateContent = file_get_contents(BASE_PATH . '/templates/modules/cms/admin/theme-customizer.disyl');
+$entityListTemplateContent = file_get_contents(BASE_PATH . '/templates/modules/cms/public/entity.list.disyl') ?: '';
+$entityViewTemplateContent = file_get_contents(BASE_PATH . '/templates/modules/cms/public/entity.view.disyl') ?: '';
 t('customizer tracks per-section dirty state for scoped saves', str_contains($customizerTemplateContent, 'dirtySections: { footer: false, header: false, sidebar: false, colors: false, custom_code: false, theme: false, storefront: false }'));
 t('customizer save resolves only dirty sections', str_contains($customizerTemplateContent, 'const sections = this.sectionsToSave();'));
-t('ecommerce customizer keeps shell controls in native workspace', str_contains($customizerTemplateContent, 'Shell controls stay in the native workspace. Use this ecommerce view only for storefront tokens and canonical entity presentation settings.'));
-t('ecommerce customizer save path is limited to storefront-facing sections', str_contains($customizerTemplateContent, "return sections.filter(section => section === 'colors' || section === 'storefront');"));
+t('canonical entity list template extends the active theme public layout', str_contains($entityListTemplateContent, '{extends "_cms_active_theme/layouts/public.disyl"}'), $entityListTemplateContent);
+t('canonical entity view template extends the active theme public layout', str_contains($entityViewTemplateContent, '{extends "_cms_active_theme/layouts/public.disyl"}'), $entityViewTemplateContent);
+t('ecommerce customizer presents storefront studio workspace copy', str_contains($customizerTemplateContent, 'Shape the full storefront here: header, navigation behavior, footer composition, palette, and canonical entity-view presentation for the commerce shell.'));
+t('native customizer explains catalog controls stay inside the active theme shell', str_contains($customizerTemplateContent, 'The active theme shell stays in charge here. Use Catalog for shop, category, and product presentation inside that shell.'));
+t('native customizer describes catalog presentation inside the active theme shell', str_contains($customizerTemplateContent, 'Catalog presentation for shop, category, and product routes inside the active theme shell.'));
+t('ecommerce customizer exposes dedicated navigation tab', str_contains($customizerTemplateContent, "activeTab = 'navigation'") && str_contains($customizerTemplateContent, 'Menu Behavior'));
+t('ecommerce customizer keeps native-capable sidebar controls available', str_contains($customizerTemplateContent, "activeTab = 'sidebar'") && str_contains($customizerTemplateContent, 'Sidebar Rail'));
+t('ecommerce customizer keeps native-capable custom code controls available', str_contains($customizerTemplateContent, "activeTab = 'custom_code'") && str_contains($customizerTemplateContent, 'Store Code'));
+t('ecommerce customizer saves all dirty scoped sections', str_contains($customizerTemplateContent, 'return sections;'));
+t('customizer menu locations normalize label fallback for navigation workspace', str_contains($customizerTemplateContent, 'loc.label || loc.name || loc.slug') && str_contains($customizerTemplateContent, 'this.availableMenuLocations = (Array.isArray(this.availableMenuLocations) ? this.availableMenuLocations : [])'));
 t('customizer bootstraps dedicated storefront settings payload', str_contains($customizerTemplateContent, 'id="cz-storefront-settings"'));
 t('customizer saves dedicated storefront section payload', str_contains($customizerTemplateContent, "return { settings: this.storefrontSettings }"));
 t('customizer exposes storefront list-card pricing variant control', str_contains($customizerTemplateContent, 'storefrontSettings.entity_list_pricing_variant'));
 t('customizer exposes storefront action inline variant option', str_contains($customizerTemplateContent, '<option value="inline">Inline</option>'));
 t('customizer hydrates theme manifest block variants for preview fidelity', str_contains($customizerTemplateContent, 'cz-theme-manifest-block-variants'));
 t('customizer preview resolves effective storefront list-card variants', str_contains($customizerTemplateContent, 'entityPreviewListPricingVariant()') && str_contains($customizerTemplateContent, 'entityPreviewEffectiveVariant('));
+t('customizer preview derives storefront surfaces and featured states from active color settings', str_contains($customizerTemplateContent, "this.colorAlpha(this.colorsSettings.body_text_color || '#1e293b', 0.06)") && str_contains($customizerTemplateContent, "this.colorAlpha(this.colorsSettings.storefront_cta_bg || '#0284c7', 0.18)") && str_contains($customizerTemplateContent, "customizerScope === 'ecommerce' ? colorsSettings.storefront_cta_bg : colorsSettings.color_primary"), $customizerTemplateContent);
+t('ecommerce customizer resets navigation tab through header defaults', str_contains($customizerTemplateContent, "this.activeTab === 'header' || this.activeTab === 'navigation'"));
 
 $ecInitContent = file_get_contents(BASE_PATH . '/modules/ecommerce/helpers/00-init.php');
 $ecPublicShopHandlerContent = file_get_contents(BASE_PATH . '/modules/ecommerce/handlers/10-public-shop.php');
 t('ecommerce public render delegates CMS shell rendering through cms module context', str_contains($ecInitContent, "moduleWithContext('cms', static function () use (") && str_contains($ecInitContent, 'cmsPublicContext($context)'), $ecInitContent);
 t('ecommerce public render defines explicit presentation mode resolver', str_contains($ecInitContent, 'function ecResolvePublicPresentationMode('), $ecInitContent);
+t('ecommerce public render defines canonical entity-route guard helpers', str_contains($ecInitContent, 'function ecDispatchCanonicalEntityRoute(') && str_contains($ecInitContent, 'function ecAssertTraditionalEntityTemplateAllowed('), $ecInitContent);
+t('ecommerce public render blocks traditional entity templates in entity-view mode', str_contains($ecInitContent, 'ecAssertTraditionalEntityTemplateAllowed($template, $context);') && str_contains($ecInitContent, 'Traditional ecommerce template "'), $ecInitContent);
 t('ecommerce public render injects presentation mode into public context', str_contains($ecInitContent, "'public_presentation_mode' => "), $ecInitContent);
-t('product detail handler delegates canonical entity-view before ecommerce product preload', (($delegatePos = strpos($ecPublicShopHandlerContent, "executeModuleHandler('cms:cmsPublicEntityView'")) !== false) && (($productLoadPos = strpos($ecPublicShopHandlerContent, 'ecProductGetBySlug($slug)')) !== false) && $delegatePos < $productLoadPos, $ecPublicShopHandlerContent);
+t('shop index handler routes through canonical CMS entity list without legacy fallback', str_contains($ecPublicShopHandlerContent, "executeModuleHandler('cms:cmsPublicEntityList'") && str_contains($ecPublicShopHandlerContent, '\'available_categories\' => $availableCategories') && str_contains($ecPublicShopHandlerContent, "'search_action_url' => '/ecommerce/shop'") && !str_contains($ecPublicShopHandlerContent, 'Fallback: parallel ecommerce shop template'), $ecPublicShopHandlerContent);
+t('product detail handler delegates canonical entity-view through guard helper', str_contains($ecPublicShopHandlerContent, "ecDispatchCanonicalEntityRoute('cms:cmsPublicEntityView'"), $ecPublicShopHandlerContent);
+t('product detail handler delegates canonical entity-view before ecommerce product preload', (($delegatePos = strpos($ecPublicShopHandlerContent, "ecDispatchCanonicalEntityRoute('cms:cmsPublicEntityView'")) !== false) && (($productLoadPos = strpos($ecPublicShopHandlerContent, 'ecProductGetBySlug($slug)')) !== false) && $delegatePos < $productLoadPos, $ecPublicShopHandlerContent);
 t('product detail canonical delegation preserves ecommerce route metadata', str_contains($ecPublicShopHandlerContent, "'public_route_kind' => 'product_detail'") && str_contains($ecPublicShopHandlerContent, "'public_render_origin' => 'ecommerce'"), $ecPublicShopHandlerContent);
 
 $ecommerceLayoutContent = file_get_contents(BASE_PATH . '/templates/modules/ecommerce/layouts/public.disyl');
@@ -387,6 +542,17 @@ t('entity-commerce-poc keeps customized header inner layout contained', str_cont
 t('entity-commerce-poc keeps customized header container max-width disabled', str_contains($pocStyleContent, 'max-width: none;'));
 t('entity-commerce-poc styles generic customizer footer widgets', str_contains($pocStyleContent, '.footer-widgets-grid {'));
 t('entity-commerce-poc styles generic customizer footer bottom', str_contains($pocStyleContent, '.footer-bottom {'));
+t('entity-commerce-poc preserves customized footer widget backgrounds', !str_contains($pocStyleContent, ".poc-footer--customized .footer-widgets {\n    background: transparent !important;"), $pocStyleContent);
+t('entity-commerce-poc preserves customized footer bar backgrounds', !str_contains($pocStyleContent, ".poc-footer--customized .footer-bottom {\n    background: transparent !important;"), $pocStyleContent);
+t('entity-commerce-poc routes customized nav colors through header variables', str_contains($pocStyleContent, 'color: var(--header-link, var(--color-text));') && str_contains($pocStyleContent, 'color: var(--header-link-hover, var(--color-primary));'), $pocStyleContent);
+t('entity-commerce-poc routes topbar links through topbar variables', str_contains($pocStyleContent, '.header-topbar a {') && str_contains($pocStyleContent, 'var(--topbar-link, var(--header-link, var(--color-link)))'), $pocStyleContent);
+t('entity-commerce-poc routes footer chrome through footer variables', str_contains($pocStyleContent, 'var(--footer-link, var(--footer-text, var(--color-border)))') && str_contains($pocStyleContent, 'var(--footer-bg, var(--color-surface))'), $pocStyleContent);
+t('entity-commerce-poc routes header search chrome through header variables', str_contains($pocStyleContent, '.header-search-toggle {') && str_contains($pocStyleContent, 'var(--header-bg, var(--color-surface))') && str_contains($pocStyleContent, 'var(--header-border, var(--color-border))'), $pocStyleContent);
+t('entity-commerce-poc routes storefront surfaces and actions through ecommerce color tokens', str_contains($pocStyleContent, 'var(--storefront-surface-bg, var(--color-surface))') && str_contains($pocStyleContent, 'var(--storefront-cta-bg, var(--color-primary))') && str_contains($pocStyleContent, 'var(--storefront-secondary-bg, var(--color-surface))'), $pocStyleContent);
+t('entity-commerce-poc routes storefront inventory and badge states through ecommerce color tokens', str_contains($pocStyleContent, 'var(--storefront-warning-bg') && str_contains($pocStyleContent, 'var(--storefront-danger-text') && str_contains($pocStyleContent, 'var(--storefront-success-bg') && str_contains($pocStyleContent, 'var(--storefront-badge-bg'), $pocStyleContent);
+t('entity-commerce-poc routes catalog geometry through entity presentation variables', str_contains($pocStyleContent, 'var(--theme-entity-list-card-min-width') && str_contains($pocStyleContent, 'var(--theme-entity-list-media-ratio') && str_contains($pocStyleContent, 'var(--theme-entity-action-min-height'), $pocStyleContent);
+t('entity-commerce-poc routes detail layout geometry through entity presentation variables', str_contains($pocStyleContent, 'var(--theme-entity-summary-width, 320px)') && str_contains($pocStyleContent, 'var(--theme-entity-gap, 2rem)') && str_contains($pocStyleContent, 'var(--theme-entity-media-ratio, auto)') && str_contains($pocStyleContent, 'var(--theme-entity-panel-padding, 1rem)'), $pocStyleContent);
+t('entity-commerce-poc uses responsive auto-fit catalog columns instead of fixed desktop count', str_contains($pocStyleContent, 'repeat(auto-fit, minmax(min(100%, var(--poc-card-min-width)), 1fr))'), $pocStyleContent);
 t('entity-commerce-poc provides a storefront header partial', is_file(cmsThemesPath() . '/entity-commerce-poc/public/header.disyl'));
 t('entity-commerce-poc provides a storefront footer partial', is_file(cmsThemesPath() . '/entity-commerce-poc/public/footer.disyl'));
 
@@ -620,6 +786,37 @@ t('cmsPublicContext preserves ecommerce render origin metadata', ($storefrontPub
 t('cmsPublicContext preserves ecommerce route kind metadata', ($storefrontPublicContext['public_route_kind'] ?? '') === 'shop_index');
 t('cmsPublicContext resolves ecommerce presentation mode metadata', ($storefrontPublicContext['public_presentation_mode'] ?? '') === 'traditional');
 t('cmsPublicContext flags ecommerce-origin public rendering', !empty($storefrontPublicContext['is_ecommerce_public']));
+t('cmsPublicContext exposes native theme source outside storefront route context', ($storefrontPublicContext['active_theme_source'] ?? '') === 'site');
+t('cmsPublicContext exposes native customizer scope outside storefront route context', ($storefrontPublicContext['active_customizer_scope'] ?? '') === 'native');
+
+$previousAppLog = @file_get_contents(STORAGE_PATH . '/logs/app.log');
+$previousUser = app()->user();
+app()->setUser([
+    'id' => 999999,
+    'source' => 'cms',
+    'role' => 'customer',
+]);
+file_put_contents(STORAGE_PATH . '/logs/app.log', '');
+$authenticatedCartContext = cmsPublicContext([]);
+$authenticatedCartLog = @file_get_contents(STORAGE_PATH . '/logs/app.log') ?: '';
+t('cmsPublicContext resolves authenticated cart count through ecommerce capability', ($authenticatedCartContext['cart_count'] ?? -1) === 0, json_encode($authenticatedCartContext));
+t('cmsPublicContext authenticated cart lookup avoids ModuleDB denial warnings', !str_contains($authenticatedCartLog, 'ModuleDB DENIED'), $authenticatedCartLog);
+app()->setUser(is_array($previousUser) ? $previousUser : []);
+file_put_contents(STORAGE_PATH . '/logs/app.log', is_string($previousAppLog) ? $previousAppLog : '');
+
+$scopedStorefrontPublicContext = cmsWithPublicThemeContext([
+    'public_render_origin' => 'ecommerce',
+    'public_route_kind' => 'shop_index',
+], static function (): array {
+    return cmsPublicContext([
+        'public_render_origin' => 'ecommerce',
+        'public_route_kind' => 'shop_index',
+    ]);
+});
+t('route-scoped cmsPublicContext keeps traditional presentation mode metadata without storefront override', ($scopedStorefrontPublicContext['public_presentation_mode'] ?? '') === 'traditional', json_encode($scopedStorefrontPublicContext));
+t('route-scoped cmsPublicContext keeps site theme source without storefront override', ($scopedStorefrontPublicContext['active_theme_source'] ?? '') === 'site', json_encode($scopedStorefrontPublicContext));
+t('route-scoped cmsPublicContext keeps native customizer scope metadata without storefront override', ($scopedStorefrontPublicContext['active_customizer_scope'] ?? '') === 'native', json_encode($scopedStorefrontPublicContext));
+t('route-scoped cmsPublicContext marks the request as an ecommerce entity route', !empty($scopedStorefrontPublicContext['is_ecommerce_entity_route']), json_encode($scopedStorefrontPublicContext));
 
 cmsCacheInvalidateByTags(['cms:customizer']);
 cmsCustomizerClearPersistentCache('colors');
@@ -638,10 +835,39 @@ upsertCustomizerSection($db, 'colors', array_merge(cmsColorsSettingsDefaults(), 
     'container_width' => '1320',
 ]));
 upsertCustomizerSection($db, 'theme', array_merge(cmsThemeLayoutSettingsDefaults(), $validatedEntity));
+upsertCustomizerSection($db, 'storefront', array_merge(cmsStorefrontSettingsDefaults(), [
+    'entity_layout_profile' => 'commerce',
+    'entity_summary_width' => '360',
+    'entity_summary_sticky' => 1,
+    'entity_media_ratio' => '4:3',
+    'entity_spacing_scale' => 'compact',
+    'entity_action_size' => 'sm',
+    'entity_list_card_density' => 'compact',
+    'entity_list_show_excerpt' => 0,
+    'entity_list_excerpt_length' => '80',
+]), [], 'native');
 cmsCacheInvalidateByTags(['cms:customizer']);
 cmsCustomizerClearPersistentCache('colors');
 cmsCustomizerClearPersistentCache('theme');
+cmsCustomizerClearPersistentCache('storefront');
 $GLOBALS[cmsCustomizerRequestCacheKey('section_row', 'native')] = [];
+
+$nativeEntityStorefrontContext = cmsPublicContext([
+    'public_render_origin' => 'ecommerce',
+    'public_route_kind' => 'shop_index',
+]);
+t('native ecommerce entity routes keep native customizer scope metadata', ($nativeEntityStorefrontContext['active_customizer_scope'] ?? '') === 'native', json_encode($nativeEntityStorefrontContext));
+t('native ecommerce entity routes mark storefront presentation usage without switching theme scope', !empty($nativeEntityStorefrontContext['uses_storefront_presentation_settings']) && ($nativeEntityStorefrontContext['active_theme_source'] ?? '') === 'site', json_encode($nativeEntityStorefrontContext));
+t('native ecommerce entity routes expose native storefront settings separately', ($nativeEntityStorefrontContext['storefront_settings']['entity_summary_width'] ?? '') === '360', json_encode($nativeEntityStorefrontContext));
+t('native ecommerce entity routes merge storefront settings into theme settings', ($nativeEntityStorefrontContext['theme_settings']['entity_summary_width'] ?? '') === '360', json_encode($nativeEntityStorefrontContext));
+t('native ecommerce entity routes append storefront override style under active theme shell', str_contains((string)($nativeEntityStorefrontContext['theme_layout_style'] ?? ''), 'id="cz-storefront-override"'), (string)($nativeEntityStorefrontContext['theme_layout_style'] ?? ''));
+
+$nativeCartContext = cmsPublicContext([
+    'public_render_origin' => 'ecommerce',
+    'public_route_kind' => 'cart',
+]);
+t('native ecommerce cart route keeps theme layout presentation defaults', ($nativeCartContext['theme_settings']['entity_summary_width'] ?? '') === '410', json_encode($nativeCartContext));
+t('native ecommerce cart route skips storefront-specific presentation overrides', empty($nativeCartContext['uses_storefront_presentation_settings']) && !str_contains((string)($nativeCartContext['theme_layout_style'] ?? ''), 'id="cz-storefront-override"'), (string)($nativeCartContext['theme_layout_style'] ?? ''));
 
 $colorsStyle = cmsRenderColorsStyle($db);
 t('colors render exposes storefront CSS variables', str_contains($colorsStyle, '--storefront-surface-bg:'), $colorsStyle);
@@ -658,7 +884,8 @@ t('theme render exposes entity summary width variable', str_contains($themeStyle
 t('theme render styles commerce entity layout rail', str_contains($themeStyle, '.cms-entity-profile-commerce .cms-entity-layout{display:grid;'), $themeStyle);
 t('theme render styles sticky entity summary rail', str_contains($themeStyle, '.cms-entity-profile-commerce .cms-entity-summary{position:sticky;'), $themeStyle);
 t('theme render styles action button sizing', str_contains($themeStyle, '.cms-action-block .cms-btn-primary,.cms-action-block .cms-btn-secondary,.cms-action-block .cms-btn-disabled{padding:'), $themeStyle);
-t('theme render styles entity list density contract', str_contains($themeStyle, '.cms-entity-list{--theme-entity-list-gap:') && str_contains($themeStyle, '.cms-entity-card__body{display:flex;'), $themeStyle);
+t('theme render styles entity list density contract', str_contains($themeStyle, '--theme-entity-list-gap:') && str_contains($themeStyle, '--theme-entity-list-card-min-width:') && str_contains($themeStyle, '.cms-entity-card__body{display:flex;'), $themeStyle);
+t('theme render exports detail media ratio variable for theme overrides', str_contains($themeStyle, '--theme-entity-media-ratio:'), $themeStyle);
 
 $pocSettings = $oldSettings;
 $pocSettings['active_theme'] = 'entity-commerce-poc';
@@ -674,10 +901,31 @@ upsertCustomizerSection($db, 'header', array_merge(cmsHeaderSettingsDefaults(), 
     'show_search' => 1,
     'menu_location' => '__missing_storefront_menu__',
 ]), [], 'ecommerce');
+upsertCustomizerSection($db, 'footer', array_merge(cmsFooterSettingsDefaults(), [
+    'columns' => 1,
+    'bg_color' => '#102033',
+    'text_color' => '#d0def0',
+    'link_color' => '#7dd3fc',
+    'link_hover_color' => '#f8fafc',
+    'title_color' => '#ffffff',
+    'bar_bg_color' => '#08111f',
+    'bar_text_color' => '#94a3b8',
+    'bar_link_color' => '#f59e0b',
+    'bar_link_hover_color' => '#fef3c7',
+]), [[
+    'id' => 'footer-test-text',
+    'type' => 'text',
+    'area' => 1,
+    'props' => [
+        'title' => 'Support',
+        'content' => '<p>Footer support block</p>',
+    ],
+]], 'ecommerce');
 upsertCustomizerSection($db, 'storefront', array_merge(cmsStorefrontSettingsDefaults(), $validatedStorefront), [], 'ecommerce');
 cmsCacheInvalidateByTags(['cms:customizer']);
 cmsCustomizerClearPersistentCache('theme', 'ecommerce');
 cmsCustomizerClearPersistentCache('header', 'ecommerce');
+cmsCustomizerClearPersistentCache('footer', 'ecommerce');
 cmsCustomizerClearPersistentCache('storefront', 'ecommerce');
 $GLOBALS[cmsCustomizerRequestCacheKey('section_row', 'ecommerce')] = [];
 
@@ -699,8 +947,11 @@ t('customized storefront header links site branding to shop root', str_contains(
 t('customized storefront header fallback nav stays on storefront routes', str_contains($customizedHeaderHtml, '>Shop<') && str_contains($customizedHeaderHtml, '/ecommerce/my-orders'), $customizedHeaderHtml);
 t('customized storefront header search overlay posts to storefront query endpoint', str_contains($customizedHeaderHtml, '/ecommerce/shop') && str_contains($customizedHeaderHtml, 'name="search"'), $customizedHeaderHtml);
 t('customized storefront header exposes shared shell class for contained layout', str_contains($customizedHeaderHtml, 'container cms-public-shell'), $customizedHeaderHtml);
+t('customized storefront header resets submenu dropdown CSS for mobile navigation', str_contains($customizedHeaderHtml, '.main-navigation .nav-menu-sub{position:static;'), $customizedHeaderHtml);
 t('customized storefront footer renders through theme partial wrapper', str_contains($customizedFooterHtml, 'poc-footer--customized'), $customizedFooterHtml);
 t('customized storefront footer emits shell entity-view wrapper', str_contains($customizedFooterHtml, 'data-shell-entity-region="footer"') && str_contains($customizedFooterHtml, 'data-shell-entity-node="region"'), $customizedFooterHtml);
+t('customized storefront footer keeps widget background and link colors inline', str_contains($customizedFooterHtml, 'background:#102033;') && str_contains($customizedFooterHtml, '--footer-link:#7dd3fc;') && str_contains($customizedFooterHtml, '--footer-title-color:#ffffff;'), $customizedFooterHtml);
+t('customized storefront footer keeps footer bar colors inline', str_contains($customizedFooterHtml, 'background:#08111f;color:#94a3b8;') && str_contains($customizedFooterHtml, '--footer-link:#f59e0b;--footer-link-hover:#fef3c7;'), $customizedFooterHtml);
 
 $headerWidgetEntityHtml = cmsRenderSingleHeaderWidget([
     'type' => 'text',
@@ -877,12 +1128,30 @@ $listTemplateContext = [
     'list_title' => 'Catalog',
     'list_description' => '3 results in Bread for "sourdough"',
     'entity_list_context' => [
+        'base_list_url' => '/ecommerce/shop',
         'result_count' => 3,
         'result_label' => '3 results',
         'active_filter_count' => 2,
         'search' => 'sourdough',
+        'search_action_url' => '/ecommerce/shop',
+        'all_items_url' => '/ecommerce/shop',
+        'category_id' => 12,
         'category_name' => 'Bread',
         'category_slug' => 'bread',
+        'available_categories' => [
+            [
+                'id' => 12,
+                'name' => 'Bread',
+                'url' => '/ecommerce/shop?cat=12',
+                'is_active' => true,
+            ],
+            [
+                'id' => 18,
+                'name' => 'Wholegrain',
+                'url' => '/ecommerce/shop?cat=18',
+                'is_active' => false,
+            ],
+        ],
     ],
     'item_base_url' => '/ecommerce/product',
     'items' => [[
@@ -921,6 +1190,7 @@ $listHtml = cmsRender('modules/cms/public/entity.list.disyl', $listTemplateConte
 t('canonical entity list exposes storefront metadata', str_contains($listHtml, 'data-public-render-origin="ecommerce"') && str_contains($listHtml, 'data-public-route-kind="shop_index"') && str_contains($listHtml, 'data-public-presentation-mode="entity_view"'), $listHtml);
 t('canonical entity list exposes list filter metadata', str_contains($listHtml, 'data-list-search="sourdough"') && str_contains($listHtml, 'data-list-category-slug="bread"') && str_contains($listHtml, 'data-list-result-count="3"') && str_contains($listHtml, 'data-list-active-filter-count="2"'), $listHtml);
 t('canonical entity list renders summary badges', str_contains($listHtml, '3 results') && str_contains($listHtml, 'Category: Bread') && str_contains($listHtml, 'Search: &quot;sourdough&quot;'), $listHtml);
+t('canonical entity list renders storefront search and category controls', str_contains($listHtml, 'action="/ecommerce/shop"') && str_contains($listHtml, 'Search products') && str_contains($listHtml, 'All Products') && str_contains($listHtml, '/ecommerce/shop?cat=18'), $listHtml);
 t('canonical entity list applies density class and excerpt rendering', str_contains($listHtml, 'cms-entity-list--density-compact') && str_contains($listHtml, 'Slow-fermented bread.'), $listHtml);
 t('canonical entity list annotates list cards with entity metadata', str_contains($listHtml, 'data-entity-kind="list-item"') && str_contains($listHtml, 'data-entity-id="55"') && str_contains($listHtml, 'data-entity-slug="rustic-loaf"'), $listHtml);
 t('canonical entity list emits pre-rendered card capability fragments', str_contains($listHtml, '<div class="card-price">$8.00</div>') && str_contains($listHtml, '<div class="card-stock">Low stock</div>') && str_contains($listHtml, '<div class="card-progress">25% complete</div>'), $listHtml);
@@ -955,10 +1225,13 @@ $listWithoutSummaryHtml = cmsRender('modules/cms/public/entity.list.disyl', arra
 t('canonical entity list can suppress summary badges and excerpts', !str_contains($listWithoutSummaryHtml, 'Category: Bread') && !str_contains($listWithoutSummaryHtml, 'Slow-fermented bread.'), $listWithoutSummaryHtml);
 
 $pocListTemplateContent = file_get_contents(cmsThemesPath() . '/entity-commerce-poc/public/entity.list.disyl') ?: '';
+$pocListStyles = file_get_contents(cmsThemesPath() . '/entity-commerce-poc/style.css') ?: '';
 t('poc entity list template carries storefront metadata attributes', str_contains($pocListTemplateContent, 'data-public-render-origin="{public_render_origin|default:\'cms\'}"') && str_contains($pocListTemplateContent, 'data-public-route-kind="{public_route_kind|default:\'generic\'}"') && str_contains($pocListTemplateContent, 'data-public-presentation-mode="{public_presentation_mode|default:\'traditional\'}"'), $pocListTemplateContent);
 t('poc entity list template carries list metadata attributes', str_contains($pocListTemplateContent, 'data-list-search="{entity_list_context.search|default:\'\'}"') && str_contains($pocListTemplateContent, 'data-list-category-slug="{entity_list_context.category_slug|default:\'\'}"') && str_contains($pocListTemplateContent, 'data-list-result-count="{entity_list_context.result_count|default:0}"') && str_contains($pocListTemplateContent, 'data-entity-kind="list-item"'), $pocListTemplateContent);
 t('poc entity list template renders handler-provided card fragments', str_contains($pocListTemplateContent, 'item.list_card_pricing_html') && str_contains($pocListTemplateContent, 'item.list_card_inventory_html') && str_contains($pocListTemplateContent, 'item.list_card_progress_html'), $pocListTemplateContent);
 t('poc entity list template exposes density and excerpt controls', str_contains($pocListTemplateContent, 'poc-entity-list--density-{entity_presentation.list_card_density|default:\'comfortable\'}') && str_contains($pocListTemplateContent, 'item.list_card_excerpt') && str_contains($pocListTemplateContent, 'entity_presentation.list_show_filter_summary'), $pocListTemplateContent);
+t('poc entity list template exposes storefront filter controls', str_contains($pocListTemplateContent, 'entity_list_context.available_categories') && str_contains($pocListTemplateContent, 'entity_list_context.search_action_url') && str_contains($pocListTemplateContent, 'poc-entity-list__search-input'), $pocListTemplateContent);
+t('poc entity list stylesheet styles storefront filter controls', str_contains($pocListStyles, '.poc-entity-list__search') && str_contains($pocListStyles, '.poc-entity-list__category-link'), $pocListStyles);
 
 // ═══════════════════════════════════════════════════════════════════
 // 6b. Shared render lock must not re-enter symlink mutation
