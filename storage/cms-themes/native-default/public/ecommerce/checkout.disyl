@@ -1,0 +1,178 @@
+{extends "_cms_active_theme/layouts/public.disyl"}
+
+{block head}
+{include "_cms_active_theme/public/ecommerce/partials/storefront-styles.disyl"}
+{/block}
+
+{block content}
+<div class="native-storefront native-checkout-page" data-native-ecommerce-template="checkout">
+    <header class="native-storefront-hero">
+        <div>
+            <p class="native-storefront-kicker">Checkout</p>
+            <h1>Review and Place Order</h1>
+            <p class="native-storefront-subtitle">The checkout flow keeps the active native theme shell while preserving the current ecommerce behavior, payment handling, and order summary logic.</p>
+        </div>
+    </header>
+
+    <form id="checkout-form" class="native-checkout-layout">
+        <section class="native-stack">
+            <div class="native-storefront-panel">
+                <h2 class="native-panel-title">Contact and Billing</h2>
+                <div class="native-form-columns">
+                    <div class="native-field">
+                        <label for="billing-first-name">First Name</label>
+                        <input id="billing-first-name" type="text" name="billing[first_name]" required value="{user.first_name | default:''}" class="native-input">
+                    </div>
+                    <div class="native-field">
+                        <label for="billing-last-name">Last Name</label>
+                        <input id="billing-last-name" type="text" name="billing[last_name]" required value="{user.last_name | default:''}" class="native-input">
+                    </div>
+                    <div class="native-field" style="grid-column:1 / -1;">
+                        <label for="billing-email">Email</label>
+                        <input id="billing-email" type="email" name="billing[email]" required value="{user.email | default:''}" class="native-input">
+                    </div>
+                    <div class="native-field" style="grid-column:1 / -1;">
+                        <label for="billing-address-line1">Address</label>
+                        <input id="billing-address-line1" type="text" name="billing[address_line1]" required placeholder="Street address" class="native-input">
+                    </div>
+                    <div class="native-field" style="grid-column:1 / -1;">
+                        <label for="billing-address-line2">Address Line 2</label>
+                        <input id="billing-address-line2" type="text" name="billing[address_line2]" placeholder="Apartment, suite, etc." class="native-input">
+                    </div>
+                    <div class="native-field">
+                        <label for="billing-city">City</label>
+                        <input id="billing-city" type="text" name="billing[city]" required class="native-input">
+                    </div>
+                    <div class="native-field">
+                        <label for="billing-state">State / Region</label>
+                        <input id="billing-state" type="text" name="billing[state]" class="native-input">
+                    </div>
+                    <div class="native-field">
+                        <label for="billing-postal-code">Postal Code</label>
+                        <input id="billing-postal-code" type="text" name="billing[postal_code]" class="native-input">
+                    </div>
+                    <div class="native-field">
+                        <label for="billing-country">Country</label>
+                        <input id="billing-country" type="text" name="billing[country]" required placeholder="US" class="native-input">
+                    </div>
+                    <div class="native-field" style="grid-column:1 / -1;">
+                        <label for="billing-phone">Phone</label>
+                        <input id="billing-phone" type="tel" name="billing[phone]" class="native-input">
+                    </div>
+                </div>
+            </div>
+
+            {if shipping_rates | count > 0}
+            <div class="native-storefront-panel">
+                <h2 class="native-panel-title">Shipping</h2>
+                <div class="native-radio-list">
+                    {foreach shipping_rates as rate}
+                    <label class="native-radio-card">
+                        <span class="native-inline-actions" style="gap:0.85rem;">
+                            <input type="radio" name="shipping_rate_id" value="{rate.id}" {if loop.first}checked{/if}>
+                            <span>
+                                <strong>{rate.name}</strong><br>
+                                <span class="native-note">{if rate.rate == 0}Free shipping{else}{ec_settings.currency_symbol}{rate.rate}{/if}</span>
+                            </span>
+                        </span>
+                    </label>
+                    {/foreach}
+                </div>
+            </div>
+            {/if}
+
+            <div class="native-storefront-panel">
+                <h2 class="native-panel-title">Payment</h2>
+                <p class="native-note" style="margin-bottom:1rem;">{payment_label}</p>
+                <div class="native-field">
+                    <label for="customer-note">Order Note</label>
+                    <textarea id="customer-note" name="customer_note" rows="3" class="native-textarea" placeholder="Anything the store should know about this order?"></textarea>
+                </div>
+            </div>
+        </section>
+
+        <aside class="native-storefront-panel">
+            <h2 class="native-panel-title">Order Summary</h2>
+            <div class="native-stack">
+                {foreach cart.items as item}
+                <div class="native-summary-row">
+                    <span>{item.product_title} x {item.qty}</span>
+                    <strong>{ec_settings.currency_symbol}{item.qty * item.price_snapshot}</strong>
+                </div>
+                {/foreach}
+            </div>
+
+            <div class="native-summary-list" style="margin-top:1rem;">
+                <div class="native-summary-row"><span>Subtotal</span><strong>{cart.totals.subtotal_fmt}</strong></div>
+                {if cart.totals.discount > 0}
+                <div class="native-summary-row" style="color:#047857;"><span>Discount</span><strong>-{cart.totals.discount_fmt}</strong></div>
+                {/if}
+                {if cart.totals.tax > 0}
+                <div class="native-summary-row"><span>Tax</span><strong>{cart.totals.tax_fmt}</strong></div>
+                {/if}
+                <div class="native-summary-row native-summary-row--total"><span>Total</span><strong>{cart.totals.total_fmt}</strong></div>
+            </div>
+
+            <input type="hidden" name="_token" value="{csrf_token}">
+            <div class="native-actions">
+                <button type="button" id="place-order-btn" onclick="submitCheckout()" class="button button-primary native-submit">Place Order</button>
+            </div>
+            <div id="checkout-error" class="native-note" style="display:none; color:#b91c1c;"></div>
+        </aside>
+    </form>
+</div>
+
+<script>
+async function submitCheckout() {
+    const btn = document.getElementById('place-order-btn');
+    const errEl = document.getElementById('checkout-error');
+    btn.disabled = true;
+    btn.textContent = 'Placing order...';
+    errEl.style.display = 'none';
+
+    const form = document.getElementById('checkout-form');
+    const data = {};
+    const fd = new FormData(form);
+
+    data.billing = {};
+    data.shipping = {};
+
+    for (const [key, val] of fd.entries()) {
+        if (key.startsWith('billing[') && key.endsWith(']')) {
+            data.billing[key.slice(8, -1)] = val;
+        } else if (key.startsWith('shipping[') && key.endsWith(']')) {
+            data.shipping[key.slice(9, -1)] = val;
+        } else if (key === 'shipping_rate_id') {
+            data.shipping_rate_id = parseInt(val, 10);
+        } else if (key === 'customer_note') {
+            data.customer_note = val;
+        } else if (key === '_token') {
+            data._token = val;
+        }
+    }
+
+    try {
+        const res = await fetch('{base_url}/api/v1/ecommerce/checkout', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest'},
+            body: JSON.stringify(data),
+        });
+        const result = await res.json();
+        if (result.ok) {
+            window.location.href = result.redirect_url;
+            return;
+        }
+
+        errEl.textContent = result.error || 'Could not place order.';
+        errEl.style.display = 'block';
+        btn.disabled = false;
+        btn.textContent = 'Place Order';
+    } catch (error) {
+        errEl.textContent = 'Network error. Please try again.';
+        errEl.style.display = 'block';
+        btn.disabled = false;
+        btn.textContent = 'Place Order';
+    }
+}
+</script>
+{/block}

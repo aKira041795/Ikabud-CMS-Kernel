@@ -1,0 +1,81 @@
+{extends "_cms_active_theme/layouts/public.disyl"}
+
+{block head}
+{include "_cms_active_theme/public/ecommerce/partials/storefront-styles.disyl"}
+{/block}
+
+{block content}
+<div class="native-storefront native-order-confirmation" data-native-ecommerce-template="order-confirmation">
+    <div class="native-confirmation-hero">
+        <div class="native-confirmation-icon">&#10003;</div>
+        <p class="native-storefront-kicker">Order Received</p>
+        <h1>Order placed successfully</h1>
+        <p class="native-storefront-subtitle">Order <strong>#{order.order_number}</strong> has been received. A confirmation was sent to <strong>{order.customer_email}</strong>.</p>
+        {if payment_label}
+        <p class="native-note" style="margin-top:1rem;">Next step: {payment_label}</p>
+        {/if}
+    </div>
+
+    <div class="native-order-layout" style="margin-top:2rem;">
+        <section class="native-storefront-panel">
+            <h2 class="native-panel-title">Order Details</h2>
+            <div class="native-table-wrap">
+                <table class="native-table">
+                    <thead>
+                        <tr>
+                            <th>Product</th>
+                            <th style="text-align:center;">Qty</th>
+                            <th style="text-align:right;">Line Total</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {foreach order.items as item}
+                        <tr>
+                            <td>{item.product_title}</td>
+                            <td style="text-align:center;">{item.qty}</td>
+                            <td style="text-align:right;"><strong>{order.currency_symbol | default:ec_settings.currency_symbol}{item.line_total}</strong></td>
+                        </tr>
+                        {/foreach}
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <aside class="native-stack">
+            <section class="native-storefront-panel">
+                <h2 class="native-panel-title">Summary</h2>
+                <div class="native-summary-list">
+                    {if order.discount_amount > 0}
+                    <div class="native-summary-row"><span>Discount</span><strong>-{order.currency_symbol | default:ec_settings.currency_symbol}{order.discount_amount}</strong></div>
+                    {/if}
+                    {if order.tax_amount > 0}
+                    <div class="native-summary-row"><span>Tax</span><strong>{order.currency_symbol | default:ec_settings.currency_symbol}{order.tax_amount}</strong></div>
+                    {/if}
+                    {if order.shipping_amount > 0}
+                    <div class="native-summary-row"><span>Shipping</span><strong>{order.currency_symbol | default:ec_settings.currency_symbol}{order.shipping_amount}</strong></div>
+                    {/if}
+                    <div class="native-summary-row native-summary-row--total"><span>Total</span><strong>{order.currency_symbol | default:ec_settings.currency_symbol}{order.total_amount}</strong></div>
+                </div>
+            </section>
+
+            <section class="native-storefront-panel">
+                <h2 class="native-panel-title">Shipping To</h2>
+                <p class="native-panel-copy">{order.shipping.first_name} {order.shipping.last_name}<br>
+                    {order.shipping.address_line1}<br>
+                    {if order.shipping.address_line2}{order.shipping.address_line2}<br>{/if}
+                    {order.shipping.city}{if order.shipping.state}, {order.shipping.state}{/if} {order.shipping.postal_code}<br>
+                    {if order.shipping.country}{order.shipping.country}<br>{/if}
+                    {if order.shipping.phone}{order.shipping.phone}{/if}
+                </p>
+            </section>
+        </aside>
+    </div>
+
+    <div class="native-actions" style="justify-content:center; margin-top:2rem;">
+        {if is_logged_in}
+        <a href="{base_url}/ecommerce/my-orders" class="button button-primary">View My Orders</a>
+        {/if}
+        <a href="{base_url}/ecommerce/shop" class="button button-secondary">Continue Shopping</a>
+    </div>
+</div>
+{/block}

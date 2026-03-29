@@ -1,0 +1,123 @@
+{extends "_cms_active_theme/layouts/public.disyl"}
+
+{block head}
+{include "_cms_active_theme/public/ecommerce/partials/storefront-styles.disyl"}
+{/block}
+
+{block content}
+<div class="native-storefront native-cart-page" data-native-ecommerce-template="cart">
+    <header class="native-storefront-hero">
+        <div>
+            <p class="native-storefront-kicker">Basket</p>
+            <h1>Your Cart</h1>
+            <p class="native-storefront-subtitle">A native-theme cart template with the active shell, the shared catalog settings, and the checkout path kept intact.</p>
+        </div>
+        <a href="{base_url}/ecommerce/shop" class="button button-secondary">Continue Shopping</a>
+    </header>
+
+    {if message}
+    <div class="native-storefront-panel" style="margin-bottom:1rem; border-color:{if message.type == 'error'}#fecaca{else}#a7f3d0{/if}; background:{if message.type == 'error'}#fef2f2{else}#ecfdf5{/if}; color:{if message.type == 'error'}#b91c1c{else}#047857{/if};">
+        {message.text}
+    </div>
+    {/if}
+
+    {if cart.items | count == 0}
+    <div class="native-empty-state">
+        <h2>Your cart is empty.</h2>
+        <p class="native-note">Add products from the catalog and they will appear here with the native storefront summary.</p>
+        <div class="native-actions" style="justify-content:center; margin-top:1rem;">
+            <a href="{base_url}/ecommerce/shop" class="button button-primary">Browse products</a>
+        </div>
+    </div>
+    {else}
+    <div class="native-cart-layout">
+        <section class="native-stack">
+            {foreach cart.items as item}
+            <article class="native-storefront-panel">
+                <div class="native-summary-row">
+                    <div>
+                        <h2 class="native-panel-title" style="margin-bottom:0.35rem;">{item.product_title}</h2>
+                        {if item.sku}<p class="native-note">SKU: {item.sku}</p>{/if}
+                        <p class="native-note">{ec_settings.currency_symbol}{item.price_snapshot} each</p>
+                    </div>
+                    <div style="text-align:right;">
+                        <strong>{ec_settings.currency_symbol}{item.qty * item.price_snapshot}</strong>
+                    </div>
+                </div>
+
+                <div class="native-inline-actions" style="margin-top:1rem;">
+                    <input type="number" name="qty" value="{item.qty}" min="0" class="native-input native-qty-input" onchange="updateCartItem({loop.index}, this.value)">
+                    <button type="button" class="button button-secondary" onclick="removeCartItem({loop.index})">Remove</button>
+                </div>
+            </article>
+            {/foreach}
+
+            <section class="native-storefront-panel">
+                <h2 class="native-panel-title">Coupon</h2>
+                <div class="native-inline-actions">
+                    <input type="text" id="coupon-code" value="{cart.coupon_code}" placeholder="Coupon code" class="native-input">
+                    <button type="button" class="button button-primary" onclick="applyCoupon()">Apply</button>
+                </div>
+                {if cart.totals.coupon}
+                <p class="native-note" style="margin-top:0.75rem; color:#047857;">Coupon "{cart.coupon_code}" applied - saving {cart.totals.discount_fmt}</p>
+                {/if}
+            </section>
+        </section>
+
+        <aside class="native-storefront-panel">
+            <h2 class="native-panel-title">Order Summary</h2>
+            <div class="native-summary-list">
+                <div class="native-summary-row"><span>Subtotal</span><strong>{cart.totals.subtotal_fmt}</strong></div>
+                {if cart.totals.discount > 0}
+                <div class="native-summary-row" style="color:#047857;"><span>Discount</span><strong>-{cart.totals.discount_fmt}</strong></div>
+                {/if}
+                {if cart.totals.tax > 0}
+                <div class="native-summary-row"><span>Tax ({cart.totals.tax_rate}%)</span><strong>{cart.totals.tax_fmt}</strong></div>
+                {/if}
+                <div class="native-summary-row native-summary-row--total"><span>Total</span><strong>{cart.totals.total_fmt}</strong></div>
+            </div>
+
+            <div class="native-actions">
+                <a href="{base_url}/ecommerce/checkout" class="button button-primary native-submit">Proceed to Checkout</a>
+                <a href="{base_url}/ecommerce/shop" class="button button-secondary native-submit">Keep Browsing</a>
+            </div>
+        </aside>
+    </div>
+    {/if}
+</div>
+
+<script>
+async function updateCartItem(idx, qty) {
+    await fetch('{base_url}/api/v1/ecommerce/cart/update', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest'},
+        body: JSON.stringify({ item_index: idx, qty: parseInt(qty, 10) }),
+    });
+    location.reload();
+}
+
+async function removeCartItem(idx) {
+    await fetch('{base_url}/api/v1/ecommerce/cart/remove', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest'},
+        body: JSON.stringify({ item_index: idx }),
+    });
+    location.reload();
+}
+
+async function applyCoupon() {
+    const code = document.getElementById('coupon-code').value;
+    const res = await fetch('{base_url}/api/v1/ecommerce/cart/coupon', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest'},
+        body: JSON.stringify({ code }),
+    });
+    const data = await res.json();
+    if (data.ok) {
+        location.reload();
+        return;
+    }
+    alert(data.error || 'Invalid coupon');
+}
+</script>
+{/block}

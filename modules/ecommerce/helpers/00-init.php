@@ -66,6 +66,79 @@ function ecInferPublicRouteKind(string $template, array $context = []): string
     };
 }
 
+function ecPublicThemeTemplateCandidates(string $template, array $context = []): array
+{
+    if (!ecIsPublicTemplate($template) || $template === 'pages/404.disyl') {
+        return [$template];
+    }
+
+    $routeKind = ecInferPublicRouteKind($template, $context);
+    $themeCandidates = match ($routeKind) {
+        'shop_index', 'shop_category' => [
+            '_cms_active_theme/public/ecommerce/archive-product.disyl',
+            '_cms_active_theme/public/ecommerce/shop.disyl',
+        ],
+        'product_detail' => [
+            '_cms_active_theme/public/ecommerce/single-product.disyl',
+            '_cms_active_theme/public/ecommerce/product.disyl',
+        ],
+        'cart' => ['_cms_active_theme/public/ecommerce/cart.disyl'],
+        'checkout' => ['_cms_active_theme/public/ecommerce/checkout.disyl'],
+        'order_confirmation' => [
+            '_cms_active_theme/public/ecommerce/order-confirmation.disyl',
+            '_cms_active_theme/public/ecommerce/thankyou.disyl',
+        ],
+        'my_orders' => ['_cms_active_theme/public/ecommerce/my-orders.disyl'],
+        'order_detail' => ['_cms_active_theme/public/ecommerce/order-detail.disyl'],
+        default => [],
+    };
+
+    return array_values(array_unique(array_merge($themeCandidates, [$template])));
+}
+
+function ecResolvePublicThemeTemplate(string $template, array $context = []): string
+{
+    $candidates = ecPublicThemeTemplateCandidates($template, $context);
+    if (count($candidates) === 1) {
+        return $template;
+    }
+
+    if (!function_exists('cmsActiveTheme')
+        || !function_exists('cmsActiveThemeManifest')
+        || !function_exists('cmsEnsureThemeSymlink')
+        || !defined('CMS_THEME_SYMLINK')) {
+        return $template;
+    }
+
+    if (cmsActiveTheme() === null) {
+        return $template;
+    }
+
+    $manifest = cmsActiveThemeManifest();
+    if (!empty($manifest['restrict_to_tokens'])) {
+        return $template;
+    }
+
+    cmsEnsureThemeSymlink();
+
+    foreach ($candidates as $candidate) {
+        if (!str_starts_with($candidate, '_cms_active_theme/')) {
+            continue;
+        }
+
+        $relativePath = substr($candidate, strlen('_cms_active_theme/'));
+        if ($relativePath === false || $relativePath === '') {
+            continue;
+        }
+
+        if (is_file((string)CMS_THEME_SYMLINK . '/' . $relativePath)) {
+            return $candidate;
+        }
+    }
+
+    return $template;
+}
+
 function ecResolvePublicPresentationMode(?string $routeKind = null, array $context = []): string
 {
     $resolvedContext = $context;
@@ -187,12 +260,11 @@ function ecRender(string $template, array $context = []): void
     $isPublicTemplate = ecIsPublicTemplate($template);
     ecAssertTraditionalEntityTemplateAllowed($template, $context);
     $render = static function () use ($template, $context, $isPublicTemplate): void {
-        if ($isPublicTemplate && function_exists('cmsPublicContext') && function_exists('cmsWithThemeSymlinkLock') && function_exists('cmsRender')) {
+        if ($isPublicTemplate && function_exists('cmsPublicContext') && function_exists('cmsRenderThemeAwareTemplate')) {
             $html = moduleWithContext('cms', static function () use ($template, $context): string {
                 $renderContext = array_merge(cmsPublicContext($context), $context);
-                return cmsWithThemeSymlinkLock(static function () use ($template, $renderContext): string {
-                    return cmsRender($template, $renderContext);
-                }, LOCK_SH);
+                $resolvedTemplate = ecResolvePublicThemeTemplate($template, $renderContext);
+                return cmsRenderThemeAwareTemplate($resolvedTemplate, $renderContext);
             });
             echo $html;
             return;

@@ -1,0 +1,155 @@
+{extends "_cms_active_theme/layouts/public.disyl"}
+
+{block head}
+{include "_cms_active_theme/public/ecommerce/partials/storefront-styles.disyl"}
+{/block}
+
+{block content}
+<div class="native-storefront native-product-page" data-native-ecommerce-template="single-product">
+    <nav class="native-breadcrumbs" aria-label="Breadcrumb">
+        <ol>
+            <li><a href="{base_url}/cms">Home</a></li>
+            <li><span class="separator">/</span></li>
+            <li><a href="{base_url}/ecommerce/shop">Shop</a></li>
+            {if product.categories | count > 0}
+            <li><span class="separator">/</span></li>
+            <li><a href="{base_url}/ecommerce/shop/category/{product.categories.0.slug}">{product.categories.0.name}</a></li>
+            {/if}
+        </ol>
+    </nav>
+
+    <div class="native-product-layout">
+        <section class="native-product-gallery">
+            <div class="native-product-image">
+                <img src="{if product.primary_image_url}{product.primary_image_url}{else}{base_url}/assets/ecommerce/product-placeholder.svg{/if}" alt="{product.title}">
+            </div>
+
+            {if product.gallery_images | count > 0}
+            <div class="native-product-thumbs">
+                {foreach product.gallery_images as image}
+                <a href="{image.url}" class="native-thumb-link" target="_blank" rel="noopener noreferrer">
+                    <img src="{image.thumb}" alt="{if image.caption}{image.caption}{else}{product.title}{/if}">
+                </a>
+                {/foreach}
+            </div>
+            {/if}
+
+            {if product.body}
+            <div class="native-storefront-panel">
+                <h2 class="native-panel-title">Product Details</h2>
+                <div class="prose">{product.body | raw}</div>
+            </div>
+            {/if}
+        </section>
+
+        <aside class="native-storefront-panel native-product-summary">
+            <p class="native-storefront-kicker">Catalog Detail</p>
+            <h1 class="native-product-title">{product.title}</h1>
+
+            <div class="native-product-price native-price-row">
+                <span class="native-price-current">{product.pricing.formatted | default:'Contact for price'}</span>
+                {if product.pricing.on_sale}
+                <span class="native-price-compare">{product.pricing.regular_fmt}</span>
+                <span class="native-pill native-pill--sale">Sale</span>
+                {/if}
+            </div>
+
+            {if product.excerpt}
+            <p class="native-storefront-subtitle">{product.excerpt}</p>
+            {/if}
+
+            <div class="native-stack" style="margin-top:1rem;">
+                {if product.inventory.track_stock}
+                    {if product.inventory.out_of_stock or not product.inventory.in_stock}
+                    <div class="native-pill native-pill--danger">Out of stock</div>
+                    {elseif product.inventory.low_stock}
+                    <div class="native-pill native-pill--warning">Low stock - only {product.inventory.stock_qty} left</div>
+                    {else}
+                    <div class="native-pill native-pill--success">In stock{if product.inventory.stock_qty} - {product.inventory.stock_qty} available{/if}</div>
+                    {/if}
+                {/if}
+
+                {if product.inventory.sku}
+                <div class="native-key-value"><strong>SKU:</strong> <span class="native-muted">{product.inventory.sku}</span></div>
+                {/if}
+
+                {if product.categories | count > 0}
+                <div class="native-key-value"><strong>Filed under:</strong>
+                    <span class="native-muted">{foreach product.categories as cat}{cat.name}{if !loop.last}, {/if}{/foreach}</span>
+                </div>
+                {/if}
+            </div>
+
+            {if product.inventory.in_stock && !product.inventory.out_of_stock}
+            <div class="native-inline-actions">
+                <input type="number" id="qty-input" value="1" min="1" {if product.inventory.track_stock}max="{product.inventory.stock_qty}"{/if} class="native-input native-qty-input">
+                <button onclick="addToCart({product.id}, document.getElementById('qty-input').value, event)" class="button button-primary" type="button">Add to Cart</button>
+            </div>
+            {else}
+            <div class="native-actions">
+                <button type="button" class="button button-secondary" disabled>Currently unavailable</button>
+            </div>
+            {/if}
+
+            <div class="native-actions">
+                <a href="{base_url}/ecommerce/cart" class="button button-secondary">View Cart ({cart_count | default:0})</a>
+            </div>
+        </aside>
+    </div>
+</div>
+
+<script>
+function updateCartBadge(count) {
+    const badge = document.getElementById('cart-count-badge');
+    if (!badge) {
+        return;
+    }
+
+    const nextCount = Number(count || 0);
+    if (nextCount > 0) {
+        badge.textContent = String(nextCount);
+        badge.classList.remove('hidden');
+        badge.classList.add('inline-flex');
+    } else {
+        badge.textContent = '0';
+        badge.classList.add('hidden');
+        badge.classList.remove('inline-flex');
+    }
+}
+
+async function addToCart(productId, qty, clickEvent) {
+    const btn = clickEvent && clickEvent.currentTarget ? clickEvent.currentTarget : null;
+    if (!btn) {
+        return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'Adding...';
+
+    try {
+        const res = await fetch('{base_url}/api/v1/ecommerce/cart/add', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest'},
+            body: JSON.stringify({ product_id: productId, qty: parseInt(qty, 10) || 1 }),
+        });
+        const data = await res.json();
+        if (data.ok) {
+            updateCartBadge(data.cart && data.cart.totals ? data.cart.totals.item_count : 0);
+            btn.textContent = 'Added';
+            setTimeout(() => {
+                btn.disabled = false;
+                btn.textContent = 'Add to Cart';
+            }, 1600);
+        } else {
+            alert(data.error || 'Could not add this product to the cart.');
+            btn.disabled = false;
+            btn.textContent = 'Add to Cart';
+        }
+    } catch (error) {
+        alert('Error. Please try again.');
+        btn.disabled = false;
+        btn.textContent = 'Add to Cart';
+    }
+}
+</script>
+{/block}

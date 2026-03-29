@@ -1,0 +1,119 @@
+{extends "_cms_active_theme/layouts/public.disyl"}
+
+{block head}
+{include "_cms_active_theme/public/ecommerce/partials/storefront-styles.disyl"}
+{/block}
+
+{block content}
+<div class="native-storefront native-order-detail" data-native-ecommerce-template="order-detail">
+    <header class="native-storefront-hero">
+        <div>
+            <p class="native-storefront-kicker">Order Detail</p>
+            <h1>Order #{order.order_number}</h1>
+            <p class="native-storefront-subtitle">Placed on {order.created_at | date:'M j, Y g:i A'}.</p>
+        </div>
+        <div>
+            {if order.status == 'pending'}
+            <span class="native-pill native-pill--warning">Pending</span>
+            {elseif order.status == 'processing'}
+            <span class="native-pill native-pill--sale">Processing</span>
+            {elseif order.status == 'shipped'}
+            <span class="native-pill native-pill--muted">Shipped</span>
+            {elseif order.status == 'delivered' || order.status == 'completed'}
+            <span class="native-pill native-pill--success">Completed</span>
+            {elseif order.status == 'cancelled'}
+            <span class="native-pill native-pill--danger">Cancelled</span>
+            {else}
+            <span class="native-pill native-pill--muted">{order.status}</span>
+            {/if}
+        </div>
+    </header>
+
+    <div class="native-order-layout">
+        <section class="native-stack">
+            <div class="native-storefront-panel">
+                <h2 class="native-panel-title">Items</h2>
+                <div class="native-table-wrap">
+                    <table class="native-table">
+                        <thead>
+                            <tr>
+                                <th>Product</th>
+                                <th style="text-align:right;">Unit</th>
+                                <th style="text-align:center;">Qty</th>
+                                <th style="text-align:right;">Line Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {foreach order.items as item}
+                            <tr>
+                                <td>
+                                    <strong>{item.product_title}</strong>
+                                    {if item.variant_label}<div class="native-note">{item.variant_label}</div>{/if}
+                                    {if item.sku}<div class="native-note">SKU: {item.sku}</div>{/if}
+                                </td>
+                                <td style="text-align:right;">{order.currency_symbol | default:ec_settings.currency_symbol}{item.unit_price}</td>
+                                <td style="text-align:center;">{item.qty}</td>
+                                <td style="text-align:right;"><strong>{order.currency_symbol | default:ec_settings.currency_symbol}{item.line_total}</strong></td>
+                            </tr>
+                            {/foreach}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            {if order.customer_note}
+            <div class="native-storefront-panel">
+                <h2 class="native-panel-title">Customer Note</h2>
+                <p class="native-panel-copy">{order.customer_note}</p>
+            </div>
+            {/if}
+        </section>
+
+        <aside class="native-stack">
+            <section class="native-storefront-panel">
+                <h2 class="native-panel-title">Summary</h2>
+                <div class="native-summary-list">
+                    <div class="native-summary-row"><span>Subtotal</span><strong>{order.currency_symbol | default:ec_settings.currency_symbol}{order.subtotal_amount | default:order.subtotal}</strong></div>
+                    {if order.discount_amount > 0}
+                    <div class="native-summary-row"><span>Discount</span><strong>-{order.currency_symbol | default:ec_settings.currency_symbol}{order.discount_amount}</strong></div>
+                    {/if}
+                    {if order.tax_amount > 0}
+                    <div class="native-summary-row"><span>Tax</span><strong>{order.currency_symbol | default:ec_settings.currency_symbol}{order.tax_amount}</strong></div>
+                    {/if}
+                    {if order.shipping_amount > 0}
+                    <div class="native-summary-row"><span>Shipping</span><strong>{order.currency_symbol | default:ec_settings.currency_symbol}{order.shipping_amount}</strong></div>
+                    {/if}
+                    <div class="native-summary-row native-summary-row--total"><span>Total</span><strong>{order.currency_symbol | default:ec_settings.currency_symbol}{order.total_amount}</strong></div>
+                </div>
+            </section>
+
+            <section class="native-storefront-panel">
+                <h2 class="native-panel-title">Shipping Address</h2>
+                <p class="native-panel-copy">{order.shipping.first_name} {order.shipping.last_name}<br>
+                    {order.shipping.address_line1}<br>
+                    {if order.shipping.address_line2}{order.shipping.address_line2}<br>{/if}
+                    {order.shipping.city}{if order.shipping.state}, {order.shipping.state}{/if} {order.shipping.postal_code}<br>
+                    {if order.shipping.country}{order.shipping.country}<br>{/if}
+                    {if order.shipping.phone}{order.shipping.phone}{/if}
+                </p>
+            </section>
+
+            <section class="native-storefront-panel">
+                <h2 class="native-panel-title">Billing Address</h2>
+                <p class="native-panel-copy">{order.billing.first_name} {order.billing.last_name}<br>
+                    {if order.billing.email}{order.billing.email}<br>{/if}
+                    {order.billing.address_line1}<br>
+                    {if order.billing.address_line2}{order.billing.address_line2}<br>{/if}
+                    {order.billing.city}{if order.billing.state}, {order.billing.state}{/if} {order.billing.postal_code}<br>
+                    {if order.billing.country}{order.billing.country}<br>{/if}
+                    {if order.billing.phone}{order.billing.phone}{/if}
+                </p>
+            </section>
+        </aside>
+    </div>
+
+    <div class="native-actions" style="margin-top:2rem;">
+        <a href="{base_url}/ecommerce/my-orders" class="button button-secondary">&larr; Back to My Orders</a>
+    </div>
+</div>
+{/block}

@@ -1,0 +1,83 @@
+{extends "_cms_active_theme/layouts/public.disyl"}
+
+{block head}
+{include "_cms_active_theme/public/ecommerce/partials/storefront-styles.disyl"}
+{/block}
+
+{block content}
+<div class="native-storefront native-my-orders" data-native-ecommerce-template="my-orders">
+    <header class="native-storefront-hero">
+        <div>
+            <p class="native-storefront-kicker">Account</p>
+            <h1>My Orders</h1>
+            <p class="native-storefront-subtitle">Recent orders rendered through the active native theme rather than the module storefront shell.</p>
+        </div>
+        <a href="{base_url}/ecommerce/shop" class="button button-secondary">Return to Shop</a>
+    </header>
+
+    {if orders | count == 0}
+    <div class="native-empty-state">
+        <h2>No orders yet</h2>
+        <p class="native-note">Once purchases are placed, they will appear here with the same native storefront treatment.</p>
+        <div class="native-actions" style="justify-content:center; margin-top:1rem;">
+            <a href="{base_url}/ecommerce/shop" class="button button-primary">Start Shopping</a>
+        </div>
+    </div>
+    {else}
+    <div class="native-storefront-panel">
+        <div class="native-table-wrap">
+            <table class="native-table">
+                <thead>
+                    <tr>
+                        <th>Order</th>
+                        <th>Date</th>
+                        <th>Status</th>
+                        <th style="text-align:right;">Total</th>
+                        <th style="text-align:right;">View</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {foreach orders as o}
+                    <tr>
+                        <td><strong>#{o.order_number}</strong></td>
+                        <td>{o.created_at | date:'M j, Y'}</td>
+                        <td>
+                            {if o.status == 'pending'}
+                            <span class="native-pill native-pill--warning">Pending</span>
+                            {elseif o.status == 'processing'}
+                            <span class="native-pill native-pill--sale">Processing</span>
+                            {elseif o.status == 'shipped'}
+                            <span class="native-pill native-pill--muted">Shipped</span>
+                            {elseif o.status == 'completed'}
+                            <span class="native-pill native-pill--success">Completed</span>
+                            {elseif o.status == 'cancelled'}
+                            <span class="native-pill native-pill--danger">Cancelled</span>
+                            {else}
+                            <span class="native-pill native-pill--muted">{o.status}</span>
+                            {/if}
+                        </td>
+                        <td style="text-align:right;"><strong>{o.currency_symbol | default:ec_settings.currency_symbol}{o.total_amount | default:o.total}</strong></td>
+                        <td style="text-align:right;"><a href="{base_url}/ecommerce/my-orders/{o.id}" class="native-text-link">View</a></td>
+                    </tr>
+                    {/foreach}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    {if total_pages > 1}
+    <nav class="native-pagination">
+        <ul>
+            {if page > 1}
+            <li><a href="?page={page - 1}">&larr; Prev</a></li>
+            {/if}
+            <li class="current"><span>Page {page} of {total_pages}</span></li>
+            {if page < total_pages}
+            <li><a href="?page={page + 1}">Next &rarr;</a></li>
+            {/if}
+        </ul>
+    </nav>
+    {/if}
+    {/if}
+</div>
+{/block}

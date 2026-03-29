@@ -65,6 +65,18 @@ function upsertCustomizerSection(object $db, string $section, array $settings, a
     ]);
 }
 
+function captureEcRender(string $template, array $context = []): string
+{
+    ob_start();
+    try {
+        ecRender($template, $context);
+        return (string)ob_get_clean();
+    } catch (Throwable $e) {
+        ob_end_clean();
+        throw $e;
+    }
+}
+
 // ── Clear logs ──────────────────────────────────────────────────────
 file_put_contents(STORAGE_PATH . '/logs/app.log', '');
 file_put_contents(STORAGE_PATH . '/logs/error.log', '');
@@ -463,6 +475,292 @@ t('route-scoped diagnostics keep traditional presentation mode without storefron
 t('route-scoped diagnostics expose ecommerce route kind', ($scopedRuntimeDiagnostics['public_route_kind'] ?? '') === 'shop_index', json_encode($scopedRuntimeDiagnostics));
 
 // ═══════════════════════════════════════════════════════════════════
+// 5b. Native ecommerce theme templates
+// ═══════════════════════════════════════════════════════════════════
+echo "\n=== NATIVE ECOMMERCE TEMPLATES ===\n";
+
+$nativeThemeSettings = $oldSettings;
+$nativeThemeSettings['active_theme'] = 'native-default';
+$nativeThemeSettings['active_ecommerce_theme'] = '';
+saveModuleSettings('cms', $nativeThemeSettings);
+cmsResetThemeRuntimeCache();
+cmsActivateThemeSymlink('native-default');
+
+$shopCandidates = ecPublicThemeTemplateCandidates('modules/ecommerce/public/shop.disyl', [
+    'public_render_origin' => 'ecommerce',
+    'public_route_kind' => 'shop_index',
+]);
+t('native storefront shop route prefers Woo-style archive-product template candidates', $shopCandidates === [
+    '_cms_active_theme/public/ecommerce/archive-product.disyl',
+    '_cms_active_theme/public/ecommerce/shop.disyl',
+    'modules/ecommerce/public/shop.disyl',
+], json_encode($shopCandidates));
+
+$productCandidates = ecPublicThemeTemplateCandidates('modules/ecommerce/public/product.disyl', [
+    'public_render_origin' => 'ecommerce',
+    'public_route_kind' => 'product_detail',
+]);
+t('native storefront product route prefers Woo-style single-product template candidates', $productCandidates === [
+    '_cms_active_theme/public/ecommerce/single-product.disyl',
+    '_cms_active_theme/public/ecommerce/product.disyl',
+    'modules/ecommerce/public/product.disyl',
+], json_encode($productCandidates));
+
+t('native storefront shop route resolves archive-product theme template', ecResolvePublicThemeTemplate('modules/ecommerce/public/shop.disyl', [
+    'public_render_origin' => 'ecommerce',
+    'public_route_kind' => 'shop_index',
+]) === '_cms_active_theme/public/ecommerce/archive-product.disyl');
+t('native storefront product route resolves single-product theme template', ecResolvePublicThemeTemplate('modules/ecommerce/public/product.disyl', [
+    'public_render_origin' => 'ecommerce',
+    'public_route_kind' => 'product_detail',
+]) === '_cms_active_theme/public/ecommerce/single-product.disyl');
+t('native storefront cart route resolves dedicated cart theme template', ecResolvePublicThemeTemplate('modules/ecommerce/public/cart.disyl', [
+    'public_render_origin' => 'ecommerce',
+    'public_route_kind' => 'cart',
+]) === '_cms_active_theme/public/ecommerce/cart.disyl');
+t('native storefront checkout route resolves dedicated checkout theme template', ecResolvePublicThemeTemplate('modules/ecommerce/public/checkout.disyl', [
+    'public_render_origin' => 'ecommerce',
+    'public_route_kind' => 'checkout',
+]) === '_cms_active_theme/public/ecommerce/checkout.disyl');
+t('native storefront order confirmation route resolves dedicated confirmation theme template', ecResolvePublicThemeTemplate('modules/ecommerce/public/order-confirmation.disyl', [
+    'public_render_origin' => 'ecommerce',
+    'public_route_kind' => 'order_confirmation',
+]) === '_cms_active_theme/public/ecommerce/order-confirmation.disyl');
+t('native storefront orders route resolves dedicated account theme template', ecResolvePublicThemeTemplate('modules/ecommerce/public/my-orders.disyl', [
+    'public_render_origin' => 'ecommerce',
+    'public_route_kind' => 'my_orders',
+]) === '_cms_active_theme/public/ecommerce/my-orders.disyl');
+t('native storefront order detail route resolves dedicated order detail theme template', ecResolvePublicThemeTemplate('modules/ecommerce/public/order-detail.disyl', [
+    'public_render_origin' => 'ecommerce',
+    'public_route_kind' => 'order_detail',
+]) === '_cms_active_theme/public/ecommerce/order-detail.disyl');
+
+$nativeShopHtml = captureEcRender('modules/ecommerce/public/shop.disyl', [
+    'page_title' => 'Shop',
+    'products' => [[
+        'id' => 1,
+        'slug' => 'demo-product',
+        'title' => 'Demo Product',
+        'excerpt' => 'A short excerpt.',
+        'primary_image_url' => '',
+        'pricing' => [
+            'formatted' => '$19.00',
+            'on_sale' => false,
+            'regular_fmt' => '$19.00',
+        ],
+        'inventory' => [
+            'track_stock' => true,
+            'stock_qty' => 6,
+            'in_stock' => true,
+            'out_of_stock' => false,
+            'low_stock' => false,
+        ],
+    ]],
+    'total' => 1,
+    'categories' => [],
+    'search' => '',
+    'category_id' => 0,
+    'page' => 1,
+    'per_page' => 12,
+    'total_pages' => 1,
+    'cart_count' => 0,
+    'public_render_origin' => 'ecommerce',
+    'public_route_kind' => 'shop_index',
+    'public_presentation_mode' => 'traditional',
+]);
+t('native storefront shop render uses archive-product theme template', str_contains($nativeShopHtml, 'data-native-ecommerce-template="archive-product"'), $nativeShopHtml);
+
+$nativeProductHtml = captureEcRender('modules/ecommerce/public/product.disyl', [
+    'page_title' => 'Demo Product',
+    'product' => [
+        'id' => 1,
+        'title' => 'Demo Product',
+        'slug' => 'demo-product',
+        'excerpt' => 'A short excerpt.',
+        'body' => '<p>Body copy</p>',
+        'primary_image_url' => '',
+        'gallery_images' => [],
+        'categories' => [['slug' => 'catalog', 'name' => 'Catalog']],
+        'pricing' => [
+            'formatted' => '$19.00',
+            'on_sale' => false,
+            'regular_fmt' => '$19.00',
+        ],
+        'inventory' => [
+            'track_stock' => true,
+            'stock_qty' => 6,
+            'in_stock' => true,
+            'out_of_stock' => false,
+            'low_stock' => false,
+            'sku' => 'SKU-001',
+        ],
+    ],
+    'cart_count' => 0,
+    'public_render_origin' => 'ecommerce',
+    'public_route_kind' => 'product_detail',
+    'public_presentation_mode' => 'traditional',
+]);
+t('native storefront product render uses single-product theme template', str_contains($nativeProductHtml, 'data-native-ecommerce-template="single-product"'), $nativeProductHtml);
+
+$nativeCartHtml = captureEcRender('modules/ecommerce/public/cart.disyl', [
+    'cart' => [
+        'coupon_code' => '',
+        'items' => [[
+            'product_title' => 'Demo Product',
+            'sku' => 'SKU-001',
+            'qty' => 2,
+            'price_snapshot' => 19,
+        ]],
+        'totals' => [
+            'item_count' => 2,
+            'subtotal_fmt' => '$38.00',
+            'discount' => 0,
+            'discount_fmt' => '$0.00',
+            'tax' => 0,
+            'tax_rate' => 0,
+            'tax_fmt' => '$0.00',
+            'total_fmt' => '$38.00',
+        ],
+    ],
+    'cart_count' => 2,
+    'public_render_origin' => 'ecommerce',
+    'public_route_kind' => 'cart',
+    'public_presentation_mode' => 'traditional',
+]);
+t('native storefront cart render uses cart theme template', str_contains($nativeCartHtml, 'data-native-ecommerce-template="cart"'), $nativeCartHtml);
+
+$nativeCheckoutHtml = captureEcRender('modules/ecommerce/public/checkout.disyl', [
+    'user' => ['first_name' => 'Ada', 'last_name' => 'Lovelace', 'email' => 'ada@example.test'],
+    'shipping_rates' => [['id' => 1, 'name' => 'Standard', 'rate' => 0]],
+    'payment_label' => 'Pay on delivery',
+    'csrf_token' => 'token',
+    'cart' => [
+        'items' => [[
+            'product_title' => 'Demo Product',
+            'qty' => 1,
+            'price_snapshot' => 19,
+        ]],
+        'totals' => [
+            'subtotal_fmt' => '$19.00',
+            'discount' => 0,
+            'discount_fmt' => '$0.00',
+            'tax' => 0,
+            'tax_fmt' => '$0.00',
+            'total_fmt' => '$19.00',
+        ],
+    ],
+    'cart_count' => 1,
+    'public_render_origin' => 'ecommerce',
+    'public_route_kind' => 'checkout',
+    'public_presentation_mode' => 'traditional',
+]);
+t('native storefront checkout render uses checkout theme template', str_contains($nativeCheckoutHtml, 'data-native-ecommerce-template="checkout"'), $nativeCheckoutHtml);
+
+$nativeOrderConfirmationHtml = captureEcRender('modules/ecommerce/public/order-confirmation.disyl', [
+    'payment_label' => 'Pay on delivery',
+    'is_logged_in' => true,
+    'order' => [
+        'order_number' => '1001',
+        'customer_email' => 'ada@example.test',
+        'currency_symbol' => '$',
+        'discount_amount' => 0,
+        'tax_amount' => 0,
+        'shipping_amount' => 0,
+        'total_amount' => '19.00',
+        'items' => [[
+            'product_title' => 'Demo Product',
+            'qty' => 1,
+            'line_total' => '19.00',
+        ]],
+        'shipping' => [
+            'first_name' => 'Ada',
+            'last_name' => 'Lovelace',
+            'address_line1' => '123 Example St',
+            'address_line2' => '',
+            'city' => 'London',
+            'state' => '',
+            'postal_code' => '1000',
+            'country' => 'UK',
+            'phone' => '',
+        ],
+    ],
+    'public_render_origin' => 'ecommerce',
+    'public_route_kind' => 'order_confirmation',
+    'public_presentation_mode' => 'traditional',
+]);
+t('native storefront order confirmation render uses confirmation theme template', str_contains($nativeOrderConfirmationHtml, 'data-native-ecommerce-template="order-confirmation"'), $nativeOrderConfirmationHtml);
+
+$nativeOrdersHtml = captureEcRender('modules/ecommerce/public/my-orders.disyl', [
+    'orders' => [[
+        'id' => 1,
+        'order_number' => '1001',
+        'created_at' => '2026-03-29 12:00:00',
+        'status' => 'processing',
+        'currency_symbol' => '$',
+        'total_amount' => '19.00',
+    ]],
+    'page' => 1,
+    'total_pages' => 1,
+    'public_render_origin' => 'ecommerce',
+    'public_route_kind' => 'my_orders',
+    'public_presentation_mode' => 'traditional',
+]);
+t('native storefront my orders render uses account theme template', str_contains($nativeOrdersHtml, 'data-native-ecommerce-template="my-orders"'), $nativeOrdersHtml);
+
+$nativeOrderDetailHtml = captureEcRender('modules/ecommerce/public/order-detail.disyl', [
+    'order' => [
+        'order_number' => '1001',
+        'created_at' => '2026-03-29 12:00:00',
+        'status' => 'processing',
+        'currency_symbol' => '$',
+        'subtotal_amount' => '19.00',
+        'discount_amount' => 0,
+        'tax_amount' => 0,
+        'shipping_amount' => 0,
+        'total_amount' => '19.00',
+        'items' => [[
+            'product_title' => 'Demo Product',
+            'variant_label' => '',
+            'sku' => 'SKU-001',
+            'unit_price' => '19.00',
+            'qty' => 1,
+            'line_total' => '19.00',
+        ]],
+        'shipping' => [
+            'first_name' => 'Ada',
+            'last_name' => 'Lovelace',
+            'address_line1' => '123 Example St',
+            'address_line2' => '',
+            'city' => 'London',
+            'state' => '',
+            'postal_code' => '1000',
+            'country' => 'UK',
+            'phone' => '',
+        ],
+        'billing' => [
+            'first_name' => 'Ada',
+            'last_name' => 'Lovelace',
+            'email' => 'ada@example.test',
+            'address_line1' => '123 Example St',
+            'address_line2' => '',
+            'city' => 'London',
+            'state' => '',
+            'postal_code' => '1000',
+            'country' => 'UK',
+            'phone' => '',
+        ],
+    ],
+    'public_render_origin' => 'ecommerce',
+    'public_route_kind' => 'order_detail',
+    'public_presentation_mode' => 'traditional',
+]);
+t('native storefront order detail render uses detail theme template', str_contains($nativeOrderDetailHtml, 'data-native-ecommerce-template="order-detail"'), $nativeOrderDetailHtml);
+
+saveModuleSettings('cms', $minimalScopeSettings);
+cmsResetThemeRuntimeCache();
+cmsActivateThemeSymlink('minimal');
+
+// ═══════════════════════════════════════════════════════════════════
 // 6. Theme template content validation
 // ═══════════════════════════════════════════════════════════════════
 echo "\n=== THEME TEMPLATE CONTENT ===\n";
@@ -494,10 +792,14 @@ t('entity presentation css exports global geometry variables for storefront them
 $customizerTemplateContent = file_get_contents(BASE_PATH . '/templates/modules/cms/admin/theme-customizer.disyl');
 $entityListTemplateContent = file_get_contents(BASE_PATH . '/templates/modules/cms/public/entity.list.disyl') ?: '';
 $entityViewTemplateContent = file_get_contents(BASE_PATH . '/templates/modules/cms/public/entity.view.disyl') ?: '';
+$nativeArchiveProductTemplateContent = file_get_contents(BASE_PATH . '/storage/cms-themes/native-default/public/ecommerce/archive-product.disyl') ?: '';
+$nativeSingleProductTemplateContent = file_get_contents(BASE_PATH . '/storage/cms-themes/native-default/public/ecommerce/single-product.disyl') ?: '';
 t('customizer tracks per-section dirty state for scoped saves', str_contains($customizerTemplateContent, 'dirtySections: { footer: false, header: false, sidebar: false, colors: false, custom_code: false, theme: false, storefront: false }'));
 t('customizer save resolves only dirty sections', str_contains($customizerTemplateContent, 'const sections = this.sectionsToSave();'));
 t('canonical entity list template extends the active theme public layout', str_contains($entityListTemplateContent, '{extends "_cms_active_theme/layouts/public.disyl"}'), $entityListTemplateContent);
 t('canonical entity view template extends the active theme public layout', str_contains($entityViewTemplateContent, '{extends "_cms_active_theme/layouts/public.disyl"}'), $entityViewTemplateContent);
+t('native default theme ships dedicated archive-product storefront template', str_contains($nativeArchiveProductTemplateContent, 'data-native-ecommerce-template="archive-product"'), $nativeArchiveProductTemplateContent);
+t('native default theme ships dedicated single-product storefront template', str_contains($nativeSingleProductTemplateContent, 'data-native-ecommerce-template="single-product"'), $nativeSingleProductTemplateContent);
 t('ecommerce customizer presents storefront studio workspace copy', str_contains($customizerTemplateContent, 'Shape the full storefront here: header, navigation behavior, footer composition, palette, and canonical entity-view presentation for the commerce shell.'));
 t('native customizer explains catalog controls stay inside the active theme shell', str_contains($customizerTemplateContent, 'The active theme shell stays in charge here. Use Catalog for shop, category, and product presentation inside that shell.'));
 t('native customizer describes catalog presentation inside the active theme shell', str_contains($customizerTemplateContent, 'Catalog presentation for shop, category, and product routes inside the active theme shell.'));
@@ -518,11 +820,13 @@ t('ecommerce customizer resets navigation tab through header defaults', str_cont
 $ecInitContent = file_get_contents(BASE_PATH . '/modules/ecommerce/helpers/00-init.php');
 $ecPublicShopHandlerContent = file_get_contents(BASE_PATH . '/modules/ecommerce/handlers/10-public-shop.php');
 t('ecommerce public render delegates CMS shell rendering through cms module context', str_contains($ecInitContent, "moduleWithContext('cms', static function () use (") && str_contains($ecInitContent, 'cmsPublicContext($context)'), $ecInitContent);
+t('ecommerce public render resolves native theme storefront template candidates', str_contains($ecInitContent, 'function ecPublicThemeTemplateCandidates(') && str_contains($ecInitContent, 'function ecResolvePublicThemeTemplate('), $ecInitContent);
+t('shop handler now falls back to a traditional storefront template when canonical rendering is disabled', str_contains($ecPublicShopHandlerContent, "if (ecDispatchCanonicalEntityRoute('cms:cmsPublicEntityList'") && str_contains($ecPublicShopHandlerContent, "ecRender('modules/ecommerce/public/shop.disyl'"), $ecPublicShopHandlerContent);
 t('ecommerce public render defines explicit presentation mode resolver', str_contains($ecInitContent, 'function ecResolvePublicPresentationMode('), $ecInitContent);
 t('ecommerce public render defines canonical entity-route guard helpers', str_contains($ecInitContent, 'function ecDispatchCanonicalEntityRoute(') && str_contains($ecInitContent, 'function ecAssertTraditionalEntityTemplateAllowed('), $ecInitContent);
 t('ecommerce public render blocks traditional entity templates in entity-view mode', str_contains($ecInitContent, 'ecAssertTraditionalEntityTemplateAllowed($template, $context);') && str_contains($ecInitContent, 'Traditional ecommerce template "'), $ecInitContent);
 t('ecommerce public render injects presentation mode into public context', str_contains($ecInitContent, "'public_presentation_mode' => "), $ecInitContent);
-t('shop index handler routes through canonical CMS entity list without legacy fallback', str_contains($ecPublicShopHandlerContent, "executeModuleHandler('cms:cmsPublicEntityList'") && str_contains($ecPublicShopHandlerContent, '\'available_categories\' => $availableCategories') && str_contains($ecPublicShopHandlerContent, "'search_action_url' => '/ecommerce/shop'") && !str_contains($ecPublicShopHandlerContent, 'Fallback: parallel ecommerce shop template'), $ecPublicShopHandlerContent);
+t('shop index handler preserves canonical CMS entity list payload and native-theme fallback', str_contains($ecPublicShopHandlerContent, "if (ecDispatchCanonicalEntityRoute('cms:cmsPublicEntityList'") && str_contains($ecPublicShopHandlerContent, '\'available_categories\' => $availableCategories') && str_contains($ecPublicShopHandlerContent, "'search_action_url' => '/ecommerce/shop'") && str_contains($ecPublicShopHandlerContent, "ecRender('modules/ecommerce/public/shop.disyl'"), $ecPublicShopHandlerContent);
 t('product detail handler delegates canonical entity-view through guard helper', str_contains($ecPublicShopHandlerContent, "ecDispatchCanonicalEntityRoute('cms:cmsPublicEntityView'"), $ecPublicShopHandlerContent);
 t('product detail handler delegates canonical entity-view before ecommerce product preload', (($delegatePos = strpos($ecPublicShopHandlerContent, "ecDispatchCanonicalEntityRoute('cms:cmsPublicEntityView'")) !== false) && (($productLoadPos = strpos($ecPublicShopHandlerContent, 'ecProductGetBySlug($slug)')) !== false) && $delegatePos < $productLoadPos, $ecPublicShopHandlerContent);
 t('product detail canonical delegation preserves ecommerce route metadata', str_contains($ecPublicShopHandlerContent, "'public_route_kind' => 'product_detail'") && str_contains($ecPublicShopHandlerContent, "'public_render_origin' => 'ecommerce'"), $ecPublicShopHandlerContent);

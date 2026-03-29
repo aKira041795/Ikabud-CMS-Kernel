@@ -6,6 +6,57 @@ declare(strict_types=1);
 // Ecommerce Module — Public Shop Handlers (handlers/10-public-shop.php)
 // ─────────────────────────────────────────────────────────────────────────
 
+function ecPublicStorefrontCategories(int $activeCategoryId = 0): array
+{
+    $categories = ecDb()->query(
+        ecCmsCategorySelectSql('id, name, slug', 'name ASC')
+    )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+
+    $resolved = [];
+    foreach ($categories as $category) {
+        $categoryId = (int)($category['id'] ?? 0);
+        $categoryName = trim((string)($category['name'] ?? ''));
+        if ($categoryId <= 0 || $categoryName === '') {
+            continue;
+        }
+
+        $categorySlug = trim((string)($category['slug'] ?? ''));
+        $resolved[] = [
+            'id' => $categoryId,
+            'slug' => $categorySlug,
+            'name' => $categoryName,
+            'url' => $categorySlug !== ''
+                ? '/ecommerce/shop/category/' . rawurlencode($categorySlug)
+                : '/ecommerce/shop?cat=' . $categoryId,
+            'is_active' => $activeCategoryId === $categoryId,
+        ];
+    }
+
+    return $resolved;
+}
+
+function ecPublicStorefrontPageUrl(string $basePath, int $page, array $query = []): string
+{
+    $params = [];
+    foreach ($query as $key => $value) {
+        if ($value === null || $value === '' || $value === false || $value === 0) {
+            continue;
+        }
+        $params[$key] = $value;
+    }
+
+    if ($page > 1) {
+        $params['page'] = $page;
+    }
+
+    $queryString = http_build_query($params);
+    if ($queryString === '') {
+        return $basePath;
+    }
+
+    return $basePath . '?' . $queryString;
+}
+
 /**
  * GET /ecommerce/shop  — product grid
  * Delegates to CMS universal entity list (capability-driven) when available.
@@ -23,28 +74,22 @@ function ecPublicShop(): void
     ecWithPublicThemeRouteContext($routeContext, static function () use ($search, $categoryId, $perPage, $routeContext): void {
         $presentationMode = ecResolvePublicPresentationMode('shop_index', $routeContext);
 
-        $categories = ecDb()->query(
-            ecCmsCategorySelectSql('id, name, slug', 'name ASC')
-        )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
-
-        $availableCategories = [];
-        foreach ($categories as $category) {
-            $resolvedCategoryId = (int)($category['id'] ?? 0);
-            $resolvedCategoryName = trim((string)($category['name'] ?? ''));
-            if ($resolvedCategoryId <= 0 || $resolvedCategoryName === '') {
+        $availableCategories = ecPublicStorefrontCategories($categoryId);
+        $currentCategory = null;
+        foreach ($availableCategories as $category) {
+            if ((int)($category['id'] ?? 0) !== $categoryId) {
                 continue;
             }
 
-            $availableCategories[] = [
-                'id' => $resolvedCategoryId,
+            $currentCategory = [
+                'id' => (int)($category['id'] ?? 0),
                 'slug' => trim((string)($category['slug'] ?? '')),
-                'name' => $resolvedCategoryName,
-                'url' => '/ecommerce/shop?cat=' . $resolvedCategoryId,
-                'is_active' => $categoryId === $resolvedCategoryId,
+                'name' => trim((string)($category['name'] ?? '')),
             ];
+            break;
         }
 
-        executeModuleHandler('cms:cmsPublicEntityList', [
+        if (ecDispatchCanonicalEntityRoute('cms:cmsPublicEntityList', [
             'type' => 'product',
             'search' => $search,
             'category_id' => $categoryId ?: null,
@@ -58,6 +103,54 @@ function ecPublicShop(): void
             'public_render_origin' => 'ecommerce',
             'public_route_kind' => 'shop_index',
             'public_presentation_mode' => $presentationMode,
+        ], $routeContext)) {
+            return;
+        }
+
+        $page = max(1, (int)(ecInput()['page'] ?? 1));
+        $offset = ($page - 1) * $perPage;
+        $productResult = ecProductList([
+            'search' => $search,
+            'category_id' => $categoryId ?: null,
+            'status' => 'published',
+            'limit' => $perPage,
+            'offset' => $offset,
+        ]);
+        $totalPages = $perPage > 0 ? max(1, (int)ceil($productResult['total'] / $perPage)) : 1;
+
+        ecRender('modules/ecommerce/public/shop.disyl', [
+            'page_title' => trim((string)ecSettings('shop_page_title')) ?: 'Shop',
+            'products' => $productResult['items'],
+            'total' => $productResult['total'],
+            'categories' => $availableCategories,
+            'available_categories' => $availableCategories,
+            'current_cat' => $currentCategory,
+            'search' => $search,
+            'category_id' => $categoryId,
+            'page' => $page,
+            'per_page' => $perPage,
+            'total_pages' => $totalPages,
+            'all_items_url' => '/ecommerce/shop',
+            'search_action_url' => '/ecommerce/shop',
+            'pagination_first_url' => ecPublicStorefrontPageUrl('/ecommerce/shop', 1, [
+                'search' => $search,
+                'cat' => $categoryId,
+            ]),
+            'pagination_prev_url' => $page > 1
+                ? ecPublicStorefrontPageUrl('/ecommerce/shop', $page - 1, [
+                    'search' => $search,
+                    'cat' => $categoryId,
+                ])
+                : '',
+            'pagination_next_url' => $page < $totalPages
+                ? ecPublicStorefrontPageUrl('/ecommerce/shop', $page + 1, [
+                    'search' => $search,
+                    'cat' => $categoryId,
+                ])
+                : '',
+            'cart_count' => (int)(ecCartGet()['totals']['item_count'] ?? 0),
+            'public_route_kind' => 'shop_index',
+            'public_presentation_mode' => $presentationMode,
         ]);
     });
 }
@@ -69,6 +162,7 @@ function ecPublicShop(): void
 function ecPublicCategory(array $params = []): void
 {
     $slug = (string)($params['slug'] ?? '');
+    $search = trim((string)(ecInput()['search'] ?? ''));
     if (!$slug) {
         header('Location: /ecommerce/shop');
         exit;
@@ -81,14 +175,19 @@ function ecPublicCategory(array $params = []): void
 
     ecWithPublicThemeRouteContext($routeContext, static function () use ($slug, $routeContext): void {
         $presentationMode = ecResolvePublicPresentationMode('shop_category', $routeContext);
+        $search = trim((string)(ecInput()['search'] ?? ''));
         $perPage = (int)ecSettings('products_per_page');
 
         if (ecDispatchCanonicalEntityRoute('cms:cmsPublicEntityList', [
                 'type'          => 'product',
                 'category_slug' => $slug,
+                'search'        => $search,
                 'per_page'      => $perPage,
                 'base_list_url' => '/ecommerce/shop/category/' . rawurlencode($slug),
                 'item_base_url' => '/ecommerce/shop',
+                'all_items_url' => '/ecommerce/shop',
+                'search_action_url' => '/ecommerce/shop/category/' . rawurlencode($slug),
+                'available_categories' => ecPublicStorefrontCategories(),
                 'public_render_origin' => 'ecommerce',
                 'public_route_kind' => 'shop_category',
             ], $routeContext)) {
@@ -110,9 +209,11 @@ function ecPublicCategory(array $params = []): void
 
         $page    = max(1, (int)(ecInput()['page'] ?? 1));
         $offset  = ($page - 1) * $perPage;
+        $availableCategories = ecPublicStorefrontCategories((int)$cat['id']);
 
         $productResult = ecProductList([
             'category_id' => (int)$cat['id'],
+            'search'      => $search,
             'status'      => 'published',
             'limit'       => $perPage,
             'offset'      => $offset,
@@ -124,13 +225,29 @@ function ecPublicCategory(array $params = []): void
             'page_title'  => $cat['name'],
             'products'    => $productResult['items'],
             'total'       => $productResult['total'],
-            'categories'  => [],
+            'categories'  => $availableCategories,
+            'available_categories' => $availableCategories,
             'current_cat' => $cat,
-            'search'      => '',
+            'search'      => $search,
             'category_id' => (int)$cat['id'],
             'page'        => $page,
             'per_page'    => $perPage,
             'total_pages' => $totalPages,
+            'all_items_url' => '/ecommerce/shop',
+            'search_action_url' => '/ecommerce/shop/category/' . rawurlencode($slug),
+            'pagination_first_url' => ecPublicStorefrontPageUrl('/ecommerce/shop/category/' . rawurlencode($slug), 1, [
+                'search' => $search,
+            ]),
+            'pagination_prev_url' => $page > 1
+                ? ecPublicStorefrontPageUrl('/ecommerce/shop/category/' . rawurlencode($slug), $page - 1, [
+                    'search' => $search,
+                ])
+                : '',
+            'pagination_next_url' => $page < $totalPages
+                ? ecPublicStorefrontPageUrl('/ecommerce/shop/category/' . rawurlencode($slug), $page + 1, [
+                    'search' => $search,
+                ])
+                : '',
             'cart_count'  => (int)(ecCartGet()['totals']['item_count'] ?? 0),
             'public_route_kind' => 'shop_category',
             'public_presentation_mode' => $presentationMode,
