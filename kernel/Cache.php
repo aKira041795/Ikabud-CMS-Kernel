@@ -39,6 +39,9 @@ class Cache
     
     /** @var string Stats file path */
     private string $statsFile;
+
+    /** @var bool Skip persisting stats on shutdown after an explicit full reset */
+    private bool $skipStatsPersist = false;
     
     public function __construct(string $cacheDir = null, int $maxCacheSizeMB = 0)
     {
@@ -95,6 +98,18 @@ class Cache
      */
     public function saveStats(): void
     {
+        if ($this->skipStatsPersist) {
+            return;
+        }
+
+        if (array_sum($this->stats) <= 0) {
+            if (self::$apcuAvailable) {
+                apcu_delete('guidance_cache_stats');
+            }
+            @unlink($this->statsFile);
+            return;
+        }
+
         // Save to APCu (fast, shared across requests)
         if (self::$apcuAvailable) {
             apcu_store('guidance_cache_stats', $this->stats, 86400); // 24 hours
@@ -592,65 +607,98 @@ class Cache
     }
     
     /**
-     * Clear all cache (all instances, including tag indexes)
+     * Clear all cache artifacts stored under the cache directory.
      */
     public function clearAll(): array
     {
         $cleared = 0;
         $errors = [];
-        
-        // Get all instance directories
-        $dirs = glob($this->cacheDir . '/*', GLOB_ONLYDIR);
-        
-        if ($dirs) {
-            foreach ($dirs as $dir) {
-                // Clear cache files in each instance directory
-                $files = glob($dir . '/*.cache');
-                if ($files) {
-                    foreach ($files as $file) {
-                        if (@unlink($file)) {
-                            $cleared++;
-                        } else {
-                            $errors[] = "Failed to delete: " . $file;
-                        }
+
+        if (is_dir($this->cacheDir)) {
+            $items = new \RecursiveIteratorIterator(
+                new \RecursiveDirectoryIterator($this->cacheDir, \FilesystemIterator::SKIP_DOTS),
+                \RecursiveIteratorIterator::CHILD_FIRST
+            );
+
+            foreach ($items as $item) {
+                $path = $item->getPathname();
+
+                if ($item->isDir()) {
+                    if (!$this->shouldPreserveCacheDirectory($path)) {
+                        @rmdir($path);
                     }
+                    continue;
                 }
-                
-                // Clear tag index files
-                $tagFiles = glob($dir . '/.tag_*.idx');
-                if ($tagFiles) {
-                    foreach ($tagFiles as $file) {
-                        @unlink($file);
-                    }
+
+                if ($this->isPreservedCachePlaceholder($item->getBasename())) {
+                    continue;
                 }
-            }
-        }
-        
-        // Also clear any legacy flat cache files (for migration)
-        $legacyFiles = glob($this->cacheDir . '/*.cache');
-        if ($legacyFiles) {
-            foreach ($legacyFiles as $file) {
-                if (@unlink($file)) {
+
+                if (@unlink($path)) {
                     $cleared++;
+                } else {
+                    $errors[] = "Failed to delete: " . $path;
+                }
+            }
+
+            $topLevelEntries = @scandir($this->cacheDir);
+            if (is_array($topLevelEntries)) {
+                foreach ($topLevelEntries as $entry) {
+                    if ($entry === '.' || $entry === '..') {
+                        continue;
+                    }
+
+                    $path = $this->cacheDir . '/' . $entry;
+                    if (is_dir($path) && !$this->shouldPreserveCacheDirectory($path)) {
+                        @rmdir($path);
+                    }
                 }
             }
         }
-        
+
         // Clear APCu
         if (self::$apcuAvailable) {
             apcu_clear_cache();
         }
-        
+
         // Reset stats
         $this->resetStats();
-        
+
         error_log("Ikabud Cache: Cleared $cleared cache files" . 
                   (count($errors) > 0 ? " with " . count($errors) . " errors" : ""));
-        
+
         return [
             'cleared' => $cleared,
             'errors' => $errors
         ];
+    }
+
+    private function isPreservedCachePlaceholder(string $filename): bool
+    {
+        return in_array($filename, ['.gitkeep', '.keep'], true);
+    }
+
+    private function shouldPreserveCacheDirectory(string $path): bool
+    {
+        $entries = @scandir($path);
+        if (!is_array($entries)) {
+            return false;
+        }
+
+        $hasKeepFile = false;
+        foreach ($entries as $entry) {
+            if ($entry === '.' || $entry === '..') {
+                continue;
+            }
+
+            if (!$this->isPreservedCachePlaceholder($entry)) {
+                return false;
+            }
+
+            $hasKeepFile = true;
+        }
+
+        return $hasKeepFile;
     }
     
     /**
@@ -658,6 +706,7 @@ class Cache
      */
     public function resetStats(): void
     {
+        $this->skipStatsPersist = true;
         $this->stats = [
             'hits' => 0,
             'misses' => 0,
