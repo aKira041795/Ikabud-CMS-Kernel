@@ -132,8 +132,8 @@ echo "\n=== DEFAULT THEME (no override) ===\n";
 
 // Save current settings and ensure no active theme
 $oldSettings = getModuleSettings('cms');
-t('cms settings defaults include entity-commerce-poc as the preferred ecommerce theme', (cmsSettingsDefaults()['active_ecommerce_theme'] ?? '') === 'entity-commerce-poc');
-t('effective preferred ecommerce theme resolves to entity-commerce-poc by default', cmsPreferredEcommerceTheme() === 'entity-commerce-poc', json_encode(readCmsSettings()));
+t('cms settings defaults keep ecommerce theme promotion opt-in', (cmsSettingsDefaults()['active_ecommerce_theme'] ?? '') === 'default');
+t('effective preferred ecommerce theme stays unset by default', cmsPreferredEcommerceTheme() === null, json_encode(readCmsSettings()));
 $testSettings = $oldSettings;
 $testSettings['active_theme'] = 'default';
 saveModuleSettings('cms', $testSettings);

@@ -449,7 +449,7 @@
             "key": "active_ecommerce_theme",
             "type": "text",
             "label": "Active Ecommerce Theme",
-            "default": "entity-commerce-poc"
+            "default": "default"
         },
         {
             "key": "builder_enabled_types",
