@@ -1070,11 +1070,14 @@ function cmsBuilderEntityViewContext(array $context): array
     if ($entityId > 0) {
         try {
             $attachedCapabilities = cmsEntityGetCapabilities($entityId);
-            $entity['capabilities'] = cmsEntityCapabilityContext($entityId);
-            $entity['capability_data'] = cmsEntityCapabilityData($entityId, $entity);
+            $runtime = cmsEntityCapabilityRuntimeState($entityId, $entity);
+            $entity['capabilities'] = is_array($runtime['capabilities'] ?? null) ? $runtime['capabilities'] : [];
+            $entity['capability_data'] = is_array($runtime['capability_data'] ?? null) ? $runtime['capability_data'] : [];
+            $entity['entity_context'] = is_array($runtime['resolved_context'] ?? null) ? $runtime['resolved_context'] : [];
         } catch (\Throwable $e) {
             $entity['capabilities'] = [];
             $entity['capability_data'] = [];
+            $entity['entity_context'] = [];
         }
 
         foreach (['inquiry', 'lessons_index', 'media_gallery'] as $capabilityId) {
@@ -1102,6 +1105,7 @@ function cmsBuilderEntityViewContext(array $context): array
     } else {
         $entity['capabilities'] = [];
         $entity['capability_data'] = [];
+        $entity['entity_context'] = [];
     }
 
     $entity['featured_image_url'] = cmsBuilderEntityFeaturedImageUrl($entity);

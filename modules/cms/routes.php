@@ -63,6 +63,8 @@ return [
         // ── Entity Capability API (GET) ──────────────────────────
         '/api/v1/cms/entity-capabilities'              => 'cms:cmsApiEntityCapabilityTypes',
         '/api/v1/cms/entity-presets'                   => 'cms:cmsApiEntityPresets',
+        '/api/v1/cms/entity-contexts'                  => 'cms:cmsApiEntityContextCatalog',
+        '/api/v1/cms/entity-contexts/schema/{entityType}' => 'cms:cmsApiEntityContextSchema',
         '/api/v1/cms/content/{id}/capabilities'        => 'cms:cmsApiEntityCapabilitiesGet',
         '/api/v1/cms/categories'              => 'cms:cmsApiCategoryList',
         '/api/v1/cms/content-types/{id}/fields' => 'cms:cmsApiContentTypeFieldsList',

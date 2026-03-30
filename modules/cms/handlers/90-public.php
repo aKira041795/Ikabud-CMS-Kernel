@@ -1525,6 +1525,7 @@ function cmsPublicEntityList(array $params = []): void
     // Enrich each item with capabilities, capability_data, and url
     $items = [];
     foreach ($rows as $row) {
+        $runtime = [];
         $entityId = (int)($row['id'] ?? 0);
         $itemSlug = rawurlencode((string)($row['slug'] ?? ''));
         if ($itemBaseUrl !== '') {
@@ -1533,11 +1534,14 @@ function cmsPublicEntityList(array $params = []): void
             $row['url'] = $baseUrl . '/cms/' . rawurlencode($type) . '/' . $itemSlug;
         }
         try {
-            $row['capabilities']    = $entityId > 0 ? cmsEntityCapabilityContext($entityId) : [];
-            $row['capability_data'] = $entityId > 0 ? cmsEntityCapabilityData($entityId, $row) : [];
+            $runtime = $entityId > 0 ? cmsEntityCapabilityRuntimeState($entityId, $row) : [];
+            $row['capabilities']    = is_array($runtime['capabilities'] ?? null) ? $runtime['capabilities'] : [];
+            $row['capability_data'] = is_array($runtime['capability_data'] ?? null) ? $runtime['capability_data'] : [];
+            $row['entity_context']  = is_array($runtime['resolved_context'] ?? null) ? $runtime['resolved_context'] : [];
         } catch (\Throwable $e) {
             $row['capabilities']    = [];
             $row['capability_data'] = [];
+            $row['entity_context']  = [];
         }
         if (!empty($row['featured_image'])) {
             $row['featured_image_url'] = cmsResolveUploadUrl((string)$row['featured_image']);
@@ -2057,6 +2061,7 @@ function cmsPublicCanonicalRenderEntityList(array $items, array $options = []): 
             continue;
         }
 
+        $runtime = [];
         $entityType = trim((string)($item['type'] ?? $defaultType));
         $entityId = (int)($item['id'] ?? 0);
         $item['type'] = $entityType;
@@ -2074,14 +2079,18 @@ function cmsPublicCanonicalRenderEntityList(array $items, array $options = []): 
         }
         if (!isset($item['capabilities']) || !is_array($item['capabilities'])) {
             try {
-                $item['capabilities'] = $entityId > 0 ? cmsEntityCapabilityContext($entityId) : [];
+                $runtime = $entityId > 0 ? cmsEntityCapabilityRuntimeState($entityId, $item) : [];
+                $item['capabilities'] = is_array($runtime['capabilities'] ?? null) ? $runtime['capabilities'] : [];
+                $item['entity_context'] = is_array($runtime['resolved_context'] ?? null) ? $runtime['resolved_context'] : [];
             } catch (Throwable $e) {
                 $item['capabilities'] = [];
+                $item['entity_context'] = [];
             }
         }
         if (!isset($item['capability_data']) || !is_array($item['capability_data'])) {
             try {
-                $item['capability_data'] = $entityId > 0 ? cmsEntityCapabilityData($entityId, $item) : [];
+                $runtime = isset($runtime) && is_array($runtime) ? $runtime : ($entityId > 0 ? cmsEntityCapabilityRuntimeState($entityId, $item) : []);
+                $item['capability_data'] = is_array($runtime['capability_data'] ?? null) ? $runtime['capability_data'] : [];
             } catch (Throwable $e) {
                 $item['capability_data'] = [];
             }

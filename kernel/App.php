@@ -18,6 +18,7 @@ namespace Ikabud\Kernel;
 use Ikabud\Kernel\Capabilities\CapabilityBus;
 use Ikabud\Kernel\Capabilities\CapabilityRegistry;
 use Ikabud\Kernel\Database\MigrationRunner;
+use Ikabud\Kernel\EntityContext\ContextRegistry;
 use Ikabud\Kernel\TenantResolver;
 use Ikabud\Kernel\Database\ModuleDB;
 use Ikabud\Kernel\DiSyL\TemplateEngine;
@@ -42,6 +43,7 @@ class App
     private ?TenantResolver $tenantResolver = null;
     private ?CapabilityRegistry $capabilityRegistry = null;
     private ?CapabilityBus $capabilityBus = null;
+    private ?ContextRegistry $entityContextRegistry = null;
     private ?array $currentUser = null;
     private bool $resolvingCurrentUser = false;
     private bool $booted = false;
@@ -370,6 +372,18 @@ class App
             $this->capabilityBus = new CapabilityBus($this->capabilities());
         }
         return $this->capabilityBus;
+    }
+
+    /**
+     * Get the entity context registry (entity type -> context profile composition).
+     */
+    public function entityContexts(): ContextRegistry
+    {
+        if ($this->entityContextRegistry === null) {
+            $this->entityContextRegistry = new ContextRegistry();
+        }
+
+        return $this->entityContextRegistry;
     }
 
     /**

@@ -40,6 +40,65 @@ function cmsApiEntityPresets(): void
 }
 
 /**
+ * GET /api/v1/cms/entity-contexts
+ * Returns the registered entity context catalog and example schemas.
+ */
+function cmsApiEntityContextCatalog(): void
+{
+    $user = cmsRequireRole('contributor');
+
+    cmsEntityCapabilityJsonResponse([
+        'success' => true,
+        'catalog' => cmsEntityContextRegistrySnapshot(),
+        'examples' => cmsEntityContextExampleSchemas(),
+    ]);
+}
+
+/**
+ * GET /api/v1/cms/entity-contexts/schema/{entityType}
+ * Returns the resolved entity context and derived customizer schema for an entity type.
+ */
+function cmsApiEntityContextSchema(array $params = []): void
+{
+    $user = cmsRequireRole('contributor');
+
+    $entityType = trim((string)($params['entityType'] ?? ''));
+    if ($entityType === '') {
+        cmsEntityCapabilityJsonResponse(['success' => false, 'error' => 'entityType is required'], 400);
+        return;
+    }
+
+    $profile = [];
+    $base = trim((string)($_GET['base'] ?? ''));
+    if ($base !== '') {
+        $profile['base'] = $base;
+    }
+
+    $rawExtensions = $_GET['extensions'] ?? [];
+    $extensions = [];
+    if (is_string($rawExtensions) && trim($rawExtensions) !== '') {
+        $extensions = array_values(array_filter(array_map('trim', explode(',', $rawExtensions))));
+    } elseif (is_array($rawExtensions)) {
+        $extensions = array_values(array_filter(array_map(static fn($value): string => is_string($value) ? trim($value) : '', $rawExtensions)));
+    }
+    if ($extensions !== []) {
+        $profile['extensions'] = $extensions;
+    }
+
+    $options = [];
+    if ($profile !== []) {
+        $options['profile'] = $profile;
+    }
+
+    $resolved = cmsResolveEntityContextForType($entityType, $options);
+    cmsEntityCapabilityJsonResponse([
+        'success' => true,
+        'resolved_context' => $resolved,
+        'schema' => $resolved['customizer_schema'] ?? [],
+    ]);
+}
+
+/**
  * GET /api/v1/cms/content/{id}/capabilities
  * Returns the capabilities attached to a specific entity.
  */
@@ -52,10 +111,16 @@ function cmsApiEntityCapabilitiesGet(array $params = []): void
         return;
     }
 
+    $runtime  = cmsEntityCapabilityRuntimeState($entityId);
     $attached = cmsEntityGetCapabilities($entityId);
-    $context  = cmsEntityCapabilityContext($entityId);
+    $context  = is_array($runtime['capabilities'] ?? null) ? $runtime['capabilities'] : [];
 
-    cmsEntityCapabilityJsonResponse(['success' => true, 'attached' => $attached, 'context' => $context]);
+    cmsEntityCapabilityJsonResponse([
+        'success' => true,
+        'attached' => $attached,
+        'context' => $context,
+        'resolved_context' => is_array($runtime['resolved_context'] ?? null) ? $runtime['resolved_context'] : [],
+    ]);
 }
 
 /**

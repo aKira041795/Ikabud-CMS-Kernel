@@ -2599,308 +2599,128 @@
                     <svg class="w-4 h-4 text-gray-400 transition-transform" :class="tlPanels.commerceEntity ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
                 </div>
                 <div x-show="tlPanels.commerceEntity" x-collapse class="cz-panel-body space-y-5">
-                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                        <div>
-                            <label class="cz-label">Layout Profile</label>
-                            <select x-model="entityPresentationSettings.entity_layout_profile" class="cz-select">
-                                <option value="default">Default</option>
-                                <option value="commerce">Commerce</option>
-                                <option value="content">Content</option>
-                            </select>
-                            <p class="text-[10px] text-gray-400 mt-1">Use approved canonical orderings rather than theme-specific template forks.</p>
+                    <div class="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-4">
+                        <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                            <div class="space-y-1.5">
+                                <p class="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">Schema Workspace</p>
+                                <h4 class="text-sm font-semibold text-slate-800">Registry-driven entity contexts</h4>
+                                <p class="text-xs text-slate-500">Choose a representative entity context. These controls are rendered from the entity-context registry and still save to the canonical entity presentation section.</p>
+                            </div>
+                            <div class="flex flex-wrap gap-2">
+                                <template x-for="exampleId in entityContextExampleIds()" :key="'entity-example-' + exampleId">
+                                    <button type="button"
+                                        @click="entityContextExampleId = exampleId"
+                                        class="rounded-full border px-3 py-1.5 text-xs font-medium transition-colors"
+                                        :class="entityContextExampleId === exampleId ? 'border-sky-500 bg-sky-600 text-white shadow-sm' : 'border-slate-200 bg-white text-slate-600 hover:border-sky-300 hover:text-sky-700'">
+                                        <span x-text="entityContextExampleLabel(exampleId)"></span>
+                                    </button>
+                                </template>
+                            </div>
                         </div>
-                        <div>
-                            <label class="cz-label">Pricing Variant</label>
-                            <select x-model="entityPresentationSettings.entity_pricing_variant" class="cz-select">
-                                <option value="">Default</option>
-                                <option value="compact">Compact</option>
-                                <option value="featured">Featured</option>
-                                <option value="minimal">Minimal</option>
-                            </select>
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                            <div class="rounded-lg border border-white/70 bg-white px-3 py-3">
+                                <div class="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">Entity Type</div>
+                                <div class="mt-1 text-sm font-semibold text-slate-800" x-text="entityContextActiveEntityType()"></div>
+                            </div>
+                            <div class="rounded-lg border border-white/70 bg-white px-3 py-3">
+                                <div class="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">Base Context</div>
+                                <div class="mt-1 text-sm font-semibold text-slate-800" x-text="entityContextActiveBaseLabel()"></div>
+                            </div>
+                            <div class="rounded-lg border border-white/70 bg-white px-3 py-3">
+                                <div class="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">Extensions</div>
+                                <div class="mt-1 text-sm font-semibold text-slate-800" x-text="entityContextActiveExtensionSummary()"></div>
+                            </div>
                         </div>
-                        <div>
-                            <label class="cz-label">Action Variant</label>
-                            <select x-model="entityPresentationSettings.entity_action_variant" class="cz-select">
-                                <option value="">Default</option>
-                                <option value="inline">Inline</option>
-                                <option value="sticky-footer">Sticky Footer</option>
-                            </select>
+                        <p class="text-xs text-slate-500" x-text="entityContextActiveDescription()"></p>
+                        <div class="flex flex-wrap gap-2">
+                            <template x-for="capabilityId in entityContextActiveCapabilities()" :key="'entity-capability-' + capabilityId">
+                                <span class="inline-flex items-center rounded-full bg-slate-900 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-white" x-text="entityContextCapabilityLabel(capabilityId)"></span>
+                            </template>
+                            <span x-show="entityContextActiveCapabilities().length === 0" class="text-xs text-slate-400">This context uses only the shared entity layout sections.</span>
                         </div>
                     </div>
 
-                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                        <div>
-                            <label class="cz-label">Summary Width</label>
-                            <div class="cz-range-row">
-                                <input type="range" min="260" max="420" step="10" x-model="entityPresentationSettings.entity_summary_width">
-                                <span class="cz-range-value" x-text="entityPresentationSettings.entity_summary_width + 'px'"></span>
-                            </div>
-                        </div>
-                        <div>
-                            <label class="cz-label">Media Ratio</label>
-                            <select x-model="entityPresentationSettings.entity_media_ratio" class="cz-select">
-                                <option value="auto">Auto</option>
-                                <option value="16:9">16:9</option>
-                                <option value="4:3">4:3</option>
-                                <option value="1:1">1:1</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label class="cz-label">Action Size</label>
-                            <select x-model="entityPresentationSettings.entity_action_size" class="cz-select">
-                                <option value="sm">Small</option>
-                                <option value="md">Medium</option>
-                                <option value="lg">Large</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label class="cz-label">Spacing Scale</label>
-                            <select x-model="entityPresentationSettings.entity_spacing_scale" class="cz-select">
-                                <option value="compact">Compact</option>
-                                <option value="comfortable">Comfortable</option>
-                                <option value="airy">Airy</option>
-                            </select>
-                        </div>
-                        <div class="sm:col-span-2 lg:col-span-2">
-                            <div class="cz-toggle-row h-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                    <template x-for="section in entityContextActiveSections()" :key="'entity-section-' + section.id">
+                        <div class="rounded-xl border border-slate-200 bg-white p-4 space-y-4">
+                            <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                                 <div>
-                                    <div class="cz-toggle-label">Sticky Summary Rail</div>
-                                    <p class="text-[10px] text-slate-500 mt-1">Keeps the storefront purchase rail anchored while the narrative content scrolls.</p>
+                                    <h4 class="text-sm font-semibold text-slate-800" x-text="section.label"></h4>
+                                    <p x-show="section.description" class="text-[11px] text-slate-500 mt-1" x-text="section.description"></p>
                                 </div>
-                                <button type="button" @click="entityPresentationSettings.entity_summary_sticky = entityPresentationSettings.entity_summary_sticky == 1 ? 0 : 1"
-                                    class="cz-toggle" :class="entityPresentationSettings.entity_summary_sticky == 1 ? 'cz-toggle-on' : 'cz-toggle-off'">
-                                    <span class="cz-toggle-knob" :class="entityPresentationSettings.entity_summary_sticky == 1 ? 'cz-toggle-knob-on' : 'cz-toggle-knob-off'"></span>
-                                </button>
+                                <div class="flex flex-wrap gap-1.5" x-show="entityContextSectionRequirementLabels(section).length > 0">
+                                    <template x-for="label in entityContextSectionRequirementLabels(section)" :key="section.id + '-requirement-' + label">
+                                        <span class="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-600" x-text="label"></span>
+                                    </template>
+                                </div>
                             </div>
-                        </div>
-                    </div>
 
-                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                        <div>
-                            <label class="cz-label">Catalog Card Density</label>
-                            <select x-model="entityPresentationSettings.entity_list_card_density" class="cz-select">
-                                <option value="compact">Compact</option>
-                                <option value="comfortable">Comfortable</option>
-                                <option value="airy">Airy</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label class="cz-label">Excerpt Length</label>
-                            <input type="number" min="40" max="220" step="10" x-model="entityPresentationSettings.entity_list_excerpt_length" class="cz-input">
-                        </div>
-                        <div class="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 flex items-center justify-between gap-3">
-                            <div>
-                                <div class="cz-toggle-label">Show Filter Summary</div>
-                                <p class="text-[10px] text-slate-500 mt-1">Keep active catalog filters visible above the canonical list.</p>
+                            <div x-show="section.fields.length === 0" class="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-3 py-3 text-xs text-slate-500">
+                                This context does not add dedicated design controls here. It reuses the shared canonical entity sections above.
                             </div>
-                            <input type="checkbox" :checked="entityPresentationSettings.entity_list_show_filter_summary == 1" @change="entityPresentationSettings.entity_list_show_filter_summary = $event.target.checked ? 1 : 0" class="rounded border-gray-300">
-                        </div>
-                        <div class="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 flex items-center justify-between gap-3">
-                            <div>
-                                <div class="cz-toggle-label">Show Card Excerpts</div>
-                                <p class="text-[10px] text-slate-500 mt-1">Control whether storefront list cards surface a narrative teaser.</p>
-                            </div>
-                            <input type="checkbox" :checked="entityPresentationSettings.entity_list_show_excerpt == 1" @change="entityPresentationSettings.entity_list_show_excerpt = $event.target.checked ? 1 : 0" class="rounded border-gray-300">
-                        </div>
-                    </div>
 
-                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                        <div>
-                            <label class="cz-label">Catalog Title Font</label>
-                            <select x-model="entityPresentationSettings.entity_list_title_font" class="cz-select">
-                                <option value="">Inherit Heading Font</option>
-                                <template x-for="f in fontOptions" :key="'catalog-title-' + f.value">
-                                    <option :value="f.value" x-text="f.label"></option>
+                            <div x-show="section.fields.length > 0" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                                <template x-for="field in section.fields" :key="section.id + '-' + field.name">
+                                    <div :class="entityContextFieldWrapperClass(field)">
+                                        <template x-if="field.type === 'select' || field.type === 'font_select'">
+                                            <div>
+                                                <label class="cz-label" x-text="field.label"></label>
+                                                <select class="cz-select" x-model="entityPresentationSettings[field.name]">
+                                                    <option x-show="field.empty_option_label" value="" x-text="field.empty_option_label"></option>
+                                                    <template x-for="option in entityContextFieldOptions(field)" :key="field.name + '-' + option.value">
+                                                        <option :value="option.value" x-text="option.label"></option>
+                                                    </template>
+                                                </select>
+                                                <p x-show="field.description" class="text-[10px] text-gray-400 mt-1" x-text="field.description"></p>
+                                            </div>
+                                        </template>
+
+                                        <template x-if="field.type === 'range'">
+                                            <div>
+                                                <label class="cz-label" x-text="field.label"></label>
+                                                <div class="cz-range-row">
+                                                    <input type="range" :min="field.min ?? 0" :max="field.max ?? 100" :step="field.step ?? 1" x-model="entityPresentationSettings[field.name]">
+                                                    <span class="cz-range-value" x-text="entityContextFieldDisplayValue(field)"></span>
+                                                </div>
+                                                <p x-show="field.description" class="text-[10px] text-gray-400 mt-1" x-text="field.description"></p>
+                                            </div>
+                                        </template>
+
+                                        <template x-if="field.type === 'number'">
+                                            <div>
+                                                <label class="cz-label" x-text="field.label"></label>
+                                                <input type="number" class="cz-input" :min="field.min ?? null" :max="field.max ?? null" :step="field.step ?? 1" x-model="entityPresentationSettings[field.name]">
+                                                <p class="text-[10px] text-gray-400 mt-1">
+                                                    <span x-show="field.description" x-text="field.description"></span>
+                                                    <span x-show="!field.description && field.unit" x-text="'Unit: ' + field.unit"></span>
+                                                </p>
+                                            </div>
+                                        </template>
+
+                                        <template x-if="field.type === 'text'">
+                                            <div>
+                                                <label class="cz-label" x-text="field.label"></label>
+                                                <input type="text" class="cz-input" :placeholder="field.placeholder || ''" x-model="entityPresentationSettings[field.name]">
+                                                <p x-show="field.description" class="text-[10px] text-gray-400 mt-1" x-text="field.description"></p>
+                                            </div>
+                                        </template>
+
+                                        <template x-if="field.type === 'toggle'">
+                                            <div class="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 flex items-center justify-between gap-3 h-full">
+                                                <div>
+                                                    <div class="cz-toggle-label" x-text="field.label"></div>
+                                                    <p x-show="field.description" class="text-[10px] text-slate-500 mt-1" x-text="field.description"></p>
+                                                </div>
+                                                <button type="button" @click="entityPresentationSettings[field.name] = entityPresentationSettings[field.name] == 1 ? 0 : 1"
+                                                    class="cz-toggle" :class="entityPresentationSettings[field.name] == 1 ? 'cz-toggle-on' : 'cz-toggle-off'">
+                                                    <span class="cz-toggle-knob" :class="entityPresentationSettings[field.name] == 1 ? 'cz-toggle-knob-on' : 'cz-toggle-knob-off'"></span>
+                                                </button>
+                                            </div>
+                                        </template>
+                                    </div>
                                 </template>
-                            </select>
-                        </div>
-                        <div>
-                            <label class="cz-label">Catalog Text Font</label>
-                            <select x-model="entityPresentationSettings.entity_list_text_font" class="cz-select">
-                                <option value="">Inherit Body Font</option>
-                                <template x-for="f in fontOptions" :key="'catalog-text-' + f.value">
-                                    <option :value="f.value" x-text="f.label"></option>
-                                </template>
-                            </select>
-                        </div>
-                        <div>
-                            <label class="cz-label">Shop Categories</label>
-                            <select x-model="entityPresentationSettings.entity_list_category_navigation" class="cz-select">
-                                <option value="list">List</option>
-                                <option value="dropdown">Dropdown</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                        <div>
-                            <label class="cz-label">Title Size</label>
-                            <div class="cz-range-row">
-                                <input type="range" min="16" max="32" step="1" x-model="entityPresentationSettings.entity_list_title_size">
-                                <span class="cz-range-value" x-text="entityPresentationSettings.entity_list_title_size + 'px'"></span>
                             </div>
                         </div>
-                        <div>
-                            <label class="cz-label">Price Size</label>
-                            <div class="cz-range-row">
-                                <input type="range" min="14" max="28" step="1" x-model="entityPresentationSettings.entity_list_price_size">
-                                <span class="cz-range-value" x-text="entityPresentationSettings.entity_list_price_size + 'px'"></span>
-                            </div>
-                        </div>
-                        <div>
-                            <label class="cz-label">Card Min Width</label>
-                            <div class="cz-range-row">
-                                <input type="range" min="200" max="340" step="10" x-model="entityPresentationSettings.entity_list_card_min_width">
-                                <span class="cz-range-value" x-text="entityPresentationSettings.entity_list_card_min_width + 'px'"></span>
-                            </div>
-                        </div>
-                        <div>
-                            <label class="cz-label">Title Clamp</label>
-                            <select x-model="entityPresentationSettings.entity_list_title_lines" class="cz-select">
-                                <option value="1">1 line</option>
-                                <option value="2">2 lines</option>
-                                <option value="3">3 lines</option>
-                                <option value="4">4 lines</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                        <div>
-                            <label class="cz-label">List Pricing Variant</label>
-                            <select x-model="entityPresentationSettings.entity_list_pricing_variant" class="cz-select">
-                                <option value="">Default</option>
-                                <option value="featured">Featured</option>
-                                <option value="minimal">Minimal</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label class="cz-label">List Inventory Variant</label>
-                            <select x-model="entityPresentationSettings.entity_list_inventory_variant" class="cz-select">
-                                <option value="">Default</option>
-                                <option value="compact">Compact</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label class="cz-label">List Progress Variant</label>
-                            <select x-model="entityPresentationSettings.entity_list_progress_variant" class="cz-select">
-                                <option value="">Default</option>
-                                <option value="inline">Inline</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    <p class="cz-section-title">List / Archive Presentation</p>
-                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                        <div>
-                            <label class="cz-label">List Layout</label>
-                            <select x-model="entityPresentationSettings.blog_layout" class="cz-select">
-                                <option value="list">List</option>
-                                <option value="grid">Grid</option>
-                                <option value="cards">Cards</option>
-                            </select>
-                        </div>
-                        <div x-show="entityPresentationSettings.blog_layout !== 'list'">
-                            <label class="cz-label">Columns</label>
-                            <select x-model="entityPresentationSettings.blog_columns" class="cz-select">
-                                <option value="2">2 Columns</option>
-                                <option value="3">3 Columns</option>
-                                <option value="4">4 Columns</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label class="cz-label">Gap (px)</label>
-                            <input type="number" x-model="entityPresentationSettings.blog_gap" min="0" max="64" class="cz-input">
-                        </div>
-                    </div>
-
-                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                        <div>
-                            <label class="cz-label">Card Radius (px)</label>
-                            <input type="number" x-model="entityPresentationSettings.blog_card_radius" min="0" max="24" class="cz-input">
-                        </div>
-                        <div x-show="entityPresentationSettings.blog_featured_image == 1">
-                            <label class="cz-label">Image Height (px)</label>
-                            <input type="number" x-model="entityPresentationSettings.blog_image_height" min="100" max="500" class="cz-input">
-                        </div>
-                        <div x-show="entityPresentationSettings.blog_featured_image == 1">
-                            <label class="cz-label">Aspect Ratio</label>
-                            <select x-model="entityPresentationSettings.blog_image_ratio" class="cz-select">
-                                <option value="auto">Auto</option>
-                                <option value="16:9">16:9</option>
-                                <option value="4:3">4:3</option>
-                                <option value="1:1">1:1</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                        <label class="flex items-center gap-2 text-sm text-gray-700">
-                            <input type="checkbox" :checked="entityPresentationSettings.blog_card_border == 1" @change="entityPresentationSettings.blog_card_border = $event.target.checked ? 1 : 0" class="rounded border-gray-300">
-                            Show Border
-                        </label>
-                        <label class="flex items-center gap-2 text-sm text-gray-700">
-                            <input type="checkbox" :checked="entityPresentationSettings.blog_card_shadow == 1" @change="entityPresentationSettings.blog_card_shadow = $event.target.checked ? 1 : 0" class="rounded border-gray-300">
-                            Hover Shadow
-                        </label>
-                        <label class="flex items-center gap-2 text-sm text-gray-700">
-                            <input type="checkbox" :checked="entityPresentationSettings.blog_featured_image == 1" @change="entityPresentationSettings.blog_featured_image = $event.target.checked ? 1 : 0" class="rounded border-gray-300">
-                            Show Image
-                        </label>
-                        <label class="flex items-center gap-2 text-sm text-gray-700">
-                            <input type="checkbox" :checked="entityPresentationSettings.blog_show_excerpt == 1" @change="entityPresentationSettings.blog_show_excerpt = $event.target.checked ? 1 : 0" class="rounded border-gray-300">
-                            Show Excerpt
-                        </label>
-                        <label class="flex items-center gap-2 text-sm text-gray-700">
-                            <input type="checkbox" :checked="entityPresentationSettings.blog_show_author == 1" @change="entityPresentationSettings.blog_show_author = $event.target.checked ? 1 : 0" class="rounded border-gray-300">
-                            Show Author
-                        </label>
-                        <label class="flex items-center gap-2 text-sm text-gray-700">
-                            <input type="checkbox" :checked="entityPresentationSettings.blog_show_date == 1" @change="entityPresentationSettings.blog_show_date = $event.target.checked ? 1 : 0" class="rounded border-gray-300">
-                            Show Date
-                        </label>
-                        <label class="flex items-center gap-2 text-sm text-gray-700">
-                            <input type="checkbox" :checked="entityPresentationSettings.blog_show_readmore == 1" @change="entityPresentationSettings.blog_show_readmore = $event.target.checked ? 1 : 0" class="rounded border-gray-300">
-                            Show Read More
-                        </label>
-                    </div>
-
-                    <div x-show="entityPresentationSettings.blog_show_readmore == 1">
-                        <label class="cz-label">Read More Text</label>
-                        <input type="text" x-model="entityPresentationSettings.blog_readmore_text" class="cz-input" style="max-width:240px;">
-                    </div>
-
-                    <p class="cz-section-title">Detail / Article Presentation</p>
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div>
-                            <label class="cz-label">Content Max Width (px)</label>
-                            <input type="number" x-model="entityPresentationSettings.single_max_width" min="480" max="1200" step="10" class="cz-input">
-                            <p class="text-[10px] text-gray-400 mt-1">Controls canonical single, article, and detail content width.</p>
-                        </div>
-                    </div>
-
-                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                        <label class="flex items-center gap-2 text-sm text-gray-700">
-                            <input type="checkbox" :checked="entityPresentationSettings.single_show_author == 1" @change="entityPresentationSettings.single_show_author = $event.target.checked ? 1 : 0" class="rounded border-gray-300">
-                            Show Author
-                        </label>
-                        <label class="flex items-center gap-2 text-sm text-gray-700">
-                            <input type="checkbox" :checked="entityPresentationSettings.single_show_date == 1" @change="entityPresentationSettings.single_show_date = $event.target.checked ? 1 : 0" class="rounded border-gray-300">
-                            Show Date
-                        </label>
-                        <label class="flex items-center gap-2 text-sm text-gray-700">
-                            <input type="checkbox" :checked="entityPresentationSettings.single_show_categories == 1" @change="entityPresentationSettings.single_show_categories = $event.target.checked ? 1 : 0" class="rounded border-gray-300">
-                            Show Categories
-                        </label>
-                        <label class="flex items-center gap-2 text-sm text-gray-700">
-                            <input type="checkbox" :checked="entityPresentationSettings.single_show_tags == 1" @change="entityPresentationSettings.single_show_tags = $event.target.checked ? 1 : 0" class="rounded border-gray-300">
-                            Show Tags
-                        </label>
-                        <label class="flex items-center gap-2 text-sm text-gray-700">
-                            <input type="checkbox" :checked="entityPresentationSettings.single_show_nav == 1" @change="entityPresentationSettings.single_show_nav = $event.target.checked ? 1 : 0" class="rounded border-gray-300">
-                            Show Back Link
-                        </label>
-                    </div>
+                    </template>
 
                     <div class="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600">
                         <div class="font-semibold text-slate-800 mb-1">Profile behavior</div>
@@ -2925,15 +2745,31 @@
                         <span>Canonical Entity Contract</span>
                         <span class="{if customizer_scope == 'ecommerce'}text-amber-700{else}text-emerald-700{/if}">{if customizer_scope == 'ecommerce'}Ecommerce Scope{else}Active Theme Shell{/if}</span>
                     </div>
+                    <div class="rounded-lg border border-slate-200 bg-slate-50 p-3 space-y-2">
+                        <div class="flex items-center justify-between gap-3">
+                            <div>
+                                <div class="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">Active Schema Example</div>
+                                <div class="text-sm font-semibold text-slate-800" x-text="entityContextExampleLabel(entityContextExampleId)"></div>
+                            </div>
+                            <div class="text-right text-[10px] uppercase tracking-[0.12em] text-slate-400">
+                                <div>Capabilities</div>
+                                <div class="mt-1 text-sm font-semibold text-slate-700" x-text="entityContextActiveCapabilities().length"></div>
+                            </div>
+                        </div>
+                        <p class="text-[11px] leading-5 text-slate-500" x-text="entityContextActiveDescription()"></p>
+                    </div>
                     <div class="space-y-3 text-sm">
                         <div class="flex justify-between"><span class="text-gray-400">Entity Profile</span><span class="font-medium capitalize" x-text="entityPresentationSettings.entity_layout_profile"></span></div>
-                        <div class="flex justify-between"><span class="text-gray-400">Pricing Variant</span><span class="font-medium capitalize" x-text="entityPreviewVariantLabel(entityPreviewPricingVariant())"></span></div>
-                        <div class="flex justify-between"><span class="text-gray-400">Action Variant</span><span class="font-medium capitalize" x-text="entityPreviewVariantLabel(entityPreviewActionVariant())"></span></div>
+                        <div class="flex justify-between"><span class="text-gray-400">Schema Example</span><span class="font-medium" x-text="entityContextExampleLabel(entityContextExampleId)"></span></div>
+                        <div class="flex justify-between"><span class="text-gray-400">Base Context</span><span class="font-medium" x-text="entityContextActiveBaseLabel()"></span></div>
+                        <div class="flex justify-between"><span class="text-gray-400">Extensions</span><span class="font-medium" x-text="entityContextActiveExtensionSummary()"></span></div>
+                        <div class="flex justify-between" x-show="entityContextHasCapability('pricing')"><span class="text-gray-400">Pricing Variant</span><span class="font-medium capitalize" x-text="entityPreviewVariantLabel(entityPreviewPricingVariant())"></span></div>
+                        <div class="flex justify-between" x-show="entityContextHasCapability('booking') || entityContextHasCapability('inquiry')"><span class="text-gray-400">Action Variant</span><span class="font-medium capitalize" x-text="entityPreviewVariantLabel(entityPreviewActionVariant())"></span></div>
                         <div class="flex justify-between"><span class="text-gray-400">Summary Width</span><span class="font-medium" x-text="entityPresentationSettings.entity_summary_width + 'px'"></span></div>
                         <div class="flex justify-between"><span class="text-gray-400">Sticky Rail</span><span class="font-medium" x-text="entityPresentationSettings.entity_summary_sticky == 1 ? 'On' : 'Off'"></span></div>
                         <div class="flex justify-between"><span class="text-gray-400">Media Ratio</span><span class="font-medium" x-text="entityPresentationSettings.entity_media_ratio"></span></div>
                         <div class="flex justify-between"><span class="text-gray-400">Spacing</span><span class="font-medium capitalize" x-text="entityPresentationSettings.entity_spacing_scale"></span></div>
-                        <div class="flex justify-between"><span class="text-gray-400">Action Size</span><span class="font-medium uppercase" x-text="entityPresentationSettings.entity_action_size"></span></div>
+                        <div class="flex justify-between" x-show="entityContextHasCapability('booking') || entityContextHasCapability('inquiry')"><span class="text-gray-400">Action Size</span><span class="font-medium uppercase" x-text="entityPresentationSettings.entity_action_size"></span></div>
                         <div class="flex justify-between"><span class="text-gray-400">Card Density</span><span class="font-medium capitalize" x-text="entityPresentationSettings.entity_list_card_density"></span></div>
                         <div class="flex justify-between"><span class="text-gray-400">Filter Summary</span><span class="font-medium" x-text="entityPresentationSettings.entity_list_show_filter_summary == 1 ? 'On' : 'Off'"></span></div>
                         <div class="flex justify-between"><span class="text-gray-400">Shop Categories</span><span class="font-medium" x-text="entityPresentationSettings.entity_list_category_navigation === 'dropdown' ? 'Dropdown' : 'List'"></span></div>
@@ -2944,14 +2780,14 @@
                         <div class="flex justify-between"><span class="text-gray-400">Title Font</span><span class="font-medium" x-text="catalogFontLabel(entityPresentationSettings.entity_list_title_font, 'Theme heading')"></span></div>
                         <div class="flex justify-between"><span class="text-gray-400">Text Font</span><span class="font-medium" x-text="catalogFontLabel(entityPresentationSettings.entity_list_text_font, 'Theme body')"></span></div>
                         <div class="flex justify-between"><span class="text-gray-400">Title Size</span><span class="font-medium" x-text="entityPresentationSettings.entity_list_title_size + 'px'"></span></div>
-                        <div class="flex justify-between"><span class="text-gray-400">Price Size</span><span class="font-medium" x-text="entityPresentationSettings.entity_list_price_size + 'px'"></span></div>
+                        <div class="flex justify-between" x-show="entityContextHasCapability('pricing')"><span class="text-gray-400">Price Size</span><span class="font-medium" x-text="entityPresentationSettings.entity_list_price_size + 'px'"></span></div>
                         <div class="flex justify-between"><span class="text-gray-400">Card Min Width</span><span class="font-medium" x-text="entityPresentationSettings.entity_list_card_min_width + 'px'"></span></div>
                         <div class="flex justify-between"><span class="text-gray-400">Title Clamp</span><span class="font-medium" x-text="entityPresentationSettings.entity_list_title_lines + ' lines'"></span></div>
                         <div class="flex justify-between"><span class="text-gray-400">Detail Width</span><span class="font-medium" x-text="entityPresentationSettings.single_max_width + 'px'"></span></div>
                         <div class="flex justify-between"><span class="text-gray-400">Detail Elements</span><span class="font-medium" x-text="[entityPresentationSettings.single_show_author == 1 ? 'Author' : '', entityPresentationSettings.single_show_date == 1 ? 'Date' : '', entityPresentationSettings.single_show_categories == 1 ? 'Cats' : '', entityPresentationSettings.single_show_tags == 1 ? 'Tags' : '', entityPresentationSettings.single_show_nav == 1 ? 'Back Link' : ''].filter(Boolean).join(', ') || 'None'"></span></div>
-                        <div class="flex justify-between"><span class="text-gray-400">List Price Variant</span><span class="font-medium capitalize" x-text="entityPreviewVariantLabel(entityPreviewListPricingVariant())"></span></div>
-                        <div class="flex justify-between"><span class="text-gray-400">List Inventory Variant</span><span class="font-medium capitalize" x-text="entityPreviewVariantLabel(entityPreviewListInventoryVariant())"></span></div>
-                        <div class="flex justify-between"><span class="text-gray-400">List Progress Variant</span><span class="font-medium capitalize" x-text="entityPreviewVariantLabel(entityPreviewListProgressVariant())"></span></div>
+                        <div class="flex justify-between" x-show="entityContextHasCapability('pricing')"><span class="text-gray-400">List Price Variant</span><span class="font-medium capitalize" x-text="entityPreviewVariantLabel(entityPreviewListPricingVariant())"></span></div>
+                        <div class="flex justify-between" x-show="entityContextHasCapability('inventory')"><span class="text-gray-400">List Inventory Variant</span><span class="font-medium capitalize" x-text="entityPreviewVariantLabel(entityPreviewListInventoryVariant())"></span></div>
+                        <div class="flex justify-between" x-show="entityContextHasCapability('progress_tracking')"><span class="text-gray-400">List Progress Variant</span><span class="font-medium capitalize" x-text="entityPreviewVariantLabel(entityPreviewListProgressVariant())"></span></div>
                     </div>
                     <div class="rounded-lg border border-gray-200 bg-white p-3 space-y-3">
                         <div :style="entityPreviewHeroStyle()">
@@ -2965,16 +2801,16 @@
                                     <div class="h-1 bg-gray-200 rounded w-5/6"></div>
                                 </div>
                             </div>
-                            <div x-show="entityPresentationSettings.entity_layout_profile === 'commerce'" :style="entityPreviewSummaryStyle()">
-                                <div :style="entityPreviewSummaryPricingStyle()">
+                            <div x-show="entityPresentationSettings.entity_layout_profile === 'commerce' && (entityContextHasCapability('pricing') || entityContextHasCapability('inventory') || entityContextHasCapability('booking') || entityContextHasCapability('inquiry'))" :style="entityPreviewSummaryStyle()">
+                                <div x-show="entityContextHasCapability('pricing')" :style="entityPreviewSummaryPricingStyle()">
                                     <span :style="entityPreviewSummaryCurrentPriceStyle()">USD 79.00</span>
                                     <span x-show="entityPreviewPricingVariant() !== 'minimal'" class="text-xs line-through text-gray-400">99.00</span>
                                     <span x-show="entityPreviewPricingVariant() === 'featured'" class="inline-flex items-center rounded-full bg-slate-900 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-white">Offer</span>
                                 </div>
-                                <div class="inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-semibold mb-2" :style="entityPreviewInventoryStyle('low')">Only 3 left</div>
-                                <div :style="entityPreviewActionGroupStyle()">
-                                    <span :style="entityPreviewPrimaryActionStyle()">Add to Cart</span>
-                                    <span :style="entityPreviewSecondaryActionStyle()">Ask a Question</span>
+                                <div x-show="entityContextHasCapability('inventory')" class="inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-semibold mb-2" :style="entityPreviewInventoryStyle('low')">Only 3 left</div>
+                                <div x-show="entityContextHasCapability('booking') || entityContextHasCapability('inquiry')" :style="entityPreviewActionGroupStyle()">
+                                    <span x-show="entityContextHasCapability('booking')" :style="entityPreviewPrimaryActionStyle()" x-text="entityContextHasCapability('pricing') ? 'Add to Cart' : 'Book Now'"></span>
+                                    <span x-show="entityContextHasCapability('inquiry')" :style="entityPreviewSecondaryActionStyle()">Ask a Question</span>
                                 </div>
                             </div>
                         </div>
@@ -2991,14 +2827,14 @@
                                 <p x-show="entityPresentationSettings.entity_list_show_excerpt == 1" class="text-[11px] leading-5 text-slate-500" :style="entityPreviewCatalogExcerptStyle()">Small-batch loaf baked daily and finished with a blistered crust.</p>
                             </div>
                             <div class="flex flex-wrap items-center gap-2">
-                                <div :style="entityPreviewListPricingStyle()">
+                                <div x-show="entityContextHasCapability('pricing')" :style="entityPreviewListPricingStyle()">
                                     <span :style="entityPreviewListPricingCurrentStyle()">USD 12.00</span>
                                     <span x-show="entityPreviewListPricingVariant() !== 'minimal'" class="text-[10px] line-through text-gray-400">16.00</span>
                                     <span x-show="entityPreviewListPricingVariant() === 'featured'" class="inline-flex items-center rounded-full bg-slate-900 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-white">Offer</span>
                                 </div>
-                                <span :style="entityPreviewListInventoryStyle()" x-text="entityPreviewListInventoryLabel()"></span>
+                                <span x-show="entityContextHasCapability('inventory')" :style="entityPreviewListInventoryStyle()" x-text="entityPreviewListInventoryLabel()"></span>
                             </div>
-                            <div :style="entityPreviewListProgressStyle()">
+                            <div x-show="entityContextHasCapability('progress_tracking')" :style="entityPreviewListProgressStyle()">
                                 <span class="text-[10px] font-medium text-slate-500">25% complete</span>
                                 <span :style="entityPreviewListProgressTrackStyle()">
                                     <span :style="entityPreviewListProgressBarStyle()"></span>
@@ -3048,6 +2884,9 @@ function themeCustomizer() {
         // Canonical entity presentation settings (hydrated from server)
         entityPresentationSettings: {},
         themeManifestBlockVariants: {},
+        entityContextCatalog: {},
+        entityContextExamples: {},
+        entityContextExampleId: '',
 
         // Footer settings (hydrated from server)
         footerSettings: {},
@@ -3223,6 +3062,215 @@ function themeCustomizer() {
             { value: 'Georgia',          label: 'Georgia' },
             { value: 'system-ui',        label: 'System UI' },
         ],
+
+        entityContextExampleIds() {
+            const available = Object.keys(this.entityContextExamples || {});
+            const preferred = ['content', 'business', 'guidance', 'hybrid'];
+            const ordered = preferred.filter((id) => available.includes(id));
+            available.sort().forEach((id) => {
+                if (!ordered.includes(id)) {
+                    ordered.push(id);
+                }
+            });
+            return ordered;
+        },
+
+        entityContextPreferredExampleId() {
+            const available = this.entityContextExampleIds();
+            const preferred = this.customizerScope === 'ecommerce'
+                ? ['hybrid', 'business', 'guidance', 'content']
+                : ['content', 'business', 'guidance', 'hybrid'];
+
+            for (const id of preferred) {
+                if (available.includes(id)) {
+                    return id;
+                }
+            }
+
+            return available[0] || '';
+        },
+
+        entityContextExampleLabel(exampleId) {
+            const example = (this.entityContextExamples || {})[exampleId] || {};
+            const explicit = ((example.label || '') + '').trim();
+            return explicit !== '' ? explicit : this.entityPreviewVariantLabel(exampleId);
+        },
+
+        entityContextActiveExample() {
+            const available = this.entityContextExampleIds();
+            if (available.length === 0) {
+                return {};
+            }
+
+            return (this.entityContextExamples || {})[this.entityContextExampleId] || (this.entityContextExamples || {})[available[0]] || {};
+        },
+
+        entityContextActiveSchema() {
+            const example = this.entityContextActiveExample();
+            return example && typeof example.schema === 'object' && example.schema ? example.schema : {};
+        },
+
+        entityContextActiveResolvedContext() {
+            const example = this.entityContextActiveExample();
+            return example && typeof example.resolved_context === 'object' && example.resolved_context ? example.resolved_context : {};
+        },
+
+        entityContextActiveEntityType() {
+            const resolved = this.entityContextActiveResolvedContext();
+            const entityType = ((resolved.entity_type || '') + '').trim();
+            return entityType !== '' ? entityType : 'page';
+        },
+
+        entityContextActiveBaseLabel() {
+            const resolved = this.entityContextActiveResolvedContext();
+            const binding = resolved && typeof resolved.binding === 'object' && resolved.binding ? resolved.binding : {};
+            const base = ((binding.base || '') + '').trim();
+            return base !== '' ? this.entityPreviewVariantLabel(base) : 'None';
+        },
+
+        entityContextActiveExtensionSummary() {
+            const resolved = this.entityContextActiveResolvedContext();
+            const binding = resolved && typeof resolved.binding === 'object' && resolved.binding ? resolved.binding : {};
+            const extensions = Array.isArray(binding.extensions) ? binding.extensions : [];
+            if (extensions.length === 0) {
+                return 'None';
+            }
+            return extensions.map((extensionId) => this.entityPreviewVariantLabel(extensionId)).join(', ');
+        },
+
+        entityContextActiveDescription() {
+            const example = this.entityContextActiveExample();
+            const description = ((example.description || '') + '').trim();
+            if (description !== '') {
+                return description;
+            }
+
+            return 'Schema derived from the entity context registry.';
+        },
+
+        entityContextActiveCapabilities() {
+            const schema = this.entityContextActiveSchema();
+            if (Array.isArray(schema.resolved_capabilities)) {
+                return schema.resolved_capabilities;
+            }
+
+            const resolved = this.entityContextActiveResolvedContext();
+            return Array.isArray(resolved.capability_ids) ? resolved.capability_ids : [];
+        },
+
+        entityContextHasCapability(capabilityId) {
+            return this.entityContextActiveCapabilities().includes(capabilityId);
+        },
+
+        entityContextCapabilityLabel(capabilityId) {
+            const catalog = this.entityContextCatalog && typeof this.entityContextCatalog.capabilities === 'object'
+                ? this.entityContextCatalog.capabilities
+                : {};
+            const capability = catalog[capabilityId] || {};
+            const label = ((capability.label || '') + '').trim();
+            return label !== '' ? label : this.entityPreviewVariantLabel(capabilityId);
+        },
+
+        entityContextVisibilitySatisfied(visibility) {
+            const rules = visibility && typeof visibility === 'object' ? visibility : {};
+            const active = this.entityContextActiveCapabilities();
+            const requiresAny = Array.isArray(rules.requires_any_capabilities) ? rules.requires_any_capabilities : [];
+            const requiresAll = Array.isArray(rules.requires_all_capabilities) ? rules.requires_all_capabilities : [];
+
+            if (requiresAny.length > 0 && !requiresAny.some((capabilityId) => active.includes(capabilityId))) {
+                return false;
+            }
+
+            if (requiresAll.length > 0 && !requiresAll.every((capabilityId) => active.includes(capabilityId))) {
+                return false;
+            }
+
+            return true;
+        },
+
+        entityContextFieldDependencyMet(field) {
+            const dependency = field && typeof field.depends_on === 'object' && !Array.isArray(field.depends_on)
+                ? field.depends_on
+                : null;
+            if (!dependency) {
+                return true;
+            }
+
+            const dependencyField = ((dependency.field || '') + '').trim();
+            if (dependencyField === '') {
+                return true;
+            }
+
+            const currentValue = this.entityPresentationSettings[dependencyField];
+            const operator = ((dependency.operator || '==') + '').trim();
+            const expected = dependency.value;
+
+            if (operator === '!=') {
+                return String(currentValue) !== String(expected);
+            }
+            if (operator === 'truthy') {
+                return !!currentValue && String(currentValue) !== '0';
+            }
+            if (operator === 'falsy') {
+                return !currentValue || String(currentValue) === '0';
+            }
+
+            return String(currentValue) === String(expected);
+        },
+
+        entityContextSectionVisible(section) {
+            return this.entityContextVisibilitySatisfied(section && typeof section.visibility === 'object' ? section.visibility : {});
+        },
+
+        entityContextFieldVisible(field) {
+            return this.entityContextVisibilitySatisfied(field && typeof field.visibility === 'object' ? field.visibility : {})
+                && this.entityContextFieldDependencyMet(field);
+        },
+
+        entityContextSectionRequirementLabels(section) {
+            const visibility = section && typeof section.visibility === 'object' ? section.visibility : {};
+            const required = [];
+            const requiresAny = Array.isArray(visibility.requires_any_capabilities) ? visibility.requires_any_capabilities : [];
+            const requiresAll = Array.isArray(visibility.requires_all_capabilities) ? visibility.requires_all_capabilities : [];
+
+            requiresAny.concat(requiresAll).forEach((capabilityId) => {
+                const label = this.entityContextCapabilityLabel(capabilityId);
+                if (label !== '' && !required.includes(label)) {
+                    required.push(label);
+                }
+            });
+
+            return required;
+        },
+
+        entityContextFieldOptions(field) {
+            return Array.isArray(field && field.options) ? field.options : [];
+        },
+
+        entityContextFieldDisplayValue(field) {
+            const fallback = field && field.default !== undefined && field.default !== null ? field.default : '';
+            const rawValue = field ? this.entityPresentationSettings[field.name] : '';
+            const value = rawValue === undefined || rawValue === null || rawValue === '' ? fallback : rawValue;
+            const unit = ((field && field.unit) || '') + '';
+            return '' + value + (unit !== '' ? ' ' + unit : '');
+        },
+
+        entityContextFieldWrapperClass(field) {
+            return field && field.type === 'text' ? 'sm:col-span-2' : '';
+        },
+
+        entityContextActiveSections() {
+            const schema = this.entityContextActiveSchema();
+            const sections = Array.isArray(schema.sections) ? schema.sections : [];
+
+            return sections
+                .filter((section) => this.entityContextSectionVisible(section))
+                .map((section) => {
+                    const fields = Array.isArray(section.fields) ? section.fields.filter((field) => this.entityContextFieldVisible(field)) : [];
+                    return Object.assign({}, section, { fields });
+                })
+                .filter((section) => section.fields.length > 0 || (((section.description || '') + '').trim() !== ''));
+        },
 
         tabDescription() {
             if (this.customizerScope === 'ecommerce') {
@@ -3874,6 +3922,17 @@ function themeCustomizer() {
             } catch (e) {
                 this.themeManifestBlockVariants = {};
             }
+            try {
+                this.entityContextCatalog = JSON.parse(document.getElementById('cz-entity-context-catalog').textContent) || {};
+            } catch (e) {
+                this.entityContextCatalog = {};
+            }
+            try {
+                this.entityContextExamples = JSON.parse(document.getElementById('cz-entity-context-examples').textContent) || {};
+            } catch (e) {
+                this.entityContextExamples = {};
+            }
+            this.entityContextExampleId = this.entityContextPreferredExampleId();
 
             const themeLayoutDefaults = {
                 layout_mode: 'contained', site_max_width: 1280, content_max_width: 768,
@@ -4439,6 +4498,8 @@ function themeCustomizer() {
 <script type="application/json" id="cz-theme-layout-settings">{theme_layout_settings_json|raw}</script>
 <script type="application/json" id="cz-entity-presentation-settings">{entity_presentation_settings_json|raw}</script>
 <script type="application/json" id="cz-theme-manifest-block-variants">{theme_manifest_block_variants_json|raw}</script>
+<script type="application/json" id="cz-entity-context-catalog">{entity_context_catalog_json|raw}</script>
+<script type="application/json" id="cz-entity-context-examples">{entity_context_examples_json|raw}</script>
 <script type="application/json" id="cz-available-menus">{available_menus_json|raw}</script>
 <script type="application/json" id="cz-menu-locations">{menu_locations_json|raw}</script>
 <div id="cz-site-title" hidden>{site_title}</div>

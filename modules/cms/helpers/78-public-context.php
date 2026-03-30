@@ -344,8 +344,10 @@ function cmsPublicContext(array $extra = []): array
         $entityId = (int)$extra['entity']['id'];
         $stageStart = $timingEnabled ? microtime(true) : 0.0;
         try {
-            $ctx['capabilities']    = cmsEntityCapabilityContext($entityId);
-            $ctx['capability_data'] = cmsEntityCapabilityData($entityId, $extra['entity']);
+            $runtime = cmsEntityCapabilityRuntimeState($entityId, $extra['entity']);
+            $ctx['capabilities']    = is_array($runtime['capabilities'] ?? null) ? $runtime['capabilities'] : [];
+            $ctx['capability_data'] = is_array($runtime['capability_data'] ?? null) ? $runtime['capability_data'] : [];
+            $ctx['entity_context']  = is_array($runtime['resolved_context'] ?? null) ? $runtime['resolved_context'] : [];
         } catch (\Throwable $e) {
             write_log('warn', 'cms.public_context.capability_data_error', [
                 'entity_id' => $entityId,
@@ -353,6 +355,7 @@ function cmsPublicContext(array $extra = []): array
             ]);
             $ctx['capabilities']    = [];
             $ctx['capability_data'] = [];
+            $ctx['entity_context']  = [];
         }
         if ($detailedTimingEnabled) {
             cmsPublicContextLogStage('entity_capabilities', $stageStart, [
@@ -388,6 +391,7 @@ function cmsPublicContext(array $extra = []): array
     } else {
         $ctx['capabilities']    = [];
         $ctx['capability_data'] = [];
+        $ctx['entity_context']  = [];
     }
 
     // Ensure cart_enabled/cart_action_url are available at page level for entity lists

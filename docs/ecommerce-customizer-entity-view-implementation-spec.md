@@ -310,38 +310,50 @@ Move shop and category pages onto the canonical entity-list model.
 
 Expose approved ecommerce entity-view presentation controls directly in the theme customizer.
 
+### Status
+
+Core slice implemented in March 2026. The admin `Entities` workspace now renders from entity-context registry schemas/examples while still persisting the canonical `entity_presentation` payload.
+
 ### Deliverables
 
-- customizer settings for `layout_profile`
-- customizer settings for approved `block_variants`
-- customizer settings for storefront list/card presentation controls
+- registry-backed schema payloads for entity-context catalog and example schemas
+- schema-rendered entity workspace controls for layout profile, approved variants, and canonical list/detail/article presentation settings
+- capability-aware preview behavior so pricing, inventory, progress, and action affordances only appear for matching contexts
 - no freeform structural controls beyond the approved schema
+- unchanged persistence contract: saves still target canonical `entity_presentation`
 
 ### Primary file targets
 
+- `modules/cms/helpers/57-entity-contexts.php`
+- `kernel/EntityContext/ContextRegistry.php`
 - `modules/cms/helpers/80-customizer.php`
 - `modules/cms/handlers/80-customizer.php`
 - `templates/modules/cms/admin/theme-customizer.disyl`
-- `modules/cms/builder-ui/src/**` if the customizer UI shares builder-side controls
+- `tests/entity_context_registry_test.php`
+- `tests/cms_customizer_tab_contract_test.php`
+- `tests/cms_theme_test.php`
 - `storage/cms-themes/entity-commerce-poc/theme.json`
 
 ### Implementation tasks
 
-1. Add explicit schema-backed settings for entity-view profile and variants in ecommerce scope.
-2. Validate settings against approved profiles from `docs/entity-view-block-schema.md`.
-3. Validate variant values against allowlisted block variants.
-4. Ensure saves clear the right customizer caches and fragment caches.
+1. Emit `entity_context_catalog_json` and `entity_context_examples_json` from `modules/cms/handlers/80-customizer.php`.
+2. Preserve field UI metadata in `ContextRegistry` so select/range/toggle/dependency information survives to the admin template.
+3. Render the `Entities` workspace from schema sections/examples in `templates/modules/cms/admin/theme-customizer.disyl` while keeping the existing `entity_presentation` save payload.
+4. Keep canonical validation and cache-clearing behavior in the existing customizer/storage path.
+5. Update preview panes and tests so they are capability-aware instead of assuming every schema behaves like commerce.
 
 ### Acceptance criteria
 
 - the ecommerce customizer can switch approved presentation controls without changing entity structure
-- invalid profile or variant values are rejected predictably
+- canonical validation continues to reject invalid profile or variant values predictably
 - runtime cache behavior remains correct after customizer saves
+- schema-driven admin rendering does not create a second storage format or bypass the canonical `entity_presentation` contract
 
 ### Validation
 
-- extend `tests/cms_theme_test.php`
-- add focused tests for customizer save/load validation in ecommerce scope
+- coverage now includes `tests/cms_theme_test.php`
+- coverage now includes `tests/cms_customizer_tab_contract_test.php`
+- focused registry/schema coverage lives in `tests/entity_context_registry_test.php`
 
 ## Phase 5 — Variant And Profile Runtime Hardening
 

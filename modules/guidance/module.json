@@ -106,17 +106,86 @@
             }
         }
     },
+    "entity_contexts": {
+        "definitions": [
+            {
+                "id": "guidance",
+                "label": "Guidance",
+                "capabilities": [
+                    "lessons_index",
+                    "progress_tracking",
+                    "media_gallery"
+                ],
+                "priority": 80
+            }
+        ],
+        "bindings": [
+            {
+                "entity_type": "course",
+                "base": "guidance",
+                "extensions": [
+                    "commerce"
+                ],
+                "priority": 90
+            }
+        ]
+    },
     "auth_cookie": "guidance_staff_token",
     "settings_fields": [
-        { "key": "retention_active_years", "type": "number", "label": "Active Case Retention Years", "default": "7" },
-        { "key": "retention_closed_years", "type": "number", "label": "Closed Case Retention Years", "default": "5" },
-        { "key": "reminder_hours_before", "type": "number", "label": "Reminder Hours Before", "default": "24" },
-        { "key": "email_notifications", "type": "select", "label": "Email Notifications", "default": "1" },
-        { "key": "two_fa_login", "type": "select", "label": "2FA On Login", "default": "0" },
-        { "key": "two_fa_booking", "type": "select", "label": "2FA On Booking", "default": "0" },
-        { "key": "app_country", "type": "text", "label": "App Country", "default": "PH" },
-        { "key": "app_region", "type": "text", "label": "App Region", "default": "Manila" },
-        { "key": "app_timezone", "type": "text", "label": "App Timezone", "default": "Asia/Manila" }
+        {
+            "key": "retention_active_years",
+            "type": "number",
+            "label": "Active Case Retention Years",
+            "default": "7"
+        },
+        {
+            "key": "retention_closed_years",
+            "type": "number",
+            "label": "Closed Case Retention Years",
+            "default": "5"
+        },
+        {
+            "key": "reminder_hours_before",
+            "type": "number",
+            "label": "Reminder Hours Before",
+            "default": "24"
+        },
+        {
+            "key": "email_notifications",
+            "type": "select",
+            "label": "Email Notifications",
+            "default": "1"
+        },
+        {
+            "key": "two_fa_login",
+            "type": "select",
+            "label": "2FA On Login",
+            "default": "0"
+        },
+        {
+            "key": "two_fa_booking",
+            "type": "select",
+            "label": "2FA On Booking",
+            "default": "0"
+        },
+        {
+            "key": "app_country",
+            "type": "text",
+            "label": "App Country",
+            "default": "PH"
+        },
+        {
+            "key": "app_region",
+            "type": "text",
+            "label": "App Region",
+            "default": "Manila"
+        },
+        {
+            "key": "app_timezone",
+            "type": "text",
+            "label": "App Timezone",
+            "default": "Asia/Manila"
+        }
     ],
     "nav": [
         {

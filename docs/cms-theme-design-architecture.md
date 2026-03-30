@@ -286,6 +286,7 @@ Target direction for entity presentation controls:
 - canonical `entity_presentation` owns approved entity-view and entity-list presentation controls across CMS and ecommerce scopes
 - `theme` is now shell-only and owns outer layout geometry such as site width, content width, and shell padding
 - canonical list/detail controls migrated out of `theme` include the legacy `blog_*` and `single_*` presentation keys
+- the admin `Entities` workspace is rendered from entity-context registry catalog/example payloads, so pricing, inventory, progress, and action controls can appear only when the active schema context supports them
 - approved entity layout profiles
 - approved block variants
 - region emphasis and visibility rules
@@ -296,6 +297,7 @@ Target direction for entity presentation controls:
 - your theme should coexist with runtime-generated CSS variables and customizer HTML
 - your theme should assume the customizer, not the theme directory, is the correct control surface for entity presentation choices
 - public handlers and templates should read `entity_presentation_settings` directly; `theme_settings` receives a merged copy only for compatibility
+- do not depend on a fixed admin control list or ecommerce-only fields always being visible; the schema-driven `Entities` workspace shows controls according to the selected entity context example/capabilities
 - your theme should keep ecommerce and CMS public presentation in the same design language
 
 

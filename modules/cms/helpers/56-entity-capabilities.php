@@ -207,55 +207,222 @@ function cmsEntityGetCapabilities(int $entityId): array
 function cmsEntityCapabilityClearCache(int $entityId): void
 {
     unset($GLOBALS['cms_entity_caps_' . $entityId]);
+    unset($GLOBALS['cms_entity_type_' . $entityId]);
 }
 
-function cmsEntityCapabilityContext(int $entityId): array
+function cmsEntityCapabilityEntityType(int $entityId, array $entity = []): string
 {
-    $attached = cmsEntityGetCapabilities($entityId);
-    $allTypes = cmsEntityCapabilityTypes();
-
-    $map = [];
-    foreach ($allTypes as $capId => $_def) {
-        $map[$capId] = isset($attached[$capId]);
+    $type = trim((string)($entity['type'] ?? $entity['entity_type'] ?? ''));
+    if ($type !== '') {
+        return $type;
     }
-    return $map;
+
+    if ($entityId <= 0) {
+        return '';
+    }
+
+    $cacheKey = 'cms_entity_type_' . $entityId;
+    if (isset($GLOBALS[$cacheKey]) && is_string($GLOBALS[$cacheKey])) {
+        return $GLOBALS[$cacheKey];
+    }
+
+    try {
+        $db = cmsDb();
+        $stmt = $db->prepare('SELECT type FROM cms_content WHERE id = :id LIMIT 1');
+        $stmt->execute([':id' => $entityId]);
+        $type = trim((string)($stmt->fetchColumn() ?: ''));
+    } catch (\Throwable $e) {
+        $type = '';
+    }
+
+    $GLOBALS[$cacheKey] = $type;
+
+    return $type;
 }
 
-function cmsEntityCapabilityData(int $entityId, array $entity): array
+function cmsEntityCapabilityKnownIds(array $attached, array $resolvedContext): array
 {
-    $attached = cmsEntityGetCapabilities($entityId);
-    if (empty($attached)) {
+    $knownIds = array_keys(cmsEntityCapabilityTypes());
+
+    foreach (array_keys($attached) as $capId) {
+        if (!is_string($capId) || $capId === '' || in_array($capId, $knownIds, true)) {
+            continue;
+        }
+        $knownIds[] = $capId;
+    }
+
+    foreach (($resolvedContext['capability_ids'] ?? []) as $capId) {
+        if (!is_string($capId) || $capId === '' || in_array($capId, $knownIds, true)) {
+            continue;
+        }
+        $knownIds[] = $capId;
+    }
+
+    return $knownIds;
+}
+
+function cmsEntityCapabilityActivationPolicy(string $capId, array $definition = []): string
+{
+    $meta = is_array($definition['meta'] ?? null) ? $definition['meta'] : [];
+    $policy = trim((string)($meta['runtime_activation'] ?? ''));
+    if ($policy !== '') {
+        return $policy;
+    }
+
+    return match ($capId) {
+        'booking', 'inquiry', 'progress_tracking' => 'profile_default',
+        'lessons_index' => 'items_required',
+        'media_gallery' => 'gallery_required',
+        'pricing' => 'price_required',
+        'inventory' => 'inventory_required',
+        default => 'attached_only',
+    };
+}
+
+function cmsEntityCapabilityShouldActivateProfileCapability(string $capId, array $definition, array $capabilityData): bool
+{
+    return match (cmsEntityCapabilityActivationPolicy($capId, $definition)) {
+        'profile_default' => true,
+        'items_required' => !empty($capabilityData['items']) && is_array($capabilityData['items']),
+        'gallery_required' => !empty($capabilityData['items']) && is_array($capabilityData['items']),
+        'price_required' => ($capabilityData['active_price'] ?? $capabilityData['price'] ?? null) !== null,
+        'inventory_required' => ($capabilityData['stock_qty'] ?? null) !== null
+            || !empty($capabilityData['sku'])
+            || !empty($capabilityData['track_inventory'])
+            || !empty($capabilityData['track_stock']),
+        'data_required' => $capabilityData !== [],
+        default => false,
+    };
+}
+
+function cmsEntityCapabilityProviderData(string $capId, int $entityId, array $entity, array $config = [], bool $isAttached = false): array
+{
+    if ($entityId <= 0) {
         return [];
     }
 
-    $data     = [];
-    $registry = app()->capabilities();
-    $bus      = app()->cap();
+    if (!$isAttached && in_array($capId, ['pricing', 'inventory'], true)) {
+        $fallbackFunction = 'cms_cap_entity_capability_' . $capId . '_data_1';
+        if (function_exists($fallbackFunction)) {
+            try {
+                $result = $fallbackFunction([
+                    'entity' => $entity,
+                    'config' => $config,
+                    'entity_id' => $entityId,
+                ]);
 
-    foreach ($attached as $capId => $config) {
-        $providerKey = "entity.capability.{$capId}.data@1";
-        if (!$registry->has($providerKey)) {
-            $data[$capId] = [];
-            continue;
-        }
-        try {
-            $result = $bus->call($providerKey, [
-                'entity'    => $entity,
-                'config'    => $config,
-                'entity_id' => $entityId,
-            ]);
-            $data[$capId] = is_array($result) ? $result : [];
-        } catch (\Throwable $e) {
-            write_log('warn', 'cms.entity_capability_data.error', [
-                'entity_id' => $entityId,
-                'cap_id'    => $capId,
-                'error'     => $e->getMessage(),
-            ]);
-            $data[$capId] = [];
+                return is_array($result) ? $result : [];
+            } catch (\Throwable $e) {
+                return [];
+            }
         }
     }
 
-    return $data;
+    $providerKey = "entity.capability.{$capId}.data@1";
+    $registry = app()->capabilities();
+    if (!$registry->has($providerKey)) {
+        return [];
+    }
+
+    try {
+        $result = app()->cap()->call($providerKey, [
+            'entity' => $entity,
+            'config' => $config,
+            'entity_id' => $entityId,
+        ]);
+
+        return is_array($result) ? $result : [];
+    } catch (\Throwable $e) {
+        write_log('warn', 'cms.entity_capability_data.error', [
+            'entity_id' => $entityId,
+            'cap_id' => $capId,
+            'error' => $e->getMessage(),
+        ]);
+
+        return [];
+    }
+}
+
+function cmsEntityCapabilityRuntimeState(int $entityId, array $entity = []): array
+{
+    $attached = $entityId > 0 ? cmsEntityGetCapabilities($entityId) : [];
+    $entityType = cmsEntityCapabilityEntityType($entityId, $entity);
+    $resolvedContext = [];
+
+    if ($entityType !== '' && function_exists('cmsResolveEntityContextForType')) {
+        try {
+            $resolvedContext = cmsResolveEntityContextForType($entityType, [
+                'attached_capabilities' => $attached,
+            ]);
+        } catch (\Throwable $e) {
+            $resolvedContext = [];
+        }
+    }
+
+    $capabilities = [];
+    foreach (cmsEntityCapabilityKnownIds($attached, $resolvedContext) as $capId) {
+        $capabilities[$capId] = false;
+    }
+
+    $capabilityData = [];
+    $resolvedCapabilityDefinitions = is_array($resolvedContext['capabilities'] ?? null)
+        ? $resolvedContext['capabilities']
+        : [];
+    $resolvedCapabilityIds = array_values(array_filter(
+        is_array($resolvedContext['capability_ids'] ?? null) ? $resolvedContext['capability_ids'] : [],
+        static fn(mixed $value): bool => is_string($value) && trim($value) !== ''
+    ));
+
+    foreach ($capabilities as $capId => $_enabled) {
+        $isAttached = array_key_exists($capId, $attached);
+        $isProfileCapability = in_array($capId, $resolvedCapabilityIds, true);
+        if (!$isAttached && !$isProfileCapability) {
+            continue;
+        }
+
+        $definition = is_array($resolvedCapabilityDefinitions[$capId] ?? null)
+            ? $resolvedCapabilityDefinitions[$capId]
+            : [];
+        $config = is_array($attached[$capId] ?? null)
+            ? $attached[$capId]
+            : (is_array($definition['config'] ?? null) ? $definition['config'] : []);
+        $data = cmsEntityCapabilityProviderData($capId, $entityId, $entity, $config, $isAttached);
+        $isActive = $isAttached || cmsEntityCapabilityShouldActivateProfileCapability($capId, $definition, $data);
+
+        $capabilities[$capId] = $isActive;
+        if ($isActive || $isAttached) {
+            $capabilityData[$capId] = $data;
+        }
+    }
+
+    return [
+        'entity_type' => $entityType,
+        'attached_capabilities' => $attached,
+        'resolved_context' => $resolvedContext,
+        'capabilities' => $capabilities,
+        'capability_data' => $capabilityData,
+    ];
+}
+
+function cmsEntityCapabilityResolvedContext(int $entityId, array $entity = []): array
+{
+    $runtime = cmsEntityCapabilityRuntimeState($entityId, $entity);
+
+    return is_array($runtime['resolved_context'] ?? null) ? $runtime['resolved_context'] : [];
+}
+
+function cmsEntityCapabilityContext(int $entityId, array $entity = []): array
+{
+    $runtime = cmsEntityCapabilityRuntimeState($entityId, $entity);
+
+    return is_array($runtime['capabilities'] ?? null) ? $runtime['capabilities'] : [];
+}
+
+function cmsEntityCapabilityData(int $entityId, array $entity = []): array
+{
+    $runtime = cmsEntityCapabilityRuntimeState($entityId, $entity);
+
+    return is_array($runtime['capability_data'] ?? null) ? $runtime['capability_data'] : [];
 }
 
 // ── Preset System ────────────────────────────────────────────────────────────

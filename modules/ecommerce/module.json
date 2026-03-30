@@ -173,6 +173,37 @@
             }
         }
     },
+    "entity_contexts": {
+        "definitions": [
+            {
+                "id": "commerce",
+                "label": "Commerce",
+                "capabilities": [
+                    "pricing",
+                    "inventory",
+                    "media_gallery"
+                ],
+                "priority": 80
+            }
+        ],
+        "extensions": [
+            {
+                "context": "business",
+                "label": "Business Commerce Extension",
+                "capabilities": [
+                    "pricing"
+                ],
+                "priority": 70
+            }
+        ],
+        "bindings": [
+            {
+                "entity_type": "product",
+                "base": "commerce",
+                "priority": 90
+            }
+        ]
+    },
     "settings_fields": [
         {
             "key": "currency",

@@ -17,6 +17,7 @@ require_once __DIR__ . '/helpers/45-block-render.php';
 require_once __DIR__ . '/helpers/50-builder.php';
 require_once __DIR__ . '/helpers/55-capabilities.php';
 require_once __DIR__ . '/helpers/56-entity-capabilities.php';
+require_once __DIR__ . '/helpers/57-entity-contexts.php';
 require_once __DIR__ . '/helpers/60-cache.php';
 require_once __DIR__ . '/helpers/65-taxonomy.php';
 require_once __DIR__ . '/helpers/70-menu.php';

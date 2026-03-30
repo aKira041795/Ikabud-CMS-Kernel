@@ -901,6 +901,19 @@ function getEnabledModules(): array
             continue;
         }
 
+        $entityContextCheck = validateModuleEntityContexts($m);
+        if (!$entityContextCheck['ok']) {
+            recordSkippedModule($id, 'invalid_entity_context_manifest', [
+                'error' => (string)($entityContextCheck['error'] ?? 'unknown'),
+            ]);
+            write_log(
+                "Module '{$id}' entity context manifest invalid — skipped: " . ($entityContextCheck['error'] ?? 'unknown'),
+                'warning',
+                ['module' => $id]
+            );
+            continue;
+        }
+
         $deps = $check['depends'] ?? [];
         if (!empty($deps)) {
             $missing = [];
@@ -1563,11 +1576,227 @@ function validateModuleCapabilities(array $manifest): array
     return ['ok' => true, 'exposes' => $exposes, 'depends' => array_values($depends), 'policy' => is_array($policy) ? $policy : []];
 }
 
+/**
+ * Validate optional entity_contexts block in a module manifest.
+ * Returns:
+ *  - ['ok' => true, 'definitions' => array, 'extensions' => array, 'bindings' => array, 'capability_metadata' => array]
+ *  - ['ok' => false, 'error' => '...']
+ */
+function validateModuleEntityContexts(array $manifest): array
+{
+    $raw = $manifest['entity_contexts'] ?? null;
+    if ($raw === null) {
+        return ['ok' => true, 'definitions' => [], 'extensions' => [], 'bindings' => [], 'capability_metadata' => []];
+    }
+
+    if (!is_array($raw)) {
+        return ['ok' => false, 'error' => 'entity_contexts must be an object'];
+    }
+
+    $definitions = $raw['definitions'] ?? [];
+    $extensions = $raw['extensions'] ?? [];
+    $bindings = $raw['bindings'] ?? [];
+    $capabilityMetadata = $raw['capability_metadata'] ?? [];
+
+    foreach ([
+        'entity_contexts.definitions' => $definitions,
+        'entity_contexts.extensions' => $extensions,
+        'entity_contexts.bindings' => $bindings,
+        'entity_contexts.capability_metadata' => $capabilityMetadata,
+    ] as $label => $value) {
+        if (!is_array($value)) {
+            return ['ok' => false, 'error' => $label . ' must be an array'];
+        }
+    }
+
+    foreach ($definitions as $index => $definition) {
+        if (!is_array($definition)) {
+            return ['ok' => false, 'error' => "entity_contexts.definitions[{$index}] must be an object"];
+        }
+
+        $contextId = trim((string)($definition['id'] ?? ''));
+        if (!isValidEntityContextId($contextId)) {
+            return ['ok' => false, 'error' => "entity_contexts.definitions[{$index}].id must be a valid context id"];
+        }
+        if (isset($definition['label']) && !is_string($definition['label'])) {
+            return ['ok' => false, 'error' => "entity_contexts.definitions[{$index}].label must be a string"];
+        }
+        if (isset($definition['priority']) && !is_numeric($definition['priority'])) {
+            return ['ok' => false, 'error' => "entity_contexts.definitions[{$index}].priority must be numeric"];
+        }
+        if (isset($definition['meta']) && !is_array($definition['meta'])) {
+            return ['ok' => false, 'error' => "entity_contexts.definitions[{$index}].meta must be an object"];
+        }
+        if (isset($definition['capabilities'])) {
+            if (!is_array($definition['capabilities'])) {
+                return ['ok' => false, 'error' => "entity_contexts.definitions[{$index}].capabilities must be an array"];
+            }
+            foreach ($definition['capabilities'] as $capabilityIndex => $capability) {
+                if (is_string($capability) && isValidEntityCapabilityName($capability)) {
+                    continue;
+                }
+                if (is_array($capability) && isValidEntityCapabilityName((string)($capability['id'] ?? ''))) {
+                    continue;
+                }
+
+                return ['ok' => false, 'error' => "entity_contexts.definitions[{$index}].capabilities[{$capabilityIndex}] must reference a valid capability id"];
+            }
+        }
+    }
+
+    foreach ($extensions as $index => $extension) {
+        if (!is_array($extension)) {
+            return ['ok' => false, 'error' => "entity_contexts.extensions[{$index}] must be an object"];
+        }
+
+        $contextId = trim((string)($extension['context'] ?? ''));
+        if (!isValidEntityContextId($contextId)) {
+            return ['ok' => false, 'error' => "entity_contexts.extensions[{$index}].context must be a valid context id"];
+        }
+        if (isset($extension['label']) && !is_string($extension['label'])) {
+            return ['ok' => false, 'error' => "entity_contexts.extensions[{$index}].label must be a string"];
+        }
+        if (isset($extension['priority']) && !is_numeric($extension['priority'])) {
+            return ['ok' => false, 'error' => "entity_contexts.extensions[{$index}].priority must be numeric"];
+        }
+        if (isset($extension['meta']) && !is_array($extension['meta'])) {
+            return ['ok' => false, 'error' => "entity_contexts.extensions[{$index}].meta must be an object"];
+        }
+        if (isset($extension['capabilities'])) {
+            if (!is_array($extension['capabilities'])) {
+                return ['ok' => false, 'error' => "entity_contexts.extensions[{$index}].capabilities must be an array"];
+            }
+            foreach ($extension['capabilities'] as $capabilityIndex => $capability) {
+                if (is_string($capability) && isValidEntityCapabilityName($capability)) {
+                    continue;
+                }
+                if (is_array($capability) && isValidEntityCapabilityName((string)($capability['id'] ?? ''))) {
+                    continue;
+                }
+
+                return ['ok' => false, 'error' => "entity_contexts.extensions[{$index}].capabilities[{$capabilityIndex}] must reference a valid capability id"];
+            }
+        }
+    }
+
+    foreach ($bindings as $index => $binding) {
+        if (!is_array($binding)) {
+            return ['ok' => false, 'error' => "entity_contexts.bindings[{$index}] must be an object"];
+        }
+
+        $entityType = trim((string)($binding['entity_type'] ?? ''));
+        if (!preg_match('/^[a-z][a-z0-9_\-]*$/', $entityType)) {
+            return ['ok' => false, 'error' => "entity_contexts.bindings[{$index}].entity_type must be a valid entity type id"];
+        }
+
+        $base = trim((string)($binding['base'] ?? ''));
+        if ($base !== '' && !isValidEntityContextId($base)) {
+            return ['ok' => false, 'error' => "entity_contexts.bindings[{$index}].base must be a valid context id"];
+        }
+        if (isset($binding['priority']) && !is_numeric($binding['priority'])) {
+            return ['ok' => false, 'error' => "entity_contexts.bindings[{$index}].priority must be numeric"];
+        }
+        if (isset($binding['overrides']) && !is_array($binding['overrides'])) {
+            return ['ok' => false, 'error' => "entity_contexts.bindings[{$index}].overrides must be an object"];
+        }
+        if (isset($binding['extensions'])) {
+            if (!is_array($binding['extensions'])) {
+                return ['ok' => false, 'error' => "entity_contexts.bindings[{$index}].extensions must be an array"];
+            }
+            foreach ($binding['extensions'] as $extensionIndex => $extension) {
+                if (!is_string($extension) || !isValidEntityContextId($extension)) {
+                    return ['ok' => false, 'error' => "entity_contexts.bindings[{$index}].extensions[{$extensionIndex}] must be a valid context id"];
+                }
+            }
+        }
+    }
+
+    foreach ($capabilityMetadata as $index => $metadata) {
+        if (!is_array($metadata)) {
+            return ['ok' => false, 'error' => "entity_contexts.capability_metadata[{$index}] must be an object"];
+        }
+
+        $capabilityId = trim((string)($metadata['id'] ?? ''));
+        if (!isValidEntityCapabilityName($capabilityId)) {
+            return ['ok' => false, 'error' => "entity_contexts.capability_metadata[{$index}].id must be a valid capability id"];
+        }
+        if (isset($metadata['label']) && !is_string($metadata['label'])) {
+            return ['ok' => false, 'error' => "entity_contexts.capability_metadata[{$index}].label must be a string"];
+        }
+        if (isset($metadata['block']) && !is_string($metadata['block'])) {
+            return ['ok' => false, 'error' => "entity_contexts.capability_metadata[{$index}].block must be a string"];
+        }
+        if (isset($metadata['priority']) && !is_numeric($metadata['priority'])) {
+            return ['ok' => false, 'error' => "entity_contexts.capability_metadata[{$index}].priority must be numeric"];
+        }
+        if (isset($metadata['meta']) && !is_array($metadata['meta'])) {
+            return ['ok' => false, 'error' => "entity_contexts.capability_metadata[{$index}].meta must be an object"];
+        }
+        if (!isset($metadata['customizer'])) {
+            continue;
+        }
+        if (!is_array($metadata['customizer'])) {
+            return ['ok' => false, 'error' => "entity_contexts.capability_metadata[{$index}].customizer must be an object"];
+        }
+
+        $customizer = $metadata['customizer'];
+        if (isset($customizer['section']) && !is_array($customizer['section'])) {
+            return ['ok' => false, 'error' => "entity_contexts.capability_metadata[{$index}].customizer.section must be an object"];
+        }
+        if (isset($customizer['fields'])) {
+            if (!is_array($customizer['fields'])) {
+                return ['ok' => false, 'error' => "entity_contexts.capability_metadata[{$index}].customizer.fields must be an array"];
+            }
+            foreach ($customizer['fields'] as $fieldIndex => $field) {
+                if (!is_array($field)) {
+                    return ['ok' => false, 'error' => "entity_contexts.capability_metadata[{$index}].customizer.fields[{$fieldIndex}] must be an object"];
+                }
+                if (!is_string($field['name'] ?? null) || trim((string)$field['name']) === '') {
+                    return ['ok' => false, 'error' => "entity_contexts.capability_metadata[{$index}].customizer.fields[{$fieldIndex}].name must be a non-empty string"];
+                }
+                if (isset($field['label']) && !is_string($field['label'])) {
+                    return ['ok' => false, 'error' => "entity_contexts.capability_metadata[{$index}].customizer.fields[{$fieldIndex}].label must be a string"];
+                }
+                if (isset($field['type']) && !is_string($field['type'])) {
+                    return ['ok' => false, 'error' => "entity_contexts.capability_metadata[{$index}].customizer.fields[{$fieldIndex}].type must be a string"];
+                }
+                if (isset($field['priority']) && !is_numeric($field['priority'])) {
+                    return ['ok' => false, 'error' => "entity_contexts.capability_metadata[{$index}].customizer.fields[{$fieldIndex}].priority must be numeric"];
+                }
+                if (isset($field['options']) && !is_array($field['options'])) {
+                    return ['ok' => false, 'error' => "entity_contexts.capability_metadata[{$index}].customizer.fields[{$fieldIndex}].options must be an array"];
+                }
+                if (isset($field['visibility']) && !is_array($field['visibility'])) {
+                    return ['ok' => false, 'error' => "entity_contexts.capability_metadata[{$index}].customizer.fields[{$fieldIndex}].visibility must be an object"];
+                }
+            }
+        }
+    }
+
+    return [
+        'ok' => true,
+        'definitions' => array_values($definitions),
+        'extensions' => array_values($extensions),
+        'bindings' => array_values($bindings),
+        'capability_metadata' => array_values($capabilityMetadata),
+    ];
+}
+
 function isValidCapabilityId(string $capId): bool
 {
     // contract.id@major (major is integer)
     // Segments: lowercase letter/digit/underscore; must start with a letter.
     return (bool) preg_match('/^[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)*@\d+$/', $capId);
+}
+
+function isValidEntityContextId(string $contextId): bool
+{
+    return (bool)preg_match('/^[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)*$/', trim($contextId));
+}
+
+function isValidEntityCapabilityName(string $capabilityId): bool
+{
+    return (bool)preg_match('/^[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)*$/', trim($capabilityId));
 }
 
 function routePatternSegments(string $pattern): array
@@ -1787,6 +2016,63 @@ function loadModuleRoutes(array $routes): array
                         ['module' => $moduleId, 'capability' => $capId]
                     );
                 }
+            }
+        }
+
+        $entityContextCheck = validateModuleEntityContexts($module);
+        if (!empty($entityContextCheck['ok'])) {
+            $moduleId = (string)($module['id'] ?? '');
+
+            foreach (($entityContextCheck['definitions'] ?? []) as $definition) {
+                if (!is_array($definition) || empty($definition['id'])) {
+                    continue;
+                }
+
+                app()->entityContexts()->registerContext(
+                    (string)$definition['id'],
+                    $definition,
+                    $moduleId,
+                    (int)($definition['priority'] ?? 10)
+                );
+            }
+
+            foreach (($entityContextCheck['extensions'] ?? []) as $extension) {
+                if (!is_array($extension) || empty($extension['context'])) {
+                    continue;
+                }
+
+                app()->entityContexts()->extendContext(
+                    (string)$extension['context'],
+                    $extension,
+                    $moduleId,
+                    (int)($extension['priority'] ?? 10)
+                );
+            }
+
+            foreach (($entityContextCheck['bindings'] ?? []) as $binding) {
+                if (!is_array($binding) || empty($binding['entity_type'])) {
+                    continue;
+                }
+
+                app()->entityContexts()->bindEntityType(
+                    (string)$binding['entity_type'],
+                    $binding,
+                    $moduleId,
+                    (int)($binding['priority'] ?? 10)
+                );
+            }
+
+            foreach (($entityContextCheck['capability_metadata'] ?? []) as $metadata) {
+                if (!is_array($metadata) || empty($metadata['id'])) {
+                    continue;
+                }
+
+                app()->entityContexts()->registerCapability(
+                    (string)$metadata['id'],
+                    $metadata,
+                    $moduleId,
+                    (int)($metadata['priority'] ?? 10)
+                );
             }
         }
 
@@ -2589,6 +2875,15 @@ function validateModuleManifest(string $path): array
                 }
             }
         }
+    }
+
+    $entityContextValidation = validateModuleEntityContexts($manifest);
+    if (empty($entityContextValidation['ok'])) {
+        return [
+            'ok' => false,
+            'error' => (string)($entityContextValidation['error'] ?? 'module.json field entity_contexts is invalid'),
+            'error_code' => 'manifest_invalid_entity_contexts',
+        ];
     }
 
     return ['ok' => true, 'manifest' => $manifest];

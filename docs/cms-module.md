@@ -46,7 +46,7 @@ Implemented admin areas include:
 - Optional WordPress XML importer extension (`/cms/admin/wordpress-import`) for WXR uploads routed from the core Import / Export screen
 - **AI Content Automation** (`/cms/admin/ai-automation`) — manage content plans, view run history, configure search grounding
 
-Primary route definitions live in `modules/cms/routes.php`. Primary admin handlers live in `modules/cms/handlers/15-admin.php`, `modules/cms/handlers/80-customizer.php`, `modules/cms/handlers/82-permissions.php`, and `modules/cms/handlers/84-extensions.php`.
+Primary route definitions live in `modules/cms/routes.php`. Primary admin handlers live in `modules/cms/handlers/15-admin.php`, `modules/cms/handlers/80-customizer.php`, `modules/cms/handlers/82-permissions.php`, and `modules/cms/handlers/84-extensions.php`. Entity capability and entity-context APIs live in `modules/cms/handlers/88-entity-capabilities.php`, and public delivery stays in `modules/cms/handlers/90-public.php`.
 
 ### Content and builder
 
@@ -70,6 +70,7 @@ Implemented public features include:
 - SEO head output and structured-data helpers
 - Theme-based template overrides
 - Customizer-driven header, footer, sidebar, layout, colors, fonts, and custom code
+- Registry-backed entity context metadata and capability-aware entity/list rendering shared across CMS and ecommerce routes
 - Tag-based cache plus `ETag` / `Last-Modified`
 - Session-safe public responses via `cmsPublicRespond()`
 - Public-context preloading and section-aware hot-path skips for faster cold renders
@@ -111,6 +112,7 @@ Entity-capability note:
 - `handlers/80-customizer.php` — theme customizer
 - `handlers/82-permissions.php` — granular role permissions
 - `handlers/84-extensions.php` — theme installer and CMS sub-module installer
+- `handlers/88-entity-capabilities.php` — entity capability and entity-context inspection APIs
 - `handlers/90-public.php` — public routes, headless APIs, cache-aware public response flow, and public timing instrumentation
 
 #### Helpers
@@ -119,11 +121,12 @@ Entity-capability note:
 - `helpers/40-theme-settings.php` — theme discovery, symlink activation, template resolution, settings defaults
 - `helpers/50-builder.php` — builder document registry, widgets, rendering, templates, dynamic sources
 - `helpers/55-capabilities.php` — CapabilityBus adapters exposed by the module
-- `helpers/56-entity-capabilities.php` — capability data formatters used by universal entity views and storefront integrations
+- `helpers/56-entity-capabilities.php` — registry-backed runtime capability bridge, active flag/data resolution, and capability formatters used by universal entity views and storefront integrations
+- `helpers/57-entity-contexts.php` — builtin entity-context registry bootstrap, customizer schema field catalog, example schemas, and snapshot helpers
 - `helpers/60-cache.php` — cache helpers and invalidation
 - `helpers/65-taxonomy.php`, `70-menu.php`, `74-revisions.php` — domain helpers
 - `helpers/76-extensions-editor.php` — extension hooks for editor/public/builder integration
-- `helpers/78-public-context.php` — shared public render context, customizer preloading, and request-level public timing hooks
+- `helpers/78-public-context.php` — shared public render context, customizer preloading, resolved entity-context exposure, and request-level public timing hooks
 - `helpers/80-customizer.php` — customizer rendering and CSS/HTML generation
 
 ---
@@ -135,9 +138,10 @@ When changing CMS public rendering, follow these rules:
 1. Public HTML responses should exit through `cmsPublicRespond()` so session locks are released consistently after the body is sent.
 2. Cache lookup should happen before expensive render work, and cache writes should keep `ETag` / `Last-Modified` metadata with tag-based invalidation.
 3. `cmsPublicContext()` is the shared assembly point for theme/customizer context. Do not re-fetch the same customizer sections in handlers or templates.
-4. Theme render paths must not mutate the active-theme symlink while holding a shared render lock.
-5. Builder pages should keep frontend JS optional for visibility. If CSS/JS can hide content before hydration, ship a synchronous reveal fallback.
-6. For critical stock / booking / CTA states in DiSyL, prefer small nested boolean checks over compound expressions.
+4. Reuse `cmsEntityCapabilityRuntimeState()` when you need entity capability flags, capability data, or resolved entity-context metadata; do not recompute those independently in handlers, builders, or APIs.
+5. Theme render paths must not mutate the active-theme symlink while holding a shared render lock.
+6. Builder pages should keep frontend JS optional for visibility. If CSS/JS can hide content before hydration, ship a synchronous reveal fallback.
+7. For critical stock / booking / CTA states in DiSyL, prefer small nested boolean checks over compound expressions.
 
 The detailed implementation checklist lives in [docs/cms-implementation-guide.md](cms-implementation-guide.md).
 
@@ -172,6 +176,7 @@ Cross-module dependencies are declared in `module.json`. The CMS also reads `wor
 - Admin templates are not overridden by themes
 - Resolution is override-first: active theme, then CMS defaults
 - Theme customizer data is stored in `cms_theme_customizer`
+- The admin `Entities` workspace is now rendered from entity-context registry schemas/examples emitted by `handlers/80-customizer.php`, while persistence stays in canonical `entity_presentation`
 
 For the full theme contract, see `docs/cms-theme-design-architecture.md`.
 
