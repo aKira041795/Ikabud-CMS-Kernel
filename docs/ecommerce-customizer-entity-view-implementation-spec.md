@@ -499,3 +499,5 @@ The repo already contains most of the needed seams:
 - a POC theme with ecommerce customizer scope
 
 The remaining job is to make that path authoritative, incremental, and test-backed.
+
+For the remaining formal closeout work, use [docs/ecommerce-phase-5-6-closeout-checklist.md](docs/ecommerce-phase-5-6-closeout-checklist.md).
