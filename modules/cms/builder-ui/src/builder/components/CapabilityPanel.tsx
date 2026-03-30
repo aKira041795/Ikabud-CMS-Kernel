@@ -4,7 +4,8 @@
  * Allows editors to attach and configure entity capability feature profiles
  * (pricing, inventory, booking, inquiry, progress_tracking, lessons_index,
  * media_gallery) and to apply configuration presets (ecommerce, education,
- * business, portfolio) to the current content entity.
+ * business, portfolio, and commerce-aware service/course presets) to the
+ * current content entity.
  */
 
 import React, { memo, useState, useEffect, useCallback } from 'react';
@@ -43,7 +44,19 @@ export interface EntityPreset {
   label: string;
   description: string;
   icon: string;
+  entity_types?: string[];
+  context_bases?: string[];
+  context_extensions?: string[];
+  recommendation_priority?: number;
   default_capabilities: Array<{ id: string; config?: Record<string, unknown> }>;
+}
+
+interface ResolvedContext {
+  entity_type?: string;
+  binding?: {
+    base?: string | null;
+    extensions?: string[];
+  };
 }
 
 export interface CapabilityPanelProps {
@@ -55,13 +68,13 @@ export interface CapabilityPanelProps {
 // ──────────────────────────────────────────────────────────────────────────────
 
 const ICON_MAP: Record<string, React.ElementType> = {
-  tag:              Tag,
-  package:          Package,
-  calendar:         Calendar,
-  mail:             Mail,
-  activity:         Activity,
-  list:             List,
-  image:            Image,
+  tag: Tag,
+  package: Package,
+  calendar: Calendar,
+  mail: Mail,
+  activity: Activity,
+  list: List,
+  image: Image,
 };
 
 function CapIcon({ name, className }: { name: string; className?: string }) {
@@ -222,13 +235,14 @@ const CapabilityRow = memo(function CapabilityRow({
 // ──────────────────────────────────────────────────────────────────────────────
 
 export const CapabilityPanel = memo(function CapabilityPanel({ contentId }: CapabilityPanelProps) {
-  const [capTypes,   setCapTypes]   = useState<CapabilityType[]>([]);
-  const [presets,    setPresets]    = useState<EntityPreset[]>([]);
-  const [attached,   setAttached]   = useState<Record<string, Record<string, unknown>>>({});
-  const [localCfg,   setLocalCfg]   = useState<Record<string, Record<string, unknown>>>({});
-  const [saving,     setSaving]     = useState<Record<string, boolean>>({});
-  const [loadState,  setLoadState]  = useState<'idle' | 'loading' | 'error'>('loading');
-  const [statusMsg,  setStatusMsg]  = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [capTypes, setCapTypes] = useState<CapabilityType[]>([]);
+  const [presets, setPresets] = useState<EntityPreset[]>([]);
+  const [attached, setAttached] = useState<Record<string, Record<string, unknown>>>({});
+  const [localCfg, setLocalCfg] = useState<Record<string, Record<string, unknown>>>({});
+  const [resolvedContext, setResolvedContext] = useState<ResolvedContext | null>(null);
+  const [saving, setSaving] = useState<Record<string, boolean>>({});
+  const [loadState, setLoadState] = useState<'idle' | 'loading' | 'error'>('loading');
+  const [statusMsg, setStatusMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   // Load capability types, presets, and current attached capabilities
   useEffect(() => {
@@ -247,6 +261,7 @@ export const CapabilityPanel = memo(function CapabilityPanel({ contentId }: Capa
         const a: Record<string, Record<string, unknown>> = attachedResp.attached ?? {};
         setAttached(a);
         setLocalCfg(JSON.parse(JSON.stringify(a))); // deep copy for local edits
+        setResolvedContext(attachedResp.resolved_context ?? null);
         setLoadState('idle');
       })
       .catch(() => {
@@ -322,9 +337,10 @@ export const CapabilityPanel = memo(function CapabilityPanel({ contentId }: Capa
       const resp = await cmsApi.applyEntityPreset(contentId, presetId);
       const data = await resp.json();
       if (data.success) {
+        const preset = presets.find((item: EntityPreset) => item.id === presetId);
         setAttached(data.attached);
         setLocalCfg(JSON.parse(JSON.stringify(data.attached)));
-        flash('success', `Preset applied`);
+        flash('success', `${preset?.label ?? presetId} applied`);
       } else {
         flash('error', data.error ?? 'Failed to apply preset');
       }
@@ -333,7 +349,74 @@ export const CapabilityPanel = memo(function CapabilityPanel({ contentId }: Capa
     } finally {
       setSaving((s: Record<string, boolean>) => ({ ...s, [`__preset_${presetId}`]: false }));
     }
-  }, [contentId, flash]);
+  }, [contentId, flash, presets]);
+
+  const normalizeList = (value: unknown): string[] => {
+    if (!Array.isArray(value)) {
+      return [];
+    }
+
+    const normalized = new Set<string>();
+    value.forEach((item) => {
+      if (typeof item !== 'string') {
+        return;
+      }
+
+      const next = item.trim().toLowerCase();
+      if (next !== '') {
+        normalized.add(next);
+      }
+    });
+
+    return Array.from(normalized);
+  };
+
+  const presetRecommendationScore = (preset: EntityPreset): number => {
+    const entityType = (resolvedContext?.entity_type ?? '').trim().toLowerCase();
+    const contextBase = (resolvedContext?.binding?.base ?? '').trim().toLowerCase();
+    const contextExtensions = normalizeList(resolvedContext?.binding?.extensions ?? []);
+    const targetTypes = normalizeList(preset.entity_types ?? []);
+    const targetBases = normalizeList(preset.context_bases ?? []);
+    const targetExtensions = normalizeList(preset.context_extensions ?? []);
+    const hasTargeting = targetTypes.length > 0 || targetBases.length > 0 || targetExtensions.length > 0;
+
+    if (!hasTargeting) {
+      return 0;
+    }
+    if (targetTypes.length > 0 && (!entityType || !targetTypes.includes(entityType))) {
+      return -1;
+    }
+    if (targetBases.length > 0 && (!contextBase || !targetBases.includes(contextBase))) {
+      return -1;
+    }
+    if (targetExtensions.some((extension) => !contextExtensions.includes(extension))) {
+      return -1;
+    }
+
+    let score = 100 + (preset.recommendation_priority ?? 0);
+    if (entityType && targetTypes.includes(entityType)) {
+      score += 30;
+    }
+    if (contextBase && targetBases.includes(contextBase)) {
+      score += 20;
+    }
+    score += targetExtensions.filter((extension) => contextExtensions.includes(extension)).length * 10;
+
+    return score;
+  };
+
+  const sortedPresets = [...presets].sort((left, right) => {
+    const scoreCompare = presetRecommendationScore(right) - presetRecommendationScore(left);
+    if (scoreCompare !== 0) {
+      return scoreCompare;
+    }
+    return left.label.localeCompare(right.label);
+  });
+
+  const recommendedPresets = sortedPresets.filter((preset) => presetRecommendationScore(preset) > 0);
+  const additionalPresets = sortedPresets.filter((preset) => presetRecommendationScore(preset) <= 0);
+  const entityLabel = resolvedContext?.entity_type ?? '';
+  const contextLabel = resolvedContext?.binding?.base ?? '';
 
   // ── Render ────────────────────────────────────────────────────────────────
 
@@ -366,11 +449,42 @@ export const CapabilityPanel = memo(function CapabilityPanel({ contentId }: Capa
       )}
 
       {/* Presets */}
-      {presets.length > 0 && (
+      {recommendedPresets.length > 0 && (
         <div>
-          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Quick Presets</h3>
+          <div className="flex items-center justify-between gap-3 mb-2">
+            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Recommended Presets</h3>
+            {(entityLabel || contextLabel) && (
+              <span className="text-[11px] text-gray-400">
+                {[entityLabel, contextLabel].filter(Boolean).join(' / ')}
+              </span>
+            )}
+          </div>
           <div className="grid grid-cols-2 gap-2">
-            {presets.map((preset) => (
+            {recommendedPresets.map((preset) => (
+              <button
+                key={preset.id}
+                type="button"
+                disabled={saving[`__preset_${preset.id}`]}
+                onClick={() => handleApplyPreset(preset.id)}
+                className="flex flex-col items-start gap-0.5 px-3 py-2 rounded-lg border border-sky-200 bg-sky-50/60 hover:border-sky-300 hover:bg-sky-50 text-left transition-colors disabled:opacity-50"
+                title={preset.description}
+              >
+                <span className="text-sm font-medium text-gray-700">{preset.label}</span>
+                <span className="text-xs text-gray-400 line-clamp-1">{preset.description}</span>
+                {saving[`__preset_${preset.id}`] && <Loader2 className="w-3 h-3 animate-spin mt-1 text-sky-500" />}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {additionalPresets.length > 0 && (
+        <div>
+          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+            {recommendedPresets.length > 0 ? 'More Presets' : 'Quick Presets'}
+          </h3>
+          <div className="grid grid-cols-2 gap-2">
+            {additionalPresets.map((preset) => (
               <button
                 key={preset.id}
                 type="button"

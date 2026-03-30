@@ -537,6 +537,13 @@ function cmsApiContentCreate(array $params = []): void
     }
     $slug = cmsEnsureUniqueSlug($slug, $type);
 
+    $entityPresetId = trim((string)($input['entity_preset_id'] ?? ''));
+    if ($entityPresetId !== '' && !isset(cmsEntityPresets()[$entityPresetId])) {
+        http_response_code(422);
+        echo json_encode(['ok' => false, 'error' => 'Unknown entity preset']);
+        exit;
+    }
+
     $uuid     = cmsUuid();
     $authorId = (int)($user['id'] ?? 0);
     if ($status === 'published') {
@@ -607,6 +614,12 @@ function cmsApiContentCreate(array $params = []): void
     // Sync media usage
     cmsSyncMediaUsage($contentId, ['featured_image_id' => $input['featured_image_id'] ?? null], $blocksJson);
 
+    $presetApplied = false;
+    if ($entityPresetId !== '') {
+        cmsApplyEntityPreset($contentId, $entityPresetId);
+        $presetApplied = true;
+    }
+
     // Audit
     try {
         app()->cap()->call('kernel.audit.record@1', [
@@ -630,7 +643,13 @@ function cmsApiContentCreate(array $params = []): void
 
     adminViewCacheInvalidate(['cms:admin', 'cms:admin:dashboard', 'cms:admin:content']);
 
-    echo json_encode(['ok' => true, 'id' => $contentId, 'slug' => $slug]);
+    echo json_encode([
+        'ok' => true,
+        'id' => $contentId,
+        'slug' => $slug,
+        'preset_applied' => $presetApplied,
+        'entity_preset_id' => $entityPresetId !== '' ? $entityPresetId : null,
+    ]);
     exit;
 }
 
@@ -667,8 +686,15 @@ function cmsApiContentUpdate(array $params = []): void
     $fields = [];
     $bind   = [':id' => $id];
     $nextStatus = (string)($existing['status'] ?? 'draft');
+    $entityPresetId = trim((string)($input['entity_preset_id'] ?? ''));
 
     $cmsSettings = readCmsSettings();
+
+    if ($entityPresetId !== '' && !isset(cmsEntityPresets()[$entityPresetId])) {
+        http_response_code(422);
+        echo json_encode(['ok' => false, 'error' => 'Unknown entity preset']);
+        exit;
+    }
 
     // Builder-lock enforcement: if content was built with page builder and lock is enabled,
     // reject attempts to edit body or blocks via the classic content API.
@@ -764,39 +790,48 @@ function cmsApiContentUpdate(array $params = []): void
         $bind[':pub'] = $publishAtInput;
     }
 
-    if (empty($fields)) {
+    $hasSupplementalChanges = $entityPresetId !== ''
+        || (isset($input['meta']) && is_array($input['meta']))
+        || (isset($input['category_ids']) && is_array($input['category_ids']))
+        || (isset($input['tag_names']) && is_array($input['tag_names']));
+
+    if (empty($fields) && !$hasSupplementalChanges) {
         echo json_encode(['ok' => true, 'message' => 'No changes']);
         exit;
     }
 
-    // Save revision snapshot of current state before updating
-    $authorId = (int)($user['id'] ?? 0);
-    cmsSaveRevision(
-        $id, $authorId,
-        (string)$existing['title'],
-        $existing['body'] ?? null,
-        $existing['blocks_json'] ?? null,
-        null
-    );
+    $contentUpdated = !empty($fields);
 
-    // Track slug change for 301 redirects
-    if (isset($bind[':slug']) && $bind[':slug'] !== $existing['slug']) {
-        cmsSaveSlugRedirect($id, (string)$existing['slug']);
-    }
+    if ($contentUpdated) {
+        // Save revision snapshot of current state before updating
+        $authorId = (int)($user['id'] ?? 0);
+        cmsSaveRevision(
+            $id, $authorId,
+            (string)$existing['title'],
+            $existing['body'] ?? null,
+            $existing['blocks_json'] ?? null,
+            null
+        );
 
-    $fields[] = 'updated_at = NOW()';
-    $setStr = implode(', ', $fields);
-    $db->prepare("UPDATE cms_content SET {$setStr} WHERE id = :id")->execute($bind);
+        // Track slug change for 301 redirects
+        if (isset($bind[':slug']) && $bind[':slug'] !== $existing['slug']) {
+            cmsSaveSlugRedirect($id, (string)$existing['slug']);
+        }
 
-    // Recalculate reading stats when body or blocks change
-    $bodyChanged   = array_key_exists('body', $input) || array_key_exists('blocks', $input) || array_key_exists('blocks_json', $input);
-    if ($bodyChanged) {
-        $newBody       = $bind[':body'] ?? ($existing['body'] ?? null);
-        $newBlocksJson = $bind[':blocks_json'] ?? ($existing['blocks_json'] ?? null);
-        $wc = cmsCalculateWordCount($newBody, $newBlocksJson);
-        $rt = ($cmsSettings['reading_time_enabled'] ?? '1') === '1' ? cmsCalculateReadingTime($wc) : 0;
-        $db->prepare("UPDATE cms_content SET word_count = :wc, reading_time = :rt WHERE id = :id")
-           ->execute([':wc' => $wc, ':rt' => $rt, ':id' => $id]);
+        $fields[] = 'updated_at = NOW()';
+        $setStr = implode(', ', $fields);
+        $db->prepare("UPDATE cms_content SET {$setStr} WHERE id = :id")->execute($bind);
+
+        // Recalculate reading stats when body or blocks change
+        $bodyChanged = array_key_exists('body', $input) || array_key_exists('blocks', $input) || array_key_exists('blocks_json', $input);
+        if ($bodyChanged) {
+            $newBody       = $bind[':body'] ?? ($existing['body'] ?? null);
+            $newBlocksJson = $bind[':blocks_json'] ?? ($existing['blocks_json'] ?? null);
+            $wc = cmsCalculateWordCount($newBody, $newBlocksJson);
+            $rt = ($cmsSettings['reading_time_enabled'] ?? '1') === '1' ? cmsCalculateReadingTime($wc) : 0;
+            $db->prepare("UPDATE cms_content SET word_count = :wc, reading_time = :rt WHERE id = :id")
+               ->execute([':wc' => $wc, ':rt' => $rt, ':id' => $id]);
+        }
     }
 
     // Sync media usage
@@ -819,6 +854,12 @@ function cmsApiContentUpdate(array $params = []): void
     // Sync tags
     if (isset($input['tag_names']) && is_array($input['tag_names'])) {
         cmsSyncContentTags($id, $input['tag_names']);
+    }
+
+    $presetApplied = false;
+    if ($entityPresetId !== '') {
+        cmsApplyEntityPreset($id, $entityPresetId);
+        $presetApplied = true;
     }
 
     // Audit
@@ -845,7 +886,11 @@ function cmsApiContentUpdate(array $params = []): void
     cmsCacheInvalidateContent($existing);
     adminViewCacheInvalidate(['cms:admin', 'cms:admin:dashboard', 'cms:admin:content']);
 
-    echo json_encode(['ok' => true]);
+    echo json_encode([
+        'ok' => true,
+        'preset_applied' => $presetApplied,
+        'entity_preset_id' => $entityPresetId !== '' ? $entityPresetId : null,
+    ]);
     exit;
 }
 

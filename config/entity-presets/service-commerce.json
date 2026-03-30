@@ -1,7 +1,7 @@
 {
-    "id": "business",
-    "label": "Business Service",
-    "description": "A professional service offering with booking or inquiry CTA and optional media gallery.",
+    "id": "service-commerce",
+    "label": "Sellable Service",
+    "description": "A service offer with pricing, booking, inquiry, and media support for commerce-style presentation.",
     "icon": "briefcase",
     "entity_types": [
         "service"
@@ -9,12 +9,18 @@
     "context_bases": [
         "business"
     ],
-    "recommendation_priority": 100,
+    "recommendation_priority": 80,
     "default_capabilities": [
+        {
+            "id": "pricing",
+            "config": {
+                "currency": "USD"
+            }
+        },
         {
             "id": "inquiry",
             "config": {
-                "label": "Get a Quote",
+                "label": "Request This Service",
                 "form_fields": "name,email,phone,message"
             }
         },

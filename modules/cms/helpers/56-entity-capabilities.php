@@ -459,6 +459,115 @@ function cmsEntityPresets(): array
     return $cache;
 }
 
+function cmsEntityPresetTargetList(mixed $value): array
+{
+    if (!is_array($value)) {
+        return [];
+    }
+
+    $normalized = [];
+    foreach ($value as $item) {
+        if (!is_string($item)) {
+            continue;
+        }
+
+        $item = strtolower(trim($item));
+        if ($item !== '') {
+            $normalized[$item] = $item;
+        }
+    }
+
+    return array_values($normalized);
+}
+
+function cmsEntityPresetRecommendationScore(array $preset, string $entityType, array $resolvedContext = []): int
+{
+    $entityType = strtolower(trim($entityType));
+    $targetTypes = cmsEntityPresetTargetList($preset['entity_types'] ?? []);
+    $targetBases = cmsEntityPresetTargetList($preset['context_bases'] ?? []);
+    $targetExtensions = cmsEntityPresetTargetList($preset['context_extensions'] ?? []);
+    $hasTargeting = $targetTypes !== [] || $targetBases !== [] || $targetExtensions !== [];
+
+    if (!$hasTargeting) {
+        return 0;
+    }
+
+    $binding = is_array($resolvedContext['binding'] ?? null) ? $resolvedContext['binding'] : [];
+    $base = strtolower(trim((string)($binding['base'] ?? '')));
+    $extensions = cmsEntityPresetTargetList($binding['extensions'] ?? []);
+
+    if ($targetTypes !== [] && ($entityType === '' || !in_array($entityType, $targetTypes, true))) {
+        return -1;
+    }
+
+    if ($targetBases !== [] && ($base === '' || !in_array($base, $targetBases, true))) {
+        return -1;
+    }
+
+    foreach ($targetExtensions as $extensionId) {
+        if (!in_array($extensionId, $extensions, true)) {
+            return -1;
+        }
+    }
+
+    $score = 100 + (int)($preset['recommendation_priority'] ?? 0);
+    if ($entityType !== '' && in_array($entityType, $targetTypes, true)) {
+        $score += 30;
+    }
+    if ($base !== '' && in_array($base, $targetBases, true)) {
+        $score += 20;
+    }
+
+    $score += count(array_intersect($targetExtensions, $extensions)) * 10;
+    return $score;
+}
+
+function cmsEntityPresetRecommendationsForType(string $entityType, array $options = []): array
+{
+    $entityType = strtolower(trim($entityType));
+    if ($entityType === '') {
+        return [];
+    }
+
+    $resolvedContext = is_array($options['resolved_context'] ?? null) ? $options['resolved_context'] : null;
+    if (!is_array($resolvedContext)) {
+        $resolveOptions = $options;
+        unset($resolveOptions['resolved_context']);
+        $resolvedContext = cmsResolveEntityContextForType($entityType, $resolveOptions);
+    }
+
+    $matches = [];
+    foreach (cmsEntityPresets() as $preset) {
+        if (!is_array($preset)) {
+            continue;
+        }
+
+        $score = cmsEntityPresetRecommendationScore($preset, $entityType, $resolvedContext);
+        if ($score <= 0) {
+            continue;
+        }
+
+        $preset['_recommendation_score'] = $score;
+        $matches[] = $preset;
+    }
+
+    usort($matches, static function (array $left, array $right): int {
+        $scoreCompare = (int)($right['_recommendation_score'] ?? 0) <=> (int)($left['_recommendation_score'] ?? 0);
+        if ($scoreCompare !== 0) {
+            return $scoreCompare;
+        }
+
+        return strcasecmp((string)($left['label'] ?? $left['id'] ?? ''), (string)($right['label'] ?? $right['id'] ?? ''));
+    });
+
+    foreach ($matches as &$preset) {
+        unset($preset['_recommendation_score']);
+    }
+    unset($preset);
+
+    return $matches;
+}
+
 function cmsApplyEntityPreset(int $entityId, string $presetId): void
 {
     $presets = cmsEntityPresets();

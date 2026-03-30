@@ -1,7 +1,7 @@
 {
-    "id": "education",
-    "label": "Online Course",
-    "description": "A structured course with lessons index, per-user progress tracking, and optional pricing.",
+    "id": "course-commerce",
+    "label": "Sellable Course",
+    "description": "A priced course with lessons, learner progress, and media support for enrollment-style presentation.",
     "icon": "graduation-cap",
     "entity_types": [
         "course"
@@ -9,7 +9,7 @@
     "context_bases": [
         "guidance"
     ],
-    "recommendation_priority": 100,
+    "recommendation_priority": 80,
     "default_capabilities": [
         {
             "id": "pricing",
@@ -28,6 +28,13 @@
             "id": "progress_tracking",
             "config": {
                 "unit": "percent"
+            }
+        },
+        {
+            "id": "media_gallery",
+            "config": {
+                "columns": 3,
+                "lightbox": true
             }
         }
     ],

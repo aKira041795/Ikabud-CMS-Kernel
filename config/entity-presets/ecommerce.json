@@ -3,27 +3,44 @@
     "label": "E-Commerce Product",
     "description": "A purchasable product with pricing, inventory tracking, and an Add-to-Cart action.",
     "icon": "shopping-bag",
+    "entity_types": [
+        "product"
+    ],
+    "context_bases": [
+        "commerce"
+    ],
+    "recommendation_priority": 100,
     "default_capabilities": [
         {
             "id": "pricing",
-            "config": { "currency": "USD" }
+            "config": {
+                "currency": "USD"
+            }
         },
         {
             "id": "inventory",
-            "config": { "track_stock": true, "stock_qty": 0 }
+            "config": {
+                "track_stock": true,
+                "stock_qty": 0
+            }
         },
         {
             "id": "media_gallery",
-            "config": { "columns": 3, "lightbox": true }
+            "config": {
+                "columns": 3,
+                "lightbox": true
+            }
         }
     ],
     "token_overrides": {
         "color": {
-            "primary":   "#0ea5e9",
+            "primary": "#0ea5e9",
             "secondary": "#0369a1"
         },
         "component": {
-            "button": { "radius": "0.5rem" }
+            "button": {
+                "radius": "0.5rem"
+            }
         }
     },
     "builder_defaults": {

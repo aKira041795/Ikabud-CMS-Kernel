@@ -410,6 +410,48 @@ Attaches:
 
 These presets can also provide token overrides so the same template system presents differently by use case.
 
+### 8.1 Entity / Preset Matrix
+
+The current runtime supports a small set of entity types especially well for commerce-aware presets.
+
+| Entity type | Context path | Baseline preset | Commerce-aware preset | Intended use |
+|-------------|--------------|-----------------|-----------------------|--------------|
+| `product` | ecommerce binds `product -> commerce` | `ecommerce` | `ecommerce` | first-class storefront product |
+| `service` | CMS binds `service -> business`; ecommerce extends `business` with `pricing` | `business` | `service-commerce` | sellable or bookable service |
+| `course` | Guidance binds `course -> guidance + commerce` | `education` | `course-commerce` | paid or enrollable course |
+
+Important boundary:
+
+- presets do not create entity types
+- presets configure existing entities by attaching capabilities and defaults
+- entity type bindings and context ownership still come from modules
+
+### 8.2 How presets are used
+
+Presets already have a concrete runtime path.
+
+1. An editor opens a content entity in CMS or a module creates one programmatically.
+2. The preset is applied through the capability panel or `POST /api/v1/cms/content/{id}/capabilities/preset`.
+3. The preset attaches its `default_capabilities[]` into `cms_entity_capabilities`.
+4. Runtime capability resolution merges attached capabilities with the entity-context profile for that entity type.
+5. Canonical entity view, entity list, and builder widgets render from the same capability-aware contract.
+6. The active theme customizer controls approved presentation choices on top of that behavior.
+
+Current implementation notes:
+
+- `product` already auto-applies the `ecommerce` preset on creation in the ecommerce module
+- `service` and `course` presets are currently best applied by editors or by future module-specific creation flows
+- builder `Quick Presets` already exposes available presets from `GET /api/v1/cms/entity-presets`
+
+### 8.3 Concrete Commerce-Aware Presets
+
+To make the entity-target story explicit, the repo now includes two concrete commerce-aware presets in addition to the broader `business` and `education` baselines:
+
+- `service-commerce` — priced service with booking, inquiry, and gallery support
+- `course-commerce` — priced course with lessons, learner progress, and gallery support
+
+These are not new rendering systems. They are convenience bundles for existing capability contracts.
+
 ---
 
 ## 9. Constraints and Tradeoffs

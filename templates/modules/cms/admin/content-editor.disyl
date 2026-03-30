@@ -26,6 +26,52 @@
 </div>
 {/if}
 
+{if has_recommended_entity_presets}
+<div class="col-span-full bg-sky-50 border border-sky-200 rounded-lg px-4 py-3">
+    <div class="flex items-start justify-between gap-4">
+        <div>
+            <p class="text-sm font-semibold text-sky-800">Recommended Capability Presets</p>
+            <p class="text-xs text-sky-700 mt-1">Choose a preset to attach its capability bundle the next time you save or publish this {content_type}.</p>
+        </div>
+        {if entity_context_base}
+        <span class="inline-flex items-center px-2.5 py-1 rounded-full bg-white text-sky-700 text-xs font-medium border border-sky-200 shrink-0">{entity_context_base}</span>
+        {/if}
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2 mt-3">
+        {foreach recommended_entity_presets as preset}
+        <button
+            type="button"
+            class="text-left rounded-lg border px-3 py-3 transition-colors"
+            @click="form.entity_preset_id = '{preset.id}'"
+            :class="form.entity_preset_id === '{preset.id}' ? 'border-sky-400 bg-white shadow-sm' : 'border-sky-200/80 bg-white/70 hover:bg-white hover:border-sky-300'"
+        >
+            <p class="text-sm font-semibold text-gray-800">{preset.label}</p>
+            <p class="text-xs text-gray-600 mt-1">{preset.description}</p>
+        </button>
+        {/foreach}
+
+        <button
+            type="button"
+            class="text-left rounded-lg border px-3 py-3 transition-colors"
+            @click="form.entity_preset_id = ''"
+            :class="form.entity_preset_id === '' ? 'border-sky-400 bg-white shadow-sm' : 'border-sky-200/80 bg-white/70 hover:bg-white hover:border-sky-300'"
+        >
+            <p class="text-sm font-semibold text-gray-800">No Preset</p>
+            <p class="text-xs text-gray-600 mt-1">Start from the current capability state without attaching a recommended bundle.</p>
+        </button>
+    </div>
+
+    <div class="mt-3 space-y-1 text-xs text-sky-700">
+        <p x-show="form.entity_preset_id">The selected preset will be applied on the next save or publish, and you can adjust individual capabilities afterward.</p>
+        <p x-show="!form.entity_preset_id">Leave the preset unset if you want to configure capabilities manually later.</p>
+        {if page_builder_supported}
+        <p>These recommendations are mirrored in the builder Capability panel.</p>
+        {/if}
+    </div>
+</div>
+{/if}
+
 <!-- Sticky top action bar (inside cmsEditor scope) -->
 <div class="col-span-full sticky top-0 z-20 -mx-6 -mt-2 px-6 py-3 bg-white/95 backdrop-blur border-b border-gray-200 shadow-sm mb-2">
     <div class="flex items-center gap-3">
@@ -1193,7 +1239,9 @@ function cmsEditor() {
             status: {if content}{content.status | json}{else}'draft'{/if},
             published_at: {if content && content.published_at}{content.published_at | json}{else}''{/if}.replace(' ', 'T').slice(0, 16),
             type: {content_type | json},
+            entity_preset_id: {recommended_entity_preset_default | json},
         },
+        recommendedEntityPresets: {recommended_entity_presets | json},
         meta: {
             seo_title: {if content_meta}{content_meta.seo_title | json}{else}''{/if},
             seo_description: {if content_meta}{content_meta.seo_description | json}{else}''{/if},
@@ -1844,6 +1892,9 @@ function cmsEditor() {
                 this.form.slug = this.form.title.toLowerCase().replace(/[^a-z0-9\s-]/g, '').replace(/[\s-]+/g, '-').replace(/^-|-$/g, '');
             }
         },
+        selectedEntityPreset() {
+            return this.recommendedEntityPresets.find((preset) => preset.id === this.form.entity_preset_id) || null;
+        },
         buildPayload() {
             this.syncBodyFromEditor();
             this.syncRichTextFields();
@@ -1874,8 +1925,12 @@ function cmsEditor() {
                 });
                 const data = await res.json();
                 if (data.ok) {
+                    const appliedPreset = data.preset_applied ? this.selectedEntityPreset() : null;
                     this._autosaveClear();
-                    toast('Saved successfully');
+                    if (data.preset_applied) {
+                        this.form.entity_preset_id = '';
+                    }
+                    toast(appliedPreset ? 'Saved and applied ' + appliedPreset.label : 'Saved successfully');
                     if (this.isNew && data.id) { window.location.href = CMS_BASE + '/cms/admin/content/edit/' + data.id; }
                 } else { toast(data.error || 'Save failed', 'error'); }
             } catch (e) { toast('Network error', 'error'); }

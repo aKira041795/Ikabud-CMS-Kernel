@@ -324,6 +324,10 @@ function cmsAdminContentCreate(array $params = []): void
 
     $cmsSettings        = readCmsSettings();
     $builderSupported   = cmsBuilderSupportedForType($type);
+    $resolvedContext    = cmsResolveEntityContextForType($type);
+    $recommendedPresets = cmsEntityPresetRecommendationsForType($type, ['resolved_context' => $resolvedContext]);
+    $defaultPresetId    = (string)($recommendedPresets[0]['id'] ?? '');
+    $contextBase        = trim((string)($resolvedContext['binding']['base'] ?? ''));
     $enabledPostFormats = array_values(array_filter(array_map('trim', explode(',', (string)($cmsSettings['enabled_post_formats'] ?? 'standard')))));
 
     $role   = (string)($user['role'] ?? '');
@@ -377,6 +381,10 @@ function cmsAdminContentCreate(array $params = []): void
         'page_builder_url'              => $builderSupported ? $baseUrl . '/cms/admin/react-builder/create?type=' . $type : '',
         'page_builder_enabled'          => false,
         'builder_locked'                => false,
+        'has_recommended_entity_presets'=> $recommendedPresets !== [],
+        'recommended_entity_presets'    => $recommendedPresets,
+        'recommended_entity_preset_default' => $defaultPresetId,
+        'entity_context_base'           => $contextBase,
         'content_default_status'        => $cmsSettings['default_post_status'] ?? 'draft',
         'content_default_comment_status'=> $cmsSettings['default_comment_status'] ?? 'open',
         'enabled_post_formats'          => $enabledPostFormats,
@@ -512,6 +520,9 @@ function cmsAdminContentEdit(array $params = []): void
     $builderSupported   = cmsBuilderSupportedForType($contentType);
     $builderEnabled     = $builderSupported && cmsPageBuilderEnabled($meta);
     $builderLocked      = $builderEnabled && cmsBuilderIsLocked($meta);
+    $resolvedContext    = cmsResolveEntityContextForType($contentType);
+    $recommendedPresets = cmsEntityPresetRecommendationsForType($contentType, ['resolved_context' => $resolvedContext]);
+    $contextBase        = trim((string)($resolvedContext['binding']['base'] ?? ''));
     $enabledPostFormats = array_values(array_filter(array_map('trim', explode(',', (string)($cmsSettings['enabled_post_formats'] ?? 'standard')))));
 
     $role   = (string)($user['role'] ?? '');
@@ -579,6 +590,10 @@ function cmsAdminContentEdit(array $params = []): void
         'page_builder_url'              => $builderSupported ? $baseUrl . '/cms/admin/react-builder/' . $id : '',
         'page_builder_enabled'          => $builderEnabled,
         'builder_locked'                => $builderLocked,
+        'has_recommended_entity_presets'=> $recommendedPresets !== [],
+        'recommended_entity_presets'    => $recommendedPresets,
+        'recommended_entity_preset_default' => '',
+        'entity_context_base'           => $contextBase,
         'content_default_status'        => $cmsSettings['default_post_status'] ?? 'draft',
         'content_default_comment_status'=> $cmsSettings['default_comment_status'] ?? 'open',
         'enabled_post_formats'          => $enabledPostFormats,
