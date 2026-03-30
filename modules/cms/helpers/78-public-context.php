@@ -312,23 +312,26 @@ function cmsPublicContext(array $extra = []): array
     // Render theme layout style (CSS custom properties + layout rules)
     $stageStart = $timingEnabled ? microtime(true) : 0.0;
     try {
-        if (cmsPublicContextHasSection($sectionAvailability, 'theme')) {
-            $ctx['theme_layout_style'] = cmsRenderThemeLayoutStyle($db);
-            $themeLayout = cmsCustomizerGet($db, 'theme');
+        $hasThemeSection = cmsPublicContextHasSection($sectionAvailability, 'theme');
+        $hasEntityPresentationSection = cmsPublicContextHasSection($sectionAvailability, 'entity_presentation');
+
+        if ($hasThemeSection) {
+            $themeLayout = cmsCustomizerGet($db, 'theme', $activeCustomizerScope);
             $ctx['theme_settings'] = $themeLayout['settings'];
         } else {
-            $ctx['theme_layout_style'] = '';
             $ctx['theme_settings'] = cmsThemeLayoutSettingsDefaults();
         }
 
-        $entityPresentation = cmsCustomizerGet($db, 'entity_presentation');
+        $entityPresentation = cmsCustomizerGet($db, 'entity_presentation', $activeCustomizerScope);
         $ctx['entity_presentation_settings'] = is_array($entityPresentation['settings'] ?? null)
             ? $entityPresentation['settings']
             : cmsEntityPresentationSectionDefaults($activeCustomizerScope);
         $ctx['entity_presentation_source'] = (string)($entityPresentation['source_section'] ?? 'defaults');
         $ctx['theme_settings'] = array_merge($ctx['theme_settings'], $ctx['entity_presentation_settings']);
 
-        $ctx['theme_layout_style'] .= cmsRenderEntityPresentationStyle($db);
+        $ctx['theme_layout_style'] = ($hasThemeSection || $hasEntityPresentationSection)
+            ? cmsRenderPublicThemeStyle($ctx['theme_settings'], $activeCustomizerScope, $hasThemeSection, $hasEntityPresentationSection)
+            : '';
     } catch (Throwable $e) {
         $ctx['theme_layout_style'] = '';
         $ctx['theme_settings'] = cmsThemeLayoutSettingsDefaults();

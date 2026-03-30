@@ -1974,6 +1974,51 @@ function cmsValidateThemeLayoutSettings(array $input): array
     return $validated;
 }
 
+function cmsRenderThemeLayoutCss(array $settings, ?string $scope = null): string
+{
+    $s = cmsValidateThemeLayoutSettings($settings);
+    $scope = cmsNormalizeCustomizerScope($scope, cmsActiveCustomizerScope());
+
+    $css = ':root{';
+    $css .= '--theme-site-max-width:' . ($s['site_max_width'] ?? '1280') . 'px;';
+    $css .= '--theme-content-max-width:' . ($s['content_max_width'] ?? '768') . 'px;';
+    $css .= '--theme-content-px:' . ($s['content_padding_x'] ?? '16') . 'px;';
+    $css .= '--theme-content-pt:' . ($s['content_padding_top'] ?? '32') . 'px;';
+    $css .= '--theme-content-pb:' . ($s['content_padding_bottom'] ?? '32') . 'px;';
+    $css .= '}';
+
+    $mode = $s['layout_mode'] ?? 'contained';
+    if ($mode === 'boxed') {
+        $css .= 'body{max-width:var(--theme-site-max-width);margin-left:auto;margin-right:auto;box-shadow:0 0 40px rgba(0,0,0,0.08);}';
+    }
+
+    $css .= '.cms-public-shell{width:100%;max-width:var(--theme-site-max-width);margin-left:auto;margin-right:auto;}';
+    $css .= '.cms-public-main{max-width:var(--theme-site-max-width);margin-left:auto;margin-right:auto;';
+    $css .= 'padding:var(--theme-content-pt) var(--theme-content-px) var(--theme-content-pb);}';
+    $css .= '.cms-shell-entity-view{display:block;width:100%;}';
+    $css .= '.cms-shell-entity-view__body{width:100%;}';
+    $css .= '.cms-shell-entity-view--sidebar{height:100%;}';
+    $css .= '.cms-shell-entity-view--widget .widget,.cms-shell-entity-view--widget .sidebar-widget,.cms-shell-entity-view--widget .header-widget{width:100%;}';
+
+    if ($scope === 'ecommerce') {
+        $css .= '.header-topbar .cms-public-shell,.site-header .cms-public-shell,.footer-widgets .cms-public-shell,.footer-bottom .cms-public-shell{width:100%;max-width:var(--theme-site-max-width);margin-left:auto;margin-right:auto;}';
+        $css .= '.entity-commerce-poc{--container-width:var(--theme-site-max-width);--container-max:var(--theme-site-max-width);}';
+        $css .= '.entity-commerce-poc .poc-main__inner{width:min(var(--theme-site-max-width),calc(100vw - (var(--theme-content-px) * 2)));margin-left:auto;margin-right:auto;}';
+    }
+    $css .= '.poc-header--customized .poc-header__slot--customized{width:min(var(--theme-site-max-width),calc(100vw - (var(--theme-content-px) * 2)));margin-left:auto;margin-right:auto;}';
+    $css .= '.poc-header--customized .poc-header__inner--customized{padding-left:0;padding-right:0;}';
+    $css .= '.poc-header--customized .header-topbar .container.cms-public-shell,.poc-header--customized .site-header .container.cms-public-shell,.poc-footer--customized .footer-widgets .container.cms-public-shell,.poc-footer--customized .footer-bottom .container.cms-public-shell,.poc-header--customized .header-topbar>.cms-public-shell--full,.poc-header--customized .site-header>.cms-public-shell--full,.poc-footer--customized .footer-widgets>.cms-public-shell--full,.poc-footer--customized .footer-bottom>.cms-public-shell--full{width:100%;max-width:none;margin:0;box-sizing:border-box;padding-left:var(--theme-content-px);padding-right:var(--theme-content-px);}';
+    $css .= '.poc-header--customized .header-topbar-inner,.poc-header--customized .header-inner{padding-left:0;padding-right:0;}';
+    $css .= '.footer-bottom>.container.cms-public-shell,.footer-bottom>.cms-public-shell--full{border-top:1px solid color-mix(in srgb, var(--footer-link, var(--footer-text, var(--color-border))) 22%, transparent);}';
+    $css .= '.footer-bottom__inner{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:0.5rem;padding:18px 0;}';
+    $css .= '.footer-bottom__separator{opacity:0.5;}';
+    $css .= '.footer-bottom__admin-link{color:var(--footer-link, var(--footer-text, var(--color-text-light)));font-size:0.8rem;text-decoration:none;}';
+    $css .= '.footer-bottom__admin-link:hover{color:var(--footer-link-hover, var(--color-link-hover));}';
+    $css .= '.cms-content-prose{max-width:var(--theme-content-max-width);margin-left:auto;margin-right:auto;}';
+
+    return $css;
+}
+
 function cmsRenderEntityPresentationCss(array $settings): string
 {
     $presentation = cmsValidateEntityPresentationSettings($settings);
@@ -2118,71 +2163,89 @@ function cmsRenderEntityPresentationCss(array $settings): string
     return $css;
 }
 
-/**
- * Render <style> block with CSS custom properties from Theme Layout settings.
- * Injected into public layout <head>.
- */
-function cmsRenderThemeLayoutStyle(object $db): string
+function cmsRenderPublicThemeStyle(
+    array $themeSettings,
+    ?string $scope = null,
+    bool $renderShell = true,
+    bool $renderEntity = true,
+    string $fragment = 'public_theme_style',
+    string $styleId = 'cz-public-theme-override'
+): string
 {
-    $cached = cmsCustomizerFragmentCacheGet('theme_layout_style');
+    $scope = cmsNormalizeCustomizerScope($scope, cmsActiveCustomizerScope());
+    $cached = cmsCustomizerFragmentCacheGet($fragment, $scope);
     if (is_array($cached) && array_key_exists('html', $cached)) {
         return (string)$cached['html'];
     }
 
-    if (!cmsCustomizerSectionExists($db, 'theme')) {
-        cmsCustomizerFragmentCacheSet('theme_layout_style', ['html' => ''], ['cms:customizer:theme']);
+    $themeCss = '';
+    if ($renderShell && cmsShouldRenderCustomizerPresentationCss('theme', $themeSettings, null, $scope)) {
+        $themeCss = cmsRenderThemeLayoutCss($themeSettings, $scope);
+    }
+
+    $entityCss = '';
+    if ($renderEntity && cmsShouldRenderCustomizerPresentationCss('entity_presentation', $themeSettings, null, $scope)) {
+        $entityCss = cmsRenderEntityPresentationCss($themeSettings);
+    }
+
+    $fontHtml = '';
+    if ($entityCss !== '') {
+        $fontHtml = cmsCustomizerFontStylesheetHtml([
+            (string)($themeSettings['entity_list_title_font'] ?? ''),
+            (string)($themeSettings['entity_list_text_font'] ?? ''),
+        ]);
+    }
+
+    if ($themeCss === '' && $entityCss === '' && $fontHtml === '') {
+        cmsCustomizerFragmentCacheSet($fragment, ['html' => ''], ['cms:customizer:theme', 'cms:customizer:entity_presentation'], $scope);
         return '';
     }
 
-    $data = cmsCustomizerGet($db, 'theme');
-    if (!cmsShouldRenderCustomizerPresentationCss('theme', $data['settings'])) {
-        cmsCustomizerFragmentCacheSet('theme_layout_style', ['html' => ''], ['cms:customizer:theme']);
+    $html = $fontHtml . '<style id="' . htmlspecialchars($styleId, ENT_QUOTES) . '">' . $themeCss . $entityCss . '</style>';
+    cmsCustomizerFragmentCacheSet($fragment, ['html' => $html], ['cms:customizer:theme', 'cms:customizer:entity_presentation'], $scope);
+    return $html;
+}
+
+/**
+ * Render <style> block with CSS custom properties from Theme Layout settings.
+ * Injected into public layout <head>.
+ */
+function cmsRenderThemeLayoutStyle(object $db, ?string $scope = null, ?array $settings = null, string $fragment = 'theme_layout_style', string $styleId = 'cz-theme-layout-override'): string
+{
+    $scope = cmsNormalizeCustomizerScope($scope, cmsActiveCustomizerScope());
+    $useCache = $settings === null;
+
+    if ($useCache) {
+        $cached = cmsCustomizerFragmentCacheGet($fragment, $scope);
+        if (is_array($cached) && array_key_exists('html', $cached)) {
+            return (string)$cached['html'];
+        }
+    }
+
+    if ($settings === null) {
+        if (!cmsCustomizerSectionExists($db, 'theme', $scope)) {
+            if ($useCache) {
+                cmsCustomizerFragmentCacheSet($fragment, ['html' => ''], ['cms:customizer:theme'], $scope);
+            }
+            return '';
+        }
+
+        $data = cmsCustomizerGet($db, 'theme', $scope);
+        $settings = is_array($data['settings'] ?? null) ? $data['settings'] : cmsThemeLayoutSettingsDefaults();
+    }
+
+    if (!cmsShouldRenderCustomizerPresentationCss('theme', $settings, null, $scope)) {
+        if ($useCache) {
+            cmsCustomizerFragmentCacheSet($fragment, ['html' => ''], ['cms:customizer:theme'], $scope);
+        }
         return '';
     }
-    $s = $data['settings'];
 
-    $css = ':root{';
-    $css .= '--theme-site-max-width:' . ($s['site_max_width'] ?? '1280') . 'px;';
-    $css .= '--theme-content-max-width:' . ($s['content_max_width'] ?? '768') . 'px;';
-    $css .= '--theme-content-px:' . ($s['content_padding_x'] ?? '16') . 'px;';
-    $css .= '--theme-content-pt:' . ($s['content_padding_top'] ?? '32') . 'px;';
-    $css .= '--theme-content-pb:' . ($s['content_padding_bottom'] ?? '32') . 'px;';
-    $css .= '}';
-
-    $mode = $s['layout_mode'] ?? 'contained';
-    if ($mode === 'boxed') {
-        $css .= 'body{max-width:var(--theme-site-max-width);margin-left:auto;margin-right:auto;box-shadow:0 0 40px rgba(0,0,0,0.08);}';
+    $css = cmsRenderThemeLayoutCss($settings, $scope);
+    $html = $css !== '' ? '<style id="' . htmlspecialchars($styleId, ENT_QUOTES) . '">' . $css . '</style>' : '';
+    if ($useCache) {
+        cmsCustomizerFragmentCacheSet($fragment, ['html' => $html], ['cms:customizer:theme'], $scope);
     }
-
-    // Main content area
-    $css .= '.cms-public-shell{width:100%;max-width:var(--theme-site-max-width);margin-left:auto;margin-right:auto;}';
-    $css .= '.cms-public-main{max-width:var(--theme-site-max-width);margin-left:auto;margin-right:auto;';
-    $css .= 'padding:var(--theme-content-pt) var(--theme-content-px) var(--theme-content-pb);}';
-    $css .= '.cms-shell-entity-view{display:block;width:100%;}';
-    $css .= '.cms-shell-entity-view__body{width:100%;}';
-    $css .= '.cms-shell-entity-view--sidebar{height:100%;}';
-    $css .= '.cms-shell-entity-view--widget .widget,.cms-shell-entity-view--widget .sidebar-widget,.cms-shell-entity-view--widget .header-widget{width:100%;}';
-
-    if (cmsActiveCustomizerScope() === 'ecommerce') {
-        $css .= '.header-topbar .cms-public-shell,.site-header .cms-public-shell,.footer-widgets .cms-public-shell,.footer-bottom .cms-public-shell{width:100%;max-width:var(--theme-site-max-width);margin-left:auto;margin-right:auto;}';
-        $css .= '.entity-commerce-poc{--container-width:var(--theme-site-max-width);--container-max:var(--theme-site-max-width);}';
-        $css .= '.entity-commerce-poc .poc-main__inner{width:min(var(--theme-site-max-width),calc(100vw - (var(--theme-content-px) * 2)));margin-left:auto;margin-right:auto;}';
-    }
-    $css .= '.poc-header--customized .poc-header__slot--customized{width:min(var(--theme-site-max-width),calc(100vw - (var(--theme-content-px) * 2)));margin-left:auto;margin-right:auto;}';
-    $css .= '.poc-header--customized .poc-header__inner--customized{padding-left:0;padding-right:0;}';
-    $css .= '.poc-header--customized .header-topbar .container.cms-public-shell,.poc-header--customized .site-header .container.cms-public-shell,.poc-footer--customized .footer-widgets .container.cms-public-shell,.poc-footer--customized .footer-bottom .container.cms-public-shell,.poc-header--customized .header-topbar>.cms-public-shell--full,.poc-header--customized .site-header>.cms-public-shell--full,.poc-footer--customized .footer-widgets>.cms-public-shell--full,.poc-footer--customized .footer-bottom>.cms-public-shell--full{width:100%;max-width:none;margin:0;box-sizing:border-box;padding-left:var(--theme-content-px);padding-right:var(--theme-content-px);}';
-    $css .= '.poc-header--customized .header-topbar-inner,.poc-header--customized .header-inner{padding-left:0;padding-right:0;}';
-    $css .= '.footer-bottom>.container.cms-public-shell,.footer-bottom>.cms-public-shell--full{border-top:1px solid color-mix(in srgb, var(--footer-link, var(--footer-text, var(--color-border))) 22%, transparent);}';
-    $css .= '.footer-bottom__inner{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:0.5rem;padding:18px 0;}';
-    $css .= '.footer-bottom__separator{opacity:0.5;}';
-    $css .= '.footer-bottom__admin-link{color:var(--footer-link, var(--footer-text, var(--color-text-light)));font-size:0.8rem;text-decoration:none;}';
-    $css .= '.footer-bottom__admin-link:hover{color:var(--footer-link-hover, var(--color-link-hover));}';
-
-    // Prose / single column
-    $css .= '.cms-content-prose{max-width:var(--theme-content-max-width);margin-left:auto;margin-right:auto;}';
-
-    $html = '<style id="cz-theme-layout-override">' . $css . '</style>';
-    cmsCustomizerFragmentCacheSet('theme_layout_style', ['html' => $html], ['cms:customizer:theme']);
     return $html;
 }
 

@@ -1441,14 +1441,14 @@ t('native ecommerce entity routes keep site theme source under canonical entity 
 t('native ecommerce entity routes stop exposing legacy storefront settings', !array_key_exists('storefront_settings', $nativeEntityStorefrontContext), json_encode($nativeEntityStorefrontContext));
 t('native ecommerce entity routes resolve canonical entity presentation from native settings', ($nativeEntityStorefrontContext['entity_presentation_settings']['entity_summary_width'] ?? '') === '410' && ($nativeEntityStorefrontContext['entity_presentation_source'] ?? '') === 'entity_presentation', json_encode($nativeEntityStorefrontContext));
 t('native ecommerce entity routes merge canonical entity presentation into theme settings', ($nativeEntityStorefrontContext['theme_settings']['entity_summary_width'] ?? '') === '410', json_encode($nativeEntityStorefrontContext));
-t('native ecommerce entity routes append canonical entity presentation style under active theme shell', str_contains((string)($nativeEntityStorefrontContext['theme_layout_style'] ?? ''), 'id="cz-entity-presentation-override"') && !str_contains((string)($nativeEntityStorefrontContext['theme_layout_style'] ?? ''), 'id="cz-storefront-override"'), (string)($nativeEntityStorefrontContext['theme_layout_style'] ?? ''));
+t('native ecommerce entity routes emit one combined public theme style source', str_contains((string)($nativeEntityStorefrontContext['theme_layout_style'] ?? ''), 'id="cz-public-theme-override"') && str_contains((string)($nativeEntityStorefrontContext['theme_layout_style'] ?? ''), '--theme-site-max-width:') && str_contains((string)($nativeEntityStorefrontContext['theme_layout_style'] ?? ''), '--theme-entity-summary-width:') && !str_contains((string)($nativeEntityStorefrontContext['theme_layout_style'] ?? ''), 'id="cz-entity-presentation-override"') && !str_contains((string)($nativeEntityStorefrontContext['theme_layout_style'] ?? ''), 'id="cz-storefront-override"'), (string)($nativeEntityStorefrontContext['theme_layout_style'] ?? ''));
 
 $nativeCartContext = cmsPublicContext([
     'public_render_origin' => 'ecommerce',
     'public_route_kind' => 'cart',
 ]);
 t('native ecommerce cart route keeps theme layout presentation defaults', ($nativeCartContext['theme_settings']['entity_summary_width'] ?? '') === '410', json_encode($nativeCartContext));
-t('native ecommerce cart route uses canonical entity presentation style without storefront override mode', str_contains((string)($nativeCartContext['theme_layout_style'] ?? ''), 'id="cz-entity-presentation-override"') && !str_contains((string)($nativeCartContext['theme_layout_style'] ?? ''), 'id="cz-storefront-override"'), (string)($nativeCartContext['theme_layout_style'] ?? ''));
+t('native ecommerce cart route keeps combined public theme style without storefront override mode', str_contains((string)($nativeCartContext['theme_layout_style'] ?? ''), 'id="cz-public-theme-override"') && !str_contains((string)($nativeCartContext['theme_layout_style'] ?? ''), 'id="cz-entity-presentation-override"') && !str_contains((string)($nativeCartContext['theme_layout_style'] ?? ''), 'id="cz-storefront-override"'), (string)($nativeCartContext['theme_layout_style'] ?? ''));
 
 $colorsStyle = cmsRenderColorsStyle($db);
 t('colors render exposes storefront CSS variables', str_contains($colorsStyle, '--storefront-surface-bg:'), $colorsStyle);
@@ -1465,9 +1465,18 @@ t('colors render syncs entity-commerce-poc container width override', str_contai
 
 $themeStyle = cmsRenderThemeLayoutStyle($db);
 $entityPresentationStyle = cmsRenderEntityPresentationStyle($db);
+$publicThemeStyle = cmsRenderPublicThemeStyle(
+    $nativeEntityStorefrontContext['theme_settings'],
+    'native',
+    true,
+    true,
+    'public_theme_style_test_native',
+    'cz-public-theme-override-test-native'
+);
 t('theme render now limits itself to shell layout variables', !str_contains($themeStyle, '--theme-entity-summary-width:') && !str_contains($themeStyle, '--theme-single-max-width:') && !str_contains($themeStyle, '--theme-blog-gap:') && str_contains($themeStyle, '--theme-site-max-width:'), $themeStyle);
 t('theme render overrides POC customizer chrome with theme-controlled shell gutters', str_contains($themeStyle, '.poc-header--customized .header-topbar .container.cms-public-shell') && str_contains($themeStyle, '.poc-footer--customized .footer-bottom .container.cms-public-shell') && str_contains($themeStyle, 'padding-left:var(--theme-content-px);'), $themeStyle);
 t('theme render centralizes footer bar padding and border through the shared shell contract', str_contains($themeStyle, '.footer-bottom>.container.cms-public-shell,.footer-bottom>.cms-public-shell--full{border-top:1px solid') && str_contains($themeStyle, '.footer-bottom__inner{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:0.5rem;padding:18px 0;}'), $themeStyle);
+t('public theme render combines shell and entity presentation tokens under one override tag', str_contains($publicThemeStyle, 'id="cz-public-theme-override-test-native"') && str_contains($publicThemeStyle, '--theme-site-max-width:') && str_contains($publicThemeStyle, '--theme-entity-summary-width:') && !str_contains($publicThemeStyle, 'id="cz-entity-presentation-override"'), $publicThemeStyle);
 t('canonical entity presentation render exposes entity summary width variable', str_contains($entityPresentationStyle, '--theme-entity-summary-width:'), $entityPresentationStyle);
 t('canonical entity presentation render now owns list and detail geometry variables', str_contains($entityPresentationStyle, '--theme-single-max-width:') && str_contains($entityPresentationStyle, '--theme-blog-gap:') && str_contains($entityPresentationStyle, '--theme-blog-cols:') && str_contains($entityPresentationStyle, '.cms-single-prose{max-width:var(--theme-single-max-width);') && str_contains($entityPresentationStyle, '.cms-blog-listing{'), $entityPresentationStyle);
 t('canonical entity presentation render styles commerce entity layout rail', str_contains($entityPresentationStyle, '.cms-entity-profile-commerce .cms-entity-layout{display:grid;'), $entityPresentationStyle);
@@ -1538,7 +1547,7 @@ $publicCtx = cmsPublicContext();
 t('public context omits legacy storefront settings for ecommerce scope', !array_key_exists('storefront_settings', $publicCtx), json_encode($publicCtx));
 t('public context exposes canonical entity presentation settings for ecommerce scope', ($publicCtx['entity_presentation_settings']['entity_layout_profile'] ?? '') === 'commerce' && ($publicCtx['entity_presentation_source'] ?? '') === 'entity_presentation');
 t('public context merges canonical entity presentation into theme settings for ecommerce scope', ($publicCtx['theme_settings']['entity_summary_width'] ?? '') === '390');
-t('public context appends canonical entity presentation style for ecommerce scope', str_contains((string)($publicCtx['theme_layout_style'] ?? ''), 'id="cz-entity-presentation-override"') && !str_contains((string)($publicCtx['theme_layout_style'] ?? ''), 'id="cz-storefront-override"'), (string)($publicCtx['theme_layout_style'] ?? ''));
+t('public context emits a combined public theme style for ecommerce scope', str_contains((string)($publicCtx['theme_layout_style'] ?? ''), 'id="cz-public-theme-override"') && str_contains((string)($publicCtx['theme_layout_style'] ?? ''), '--theme-site-max-width:') && str_contains((string)($publicCtx['theme_layout_style'] ?? ''), '--theme-entity-summary-width:') && !str_contains((string)($publicCtx['theme_layout_style'] ?? ''), 'id="cz-entity-presentation-override"') && !str_contains((string)($publicCtx['theme_layout_style'] ?? ''), 'id="cz-storefront-override"'), (string)($publicCtx['theme_layout_style'] ?? ''));
 t('public context bridges POC shell width tokens back to theme layout settings', str_contains((string)($publicCtx['theme_layout_style'] ?? ''), '.entity-commerce-poc{--container-width:var(--theme-site-max-width);--container-max:var(--theme-site-max-width);}') && str_contains((string)($publicCtx['theme_layout_style'] ?? ''), '.entity-commerce-poc .poc-main__inner{width:min(var(--theme-site-max-width),calc(100vw - (var(--theme-content-px) * 2)));margin-left:auto;margin-right:auto;}'), (string)($publicCtx['theme_layout_style'] ?? ''));
 
 $customizedHeaderHtml = cmsRenderCustomizedHeader($db, $publicCtx);
