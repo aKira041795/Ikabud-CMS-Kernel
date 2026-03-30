@@ -583,27 +583,45 @@ t('native storefront order detail route resolves dedicated order detail theme te
     'public_route_kind' => 'order_detail',
 ]) === '_cms_active_theme/public/ecommerce/order-detail.disyl');
 
+$nativeCatalogProducts = [[
+    'id' => 1,
+    'slug' => 'demo-product',
+    'title' => 'Demo Product',
+    'excerpt' => 'A short excerpt.',
+    'primary_image_url' => '',
+    'pricing' => [
+        'formatted' => '$19.00',
+        'on_sale' => false,
+        'regular_fmt' => '$19.00',
+        'price' => 19.0,
+    ],
+    'inventory' => [
+        'track_stock' => true,
+        'stock_qty' => 6,
+        'in_stock' => true,
+        'out_of_stock' => false,
+        'low_stock' => false,
+    ],
+]];
+$nativeCatalogStorefront = ecBuildStorefrontCatalogContext($nativeCatalogProducts, [
+    'route_kind' => 'shop_index',
+    'presentation_mode' => 'traditional',
+    'page_title' => 'Shop',
+    'categories' => [],
+    'search' => '',
+    'search_action_url' => '/ecommerce/shop',
+    'all_items_url' => '/ecommerce/shop',
+    'base_list_url' => '/ecommerce/shop',
+    'item_base_url' => '/ecommerce/shop',
+    'page' => 1,
+    'total_pages' => 1,
+    'total' => 1,
+    'cart_count' => 0,
+]);
+t('storefront catalog contract normalizes route, item URL, and inventory badge', ($nativeCatalogStorefront['route']['kind'] ?? '') === 'shop_index' && ($nativeCatalogStorefront['collection']['items'][0]['url'] ?? '') === '/ecommerce/shop/demo-product' && ($nativeCatalogStorefront['collection']['items'][0]['inventory']['badge']['label'] ?? '') === 'In stock', json_encode($nativeCatalogStorefront));
 $nativeShopHtml = captureEcRender('modules/ecommerce/public/shop.disyl', [
     'page_title' => 'Shop',
-    'products' => [[
-        'id' => 1,
-        'slug' => 'demo-product',
-        'title' => 'Demo Product',
-        'excerpt' => 'A short excerpt.',
-        'primary_image_url' => '',
-        'pricing' => [
-            'formatted' => '$19.00',
-            'on_sale' => false,
-            'regular_fmt' => '$19.00',
-        ],
-        'inventory' => [
-            'track_stock' => true,
-            'stock_qty' => 6,
-            'in_stock' => true,
-            'out_of_stock' => false,
-            'low_stock' => false,
-        ],
-    ]],
+    'products' => $nativeCatalogProducts,
     'total' => 1,
     'categories' => [],
     'search' => '',
@@ -612,33 +630,37 @@ $nativeShopHtml = captureEcRender('modules/ecommerce/public/shop.disyl', [
     'per_page' => 12,
     'total_pages' => 1,
     'cart_count' => 0,
+    'storefront' => $nativeCatalogStorefront,
     'public_render_origin' => 'ecommerce',
     'public_route_kind' => 'shop_index',
     'public_presentation_mode' => 'traditional',
 ]);
 t('native storefront shop render uses archive-product theme template', str_contains($nativeShopHtml, 'data-native-ecommerce-template="archive-product"'), $nativeShopHtml);
+t('native storefront shop render exposes storefront contract markers', str_contains($nativeShopHtml, 'data-storefront-route-kind="shop_index"') && str_contains($nativeShopHtml, 'data-storefront-page-kind="catalog"') && str_contains($nativeShopHtml, 'data-storefront-visible-count="1"'), $nativeShopHtml);
 
+$nativeDropdownStorefront = ecBuildStorefrontCatalogContext($nativeCatalogProducts, [
+    'route_kind' => 'shop_index',
+    'presentation_mode' => 'traditional',
+    'page_title' => 'Shop',
+    'categories' => [
+        ['id' => 12, 'name' => 'Bread', 'slug' => 'bread', 'url' => '/ecommerce/shop?cat=12', 'is_active' => false],
+        ['id' => 18, 'name' => 'Wholegrain', 'slug' => 'wholegrain', 'url' => '/ecommerce/shop?cat=18', 'is_active' => true],
+    ],
+    'current_category' => ['id' => 18, 'name' => 'Wholegrain', 'slug' => 'wholegrain'],
+    'search' => 'sourdough',
+    'category_id' => 18,
+    'search_action_url' => '/ecommerce/shop',
+    'all_items_url' => '/ecommerce/shop',
+    'base_list_url' => '/ecommerce/shop',
+    'item_base_url' => '/ecommerce/shop',
+    'page' => 1,
+    'total_pages' => 1,
+    'total' => 1,
+    'cart_count' => 0,
+]);
 $nativeShopDropdownHtml = captureEcRender('modules/ecommerce/public/shop.disyl', [
     'page_title' => 'Shop',
-    'products' => [[
-        'id' => 1,
-        'slug' => 'demo-product',
-        'title' => 'Demo Product',
-        'excerpt' => 'A short excerpt.',
-        'primary_image_url' => '',
-        'pricing' => [
-            'formatted' => '$19.00',
-            'on_sale' => false,
-            'regular_fmt' => '$19.00',
-        ],
-        'inventory' => [
-            'track_stock' => true,
-            'stock_qty' => 6,
-            'in_stock' => true,
-            'out_of_stock' => false,
-            'low_stock' => false,
-        ],
-    ]],
+    'products' => $nativeCatalogProducts,
     'total' => 1,
     'categories' => [
         ['id' => 12, 'name' => 'Bread', 'url' => '/ecommerce/shop?cat=12', 'is_active' => false],
@@ -651,6 +673,7 @@ $nativeShopDropdownHtml = captureEcRender('modules/ecommerce/public/shop.disyl',
     'per_page' => 12,
     'total_pages' => 1,
     'cart_count' => 0,
+    'storefront' => $nativeDropdownStorefront,
     'public_render_origin' => 'ecommerce',
     'public_route_kind' => 'shop_index',
     'public_presentation_mode' => 'traditional',
@@ -658,37 +681,48 @@ $nativeShopDropdownHtml = captureEcRender('modules/ecommerce/public/shop.disyl',
 ]);
 t('native storefront shop can render category dropdown navigation', str_contains($nativeShopDropdownHtml, 'native-shop-category-picker') && str_contains($nativeShopDropdownHtml, 'Shop categories') && str_contains($nativeShopDropdownHtml, 'name="cat"') && str_contains($nativeShopDropdownHtml, 'Browse'), $nativeShopDropdownHtml);
 
+$nativeProductFixture = [
+    'id' => 1,
+    'title' => 'Demo Product',
+    'slug' => 'demo-product',
+    'excerpt' => 'A short excerpt.',
+    'body' => '<p>Body copy</p>',
+    'primary_image_url' => '',
+    'gallery_images' => [],
+    'categories' => [['slug' => 'catalog', 'name' => 'Catalog']],
+    'pricing' => [
+        'formatted' => '$19.00',
+        'on_sale' => false,
+        'regular_fmt' => '$19.00',
+        'price' => 19.0,
+    ],
+    'inventory' => [
+        'track_stock' => true,
+        'stock_qty' => 6,
+        'in_stock' => true,
+        'out_of_stock' => false,
+        'low_stock' => false,
+        'sku' => 'SKU-001',
+    ],
+];
+$nativeProductStorefront = ecBuildStorefrontDetailContext($nativeProductFixture, [
+    'route_kind' => 'product_detail',
+    'presentation_mode' => 'traditional',
+    'page_title' => 'Demo Product',
+    'cart_count' => 0,
+]);
+t('storefront detail contract normalizes product id, category slug, and cart state', ($nativeProductStorefront['product']['id'] ?? 0) === 1 && (($nativeProductStorefront['filters']['category_slug'] ?? '') === 'catalog') && (($nativeProductStorefront['cart']['count'] ?? 1) === 0), json_encode($nativeProductStorefront));
 $nativeProductHtml = captureEcRender('modules/ecommerce/public/product.disyl', [
     'page_title' => 'Demo Product',
-    'product' => [
-        'id' => 1,
-        'title' => 'Demo Product',
-        'slug' => 'demo-product',
-        'excerpt' => 'A short excerpt.',
-        'body' => '<p>Body copy</p>',
-        'primary_image_url' => '',
-        'gallery_images' => [],
-        'categories' => [['slug' => 'catalog', 'name' => 'Catalog']],
-        'pricing' => [
-            'formatted' => '$19.00',
-            'on_sale' => false,
-            'regular_fmt' => '$19.00',
-        ],
-        'inventory' => [
-            'track_stock' => true,
-            'stock_qty' => 6,
-            'in_stock' => true,
-            'out_of_stock' => false,
-            'low_stock' => false,
-            'sku' => 'SKU-001',
-        ],
-    ],
+    'product' => $nativeProductFixture,
     'cart_count' => 0,
+    'storefront' => $nativeProductStorefront,
     'public_render_origin' => 'ecommerce',
     'public_route_kind' => 'product_detail',
     'public_presentation_mode' => 'traditional',
 ]);
 t('native storefront product render uses single-product theme template', str_contains($nativeProductHtml, 'data-native-ecommerce-template="single-product"'), $nativeProductHtml);
+t('native storefront product render exposes storefront contract markers', str_contains($nativeProductHtml, 'data-storefront-route-kind="product_detail"') && str_contains($nativeProductHtml, 'data-storefront-product-id="1"'), $nativeProductHtml);
 
 $nativeCartHtml = captureEcRender('modules/ecommerce/public/cart.disyl', [
     'cart' => [
@@ -890,11 +924,15 @@ t('customizer tracks per-section dirty state for scoped saves', str_contains($cu
 t('customizer save resolves only dirty sections', str_contains($customizerTemplateContent, 'const sections = this.sectionsToSave();'));
 t('canonical entity list template extends the canonical CMS public layout', str_contains($entityListTemplateContent, '{extends "modules/cms/layouts/public.disyl"}'), $entityListTemplateContent);
 t('canonical entity list template exposes dedicated card title hook for catalog overrides', str_contains($entityListTemplateContent, 'cms-entity-card__title'), $entityListTemplateContent);
+t('canonical entity list template exposes storefront contract markers and title bridge', str_contains($entityListTemplateContent, 'data-storefront-route-kind=') && str_contains($entityListTemplateContent, 'storefront.page.title|default:list_title'), $entityListTemplateContent);
 t('canonical entity view template extends the canonical CMS public layout', str_contains($entityViewTemplateContent, '{extends "modules/cms/layouts/public.disyl"}'), $entityViewTemplateContent);
+t('canonical entity view template exposes storefront contract markers', str_contains($entityViewTemplateContent, 'data-storefront-route-kind=') && str_contains($entityViewTemplateContent, 'data-storefront-product-id='), $entityViewTemplateContent);
 t('native default theme ships dedicated archive-product storefront template', str_contains($nativeArchiveProductTemplateContent, 'data-native-ecommerce-template="archive-product"'), $nativeArchiveProductTemplateContent);
 t('native archive-product storefront template uses editorial catalog masthead and chip rail', str_contains($nativeArchiveProductTemplateContent, 'native-shop-masthead') && str_contains($nativeArchiveProductTemplateContent, 'native-shop-chip'), $nativeArchiveProductTemplateContent);
 t('native archive-product storefront template supports category dropdown navigation mode', str_contains($nativeArchiveProductTemplateContent, "theme_settings.entity_list_category_navigation == 'dropdown'") && str_contains($nativeArchiveProductTemplateContent, 'native-shop-category-picker'), $nativeArchiveProductTemplateContent);
+t('native archive-product storefront template consumes storefront contract markers and page title', str_contains($nativeArchiveProductTemplateContent, 'data-storefront-route-kind=') && str_contains($nativeArchiveProductTemplateContent, 'storefront.page.title|default:page_title'), $nativeArchiveProductTemplateContent);
 t('native default theme ships dedicated single-product storefront template', str_contains($nativeSingleProductTemplateContent, 'data-native-ecommerce-template="single-product"'), $nativeSingleProductTemplateContent);
+t('native single-product storefront template consumes storefront contract markers and cart count', str_contains($nativeSingleProductTemplateContent, 'data-storefront-product-id=') && str_contains($nativeSingleProductTemplateContent, 'storefront.cart.count|default:cart_count'), $nativeSingleProductTemplateContent);
 t('ecommerce customizer presents shell-versus-entities workspace copy', str_contains($customizerTemplateContent, 'Shape the storefront shell here: header, navigation, sidebar, footer, palette, and shell layout. Use Entities for the canonical entity view and entity list contract.'));
 t('native customizer explains entities stay inside the active theme shell', str_contains($customizerTemplateContent, 'The active theme shell stays in charge here. Use Entities for canonical page, post, list, and commerce presentation inside that shell.'));
 t('native customizer describes canonical entity presentation inside the active theme shell', str_contains($customizerTemplateContent, 'Canonical entity presentation for pages, posts, lists, and commerce routes inside the active theme shell.'));
@@ -933,10 +971,13 @@ t('legacy archive template reads list presentation from entity presentation sett
 t('legacy single template reads detail presentation from entity presentation settings', str_contains($singleTemplateContent, 'entity_presentation_settings.single_show_author') && str_contains($singleTemplateContent, 'entity_presentation_settings.single_show_nav'), $singleTemplateContent);
 
 $ecInitContent = file_get_contents(BASE_PATH . '/modules/ecommerce/helpers/00-init.php');
+$ecProductsHelperContent = file_get_contents(BASE_PATH . '/modules/ecommerce/helpers/30-products.php');
 $ecPublicShopHandlerContent = file_get_contents(BASE_PATH . '/modules/ecommerce/handlers/10-public-shop.php');
 t('ecommerce public render delegates CMS shell rendering through cms module context', str_contains($ecInitContent, "moduleWithContext('cms', static function () use (") && str_contains($ecInitContent, 'cmsPublicContext($context)'), $ecInitContent);
 t('ecommerce public render resolves native theme storefront template candidates', str_contains($ecInitContent, 'function ecPublicThemeTemplateCandidates(') && str_contains($ecInitContent, 'function ecResolvePublicThemeTemplate('), $ecInitContent);
+t('ecommerce helper layer defines normalized storefront contract builders', str_contains($ecProductsHelperContent, 'function ecBuildStorefrontCatalogContext(') && str_contains($ecProductsHelperContent, 'function ecBuildStorefrontDetailContext('), $ecProductsHelperContent);
 t('shop handler now falls back to a traditional storefront template when canonical rendering is disabled', str_contains($ecPublicShopHandlerContent, "if (ecDispatchCanonicalEntityRoute('cms:cmsPublicEntityList'") && str_contains($ecPublicShopHandlerContent, "ecRender('modules/ecommerce/public/shop.disyl'"), $ecPublicShopHandlerContent);
+t('native storefront fallbacks pass the normalized storefront contract into template context', str_contains($ecPublicShopHandlerContent, 'ecBuildStorefrontCatalogContext(') && str_contains($ecPublicShopHandlerContent, 'ecBuildStorefrontDetailContext(') && str_contains($ecPublicShopHandlerContent, "'storefront' => \$storefront"), $ecPublicShopHandlerContent);
 t('ecommerce public render defines explicit presentation mode resolver', str_contains($ecInitContent, 'function ecResolvePublicPresentationMode('), $ecInitContent);
 t('ecommerce public render defines canonical entity-route guard helpers', str_contains($ecInitContent, 'function ecDispatchCanonicalEntityRoute(') && str_contains($ecInitContent, 'function ecAssertTraditionalEntityTemplateAllowed('), $ecInitContent);
 t('ecommerce public render blocks traditional entity templates in entity-view mode', str_contains($ecInitContent, 'ecAssertTraditionalEntityTemplateAllowed($template, $context);') && str_contains($ecInitContent, 'Traditional ecommerce template "'), $ecInitContent);
@@ -1591,6 +1632,108 @@ $cmsCanonicalBlogHtml = cmsPublicCanonicalRenderEntityList([
     'public_route_kind' => 'blog-home',
     'public_presentation_mode' => 'canonical',
 ]);
+$storefrontCanonicalProductHtml = cmsPublicCanonicalRenderEntityView([
+    'id' => 101,
+    'title' => 'Canonical Product',
+    'slug' => 'canonical-product',
+    'body' => '<p>Product body</p>',
+    'excerpt' => 'Product summary',
+    'type' => 'product',
+    'primary_image_url' => '',
+    'gallery_images' => [],
+    'categories' => [[
+        'id' => 12,
+        'slug' => 'bread',
+        'name' => 'Bread',
+    ]],
+    'pricing' => [
+        'price' => 32.0,
+        'sale_price' => 28.0,
+        'formatted' => '$28.00',
+        'regular_fmt' => '$32.00',
+        'on_sale' => true,
+    ],
+    'inventory' => [
+        'track_stock' => true,
+        'stock_qty' => 2,
+        'in_stock' => true,
+        'out_of_stock' => false,
+        'low_stock' => true,
+    ],
+], [
+    'content_type' => 'product',
+    'meta' => [],
+    'rendered_html' => '<p>Product body</p>',
+    'public_render_origin' => 'ecommerce',
+    'public_route_kind' => 'product_detail',
+    'public_presentation_mode' => 'entity_view',
+]);
+$storefrontCanonicalCatalogHtml = cmsPublicCanonicalRenderEntityList([
+    [
+        'id' => 101,
+        'title' => 'Canonical Product',
+        'slug' => 'canonical-product',
+        'type' => 'product',
+        'excerpt' => 'Product summary',
+        'url' => '/ecommerce/shop/canonical-product',
+        'primary_image_url' => '',
+        'pricing' => [
+            'price' => 32.0,
+            'sale_price' => 28.0,
+            'formatted' => '$28.00',
+            'regular_fmt' => '$32.00',
+            'on_sale' => true,
+        ],
+        'inventory' => [
+            'track_stock' => true,
+            'stock_qty' => 2,
+            'in_stock' => true,
+            'out_of_stock' => false,
+            'low_stock' => true,
+        ],
+        'categories' => [[
+            'id' => 12,
+            'slug' => 'bread',
+            'name' => 'Bread',
+        ]],
+    ],
+], [
+    'default_type' => 'product',
+    'page_title' => 'Catalog',
+    'list_title' => 'Catalog',
+    'list_description' => '1 result',
+    'entity_list_context' => [
+        'base_list_url' => '/ecommerce/shop',
+        'item_base_url' => '/ecommerce/shop',
+        'search' => 'sourdough',
+        'search_action_url' => '/ecommerce/shop',
+        'all_items_url' => '/ecommerce/shop',
+        'category_id' => 12,
+        'category_name' => 'Bread',
+        'category_slug' => 'bread',
+        'available_categories' => [[
+            'id' => 12,
+            'name' => 'Bread',
+            'slug' => 'bread',
+            'url' => '/ecommerce/shop?cat=12',
+            'is_active' => true,
+        ]],
+        'result_count' => 1,
+        'result_label' => '1 result',
+        'active_filter_count' => 2,
+        'search_placeholder' => 'Search products',
+        'all_items_label' => 'All Products',
+    ],
+    'pagination' => [
+        'current' => 1,
+        'total' => 1,
+        'prev_url' => '',
+        'next_url' => '',
+    ],
+    'public_render_origin' => 'ecommerce',
+    'public_route_kind' => 'shop_index',
+    'public_presentation_mode' => 'entity_view',
+]);
 t('customized storefront header renders through theme partial wrapper', str_contains($customizedHeaderHtml, 'poc-header--customized'), $customizedHeaderHtml);
 t('customized storefront header emits shell entity-view wrapper', str_contains($customizedHeaderHtml, 'data-shell-entity-region="header"') && str_contains($customizedHeaderHtml, 'data-shell-entity-node="region"'), $customizedHeaderHtml);
 t('customized storefront header renders through theme inner shell', str_contains($customizedHeaderHtml, 'poc-header__inner--customized'), $customizedHeaderHtml);
@@ -1600,6 +1743,8 @@ t('customized storefront header fallback nav stays on storefront routes', str_co
 t('customized storefront header search overlay posts to storefront query endpoint', str_contains($customizedHeaderHtml, '/ecommerce/shop') && str_contains($customizedHeaderHtml, 'name="search"'), $customizedHeaderHtml);
 t('canonical CMS page render bypasses storefront entity-view template', !str_contains($cmsCanonicalPageHtml, '<article class="poc-entity-view') && str_contains($cmsCanonicalPageHtml, '<article class="cms-entity-view') && str_contains($cmsCanonicalPageHtml, 'cms-entity-profile-content'), $cmsCanonicalPageHtml);
 t('canonical CMS blog render bypasses storefront entity-list template', preg_match('/<section\s+class="poc-entity-list/', $cmsCanonicalBlogHtml) !== 1 && str_contains($cmsCanonicalBlogHtml, 'class="cms-entity-list cms-entity-list--density-') && preg_match('/<div\s+class="poc-product-card"/', $cmsCanonicalBlogHtml) !== 1, $cmsCanonicalBlogHtml);
+t('canonical storefront product render auto-injects storefront contract markers', str_contains($storefrontCanonicalProductHtml, 'data-storefront-route-kind="product_detail"') && str_contains($storefrontCanonicalProductHtml, 'data-storefront-page-kind="detail"') && str_contains($storefrontCanonicalProductHtml, 'data-storefront-product-id="101"'), $storefrontCanonicalProductHtml);
+t('canonical storefront list render auto-injects storefront contract markers', str_contains($storefrontCanonicalCatalogHtml, 'data-storefront-route-kind="shop_index"') && str_contains($storefrontCanonicalCatalogHtml, 'data-storefront-page-kind="catalog"') && str_contains($storefrontCanonicalCatalogHtml, 'data-storefront-result-total="1"'), $storefrontCanonicalCatalogHtml);
 t('canonical CMS header keeps shell metadata in canonical mode', str_contains($cmsCanonicalHeaderHtml, 'data-public-presentation-mode="canonical"'), $cmsCanonicalHeaderHtml);
 t('canonical CMS header preserves the CMS route kind in shell metadata', str_contains($cmsCanonicalHeaderHtml, 'data-public-route-kind="page"'), $cmsCanonicalHeaderHtml);
 t('canonical CMS header routes branding to the CMS home path', str_contains($cmsCanonicalHeaderHtml, 'href="' . $publicBaseUrl . '/cms" class="site-logo"') && !str_contains($cmsCanonicalHeaderHtml, 'href="' . $publicBaseUrl . '/ecommerce/shop" class="site-logo"'), $cmsCanonicalHeaderHtml);

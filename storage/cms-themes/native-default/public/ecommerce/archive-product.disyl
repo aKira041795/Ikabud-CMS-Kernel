@@ -5,14 +5,21 @@
 {/block}
 
 {block content}
-<div class="native-storefront native-shop-archive" data-native-ecommerce-template="archive-product">
+<div
+    class="native-storefront native-shop-archive"
+    data-native-ecommerce-template="archive-product"
+    data-storefront-route-kind="{storefront.route.kind|default:public_route_kind|default:'generic'}"
+    data-storefront-mode="{storefront.route.mode|default:public_presentation_mode|default:'traditional'}"
+    data-storefront-page-kind="{storefront.page.kind|default:'catalog'}"
+    data-storefront-visible-count="{storefront.collection.visible_count|default:visible_count|default:0}"
+>
     <section class="native-shop-masthead">
         <div class="native-shop-masthead__copy">
             <div class="native-shop-masthead__eyebrow-row">
                 <p class="native-storefront-kicker">{if current_cat}Category Collection{else}Storefront{/if}</p>
-                <span class="native-shop-masthead__count">{total} pieces</span>
+                <span class="native-shop-masthead__count">{storefront.collection.total|default:total|default:0} pieces</span>
             </div>
-            <h1>{page_title | default:"Shop"}</h1>
+            <h1>{storefront.page.title|default:page_title|default:"Shop"}</h1>
             {if current_cat}
             <p class="native-storefront-subtitle">Browse products filed under {current_cat.name}. The layout leans into a cleaner fashion-grid rhythm while keeping the native theme shell intact.</p>
             {elseif search}
@@ -24,25 +31,25 @@
             <div class="native-shop-masthead__metrics">
                 <div class="native-shop-metric">
                     <span>Categories</span>
-                    <strong>{catalog_category_count | default:0}</strong>
+                    <strong>{storefront.collection.category_count|default:catalog_category_count|default:0}</strong>
                 </div>
                 <div class="native-shop-metric">
                     <span>Visible</span>
-                    <strong>{visible_count | default:0}</strong>
+                    <strong>{storefront.collection.visible_count|default:visible_count|default:0}</strong>
                 </div>
                 <div class="native-shop-metric">
                     <span>Basket</span>
-                    <strong>{cart_count | default:0}</strong>
+                    <strong>{storefront.cart.count|default:cart_count|default:0}</strong>
                 </div>
             </div>
         </div>
 
         <div class="native-shop-masthead__utility">
-            <form method="get" action="{search_action_url | default:'/ecommerce/shop'}" class="native-shop-searchbar">
+            <form method="get" action="{storefront.navigation.search_action_url|default:search_action_url|default:'/ecommerce/shop'}" class="native-shop-searchbar">
                 <label for="native-shop-search">Search the catalog</label>
                 <div class="native-shop-searchbar__controls">
-                    <input id="native-shop-search" type="text" name="search" value="{search}" placeholder="Search products">
-                    {if category_id > 0}<input type="hidden" name="cat" value="{category_id}">{/if}
+                    <input id="native-shop-search" type="text" name="search" value="{storefront.filters.search|default:search}" placeholder="Search products">
+                    {if storefront.filters.category_id|default:category_id > 0}<input type="hidden" name="cat" value="{storefront.filters.category_id|default:category_id}">{/if}
                     <button type="submit">Search</button>
                 </div>
             </form>
@@ -50,7 +57,7 @@
             <a href="{base_url}/ecommerce/cart" class="native-shop-service">
                 <span class="native-shop-service__eyebrow">Express checkout</span>
                 <strong>Review your basket</strong>
-                <small>{cart_count | default:0} item(s) ready for checkout</small>
+                <small>{storefront.cart.count|default:cart_count|default:0} item(s) ready for checkout</small>
             </a>
         </div>
     </section>

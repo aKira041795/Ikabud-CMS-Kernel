@@ -6,7 +6,7 @@
 {/block}
 
 {block content}
-<article class="poc-entity-view poc-entity-view--{entity_presentation.layout_profile|default:'default'}"{if public_render_origin} data-public-render-origin="{public_render_origin}"{/if}{if public_route_kind} data-public-route-kind="{public_route_kind}"{/if}{if public_presentation_mode} data-public-presentation-mode="{public_presentation_mode}"{/if}>
+<article class="poc-entity-view poc-entity-view--{entity_presentation.layout_profile|default:'default'}"{if public_render_origin} data-public-render-origin="{public_render_origin}"{/if}{if public_route_kind} data-public-route-kind="{public_route_kind}"{/if}{if public_presentation_mode} data-public-presentation-mode="{public_presentation_mode}"{/if} data-storefront-route-kind="{storefront.route.kind|default:public_route_kind|default:'generic'}" data-storefront-mode="{storefront.route.mode|default:public_presentation_mode|default:'traditional'}" data-storefront-page-kind="{storefront.page.kind|default:'entity'}" data-storefront-product-id="{storefront.product.id|default:entity.id|default:''}">
 
     {if entity_presentation.layout_profile == 'commerce'}
 

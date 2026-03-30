@@ -10,6 +10,10 @@
     data-public-render-origin="{public_render_origin|default:'cms'}"
     data-public-route-kind="{public_route_kind|default:'generic'}"
     data-public-presentation-mode="{public_presentation_mode|default:'traditional'}"
+    data-storefront-route-kind="{storefront.route.kind|default:public_route_kind|default:'generic'}"
+    data-storefront-mode="{storefront.route.mode|default:public_presentation_mode|default:'traditional'}"
+    data-storefront-page-kind="{storefront.page.kind|default:'catalog'}"
+    data-storefront-result-total="{storefront.collection.total|default:entity_list_context.result_count|default:0}"
     data-list-search="{entity_list_context.search|default:''}"
     data-list-category-slug="{entity_list_context.category_slug|default:''}"
     data-list-result-count="{entity_list_context.result_count|default:0}"
@@ -18,8 +22,8 @@
 
     {if list_title}
     <header class="mb-6">
-        <h1 class="text-2xl font-bold text-gray-900">{list_title}</h1>
-        {if list_description}<p class="text-gray-500 mt-1">{list_description}</p>{/if}
+        <h1 class="text-2xl font-bold text-gray-900">{storefront.page.title|default:list_title}</h1>
+        {if storefront.page.description|default:list_description}<p class="text-gray-500 mt-1">{storefront.page.description|default:list_description}</p>{/if}
         {if entity_presentation.list_show_filter_summary and (entity_list_context.result_label or entity_list_context.category_name or entity_list_context.search)}
         <div class="mt-3 flex flex-wrap gap-2 text-xs font-medium text-gray-500">
             {if entity_list_context.result_label}<span class="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-1">{entity_list_context.result_label}</span>{/if}

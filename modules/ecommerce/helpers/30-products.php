@@ -297,6 +297,422 @@ function ecProductPrimaryImageUrl(string $featuredImageUrl, array $galleryImages
     return '';
 }
 
+function ecStorefrontCurrentCartCount(?int $cartCount = null): int
+{
+    if ($cartCount !== null) {
+        return max(0, $cartCount);
+    }
+
+    return max(0, (int)(ecCartGet()['totals']['item_count'] ?? 0));
+}
+
+function ecStorefrontNormalizePricing(array $pricing): array
+{
+    $price = isset($pricing['price']) ? (float)$pricing['price'] : null;
+    $salePrice = isset($pricing['sale_price']) ? (float)$pricing['sale_price'] : null;
+    $onSale = array_key_exists('on_sale', $pricing)
+        ? (bool)$pricing['on_sale']
+        : ($price !== null && $salePrice !== null && $salePrice > 0 && $salePrice < $price);
+    $activePrice = isset($pricing['active_price'])
+        ? (float)$pricing['active_price']
+        : ($onSale && $salePrice !== null ? $salePrice : $price);
+
+    $symbol = (string)ecSettings('currency_symbol');
+    $formatted = trim((string)($pricing['formatted'] ?? ''));
+    if ($formatted === '' && $activePrice !== null) {
+        $formatted = $symbol . number_format($activePrice, 2);
+    }
+
+    $regularFormatted = trim((string)($pricing['regular_fmt'] ?? ''));
+    if ($regularFormatted === '' && $price !== null) {
+        $regularFormatted = $symbol . number_format($price, 2);
+    }
+
+    return [
+        'price' => $price,
+        'sale_price' => $salePrice,
+        'active_price' => $activePrice,
+        'currency' => trim((string)($pricing['currency'] ?? ecSettings('currency'))),
+        'on_sale' => $onSale,
+        'formatted' => $formatted !== '' ? $formatted : null,
+        'regular_fmt' => $regularFormatted !== '' ? $regularFormatted : null,
+    ];
+}
+
+function ecStorefrontNormalizeInventory(array $inventory): array
+{
+    $trackStock = (bool)($inventory['track_stock'] ?? false);
+    $stockQty = array_key_exists('stock_qty', $inventory) ? (int)$inventory['stock_qty'] : null;
+    $inStock = array_key_exists('in_stock', $inventory)
+        ? (bool)$inventory['in_stock']
+        : (!$trackStock || (($stockQty ?? 0) > 0));
+    $outOfStock = array_key_exists('out_of_stock', $inventory)
+        ? (bool)$inventory['out_of_stock']
+        : ($trackStock && (($stockQty ?? 0) <= 0));
+    $lowStock = array_key_exists('low_stock', $inventory)
+        ? (bool)$inventory['low_stock']
+        : ($trackStock && !$outOfStock && $stockQty !== null && $stockQty <= (int)ecSettings('low_stock_threshold'));
+
+    return [
+        'track_stock' => $trackStock,
+        'stock_qty' => $stockQty,
+        'sku' => trim((string)($inventory['sku'] ?? '')),
+        'in_stock' => $inStock,
+        'out_of_stock' => $outOfStock,
+        'low_stock' => $lowStock,
+    ];
+}
+
+function ecStorefrontSaleBadgeText(array $pricing): string
+{
+    $pricing = ecStorefrontNormalizePricing($pricing);
+    $price = $pricing['price'];
+    $salePrice = $pricing['sale_price'];
+    if (!$pricing['on_sale'] || $price === null || $salePrice === null || $price <= 0) {
+        return '';
+    }
+
+    $discountPercent = (int)round((($price - $salePrice) / $price) * 100);
+    if ($discountPercent <= 0) {
+        return '';
+    }
+
+    return $discountPercent . '% off';
+}
+
+function ecStorefrontInventoryBadge(array $inventory): array
+{
+    $inventory = ecStorefrontNormalizeInventory($inventory);
+    if (!$inventory['track_stock']) {
+        return ['label' => '', 'tone' => 'muted'];
+    }
+
+    if ($inventory['out_of_stock'] || !$inventory['in_stock']) {
+        return ['label' => 'Sold out', 'tone' => 'danger'];
+    }
+
+    if ($inventory['low_stock']) {
+        $remaining = max(0, (int)($inventory['stock_qty'] ?? 0));
+        return [
+            'label' => $remaining > 0 ? ($remaining . ' left') : 'Low stock',
+            'tone' => 'warning',
+        ];
+    }
+
+    return ['label' => 'In stock', 'tone' => 'success'];
+}
+
+function ecStorefrontNormalizeCategories(array $categories, int $activeCategoryId = 0, string $activeCategorySlug = ''): array
+{
+    $normalized = [];
+
+    foreach ($categories as $category) {
+        if (!is_array($category)) {
+            continue;
+        }
+
+        $categoryId = (int)($category['id'] ?? 0);
+        $categorySlug = trim((string)($category['slug'] ?? ''));
+        $categoryName = trim((string)($category['name'] ?? ''));
+        if ($categoryName === '' || ($categoryId <= 0 && $categorySlug === '')) {
+            continue;
+        }
+
+        $url = trim((string)($category['url'] ?? ''));
+        if ($url === '') {
+            if ($categorySlug !== '') {
+                $url = '/ecommerce/shop/category/' . rawurlencode($categorySlug);
+            } elseif ($categoryId > 0) {
+                $url = '/ecommerce/shop?cat=' . $categoryId;
+            }
+        }
+
+        $normalized[] = [
+            'id' => $categoryId,
+            'slug' => $categorySlug,
+            'name' => $categoryName,
+            'url' => $url,
+            'is_active' => (bool)($category['is_active'] ?? false)
+                || ($activeCategoryId > 0 && $categoryId === $activeCategoryId)
+                || ($activeCategorySlug !== '' && $categorySlug === $activeCategorySlug),
+        ];
+    }
+
+    return $normalized;
+}
+
+function ecStorefrontFindActiveCategory(array $categories, array $currentCategory = [], int $categoryId = 0, string $categorySlug = ''): ?array
+{
+    $candidate = ecStorefrontNormalizeCategories([$currentCategory], $categoryId, $categorySlug);
+    if ($candidate !== []) {
+        return $candidate[0];
+    }
+
+    foreach ($categories as $category) {
+        if (!is_array($category)) {
+            continue;
+        }
+
+        if (!empty($category['is_active'])) {
+            return $category;
+        }
+
+        if ($categoryId > 0 && (int)($category['id'] ?? 0) === $categoryId) {
+            return $category;
+        }
+
+        if ($categorySlug !== '' && trim((string)($category['slug'] ?? '')) === $categorySlug) {
+            return $category;
+        }
+    }
+
+    return null;
+}
+
+function ecStorefrontHydrateProduct(array $product): array
+{
+    $productId = (int)($product['id'] ?? 0);
+    $needsHydration = $productId > 0 && (
+        !is_array($product['pricing'] ?? null)
+        || !is_array($product['inventory'] ?? null)
+        || !is_array($product['categories'] ?? null)
+        || !is_array($product['gallery_images'] ?? null)
+        || trim((string)($product['primary_image_url'] ?? '')) === ''
+    );
+
+    if ($needsHydration) {
+        $hydrated = ecProductGet($productId);
+        if (is_array($hydrated)) {
+            $product = array_merge($hydrated, $product);
+        }
+    }
+
+    if (!is_array($product['pricing'] ?? null) && is_array($product['capability_data']['pricing'] ?? null)) {
+        $product['pricing'] = $product['capability_data']['pricing'];
+    }
+    if (!is_array($product['inventory'] ?? null) && is_array($product['capability_data']['inventory'] ?? null)) {
+        $product['inventory'] = $product['capability_data']['inventory'];
+    }
+    if (!is_array($product['categories'] ?? null)) {
+        $product['categories'] = [];
+    }
+    if (!is_array($product['gallery_images'] ?? null)) {
+        $product['gallery_images'] = [];
+    }
+
+    $featuredImageUrl = trim((string)($product['featured_image_url'] ?? ''));
+    if ($featuredImageUrl === '' && !empty($product['featured_image'])) {
+        $featuredImageUrl = ecProductResolveFeaturedImageUrl((string)$product['featured_image']);
+    }
+    $product['featured_image_url'] = $featuredImageUrl;
+    if (trim((string)($product['primary_image_url'] ?? '')) === '') {
+        $product['primary_image_url'] = ecProductPrimaryImageUrl($featuredImageUrl, is_array($product['gallery_images']) ? $product['gallery_images'] : []);
+    }
+
+    return $product;
+}
+
+function ecBuildStorefrontCatalogItem(array $product, array $options = []): array
+{
+    $product = ecStorefrontHydrateProduct($product);
+    $slug = trim((string)($product['slug'] ?? ''));
+    $itemBaseUrl = rtrim((string)($options['item_base_url'] ?? '/ecommerce/shop'), '/');
+    $detailUrl = trim((string)($product['detail_url'] ?? $product['url'] ?? ''));
+    if ($detailUrl === '') {
+        $detailUrl = $slug !== ''
+            ? (($itemBaseUrl !== '' ? $itemBaseUrl : '/ecommerce/shop') . '/' . rawurlencode($slug))
+            : '/ecommerce/shop';
+    }
+
+    $pricing = ecStorefrontNormalizePricing(is_array($product['pricing'] ?? null) ? $product['pricing'] : []);
+    $inventory = ecStorefrontNormalizeInventory(is_array($product['inventory'] ?? null) ? $product['inventory'] : []);
+    $inventoryBadge = ecStorefrontInventoryBadge($inventory);
+    $saleBadgeText = trim((string)($product['sale_badge_text'] ?? ''));
+    if ($saleBadgeText === '') {
+        $saleBadgeText = ecStorefrontSaleBadgeText($pricing);
+    }
+
+    return [
+        'id' => (int)($product['id'] ?? 0),
+        'slug' => $slug,
+        'title' => trim((string)($product['title'] ?? '')),
+        'excerpt' => trim((string)($product['excerpt'] ?? '')),
+        'url' => $detailUrl,
+        'primary_image_url' => trim((string)($product['primary_image_url'] ?? '')),
+        'featured_image_url' => trim((string)($product['featured_image_url'] ?? '')),
+        'pricing' => $pricing,
+        'inventory' => array_merge($inventory, ['badge' => $inventoryBadge]),
+        'badges' => [
+            'sale' => $saleBadgeText,
+            'inventory' => $inventoryBadge,
+        ],
+        'categories' => ecStorefrontNormalizeCategories(is_array($product['categories'] ?? null) ? $product['categories'] : []),
+    ];
+}
+
+function ecBuildStorefrontCatalogContext(array $products, array $options = []): array
+{
+    $routeKind = trim((string)($options['route_kind'] ?? 'shop_index'));
+    if ($routeKind === '') {
+        $routeKind = 'shop_index';
+    }
+
+    $presentationMode = trim((string)($options['presentation_mode'] ?? 'traditional'));
+    if ($presentationMode === '') {
+        $presentationMode = 'traditional';
+    }
+
+    $categoryId = (int)($options['category_id'] ?? 0);
+    $categorySlug = trim((string)($options['category_slug'] ?? ''));
+    $categories = ecStorefrontNormalizeCategories(
+        is_array($options['categories'] ?? null)
+            ? $options['categories']
+            : (is_array($options['available_categories'] ?? null) ? $options['available_categories'] : []),
+        $categoryId,
+        $categorySlug
+    );
+    $activeCategory = ecStorefrontFindActiveCategory(
+        $categories,
+        is_array($options['current_category'] ?? null) ? $options['current_category'] : [],
+        $categoryId,
+        $categorySlug
+    );
+
+    if ($activeCategory !== null) {
+        if ($categoryId <= 0) {
+            $categoryId = (int)($activeCategory['id'] ?? 0);
+        }
+        if ($categorySlug === '') {
+            $categorySlug = trim((string)($activeCategory['slug'] ?? ''));
+        }
+    }
+
+    $items = [];
+    foreach ($products as $product) {
+        if (!is_array($product)) {
+            continue;
+        }
+
+        $items[] = ecBuildStorefrontCatalogItem($product, [
+            'item_base_url' => (string)($options['item_base_url'] ?? '/ecommerce/shop'),
+        ]);
+    }
+
+    $paginationRaw = is_array($options['pagination'] ?? null) ? $options['pagination'] : [];
+    $pagination = [
+        'current' => max(1, (int)($paginationRaw['current'] ?? $options['page'] ?? 1)),
+        'total' => max(1, (int)($paginationRaw['total'] ?? $options['total_pages'] ?? 1)),
+        'first_url' => trim((string)($paginationRaw['first_url'] ?? $options['pagination_first_url'] ?? '')),
+        'prev_url' => trim((string)($paginationRaw['prev_url'] ?? $options['pagination_prev_url'] ?? '')),
+        'next_url' => trim((string)($paginationRaw['next_url'] ?? $options['pagination_next_url'] ?? '')),
+    ];
+
+    $search = trim((string)($options['search'] ?? ''));
+    $pageTitle = trim((string)($options['page_title'] ?? ''));
+    if ($pageTitle === '') {
+        $pageTitle = 'Shop';
+    }
+    $pageDescription = trim((string)($options['page_description'] ?? $options['list_description'] ?? ''));
+    if ($pageDescription === '') {
+        if ($search !== '' && $activeCategory !== null) {
+            $pageDescription = 'Showing results for "' . $search . '" in ' . (string)($activeCategory['name'] ?? $pageTitle) . '.';
+        } elseif ($search !== '') {
+            $pageDescription = 'Showing results for "' . $search . '" across the current catalog.';
+        } elseif ($activeCategory !== null) {
+            $pageDescription = 'Browse products filed under ' . (string)($activeCategory['name'] ?? $pageTitle) . '.';
+        }
+    }
+
+    return [
+        'route' => [
+            'origin' => trim((string)($options['origin'] ?? 'ecommerce')),
+            'kind' => $routeKind,
+            'mode' => $presentationMode,
+        ],
+        'page' => [
+            'kind' => 'catalog',
+            'title' => $pageTitle,
+            'description' => $pageDescription,
+        ],
+        'navigation' => [
+            'shop_url' => trim((string)($options['shop_url'] ?? '/ecommerce/shop')),
+            'search_action_url' => trim((string)($options['search_action_url'] ?? $options['base_list_url'] ?? '/ecommerce/shop')),
+            'all_items_url' => trim((string)($options['all_items_url'] ?? $options['base_list_url'] ?? '/ecommerce/shop')),
+            'categories' => $categories,
+        ],
+        'filters' => [
+            'search' => $search,
+            'category_id' => $categoryId,
+            'category_slug' => $categorySlug,
+            'active_category' => $activeCategory,
+        ],
+        'collection' => [
+            'total' => max(0, (int)($options['total'] ?? count($items))),
+            'visible_count' => count($items),
+            'category_count' => count($categories),
+            'items' => $items,
+            'pagination' => $pagination,
+        ],
+        'cart' => [
+            'count' => ecStorefrontCurrentCartCount(isset($options['cart_count']) ? (int)$options['cart_count'] : null),
+        ],
+    ];
+}
+
+function ecBuildStorefrontDetailContext(array $product, array $options = []): array
+{
+    $routeKind = trim((string)($options['route_kind'] ?? 'product_detail'));
+    if ($routeKind === '') {
+        $routeKind = 'product_detail';
+    }
+
+    $presentationMode = trim((string)($options['presentation_mode'] ?? 'traditional'));
+    if ($presentationMode === '') {
+        $presentationMode = 'traditional';
+    }
+
+    $product = ecStorefrontHydrateProduct($product);
+    $categories = ecStorefrontNormalizeCategories(is_array($product['categories'] ?? null) ? $product['categories'] : []);
+    $activeCategory = $categories[0] ?? null;
+    $galleryImages = ecProductNormalizeGalleryImages(is_array($product['gallery_images'] ?? null) ? $product['gallery_images'] : []);
+    $catalogItem = ecBuildStorefrontCatalogItem($product, [
+        'item_base_url' => (string)($options['item_base_url'] ?? '/ecommerce/shop'),
+    ]);
+
+    return [
+        'route' => [
+            'origin' => trim((string)($options['origin'] ?? 'ecommerce')),
+            'kind' => $routeKind,
+            'mode' => $presentationMode,
+        ],
+        'page' => [
+            'kind' => 'detail',
+            'title' => trim((string)($options['page_title'] ?? $product['title'] ?? '')),
+            'description' => trim((string)($options['page_description'] ?? $product['excerpt'] ?? '')),
+        ],
+        'navigation' => [
+            'shop_url' => trim((string)($options['shop_url'] ?? '/ecommerce/shop')),
+            'search_action_url' => trim((string)($options['search_action_url'] ?? '/ecommerce/shop')),
+            'all_items_url' => trim((string)($options['all_items_url'] ?? $options['shop_url'] ?? '/ecommerce/shop')),
+            'categories' => $categories,
+        ],
+        'filters' => [
+            'search' => '',
+            'category_id' => (int)($activeCategory['id'] ?? 0),
+            'category_slug' => trim((string)($activeCategory['slug'] ?? '')),
+            'active_category' => $activeCategory,
+        ],
+        'product' => array_merge($catalogItem, [
+            'body' => (string)($product['body'] ?? ''),
+            'gallery_images' => $galleryImages,
+            'categories' => $categories,
+        ]),
+        'cart' => [
+            'count' => ecStorefrontCurrentCartCount(isset($options['cart_count']) ? (int)$options['cart_count'] : null),
+        ],
+    ];
+}
+
 /**
  * Create a new product (cms_content row) and apply the ecommerce preset.
  *

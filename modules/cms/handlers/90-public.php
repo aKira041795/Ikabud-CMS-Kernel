@@ -1232,6 +1232,7 @@ function cmsPublicEntityView(array $params = []): void
     $builderEnabled = cmsPageBuilderEnabled($meta);
     $builderSettings = cmsPageBuilderSettings($meta);
     $structuredData = cmsStructuredDataJsonLd($entity);
+    $templateContext = is_array($params['template_context'] ?? null) ? $params['template_context'] : [];
 
     $html = cmsPublicCanonicalRenderEntityView($entity, [
         'content_type' => $type,
@@ -1244,6 +1245,7 @@ function cmsPublicEntityView(array $params = []): void
         'public_render_origin' => (string)($params['public_render_origin'] ?? 'cms'),
         'public_route_kind' => (string)($params['public_route_kind'] ?? 'generic'),
         'public_presentation_mode' => (string)($params['public_presentation_mode'] ?? 'canonical'),
+        'template_context' => $templateContext,
     ]);
 
     $updatedAt = (string)($entity['updated_at'] ?? $entity['published_at'] ?? date('Y-m-d H:i:s'));
@@ -1583,53 +1585,29 @@ function cmsPublicEntityList(array $params = []): void
         'all_items_url' => $allItemsUrl,
         'search_action_url' => $searchActionUrl,
     ];
+    if ($publicRenderOrigin === 'ecommerce' && $type === 'product') {
+        $listContext = array_merge([
+            'search_placeholder' => 'Search products',
+            'search_button_label' => 'Search',
+            'category_navigation_label' => 'Shop Categories',
+            'all_items_label' => 'All Products',
+            'category_submit_label' => 'Browse',
+            'empty_title' => 'No items found.',
+            'empty_link_label' => 'Browse all products',
+        ], $listContext);
+    }
 
-    $sidebarTemplateKey = cmsSidebarTemplateKeyFromPath($templatePath, 'entity-list');
-    $pageContext = cmsPublicContext([
-        'page_title'       => $listTitle,
-        'list_title'       => $listTitle,
+    $html = cmsPublicCanonicalRenderEntityList($items, [
+        'default_type' => $type,
+        'page_title' => $listTitle,
+        'list_title' => $listTitle,
         'list_description' => $listDescription,
-        'pagination'       => $pagination,
+        'pagination' => $pagination,
         'entity_list_context' => $listContext,
-        'content_type'     => $type,
-        'sidebar_template' => $sidebarTemplateKey,
         'public_render_origin' => $publicRenderOrigin,
         'public_route_kind' => $publicRouteKind,
         'public_presentation_mode' => $publicPresentationMode,
     ]);
-    $pageContext['entity_render_family'] = cmsCanonicalEntityRenderFamily(array_merge($entityRenderContext, ['items' => $items]));
-    $pageContext['entity_presentation'] = cmsCanonicalEntityPresentationConfig(
-        is_array($pageContext['entity_presentation_settings'] ?? null)
-            ? $pageContext['entity_presentation_settings']
-            : (is_array($pageContext['theme_settings'] ?? null) ? $pageContext['theme_settings'] : []),
-        array_merge($entityRenderContext, ['items' => $items])
-    );
-
-    foreach ($items as &$item) {
-        $itemContext = cmsPublicEntityListItemBlockContext($item, $pageContext, $type);
-        $capabilities = is_array($itemContext['capabilities'] ?? null) ? $itemContext['capabilities'] : [];
-        $presentation = is_array($pageContext['entity_presentation'] ?? null) ? $pageContext['entity_presentation'] : [];
-        $item['list_card_excerpt'] = !empty($presentation['list_show_excerpt'])
-            ? cmsEntityListCardExcerpt((string)($item['excerpt'] ?? ''), (int)($presentation['list_excerpt_length'] ?? 120))
-            : '';
-
-        $item['list_card_pricing_html'] = !empty($capabilities['pricing'])
-            ? cmsRenderThemeAwareBlockTemplate('modules/cms/public/blocks/list-card-pricing.block.disyl', $itemContext)
-            : '';
-        $item['list_card_inventory_html'] = !empty($capabilities['inventory'])
-            ? cmsRenderThemeAwareBlockTemplate('modules/cms/public/blocks/list-card-inventory.block.disyl', $itemContext)
-            : '';
-        $item['list_card_progress_html'] = !empty($capabilities['progress_tracking'])
-            ? cmsRenderThemeAwareBlockTemplate('modules/cms/public/blocks/list-card-progress.block.disyl', $itemContext)
-            : '';
-        $item['list_card_action_html'] = (!empty($capabilities['pricing']) && !empty($pageContext['cart_enabled']))
-            ? cmsRenderThemeAwareBlockTemplate('modules/cms/public/blocks/list-card-action.block.disyl', $itemContext)
-            : '';
-    }
-    unset($item);
-
-    $pageContext['items'] = $items;
-    $html = cmsRenderThemeAwareTemplate($templatePath, $pageContext);
 
     $updatedAt = date('Y-m-d H:i:s');
     $etag = md5($html);
@@ -1922,6 +1900,22 @@ function cmsPublicCanonicalRenderEntityView(array $entity, array $options = []):
     $templatePath = cmsResolveContentTemplate('public/entity.view.disyl', $meta, $type, $entityRenderContext);
     $sidebarTemplateKey = cmsSidebarTemplateKeyFromPath($templatePath, 'entity-view');
     $templateContext = is_array($options['template_context'] ?? null) ? $options['template_context'] : [];
+    if (
+        !array_key_exists('storefront', $templateContext)
+        && $publicRenderOrigin === 'ecommerce'
+        && $type === 'product'
+        && function_exists('ecBuildStorefrontDetailContext')
+    ) {
+        $templateContext['storefront'] = ecBuildStorefrontDetailContext($entity, [
+            'route_kind' => $publicRouteKind,
+            'presentation_mode' => $publicPresentationMode,
+            'page_title' => (string)($entity['title'] ?? ''),
+            'shop_url' => (string)($options['shop_url'] ?? '/ecommerce/shop'),
+            'all_items_url' => (string)($options['all_items_url'] ?? $options['shop_url'] ?? '/ecommerce/shop'),
+            'item_base_url' => (string)($options['item_base_url'] ?? '/ecommerce/shop'),
+            'cart_count' => array_key_exists('cart_count', $options) ? (int)$options['cart_count'] : null,
+        ]);
+    }
 
     $viewContext = cmsPublicContext(array_merge([
         'page_title' => (string)($entity['title'] ?? ''),
@@ -2034,6 +2028,35 @@ function cmsPublicCanonicalRenderEntityList(array $items, array $options = []): 
     }
 
     $templateContext = is_array($options['template_context'] ?? null) ? $options['template_context'] : [];
+    if (
+        !array_key_exists('storefront', $templateContext)
+        && $publicRenderOrigin === 'ecommerce'
+        && $defaultType === 'product'
+        && function_exists('ecBuildStorefrontCatalogContext')
+    ) {
+        $templateContext['storefront'] = ecBuildStorefrontCatalogContext($items, [
+            'route_kind' => $publicRouteKind,
+            'presentation_mode' => $publicPresentationMode,
+            'page_title' => (string)($options['list_title'] ?? $options['page_title'] ?? ''),
+            'page_description' => (string)($options['list_description'] ?? ''),
+            'base_list_url' => (string)($listContext['base_list_url'] ?? ''),
+            'item_base_url' => (string)($listContext['item_base_url'] ?? ''),
+            'search' => (string)($listContext['search'] ?? ''),
+            'search_action_url' => (string)($listContext['search_action_url'] ?? ''),
+            'all_items_url' => (string)($listContext['all_items_url'] ?? ''),
+            'category_id' => (int)($listContext['category_id'] ?? 0),
+            'category_slug' => (string)($listContext['category_slug'] ?? ''),
+            'current_category' => [
+                'id' => (int)($listContext['category_id'] ?? 0),
+                'slug' => (string)($listContext['category_slug'] ?? ''),
+                'name' => (string)($listContext['category_name'] ?? ''),
+            ],
+            'categories' => is_array($listContext['available_categories'] ?? null) ? $listContext['available_categories'] : [],
+            'pagination' => $pagination,
+            'total' => (int)($listContext['result_count'] ?? count($items)),
+            'cart_count' => array_key_exists('cart_count', $options) ? (int)$options['cart_count'] : null,
+        ]);
+    }
     $pageContext = cmsPublicContext(array_merge([
         'page_title' => (string)($options['page_title'] ?? $options['list_title'] ?? ''),
         'list_title' => (string)($options['list_title'] ?? ''),

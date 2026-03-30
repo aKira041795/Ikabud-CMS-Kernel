@@ -5,7 +5,14 @@
 {/block}
 
 {block content}
-<div class="native-storefront native-product-page" data-native-ecommerce-template="single-product">
+<div
+    class="native-storefront native-product-page"
+    data-native-ecommerce-template="single-product"
+    data-storefront-route-kind="{storefront.route.kind|default:public_route_kind|default:'generic'}"
+    data-storefront-mode="{storefront.route.mode|default:public_presentation_mode|default:'traditional'}"
+    data-storefront-page-kind="{storefront.page.kind|default:'detail'}"
+    data-storefront-product-id="{storefront.product.id|default:product.id|default:''}"
+>
     <nav class="native-breadcrumbs" aria-label="Breadcrumb">
         <ol>
             <li><a href="{base_url}/cms">Home</a></li>
@@ -92,7 +99,7 @@
             {/if}
 
             <div class="native-actions">
-                <a href="{base_url}/ecommerce/cart" class="button button-secondary">View Cart ({cart_count | default:0})</a>
+                <a href="{base_url}/ecommerce/cart" class="button button-secondary">View Cart ({storefront.cart.count|default:cart_count|default:0})</a>
             </div>
         </aside>
     </div>

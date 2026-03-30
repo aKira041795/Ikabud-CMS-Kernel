@@ -10,6 +10,10 @@
     data-public-render-origin="{public_render_origin|default:'cms'}"
     data-public-route-kind="{public_route_kind|default:'generic'}"
     data-public-presentation-mode="{public_presentation_mode|default:'traditional'}"
+    data-storefront-route-kind="{storefront.route.kind|default:public_route_kind|default:'generic'}"
+    data-storefront-mode="{storefront.route.mode|default:public_presentation_mode|default:'traditional'}"
+    data-storefront-page-kind="{storefront.page.kind|default:'catalog'}"
+    data-storefront-result-total="{storefront.collection.total|default:entity_list_context.result_count|default:0}"
     data-list-search="{entity_list_context.search|default:''}"
     data-list-category-slug="{entity_list_context.category_slug|default:''}"
     data-list-result-count="{entity_list_context.result_count|default:0}"
@@ -18,9 +22,9 @@
 
     <div class="poc-entity-list__hero">
         <div>
-            <h1 class="poc-title">{if list_title}{list_title}{else}Shop{/if}</h1>
-            {if list_description}
-            <p class="poc-summary">{list_description}</p>
+            <h1 class="poc-title">{if storefront.page.title|default:list_title}{storefront.page.title|default:list_title}{else}Shop{/if}</h1>
+            {if storefront.page.description|default:list_description}
+            <p class="poc-summary">{storefront.page.description|default:list_description}</p>
             {/if}
             {if entity_presentation.list_show_filter_summary and (entity_list_context.result_label or entity_list_context.category_name or entity_list_context.search)}
             <div class="poc-entity-list__filters">

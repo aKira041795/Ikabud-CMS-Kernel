@@ -66,38 +66,11 @@ function ecPublicDecorateCatalogProducts(array $products): array
             continue;
         }
 
-        $slug = trim((string)($product['slug'] ?? ''));
-        $product['detail_url'] = $slug !== ''
-            ? '/ecommerce/shop/' . rawurlencode($slug)
-            : '/ecommerce/shop';
-
-        $product['sale_badge_text'] = '';
-        $pricing = is_array($product['pricing'] ?? null) ? $product['pricing'] : [];
-        $regularPrice = isset($pricing['price']) ? (float)$pricing['price'] : null;
-        $salePrice = isset($pricing['sale_price']) ? (float)$pricing['sale_price'] : null;
-        if ($regularPrice !== null && $regularPrice > 0 && $salePrice !== null && $salePrice > 0 && $salePrice < $regularPrice) {
-            $discountPercent = (int)round((($regularPrice - $salePrice) / $regularPrice) * 100);
-            if ($discountPercent > 0) {
-                $product['sale_badge_text'] = $discountPercent . '% off';
-            }
-        }
-
-        $product['inventory_badge_text'] = '';
-        $product['inventory_badge_tone'] = 'muted';
-        $inventory = is_array($product['inventory'] ?? null) ? $product['inventory'] : [];
-        if ((bool)($inventory['track_stock'] ?? false)) {
-            if (!empty($inventory['out_of_stock']) || empty($inventory['in_stock'])) {
-                $product['inventory_badge_text'] = 'Sold out';
-                $product['inventory_badge_tone'] = 'danger';
-            } elseif (!empty($inventory['low_stock'])) {
-                $remaining = max(0, (int)($inventory['stock_qty'] ?? 0));
-                $product['inventory_badge_text'] = $remaining > 0 ? ($remaining . ' left') : 'Low stock';
-                $product['inventory_badge_tone'] = 'warning';
-            } else {
-                $product['inventory_badge_text'] = 'In stock';
-                $product['inventory_badge_tone'] = 'success';
-            }
-        }
+        $storefrontItem = ecBuildStorefrontCatalogItem($product, ['item_base_url' => '/ecommerce/shop']);
+        $product['detail_url'] = (string)($storefrontItem['url'] ?? '/ecommerce/shop');
+        $product['sale_badge_text'] = (string)($storefrontItem['badges']['sale'] ?? '');
+        $product['inventory_badge_text'] = (string)($storefrontItem['inventory']['badge']['label'] ?? '');
+        $product['inventory_badge_tone'] = (string)($storefrontItem['inventory']['badge']['tone'] ?? 'muted');
 
         $resolved[] = $product;
     }
@@ -166,6 +139,45 @@ function ecPublicShop(): void
         ]);
         $products = ecPublicDecorateCatalogProducts($productResult['items']);
         $totalPages = $perPage > 0 ? max(1, (int)ceil($productResult['total'] / $perPage)) : 1;
+        $cartCount = (int)(ecCartGet()['totals']['item_count'] ?? 0);
+        $paginationFirstUrl = ecPublicStorefrontPageUrl('/ecommerce/shop', 1, [
+            'search' => $search,
+            'cat' => $categoryId,
+        ]);
+        $paginationPrevUrl = $page > 1
+            ? ecPublicStorefrontPageUrl('/ecommerce/shop', $page - 1, [
+                'search' => $search,
+                'cat' => $categoryId,
+            ])
+            : '';
+        $paginationNextUrl = $page < $totalPages
+            ? ecPublicStorefrontPageUrl('/ecommerce/shop', $page + 1, [
+                'search' => $search,
+                'cat' => $categoryId,
+            ])
+            : '';
+        $storefront = ecBuildStorefrontCatalogContext($products, [
+            'route_kind' => 'shop_index',
+            'presentation_mode' => $presentationMode,
+            'page_title' => trim((string)ecSettings('shop_page_title')) ?: 'Shop',
+            'current_category' => $currentCategory ?? [],
+            'categories' => $availableCategories,
+            'search' => $search,
+            'category_id' => $categoryId,
+            'search_action_url' => '/ecommerce/shop',
+            'all_items_url' => '/ecommerce/shop',
+            'base_list_url' => '/ecommerce/shop',
+            'item_base_url' => '/ecommerce/shop',
+            'total' => (int)$productResult['total'],
+            'cart_count' => $cartCount,
+            'pagination' => [
+                'current' => $page,
+                'total' => $totalPages,
+                'first_url' => $paginationFirstUrl,
+                'prev_url' => $paginationPrevUrl,
+                'next_url' => $paginationNextUrl,
+            ],
+        ]);
 
         ecRender('modules/ecommerce/public/shop.disyl', [
             'page_title' => trim((string)ecSettings('shop_page_title')) ?: 'Shop',
@@ -183,23 +195,11 @@ function ecPublicShop(): void
             'search_action_url' => '/ecommerce/shop',
             'visible_count' => count($products),
             'catalog_category_count' => count($availableCategories),
-            'pagination_first_url' => ecPublicStorefrontPageUrl('/ecommerce/shop', 1, [
-                'search' => $search,
-                'cat' => $categoryId,
-            ]),
-            'pagination_prev_url' => $page > 1
-                ? ecPublicStorefrontPageUrl('/ecommerce/shop', $page - 1, [
-                    'search' => $search,
-                    'cat' => $categoryId,
-                ])
-                : '',
-            'pagination_next_url' => $page < $totalPages
-                ? ecPublicStorefrontPageUrl('/ecommerce/shop', $page + 1, [
-                    'search' => $search,
-                    'cat' => $categoryId,
-                ])
-                : '',
-            'cart_count' => (int)(ecCartGet()['totals']['item_count'] ?? 0),
+            'pagination_first_url' => $paginationFirstUrl,
+            'pagination_prev_url' => $paginationPrevUrl,
+            'pagination_next_url' => $paginationNextUrl,
+            'cart_count' => $cartCount,
+            'storefront' => $storefront,
             'public_route_kind' => 'shop_index',
             'public_presentation_mode' => $presentationMode,
         ]);
@@ -272,6 +272,43 @@ function ecPublicCategory(array $params = []): void
         $products = ecPublicDecorateCatalogProducts($productResult['items']);
 
         $totalPages = $perPage > 0 ? (int)ceil($productResult['total'] / $perPage) : 1;
+        $cartCount = (int)(ecCartGet()['totals']['item_count'] ?? 0);
+        $paginationFirstUrl = ecPublicStorefrontPageUrl('/ecommerce/shop/category/' . rawurlencode($slug), 1, [
+            'search' => $search,
+        ]);
+        $paginationPrevUrl = $page > 1
+            ? ecPublicStorefrontPageUrl('/ecommerce/shop/category/' . rawurlencode($slug), $page - 1, [
+                'search' => $search,
+            ])
+            : '';
+        $paginationNextUrl = $page < $totalPages
+            ? ecPublicStorefrontPageUrl('/ecommerce/shop/category/' . rawurlencode($slug), $page + 1, [
+                'search' => $search,
+            ])
+            : '';
+        $storefront = ecBuildStorefrontCatalogContext($products, [
+            'route_kind' => 'shop_category',
+            'presentation_mode' => $presentationMode,
+            'page_title' => (string)($cat['name'] ?? 'Shop'),
+            'current_category' => $cat,
+            'categories' => $availableCategories,
+            'search' => $search,
+            'category_id' => (int)($cat['id'] ?? 0),
+            'category_slug' => $slug,
+            'search_action_url' => '/ecommerce/shop/category/' . rawurlencode($slug),
+            'all_items_url' => '/ecommerce/shop',
+            'base_list_url' => '/ecommerce/shop/category/' . rawurlencode($slug),
+            'item_base_url' => '/ecommerce/shop',
+            'total' => (int)$productResult['total'],
+            'cart_count' => $cartCount,
+            'pagination' => [
+                'current' => $page,
+                'total' => $totalPages,
+                'first_url' => $paginationFirstUrl,
+                'prev_url' => $paginationPrevUrl,
+                'next_url' => $paginationNextUrl,
+            ],
+        ]);
 
         ecRender('modules/ecommerce/public/shop.disyl', [
             'page_title'  => $cat['name'],
@@ -289,20 +326,11 @@ function ecPublicCategory(array $params = []): void
             'search_action_url' => '/ecommerce/shop/category/' . rawurlencode($slug),
             'visible_count' => count($products),
             'catalog_category_count' => count($availableCategories),
-            'pagination_first_url' => ecPublicStorefrontPageUrl('/ecommerce/shop/category/' . rawurlencode($slug), 1, [
-                'search' => $search,
-            ]),
-            'pagination_prev_url' => $page > 1
-                ? ecPublicStorefrontPageUrl('/ecommerce/shop/category/' . rawurlencode($slug), $page - 1, [
-                    'search' => $search,
-                ])
-                : '',
-            'pagination_next_url' => $page < $totalPages
-                ? ecPublicStorefrontPageUrl('/ecommerce/shop/category/' . rawurlencode($slug), $page + 1, [
-                    'search' => $search,
-                ])
-                : '',
-            'cart_count'  => (int)(ecCartGet()['totals']['item_count'] ?? 0),
+            'pagination_first_url' => $paginationFirstUrl,
+            'pagination_prev_url' => $paginationPrevUrl,
+            'pagination_next_url' => $paginationNextUrl,
+            'cart_count'  => $cartCount,
+            'storefront' => $storefront,
             'public_route_kind' => 'shop_category',
             'public_presentation_mode' => $presentationMode,
         ]);
@@ -340,10 +368,22 @@ function ecPublicProduct(array $params = []): void
             return;
         }
 
+        $cartCount = (int)(ecCartGet()['totals']['item_count'] ?? 0);
+        $storefront = ecBuildStorefrontDetailContext($product, [
+            'route_kind' => 'product_detail',
+            'presentation_mode' => $presentationMode,
+            'page_title' => (string)($product['title'] ?? ''),
+            'shop_url' => '/ecommerce/shop',
+            'all_items_url' => '/ecommerce/shop',
+            'item_base_url' => '/ecommerce/shop',
+            'cart_count' => $cartCount,
+        ]);
+
         ecRender('modules/ecommerce/public/product.disyl', [
             'page_title'  => $product['title'],
             'product'     => $product,
-            'cart_count'  => (int)(ecCartGet()['totals']['item_count'] ?? 0),
+            'cart_count'  => $cartCount,
+            'storefront' => $storefront,
             'public_route_kind' => 'product_detail',
             'public_presentation_mode' => $presentationMode,
         ]);

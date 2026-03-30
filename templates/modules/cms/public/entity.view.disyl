@@ -7,7 +7,7 @@
 
 {block content}
 {if entity_view_context.bypass_shell|default:0}
-<article class="cms-entity-view w-full {if entity_presentation.root_class}{entity_presentation.root_class}{/if}"{if public_render_origin} data-public-render-origin="{public_render_origin}"{/if}{if public_route_kind} data-public-route-kind="{public_route_kind}"{/if}{if public_presentation_mode} data-public-presentation-mode="{public_presentation_mode}"{/if}>
+<article class="cms-entity-view w-full {if entity_presentation.root_class}{entity_presentation.root_class}{/if}"{if public_render_origin} data-public-render-origin="{public_render_origin}"{/if}{if public_route_kind} data-public-route-kind="{public_route_kind}"{/if}{if public_presentation_mode} data-public-presentation-mode="{public_presentation_mode}"{/if} data-storefront-route-kind="{storefront.route.kind|default:public_route_kind|default:'generic'}" data-storefront-mode="{storefront.route.mode|default:public_presentation_mode|default:'traditional'}" data-storefront-page-kind="{storefront.page.kind|default:'entity'}" data-storefront-product-id="{storefront.product.id|default:entity.id|default:''}">
     {if builder_enabled}
     <div class="{builder_page_settings.container_class}">
         {post_html | raw}
@@ -19,7 +19,7 @@
     {/if}
 </article>
 {else}
-<article class="cms-entity-view w-full max-w-5xl mx-auto px-4 py-8 {if entity_presentation.root_class}{entity_presentation.root_class}{/if}"{if public_render_origin} data-public-render-origin="{public_render_origin}"{/if}{if public_route_kind} data-public-route-kind="{public_route_kind}"{/if}{if public_presentation_mode} data-public-presentation-mode="{public_presentation_mode}"{/if}>
+<article class="cms-entity-view w-full max-w-5xl mx-auto px-4 py-8 {if entity_presentation.root_class}{entity_presentation.root_class}{/if}"{if public_render_origin} data-public-render-origin="{public_render_origin}"{/if}{if public_route_kind} data-public-route-kind="{public_route_kind}"{/if}{if public_presentation_mode} data-public-presentation-mode="{public_presentation_mode}"{/if} data-storefront-route-kind="{storefront.route.kind|default:public_route_kind|default:'generic'}" data-storefront-mode="{storefront.route.mode|default:public_presentation_mode|default:'traditional'}" data-storefront-page-kind="{storefront.page.kind|default:'entity'}" data-storefront-product-id="{storefront.product.id|default:entity.id|default:''}">
 
     {if entity_presentation.header_before_media}
         {* ── Header / Meta ────────────────────────────────────────────── *}
