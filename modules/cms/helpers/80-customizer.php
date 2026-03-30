@@ -267,6 +267,26 @@ function cmsEcommercePublicPresentationMode(array $context = []): string
     return in_array($routeKind, cmsEcommerceEntityViewRouteKinds(), true) ? 'entity_view' : 'traditional';
 }
 
+function cmsHeaderTransparencyEnabled(array $settings, array $publicCtx = []): bool
+{
+    if ((int)($settings['transparent_home'] ?? 0) !== 1) {
+        return false;
+    }
+
+    $routeKind = trim((string)($publicCtx['public_route_kind'] ?? ''));
+    $renderOrigin = trim((string)($publicCtx['public_render_origin'] ?? ''));
+
+    if ($routeKind === 'front-page') {
+        return true;
+    }
+
+    if ($renderOrigin === 'ecommerce' && $routeKind === 'shop_index') {
+        return true;
+    }
+
+    return false;
+}
+
 function cmsKnownCustomizerSections(): array
 {
     return ['footer', 'header', 'sidebar', 'colors', 'custom_code', 'entity_presentation', 'theme'];
@@ -1762,6 +1782,8 @@ function cmsHeaderSettingsDefaults(): array
         'cta_url'                => '',
         'cta_style'              => 'primary',
         'inner_width'            => 'contained',
+        'header_inner_width'     => 'contained',
+        'topbar_inner_width'     => 'contained',
         'logo_image_url'         => '',
         'logo_max_height'        => '40',
         'favicon_url'            => '',
@@ -3140,9 +3162,14 @@ function cmsValidateHeaderSettings(array $input): array
     $validated['cta_style'] = in_array($input['cta_style'] ?? '', ['primary', 'secondary', 'outline'], true)
         ? $input['cta_style'] : $defaults['cta_style'];
 
-    // Inner width
-    $validated['inner_width'] = in_array($input['inner_width'] ?? '', ['contained', 'full-width'], true)
+    // Shell widths. Keep the legacy inner_width key mapped to the main header.
+    $legacyInnerWidth = in_array($input['inner_width'] ?? '', ['contained', 'full-width'], true)
         ? $input['inner_width'] : $defaults['inner_width'];
+    $validated['header_inner_width'] = in_array($input['header_inner_width'] ?? '', ['contained', 'full-width'], true)
+        ? $input['header_inner_width'] : $legacyInnerWidth;
+    $validated['topbar_inner_width'] = in_array($input['topbar_inner_width'] ?? '', ['contained', 'full-width'], true)
+        ? $input['topbar_inner_width'] : $legacyInnerWidth;
+    $validated['inner_width'] = $validated['header_inner_width'];
 
     // Height — 'auto' or pixel value 40-120
     $hVal = trim((string)($validated['height'] ?? 'auto'));
@@ -3301,8 +3328,10 @@ function cmsRenderCustomizedHeader(object $db, array $publicCtx = []): string
     $mobileBg      = htmlspecialchars($settings['mobile_bg_color'] ?? '#ffffff');
     $mobileText    = htmlspecialchars($settings['mobile_text_color'] ?? '#1f2937');
     $isSticky      = (int)($settings['sticky'] ?? 1);
-    $shellWidthMode = cmsCustomizerShellWidthMode($settings);
-    $innerWidth    = cmsCustomizerShellWidthClasses($settings);
+    $shellWidthMode = cmsCustomizerShellWidthMode($settings, 'header_inner_width');
+    $headerInnerWidth = cmsCustomizerShellWidthClasses($settings, 'header_inner_width');
+    $topbarShellWidthMode = cmsCustomizerShellWidthMode($settings, 'topbar_inner_width');
+    $topbarInnerWidth = cmsCustomizerShellWidthClasses($settings, 'topbar_inner_width');
     $layout        = $settings['layout'] ?? 'default';
     $logoUrl       = trim((string)($settings['logo_image_url'] ?? ''));
     $logoMaxH      = (int)($settings['logo_max_height'] ?? 40);
@@ -3336,9 +3365,9 @@ function cmsRenderCustomizedHeader(object $db, array $publicCtx = []): string
         . '--header-mobile-text:' . $mobileText . ';'
         . '--header-height:' . $heightCssVar . ';';
 
-    // Transparent header: opacity-based background transparency (all pages)
+    // Transparent header applies only on home-like routes.
     $transparentJs = '';
-    $isTransparentEnabled = (int)($settings['transparent_home'] ?? 0);
+    $isTransparentEnabled = cmsHeaderTransparencyEnabled($settings, $publicCtx);
     $transText = '';
     $transLogo = '';
     $headerBgOpacity = 100;
@@ -3412,8 +3441,8 @@ function cmsRenderCustomizedHeader(object $db, array $publicCtx = []): string
             . 'padding:' . $tbPadY . 'px 0;'
             . ($tbBorder ? 'border-bottom:1px solid rgba(255,255,255,0.1);' : '');
 
-        $html .= '<div class="header-topbar" style="' . $tbStyle . '">';
-        $html .= '<div class="' . $innerWidth . '">';
+        $html .= '<div class="header-topbar cms-shell-width-' . $topbarShellWidthMode . '" style="' . $tbStyle . '">';
+        $html .= '<div class="' . $topbarInnerWidth . '">';
         $html .= '<div class="header-topbar-inner" style="justify-content:' . $tbJustify . ';">';
         foreach ($widgets as $widget) {
             $html .= cmsRenderSingleHeaderWidget($widget, $db, $cmsSettings, $baseUrl);
@@ -3422,8 +3451,8 @@ function cmsRenderCustomizedHeader(object $db, array $publicCtx = []): string
     }
 
     // ── Main Header ──────────────────────────────────────────────────
-    $html .= '<header class="site-header' . $stickyClass . $layoutClass . '" style="' . $cssVars . '">';
-    $html .= '<div class="' . $innerWidth . '">';
+    $html .= '<header class="site-header' . $stickyClass . $layoutClass . ' cms-shell-width-' . $shellWidthMode . '" style="' . $cssVars . '">';
+    $html .= '<div class="' . $headerInnerWidth . '">';
     $html .= '<div class="header-inner" style="' . $heightStyle . 'padding:' . $paddingTop . 'px 0 ' . $paddingBottom . 'px;">';
 
     // Branding
@@ -3680,10 +3709,10 @@ function cmsRenderCustomizedHeader(object $db, array $publicCtx = []): string
         $transparentJs .= 'h.style.setProperty("--header-link-hover","#ffffff");';
         $transparentJs .= 'h.style.setProperty("--header-logo-color",lg);h.style.setProperty("--header-border","transparent");';
         $transparentJs .= '}';
-        // Revert to normal text colors but keep opacity on background (for sticky scroll)
+        // Revert to the solid header colors once the sticky header scrolls away from the hero.
         $transparentJs .= 'function revert(){';
         $transparentJs .= 'if(!active)return;active=false;';
-        $transparentJs .= 'h.style.setProperty("--header-bg","rgba("+r+","+g+","+b+","+op+")");';
+        $transparentJs .= 'h.style.setProperty("--header-bg",oBg);';
         $transparentJs .= 'h.style.setProperty("--header-text",oTx);';
         $transparentJs .= 'h.style.setProperty("--header-link",oLk);h.style.setProperty("--header-link-hover",oLh);';
         $transparentJs .= 'h.style.setProperty("--header-logo-color",oLg);h.style.setProperty("--header-border",oBd);';

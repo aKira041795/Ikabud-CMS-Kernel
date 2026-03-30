@@ -13,9 +13,18 @@
     .sa-module.sa-disabled { opacity: .65; }
     .sa-module-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 20px; border-bottom: 1px solid var(--border); background: var(--bg); }
     .sa-module-left { display: flex; align-items: center; gap: 12px; }
+    .sa-module-right { display: flex; align-items: center; gap: 10px; }
     .sa-module-name { font-size: 15px; font-weight: 700; color: var(--text); }
     .sa-module-version { font-size: 11px; font-weight: 600; color: var(--text-muted); background: var(--surface); padding: 2px 8px; border-radius: 8px; }
+    .sa-module-collapse { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface); color: var(--text-muted); padding: 6px 10px; cursor: pointer; transition: border-color .15s, color .15s, background .15s; }
+    .sa-module-collapse:hover { border-color: var(--primary, #2563eb); color: var(--text); background: var(--bg); }
+    .sa-module-collapse-label { font-size: 11px; font-weight: 600; }
+    .sa-module-chevron { width: 8px; height: 8px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: rotate(45deg); transition: transform .15s ease; margin-top: -2px; }
     .sa-module-desc { font-size: 12px; color: var(--text-muted); padding: 4px 20px 0; }
+    .sa-module-body { display: block; }
+    .sa-module[data-expanded="0"] .sa-module-body { display: none; }
+    .sa-module[data-expanded="0"] .sa-module-header { border-bottom: none; }
+    .sa-module[data-expanded="0"] .sa-module-chevron { transform: rotate(-45deg); margin-top: 1px; }
     .sa-badge { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 6px; text-transform: uppercase; letter-spacing: .3px; }
     .sa-badge-on { background: #d1fae5; color: #065f46; }
     .sa-badge-off { background: #fee2e2; color: #991b1b; }
@@ -91,7 +100,7 @@
 {/if}
 <div class="sa-module-list">
     {foreach modules as mod}
-    <div class="sa-module {if not mod.is_enabled}sa-disabled{/if}" id="sa-mod-{mod.id}">
+    <div class="sa-module {if not mod.is_enabled}sa-disabled{/if}" id="sa-mod-{mod.id}" data-expanded="1">
         <div class="sa-module-header">
             <div class="sa-module-left">
                 {if tenant_db_ok}
@@ -109,17 +118,27 @@
                     {/if}
                 </div>
             </div>
-            <span class="sa-module-version">v{mod.version}</span>
+            <div class="sa-module-right">
+                <span class="sa-module-version">v{mod.version}</span>
+                <button type="button" class="sa-module-collapse" aria-expanded="true" aria-controls="sa-body-{mod.id}" onclick="toggleModulePanel('{mod.id}')">
+                    <span class="sa-module-collapse-label">Collapse</span>
+                    <span class="sa-module-chevron"></span>
+                </button>
+            </div>
         </div>
+        <div class="sa-module-body" id="sa-body-{mod.id}">
         {if mod.description}
         <div class="sa-module-desc">{mod.description}</div>
         {/if}
 
-        {if not mod.is_enabled}
-        <div class="sa-module-notice">Enable this module to configure its settings.</div>
+        {if not tenant_db_ok}
+        <div class="sa-module-notice">This tenant needs a working database connection before module settings can be updated.</div>
         {elseif not mod.has_fields}
         <div class="sa-module-notice">This module has no configurable settings.</div>
         {else}
+        {if not mod.is_enabled}
+        <div class="sa-module-notice">This module is disabled for this tenant. You can still save settings now; they will apply when enabled.</div>
+        {/if}
         <div class="sa-fields" id="sa-fields-{mod.id}">
             {foreach mod.fields as field}
             {if field.is_checkbox}
@@ -163,6 +182,7 @@
             <button class="sa-btn-save" onclick="saveModuleSettings('{mod.id}')">Save</button>
         </div>
         {/if}
+        </div>
     </div>
     {/foreach}
 </div>
@@ -174,6 +194,60 @@
 var CSRF = '{csrf_token}';
 var MULTI_TENANT = {if multi_tenant}true{else}false{/if};
 var SELECTED_TENANT_ID = {selected_tenant_id};
+var MODULE_PANEL_STORAGE_KEY = 'superadmin-feature-settings:panels:' + (SELECTED_TENANT_ID || 'global');
+
+function readModulePanelState() {
+    try {
+        var raw = window.localStorage.getItem(MODULE_PANEL_STORAGE_KEY);
+        var parsed = raw ? JSON.parse(raw) : {};
+        return parsed && typeof parsed === 'object' ? parsed : {};
+    } catch (e) {
+        return {};
+    }
+}
+
+function writeModulePanelState(state) {
+    try {
+        window.localStorage.setItem(MODULE_PANEL_STORAGE_KEY, JSON.stringify(state || {}));
+    } catch (e) {
+    }
+}
+
+function setModulePanelExpanded(moduleId, expanded) {
+    var root = document.getElementById('sa-mod-' + moduleId);
+    if (!root) return;
+
+    root.setAttribute('data-expanded', expanded ? '1' : '0');
+
+    var btn = root.querySelector('.sa-module-collapse');
+    if (btn) {
+        btn.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+        var label = btn.querySelector('.sa-module-collapse-label');
+        if (label) label.textContent = expanded ? 'Collapse' : 'Expand';
+    }
+}
+
+function toggleModulePanel(moduleId) {
+    var root = document.getElementById('sa-mod-' + moduleId);
+    if (!root) return;
+
+    var expanded = root.getAttribute('data-expanded') !== '0';
+    var nextExpanded = !expanded;
+    setModulePanelExpanded(moduleId, nextExpanded);
+
+    var state = readModulePanelState();
+    state[moduleId] = nextExpanded ? 1 : 0;
+    writeModulePanelState(state);
+}
+
+function restoreModulePanels() {
+    var state = readModulePanelState();
+    document.querySelectorAll('.sa-module[id^="sa-mod-"]').forEach(function(root) {
+        var moduleId = root.id.replace(/^sa-mod-/, '');
+        var expanded = !Object.prototype.hasOwnProperty.call(state, moduleId) || state[moduleId] !== 0;
+        setModulePanelExpanded(moduleId, expanded);
+    });
+}
 
 function switchTenant(tenantId) {
     window.location.href = '/superadmin/settings?tenant_id=' + encodeURIComponent(tenantId);
@@ -258,5 +332,7 @@ function saveModuleSettings(moduleId) {
         if (btn) btn.disabled = false;
     });
 }
+
+restoreModulePanels();
 </script>
 {/block}

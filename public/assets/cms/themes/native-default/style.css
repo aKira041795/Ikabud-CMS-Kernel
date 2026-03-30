@@ -135,6 +135,11 @@ img {
     top: 0;
 }
 
+.header-wrapper--sticky.scrolled .site-header,
+.site-header.site-header--sticky.scrolled {
+    box-shadow: 0 10px 30px rgba(15, 23, 42, 0.12);
+}
+
 /* Topbar transition for scroll-transparency */
 .header-topbar {
     transition: background-color 0.3s ease, border-color 0.3s ease;

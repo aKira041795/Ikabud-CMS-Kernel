@@ -128,6 +128,12 @@ try {
         'public_route_kind' => 'page',
         'public_presentation_mode' => 'canonical',
     ];
+    $frontPageCtx = [
+        'active_customizer_scope' => 'ecommerce',
+        'public_render_origin' => 'cms',
+        'public_route_kind' => 'front-page',
+        'public_presentation_mode' => 'canonical',
+    ];
 
     $storefrontSearch = cmsCustomizerSearchConfig('ecommerce', $storefrontCtx);
     $canonicalSearch = cmsCustomizerSearchConfig('ecommerce', $canonicalCtx);
@@ -185,10 +191,11 @@ try {
     $storefrontHeaderHtml = cmsRenderCustomizedHeader($db, $storefrontCtx);
     $canonicalHeaderHtml = cmsRenderCustomizedHeader($db, $canonicalCtx);
 
+    t('transparent header helper limits transparent_home to storefront and CMS front-page routes', cmsHeaderTransparencyEnabled($headerSettings, $storefrontCtx) && cmsHeaderTransparencyEnabled($headerSettings, $frontPageCtx) && !cmsHeaderTransparencyEnabled($headerSettings, $canonicalCtx));
     t('advanced header render includes top bar widget content and alignment styling', str_contains($storefrontHeaderHtml, 'Free shipping') && str_contains($storefrontHeaderHtml, 'justify-content:flex-end;') && str_contains($storefrontHeaderHtml, '--topbar-link:#f59e0b;'), $storefrontHeaderHtml);
     t('advanced header render includes canvas menu CSS and close-on-link contract', str_contains($storefrontHeaderHtml, 'data-close-on-link="0"') && str_contains($storefrontHeaderHtml, '.mobile-canvas-target{position:fixed;top:0;right:0;bottom:0;width:340px') && str_contains($storefrontHeaderHtml, '.mobile-canvas-target .nav-menu{flex-direction:column;align-items:center;') && str_contains($storefrontHeaderHtml, '.mobile-canvas-target .nav-menu a:hover{background:#123456;}') && str_contains($storefrontHeaderHtml, '.mobile-canvas-target .nav-menu li.current-menu-item>a{background:#654321;}'), $storefrontHeaderHtml);
     t('advanced header render includes dropdown geometry and color contract', str_contains($storefrontHeaderHtml, '--nav-dropdown-bg:#111827;') && str_contains($storefrontHeaderHtml, '--nav-dropdown-border:#334155;') && str_contains($storefrontHeaderHtml, '--nav-dropdown-radius:14px;') && str_contains($storefrontHeaderHtml, '--nav-dropdown-item-padding:12px 1rem;') && str_contains($storefrontHeaderHtml, 'min-width:260px'), $storefrontHeaderHtml);
-    t('advanced header render includes transparent header script contract', str_contains($storefrontHeaderHtml, 'var tx="#ffeeaa",lg="#ffdd88";') && str_contains($storefrontHeaderHtml, 'var r=255,g=255,b=255,op=0.7;') && str_contains($storefrontHeaderHtml, 'h.style.setProperty("--header-bg","rgba("+r+","+g+","+b+","+op+")")'), $storefrontHeaderHtml);
+    t('advanced header render includes home-only transparent header script contract', str_contains($storefrontHeaderHtml, 'var tx="#ffeeaa",lg="#ffdd88";') && str_contains($storefrontHeaderHtml, 'var r=255,g=255,b=255,op=0.7;') && str_contains($storefrontHeaderHtml, 'h.style.setProperty("--header-bg","rgba("+r+","+g+","+b+","+op+")")') && str_contains($storefrontHeaderHtml, 'h.style.setProperty("--header-bg",oBg);') && !str_contains($canonicalHeaderHtml, 'var tx="#ffeeaa",lg="#ffdd88";'), $storefrontHeaderHtml . "\n---\n" . $canonicalHeaderHtml);
     t('route-aware header render keeps storefront search and fallback nav for ecommerce routes', str_contains($storefrontHeaderHtml, 'action="' . $baseUrl . '/ecommerce/shop"') && str_contains($storefrontHeaderHtml, 'name="search"') && str_contains($storefrontHeaderHtml, '>Shop<') && str_contains($storefrontHeaderHtml, '/ecommerce/my-orders'), $storefrontHeaderHtml);
     t('route-aware header render switches the same cached fragment family back to CMS search and nav for canonical CMS routes', $storefrontHeaderHtml !== $canonicalHeaderHtml && str_contains($canonicalHeaderHtml, 'action="' . $baseUrl . '/cms/search"') && str_contains($canonicalHeaderHtml, 'name="q"') && str_contains($canonicalHeaderHtml, 'href="' . $baseUrl . '/cms" class="site-logo"') && str_contains($canonicalHeaderHtml, '>Home<') && str_contains($canonicalHeaderHtml, '>Blog<'), $canonicalHeaderHtml);
 

@@ -1006,9 +1006,11 @@ switch ($handler) {
         $allModules = discoverModules();
 
         // ── Build tenant-relevant module whitelist ───────────────────
-        $tenantRelevantModules = null; // null = no filter (show all enabled)
+        $tenantRelevantModules = null;
         $selectedEntryModule = '';
         if ($multiTenant && $selectedTenantId !== null) {
+            $tenantRelevantModules = [];
+
             // Find entry_module_id for the selected tenant
             foreach ($tenants as $t) {
                 if ((int)$t['id'] === $selectedTenantId) {
@@ -1018,7 +1020,7 @@ switch ($handler) {
             }
 
             if ($selectedEntryModule !== '') {
-                $tenantRelevantModules = [$selectedEntryModule => true];
+                $tenantRelevantModules[$selectedEntryModule] = true;
 
                 // For CMS tenants, add _installed_submodules
                 if ($selectedEntryModule === 'cms') {
@@ -1026,103 +1028,30 @@ switch ($handler) {
                     $subModules = $cmsSettings['_installed_submodules'] ?? [];
                     if (is_array($subModules)) {
                         foreach ($subModules as $sub) {
-                            $tenantRelevantModules[trim((string)$sub)] = true;
-                        }
-                    }
-                }
-
-                $entryRelatedTables = [];
-                if (isset($allModules[$selectedEntryModule]) && is_array($allModules[$selectedEntryModule])) {
-                    foreach (['owns_tables', 'reads_tables'] as $_tableField) {
-                        foreach ($allModules[$selectedEntryModule][$_tableField] ?? [] as $_tableName) {
-                            $_tableName = trim((string)$_tableName);
-                            if ($_tableName !== '') {
-                                $entryRelatedTables[$_tableName] = true;
+                            $sub = trim((string)$sub);
+                            if ($sub !== '') {
+                                $tenantRelevantModules[$sub] = true;
                             }
                         }
                     }
-                }
-
-                // Include capability-providing modules whose exposed
-                // capabilities are actually depended on by the entry module
-                // or its submodules (e.g. AI for CMS).
-                $neededCaps = [];
-                foreach ($tenantRelevantModules as $_relId => $_) {
-                    $_relMod = $allModules[$_relId] ?? [];
-                    foreach ($_relMod['capabilities']['depends'] ?? [] as $_dep) {
-                        $neededCaps[(string)$_dep] = true;
-                    }
-                }
-                foreach ($allModules as $_capMod) {
-                    $_capModId = (string)($_capMod['id'] ?? '');
-                    if ($_capModId === '' || isset($tenantRelevantModules[$_capModId])) {
-                        continue;
-                    }
-                    if (empty($_capMod['settings_fields'])) {
-                        continue;
-                    }
-                    $exposes = $_capMod['capabilities']['exposes'] ?? [];
-                    if (empty($exposes)) {
-                        continue;
-                    }
-                    // Check if any exposed capability is needed
-                    $needed = false;
-                    foreach ($exposes as $_exp) {
-                        if (isset($neededCaps[(string)($_exp['id'] ?? '')])) {
-                            $needed = true;
-                            break;
-                        }
-                    }
-                    if ($needed && isModuleEnabledForTenant($_capModId, $selectedTenantId)) {
-                        $tenantRelevantModules[$_capModId] = true;
-                    }
-                }
-
-                // Include modules explicitly attached to the tenant via a
-                // tenant-scoped enable override, and CMS-integrated modules
-                // that declare table overlap with the tenant's entry module.
-                foreach ($allModules as $_candidateMod) {
-                    $_candidateModId = (string)($_candidateMod['id'] ?? '');
-                    if ($_candidateModId === '' || isset($tenantRelevantModules[$_candidateModId])) {
-                        continue;
-                    }
-                    if (empty($_candidateMod['settings_fields'])) {
-                        continue;
-                    }
-
-                    $_candidateTenantSettings = readTenantModuleSettingsForTenant($_candidateModId, $selectedTenantId);
-                    if (array_key_exists('_module_enabled', $_candidateTenantSettings)) {
-                        $tenantRelevantModules[$_candidateModId] = true;
-                        continue;
-                    }
-
-                    if (empty($entryRelatedTables) || !isModuleEnabledForTenant($_candidateModId, $selectedTenantId)) {
-                        continue;
-                    }
-
-                    $_candidateTables = [];
-                    foreach (['owns_tables', 'reads_tables'] as $_tableField) {
-                        foreach ($_candidateMod[$_tableField] ?? [] as $_tableName) {
-                            $_tableName = trim((string)$_tableName);
-                            if ($_tableName !== '') {
-                                $_candidateTables[] = $_tableName;
-                            }
-                        }
-                    }
-
-                    if (!empty(array_intersect(array_keys($entryRelatedTables), $_candidateTables))) {
-                        $tenantRelevantModules[$_candidateModId] = true;
-                    }
-                }
-
-                // Anti-spam is a kernel-applied API protection feature. It may not
-                // appear in module capability dependency graphs, but it should still
-                // be configurable per tenant from superadmin feature settings.
-                if (isset($allModules['anti-spam']) && isModuleEnabledForTenant('anti-spam', $selectedTenantId)) {
-                    $tenantRelevantModules['anti-spam'] = true;
                 }
             }
-            // If entry_module_id is empty, show all enabled (no whitelist filter)
+
+            // Include only modules that already have tenant-specific state.
+            foreach ($allModules as $_candidateMod) {
+                $_candidateModId = (string)($_candidateMod['id'] ?? '');
+                if ($_candidateModId === '') {
+                    continue;
+                }
+                if (isset($tenantRelevantModules[$_candidateModId])) {
+                    continue;
+                }
+
+                $_candidateTenantSettings = readTenantModuleSettingsForTenant($_candidateModId, $selectedTenantId);
+                if (!empty($_candidateTenantSettings)) {
+                    $tenantRelevantModules[$_candidateModId] = true;
+                }
+            }
         }
 
         // Check if selected tenant has a working DB connection
@@ -1162,9 +1091,9 @@ switch ($handler) {
             $fields = is_array($manifest['settings_fields'] ?? null) ? array_values($manifest['settings_fields']) : [];
             $hasFields = !empty($fields);
 
-            // Only render field data for enabled modules that have fields and a working DB
+            // Render field data whenever the tenant can manage the module settings.
             $renderedFields = [];
-            if ($isEnabled && $hasFields && $tenantDbOk) {
+            if ($hasFields && $tenantDbOk) {
                 // Read settings: tenant-scoped or global
                 if ($multiTenant && $selectedTenantId !== null) {
                     $modSettings = getModuleSettingsForTenant($moduleId, $selectedTenantId);
@@ -1176,7 +1105,9 @@ switch ($handler) {
                     $key = (string)($field['key'] ?? '');
                     if ($key === '') continue;
                     $type = strtolower(trim((string)($field['type'] ?? 'text')));
-                    $currentValue = $modSettings[$key] ?? '';
+                    $currentValue = array_key_exists($key, $modSettings)
+                        ? $modSettings[$key]
+                        : ($field['default'] ?? '');
                     $isCheckbox = in_array($type, ['checkbox', 'bool', 'boolean'], true);
                     $isSelect = ($type === 'select');
                     $inputType = in_array($type, ['number', 'int', 'integer'], true) ? 'number' : ($type === 'email' ? 'email' : 'text');

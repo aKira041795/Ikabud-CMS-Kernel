@@ -3,7 +3,7 @@
  * Version: 1.0.0
  */
 
-(function() {
+(function () {
     'use strict';
 
     /**
@@ -15,30 +15,30 @@
         const overlay = document.getElementById('mobile-menu-overlay');
         const isCanvas = !!document.querySelector('.mobile-canvas-target');
         const closeOnLink = (toggle?.getAttribute('data-close-on-link') ?? '1') !== '0';
-        
+
         if (!toggle || !nav) return;
 
-        const openMenu = function() {
+        const openMenu = function () {
             nav.classList.add('active');
             toggle.classList.add('active');
             if (isCanvas && overlay) {
                 overlay.style.display = 'block';
-                setTimeout(function() { overlay.style.opacity = '1'; }, 10);
+                setTimeout(function () { overlay.style.opacity = '1'; }, 10);
                 document.body.style.overflow = 'hidden';
             }
         };
 
-        const closeMenu = function() {
+        const closeMenu = function () {
             nav.classList.remove('active');
             toggle.classList.remove('active');
             if (isCanvas && overlay) {
                 overlay.style.opacity = '0';
-                setTimeout(function() { overlay.style.display = 'none'; }, 300);
+                setTimeout(function () { overlay.style.display = 'none'; }, 300);
                 document.body.style.overflow = '';
             }
         };
-        
-        toggle.addEventListener('click', function() {
+
+        toggle.addEventListener('click', function () {
             if (nav.classList.contains('active')) {
                 closeMenu();
             } else {
@@ -47,34 +47,34 @@
         });
 
         if (overlay) {
-            overlay.addEventListener('click', function() {
+            overlay.addEventListener('click', function () {
                 closeMenu();
             });
         }
 
         const closeBtn = nav.querySelector('.mobile-canvas-close');
         if (closeBtn) {
-            closeBtn.addEventListener('click', function() {
+            closeBtn.addEventListener('click', function () {
                 closeMenu();
             });
         }
 
         if (closeOnLink) {
-            nav.querySelectorAll('a').forEach(function(link) {
-                link.addEventListener('click', function() {
+            nav.querySelectorAll('a').forEach(function (link) {
+                link.addEventListener('click', function () {
                     closeMenu();
                 });
             });
         }
-        
+
         // Close menu when clicking outside
-        document.addEventListener('click', function(e) {
+        document.addEventListener('click', function (e) {
             if (!nav.contains(e.target) && !toggle.contains(e.target)) {
                 closeMenu();
             }
         });
 
-        document.addEventListener('keydown', function(e) {
+        document.addEventListener('keydown', function (e) {
             if (e.key === 'Escape') {
                 closeMenu();
             }
@@ -85,14 +85,14 @@
      * Smooth Scroll for Anchor Links
      */
     function initSmoothScroll() {
-        document.querySelectorAll('a[href^="#"]').forEach(function(anchor) {
-            anchor.addEventListener('click', function(e) {
+        document.querySelectorAll('a[href^="#"]').forEach(function (anchor) {
+            anchor.addEventListener('click', function (e) {
                 const targetId = this.getAttribute('href');
-                
+
                 if (targetId === '#') return;
-                
+
                 const target = document.querySelector(targetId);
-                
+
                 if (target) {
                     e.preventDefault();
                     target.scrollIntoView({
@@ -109,8 +109,8 @@
      */
     function initLazyLoad() {
         if ('IntersectionObserver' in window) {
-            const imageObserver = new IntersectionObserver(function(entries) {
-                entries.forEach(function(entry) {
+            const imageObserver = new IntersectionObserver(function (entries) {
+                entries.forEach(function (entry) {
                     if (entry.isIntersecting) {
                         const img = entry.target;
                         if (img.dataset.src) {
@@ -121,8 +121,8 @@
                     }
                 });
             });
-            
-            document.querySelectorAll('img[data-src]').forEach(function(img) {
+
+            document.querySelectorAll('img[data-src]').forEach(function (img) {
                 imageObserver.observe(img);
             });
         }
@@ -132,22 +132,19 @@
      * Sticky Header
      */
     function initStickyHeader() {
-        const header = document.querySelector('.site-header');
-        
+        const wrapper = document.querySelector('.header-wrapper--sticky');
+        const header = wrapper ? wrapper.querySelector('.site-header') : document.querySelector('.site-header.site-header--sticky');
+
         if (!header) return;
-        
-        let lastScroll = 0;
-        
-        window.addEventListener('scroll', function() {
+
+        window.addEventListener('scroll', function () {
             const currentScroll = window.pageYOffset;
-            
-            if (currentScroll > 100) {
-                header.classList.add('scrolled');
-            } else {
-                header.classList.remove('scrolled');
+            const hasScrolled = currentScroll > 0;
+
+            header.classList.toggle('scrolled', hasScrolled);
+            if (wrapper) {
+                wrapper.classList.toggle('scrolled', hasScrolled);
             }
-            
-            lastScroll = currentScroll;
         });
     }
 
@@ -156,13 +153,13 @@
      */
     function initSearchForm() {
         const searchForms = document.querySelectorAll('.native-search');
-        
-        searchForms.forEach(function(form) {
+
+        searchForms.forEach(function (form) {
             const input = form.querySelector('input[type="search"]');
-            
+
             if (input) {
                 // Clear button functionality
-                input.addEventListener('input', function() {
+                input.addEventListener('input', function () {
                     if (this.value.length > 0) {
                         this.classList.add('has-value');
                     } else {
@@ -178,13 +175,13 @@
      */
     function initCardEffects() {
         const cards = document.querySelectorAll('.ikb-card');
-        
-        cards.forEach(function(card) {
-            card.addEventListener('mouseenter', function() {
+
+        cards.forEach(function (card) {
+            card.addEventListener('mouseenter', function () {
                 this.style.transform = 'translateY(-4px)';
             });
-            
-            card.addEventListener('mouseleave', function() {
+
+            card.addEventListener('mouseleave', function () {
                 this.style.transform = '';
             });
         });

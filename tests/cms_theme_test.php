@@ -998,8 +998,11 @@ t('layout has {block scripts}', str_contains($layoutContent, '{block scripts}'))
 t('layout has Minimal Theme branding', str_contains($layoutContent, 'Minimal Theme'));
 
 $nativeLayoutContent = file_get_contents(STORAGE_PATH . '/cms-themes/native-default/layouts/public.disyl');
+$nativeDefaultStyleContent = file_get_contents(BASE_PATH . '/public/assets/cms/themes/native-default/style.css') ?: '';
+$nativeDefaultScriptContent = file_get_contents(BASE_PATH . '/public/assets/cms/themes/native-default/script.js') ?: '';
 t('native layout noscript fallback reveals body', str_contains($nativeLayoutContent, 'body:not(.cz-loaded),[data-animate]{opacity:1!important;transform:none!important;}'));
 t('native layout inline fallback reveals animated content', str_contains($nativeLayoutContent, 'document.body.classList.add(\'cz-loaded\')'));
+t('native default theme sticky assets follow wrapper-based sticky header markup', str_contains($nativeDefaultScriptContent, "const wrapper = document.querySelector('.header-wrapper--sticky');") && str_contains($nativeDefaultScriptContent, "header.classList.toggle('scrolled', hasScrolled);") && str_contains($nativeDefaultScriptContent, "wrapper.classList.toggle('scrolled', hasScrolled);") && str_contains($nativeDefaultStyleContent, '.header-wrapper--sticky.scrolled .site-header,') && str_contains($nativeDefaultStyleContent, '.site-header.site-header--sticky.scrolled {'), $nativeDefaultScriptContent . "\n---\n" . $nativeDefaultStyleContent);
 
 $pocLayoutContent = file_get_contents(BASE_PATH . '/storage/cms-themes/entity-commerce-poc/layouts/public.disyl');
 $themeStylePos = strpos($pocLayoutContent, '{if theme_style_url}<link rel="stylesheet" href="{theme_style_url}">{/if}');
@@ -1015,6 +1018,8 @@ $entityPresentationCss = cmsRenderEntityPresentationCss(cmsEntityPresentationSec
 t('entity presentation css exports global geometry variables for storefront themes', str_contains($entityPresentationCss, '--theme-entity-list-card-min-width:') && str_contains($entityPresentationCss, '--theme-entity-list-title-font:') && str_contains($entityPresentationCss, '--theme-entity-list-price-size:') && str_contains($entityPresentationCss, '--theme-entity-list-media-ratio:') && str_contains($entityPresentationCss, '--theme-entity-media-ratio:') && str_contains($entityPresentationCss, '--theme-entity-action-min-height:'), $entityPresentationCss);
 
 $customizerTemplateContent = file_get_contents(BASE_PATH . '/templates/modules/cms/admin/theme-customizer.disyl');
+$superadminSettingsTemplateContent = file_get_contents(BASE_PATH . '/templates/pages/superadmin-settings.disyl') ?: '';
+$publicIndexContent = file_get_contents(BASE_PATH . '/public/index.php') ?: '';
 $entityListTemplateContent = file_get_contents(BASE_PATH . '/templates/modules/cms/public/entity.list.disyl') ?: '';
 $entityViewTemplateContent = file_get_contents(BASE_PATH . '/templates/modules/cms/public/entity.view.disyl') ?: '';
 $entityMetaBlockContent = file_get_contents(BASE_PATH . '/templates/modules/cms/public/blocks/meta.block.disyl') ?: '';
@@ -1056,9 +1061,15 @@ t('customizer preserves canonical entity list pricing state for schema-driven pr
 t('customizer embeds entity context catalog and example payloads', str_contains($customizerTemplateContent, 'id="cz-entity-context-catalog"') && str_contains($customizerTemplateContent, 'id="cz-entity-context-examples"'), $customizerTemplateContent);
 t('customizer hydrates entity context schema state and default example selection', str_contains($customizerTemplateContent, 'entityContextCatalog = JSON.parse(document.getElementById(\'cz-entity-context-catalog\').textContent)') && str_contains($customizerTemplateContent, 'entityContextExampleId = this.entityContextPreferredExampleId();'), $customizerTemplateContent);
 t('customizer exposes catalog category navigation control', str_contains($customizerTemplateContent, 'entityPresentationSettings.entity_list_category_navigation') && str_contains($customizerTemplateContent, 'Shop Categories'), $customizerTemplateContent);
+t('customizer exposes split header shell width controls', str_contains($customizerTemplateContent, 'headerSettings.header_inner_width') && str_contains($customizerTemplateContent, 'headerSettings.topbar_inner_width') && str_contains($customizerTemplateContent, 'Header Width') && str_contains($customizerTemplateContent, 'Top Bar Width'), $customizerTemplateContent);
+t('customizer hydrates legacy header width into split shell defaults', str_contains($customizerTemplateContent, "const legacyHeaderWidth = this.headerSettings.inner_width === 'full-width' ? 'full-width' : 'contained';") && str_contains($customizerTemplateContent, 'headerPreviewShellStyle(headerSettings.topbar_inner_width)') && str_contains($customizerTemplateContent, 'headerPreviewShellStyle(headerSettings.header_inner_width)'), $customizerTemplateContent);
 t('customizer exposes split footer widget shell controls', str_contains($customizerTemplateContent, 'footerSettings.widget_container_width') && str_contains($customizerTemplateContent, 'footerSettings.widget_inner_width_mode') && str_contains($customizerTemplateContent, 'footerSettings.widget_inner_custom_width') && str_contains($customizerTemplateContent, 'Footer Bar Width'), $customizerTemplateContent);
 t('customizer hydrates legacy footer settings into split widget shell defaults', str_contains($customizerTemplateContent, 'this.footerSettings.widget_container_width === undefined') && str_contains($customizerTemplateContent, 'this.footerSettings.widget_inner_width_mode === undefined') && str_contains($customizerTemplateContent, 'footerPreviewWidgetContainerLabel()'), $customizerTemplateContent);
 t('customizer preview mirrors the saved custom footer holder width', str_contains($customizerTemplateContent, "if (mode === 'custom') return 'width:100%;max-width:' + (this.footerSettings.widget_inner_custom_width || '960px') + ';margin:0 auto;';"), $customizerTemplateContent);
+t('superadmin feature settings template exposes collapsible module panels', str_contains($superadminSettingsTemplateContent, 'sa-module-collapse') && str_contains($superadminSettingsTemplateContent, 'toggleModulePanel(') && str_contains($superadminSettingsTemplateContent, 'This module is disabled for this tenant. You can still save settings now; they will apply when enabled.'), $superadminSettingsTemplateContent);
+t('superadmin feature settings page seeds tenant field values from manifest defaults', str_contains($publicIndexContent, "array_key_exists(\$key, \$modSettings)") && str_contains($publicIndexContent, ": (\$field['default'] ?? '');"), $publicIndexContent);
+t('superadmin tenant whitelist keeps only explicitly attached tenant modules', str_contains($publicIndexContent, "\$subModules = \$cmsSettings['_installed_submodules'] ?? [];") && str_contains($publicIndexContent, '$_candidateTenantSettings = readTenantModuleSettingsForTenant($_candidateModId, $selectedTenantId);') && str_contains($publicIndexContent, 'if (!empty($_candidateTenantSettings)) {') && !str_contains($publicIndexContent, "isset(\$allModules['anti-spam']) && !empty(\$allModules['anti-spam']['settings_fields'])"), $publicIndexContent);
+t('superadmin tenant settings render fields for attached disabled modules', str_contains($publicIndexContent, 'if ($hasFields && $tenantDbOk) {'), $publicIndexContent);
 t('customizer backfills moved theme presentation keys into canonical entity settings', str_contains($customizerTemplateContent, 'const legacyThemePresentation = {};') && str_contains($customizerTemplateContent, "'blog_layout',") && str_contains($customizerTemplateContent, "'single_show_nav',") && str_contains($customizerTemplateContent, 'this.entityPresentationSettings = Object.assign({}, entityPresentationDefaults, legacyThemePresentation, this.entityPresentationSettings || {});'), $customizerTemplateContent);
 t('customizer hydrates canonical entity presentation defaults', str_contains($customizerTemplateContent, 'entityPresentationDefaults = {') && str_contains($customizerTemplateContent, "entity_list_category_navigation: 'list'") && str_contains($customizerTemplateContent, "blog_layout: 'list'") && str_contains($customizerTemplateContent, 'single_max_width: 768'), $customizerTemplateContent);
 t('customizer keeps theme layout hydration shell-only', str_contains($customizerTemplateContent, 'const themeLayoutDefaults = {') && str_contains($customizerTemplateContent, 'layout_mode: rawThemeLayoutSettings.layout_mode,') && !str_contains($customizerTemplateContent, 'themeLayoutSettings.blog_layout'), $customizerTemplateContent);
@@ -1382,9 +1393,18 @@ $validatedFooterShells = cmsValidateFooterSettings([
 $legacyFooterShells = cmsValidateFooterSettings([
     'inner_width' => 'full-width',
 ]);
+$validatedHeaderShells = cmsValidateHeaderSettings([
+    'topbar_inner_width' => 'full-width',
+    'header_inner_width' => 'contained',
+]);
+$legacyHeaderShells = cmsValidateHeaderSettings([
+    'inner_width' => 'full-width',
+]);
 t('footer settings validate widget container shell mode', ($validatedFooterShells['widget_container_width'] ?? '') === 'full');
 t('footer settings validate widget holder custom width', ($validatedFooterShells['widget_inner_width_mode'] ?? '') === 'custom' && ($validatedFooterShells['widget_inner_custom_width'] ?? '') === '72rem', json_encode($validatedFooterShells));
 t('footer settings map legacy full-width shell mode onto split widget defaults', ($legacyFooterShells['widget_container_width'] ?? '') === 'full' && ($legacyFooterShells['widget_inner_width_mode'] ?? '') === 'full', json_encode($legacyFooterShells));
+t('header settings validate split top bar and main header shell widths', ($validatedHeaderShells['topbar_inner_width'] ?? '') === 'full-width' && ($validatedHeaderShells['header_inner_width'] ?? '') === 'contained' && ($validatedHeaderShells['inner_width'] ?? '') === 'contained', json_encode($validatedHeaderShells));
+t('header settings map legacy inner width onto split header defaults', ($legacyHeaderShells['topbar_inner_width'] ?? '') === 'full-width' && ($legacyHeaderShells['header_inner_width'] ?? '') === 'full-width' && ($legacyHeaderShells['inner_width'] ?? '') === 'full-width', json_encode($legacyHeaderShells));
 
 $invalidEntity = cmsValidateEntityPresentationSettings([
     'entity_layout_profile' => 'wild',
@@ -1657,7 +1677,16 @@ upsertCustomizerSection($db, 'theme', array_merge(cmsThemeLayoutSettingsDefaults
 upsertCustomizerSection($db, 'header', array_merge(cmsHeaderSettingsDefaults(), [
     'show_search' => 1,
     'menu_location' => '__missing_storefront_menu__',
-]), [], 'ecommerce');
+    'topbar_inner_width' => 'full-width',
+    'header_inner_width' => 'contained',
+]), [[
+    'id' => 'header-test-text',
+    'type' => 'text',
+    'props' => [
+        'content' => 'Store hours',
+        'title' => 'Header Promo',
+    ],
+]], 'ecommerce');
 upsertCustomizerSection($db, 'footer', array_merge(cmsFooterSettingsDefaults(), [
     'columns' => 1,
     'widget_container_width' => 'full',
@@ -1845,6 +1874,7 @@ $storefrontCanonicalCatalogHtml = cmsPublicCanonicalRenderEntityList([
 t('customized storefront header renders through theme partial wrapper', str_contains($customizedHeaderHtml, 'poc-header--customized'), $customizedHeaderHtml);
 t('customized storefront header emits shell entity-view wrapper', str_contains($customizedHeaderHtml, 'data-shell-entity-region="header"') && str_contains($customizedHeaderHtml, 'data-shell-entity-node="region"'), $customizedHeaderHtml);
 t('customized storefront header renders through theme inner shell', str_contains($customizedHeaderHtml, 'poc-header__inner--customized'), $customizedHeaderHtml);
+t('customized storefront header splits top bar and main header shell widths', str_contains($customizedHeaderHtml, 'header-topbar cms-shell-width-full') && str_contains($customizedHeaderHtml, 'site-header site-header--sticky site-header--default cms-shell-width-contained') && str_contains($customizedHeaderHtml, 'Store hours'), $customizedHeaderHtml);
 t('customized storefront header keeps contained shell classes so width and gutter settings can override theme chrome', str_contains($customizedHeaderHtml, 'header-wrapper cms-shell-width-contained') && str_contains($customizedHeaderHtml, 'container cms-public-shell cms-public-shell--contained'), $customizedHeaderHtml);
 t('customized storefront header links site branding to shop root', str_contains($customizedHeaderHtml, '/ecommerce/shop'), $customizedHeaderHtml);
 t('customized storefront header fallback nav stays on storefront routes', str_contains($customizedHeaderHtml, '>Shop<') && str_contains($customizedHeaderHtml, '/ecommerce/my-orders'), $customizedHeaderHtml);
