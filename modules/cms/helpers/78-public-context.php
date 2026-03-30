@@ -103,24 +103,6 @@ function cmsPublicContextHasSection(array $availability, string $section): bool
     return $availability[$section] === true;
 }
 
-function cmsPublicContextShouldApplyStorefrontSettings(array $themePolicy, string $publicRenderOrigin, string $publicRouteKind): bool
-{
-    $activeScope = cmsNormalizeCustomizerScope((string)($themePolicy['active_theme_scope'] ?? ''), 'native');
-    if ($activeScope === 'ecommerce') {
-        return true;
-    }
-
-    if ($publicRenderOrigin !== 'ecommerce') {
-        return false;
-    }
-
-    if (!empty($themePolicy['is_ecommerce_entity_route'])) {
-        return true;
-    }
-
-    return in_array($publicRouteKind, function_exists('cmsEcommerceEntityViewRouteKinds') ? cmsEcommerceEntityViewRouteKinds() : ['shop_index', 'shop_category', 'product_detail'], true);
-}
-
 // ── Public Context Enrichment ────────────────────────────────────────
 
 /**
@@ -140,9 +122,11 @@ function cmsPublicContext(array $extra = []): array
     $requestType = !empty($extra['entity']['id']) ? 'entity' : (!empty($extra['content']['id']) ? 'content' : 'generic');
     $builderEnabled = !empty($extra['builder_enabled']);
     $publicRenderOrigin = trim((string)($extra['public_render_origin'] ?? 'cms'));
-    $publicRouteKind = function_exists('cmsNormalizeEcommercePublicRouteKind')
-        ? cmsNormalizeEcommercePublicRouteKind((string)($extra['public_route_kind'] ?? $extra['ecommerce_public_route'] ?? 'generic'))
-        : trim((string)($extra['public_route_kind'] ?? $extra['ecommerce_public_route'] ?? 'generic'));
+    $requestedRouteKind = trim((string)($extra['public_route_kind'] ?? $extra['ecommerce_public_route'] ?? 'generic'));
+    $publicRouteKind = $publicRenderOrigin === 'ecommerce' && function_exists('cmsNormalizeEcommercePublicRouteKind')
+        ? cmsNormalizeEcommercePublicRouteKind($requestedRouteKind)
+        : ($requestedRouteKind !== '' ? $requestedRouteKind : 'generic');
+    $requestedPresentationMode = trim((string)($extra['public_presentation_mode'] ?? ''));
     $themePolicy = function_exists('cmsResolveEcommerceThemePolicy')
         ? cmsResolveEcommerceThemePolicy(array_merge($extra, [
             'public_render_origin' => $publicRenderOrigin,
@@ -153,11 +137,13 @@ function cmsPublicContext(array $extra = []): array
     if ($activeThemeSlug === '') {
         $activeThemeSlug = 'native-default';
     }
-    $publicPresentationMode = trim((string)($themePolicy['public_presentation_mode'] ?? (
-        function_exists('cmsEcommercePublicPresentationMode')
-            ? cmsEcommercePublicPresentationMode(array_merge($extra, ['public_route_kind' => $publicRouteKind]))
-            : trim((string)($extra['public_presentation_mode'] ?? 'traditional'))
-    )));
+    $publicPresentationMode = $publicRenderOrigin !== 'ecommerce' && $requestedPresentationMode !== ''
+        ? $requestedPresentationMode
+        : trim((string)($themePolicy['public_presentation_mode'] ?? (
+            function_exists('cmsEcommercePublicPresentationMode')
+                ? cmsEcommercePublicPresentationMode(array_merge($extra, ['public_route_kind' => $publicRouteKind]))
+                : trim((string)($extra['public_presentation_mode'] ?? 'traditional'))
+        )));
     if ($publicPresentationMode === '') {
         $publicPresentationMode = 'traditional';
     }
@@ -226,16 +212,15 @@ function cmsPublicContext(array $extra = []): array
         'public_presentation_mode' => $publicPresentationMode !== '' ? $publicPresentationMode : 'traditional',
         'is_ecommerce_public' => $publicRenderOrigin === 'ecommerce',
         'is_ecommerce_entity_route' => !empty($themePolicy['is_ecommerce_entity_route']),
-        'uses_storefront_presentation_settings' => false,
     ];
 
     // Render customized footer if customizer data exists
     $stageStart = $timingEnabled ? microtime(true) : 0.0;
     try {
         if (cmsPublicContextHasSection($sectionAvailability, 'footer')) {
-        $customizedFooter = cmsRenderCustomizedFooter($db);
-        $ctx['customized_footer'] = $customizedFooter;
-        $ctx['has_customized_footer'] = ($customizedFooter !== '');
+            $customizedFooter = cmsRenderCustomizedFooter($db, $ctx);
+            $ctx['customized_footer'] = $customizedFooter;
+            $ctx['has_customized_footer'] = ($customizedFooter !== '');
         } else {
             $ctx['customized_footer'] = '';
             $ctx['has_customized_footer'] = false;
@@ -331,25 +316,24 @@ function cmsPublicContext(array $extra = []): array
             $ctx['theme_layout_style'] = cmsRenderThemeLayoutStyle($db);
             $themeLayout = cmsCustomizerGet($db, 'theme');
             $ctx['theme_settings'] = $themeLayout['settings'];
-            if (cmsPublicContextShouldApplyStorefrontSettings($themePolicy, $publicRenderOrigin, $publicRouteKind)
-                && cmsPublicContextHasSection($sectionAvailability, 'storefront')) {
-                $storefront = cmsCustomizerGet($db, 'storefront');
-                $ctx['storefront_settings'] = $storefront['settings'];
-                $ctx['theme_settings'] = array_merge($ctx['theme_settings'], $storefront['settings']);
-                $ctx['theme_layout_style'] .= cmsRenderStorefrontStyle($db);
-                $ctx['uses_storefront_presentation_settings'] = true;
-            } else {
-                $ctx['storefront_settings'] = cmsStorefrontSettingsDefaults();
-            }
         } else {
             $ctx['theme_layout_style'] = '';
             $ctx['theme_settings'] = cmsThemeLayoutSettingsDefaults();
-            $ctx['storefront_settings'] = cmsStorefrontSettingsDefaults();
         }
+
+        $entityPresentation = cmsCustomizerGet($db, 'entity_presentation');
+        $ctx['entity_presentation_settings'] = is_array($entityPresentation['settings'] ?? null)
+            ? $entityPresentation['settings']
+            : cmsEntityPresentationSectionDefaults($activeCustomizerScope);
+        $ctx['entity_presentation_source'] = (string)($entityPresentation['source_section'] ?? 'defaults');
+        $ctx['theme_settings'] = array_merge($ctx['theme_settings'], $ctx['entity_presentation_settings']);
+
+        $ctx['theme_layout_style'] .= cmsRenderEntityPresentationStyle($db);
     } catch (Throwable $e) {
         $ctx['theme_layout_style'] = '';
         $ctx['theme_settings'] = cmsThemeLayoutSettingsDefaults();
-        $ctx['storefront_settings'] = cmsStorefrontSettingsDefaults();
+        $ctx['entity_presentation_settings'] = cmsEntityPresentationSectionDefaults($activeCustomizerScope);
+        $ctx['entity_presentation_source'] = 'defaults';
     }
     if ($detailedTimingEnabled) {
         cmsPublicContextLogStage('theme_layout', $stageStart, ['theme' => $activeThemeSlug, 'request_type' => $requestType]);

@@ -46,8 +46,8 @@ function cmsAdminCustomizer(array $params = []): void
     // Load theme layout customizer data
     $themeLayout = cmsCustomizerGet($db, 'theme', $scope);
 
-    // Load storefront presentation customizer data
-    $storefront = cmsCustomizerGet($db, 'storefront', $scope);
+    // Load canonical entity presentation customizer data
+    $entityPresentation = cmsCustomizerGet($db, 'entity_presentation', $scope);
 
     // Load available menus for the nav_menu widget type
     $menus = [];
@@ -108,8 +108,8 @@ function cmsAdminCustomizer(array $params = []): void
         'custom_code_settings_json' => json_encode($customCode['settings'], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
         'theme_layout_settings'     => $themeLayout['settings'],
         'theme_layout_settings_json' => json_encode($themeLayout['settings'], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
-        'storefront_settings'     => $storefront['settings'],
-        'storefront_settings_json' => json_encode($storefront['settings'], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+        'entity_presentation_settings' => $entityPresentation['settings'],
+        'entity_presentation_settings_json' => json_encode($entityPresentation['settings'], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
         'theme_manifest_block_variants_json' => json_encode(cmsThemeManifestBlockVariants(), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
         'site_title'          => $settings['site_title'] ?? '',
         'site_tagline'        => $settings['site_tagline'] ?? '',
@@ -140,6 +140,11 @@ function cmsApiCustomizerGet(array $params = []): void
         echo json_encode(['ok' => false, 'error' => 'Section required']);
         exit;
     }
+    if (!in_array($section, cmsKnownCustomizerSections(), true)) {
+        http_response_code(404);
+        echo json_encode(['ok' => false, 'error' => 'Unknown customizer section']);
+        exit;
+    }
 
     $db = cmsDb();
     cmsEnsureCustomizerScopeSeeded($db, $scope);
@@ -164,6 +169,11 @@ function cmsApiCustomizerSave(array $params = []): void
     if ($section === '') {
         http_response_code(400);
         echo json_encode(['ok' => false, 'error' => 'Section required']);
+        exit;
+    }
+    if (!in_array($section, cmsKnownCustomizerSections(), true)) {
+        http_response_code(404);
+        echo json_encode(['ok' => false, 'error' => 'Unknown customizer section']);
         exit;
     }
 

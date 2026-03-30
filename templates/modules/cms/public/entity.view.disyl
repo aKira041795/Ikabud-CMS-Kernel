@@ -1,4 +1,4 @@
-{extends "_cms_active_theme/layouts/public.disyl"}
+{extends "modules/cms/layouts/public.disyl"}
 
 {block head}
 {if cms_head}{cms_head | raw}{/if}
@@ -6,56 +6,82 @@
 {/block}
 
 {block content}
+{if entity_view_context.bypass_shell|default:0}
+<article class="cms-entity-view w-full {if entity_presentation.root_class}{entity_presentation.root_class}{/if}"{if public_render_origin} data-public-render-origin="{public_render_origin}"{/if}{if public_route_kind} data-public-route-kind="{public_route_kind}"{/if}{if public_presentation_mode} data-public-presentation-mode="{public_presentation_mode}"{/if}>
+    {if builder_enabled}
+    <div class="{builder_page_settings.container_class}">
+        {post_html | raw}
+    </div>
+    {else}
+    <div class="cms-entity-body prose text-gray-700 leading-relaxed max-w-3xl mx-auto px-4 py-8">
+        {post_html | raw}
+    </div>
+    {/if}
+</article>
+{else}
 <article class="cms-entity-view w-full max-w-5xl mx-auto px-4 py-8 {if entity_presentation.root_class}{entity_presentation.root_class}{/if}"{if public_render_origin} data-public-render-origin="{public_render_origin}"{/if}{if public_route_kind} data-public-route-kind="{public_route_kind}"{/if}{if public_presentation_mode} data-public-presentation-mode="{public_presentation_mode}"{/if}>
 
     {if entity_presentation.header_before_media}
         {* ── Header / Meta ────────────────────────────────────────────── *}
+        {if entity_view_context.show_header|default:1}
         <header class="cms-entity-header mb-6">
-            <h1 class="text-3xl font-bold text-gray-900 leading-tight mb-2">{entity.title}</h1>
+            <h1 class="text-3xl font-bold text-gray-900 leading-tight mb-2">{entity_view_context.header_title|default:entity.title}</h1>
 
+            {if entity_view_context.show_meta|default:1}
             {include "modules/cms/public/blocks/meta.block.disyl"}
+            {/if}
 
             {* Progress bar — courses / challenges *}
             {if capabilities.progress_tracking}
                 {include "modules/cms/public/blocks/progress.block.disyl"}
             {/if}
         </header>
+        {/if}
 
         {* ── Media (featured image / gallery) ─────────────────────────── *}
-        {if capabilities.media_gallery}
+        {if entity_view_context.show_media|default:1}
+            {if capabilities.media_gallery}
             {include "modules/cms/public/blocks/media-gallery.block.disyl"}
-        {elseif entity.featured_image_url}
-        <div class="cms-entity-hero mb-8">
-            <img class="w-full max-h-[420px] object-cover rounded-xl"
-                 src="{entity.featured_image_url}"
-                 alt="{entity.title}">
-        </div>
+            {elseif entity.featured_image_url}
+            <div class="cms-entity-hero mb-8">
+                <img class="w-full max-h-[420px] object-cover rounded-xl"
+                     src="{entity.featured_image_url}"
+                     alt="{entity.title}">
+            </div>
+            {/if}
         {/if}
     {else}
         {* ── Media (featured image / gallery) ─────────────────────────── *}
-        {if capabilities.media_gallery}
+        {if entity_view_context.show_media|default:1}
+            {if capabilities.media_gallery}
             {include "modules/cms/public/blocks/media-gallery.block.disyl"}
-        {elseif entity.featured_image_url}
-        <div class="cms-entity-hero mb-8">
-            <img class="w-full max-h-[420px] object-cover rounded-xl"
-                 src="{entity.featured_image_url}"
-                 alt="{entity.title}">
-        </div>
+            {elseif entity.featured_image_url}
+            <div class="cms-entity-hero mb-8">
+                <img class="w-full max-h-[420px] object-cover rounded-xl"
+                     src="{entity.featured_image_url}"
+                     alt="{entity.title}">
+            </div>
+            {/if}
         {/if}
 
         {* ── Header / Meta ────────────────────────────────────────────── *}
+        {if entity_view_context.show_header|default:1}
         <header class="cms-entity-header mb-6">
-            <h1 class="text-3xl font-bold text-gray-900 leading-tight mb-2">{entity.title}</h1>
+            <h1 class="text-3xl font-bold text-gray-900 leading-tight mb-2">{entity_view_context.header_title|default:entity.title}</h1>
 
+            {if entity_view_context.show_meta|default:1}
             {include "modules/cms/public/blocks/meta.block.disyl"}
+            {/if}
 
             {* Progress bar — courses / challenges *}
             {if capabilities.progress_tracking}
                 {include "modules/cms/public/blocks/progress.block.disyl"}
             {/if}
         </header>
+        {/if}
     {/if}
 
+    {if entity_view_context.show_summary|default:1}
     {if entity_presentation.layout_profile == 'commerce'}
     <div class="cms-entity-layout">
         <div class="cms-entity-main space-y-8">
@@ -71,8 +97,10 @@
             {/if}
 
             {* ── Lessons / Chapter index ───────────────────────────────── *}
+            {if entity_view_context.show_lessons|default:1}
             {if capabilities.lessons_index}
                 {include "modules/cms/public/blocks/lessons.block.disyl"}
+            {/if}
             {/if}
         </div>
 
@@ -93,8 +121,10 @@
         {/if}
 
         {* ── Lessons / Chapter index ──────────────────────────────────── *}
+        {if entity_view_context.show_lessons|default:1}
         {if capabilities.lessons_index}
             {include "modules/cms/public/blocks/lessons.block.disyl"}
+        {/if}
         {/if}
 
         {include "modules/cms/public/blocks/entity-summary.block.disyl"}
@@ -113,10 +143,63 @@
         {/if}
 
         {* ── Lessons / Chapter index ──────────────────────────────────── *}
+        {if entity_view_context.show_lessons|default:1}
         {if capabilities.lessons_index}
             {include "modules/cms/public/blocks/lessons.block.disyl"}
         {/if}
+        {/if}
+    {/if}
+    {else}
+        {* ── Primary body content without summary rail ─────────────────── *}
+        {if builder_enabled}
+        <div class="cms-entity-body {builder_page_settings.container_class}">
+            {post_html | raw}
+        </div>
+        {else}
+        <div class="cms-entity-body prose text-gray-700 leading-relaxed">
+            {post_html | raw}
+        </div>
+        {/if}
+
+        {if entity_view_context.show_lessons|default:1}
+        {if capabilities.lessons_index}
+            {include "modules/cms/public/blocks/lessons.block.disyl"}
+        {/if}
+        {/if}
+    {/if}
+
+    {if entity_view_context.show_taxonomies|default:1}
+    {if show_entity_categories or show_entity_tags}
+    <div class="cms-entity-taxonomies flex flex-wrap gap-3 pt-6 text-sm text-gray-500">
+        {if show_entity_categories}
+        <div class="flex flex-wrap items-center gap-2">
+            <span class="font-medium text-gray-400">Categories</span>
+            {foreach entity_taxonomies.categories as category}
+            <span class="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600">{if category.url}<a href="{category.url}" class="text-inherit no-underline hover:text-sky-700">{category.name}</a>{else}{category.name}{/if}</span>
+            {/foreach}
+        </div>
+        {/if}
+        {if show_entity_tags}
+        <div class="flex flex-wrap items-center gap-2">
+            <span class="font-medium text-gray-400">Tags</span>
+            {foreach entity_taxonomies.tags as tag}
+            <span class="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600">{if tag.url}<a href="{tag.url}" class="text-inherit no-underline hover:text-sky-700">{tag.name}</a>{else}{tag.name}{/if}</span>
+            {/foreach}
+        </div>
+        {/if}
+    </div>
+    {/if}
+    {/if}
+
+    {if entity_back_link_url and entity_view_context.show_back_link|default:entity_presentation_settings.single_show_nav}
+    <div class="pt-4">
+        <a href="{entity_back_link_url}" class="inline-flex items-center gap-1.5 text-sm font-medium text-sky-600 hover:text-sky-800 no-underline">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+            {entity_back_link_label|default:'Back'}
+        </a>
+    </div>
     {/if}
 
 </article>
+{/if}
 {/block}

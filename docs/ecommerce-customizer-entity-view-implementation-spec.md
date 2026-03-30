@@ -74,7 +74,8 @@ Current owner:
 Current behavior:
 
 - `cmsPublicContext()` preloads customizer state
-- public menus, header, footer, sidebar, theme settings, and capability data are assembled there
+- public menus, header, footer, sidebar, shell theme settings, canonical `entity_presentation_settings`, and capability data are assembled there
+- `entity_presentation_settings` are merged into `theme_settings` only as a downstream compatibility bridge
 - customizer fragment work is expected to stay centralized there
 
 ### Ecommerce public render bridge
@@ -112,7 +113,8 @@ Current behavior:
 - active themes can declare `customizer_scope: ecommerce`
 - the customizer helper already distinguishes `native` vs `ecommerce`
 - storefront-aware header/footer/search behavior already exists
-- storefront settings already seed entity presentation defaults
+- canonical `entity_presentation` owns entity-view and entity-list presentation defaults for both native and ecommerce scopes
+- Theme Settings is the shell workspace only; canonical list, article, and detail presentation belongs in the `Entities` workspace
 
 ### Regression coverage already exists
 
@@ -130,6 +132,7 @@ At the end of this implementation track:
 
 - ecommerce public pages render through one canonical entity-based presentation path
 - the active customizer controls approved ecommerce entity-view presentation decisions
+- Theme Settings remains a shell-only control surface while `entity_presentation` owns canonical list/detail/article/product presentation
 - the active theme package supplies shell and design-system defaults, not a second application tree
 - CMS and ecommerce public pages share one design language under the same active theme
 - traditional native ecommerce theming remains a separate deferred track instead of contaminating the POC path
@@ -142,6 +145,7 @@ At the end of this implementation track:
 - theme and customizer state resolution
 - canonical entity and entity-list render contracts
 - approved presentation profiles and block-variant selection
+- migration of legacy theme-owned list/detail presentation settings into canonical `entity_presentation`
 
 ### Ecommerce owns
 
@@ -160,6 +164,7 @@ At the end of this implementation track:
 
 - storefront behavior
 - entity structure
+- canonical list/detail/article presentation state
 - a separate ecommerce entity template family for this POC
 
 ## Required Architectural Rule

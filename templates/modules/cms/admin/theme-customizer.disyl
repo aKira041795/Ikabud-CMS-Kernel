@@ -111,12 +111,12 @@
             </div>
             {if customizer_scope == 'ecommerce'}
             <div class="mt-3 rounded-xl border border-amber-200 bg-gradient-to-r from-amber-50 via-white to-sky-50 px-3 py-3 text-xs text-slate-700">
-                Shape the full storefront here: header, navigation behavior, footer composition, palette, and canonical entity-view presentation for the commerce shell.
+                Shape the storefront shell here: header, navigation, sidebar, footer, palette, and shell layout. Use Entities for the canonical entity view and entity list contract.
             </div>
             {/if}
             {if customizer_scope != 'ecommerce'}
             <div class="mt-3 rounded-xl border border-slate-200 bg-gradient-to-r from-slate-50 via-white to-emerald-50 px-3 py-3 text-xs text-slate-700">
-                The active theme shell stays in charge here. Use Catalog for shop, category, and product presentation inside that shell.
+                The active theme shell stays in charge here. Use Entities for canonical page, post, list, and commerce presentation inside that shell.
             </div>
             {/if}
             {if customizer_scope_notice}
@@ -165,11 +165,11 @@
             </button>
             <button @click="activeTab = 'theme'" class="cz-tab" :class="activeTab === 'theme' ? 'cz-tab-active' : 'cz-tab-inactive'">
                 <svg class="w-4 h-4 inline -mt-0.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v14a1 1 0 01-1 1H5a1 1 0 01-1-1V5zm0 5h16M9 5v14"/></svg>
-                {if customizer_scope == 'ecommerce'}Entity View{else}Theme Settings{/if}
+                {if customizer_scope == 'ecommerce'}Shell Layout{else}Theme Settings{/if}
             </button>
             <button @click="activeTab = 'commerce'" class="cz-tab" :class="activeTab === 'commerce' ? 'cz-tab-active' : 'cz-tab-inactive'">
                 <svg class="w-4 h-4 inline -mt-0.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 7h18M6 12h12M8 17h8"/></svg>
-                Catalog
+                Entities
             </button>
         </nav>
     </div>
@@ -202,13 +202,28 @@
                                 </template>
                             </div>
                         </div>
-                        <!-- Inner Width -->
                         <div>
-                            <label class="cz-label">Container Width</label>
-                            <select class="cz-select" x-model="footerSettings.inner_width">
+                            <label class="cz-label">Widget Container</label>
+                            <select class="cz-select" x-model="footerSettings.widget_container_width">
                                 <option value="contained">Contained</option>
-                                <option value="full-width">Full Width</option>
+                                <option value="full">Full Width + Side Gutters</option>
                             </select>
+                            <p class="text-[10px] text-gray-400 mt-1">Controls the outer footer band that carries the widget background color.</p>
+                        </div>
+                        <div>
+                            <label class="cz-label">Widget Holder Width</label>
+                            <select class="cz-select" x-model="footerSettings.widget_inner_width_mode">
+                                <option value="boxed">Boxed</option>
+                                <option value="contained">Contained</option>
+                                <option value="full">Full Width</option>
+                                <option value="custom">Custom</option>
+                            </select>
+                            <p class="text-[10px] text-gray-400 mt-1">Controls the inner grid that actually holds the widgets.</p>
+                        </div>
+                        <div x-show="footerSettings.widget_inner_width_mode === 'custom'">
+                            <label class="cz-label">Custom Holder Width</label>
+                            <input type="text" class="cz-input" x-model="footerSettings.widget_inner_custom_width" placeholder="960px">
+                            <p class="text-[10px] text-gray-400 mt-1">Accepts px, rem, em, vw, vh, or % values.</p>
                         </div>
                         <!-- Padding -->
                         <div>
@@ -277,6 +292,14 @@
                             class="cz-toggle" :class="footerSettings.show_footer_bar == 1 ? 'cz-toggle-on' : 'cz-toggle-off'">
                             <span class="cz-toggle-knob" :class="footerSettings.show_footer_bar == 1 ? 'cz-toggle-knob-on' : 'cz-toggle-knob-off'"></span>
                         </button>
+                    </div>
+                    <div style="margin-bottom:0.75rem;">
+                        <label class="cz-label">Footer Bar Width</label>
+                        <select class="cz-select" x-model="footerSettings.inner_width">
+                            <option value="contained">Contained</option>
+                            <option value="full-width">Full Width</option>
+                        </select>
+                        <p class="text-[10px] text-gray-400 mt-1">Keeps the footer bar shell independent from the widget area shell.</p>
                     </div>
                     <div>
                         <label class="cz-label">Copyright Text</label>
@@ -459,28 +482,34 @@
                     </div>
                     <div class="p-3">
                         <div class="cz-preview-frame" :style="'background:' + footerSettings.bg_color">
+                            <div class="px-4 pt-3 pb-2 flex flex-wrap gap-1.5 text-[10px] text-gray-500">
+                                <span class="inline-flex items-center rounded-full bg-white/80 px-2 py-1">Widgets: <span class="ml-1 font-medium text-gray-700" x-text="footerPreviewWidgetContainerLabel() + ' / ' + footerPreviewWidgetHolderLabel()"></span></span>
+                                <span class="inline-flex items-center rounded-full bg-white/80 px-2 py-1">Bar: <span class="ml-1 font-medium text-gray-700" x-text="footerPreviewFooterBarLabel()"></span></span>
+                            </div>
                             <!-- Widget Preview -->
                             <div x-show="footerSettings.columns > 0 && footerWidgets.length > 0"
-                                 :style="'padding:' + footerSettings.padding_top + 'px 16px ' + footerSettings.padding_bottom + 'px; color:' + footerSettings.text_color">
-                                <div class="grid gap-3" :style="'grid-template-columns: repeat(' + footerSettings.columns + ', 1fr)'">
-                                    <template x-for="col in parseInt(footerSettings.columns)" :key="col">
-                                        <div class="min-w-0">
-                                            <template x-for="w in widgetsInColumn(col)" :key="w.id">
-                                                <div class="mb-3">
-                                                    <div x-show="w.props.title" class="text-xs font-semibold mb-1" :style="'color:' + footerSettings.title_color" x-text="w.props.title"></div>
-                                                    <div class="text-[10px] leading-relaxed" :style="'color:' + footerSettings.text_color">
-                                                        <span x-show="w.type === 'text'" x-html="(w.props.content || '<em>Text content…</em>').substring(0, 120)"></span>
-                                                        <span x-show="w.type === 'custom_html'" class="text-gray-400">&lt;HTML&gt;</span>
-                                                        <span x-show="w.type === 'nav_menu'" class="text-gray-400">☰ Menu</span>
-                                                        <span x-show="w.type === 'recent_posts'" class="text-gray-400">📄 Recent Posts</span>
-                                                        <span x-show="w.type === 'social_links'" class="text-gray-400">🔗 Social</span>
-                                                        <span x-show="w.type === 'contact_info'" class="text-gray-400">📍 Contact</span>
+                                 :style="footerPreviewWidgetContainerStyle()">
+                                <div :style="footerPreviewWidgetHolderStyle()">
+                                    <div class="grid gap-3" :style="'grid-template-columns: repeat(' + footerSettings.columns + ', 1fr)'">
+                                        <template x-for="col in parseInt(footerSettings.columns)" :key="col">
+                                            <div class="min-w-0">
+                                                <template x-for="w in widgetsInColumn(col)" :key="w.id">
+                                                    <div class="mb-3">
+                                                        <div x-show="w.props.title" class="text-xs font-semibold mb-1" :style="'color:' + footerSettings.title_color" x-text="w.props.title"></div>
+                                                        <div class="text-[10px] leading-relaxed" :style="'color:' + footerSettings.text_color">
+                                                            <span x-show="w.type === 'text'" x-html="(w.props.content || '<em>Text content…</em>').substring(0, 120)"></span>
+                                                            <span x-show="w.type === 'custom_html'" class="text-gray-400">&lt;HTML&gt;</span>
+                                                            <span x-show="w.type === 'nav_menu'" class="text-gray-400">☰ Menu</span>
+                                                            <span x-show="w.type === 'recent_posts'" class="text-gray-400">📄 Recent Posts</span>
+                                                            <span x-show="w.type === 'social_links'" class="text-gray-400">🔗 Social</span>
+                                                            <span x-show="w.type === 'contact_info'" class="text-gray-400">📍 Contact</span>
+                                                        </div>
                                                     </div>
-                                                </div>
-                                            </template>
-                                            <div x-show="widgetsInColumn(col).length === 0" class="text-[10px] text-gray-500 opacity-40">Empty</div>
-                                        </div>
-                                    </template>
+                                                </template>
+                                                <div x-show="widgetsInColumn(col).length === 0" class="text-[10px] text-gray-500 opacity-40">Empty</div>
+                                            </div>
+                                        </template>
+                                    </div>
                                 </div>
                             </div>
                             <!-- No widgets state -->
@@ -493,8 +522,10 @@
                             <div x-show="footerSettings.show_footer_bar == 1"
                                  class="py-2 px-4 text-center text-[10px]"
                                  :style="'background:' + footerSettings.bar_bg_color + ';color:' + footerSettings.bar_text_color">
-                                <span x-text="previewCopyright()"></span>
-                                <span x-show="footerSettings.show_admin_link == 1" :style="'color:' + footerSettings.bar_link_color"> · Admin</span>
+                                <div :style="footerPreviewFooterBarInnerStyle()">
+                                    <span x-text="previewCopyright()"></span>
+                                    <span x-show="footerSettings.show_admin_link == 1" :style="'color:' + footerSettings.bar_link_color"> · Admin</span>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -781,7 +812,7 @@
                                             <div class="h-1 bg-gray-200 rounded w-full"></div>
                                             <div class="h-1 bg-gray-200 rounded w-5/6"></div>
                                         </div>
-                                        <div x-show="storefrontSettings.entity_layout_profile === 'commerce'" :style="entityPreviewSummaryStyle()">
+                                        <div x-show="entityPresentationSettings.entity_layout_profile === 'commerce'" :style="entityPreviewSummaryStyle()">
                                             <div class="text-[10px] uppercase tracking-[0.16em] text-gray-400 mb-2">Summary Rail</div>
                                             <div class="flex items-end gap-2 mb-2">
                                                 <span class="text-base font-bold" :style="'color:' + (colorsSettings.storefront_price_color || '#0f172a')">USD 79.00</span>
@@ -2391,10 +2422,7 @@
     <!-- THEME SETTINGS TAB -->
     <!-- ═══════════════════════════════════════════════════════════════ -->
     <div x-show="activeTab === 'theme'" class="grid grid-cols-1 xl:grid-cols-12 gap-6">
-        <!-- Left Column: Settings -->
         <div class="xl:col-span-8 space-y-5">
-
-            <!-- Site Layout Panel -->
             <div class="cz-panel">
                 <div class="cz-panel-header" @click="tlPanels.site = !tlPanels.site">
                     <h3>
@@ -2445,201 +2473,13 @@
                     </div>
                 </div>
             </div>
-
-            <!-- Blog / Archive Layout Panel -->
-            <div class="cz-panel">
-                <div class="cz-panel-header" @click="tlPanels.blog = !tlPanels.blog">
-                    <h3>
-                        <svg class="w-4 h-4 inline -mt-0.5 mr-1.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z"/></svg>
-                        Blog / Archive Layout
-                    </h3>
-                    <svg class="w-4 h-4 text-gray-400 transition-transform" :class="tlPanels.blog ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-                </div>
-                <div x-show="tlPanels.blog" x-collapse class="cz-panel-body">
-                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
-                        <!-- Layout Style -->
-                        <div>
-                            <label class="cz-label">Layout Style</label>
-                            <select x-model="themeLayoutSettings.blog_layout" class="cz-select">
-                                <option value="list">List</option>
-                                <option value="grid">Grid</option>
-                                <option value="cards">Cards</option>
-                            </select>
-                        </div>
-                        <!-- Grid Columns (only for grid/cards) -->
-                        <div x-show="themeLayoutSettings.blog_layout !== 'list'">
-                            <label class="cz-label">Columns</label>
-                            <select x-model="themeLayoutSettings.blog_columns" class="cz-select">
-                                <option value="2">2 Columns</option>
-                                <option value="3">3 Columns</option>
-                                <option value="4">4 Columns</option>
-                            </select>
-                        </div>
-                        <!-- Gap -->
-                        <div>
-                            <label class="cz-label">Gap (px)</label>
-                            <input type="number" x-model="themeLayoutSettings.blog_gap" min="0" max="64" class="cz-input">
-                        </div>
-                    </div>
-
-                    <p class="cz-section-title">Card Appearance</p>
-                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
-                        <div>
-                            <label class="cz-label">Card Radius (px)</label>
-                            <input type="number" x-model="themeLayoutSettings.blog_card_radius" min="0" max="24" class="cz-input">
-                        </div>
-                        <label class="flex items-center gap-2 text-sm text-gray-700">
-                            <input type="checkbox" :checked="themeLayoutSettings.blog_card_border == 1" @change="themeLayoutSettings.blog_card_border = $event.target.checked ? 1 : 0" class="rounded border-gray-300">
-                            Show Border
-                        </label>
-                        <label class="flex items-center gap-2 text-sm text-gray-700">
-                            <input type="checkbox" :checked="themeLayoutSettings.blog_card_shadow == 1" @change="themeLayoutSettings.blog_card_shadow = $event.target.checked ? 1 : 0" class="rounded border-gray-300">
-                            Hover Shadow
-                        </label>
-                    </div>
-
-                    <p class="cz-section-title">Featured Image</p>
-                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
-                        <label class="flex items-center gap-2 text-sm text-gray-700">
-                            <input type="checkbox" :checked="themeLayoutSettings.blog_featured_image == 1" @change="themeLayoutSettings.blog_featured_image = $event.target.checked ? 1 : 0" class="rounded border-gray-300">
-                            Show Image
-                        </label>
-                        <div x-show="themeLayoutSettings.blog_featured_image == 1">
-                            <label class="cz-label">Image Height (px)</label>
-                            <input type="number" x-model="themeLayoutSettings.blog_image_height" min="100" max="500" class="cz-input">
-                        </div>
-                        <div x-show="themeLayoutSettings.blog_featured_image == 1">
-                            <label class="cz-label">Aspect Ratio</label>
-                            <select x-model="themeLayoutSettings.blog_image_ratio" class="cz-select">
-                                <option value="auto">Auto</option>
-                                <option value="16:9">16:9</option>
-                                <option value="4:3">4:3</option>
-                                <option value="1:1">1:1 (Square)</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    <p class="cz-section-title">Content Display</p>
-                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
-                        <label class="flex items-center gap-2 text-sm text-gray-700">
-                            <input type="checkbox" :checked="themeLayoutSettings.blog_show_author == 1" @change="themeLayoutSettings.blog_show_author = $event.target.checked ? 1 : 0" class="rounded border-gray-300">
-                            Show Author
-                        </label>
-                        <label class="flex items-center gap-2 text-sm text-gray-700">
-                            <input type="checkbox" :checked="themeLayoutSettings.blog_show_date == 1" @change="themeLayoutSettings.blog_show_date = $event.target.checked ? 1 : 0" class="rounded border-gray-300">
-                            Show Date
-                        </label>
-                        <label class="flex items-center gap-2 text-sm text-gray-700">
-                            <input type="checkbox" :checked="themeLayoutSettings.blog_show_excerpt == 1" @change="themeLayoutSettings.blog_show_excerpt = $event.target.checked ? 1 : 0" class="rounded border-gray-300">
-                            Show Excerpt
-                        </label>
-                        <label class="flex items-center gap-2 text-sm text-gray-700">
-                            <input type="checkbox" :checked="themeLayoutSettings.blog_show_readmore == 1" @change="themeLayoutSettings.blog_show_readmore = $event.target.checked ? 1 : 0" class="rounded border-gray-300">
-                            Show Read More
-                        </label>
-                    </div>
-
-                    <div x-show="themeLayoutSettings.blog_show_readmore == 1">
-                        <label class="cz-label">Read More Text</label>
-                        <input type="text" x-model="themeLayoutSettings.blog_readmore_text" class="cz-input" style="max-width:220px;">
-                    </div>
-                </div>
+            <div class="rounded-xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-600">
+                <div class="font-semibold text-slate-800 mb-1">Shell ownership</div>
+                Theme Settings now owns shell geometry only: the outer site width, main content width, and shell padding.
+                Canonical list, article, and entity presentation lives in the Entities tab so list and detail controls stop drifting away from the shared entity contract.
             </div>
-
-            <!-- Single Post / Page Panel -->
-            <div class="cz-panel">
-                <div class="cz-panel-header" @click="tlPanels.single = !tlPanels.single">
-                    <h3>
-                        <svg class="w-4 h-4 inline -mt-0.5 mr-1.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-                        Single Post / Page
-                    </h3>
-                    <svg class="w-4 h-4 text-gray-400 transition-transform" :class="tlPanels.single ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-                </div>
-                <div x-show="tlPanels.single" x-collapse class="cz-panel-body">
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-                        <div>
-                            <label class="cz-label">Content Max Width (px)</label>
-                            <input type="number" x-model="themeLayoutSettings.single_max_width" min="480" max="1200" step="10" class="cz-input">
-                            <p class="text-[10px] text-gray-400 mt-1">Width of single post / page content area.</p>
-                        </div>
-                    </div>
-                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                        <label class="flex items-center gap-2 text-sm text-gray-700">
-                            <input type="checkbox" :checked="themeLayoutSettings.single_show_author == 1" @change="themeLayoutSettings.single_show_author = $event.target.checked ? 1 : 0" class="rounded border-gray-300">
-                            Show Author
-                        </label>
-                        <label class="flex items-center gap-2 text-sm text-gray-700">
-                            <input type="checkbox" :checked="themeLayoutSettings.single_show_date == 1" @change="themeLayoutSettings.single_show_date = $event.target.checked ? 1 : 0" class="rounded border-gray-300">
-                            Show Date
-                        </label>
-                        <label class="flex items-center gap-2 text-sm text-gray-700">
-                            <input type="checkbox" :checked="themeLayoutSettings.single_show_categories == 1" @change="themeLayoutSettings.single_show_categories = $event.target.checked ? 1 : 0" class="rounded border-gray-300">
-                            Show Categories
-                        </label>
-                        <label class="flex items-center gap-2 text-sm text-gray-700">
-                            <input type="checkbox" :checked="themeLayoutSettings.single_show_tags == 1" @change="themeLayoutSettings.single_show_tags = $event.target.checked ? 1 : 0" class="rounded border-gray-300">
-                            Show Tags
-                        </label>
-                        <label class="flex items-center gap-2 text-sm text-gray-700">
-                            <input type="checkbox" :checked="themeLayoutSettings.single_show_nav == 1" @change="themeLayoutSettings.single_show_nav = $event.target.checked ? 1 : 0" class="rounded border-gray-300">
-                            Prev/Next Navigation
-                        </label>
-                    </div>
-                </div>
-            </div>
-
-            {if customizer_scope != 'ecommerce'}
-            <!-- Entity View Presentation Panel -->
-            <div class="cz-panel">
-                <div class="cz-panel-header" @click="tlPanels.entity = !tlPanels.entity">
-                    <h3>
-                        <svg class="w-4 h-4 inline -mt-0.5 mr-1.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h10"/></svg>
-                        General Entity Presentation
-                    </h3>
-                    <svg class="w-4 h-4 text-gray-400 transition-transform" :class="tlPanels.entity ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-                </div>
-                <div x-show="tlPanels.entity" x-collapse class="cz-panel-body">
-                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
-                        <div>
-                            <label class="cz-label">Layout Profile</label>
-                            <select x-model="themeLayoutSettings.entity_layout_profile" class="cz-select">
-                                <option value="default">Default</option>
-                                <option value="commerce">Commerce</option>
-                                <option value="content">Content</option>
-                            </select>
-                            <p class="text-[10px] text-gray-400 mt-1">Select from approved canonical entity orderings instead of creating a separate template family.</p>
-                        </div>
-                        <div>
-                            <label class="cz-label">Pricing Variant</label>
-                            <select x-model="themeLayoutSettings.entity_pricing_variant" class="cz-select">
-                                <option value="">Default</option>
-                                <option value="compact">Compact</option>
-                                <option value="featured">Featured</option>
-                                <option value="minimal">Minimal</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label class="cz-label">Action Variant</label>
-                            <select x-model="themeLayoutSettings.entity_action_variant" class="cz-select">
-                                <option value="">Default</option>
-                                <option value="inline">Inline</option>
-                                <option value="sticky-footer">Sticky Footer</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    <div class="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600">
-                        <div class="font-semibold text-slate-800 mb-1">Profile behavior</div>
-                        <div x-show="themeLayoutSettings.entity_layout_profile === 'default'">Default keeps pricing and actions in the main reading flow ahead of the body.</div>
-                        <div x-show="themeLayoutSettings.entity_layout_profile === 'commerce'">Commerce moves pricing and actions into a dedicated summary rail for storefront-oriented entities.</div>
-                        <div x-show="themeLayoutSettings.entity_layout_profile === 'content'">Content prioritizes the title and body first, then places pricing and actions after the narrative content.</div>
-                    </div>
-                </div>
-            </div>
-            {/if}
         </div>
 
-        <!-- Right Column: Preview Summary -->
         <div class="xl:col-span-4 space-y-5">
             <div class="cz-panel sticky top-20">
                 <div class="cz-panel-header">
@@ -2649,31 +2489,20 @@
                     </h3>
                 </div>
                 <div class="cz-panel-body space-y-4">
-                    <!-- Preview mode switcher -->
                     <div class="flex gap-1 bg-gray-100 rounded-lg p-0.5">
                         <button @click="tlPreviewMode = 'page'" class="flex-1 text-[10px] font-medium py-1 rounded-md transition-colors"
                             :class="tlPreviewMode === 'page' ? 'bg-white shadow-sm text-gray-700' : 'text-gray-400 hover:text-gray-600'">Page</button>
-                        <button @click="tlPreviewMode = 'blog'" class="flex-1 text-[10px] font-medium py-1 rounded-md transition-colors"
-                            :class="tlPreviewMode === 'blog' ? 'bg-white shadow-sm text-gray-700' : 'text-gray-400 hover:text-gray-600'">Blog</button>
-                        {if customizer_scope == 'ecommerce'}
-                        <button @click="tlPreviewMode = 'entity'" class="flex-1 text-[10px] font-medium py-1 rounded-md transition-colors"
-                            :class="tlPreviewMode === 'entity' ? 'bg-white shadow-sm text-gray-700' : 'text-gray-400 hover:text-gray-600'">Entity</button>
-                        {/if}
                         <button @click="tlPreviewMode = 'stats'" class="flex-1 text-[10px] font-medium py-1 rounded-md transition-colors"
                             :class="tlPreviewMode === 'stats' ? 'bg-white shadow-sm text-gray-700' : 'text-gray-400 hover:text-gray-600'">Summary</button>
                     </div>
 
-                    <!-- ─── PAGE PREVIEW ─── -->
                     <div x-show="tlPreviewMode === 'page'" class="border border-gray-200 rounded-lg overflow-hidden bg-white" style="min-height:280px;">
-                        <!-- Browser chrome -->
                         <div class="flex items-center gap-1.5 px-2.5 py-1.5 bg-gray-100 border-b border-gray-200">
                             <div class="flex gap-1"><span class="w-1.5 h-1.5 rounded-full bg-red-300"></span><span class="w-1.5 h-1.5 rounded-full bg-yellow-300"></span><span class="w-1.5 h-1.5 rounded-full bg-green-300"></span></div>
-                            <div class="flex-1 bg-white rounded-sm border border-gray-200 px-2 py-0.5 text-[8px] text-gray-400 truncate ml-1">example.com/blog/my-post</div>
+                            <div class="flex-1 bg-white rounded-sm border border-gray-200 px-2 py-0.5 text-[8px] text-gray-400 truncate ml-1">example.com/page</div>
                         </div>
-                        <!-- Simulated page -->
                         <div class="relative" :class="themeLayoutSettings.layout_mode === 'boxed' ? 'bg-gray-100 p-1.5' : 'bg-white'">
                             <div class="mx-auto" :class="themeLayoutSettings.layout_mode === 'boxed' ? 'bg-white shadow-sm rounded' : ''">
-                                <!-- Header -->
                                 <div class="flex items-center justify-between px-3 py-1.5 border-b border-gray-100">
                                     <div class="flex items-center gap-1.5">
                                         <div class="w-4 h-4 rounded bg-sky-100"></div>
@@ -2685,26 +2514,13 @@
                                         <div class="w-6 h-1 bg-gray-200 rounded"></div>
                                     </div>
                                 </div>
-                                <!-- Main content area with dynamic width ratio -->
                                 <div class="px-3 py-3">
                                     <div class="mx-auto"
                                          :style="'max-width:' + Math.min(100, Math.round(themeLayoutSettings.content_max_width / themeLayoutSettings.site_max_width * 100)) + '%'">
-                                        <!-- Title -->
                                         <div class="h-2.5 bg-gray-800 rounded w-4/5 mb-2"></div>
-                                        <!-- Meta row -->
-                                        <div class="flex gap-2 mb-3">
-                                            <template x-if="themeLayoutSettings.single_show_author == 1">
-                                                <div class="flex items-center gap-1"><div class="w-3 h-3 rounded-full bg-sky-100"></div><div class="w-8 h-1 bg-gray-200 rounded"></div></div>
-                                            </template>
-                                            <template x-if="themeLayoutSettings.single_show_date == 1">
-                                                <div class="w-10 h-1 bg-gray-200 rounded"></div>
-                                            </template>
-                                        </div>
-                                        <!-- Featured image placeholder -->
                                         <div class="w-full bg-gradient-to-br from-sky-50 to-indigo-50 rounded-md mb-3 flex items-center justify-center" style="height:60px;">
                                             <svg class="w-5 h-5 text-sky-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
                                         </div>
-                                        <!-- Body text lines -->
                                         <div class="space-y-1.5">
                                             <div class="h-1 bg-gray-200 rounded w-full"></div>
                                             <div class="h-1 bg-gray-200 rounded w-11/12"></div>
@@ -2716,23 +2532,8 @@
                                             <div class="h-1 bg-gray-200 rounded w-full"></div>
                                             <div class="h-1 bg-gray-200 rounded w-2/3"></div>
                                         </div>
-                                        <!-- Tags / Categories -->
-                                        <div class="mt-3 flex gap-1" x-show="themeLayoutSettings.single_show_categories == 1 || themeLayoutSettings.single_show_tags == 1">
-                                            <div class="px-1.5 py-0.5 bg-sky-50 rounded text-[6px] text-sky-500">Category</div>
-                                            <template x-if="themeLayoutSettings.single_show_tags == 1">
-                                                <div class="flex gap-1"><div class="px-1.5 py-0.5 bg-gray-100 rounded text-[6px] text-gray-400">Tag</div><div class="px-1.5 py-0.5 bg-gray-100 rounded text-[6px] text-gray-400">Tag</div></div>
-                                            </template>
-                                        </div>
-                                        <!-- Prev/Next nav -->
-                                        <template x-if="themeLayoutSettings.single_show_nav == 1">
-                                            <div class="flex justify-between mt-3 pt-2 border-t border-gray-100">
-                                                <div class="w-12 h-1 bg-sky-200 rounded"></div>
-                                                <div class="w-12 h-1 bg-sky-200 rounded"></div>
-                                            </div>
-                                        </template>
                                     </div>
                                 </div>
-                                <!-- Footer -->
                                 <div class="px-3 py-1.5 border-t border-gray-100 bg-gray-50">
                                     <div class="flex justify-center gap-2">
                                         <div class="w-6 h-0.5 bg-gray-200 rounded"></div>
@@ -2742,170 +2543,13 @@
                             </div>
                         </div>
                     </div>
-
-                    <!-- ─── BLOG PREVIEW ─── -->
-                    <div x-show="tlPreviewMode === 'blog'" class="border border-gray-200 rounded-lg overflow-hidden bg-white" style="min-height:280px;">
-                        <!-- Browser chrome -->
-                        <div class="flex items-center gap-1.5 px-2.5 py-1.5 bg-gray-100 border-b border-gray-200">
-                            <div class="flex gap-1"><span class="w-1.5 h-1.5 rounded-full bg-red-300"></span><span class="w-1.5 h-1.5 rounded-full bg-yellow-300"></span><span class="w-1.5 h-1.5 rounded-full bg-green-300"></span></div>
-                            <div class="flex-1 bg-white rounded-sm border border-gray-200 px-2 py-0.5 text-[8px] text-gray-400 truncate ml-1">example.com/blog</div>
-                        </div>
-                        <div class="relative" :class="themeLayoutSettings.layout_mode === 'boxed' ? 'bg-gray-100 p-1.5' : 'bg-white'">
-                            <div class="mx-auto" :class="themeLayoutSettings.layout_mode === 'boxed' ? 'bg-white shadow-sm rounded' : ''">
-                                <!-- Header -->
-                                <div class="flex items-center justify-between px-3 py-1.5 border-b border-gray-100">
-                                    <div class="flex items-center gap-1.5">
-                                        <div class="w-4 h-4 rounded bg-sky-100"></div>
-                                        <div class="w-10 h-1.5 bg-gray-300 rounded"></div>
-                                    </div>
-                                    <div class="flex gap-2">
-                                        <div class="w-6 h-1 bg-gray-200 rounded"></div>
-                                        <div class="w-6 h-1 bg-gray-200 rounded"></div>
-                                    </div>
-                                </div>
-                                <!-- Blog listing -->
-                                <div class="px-3 py-3">
-                                    <div class="mx-auto"
-                                         :style="'max-width:' + Math.min(100, Math.round(themeLayoutSettings.content_max_width / themeLayoutSettings.site_max_width * 100)) + '%'">
-                                        <!-- Page title -->
-                                        <div class="text-center mb-3">
-                                            <div class="h-2 bg-gray-700 rounded w-1/4 mx-auto mb-1"></div>
-                                            <div class="h-0.5 bg-gray-200 rounded w-2/5 mx-auto"></div>
-                                        </div>
-                                        <!-- Post cards -->
-                                        <div :class="themeLayoutSettings.blog_layout === 'list' ? 'space-y-2' : 'grid gap-2'"
-                                             :style="themeLayoutSettings.blog_layout !== 'list' ? 'grid-template-columns: repeat(' + themeLayoutSettings.blog_columns + ', 1fr)' : ''">
-                                            <template x-for="i in [1,2,3]" :key="i">
-                                                <div class="border border-gray-100 rounded-md overflow-hidden"
-                                                     :style="'border-radius:' + Math.min(8, themeLayoutSettings.blog_card_radius) + 'px'"
-                                                     :class="themeLayoutSettings.blog_card_shadow == 1 ? 'shadow-sm' : ''">
-                                                    <!-- Featured image -->
-                                                    <template x-if="themeLayoutSettings.blog_featured_image == 1">
-                                                        <div class="bg-gradient-to-br from-gray-100 to-gray-50 flex items-center justify-center"
-                                                             :style="'height:' + (themeLayoutSettings.blog_layout === 'list' ? '28' : '36') + 'px'">
-                                                            <svg class="w-3 h-3 text-gray-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" stroke-width="1.5"/><circle cx="8.5" cy="8.5" r="1.5" stroke-width="1.5"/><path d="M21 15l-5-5L5 21" stroke-width="1.5"/></svg>
-                                                        </div>
-                                                    </template>
-                                                    <div class="p-2">
-                                                        <!-- Title -->
-                                                        <div class="h-1.5 bg-gray-700 rounded mb-1" :style="'width:' + (55 + i * 12) + '%'"></div>
-                                                        <!-- Meta -->
-                                                        <div class="flex gap-1 mb-1">
-                                                            <template x-if="themeLayoutSettings.blog_show_author == 1">
-                                                                <div class="h-0.5 w-6 bg-gray-200 rounded"></div>
-                                                            </template>
-                                                            <template x-if="themeLayoutSettings.blog_show_date == 1">
-                                                                <div class="h-0.5 w-8 bg-gray-200 rounded"></div>
-                                                            </template>
-                                                        </div>
-                                                        <!-- Excerpt -->
-                                                        <template x-if="themeLayoutSettings.blog_show_excerpt == 1">
-                                                            <div class="space-y-0.5">
-                                                                <div class="h-0.5 bg-gray-100 rounded w-full"></div>
-                                                                <div class="h-0.5 bg-gray-100 rounded" :style="'width:' + (60 + i * 10) + '%'"></div>
-                                                            </div>
-                                                        </template>
-                                                        <!-- Read more -->
-                                                        <template x-if="themeLayoutSettings.blog_show_readmore == 1">
-                                                            <div class="h-0.5 w-8 bg-sky-200 rounded mt-1"></div>
-                                                        </template>
-                                                    </div>
-                                                </div>
-                                            </template>
-                                        </div>
-                                    </div>
-                                </div>
-                                <!-- Footer -->
-                                <div class="px-3 py-1 border-t border-gray-100 bg-gray-50">
-                                    <div class="w-12 h-0.5 bg-gray-200 rounded mx-auto"></div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    {if customizer_scope == 'ecommerce'}
-                    <div x-show="tlPreviewMode === 'entity'" class="border border-gray-200 rounded-lg overflow-hidden bg-white p-3" style="min-height:280px;">
-                        <div class="flex items-center gap-1.5 px-2.5 py-1.5 bg-gray-100 border border-gray-200 rounded-md mb-3">
-                            <div class="flex gap-1"><span class="w-1.5 h-1.5 rounded-full bg-red-300"></span><span class="w-1.5 h-1.5 rounded-full bg-yellow-300"></span><span class="w-1.5 h-1.5 rounded-full bg-green-300"></span></div>
-                            <div class="flex-1 bg-white rounded-sm border border-gray-200 px-2 py-0.5 text-[8px] text-gray-400 truncate ml-1">example.com/ecommerce/shop/sample-item</div>
-                        </div>
-                        <div class="space-y-3">
-                            <div :style="entityPreviewHeroStyle()">
-                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
-                            </div>
-                            <div :style="entityPreviewLayoutStyle()">
-                                <div class="space-y-3">
-                                    <div>
-                                        <div class="h-3 bg-slate-800 rounded w-2/3 mb-1"></div>
-                                        <div class="flex gap-2 text-[10px] text-gray-400 mb-2">
-                                            <span class="rounded-full bg-sky-50 px-2 py-0.5 text-sky-600">Product</span>
-                                            <span>Updated today</span>
-                                        </div>
-                                    </div>
-                                    <div class="space-y-1.5">
-                                        <div class="h-1 bg-gray-200 rounded w-full"></div>
-                                        <div class="h-1 bg-gray-200 rounded w-11/12"></div>
-                                        <div class="h-1 bg-gray-200 rounded w-4/5"></div>
-                                    </div>
-                                </div>
-                                <div x-show="storefrontSettings.entity_layout_profile === 'commerce'" :style="entityPreviewSummaryStyle()">
-                                    <div class="text-[10px] uppercase tracking-[0.16em] text-gray-400 mb-2">Summary Rail</div>
-                                    <div :style="entityPreviewSummaryPricingStyle()">
-                                        <span :style="entityPreviewSummaryCurrentPriceStyle()">USD 79.00</span>
-                                        <span x-show="entityPreviewPricingVariant() !== 'minimal'" class="text-xs line-through text-gray-400">99.00</span>
-                                        <span x-show="entityPreviewPricingVariant() === 'featured'" class="inline-flex items-center rounded-full bg-slate-900 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-white">Offer</span>
-                                    </div>
-                                    <div class="space-y-2">
-                                        <div class="inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-semibold" :style="entityPreviewInventoryStyle('low')">Only 3 left</div>
-                                        <div :style="entityPreviewActionGroupStyle()">
-                                            <span :style="entityPreviewPrimaryActionStyle()">Add to Cart</span>
-                                            <span :style="entityPreviewSecondaryActionStyle()">Ask a Question</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    {/if}
-
-                    <!-- ─── STATS SUMMARY ─── -->
                     <div x-show="tlPreviewMode === 'stats'" class="space-y-3">
                         <div class="space-y-2 text-xs text-gray-600">
                             <div class="flex justify-between"><span class="text-gray-400">Layout</span><span class="font-medium capitalize" x-text="themeLayoutSettings.layout_mode"></span></div>
                             <div class="flex justify-between"><span class="text-gray-400">Site Width</span><span class="font-medium" x-text="themeLayoutSettings.site_max_width + 'px'"></span></div>
                             <div class="flex justify-between"><span class="text-gray-400">Content Width</span><span class="font-medium" x-text="themeLayoutSettings.content_max_width + 'px'"></span></div>
                             <div class="flex justify-between"><span class="text-gray-400">Padding</span><span class="font-medium" x-text="themeLayoutSettings.content_padding_x + ' / ' + themeLayoutSettings.content_padding_top + ' / ' + themeLayoutSettings.content_padding_bottom + 'px'"></span></div>
-                            <hr class="border-gray-100">
-                            <div class="flex justify-between"><span class="text-gray-400">Blog Layout</span><span class="font-medium capitalize" x-text="themeLayoutSettings.blog_layout + (themeLayoutSettings.blog_layout !== 'list' ? ' (' + themeLayoutSettings.blog_columns + ' cols)' : '')"></span></div>
-                            <div class="flex justify-between"><span class="text-gray-400">Card Gap</span><span class="font-medium" x-text="themeLayoutSettings.blog_gap + 'px'"></span></div>
-                            <div class="flex justify-between"><span class="text-gray-400">Card Radius</span><span class="font-medium" x-text="themeLayoutSettings.blog_card_radius + 'px'"></span></div>
-                            <div class="flex justify-between"><span class="text-gray-400">Featured Image</span><span class="font-medium" x-text="themeLayoutSettings.blog_featured_image == 1 ? 'On' : 'Off'"></span></div>
-                            <div class="flex justify-between"><span class="text-gray-400">Image Ratio</span><span class="font-medium" x-text="themeLayoutSettings.blog_image_ratio"></span></div>
-                            <hr class="border-gray-100">
-                            <div class="flex justify-between"><span class="text-gray-400">Single Width</span><span class="font-medium" x-text="themeLayoutSettings.single_max_width + 'px'"></span></div>
-                            <div class="flex justify-between"><span class="text-gray-400">Blog Elements</span><span class="font-medium" x-text="[themeLayoutSettings.blog_show_author == 1 ? 'Author' : '', themeLayoutSettings.blog_show_date == 1 ? 'Date' : '', themeLayoutSettings.blog_show_excerpt == 1 ? 'Excerpt' : '', themeLayoutSettings.blog_show_readmore == 1 ? 'Read More' : ''].filter(Boolean).join(', ') || 'None'"></span></div>
-                            <div class="flex justify-between"><span class="text-gray-400">Single Elements</span><span class="font-medium" x-text="[themeLayoutSettings.single_show_author == 1 ? 'Author' : '', themeLayoutSettings.single_show_date == 1 ? 'Date' : '', themeLayoutSettings.single_show_categories == 1 ? 'Cats' : '', themeLayoutSettings.single_show_tags == 1 ? 'Tags' : '', themeLayoutSettings.single_show_nav == 1 ? 'Nav' : ''].filter(Boolean).join(', ') || 'None'"></span></div>
-                            {if customizer_scope != 'ecommerce'}
-                            <hr class="border-gray-100">
-                            <div class="flex justify-between"><span class="text-gray-400">Entity Profile</span><span class="font-medium capitalize" x-text="themeLayoutSettings.entity_layout_profile"></span></div>
-                            <div class="flex justify-between"><span class="text-gray-400">Pricing Variant</span><span class="font-medium capitalize" x-text="themeLayoutSettings.entity_pricing_variant || 'Default'"></span></div>
-                            <div class="flex justify-between"><span class="text-gray-400">Action Variant</span><span class="font-medium capitalize" x-text="themeLayoutSettings.entity_action_variant || 'Default'"></span></div>
-                            {else}
-                            <hr class="border-gray-100">
-                            <div class="flex justify-between"><span class="text-gray-400">Entity Profile</span><span class="font-medium capitalize" x-text="storefrontSettings.entity_layout_profile"></span></div>
-                            <div class="flex justify-between"><span class="text-gray-400">Summary Width</span><span class="font-medium" x-text="storefrontSettings.entity_summary_width + 'px'"></span></div>
-                            <div class="flex justify-between"><span class="text-gray-400">Summary Sticky</span><span class="font-medium" x-text="storefrontSettings.entity_summary_sticky == 1 ? 'On' : 'Off'"></span></div>
-                            <div class="flex justify-between"><span class="text-gray-400">Media Ratio</span><span class="font-medium" x-text="storefrontSettings.entity_media_ratio"></span></div>
-                            <div class="flex justify-between"><span class="text-gray-400">Spacing</span><span class="font-medium capitalize" x-text="storefrontSettings.entity_spacing_scale"></span></div>
-                            <div class="flex justify-between"><span class="text-gray-400">Action Size</span><span class="font-medium uppercase" x-text="storefrontSettings.entity_action_size"></span></div>
-                            <div class="flex justify-between"><span class="text-gray-400">Pricing Variant</span><span class="font-medium capitalize" x-text="entityPreviewVariantLabel(entityPreviewPricingVariant())"></span></div>
-                            <div class="flex justify-between"><span class="text-gray-400">Action Variant</span><span class="font-medium capitalize" x-text="entityPreviewVariantLabel(entityPreviewActionVariant())"></span></div>
-                            <div class="flex justify-between"><span class="text-gray-400">List Price Variant</span><span class="font-medium capitalize" x-text="entityPreviewVariantLabel(entityPreviewListPricingVariant())"></span></div>
-                            <div class="flex justify-between"><span class="text-gray-400">List Inventory Variant</span><span class="font-medium capitalize" x-text="entityPreviewVariantLabel(entityPreviewListInventoryVariant())"></span></div>
-                            <div class="flex justify-between"><span class="text-gray-400">List Progress Variant</span><span class="font-medium capitalize" x-text="entityPreviewVariantLabel(entityPreviewListProgressVariant())"></span></div>
-                            {/if}
                         </div>
-                        <!-- Content ratio visual -->
                         <div>
                             <p class="text-[10px] font-semibold uppercase text-gray-400 tracking-wider mb-1.5">Width Ratio</p>
                             <div class="space-y-1.5">
@@ -2917,13 +2561,8 @@
                                     <div class="flex justify-between text-[9px] text-gray-400 mb-0.5"><span>Content</span><span x-text="themeLayoutSettings.content_max_width + 'px'"></span></div>
                                     <div class="h-2 bg-gray-100 rounded-full overflow-hidden"><div class="h-full bg-sky-400 rounded-full" :style="'width:' + Math.round(themeLayoutSettings.content_max_width / themeLayoutSettings.site_max_width * 100) + '%'"></div></div>
                                 </div>
-                                <div>
-                                    <div class="flex justify-between text-[9px] text-gray-400 mb-0.5"><span>Single</span><span x-text="themeLayoutSettings.single_max_width + 'px'"></span></div>
-                                    <div class="h-2 bg-gray-100 rounded-full overflow-hidden"><div class="h-full bg-violet-400 rounded-full" :style="'width:' + Math.round(themeLayoutSettings.single_max_width / themeLayoutSettings.site_max_width * 100) + '%'"></div></div>
-                                </div>
                             </div>
                         </div>
-
                     </div>
                 </div>
             </div>
@@ -2936,17 +2575,17 @@
                 <div class="cz-panel-header" @click="tlPanels.commerceGuide = !tlPanels.commerceGuide">
                     <h3>
                         <svg class="w-4 h-4 inline -mt-0.5 mr-1.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6l4 2M12 22C6.477 22 2 17.523 2 12S6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z"/></svg>
-                        Storefront Contract
+                        Entity Contract
                     </h3>
                     <svg class="w-4 h-4 text-gray-400 transition-transform" :class="tlPanels.commerceGuide ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
                 </div>
                 <div x-show="tlPanels.commerceGuide" x-collapse class="cz-panel-body space-y-3 text-sm text-slate-600">
                     {if customizer_scope == 'ecommerce'}
-                    <p>The ecommerce workspace edits storefront presentation without forking the canonical CMS entity list and entity view contracts.</p>
-                    <p>Use this tab for approved layout variants, summary-rail tuning, and purchase action treatment. Header, sidebar, colors, and shared layout tabs stay wired to the same entity-view contract.</p>
+                    <p>The ecommerce workspace edits canonical entity presentation without forking the CMS entity list and entity view contracts.</p>
+                    <p>Use this tab for canonical detail, article, and list presentation. Header, sidebar, colors, footer, and Theme Settings stay shell-only so list and single controls live in one place.</p>
                     {else}
-                    <p>This catalog tab applies storefront presentation to shop, category, and product routes while the active theme shell keeps ownership of the site header, footer, and shared layout.</p>
-                    <p>Use this tab for approved layout variants, summary-rail tuning, and purchase action treatment without switching away from the active theme.</p>
+                    <p>This entities tab applies canonical presentation to pages, posts, lists, shop, category, and product routes while the active theme shell keeps ownership of the site header, footer, sidebar, and shared layout.</p>
+                    <p>Use this tab for canonical detail, article, and list presentation without switching away from the active theme shell.</p>
                     {/if}
                 </div>
             </div>
@@ -2955,7 +2594,7 @@
                 <div class="cz-panel-header" @click="tlPanels.commerceEntity = !tlPanels.commerceEntity">
                     <h3>
                         <svg class="w-4 h-4 inline -mt-0.5 mr-1.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h10"/></svg>
-                        Entity View Presentation
+                        Entity Presentation
                     </h3>
                     <svg class="w-4 h-4 text-gray-400 transition-transform" :class="tlPanels.commerceEntity ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
                 </div>
@@ -2963,7 +2602,7 @@
                     <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                         <div>
                             <label class="cz-label">Layout Profile</label>
-                            <select x-model="storefrontSettings.entity_layout_profile" class="cz-select">
+                            <select x-model="entityPresentationSettings.entity_layout_profile" class="cz-select">
                                 <option value="default">Default</option>
                                 <option value="commerce">Commerce</option>
                                 <option value="content">Content</option>
@@ -2972,7 +2611,7 @@
                         </div>
                         <div>
                             <label class="cz-label">Pricing Variant</label>
-                            <select x-model="storefrontSettings.entity_pricing_variant" class="cz-select">
+                            <select x-model="entityPresentationSettings.entity_pricing_variant" class="cz-select">
                                 <option value="">Default</option>
                                 <option value="compact">Compact</option>
                                 <option value="featured">Featured</option>
@@ -2981,8 +2620,9 @@
                         </div>
                         <div>
                             <label class="cz-label">Action Variant</label>
-                            <select x-model="storefrontSettings.entity_action_variant" class="cz-select">
+                            <select x-model="entityPresentationSettings.entity_action_variant" class="cz-select">
                                 <option value="">Default</option>
+                                <option value="inline">Inline</option>
                                 <option value="sticky-footer">Sticky Footer</option>
                             </select>
                         </div>
@@ -2992,13 +2632,13 @@
                         <div>
                             <label class="cz-label">Summary Width</label>
                             <div class="cz-range-row">
-                                <input type="range" min="260" max="420" step="10" x-model="storefrontSettings.entity_summary_width">
-                                <span class="cz-range-value" x-text="storefrontSettings.entity_summary_width + 'px'"></span>
+                                <input type="range" min="260" max="420" step="10" x-model="entityPresentationSettings.entity_summary_width">
+                                <span class="cz-range-value" x-text="entityPresentationSettings.entity_summary_width + 'px'"></span>
                             </div>
                         </div>
                         <div>
                             <label class="cz-label">Media Ratio</label>
-                            <select x-model="storefrontSettings.entity_media_ratio" class="cz-select">
+                            <select x-model="entityPresentationSettings.entity_media_ratio" class="cz-select">
                                 <option value="auto">Auto</option>
                                 <option value="16:9">16:9</option>
                                 <option value="4:3">4:3</option>
@@ -3007,7 +2647,7 @@
                         </div>
                         <div>
                             <label class="cz-label">Action Size</label>
-                            <select x-model="storefrontSettings.entity_action_size" class="cz-select">
+                            <select x-model="entityPresentationSettings.entity_action_size" class="cz-select">
                                 <option value="sm">Small</option>
                                 <option value="md">Medium</option>
                                 <option value="lg">Large</option>
@@ -3015,7 +2655,7 @@
                         </div>
                         <div>
                             <label class="cz-label">Spacing Scale</label>
-                            <select x-model="storefrontSettings.entity_spacing_scale" class="cz-select">
+                            <select x-model="entityPresentationSettings.entity_spacing_scale" class="cz-select">
                                 <option value="compact">Compact</option>
                                 <option value="comfortable">Comfortable</option>
                                 <option value="airy">Airy</option>
@@ -3027,9 +2667,9 @@
                                     <div class="cz-toggle-label">Sticky Summary Rail</div>
                                     <p class="text-[10px] text-slate-500 mt-1">Keeps the storefront purchase rail anchored while the narrative content scrolls.</p>
                                 </div>
-                                <button type="button" @click="storefrontSettings.entity_summary_sticky = storefrontSettings.entity_summary_sticky == 1 ? 0 : 1"
-                                    class="cz-toggle" :class="storefrontSettings.entity_summary_sticky == 1 ? 'cz-toggle-on' : 'cz-toggle-off'">
-                                    <span class="cz-toggle-knob" :class="storefrontSettings.entity_summary_sticky == 1 ? 'cz-toggle-knob-on' : 'cz-toggle-knob-off'"></span>
+                                <button type="button" @click="entityPresentationSettings.entity_summary_sticky = entityPresentationSettings.entity_summary_sticky == 1 ? 0 : 1"
+                                    class="cz-toggle" :class="entityPresentationSettings.entity_summary_sticky == 1 ? 'cz-toggle-on' : 'cz-toggle-off'">
+                                    <span class="cz-toggle-knob" :class="entityPresentationSettings.entity_summary_sticky == 1 ? 'cz-toggle-knob-on' : 'cz-toggle-knob-off'"></span>
                                 </button>
                             </div>
                         </div>
@@ -3038,7 +2678,7 @@
                     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                         <div>
                             <label class="cz-label">Catalog Card Density</label>
-                            <select x-model="storefrontSettings.entity_list_card_density" class="cz-select">
+                            <select x-model="entityPresentationSettings.entity_list_card_density" class="cz-select">
                                 <option value="compact">Compact</option>
                                 <option value="comfortable">Comfortable</option>
                                 <option value="airy">Airy</option>
@@ -3046,28 +2686,28 @@
                         </div>
                         <div>
                             <label class="cz-label">Excerpt Length</label>
-                            <input type="number" min="40" max="220" step="10" x-model="storefrontSettings.entity_list_excerpt_length" class="cz-input">
+                            <input type="number" min="40" max="220" step="10" x-model="entityPresentationSettings.entity_list_excerpt_length" class="cz-input">
                         </div>
                         <div class="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 flex items-center justify-between gap-3">
                             <div>
                                 <div class="cz-toggle-label">Show Filter Summary</div>
                                 <p class="text-[10px] text-slate-500 mt-1">Keep active catalog filters visible above the canonical list.</p>
                             </div>
-                            <input type="checkbox" :checked="storefrontSettings.entity_list_show_filter_summary == 1" @change="storefrontSettings.entity_list_show_filter_summary = $event.target.checked ? 1 : 0" class="rounded border-gray-300">
+                            <input type="checkbox" :checked="entityPresentationSettings.entity_list_show_filter_summary == 1" @change="entityPresentationSettings.entity_list_show_filter_summary = $event.target.checked ? 1 : 0" class="rounded border-gray-300">
                         </div>
                         <div class="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 flex items-center justify-between gap-3">
                             <div>
                                 <div class="cz-toggle-label">Show Card Excerpts</div>
                                 <p class="text-[10px] text-slate-500 mt-1">Control whether storefront list cards surface a narrative teaser.</p>
                             </div>
-                            <input type="checkbox" :checked="storefrontSettings.entity_list_show_excerpt == 1" @change="storefrontSettings.entity_list_show_excerpt = $event.target.checked ? 1 : 0" class="rounded border-gray-300">
+                            <input type="checkbox" :checked="entityPresentationSettings.entity_list_show_excerpt == 1" @change="entityPresentationSettings.entity_list_show_excerpt = $event.target.checked ? 1 : 0" class="rounded border-gray-300">
                         </div>
                     </div>
 
                     <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                         <div>
                             <label class="cz-label">Catalog Title Font</label>
-                            <select x-model="storefrontSettings.entity_list_title_font" class="cz-select">
+                            <select x-model="entityPresentationSettings.entity_list_title_font" class="cz-select">
                                 <option value="">Inherit Heading Font</option>
                                 <template x-for="f in fontOptions" :key="'catalog-title-' + f.value">
                                     <option :value="f.value" x-text="f.label"></option>
@@ -3076,7 +2716,7 @@
                         </div>
                         <div>
                             <label class="cz-label">Catalog Text Font</label>
-                            <select x-model="storefrontSettings.entity_list_text_font" class="cz-select">
+                            <select x-model="entityPresentationSettings.entity_list_text_font" class="cz-select">
                                 <option value="">Inherit Body Font</option>
                                 <template x-for="f in fontOptions" :key="'catalog-text-' + f.value">
                                     <option :value="f.value" x-text="f.label"></option>
@@ -3085,7 +2725,7 @@
                         </div>
                         <div>
                             <label class="cz-label">Shop Categories</label>
-                            <select x-model="storefrontSettings.entity_list_category_navigation" class="cz-select">
+                            <select x-model="entityPresentationSettings.entity_list_category_navigation" class="cz-select">
                                 <option value="list">List</option>
                                 <option value="dropdown">Dropdown</option>
                             </select>
@@ -3096,27 +2736,27 @@
                         <div>
                             <label class="cz-label">Title Size</label>
                             <div class="cz-range-row">
-                                <input type="range" min="16" max="32" step="1" x-model="storefrontSettings.entity_list_title_size">
-                                <span class="cz-range-value" x-text="storefrontSettings.entity_list_title_size + 'px'"></span>
+                                <input type="range" min="16" max="32" step="1" x-model="entityPresentationSettings.entity_list_title_size">
+                                <span class="cz-range-value" x-text="entityPresentationSettings.entity_list_title_size + 'px'"></span>
                             </div>
                         </div>
                         <div>
                             <label class="cz-label">Price Size</label>
                             <div class="cz-range-row">
-                                <input type="range" min="14" max="28" step="1" x-model="storefrontSettings.entity_list_price_size">
-                                <span class="cz-range-value" x-text="storefrontSettings.entity_list_price_size + 'px'"></span>
+                                <input type="range" min="14" max="28" step="1" x-model="entityPresentationSettings.entity_list_price_size">
+                                <span class="cz-range-value" x-text="entityPresentationSettings.entity_list_price_size + 'px'"></span>
                             </div>
                         </div>
                         <div>
                             <label class="cz-label">Card Min Width</label>
                             <div class="cz-range-row">
-                                <input type="range" min="200" max="340" step="10" x-model="storefrontSettings.entity_list_card_min_width">
-                                <span class="cz-range-value" x-text="storefrontSettings.entity_list_card_min_width + 'px'"></span>
+                                <input type="range" min="200" max="340" step="10" x-model="entityPresentationSettings.entity_list_card_min_width">
+                                <span class="cz-range-value" x-text="entityPresentationSettings.entity_list_card_min_width + 'px'"></span>
                             </div>
                         </div>
                         <div>
                             <label class="cz-label">Title Clamp</label>
-                            <select x-model="storefrontSettings.entity_list_title_lines" class="cz-select">
+                            <select x-model="entityPresentationSettings.entity_list_title_lines" class="cz-select">
                                 <option value="1">1 line</option>
                                 <option value="2">2 lines</option>
                                 <option value="3">3 lines</option>
@@ -3128,7 +2768,7 @@
                     <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                         <div>
                             <label class="cz-label">List Pricing Variant</label>
-                            <select x-model="storefrontSettings.entity_list_pricing_variant" class="cz-select">
+                            <select x-model="entityPresentationSettings.entity_list_pricing_variant" class="cz-select">
                                 <option value="">Default</option>
                                 <option value="featured">Featured</option>
                                 <option value="minimal">Minimal</option>
@@ -3136,25 +2776,137 @@
                         </div>
                         <div>
                             <label class="cz-label">List Inventory Variant</label>
-                            <select x-model="storefrontSettings.entity_list_inventory_variant" class="cz-select">
+                            <select x-model="entityPresentationSettings.entity_list_inventory_variant" class="cz-select">
                                 <option value="">Default</option>
                                 <option value="compact">Compact</option>
                             </select>
                         </div>
                         <div>
                             <label class="cz-label">List Progress Variant</label>
-                            <select x-model="storefrontSettings.entity_list_progress_variant" class="cz-select">
+                            <select x-model="entityPresentationSettings.entity_list_progress_variant" class="cz-select">
                                 <option value="">Default</option>
                                 <option value="inline">Inline</option>
                             </select>
                         </div>
                     </div>
 
+                    <p class="cz-section-title">List / Archive Presentation</p>
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <div>
+                            <label class="cz-label">List Layout</label>
+                            <select x-model="entityPresentationSettings.blog_layout" class="cz-select">
+                                <option value="list">List</option>
+                                <option value="grid">Grid</option>
+                                <option value="cards">Cards</option>
+                            </select>
+                        </div>
+                        <div x-show="entityPresentationSettings.blog_layout !== 'list'">
+                            <label class="cz-label">Columns</label>
+                            <select x-model="entityPresentationSettings.blog_columns" class="cz-select">
+                                <option value="2">2 Columns</option>
+                                <option value="3">3 Columns</option>
+                                <option value="4">4 Columns</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="cz-label">Gap (px)</label>
+                            <input type="number" x-model="entityPresentationSettings.blog_gap" min="0" max="64" class="cz-input">
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <div>
+                            <label class="cz-label">Card Radius (px)</label>
+                            <input type="number" x-model="entityPresentationSettings.blog_card_radius" min="0" max="24" class="cz-input">
+                        </div>
+                        <div x-show="entityPresentationSettings.blog_featured_image == 1">
+                            <label class="cz-label">Image Height (px)</label>
+                            <input type="number" x-model="entityPresentationSettings.blog_image_height" min="100" max="500" class="cz-input">
+                        </div>
+                        <div x-show="entityPresentationSettings.blog_featured_image == 1">
+                            <label class="cz-label">Aspect Ratio</label>
+                            <select x-model="entityPresentationSettings.blog_image_ratio" class="cz-select">
+                                <option value="auto">Auto</option>
+                                <option value="16:9">16:9</option>
+                                <option value="4:3">4:3</option>
+                                <option value="1:1">1:1</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                        <label class="flex items-center gap-2 text-sm text-gray-700">
+                            <input type="checkbox" :checked="entityPresentationSettings.blog_card_border == 1" @change="entityPresentationSettings.blog_card_border = $event.target.checked ? 1 : 0" class="rounded border-gray-300">
+                            Show Border
+                        </label>
+                        <label class="flex items-center gap-2 text-sm text-gray-700">
+                            <input type="checkbox" :checked="entityPresentationSettings.blog_card_shadow == 1" @change="entityPresentationSettings.blog_card_shadow = $event.target.checked ? 1 : 0" class="rounded border-gray-300">
+                            Hover Shadow
+                        </label>
+                        <label class="flex items-center gap-2 text-sm text-gray-700">
+                            <input type="checkbox" :checked="entityPresentationSettings.blog_featured_image == 1" @change="entityPresentationSettings.blog_featured_image = $event.target.checked ? 1 : 0" class="rounded border-gray-300">
+                            Show Image
+                        </label>
+                        <label class="flex items-center gap-2 text-sm text-gray-700">
+                            <input type="checkbox" :checked="entityPresentationSettings.blog_show_excerpt == 1" @change="entityPresentationSettings.blog_show_excerpt = $event.target.checked ? 1 : 0" class="rounded border-gray-300">
+                            Show Excerpt
+                        </label>
+                        <label class="flex items-center gap-2 text-sm text-gray-700">
+                            <input type="checkbox" :checked="entityPresentationSettings.blog_show_author == 1" @change="entityPresentationSettings.blog_show_author = $event.target.checked ? 1 : 0" class="rounded border-gray-300">
+                            Show Author
+                        </label>
+                        <label class="flex items-center gap-2 text-sm text-gray-700">
+                            <input type="checkbox" :checked="entityPresentationSettings.blog_show_date == 1" @change="entityPresentationSettings.blog_show_date = $event.target.checked ? 1 : 0" class="rounded border-gray-300">
+                            Show Date
+                        </label>
+                        <label class="flex items-center gap-2 text-sm text-gray-700">
+                            <input type="checkbox" :checked="entityPresentationSettings.blog_show_readmore == 1" @change="entityPresentationSettings.blog_show_readmore = $event.target.checked ? 1 : 0" class="rounded border-gray-300">
+                            Show Read More
+                        </label>
+                    </div>
+
+                    <div x-show="entityPresentationSettings.blog_show_readmore == 1">
+                        <label class="cz-label">Read More Text</label>
+                        <input type="text" x-model="entityPresentationSettings.blog_readmore_text" class="cz-input" style="max-width:240px;">
+                    </div>
+
+                    <p class="cz-section-title">Detail / Article Presentation</p>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label class="cz-label">Content Max Width (px)</label>
+                            <input type="number" x-model="entityPresentationSettings.single_max_width" min="480" max="1200" step="10" class="cz-input">
+                            <p class="text-[10px] text-gray-400 mt-1">Controls canonical single, article, and detail content width.</p>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                        <label class="flex items-center gap-2 text-sm text-gray-700">
+                            <input type="checkbox" :checked="entityPresentationSettings.single_show_author == 1" @change="entityPresentationSettings.single_show_author = $event.target.checked ? 1 : 0" class="rounded border-gray-300">
+                            Show Author
+                        </label>
+                        <label class="flex items-center gap-2 text-sm text-gray-700">
+                            <input type="checkbox" :checked="entityPresentationSettings.single_show_date == 1" @change="entityPresentationSettings.single_show_date = $event.target.checked ? 1 : 0" class="rounded border-gray-300">
+                            Show Date
+                        </label>
+                        <label class="flex items-center gap-2 text-sm text-gray-700">
+                            <input type="checkbox" :checked="entityPresentationSettings.single_show_categories == 1" @change="entityPresentationSettings.single_show_categories = $event.target.checked ? 1 : 0" class="rounded border-gray-300">
+                            Show Categories
+                        </label>
+                        <label class="flex items-center gap-2 text-sm text-gray-700">
+                            <input type="checkbox" :checked="entityPresentationSettings.single_show_tags == 1" @change="entityPresentationSettings.single_show_tags = $event.target.checked ? 1 : 0" class="rounded border-gray-300">
+                            Show Tags
+                        </label>
+                        <label class="flex items-center gap-2 text-sm text-gray-700">
+                            <input type="checkbox" :checked="entityPresentationSettings.single_show_nav == 1" @change="entityPresentationSettings.single_show_nav = $event.target.checked ? 1 : 0" class="rounded border-gray-300">
+                            Show Back Link
+                        </label>
+                    </div>
+
                     <div class="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600">
                         <div class="font-semibold text-slate-800 mb-1">Profile behavior</div>
-                        <div x-show="storefrontSettings.entity_layout_profile === 'default'">Default keeps pricing and actions in the main reading flow ahead of the body.</div>
-                        <div x-show="storefrontSettings.entity_layout_profile === 'commerce'">Commerce moves pricing and actions into a dedicated summary rail for storefront-oriented entities.</div>
-                        <div x-show="storefrontSettings.entity_layout_profile === 'content'">Content prioritizes the title and body first, then places pricing and actions after the narrative content.</div>
+                        <div x-show="entityPresentationSettings.entity_layout_profile === 'default'">Default keeps pricing and actions in the main reading flow ahead of the body.</div>
+                        <div x-show="entityPresentationSettings.entity_layout_profile === 'commerce'">Commerce moves pricing and actions into a dedicated summary rail for storefront-oriented entities.</div>
+                        <div x-show="entityPresentationSettings.entity_layout_profile === 'content'">Content prioritizes the title and body first, then places pricing and actions after the narrative content.</div>
                     </div>
                 </div>
             </div>
@@ -3165,7 +2917,7 @@
                 <div class="cz-panel-header">
                     <h3>
                         <svg class="w-4 h-4 inline -mt-0.5 mr-1.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
-                        Storefront Summary
+                        Entity Summary
                     </h3>
                 </div>
                 <div class="cz-panel-body space-y-4">
@@ -3174,25 +2926,29 @@
                         <span class="{if customizer_scope == 'ecommerce'}text-amber-700{else}text-emerald-700{/if}">{if customizer_scope == 'ecommerce'}Ecommerce Scope{else}Active Theme Shell{/if}</span>
                     </div>
                     <div class="space-y-3 text-sm">
-                        <div class="flex justify-between"><span class="text-gray-400">Entity Profile</span><span class="font-medium capitalize" x-text="storefrontSettings.entity_layout_profile"></span></div>
+                        <div class="flex justify-between"><span class="text-gray-400">Entity Profile</span><span class="font-medium capitalize" x-text="entityPresentationSettings.entity_layout_profile"></span></div>
                         <div class="flex justify-between"><span class="text-gray-400">Pricing Variant</span><span class="font-medium capitalize" x-text="entityPreviewVariantLabel(entityPreviewPricingVariant())"></span></div>
                         <div class="flex justify-between"><span class="text-gray-400">Action Variant</span><span class="font-medium capitalize" x-text="entityPreviewVariantLabel(entityPreviewActionVariant())"></span></div>
-                        <div class="flex justify-between"><span class="text-gray-400">Summary Width</span><span class="font-medium" x-text="storefrontSettings.entity_summary_width + 'px'"></span></div>
-                        <div class="flex justify-between"><span class="text-gray-400">Sticky Rail</span><span class="font-medium" x-text="storefrontSettings.entity_summary_sticky == 1 ? 'On' : 'Off'"></span></div>
-                        <div class="flex justify-between"><span class="text-gray-400">Media Ratio</span><span class="font-medium" x-text="storefrontSettings.entity_media_ratio"></span></div>
-                        <div class="flex justify-between"><span class="text-gray-400">Spacing</span><span class="font-medium capitalize" x-text="storefrontSettings.entity_spacing_scale"></span></div>
-                        <div class="flex justify-between"><span class="text-gray-400">Action Size</span><span class="font-medium uppercase" x-text="storefrontSettings.entity_action_size"></span></div>
-                        <div class="flex justify-between"><span class="text-gray-400">Card Density</span><span class="font-medium capitalize" x-text="storefrontSettings.entity_list_card_density"></span></div>
-                        <div class="flex justify-between"><span class="text-gray-400">Filter Summary</span><span class="font-medium" x-text="storefrontSettings.entity_list_show_filter_summary == 1 ? 'On' : 'Off'"></span></div>
-                        <div class="flex justify-between"><span class="text-gray-400">Shop Categories</span><span class="font-medium" x-text="storefrontSettings.entity_list_category_navigation === 'dropdown' ? 'Dropdown' : 'List'"></span></div>
-                        <div class="flex justify-between"><span class="text-gray-400">Card Excerpts</span><span class="font-medium" x-text="storefrontSettings.entity_list_show_excerpt == 1 ? 'On' : 'Off'"></span></div>
-                        <div class="flex justify-between"><span class="text-gray-400">Excerpt Length</span><span class="font-medium" x-text="storefrontSettings.entity_list_excerpt_length + ' chars'"></span></div>
-                        <div class="flex justify-between"><span class="text-gray-400">Title Font</span><span class="font-medium" x-text="catalogFontLabel(storefrontSettings.entity_list_title_font, 'Theme heading')"></span></div>
-                        <div class="flex justify-between"><span class="text-gray-400">Text Font</span><span class="font-medium" x-text="catalogFontLabel(storefrontSettings.entity_list_text_font, 'Theme body')"></span></div>
-                        <div class="flex justify-between"><span class="text-gray-400">Title Size</span><span class="font-medium" x-text="storefrontSettings.entity_list_title_size + 'px'"></span></div>
-                        <div class="flex justify-between"><span class="text-gray-400">Price Size</span><span class="font-medium" x-text="storefrontSettings.entity_list_price_size + 'px'"></span></div>
-                        <div class="flex justify-between"><span class="text-gray-400">Card Min Width</span><span class="font-medium" x-text="storefrontSettings.entity_list_card_min_width + 'px'"></span></div>
-                        <div class="flex justify-between"><span class="text-gray-400">Title Clamp</span><span class="font-medium" x-text="storefrontSettings.entity_list_title_lines + ' lines'"></span></div>
+                        <div class="flex justify-between"><span class="text-gray-400">Summary Width</span><span class="font-medium" x-text="entityPresentationSettings.entity_summary_width + 'px'"></span></div>
+                        <div class="flex justify-between"><span class="text-gray-400">Sticky Rail</span><span class="font-medium" x-text="entityPresentationSettings.entity_summary_sticky == 1 ? 'On' : 'Off'"></span></div>
+                        <div class="flex justify-between"><span class="text-gray-400">Media Ratio</span><span class="font-medium" x-text="entityPresentationSettings.entity_media_ratio"></span></div>
+                        <div class="flex justify-between"><span class="text-gray-400">Spacing</span><span class="font-medium capitalize" x-text="entityPresentationSettings.entity_spacing_scale"></span></div>
+                        <div class="flex justify-between"><span class="text-gray-400">Action Size</span><span class="font-medium uppercase" x-text="entityPresentationSettings.entity_action_size"></span></div>
+                        <div class="flex justify-between"><span class="text-gray-400">Card Density</span><span class="font-medium capitalize" x-text="entityPresentationSettings.entity_list_card_density"></span></div>
+                        <div class="flex justify-between"><span class="text-gray-400">Filter Summary</span><span class="font-medium" x-text="entityPresentationSettings.entity_list_show_filter_summary == 1 ? 'On' : 'Off'"></span></div>
+                        <div class="flex justify-between"><span class="text-gray-400">Shop Categories</span><span class="font-medium" x-text="entityPresentationSettings.entity_list_category_navigation === 'dropdown' ? 'Dropdown' : 'List'"></span></div>
+                        <div class="flex justify-between"><span class="text-gray-400">Card Excerpts</span><span class="font-medium" x-text="entityPresentationSettings.entity_list_show_excerpt == 1 ? 'On' : 'Off'"></span></div>
+                        <div class="flex justify-between"><span class="text-gray-400">Excerpt Length</span><span class="font-medium" x-text="entityPresentationSettings.entity_list_excerpt_length + ' chars'"></span></div>
+                        <div class="flex justify-between"><span class="text-gray-400">List Layout</span><span class="font-medium capitalize" x-text="entityPresentationSettings.blog_layout + (entityPresentationSettings.blog_layout !== 'list' ? ' (' + entityPresentationSettings.blog_columns + ' cols)' : '')"></span></div>
+                        <div class="flex justify-between"><span class="text-gray-400">List Elements</span><span class="font-medium" x-text="[entityPresentationSettings.blog_show_author == 1 ? 'Author' : '', entityPresentationSettings.blog_show_date == 1 ? 'Date' : '', entityPresentationSettings.blog_show_excerpt == 1 ? 'Excerpt' : '', entityPresentationSettings.blog_show_readmore == 1 ? 'Read More' : ''].filter(Boolean).join(', ') || 'None'"></span></div>
+                        <div class="flex justify-between"><span class="text-gray-400">Title Font</span><span class="font-medium" x-text="catalogFontLabel(entityPresentationSettings.entity_list_title_font, 'Theme heading')"></span></div>
+                        <div class="flex justify-between"><span class="text-gray-400">Text Font</span><span class="font-medium" x-text="catalogFontLabel(entityPresentationSettings.entity_list_text_font, 'Theme body')"></span></div>
+                        <div class="flex justify-between"><span class="text-gray-400">Title Size</span><span class="font-medium" x-text="entityPresentationSettings.entity_list_title_size + 'px'"></span></div>
+                        <div class="flex justify-between"><span class="text-gray-400">Price Size</span><span class="font-medium" x-text="entityPresentationSettings.entity_list_price_size + 'px'"></span></div>
+                        <div class="flex justify-between"><span class="text-gray-400">Card Min Width</span><span class="font-medium" x-text="entityPresentationSettings.entity_list_card_min_width + 'px'"></span></div>
+                        <div class="flex justify-between"><span class="text-gray-400">Title Clamp</span><span class="font-medium" x-text="entityPresentationSettings.entity_list_title_lines + ' lines'"></span></div>
+                        <div class="flex justify-between"><span class="text-gray-400">Detail Width</span><span class="font-medium" x-text="entityPresentationSettings.single_max_width + 'px'"></span></div>
+                        <div class="flex justify-between"><span class="text-gray-400">Detail Elements</span><span class="font-medium" x-text="[entityPresentationSettings.single_show_author == 1 ? 'Author' : '', entityPresentationSettings.single_show_date == 1 ? 'Date' : '', entityPresentationSettings.single_show_categories == 1 ? 'Cats' : '', entityPresentationSettings.single_show_tags == 1 ? 'Tags' : '', entityPresentationSettings.single_show_nav == 1 ? 'Back Link' : ''].filter(Boolean).join(', ') || 'None'"></span></div>
                         <div class="flex justify-between"><span class="text-gray-400">List Price Variant</span><span class="font-medium capitalize" x-text="entityPreviewVariantLabel(entityPreviewListPricingVariant())"></span></div>
                         <div class="flex justify-between"><span class="text-gray-400">List Inventory Variant</span><span class="font-medium capitalize" x-text="entityPreviewVariantLabel(entityPreviewListInventoryVariant())"></span></div>
                         <div class="flex justify-between"><span class="text-gray-400">List Progress Variant</span><span class="font-medium capitalize" x-text="entityPreviewVariantLabel(entityPreviewListProgressVariant())"></span></div>
@@ -3209,7 +2965,7 @@
                                     <div class="h-1 bg-gray-200 rounded w-5/6"></div>
                                 </div>
                             </div>
-                            <div x-show="storefrontSettings.entity_layout_profile === 'commerce'" :style="entityPreviewSummaryStyle()">
+                            <div x-show="entityPresentationSettings.entity_layout_profile === 'commerce'" :style="entityPreviewSummaryStyle()">
                                 <div :style="entityPreviewSummaryPricingStyle()">
                                     <span :style="entityPreviewSummaryCurrentPriceStyle()">USD 79.00</span>
                                     <span x-show="entityPreviewPricingVariant() !== 'minimal'" class="text-xs line-through text-gray-400">99.00</span>
@@ -3232,7 +2988,7 @@
                             <div class="space-y-1.5">
                                 <div class="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400" :style="entityPreviewCatalogLabelStyle()">New in</div>
                                 <div class="text-slate-900" :style="entityPreviewCatalogTitleStyle()">Long catalog product names wrap cleanly without colliding with adjacent cards.</div>
-                                <p x-show="storefrontSettings.entity_list_show_excerpt == 1" class="text-[11px] leading-5 text-slate-500" :style="entityPreviewCatalogExcerptStyle()">Small-batch loaf baked daily and finished with a blistered crust.</p>
+                                <p x-show="entityPresentationSettings.entity_list_show_excerpt == 1" class="text-[11px] leading-5 text-slate-500" :style="entityPreviewCatalogExcerptStyle()">Small-batch loaf baked daily and finished with a blistered crust.</p>
                             </div>
                             <div class="flex flex-wrap items-center gap-2">
                                 <div :style="entityPreviewListPricingStyle()">
@@ -3250,7 +3006,7 @@
                             </div>
                         </div>
                     </div>
-                    <div class="text-xs text-slate-500">These controls alter storefront presentation only. The underlying CMS entity blocks and ordering contract stay shared.</div>
+                    <div class="text-xs text-slate-500">These controls alter the canonical entity presentation layer. CMS content routes can still resolve to the content profile while ecommerce routes use the commerce profile inside the same shared contract.</div>
                 </div>
             </div>
         </div>
@@ -3272,7 +3028,7 @@ function themeCustomizer() {
         activeTab: '{if customizer_scope == 'ecommerce'}navigation{else}footer{/if}',
         saving: false,
         dirty: false,
-        dirtySections: { footer: false, header: false, sidebar: false, colors: false, custom_code: false, theme: false, storefront: false },
+        dirtySections: { footer: false, header: false, sidebar: false, colors: false, custom_code: false, theme: false, entity_presentation: false },
         customizerScope: '{if customizer_scope}{customizer_scope}{else}native{/if}',
         customizerApiBase: '{if customizer_api_base}{customizer_api_base}{else}{base_url}/api/v1/cms/customizer{/if}',
         draggedWidgetId: null,
@@ -3284,13 +3040,13 @@ function themeCustomizer() {
         cPanels: { brand: true, body: false, typo: false, layout: false, storefront: true },
         ccPanels: { css: true, head: false, body: false, enhancements: true },
         tlPanels: { site: true, blog: true, single: false, entity: true, commerceGuide: true, commerceEntity: true },
-        tlPreviewMode: '{if customizer_scope == 'ecommerce'}entity{else}page{/if}',
+        tlPreviewMode: 'page',
 
         // Theme layout settings (hydrated from server)
         themeLayoutSettings: {},
 
-        // Storefront entity presentation settings (hydrated from server)
-        storefrontSettings: {},
+        // Canonical entity presentation settings (hydrated from server)
+        entityPresentationSettings: {},
         themeManifestBlockVariants: {},
 
         // Footer settings (hydrated from server)
@@ -3473,12 +3229,12 @@ function themeCustomizer() {
                 if (this.activeTab === 'header') return 'Branding, top bar content, sticky behavior, and the visual shell of the storefront header.';
                 if (this.activeTab === 'navigation') return 'Desktop and mobile menu selection, dropdown behavior, search visibility, and responsive navigation patterns.';
                 if (this.activeTab === 'sidebar') return 'Sidebar widgets, placement, template targeting, and storefront rail behavior for commerce pages.';
-                if (this.activeTab === 'footer') return 'Footer composition, widget columns, footer-bar content, and navigation-driven footer structure.';
+                if (this.activeTab === 'footer') return 'Footer composition, split widget container and holder widths, footer-bar content, and navigation-driven footer structure.';
                 if (this.activeTab === 'colors') return 'Store palette, typography, and shared surface tokens for the ecommerce storefront.';
                 if (this.activeTab === 'custom_code') return 'Custom CSS overrides, code injection, and advanced storefront enhancements scoped to ecommerce.';
-                if (this.activeTab === 'theme') return 'Shared layout decisions and canonical entity-view defaults that shape the storefront shell.';
-                if (this.activeTab === 'commerce') return 'Catalog entity presentation, pricing blocks, inventory emphasis, and purchase action variants.';
-                return 'Configure the storefront shell and entity-view presentation from one workspace.';
+                if (this.activeTab === 'theme') return 'Shared shell layout, container width, content width, and shell spacing for the storefront wrapper.';
+                if (this.activeTab === 'commerce') return 'Canonical entity presentation across CMS and commerce routes: detail layout, list presentation, and approved block variants.';
+                return 'Configure the storefront shell and the canonical entity contract from one workspace.';
             }
 
             if (this.activeTab === 'header') return 'Customize your site\'s header layout, navigation, and styling.';
@@ -3486,8 +3242,8 @@ function themeCustomizer() {
             if (this.activeTab === 'sidebar') return 'Configure sidebar widgets, placement, and template targeting.';
             if (this.activeTab === 'colors') return 'Global colors, typography, and body styles used when header and footer tabs do not override them.';
             if (this.activeTab === 'custom_code') return 'Custom CSS overrides, code injection, and advanced enhancements.';
-            if (this.activeTab === 'theme') return 'Site layout, entity-view profiles, approved block variants, and content display options.';
-            if (this.activeTab === 'commerce') return 'Catalog presentation for shop, category, and product routes inside the active theme shell.';
+            if (this.activeTab === 'theme') return 'Site shell layout, content width, and shared spacing. Canonical list and detail presentation lives in Entities.';
+            if (this.activeTab === 'commerce') return 'Canonical entity presentation for pages, posts, lists, and commerce routes inside the active theme shell.';
             return 'Customize your site\'s footer layout, widgets, and styling.';
         },
 
@@ -3536,7 +3292,7 @@ function themeCustomizer() {
         },
 
         entitySettings() {
-            return this.customizerScope === 'ecommerce' || this.activeTab === 'commerce' ? this.storefrontSettings : this.themeLayoutSettings;
+            return this.entityPresentationSettings;
         },
 
         entityPreviewEffectiveVariant(blockId, selectedValue) {
@@ -3580,15 +3336,15 @@ function themeCustomizer() {
         },
 
         entityPreviewListPricingVariant() {
-            return this.entityPreviewEffectiveVariant('list-card-pricing', this.storefrontSettings.entity_list_pricing_variant);
+            return this.entityPreviewEffectiveVariant('list-card-pricing', this.entitySettings().entity_list_pricing_variant);
         },
 
         entityPreviewListInventoryVariant() {
-            return this.entityPreviewEffectiveVariant('list-card-inventory', this.storefrontSettings.entity_list_inventory_variant);
+            return this.entityPreviewEffectiveVariant('list-card-inventory', this.entitySettings().entity_list_inventory_variant);
         },
 
         entityPreviewListProgressVariant() {
-            return this.entityPreviewEffectiveVariant('list-card-progress', this.storefrontSettings.entity_list_progress_variant);
+            return this.entityPreviewEffectiveVariant('list-card-progress', this.entitySettings().entity_list_progress_variant);
         },
 
         colorAlpha(color, alpha, fallback = '#000000') {
@@ -3672,24 +3428,25 @@ function themeCustomizer() {
         },
 
         entityPreviewCatalogLabelStyle() {
-            const font = this.previewFontFamily(this.storefrontSettings.entity_list_text_font || this.colorsSettings.font_body || 'Inter');
+            const font = this.previewFontFamily(this.entitySettings().entity_list_text_font || this.colorsSettings.font_body || 'Inter');
             return 'font-family:' + font + ';';
         },
 
         entityPreviewCatalogTitleStyle() {
-            const font = this.previewFontFamily(this.storefrontSettings.entity_list_title_font || this.colorsSettings.font_heading || 'Inter');
-            const size = parseInt(this.storefrontSettings.entity_list_title_size || 19, 10) || 19;
-            const lines = Math.max(1, Math.min(4, parseInt(this.storefrontSettings.entity_list_title_lines || 2, 10) || 2));
+            const settings = this.entitySettings();
+            const font = this.previewFontFamily(settings.entity_list_title_font || this.colorsSettings.font_heading || 'Inter');
+            const size = parseInt(settings.entity_list_title_size || 19, 10) || 19;
+            const lines = Math.max(1, Math.min(4, parseInt(settings.entity_list_title_lines || 2, 10) || 2));
             return 'font-family:' + font + ';font-size:' + size + 'px;line-height:1.08;font-weight:700;letter-spacing:-0.03em;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:' + lines + ';overflow:hidden;overflow-wrap:anywhere;min-height:calc(1.08em * ' + lines + ');';
         },
 
         entityPreviewCatalogExcerptStyle() {
-            const font = this.previewFontFamily(this.storefrontSettings.entity_list_text_font || this.colorsSettings.font_body || 'Inter');
+            const font = this.previewFontFamily(this.entitySettings().entity_list_text_font || this.colorsSettings.font_body || 'Inter');
             return 'font-family:' + font + ';';
         },
 
         entityPreviewListCardStyle() {
-            const density = this.storefrontSettings.entity_list_card_density || 'comfortable';
+            const density = this.entitySettings().entity_list_card_density || 'comfortable';
             let pad = '12px';
             let gap = '10px';
             if (density === 'compact') {
@@ -3717,7 +3474,7 @@ function themeCustomizer() {
 
         entityPreviewListPricingCurrentStyle() {
             const variant = this.entityPreviewListPricingVariant();
-            const priceSize = parseInt(this.storefrontSettings.entity_list_price_size || 17, 10) || 17;
+            const priceSize = parseInt(this.entitySettings().entity_list_price_size || 17, 10) || 17;
             return 'color:' + (this.colorsSettings.storefront_price_color || '#0f172a')
                 + ';font-weight:700;'
                 + (variant === 'minimal' ? 'font-size:' + Math.max(12, priceSize - 2) + 'px;text-transform:none;' : 'font-size:' + priceSize + 'px;');
@@ -3878,8 +3635,8 @@ function themeCustomizer() {
             if (section === 'custom_code') {
                 return { settings: this.customCodeSettings };
             }
-            if (section === 'storefront') {
-                return { settings: this.storefrontSettings };
+            if (section === 'entity_presentation') {
+                return { settings: this.entityPresentationSettings };
             }
             return { settings: this.themeLayoutSettings };
         },
@@ -3899,9 +3656,13 @@ function themeCustomizer() {
             // Hydrate from server-rendered JSON
             try {
                 this.footerSettings = JSON.parse(document.getElementById('cz-footer-settings').textContent);
+                if (this.footerSettings.widget_container_width === undefined) this.footerSettings.widget_container_width = this.footerSettings.inner_width === 'full-width' ? 'full' : 'contained';
+                if (this.footerSettings.widget_inner_width_mode === undefined) this.footerSettings.widget_inner_width_mode = this.footerSettings.inner_width === 'full-width' ? 'full' : 'contained';
+                if (this.footerSettings.widget_inner_custom_width === undefined || this.footerSettings.widget_inner_custom_width === '') this.footerSettings.widget_inner_custom_width = '960px';
+                if (this.footerSettings.inner_width === undefined) this.footerSettings.inner_width = 'contained';
             } catch (e) {
                 this.footerSettings = {
-                    columns: 3, inner_width: 'contained',
+                    columns: 3, widget_container_width: 'contained', widget_inner_width_mode: 'contained', widget_inner_custom_width: '960px', inner_width: 'contained',
                     bg_color: '#1e293b', text_color: '#cbd5e1', link_color: '#94a3b8', link_hover_color: '#ffffff', title_color: '#f1f5f9',
                     bar_bg_color: '#0f172a', bar_text_color: '#64748b', bar_link_color: '#94a3b8', bar_link_hover_color: '#ffffff',
                     copyright_text: '{literal}© {current_year} {site_title}. All rights reserved.{/literal}',
@@ -4114,86 +3875,102 @@ function themeCustomizer() {
                 this.themeManifestBlockVariants = {};
             }
 
+            const themeLayoutDefaults = {
+                layout_mode: 'contained', site_max_width: 1280, content_max_width: 768,
+                content_padding_x: 16, content_padding_top: 32, content_padding_bottom: 32,
+            };
             try {
-                this.themeLayoutSettings = JSON.parse(document.getElementById('cz-theme-layout-settings').textContent);
-                if (this.themeLayoutSettings.entity_layout_profile === undefined) this.themeLayoutSettings.entity_layout_profile = 'default';
-                if (this.themeLayoutSettings.entity_pricing_variant === undefined) this.themeLayoutSettings.entity_pricing_variant = '';
-                if (this.themeLayoutSettings.entity_action_variant === undefined) this.themeLayoutSettings.entity_action_variant = '';
-                if (this.themeLayoutSettings.entity_list_pricing_variant === undefined) this.themeLayoutSettings.entity_list_pricing_variant = '';
-                if (this.themeLayoutSettings.entity_list_inventory_variant === undefined) this.themeLayoutSettings.entity_list_inventory_variant = '';
-                if (this.themeLayoutSettings.entity_list_progress_variant === undefined) this.themeLayoutSettings.entity_list_progress_variant = '';
-                if (this.themeLayoutSettings.entity_summary_width === undefined) this.themeLayoutSettings.entity_summary_width = 320;
-                if (this.themeLayoutSettings.entity_summary_sticky === undefined) this.themeLayoutSettings.entity_summary_sticky = 1;
-                if (this.themeLayoutSettings.entity_media_ratio === undefined) this.themeLayoutSettings.entity_media_ratio = 'auto';
-                if (this.themeLayoutSettings.entity_spacing_scale === undefined) this.themeLayoutSettings.entity_spacing_scale = 'comfortable';
-                if (this.themeLayoutSettings.entity_action_size === undefined) this.themeLayoutSettings.entity_action_size = 'md';
-                if (this.themeLayoutSettings.entity_list_show_filter_summary === undefined) this.themeLayoutSettings.entity_list_show_filter_summary = 1;
-                if (this.themeLayoutSettings.entity_list_card_density === undefined) this.themeLayoutSettings.entity_list_card_density = 'comfortable';
-                if (this.themeLayoutSettings.entity_list_show_excerpt === undefined) this.themeLayoutSettings.entity_list_show_excerpt = 1;
-                if (this.themeLayoutSettings.entity_list_excerpt_length === undefined) this.themeLayoutSettings.entity_list_excerpt_length = 120;
-                if (this.themeLayoutSettings.entity_list_title_font === undefined) this.themeLayoutSettings.entity_list_title_font = '';
-                if (this.themeLayoutSettings.entity_list_text_font === undefined) this.themeLayoutSettings.entity_list_text_font = '';
-                if (this.themeLayoutSettings.entity_list_category_navigation === undefined) this.themeLayoutSettings.entity_list_category_navigation = 'list';
-                if (this.themeLayoutSettings.entity_list_title_size === undefined) this.themeLayoutSettings.entity_list_title_size = 19;
-                if (this.themeLayoutSettings.entity_list_price_size === undefined) this.themeLayoutSettings.entity_list_price_size = 17;
-                if (this.themeLayoutSettings.entity_list_card_min_width === undefined) this.themeLayoutSettings.entity_list_card_min_width = 240;
-                if (this.themeLayoutSettings.entity_list_title_lines === undefined) this.themeLayoutSettings.entity_list_title_lines = 2;
+                this.themeLayoutSettings = JSON.parse(document.getElementById('cz-theme-layout-settings').textContent) || {};
             } catch (e) {
-                this.themeLayoutSettings = {
-                    layout_mode: 'contained', site_max_width: 1280, content_max_width: 768,
-                    content_padding_x: 16, content_padding_top: 32, content_padding_bottom: 32,
-                    blog_layout: 'list', blog_columns: 2, blog_gap: 24,
-                    blog_card_border: 1, blog_card_shadow: 0, blog_card_radius: 8,
-                    blog_featured_image: 1, blog_image_height: 208, blog_image_ratio: 'auto',
-                    blog_show_author: 1, blog_show_date: 1, blog_show_excerpt: 1, blog_show_readmore: 1,
-                    blog_readmore_text: 'Read More →',
-                    single_max_width: 768,
-                    single_show_author: 1, single_show_date: 1, single_show_categories: 1,
-                    single_show_tags: 1, single_show_nav: 1,
-                    entity_layout_profile: 'default', entity_pricing_variant: '', entity_action_variant: '',
-                    entity_list_pricing_variant: '', entity_list_inventory_variant: '', entity_list_progress_variant: '',
-                    entity_summary_width: 320, entity_summary_sticky: 1, entity_media_ratio: 'auto', entity_spacing_scale: 'comfortable', entity_action_size: 'md',
-                    entity_list_show_filter_summary: 1, entity_list_card_density: 'comfortable', entity_list_show_excerpt: 1, entity_list_excerpt_length: 120,
-                    entity_list_title_font: '', entity_list_text_font: '', entity_list_category_navigation: 'list', entity_list_title_size: 19, entity_list_price_size: 17,
-                    entity_list_card_min_width: 240, entity_list_title_lines: 2,
-                };
+                this.themeLayoutSettings = {};
             }
+            const rawThemeLayoutSettings = this.themeLayoutSettings || {};
+            const legacyThemePresentation = {};
+            [
+                'blog_layout',
+                'blog_columns',
+                'blog_gap',
+                'blog_card_border',
+                'blog_card_shadow',
+                'blog_card_radius',
+                'blog_featured_image',
+                'blog_image_height',
+                'blog_image_ratio',
+                'blog_show_author',
+                'blog_show_date',
+                'blog_show_excerpt',
+                'blog_show_readmore',
+                'blog_readmore_text',
+                'single_max_width',
+                'single_show_author',
+                'single_show_date',
+                'single_show_categories',
+                'single_show_tags',
+                'single_show_nav',
+            ].forEach((key) => {
+                if (rawThemeLayoutSettings[key] !== undefined) {
+                    legacyThemePresentation[key] = rawThemeLayoutSettings[key];
+                }
+            });
+            this.themeLayoutSettings = Object.assign({}, themeLayoutDefaults, {
+                layout_mode: rawThemeLayoutSettings.layout_mode,
+                site_max_width: rawThemeLayoutSettings.site_max_width,
+                content_max_width: rawThemeLayoutSettings.content_max_width,
+                content_padding_x: rawThemeLayoutSettings.content_padding_x,
+                content_padding_top: rawThemeLayoutSettings.content_padding_top,
+                content_padding_bottom: rawThemeLayoutSettings.content_padding_bottom,
+            });
 
-            // Hydrate storefront settings
+            const entityPresentationDefaults = {
+                entity_layout_profile: this.customizerScope === 'ecommerce' ? 'commerce' : 'default',
+                entity_pricing_variant: '',
+                entity_action_variant: '',
+                entity_list_pricing_variant: '',
+                entity_list_inventory_variant: '',
+                entity_list_progress_variant: '',
+                entity_summary_width: 320,
+                entity_summary_sticky: 1,
+                entity_media_ratio: 'auto',
+                entity_spacing_scale: 'comfortable',
+                entity_action_size: 'md',
+                entity_list_show_filter_summary: 1,
+                entity_list_category_navigation: 'list',
+                entity_list_card_density: 'comfortable',
+                entity_list_show_excerpt: 1,
+                entity_list_excerpt_length: 120,
+                entity_list_title_font: '',
+                entity_list_text_font: '',
+                entity_list_title_size: 19,
+                entity_list_price_size: 17,
+                entity_list_card_min_width: 240,
+                entity_list_title_lines: 2,
+                blog_layout: 'list',
+                blog_columns: 2,
+                blog_gap: 24,
+                blog_card_border: 1,
+                blog_card_shadow: 1,
+                blog_card_radius: 8,
+                blog_featured_image: 1,
+                blog_image_height: 208,
+                blog_image_ratio: 'auto',
+                blog_show_author: 1,
+                blog_show_date: 1,
+                blog_show_excerpt: 1,
+                blog_show_readmore: 1,
+                blog_readmore_text: 'Read more →',
+                single_max_width: 768,
+                single_show_author: 1,
+                single_show_date: 1,
+                single_show_categories: 1,
+                single_show_tags: 1,
+                single_show_nav: 1,
+            };
             try {
-                this.storefrontSettings = JSON.parse(document.getElementById('cz-storefront-settings').textContent);
-                if (this.storefrontSettings.entity_layout_profile === undefined) this.storefrontSettings.entity_layout_profile = 'commerce';
-                if (this.storefrontSettings.entity_pricing_variant === undefined) this.storefrontSettings.entity_pricing_variant = '';
-                if (this.storefrontSettings.entity_action_variant === undefined) this.storefrontSettings.entity_action_variant = '';
-                if (this.storefrontSettings.entity_list_pricing_variant === undefined) this.storefrontSettings.entity_list_pricing_variant = '';
-                if (this.storefrontSettings.entity_list_inventory_variant === undefined) this.storefrontSettings.entity_list_inventory_variant = '';
-                if (this.storefrontSettings.entity_list_progress_variant === undefined) this.storefrontSettings.entity_list_progress_variant = '';
-                if (this.storefrontSettings.entity_summary_width === undefined) this.storefrontSettings.entity_summary_width = 320;
-                if (this.storefrontSettings.entity_summary_sticky === undefined) this.storefrontSettings.entity_summary_sticky = 1;
-                if (this.storefrontSettings.entity_media_ratio === undefined) this.storefrontSettings.entity_media_ratio = 'auto';
-                if (this.storefrontSettings.entity_spacing_scale === undefined) this.storefrontSettings.entity_spacing_scale = 'comfortable';
-                if (this.storefrontSettings.entity_action_size === undefined) this.storefrontSettings.entity_action_size = 'md';
-                if (this.storefrontSettings.entity_list_show_filter_summary === undefined) this.storefrontSettings.entity_list_show_filter_summary = 1;
-                if (this.storefrontSettings.entity_list_card_density === undefined) this.storefrontSettings.entity_list_card_density = 'comfortable';
-                if (this.storefrontSettings.entity_list_show_excerpt === undefined) this.storefrontSettings.entity_list_show_excerpt = 1;
-                if (this.storefrontSettings.entity_list_excerpt_length === undefined) this.storefrontSettings.entity_list_excerpt_length = 120;
-                if (this.storefrontSettings.entity_list_title_font === undefined) this.storefrontSettings.entity_list_title_font = '';
-                if (this.storefrontSettings.entity_list_text_font === undefined) this.storefrontSettings.entity_list_text_font = '';
-                if (this.storefrontSettings.entity_list_category_navigation === undefined) this.storefrontSettings.entity_list_category_navigation = 'list';
-                if (this.storefrontSettings.entity_list_title_size === undefined) this.storefrontSettings.entity_list_title_size = 19;
-                if (this.storefrontSettings.entity_list_price_size === undefined) this.storefrontSettings.entity_list_price_size = 17;
-                if (this.storefrontSettings.entity_list_card_min_width === undefined) this.storefrontSettings.entity_list_card_min_width = 240;
-                if (this.storefrontSettings.entity_list_title_lines === undefined) this.storefrontSettings.entity_list_title_lines = 2;
+                this.entityPresentationSettings = JSON.parse(document.getElementById('cz-entity-presentation-settings').textContent) || {};
             } catch (e) {
-                this.storefrontSettings = {
-                    entity_layout_profile: 'commerce', entity_pricing_variant: '', entity_action_variant: '',
-                    entity_list_pricing_variant: '', entity_list_inventory_variant: '', entity_list_progress_variant: '',
-                    entity_summary_width: 320, entity_summary_sticky: 1, entity_media_ratio: 'auto', entity_spacing_scale: 'comfortable', entity_action_size: 'md',
-                    entity_list_show_filter_summary: 1, entity_list_card_density: 'comfortable', entity_list_show_excerpt: 1, entity_list_excerpt_length: 120,
-                    entity_list_title_font: '', entity_list_text_font: '', entity_list_category_navigation: 'list', entity_list_title_size: 19, entity_list_price_size: 17,
-                    entity_list_card_min_width: 240, entity_list_title_lines: 2,
-                };
+                this.entityPresentationSettings = {};
             }
+            this.entityPresentationSettings = Object.assign({}, entityPresentationDefaults, legacyThemePresentation, this.entityPresentationSettings || {});
 
             // Watch for changes
             this.$watch('footerSettings', () => { this.markSectionDirty('footer'); }, { deep: true });
@@ -4205,7 +3982,7 @@ function themeCustomizer() {
             this.$watch('colorsSettings', () => { this.markSectionDirty('colors'); }, { deep: true });
             this.$watch('customCodeSettings', () => { this.markSectionDirty('custom_code'); }, { deep: true });
             this.$watch('themeLayoutSettings', () => { this.markSectionDirty('theme'); }, { deep: true });
-            this.$watch('storefrontSettings', () => { this.markSectionDirty('storefront'); }, { deep: true });
+            this.$watch('entityPresentationSettings', () => { this.markSectionDirty('entity_presentation'); }, { deep: true });
         },
 
         // Widget helpers
@@ -4285,6 +4062,48 @@ function themeCustomizer() {
                 contact_info: 'bg-orange-50 text-orange-600',
             };
             return map[type] || 'bg-gray-50 text-gray-600';
+        },
+
+        footerPreviewWidgetContainerLabel() {
+            return (this.footerSettings.widget_container_width || 'contained') === 'full'
+                ? 'Full + gutters'
+                : 'Contained';
+        },
+
+        footerPreviewWidgetHolderLabel() {
+            const mode = this.footerSettings.widget_inner_width_mode || 'contained';
+            if (mode === 'custom') {
+                return this.footerSettings.widget_inner_custom_width || 'Custom';
+            }
+            return mode.charAt(0).toUpperCase() + mode.slice(1);
+        },
+
+        footerPreviewFooterBarLabel() {
+            return (this.footerSettings.inner_width || 'contained') === 'full-width' ? 'Full' : 'Contained';
+        },
+
+        footerPreviewWidgetContainerStyle() {
+            let style = 'color:' + this.footerSettings.text_color + ';padding:' + this.footerSettings.padding_top + 'px 0 ' + this.footerSettings.padding_bottom + 'px;';
+            if ((this.footerSettings.widget_container_width || 'contained') === 'full') {
+                style += 'padding-left:16px;padding-right:16px;box-sizing:border-box;';
+            } else {
+                style += 'max-width:88%;margin:0 auto;';
+            }
+            return style;
+        },
+
+        footerPreviewWidgetHolderStyle() {
+            const mode = this.footerSettings.widget_inner_width_mode || 'contained';
+            if (mode === 'boxed') return 'width:100%;max-width:min(72%, 768px);margin:0 auto;';
+            if (mode === 'custom') return 'width:100%;max-width:' + (this.footerSettings.widget_inner_custom_width || '960px') + ';margin:0 auto;';
+            if (mode === 'full') return 'width:100%;max-width:none;';
+            return 'width:100%;max-width:100%;margin:0 auto;';
+        },
+
+        footerPreviewFooterBarInnerStyle() {
+            return (this.footerSettings.inner_width || 'contained') === 'full-width'
+                ? 'width:100%;'
+                : 'max-width:88%;margin:0 auto;';
         },
 
         sidebarWidgetTypeLabel(type) {
@@ -4526,8 +4345,8 @@ function themeCustomizer() {
                 this._mobileBgOpacity = 100;
                 this.headerWidgets = [];
             } else if (this.activeTab === 'commerce') {
-                if (!confirm('Reset storefront presentation settings to defaults? This resets only the ecommerce entity presentation controls.')) return;
-                this.storefrontSettings = {
+                if (!confirm('Reset entity presentation settings to defaults? This resets the canonical entity presentation controls.')) return;
+                this.entityPresentationSettings = {
                     entity_layout_profile: 'commerce',
                     entity_pricing_variant: '',
                     entity_action_variant: '',
@@ -4540,27 +4359,42 @@ function themeCustomizer() {
                     entity_spacing_scale: 'comfortable',
                     entity_action_size: 'md',
                     entity_list_show_filter_summary: 1,
+                    entity_list_category_navigation: 'list',
                     entity_list_card_density: 'comfortable',
                     entity_list_show_excerpt: 1,
                     entity_list_excerpt_length: 120,
+                    entity_list_title_font: '',
+                    entity_list_text_font: '',
+                    entity_list_title_size: 19,
+                    entity_list_price_size: 17,
+                    entity_list_card_min_width: 240,
+                    entity_list_title_lines: 2,
+                    blog_layout: 'list',
+                    blog_columns: 2,
+                    blog_gap: 24,
+                    blog_card_border: 1,
+                    blog_card_shadow: 1,
+                    blog_card_radius: 8,
+                    blog_featured_image: 1,
+                    blog_image_height: 208,
+                    blog_image_ratio: 'auto',
+                    blog_show_author: 1,
+                    blog_show_date: 1,
+                    blog_show_excerpt: 1,
+                    blog_show_readmore: 1,
+                    blog_readmore_text: 'Read more →',
+                    single_max_width: 768,
+                    single_show_author: 1,
+                    single_show_date: 1,
+                    single_show_categories: 1,
+                    single_show_tags: 1,
+                    single_show_nav: 1,
                 };
             } else if (this.activeTab === 'theme') {
                 if (!confirm('Reset all theme layout settings to defaults? This cannot be undone.')) return;
                 this.themeLayoutSettings = {
                     layout_mode: 'contained', site_max_width: 1280, content_max_width: 768,
                     content_padding_x: 16, content_padding_top: 32, content_padding_bottom: 32,
-                    blog_layout: 'list', blog_columns: 2, blog_gap: 24,
-                    blog_card_border: 1, blog_card_shadow: 0, blog_card_radius: 8,
-                    blog_featured_image: 1, blog_image_height: 208, blog_image_ratio: 'auto',
-                    blog_show_author: 1, blog_show_date: 1, blog_show_excerpt: 1, blog_show_readmore: 1,
-                    blog_readmore_text: 'Read More →',
-                    single_max_width: 768,
-                    single_show_author: 1, single_show_date: 1, single_show_categories: 1,
-                    single_show_tags: 1, single_show_nav: 1,
-                    entity_layout_profile: 'default', entity_pricing_variant: '', entity_action_variant: '',
-                    entity_list_pricing_variant: '', entity_list_inventory_variant: '', entity_list_progress_variant: '',
-                    entity_summary_width: 320, entity_summary_sticky: 1, entity_media_ratio: 'auto', entity_spacing_scale: 'comfortable', entity_action_size: 'md',
-                    entity_list_show_filter_summary: 1, entity_list_card_density: 'comfortable', entity_list_show_excerpt: 1, entity_list_excerpt_length: 120,
                 };
             } else if (this.activeTab === 'sidebar') {
                 if (!confirm('Reset all sidebar settings to defaults? This cannot be undone.')) return;
@@ -4577,7 +4411,7 @@ function themeCustomizer() {
             } else {
                 if (!confirm('Reset all footer settings to defaults? This cannot be undone.')) return;
                 this.footerSettings = {
-                    columns: 3, inner_width: 'contained',
+                    columns: 3, widget_container_width: 'contained', widget_inner_width_mode: 'contained', widget_inner_custom_width: '960px', inner_width: 'contained',
                     bg_color: '#1e293b', text_color: '#cbd5e1', link_color: '#94a3b8', link_hover_color: '#ffffff', title_color: '#f1f5f9',
                     bar_bg_color: '#0f172a', bar_text_color: '#64748b', bar_link_color: '#94a3b8', bar_link_hover_color: '#ffffff',
                     copyright_text: '{literal}© {current_year} {site_title}. All rights reserved.{/literal}',
@@ -4603,7 +4437,7 @@ function themeCustomizer() {
 <script type="application/json" id="cz-colors-settings">{colors_settings_json|raw}</script>
 <script type="application/json" id="cz-custom-code-settings">{custom_code_settings_json|raw}</script>
 <script type="application/json" id="cz-theme-layout-settings">{theme_layout_settings_json|raw}</script>
-<script type="application/json" id="cz-storefront-settings">{storefront_settings_json|raw}</script>
+<script type="application/json" id="cz-entity-presentation-settings">{entity_presentation_settings_json|raw}</script>
 <script type="application/json" id="cz-theme-manifest-block-variants">{theme_manifest_block_variants_json|raw}</script>
 <script type="application/json" id="cz-available-menus">{available_menus_json|raw}</script>
 <script type="application/json" id="cz-menu-locations">{menu_locations_json|raw}</script>

@@ -291,20 +291,27 @@ function cmsPublicHome(array $params = []): void
                 $builderSettings = cmsPageBuilderSettings($meta);
                 $structuredData = cmsStructuredDataJsonLd($staticPage);
 
-                $templatePath = cmsResolveContentTemplate('public/page.disyl', $meta, 'page');
-                $sidebarTemplateKey = cmsSidebarTemplateKeyFromPath($templatePath, 'page');
-                $html = cmsRenderThemeAwareTemplate($templatePath, cmsPublicContext([
-                    'page_title'   => $staticPage['title'],
-                    'content'      => $staticPage,
-                    'content_meta' => $meta,
-                    'content_html' => $renderedHtml,
-                    'cms_head'     => $publicHead,
+                $html = cmsPublicCanonicalRenderEntityView($staticPage, [
+                    'content_type' => 'page',
+                    'meta' => $meta,
+                    'rendered_html' => $renderedHtml,
+                    'public_head' => $publicHead,
                     'structured_data' => $structuredData,
                     'builder_enabled' => $builderEnabled,
                     'builder_page_settings' => $builderSettings,
-                    'sidebar_template' => $sidebarTemplateKey,
-                    'is_front_page' => true,
-                ]));
+                    'entity_view_context' => [
+                        'show_header' => true,
+                        'show_meta' => false,
+                        'show_media' => false,
+                        'bypass_shell' => $builderEnabled,
+                    ],
+                    'public_render_origin' => 'cms',
+                    'public_route_kind' => 'front-page',
+                    'public_presentation_mode' => 'canonical',
+                    'template_context' => [
+                        'is_front_page' => true,
+                    ],
+                ]);
 
                 if ($timingEnabled) {
                     cmsPublicRenderLogTiming('cms.public.home.static_page.total', $requestStart, [
@@ -336,7 +343,7 @@ function cmsPublicHome(array $params = []): void
             $archiveLabel = date('F Y', strtotime($archiveStart));
         }
     }
-    $cacheKey = 'cms:home:page:' . $page . ':archive:' . ($archiveKey !== '' ? $archiveKey : 'all');
+    $cacheKey = 'cms:home:entity_contract_v3:page:' . $page . ':archive:' . ($archiveKey !== '' ? $archiveKey : 'all');
 
     // Check cache
     $cacheStageStart = $timingEnabled ? microtime(true) : 0.0;
@@ -422,15 +429,53 @@ function cmsPublicHome(array $params = []): void
     $totalPages = max(1, (int)ceil($total / $perPage));
 
     $renderStageStart = $timingEnabled ? microtime(true) : 0.0;
-    $html = cmsPublicRender('public/home.disyl', cmsPublicContext([
-        'page_title'  => $archiveLabel !== '' ? ('Archive: ' . $archiveLabel) : 'Blog',
-        'posts'       => $posts,
-        'page_num'    => $page,
-        'total_pages' => $totalPages,
-        'next_page'   => min($page + 1, $totalPages),
-        'archive_month' => $archiveKey,
-        'sidebar_template' => 'home',
-    ]));
+    $baseUrl = cmsPublicCanonicalBaseUrl();
+    $resultLabel = cmsEntityListResultLabel($total);
+    $listTitle = $archiveLabel !== '' ? ('Archive: ' . $archiveLabel) : 'Blog';
+    $listDescription = $archiveLabel !== ''
+        ? ($resultLabel . ' from ' . $archiveLabel)
+        : ($resultLabel . ' in Blog');
+    $paginationQuery = [];
+    if ($archiveKey !== '') {
+        $paginationQuery['archive'] = $archiveKey;
+    }
+    $pagination = [
+        'current' => $page,
+        'total' => $totalPages,
+        'prev_url' => $page > 1 ? cmsEntityListPageUrl($baseUrl . '/cms/blog', $page - 1, $paginationQuery) : '',
+        'next_url' => $page < $totalPages ? cmsEntityListPageUrl($baseUrl . '/cms/blog', $page + 1, $paginationQuery) : '',
+    ];
+    $html = cmsPublicCanonicalRenderEntityList($posts, [
+        'default_type' => 'post',
+        'page_title' => $listTitle,
+        'list_title' => $listTitle,
+        'list_description' => $listDescription,
+        'pagination' => $pagination,
+        'entity_list_context' => [
+            'base_list_url' => $baseUrl . '/cms/blog',
+            'search_action_url' => $baseUrl . '/cms/search',
+            'all_items_url' => $archiveKey !== '' ? ($baseUrl . '/cms/blog') : '',
+            'result_count' => $total,
+            'result_label' => $resultLabel,
+            'active_filter_count' => $archiveKey !== '' ? 1 : 0,
+            'search_placeholder' => 'Search published content',
+            'search_button_label' => 'Search',
+            'show_item_meta' => true,
+            'show_item_author' => true,
+            'show_item_date' => true,
+            'empty_title' => 'No posts found.',
+            'empty_body' => $archiveKey !== ''
+                ? 'Try a different archive month or browse all posts.'
+                : 'There are no published posts yet.',
+            'empty_link_label' => 'Browse all posts',
+        ],
+        'public_render_origin' => 'cms',
+        'public_route_kind' => $archiveKey !== '' ? 'archive' : 'blog-home',
+        'public_presentation_mode' => 'canonical',
+        'template_context' => [
+            'archive_month' => $archiveKey,
+        ],
+    ]);
     if ($timingEnabled) {
         cmsPublicRenderLogTiming('cms.public.home.render', $renderStageStart, [
             'page' => $page,
@@ -489,7 +534,7 @@ function cmsPublicCategoryArchive(array $params = []): void
     }
 
     $page = max(1, (int)(cmsInput('page', 'GET') ?: 1));
-    $cacheKey = 'cms:category:' . $slug . ':page:' . $page;
+    $cacheKey = 'cms:category:entity_contract_v3:' . $slug . ':page:' . $page;
 
     // Check cache
     $cached = cmsCacheGet($cacheKey);
@@ -540,17 +585,50 @@ function cmsPublicCategoryArchive(array $params = []): void
     $total = (int)$countStmt->fetchColumn();
     $totalPages = max(1, (int)ceil($total / $perPage));
 
-    $html = cmsPublicRender('public/archive.disyl', cmsPublicContext([
-        'page_title'    => 'Category: ' . ($category['name'] ?? $slug),
-        'archive_type'  => 'category',
-        'archive_name'  => $category['name'],
-        'archive_desc'  => $category['description'] ?? '',
-        'posts'         => $posts,
-        'page_num'      => $page,
-        'total_pages'   => $totalPages,
-        'next_page'     => min($page + 1, $totalPages),
-        'sidebar_template' => 'archive',
-    ]));
+    $baseUrl = cmsPublicCanonicalBaseUrl();
+    $resultLabel = cmsEntityListResultLabel($total);
+    $listDescription = trim((string)($category['description'] ?? ''));
+    if ($listDescription === '') {
+        $listDescription = $resultLabel . ' in ' . (string)($category['name'] ?? $slug);
+    }
+    $pagination = [
+        'current' => $page,
+        'total' => $totalPages,
+        'prev_url' => $page > 1 ? cmsEntityListPageUrl($baseUrl . '/cms/category/' . rawurlencode($slug), $page - 1) : '',
+        'next_url' => $page < $totalPages ? cmsEntityListPageUrl($baseUrl . '/cms/category/' . rawurlencode($slug), $page + 1) : '',
+    ];
+    $html = cmsPublicCanonicalRenderEntityList($posts, [
+        'default_type' => 'post',
+        'page_title' => 'Category: ' . ($category['name'] ?? $slug),
+        'list_title' => 'Category: ' . ($category['name'] ?? $slug),
+        'list_description' => $listDescription,
+        'pagination' => $pagination,
+        'entity_list_context' => [
+            'base_list_url' => $baseUrl . '/cms/category/' . rawurlencode($slug),
+            'search_action_url' => $baseUrl . '/cms/search',
+            'all_items_url' => $baseUrl . '/cms/blog',
+            'category_name' => (string)($category['name'] ?? ''),
+            'result_count' => $total,
+            'result_label' => $resultLabel,
+            'active_filter_count' => 1,
+            'search_placeholder' => 'Search published content',
+            'search_button_label' => 'Search',
+            'show_item_meta' => true,
+            'show_item_author' => true,
+            'show_item_date' => true,
+            'empty_title' => 'No posts found.',
+            'empty_body' => 'This category does not have any published posts yet.',
+            'empty_link_label' => 'Browse all posts',
+        ],
+        'public_render_origin' => 'cms',
+        'public_route_kind' => 'category',
+        'public_presentation_mode' => 'canonical',
+        'template_context' => [
+            'archive_type' => 'category',
+            'archive_name' => $category['name'],
+            'archive_desc' => $category['description'] ?? '',
+        ],
+    ]);
 
     // Cache the rendered output
     $updatedAt = !empty($posts) ? ($posts[0]['published_at'] ?? date('Y-m-d H:i:s')) : date('Y-m-d H:i:s');
@@ -575,7 +653,7 @@ function cmsPublicTagArchive(array $params = []): void
     }
 
     $page = max(1, (int)(cmsInput('page', 'GET') ?: 1));
-    $cacheKey = 'cms:tag:' . $slug . ':page:' . $page;
+    $cacheKey = 'cms:tag:entity_contract_v3:' . $slug . ':page:' . $page;
 
     // Check cache
     $cached = cmsCacheGet($cacheKey);
@@ -626,17 +704,45 @@ function cmsPublicTagArchive(array $params = []): void
     $total = (int)$countStmt->fetchColumn();
     $totalPages = max(1, (int)ceil($total / $perPage));
 
-    $html = cmsPublicRender('public/archive.disyl', cmsPublicContext([
-        'page_title'    => 'Tag: ' . ($tag['name'] ?? $slug),
-        'archive_type'  => 'tag',
-        'archive_name'  => $tag['name'],
-        'archive_desc'  => '',
-        'posts'         => $posts,
-        'page_num'      => $page,
-        'total_pages'   => $totalPages,
-        'next_page'     => min($page + 1, $totalPages),
-        'sidebar_template' => 'archive',
-    ]));
+    $baseUrl = cmsPublicCanonicalBaseUrl();
+    $resultLabel = cmsEntityListResultLabel($total);
+    $pagination = [
+        'current' => $page,
+        'total' => $totalPages,
+        'prev_url' => $page > 1 ? cmsEntityListPageUrl($baseUrl . '/cms/tag/' . rawurlencode($slug), $page - 1) : '',
+        'next_url' => $page < $totalPages ? cmsEntityListPageUrl($baseUrl . '/cms/tag/' . rawurlencode($slug), $page + 1) : '',
+    ];
+    $html = cmsPublicCanonicalRenderEntityList($posts, [
+        'default_type' => 'post',
+        'page_title' => 'Tag: ' . ($tag['name'] ?? $slug),
+        'list_title' => 'Tag: ' . ($tag['name'] ?? $slug),
+        'list_description' => $resultLabel . ' tagged with ' . (string)($tag['name'] ?? $slug),
+        'pagination' => $pagination,
+        'entity_list_context' => [
+            'base_list_url' => $baseUrl . '/cms/tag/' . rawurlencode($slug),
+            'search_action_url' => $baseUrl . '/cms/search',
+            'all_items_url' => $baseUrl . '/cms/blog',
+            'result_count' => $total,
+            'result_label' => $resultLabel,
+            'active_filter_count' => 1,
+            'search_placeholder' => 'Search published content',
+            'search_button_label' => 'Search',
+            'show_item_meta' => true,
+            'show_item_author' => true,
+            'show_item_date' => true,
+            'empty_title' => 'No posts found.',
+            'empty_body' => 'This tag does not have any published posts yet.',
+            'empty_link_label' => 'Browse all posts',
+        ],
+        'public_render_origin' => 'cms',
+        'public_route_kind' => 'tag',
+        'public_presentation_mode' => 'canonical',
+        'template_context' => [
+            'archive_type' => 'tag',
+            'archive_name' => $tag['name'],
+            'archive_desc' => '',
+        ],
+    ]);
 
     // Cache the rendered output
     $updatedAt = !empty($posts) ? ($posts[0]['published_at'] ?? date('Y-m-d H:i:s')) : date('Y-m-d H:i:s');
@@ -655,7 +761,7 @@ function cmsPublicTagArchive(array $params = []): void
 
 function cmsPublicSearch(array $params = []): void
 {
-    $q = trim((string)(cmsInput('q', 'GET') ?: ''));
+    $q = trim((string)(cmsInput('search', 'GET') ?: cmsInput('q', 'GET') ?: ''));
     $page = max(1, (int)(cmsInput('page', 'GET') ?: 1));
     $perPage = 10;
     $offset = ($page - 1) * $perPage;
@@ -691,17 +797,54 @@ function cmsPublicSearch(array $params = []): void
     $posts = cmsProcessPostExcerpts($posts);
 
     $totalPages = max(1, (int)ceil(max($total, 1) / $perPage));
+    $baseUrl = cmsPublicCanonicalBaseUrl();
+    $resultLabel = cmsEntityListResultLabel($total);
+    $paginationQuery = $q !== '' ? ['search' => $q] : [];
+    $pagination = [
+        'current' => $page,
+        'total' => $totalPages,
+        'prev_url' => $page > 1 ? cmsEntityListPageUrl($baseUrl . '/cms/search', $page - 1, $paginationQuery) : '',
+        'next_url' => $page < $totalPages ? cmsEntityListPageUrl($baseUrl . '/cms/search', $page + 1, $paginationQuery) : '',
+    ];
 
-    cmsPublicRespond(cmsPublicRender('public/search.disyl', cmsPublicContext([
-        'page_title'  => $q !== '' ? 'Search: ' . htmlspecialchars($q) : 'Search',
-        'query'       => $q,
-        'posts'       => $posts,
-        'total'       => $total,
-        'page_num'    => $page,
-        'total_pages' => $totalPages,
-        'next_page'   => min($page + 1, $totalPages),
-        'sidebar_template' => 'search',
-    ])));
+    $html = cmsPublicCanonicalRenderEntityList($posts, [
+        'default_type' => 'post',
+        'page_title' => $q !== '' ? ('Search: ' . $q) : 'Search',
+        'list_title' => $q !== '' ? ('Search: ' . $q) : 'Search',
+        'list_description' => $q !== ''
+            ? ($resultLabel . ' for "' . $q . '"')
+            : 'Search across published content.',
+        'pagination' => $pagination,
+        'entity_list_context' => [
+            'base_list_url' => $baseUrl . '/cms/search',
+            'search_action_url' => $baseUrl . '/cms/search',
+            'search' => $q,
+            'all_items_url' => $baseUrl . '/cms/blog',
+            'result_count' => $total,
+            'result_label' => $resultLabel,
+            'active_filter_count' => $q !== '' ? 1 : 0,
+            'search_placeholder' => 'Search posts, pages, and more',
+            'search_button_label' => 'Search',
+            'show_item_meta' => true,
+            'show_item_author' => true,
+            'show_item_date' => true,
+            'show_item_type_badge' => true,
+            'empty_title' => $q !== '' ? 'No results found.' : 'Enter a search term.',
+            'empty_body' => $q !== ''
+                ? 'Try a broader term or browse the blog instead.'
+                : 'Use the search field above to find published content.',
+            'empty_link_label' => 'Browse the blog',
+        ],
+        'public_render_origin' => 'cms',
+        'public_route_kind' => 'search',
+        'public_presentation_mode' => 'canonical',
+        'template_context' => [
+            'query' => $q,
+            'total' => $total,
+        ],
+    ]);
+
+    cmsPublicRespond($html);
 }
 
 function cmsPublicSitemapXml(array $params = []): void
@@ -834,7 +977,7 @@ function cmsPublicSingle(array $params = []): void
         return;
     }
 
-    $cacheKey = 'cms:post:' . $slug;
+    $cacheKey = 'cms:post:entity_contract_v3:' . $slug;
 
     // Check cache
     $cached = cmsCacheGet($cacheKey);
@@ -887,25 +1030,26 @@ function cmsPublicSingle(array $params = []): void
 
     $structuredData = cmsStructuredDataJsonLd($post);
 
-    // Fetch categories and tags for this post
-    $postCategories = cmsGetContentCategories((int)$post['id']);
-    $postTags       = cmsGetContentTagNames((int)$post['id']);
-
-    $templatePath = cmsResolveContentTemplate('public/single.disyl', $meta, 'post');
-    $sidebarTemplateKey = cmsSidebarTemplateKeyFromPath($templatePath, 'single');
-    $html = cmsRenderThemeAwareTemplate($templatePath, cmsPublicContext([
-        'page_title'  => $post['title'],
-        'post'        => $post,
-        'post_meta'   => $meta,
-        'post_html'   => $renderedHtml,
-        'cms_head'    => $publicHead,
+    $html = cmsPublicCanonicalRenderEntityView($post, [
+        'content_type' => 'post',
+        'meta' => $meta,
+        'rendered_html' => $renderedHtml,
+        'public_head' => $publicHead,
         'structured_data' => $structuredData,
         'builder_enabled' => $builderEnabled,
         'builder_page_settings' => $builderSettings,
-        'sidebar_template' => $sidebarTemplateKey,
-        'post_categories' => $postCategories,
-        'post_tags'       => $postTags,
-    ]));
+        'entity_back_link_url' => cmsPublicCanonicalBaseUrl() . '/cms/blog',
+        'entity_back_link_label' => 'Back to blog',
+        'entity_view_context' => [
+            'show_header' => true,
+            'show_meta' => true,
+            'show_media' => true,
+            'bypass_shell' => $builderEnabled,
+        ],
+        'public_render_origin' => 'cms',
+        'public_route_kind' => 'post',
+        'public_presentation_mode' => 'canonical',
+    ]);
 
     // Cache the rendered output
     $updatedAt = (string)($post['updated_at'] ?? $post['published_at'] ?? date('Y-m-d H:i:s'));
@@ -940,7 +1084,7 @@ function cmsPublicPage(array $params = []): void
         return;
     }
 
-    $cacheKey = 'cms:page:' . $slug;
+    $cacheKey = 'cms:page:entity_contract_v3:' . $slug;
 
     // Check cache
     $cached = cmsCacheGet($cacheKey);
@@ -988,19 +1132,24 @@ function cmsPublicPage(array $params = []): void
 
     $structuredData = cmsStructuredDataJsonLd($page);
 
-    $templatePath = cmsResolveContentTemplate('public/page.disyl', $meta, 'page');
-    $sidebarTemplateKey = cmsSidebarTemplateKeyFromPath($templatePath, 'page');
-    $html = cmsRenderThemeAwareTemplate($templatePath, cmsPublicContext([
-        'page_title'   => $page['title'],
-        'content'      => $page,
-        'content_meta' => $meta,
-        'content_html' => $renderedHtml,
-        'cms_head'     => $publicHead,
+    $html = cmsPublicCanonicalRenderEntityView($page, [
+        'content_type' => 'page',
+        'meta' => $meta,
+        'rendered_html' => $renderedHtml,
+        'public_head' => $publicHead,
         'structured_data' => $structuredData,
         'builder_enabled' => $builderEnabled,
         'builder_page_settings' => $builderSettings,
-        'sidebar_template' => $sidebarTemplateKey,
-    ]));
+        'entity_view_context' => [
+            'show_header' => true,
+            'show_meta' => false,
+            'show_media' => false,
+            'bypass_shell' => $builderEnabled,
+        ],
+        'public_render_origin' => 'cms',
+        'public_route_kind' => 'page',
+        'public_presentation_mode' => 'canonical',
+    ]);
 
     // Cache the rendered output
     $updatedAt = (string)($page['updated_at'] ?? $page['published_at'] ?? date('Y-m-d H:i:s'));
@@ -1017,68 +1166,12 @@ function cmsPublicPage(array $params = []): void
 
 function cmsPublicEntityBook(array $params = []): void
 {
-    $type = trim((string)($params['type'] ?? ''));
-    $slug = trim((string)($params['slug'] ?? ''));
-    if ($type === '' || $slug === '') {
-        http_response_code(404);
-        cmsPublicRespond(cmsRender('pages/404.disyl', ['page_title' => 'Not Found']));
-        return;
-    }
-
-    $db = cmsDb();
-    $stmt = $db->prepare(
-        "SELECT c.*, u.display_name as author_name
-         FROM cms_content c
-         LEFT JOIN cms_users u ON u.id = c.author_id
-         WHERE c.slug = :slug AND c.type = :type AND c.deleted_at IS NULL AND " . cmsPublicVisibilitySql('c') . "
-         LIMIT 1"
-    );
-    $stmt->execute([':slug' => $slug, ':type' => $type]);
-    $entity = $stmt->fetch(PDO::FETCH_ASSOC);
-    if (!$entity) {
-        http_response_code(404);
-        cmsPublicRespond(cmsRender('pages/404.disyl', ['page_title' => 'Not Found']));
-        return;
-    }
-
-    cmsPublicRespond(cmsRenderThemeAwareTemplate('modules/cms/public/entity.book.disyl', cmsPublicContext([
-        'page_title' => 'Book ' . (string)$entity['title'],
-        'entity' => $entity,
-        'content_type' => $type,
-    ])));
+    cmsPublicRenderEntityActionPage($params, 'book');
 }
 
 function cmsPublicEntityInquiry(array $params = []): void
 {
-    $type = trim((string)($params['type'] ?? ''));
-    $slug = trim((string)($params['slug'] ?? ''));
-    if ($type === '' || $slug === '') {
-        http_response_code(404);
-        cmsPublicRespond(cmsRender('pages/404.disyl', ['page_title' => 'Not Found']));
-        return;
-    }
-
-    $db = cmsDb();
-    $stmt = $db->prepare(
-        "SELECT c.*, u.display_name as author_name
-         FROM cms_content c
-         LEFT JOIN cms_users u ON u.id = c.author_id
-         WHERE c.slug = :slug AND c.type = :type AND c.deleted_at IS NULL AND " . cmsPublicVisibilitySql('c') . "
-         LIMIT 1"
-    );
-    $stmt->execute([':slug' => $slug, ':type' => $type]);
-    $entity = $stmt->fetch(PDO::FETCH_ASSOC);
-    if (!$entity) {
-        http_response_code(404);
-        cmsPublicRespond(cmsRender('pages/404.disyl', ['page_title' => 'Not Found']));
-        return;
-    }
-
-    cmsPublicRespond(cmsRenderThemeAwareTemplate('modules/cms/public/entity.inquire.disyl', cmsPublicContext([
-        'page_title' => 'Inquire About ' . (string)$entity['title'],
-        'entity' => $entity,
-        'content_type' => $type,
-    ])));
+    cmsPublicRenderEntityActionPage($params, 'inquiry');
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -1116,17 +1209,7 @@ function cmsPublicEntityView(array $params = []): void
     }
 
     $db = cmsDb();
-    $stmt = $db->prepare(
-        "SELECT c.*, u.display_name as author_name, m.file_path as featured_image, ct.label as content_type_label
-         FROM cms_content c
-         LEFT JOIN cms_users u ON u.id = c.author_id
-         LEFT JOIN cms_media m ON m.id = c.featured_image_id
-         LEFT JOIN cms_content_types ct ON ct.slug = c.type
-         WHERE c.slug = :slug AND c.type = :type AND c.deleted_at IS NULL AND " . cmsPublicVisibilitySql('c') . "
-         LIMIT 1"
-    );
-    $stmt->execute([':slug' => $slug, ':type' => $type]);
-    $entity = $stmt->fetch(PDO::FETCH_ASSOC);
+    $entity = cmsPublicLoadVisibleEntityByTypeSlug($db, $type, $slug);
 
     if (!$entity) {
         // Check for slug redirect
@@ -1143,9 +1226,6 @@ function cmsPublicEntityView(array $params = []): void
 
     $meta = cmsLoadContentMeta($db, (int)$entity['id']);
     $entity['meta'] = $meta;
-    if (!empty($entity['featured_image'])) {
-        $entity['featured_image_url'] = cmsResolveUploadUrl((string)$entity['featured_image']);
-    }
 
     $renderedHtml = cmsFilterRenderedContent(cmsContentRenderedHtml($entity), $entity);
     $publicHead = cmsGetPublicHeadHtml($entity);
@@ -1153,43 +1233,18 @@ function cmsPublicEntityView(array $params = []): void
     $builderSettings = cmsPageBuilderSettings($meta);
     $structuredData = cmsStructuredDataJsonLd($entity);
 
-    $templatePath = cmsResolveContentTemplate('public/entity.view.disyl', $meta, $type);
-    $sidebarTemplateKey = cmsSidebarTemplateKeyFromPath($templatePath, 'entity-view');
-    $viewContext = cmsPublicContext([
-        'page_title'            => $entity['title'],
-        'entity'                => $entity,
-        'entity_meta'           => $meta,
-        'post_html'             => $renderedHtml,
-        'cms_head'              => $publicHead,
-        'structured_data'       => $structuredData,
-        'builder_enabled'       => $builderEnabled,
+    $html = cmsPublicCanonicalRenderEntityView($entity, [
+        'content_type' => $type,
+        'meta' => $meta,
+        'rendered_html' => $renderedHtml,
+        'public_head' => $publicHead,
+        'structured_data' => $structuredData,
+        'builder_enabled' => $builderEnabled,
         'builder_page_settings' => $builderSettings,
-        'sidebar_template'      => $sidebarTemplateKey,
-        'content_type'          => $type,
-        'public_render_origin'  => (string)($params['public_render_origin'] ?? 'cms'),
-        'public_route_kind'     => (string)($params['public_route_kind'] ?? 'generic'),
-        'public_presentation_mode' => (string)($params['public_presentation_mode'] ?? 'traditional'),
+        'public_render_origin' => (string)($params['public_render_origin'] ?? 'cms'),
+        'public_route_kind' => (string)($params['public_route_kind'] ?? 'generic'),
+        'public_presentation_mode' => (string)($params['public_presentation_mode'] ?? 'canonical'),
     ]);
-    $viewContext['entity_presentation'] = cmsEntityPresentationConfig(
-        is_array($viewContext['theme_settings'] ?? null) ? $viewContext['theme_settings'] : []
-    );
-
-    $capabilities = is_array($viewContext['capabilities'] ?? null) ? $viewContext['capabilities'] : [];
-    if (!empty($capabilities['pricing'])) {
-        $viewContext['pricing_block_html'] = cmsRenderThemeAwareBlockTemplate(
-            'modules/cms/public/blocks/pricing.block.disyl',
-            $viewContext
-        );
-    }
-
-    if (!empty($capabilities['pricing']) || !empty($capabilities['booking']) || !empty($capabilities['inquiry'])) {
-        $viewContext['action_block_html'] = cmsRenderThemeAwareBlockTemplate(
-            'modules/cms/public/blocks/action.block.disyl',
-            $viewContext
-        );
-    }
-
-    $html = cmsRenderThemeAwareTemplate($templatePath, $viewContext);
 
     $updatedAt = (string)($entity['updated_at'] ?? $entity['published_at'] ?? date('Y-m-d H:i:s'));
     $etag = md5($html);
@@ -1327,7 +1382,17 @@ function cmsPublicEntityList(array $params = []): void
         } catch (\Throwable $e) {}
     }
 
-    $templatePath = cmsResolveContentTemplate('public/entity.list.disyl', [], $type);
+    $publicRenderOrigin = (string)($params['public_render_origin'] ?? 'cms');
+    $publicRouteKind = (string)($params['public_route_kind'] ?? 'generic');
+    $publicPresentationMode = (string)($params['public_presentation_mode'] ?? 'traditional');
+    $entityRenderContext = [
+        'content_type' => $type,
+        'public_render_origin' => $publicRenderOrigin,
+        'public_route_kind' => $publicRouteKind,
+        'public_presentation_mode' => $publicPresentationMode,
+    ];
+
+    $templatePath = cmsResolveContentTemplate('public/entity.list.disyl', [], $type, $entityRenderContext);
     $templateAbsolutePath = BASE_PATH . '/templates/' . ltrim($templatePath, '/');
     $templateVersion = md5($templatePath . '|' . @filemtime($templateAbsolutePath));
     $renderContextVersion = md5((string)json_encode([
@@ -1337,9 +1402,9 @@ function cmsPublicEntityList(array $params = []): void
         'search_action_url' => $searchActionUrl,
         'all_items_url' => $allItemsUrl,
         'available_categories' => $availableCategories,
-        'public_render_origin' => (string)($params['public_render_origin'] ?? 'cms'),
-        'public_route_kind' => (string)($params['public_route_kind'] ?? 'generic'),
-        'public_presentation_mode' => (string)($params['public_presentation_mode'] ?? 'traditional'),
+        'public_render_origin' => $publicRenderOrigin,
+        'public_route_kind' => $publicRouteKind,
+        'public_presentation_mode' => $publicPresentationMode,
     ]));
 
     $cacheKey = 'cms:entity_list:' . $type . ':p' . $page
@@ -1524,12 +1589,16 @@ function cmsPublicEntityList(array $params = []): void
         'entity_list_context' => $listContext,
         'content_type'     => $type,
         'sidebar_template' => $sidebarTemplateKey,
-        'public_render_origin' => (string)($params['public_render_origin'] ?? 'cms'),
-        'public_route_kind' => (string)($params['public_route_kind'] ?? 'generic'),
-        'public_presentation_mode' => (string)($params['public_presentation_mode'] ?? 'traditional'),
+        'public_render_origin' => $publicRenderOrigin,
+        'public_route_kind' => $publicRouteKind,
+        'public_presentation_mode' => $publicPresentationMode,
     ]);
-    $pageContext['entity_presentation'] = cmsEntityPresentationConfig(
-        is_array($pageContext['theme_settings'] ?? null) ? $pageContext['theme_settings'] : []
+    $pageContext['entity_render_family'] = cmsCanonicalEntityRenderFamily(array_merge($entityRenderContext, ['items' => $items]));
+    $pageContext['entity_presentation'] = cmsCanonicalEntityPresentationConfig(
+        is_array($pageContext['entity_presentation_settings'] ?? null)
+            ? $pageContext['entity_presentation_settings']
+            : (is_array($pageContext['theme_settings'] ?? null) ? $pageContext['theme_settings'] : []),
+        array_merge($entityRenderContext, ['items' => $items])
     );
 
     foreach ($items as &$item) {
@@ -1573,3 +1642,484 @@ function cmsPublicEntityList(array $params = []): void
 // ═══════════════════════════════════════════════════════════════════════
 // INTERNAL HELPERS
 // ═══════════════════════════════════════════════════════════════════════
+
+function cmsPublicLoadVisibleEntityByTypeSlug(object $db, string $type, string $slug): ?array
+{
+    $stmt = $db->prepare(
+        "SELECT c.*, u.display_name as author_name, m.file_path as featured_image, ct.label as content_type_label
+         FROM cms_content c
+         LEFT JOIN cms_users u ON u.id = c.author_id
+         LEFT JOIN cms_media m ON m.id = c.featured_image_id
+         LEFT JOIN cms_content_types ct ON ct.slug = c.type
+         WHERE c.slug = :slug AND c.type = :type AND c.deleted_at IS NULL AND " . cmsPublicVisibilitySql('c') . "
+         LIMIT 1"
+    );
+    $stmt->execute([':slug' => $slug, ':type' => $type]);
+    $entity = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!is_array($entity) || $entity === []) {
+        return null;
+    }
+
+    if (!empty($entity['featured_image'])) {
+        $entity['featured_image_url'] = cmsResolveUploadUrl((string)$entity['featured_image']);
+    }
+
+    return $entity;
+}
+
+function cmsPublicRenderEntityActionPage(array $params, string $actionType): void
+{
+    $type = trim((string)($params['type'] ?? ''));
+    $slug = trim((string)($params['slug'] ?? ''));
+    if ($type === '' || $slug === '') {
+        http_response_code(404);
+        cmsPublicRespond(cmsRender('pages/404.disyl', ['page_title' => 'Not Found']));
+        return;
+    }
+
+    $db = cmsDb();
+    $entity = cmsPublicLoadVisibleEntityByTypeSlug($db, $type, $slug);
+    if ($entity === null) {
+        http_response_code(404);
+        cmsPublicRespond(cmsRender('pages/404.disyl', ['page_title' => 'Not Found']));
+        return;
+    }
+
+    $requiredCapability = $actionType === 'book' ? 'booking' : 'inquiry';
+    $capabilities = cmsEntityCapabilityContext((int)$entity['id']);
+    if (empty($capabilities[$requiredCapability])) {
+        http_response_code(404);
+        cmsPublicRespond(cmsRender('pages/404.disyl', ['page_title' => 'Not Found']));
+        return;
+    }
+
+    $meta = cmsLoadContentMeta($db, (int)$entity['id']);
+    $entity['meta'] = $meta;
+
+    $entityTitle = trim((string)($entity['title'] ?? ''));
+    $pageTitle = $actionType === 'book'
+        ? 'Book ' . $entityTitle
+        : 'Inquire About ' . $entityTitle;
+    $blockTemplate = $actionType === 'book'
+        ? 'modules/cms/public/blocks/entity-book-form.block.disyl'
+        : 'modules/cms/public/blocks/entity-inquiry-form.block.disyl';
+
+    $renderedHtml = cmsRenderThemeAwareBlockTemplate($blockTemplate, [
+        'entity' => $entity,
+        'content_type' => $type,
+        'base_url' => cmsPublicCanonicalBaseUrl(),
+        'entity_action_target_title' => $entityTitle,
+    ]);
+
+    $html = cmsPublicCanonicalRenderEntityView($entity, [
+        'content_type' => $type,
+        'meta' => $meta,
+        'rendered_html' => $renderedHtml,
+        'public_head' => cmsGetPublicHeadHtml($entity),
+        'structured_data' => cmsStructuredDataJsonLd($entity),
+        'entity_back_link_url' => cmsPublicCanonicalEntityUrl($entity, $type),
+        'entity_back_link_label' => 'Back to ' . $entityTitle,
+        'entity_view_context' => [
+            'header_title' => $pageTitle,
+            'show_header' => true,
+            'show_meta' => false,
+            'show_media' => false,
+            'show_summary' => false,
+            'show_lessons' => false,
+            'show_taxonomies' => false,
+            'show_back_link' => true,
+        ],
+        'public_render_origin' => (string)($params['public_render_origin'] ?? 'cms'),
+        'public_route_kind' => $actionType,
+        'public_presentation_mode' => 'canonical',
+        'template_context' => [
+            'page_title' => $pageTitle,
+        ],
+    ]);
+
+    cmsPublicRespond($html);
+}
+
+function cmsPublicCanonicalBaseUrl(): string
+{
+    return rtrim((string)(defined('BASE_URL') ? BASE_URL : ''), '/');
+}
+
+function cmsPublicCanonicalContentTypeLabel(string $type, array $entity = []): string
+{
+    $label = trim((string)($entity['content_type_label'] ?? ''));
+    if ($label !== '') {
+        return $label;
+    }
+
+    return match ($type) {
+        'post' => 'Post',
+        'page' => 'Page',
+        default => ucwords(str_replace(['-', '_'], ' ', trim($type))),
+    };
+}
+
+function cmsPublicCanonicalEntityUrl(array $entity, string $defaultType = ''): string
+{
+    $type = trim((string)($entity['type'] ?? $defaultType));
+    $slug = trim((string)($entity['slug'] ?? ''));
+    $baseUrl = cmsPublicCanonicalBaseUrl();
+
+    if ($slug === '') {
+        return $baseUrl . '/';
+    }
+
+    return match ($type) {
+        'post' => $baseUrl . '/cms/blog/' . rawurlencode($slug),
+        'page' => $baseUrl . '/cms/page/' . rawurlencode($slug),
+        default => $baseUrl . '/cms/' . rawurlencode($type) . '/' . rawurlencode($slug),
+    };
+}
+
+function cmsPublicCanonicalPublishedAtDisplay(string $publishedAt): string
+{
+    $publishedAt = trim($publishedAt);
+    if ($publishedAt === '') {
+        return '';
+    }
+
+    $timestamp = strtotime($publishedAt);
+    if ($timestamp === false) {
+        return $publishedAt;
+    }
+
+    return date('M j, Y', $timestamp);
+}
+
+function cmsPublicCanonicalEntityTaxonomies(int $contentId, string $type): array
+{
+    if ($contentId <= 0 || $type !== 'post') {
+        return ['categories' => [], 'tags' => []];
+    }
+
+    $baseUrl = cmsPublicCanonicalBaseUrl();
+    $categories = [];
+    foreach (cmsGetContentCategories($contentId) as $category) {
+        if (!is_array($category)) {
+            continue;
+        }
+
+        $slug = trim((string)($category['slug'] ?? ''));
+        $categories[] = [
+            'id' => (int)($category['id'] ?? 0),
+            'name' => trim((string)($category['name'] ?? '')),
+            'slug' => $slug,
+            'url' => $slug !== '' ? ($baseUrl . '/cms/category/' . rawurlencode($slug)) : '',
+        ];
+    }
+
+    $tags = [];
+    try {
+        $stmt = cmsDb()->prepare(
+            "SELECT t.name, t.slug
+             FROM cms_tags t
+             INNER JOIN cms_content_tags ct ON ct.tag_id = t.id
+             WHERE ct.content_id = :content_id
+             ORDER BY t.name ASC"
+        );
+        $stmt->execute([':content_id' => $contentId]);
+        $tagRows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        foreach ($tagRows as $tagRow) {
+            $slug = trim((string)($tagRow['slug'] ?? ''));
+            $tags[] = [
+                'name' => trim((string)($tagRow['name'] ?? '')),
+                'slug' => $slug,
+                'url' => $slug !== '' ? ($baseUrl . '/cms/tag/' . rawurlencode($slug)) : '',
+            ];
+        }
+    } catch (Throwable $e) {
+        foreach (cmsGetContentTagNames($contentId) as $tagName) {
+            $tagName = trim((string)$tagName);
+            if ($tagName === '') {
+                continue;
+            }
+
+            $tags[] = [
+                'name' => $tagName,
+                'slug' => '',
+                'url' => '',
+            ];
+        }
+    }
+
+    return [
+        'categories' => $categories,
+        'tags' => $tags,
+    ];
+}
+
+function cmsPublicCanonicalRenderEntityView(array $entity, array $options = []): string
+{
+    $type = trim((string)($options['content_type'] ?? $entity['type'] ?? ''));
+    $entityId = (int)($entity['id'] ?? 0);
+    $publicRenderOrigin = (string)($options['public_render_origin'] ?? 'cms');
+    $publicRouteKind = (string)($options['public_route_kind'] ?? 'generic');
+    $publicPresentationMode = (string)($options['public_presentation_mode'] ?? 'canonical');
+    $meta = is_array($options['meta'] ?? null)
+        ? $options['meta']
+        : (is_array($entity['meta'] ?? null) ? $entity['meta'] : []);
+
+    $entity['type'] = $type;
+    $entity['meta'] = $meta;
+    $entity['content_type_label'] = cmsPublicCanonicalContentTypeLabel($type, $entity);
+    if (empty($entity['featured_image_url']) && !empty($entity['featured_image'])) {
+        $entity['featured_image_url'] = cmsResolveUploadUrl((string)$entity['featured_image']);
+    }
+    if (!empty($entity['published_at']) && empty($entity['published_at_display'])) {
+        $entity['published_at_display'] = cmsPublicCanonicalPublishedAtDisplay((string)$entity['published_at']);
+    }
+
+    $renderedHtml = array_key_exists('rendered_html', $options)
+        ? (string)$options['rendered_html']
+        : cmsFilterRenderedContent(cmsContentRenderedHtml($entity), $entity);
+    $publicHead = array_key_exists('public_head', $options)
+        ? (string)$options['public_head']
+        : cmsGetPublicHeadHtml($entity);
+    $structuredData = array_key_exists('structured_data', $options)
+        ? (string)$options['structured_data']
+        : cmsStructuredDataJsonLd($entity);
+    $builderEnabled = array_key_exists('builder_enabled', $options)
+        ? (bool)$options['builder_enabled']
+        : cmsPageBuilderEnabled($meta);
+    $builderSettings = is_array($options['builder_page_settings'] ?? null)
+        ? $options['builder_page_settings']
+        : cmsPageBuilderSettings($meta);
+
+    $viewSettings = [
+        'show_header' => true,
+        'show_meta' => $type !== 'page',
+        'show_media' => $type !== 'page',
+        'bypass_shell' => $builderEnabled && in_array($type, ['post', 'page'], true),
+    ];
+    if (is_array($options['entity_view_context'] ?? null)) {
+        $viewSettings = array_merge($viewSettings, $options['entity_view_context']);
+    }
+
+    $entityTaxonomies = is_array($options['entity_taxonomies'] ?? null)
+        ? $options['entity_taxonomies']
+        : cmsPublicCanonicalEntityTaxonomies($entityId, $type);
+    $hasEntityCategories = !empty($entityTaxonomies['categories']) && is_array($entityTaxonomies['categories']);
+    $hasEntityTags = !empty($entityTaxonomies['tags']) && is_array($entityTaxonomies['tags']);
+
+    $entityRenderContext = [
+        'content_type' => $type,
+        'entity' => $entity,
+        'public_render_origin' => $publicRenderOrigin,
+        'public_route_kind' => $publicRouteKind,
+        'public_presentation_mode' => $publicPresentationMode,
+        'url' => (string)($entity['url'] ?? ''),
+    ];
+
+    $templatePath = cmsResolveContentTemplate('public/entity.view.disyl', $meta, $type, $entityRenderContext);
+    $sidebarTemplateKey = cmsSidebarTemplateKeyFromPath($templatePath, 'entity-view');
+    $templateContext = is_array($options['template_context'] ?? null) ? $options['template_context'] : [];
+
+    $viewContext = cmsPublicContext(array_merge([
+        'page_title' => (string)($entity['title'] ?? ''),
+        'entity' => $entity,
+        'entity_meta' => $meta,
+        'entity_view_context' => $viewSettings,
+        'entity_taxonomies' => $entityTaxonomies,
+        'entity_taxonomies_has_categories' => $hasEntityCategories,
+        'entity_taxonomies_has_tags' => $hasEntityTags,
+        'entity_back_link_url' => (string)($options['entity_back_link_url'] ?? ''),
+        'entity_back_link_label' => (string)($options['entity_back_link_label'] ?? 'Back'),
+        'post' => $entity,
+        'post_meta' => $meta,
+        'content' => $entity,
+        'content_meta' => $meta,
+        'post_html' => $renderedHtml,
+        'content_html' => $renderedHtml,
+        'cms_head' => $publicHead,
+        'structured_data' => $structuredData,
+        'builder_enabled' => $builderEnabled,
+        'builder_page_settings' => $builderSettings,
+        'sidebar_template' => $sidebarTemplateKey,
+        'content_type' => $type,
+        'public_render_origin' => $publicRenderOrigin,
+        'public_route_kind' => $publicRouteKind,
+        'public_presentation_mode' => $publicPresentationMode,
+    ], $templateContext));
+
+    $viewContext['entity_render_family'] = cmsCanonicalEntityRenderFamily(array_merge($entityRenderContext, [
+        'capabilities' => is_array($viewContext['capabilities'] ?? null) ? $viewContext['capabilities'] : [],
+    ]));
+    $viewContext['entity_presentation'] = cmsCanonicalEntityPresentationConfig(
+        is_array($viewContext['entity_presentation_settings'] ?? null)
+            ? $viewContext['entity_presentation_settings']
+            : (is_array($viewContext['theme_settings'] ?? null) ? $viewContext['theme_settings'] : []),
+        array_merge($entityRenderContext, [
+            'capabilities' => is_array($viewContext['capabilities'] ?? null) ? $viewContext['capabilities'] : [],
+        ])
+    );
+    $viewContext['show_entity_categories'] = $hasEntityCategories
+        && !empty($viewContext['entity_presentation_settings']['single_show_categories']);
+    $viewContext['show_entity_tags'] = $hasEntityTags
+        && !empty($viewContext['entity_presentation_settings']['single_show_tags']);
+
+    $capabilities = is_array($viewContext['capabilities'] ?? null) ? $viewContext['capabilities'] : [];
+    if (!empty($capabilities['pricing'])) {
+        $viewContext['pricing_block_html'] = cmsRenderThemeAwareBlockTemplate(
+            'modules/cms/public/blocks/pricing.block.disyl',
+            $viewContext
+        );
+    }
+
+    if (!empty($capabilities['pricing']) || !empty($capabilities['booking']) || !empty($capabilities['inquiry'])) {
+        $viewContext['action_block_html'] = cmsRenderThemeAwareBlockTemplate(
+            'modules/cms/public/blocks/action.block.disyl',
+            $viewContext
+        );
+    }
+
+    return cmsRenderThemeAwareTemplate($templatePath, $viewContext);
+}
+
+function cmsPublicCanonicalRenderEntityList(array $items, array $options = []): string
+{
+    $defaultType = trim((string)($options['default_type'] ?? $options['content_type'] ?? 'post'));
+    $publicRenderOrigin = (string)($options['public_render_origin'] ?? 'cms');
+    $publicRouteKind = (string)($options['public_route_kind'] ?? 'generic');
+    $publicPresentationMode = (string)($options['public_presentation_mode'] ?? 'canonical');
+    $entityRenderContext = [
+        'content_type' => $defaultType,
+        'items' => $items,
+        'public_render_origin' => $publicRenderOrigin,
+        'public_route_kind' => $publicRouteKind,
+        'public_presentation_mode' => $publicPresentationMode,
+    ];
+
+    $templatePath = cmsResolveContentTemplate('public/entity.list.disyl', [], $defaultType, $entityRenderContext);
+    $sidebarTemplateKey = cmsSidebarTemplateKeyFromPath($templatePath, 'entity-list');
+    $pagination = is_array($options['pagination'] ?? null) ? $options['pagination'] : [];
+    $listContext = is_array($options['entity_list_context'] ?? null) ? $options['entity_list_context'] : [];
+    $listContext = array_merge([
+        'base_list_url' => '',
+        'item_base_url' => '',
+        'search' => '',
+        'category_id' => 0,
+        'category_slug' => '',
+        'category_name' => '',
+        'result_count' => count($items),
+        'result_label' => cmsEntityListResultLabel(count($items)),
+        'active_filter_count' => 0,
+        'summary_text' => '',
+        'available_categories' => [],
+        'all_items_url' => '',
+        'search_action_url' => '',
+        'search_placeholder' => 'Search',
+        'search_button_label' => 'Search',
+        'category_navigation_label' => 'Categories',
+        'all_items_label' => 'All Items',
+        'category_submit_label' => 'Browse',
+        'show_item_meta' => false,
+        'show_item_author' => false,
+        'show_item_date' => false,
+        'show_item_type_badge' => false,
+        'empty_title' => 'No items found.',
+        'empty_body' => '',
+        'empty_link_label' => 'Browse all items',
+    ], $listContext);
+    if ((string)$listContext['result_label'] === '') {
+        $listContext['result_label'] = cmsEntityListResultLabel((int)$listContext['result_count']);
+    }
+
+    $templateContext = is_array($options['template_context'] ?? null) ? $options['template_context'] : [];
+    $pageContext = cmsPublicContext(array_merge([
+        'page_title' => (string)($options['page_title'] ?? $options['list_title'] ?? ''),
+        'list_title' => (string)($options['list_title'] ?? ''),
+        'list_description' => (string)($options['list_description'] ?? ''),
+        'pagination' => $pagination,
+        'entity_list_context' => $listContext,
+        'content_type' => $defaultType,
+        'sidebar_template' => $sidebarTemplateKey,
+        'public_render_origin' => $publicRenderOrigin,
+        'public_route_kind' => $publicRouteKind,
+        'public_presentation_mode' => $publicPresentationMode,
+    ], $templateContext));
+
+    $pageContext['entity_render_family'] = cmsCanonicalEntityRenderFamily($entityRenderContext);
+    $pageContext['entity_presentation'] = cmsCanonicalEntityPresentationConfig(
+        is_array($pageContext['entity_presentation_settings'] ?? null)
+            ? $pageContext['entity_presentation_settings']
+            : (is_array($pageContext['theme_settings'] ?? null) ? $pageContext['theme_settings'] : []),
+        $entityRenderContext
+    );
+
+    $normalizedItems = [];
+    foreach ($items as $item) {
+        if (!is_array($item)) {
+            continue;
+        }
+
+        $entityType = trim((string)($item['type'] ?? $defaultType));
+        $entityId = (int)($item['id'] ?? 0);
+        $item['type'] = $entityType;
+        $item['entity_type'] = $entityType;
+        $item['content_type_label'] = cmsPublicCanonicalContentTypeLabel($entityType, $item);
+        $item['entity_type_label'] = $item['content_type_label'];
+        if (empty($item['url'])) {
+            $item['url'] = cmsPublicCanonicalEntityUrl($item, $defaultType);
+        }
+        if (empty($item['featured_image_url']) && !empty($item['featured_image'])) {
+            $item['featured_image_url'] = cmsResolveUploadUrl((string)$item['featured_image']);
+        }
+        if (!empty($item['published_at']) && empty($item['published_at_display'])) {
+            $item['published_at_display'] = cmsPublicCanonicalPublishedAtDisplay((string)$item['published_at']);
+        }
+        if (!isset($item['capabilities']) || !is_array($item['capabilities'])) {
+            try {
+                $item['capabilities'] = $entityId > 0 ? cmsEntityCapabilityContext($entityId) : [];
+            } catch (Throwable $e) {
+                $item['capabilities'] = [];
+            }
+        }
+        if (!isset($item['capability_data']) || !is_array($item['capability_data'])) {
+            try {
+                $item['capability_data'] = $entityId > 0 ? cmsEntityCapabilityData($entityId, $item) : [];
+            } catch (Throwable $e) {
+                $item['capability_data'] = [];
+            }
+        }
+        $item['primary_image_url'] = cmsPublicListItemPrimaryImageUrl($item);
+
+        $itemContext = cmsPublicEntityListItemBlockContext($item, $pageContext, $defaultType);
+        $capabilities = is_array($itemContext['capabilities'] ?? null) ? $itemContext['capabilities'] : [];
+        $presentation = is_array($pageContext['entity_presentation'] ?? null) ? $pageContext['entity_presentation'] : [];
+        $item['list_card_excerpt'] = !empty($presentation['list_show_excerpt'])
+            ? cmsEntityListCardExcerpt((string)($item['excerpt'] ?? ''), (int)($presentation['list_excerpt_length'] ?? 120))
+            : '';
+        $item['list_card_pricing_html'] = !empty($capabilities['pricing'])
+            ? cmsRenderThemeAwareBlockTemplate('modules/cms/public/blocks/list-card-pricing.block.disyl', $itemContext)
+            : '';
+        $item['list_card_inventory_html'] = !empty($capabilities['inventory'])
+            ? cmsRenderThemeAwareBlockTemplate('modules/cms/public/blocks/list-card-inventory.block.disyl', $itemContext)
+            : '';
+        $item['list_card_progress_html'] = !empty($capabilities['progress_tracking'])
+            ? cmsRenderThemeAwareBlockTemplate('modules/cms/public/blocks/list-card-progress.block.disyl', $itemContext)
+            : '';
+        $item['list_card_action_html'] = (!empty($capabilities['pricing']) && !empty($pageContext['cart_enabled']))
+            ? cmsRenderThemeAwareBlockTemplate('modules/cms/public/blocks/list-card-action.block.disyl', $itemContext)
+            : '';
+
+        $normalizedItems[] = $item;
+    }
+
+    $pageContext['items'] = $normalizedItems;
+    $pageContext['posts'] = $normalizedItems;
+    $pageContext['query'] = (string)($listContext['search'] ?? '');
+    $pageContext['total'] = (int)($listContext['result_count'] ?? count($normalizedItems));
+    $pageContext['page_num'] = (int)($pagination['current'] ?? 1);
+    $pageContext['total_pages'] = (int)($pagination['total'] ?? 1);
+    $pageContext['next_page'] = min(
+        max(1, (int)($pagination['current'] ?? 1)) + 1,
+        max(1, (int)($pagination['total'] ?? 1))
+    );
+
+    return cmsRenderThemeAwareTemplate($templatePath, $pageContext);
+}

@@ -453,6 +453,24 @@ check(
 );
 
 check(
+    'default filter resolves nested variable fallback',
+    'Lil Juanita',
+    $engine->renderString('{entity_view_context.header_title | default:entity.title}', [
+        'entity_view_context' => [],
+        'entity' => ['title' => 'Lil Juanita'],
+    ])
+);
+
+check(
+    'default filter keeps chaining through missing variable fallbacks',
+    'post',
+    $engine->renderString('{item.entity_type_label | default:item.content_type_label | default:item.entity_type | default:content_type | default:"Item"}', [
+        'item' => [],
+        'content_type' => 'post',
+    ])
+);
+
+check(
     'esc_html filter',
     '&lt;script&gt;',
     $engine->renderString('{val | esc_html}', ['val' => '<script>'])

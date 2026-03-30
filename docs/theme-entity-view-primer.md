@@ -29,7 +29,7 @@ The stronger concept is:
 
 - the CMS owns one canonical entity-view contract
 - the active theme package provides design tokens, component styling, and public shell defaults
-- the active theme customizer chooses how that canonical entity view is presented
+- the active theme customizer chooses how that canonical entity view is presented, with shell controls in `theme` and canonical list/detail controls in `entity_presentation`
 - modules add or change behavior through capabilities, providers, hooks, and contracts
 
 That means a product page, course page, service page, or other entity page should feel like part of one public design system, not like separate CMS and ecommerce worlds.
@@ -104,7 +104,9 @@ The active theme customizer is the correct place for entity-view presentation ch
 - approved block variants
 - region emphasis or suppression
 - token overrides
-- shared storefront presentation choices that should apply consistently across entity types
+- shared canonical list/detail presentation choices that should apply consistently across entity types
+
+Within the customizer, Theme Settings should stay shell-only. Canonical article, list, and entity presentation decisions belong in the `entity_presentation` workspace so CMS and ecommerce routes read from one contract.
 
 This is the key shift.
 
@@ -193,7 +195,7 @@ Another way to say it:
 - block variant selection
 - visual density
 - token values
-- shared storefront presentation rules
+- shared canonical list/detail presentation rules
 
 ### Use a module or capability provider when you need to change:
 

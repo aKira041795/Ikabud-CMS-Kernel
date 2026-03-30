@@ -151,37 +151,51 @@
             {
                 "id": "entity.capability.pricing.data@1",
                 "priority": 50,
-                "modes": ["first"]
+                "modes": [
+                    "first"
+                ]
             },
             {
                 "id": "entity.capability.inventory.data@1",
                 "priority": 50,
-                "modes": ["first"]
+                "modes": [
+                    "first"
+                ]
             },
             {
                 "id": "entity.capability.booking.data@1",
                 "priority": 10,
-                "modes": ["first"]
+                "modes": [
+                    "first"
+                ]
             },
             {
                 "id": "entity.capability.inquiry.data@1",
                 "priority": 50,
-                "modes": ["first"]
+                "modes": [
+                    "first"
+                ]
             },
             {
                 "id": "entity.capability.progress_tracking.data@1",
                 "priority": 50,
-                "modes": ["first"]
+                "modes": [
+                    "first"
+                ]
             },
             {
                 "id": "entity.capability.lessons_index.data@1",
                 "priority": 50,
-                "modes": ["first"]
+                "modes": [
+                    "first"
+                ]
             },
             {
                 "id": "entity.capability.media_gallery.data@1",
                 "priority": 50,
-                "modes": ["first"]
+                "modes": [
+                    "first"
+                ]
             }
         ],
         "depends": [
@@ -293,39 +307,210 @@
         }
     ],
     "settings_fields": [
-        { "key": "site_title", "type": "text", "label": "Site Title", "default": "" },
-        { "key": "site_tagline", "type": "text", "label": "Site Tagline", "default": "" },
-        { "key": "posts_per_page", "type": "number", "label": "Posts Per Page", "default": "10" },
-        { "key": "default_post_status", "type": "select", "label": "Default Post Status", "default": "draft" },
-        { "key": "comments_enabled", "type": "select", "label": "Comments Enabled", "default": "1" },
-        { "key": "excerpt_length", "type": "number", "label": "Excerpt Length", "default": "160" },
-        { "key": "max_upload_mb", "type": "number", "label": "Max Upload Size (MB)", "default": "2" },
-        { "key": "seo_title_separator", "type": "text", "label": "SEO Title Separator", "default": "|" },
-        { "key": "seo_meta_description", "type": "textarea", "label": "SEO Meta Description", "default": "" },
-        { "key": "seo_og_image", "type": "text", "label": "SEO Open Graph Image", "default": "" },
-        { "key": "seo_robots", "type": "text", "label": "SEO Robots", "default": "index, follow" },
-        { "key": "homepage_type", "type": "select", "label": "Homepage Type", "default": "posts" },
-        { "key": "homepage_page_id", "type": "text", "label": "Homepage Page ID", "default": "" },
-        { "key": "date_format", "type": "text", "label": "Date Format", "default": "M j, Y" },
-        { "key": "time_format", "type": "text", "label": "Time Format", "default": "g:i A" },
-        { "key": "cache_enabled", "type": "select", "label": "Cache Enabled", "default": "1" },
-        { "key": "cache_ttl", "type": "number", "label": "Cache TTL", "default": "600" },
-        { "key": "social_facebook", "type": "text", "label": "Facebook URL", "default": "" },
-        { "key": "social_twitter", "type": "text", "label": "Twitter URL", "default": "" },
-        { "key": "social_instagram", "type": "text", "label": "Instagram URL", "default": "" },
-        { "key": "social_youtube", "type": "text", "label": "YouTube URL", "default": "" },
-        { "key": "social_linkedin", "type": "text", "label": "LinkedIn URL", "default": "" },
-        { "key": "active_theme", "type": "text", "label": "Active Theme", "default": "default" },
-        { "key": "builder_enabled_types", "type": "text", "label": "Builder Enabled Types", "default": "page" },
-        { "key": "builder_enforce_lock", "type": "select", "label": "Builder Enforce Lock", "default": "1" },
-        { "key": "default_comment_status", "type": "text", "label": "Default Comment Status", "default": "open" },
-        { "key": "enabled_post_formats", "type": "text", "label": "Enabled Post Formats", "default": "standard,aside,gallery,link,image,quote,video,audio" },
-        { "key": "media_alt_required", "type": "select", "label": "Media Alt Required", "default": "0" },
-        { "key": "media_extra_allowed_exts", "type": "text", "label": "Extra Allowed Media Extensions", "default": "" },
-        { "key": "media_usage_tracking", "type": "select", "label": "Media Usage Tracking", "default": "1" },
-        { "key": "reading_time_enabled", "type": "select", "label": "Reading Time Enabled", "default": "1" },
-        { "key": "reading_time_wpm", "type": "number", "label": "Reading Time WPM", "default": "200" },
-        { "key": "role_permissions", "type": "textarea", "label": "Role Permissions", "default": "" }
+        {
+            "key": "site_title",
+            "type": "text",
+            "label": "Site Title",
+            "default": ""
+        },
+        {
+            "key": "site_tagline",
+            "type": "text",
+            "label": "Site Tagline",
+            "default": ""
+        },
+        {
+            "key": "posts_per_page",
+            "type": "number",
+            "label": "Posts Per Page",
+            "default": "10"
+        },
+        {
+            "key": "default_post_status",
+            "type": "select",
+            "label": "Default Post Status",
+            "default": "draft"
+        },
+        {
+            "key": "comments_enabled",
+            "type": "select",
+            "label": "Comments Enabled",
+            "default": "1"
+        },
+        {
+            "key": "excerpt_length",
+            "type": "number",
+            "label": "Excerpt Length",
+            "default": "160"
+        },
+        {
+            "key": "max_upload_mb",
+            "type": "number",
+            "label": "Max Upload Size (MB)",
+            "default": "2"
+        },
+        {
+            "key": "seo_title_separator",
+            "type": "text",
+            "label": "SEO Title Separator",
+            "default": "|"
+        },
+        {
+            "key": "seo_meta_description",
+            "type": "textarea",
+            "label": "SEO Meta Description",
+            "default": ""
+        },
+        {
+            "key": "seo_og_image",
+            "type": "text",
+            "label": "SEO Open Graph Image",
+            "default": ""
+        },
+        {
+            "key": "seo_robots",
+            "type": "text",
+            "label": "SEO Robots",
+            "default": "index, follow"
+        },
+        {
+            "key": "homepage_type",
+            "type": "select",
+            "label": "Homepage Type",
+            "default": "posts"
+        },
+        {
+            "key": "homepage_page_id",
+            "type": "text",
+            "label": "Homepage Page ID",
+            "default": ""
+        },
+        {
+            "key": "date_format",
+            "type": "text",
+            "label": "Date Format",
+            "default": "M j, Y"
+        },
+        {
+            "key": "time_format",
+            "type": "text",
+            "label": "Time Format",
+            "default": "g:i A"
+        },
+        {
+            "key": "cache_enabled",
+            "type": "select",
+            "label": "Cache Enabled",
+            "default": "1"
+        },
+        {
+            "key": "cache_ttl",
+            "type": "number",
+            "label": "Cache TTL",
+            "default": "600"
+        },
+        {
+            "key": "social_facebook",
+            "type": "text",
+            "label": "Facebook URL",
+            "default": ""
+        },
+        {
+            "key": "social_twitter",
+            "type": "text",
+            "label": "Twitter URL",
+            "default": ""
+        },
+        {
+            "key": "social_instagram",
+            "type": "text",
+            "label": "Instagram URL",
+            "default": ""
+        },
+        {
+            "key": "social_youtube",
+            "type": "text",
+            "label": "YouTube URL",
+            "default": ""
+        },
+        {
+            "key": "social_linkedin",
+            "type": "text",
+            "label": "LinkedIn URL",
+            "default": ""
+        },
+        {
+            "key": "active_theme",
+            "type": "text",
+            "label": "Active Theme",
+            "default": "default"
+        },
+        {
+            "key": "active_ecommerce_theme",
+            "type": "text",
+            "label": "Active Ecommerce Theme",
+            "default": "entity-commerce-poc"
+        },
+        {
+            "key": "builder_enabled_types",
+            "type": "text",
+            "label": "Builder Enabled Types",
+            "default": "page"
+        },
+        {
+            "key": "builder_enforce_lock",
+            "type": "select",
+            "label": "Builder Enforce Lock",
+            "default": "1"
+        },
+        {
+            "key": "default_comment_status",
+            "type": "text",
+            "label": "Default Comment Status",
+            "default": "open"
+        },
+        {
+            "key": "enabled_post_formats",
+            "type": "text",
+            "label": "Enabled Post Formats",
+            "default": "standard,aside,gallery,link,image,quote,video,audio"
+        },
+        {
+            "key": "media_alt_required",
+            "type": "select",
+            "label": "Media Alt Required",
+            "default": "0"
+        },
+        {
+            "key": "media_extra_allowed_exts",
+            "type": "text",
+            "label": "Extra Allowed Media Extensions",
+            "default": ""
+        },
+        {
+            "key": "media_usage_tracking",
+            "type": "select",
+            "label": "Media Usage Tracking",
+            "default": "1"
+        },
+        {
+            "key": "reading_time_enabled",
+            "type": "select",
+            "label": "Reading Time Enabled",
+            "default": "1"
+        },
+        {
+            "key": "reading_time_wpm",
+            "type": "number",
+            "label": "Reading Time WPM",
+            "default": "200"
+        },
+        {
+            "key": "role_permissions",
+            "type": "textarea",
+            "label": "Role Permissions",
+            "default": ""
+        }
     ],
     "nav": [
         {

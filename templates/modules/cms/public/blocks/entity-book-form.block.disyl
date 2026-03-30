@@ -1,11 +1,7 @@
-{extends "_cms_active_theme/layouts/public.disyl"}
-
-{block content}
-<section class="max-w-3xl mx-auto px-4 py-10">
+<section class="not-prose max-w-3xl">
     <div class="bg-white border border-gray-200 rounded-2xl p-8 shadow-sm">
         <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-sky-50 text-sky-700 border border-sky-100 mb-4">Booking</span>
-        <h1 class="text-3xl font-bold text-gray-900 mb-3">Book {entity.title}</h1>
-        <p class="text-gray-600 mb-6">This booking page now submits a real booking request through the site contact workflow and preserves the stable public route for future scheduling integrations.</p>
+        <p class="text-gray-600 mb-6">This booking page submits a booking request through the site contact workflow while keeping the entity route stable for future scheduling integrations.</p>
         <form id="entity-booking-form" class="grid gap-4" novalidate>
             <div class="grid gap-4 md:grid-cols-2">
                 <input type="text" name="name" placeholder="Your name" required class="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm">
@@ -23,9 +19,6 @@
             <div id="entity-booking-status" class="hidden rounded-lg px-4 py-3 text-sm font-medium"></div>
             <button type="submit" class="inline-flex w-fit items-center gap-2 px-5 py-2.5 rounded-lg bg-sky-600 text-white font-semibold text-sm hover:bg-sky-700">Send Booking Request</button>
         </form>
-        <div class="mt-6">
-            <a href="{base_url}/cms/{entity.type}/{entity.slug}" class="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-sky-600 text-white font-semibold text-sm hover:bg-sky-700 no-underline">Back to {entity.title}</a>
-        </div>
     </div>
 </section>
 
@@ -56,7 +49,7 @@
 
         const messageLines = [
             'Inquiry type: Booking request',
-            'Entity: {entity.title}',
+            'Entity: {entity_action_target_title}',
             'Content type: {entity.type}',
             'Public URL: {base_url}/cms/{entity.type}/{entity.slug}',
             'Phone: ' + phone,
@@ -102,4 +95,3 @@
     });
 })();
 </script>
-{/block}

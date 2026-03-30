@@ -62,14 +62,22 @@ function cmsApiSettingsSave(array $params = []): void
     $old = readCmsSettings();
     $new = array_merge($old, $validated);
 
-    // Validate active_theme slug exists before accepting it
+    // Validate theme slugs exist before accepting them.
     $newTheme = trim((string)($new['active_theme'] ?? ''));
+    $newEcommerceTheme = trim((string)($new['active_ecommerce_theme'] ?? ''));
+    $available = cmsAvailableThemes();
+    $validSlugs = array_column($available, 'slug');
     if ($newTheme !== '' && $newTheme !== 'default') {
-        $available = cmsAvailableThemes();
-        $validSlugs = array_column($available, 'slug');
         if (!in_array($newTheme, $validSlugs, true)) {
             http_response_code(422);
             echo json_encode(['ok' => false, 'error' => 'Theme "' . $newTheme . '" does not exist']);
+            exit;
+        }
+    }
+    if ($newEcommerceTheme !== '' && $newEcommerceTheme !== 'default') {
+        if (!in_array($newEcommerceTheme, $validSlugs, true)) {
+            http_response_code(422);
+            echo json_encode(['ok' => false, 'error' => 'Ecommerce theme "' . $newEcommerceTheme . '" does not exist']);
             exit;
         }
     }
@@ -99,10 +107,14 @@ function cmsApiSettingsSave(array $params = []): void
     // If active_theme changed, update the symlink after the response so the
     // UI does not wait on filesystem work.
     $oldTheme = trim((string)($old['active_theme'] ?? ''));
+    $oldEcommerceTheme = trim((string)($old['active_ecommerce_theme'] ?? ''));
     $themeChanged = $oldTheme !== $newTheme;
+    $ecommerceThemeChanged = $oldEcommerceTheme !== $newEcommerceTheme;
     if ($oldTheme !== $newTheme) {
         $slug = ($newTheme === '' || $newTheme === 'default') ? null : $newTheme;
         cmsActivateThemeSymlink($slug);
+    }
+    if ($themeChanged || $ecommerceThemeChanged) {
         cmsResetThemeRuntimeCache();
         cmsTemplateCacheFlush();
     }
@@ -125,7 +137,9 @@ function cmsApiSettingsReset(array $params = []): void
     $defaults = cmsSettingsDefaults();
     $previousSettings = readCmsSettings();
     $previousTheme = trim((string)($previousSettings['active_theme'] ?? ''));
+    $previousEcommerceTheme = trim((string)($previousSettings['active_ecommerce_theme'] ?? ''));
     $defaultTheme = trim((string)($defaults['active_theme'] ?? ''));
+    $defaultEcommerceTheme = trim((string)($defaults['active_ecommerce_theme'] ?? ''));
     saveModuleSettings('cms', $defaults);
     cmsResetSettingsCache();
     cmsResetCacheRuntimeState();
@@ -147,7 +161,7 @@ function cmsApiSettingsReset(array $params = []): void
     // Reset theme to default
     cmsActivateThemeSymlink(null);
     cmsResetThemeRuntimeCache();
-    if ($previousTheme !== $defaultTheme) {
+    if ($previousTheme !== $defaultTheme || $previousEcommerceTheme !== $defaultEcommerceTheme) {
         cmsTemplateCacheFlush();
     }
 

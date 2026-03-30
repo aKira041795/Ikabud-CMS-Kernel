@@ -1616,11 +1616,35 @@ class TemplateEngine
     /**
      * Apply a filter
      */
+    private function normalizeFilterArg(string $filterName, string $arg, array $context)
+    {
+        $arg = trim($arg);
+        if ($arg === '') {
+            return '';
+        }
+
+        if (preg_match('/^["\'](.*)["\']\s*$/', $arg, $matches)) {
+            return $matches[1];
+        }
+
+        if ($filterName === 'default') {
+            if (is_numeric($arg)) {
+                return $arg + 0;
+            }
+
+            return $this->resolveValueWithFilters($arg, $context);
+        }
+
+        return $arg;
+    }
+
     private function applyFilter(string $filter, $value, array $context)
     {
         $parts = explode(':', $filter, 2);
         $filterName = trim($parts[0]);
-        $args = isset($parts[1]) ? array_map(fn($a) => trim($a, " \t\n\r\0\x0B'\""), explode(',', $parts[1])) : [];
+        $args = isset($parts[1])
+            ? array_map(fn($arg) => $this->normalizeFilterArg($filterName, $arg, $context), $this->splitByComma($parts[1]))
+            : [];
         
         if (isset($this->filters[$filterName])) {
             return call_user_func($this->filters[$filterName], $value, $args, $context);

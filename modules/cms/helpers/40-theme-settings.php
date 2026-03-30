@@ -431,7 +431,7 @@ function cmsConfiguredActiveTheme(): ?string
         return $theme;
     }
     $GLOBALS[$cachedKey] = true;
-    $settings = getModuleSettings('cms');
+    $settings = array_merge(cmsSettingsDefaults(), getModuleSettings('cms'));
     $slug = trim((string)($settings['active_theme'] ?? ''));
     if ($slug === '' || $slug === 'default') {
         $GLOBALS[$valueKey] = null;
@@ -465,7 +465,7 @@ function cmsThemeManifestForSlug(?string $slug): array
 
 function cmsPreferredEcommerceTheme(): ?string
 {
-    $settings = getModuleSettings('cms');
+    $settings = array_merge(cmsSettingsDefaults(), getModuleSettings('cms'));
     $configured = trim((string)($settings['active_ecommerce_theme'] ?? ''));
     if ($configured === '' || $configured === 'default') {
         return null;
@@ -480,9 +480,10 @@ function cmsResolveEcommerceThemePolicy(array $context = []): array
     $resolvedContext = array_merge($currentContext, $context);
 
     $origin = trim((string)($resolvedContext['public_render_origin'] ?? ''));
-    $routeKind = function_exists('cmsNormalizeEcommercePublicRouteKind')
-        ? cmsNormalizeEcommercePublicRouteKind((string)($resolvedContext['public_route_kind'] ?? $resolvedContext['ecommerce_public_route'] ?? 'generic'))
-        : trim((string)($resolvedContext['public_route_kind'] ?? $resolvedContext['ecommerce_public_route'] ?? 'generic'));
+    $requestedRouteKind = trim((string)($resolvedContext['public_route_kind'] ?? $resolvedContext['ecommerce_public_route'] ?? 'generic'));
+    $routeKind = $origin === 'ecommerce' && function_exists('cmsNormalizeEcommercePublicRouteKind')
+        ? cmsNormalizeEcommercePublicRouteKind($requestedRouteKind)
+        : $requestedRouteKind;
     if ($routeKind === '') {
         $routeKind = 'generic';
     }
@@ -499,15 +500,6 @@ function cmsResolveEcommerceThemePolicy(array $context = []): array
     $isEcommerceEntityRouteKind = in_array($routeKind, $entityRouteKinds, true);
     $isEcommerceEntityRoute = $isEcommerceOrigin && $isEcommerceEntityRouteKind;
 
-    $currentOrigin = trim((string)($currentContext['public_render_origin'] ?? ''));
-    $currentRouteKind = function_exists('cmsNormalizeEcommercePublicRouteKind')
-        ? cmsNormalizeEcommercePublicRouteKind((string)($currentContext['public_route_kind'] ?? $currentContext['ecommerce_public_route'] ?? 'generic'))
-        : trim((string)($currentContext['public_route_kind'] ?? $currentContext['ecommerce_public_route'] ?? 'generic'));
-    if ($currentRouteKind === '') {
-        $currentRouteKind = 'generic';
-    }
-    $hasScopedStorefrontContext = $currentOrigin === 'ecommerce' && in_array($currentRouteKind, $entityRouteKinds, true);
-
     $configuredSiteTheme = cmsConfiguredActiveTheme();
     $configuredSiteManifest = cmsThemeManifestForSlug($configuredSiteTheme);
     $configuredSiteScope = !empty($configuredSiteManifest) && function_exists('cmsThemeCustomizerScopeFromManifest')
@@ -523,7 +515,7 @@ function cmsResolveEcommerceThemePolicy(array $context = []): array
     $resolvedTheme = $configuredSiteTheme;
     $resolvedThemeSource = $resolvedTheme !== null ? 'site' : 'default';
 
-    if ($hasScopedStorefrontContext) {
+    if ($isEcommerceEntityRoute) {
         if ($configuredSiteTheme !== null && $configuredSiteScope === 'ecommerce') {
             $resolvedTheme = $configuredSiteTheme;
             $resolvedThemeSource = 'site';

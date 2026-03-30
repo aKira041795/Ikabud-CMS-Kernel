@@ -53,6 +53,7 @@ Public rendering for posts/pages follows this shape:
 
 - public GET handlers should render once and return through `cmsPublicRespond()` rather than `echo` directly
 - `cmsPublicContext()` is the shared enrichment point and should stay the only place where public theme/customizer fragments are assembled
+- `cmsPublicContext()` now resolves shell `theme_settings` and canonical `entity_presentation_settings` separately, then merges entity presentation into `theme_settings` only for compatibility
 - customizer data should be preloaded in one pass, then reused for the request; avoid per-section duplicate reads on the hot path
 - builder-enabled pages should skip sidebar work that cannot affect the final layout
 - public theme rendering must resolve the template before taking a shared symlink lock; symlink mutation belongs only to exclusive lock paths
@@ -90,7 +91,7 @@ This model is intentionally lighter than WordPress and fits the module architect
 - override resolution is simple
 - activation is explicit and reversible
 - themes stay out of admin surfaces
-- customizer adds header/footer/sidebar/layout controls without requiring theme authors to rebuild everything
+- customizer adds header/footer/sidebar/shell-layout controls plus canonical `entity_presentation` controls without requiring theme authors to rebuild everything
 - the shared theme symlink is now lock-guarded during activation and themed renders, which prevents cross-tenant bleed on shared workers
 
 ### Current theme pipeline weaknesses

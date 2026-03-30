@@ -83,6 +83,95 @@ function cmsGetContentTemplates(string $contentType = ''): array
     return $all;
 }
 
+function cmsCanonicalEntityRenderFamily(array $context = []): string
+{
+    $contentType = trim((string)($context['content_type'] ?? $context['type'] ?? $context['default_type'] ?? (($context['entity']['type'] ?? '') ?: '')));
+    if (in_array($contentType, ['page', 'post'], true)) {
+        return 'content';
+    }
+
+    if ($contentType === 'product') {
+        return 'commerce';
+    }
+
+    $origin = trim((string)($context['public_render_origin'] ?? ''));
+    if ($origin === 'ecommerce') {
+        return 'commerce';
+    }
+
+    $routeKind = trim((string)($context['public_route_kind'] ?? $context['ecommerce_public_route'] ?? ''));
+    $ecommerceRouteKinds = function_exists('cmsEcommerceEntityViewRouteKinds')
+        ? cmsEcommerceEntityViewRouteKinds()
+        : ['shop_index', 'shop_category', 'product_detail'];
+    if (in_array($routeKind, $ecommerceRouteKinds, true)) {
+        return 'commerce';
+    }
+
+    $urlCandidates = [];
+    foreach (['url', 'permalink'] as $key) {
+        $candidate = trim((string)($context[$key] ?? ''));
+        if ($candidate !== '') {
+            $urlCandidates[] = $candidate;
+        }
+        if (is_array($context['entity'] ?? null)) {
+            $entityCandidate = trim((string)(($context['entity'][$key] ?? '') ?: ''));
+            if ($entityCandidate !== '') {
+                $urlCandidates[] = $entityCandidate;
+            }
+        }
+    }
+
+    foreach ($urlCandidates as $candidateUrl) {
+        $path = parse_url($candidateUrl, PHP_URL_PATH);
+        $path = is_string($path) && $path !== '' ? $path : $candidateUrl;
+        if (preg_match('#^/ecommerce(?:/|$)#', $path) === 1) {
+            return 'commerce';
+        }
+        if (preg_match('#^/cms/(?:blog|page)(?:/|$)#', $path) === 1) {
+            return 'content';
+        }
+    }
+
+    $capabilities = is_array($context['capabilities'] ?? null) ? $context['capabilities'] : [];
+    foreach (['pricing', 'inventory', 'booking', 'inquiry'] as $capabilityKey) {
+        if (!empty($capabilities[$capabilityKey])) {
+            return 'commerce';
+        }
+    }
+
+    if (is_array($context['items'] ?? null)) {
+        foreach ($context['items'] as $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+
+            $itemFamily = cmsCanonicalEntityRenderFamily([
+                'content_type' => (string)($item['type'] ?? $contentType),
+                'public_render_origin' => $origin,
+                'public_route_kind' => $routeKind,
+                'url' => (string)($item['url'] ?? ''),
+                'capabilities' => is_array($item['capabilities'] ?? null) ? $item['capabilities'] : [],
+            ]);
+            if ($itemFamily === 'commerce') {
+                return 'commerce';
+            }
+        }
+    }
+
+    return 'content';
+}
+
+function cmsCanonicalEntityUsesBaseTemplate(string $defaultSubPath, string $contentType = '', array $context = []): bool
+{
+    if (!in_array($defaultSubPath, ['public/entity.view.disyl', 'public/entity.list.disyl'], true)) {
+        return false;
+    }
+
+    return cmsCanonicalEntityRenderFamily(array_merge($context, [
+        'content_type' => trim((string)($context['content_type'] ?? $contentType)),
+    ])) === 'content';
+}
+
 /**
  * Resolve the public render template path for a content item.
  * Checks content meta _template, resolves to theme/module path.
@@ -90,13 +179,17 @@ function cmsGetContentTemplates(string $contentType = ''): array
  * @param string $defaultSubPath e.g. 'public/single.disyl' or 'public/page.disyl'
  * @param array $meta Content meta array
  * @param string $contentType e.g. 'post' or 'page'
+ * @param array $context Additional render context used for canonical entity classification.
  * @return string Template path relative to templates/
  */
 
-function cmsResolveContentTemplate(string $defaultSubPath, array $meta, string $contentType = ''): string
+function cmsResolveContentTemplate(string $defaultSubPath, array $meta, string $contentType = '', array $context = []): string
 {
     $templateSlug = trim((string)($meta['_template'] ?? ''));
     if ($templateSlug === '' || $templateSlug === 'default') {
+        if (cmsCanonicalEntityUsesBaseTemplate($defaultSubPath, $contentType, $context)) {
+            return 'modules/cms/' . $defaultSubPath;
+        }
         return cmsResolveTemplate($defaultSubPath);
     }
 

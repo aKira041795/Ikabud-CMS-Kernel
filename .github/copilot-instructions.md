@@ -40,6 +40,7 @@
 - For builder changes, update source TS/TSX under [modules/cms/builder-ui/src](modules/cms/builder-ui/src), not generated bundles in `public/admin/assets`.
 - For node style/props behavior, preserve default-merge semantics used in [modules/cms/helpers.php](modules/cms/helpers.php) and [modules/cms/builder-ui/src/builder/components/NodeRenderer.tsx](modules/cms/builder-ui/src/builder/components/NodeRenderer.tsx).
 - Keep public rendering deterministic: changes to builder animation/style attrs must not create duplicate/conflicting HTML attributes.
+- For Disyl control-flow leaks or parsing regressions, treat them as a Disyl language or validation problem first: improve Disyl instructions, validation, or tests at the root when the issue is systemic, instead of relying on repeated one-off template patches.
 
 ## Integration points
 - Capability contracts and module dependencies are validated at module load time in [src/helpers/module-manager.php](src/helpers/module-manager.php).

@@ -50,7 +50,7 @@ Themes should not be treated as owners of the entity rendering tree.
 The preferred model is:
 
 - the theme package provides defaults for a shared design system
-- the active theme customizer controls entity presentation choices
+- the active theme customizer controls entity presentation choices through a shell-only `theme` section plus canonical `entity_presentation` controls
 - the universal entity template stays canonical
 
 The presentation layer should primarily control:
@@ -144,6 +144,8 @@ Relevant policy controls include:
 
 - `restrict_to_tokens`
 - `tokens`
+- shell layout controls in `theme`
+- canonical entity/list/detail controls in `entity_presentation`
 - approved layout profiles
 - approved block variants
 

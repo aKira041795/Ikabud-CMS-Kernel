@@ -8,7 +8,10 @@
     --color-border: var(--color-border, #d7cec1);
     --radius-card: var(--radius-card, 28px);
     --radius-pill: var(--radius-pill, 999px);
-    --container-max: var(--container-max, 1180px);
+    --container-max: 1180px;
+    --poc-font-body: var(--font-body, "Inter", -apple-system, BlinkMacSystemFont, sans-serif);
+    --poc-font-heading: var(--font-heading, "Inter", -apple-system, BlinkMacSystemFont, sans-serif);
+    --poc-shell-gutter: var(--theme-content-px, 16px);
     --shadow-card: 0 24px 60px color-mix(in srgb, var(--color-text) 8%, transparent);
     --shadow-card-hover: 0 18px 42px color-mix(in srgb, var(--storefront-cta-bg, var(--color-primary)) 14%, transparent);
     --poc-surface-base: var(--storefront-surface-bg, var(--color-surface));
@@ -75,7 +78,7 @@ body.entity-commerce-poc {
         radial-gradient(circle at top left, var(--poc-shell-accent-wash), transparent 32%),
         radial-gradient(circle at top right, var(--poc-shell-primary-wash), transparent 28%),
         var(--color-background);
-    font-family: Georgia, "Times New Roman", serif;
+    font-family: var(--poc-font-body);
 }
 
 .poc-shell {
@@ -1461,8 +1464,7 @@ body.entity-commerce-poc {
 }
 
 .poc-footer--customized .footer-bottom .container {
-    padding: 18px 10px 0;
-    border-top: 1px solid color-mix(in srgb, var(--footer-link, var(--footer-text, var(--color-border))) 22%, transparent);
+    padding: 0;
 }
 
 .poc-footer__inner {
@@ -1664,7 +1666,7 @@ body.entity-commerce-poc {
 
 .footer-bottom {
     margin-top: 0;
-    padding: 22px 0 34px;
+    padding: 0;
 }
 
 .footer-bottom a {
@@ -2006,4 +2008,109 @@ body.entity-commerce-poc {
     border: none;
     color: var(--poc-cta-text);
     cursor: pointer;
+}
+
+.poc-header__inner,
+.poc-main__inner,
+.poc-footer__inner,
+.poc-header__slot--customized,
+.poc-footer--customized .footer-widgets,
+.poc-footer--customized .footer-bottom,
+.header-topbar .container,
+.site-header .container,
+.footer-widgets .container,
+.footer-bottom .container {
+    width: min(var(--container-max), calc(100vw - (var(--poc-shell-gutter) * 2)));
+}
+
+.poc-header__inner,
+.header-topbar-inner,
+.site-header .container,
+.poc-footer__inner {
+    padding-left: var(--poc-shell-gutter);
+    padding-right: var(--poc-shell-gutter);
+}
+
+.poc-header--customized .poc-header__inner--customized {
+    padding-left: 0;
+    padding-right: 0;
+}
+
+.poc-header--customized .header-topbar .container,
+.poc-header--customized .site-header .container {
+    padding-left: var(--poc-shell-gutter);
+    padding-right: var(--poc-shell-gutter);
+}
+
+.poc-header--customized .header-topbar-inner,
+.poc-header--customized .header-inner {
+    padding-left: 0;
+    padding-right: 0;
+}
+
+.poc-footer__inner {
+    padding: 28px var(--poc-shell-gutter) 0;
+}
+
+.poc-branding__mark,
+.site-logo,
+.poc-title,
+.poc-product-card__title,
+.poc-pricing-block__value {
+    font-family: var(--poc-font-heading);
+}
+
+.poc-branding__tag,
+.poc-nav a,
+.nav-menu a,
+.nav-menu-sub a,
+.header-cta,
+.poc-footer__menu a,
+.poc-kicker,
+.poc-summary,
+.poc-entity-view__header-note,
+.poc-product-card__excerpt,
+.poc-footer__copy,
+.poc-pagination__status,
+.poc-progress-label,
+.poc-entity-list__badge,
+.poc-entity-list__filter,
+.poc-entity-list__category-picker label,
+.poc-entity-list__search-input,
+.poc-entity-list__category-select,
+.poc-price-pill,
+.poc-stock-tag,
+.poc-progress-inline,
+.poc-pagination__link,
+.poc-empty-state,
+.poc-entity-view__type-badge,
+.poc-card-action__button,
+.poc-card-action__status,
+.poc-cart-badge__count,
+.poc-pricing-block__label,
+.poc-action-strip__label,
+.poc-pricing-block__previous,
+.poc-pricing-block__badge,
+.poc-action-strip__button,
+.poc-action-strip__status,
+.cms-entity-meta,
+.cms-progress-block,
+.cms-pricing-block,
+.cms-inventory-block,
+.cms-action-block,
+.poc-footer__eyebrow,
+.site-tagline {
+    font-family: var(--poc-font-body);
+}
+
+@media (max-width: 720px) {
+
+    .poc-header__slot--customized,
+    .poc-header--customized .header-wrapper,
+    .poc-footer--customized .footer-widgets,
+    .poc-footer--customized .footer-bottom,
+    .footer-widgets .container,
+    .footer-bottom .container {
+        width: min(var(--container-max), calc(100vw - (var(--poc-shell-gutter) * 2)));
+    }
 }
