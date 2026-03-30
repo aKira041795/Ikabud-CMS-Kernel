@@ -573,6 +573,18 @@ saveModuleSettings('cms', $nativeThemeSettings);
 cmsResetThemeRuntimeCache();
 cmsActivateThemeSymlink('native-default');
 
+$db = cmsDb();
+cmsEnsureCustomizerScopeSeeded($db, 'native');
+$nativeHeaderSection = cmsCustomizerGet($db, 'header', 'native');
+$nativeFooterSection = cmsCustomizerGet($db, 'footer', 'native');
+$nativePublicCtx = cmsPublicContext();
+t('native header section is seeded', cmsCustomizerSectionExists($db, 'header', 'native'));
+t('native footer section is seeded', cmsCustomizerSectionExists($db, 'footer', 'native'));
+t('native header defaults keep sticky enabled', (int)($nativeHeaderSection['settings']['sticky'] ?? 0) === 1, json_encode($nativeHeaderSection['settings'] ?? []));
+t('native header defaults keep container and holder width controls available', ($nativeHeaderSection['settings']['header_container_width'] ?? '') === 'contained' && ($nativeHeaderSection['settings']['header_inner_width_mode'] ?? '') === 'contained' && ($nativeHeaderSection['settings']['topbar_container_width'] ?? '') === 'contained' && ($nativeHeaderSection['settings']['topbar_inner_width_mode'] ?? '') === 'contained', json_encode($nativeHeaderSection['settings'] ?? []));
+t('native footer defaults keep footer shell width controls available', ($nativeFooterSection['settings']['widget_container_width'] ?? '') === 'contained' && ($nativeFooterSection['settings']['widget_inner_width_mode'] ?? '') === 'contained', json_encode($nativeFooterSection['settings'] ?? []));
+t('native public context renders the customized header shell after seeding', !empty($nativePublicCtx['has_customized_header']) && str_contains((string)($nativePublicCtx['customized_header'] ?? ''), 'header-wrapper--sticky') && str_contains((string)($nativePublicCtx['customized_header'] ?? ''), 'cms-shell-entity-view--sticky-region'), json_encode(['has_customized_header' => $nativePublicCtx['has_customized_header'] ?? null, 'customized_header' => $nativePublicCtx['customized_header'] ?? '']));
+
 $shopCandidates = ecPublicThemeTemplateCandidates('modules/ecommerce/public/shop.disyl', [
     'public_render_origin' => 'ecommerce',
     'public_route_kind' => 'shop_index',
@@ -916,7 +928,7 @@ $baseShopHtml = captureEcRender('modules/ecommerce/public/shop.disyl', [
     'public_route_kind' => 'generic',
     'public_presentation_mode' => 'traditional',
 ]);
-t('base storefront shop fallback consumes shared storefront contract', str_contains($baseShopHtml, 'data-storefront-route-kind="shop_index"') && str_contains($baseShopHtml, '>Contract Catalog<') && str_contains($baseShopHtml, 'action="/contract-search"') && str_contains($baseShopHtml, 'href="/contract-items/demo-product"') && str_contains($baseShopHtml, 'Bread') && str_contains($baseShopHtml, 'id="cart-count-badge"') && str_contains($baseShopHtml, '>4</span>') && !str_contains($baseShopHtml, '>Legacy Catalog<'), $baseShopHtml);
+t('base storefront shop fallback consumes shared storefront content contract', str_contains($baseShopHtml, 'data-storefront-route-kind="shop_index"') && str_contains($baseShopHtml, '>Contract Catalog<') && str_contains($baseShopHtml, 'action="/contract-search"') && str_contains($baseShopHtml, 'href="/contract-items/demo-product"') && str_contains($baseShopHtml, 'Bread') && !str_contains($baseShopHtml, '>Legacy Catalog<'), $baseShopHtml);
 
 $contractProductFixture = [
     'id' => 42,
@@ -976,7 +988,7 @@ $baseProductHtml = captureEcRender('modules/ecommerce/public/product.disyl', [
     'public_route_kind' => 'generic',
     'public_presentation_mode' => 'traditional',
 ]);
-t('base storefront product fallback consumes shared storefront contract', str_contains($baseProductHtml, 'data-storefront-route-kind="product_detail"') && str_contains($baseProductHtml, 'data-storefront-product-id="42"') && str_contains($baseProductHtml, '>Contract Product Page<') && str_contains($baseProductHtml, 'href="/contract-shop"') && str_contains($baseProductHtml, '13% off') && str_contains($baseProductHtml, '>2 left<') && str_contains($baseProductHtml, 'id="cart-count-badge"') && str_contains($baseProductHtml, '>4</span>') && !str_contains($baseProductHtml, '>Legacy Product<'), $baseProductHtml);
+t('base storefront product fallback consumes shared storefront content contract', str_contains($baseProductHtml, 'data-storefront-route-kind="product_detail"') && str_contains($baseProductHtml, 'data-storefront-product-id="42"') && str_contains($baseProductHtml, '>Contract Product Page<') && str_contains($baseProductHtml, 'href="/contract-shop"') && str_contains($baseProductHtml, '13% off') && str_contains($baseProductHtml, '>2 left<') && !str_contains($baseProductHtml, '>Legacy Product<'), $baseProductHtml);
 
 $nativeCartHtml = captureEcRender('modules/ecommerce/public/cart.disyl', [
     'cart' => [
@@ -1223,8 +1235,8 @@ t('customizer preserves canonical entity list pricing state for schema-driven pr
 t('customizer embeds entity context catalog and example payloads', str_contains($customizerTemplateContent, 'id="cz-entity-context-catalog"') && str_contains($customizerTemplateContent, 'id="cz-entity-context-examples"'), $customizerTemplateContent);
 t('customizer hydrates entity context schema state and default example selection', str_contains($customizerTemplateContent, 'entityContextCatalog = JSON.parse(document.getElementById(\'cz-entity-context-catalog\').textContent)') && str_contains($customizerTemplateContent, 'entityContextExampleId = this.entityContextPreferredExampleId();'), $customizerTemplateContent);
 t('customizer exposes catalog category navigation control', str_contains($customizerTemplateContent, 'entityPresentationSettings.entity_list_category_navigation') && str_contains($customizerTemplateContent, 'Shop Categories'), $customizerTemplateContent);
-t('customizer exposes split header shell width controls', str_contains($customizerTemplateContent, 'headerSettings.header_inner_width') && str_contains($customizerTemplateContent, 'headerSettings.topbar_inner_width') && str_contains($customizerTemplateContent, 'Header Width') && str_contains($customizerTemplateContent, 'Top Bar Width'), $customizerTemplateContent);
-t('customizer hydrates legacy header width into split shell defaults', str_contains($customizerTemplateContent, "const legacyHeaderWidth = this.headerSettings.inner_width === 'full-width' ? 'full-width' : 'contained';") && str_contains($customizerTemplateContent, 'headerPreviewShellStyle(headerSettings.topbar_inner_width)') && str_contains($customizerTemplateContent, 'headerPreviewShellStyle(headerSettings.header_inner_width)'), $customizerTemplateContent);
+t('customizer exposes header container and holder shell controls', str_contains($customizerTemplateContent, 'headerSettings.header_container_width') && str_contains($customizerTemplateContent, 'headerSettings.header_inner_width_mode') && str_contains($customizerTemplateContent, 'headerSettings.header_inner_custom_width') && str_contains($customizerTemplateContent, 'headerSettings.topbar_container_width') && str_contains($customizerTemplateContent, 'headerSettings.topbar_inner_width_mode') && str_contains($customizerTemplateContent, 'Header Container') && str_contains($customizerTemplateContent, 'Header Holder Width') && str_contains($customizerTemplateContent, 'Top Bar Container') && str_contains($customizerTemplateContent, 'Top Bar Holder Width'), $customizerTemplateContent);
+t('customizer hydrates legacy header width into container and holder defaults', str_contains($customizerTemplateContent, "const legacyHeaderWidth = (this.headerSettings.header_inner_width || this.headerSettings.inner_width) === 'full-width' ? 'full' : 'contained';") && str_contains($customizerTemplateContent, "this.headerSettings.header_container_width = legacyHeaderWidth === 'full' ? 'full' : 'contained';") && str_contains($customizerTemplateContent, 'headerPreviewContainerStyle(headerSettings.header_container_width)') && str_contains($customizerTemplateContent, 'headerPreviewHolderStyle(headerSettings.header_inner_width_mode, headerSettings.header_inner_custom_width)'), $customizerTemplateContent);
 t('customizer exposes split footer widget shell controls', str_contains($customizerTemplateContent, 'footerSettings.widget_container_width') && str_contains($customizerTemplateContent, 'footerSettings.widget_inner_width_mode') && str_contains($customizerTemplateContent, 'footerSettings.widget_inner_custom_width') && str_contains($customizerTemplateContent, 'Footer Bar Width'), $customizerTemplateContent);
 t('customizer hydrates legacy footer settings into split widget shell defaults', str_contains($customizerTemplateContent, 'this.footerSettings.widget_container_width === undefined') && str_contains($customizerTemplateContent, 'this.footerSettings.widget_inner_width_mode === undefined') && str_contains($customizerTemplateContent, 'footerPreviewWidgetContainerLabel()'), $customizerTemplateContent);
 t('customizer preview mirrors the saved custom footer holder width', str_contains($customizerTemplateContent, "if (mode === 'custom') return 'width:100%;max-width:' + (this.footerSettings.widget_inner_custom_width || '960px') + ';margin:0 auto;';"), $customizerTemplateContent);
@@ -1556,8 +1568,11 @@ $legacyFooterShells = cmsValidateFooterSettings([
     'inner_width' => 'full-width',
 ]);
 $validatedHeaderShells = cmsValidateHeaderSettings([
-    'topbar_inner_width' => 'full-width',
-    'header_inner_width' => 'contained',
+    'header_container_width' => 'full',
+    'header_inner_width_mode' => 'custom',
+    'header_inner_custom_width' => '72rem',
+    'topbar_container_width' => 'contained',
+    'topbar_inner_width_mode' => 'boxed',
 ]);
 $legacyHeaderShells = cmsValidateHeaderSettings([
     'inner_width' => 'full-width',
@@ -1565,8 +1580,9 @@ $legacyHeaderShells = cmsValidateHeaderSettings([
 t('footer settings validate widget container shell mode', ($validatedFooterShells['widget_container_width'] ?? '') === 'full');
 t('footer settings validate widget holder custom width', ($validatedFooterShells['widget_inner_width_mode'] ?? '') === 'custom' && ($validatedFooterShells['widget_inner_custom_width'] ?? '') === '72rem', json_encode($validatedFooterShells));
 t('footer settings map legacy full-width shell mode onto split widget defaults', ($legacyFooterShells['widget_container_width'] ?? '') === 'full' && ($legacyFooterShells['widget_inner_width_mode'] ?? '') === 'full', json_encode($legacyFooterShells));
-t('header settings validate split top bar and main header shell widths', ($validatedHeaderShells['topbar_inner_width'] ?? '') === 'full-width' && ($validatedHeaderShells['header_inner_width'] ?? '') === 'contained' && ($validatedHeaderShells['inner_width'] ?? '') === 'contained', json_encode($validatedHeaderShells));
-t('header settings map legacy inner width onto split header defaults', ($legacyHeaderShells['topbar_inner_width'] ?? '') === 'full-width' && ($legacyHeaderShells['header_inner_width'] ?? '') === 'full-width' && ($legacyHeaderShells['inner_width'] ?? '') === 'full-width', json_encode($legacyHeaderShells));
+t('header settings validate container and holder shell widths', ($validatedHeaderShells['header_container_width'] ?? '') === 'full' && ($validatedHeaderShells['header_inner_width_mode'] ?? '') === 'custom' && ($validatedHeaderShells['header_inner_custom_width'] ?? '') === '72rem' && ($validatedHeaderShells['topbar_container_width'] ?? '') === 'contained' && ($validatedHeaderShells['topbar_inner_width_mode'] ?? '') === 'boxed', json_encode($validatedHeaderShells));
+t('header settings keep legacy width aliases mapped to the main header holder', ($validatedHeaderShells['header_inner_width'] ?? '') === 'contained' && ($validatedHeaderShells['inner_width'] ?? '') === 'contained' && ($validatedHeaderShells['topbar_inner_width'] ?? '') === 'contained', json_encode($validatedHeaderShells));
+t('header settings map legacy inner width onto container and holder defaults', ($legacyHeaderShells['header_container_width'] ?? '') === 'full' && ($legacyHeaderShells['header_inner_width_mode'] ?? '') === 'full' && ($legacyHeaderShells['topbar_container_width'] ?? '') === 'full' && ($legacyHeaderShells['topbar_inner_width_mode'] ?? '') === 'full' && ($legacyHeaderShells['header_inner_width'] ?? '') === 'full-width' && ($legacyHeaderShells['inner_width'] ?? '') === 'full-width', json_encode($legacyHeaderShells));
 
 $invalidEntity = cmsValidateEntityPresentationSettings([
     'entity_layout_profile' => 'wild',
@@ -1806,6 +1822,7 @@ $publicThemeStyle = cmsRenderPublicThemeStyle(
 );
 t('theme render now limits itself to shell layout variables', !str_contains($themeStyle, '--theme-entity-summary-width:') && !str_contains($themeStyle, '--theme-single-max-width:') && !str_contains($themeStyle, '--theme-blog-gap:') && str_contains($themeStyle, '--theme-site-max-width:'), $themeStyle);
 t('theme render overrides POC customizer chrome with theme-controlled shell gutters', str_contains($themeStyle, '.poc-header--customized .header-topbar .container.cms-public-shell') && str_contains($themeStyle, '.poc-footer--customized .footer-bottom .container.cms-public-shell') && str_contains($themeStyle, 'padding-left:var(--theme-content-px);'), $themeStyle);
+t('theme render leaves the POC custom header slot uncapped so header full-width mode can own the outer shell', str_contains($themeStyle, '.poc-header--customized .poc-header__slot--customized{width:100%;max-width:none;margin-left:auto;margin-right:auto;}'), $themeStyle);
 t('theme render centralizes footer bar padding and border through the shared shell contract', str_contains($themeStyle, '.footer-bottom>.container.cms-public-shell,.footer-bottom>.cms-public-shell--full{border-top:1px solid') && str_contains($themeStyle, '.footer-bottom__inner{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:0.5rem;padding:18px 0;}'), $themeStyle);
 t('public theme render combines shell and entity presentation tokens under one override tag', str_contains($publicThemeStyle, 'id="cz-public-theme-override-test-native"') && str_contains($publicThemeStyle, '--theme-site-max-width:') && str_contains($publicThemeStyle, '--theme-entity-summary-width:') && !str_contains($publicThemeStyle, 'id="cz-entity-presentation-override"'), $publicThemeStyle);
 t('canonical entity presentation render exposes entity summary width variable', str_contains($entityPresentationStyle, '--theme-entity-summary-width:'), $entityPresentationStyle);
@@ -1837,10 +1854,17 @@ upsertCustomizerSection($db, 'theme', array_merge(cmsThemeLayoutSettingsDefaults
     'site_max_width' => '1280',
 ]), [], 'ecommerce');
 upsertCustomizerSection($db, 'header', array_merge(cmsHeaderSettingsDefaults(), [
+    'bg_color' => '#1d4b63',
     'show_search' => 1,
     'menu_location' => '__missing_storefront_menu__',
-    'topbar_inner_width' => 'full-width',
-    'header_inner_width' => 'contained',
+    'transparent_home' => 1,
+    'transparent_text_color' => '#ffffff',
+    'transparent_logo_color' => '#ffffff',
+    'topbar_container_width' => 'full',
+    'topbar_inner_width_mode' => 'custom',
+    'topbar_inner_custom_width' => '72rem',
+    'header_container_width' => 'contained',
+    'header_inner_width_mode' => 'boxed',
 ]), [[
     'id' => 'header-test-text',
     'type' => 'text',
@@ -1888,6 +1912,7 @@ t('public context omits legacy storefront settings for ecommerce scope', !array_
 t('public context exposes canonical entity presentation settings for ecommerce scope', ($publicCtx['entity_presentation_settings']['entity_layout_profile'] ?? '') === 'commerce' && ($publicCtx['entity_presentation_source'] ?? '') === 'entity_presentation');
 t('public context merges canonical entity presentation into theme settings for ecommerce scope', ($publicCtx['theme_settings']['entity_summary_width'] ?? '') === '390');
 t('public context emits a combined public theme style for ecommerce scope', str_contains((string)($publicCtx['theme_layout_style'] ?? ''), 'id="cz-public-theme-override"') && str_contains((string)($publicCtx['theme_layout_style'] ?? ''), '--theme-site-max-width:') && str_contains((string)($publicCtx['theme_layout_style'] ?? ''), '--theme-entity-summary-width:') && !str_contains((string)($publicCtx['theme_layout_style'] ?? ''), 'id="cz-entity-presentation-override"') && !str_contains((string)($publicCtx['theme_layout_style'] ?? ''), 'id="cz-storefront-override"'), (string)($publicCtx['theme_layout_style'] ?? ''));
+t('public context promotes sticky customized headers to the shell region wrapper', str_contains((string)($publicCtx['theme_layout_style'] ?? ''), '.cms-shell-entity-view--header.cms-shell-entity-view--sticky-region{position:sticky;top:0;z-index:110;}') && str_contains((string)($publicCtx['theme_layout_style'] ?? ''), '.cms-shell-entity-view--header.cms-shell-entity-view--sticky-region .header-wrapper--sticky{position:relative;top:auto;}'), (string)($publicCtx['theme_layout_style'] ?? ''));
 t('public context bridges POC shell width tokens back to theme layout settings', str_contains((string)($publicCtx['theme_layout_style'] ?? ''), '.entity-commerce-poc{--container-width:var(--theme-site-max-width);--container-max:var(--theme-site-max-width);}') && str_contains((string)($publicCtx['theme_layout_style'] ?? ''), '.entity-commerce-poc .poc-main__inner{width:min(var(--theme-site-max-width),calc(100vw - (var(--theme-content-px) * 2)));margin-left:auto;margin-right:auto;}'), (string)($publicCtx['theme_layout_style'] ?? ''));
 
 $customizedHeaderHtml = cmsRenderCustomizedHeader($db, $publicCtx);
@@ -1895,6 +1920,11 @@ $customizedFooterHtml = cmsRenderCustomizedFooter($db, $publicCtx);
 $cmsCanonicalHeaderHtml = cmsRenderCustomizedHeader($db, array_merge($publicCtx, [
     'public_render_origin' => 'cms',
     'public_route_kind' => 'page',
+    'public_presentation_mode' => 'canonical',
+]));
+$cmsCanonicalBlogHeaderHtml = cmsRenderCustomizedHeader($db, array_merge($publicCtx, [
+    'public_render_origin' => 'cms',
+    'public_route_kind' => 'blog-home',
     'public_presentation_mode' => 'canonical',
 ]));
 $publicBaseUrl = rtrim((string)(defined('BASE_URL') ? BASE_URL : ''), '/');
@@ -2035,9 +2065,12 @@ $storefrontCanonicalCatalogHtml = cmsPublicCanonicalRenderEntityList([
 ]);
 t('customized storefront header renders through theme partial wrapper', str_contains($customizedHeaderHtml, 'poc-header--customized'), $customizedHeaderHtml);
 t('customized storefront header emits shell entity-view wrapper', str_contains($customizedHeaderHtml, 'data-shell-entity-region="header"') && str_contains($customizedHeaderHtml, 'data-shell-entity-node="region"'), $customizedHeaderHtml);
+t('customized storefront header marks the shell region as sticky-safe', str_contains($customizedHeaderHtml, 'cms-shell-entity-view--sticky-region') && str_contains($customizedHeaderHtml, 'header-wrapper cms-shell-width-contained header-wrapper--sticky'), $customizedHeaderHtml);
 t('customized storefront header renders through theme inner shell', str_contains($customizedHeaderHtml, 'poc-header__inner--customized'), $customizedHeaderHtml);
-t('customized storefront header splits top bar and main header shell widths', str_contains($customizedHeaderHtml, 'header-topbar cms-shell-width-full') && str_contains($customizedHeaderHtml, 'site-header site-header--sticky site-header--default cms-shell-width-contained') && str_contains($customizedHeaderHtml, 'Store hours'), $customizedHeaderHtml);
-t('customized storefront header keeps contained shell classes so width and gutter settings can override theme chrome', str_contains($customizedHeaderHtml, 'header-wrapper cms-shell-width-contained') && str_contains($customizedHeaderHtml, 'container cms-public-shell cms-public-shell--contained'), $customizedHeaderHtml);
+t('customized storefront header splits top bar and main header shell contracts', str_contains($customizedHeaderHtml, 'header-topbar cms-shell-width-full') && str_contains($customizedHeaderHtml, 'site-header site-header--sticky site-header--default cms-shell-width-contained') && str_contains($customizedHeaderHtml, 'cms-public-shell cms-public-shell--custom') && str_contains($customizedHeaderHtml, 'cms-public-shell cms-public-shell--boxed') && str_contains($customizedHeaderHtml, 'Store hours'), $customizedHeaderHtml);
+t('customized storefront header emits explicit custom and boxed holder width overrides', str_contains($customizedHeaderHtml, 'max-width:72rem;margin-left:auto;margin-right:auto;') && str_contains($customizedHeaderHtml, 'max-width:var(--theme-content-max-width, 768px);margin-left:auto;margin-right:auto;'), $customizedHeaderHtml);
+t('customized storefront header keeps wrapper and container shell classes distinct', str_contains($customizedHeaderHtml, 'header-wrapper cms-shell-width-contained') && str_contains($customizedHeaderHtml, 'site-header site-header--sticky site-header--default cms-shell-width-contained'), $customizedHeaderHtml);
+t('customized storefront header omits the transparency script outside home-like routes', !str_contains($customizedHeaderHtml, 'window.addEventListener("scroll",function(){'), $customizedHeaderHtml);
 t('customized storefront header links site branding to shop root', str_contains($customizedHeaderHtml, '/ecommerce/shop'), $customizedHeaderHtml);
 t('customized storefront header fallback nav stays on storefront routes', str_contains($customizedHeaderHtml, '>Shop<') && str_contains($customizedHeaderHtml, '/ecommerce/my-orders'), $customizedHeaderHtml);
 t('customized storefront header search overlay posts to storefront query endpoint', str_contains($customizedHeaderHtml, '/ecommerce/shop') && str_contains($customizedHeaderHtml, 'name="search"'), $customizedHeaderHtml);
@@ -2047,9 +2080,11 @@ t('canonical storefront product render auto-injects storefront contract markers'
 t('canonical storefront list render auto-injects storefront contract markers', str_contains($storefrontCanonicalCatalogHtml, 'data-storefront-route-kind="shop_index"') && str_contains($storefrontCanonicalCatalogHtml, 'data-storefront-page-kind="catalog"') && str_contains($storefrontCanonicalCatalogHtml, 'data-storefront-result-total="1"'), $storefrontCanonicalCatalogHtml);
 t('canonical CMS header keeps shell metadata in canonical mode', str_contains($cmsCanonicalHeaderHtml, 'data-public-presentation-mode="canonical"'), $cmsCanonicalHeaderHtml);
 t('canonical CMS header preserves the CMS route kind in shell metadata', str_contains($cmsCanonicalHeaderHtml, 'data-public-route-kind="page"'), $cmsCanonicalHeaderHtml);
+t('canonical CMS blog header keeps readable light chrome on dark transparent-home headers', str_contains($cmsCanonicalBlogHeaderHtml, '--header-link:#ffffff;') && str_contains($cmsCanonicalBlogHeaderHtml, '--header-logo-color:#ffffff;'), $cmsCanonicalBlogHeaderHtml);
+t('canonical CMS blog header omits the home-only transparency scroll script', !str_contains($cmsCanonicalBlogHeaderHtml, 'window.addEventListener("scroll",function(){'), $cmsCanonicalBlogHeaderHtml);
 t('canonical CMS header routes branding to the CMS home path', str_contains($cmsCanonicalHeaderHtml, 'href="' . $publicBaseUrl . '/cms" class="site-logo"') && !str_contains($cmsCanonicalHeaderHtml, 'href="' . $publicBaseUrl . '/ecommerce/shop" class="site-logo"'), $cmsCanonicalHeaderHtml);
 t('canonical CMS header routes search overlay to the CMS search endpoint', str_contains($cmsCanonicalHeaderHtml, 'action="' . $publicBaseUrl . '/cms/search"') && str_contains($cmsCanonicalHeaderHtml, 'name="q"') && !str_contains($cmsCanonicalHeaderHtml, 'action="' . $publicBaseUrl . '/ecommerce/shop"'), $cmsCanonicalHeaderHtml);
-t('customized storefront header exposes shared shell class for contained layout', str_contains($customizedHeaderHtml, 'container cms-public-shell'), $customizedHeaderHtml);
+t('customized storefront header keeps the boxed holder class in the active shell', str_contains($customizedHeaderHtml, 'cms-public-shell cms-public-shell--boxed'), $customizedHeaderHtml);
 t('customized storefront header resets submenu dropdown CSS for mobile navigation', str_contains($customizedHeaderHtml, '.main-navigation .nav-menu-sub{position:static;'), $customizedHeaderHtml);
 t('customized storefront footer renders through theme partial wrapper', str_contains($customizedFooterHtml, 'poc-footer--customized'), $customizedFooterHtml);
 t('customized storefront footer splits widget area and footer bar shell contracts', str_contains($customizedFooterHtml, 'footer-widgets cms-shell-width-full') && str_contains($customizedFooterHtml, 'footer-bottom cms-shell-width-contained') && str_contains($customizedFooterHtml, 'cms-public-shell cms-public-shell--boxed') && str_contains($customizedFooterHtml, 'container cms-public-shell cms-public-shell--contained'), $customizedFooterHtml);
@@ -2059,8 +2094,14 @@ t('customized storefront footer keeps widget background and link colors inline',
 t('customized storefront footer keeps footer bar colors inline', str_contains($customizedFooterHtml, 'background:#08111f;color:#94a3b8;') && str_contains($customizedFooterHtml, '--footer-link:#f59e0b;--footer-link-hover:#fef3c7;'), $customizedFooterHtml);
 t('customized storefront footer uses structured footer bar classes instead of inline spacing helpers', str_contains($customizedFooterHtml, 'footer-bottom__inner') && str_contains($customizedFooterHtml, 'footer-bottom__separator') && str_contains($customizedFooterHtml, 'footer-bottom__admin-link') && !str_contains($customizedFooterHtml, 'margin-left:0.5rem;font-size:0.8rem;'), $customizedFooterHtml);
 t('footer shell outer width helper unlocks full-width mode', cmsCustomizerShellOuterWidthStyle(['inner_width' => 'full-width']) === 'width:100%;max-width:none;margin:0;');
+t('shell container helper adds full-width gutters when requested', cmsCustomizerShellContainerStyle(['header_container_width' => 'full'], 'header_container_width', true) === 'width:100%;max-width:none;margin:0;box-sizing:border-box;padding-left:var(--theme-content-px, 20px);padding-right:var(--theme-content-px, 20px);');
 t('footer widget container helper adds full-width gutters', cmsCustomizerFooterWidgetContainerStyle(['widget_container_width' => 'full']) === 'width:100%;max-width:none;margin:0;box-sizing:border-box;padding-left:var(--theme-content-px, 20px);padding-right:var(--theme-content-px, 20px);');
+t('shell holder helper exposes custom max width override', cmsCustomizerShellHolderStyle(['header_inner_width_mode' => 'custom', 'header_inner_custom_width' => '72rem'], 'header_inner_width_mode', 'header_inner_custom_width') === 'width:100%;max-width:72rem;margin-left:auto;margin-right:auto;');
+t('shell holder helper exposes boxed preset width', cmsCustomizerShellHolderClasses(['header_inner_width_mode' => 'boxed'], 'header_inner_width_mode') === 'cms-public-shell cms-public-shell--boxed');
 t('footer widget holder helper exposes boxed preset width', cmsCustomizerFooterWidgetHolderStyle(['widget_inner_width_mode' => 'boxed']) === 'width:100%;max-width:var(--theme-content-max-width, 768px);margin-left:auto;margin-right:auto;');
+
+$themeLayoutCss = cmsRenderThemeLayoutCss(cmsThemeLayoutSettingsDefaults(), 'ecommerce');
+t('theme layout css keeps top bar shell widgets content-sized so alignment controls can move them', str_contains($themeLayoutCss, '.header-topbar-inner>.cms-shell-entity-view--widget{display:flex;flex:0 0 auto;width:auto;max-width:100%;min-width:0;}') && str_contains($themeLayoutCss, '.header-topbar-inner>.cms-shell-entity-view--widget>.cms-shell-entity-view__body,.header-topbar-inner>.cms-shell-entity-view--widget .header-widget{width:auto;max-width:100%;min-width:0;}'), $themeLayoutCss);
 
 $headerWidgetEntityHtml = cmsRenderSingleHeaderWidget([
     'type' => 'text',

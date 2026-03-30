@@ -943,14 +943,13 @@ function cmsEnsureCustomizerScopeSeeded(object $db, ?string $scope = null): void
     $scope = $scope !== null ? trim($scope) : cmsActiveCustomizerScope();
     cmsNormalizeEntityPresentationStorage($db, null, $scope);
 
-    if ($scope === '' || $scope === 'native') {
-        return;
-    }
+    $isNativeScope = ($scope === '' || $scope === 'native');
+    $scopeTag = $scope !== '' ? $scope : 'native';
 
     $requestCacheKey = cmsCustomizerRequestCacheKey('section_row', $scope);
     $requestCache = $GLOBALS[$requestCacheKey] ?? [];
 
-    $flag = 'cms_customizer_seeded_' . $scope . '_t' . cmsRuntimeTenantId();
+    $flag = 'cms_customizer_seeded_' . $scopeTag . '_t' . cmsRuntimeTenantId();
     if (!empty($GLOBALS[$flag])) {
         return;
     }
@@ -968,6 +967,8 @@ function cmsEnsureCustomizerScopeSeeded(object $db, ?string $scope = null): void
             $settings['enabled'] = 0;
         } elseif (in_array($section, ['colors', 'entity_presentation', 'theme'], true)) {
             $settings = cmsThemeManifestCustomizerDefaults($section, cmsActiveThemeManifest(), $scope);
+        } elseif ($isNativeScope) {
+            $settings = cmsCustomizerSectionDefaults($section);
         } else {
             $source = cmsCustomizerSectionRecord($db, $section, 'native');
             if ($source !== null) {
@@ -1782,7 +1783,13 @@ function cmsHeaderSettingsDefaults(): array
         'cta_url'                => '',
         'cta_style'              => 'primary',
         'inner_width'            => 'contained',
+        'header_container_width' => 'contained',
+        'header_inner_width_mode' => 'contained',
+        'header_inner_custom_width' => '960px',
         'header_inner_width'     => 'contained',
+        'topbar_container_width' => 'contained',
+        'topbar_inner_width_mode' => 'contained',
+        'topbar_inner_custom_width' => '960px',
         'topbar_inner_width'     => 'contained',
         'logo_image_url'         => '',
         'logo_max_height'        => '40',
@@ -2019,15 +2026,19 @@ function cmsRenderThemeLayoutCss(array $settings, ?string $scope = null): string
     $css .= 'padding:var(--theme-content-pt) var(--theme-content-px) var(--theme-content-pb);}';
     $css .= '.cms-shell-entity-view{display:block;width:100%;}';
     $css .= '.cms-shell-entity-view__body{width:100%;}';
+    $css .= '.cms-shell-entity-view--header.cms-shell-entity-view--sticky-region{position:sticky;top:0;z-index:110;}';
+    $css .= '.cms-shell-entity-view--header.cms-shell-entity-view--sticky-region .header-wrapper--sticky{position:relative;top:auto;}';
     $css .= '.cms-shell-entity-view--sidebar{height:100%;}';
     $css .= '.cms-shell-entity-view--widget .widget,.cms-shell-entity-view--widget .sidebar-widget,.cms-shell-entity-view--widget .header-widget{width:100%;}';
+    $css .= '.header-topbar-inner>.cms-shell-entity-view--widget{display:flex;flex:0 0 auto;width:auto;max-width:100%;min-width:0;}';
+    $css .= '.header-topbar-inner>.cms-shell-entity-view--widget>.cms-shell-entity-view__body,.header-topbar-inner>.cms-shell-entity-view--widget .header-widget{width:auto;max-width:100%;min-width:0;}';
 
     if ($scope === 'ecommerce') {
         $css .= '.header-topbar .cms-public-shell,.site-header .cms-public-shell,.footer-widgets .cms-public-shell,.footer-bottom .cms-public-shell{width:100%;max-width:var(--theme-site-max-width);margin-left:auto;margin-right:auto;}';
         $css .= '.entity-commerce-poc{--container-width:var(--theme-site-max-width);--container-max:var(--theme-site-max-width);}';
         $css .= '.entity-commerce-poc .poc-main__inner{width:min(var(--theme-site-max-width),calc(100vw - (var(--theme-content-px) * 2)));margin-left:auto;margin-right:auto;}';
     }
-    $css .= '.poc-header--customized .poc-header__slot--customized{width:min(var(--theme-site-max-width),calc(100vw - (var(--theme-content-px) * 2)));margin-left:auto;margin-right:auto;}';
+    $css .= '.poc-header--customized .poc-header__slot--customized{width:100%;max-width:none;margin-left:auto;margin-right:auto;}';
     $css .= '.poc-header--customized .poc-header__inner--customized{padding-left:0;padding-right:0;}';
     $css .= '.poc-header--customized .header-topbar .container.cms-public-shell,.poc-header--customized .site-header .container.cms-public-shell,.poc-footer--customized .footer-widgets .container.cms-public-shell,.poc-footer--customized .footer-bottom .container.cms-public-shell,.poc-header--customized .header-topbar>.cms-public-shell--full,.poc-header--customized .site-header>.cms-public-shell--full,.poc-footer--customized .footer-widgets>.cms-public-shell--full,.poc-footer--customized .footer-bottom>.cms-public-shell--full{width:100%;max-width:none;margin:0;box-sizing:border-box;padding-left:var(--theme-content-px);padding-right:var(--theme-content-px);}';
     $css .= '.poc-header--customized .header-topbar-inner,.poc-header--customized .header-inner{padding-left:0;padding-right:0;}';
@@ -2416,6 +2427,81 @@ function cmsCustomizerCssLengthValue(string $raw, string $fallback): string
     return strtolower($value);
 }
 
+function cmsCustomizerColorChannels(string $raw): ?array
+{
+    $value = trim($raw);
+    if ($value === '') {
+        return null;
+    }
+
+    if (preg_match('/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/', $value, $m)) {
+        $hex = $m[1];
+        if (strlen($hex) === 3) {
+            $hex = $hex[0] . $hex[0] . $hex[1] . $hex[1] . $hex[2] . $hex[2];
+        }
+        $hex = substr($hex, 0, 6);
+
+        return [
+            hexdec(substr($hex, 0, 2)),
+            hexdec(substr($hex, 2, 2)),
+            hexdec(substr($hex, 4, 2)),
+        ];
+    }
+
+    if (preg_match('/rgba?\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})/i', $value, $m)) {
+        return [
+            max(0, min(255, (int)$m[1])),
+            max(0, min(255, (int)$m[2])),
+            max(0, min(255, (int)$m[3])),
+        ];
+    }
+
+    return null;
+}
+
+function cmsCustomizerColorIsDark(string $raw): bool
+{
+    $channels = cmsCustomizerColorChannels($raw);
+    if ($channels === null) {
+        return false;
+    }
+
+    [$red, $green, $blue] = $channels;
+    $brightness = (($red * 299) + ($green * 587) + ($blue * 114)) / 1000;
+
+    return $brightness < 140;
+}
+
+function cmsResolveHeaderChromeColors(array $settings): array
+{
+    $textColor = trim((string)($settings['text_color'] ?? '#1f2937'));
+    $linkColor = trim((string)($settings['link_color'] ?? '#1f2937'));
+    $logoColor = trim((string)($settings['logo_color'] ?? '#1f2937'));
+
+    if ((int)($settings['transparent_home'] ?? 0) === 1
+        && cmsCustomizerColorIsDark((string)($settings['bg_color'] ?? '#ffffff'))
+    ) {
+        $transparentTextColor = trim((string)($settings['transparent_text_color'] ?? '#ffffff'));
+        $transparentLogoColor = trim((string)($settings['transparent_logo_color'] ?? $transparentTextColor));
+
+        if (strtolower($textColor) === '#1f2937' && $transparentTextColor !== '') {
+            $textColor = $transparentTextColor;
+        }
+        if (strtolower($linkColor) === '#1f2937' && $transparentTextColor !== '') {
+            $linkColor = $transparentTextColor;
+        }
+        if (strtolower($logoColor) === '#1f2937' && $transparentLogoColor !== '') {
+            $logoColor = $transparentLogoColor;
+        }
+    }
+
+    return [
+        'text_color' => $textColor,
+        'link_color' => $linkColor,
+        'logo_color' => $logoColor,
+    ];
+}
+
 function cmsCustomizerShellWidthMode(array $settings, string $settingKey = 'inner_width'): string
 {
     $raw = trim((string)($settings[$settingKey] ?? ''));
@@ -2442,28 +2528,37 @@ function cmsCustomizerShellOuterWidthStyle(array $settings, string $settingKey =
     return 'width:min(var(--container-max, var(--theme-site-max-width, 1180px)), calc(100vw - (var(--theme-content-px, 20px) * 2)));margin-left:auto;margin-right:auto;';
 }
 
-function cmsCustomizerFooterWidgetContainerStyle(array $settings): string
+function cmsCustomizerShellContainerStyle(array $settings, string $settingKey = 'inner_width', bool $fullAddsGutters = false): string
 {
-    if (cmsCustomizerShellWidthMode($settings, 'widget_container_width') === 'full') {
-        return 'width:100%;max-width:none;margin:0;box-sizing:border-box;padding-left:var(--theme-content-px, 20px);padding-right:var(--theme-content-px, 20px);';
+    if (cmsCustomizerShellWidthMode($settings, $settingKey) !== 'full') {
+        return cmsCustomizerShellOuterWidthStyle($settings, $settingKey);
     }
 
-    return cmsCustomizerShellOuterWidthStyle($settings, 'widget_container_width');
+    return 'width:100%;max-width:none;margin:0;'
+        . ($fullAddsGutters ? 'box-sizing:border-box;padding-left:var(--theme-content-px, 20px);padding-right:var(--theme-content-px, 20px);' : '');
 }
 
-function cmsCustomizerFooterWidgetHolderMode(array $settings): string
-{
-    $mode = trim((string)($settings['widget_inner_width_mode'] ?? ''));
-    if ($mode === '') {
-        return cmsCustomizerShellWidthMode($settings, 'widget_container_width') === 'full' ? 'full' : 'contained';
+function cmsCustomizerShellHolderMode(
+    array $settings,
+    string $modeKey,
+    string $legacySettingKey = 'inner_width',
+    string $default = 'contained'
+): string {
+    $mode = trim((string)($settings[$modeKey] ?? ''));
+    if ($mode === '' && $legacySettingKey !== '') {
+        return cmsCustomizerShellWidthMode($settings, $legacySettingKey) === 'full' ? 'full' : $default;
     }
 
-    return in_array($mode, ['boxed', 'contained', 'full', 'custom'], true) ? $mode : 'contained';
+    return in_array($mode, ['boxed', 'contained', 'full', 'custom'], true) ? $mode : $default;
 }
 
-function cmsCustomizerFooterWidgetHolderClasses(array $settings): string
-{
-    return match (cmsCustomizerFooterWidgetHolderMode($settings)) {
+function cmsCustomizerShellHolderClasses(
+    array $settings,
+    string $modeKey,
+    string $legacySettingKey = 'inner_width',
+    string $default = 'contained'
+): string {
+    return match (cmsCustomizerShellHolderMode($settings, $modeKey, $legacySettingKey, $default)) {
         'boxed' => 'cms-public-shell cms-public-shell--boxed',
         'custom' => 'cms-public-shell cms-public-shell--custom',
         'full' => 'cms-public-shell cms-public-shell--full',
@@ -2471,14 +2566,47 @@ function cmsCustomizerFooterWidgetHolderClasses(array $settings): string
     };
 }
 
+function cmsCustomizerShellHolderStyle(
+    array $settings,
+    string $modeKey,
+    string $customWidthKey,
+    string $legacySettingKey = 'inner_width',
+    string $defaultCustomWidth = '960px',
+    string $boxedMaxWidth = 'var(--theme-content-max-width, 768px)',
+    string $containedMaxWidth = 'var(--theme-site-max-width, 1180px)',
+    string $defaultMode = 'contained'
+): string {
+    return match (cmsCustomizerShellHolderMode($settings, $modeKey, $legacySettingKey, $defaultMode)) {
+        'boxed' => 'width:100%;max-width:' . $boxedMaxWidth . ';margin-left:auto;margin-right:auto;',
+        'custom' => 'width:100%;max-width:' . cmsCustomizerCssLengthValue((string)($settings[$customWidthKey] ?? $defaultCustomWidth), $defaultCustomWidth) . ';margin-left:auto;margin-right:auto;',
+        'full' => 'width:100%;max-width:none;margin:0;',
+        default => 'width:100%;max-width:' . $containedMaxWidth . ';margin-left:auto;margin-right:auto;',
+    };
+}
+
+function cmsCustomizerFooterWidgetContainerStyle(array $settings): string
+{
+    return cmsCustomizerShellContainerStyle($settings, 'widget_container_width', true);
+}
+
+function cmsCustomizerFooterWidgetHolderMode(array $settings): string
+{
+    return cmsCustomizerShellHolderMode($settings, 'widget_inner_width_mode', 'widget_container_width');
+}
+
+function cmsCustomizerFooterWidgetHolderClasses(array $settings): string
+{
+    return cmsCustomizerShellHolderClasses($settings, 'widget_inner_width_mode', 'widget_container_width');
+}
+
 function cmsCustomizerFooterWidgetHolderStyle(array $settings): string
 {
-    return match (cmsCustomizerFooterWidgetHolderMode($settings)) {
-        'boxed' => 'width:100%;max-width:var(--theme-content-max-width, 768px);margin-left:auto;margin-right:auto;',
-        'custom' => 'width:100%;max-width:' . cmsCustomizerCssLengthValue((string)($settings['widget_inner_custom_width'] ?? '960px'), '960px') . ';margin-left:auto;margin-right:auto;',
-        'full' => 'width:100%;max-width:none;margin:0;',
-        default => 'width:100%;max-width:var(--theme-site-max-width, 1180px);margin-left:auto;margin-right:auto;',
-    };
+    return cmsCustomizerShellHolderStyle(
+        $settings,
+        'widget_inner_width_mode',
+        'widget_inner_custom_width',
+        'widget_container_width'
+    );
 }
 
 function cmsValidateSidebarSettings(array $input): array
@@ -3162,13 +3290,40 @@ function cmsValidateHeaderSettings(array $input): array
     $validated['cta_style'] = in_array($input['cta_style'] ?? '', ['primary', 'secondary', 'outline'], true)
         ? $input['cta_style'] : $defaults['cta_style'];
 
-    // Shell widths. Keep the legacy inner_width key mapped to the main header.
+    // Shell widths. Keep the legacy inner_width and split width keys mapped for backward compatibility.
     $legacyInnerWidth = in_array($input['inner_width'] ?? '', ['contained', 'full-width'], true)
         ? $input['inner_width'] : $defaults['inner_width'];
-    $validated['header_inner_width'] = in_array($input['header_inner_width'] ?? '', ['contained', 'full-width'], true)
+    $legacyHeaderWidth = in_array($input['header_inner_width'] ?? '', ['contained', 'full-width'], true)
         ? $input['header_inner_width'] : $legacyInnerWidth;
-    $validated['topbar_inner_width'] = in_array($input['topbar_inner_width'] ?? '', ['contained', 'full-width'], true)
+    $legacyTopbarWidth = in_array($input['topbar_inner_width'] ?? '', ['contained', 'full-width'], true)
         ? $input['topbar_inner_width'] : $legacyInnerWidth;
+
+    $validated['header_container_width'] = in_array($input['header_container_width'] ?? '', ['contained', 'full'], true)
+        ? (string)$input['header_container_width']
+        : ($legacyHeaderWidth === 'full-width' ? 'full' : $defaults['header_container_width']);
+    $validated['header_inner_width_mode'] = trim((string)($input['header_inner_width_mode'] ?? ''));
+    if (!in_array($validated['header_inner_width_mode'], ['boxed', 'contained', 'full', 'custom'], true)) {
+        $validated['header_inner_width_mode'] = $legacyHeaderWidth === 'full-width' ? 'full' : $defaults['header_inner_width_mode'];
+    }
+    $validated['header_inner_custom_width'] = cmsCustomizerCssLengthValue(
+        (string)($input['header_inner_custom_width'] ?? $defaults['header_inner_custom_width']),
+        (string)$defaults['header_inner_custom_width']
+    );
+
+    $validated['topbar_container_width'] = in_array($input['topbar_container_width'] ?? '', ['contained', 'full'], true)
+        ? (string)$input['topbar_container_width']
+        : ($legacyTopbarWidth === 'full-width' ? 'full' : $defaults['topbar_container_width']);
+    $validated['topbar_inner_width_mode'] = trim((string)($input['topbar_inner_width_mode'] ?? ''));
+    if (!in_array($validated['topbar_inner_width_mode'], ['boxed', 'contained', 'full', 'custom'], true)) {
+        $validated['topbar_inner_width_mode'] = $legacyTopbarWidth === 'full-width' ? 'full' : $defaults['topbar_inner_width_mode'];
+    }
+    $validated['topbar_inner_custom_width'] = cmsCustomizerCssLengthValue(
+        (string)($input['topbar_inner_custom_width'] ?? $defaults['topbar_inner_custom_width']),
+        (string)$defaults['topbar_inner_custom_width']
+    );
+
+    $validated['header_inner_width'] = $validated['header_inner_width_mode'] === 'full' ? 'full-width' : 'contained';
+    $validated['topbar_inner_width'] = $validated['topbar_inner_width_mode'] === 'full' ? 'full-width' : 'contained';
     $validated['inner_width'] = $validated['header_inner_width'];
 
     // Height — 'auto' or pixel value 40-120
@@ -3311,9 +3466,11 @@ function cmsRenderCustomizedHeader(object $db, array $publicCtx = []): string
     $siteTitle   = htmlspecialchars($cmsSettings['site_title'] ?? 'Site');
     $siteTagline = htmlspecialchars($cmsSettings['site_tagline'] ?? '');
 
+    $resolvedChromeColors = cmsResolveHeaderChromeColors($settings);
+
     $bgColor       = htmlspecialchars($settings['bg_color'] ?? '#ffffff');
-    $textColor     = htmlspecialchars($settings['text_color'] ?? '#1f2937');
-    $linkColor     = htmlspecialchars($settings['link_color'] ?? '#1f2937');
+    $textColor     = htmlspecialchars($resolvedChromeColors['text_color'] ?? '#1f2937');
+    $linkColor     = htmlspecialchars($resolvedChromeColors['link_color'] ?? '#1f2937');
     $linkHover     = htmlspecialchars($settings['link_hover_color'] ?? '#2563eb');
     $dropdownBg    = htmlspecialchars($settings['dropdown_bg_color'] ?? '#ffffff');
     $dropdownText  = htmlspecialchars($settings['dropdown_text_color'] ?? '#1f2937');
@@ -3323,15 +3480,19 @@ function cmsRenderCustomizedHeader(object $db, array $publicCtx = []): string
     $dropdownMinWidth = max(160, min(420, (int)($settings['dropdown_min_width'] ?? 220)));
     $dropdownRadius = max(0, min(20, (int)($settings['dropdown_radius'] ?? 8)));
     $dropdownItemPaddingY = max(6, min(20, (int)($settings['dropdown_item_padding_y'] ?? 10)));
-    $logoColor     = htmlspecialchars($settings['logo_color'] ?? '#1f2937');
+    $logoColor     = htmlspecialchars($resolvedChromeColors['logo_color'] ?? '#1f2937');
     $borderColor   = htmlspecialchars($settings['border_color'] ?? '#e5e7eb');
     $mobileBg      = htmlspecialchars($settings['mobile_bg_color'] ?? '#ffffff');
     $mobileText    = htmlspecialchars($settings['mobile_text_color'] ?? '#1f2937');
     $isSticky      = (int)($settings['sticky'] ?? 1);
-    $shellWidthMode = cmsCustomizerShellWidthMode($settings, 'header_inner_width');
-    $headerInnerWidth = cmsCustomizerShellWidthClasses($settings, 'header_inner_width');
-    $topbarShellWidthMode = cmsCustomizerShellWidthMode($settings, 'topbar_inner_width');
-    $topbarInnerWidth = cmsCustomizerShellWidthClasses($settings, 'topbar_inner_width');
+    $headerContainerMode = cmsCustomizerShellWidthMode($settings, 'header_container_width');
+    $headerOuterWidthStyle = cmsCustomizerShellContainerStyle($settings, 'header_container_width', true);
+    $headerInnerWidthClass = cmsCustomizerShellHolderClasses($settings, 'header_inner_width_mode', 'header_inner_width');
+    $headerInnerWidthStyle = cmsCustomizerShellHolderStyle($settings, 'header_inner_width_mode', 'header_inner_custom_width', 'header_inner_width');
+    $topbarContainerMode = cmsCustomizerShellWidthMode($settings, 'topbar_container_width');
+    $topbarOuterWidthStyle = cmsCustomizerShellContainerStyle($settings, 'topbar_container_width', true);
+    $topbarInnerWidthClass = cmsCustomizerShellHolderClasses($settings, 'topbar_inner_width_mode', 'topbar_inner_width');
+    $topbarInnerWidthStyle = cmsCustomizerShellHolderStyle($settings, 'topbar_inner_width_mode', 'topbar_inner_custom_width', 'topbar_inner_width');
     $layout        = $settings['layout'] ?? 'default';
     $logoUrl       = trim((string)($settings['logo_image_url'] ?? ''));
     $logoMaxH      = (int)($settings['logo_max_height'] ?? 40);
@@ -3376,17 +3537,9 @@ function cmsRenderCustomizedHeader(object $db, array $publicCtx = []): string
         $transText = htmlspecialchars($settings['transparent_text_color'] ?? '#ffffff');
         $transLogo = htmlspecialchars($settings['transparent_logo_color'] ?? '#ffffff');
         $headerBgOpacity = max(0, min(100, (int)($settings['header_bg_opacity'] ?? 100)));
-        // Parse bg_color to RGB components for rgba() construction
-        $bgColorRaw = $settings['bg_color'] ?? '#ffffff';
-        if (preg_match('/^#([0-9a-fA-F]{3,8})$/', $bgColorRaw, $m)) {
-            $hex = $m[1];
-            if (strlen($hex) === 3) $hex = $hex[0].$hex[0].$hex[1].$hex[1].$hex[2].$hex[2];
-            $hex = substr($hex, 0, 6);
-            $bgR = hexdec(substr($hex, 0, 2));
-            $bgG = hexdec(substr($hex, 2, 2));
-            $bgB = hexdec(substr($hex, 4, 2));
-        } elseif (preg_match('/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/', $bgColorRaw, $m)) {
-            $bgR = (int)$m[1]; $bgG = (int)$m[2]; $bgB = (int)$m[3];
+        $bgChannels = cmsCustomizerColorChannels((string)($settings['bg_color'] ?? '#ffffff'));
+        if ($bgChannels !== null) {
+            [$bgR, $bgG, $bgB] = $bgChannels;
         }
     }
 
@@ -3403,7 +3556,7 @@ function cmsRenderCustomizedHeader(object $db, array $publicCtx = []): string
     $html = $faviconSnippet;
 
     // ── Wrapper for topbar + header (sticky lives here, not on <header>) ──
-    $wrapperClass = 'header-wrapper cms-shell-width-' . $shellWidthMode;
+    $wrapperClass = 'header-wrapper cms-shell-width-' . $headerContainerMode;
     if ($isSticky) {
         $wrapperClass .= ' header-wrapper--sticky';
     }
@@ -3441,8 +3594,8 @@ function cmsRenderCustomizedHeader(object $db, array $publicCtx = []): string
             . 'padding:' . $tbPadY . 'px 0;'
             . ($tbBorder ? 'border-bottom:1px solid rgba(255,255,255,0.1);' : '');
 
-        $html .= '<div class="header-topbar cms-shell-width-' . $topbarShellWidthMode . '" style="' . $tbStyle . '">';
-        $html .= '<div class="' . $topbarInnerWidth . '">';
+        $html .= '<div class="header-topbar cms-shell-width-' . $topbarContainerMode . '" style="' . $tbStyle . $topbarOuterWidthStyle . '">';
+        $html .= '<div class="' . $topbarInnerWidthClass . '" style="' . $topbarInnerWidthStyle . '">';
         $html .= '<div class="header-topbar-inner" style="justify-content:' . $tbJustify . ';">';
         foreach ($widgets as $widget) {
             $html .= cmsRenderSingleHeaderWidget($widget, $db, $cmsSettings, $baseUrl);
@@ -3451,8 +3604,8 @@ function cmsRenderCustomizedHeader(object $db, array $publicCtx = []): string
     }
 
     // ── Main Header ──────────────────────────────────────────────────
-    $html .= '<header class="site-header' . $stickyClass . $layoutClass . ' cms-shell-width-' . $shellWidthMode . '" style="' . $cssVars . '">';
-    $html .= '<div class="' . $headerInnerWidth . '">';
+    $html .= '<header class="site-header' . $stickyClass . $layoutClass . ' cms-shell-width-' . $headerContainerMode . '" style="' . $cssVars . $headerOuterWidthStyle . '">';
+    $html .= '<div class="' . $headerInnerWidthClass . '" style="' . $headerInnerWidthStyle . '">';
     $html .= '<div class="header-inner" style="' . $heightStyle . 'padding:' . $paddingTop . 'px 0 ' . $paddingBottom . 'px;">';
 
     // Branding
@@ -3693,6 +3846,10 @@ function cmsRenderCustomizedHeader(object $db, array $publicCtx = []): string
         $transparentJs .= 'if(!w)return;';
         $transparentJs .= 'var h=w.querySelector(".site-header");';
         $transparentJs .= 'if(!h)return;';
+        $transparentJs .= 'var region=w.closest("[data-public-route-kind]")||h.closest("[data-public-route-kind]");';
+        $transparentJs .= 'var route=region?region.getAttribute("data-public-route-kind"):"";';
+        $transparentJs .= 'var origin=region?region.getAttribute("data-public-render-origin"):"";';
+        $transparentJs .= 'if(!(route==="front-page"||(origin==="ecommerce"&&route==="shop_index")))return;';
         // RGB components of bg_color + configured opacity
         $transparentJs .= 'var r=' . $bgR . ',g=' . $bgG . ',b=' . $bgB . ',op=' . $opVal . ';';
         $transparentJs .= 'var tx="' . $transText . '",lg="' . $transLogo . '";';
@@ -3736,7 +3893,13 @@ function cmsRenderCustomizedHeader(object $db, array $publicCtx = []): string
         $html = $themeWrapped;
     }
 
+    $headerShellClasses = [];
+    if ($isSticky) {
+        $headerShellClasses[] = 'cms-shell-entity-view--sticky-region';
+    }
+
     $html = cmsRenderShellEntityView('header', $html, [
+        'classes' => $headerShellClasses,
         'data' => [
             'shell-entity-node' => 'region',
             'shell-entity-kind' => 'header',

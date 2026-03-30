@@ -393,6 +393,60 @@ class Cache
             $this->addToTagIndex($instanceId, $tag, $uri);
         }
     }
+
+    /**
+     * Read a tag index file, returning an empty list when the file is missing,
+     * unreadable, or corrupted.
+     */
+    private function readTagIndex(string $tagFile): array
+    {
+        if (!is_file($tagFile) || !is_readable($tagFile)) {
+            return [];
+        }
+
+        $content = @file_get_contents($tagFile);
+        if ($content === false || $content === '') {
+            return [];
+        }
+
+        $uris = @unserialize($content);
+        if (!is_array($uris)) {
+            return [];
+        }
+
+        return array_values(array_filter($uris, static fn($uri): bool => is_string($uri) && $uri !== ''));
+    }
+
+    /**
+     * Persist a tag index file atomically. When the target directory is not
+     * writable, fail quietly so tag invalidation does not pollute error logs.
+     */
+    private function writeTagIndex(string $tagFile, array $uris): bool
+    {
+        $dir = dirname($tagFile);
+        if (!is_dir($dir)) {
+            @mkdir($dir, 0755, true);
+        }
+
+        if (!is_dir($dir) || (!is_writable($dir) && (!file_exists($tagFile) || !is_writable($tagFile)))) {
+            return false;
+        }
+
+        $payload = serialize(array_values(array_unique($uris)));
+        $tempFile = $tagFile . '.tmp.' . getmypid();
+        $result = @file_put_contents($tempFile, $payload, LOCK_EX);
+        if ($result === false) {
+            @unlink($tempFile);
+            return false;
+        }
+
+        if (!@rename($tempFile, $tagFile)) {
+            @unlink($tempFile);
+            return false;
+        }
+
+        return true;
+    }
     
     /**
      * Add URI to tag index for fast tag-based invalidation
@@ -402,18 +456,14 @@ class Cache
     {
         $instanceDir = $this->getInstanceDir($instanceId);
         $tagFile = $instanceDir . '/.tag_' . md5($tag) . '.idx';
-        
+
         // Read existing URIs for this tag
-        $uris = [];
-        if (file_exists($tagFile)) {
-            $content = file_get_contents($tagFile);
-            $uris = $content ? unserialize($content) : [];
-        }
+        $uris = $this->readTagIndex($tagFile);
         
         // Add new URI if not already present
-        if (!in_array($uri, $uris)) {
+        if (!in_array($uri, $uris, true)) {
             $uris[] = $uri;
-            file_put_contents($tagFile, serialize($uris), LOCK_EX);
+            $this->writeTagIndex($tagFile, $uris);
         }
     }
     
@@ -431,8 +481,7 @@ class Cache
         }
         
         // Read URIs associated with this tag
-        $content = file_get_contents($tagFile);
-        $uris = $content ? unserialize($content) : [];
+        $uris = $this->readTagIndex($tagFile);
         
         // Clear each cached URI
         foreach ($uris as $uri) {
