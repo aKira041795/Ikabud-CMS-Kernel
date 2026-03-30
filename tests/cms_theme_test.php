@@ -724,6 +724,109 @@ $nativeProductHtml = captureEcRender('modules/ecommerce/public/product.disyl', [
 t('native storefront product render uses single-product theme template', str_contains($nativeProductHtml, 'data-native-ecommerce-template="single-product"'), $nativeProductHtml);
 t('native storefront product render exposes storefront contract markers', str_contains($nativeProductHtml, 'data-storefront-route-kind="product_detail"') && str_contains($nativeProductHtml, 'data-storefront-product-id="1"'), $nativeProductHtml);
 
+$baseCatalogStorefront = ecBuildStorefrontCatalogContext($nativeCatalogProducts, [
+    'route_kind' => 'shop_index',
+    'presentation_mode' => 'traditional',
+    'page_title' => 'Contract Catalog',
+    'page_description' => 'Fresh loaves, pastries, and pantry staples.',
+    'categories' => [
+        ['id' => 12, 'name' => 'Bread', 'slug' => 'bread', 'url' => '/contract-category/bread', 'is_active' => true],
+        ['id' => 18, 'name' => 'Wholegrain', 'slug' => 'wholegrain', 'url' => '/contract-category/wholegrain', 'is_active' => false],
+    ],
+    'current_category' => ['id' => 12, 'name' => 'Bread', 'slug' => 'bread', 'url' => '/contract-category/bread'],
+    'search' => 'sourdough',
+    'shop_url' => '/contract-shop',
+    'search_action_url' => '/contract-search',
+    'all_items_url' => '/contract-all',
+    'base_list_url' => '/contract-search',
+    'item_base_url' => '/contract-items',
+    'pagination' => [
+        'current' => 2,
+        'total' => 3,
+        'prev_url' => '/contract-search?page=1',
+        'next_url' => '/contract-search?page=3',
+    ],
+    'total' => 23,
+    'cart_count' => 4,
+]);
+$baseShopHtml = captureEcRender('modules/ecommerce/public/shop.disyl', [
+    'page_title' => 'Legacy Catalog',
+    'products' => [],
+    'total' => 0,
+    'categories' => [],
+    'search' => 'legacy',
+    'category_id' => 0,
+    'page' => 1,
+    'per_page' => 12,
+    'total_pages' => 1,
+    'cart_count' => 99,
+    'storefront' => $baseCatalogStorefront,
+    'public_render_origin' => 'ecommerce',
+    'public_route_kind' => 'generic',
+    'public_presentation_mode' => 'traditional',
+]);
+t('base storefront shop fallback consumes shared storefront contract', str_contains($baseShopHtml, 'data-storefront-route-kind="shop_index"') && str_contains($baseShopHtml, '>Contract Catalog<') && str_contains($baseShopHtml, 'action="/contract-search"') && str_contains($baseShopHtml, 'href="/contract-items/demo-product"') && str_contains($baseShopHtml, 'Bread') && str_contains($baseShopHtml, 'id="cart-count-badge"') && str_contains($baseShopHtml, '>4</span>') && !str_contains($baseShopHtml, '>Legacy Catalog<'), $baseShopHtml);
+
+$contractProductFixture = [
+    'id' => 42,
+    'title' => 'Contract Product',
+    'slug' => 'contract-product',
+    'excerpt' => 'Contract summary',
+    'body' => '<p>Contract body</p>',
+    'primary_image_url' => '',
+    'gallery_images' => [],
+    'categories' => [['slug' => 'bread', 'name' => 'Bread', 'url' => '/contract-category/bread']],
+    'pricing' => [
+        'formatted' => '$28.00',
+        'on_sale' => true,
+        'regular_fmt' => '$32.00',
+        'price' => 32.0,
+        'sale_price' => 28.0,
+    ],
+    'inventory' => [
+        'track_stock' => true,
+        'stock_qty' => 2,
+        'in_stock' => true,
+        'out_of_stock' => false,
+        'low_stock' => true,
+        'sku' => 'SKU-042',
+    ],
+];
+$baseProductStorefront = ecBuildStorefrontDetailContext($contractProductFixture, [
+    'route_kind' => 'product_detail',
+    'presentation_mode' => 'traditional',
+    'page_title' => 'Contract Product Page',
+    'shop_url' => '/contract-shop',
+    'search_action_url' => '/contract-search',
+    'all_items_url' => '/contract-all',
+    'item_base_url' => '/contract-items',
+    'cart_count' => 4,
+]);
+$baseProductHtml = captureEcRender('modules/ecommerce/public/product.disyl', [
+    'page_title' => 'Legacy Product',
+    'product' => [
+        'id' => 0,
+        'title' => 'Legacy Product',
+        'excerpt' => '',
+        'body' => '',
+        'primary_image_url' => '',
+        'gallery_images' => [],
+        'categories' => [],
+        'pricing' => [],
+        'inventory' => [
+            'track_stock' => false,
+            'in_stock' => false,
+            'out_of_stock' => true,
+        ],
+    ],
+    'cart_count' => 99,
+    'storefront' => $baseProductStorefront,
+    'public_render_origin' => 'ecommerce',
+    'public_route_kind' => 'generic',
+    'public_presentation_mode' => 'traditional',
+]);
+t('base storefront product fallback consumes shared storefront contract', str_contains($baseProductHtml, 'data-storefront-route-kind="product_detail"') && str_contains($baseProductHtml, 'data-storefront-product-id="42"') && str_contains($baseProductHtml, '>Contract Product Page<') && str_contains($baseProductHtml, 'href="/contract-shop"') && str_contains($baseProductHtml, '13% off') && str_contains($baseProductHtml, '>2 left<') && str_contains($baseProductHtml, 'id="cart-count-badge"') && str_contains($baseProductHtml, '>4</span>') && !str_contains($baseProductHtml, '>Legacy Product<'), $baseProductHtml);
+
 $nativeCartHtml = captureEcRender('modules/ecommerce/public/cart.disyl', [
     'cart' => [
         'coupon_code' => '',
@@ -918,6 +1021,8 @@ $entityMetaBlockContent = file_get_contents(BASE_PATH . '/templates/modules/cms/
 $homeTemplateContent = file_get_contents(BASE_PATH . '/templates/modules/cms/public/home.disyl') ?: '';
 $archiveTemplateContent = file_get_contents(BASE_PATH . '/templates/modules/cms/public/archive.disyl') ?: '';
 $singleTemplateContent = file_get_contents(BASE_PATH . '/templates/modules/cms/public/single.disyl') ?: '';
+$baseShopTemplateContent = file_get_contents(BASE_PATH . '/templates/modules/ecommerce/public/shop.disyl') ?: '';
+$baseProductTemplateContent = file_get_contents(BASE_PATH . '/templates/modules/ecommerce/public/product.disyl') ?: '';
 $nativeArchiveProductTemplateContent = file_get_contents(BASE_PATH . '/storage/cms-themes/native-default/public/ecommerce/archive-product.disyl') ?: '';
 $nativeSingleProductTemplateContent = file_get_contents(BASE_PATH . '/storage/cms-themes/native-default/public/ecommerce/single-product.disyl') ?: '';
 t('customizer tracks per-section dirty state for scoped saves', str_contains($customizerTemplateContent, 'dirtySections: { footer: false, header: false, sidebar: false, colors: false, custom_code: false, theme: false, entity_presentation: false }'));
@@ -933,6 +1038,8 @@ t('native archive-product storefront template supports category dropdown navigat
 t('native archive-product storefront template consumes storefront contract markers and page title', str_contains($nativeArchiveProductTemplateContent, 'data-storefront-route-kind=') && str_contains($nativeArchiveProductTemplateContent, 'storefront.page.title|default:page_title'), $nativeArchiveProductTemplateContent);
 t('native default theme ships dedicated single-product storefront template', str_contains($nativeSingleProductTemplateContent, 'data-native-ecommerce-template="single-product"'), $nativeSingleProductTemplateContent);
 t('native single-product storefront template consumes storefront contract markers and cart count', str_contains($nativeSingleProductTemplateContent, 'data-storefront-product-id=') && str_contains($nativeSingleProductTemplateContent, 'storefront.cart.count|default:cart_count'), $nativeSingleProductTemplateContent);
+t('base ecommerce shop template consumes storefront collection contract', str_contains($baseShopTemplateContent, 'data-storefront-route-kind=') && str_contains($baseShopTemplateContent, 'foreach storefront.collection.items as p') && str_contains($baseShopTemplateContent, 'storefront.navigation.search_action_url'), $baseShopTemplateContent);
+t('base ecommerce product template consumes storefront product contract', str_contains($baseProductTemplateContent, 'data-storefront-product-id=') && str_contains($baseProductTemplateContent, 'storefront.product.pricing') && str_contains($baseProductTemplateContent, 'storefront.navigation.shop_url'), $baseProductTemplateContent);
 t('ecommerce customizer presents shell-versus-entities workspace copy', str_contains($customizerTemplateContent, 'Shape the storefront shell here: header, navigation, sidebar, footer, palette, and shell layout. Use Entities for the canonical entity view and entity list contract.'));
 t('native customizer explains entities stay inside the active theme shell', str_contains($customizerTemplateContent, 'The active theme shell stays in charge here. Use Entities for canonical page, post, list, and commerce presentation inside that shell.'));
 t('native customizer describes canonical entity presentation inside the active theme shell', str_contains($customizerTemplateContent, 'Canonical entity presentation for pages, posts, lists, and commerce routes inside the active theme shell.'));
@@ -992,6 +1099,7 @@ t('ecommerce public layout consumes customized header output', str_contains($eco
 t('ecommerce public layout consumes customized footer output', str_contains($ecommerceLayoutContent, '{customized_footer|raw}'));
 t('ecommerce public layout loads storefront theme assets', str_contains($ecommerceLayoutContent, '{if theme_style_url}<link rel="stylesheet" href="{theme_style_url}">{/if}'));
 t('ecommerce public layout uses shared shell wrapper for fallback header and footer', str_contains($ecommerceLayoutContent, 'cms-public-shell'));
+t('ecommerce public layout consumes storefront cart and shop navigation contract', str_contains($ecommerceLayoutContent, 'storefront.navigation.shop_url') && str_contains($ecommerceLayoutContent, 'if storefront.page.kind') && str_contains($ecommerceLayoutContent, 'storefront.cart.count'), $ecommerceLayoutContent);
 t('ecommerce public layout uses shared main layout contract', str_contains($ecommerceLayoutContent, 'cms-public-main'));
 
 $pocStyleContent = file_get_contents(cmsThemesPath() . '/entity-commerce-poc/style.css');

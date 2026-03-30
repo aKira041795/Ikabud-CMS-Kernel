@@ -47,7 +47,8 @@ $categorySlug = 'test-entity-contract-category-' . $suffix;
 $tagName = 'Test Entity Contract ' . $suffix;
 $actionType = 'service';
 $actionSlug = 'test-entity-contract-service-' . $suffix;
-$plainActionSlug = 'test-entity-contract-plain-service-' . $suffix;
+$plainActionType = 'course';
+$plainActionSlug = 'test-entity-contract-plain-course-' . $suffix;
 
 $contentIds = [];
 $categoryId = 0;
@@ -137,11 +138,11 @@ try {
          VALUES (:uuid, :title, :slug, :body, :excerpt, :type, 'published', 1, NOW(), NOW(), NOW())"
     )->execute([
         ':uuid' => $plainActionUuid,
-        ':title' => 'Entity Contract Plain Service',
+        ':title' => 'Entity Contract Plain Course',
         ':slug' => $plainActionSlug,
-        ':body' => '<p>Plain service body.</p>',
-        ':excerpt' => 'Plain service excerpt.',
-        ':type' => $actionType,
+        ':body' => '<p>Plain course body.</p>',
+        ':excerpt' => 'Plain course excerpt.',
+        ':type' => $plainActionType,
     ]);
     $plainActionEntityId = (int)$db->lastInsertId();
     $contentIds[] = $plainActionEntityId;
@@ -163,14 +164,14 @@ try {
     });
 
     http_response_code(200);
-    captureOutput(static function () use ($actionType, $plainActionSlug, &$bookMissingCapabilityStatus): void {
-        cmsPublicEntityBook(['type' => $actionType, 'slug' => $plainActionSlug]);
+    captureOutput(static function () use ($plainActionType, $plainActionSlug, &$bookMissingCapabilityStatus): void {
+        cmsPublicEntityBook(['type' => $plainActionType, 'slug' => $plainActionSlug]);
         $bookMissingCapabilityStatus = (int)(http_response_code() ?: 200);
     });
 
     http_response_code(200);
-    captureOutput(static function () use ($actionType, $plainActionSlug, &$inquiryMissingCapabilityStatus): void {
-        cmsPublicEntityInquiry(['type' => $actionType, 'slug' => $plainActionSlug]);
+    captureOutput(static function () use ($plainActionType, $plainActionSlug, &$inquiryMissingCapabilityStatus): void {
+        cmsPublicEntityInquiry(['type' => $plainActionType, 'slug' => $plainActionSlug]);
         $inquiryMissingCapabilityStatus = (int)(http_response_code() ?: 200);
     });
     http_response_code(200);

@@ -1,14 +1,28 @@
 {extends "modules/ecommerce/layouts/public.disyl"}
 
 {block content}
-<div class="max-w-5xl mx-auto">
+<div
+    class="max-w-5xl mx-auto"
+    data-storefront-route-kind="{storefront.route.kind|default:public_route_kind|default:'product_detail'}"
+    data-storefront-mode="{storefront.route.mode|default:public_presentation_mode|default:'traditional'}"
+    data-storefront-page-kind="{storefront.page.kind|default:'detail'}"
+    data-storefront-product-id="{storefront.product.id|default:product.id|default:''}"
+>
     <div class="grid grid-cols-1 md:grid-cols-2 gap-10">
         <!-- Image -->
         <div>
             <div class="aspect-square rounded-xl overflow-hidden bg-gray-100">
-                <img src="{if product.primary_image_url}{product.primary_image_url}{else}{base_url}/assets/ecommerce/product-placeholder.svg{/if}" alt="{product.title}" class="w-full h-full object-cover">
+                <img src="{if storefront.product.primary_image_url|default:product.primary_image_url}{storefront.product.primary_image_url|default:product.primary_image_url}{else}{base_url}/assets/ecommerce/product-placeholder.svg{/if}" alt="{storefront.product.title|default:product.title}" class="w-full h-full object-cover">
             </div>
-            {if product.gallery_images | count > 0}
+            {if storefront.product.gallery_images | count > 0}
+            <div class="mt-4 grid grid-cols-4 gap-3">
+                {foreach storefront.product.gallery_images as image}
+                <a href="{image.url}" class="block aspect-square overflow-hidden rounded-lg border border-gray-200 bg-gray-50" target="_blank" rel="noopener noreferrer">
+                    <img src="{image.thumb}" alt="{if image.caption}{image.caption}{else}{storefront.product.title|default:product.title}{/if}" class="w-full h-full object-cover">
+                </a>
+                {/foreach}
+            </div>
+            {elseif product.gallery_images | count > 0}
             <div class="mt-4 grid grid-cols-4 gap-3">
                 {foreach product.gallery_images as image}
                 <a href="{image.url}" class="block aspect-square overflow-hidden rounded-lg border border-gray-200 bg-gray-50" target="_blank" rel="noopener noreferrer">
@@ -22,32 +36,40 @@
         <!-- Info -->
         <div>
             <nav class="text-xs text-gray-400 mb-3">
-                <a href="{base_url}/ecommerce/shop" class="hover:text-gray-600">Shop</a>
-                {if product.categories | count > 0}
+                <a href="{if storefront.navigation.shop_url}{storefront.navigation.shop_url}{else}{base_url}/ecommerce/shop{/if}" class="hover:text-gray-600">Shop</a>
+                {if storefront.product.categories | count > 0}
+                <span class="mx-1">›</span>
+                <a href="{if storefront.product.categories.0.url}{storefront.product.categories.0.url}{else}{base_url}/ecommerce/shop/category/{storefront.product.categories.0.slug|default:product.categories.0.slug}{/if}" class="hover:text-gray-600">{storefront.product.categories.0.name|default:product.categories.0.name}</a>
+                {elseif product.categories | count > 0}
                 <span class="mx-1">›</span>
                 <a href="{base_url}/ecommerce/shop/category/{product.categories.0.slug}" class="hover:text-gray-600">{product.categories.0.name}</a>
                 {/if}
             </nav>
 
-            <h1 class="text-2xl font-bold text-gray-900 mb-2">{product.title}</h1>
+            <h1 class="text-2xl font-bold text-gray-900 mb-2">{storefront.page.title|default:storefront.product.title|default:product.title}</h1>
 
             <!-- Price -->
             <div class="flex items-baseline gap-3 mb-4">
-                {if product.pricing.on_sale}
-                <span class="text-3xl font-bold text-orange-600">{product.pricing.formatted}</span>
-                <span class="text-lg text-gray-400 line-through">{product.pricing.regular_fmt}</span>
-                <span class="text-sm font-medium text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded">Sale</span>
+                {if storefront.product.pricing.on_sale|default:product.pricing.on_sale}
+                <span class="text-3xl font-bold text-orange-600">{storefront.product.pricing.formatted|default:product.pricing.formatted}</span>
+                <span class="text-lg text-gray-400 line-through">{storefront.product.pricing.regular_fmt|default:product.pricing.regular_fmt}</span>
+                <span class="text-sm font-medium text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded">{storefront.product.badges.sale|default:'Sale'}</span>
                 {else}
-                <span class="text-3xl font-bold text-gray-900">{product.pricing.formatted | default:'Contact for price'}</span>
+                <span class="text-3xl font-bold text-gray-900">{storefront.product.pricing.formatted|default:product.pricing.formatted|default:'Contact for price'}</span>
                 {/if}
             </div>
 
-            {if product.excerpt}
-            <p class="text-gray-600 mb-4">{product.excerpt}</p>
+            {if storefront.page.description|default:storefront.product.excerpt|default:product.excerpt}
+            <p class="text-gray-600 mb-4">{storefront.page.description|default:storefront.product.excerpt|default:product.excerpt}</p>
             {/if}
 
             <!-- Stock -->
-            {if product.inventory.track_stock}
+            {if storefront.product.id}
+            <div class="flex items-center gap-2 mb-4">
+                <span class="inline-block w-2 h-2 rounded-full {if storefront.product.inventory.badge.tone == 'danger'}bg-red-400{elseif storefront.product.inventory.badge.tone == 'warning'}bg-amber-400{elseif storefront.product.inventory.badge.tone == 'success'}bg-emerald-400{else}bg-gray-400{/if}"></span>
+                <span class="text-sm {if storefront.product.inventory.badge.tone == 'danger'}text-red-600 font-medium{elseif storefront.product.inventory.badge.tone == 'warning'}text-amber-700 font-medium{elseif storefront.product.inventory.badge.tone == 'success'}text-emerald-700{else}text-gray-500{/if}">{storefront.product.inventory.badge.label}</span>
+            </div>
+            {elseif product.inventory.track_stock}
             <div class="flex items-center gap-2 mb-4">
                 {if product.inventory.in_stock}
                 <span class="inline-block w-2 h-2 rounded-full {if product.inventory.low_stock}bg-amber-400{else}bg-emerald-400{/if}"></span>
@@ -69,7 +91,25 @@
             {/if}
 
             <!-- Add to cart -->
-            {if product.inventory.in_stock}
+            {if storefront.product.id}
+                {if storefront.product.inventory.in_stock}
+                    {if storefront.product.inventory.out_of_stock}
+            <button disabled class="w-full px-6 py-3 bg-gray-200 text-gray-400 font-medium rounded-lg cursor-not-allowed mb-6">Out of Stock</button>
+                    {else}
+            <div class="flex gap-3 mb-6" id="add-to-cart-form">
+                <input type="number" id="qty-input" value="1" min="1"
+                       {if storefront.product.inventory.track_stock}max="{storefront.product.inventory.stock_qty}"{/if}
+                       class="w-20 border border-gray-300 rounded-lg px-3 py-2 text-sm text-center focus:border-orange-500 outline-none">
+                <button onclick="addToCart({storefront.product.id|default:product.id}, document.getElementById('qty-input').value)"
+                        class="flex-1 px-6 py-2 bg-orange-600 text-white font-medium rounded-lg hover:bg-orange-700">
+                    Add to Cart
+                </button>
+            </div>
+                    {/if}
+                {else}
+            <button disabled class="w-full px-6 py-3 bg-gray-200 text-gray-400 font-medium rounded-lg cursor-not-allowed mb-6">Out of Stock</button>
+                {/if}
+            {elseif product.inventory.in_stock}
                 {if product.inventory.out_of_stock}
             <button disabled class="w-full px-6 py-3 bg-gray-200 text-gray-400 font-medium rounded-lg cursor-not-allowed mb-6">Out of Stock</button>
                 {else}
@@ -88,9 +128,9 @@
             {/if}
 
             <!-- Full description -->
-            {if product.body}
+            {if storefront.product.body|default:product.body}
             <div class="prose prose-sm text-gray-700 border-t border-gray-200 pt-4">
-                {product.body | raw}
+                {storefront.product.body|default:product.body | raw}
             </div>
             {/if}
         </div>

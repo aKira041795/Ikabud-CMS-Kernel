@@ -1,9 +1,25 @@
 {extends "modules/ecommerce/layouts/public.disyl"}
 
 {block content}
-<div class="flex gap-8">
+<div
+    class="flex gap-8"
+    data-storefront-route-kind="{storefront.route.kind|default:public_route_kind|default:'shop_index'}"
+    data-storefront-mode="{storefront.route.mode|default:public_presentation_mode|default:'traditional'}"
+    data-storefront-page-kind="{storefront.page.kind|default:'catalog'}"
+    data-storefront-result-total="{storefront.collection.total|default:total|default:0}"
+>
     <!-- Sidebar: categories -->
-    {if categories | count > 0}
+    {if storefront.navigation.categories | count > 0}
+    <aside class="w-44 shrink-0 hidden md:block">
+        <h3 class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-3">Categories</h3>
+        <nav class="space-y-1">
+            <a href="{if storefront.navigation.all_items_url}{storefront.navigation.all_items_url}{else}{base_url}/ecommerce/shop{/if}" class="block text-sm px-3 py-1.5 rounded hover:bg-gray-50 {if storefront.filters.category_id|default:category_id == 0}font-semibold text-orange-600{else}text-gray-700{/if}">All Products</a>
+            {foreach storefront.navigation.categories as cat}
+            <a href="{if cat.url}{cat.url}{else}{base_url}/ecommerce/shop/category/{cat.slug}{/if}" class="block text-sm px-3 py-1.5 rounded hover:bg-gray-50 {if cat.is_active or storefront.filters.category_id|default:category_id == cat.id}font-semibold text-orange-600{else}text-gray-700{/if}">{cat.name}</a>
+            {/foreach}
+        </nav>
+    </aside>
+    {elseif categories | count > 0}
     <aside class="w-44 shrink-0 hidden md:block">
         <h3 class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-3">Categories</h3>
         <nav class="space-y-1">
@@ -18,21 +34,52 @@
     <!-- Main: product grid -->
     <div class="flex-1">
         <div class="flex items-center justify-between mb-5">
-            <h1 class="text-2xl font-bold text-gray-900">{page_title}</h1>
-            <form method="get" action="{base_url}/ecommerce/shop" class="flex gap-2">
-                <input type="text" name="search" value="{search}" placeholder="Search…"
+            <div>
+                <h1 class="text-2xl font-bold text-gray-900">{storefront.page.title|default:page_title}</h1>
+                {if storefront.page.description}
+                <p class="mt-1 text-sm text-gray-500">{storefront.page.description}</p>
+                {/if}
+            </div>
+            <form method="get" action="{if storefront.navigation.search_action_url}{storefront.navigation.search_action_url}{else}{base_url}/ecommerce/shop{/if}" class="flex gap-2">
+                {if storefront.filters.category_id|default:category_id > 0}<input type="hidden" name="cat" value="{storefront.filters.category_id|default:category_id}">{/if}
+                <input type="text" name="search" value="{storefront.filters.search|default:search}" placeholder="Search…"
                        class="border border-gray-300 rounded-lg px-3 py-2 text-sm">
                 <button type="submit" class="px-4 py-2 bg-orange-600 text-white text-sm rounded-lg hover:bg-orange-700">Search</button>
             </form>
         </div>
 
-        {if total == 0}
-        <div class="text-center py-20 text-gray-400">
-            <p class="text-lg">No products found.</p>
-            <a href="{base_url}/ecommerce/shop" class="text-orange-600 text-sm mt-2 inline-block">Browse all →</a>
+        {if storefront.collection.items | count > 0}
+        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-6">
+            {foreach storefront.collection.items as p}
+            <a href="{if p.url}{p.url}{else}{base_url}/ecommerce/shop/{p.slug}{/if}" class="group rounded-xl border border-gray-200 overflow-hidden hover:shadow-md transition-shadow no-underline bg-white">
+                <div class="aspect-square overflow-hidden bg-gray-100">
+                    <img src="{if p.primary_image_url|default:p.featured_image_url}{p.primary_image_url|default:p.featured_image_url}{else}{base_url}/assets/ecommerce/product-placeholder.svg{/if}" alt="{p.title}"
+                         class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300">
+                </div>
+                <div class="p-4">
+                    <h3 class="font-medium text-gray-900 truncate text-sm">{p.title}</h3>
+                    {if p.excerpt}<p class="text-xs text-gray-400 mt-1 line-clamp-2">{p.excerpt}</p>{/if}
+                    <div class="mt-2 flex items-center gap-2">
+                        {if p.pricing.on_sale}
+                        <span class="font-bold text-orange-600">{p.pricing.formatted}</span>
+                        <span class="text-xs text-gray-400 line-through">{p.pricing.regular_fmt}</span>
+                        {if p.badges.sale|default:p.sale_badge_text}<span class="rounded-full bg-orange-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-orange-700">{p.badges.sale|default:p.sale_badge_text}</span>{/if}
+                        {else}
+                        <span class="font-bold text-gray-900">{p.pricing.formatted|default:'—'}</span>
+                        {/if}
+                    </div>
+                    {if p.inventory.badge.label|default:p.inventory_badge_text}
+                    <div class="mt-1 text-xs font-medium {if p.inventory.badge.tone|default:p.inventory_badge_tone == 'danger'}text-red-500{elseif p.inventory.badge.tone|default:p.inventory_badge_tone == 'warning'}text-amber-600{elseif p.inventory.badge.tone|default:p.inventory_badge_tone == 'success'}text-emerald-600{else}text-gray-500{/if}">{p.inventory.badge.label|default:p.inventory_badge_text}</div>
+                    {elseif p.inventory.track_stock && (p.inventory.out_of_stock || !p.inventory.in_stock)}
+                    <div class="mt-1 text-xs text-red-500 font-medium">Out of stock</div>
+                    {elseif p.inventory.track_stock && p.inventory.low_stock}
+                    <div class="mt-1 text-xs text-amber-600 font-medium">Low stock - only {p.inventory.stock_qty} left</div>
+                    {/if}
+                </div>
+            </a>
+            {/foreach}
         </div>
-        {/if}
-
+        {elseif products | count > 0}
         <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-6">
             {foreach products as p}
             <a href="{base_url}/ecommerce/shop/{p.slug}" class="group rounded-xl border border-gray-200 overflow-hidden hover:shadow-md transition-shadow no-underline bg-white">
@@ -48,7 +95,7 @@
                         <span class="font-bold text-orange-600">{p.pricing.formatted}</span>
                         <span class="text-xs text-gray-400 line-through">{p.pricing.regular_fmt}</span>
                         {else}
-                        <span class="font-bold text-gray-900">{p.pricing.formatted | default:'—'}</span>
+                        <span class="font-bold text-gray-900">{p.pricing.formatted|default:'—'}</span>
                         {/if}
                     </div>
                     {if p.inventory.track_stock && (p.inventory.out_of_stock || !p.inventory.in_stock)}
@@ -62,11 +109,18 @@
         </div>
 
         <!-- Pagination -->
-        {if total_pages > 1}
+        {if storefront.collection.pagination.total|default:total_pages > 1}
         <div class="mt-10 flex items-center justify-center gap-2">
-            {if page > 1}<a href="?page={page - 1}" class="px-4 py-2 border rounded-lg text-sm hover:bg-gray-50">← Prev</a>{/if}
-            <span class="px-4 py-2 text-sm text-gray-500">Page {page} of {total_pages}</span>
-            {if page < total_pages}<a href="?page={page + 1}" class="px-4 py-2 border rounded-lg text-sm hover:bg-gray-50">Next →</a>{/if}
+            {if storefront.collection.pagination.prev_url}<a href="{storefront.collection.pagination.prev_url}" class="px-4 py-2 border rounded-lg text-sm hover:bg-gray-50">← Prev</a>{elseif page > 1}<a href="?page={page - 1}" class="px-4 py-2 border rounded-lg text-sm hover:bg-gray-50">← Prev</a>{/if}
+            <span class="px-4 py-2 text-sm text-gray-500">Page {storefront.collection.pagination.current|default:page} of {storefront.collection.pagination.total|default:total_pages}</span>
+            {if storefront.collection.pagination.next_url}<a href="{storefront.collection.pagination.next_url}" class="px-4 py-2 border rounded-lg text-sm hover:bg-gray-50">Next →</a>{elseif page < total_pages}<a href="?page={page + 1}" class="px-4 py-2 border rounded-lg text-sm hover:bg-gray-50">Next →</a>{/if}
+        </div>
+        {/if}
+
+        {else}
+        <div class="text-center py-20 text-gray-400">
+            <p class="text-lg">No products found.</p>
+            <a href="{if storefront.navigation.all_items_url}{storefront.navigation.all_items_url}{else}{base_url}/ecommerce/shop{/if}" class="text-orange-600 text-sm mt-2 inline-block">Browse all →</a>
         </div>
         {/if}
     </div>
