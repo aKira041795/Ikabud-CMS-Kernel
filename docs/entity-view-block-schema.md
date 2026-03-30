@@ -462,7 +462,172 @@ view blocks. Current list-card variants are:
 
 These variants change presentation only; they do not alter capability gates or
 data contracts.
-detail-view only.
+
+### 8.1 Draft Entity Card Preset Contract
+
+This section defines a proposed contract for **entity card presets**. It is a
+design draft for architecture and contributor guidance, not a statement that a
+runtime registry already exists.
+
+Entity card presets are meant to solve one problem: give modules and builders a
+reusable, named card composition model without pushing behavior back into theme
+files.
+
+#### Purpose
+
+An entity card preset should let the platform say:
+
+- use this named card composition for a commerce-style list item
+- keep pricing, inventory, progress, and action logic in canonical fragments
+- let the active theme customizer keep final control over approved variants
+- let the page builder opt into the same card language without inventing a
+  second card system
+
+#### Ownership rule
+
+Entity card presets should be **module-owned composition metadata**.
+
+- modules define which slots and fragments belong to a named card preset
+- entity presets may nominate a default card preset
+- themes may style the resulting card through tokens and approved variants
+- the customizer may select approved runtime presentation values
+- builders may choose or inherit the preset by ID
+
+Themes must not become the source of truth for card behavior.
+
+#### Proposed contract shape
+
+```json
+{
+  "id": "commerce-standard",
+  "label": "Commerce Standard",
+  "description": "Balanced product card with pricing, inventory, and CTA.",
+  "contexts": ["commerce"],
+  "entity_types": ["product"],
+  "slot_order": [
+    "media",
+    "header",
+    "excerpt",
+    "pricing",
+    "inventory",
+    "action"
+  ],
+  "fragments": {
+    "pricing": "list-card-pricing",
+    "inventory": "list-card-inventory",
+    "progress": "list-card-progress",
+    "action": "list-card-action"
+  },
+  "requires": {
+    "pricing": ["pricing"],
+    "inventory": ["inventory"],
+    "progress": ["progress_tracking"],
+    "action": ["pricing"]
+  },
+  "defaults": {
+    "entity_presentation": {
+      "entity_list_card_density": "comfortable",
+      "entity_list_show_excerpt": true,
+      "entity_list_excerpt_length": 120,
+      "entity_list_card_min_width": 240
+    },
+    "block_variants": {
+      "list-card-pricing": "featured",
+      "list-card-inventory": "compact",
+      "list-card-progress": "inline"
+    }
+  },
+  "builder_defaults": {
+    "entity_list": {
+      "card_preset": "commerce-standard"
+    },
+    "products_grid": {
+      "card_preset": "commerce-standard"
+    }
+  },
+  "preview": {
+    "entity_id": null,
+    "example_context": "commerce"
+  }
+}
+```
+
+#### Field meanings
+
+| Field | Meaning |
+|-------|---------|
+| `id` | Stable machine name used by presets, builder widgets, or future APIs |
+| `label` | Human-readable name shown in admin or builder UI |
+| `description` | Short explanation of the card intent |
+| `contexts` | Allowed entity-context IDs this preset is designed for |
+| `entity_types` | Optional narrower type allowlist when a context is still too broad |
+| `slot_order` | Ordered list of approved card regions; structural order must stay deterministic |
+| `fragments` | Mapping from slot names to canonical fragment IDs |
+| `requires` | Capability gates for optional slots; these gates supplement but never replace the underlying fragment gate |
+| `defaults.entity_presentation` | Suggested canonical list settings; runtime ownership still belongs to `entity_presentation` |
+| `defaults.block_variants` | Suggested block variant defaults; runtime ownership still belongs to the customizer |
+| `builder_defaults` | Suggested widget defaults for builder surfaces that consume the same card language |
+| `preview` | Optional preview hint for admin tooling or builder previews |
+
+#### Resolution rules
+
+If entity card presets are implemented, resolution should follow this order:
+
+1. resolve the entity context and runtime capabilities first
+2. resolve the named card preset only after context/type compatibility is known
+3. render card slots through canonical fragments such as `list-card-pricing` and `list-card-action`
+4. let `entity_presentation` and theme-manifest defaults supply runtime density, excerpt, width, and approved variants
+5. let the active customizer own the final selected variant values
+6. never let a card preset bypass fragment capability gates or provider contracts
+
+This keeps card presets compositional rather than imperative.
+
+#### Relationship to existing presets
+
+Entity presets and entity card presets solve different problems.
+
+- entity presets attach capabilities and token defaults
+- entity card presets describe named card composition for canonical list or builder rendering
+- an entity preset may nominate a default card preset, but it should not redefine the card structure inline
+
+That means a future `ecommerce` entity preset could say "use `commerce-standard` by default" while the card preset itself stays module-owned and reusable.
+
+#### Allowed and forbidden behavior
+
+Allowed in an entity card preset:
+
+- selecting approved slot order from documented regions
+- mapping slots to canonical list-card fragments
+- suggesting default canonical list settings
+- suggesting approved block variants
+- providing builder defaults or preview hints
+
+Forbidden in an entity card preset:
+
+- raw HTML payloads
+- arbitrary template paths
+- PHP callbacks or hook handlers
+- custom capability resolution logic
+- bypassing `cmsEntityCapabilityRuntimeState()`
+- bypassing customizer-owned variant resolution
+
+If a card needs new behavior, the fix belongs in a module capability, fragment,
+or builder extension point, not in a richer preset blob.
+
+#### Recommended storage model
+
+When implemented, the registry should be loaded from module-owned declarations
+or a dedicated card-preset registry source. It should not be stored inside theme
+manifests.
+
+Suggested ownership pattern:
+
+- modules publish card presets
+- CMS exposes resolved card preset metadata to admin and builder surfaces
+- entity presets reference card preset IDs as defaults
+- themes and customizer remain presentation-only participants
+
+This preserves the same boundary rule used everywhere else in the entity system.
 
 ---
 

@@ -434,6 +434,23 @@ If you are changing the entity-view contract:
 - preserve deterministic block rules
 - avoid one-off route-specific template logic
 
+### 12.1 Operating model by audience
+
+For day-to-day implementation, the intended operating model is:
+
+- contributors improve modules when they need new entity behavior, new capability-aware card patterns, new context bindings, or new builder-aware entity widgets
+- tenant admins use presets plus the active theme customizer when they need controlled presentation changes without touching theme files
+- advanced editors use the page builder when they need page-level composition, curated landing layouts, or explicit placement of approved entity/list widgets
+
+In shorthand:
+
+- modules own behavior and data
+- the customizer owns controlled presentation
+- the builder owns advanced composition
+- the kernel enforces contracts and runtime safety
+
+This is why a new entity view, card preset, or storefront behavior should usually begin in the module layer rather than in a new theme-owned template family.
+
 ---
 
 ## 13. Summary

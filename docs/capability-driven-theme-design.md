@@ -463,6 +463,36 @@ When adding a new domain feature:
 
 Do not start by creating a whole new theme family unless the universal model is provably insufficient.
 
+### 10.1 Operating model by audience
+
+As the platform converges on entity-context and capability-driven rendering, each audience should work through a different layer.
+
+**Contributors and module authors**
+
+- If you want a new entity behavior, card pattern, or view capability, improve the module.
+- Typical changes belong in module manifests, entity-context definitions/bindings, capability providers, preset defaults, canonical block templates, or builder/widget registrations.
+- Do not start by creating a new theme-owned entity template family.
+
+**Tenant admins and non-technical operators**
+
+- Use presets plus the active theme customizer.
+- Presets attach default capabilities and token defaults.
+- The customizer selects approved layout profiles, block variants, and shell presentation through `theme` and `entity_presentation`.
+- This path is intentionally constrained so presentation can change without mutating structure or business logic.
+
+**Advanced editors**
+
+- Use the page builder when a page needs higher-control composition, custom landing layouts, or explicit block placement.
+- Builder work should reuse approved entity/list widgets, canonical capability contracts, and theme/customizer rules wherever possible.
+
+### 10.2 Card and override policy
+
+Capability-aware cards are part of the canonical entity/list system, not a return to ad hoc storefront-only templates.
+
+- Prefer canonical list-card fragments and approved block variants for reusable card patterns.
+- Prefer builder widgets or blocks when a card needs page-specific composition.
+- Treat theme overrides as design-system customization only; they must not become the place where pricing, inventory, inquiry, or other module behavior is reimplemented.
+
 ---
 
 ## 11. Current Implementation Artifacts
@@ -593,11 +623,12 @@ For the detailed normalization contract (per-field guarantees), see entity-view-
 
 Remaining extensions, in priority order:
 
-1. **Block variant templates** — create the actual `.featured.block.disyl`, `.carousel.block.disyl`, etc. files declared in §13.2
-2. **Contract enforcement in cmsEntityCapabilityData()** — implement the runtime validation described in §12.3 (currently documented as a requirement; enforcement code not yet written)
-3. **CSS token flattener** — update `cmsThemeTokensCss()` to handle nested token hierarchy (§5.4) in addition to the legacy flat form
-4. **Server-side block override audit** — tooling to verify a theme's `overridable_blocks` entries all have matching template files
-5. **Booking module override provider** — real `entity.capability.booking.data@1` replacement when a booking module ships
-6. **Customizer entity-view controls** — expose layout profiles and approved block variants directly in the theme customizer
+1. **Entity card preset registry** — formalize module-owned named card compositions for canonical list cards, customizer defaults, and builder reuse without turning themes into behavior owners. Draft contract: `docs/entity-view-block-schema.md` §8.1.
+2. **Block variant templates** — create the actual `.featured.block.disyl`, `.carousel.block.disyl`, etc. files declared in §13.2
+3. **Contract enforcement in cmsEntityCapabilityData()** — implement the runtime validation described in §12.3 (currently documented as a requirement; enforcement code not yet written)
+4. **CSS token flattener** — update `cmsThemeTokensCss()` to handle nested token hierarchy (§5.4) in addition to the legacy flat form
+5. **Server-side block override audit** — tooling to verify a theme's `overridable_blocks` entries all have matching template files
+6. **Booking module override provider** — real `entity.capability.booking.data@1` replacement when a booking module ships
+7. **Customizer entity-view controls** — expose layout profiles and approved block variants directly in the theme customizer
 
 The design continues to move toward configuration-driven specialization. The invariant is: **the theme package supplies defaults, the customizer configures presentation, modules add behaviour, and the kernel enforces contracts.**

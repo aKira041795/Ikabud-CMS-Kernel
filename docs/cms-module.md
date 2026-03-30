@@ -198,6 +198,47 @@ Important distinction:
 
 Do not assume that a route-backed feature is automatically callable via a capability.
 
+### Entity-driven change policy
+
+When a contributor wants to add a new public entity view, card pattern, or feature slice, the default move is to improve the module, not the theme.
+
+Use the module layer for:
+
+- new entity-context definitions, extensions, and bindings
+- capability providers or capability-config rules
+- preset defaults
+- canonical entity/list blocks and capability-aware card fragments
+- builder widgets, renderers, and dynamic sources that need new structured data
+
+Use the customizer and theme layer for:
+
+- shell styling and design-system defaults
+- approved `entity_presentation` controls
+- approved block variants and layout profiles
+- scoped token defaults in theme manifests
+
+Use the page builder layer for:
+
+- page-level composition
+- curated landing experiences
+- advanced editorial overrides that still consume structured entity/list widgets
+
+For non-technical tenant operators, presets plus the active theme customizer are the intended control surface. They should not need theme-file edits to switch between supported presentation modes.
+
+Avoid these patterns:
+
+- theme-owned business logic
+- per-route entity template families as the first solution
+- ad hoc scripts that bypass capability contracts, presets, or builder contracts
+- duplicated entity-capability resolution outside `cmsEntityCapabilityRuntimeState()`
+
+This keeps the public stack legible:
+
+- modules own behavior and data
+- the customizer owns controlled presentation
+- the builder owns advanced composition
+- the kernel enforces contracts and runtime safety
+
 ### CMS sub-module ZIP installer
 
 CMS sub-modules are add-ons installed through the CMS admin UI (`/cms/admin/modules`) or the API (`POST /api/v1/cms/modules/upload`). Key behaviors:
