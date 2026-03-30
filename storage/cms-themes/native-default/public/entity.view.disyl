@@ -1,0 +1,223 @@
+{extends "_cms_active_theme/layouts/public.disyl"}
+
+{block head}
+{if cms_head}{cms_head | raw}{/if}
+{if structured_data}{structured_data | raw}{/if}
+{include "_cms_active_theme/public/ecommerce/partials/storefront-styles.disyl"}
+{include "_cms_active_theme/public/partials/canonical-entity-styles.disyl"}
+{/block}
+
+{block content}
+{if entity_view_context.bypass_shell|default:0}
+<article class="cms-entity-view native-canonical-view {if entity_presentation.root_class}{entity_presentation.root_class}{/if}" data-native-canonical-template="entity-view"{if public_render_origin} data-public-render-origin="{public_render_origin}"{/if}{if public_route_kind} data-public-route-kind="{public_route_kind}"{/if}{if public_presentation_mode} data-public-presentation-mode="{public_presentation_mode}"{/if} data-storefront-route-kind="{storefront.route.kind|default:public_route_kind|default:'generic'}" data-storefront-mode="{storefront.route.mode|default:public_presentation_mode|default:'traditional'}" data-storefront-page-kind="{storefront.page.kind|default:'entity'}" data-storefront-product-id="{storefront.product.id|default:entity.id|default:''}">
+    {if builder_enabled}
+    <div class="{builder_page_settings.container_class}">
+        {post_html | raw}
+    </div>
+    {else}
+    <div class="cms-entity-body post-content prose native-canonical-view__body native-canonical-view__body--contained">
+        {post_html | raw}
+    </div>
+    {/if}
+</article>
+{else}
+<article class="cms-entity-view native-canonical-view {if entity_presentation.root_class}{entity_presentation.root_class}{/if}" data-native-canonical-template="entity-view"{if public_render_origin} data-public-render-origin="{public_render_origin}"{/if}{if public_route_kind} data-public-route-kind="{public_route_kind}"{/if}{if public_presentation_mode} data-public-presentation-mode="{public_presentation_mode}"{/if} data-storefront-route-kind="{storefront.route.kind|default:public_route_kind|default:'generic'}" data-storefront-mode="{storefront.route.mode|default:public_presentation_mode|default:'traditional'}" data-storefront-page-kind="{storefront.page.kind|default:'entity'}" data-storefront-product-id="{storefront.product.id|default:entity.id|default:''}">
+    <div class="native-canonical-view__article">
+        {if entity_presentation.header_before_media}
+            {if entity_view_context.show_header|default:1}
+            <header class="cms-entity-header post-header native-canonical-view__header">
+                <h1 class="post-title">{entity_view_context.header_title|default:entity.title}</h1>
+
+                {if entity_view_context.show_meta|default:1}
+                {include "modules/cms/public/blocks/meta.block.disyl"}
+                {/if}
+
+                {if capabilities.progress_tracking}
+                    {include "modules/cms/public/blocks/progress.block.disyl"}
+                {/if}
+            </header>
+            {/if}
+
+            {if entity_view_context.show_media|default:1}
+                {if capabilities.media_gallery}
+                {include "modules/cms/public/blocks/media-gallery.block.disyl"}
+                {elseif entity.featured_image_url}
+                <div class="cms-entity-hero post-featured-image native-canonical-view__hero">
+                    <img src="{entity.featured_image_url}" alt="{entity.title}">
+                </div>
+                {/if}
+            {/if}
+        {else}
+            {if entity_view_context.show_media|default:1}
+                {if capabilities.media_gallery}
+                {include "modules/cms/public/blocks/media-gallery.block.disyl"}
+                {elseif entity.featured_image_url}
+                <div class="cms-entity-hero post-featured-image native-canonical-view__hero">
+                    <img src="{entity.featured_image_url}" alt="{entity.title}">
+                </div>
+                {/if}
+            {/if}
+
+            {if entity_view_context.show_header|default:1}
+            <header class="cms-entity-header post-header native-canonical-view__header">
+                <h1 class="post-title">{entity_view_context.header_title|default:entity.title}</h1>
+
+                {if entity_view_context.show_meta|default:1}
+                {include "modules/cms/public/blocks/meta.block.disyl"}
+                {/if}
+
+                {if capabilities.progress_tracking}
+                    {include "modules/cms/public/blocks/progress.block.disyl"}
+                {/if}
+            </header>
+            {/if}
+        {/if}
+
+        {if entity_view_context.show_summary|default:1}
+            {if entity_presentation.layout_profile == 'commerce'}
+                {if capabilities.pricing or capabilities.inventory or capabilities.booking or capabilities.inquiry}
+                <div class="cms-entity-layout native-product-layout">
+                    <div class="cms-entity-main native-stack">
+                        {if builder_enabled}
+                        <div class="cms-entity-body {builder_page_settings.container_class}">
+                            {post_html | raw}
+                        </div>
+                        {else}
+                        <div class="cms-entity-body post-content prose native-canonical-view__body">
+                            {post_html | raw}
+                        </div>
+                        {/if}
+
+                        {if entity_view_context.show_lessons|default:1}
+                        {if capabilities.lessons_index}
+                            {include "modules/cms/public/blocks/lessons.block.disyl"}
+                        {/if}
+                        {/if}
+                    </div>
+
+                    <aside class="cms-entity-summary native-canonical-view__summary">
+                        <div class="native-storefront-panel native-canonical-view__summary-panel">
+                            {include "modules/cms/public/blocks/entity-summary.block.disyl"}
+                        </div>
+                    </aside>
+                </div>
+                {else}
+                    {if builder_enabled}
+                    <div class="cms-entity-body {builder_page_settings.container_class}">
+                        {post_html | raw}
+                    </div>
+                    {else}
+                    <div class="cms-entity-body post-content prose native-canonical-view__body native-canonical-view__body--contained">
+                        {post_html | raw}
+                    </div>
+                    {/if}
+
+                    {if entity_view_context.show_lessons|default:1}
+                    {if capabilities.lessons_index}
+                        {include "modules/cms/public/blocks/lessons.block.disyl"}
+                    {/if}
+                    {/if}
+                {/if}
+            {elseif entity_presentation.summary_after_body}
+                {if builder_enabled}
+                <div class="cms-entity-body {builder_page_settings.container_class}">
+                    {post_html | raw}
+                </div>
+                {else}
+                <div class="cms-entity-body post-content prose native-canonical-view__body native-canonical-view__body--contained">
+                    {post_html | raw}
+                </div>
+                {/if}
+
+                {if entity_view_context.show_lessons|default:1}
+                {if capabilities.lessons_index}
+                    {include "modules/cms/public/blocks/lessons.block.disyl"}
+                {/if}
+                {/if}
+
+                {if capabilities.pricing or capabilities.inventory or capabilities.booking or capabilities.inquiry}
+                <div class="native-storefront-panel native-canonical-view__summary-panel native-canonical-view__summary-panel--stack">
+                    {include "modules/cms/public/blocks/entity-summary.block.disyl"}
+                </div>
+                {/if}
+            {else}
+                {if capabilities.pricing or capabilities.inventory or capabilities.booking or capabilities.inquiry}
+                <div class="native-storefront-panel native-canonical-view__summary-panel native-canonical-view__summary-panel--stack">
+                    {include "modules/cms/public/blocks/entity-summary.block.disyl"}
+                </div>
+                {/if}
+
+                {if builder_enabled}
+                <div class="cms-entity-body {builder_page_settings.container_class}">
+                    {post_html | raw}
+                </div>
+                {else}
+                <div class="cms-entity-body post-content prose native-canonical-view__body native-canonical-view__body--contained">
+                    {post_html | raw}
+                </div>
+                {/if}
+
+                {if entity_view_context.show_lessons|default:1}
+                {if capabilities.lessons_index}
+                    {include "modules/cms/public/blocks/lessons.block.disyl"}
+                {/if}
+                {/if}
+            {/if}
+        {else}
+            {if builder_enabled}
+            <div class="cms-entity-body {builder_page_settings.container_class}">
+                {post_html | raw}
+            </div>
+            {else}
+            <div class="cms-entity-body post-content prose native-canonical-view__body native-canonical-view__body--contained">
+                {post_html | raw}
+            </div>
+            {/if}
+
+            {if entity_view_context.show_lessons|default:1}
+            {if capabilities.lessons_index}
+                {include "modules/cms/public/blocks/lessons.block.disyl"}
+            {/if}
+            {/if}
+        {/if}
+
+        {if entity_view_context.show_taxonomies|default:1}
+        {if show_entity_categories or show_entity_tags}
+        <div class="cms-entity-taxonomies native-canonical-view__taxonomies">
+            {if show_entity_categories}
+            <div class="native-canonical-view__terms">
+                <span class="native-canonical-view__terms-label">Categories</span>
+                {foreach entity_taxonomies.categories as category}
+                {if category.url}
+                <a href="{category.url}" class="native-canonical-view__term">{category.name}</a>
+                {else}
+                <span class="native-canonical-view__term">{category.name}</span>
+                {/if}
+                {/foreach}
+            </div>
+            {/if}
+            {if show_entity_tags}
+            <div class="native-canonical-view__terms">
+                <span class="native-canonical-view__terms-label">Tags</span>
+                {foreach entity_taxonomies.tags as tag}
+                {if tag.url}
+                <a href="{tag.url}" class="native-canonical-view__term">{tag.name}</a>
+                {else}
+                <span class="native-canonical-view__term">{tag.name}</span>
+                {/if}
+                {/foreach}
+            </div>
+            {/if}
+        </div>
+        {/if}
+        {/if}
+
+        {if entity_back_link_url and entity_view_context.show_back_link|default:entity_presentation_settings.single_show_nav}
+        <div class="native-canonical-view__back">
+            <a href="{entity_back_link_url}" class="native-canonical-view__back-link">&larr; {entity_back_link_label|default:'Back'}</a>
+        </div>
+        {/if}
+    </div>
+</article>
+{/if}
+{/block}

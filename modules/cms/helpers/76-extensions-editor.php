@@ -167,9 +167,16 @@ function cmsCanonicalEntityUsesBaseTemplate(string $defaultSubPath, string $cont
         return false;
     }
 
-    return cmsCanonicalEntityRenderFamily(array_merge($context, [
+    $renderFamily = cmsCanonicalEntityRenderFamily(array_merge($context, [
         'content_type' => trim((string)($context['content_type'] ?? $contentType)),
-    ])) === 'content';
+    ]));
+    if ($renderFamily !== 'content') {
+        return false;
+    }
+
+    $manifest = cmsActiveThemeManifest();
+    $customizerScope = trim((string)($manifest['customizer_scope'] ?? 'native'));
+    return $customizerScope === 'ecommerce';
 }
 
 /**

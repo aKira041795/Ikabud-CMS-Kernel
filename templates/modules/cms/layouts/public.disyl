@@ -83,7 +83,7 @@
     {if has_customized_header}
     {customized_header|raw}
     {else}
-    <header class="bg-white border-b border-gray-200">
+    <header class="site-header bg-white border-b border-gray-200">
         <div class="cms-public-shell px-4 py-4 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div class="min-w-0">
                 <a href="{base_url}/cms" class="text-lg font-bold text-gray-900 hover:text-sky-600 no-underline">{site_title|default:"Blog"}</a>

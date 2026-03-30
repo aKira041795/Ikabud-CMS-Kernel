@@ -343,7 +343,17 @@ function cmsPublicHome(array $params = []): void
             $archiveLabel = date('F Y', strtotime($archiveStart));
         }
     }
-    $cacheKey = 'cms:home:entity_contract_v3:page:' . $page . ':archive:' . ($archiveKey !== '' ? $archiveKey : 'all');
+    $cacheKey = cmsPublicResolvedTemplateCacheKey(
+        'cms:home:entity_contract_v3:page:' . $page . ':archive:' . ($archiveKey !== '' ? $archiveKey : 'all'),
+        'public/entity.list.disyl',
+        [],
+        'post',
+        [
+            'public_render_origin' => 'cms',
+            'public_route_kind' => $archiveKey !== '' ? 'archive' : 'blog-home',
+            'public_presentation_mode' => 'canonical',
+        ]
+    );
 
     // Check cache
     $cacheStageStart = $timingEnabled ? microtime(true) : 0.0;
@@ -534,7 +544,17 @@ function cmsPublicCategoryArchive(array $params = []): void
     }
 
     $page = max(1, (int)(cmsInput('page', 'GET') ?: 1));
-    $cacheKey = 'cms:category:entity_contract_v3:' . $slug . ':page:' . $page;
+    $cacheKey = cmsPublicResolvedTemplateCacheKey(
+        'cms:category:entity_contract_v3:' . $slug . ':page:' . $page,
+        'public/entity.list.disyl',
+        [],
+        'post',
+        [
+            'public_render_origin' => 'cms',
+            'public_route_kind' => 'category',
+            'public_presentation_mode' => 'canonical',
+        ]
+    );
 
     // Check cache
     $cached = cmsCacheGet($cacheKey);
@@ -653,7 +673,17 @@ function cmsPublicTagArchive(array $params = []): void
     }
 
     $page = max(1, (int)(cmsInput('page', 'GET') ?: 1));
-    $cacheKey = 'cms:tag:entity_contract_v3:' . $slug . ':page:' . $page;
+    $cacheKey = cmsPublicResolvedTemplateCacheKey(
+        'cms:tag:entity_contract_v3:' . $slug . ':page:' . $page,
+        'public/entity.list.disyl',
+        [],
+        'post',
+        [
+            'public_render_origin' => 'cms',
+            'public_route_kind' => 'tag',
+            'public_presentation_mode' => 'canonical',
+        ]
+    );
 
     // Check cache
     $cached = cmsCacheGet($cacheKey);
@@ -977,20 +1007,6 @@ function cmsPublicSingle(array $params = []): void
         return;
     }
 
-    $cacheKey = 'cms:post:entity_contract_v3:' . $slug;
-
-    // Check cache
-    $cached = cmsCacheGet($cacheKey);
-    if ($cached !== null && isset($cached['html'])) {
-        if (!empty($cached['etag']) && !empty($cached['updated_at'])) {
-            if (cmsSendCacheHeaders($cached['etag'], $cached['updated_at'])) {
-                exit;
-            }
-        }
-        cmsPublicRespond((string)$cached['html']);
-        return;
-    }
-
     $db = cmsDb();
     $stmt = $db->prepare(
         "SELECT c.*, u.display_name as author_name, m.file_path as featured_image
@@ -1019,6 +1035,31 @@ function cmsPublicSingle(array $params = []): void
     $meta = cmsLoadContentMeta($db, (int)$post['id']);
 
     $post['meta'] = $meta;
+    $cacheKey = cmsPublicResolvedTemplateCacheKey(
+        'cms:post:entity_contract_v3:' . $slug,
+        'public/entity.view.disyl',
+        $meta,
+        'post',
+        [
+            'public_render_origin' => 'cms',
+            'public_route_kind' => 'post',
+            'public_presentation_mode' => 'canonical',
+            'url' => (string)($post['url'] ?? ''),
+        ]
+    );
+
+    // Check cache after loading meta so template-specific keys stay correct.
+    $cached = cmsCacheGet($cacheKey);
+    if ($cached !== null && isset($cached['html'])) {
+        if (!empty($cached['etag']) && !empty($cached['updated_at'])) {
+            if (cmsSendCacheHeaders($cached['etag'], $cached['updated_at'])) {
+                exit;
+            }
+        }
+        cmsPublicRespond((string)$cached['html']);
+        return;
+    }
+
     if (!empty($post['featured_image'])) {
         $post['featured_image_url'] = cmsResolveUploadUrl((string)$post['featured_image']);
     }
@@ -1084,20 +1125,6 @@ function cmsPublicPage(array $params = []): void
         return;
     }
 
-    $cacheKey = 'cms:page:entity_contract_v3:' . $slug;
-
-    // Check cache
-    $cached = cmsCacheGet($cacheKey);
-    if ($cached !== null && isset($cached['html'])) {
-        if (!empty($cached['etag']) && !empty($cached['updated_at'])) {
-            if (cmsSendCacheHeaders($cached['etag'], $cached['updated_at'])) {
-                exit;
-            }
-        }
-        cmsPublicRespond((string)$cached['html']);
-        return;
-    }
-
     $db = cmsDb();
     $stmt = $db->prepare(
         "SELECT c.*, u.display_name as author_name
@@ -1124,6 +1151,30 @@ function cmsPublicPage(array $params = []): void
 
     $meta = cmsLoadContentMeta($db, (int)$page['id']);
     $page['meta'] = $meta;
+    $cacheKey = cmsPublicResolvedTemplateCacheKey(
+        'cms:page:entity_contract_v3:' . $slug,
+        'public/entity.view.disyl',
+        $meta,
+        'page',
+        [
+            'public_render_origin' => 'cms',
+            'public_route_kind' => 'page',
+            'public_presentation_mode' => 'canonical',
+            'url' => (string)($page['url'] ?? ''),
+        ]
+    );
+
+    // Check cache after loading meta so template-specific keys stay correct.
+    $cached = cmsCacheGet($cacheKey);
+    if ($cached !== null && isset($cached['html'])) {
+        if (!empty($cached['etag']) && !empty($cached['updated_at'])) {
+            if (cmsSendCacheHeaders($cached['etag'], $cached['updated_at'])) {
+                exit;
+            }
+        }
+        cmsPublicRespond((string)$cached['html']);
+        return;
+    }
 
     $renderedHtml = cmsFilterRenderedContent(cmsContentRenderedHtml($page), $page);
     $publicHead = cmsGetPublicHeadHtml($page);
@@ -1194,20 +1245,6 @@ function cmsPublicEntityView(array $params = []): void
         return;
     }
 
-    $cacheKey = 'cms:entity:' . $type . ':' . $slug;
-
-    // Check cache
-    $cached = cmsCacheGet($cacheKey);
-    if ($cached !== null && isset($cached['html'])) {
-        if (!empty($cached['etag']) && !empty($cached['updated_at'])) {
-            if (cmsSendCacheHeaders($cached['etag'], $cached['updated_at'])) {
-                exit;
-            }
-        }
-        cmsPublicRespond((string)$cached['html']);
-        return;
-    }
-
     $db = cmsDb();
     $entity = cmsPublicLoadVisibleEntityByTypeSlug($db, $type, $slug);
 
@@ -1226,6 +1263,30 @@ function cmsPublicEntityView(array $params = []): void
 
     $meta = cmsLoadContentMeta($db, (int)$entity['id']);
     $entity['meta'] = $meta;
+    $cacheKey = cmsPublicResolvedTemplateCacheKey(
+        'cms:entity:' . $type . ':' . $slug,
+        'public/entity.view.disyl',
+        $meta,
+        $type,
+        [
+            'public_render_origin' => (string)($params['public_render_origin'] ?? 'cms'),
+            'public_route_kind' => (string)($params['public_route_kind'] ?? 'generic'),
+            'public_presentation_mode' => (string)($params['public_presentation_mode'] ?? 'canonical'),
+            'url' => (string)($entity['url'] ?? ''),
+        ]
+    );
+
+    // Check cache after loading meta so template- and route-specific keys stay correct.
+    $cached = cmsCacheGet($cacheKey);
+    if ($cached !== null && isset($cached['html'])) {
+        if (!empty($cached['etag']) && !empty($cached['updated_at'])) {
+            if (cmsSendCacheHeaders($cached['etag'], $cached['updated_at'])) {
+                exit;
+            }
+        }
+        cmsPublicRespond((string)$cached['html']);
+        return;
+    }
 
     $renderedHtml = cmsFilterRenderedContent(cmsContentRenderedHtml($entity), $entity);
     $publicHead = cmsGetPublicHeadHtml($entity);
@@ -1624,6 +1685,29 @@ function cmsPublicEntityList(array $params = []): void
 // ═══════════════════════════════════════════════════════════════════════
 // INTERNAL HELPERS
 // ═══════════════════════════════════════════════════════════════════════
+
+function cmsPublicResolvedTemplateCacheKey(
+    string $baseKey,
+    string $defaultSubPath,
+    array $meta,
+    string $contentType = '',
+    array $context = []
+): string {
+    $templatePath = cmsResolveContentTemplate($defaultSubPath, $meta, $contentType, $context);
+    $templateAbsolutePath = BASE_PATH . '/templates/' . ltrim($templatePath, '/');
+    $fingerprint = md5((string)json_encode([
+        'default_sub_path' => $defaultSubPath,
+        'content_type' => $contentType,
+        'template_slug' => trim((string)($meta['_template'] ?? '')),
+        'resolved_template' => $templatePath,
+        'template_mtime' => is_file($templateAbsolutePath) ? (int)@filemtime($templateAbsolutePath) : 0,
+        'public_render_origin' => (string)($context['public_render_origin'] ?? ''),
+        'public_route_kind' => (string)($context['public_route_kind'] ?? ''),
+        'public_presentation_mode' => (string)($context['public_presentation_mode'] ?? ''),
+    ]));
+
+    return $baseKey . ':tpl:' . $fingerprint;
+}
 
 function cmsPublicLoadVisibleEntityByTypeSlug(object $db, string $type, string $slug): ?array
 {

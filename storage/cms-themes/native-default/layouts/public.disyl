@@ -69,29 +69,31 @@
     {if has_customized_header}
     {customized_header|raw}
     {else}
-    <header class="site-header">
-        <div class="container">
-            <div class="header-inner">
-                <div class="site-branding">
-                    <a href="{base_url}/cms" class="site-logo">{site_title|default:gui.app_name|default:"Blog"}</a>
+    <div class="header-wrapper header-wrapper--sticky">
+        <header class="site-header site-header--sticky">
+            <div class="container">
+                <div class="header-inner">
+                    <div class="site-branding">
+                        <a href="{base_url}/cms" class="site-logo">{site_title|default:gui.app_name|default:"Blog"}</a>
+                    </div>
+                    <button class="mobile-menu-toggle" aria-label="Toggle menu">
+                        <span></span><span></span><span></span>
+                    </button>
+                    <nav class="main-navigation">
+                        {if primary_menu}
+                        {primary_menu|raw}
+                        {else}
+                        <ul class="nav-menu">
+                            <li><a href="{base_url}/cms">Home</a></li>
+                            <li><a href="{base_url}/cms/blog">Blog</a></li>
+                            <li><a href="{base_url}/cms/search">Search</a></li>
+                        </ul>
+                        {/if}
+                    </nav>
                 </div>
-                <button class="mobile-menu-toggle" aria-label="Toggle menu">
-                    <span></span><span></span><span></span>
-                </button>
-                <nav class="main-navigation">
-                    {if primary_menu}
-                    {primary_menu|raw}
-                    {else}
-                    <ul class="nav-menu">
-                        <li><a href="{base_url}/cms">Home</a></li>
-                        <li><a href="{base_url}/cms/blog">Blog</a></li>
-                        <li><a href="{base_url}/cms/search">Search</a></li>
-                    </ul>
-                    {/if}
-                </nav>
             </div>
-        </div>
-    </header>
+        </header>
+    </div>
     {/if}
 
     <div class="site-content">

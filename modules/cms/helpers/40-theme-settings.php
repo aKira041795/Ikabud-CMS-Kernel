@@ -434,6 +434,10 @@ function cmsConfiguredActiveTheme(): ?string
     $settings = array_merge(cmsSettingsDefaults(), getModuleSettings('cms'));
     $slug = trim((string)($settings['active_theme'] ?? ''));
     if ($slug === '' || $slug === 'default') {
+        if (moduleTenantSettingsModeEnabled() && moduleTenantSettingsTenantId() === null && cmsThemeExists('native-default')) {
+            $GLOBALS[$valueKey] = 'native-default';
+            return 'native-default';
+        }
         $GLOBALS[$valueKey] = null;
         return null;
     }

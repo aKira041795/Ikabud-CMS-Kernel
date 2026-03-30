@@ -283,6 +283,45 @@ t('cms blog canonical entity list bypasses storefront template under ecommerce-s
 t('storefront product entity view still resolves themed template', $storefrontEntityViewTemplate === '_cms_active_theme/public/entity.view.disyl', $storefrontEntityViewTemplate);
 t('storefront product entity list still resolves themed template', $storefrontEntityListTemplate === '_cms_active_theme/public/entity.list.disyl', $storefrontEntityListTemplate);
 
+$pocBlogHomeRouteCacheKey = cmsPublicResolvedTemplateCacheKey(
+    'cms:home:entity_contract_v3:page:1:archive:all',
+    'public/entity.list.disyl',
+    [],
+    'post',
+    [
+        'public_render_origin' => 'cms',
+        'public_route_kind' => 'blog-home',
+        'public_presentation_mode' => 'canonical',
+    ]
+);
+$pocCmsProductRouteCacheKey = cmsPublicResolvedTemplateCacheKey(
+    'cms:entity:product:demo-product',
+    'public/entity.view.disyl',
+    [],
+    'product',
+    [
+        'public_render_origin' => 'cms',
+        'public_route_kind' => 'generic',
+        'public_presentation_mode' => 'canonical',
+    ]
+);
+$pocStorefrontProductRouteCacheKey = cmsPublicResolvedTemplateCacheKey(
+    'cms:entity:product:demo-product',
+    'public/entity.view.disyl',
+    [],
+    'product',
+    [
+        'public_render_origin' => 'ecommerce',
+        'public_route_kind' => 'product_detail',
+        'public_presentation_mode' => 'entity_view',
+    ]
+);
+t('entity-commerce-poc route cache keys now include template fingerprint suffixes', str_contains($pocBlogHomeRouteCacheKey, ':tpl:'), $pocBlogHomeRouteCacheKey);
+t('entity-commerce-poc route cache key separates CMS and storefront product contexts', $pocCmsProductRouteCacheKey !== $pocStorefrontProductRouteCacheKey, json_encode([
+    'cms' => $pocCmsProductRouteCacheKey,
+    'storefront' => $pocStorefrontProductRouteCacheKey,
+]));
+
 $pricingBlockTemplate = cmsResolveBlockTemplate('modules/cms/public/blocks/pricing.block.disyl');
 $actionBlockTemplate = cmsResolveBlockTemplate('modules/cms/public/blocks/action.block.disyl');
 $listPricingManifestTemplate = cmsResolveBlockTemplate('modules/cms/public/blocks/list-card-pricing.block.disyl');
@@ -583,6 +622,73 @@ t('native storefront order detail route resolves dedicated order detail theme te
     'public_route_kind' => 'order_detail',
 ]) === '_cms_active_theme/public/ecommerce/order-detail.disyl');
 
+$nativePageEntityViewTemplate = cmsResolveContentTemplate('public/entity.view.disyl', [], 'page', [
+    'public_render_origin' => 'cms',
+    'public_route_kind' => 'page',
+    'public_presentation_mode' => 'canonical',
+]);
+$nativeBlogEntityListTemplate = cmsResolveContentTemplate('public/entity.list.disyl', [], 'post', [
+    'public_render_origin' => 'cms',
+    'public_route_kind' => 'blog-home',
+    'public_presentation_mode' => 'canonical',
+]);
+$nativeStorefrontEntityViewTemplate = cmsResolveContentTemplate('public/entity.view.disyl', [], 'product', [
+    'public_render_origin' => 'ecommerce',
+    'public_route_kind' => 'product_detail',
+    'public_presentation_mode' => 'entity_view',
+]);
+$nativeStorefrontEntityListTemplate = cmsResolveContentTemplate('public/entity.list.disyl', [], 'product', [
+    'public_render_origin' => 'ecommerce',
+    'public_route_kind' => 'shop_index',
+    'public_presentation_mode' => 'entity_view',
+]);
+t('native theme page canonical entity view resolves native template', $nativePageEntityViewTemplate === '_cms_active_theme/public/entity.view.disyl', $nativePageEntityViewTemplate);
+t('native theme blog canonical entity list resolves native template', $nativeBlogEntityListTemplate === '_cms_active_theme/public/entity.list.disyl', $nativeBlogEntityListTemplate);
+t('native storefront product canonical entity view resolves native template', $nativeStorefrontEntityViewTemplate === '_cms_active_theme/public/entity.view.disyl', $nativeStorefrontEntityViewTemplate);
+t('native storefront catalog canonical entity list resolves native template', $nativeStorefrontEntityListTemplate === '_cms_active_theme/public/entity.list.disyl', $nativeStorefrontEntityListTemplate);
+
+$nativeBlogHomeRouteCacheKey = cmsPublicResolvedTemplateCacheKey(
+    'cms:home:entity_contract_v3:page:1:archive:all',
+    'public/entity.list.disyl',
+    [],
+    'post',
+    [
+        'public_render_origin' => 'cms',
+        'public_route_kind' => 'blog-home',
+        'public_presentation_mode' => 'canonical',
+    ]
+);
+$nativeCmsProductRouteCacheKey = cmsPublicResolvedTemplateCacheKey(
+    'cms:entity:product:demo-product',
+    'public/entity.view.disyl',
+    [],
+    'product',
+    [
+        'public_render_origin' => 'cms',
+        'public_route_kind' => 'generic',
+        'public_presentation_mode' => 'canonical',
+    ]
+);
+$nativeStorefrontProductRouteCacheKey = cmsPublicResolvedTemplateCacheKey(
+    'cms:entity:product:demo-product',
+    'public/entity.view.disyl',
+    [],
+    'product',
+    [
+        'public_render_origin' => 'ecommerce',
+        'public_route_kind' => 'product_detail',
+        'public_presentation_mode' => 'entity_view',
+    ]
+);
+t('native theme blog-home route cache key changes when canonical template ownership changes', $nativeBlogHomeRouteCacheKey !== $pocBlogHomeRouteCacheKey, json_encode([
+    'ecommerce_scope' => $pocBlogHomeRouteCacheKey,
+    'native_scope' => $nativeBlogHomeRouteCacheKey,
+]));
+t('native theme route cache key separates CMS and storefront product contexts', $nativeCmsProductRouteCacheKey !== $nativeStorefrontProductRouteCacheKey, json_encode([
+    'cms' => $nativeCmsProductRouteCacheKey,
+    'storefront' => $nativeStorefrontProductRouteCacheKey,
+]));
+
 $nativeCatalogProducts = [[
     'id' => 1,
     'slug' => 'demo-product',
@@ -723,6 +829,51 @@ $nativeProductHtml = captureEcRender('modules/ecommerce/public/product.disyl', [
 ]);
 t('native storefront product render uses single-product theme template', str_contains($nativeProductHtml, 'data-native-ecommerce-template="single-product"'), $nativeProductHtml);
 t('native storefront product render exposes storefront contract markers', str_contains($nativeProductHtml, 'data-storefront-route-kind="product_detail"') && str_contains($nativeProductHtml, 'data-storefront-product-id="1"'), $nativeProductHtml);
+
+$nativeCanonicalPageHtml = cmsPublicCanonicalRenderEntityView([
+    'id' => 201,
+    'title' => 'Native Canonical Page',
+    'slug' => 'native-canonical-page',
+    'body' => '<p>Native page body.</p>',
+    'type' => 'page',
+], [
+    'content_type' => 'page',
+    'meta' => [],
+    'rendered_html' => '<p>Native page body.</p>',
+    'public_render_origin' => 'cms',
+    'public_route_kind' => 'page',
+    'public_presentation_mode' => 'canonical',
+]);
+$nativeCanonicalBlogHtml = cmsPublicCanonicalRenderEntityList([
+    [
+        'id' => 301,
+        'title' => 'Native Canonical Post',
+        'slug' => 'native-canonical-post',
+        'type' => 'post',
+        'excerpt' => 'Post summary',
+        'author_name' => 'Test Author',
+        'published_at' => '2026-03-30 09:15:00',
+    ],
+], [
+    'default_type' => 'post',
+    'page_title' => 'Native Blog',
+    'list_title' => 'Native Blog',
+    'list_description' => '1 result',
+    'entity_list_context' => [
+        'base_list_url' => '/cms/blog',
+        'search_action_url' => '/cms/search',
+        'result_count' => 1,
+        'show_item_meta' => true,
+        'show_item_author' => true,
+        'show_item_date' => true,
+        'show_item_type_badge' => true,
+    ],
+    'public_render_origin' => 'cms',
+    'public_route_kind' => 'blog-home',
+    'public_presentation_mode' => 'canonical',
+]);
+t('native canonical page render uses native shell and canonical template marker', str_contains($nativeCanonicalPageHtml, '<body class="native-theme') && str_contains($nativeCanonicalPageHtml, 'data-native-canonical-template="entity-view"') && str_contains($nativeCanonicalPageHtml, 'site-header--sticky'), $nativeCanonicalPageHtml);
+t('native canonical list render uses native shell and canonical template marker', str_contains($nativeCanonicalBlogHtml, '<body class="native-theme') && str_contains($nativeCanonicalBlogHtml, 'data-native-canonical-template="entity-list"') && str_contains($nativeCanonicalBlogHtml, 'site-header--sticky'), $nativeCanonicalBlogHtml);
 
 $baseCatalogStorefront = ecBuildStorefrontCatalogContext($nativeCatalogProducts, [
     'route_kind' => 'shop_index',
@@ -997,9 +1148,12 @@ t('layout has {block head}', str_contains($layoutContent, '{block head}'));
 t('layout has {block scripts}', str_contains($layoutContent, '{block scripts}'));
 t('layout has Minimal Theme branding', str_contains($layoutContent, 'Minimal Theme'));
 
+$cmsPublicLayoutContent = file_get_contents(BASE_PATH . '/templates/modules/cms/layouts/public.disyl');
 $nativeLayoutContent = file_get_contents(STORAGE_PATH . '/cms-themes/native-default/layouts/public.disyl');
 $nativeDefaultStyleContent = file_get_contents(BASE_PATH . '/public/assets/cms/themes/native-default/style.css') ?: '';
 $nativeDefaultScriptContent = file_get_contents(BASE_PATH . '/public/assets/cms/themes/native-default/script.js') ?: '';
+t('cms public layout keeps the shared fallback header non-sticky', !str_contains($cmsPublicLayoutContent, 'header-wrapper--sticky') && !str_contains($cmsPublicLayoutContent, 'site-header site-header--sticky'), $cmsPublicLayoutContent);
+t('native layout fallback header uses sticky wrapper markup', str_contains($nativeLayoutContent, '<div class="header-wrapper header-wrapper--sticky">') && str_contains($nativeLayoutContent, '<header class="site-header site-header--sticky">'), $nativeLayoutContent);
 t('native layout noscript fallback reveals body', str_contains($nativeLayoutContent, 'body:not(.cz-loaded),[data-animate]{opacity:1!important;transform:none!important;}'));
 t('native layout inline fallback reveals animated content', str_contains($nativeLayoutContent, 'document.body.classList.add(\'cz-loaded\')'));
 t('native default theme sticky assets follow wrapper-based sticky header markup', str_contains($nativeDefaultScriptContent, "const wrapper = document.querySelector('.header-wrapper--sticky');") && str_contains($nativeDefaultScriptContent, "header.classList.toggle('scrolled', hasScrolled);") && str_contains($nativeDefaultScriptContent, "wrapper.classList.toggle('scrolled', hasScrolled);") && str_contains($nativeDefaultStyleContent, '.header-wrapper--sticky.scrolled .site-header,') && str_contains($nativeDefaultStyleContent, '.site-header.site-header--sticky.scrolled {'), $nativeDefaultScriptContent . "\n---\n" . $nativeDefaultStyleContent);
@@ -1028,6 +1182,9 @@ $archiveTemplateContent = file_get_contents(BASE_PATH . '/templates/modules/cms/
 $singleTemplateContent = file_get_contents(BASE_PATH . '/templates/modules/cms/public/single.disyl') ?: '';
 $baseShopTemplateContent = file_get_contents(BASE_PATH . '/templates/modules/ecommerce/public/shop.disyl') ?: '';
 $baseProductTemplateContent = file_get_contents(BASE_PATH . '/templates/modules/ecommerce/public/product.disyl') ?: '';
+$nativeCanonicalStylesContent = file_get_contents(BASE_PATH . '/storage/cms-themes/native-default/public/partials/canonical-entity-styles.disyl') ?: '';
+$nativeCanonicalEntityListTemplateContent = file_get_contents(BASE_PATH . '/storage/cms-themes/native-default/public/entity.list.disyl') ?: '';
+$nativeCanonicalEntityViewTemplateContent = file_get_contents(BASE_PATH . '/storage/cms-themes/native-default/public/entity.view.disyl') ?: '';
 $nativeArchiveProductTemplateContent = file_get_contents(BASE_PATH . '/storage/cms-themes/native-default/public/ecommerce/archive-product.disyl') ?: '';
 $nativeSingleProductTemplateContent = file_get_contents(BASE_PATH . '/storage/cms-themes/native-default/public/ecommerce/single-product.disyl') ?: '';
 t('customizer tracks per-section dirty state for scoped saves', str_contains($customizerTemplateContent, 'dirtySections: { footer: false, header: false, sidebar: false, colors: false, custom_code: false, theme: false, entity_presentation: false }'));
@@ -1037,6 +1194,11 @@ t('canonical entity list template exposes dedicated card title hook for catalog 
 t('canonical entity list template exposes storefront contract markers and title bridge', str_contains($entityListTemplateContent, 'data-storefront-route-kind=') && str_contains($entityListTemplateContent, 'storefront.page.title|default:list_title'), $entityListTemplateContent);
 t('canonical entity view template extends the canonical CMS public layout', str_contains($entityViewTemplateContent, '{extends "modules/cms/layouts/public.disyl"}'), $entityViewTemplateContent);
 t('canonical entity view template exposes storefront contract markers', str_contains($entityViewTemplateContent, 'data-storefront-route-kind=') && str_contains($entityViewTemplateContent, 'data-storefront-product-id='), $entityViewTemplateContent);
+t('native default theme ships canonical entity block styles for non-Tailwind shells', str_contains($nativeCanonicalStylesContent, '.native-canonical-list__grid {') && str_contains($nativeCanonicalStylesContent, '.cms-gallery-grid {') && str_contains($nativeCanonicalStylesContent, '.cms-pricing-block {'), $nativeCanonicalStylesContent);
+t('native default theme ships canonical entity list template', str_contains($nativeCanonicalEntityListTemplateContent, '{extends "_cms_active_theme/layouts/public.disyl"}') && str_contains($nativeCanonicalEntityListTemplateContent, 'data-native-canonical-template="entity-list"'), $nativeCanonicalEntityListTemplateContent);
+t('native default theme canonical entity list template keeps storefront contract markers', str_contains($nativeCanonicalEntityListTemplateContent, 'data-storefront-route-kind=') && str_contains($nativeCanonicalEntityListTemplateContent, 'cms-entity-list__grid native-canonical-list__grid'), $nativeCanonicalEntityListTemplateContent);
+t('native default theme ships canonical entity view template', str_contains($nativeCanonicalEntityViewTemplateContent, '{extends "_cms_active_theme/layouts/public.disyl"}') && str_contains($nativeCanonicalEntityViewTemplateContent, 'data-native-canonical-template="entity-view"'), $nativeCanonicalEntityViewTemplateContent);
+t('native default theme canonical entity view template keeps shared block includes for canonical contracts', str_contains($nativeCanonicalEntityViewTemplateContent, 'modules/cms/public/blocks/entity-summary.block.disyl') && str_contains($nativeCanonicalEntityViewTemplateContent, 'modules/cms/public/blocks/meta.block.disyl'), $nativeCanonicalEntityViewTemplateContent);
 t('native default theme ships dedicated archive-product storefront template', str_contains($nativeArchiveProductTemplateContent, 'data-native-ecommerce-template="archive-product"'), $nativeArchiveProductTemplateContent);
 t('native archive-product storefront template uses editorial catalog masthead and chip rail', str_contains($nativeArchiveProductTemplateContent, 'native-shop-masthead') && str_contains($nativeArchiveProductTemplateContent, 'native-shop-chip'), $nativeArchiveProductTemplateContent);
 t('native archive-product storefront template supports category dropdown navigation mode', str_contains($nativeArchiveProductTemplateContent, "theme_settings.entity_list_category_navigation == 'dropdown'") && str_contains($nativeArchiveProductTemplateContent, 'native-shop-category-picker'), $nativeArchiveProductTemplateContent);

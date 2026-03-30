@@ -1,0 +1,189 @@
+{extends "_cms_active_theme/layouts/public.disyl"}
+
+{block head}
+{if cms_head}{cms_head | raw}{/if}
+{include "_cms_active_theme/public/ecommerce/partials/storefront-styles.disyl"}
+{include "_cms_active_theme/public/partials/canonical-entity-styles.disyl"}
+{/block}
+
+{block content}
+<section
+    class="cms-entity-list native-canonical-list cms-entity-list--density-{entity_presentation.list_card_density|default:'comfortable'}"
+    data-native-canonical-template="entity-list"
+    data-public-render-origin="{public_render_origin|default:'cms'}"
+    data-public-route-kind="{public_route_kind|default:'generic'}"
+    data-public-presentation-mode="{public_presentation_mode|default:'traditional'}"
+    data-storefront-route-kind="{storefront.route.kind|default:public_route_kind|default:'generic'}"
+    data-storefront-mode="{storefront.route.mode|default:public_presentation_mode|default:'traditional'}"
+    data-storefront-page-kind="{storefront.page.kind|default:'catalog'}"
+    data-storefront-result-total="{storefront.collection.total|default:entity_list_context.result_count|default:0}"
+    data-list-search="{entity_list_context.search|default:''}"
+    data-list-category-slug="{entity_list_context.category_slug|default:''}"
+    data-list-result-count="{entity_list_context.result_count|default:0}"
+    data-list-active-filter-count="{entity_list_context.active_filter_count|default:0}"
+>
+    {if list_title}
+    <header class="native-storefront-hero native-canonical-hero">
+        <div>
+            <p class="native-storefront-kicker">{entity_list_context.result_label|default:entity_list_context.category_navigation_label|default:'Listing'}</p>
+            <h1>{storefront.page.title|default:list_title}</h1>
+            {if storefront.page.description|default:list_description}
+            <p class="native-storefront-subtitle">{storefront.page.description|default:list_description}</p>
+            {/if}
+            {if entity_presentation.list_show_filter_summary and (entity_list_context.result_label or entity_list_context.category_name or entity_list_context.search)}
+            <div class="native-canonical-hero__summary">
+                {if entity_list_context.result_label}<span class="native-pill native-pill--muted">{entity_list_context.result_label}</span>{/if}
+                {if entity_list_context.category_name}<span class="native-pill">Category: {entity_list_context.category_name}</span>{/if}
+                {if entity_list_context.search}<span class="native-pill native-pill--sale">Search: &quot;{entity_list_context.search}&quot;</span>{/if}
+            </div>
+            {/if}
+        </div>
+
+        <div class="native-storefront-panel">
+            <h2 class="native-panel-title">Catalog Snapshot</h2>
+            <p class="native-panel-copy">{entity_list_context.result_count|default:storefront.collection.total|default:0} item(s) are available for this route.</p>
+            <div class="native-stack" style="margin-top:1rem;">
+                <div class="native-key-value"><strong>Mode</strong><span class="native-muted">{public_presentation_mode|default:'traditional'}</span></div>
+                <div class="native-key-value"><strong>Route</strong><span class="native-muted">{public_route_kind|default:'generic'}</span></div>
+                {if entity_list_context.category_name}
+                <div class="native-key-value"><strong>Category</strong><span class="native-muted">{entity_list_context.category_name}</span></div>
+                {/if}
+            </div>
+        </div>
+    </header>
+    {/if}
+
+    {if entity_list_context.search_action_url or entity_list_context.available_categories | count > 0}
+    <div class="native-canonical-toolbar">
+        <div class="native-canonical-toolbar__forms">
+            {if entity_list_context.search_action_url}
+            <form method="get" action="{entity_list_context.search_action_url|default:entity_list_context.base_list_url}" class="native-search native-canonical-search">
+                {if entity_list_context.category_id > 0 and entity_list_context.category_slug == ''}<input type="hidden" name="cat" value="{entity_list_context.category_id}">{/if}
+                <input
+                    type="text"
+                    name="search"
+                    value="{entity_list_context.search|default:''}"
+                    placeholder="{entity_list_context.search_placeholder|default:'Search products'}"
+                >
+                <button type="submit">{entity_list_context.search_button_label|default:'Search'}</button>
+            </form>
+            {/if}
+
+            {if entity_list_context.available_categories | count > 0}
+                {if entity_presentation.list_category_navigation == 'dropdown'}
+                <form method="get" action="{entity_list_context.all_items_url|default:entity_list_context.base_list_url}" class="native-canonical-category-picker">
+                    {if entity_list_context.search}<input type="hidden" name="search" value="{entity_list_context.search}">{/if}
+                    <label for="native-canonical-category">{entity_list_context.category_navigation_label|default:'Browse Categories'}</label>
+                    <div class="native-canonical-category-picker__controls">
+                        <select id="native-canonical-category" name="cat">
+                            <option value="" {if entity_list_context.category_id == 0 and entity_list_context.category_slug == ''}selected{/if}>{entity_list_context.all_items_label|default:'All Items'}</option>
+                            {foreach entity_list_context.available_categories as category}
+                            <option value="{category.id}" {if category.is_active}selected{/if}>{category.name}</option>
+                            {/foreach}
+                        </select>
+                        <button type="submit">{entity_list_context.category_submit_label|default:'Browse'}</button>
+                    </div>
+                </form>
+                {else}
+                <nav class="native-canonical-chip-row" aria-label="Categories">
+                    <a href="{entity_list_context.all_items_url|default:entity_list_context.base_list_url}" class="native-shop-chip {if entity_list_context.category_id == 0 and entity_list_context.category_slug == ''}is-active{/if}">{entity_list_context.all_items_label|default:'All Items'}</a>
+                    {foreach entity_list_context.available_categories as category}
+                    <a href="{category.url}" class="native-shop-chip {if category.is_active}is-active{/if}">{category.name}</a>
+                    {/foreach}
+                </nav>
+                {/if}
+            {/if}
+        </div>
+
+        {if search || entity_list_context.search || entity_list_context.category_name}
+        <div class="native-canonical-toolbar__meta">
+            {if entity_list_context.category_name}
+            <span>Filtered by {entity_list_context.category_name}</span>
+            {/if}
+            {if entity_list_context.search}
+            <span>Search term: &quot;{entity_list_context.search}&quot;</span>
+            {/if}
+            {if entity_list_context.all_items_url and entity_list_context.active_filter_count > 0}
+            <a href="{entity_list_context.all_items_url}">{entity_list_context.empty_link_label|default:'Reset filters'}</a>
+            {/if}
+        </div>
+        {/if}
+    </div>
+    {/if}
+
+    {if items}
+    <div class="cms-entity-list__grid native-canonical-list__grid">
+        {foreach items as item}
+        <article
+            class="cms-entity-card ikb-card native-canonical-card"
+            data-entity-kind="list-item"
+            data-entity-type="{item.entity_type|default:content_type|default:'generic'}"
+            data-entity-id="{item.id|default:''}"
+            data-entity-slug="{item.slug|default:''}"
+        >
+            <a href="{item.url}" class="native-canonical-card__media">
+                {if item.primary_image_url}
+                <img src="{item.primary_image_url}" alt="{item.title}">
+                {else}
+                <img src="{base_url}/assets/ecommerce/product-placeholder.svg" alt="{item.title}">
+                {/if}
+            </a>
+
+            <div class="cms-entity-card__body native-canonical-card__body">
+                {if entity_list_context.show_item_type_badge}
+                <div>
+                    <span class="cms-entity-meta__type">{item.entity_type_label|default:item.content_type_label|default:item.entity_type|default:content_type|default:'Item'}</span>
+                </div>
+                {/if}
+
+                <h2 class="cms-entity-card__title ikb-card-title"><a href="{item.url}">{item.title}</a></h2>
+
+                {if entity_list_context.show_item_meta}
+                <p class="native-canonical-card__meta">
+                    {if entity_list_context.show_item_author and item.author_name}<span>By {item.author_name}</span>{/if}
+                    {if entity_list_context.show_item_date and item.published_at}<span>{item.published_at_display|default:item.published_at}</span>{/if}
+                </p>
+                {/if}
+
+                {if item.list_card_excerpt}
+                <p class="cms-entity-card__excerpt card-excerpt">{item.list_card_excerpt}</p>
+                {/if}
+
+                {if item.list_card_pricing_html or item.list_card_inventory_html or item.list_card_progress_html}
+                <div class="native-canonical-card__addons">
+                    {if item.list_card_pricing_html}{item.list_card_pricing_html | raw}{/if}
+                    {if item.list_card_inventory_html}{item.list_card_inventory_html | raw}{/if}
+                    {if item.list_card_progress_html}{item.list_card_progress_html | raw}{/if}
+                </div>
+                {/if}
+            </div>
+
+            {if item.list_card_action_html}
+            <div class="native-canonical-card__actions">
+                {item.list_card_action_html | raw}
+            </div>
+            {/if}
+        </article>
+        {/foreach}
+    </div>
+
+    {if pagination}
+    <nav class="native-pagination" aria-label="Pagination">
+        <ul>
+            {if pagination.prev_url}<li><a href="{pagination.prev_url}">&larr; Previous</a></li>{/if}
+            <li class="current"><span>Page {pagination.current} of {pagination.total}</span></li>
+            {if pagination.next_url}<li><a href="{pagination.next_url}">Next &rarr;</a></li>{/if}
+        </ul>
+    </nav>
+    {/if}
+    {else}
+    <div class="native-storefront-panel native-canonical-empty">
+        <h2 class="native-panel-title">{entity_list_context.empty_title|default:'No items found.'}</h2>
+        {if entity_list_context.empty_body}<p class="native-panel-copy">{entity_list_context.empty_body}</p>{/if}
+        {if entity_list_context.all_items_url and entity_list_context.active_filter_count > 0}
+        <a href="{entity_list_context.all_items_url}" class="button button-primary">{entity_list_context.empty_link_label|default:'Browse all items'}</a>
+        {/if}
+    </div>
+    {/if}
+</section>
+{/block}
