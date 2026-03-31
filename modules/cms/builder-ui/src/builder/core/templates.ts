@@ -12,7 +12,7 @@ import { DiSyLNode, createNode, TEMPLATE_DEFAULTS, DEFAULT_MOBILE_COLLAPSE } fro
 // Template Categories
 // =============================================================================
 
-export type TemplateCategory = 'hero' | 'features' | 'content' | 'cta' | 'testimonials' | 'pricing' | 'contact' | 'footer';
+export type TemplateCategory = 'hero' | 'features' | 'content' | 'entity' | 'cta' | 'testimonials' | 'pricing' | 'contact' | 'footer';
 
 export interface SectionTemplate {
   id: string;
@@ -119,6 +119,100 @@ function createButton(props: Record<string, unknown>, style: Record<string, unkn
     padding: TEMPLATE_DEFAULTS.button.padding,
     ...style,
   });
+}
+
+function createBadgeRow(labels: string[], options: { backgroundColor?: string; color?: string } = {}): DiSyLNode {
+  const backgroundColor = options.backgroundColor || '#e0f2fe';
+  const color = options.color || '#0369a1';
+
+  return createNode('container', {}, {
+    display: 'flex',
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: '10px',
+    width: '100%',
+  }, labels.map((label) => createNode('text', { content: label }, {
+    fontSize: '12px',
+    fontWeight: '700',
+    color,
+    backgroundColor,
+    borderRadius: '999px',
+    padding: '7px 12px',
+    lineHeight: '1.2',
+  })));
+}
+
+function createEntityTemplateSection(options: {
+  eyebrow: string;
+  heading: string;
+  description: string;
+  badges: string[];
+  widget: DiSyLNode;
+  backgroundColor?: string;
+  accentColor?: string;
+  badgeBackgroundColor?: string;
+  surfaceColor?: string;
+  surfaceBorderColor?: string;
+}): DiSyLNode {
+  const accentColor = options.accentColor || '#0369a1';
+  const surfaceColor = options.surfaceColor || '#ffffff';
+  const surfaceBorderColor = options.surfaceBorderColor || 'rgba(15, 23, 42, 0.08)';
+
+  return createSection({}, {
+    padding: '80px 24px',
+    backgroundColor: options.backgroundColor || '#f8fafc',
+  }, [
+    createContainer({}, {
+      maxWidth: '1200px',
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'stretch',
+      gap: '28px',
+    }, [
+      createNode('container', {}, {
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'flex-start',
+        gap: '16px',
+        width: '100%',
+      }, [
+        createNode('text', { content: options.eyebrow }, {
+          fontSize: '12px',
+          fontWeight: '700',
+          letterSpacing: '0.08em',
+          textTransform: 'uppercase',
+          color: accentColor,
+        }),
+        createNode('heading', { content: options.heading, level: 2 }, {
+          fontSize: '36px',
+          fontWeight: '700',
+          color: '#0f172a',
+          lineHeight: '1.2',
+          textAlign: 'left',
+          width: '100%',
+          mobile: { fontSize: '28px' },
+        }),
+        createNode('text', { content: options.description }, {
+          fontSize: '17px',
+          color: '#475569',
+          lineHeight: '1.7',
+          maxWidth: '820px',
+        }),
+        createBadgeRow(options.badges, {
+          backgroundColor: options.badgeBackgroundColor || '#e0f2fe',
+          color: accentColor,
+        }),
+      ]),
+      createNode('container', {}, {
+        width: '100%',
+        padding: '24px',
+        backgroundColor: surfaceColor,
+        border: `1px solid ${surfaceBorderColor}`,
+        borderRadius: '24px',
+        boxShadow: '0 16px 40px rgba(15, 23, 42, 0.08)',
+      }, [options.widget]),
+    ]),
+  ]);
 }
 
 // =============================================================================
@@ -247,13 +341,13 @@ const heroCentered: SectionTemplate = {
         mobile: { fontSize: '16px' },
       }),
       createFlexRow({}, { gap: '16px', justifyContent: 'center', flexWrap: 'wrap' }, [
-        createButton({ content: 'Get Started Free', variant: 'primary' }, { 
-          padding: '16px 32px', 
+        createButton({ content: 'Get Started Free', variant: 'primary' }, {
+          padding: '16px 32px',
           fontSize: '16px',
           backgroundColor: '#3b82f6',
         }),
-        createButton({ content: 'Watch Demo', variant: 'ghost' }, { 
-          padding: '16px 32px', 
+        createButton({ content: 'Watch Demo', variant: 'ghost' }, {
+          padding: '16px 32px',
           fontSize: '16px',
           color: '#ffffff',
         }),
@@ -426,12 +520,12 @@ const ctaSimple: SectionTemplate = {
         lineHeight: '1.6',
       }),
       createNode('row', {}, { display: 'flex', gap: '12px' }, [
-        createNode('button', { content: 'Start Free Trial', variant: 'primary' }, { 
+        createNode('button', { content: 'Start Free Trial', variant: 'primary' }, {
           padding: '14px 28px',
           backgroundColor: '#ffffff',
           color: '#3b82f6',
         }),
-        createNode('button', { content: 'Contact Sales', variant: 'outline' }, { 
+        createNode('button', { content: 'Contact Sales', variant: 'outline' }, {
           padding: '14px 28px',
           borderColor: '#ffffff',
           color: '#ffffff',
@@ -466,7 +560,7 @@ const ctaBanner: SectionTemplate = {
           }),
         ]),
         createNode('column', {}, {}, [
-          createNode('button', { content: 'Get Started', variant: 'primary' }, { 
+          createNode('button', { content: 'Get Started', variant: 'primary' }, {
             padding: '14px 32px',
             backgroundColor: '#3b82f6',
           }),
@@ -676,24 +770,24 @@ const slideshowHeroFullscreen: SectionTemplate = {
   }, [
     createNode('slideshow', {
       slides: [
-        { 
-          id: 'slide1', 
+        {
+          id: 'slide1',
           image: 'https://images.unsplash.com/photo-1497366216548-37526070297c?w=1920&h=800&fit=crop',
           title: 'Welcome to Our Platform',
           description: 'Build amazing digital experiences with our powerful, intuitive tools designed for modern businesses',
           ctaText: 'Get Started Free',
           ctaLink: '#signup'
         },
-        { 
-          id: 'slide2', 
+        {
+          id: 'slide2',
           image: 'https://images.unsplash.com/photo-1522071820081-009f0129c71c?w=1920&h=800&fit=crop',
           title: 'Collaborate Seamlessly',
           description: 'Work together with your team in real-time. Share ideas, track progress, and achieve goals faster',
           ctaText: 'See How It Works',
           ctaLink: '#features'
         },
-        { 
-          id: 'slide3', 
+        {
+          id: 'slide3',
           image: 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=1920&h=800&fit=crop',
           title: 'Grow Your Business',
           description: 'Scale with confidence using our enterprise-grade solutions trusted by thousands of companies worldwide',
@@ -738,24 +832,24 @@ const slideshowProductShowcase: SectionTemplate = {
       }),
       createNode('slideshow', {
         slides: [
-          { 
-            id: 'product1', 
+          {
+            id: 'product1',
             image: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=1400&h=600&fit=crop',
             title: 'Premium Headphones',
             description: 'Experience crystal clear sound with our award-winning noise-canceling technology. Starting at $299',
             ctaText: 'Shop Now',
             ctaLink: '#product-headphones'
           },
-          { 
-            id: 'product2', 
+          {
+            id: 'product2',
             image: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=1400&h=600&fit=crop',
             title: 'Smart Watch Pro',
             description: 'Stay connected on the go with health tracking, notifications, and 7-day battery life. From $399',
             ctaText: 'Shop Now',
             ctaLink: '#product-watch'
           },
-          { 
-            id: 'product3', 
+          {
+            id: 'product3',
             image: 'https://images.unsplash.com/photo-1572635196237-14b3f281503f?w=1400&h=600&fit=crop',
             title: 'Designer Sunglasses',
             description: 'Where style meets UV protection. Handcrafted Italian frames with polarized lenses. $199',
@@ -803,20 +897,20 @@ const slideshowTestimonials: SectionTemplate = {
       }),
       createNode('slideshow', {
         slides: [
-          { 
-            id: 'testimonial1', 
+          {
+            id: 'testimonial1',
             image: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=1000&h=500&fit=crop',
             title: '"Game-changing platform!"',
             description: 'This tool has transformed how we work. Highly recommended! - Sarah Johnson, CEO'
           },
-          { 
-            id: 'testimonial2', 
+          {
+            id: 'testimonial2',
             image: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=1000&h=500&fit=crop',
             title: '"Incredible results"',
             description: 'We saw 300% growth in just 6 months. Amazing! - Michael Chen, Founder'
           },
-          { 
-            id: 'testimonial3', 
+          {
+            id: 'testimonial3',
             image: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=1000&h=500&fit=crop',
             title: '"Best investment ever"',
             description: 'The ROI has been phenomenal. Worth every penny! - Emily Davis, CMO'
@@ -858,20 +952,20 @@ const slideshowPortfolio: SectionTemplate = {
       }),
       createNode('slideshow', {
         slides: [
-          { 
-            id: 'project1', 
+          {
+            id: 'project1',
             image: 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=1600&h=700&fit=crop',
             title: 'E-Commerce Platform',
             description: 'Modern shopping experience for global brands'
           },
-          { 
-            id: 'project2', 
+          {
+            id: 'project2',
             image: 'https://images.unsplash.com/photo-1551434678-e076c223a692?w=1600&h=700&fit=crop',
             title: 'Mobile App Design',
             description: 'Intuitive interfaces that users love'
           },
-          { 
-            id: 'project3', 
+          {
+            id: 'project3',
             image: 'https://images.unsplash.com/photo-1542744173-8e7e53415bb0?w=1600&h=700&fit=crop',
             title: 'Brand Identity',
             description: 'Creating memorable visual experiences'
@@ -903,20 +997,20 @@ const slideshowCompactBanner: SectionTemplate = {
     }, [
       createNode('slideshow', {
         slides: [
-          { 
-            id: 'promo1', 
+          {
+            id: 'promo1',
             image: 'https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?w=1200&h=300&fit=crop',
             title: '🎉 Summer Sale - 50% Off',
             description: 'Limited time offer on all products'
           },
-          { 
-            id: 'promo2', 
+          {
+            id: 'promo2',
             image: 'https://images.unsplash.com/photo-1607082349566-187342175e2f?w=1200&h=300&fit=crop',
             title: '🚀 New Arrivals',
             description: 'Check out our latest collection'
           },
-          { 
-            id: 'promo3', 
+          {
+            id: 'promo3',
             image: 'https://images.unsplash.com/photo-1607082350899-7e105aa886ae?w=1200&h=300&fit=crop',
             title: '📦 Free Shipping',
             description: 'On orders over $50'
@@ -998,8 +1092,8 @@ const blogFeaturedPost: SectionTemplate = {
       createFlexRow({}, { gap: '48px', alignItems: 'stretch' }, [
         // Featured image
         createFlexColumn({}, { flex: '1 1 55%' }, [
-          createImage({ src: 'https://images.unsplash.com/photo-1522202176988-66273c2fd55f?w=800&h=600&fit=crop', alt: 'Featured post' }, { 
-            height: '400px', 
+          createImage({ src: 'https://images.unsplash.com/photo-1522202176988-66273c2fd55f?w=800&h=600&fit=crop', alt: 'Featured post' }, {
+            height: '400px',
             borderRadius: '16px',
             boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)',
           }),
@@ -1133,7 +1227,7 @@ const servicesGrid: SectionTemplate = {
         createNode('text', { content: 'Comprehensive solutions tailored to your business needs' }, { fontSize: '18px', color: '#6b7280' }),
       ]),
       createFlexRow({}, { gap: '32px' }, [
-        createFlexColumn({}, { 
+        createFlexColumn({}, {
           flex: '1 1 280px',
           padding: '32px',
           backgroundColor: '#f8fafc',
@@ -1145,7 +1239,7 @@ const servicesGrid: SectionTemplate = {
           createNode('text', { content: 'Custom websites built with modern technologies for optimal performance and user experience.' }, { fontSize: '14px', color: '#6b7280', lineHeight: '1.6' }),
           createNode('list', { items: ['Responsive Design', 'SEO Optimized', 'Fast Loading'], listType: 'check' }, {}),
         ]),
-        createFlexColumn({}, { 
+        createFlexColumn({}, {
           flex: '1 1 280px',
           padding: '32px',
           backgroundColor: '#f8fafc',
@@ -1157,7 +1251,7 @@ const servicesGrid: SectionTemplate = {
           createNode('text', { content: 'Build a strong brand identity that resonates with your target audience and stands out.' }, { fontSize: '14px', color: '#6b7280', lineHeight: '1.6' }),
           createNode('list', { items: ['Logo Design', 'Brand Guidelines', 'Visual Identity'], listType: 'check' }, {}),
         ]),
-        createFlexColumn({}, { 
+        createFlexColumn({}, {
           flex: '1 1 280px',
           padding: '32px',
           backgroundColor: '#f8fafc',
@@ -1196,13 +1290,13 @@ const servicesProcess: SectionTemplate = {
       createNode('container', {}, { display: 'flex', flexDirection: 'column', gap: '48px' }, [
         // Step 1
         createFlexRow({}, { gap: '32px', alignItems: 'center' }, [
-          createNode('container', {}, { 
-            width: '80px', 
-            height: '80px', 
-            backgroundColor: '#3B82F6', 
-            borderRadius: '50%', 
-            display: 'flex', 
-            alignItems: 'center', 
+          createNode('container', {}, {
+            width: '80px',
+            height: '80px',
+            backgroundColor: '#3B82F6',
+            borderRadius: '50%',
+            display: 'flex',
+            alignItems: 'center',
             justifyContent: 'center',
             flexShrink: '0',
           }, [
@@ -1215,13 +1309,13 @@ const servicesProcess: SectionTemplate = {
         ]),
         // Step 2
         createFlexRow({}, { gap: '32px', alignItems: 'center' }, [
-          createNode('container', {}, { 
-            width: '80px', 
-            height: '80px', 
-            backgroundColor: '#10B981', 
-            borderRadius: '50%', 
-            display: 'flex', 
-            alignItems: 'center', 
+          createNode('container', {}, {
+            width: '80px',
+            height: '80px',
+            backgroundColor: '#10B981',
+            borderRadius: '50%',
+            display: 'flex',
+            alignItems: 'center',
             justifyContent: 'center',
             flexShrink: '0',
           }, [
@@ -1234,13 +1328,13 @@ const servicesProcess: SectionTemplate = {
         ]),
         // Step 3
         createFlexRow({}, { gap: '32px', alignItems: 'center' }, [
-          createNode('container', {}, { 
-            width: '80px', 
-            height: '80px', 
-            backgroundColor: '#F59E0B', 
-            borderRadius: '50%', 
-            display: 'flex', 
-            alignItems: 'center', 
+          createNode('container', {}, {
+            width: '80px',
+            height: '80px',
+            backgroundColor: '#F59E0B',
+            borderRadius: '50%',
+            display: 'flex',
+            alignItems: 'center',
             justifyContent: 'center',
             flexShrink: '0',
           }, [
@@ -1373,10 +1467,10 @@ const aboutMission: SectionTemplate = {
       createNode('container', {}, { marginTop: '24px' }, [
         createNode('heading', { content: 'Our Core Values', level: 3 }, { fontSize: '24px', fontWeight: '600', color: '#ffffff', textAlign: 'center', marginBottom: '40px' }),
         createFlexRow({}, { gap: '24px' }, [
-          createFlexColumn({}, { 
-            flex: '1 1 250px', 
-            padding: '32px', 
-            backgroundColor: 'rgba(255,255,255,0.05)', 
+          createFlexColumn({}, {
+            flex: '1 1 250px',
+            padding: '32px',
+            backgroundColor: 'rgba(255,255,255,0.05)',
             borderRadius: '12px',
             border: '1px solid rgba(255,255,255,0.1)',
           }, [
@@ -1384,10 +1478,10 @@ const aboutMission: SectionTemplate = {
             createNode('heading', { content: 'Passion', level: 4 }, { fontSize: '18px', fontWeight: '600', color: '#ffffff', marginBottom: '8px' }),
             createNode('text', { content: 'We love what we do and it shows in every project we deliver.' }, { fontSize: '14px', color: '#94a3b8', lineHeight: '1.6' }),
           ]),
-          createFlexColumn({}, { 
-            flex: '1 1 250px', 
-            padding: '32px', 
-            backgroundColor: 'rgba(255,255,255,0.05)', 
+          createFlexColumn({}, {
+            flex: '1 1 250px',
+            padding: '32px',
+            backgroundColor: 'rgba(255,255,255,0.05)',
             borderRadius: '12px',
             border: '1px solid rgba(255,255,255,0.1)',
           }, [
@@ -1395,10 +1489,10 @@ const aboutMission: SectionTemplate = {
             createNode('heading', { content: 'Excellence', level: 4 }, { fontSize: '18px', fontWeight: '600', color: '#ffffff', marginBottom: '8px' }),
             createNode('text', { content: 'We never settle for good enough. Excellence is our standard.' }, { fontSize: '14px', color: '#94a3b8', lineHeight: '1.6' }),
           ]),
-          createFlexColumn({}, { 
-            flex: '1 1 250px', 
-            padding: '32px', 
-            backgroundColor: 'rgba(255,255,255,0.05)', 
+          createFlexColumn({}, {
+            flex: '1 1 250px',
+            padding: '32px',
+            backgroundColor: 'rgba(255,255,255,0.05)',
             borderRadius: '12px',
             border: '1px solid rgba(255,255,255,0.1)',
           }, [
@@ -1406,10 +1500,10 @@ const aboutMission: SectionTemplate = {
             createNode('heading', { content: 'Integrity', level: 4 }, { fontSize: '18px', fontWeight: '600', color: '#ffffff', marginBottom: '8px' }),
             createNode('text', { content: 'Honesty and transparency guide every decision we make.' }, { fontSize: '14px', color: '#94a3b8', lineHeight: '1.6' }),
           ]),
-          createFlexColumn({}, { 
-            flex: '1 1 250px', 
-            padding: '32px', 
-            backgroundColor: 'rgba(255,255,255,0.05)', 
+          createFlexColumn({}, {
+            flex: '1 1 250px',
+            padding: '32px',
+            backgroundColor: 'rgba(255,255,255,0.05)',
             borderRadius: '12px',
             border: '1px solid rgba(255,255,255,0.1)',
           }, [
@@ -1421,6 +1515,335 @@ const aboutMission: SectionTemplate = {
       ]),
     ]),
   ]),
+};
+
+// =============================================================================
+// Entity Templates (Mar 2026)
+// =============================================================================
+
+const entityCurrentDetail: SectionTemplate = {
+  id: 'entity-current-detail',
+  name: 'Current Entity Detail',
+  category: 'entity',
+  description: 'Full current-entity layout using the canonical entity view contract',
+  createNode: () => createEntityTemplateSection({
+    eyebrow: 'Universal entity contract',
+    heading: 'Current entity detail',
+    description: 'Use this on entity pages when you want the builder section to stay aligned with the canonical entity view contract instead of rebuilding media, capability blocks, and actions by hand.',
+    badges: ['Current entity', 'Media', 'Pricing', 'Inventory', 'Actions'],
+    accentColor: '#0f766e',
+    badgeBackgroundColor: '#dcfce7',
+    surfaceColor: '#ffffff',
+    widget: createNode('entity_view', {
+      showFeaturedImage: true,
+      showTitle: true,
+      showMeta: true,
+      showTypeLabel: true,
+      showAuthor: true,
+      showDate: true,
+      showPricing: true,
+      showInventory: true,
+      showSku: true,
+      showProgress: true,
+      showLessons: true,
+      showActions: true,
+      showBody: true,
+    }, {
+      width: '100%',
+      display: 'block',
+    }),
+  }),
+};
+
+const entityProductStorefront: SectionTemplate = {
+  id: 'entity-product-storefront',
+  name: 'Product Storefront',
+  category: 'entity',
+  description: 'Ecommerce-ready product grid with pricing and direct product CTA buttons',
+  createNode: () => createEntityTemplateSection({
+    eyebrow: 'Ecommerce preset',
+    heading: 'Featured products',
+    description: 'Built for product entities using the ecommerce preset. This template leads with imagery, description, price, and a direct product action so it can drop straight into a storefront or landing page.',
+    badges: ['Preset: ecommerce', 'Cards: pricing', 'Cards: action'],
+    accentColor: '#0f766e',
+    badgeBackgroundColor: '#ccfbf1',
+    widget: createNode('products_grid', {
+      itemCount: 6,
+      gridColumns: 3,
+      showImage: true,
+      showTitle: true,
+      showExcerpt: true,
+      excerptLength: 100,
+      showMeta: true,
+      showAction: true,
+      actionText: 'View Product',
+      orderBy: 'date',
+      order: 'desc',
+      emptyMessage: 'Add published products to populate your storefront.',
+    }, {
+      display: 'grid',
+      gridTemplateColumns: 'repeat(3, 1fr)',
+      gap: '24px',
+      width: '100%',
+    }),
+  }),
+};
+
+const entityProductInventoryCards: SectionTemplate = {
+  id: 'entity-product-inventory-cards',
+  name: 'Product Inventory Cards',
+  category: 'entity',
+  description: 'Product list cards that emphasize pricing and stock state',
+  createNode: () => createEntityTemplateSection({
+    eyebrow: 'Storefront cards',
+    heading: 'Inventory-aware product cards',
+    description: 'Use this when you want the product catalog to foreground the pricing and inventory card surfaces defined by the entity list contract.',
+    badges: ['Preset: ecommerce', 'Cards: pricing', 'Cards: inventory'],
+    accentColor: '#0f766e',
+    badgeBackgroundColor: '#ccfbf1',
+    widget: createNode('entity_list', {
+      entityType: 'product',
+      itemCount: 6,
+      layout: 'grid',
+      gridColumns: 3,
+      showFeaturedImage: true,
+      showTitle: true,
+      showExcerpt: true,
+      excerptLength: 110,
+      showPricing: true,
+      showInventory: true,
+      showProgress: false,
+      showActions: false,
+      emptyMessage: 'Add published products to populate these cards.',
+      orderBy: 'date',
+      order: 'desc',
+    }, {
+      display: 'grid',
+      gridTemplateColumns: 'repeat(3, 1fr)',
+      gap: '24px',
+      width: '100%',
+    }),
+  }),
+};
+
+const entityBusinessServices: SectionTemplate = {
+  id: 'entity-business-services',
+  name: 'Business Services',
+  category: 'entity',
+  description: 'Service directory tuned for inquiry and booking led business services',
+  createNode: () => createEntityTemplateSection({
+    eyebrow: 'Business preset',
+    heading: 'Service directory',
+    description: 'Best for service entities that should lead with description and contact intent rather than a hard-sell product flow. Action cards surface booking or inquiry when those capabilities are attached.',
+    badges: ['Preset: business', 'Cards: action'],
+    accentColor: '#166534',
+    badgeBackgroundColor: '#dcfce7',
+    backgroundColor: '#f0fdf4',
+    widget: createNode('entity_list', {
+      entityType: 'service',
+      itemCount: 6,
+      layout: 'grid',
+      gridColumns: 3,
+      showFeaturedImage: true,
+      showTitle: true,
+      showExcerpt: true,
+      excerptLength: 120,
+      showPricing: false,
+      showInventory: false,
+      showProgress: false,
+      showActions: true,
+      emptyMessage: 'Add published service entries to populate this directory.',
+      orderBy: 'title',
+      order: 'asc',
+    }, {
+      display: 'grid',
+      gridTemplateColumns: 'repeat(3, 1fr)',
+      gap: '24px',
+      width: '100%',
+    }),
+  }),
+};
+
+const entitySellableServices: SectionTemplate = {
+  id: 'entity-sellable-services',
+  name: 'Sellable Service Cards',
+  category: 'entity',
+  description: 'Commerce-aware service cards with price plus booking or inquiry CTA',
+  createNode: () => createEntityTemplateSection({
+    eyebrow: 'Service-commerce preset',
+    heading: 'Sellable service cards',
+    description: 'A stronger commercial service layout for entities using the service-commerce preset. Pricing stays visible while the action surface can drive booking or inquiry depending on the attached capability mix.',
+    badges: ['Preset: service-commerce', 'Cards: pricing', 'Cards: action'],
+    accentColor: '#15803d',
+    badgeBackgroundColor: '#dcfce7',
+    backgroundColor: '#f7fee7',
+    widget: createNode('entity_list', {
+      entityType: 'service',
+      itemCount: 6,
+      layout: 'grid',
+      gridColumns: 3,
+      showFeaturedImage: true,
+      showTitle: true,
+      showExcerpt: true,
+      excerptLength: 110,
+      showPricing: true,
+      showInventory: false,
+      showProgress: false,
+      showActions: true,
+      emptyMessage: 'Add published service entries to populate these sellable cards.',
+      orderBy: 'title',
+      order: 'asc',
+    }, {
+      display: 'grid',
+      gridTemplateColumns: 'repeat(3, 1fr)',
+      gap: '24px',
+      width: '100%',
+    }),
+  }),
+};
+
+const entityCourseDirectory: SectionTemplate = {
+  id: 'entity-course-directory',
+  name: 'Course Directory',
+  category: 'entity',
+  description: 'Course cards with pricing and learner progress surface',
+  createNode: () => createEntityTemplateSection({
+    eyebrow: 'Education preset',
+    heading: 'Course catalog',
+    description: 'Designed for course entities using the education preset. It pairs a normal catalog grid with the progress surface so the listing can work for both marketing and returning learners.',
+    badges: ['Preset: education', 'Cards: pricing', 'Cards: progress'],
+    accentColor: '#6d28d9',
+    badgeBackgroundColor: '#ede9fe',
+    backgroundColor: '#faf5ff',
+    widget: createNode('entity_list', {
+      entityType: 'course',
+      itemCount: 6,
+      layout: 'grid',
+      gridColumns: 3,
+      showFeaturedImage: true,
+      showTitle: true,
+      showExcerpt: true,
+      excerptLength: 120,
+      showPricing: true,
+      showInventory: false,
+      showProgress: true,
+      showActions: false,
+      emptyMessage: 'Add published courses to populate this directory.',
+      orderBy: 'date',
+      order: 'desc',
+    }, {
+      display: 'grid',
+      gridTemplateColumns: 'repeat(3, 1fr)',
+      gap: '24px',
+      width: '100%',
+    }),
+  }),
+};
+
+const entitySellableCourses: SectionTemplate = {
+  id: 'entity-sellable-courses',
+  name: 'Sellable Course Cards',
+  category: 'entity',
+  description: 'Commerce-aware course cards with pricing, progress, and enrollment CTA',
+  createNode: () => createEntityTemplateSection({
+    eyebrow: 'Course-commerce preset',
+    heading: 'Sellable courses',
+    description: 'This version turns the course grid into a commerce-ready surface. Pricing, progress, and action states are all visible so enrolled and prospective learners can use the same section.',
+    badges: ['Preset: course-commerce', 'Cards: pricing', 'Cards: progress', 'Cards: action'],
+    accentColor: '#6d28d9',
+    badgeBackgroundColor: '#ede9fe',
+    backgroundColor: '#f5f3ff',
+    widget: createNode('entity_list', {
+      entityType: 'course',
+      itemCount: 6,
+      layout: 'grid',
+      gridColumns: 3,
+      showFeaturedImage: true,
+      showTitle: true,
+      showExcerpt: true,
+      excerptLength: 120,
+      showPricing: true,
+      showInventory: false,
+      showProgress: true,
+      showActions: true,
+      emptyMessage: 'Add published courses to populate these sellable cards.',
+      orderBy: 'date',
+      order: 'desc',
+    }, {
+      display: 'grid',
+      gridTemplateColumns: 'repeat(3, 1fr)',
+      gap: '24px',
+      width: '100%',
+    }),
+  }),
+};
+
+const entityCourseDetail: SectionTemplate = {
+  id: 'entity-course-detail',
+  name: 'Course Detail Layout',
+  category: 'entity',
+  description: 'Current-course detail with lessons, progress, pricing, and actions',
+  createNode: () => createEntityTemplateSection({
+    eyebrow: 'Current entity',
+    heading: 'Course detail',
+    description: 'Use this on a course page when you want the builder to foreground the learning contract: lesson index, learner progress, pricing, and enrollment actions.',
+    badges: ['Current entity', 'Lessons', 'Progress', 'Actions'],
+    accentColor: '#7c3aed',
+    badgeBackgroundColor: '#ede9fe',
+    backgroundColor: '#faf5ff',
+    widget: createNode('entity_view', {
+      showFeaturedImage: true,
+      showTitle: true,
+      showMeta: true,
+      showTypeLabel: true,
+      showAuthor: false,
+      showDate: true,
+      showPricing: true,
+      showInventory: false,
+      showSku: false,
+      showProgress: true,
+      showLessons: true,
+      showActions: true,
+      showBody: true,
+    }, {
+      width: '100%',
+      display: 'block',
+    }),
+  }),
+};
+
+const entityPortfolioSpotlight: SectionTemplate = {
+  id: 'entity-portfolio-spotlight',
+  name: 'Portfolio Spotlight',
+  category: 'entity',
+  description: 'Current-entity showcase tuned for media gallery and inquiry-driven portfolio pieces',
+  createNode: () => createEntityTemplateSection({
+    eyebrow: 'Portfolio preset',
+    heading: 'Portfolio spotlight',
+    description: 'A current-entity spotlight tuned for portfolio pieces. It keeps the media gallery front and center and leaves the action surface free for inquiry-driven calls to action like “Work with me.”',
+    badges: ['Preset: portfolio', 'Current entity', 'Media', 'Cards: action'],
+    accentColor: '#be185d',
+    badgeBackgroundColor: '#fce7f3',
+    backgroundColor: '#fff1f2',
+    widget: createNode('entity_view', {
+      showFeaturedImage: true,
+      showTitle: true,
+      showMeta: true,
+      showTypeLabel: true,
+      showAuthor: false,
+      showDate: false,
+      showPricing: false,
+      showInventory: false,
+      showSku: false,
+      showProgress: false,
+      showLessons: false,
+      showActions: true,
+      showBody: true,
+    }, {
+      width: '100%',
+      display: 'block',
+    }),
+  }),
 };
 
 // =============================================================================
@@ -1449,6 +1872,16 @@ export const sectionTemplates: SectionTemplate[] = [
   aboutTeam,
   aboutStory,
   aboutMission,
+  // Entity presets and card surfaces
+  entityCurrentDetail,
+  entityProductStorefront,
+  entityProductInventoryCards,
+  entityBusinessServices,
+  entitySellableServices,
+  entityCourseDirectory,
+  entitySellableCourses,
+  entityCourseDetail,
+  entityPortfolioSpotlight,
   // CTA
   ctaSimple,
   ctaBanner,
@@ -1468,6 +1901,7 @@ export const templateCategories: { id: TemplateCategory; name: string }[] = [
   { id: 'hero', name: 'Hero' },
   { id: 'features', name: 'Features' },
   { id: 'content', name: 'Content' },
+  { id: 'entity', name: 'Entity Presets' },
   { id: 'cta', name: 'Call to Action' },
   { id: 'testimonials', name: 'Testimonials' },
   { id: 'pricing', name: 'Pricing' },

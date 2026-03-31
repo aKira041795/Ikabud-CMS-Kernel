@@ -777,6 +777,8 @@ export const CMS_COMPONENTS: ComponentDefinition[] = [
       excerptLength: 120,
       showPricing: true,
       showInventory: true,
+      showProgress: false,
+      showActions: false,
       emptyMessage: 'No items found.',
       orderBy: 'date',
       order: 'desc',

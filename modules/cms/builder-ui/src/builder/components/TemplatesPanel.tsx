@@ -6,11 +6,11 @@
 import React, { memo, useState } from 'react';
 import { Layout, ChevronRight } from 'lucide-react';
 import { DiSyLNode } from '../core/types';
-import { 
-  templateCategories, 
+import {
+  templateCategories,
   getTemplatesByCategory,
   TemplateCategory,
-  SectionTemplate 
+  SectionTemplate
 } from '../core/templates';
 
 interface TemplatesPanelProps {
@@ -19,12 +19,12 @@ interface TemplatesPanelProps {
 
 const TemplatesPanel: React.FC<TemplatesPanelProps> = ({ onInsertTemplate }) => {
   const [selectedCategory, setSelectedCategory] = useState<TemplateCategory | null>(null);
-  
+
   const handleTemplateClick = (template: SectionTemplate) => {
     const node = template.createNode();
     onInsertTemplate(node);
   };
-  
+
   // Category list view
   if (!selectedCategory) {
     return (
@@ -37,7 +37,7 @@ const TemplatesPanel: React.FC<TemplatesPanelProps> = ({ onInsertTemplate }) => 
             Click to browse pre-built sections
           </p>
         </div>
-        
+
         <div className="p-2">
           {templateCategories.map(category => {
             const templates = getTemplatesByCategory(category.id);
@@ -68,11 +68,11 @@ const TemplatesPanel: React.FC<TemplatesPanelProps> = ({ onInsertTemplate }) => 
       </div>
     );
   }
-  
+
   // Templates list view
   const templates = getTemplatesByCategory(selectedCategory);
   const categoryName = templateCategories.find(c => c.id === selectedCategory)?.name || '';
-  
+
   return (
     <div className="h-full overflow-y-auto">
       {/* Header with back button */}
@@ -92,7 +92,7 @@ const TemplatesPanel: React.FC<TemplatesPanelProps> = ({ onInsertTemplate }) => 
           </p>
         </div>
       </div>
-      
+
       {/* Templates grid */}
       <div className="p-2 grid gap-2">
         {templates.map(template => (
@@ -125,6 +125,21 @@ const TemplatesPanel: React.FC<TemplatesPanelProps> = ({ onInsertTemplate }) => 
                     <div className="flex-1 flex flex-col gap-1">
                       <div className="w-full h-2 bg-white/15 rounded-sm" />
                       <div className="w-3/4 h-1 bg-white/10 rounded-sm" />
+                    </div>
+                  </div>
+                )}
+                {template.category === 'entity' && (
+                  <div className="w-full px-2">
+                    <div className="w-20 h-2 bg-white/20 rounded-sm mx-auto mb-2" />
+                    <div className="grid grid-cols-3 gap-1 mb-2">
+                      <div className="h-7 bg-white/10 rounded-sm" />
+                      <div className="h-7 bg-[#22c55e]/20 rounded-sm" />
+                      <div className="h-7 bg-white/10 rounded-sm" />
+                    </div>
+                    <div className="flex justify-center gap-1">
+                      <div className="w-5 h-1 bg-[#22c55e]/50 rounded-full" />
+                      <div className="w-5 h-1 bg-[#38bdf8]/40 rounded-full" />
+                      <div className="w-5 h-1 bg-[#f59e0b]/40 rounded-full" />
                     </div>
                   </div>
                 )}
@@ -177,7 +192,7 @@ const TemplatesPanel: React.FC<TemplatesPanelProps> = ({ onInsertTemplate }) => 
                 )}
               </div>
             </div>
-            
+
             <h4 className="text-xs font-medium text-white/80 group-hover:text-white transition-colors">
               {template.name}
             </h4>

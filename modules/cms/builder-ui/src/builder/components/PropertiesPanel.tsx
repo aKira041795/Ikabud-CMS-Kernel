@@ -2025,6 +2025,26 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
                   <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform ${node.props.showInventory !== false ? 'translate-x-5' : 'translate-x-0'}`} />
                 </button>
               </div>
+
+              <div className="flex items-center justify-between">
+                <label className="text-xs text-white/70">Show Progress</label>
+                <button
+                  onClick={() => handlePropChange('showProgress', node.props.showProgress === true ? false : true)}
+                  className={`relative w-10 h-5 rounded-full transition-colors ${node.props.showProgress === true ? 'bg-[#0078d4]' : 'bg-[#3c3c3c]'}`}
+                >
+                  <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform ${node.props.showProgress === true ? 'translate-x-5' : 'translate-x-0'}`} />
+                </button>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <label className="text-xs text-white/70">Show Actions</label>
+                <button
+                  onClick={() => handlePropChange('showActions', node.props.showActions === true ? false : true)}
+                  className={`relative w-10 h-5 rounded-full transition-colors ${node.props.showActions === true ? 'bg-[#0078d4]' : 'bg-[#3c3c3c]'}`}
+                >
+                  <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform ${node.props.showActions === true ? 'translate-x-5' : 'translate-x-0'}`} />
+                </button>
+              </div>
             </div>
           </CollapsibleSection>
 

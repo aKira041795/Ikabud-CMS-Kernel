@@ -1286,6 +1286,8 @@ function cmsRenderWidget_entity_list(array $props, array $style, array $attrs, s
     $excerptLen = max(20, (int)($props['excerptLength'] ?? 120));
     $showPricing = ($props['showPricing'] ?? true) !== false;
     $showInventory = ($props['showInventory'] ?? true) !== false;
+    $showProgress = ($props['showProgress'] ?? false) === true;
+    $showActions = ($props['showActions'] ?? false) === true;
     $emptyMessage = cmsBuilderEsc((string)($props['emptyMessage'] ?? 'No items found.'));
     $order = strtolower((string)($props['order'] ?? 'desc')) === 'asc' ? 'ASC' : 'DESC';
     $orderByMap = [
@@ -1319,15 +1321,24 @@ function cmsRenderWidget_entity_list(array $props, array $style, array $attrs, s
     foreach ($items as $item) {
         $entityId = (int)($item['id'] ?? 0);
         try {
-            $capabilityData = $entityId > 0 ? cmsEntityCapabilityData($entityId, $item) : [];
+            $runtime = $entityId > 0 ? cmsEntityCapabilityRuntimeState($entityId, $item) : [];
         } catch (\Throwable $e) {
-            $capabilityData = [];
+            $runtime = [];
         }
 
+        $capabilities = is_array($runtime['capabilities'] ?? null) ? $runtime['capabilities'] : [];
+        $capabilityData = is_array($runtime['capability_data'] ?? null) ? $runtime['capability_data'] : [];
         $pricing = is_array($capabilityData['pricing'] ?? null) ? $capabilityData['pricing'] : [];
         $inventory = is_array($capabilityData['inventory'] ?? null) ? $capabilityData['inventory'] : [];
+        $progress = is_array($capabilityData['progress_tracking'] ?? null) ? $capabilityData['progress_tracking'] : [];
+        $inquiry = is_array($capabilityData['inquiry'] ?? null) ? $capabilityData['inquiry'] : [];
         $imageUrl = !empty($item['featured_image']) && function_exists('cmsResolveUploadUrl') ? cmsResolveUploadUrl((string)$item['featured_image']) : '';
         $itemUrl = cmsBuilderEntityPermalink($entityType, (string)($item['slug'] ?? ''));
+        $pricingText = trim((string)($pricing['formatted'] ?? ''));
+        if ($pricingText === '' && isset($pricing['active_price'])) {
+            $currency = trim((string)($pricing['currency'] ?? 'USD'));
+            $pricingText = $currency . ' ' . number_format((float)$pricing['active_price'], 2);
+        }
 
         $html .= '<a href="' . cmsBuilderEsc($itemUrl) . '" style="display:block;text-decoration:none;background:#ffffff;border:1px solid #e2e8f0;border-radius:18px;overflow:hidden;box-shadow:0 10px 30px rgba(15,23,42,0.06)">';
         if ($showFeaturedImage && $imageUrl !== '') {
@@ -1340,13 +1351,49 @@ function cmsRenderWidget_entity_list(array $props, array $style, array $attrs, s
         if ($showExcerpt && !empty($item['excerpt'])) {
             $html .= '<p style="margin:0;font-size:14px;line-height:1.6;color:#64748b">' . cmsBuilderEsc(mb_strimwidth((string)$item['excerpt'], 0, $excerptLen, '...')) . '</p>';
         }
-        if ($showPricing && !empty($pricing['formatted'])) {
-            $html .= '<div style="font-size:13px;font-weight:700;color:#0f766e">' . cmsBuilderEsc((string)$pricing['formatted']) . '</div>';
+        if ($showPricing && $pricingText !== '') {
+            $html .= '<div style="font-size:13px;font-weight:700;color:#0f766e">' . cmsBuilderEsc($pricingText) . '</div>';
         }
         if ($showInventory && !empty($inventory)) {
             $inventoryText = !empty($inventory['out_of_stock']) ? 'Out of stock' : (!empty($inventory['low_stock']) ? 'Low stock' : 'In stock');
             $inventoryColor = !empty($inventory['out_of_stock']) ? '#dc2626' : (!empty($inventory['low_stock']) ? '#d97706' : '#16a34a');
             $html .= '<div style="font-size:12px;font-weight:600;color:' . $inventoryColor . '">' . $inventoryText . '</div>';
+        }
+        if ($showProgress && !empty($capabilities['progress_tracking'])) {
+            $percent = max(0, min(100, (int)($progress['percent'] ?? 0)));
+            if (($progress['authenticated'] ?? true) === false) {
+                $html .= '<div style="padding:10px 12px;border-radius:12px;background:#f8fbff;border:1px solid #dbeafe;color:#0369a1;font-size:12px;font-weight:600">Sign in to track progress</div>';
+            } else {
+                $html .= '<div style="display:flex;flex-direction:column;gap:6px">';
+                $html .= '<div style="display:flex;justify-content:space-between;font-size:12px;color:#0369a1;font-weight:600"><span>Progress</span><span>' . $percent . '%</span></div>';
+                $html .= '<div style="height:8px;border-radius:999px;background:#dbeafe;overflow:hidden"><div style="width:' . $percent . '%;height:100%;background:#0ea5e9"></div></div>';
+                $html .= '</div>';
+            }
+        }
+        if ($showActions) {
+            $slug = trim((string)($item['slug'] ?? ''));
+            $primaryAction = '';
+            if (!empty($capabilities['booking']) && $slug !== '') {
+                $primaryAction = '<a href="' . cmsBuilderEsc(rtrim((string)(defined('BASE_URL') ? BASE_URL : ''), '/') . '/cms/' . rawurlencode($entityType) . '/' . rawurlencode($slug) . '/book') . '" style="display:inline-flex;align-items:center;justify-content:center;padding:10px 14px;border-radius:10px;background:#0f172a;color:#ffffff;text-decoration:none;font-size:12px;font-weight:700">Book Now</a>';
+            } elseif (!empty($capabilities['inquiry']) && $slug !== '') {
+                $label = trim((string)($inquiry['label'] ?? 'Inquire')) ?: 'Inquire';
+                $primaryAction = '<a href="' . cmsBuilderEsc(rtrim((string)(defined('BASE_URL') ? BASE_URL : ''), '/') . '/cms/' . rawurlencode($entityType) . '/' . rawurlencode($slug) . '/inquire') . '" style="display:inline-flex;align-items:center;justify-content:center;padding:10px 14px;border-radius:10px;background:#0f172a;color:#ffffff;text-decoration:none;font-size:12px;font-weight:700">' . cmsBuilderEsc($label) . '</a>';
+            } elseif (!empty($capabilities['pricing'])) {
+                if (!empty($inventory['out_of_stock'])) {
+                    $primaryAction = '<span style="display:inline-flex;align-items:center;justify-content:center;padding:10px 14px;border-radius:10px;background:#f1f5f9;color:#94a3b8;font-size:12px;font-weight:700">Out of stock</span>';
+                } else {
+                    $label = match ($entityType) {
+                        'course' => 'Enroll Now',
+                        'product' => 'Buy Now',
+                        default => 'View Details',
+                    };
+                    $primaryAction = '<a href="' . cmsBuilderEsc($itemUrl) . '" style="display:inline-flex;align-items:center;justify-content:center;padding:10px 14px;border-radius:10px;background:#0f172a;color:#ffffff;text-decoration:none;font-size:12px;font-weight:700">' . cmsBuilderEsc($label) . '</a>';
+                }
+            }
+
+            if ($primaryAction !== '') {
+                $html .= '<div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:2px">' . $primaryAction . '</div>';
+            }
         }
         $html .= '</div></a>';
     }

@@ -2818,6 +2818,8 @@ const EntityListRenderer: React.FC<{ node: DiSyLNode; style: React.CSSProperties
     excerptLength = 120,
     showPricing = true,
     showInventory = true,
+    showProgress = false,
+    showActions = false,
     gridColumns = 3,
   } = node.props as {
     entityType?: string;
@@ -2829,6 +2831,8 @@ const EntityListRenderer: React.FC<{ node: DiSyLNode; style: React.CSSProperties
     excerptLength?: number;
     showPricing?: boolean;
     showInventory?: boolean;
+    showProgress?: boolean;
+    showActions?: boolean;
     gridColumns?: number;
   };
 
@@ -2846,7 +2850,16 @@ const EntityListRenderer: React.FC<{ node: DiSyLNode; style: React.CSSProperties
     excerpt: 'This item previews the shared entity-list contract used by the public theme, including media, pricing, and stock states.',
     price: `$${(29 + index * 5).toFixed(2)}`,
     stock: index % 3 === 0 ? 'Low stock' : index % 2 === 0 ? 'In stock' : 'Out of stock',
+    progress: 24 + index * 11,
   }));
+
+  const actionLabel = entityType === 'course'
+    ? 'Enroll Now'
+    : entityType === 'service'
+      ? 'Book Now'
+      : entityType === 'product'
+        ? 'Buy Now'
+        : 'View Details';
 
   return (
     <div style={{ ...previewShellStyle(style), display: 'grid', gridTemplateColumns: `repeat(${columns}, 1fr)`, gap: '20px' }}>
@@ -2869,6 +2882,22 @@ const EntityListRenderer: React.FC<{ node: DiSyLNode; style: React.CSSProperties
                 {showPricing && <span style={{ fontSize: '13px', fontWeight: 700, color: '#0f766e' }}>{item.price}</span>}
                 {showInventory && <span style={{ fontSize: '12px', color: item.stock === 'Out of stock' ? '#dc2626' : item.stock === 'Low stock' ? '#d97706' : '#16a34a' }}>{item.stock}</span>}
               </div>
+            )}
+            {showProgress && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '2px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: '#0369a1', fontWeight: 600 }}>
+                  <span>Progress</span>
+                  <span>{item.progress}%</span>
+                </div>
+                <div style={{ height: '8px', borderRadius: '999px', backgroundColor: '#dbeafe', overflow: 'hidden' }}>
+                  <div style={{ width: `${item.progress}%`, height: '100%', backgroundColor: '#0ea5e9' }} />
+                </div>
+              </div>
+            )}
+            {showActions && (
+              item.stock === 'Out of stock' && entityType === 'product'
+                ? <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '10px 14px', borderRadius: '10px', backgroundColor: '#f1f5f9', color: '#94a3b8', fontSize: '12px', fontWeight: 700 }}>Out of stock</span>
+                : <a href="#" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '10px 14px', borderRadius: '10px', backgroundColor: '#0f172a', color: '#ffffff', textDecoration: 'none', fontSize: '12px', fontWeight: 700, marginTop: '2px' }}>{actionLabel}</a>
             )}
           </div>
         </article>
