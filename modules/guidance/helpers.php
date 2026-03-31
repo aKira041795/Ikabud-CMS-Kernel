@@ -41,8 +41,29 @@ function guidanceInput(?string $key = null, mixed $default = null): mixed
 
 function guidanceRender(string $template, array $context = []): string
 {
-    return guidanceCtx()->render($template, $context);
+    return guidanceCtx()->render($template, kernelPrepareRenderContext($template, $context));
 }
+
+function guidanceNormalizePageRenderContext(array $context, string $template, array &$missingKeys = [], array &$typeMismatches = []): array
+{
+    return kernelApplyRenderContextShape($context, [
+        'page_title' => '',
+        'base_url' => '/admin/guidance',
+        'current_page' => '',
+        'user_name' => '',
+        'user_role' => '',
+        'user_initials' => '',
+        'today_date' => '',
+        'hour' => 0,
+    ], ['page_title'], $missingKeys, $typeMismatches);
+}
+
+kernelRegisterRenderContextContract('guidance.page.shell', [
+    'prefix' => 'modules/guidance/pages/',
+    'priority' => 20,
+    'normalize' => 'guidanceNormalizePageRenderContext',
+    'log_event' => 'guidance.render_context.contract_mismatch',
+]);
 
 function guidanceRedirect(string $url, int $status = 302): void
 {

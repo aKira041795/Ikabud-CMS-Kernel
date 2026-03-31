@@ -6,6 +6,7 @@ declare(strict_types=1);
 // Loaded by module-manager when ecommerce module is active.
 
 require_once __DIR__ . '/helpers/00-init.php';
+require_once __DIR__ . '/helpers/05-render-contracts.php';
 require_once __DIR__ . '/helpers/10-cart.php';
 require_once __DIR__ . '/helpers/20-orders.php';
 require_once __DIR__ . '/helpers/30-products.php';

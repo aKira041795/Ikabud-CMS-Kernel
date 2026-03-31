@@ -130,6 +130,7 @@ try {
     ]);
     $actionEntityId = (int)$db->lastInsertId();
     $contentIds[] = $actionEntityId;
+    cmsEntityAttachCapability($actionEntityId, 'pricing', ['price' => 149.00, 'currency' => 'USD']);
     cmsEntityAttachCapability($actionEntityId, 'booking', []);
     cmsEntityAttachCapability($actionEntityId, 'inquiry', ['label' => 'Ask About This Service']);
 
@@ -390,6 +391,54 @@ t('canonical view honors explicit false media flag', !str_contains($suppressedCh
 t('canonical post helper renders category link', str_contains($taxonomyHtml, '/cms/category/' . $categorySlug));
 t('canonical post helper renders tag link', str_contains($taxonomyHtml, '/cms/tag/' . cmsSlugify($tagName)));
 
+echo "\n=== RENDER LOCK SESSION ===\n";
+
+$lockOptimizedHtml = '';
+$themeTimingLogs = array_key_exists('CMS_THEME_TIMING_LOGS', $_ENV) ? (string)$_ENV['CMS_THEME_TIMING_LOGS'] : null;
+$themeTimingThreshold = array_key_exists('CMS_THEME_TIMING_THRESHOLD_MS', $_ENV) ? (string)$_ENV['CMS_THEME_TIMING_THRESHOLD_MS'] : null;
+$lockCountBefore = count(array_values(array_filter(
+    explode("\n", @file_get_contents(STORAGE_PATH . '/logs/app.log') ?: ''),
+    static fn(string $line): bool => str_contains($line, 'cms.theme_symlink_lock')
+)));
+try {
+    $_ENV['CMS_THEME_TIMING_LOGS'] = '1';
+    $_ENV['CMS_THEME_TIMING_THRESHOLD_MS'] = '0';
+
+    $lockOptimizedHtml = cmsPublicCanonicalRenderEntityView([
+        'id' => $actionEntityId,
+        'title' => 'Entity Contract Service',
+        'slug' => $actionSlug,
+        'body' => '<p>Canonical service body.</p>',
+        'excerpt' => 'Canonical service excerpt.',
+        'type' => $actionType,
+    ], [
+        'content_type' => $actionType,
+        'rendered_html' => '<p>Canonical service body.</p>',
+        'public_render_origin' => 'cms',
+        'public_route_kind' => 'entity',
+        'public_presentation_mode' => 'canonical',
+    ]);
+} finally {
+    if ($themeTimingLogs === null) {
+        unset($_ENV['CMS_THEME_TIMING_LOGS']);
+    } else {
+        $_ENV['CMS_THEME_TIMING_LOGS'] = $themeTimingLogs;
+    }
+
+    if ($themeTimingThreshold === null) {
+        unset($_ENV['CMS_THEME_TIMING_THRESHOLD_MS']);
+    } else {
+        $_ENV['CMS_THEME_TIMING_THRESHOLD_MS'] = $themeTimingThreshold;
+    }
+}
+$lockCountAfter = count(array_values(array_filter(
+    explode("\n", @file_get_contents(STORAGE_PATH . '/logs/app.log') ?: ''),
+    static fn(string $line): bool => str_contains($line, 'cms.theme_symlink_lock')
+)));
+$newLockLines = $lockCountAfter - $lockCountBefore;
+t('canonical render reuses one shared theme lock across nested block renders', $newLockLines === 1, (string)$newLockLines);
+t('lock-optimized canonical render still outputs pricing and action blocks', str_contains($lockOptimizedHtml, 'cms-pricing-block') && str_contains($lockOptimizedHtml, 'cms-action-block'), $lockOptimizedHtml);
+
 echo "\n=== LIST HELPER ===\n";
 
 t('search list renders canonical presentation mode', str_contains($searchListHtml, 'data-public-presentation-mode="canonical"'));
@@ -409,6 +458,7 @@ t('canonical public renders do not leak raw Disyl control tags', $leakedDisylCon
 $appLog = @file_get_contents(STORAGE_PATH . '/logs/app.log') ?: '';
 $errLog = @file_get_contents(STORAGE_PATH . '/logs/error.log') ?: '';
 $criticalLines = array_values(array_filter(explode("\n", $appLog), static fn(string $line): bool => str_contains($line, '[critical]')));
+$contractMismatchLines = array_values(array_filter(explode("\n", $appLog), static fn(string $line): bool => str_contains($line, 'cms.render_context.contract_mismatch')));
 $unexpectedErrorLines = array_values(array_filter(
     explode("\n", $errLog),
     static fn(string $line): bool => trim($line) !== '' && !str_contains($line, 'Ikabud Cache:')
@@ -417,6 +467,7 @@ $unexpectedErrorLines = array_values(array_filter(
 echo "\n=== LOGS ===\n";
 
 t('no app.log critical errors', empty($criticalLines), implode('; ', $criticalLines));
+t('canonical public renders do not log contract mismatch warnings', empty($contractMismatchLines), implode('; ', $contractMismatchLines));
 t('no PHP errors in error.log', empty($unexpectedErrorLines), implode('; ', $unexpectedErrorLines));
 
 echo "\n══════════════════════════════════════════════════\n";

@@ -36,8 +36,27 @@ function guiSettingsInput(): array
 
 function guiSettingsRender(string $template, array $context = []): string
 {
-    return guiSettingsCtx()->render($template, $context);
+    return guiSettingsCtx()->render($template, kernelPrepareRenderContext($template, $context));
 }
+
+function guiSettingsNormalizeRenderContext(array $context, string $template, array &$missingKeys = [], array &$typeMismatches = []): array
+{
+    return kernelApplyRenderContextShape($context, [
+        'page_title' => 'GUI Settings',
+        'settings' => [],
+        'defaults' => [],
+        'setting_keys' => [],
+        'font_presets' => [],
+        'color_presets' => [],
+    ], ['page_title', 'settings', 'defaults', 'setting_keys', 'font_presets', 'color_presets'], $missingKeys, $typeMismatches);
+}
+
+kernelRegisterRenderContextContract('gui-settings.admin.settings', [
+    'template' => 'modules/gui-settings/settings.disyl',
+    'priority' => 20,
+    'normalize' => 'guiSettingsNormalizeRenderContext',
+    'log_event' => 'gui-settings.render_context.contract_mismatch',
+]);
 
 /**
  * Default GUI settings — used when no settings file exists.

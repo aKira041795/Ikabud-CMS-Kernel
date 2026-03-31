@@ -323,6 +323,40 @@ function apiSave(array $params = []): void
 | `app()->redirect($url)` | Redirect (handles HTMX too) |
 | `app()->json($data, $status)` | Send JSON response and exit |
 
+### Stable Template Contracts
+
+When a module has more than one DiSyL page, do not rely on ad hoc handler arrays as the long-term contract.
+Register a render-context contract once and normalize the final context before rendering so templates get a stable root shape even when handlers evolve.
+
+```php
+kernelRegisterRenderContextContract('my-module.public.list', [
+    'template' => 'modules/my-module/pages/list.disyl',
+    'normalize' => 'myModuleNormalizeListRenderContext',
+    'log_event' => 'my-module.render_context.contract_mismatch',
+]);
+
+function myModuleNormalizeListRenderContext(array $context, string $template, array &$missingKeys = [], array &$typeMismatches = []): array
+{
+    return kernelApplyRenderContextShape($context, [
+        'page_title' => 'My Module',
+        'items' => [],
+        'filters' => [],
+    ], ['page_title', 'items', 'filters'], $missingKeys, $typeMismatches);
+}
+
+echo app()->render(
+    'modules/my-module/pages/list.disyl',
+    kernelPrepareRenderContext('modules/my-module/pages/list.disyl', [
+        'page_title' => 'My Module',
+        'items' => $items,
+    ])
+);
+```
+
+`app()->render()` now applies all registered contracts during the shared finalize step, so even direct renders receive normalized defaults.
+Use `kernelPrepareRenderContext()` in module wrappers when you want mismatch logging and strict-mode failures before the template is rendered.
+Set `DISYL_RENDER_CONTRACT_STRICT=1` to make contract drift fail fast in testing and CI.
+
 ### Template Context (auto-injected)
 
 These variables are always available in templates:

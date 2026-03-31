@@ -8,6 +8,96 @@
 
 declare(strict_types=1);
 
+function antispamCtx(): \Ikabud\Kernel\Contracts\ModuleContext
+{
+    $ctx = module('anti-spam');
+    if (!$ctx) {
+        throw new \RuntimeException('Anti-spam module context unavailable');
+    }
+
+    return $ctx;
+}
+
+function antispamRender(string $template, array $context = []): string
+{
+    return antispamCtx()->render($template, kernelPrepareRenderContext($template, $context));
+}
+
+function antispamNormalizeDashboardRenderContext(array $context, string $template, array &$missingKeys = [], array &$typeMismatches = []): array
+{
+    $context = kernelApplyRenderContextShape($context, [
+        'page_title' => 'Anti-Spam Dashboard',
+        'stats' => [],
+        'settings' => [],
+        'recent_log' => [],
+    ], ['page_title', 'stats', 'settings', 'recent_log'], $missingKeys, $typeMismatches);
+
+    $context['stats'] = kernelApplyRenderContextShape($context['stats'], [
+        'blocked_ips' => 0,
+        'blocked_today' => 0,
+        'passed_today' => 0,
+        'total_log' => 0,
+    ], ['blocked_ips', 'blocked_today', 'passed_today', 'total_log'], $missingKeys, $typeMismatches, 'stats.');
+
+    return $context;
+}
+
+function antispamNormalizeLogRenderContext(array $context, string $template, array &$missingKeys = [], array &$typeMismatches = []): array
+{
+    return kernelApplyRenderContextShape($context, [
+        'page_title' => 'Anti-Spam Log',
+        'entries' => [],
+        'filter' => 'all',
+        'page_num' => 1,
+        'total' => 0,
+        'total_pages' => 1,
+    ], ['page_title', 'entries', 'filter', 'page_num', 'total', 'total_pages'], $missingKeys, $typeMismatches);
+}
+
+function antispamNormalizeBlockedRenderContext(array $context, string $template, array &$missingKeys = [], array &$typeMismatches = []): array
+{
+    return kernelApplyRenderContextShape($context, [
+        'page_title' => 'Blocked IPs',
+        'blocked_ips' => [],
+    ], ['page_title', 'blocked_ips'], $missingKeys, $typeMismatches);
+}
+
+function antispamNormalizeSettingsRenderContext(array $context, string $template, array &$missingKeys = [], array &$typeMismatches = []): array
+{
+    return kernelApplyRenderContextShape($context, [
+        'page_title' => 'Anti-Spam Settings',
+        'settings' => [],
+    ], ['page_title', 'settings'], $missingKeys, $typeMismatches);
+}
+
+kernelRegisterRenderContextContract('anti-spam.page.dashboard', [
+    'template' => 'modules/anti-spam/pages/home.disyl',
+    'priority' => 20,
+    'normalize' => 'antispamNormalizeDashboardRenderContext',
+    'log_event' => 'anti-spam.render_context.contract_mismatch',
+]);
+
+kernelRegisterRenderContextContract('anti-spam.page.log', [
+    'template' => 'modules/anti-spam/pages/log.disyl',
+    'priority' => 20,
+    'normalize' => 'antispamNormalizeLogRenderContext',
+    'log_event' => 'anti-spam.render_context.contract_mismatch',
+]);
+
+kernelRegisterRenderContextContract('anti-spam.page.blocked', [
+    'template' => 'modules/anti-spam/pages/blocked.disyl',
+    'priority' => 20,
+    'normalize' => 'antispamNormalizeBlockedRenderContext',
+    'log_event' => 'anti-spam.render_context.contract_mismatch',
+]);
+
+kernelRegisterRenderContextContract('anti-spam.page.settings', [
+    'template' => 'modules/anti-spam/pages/settings.disyl',
+    'priority' => 20,
+    'normalize' => 'antispamNormalizeSettingsRenderContext',
+    'log_event' => 'anti-spam.render_context.contract_mismatch',
+]);
+
 function antispamDefaultSettings(): array
 {
     static $defaults = null;

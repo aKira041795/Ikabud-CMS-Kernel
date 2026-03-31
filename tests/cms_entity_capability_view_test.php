@@ -427,6 +427,37 @@ t('cart_enabled true when cms.cart.add@1 registered + pricing on entity',
 t('cart_action_url ends with /ecommerce/cart/add',
     str_ends_with((string)($ctxCart['cart_action_url'] ?? ''), '/ecommerce/cart/add'));
 
+$projectionCart = cmsEntityRenderProjection($testEntity, ['include_cart' => true]);
+t('shared entity render projection exposes entity_context', is_array($projectionCart['entity_context'] ?? null));
+t('shared entity render projection reuses the cart gate', ($projectionCart['cart_enabled'] ?? false) === true);
+
+$inquiryProviderCalls = 0;
+cmsEntityAttachCapability($testEntityId, 'inquiry', ['label' => 'Cache Inquiry']);
+$bus->register(
+    'entity.capability.inquiry.data@1',
+    'test_inquiry_runtime_cache_provider',
+    function (mixed $payload) use (&$inquiryProviderCalls): array {
+        $inquiryProviderCalls++;
+        $config = is_array($payload) ? ($payload['config'] ?? []) : [];
+        return [
+            'label' => (string)($config['label'] ?? 'Cached Inquiry'),
+            'form_fields' => ['name', 'email'],
+        ];
+    },
+    100
+);
+cmsEntityCapabilityClearCache($testEntityId);
+$memoizedProjectionA = cmsEntityRenderProjection($testEntity);
+$memoizedProjectionB = cmsEntityRenderProjection($testEntity);
+t('request-scope projection cache reuses capability provider results', $inquiryProviderCalls === 1, (string)$inquiryProviderCalls);
+t('memoized projection retains inquiry data', ($memoizedProjectionB['capability_data']['inquiry']['label'] ?? '') === 'Cache Inquiry');
+
+$inquiryProviderCalls = 0;
+cmsEntityAttachCapability($testEntityId, 'inquiry', ['label' => 'Updated Cache Inquiry']);
+$refreshedProjection = cmsEntityRenderProjection($testEntity);
+t('capability mutation clears request-scope projection cache', $inquiryProviderCalls === 1, (string)$inquiryProviderCalls);
+t('request-scope cache invalidation refreshes inquiry config', ($refreshedProjection['capability_data']['inquiry']['label'] ?? '') === 'Updated Cache Inquiry');
+
 $actionHtmlInStock = cmsRender('modules/cms/public/blocks/action.block.disyl', [
     'entity' => $testEntity,
     'capabilities' => [
@@ -483,12 +514,53 @@ cmsEntityCapabilityClearCache($testEntityId);
 $ctxSections = cmsPublicContext(['entity' => $testEntity]);
 t('action_sections populated by hook',
     str_contains((string)($ctxSections['action_sections'] ?? ''), 'Special Action'));
+
+$projectionSections = cmsEntityRenderProjection($testEntity, ['include_action_sections' => true]);
+t('shared entity render projection passes through action sections hook',
+    str_contains((string)($projectionSections['action_sections'] ?? ''), 'Special Action'));
 $hooks->off('cms.entity.action_block.sections');
 
 // After hook removed, action_sections should be empty string again
 cmsEntityCapabilityClearCache($testEntityId);
 $ctxNoSec = cmsPublicContext(['entity' => $testEntity]);
 t('action_sections empty after hook removed', ($ctxNoSec['action_sections'] ?? 'x') === '');
+
+$normalizedViewContract = cmsCanonicalRenderContextNormalize([
+    'entity' => ['title' => 'Normalized Entity'],
+    'post_html' => '<p>Body</p>',
+], 'modules/cms/public/entity.view.disyl');
+t('entity view contract normalizer backfills capability maps',
+    ($normalizedViewContract['capabilities'] ?? null) === [] && ($normalizedViewContract['capability_data'] ?? null) === []);
+t('entity view contract normalizer backfills action roots',
+    ($normalizedViewContract['cart_enabled'] ?? null) === false && ($normalizedViewContract['action_sections'] ?? null) === '');
+
+$normalizedListContract = cmsCanonicalRenderContextNormalize([
+    'items' => [
+        ['title' => 'Normalized Item'],
+    ],
+], 'modules/cms/public/entity.list.disyl');
+t('entity list contract normalizer backfills list context and item capability arrays',
+    is_array($normalizedListContract['entity_list_context'] ?? null)
+    && is_array($normalizedListContract['items'][0]['capabilities'] ?? null)
+    && is_array($normalizedListContract['items'][0]['capability_data'] ?? null));
+
+$strictContractException = null;
+$strictContractEnv = array_key_exists('CMS_RENDER_CONTRACT_STRICT', $_ENV) ? (string)$_ENV['CMS_RENDER_CONTRACT_STRICT'] : null;
+try {
+    $_ENV['CMS_RENDER_CONTRACT_STRICT'] = '1';
+    cmsRenderCanonicalTemplate('modules/cms/public/entity.view.disyl', [
+        'entity' => ['title' => 'Strict Contract Entity'],
+        'post_html' => '<p>Body</p>',
+    ]);
+} catch (Throwable $e) {
+    $strictContractException = $e;
+}
+if ($strictContractEnv === null) {
+    unset($_ENV['CMS_RENDER_CONTRACT_STRICT']);
+} else {
+    $_ENV['CMS_RENDER_CONTRACT_STRICT'] = $strictContractEnv;
+}
+t('strict canonical contract mode throws on authoritative mismatch', $strictContractException instanceof RuntimeException, $strictContractException?->getMessage() ?? '');
 
 // ════════════════════════════════════════════════════════════════════
 // 9. THEME CSS VALIDATOR — cmsValidateThemeCss()

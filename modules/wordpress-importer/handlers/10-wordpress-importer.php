@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+require_once dirname(__DIR__) . '/helpers.php';
+
 function wordpressImporterRenderTemplate(string $relativePath, array $context = []): string
 {
     $fullPath = dirname(__DIR__) . '/' . ltrim($relativePath, '/');
@@ -25,7 +27,7 @@ function wordpressImporterRenderTemplate(string $relativePath, array $context = 
         'csrf_field' => $app->csrfField(),
     ];
 
-    return $app->templates()->renderString($source, array_merge($baseContext, $context));
+    return $app->templates()->renderString($source, wordpressImporterPrepareRenderContext($relativePath, array_merge($baseContext, $context)));
 }
 
 function wordpressImporterAdminPage(array $params = []): void

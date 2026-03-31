@@ -397,6 +397,356 @@ function kernelWriteFile(string $path, string $contents): bool
 }
 
 /**
+ * @return array<string, array<string, mixed>>
+ */
+function &kernelRenderContextContractRegistry(): array
+{
+    static $contracts = [];
+    return $contracts;
+}
+
+/**
+ * @return array<string, array<string, mixed>>
+ */
+function kernelRegisteredRenderContextContracts(): array
+{
+    return kernelRenderContextContractRegistry();
+}
+
+/**
+ * Register a render-context contract for one or more templates.
+ *
+ * Definition keys:
+ * - template?: string
+ * - templates?: string[]
+ * - prefix?: string
+ * - prefixes?: string[]
+ * - priority?: int (lower runs first)
+ * - defaults?: array<string, mixed>
+ * - required?: string[]
+ * - normalize?: callable(array $context, string $template, array &$missingKeys, array &$typeMismatches): array
+ * - log_event?: string
+ */
+function kernelRegisterRenderContextContract(string $contractId, array $definition): void
+{
+    $contractId = trim($contractId);
+    if ($contractId === '') {
+        throw new InvalidArgumentException('Render context contract id must not be empty.');
+    }
+
+    $templates = [];
+    $template = trim((string)($definition['template'] ?? ''));
+    if ($template !== '') {
+        $templates[] = $template;
+    }
+
+    $rawTemplates = $definition['templates'] ?? [];
+    if (is_array($rawTemplates)) {
+        foreach ($rawTemplates as $candidate) {
+            $candidate = trim((string)$candidate);
+            if ($candidate !== '') {
+                $templates[] = $candidate;
+            }
+        }
+    }
+
+    $prefixes = [];
+    $prefix = trim((string)($definition['prefix'] ?? ''));
+    if ($prefix !== '') {
+        $prefixes[] = $prefix;
+    }
+
+    $rawPrefixes = $definition['prefixes'] ?? [];
+    if (is_array($rawPrefixes)) {
+        foreach ($rawPrefixes as $candidate) {
+            $candidate = trim((string)$candidate);
+            if ($candidate !== '') {
+                $prefixes[] = $candidate;
+            }
+        }
+    }
+
+    $templates = array_values(array_unique($templates));
+    $prefixes = array_values(array_unique($prefixes));
+    if ($templates === [] && $prefixes === []) {
+        throw new InvalidArgumentException('Render context contracts require at least one template or prefix matcher.');
+    }
+
+    $defaults = $definition['defaults'] ?? [];
+    if (!is_array($defaults)) {
+        $defaults = [];
+    }
+
+    $required = [];
+    $rawRequired = $definition['required'] ?? [];
+    if (is_array($rawRequired)) {
+        foreach ($rawRequired as $key) {
+            $key = trim((string)$key);
+            if ($key !== '') {
+                $required[] = $key;
+            }
+        }
+    }
+
+    $normalize = $definition['normalize'] ?? null;
+    if ($normalize !== null && !is_callable($normalize)) {
+        throw new InvalidArgumentException('Render context contract normalizer must be callable when provided.');
+    }
+
+    $registry = &kernelRenderContextContractRegistry();
+    $registry[$contractId] = [
+        'id' => $contractId,
+        'priority' => isset($definition['priority']) ? (int)$definition['priority'] : 100,
+        'templates' => $templates,
+        'prefixes' => $prefixes,
+        'defaults' => $defaults,
+        'required' => array_values(array_unique($required)),
+        'normalize' => $normalize,
+        'log_event' => trim((string)($definition['log_event'] ?? 'kernel.render_context.contract_mismatch')) ?: 'kernel.render_context.contract_mismatch',
+    ];
+}
+
+function kernelRenderContextContractMatches(array $contract, string $template): bool
+{
+    foreach (($contract['templates'] ?? []) as $candidate) {
+        if ($candidate === $template) {
+            return true;
+        }
+    }
+
+    foreach (($contract['prefixes'] ?? []) as $prefix) {
+        if ($prefix !== '' && str_starts_with($template, $prefix)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+/**
+ * @return array<int, array<string, mixed>>
+ */
+function kernelMatchedRenderContextContracts(string $template): array
+{
+    $matched = [];
+    foreach (kernelRenderContextContractRegistry() as $contract) {
+        if (kernelRenderContextContractMatches($contract, $template)) {
+            $matched[] = $contract;
+        }
+    }
+
+    usort($matched, static function (array $left, array $right): int {
+        $priorityCompare = ((int)($left['priority'] ?? 100)) <=> ((int)($right['priority'] ?? 100));
+        if ($priorityCompare !== 0) {
+            return $priorityCompare;
+        }
+
+        return strcmp((string)($left['id'] ?? ''), (string)($right['id'] ?? ''));
+    });
+
+    return $matched;
+}
+
+function kernelRenderContextContractStrictMode(): bool
+{
+    foreach (['DISYL_RENDER_CONTRACT_STRICT', 'KERNEL_RENDER_CONTRACT_STRICT'] as $envKey) {
+        $explicit = $_ENV[$envKey] ?? null;
+        if (is_string($explicit) && $explicit !== '') {
+            return filter_var($explicit, FILTER_VALIDATE_BOOLEAN);
+        }
+    }
+
+    $ci = $_ENV['CI'] ?? null;
+    if (is_string($ci) && $ci !== '') {
+        return filter_var($ci, FILTER_VALIDATE_BOOLEAN);
+    }
+
+    if (function_exists('config')) {
+        return strtolower((string)config('app.env', 'development')) === 'testing';
+    }
+
+    return false;
+}
+
+function kernelRenderContextContractMismatchMessage(string $template, string $contract, array $missingKeys, array $typeMismatches): string
+{
+    $parts = ['Render context contract mismatch for ' . $template . ' (' . $contract . ')'];
+    if ($missingKeys !== []) {
+        $parts[] = 'missing keys: ' . implode(', ', $missingKeys);
+    }
+    if ($typeMismatches !== []) {
+        $pairs = [];
+        foreach ($typeMismatches as $key => $type) {
+            $pairs[] = $key . '=' . $type;
+        }
+        $parts[] = 'type mismatches: ' . implode(', ', $pairs);
+    }
+
+    return implode('; ', $parts);
+}
+
+function kernelApplyRenderContextShape(
+    array $context,
+    array $defaults,
+    array $required = [],
+    array &$missingKeys = [],
+    array &$typeMismatches = [],
+    string $pathPrefix = ''
+): array {
+    $requiredLookup = array_fill_keys(array_values(array_filter(array_map('strval', $required), static fn(string $key): bool => $key !== '')), true);
+
+    foreach ($defaults as $key => $defaultValue) {
+        $key = (string)$key;
+        $path = $pathPrefix === '' ? $key : $pathPrefix . $key;
+
+        if (!array_key_exists($key, $context)) {
+            $context[$key] = $defaultValue;
+            if (isset($requiredLookup[$key])) {
+                $missingKeys[] = $path;
+            }
+            continue;
+        }
+
+        $value = $context[$key];
+        if (is_array($defaultValue)) {
+            if (!is_array($value)) {
+                $context[$key] = $defaultValue;
+                if (isset($requiredLookup[$key])) {
+                    $typeMismatches[$path] = gettype($value);
+                }
+            }
+            continue;
+        }
+
+        if (is_bool($defaultValue)) {
+            if (!is_bool($value)) {
+                if (isset($requiredLookup[$key])) {
+                    $typeMismatches[$path] = gettype($value);
+                }
+                $context[$key] = (bool)$value;
+            }
+            continue;
+        }
+
+        if (is_int($defaultValue)) {
+            if (!is_int($value)) {
+                if (isset($requiredLookup[$key])) {
+                    $typeMismatches[$path] = gettype($value);
+                }
+                $context[$key] = is_numeric($value) ? (int)$value : $defaultValue;
+            }
+            continue;
+        }
+
+        if (is_float($defaultValue)) {
+            if (!is_float($value) && !is_int($value)) {
+                if (isset($requiredLookup[$key])) {
+                    $typeMismatches[$path] = gettype($value);
+                }
+                $context[$key] = is_numeric($value) ? (float)$value : $defaultValue;
+                continue;
+            }
+
+            $context[$key] = (float)$value;
+            continue;
+        }
+
+        if (!is_scalar($value) && $value !== null) {
+            $context[$key] = $defaultValue;
+            if (isset($requiredLookup[$key])) {
+                $typeMismatches[$path] = gettype($value);
+            }
+            continue;
+        }
+
+        $context[$key] = (string)$value;
+    }
+
+    return $context;
+}
+
+function kernelNormalizeRenderContextContracts(array $context, string $template, ?array &$mismatches = null): array
+{
+    $contracts = kernelMatchedRenderContextContracts($template);
+    if ($contracts === []) {
+        return $context;
+    }
+
+    $shouldLog = !empty($context['__render_contract_validate']);
+    $collectMismatches = func_num_args() >= 3;
+    if ($collectMismatches && !is_array($mismatches)) {
+        $mismatches = [];
+    }
+
+    foreach ($contracts as $contract) {
+        $missingKeys = [];
+        $typeMismatches = [];
+
+        $defaults = is_array($contract['defaults'] ?? null) ? $contract['defaults'] : [];
+        if ($defaults !== []) {
+            $context = kernelApplyRenderContextShape(
+                $context,
+                $defaults,
+                is_array($contract['required'] ?? null) ? $contract['required'] : [],
+                $missingKeys,
+                $typeMismatches
+            );
+        }
+
+        $normalize = $contract['normalize'] ?? null;
+        if (is_callable($normalize)) {
+            $context = $normalize($context, $template, $missingKeys, $typeMismatches);
+        }
+
+        $missingKeys = array_values(array_unique(array_filter(array_map('strval', $missingKeys), static fn(string $key): bool => $key !== '')));
+        if ($typeMismatches !== []) {
+            ksort($typeMismatches);
+        }
+
+        if ($missingKeys === [] && $typeMismatches === []) {
+            continue;
+        }
+
+        $entry = [
+            'template' => $template,
+            'contract' => (string)($contract['id'] ?? ''),
+            'missing_keys' => $missingKeys,
+            'type_mismatches' => $typeMismatches,
+        ];
+
+        if ($shouldLog) {
+            write_log('warn', (string)($contract['log_event'] ?? 'kernel.render_context.contract_mismatch'), $entry);
+        }
+
+        if ($collectMismatches) {
+            $mismatches[] = $entry;
+        }
+    }
+
+    return $context;
+}
+
+function kernelPrepareRenderContext(string $template, array $context = []): array
+{
+    $context['__render_contract_validate'] = true;
+    $mismatches = [];
+    $context = kernelNormalizeRenderContextContracts($context, $template, $mismatches);
+    unset($context['__render_contract_validate']);
+
+    if (kernelRenderContextContractStrictMode() && $mismatches !== []) {
+        $firstMismatch = $mismatches[0];
+        throw new RuntimeException(kernelRenderContextContractMismatchMessage(
+            $template,
+            (string)($firstMismatch['contract'] ?? ''),
+            is_array($firstMismatch['missing_keys'] ?? null) ? $firstMismatch['missing_keys'] : [],
+            is_array($firstMismatch['type_mismatches'] ?? null) ? $firstMismatch['type_mismatches'] : []
+        ));
+    }
+
+    return $context;
+}
+
+/**
  * Flush PHP OPcache + realpath cache after on-disk code changes
  * (module enable/disable, theme install, deployments, etc.).
  */

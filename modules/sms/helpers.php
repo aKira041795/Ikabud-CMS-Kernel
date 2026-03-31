@@ -27,8 +27,86 @@ function smsInput(): array
 
 function smsRender(string $template, array $context = []): string
 {
-    return smsCtx()->render($template, $context);
+    return smsCtx()->render($template, kernelPrepareRenderContext($template, $context));
 }
+
+function smsNormalizeLogPageRenderContext(array $context, string $template, array &$missingKeys = [], array &$typeMismatches = []): array
+{
+    return kernelApplyRenderContextShape($context, [
+        'current_page' => '',
+        'page_title' => '',
+        'sms_configured' => false,
+        'sms_settings' => [],
+    ], ['current_page', 'page_title', 'sms_configured', 'sms_settings'], $missingKeys, $typeMismatches);
+}
+
+function smsNormalizeComposeRenderContext(array $context, string $template, array &$missingKeys = [], array &$typeMismatches = []): array
+{
+    return kernelApplyRenderContextShape($context, [
+        'sms_configured' => false,
+        'test_mode' => false,
+    ], ['sms_configured', 'test_mode'], $missingKeys, $typeMismatches);
+}
+
+function smsNormalizeTemplatesRenderContext(array $context, string $template, array &$missingKeys = [], array &$typeMismatches = []): array
+{
+    return kernelApplyRenderContextShape($context, [
+        'templates' => [],
+    ], ['templates'], $missingKeys, $typeMismatches);
+}
+
+function smsNormalizeSettingsRenderContext(array $context, string $template, array &$missingKeys = [], array &$typeMismatches = []): array
+{
+    return kernelApplyRenderContextShape($context, [
+        'fields' => [],
+    ], ['fields'], $missingKeys, $typeMismatches);
+}
+
+function smsNormalizeLogTableRenderContext(array $context, string $template, array &$missingKeys = [], array &$typeMismatches = []): array
+{
+    return kernelApplyRenderContextShape($context, [
+        'logs' => [],
+        'total' => 0,
+        'page' => 1,
+        'limit' => 25,
+        'pages' => 1,
+    ], ['logs', 'total', 'page', 'limit', 'pages'], $missingKeys, $typeMismatches);
+}
+
+kernelRegisterRenderContextContract('sms.page.log', [
+    'template' => 'modules/sms/pages/sms-log.disyl',
+    'priority' => 20,
+    'normalize' => 'smsNormalizeLogPageRenderContext',
+    'log_event' => 'sms.render_context.contract_mismatch',
+]);
+
+kernelRegisterRenderContextContract('sms.partial.compose', [
+    'template' => 'modules/sms/partials/compose.disyl',
+    'priority' => 20,
+    'normalize' => 'smsNormalizeComposeRenderContext',
+    'log_event' => 'sms.render_context.contract_mismatch',
+]);
+
+kernelRegisterRenderContextContract('sms.partial.templates', [
+    'template' => 'modules/sms/partials/templates.disyl',
+    'priority' => 20,
+    'normalize' => 'smsNormalizeTemplatesRenderContext',
+    'log_event' => 'sms.render_context.contract_mismatch',
+]);
+
+kernelRegisterRenderContextContract('sms.partial.settings', [
+    'template' => 'modules/sms/partials/settings.disyl',
+    'priority' => 20,
+    'normalize' => 'smsNormalizeSettingsRenderContext',
+    'log_event' => 'sms.render_context.contract_mismatch',
+]);
+
+kernelRegisterRenderContextContract('sms.partial.log-table', [
+    'template' => 'modules/sms/partials/log-table.disyl',
+    'priority' => 20,
+    'normalize' => 'smsNormalizeLogTableRenderContext',
+    'log_event' => 'sms.render_context.contract_mismatch',
+]);
 
 function smsIsHtmx(): bool
 {

@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+require_once __DIR__ . '/helpers.php';
+
 /**
  * Ticketing Module — Handlers
  */
@@ -123,7 +125,7 @@ function handleTicketList(array $params = []): void
     ];
     $stats['total'] = array_sum($stats);
 
-    echo $ctx->render('modules/ticketing/list.disyl', [
+    echo tkRender('modules/ticketing/list.disyl', [
         'page_title'      => 'Tickets',
         'tickets'         => $tickets,
         'stats'           => $stats,
@@ -145,7 +147,7 @@ function handleTicketCreate(array $params = []): void
     $user = $ctx->requireAuth();
     $users = tk_getUsers();
 
-    echo $ctx->render('modules/ticketing/create.disyl', [
+    echo tkRender('modules/ticketing/create.disyl', [
         'page_title' => 'New Ticket',
         'users'      => $users,
     ]);
@@ -199,7 +201,7 @@ function handleTicketView(array $params = []): void
 
     $users = tk_getUsers();
 
-    echo $ctx->render('modules/ticketing/view.disyl', [
+    echo tkRender('modules/ticketing/view.disyl', [
         'page_title'  => $ticket['ticket_no'] . ' — ' . $ticket['subject'],
         'ticket'      => $ticket,
         'comments'    => $comments,
@@ -243,7 +245,7 @@ function handleTicketEdit(array $params = []): void
 
     $users = tk_getUsers();
 
-    echo $ctx->render('modules/ticketing/edit.disyl', [
+    echo tkRender('modules/ticketing/edit.disyl', [
         'page_title' => 'Edit ' . $ticket['ticket_no'],
         'ticket'     => $ticket,
         'users'      => $users,
@@ -393,7 +395,7 @@ function apiAddComment(array $params = []): void
         $cStmt->execute([':tid' => $ticketId]);
         $comments = $cStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
-        echo $ctx->render('modules/ticketing/partials/comments.disyl', [
+        echo tkRender('modules/ticketing/partials/comments.disyl', [
             'comments' => $comments,
         ]);
         return;
@@ -781,7 +783,7 @@ function handlePublicSubmitForm(array $params = []): void
 
     $captcha = tkGenerateCaptcha();
 
-    echo $ctx->render('modules/ticketing/public-submit.disyl', [
+    echo tkRender('modules/ticketing/public-submit.disyl', [
         'page_title'      => 'Submit a Maintenance Request',
         'captcha_question' => $captcha['question'],
         'captcha_token'   => $captcha['token'],
@@ -802,7 +804,7 @@ function handlePublicSubmitSuccess(array $params = []): void
     $raw      = strtoupper(trim((string) ($_GET['t'] ?? '')));
     $ticketNo = preg_match('/^TK-[0-9A-Z]{1,10}$/', $raw) ? $raw : '';
 
-    echo $ctx->render('modules/ticketing/public-success.disyl', [
+    echo tkRender('modules/ticketing/public-success.disyl', [
         'page_title' => 'Request Submitted',
         'ticket_no'  => $ticketNo,
         'base_url'   => external_base_url((string)config('app.url', '')),
@@ -1000,7 +1002,7 @@ function handleSettingsPage(array $params = []): void
 
     $settings = tkGetSettings();
 
-    echo $ctx->render('modules/ticketing/pages/settings.disyl', [
+    echo tkRender('modules/ticketing/pages/settings.disyl', [
         'page_title' => 'Ticketing — Settings',
         'settings'   => $settings,
     ]);

@@ -1064,49 +1064,9 @@ function cmsBuilderEntityFeaturedImageUrl(array $entity): string
 function cmsBuilderEntityViewContext(array $context): array
 {
     $entity = isset($context['entity']) && is_array($context['entity']) ? $context['entity'] : $context;
-    $entityId = (int)($entity['id'] ?? 0);
-    $attachedCapabilities = [];
-
-    if ($entityId > 0) {
-        try {
-            $attachedCapabilities = cmsEntityGetCapabilities($entityId);
-            $runtime = cmsEntityCapabilityRuntimeState($entityId, $entity);
-            $entity['capabilities'] = is_array($runtime['capabilities'] ?? null) ? $runtime['capabilities'] : [];
-            $entity['capability_data'] = is_array($runtime['capability_data'] ?? null) ? $runtime['capability_data'] : [];
-            $entity['entity_context'] = is_array($runtime['resolved_context'] ?? null) ? $runtime['resolved_context'] : [];
-        } catch (\Throwable $e) {
-            $entity['capabilities'] = [];
-            $entity['capability_data'] = [];
-            $entity['entity_context'] = [];
-        }
-
-        foreach (['inquiry', 'lessons_index', 'media_gallery'] as $capabilityId) {
-            if (empty($entity['capabilities'][$capabilityId])) {
-                continue;
-            }
-            if (!empty($entity['capability_data'][$capabilityId])) {
-                continue;
-            }
-
-            $fallbackFunction = 'cms_cap_entity_capability_' . $capabilityId . '_data_1';
-            if (!function_exists($fallbackFunction)) {
-                continue;
-            }
-
-            try {
-                $entity['capability_data'][$capabilityId] = $fallbackFunction([
-                    'entity' => $entity,
-                    'config' => $attachedCapabilities[$capabilityId] ?? [],
-                    'entity_id' => $entityId,
-                ]);
-            } catch (\Throwable $e) {
-            }
-        }
-    } else {
-        $entity['capabilities'] = [];
-        $entity['capability_data'] = [];
-        $entity['entity_context'] = [];
-    }
+    $entity = array_merge($entity, cmsEntityRenderProjection($entity, [
+        'fallback_capability_data' => ['inquiry', 'lessons_index', 'media_gallery'],
+    ]));
 
     $entity['featured_image_url'] = cmsBuilderEntityFeaturedImageUrl($entity);
 
@@ -1319,15 +1279,9 @@ function cmsRenderWidget_entity_list(array $props, array $style, array $attrs, s
     $html = '<div' . cmsBuilderAttrString($attrs) . cmsBuilderStyleAttr($wrapperStyle) . '>';
 
     foreach ($items as $item) {
-        $entityId = (int)($item['id'] ?? 0);
-        try {
-            $runtime = $entityId > 0 ? cmsEntityCapabilityRuntimeState($entityId, $item) : [];
-        } catch (\Throwable $e) {
-            $runtime = [];
-        }
-
-        $capabilities = is_array($runtime['capabilities'] ?? null) ? $runtime['capabilities'] : [];
-        $capabilityData = is_array($runtime['capability_data'] ?? null) ? $runtime['capability_data'] : [];
+        $projection = cmsEntityRenderProjection($item);
+        $capabilities = $projection['capabilities'];
+        $capabilityData = $projection['capability_data'];
         $pricing = is_array($capabilityData['pricing'] ?? null) ? $capabilityData['pricing'] : [];
         $inventory = is_array($capabilityData['inventory'] ?? null) ? $capabilityData['inventory'] : [];
         $progress = is_array($capabilityData['progress_tracking'] ?? null) ? $capabilityData['progress_tracking'] : [];

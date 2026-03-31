@@ -110,6 +110,30 @@ $infoByBase = $registry->inspect('kernel.audit.record');
 t('inspect by base id resolves to @1', ($infoByBase['id'] ?? '') === 'kernel.audit.record@1');
 t('inspect by base id sets requested_id', ($infoByBase['requested_id'] ?? '') === 'kernel.audit.record');
 
+echo "\n=== RENDER CONTEXT PIPELINE ===\n";
+
+$hooks = app()->hooks();
+$hooks->on('kernel.render_context', function (array $context, string $template): array {
+    $context['__render_context_probe'] = $template;
+    return $context;
+}, 10);
+
+$renderContext = app()->cap()->call('kernel.render.context@1', ['template' => 'pages/404.disyl']);
+t('render context capability uses shared builder hook pipeline', ($renderContext['__render_context_probe'] ?? '') === 'pages/404.disyl');
+t('render context capability returns base shell keys', isset($renderContext['base_url'], $renderContext['app_url'], $renderContext['gui']) && is_array($renderContext['gui'] ?? null));
+$hooks->off('kernel.render_context');
+
+$hooks->on('kernel.render_context.finalize', function (array $context, string $template): array {
+    if ($template === 'pages/404.disyl') {
+        $context['page_title'] = 'Render Finalize Probe';
+    }
+    return $context;
+}, 10);
+
+$rendered404 = app()->render('pages/404.disyl');
+t('render finalize hook mutates the final merged render context', str_contains($rendered404, '<title>Render Finalize Probe'));
+$hooks->off('kernel.render_context.finalize');
+
 echo "\n=== MODULE PROVIDER ORIGIN (with modules loaded) ===\n";
 
 // Load modules so we can test module origin metadata

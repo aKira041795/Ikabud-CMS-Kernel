@@ -1177,7 +1177,7 @@ function handleCashierLedger(array $params = []): void
     $userName = (string)($user['name'] ?? $user['full_name'] ?? $user['username'] ?? 'User');
     $canLedgerOverride = dl_roleHasPermission($role, 'ledger.override');
     $clockLabel = dl_operatingClockLabel();
-    echo $ctx->render('modules/daily-ledger/cashier/ledger.disyl', [
+    echo dlRender('modules/daily-ledger/cashier/ledger.disyl', [
         'page_title'  => 'Daily Ledger',
         'user_name'   => $userName,
         'user_role'   => $role,
@@ -1240,7 +1240,7 @@ function handleCashierRows(array $params = []): void
     $stmt->execute([':bid' => $branchId, ':bid2' => $branchId, ':d' => $ledgerDate]);
     $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
-    echo $ctx->render('modules/daily-ledger/cashier/partials/ledger-rows.disyl', [
+    echo dlRender('modules/daily-ledger/cashier/partials/ledger-rows.disyl', [
         'rows'        => $rows,
         'branch_id'   => $branchId,
         'ledger_date' => $ledgerDate,
@@ -2097,7 +2097,7 @@ function handleAdminDashboard(array $params = []): void
     $role = (string)($user['role'] ?? '');
     $userName = (string)($user['name'] ?? $user['full_name'] ?? $user['username'] ?? 'User');
     $clockLabel = dl_operatingClockLabel();
-    echo $ctx->render('modules/daily-ledger/admin/dashboard.disyl', [
+    echo dlRender('modules/daily-ledger/admin/dashboard.disyl', [
         'page_title'            => 'Dashboard',
         'user_name'             => $userName,
         'user_role'             => $role,
@@ -2176,7 +2176,7 @@ function handleAdminSales(array $params = []): void
     $role = (string)($user['role'] ?? '');
     $userName = (string)($user['name'] ?? $user['full_name'] ?? $user['username'] ?? 'User');
     $clockLabel = dl_operatingClockLabel();
-    echo $ctx->render('modules/daily-ledger/admin/sales.disyl', [
+    echo dlRender('modules/daily-ledger/admin/sales.disyl', [
         'page_title'   => 'Sales Summary',
         'user_name'    => $userName,
         'user_role'    => $role,
@@ -2272,7 +2272,7 @@ function handleAdminProduction(array $params = []): void
     $canProductionOverride = dl_roleHasPermission($role, 'production.override');
     $featureSettings = dl_featureSettings();
     $clockLabel = dl_operatingClockLabel();
-    echo $ctx->render('modules/daily-ledger/admin/production.disyl', [
+    echo dlRender('modules/daily-ledger/admin/production.disyl', [
         'page_title' => 'Production Withdrawal',
         'user_name' => $userName,
         'user_role' => $role,
@@ -2367,7 +2367,7 @@ function handleAdminProductionOutput(array $params = []): void
     $userName = (string)($user['name'] ?? $user['full_name'] ?? $user['username'] ?? 'User');
     $featureSettings = dl_featureSettings();
     $clockLabel = dl_operatingClockLabel();
-    echo $ctx->render('modules/daily-ledger/admin/production-output.disyl', [
+    echo dlRender('modules/daily-ledger/admin/production-output.disyl', [
         'page_title' => 'Production Output',
         'user_name' => $userName,
         'user_role' => $role,
@@ -2406,7 +2406,7 @@ function handleAdminSettings(array $params = []): void
 
     $role = (string)($user['role'] ?? '');
     $userName = (string)($user['name'] ?? $user['full_name'] ?? $user['username'] ?? 'User');
-    echo $ctx->render('modules/daily-ledger/admin/settings.disyl', [
+    echo dlRender('modules/daily-ledger/admin/settings.disyl', [
         'page_title' => 'Daily Ledger Settings',
         'user_name' => $userName,
         'user_role' => $role,
@@ -2576,7 +2576,7 @@ function handleAdminVariances(array $params = []): void
 
     $role = (string)($user['role'] ?? '');
     $userName = (string)($user['name'] ?? $user['full_name'] ?? $user['username'] ?? 'User');
-    echo $ctx->render('modules/daily-ledger/admin/variances.disyl', [
+    echo dlRender('modules/daily-ledger/admin/variances.disyl', [
         'page_title'    => 'Variance Flags',
         'user_name'     => $userName,
         'user_role'     => $role,
@@ -2636,7 +2636,7 @@ function handleAdminActivity(array $params = []): void
 
     $role = (string)($user['role'] ?? '');
     $userName = (string)($user['name'] ?? $user['full_name'] ?? $user['username'] ?? 'User');
-    echo $ctx->render('modules/daily-ledger/admin/activity.disyl', [
+    echo dlRender('modules/daily-ledger/admin/activity.disyl', [
         'page_title' => 'Encoder Activity',
         'user_name' => $userName,
         'user_role' => $role,
@@ -2683,7 +2683,7 @@ function handleAdminProducts(array $params = []): void
 
     $role = (string)($user['role'] ?? '');
     $userName = (string)($user['name'] ?? $user['full_name'] ?? $user['username'] ?? 'User');
-    echo $ctx->render('modules/daily-ledger/admin/products.disyl', [
+    echo dlRender('modules/daily-ledger/admin/products.disyl', [
         'page_title' => 'Products',
         'user_name' => $userName,
         'user_role' => $role,
@@ -3016,7 +3016,7 @@ function handleAdminBranches(array $params = []): void
 
     $role = (string)($user['role'] ?? '');
     $userName = (string)($user['name'] ?? $user['full_name'] ?? $user['username'] ?? 'User');
-    echo $ctx->render('modules/daily-ledger/admin/branches.disyl', [
+    echo dlRender('modules/daily-ledger/admin/branches.disyl', [
         'page_title' => 'Branches',
         'user_name' => $userName,
         'user_role' => $role,
@@ -3174,7 +3174,7 @@ function handleAdminUsers(array $params = []): void
 
     $role = (string)($user['role'] ?? '');
     $userName = (string)($user['name'] ?? $user['full_name'] ?? $user['username'] ?? 'User');
-    echo $ctx->render('modules/daily-ledger/admin/users.disyl', [
+    echo dlRender('modules/daily-ledger/admin/users.disyl', [
         'page_title' => 'Users',
         'user_name' => $userName,
         'user_role' => $role,

@@ -208,6 +208,168 @@ function cmsEntityCapabilityClearCache(int $entityId): void
 {
     unset($GLOBALS['cms_entity_caps_' . $entityId]);
     unset($GLOBALS['cms_entity_type_' . $entityId]);
+    unset($GLOBALS['cms_entity_capability_runtime_request_cache'][$entityId]);
+    unset($GLOBALS['cms_entity_render_projection_request_cache'][$entityId]);
+}
+
+function cmsEntityCapabilityRequestUserFingerprint(): string
+{
+    $user = null;
+
+    if (function_exists('cmsCtxUser')) {
+        try {
+            $resolvedUser = cmsCtxUser();
+            $user = is_array($resolvedUser) ? $resolvedUser : null;
+        } catch (\Throwable $e) {
+            $user = null;
+        }
+    }
+
+    if ($user === null) {
+        try {
+            $resolvedUser = app()->cap()->call('kernel.auth.user@1');
+            $user = is_array($resolvedUser) ? $resolvedUser : null;
+        } catch (\Throwable $e) {
+            $user = null;
+        }
+    }
+
+    if ($user === null) {
+        return 'guest';
+    }
+
+    $source = trim((string)($user['source'] ?? ''));
+    if ($source === '') {
+        $source = 'user';
+    }
+
+    return $source . ':' . (int)($user['id'] ?? 0) . ':' . trim((string)($user['role'] ?? ''));
+}
+
+function cmsEntityCapabilityRequestCacheableEntityPayload(array $entity): array
+{
+    foreach ([
+        'capabilities',
+        'capability_data',
+        'entity_context',
+        'cart_enabled',
+        'cart_action_url',
+        'action_sections',
+        'primary_image_url',
+        'list_card_excerpt',
+        'list_card_pricing_html',
+        'list_card_inventory_html',
+        'list_card_progress_html',
+        'list_card_action_html',
+        'content_type_label',
+        'entity_type_label',
+        'published_at_display',
+        'entity_render_family',
+        'entity_presentation',
+    ] as $key) {
+        unset($entity[$key]);
+    }
+
+    return $entity;
+}
+
+function cmsEntityCapabilityRequestEntityFingerprint(array $entity): string
+{
+    $payload = cmsEntityCapabilityRequestCacheableEntityPayload($entity);
+    $encoded = json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+    if (!is_string($encoded)) {
+        $encoded = serialize($payload);
+    }
+
+    return md5($encoded);
+}
+
+function cmsEntityCapabilityRuntimeRequestCacheKey(int $entityId, array $entity = []): ?string
+{
+    if ($entityId <= 0) {
+        return null;
+    }
+
+    return implode('|', [
+        cmsEntityCapabilityEntityType($entityId, $entity),
+        cmsEntityCapabilityRequestUserFingerprint(),
+        cmsEntityCapabilityRequestEntityFingerprint($entity),
+    ]);
+}
+
+function cmsEntityRenderProjectionRequestCacheKey(array $entity, array $options = []): ?string
+{
+    if (is_array($options['runtime'] ?? null)) {
+        return null;
+    }
+
+    $entityId = (int)($entity['id'] ?? 0);
+    if ($entityId <= 0) {
+        return null;
+    }
+
+    $runtimeCacheKey = cmsEntityCapabilityRuntimeRequestCacheKey($entityId, $entity);
+    if ($runtimeCacheKey === null) {
+        return null;
+    }
+
+    $fallbackCapabilityIds = array_values(array_filter(
+        is_array($options['fallback_capability_data'] ?? null) ? $options['fallback_capability_data'] : [],
+        static fn(mixed $value): bool => is_string($value) && trim($value) !== ''
+    ));
+    sort($fallbackCapabilityIds);
+
+    $cartCapabilityAvailable = false;
+    if (!empty($options['include_cart'])) {
+        try {
+            $cartCapabilityAvailable = app()->capabilities()->has('cms.cart.add@1');
+        } catch (\Throwable $e) {
+            $cartCapabilityAvailable = false;
+        }
+    }
+
+    $payload = [
+        'runtime' => $runtimeCacheKey,
+        'include_cart' => !empty($options['include_cart']),
+        'cart_capability_available' => $cartCapabilityAvailable,
+        'include_action_sections' => !empty($options['include_action_sections']),
+        'base_url' => rtrim((string)($options['base_url'] ?? (defined('BASE_URL') ? BASE_URL : '')), '/'),
+        'fallback_capability_data' => $fallbackCapabilityIds,
+    ];
+    $encoded = json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+    if (!is_string($encoded)) {
+        $encoded = serialize($payload);
+    }
+
+    return md5($encoded);
+}
+
+function cmsEntityCapabilityRememberRuntimeState(int $entityId, ?string $cacheKey, array $runtime): array
+{
+    if ($entityId <= 0 || $cacheKey === null) {
+        return $runtime;
+    }
+
+    if (!isset($GLOBALS['cms_entity_capability_runtime_request_cache'][$entityId]) || !is_array($GLOBALS['cms_entity_capability_runtime_request_cache'][$entityId])) {
+        $GLOBALS['cms_entity_capability_runtime_request_cache'][$entityId] = [];
+    }
+
+    $GLOBALS['cms_entity_capability_runtime_request_cache'][$entityId][$cacheKey] = $runtime;
+    return $runtime;
+}
+
+function cmsEntityRememberRenderProjection(int $entityId, ?string $cacheKey, array $projection): array
+{
+    if ($entityId <= 0 || $cacheKey === null) {
+        return $projection;
+    }
+
+    if (!isset($GLOBALS['cms_entity_render_projection_request_cache'][$entityId]) || !is_array($GLOBALS['cms_entity_render_projection_request_cache'][$entityId])) {
+        $GLOBALS['cms_entity_render_projection_request_cache'][$entityId] = [];
+    }
+
+    $GLOBALS['cms_entity_render_projection_request_cache'][$entityId][$cacheKey] = $projection;
+    return $projection;
 }
 
 function cmsEntityCapabilityEntityType(int $entityId, array $entity = []): string
@@ -345,6 +507,14 @@ function cmsEntityCapabilityProviderData(string $capId, int $entityId, array $en
 
 function cmsEntityCapabilityRuntimeState(int $entityId, array $entity = []): array
 {
+    $requestCacheKey = cmsEntityCapabilityRuntimeRequestCacheKey($entityId, $entity);
+    if ($requestCacheKey !== null) {
+        $cachedRuntime = $GLOBALS['cms_entity_capability_runtime_request_cache'][$entityId][$requestCacheKey] ?? null;
+        if (is_array($cachedRuntime)) {
+            return $cachedRuntime;
+        }
+    }
+
     $attached = $entityId > 0 ? cmsEntityGetCapabilities($entityId) : [];
     $entityType = cmsEntityCapabilityEntityType($entityId, $entity);
     $resolvedContext = [];
@@ -395,13 +565,157 @@ function cmsEntityCapabilityRuntimeState(int $entityId, array $entity = []): arr
         }
     }
 
-    return [
+    return cmsEntityCapabilityRememberRuntimeState($entityId, $requestCacheKey, [
         'entity_type' => $entityType,
         'attached_capabilities' => $attached,
         'resolved_context' => $resolvedContext,
         'capabilities' => $capabilities,
         'capability_data' => $capabilityData,
+    ]);
+}
+
+function cmsEntityRenderProjectionFallbackData(
+    int $entityId,
+    array $entity,
+    array $attachedCapabilities,
+    array $projection,
+    array $fallbackCapabilityIds
+): array {
+    foreach ($fallbackCapabilityIds as $capabilityId) {
+        if (!is_string($capabilityId)) {
+            continue;
+        }
+
+        $capabilityId = trim($capabilityId);
+        if ($capabilityId === '') {
+            continue;
+        }
+
+        if (empty($projection['capabilities'][$capabilityId]) || !empty($projection['capability_data'][$capabilityId])) {
+            continue;
+        }
+
+        $fallbackFunction = 'cms_cap_entity_capability_' . $capabilityId . '_data_1';
+        if (!function_exists($fallbackFunction)) {
+            continue;
+        }
+
+        try {
+            $data = $fallbackFunction([
+                'entity' => $entity,
+                'config' => is_array($attachedCapabilities[$capabilityId] ?? null) ? $attachedCapabilities[$capabilityId] : [],
+                'entity_id' => $entityId,
+            ]);
+            if (is_array($data) && $data !== []) {
+                $projection['capability_data'][$capabilityId] = $data;
+            }
+        } catch (\Throwable $e) {
+        }
+    }
+
+    return $projection;
+}
+
+function cmsEntityRenderProjection(array $entity, array $options = []): array
+{
+    $entityId = (int)($entity['id'] ?? 0);
+    $includeCart = !empty($options['include_cart']);
+    $includeActionSections = !empty($options['include_action_sections']);
+    $baseUrl = rtrim((string)($options['base_url'] ?? (defined('BASE_URL') ? BASE_URL : '')), '/');
+    $projectionCacheKey = cmsEntityRenderProjectionRequestCacheKey($entity, $options);
+
+    if ($entityId > 0 && $projectionCacheKey !== null) {
+        $cachedProjection = $GLOBALS['cms_entity_render_projection_request_cache'][$entityId][$projectionCacheKey] ?? null;
+        if (is_array($cachedProjection)) {
+            return $cachedProjection;
+        }
+    }
+
+    $projection = [
+        'capabilities' => [],
+        'capability_data' => [],
+        'entity_context' => [],
     ];
+
+    if ($includeCart) {
+        $projection['cart_enabled'] = false;
+        $projection['cart_action_url'] = '';
+    }
+
+    if ($includeActionSections) {
+        $projection['action_sections'] = '';
+    }
+
+    if ($entityId <= 0) {
+        return $projection;
+    }
+
+    $runtime = is_array($options['runtime'] ?? null) ? $options['runtime'] : [];
+    $attachedCapabilities = [];
+    $logErrorEvent = trim((string)($options['log_error_event'] ?? ''));
+    $logErrorContext = is_array($options['log_error_context'] ?? null) ? $options['log_error_context'] : [];
+
+    try {
+        if ($runtime === []) {
+            $runtime = cmsEntityCapabilityRuntimeState($entityId, $entity);
+        }
+
+        $projection['capabilities'] = is_array($runtime['capabilities'] ?? null) ? $runtime['capabilities'] : [];
+        $projection['capability_data'] = is_array($runtime['capability_data'] ?? null) ? $runtime['capability_data'] : [];
+        $projection['entity_context'] = is_array($runtime['resolved_context'] ?? null) ? $runtime['resolved_context'] : [];
+        $attachedCapabilities = is_array($runtime['attached_capabilities'] ?? null) ? $runtime['attached_capabilities'] : [];
+    } catch (\Throwable $e) {
+        if ($logErrorEvent !== '') {
+            write_log('warn', $logErrorEvent, array_merge($logErrorContext, [
+                'entity_id' => $entityId,
+                'error' => $e->getMessage(),
+            ]));
+        }
+
+        return cmsEntityRememberRenderProjection($entityId, $projectionCacheKey, $projection);
+    }
+
+    $fallbackCapabilityIds = array_values(array_filter(
+        is_array($options['fallback_capability_data'] ?? null) ? $options['fallback_capability_data'] : [],
+        static fn(mixed $value): bool => is_string($value) && trim($value) !== ''
+    ));
+
+    if ($fallbackCapabilityIds !== []) {
+        $projection = cmsEntityRenderProjectionFallbackData(
+            $entityId,
+            $entity,
+            $attachedCapabilities,
+            $projection,
+            $fallbackCapabilityIds
+        );
+    }
+
+    if ($includeCart) {
+        try {
+            if (!empty($projection['capabilities']['pricing']) && app()->capabilities()->has('cms.cart.add@1')) {
+                $projection['cart_enabled'] = true;
+                $projection['cart_action_url'] = $baseUrl . '/ecommerce/cart/add';
+            }
+        } catch (\Throwable $e) {
+        }
+    }
+
+    if ($includeActionSections) {
+        try {
+            $sections = app()->hooks()->filter('cms.entity.action_block.sections', [], [
+                'entity' => $entity,
+                'capabilities' => $projection['capabilities'],
+                'capability_data' => $projection['capability_data'],
+                'base_url' => $baseUrl,
+            ]);
+            if (is_string($sections) && $sections !== '') {
+                $projection['action_sections'] = $sections;
+            }
+        } catch (\Throwable $e) {
+        }
+    }
+
+    return cmsEntityRememberRenderProjection($entityId, $projectionCacheKey, $projection);
 }
 
 function cmsEntityCapabilityResolvedContext(int $entityId, array $entity = []): array
@@ -921,4 +1235,6 @@ function cmsEntityProgressUpdate(int $entityId, int $userId, int $percent): void
         ':pct'  => $percent,
         ':pct2' => $percent,
     ]);
+
+    cmsEntityCapabilityClearCache($entityId);
 }

@@ -776,6 +776,7 @@ $nativeShopHtml = captureEcRender('modules/ecommerce/public/shop.disyl', [
 ]);
 t('native storefront shop render uses archive-product theme template', str_contains($nativeShopHtml, 'data-native-ecommerce-template="archive-product"'), $nativeShopHtml);
 t('native storefront shop render exposes storefront contract markers', str_contains($nativeShopHtml, 'data-storefront-route-kind="shop_index"') && str_contains($nativeShopHtml, 'data-storefront-page-kind="catalog"') && str_contains($nativeShopHtml, 'data-storefront-visible-count="1"'), $nativeShopHtml);
+t('native storefront shop render preserves theme stylesheet asset', str_contains($nativeShopHtml, 'assets/cms/themes/native-default/style.css'), $nativeShopHtml);
 
 $nativeDropdownStorefront = ecBuildStorefrontCatalogContext($nativeCatalogProducts, [
     'route_kind' => 'shop_index',
@@ -2540,6 +2541,7 @@ $appLog = @file_get_contents(STORAGE_PATH . '/logs/app.log') ?: '';
 $errLog = @file_get_contents(STORAGE_PATH . '/logs/error.log') ?: '';
 
 $appErrors = array_filter(explode("\n", $appLog), fn($l) => str_contains($l, '[error]') || str_contains($l, '[warning]'));
+$contractMismatchWarnings = array_values(array_filter(explode("\n", $appLog), static fn(string $line): bool => str_contains($line, 'cms.render_context.contract_mismatch')));
 $errLines = array_values(array_filter(explode("\n", $errLog), static function (string $line): bool {
     return trim($line) !== ''
         && !str_contains($line, 'storage/cache/kernel_bootstrap')
@@ -2547,6 +2549,7 @@ $errLines = array_values(array_filter(explode("\n", $errLog), static function (s
     && !str_contains($line, 'Ikabud Cache: Cleared');
 }));
 t('No app.log errors', empty($appErrors), implode('; ', $appErrors));
+t('No contract mismatch warnings in app.log', empty($contractMismatchWarnings), implode('; ', $contractMismatchWarnings));
 t('No PHP errors in error.log', empty($errLines), implode('; ', array_slice($errLines, 0, 2)));
 
 // ═══════════════════════════════════════════════════════════════════

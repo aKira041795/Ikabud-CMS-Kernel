@@ -66,6 +66,20 @@ function ecInferPublicRouteKind(string $template, array $context = []): string
     };
 }
 
+function ecNormalizePublicRouteKind(string $routeKind): string
+{
+    $routeKind = trim($routeKind);
+    if ($routeKind === '') {
+        $routeKind = 'generic';
+    }
+
+    if (function_exists('cmsNormalizeEcommercePublicRouteKind')) {
+        $routeKind = cmsNormalizeEcommercePublicRouteKind($routeKind);
+    }
+
+    return $routeKind;
+}
+
 function ecPublicThemeTemplateCandidates(string $template, array $context = []): array
 {
     if (!ecIsPublicTemplate($template) || $template === 'pages/404.disyl') {
@@ -168,9 +182,7 @@ function ecRouteUsesCanonicalEntityRendering(?string $routeKind = null, array $c
     if ($resolvedRouteKind === '') {
         $resolvedRouteKind = trim((string)($context['public_route_kind'] ?? $context['ecommerce_public_route'] ?? 'generic'));
     }
-    if (function_exists('cmsNormalizeEcommercePublicRouteKind')) {
-        $resolvedRouteKind = cmsNormalizeEcommercePublicRouteKind($resolvedRouteKind);
-    }
+    $resolvedRouteKind = ecNormalizePublicRouteKind($resolvedRouteKind);
 
     return ecResolvePublicPresentationMode($resolvedRouteKind, $context) === 'entity_view';
 }
@@ -198,9 +210,7 @@ function ecAssertTraditionalEntityTemplateAllowed(string $template, array $conte
 function ecDispatchCanonicalEntityRoute(string $handler, array $payload, array $context = []): bool
 {
     $routeKind = trim((string)($context['public_route_kind'] ?? $payload['public_route_kind'] ?? $context['ecommerce_public_route'] ?? $payload['ecommerce_public_route'] ?? 'generic'));
-    if (function_exists('cmsNormalizeEcommercePublicRouteKind')) {
-        $routeKind = cmsNormalizeEcommercePublicRouteKind($routeKind);
-    }
+    $routeKind = ecNormalizePublicRouteKind($routeKind);
 
     $resolvedContext = array_merge($context, $payload, ['public_route_kind' => $routeKind]);
     if (!ecRouteUsesCanonicalEntityRendering($routeKind, $resolvedContext)) {
@@ -227,7 +237,7 @@ function ecPublicRenderContext(string $template, array $context = []): array
         return $context;
     }
 
-    $routeKind = ecInferPublicRouteKind($template, $context);
+    $routeKind = ecNormalizePublicRouteKind(ecInferPublicRouteKind($template, $context));
     $presentationMode = ecResolvePublicPresentationMode($routeKind, $context);
 
     return array_merge($context, [
@@ -262,7 +272,8 @@ function ecRender(string $template, array $context = []): void
     $render = static function () use ($template, $context, $isPublicTemplate): void {
         if ($isPublicTemplate && function_exists('cmsPublicContext') && function_exists('cmsRenderThemeAwareTemplate')) {
             $html = moduleWithContext('cms', static function () use ($template, $context): string {
-                $renderContext = array_merge(cmsPublicContext($context), $context);
+                $renderContext = cmsPublicContext($context);
+                $renderContext = kernelPrepareRenderContext($template, $renderContext);
                 $resolvedTemplate = ecResolvePublicThemeTemplate($template, $renderContext);
                 return cmsRenderThemeAwareTemplate($resolvedTemplate, $renderContext);
             });
@@ -270,7 +281,7 @@ function ecRender(string $template, array $context = []): void
             return;
         }
 
-        echo ecCtx()->render($template, $context);
+        echo ecCtx()->render($template, kernelPrepareRenderContext($template, $context));
     };
 
     if ($isPublicTemplate && function_exists('cmsWithPublicThemeContext')) {

@@ -667,6 +667,34 @@ function cmsWithThemeSymlinkLock(callable $callback, int $lockMode = LOCK_EX): m
     }
 }
 
+function cmsThemeRenderLockDepth(): int
+{
+    $depth = $GLOBALS['cms_theme_render_lock_depth'] ?? 0;
+    return is_int($depth) ? $depth : (int)$depth;
+}
+
+function cmsWithThemeRenderLock(callable $callback): mixed
+{
+    $depth = cmsThemeRenderLockDepth();
+    if ($depth > 0) {
+        $GLOBALS['cms_theme_render_lock_depth'] = $depth + 1;
+        try {
+            return $callback();
+        } finally {
+            $GLOBALS['cms_theme_render_lock_depth'] = $depth;
+        }
+    }
+
+    return cmsWithThemeSymlinkLock(function () use ($callback): mixed {
+        $GLOBALS['cms_theme_render_lock_depth'] = 1;
+        try {
+            return $callback();
+        } finally {
+            unset($GLOBALS['cms_theme_render_lock_depth']);
+        }
+    }, LOCK_SH);
+}
+
 /**
  * Activate a CMS theme by creating a symlink in the templates directory.
  * Pass null or 'default' to deactivate (remove symlink).
@@ -994,6 +1022,10 @@ function cmsRenderThemeAwareTemplate(string $template, array $context = []): str
         return cmsRender($template, $context);
     }
 
+    if (cmsThemeRenderLockDepth() > 0) {
+        return cmsRender($template, $context);
+    }
+
     return cmsWithThemeSymlinkLock(function () use ($template, $context): string {
         return cmsRender($template, $context);
     }, LOCK_SH);
@@ -1007,6 +1039,13 @@ function cmsRenderThemeAwareTemplate(string $template, array $context = []): str
 function cmsPublicRender(string $subPath, array $context = []): string
 {
     $template = cmsResolveTemplate($subPath);
+    $needsThemeLock = str_starts_with($template, '_cms_active_theme/')
+        || str_starts_with($template, 'modules/cms/public/');
+
+    if ($needsThemeLock && cmsThemeRenderLockDepth() > 0) {
+        return cmsRender($template, $context);
+    }
+
     if (!str_starts_with($template, '_cms_active_theme/')) {
         return cmsRender($template, $context);
     }

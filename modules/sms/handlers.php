@@ -63,7 +63,7 @@ function pageSmsTemplates(array $params = []): void
 
     $templates = $ctx->db()->query("SELECT * FROM sms_templates ORDER BY event_key")->fetchAll(\PDO::FETCH_ASSOC);
 
-    echo $ctx->render('modules/sms/partials/templates.disyl', [
+    echo smsRender('modules/sms/partials/templates.disyl', [
         'templates' => $templates,
     ]);
 }
@@ -162,7 +162,7 @@ function apiSmsLog(array $params = []): void
     $logs = $stmt->fetchAll(\PDO::FETCH_ASSOC);
     
     if ($ctx->isHtmx()) {
-        echo $ctx->render('modules/sms/partials/log-table.disyl', [
+        echo smsRender('modules/sms/partials/log-table.disyl', [
             'logs' => $logs,
             'total' => $total,
             'page' => $page,

@@ -27,8 +27,90 @@ function dlInput(): array
 
 function dlRender(string $template, array $context = []): string
 {
-    return dlCtx()->render($template, $context);
+    return dlCtx()->render($template, kernelPrepareRenderContext($template, $context));
 }
+
+function dlNormalizeLoginRenderContext(array $context, string $template, array &$missingKeys = [], array &$typeMismatches = []): array
+{
+    return kernelApplyRenderContextShape($context, [
+        'page_title' => 'Daily Ledger Sign In',
+    ], ['page_title'], $missingKeys, $typeMismatches);
+}
+
+function dlNormalizeCashierLedgerRenderContext(array $context, string $template, array &$missingKeys = [], array &$typeMismatches = []): array
+{
+    return kernelApplyRenderContextShape($context, [
+        'page_title' => '',
+        'user_name' => '',
+        'user_role' => '',
+        'current_page' => '',
+        'base_url' => '',
+        'dl_token' => '',
+        'branch_id' => 0,
+        'branch_name' => '',
+        'ledger_date' => '',
+        'today' => '',
+        'day_status' => '',
+        'branches' => [],
+        'is_cashier' => false,
+        'can_ledger_override' => false,
+        'business_date_label' => '',
+        'close_of_day_time' => '',
+        'auto_close_enabled' => false,
+        'operating_timezone' => '',
+        'operating_region' => '',
+    ], ['page_title', 'user_name', 'user_role', 'current_page', 'base_url', 'branch_id', 'branch_name', 'ledger_date', 'today', 'day_status', 'branches', 'is_cashier'], $missingKeys, $typeMismatches);
+}
+
+function dlNormalizeCashierRowsRenderContext(array $context, string $template, array &$missingKeys = [], array &$typeMismatches = []): array
+{
+    return kernelApplyRenderContextShape($context, [
+        'rows' => [],
+        'branch_id' => 0,
+        'ledger_date' => '',
+        'day_status' => '',
+    ], ['rows', 'branch_id', 'ledger_date', 'day_status'], $missingKeys, $typeMismatches);
+}
+
+function dlNormalizeAdminRenderContext(array $context, string $template, array &$missingKeys = [], array &$typeMismatches = []): array
+{
+    return kernelApplyRenderContextShape($context, [
+        'page_title' => '',
+        'user_name' => '',
+        'user_role' => '',
+        'current_page' => '',
+        'base_url' => '',
+        'dl_token' => '',
+    ], ['page_title', 'user_name', 'user_role', 'current_page', 'base_url'], $missingKeys, $typeMismatches);
+}
+
+kernelRegisterRenderContextContract('daily-ledger.page.login', [
+    'template' => 'modules/daily-ledger/pages/login.disyl',
+    'priority' => 20,
+    'normalize' => 'dlNormalizeLoginRenderContext',
+    'log_event' => 'daily-ledger.render_context.contract_mismatch',
+]);
+
+kernelRegisterRenderContextContract('daily-ledger.cashier.ledger', [
+    'template' => 'modules/daily-ledger/cashier/ledger.disyl',
+    'priority' => 20,
+    'normalize' => 'dlNormalizeCashierLedgerRenderContext',
+    'log_event' => 'daily-ledger.render_context.contract_mismatch',
+]);
+
+kernelRegisterRenderContextContract('daily-ledger.cashier.rows', [
+    'template' => 'modules/daily-ledger/cashier/partials/ledger-rows.disyl',
+    'priority' => 20,
+    'normalize' => 'dlNormalizeCashierRowsRenderContext',
+    'log_event' => 'daily-ledger.render_context.contract_mismatch',
+]);
+
+kernelRegisterRenderContextContract('daily-ledger.admin.shell', [
+    'prefix' => 'modules/daily-ledger/admin/',
+    'priority' => 20,
+    'normalize' => 'dlNormalizeAdminRenderContext',
+    'log_event' => 'daily-ledger.render_context.contract_mismatch',
+]);
 
 function dlRedirect(string $url, int $status = 302): void
 {

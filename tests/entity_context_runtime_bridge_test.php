@@ -89,6 +89,7 @@ $db->prepare(
      VALUES (:content_id, '_currency', 'USD')
      ON DUPLICATE KEY UPDATE meta_value = VALUES(meta_value)"
 )->execute([':content_id' => $serviceId]);
+cmsEntityCapabilityClearCache($serviceId);
 
 $serviceContextWithPrice = cmsEntityCapabilityContext($serviceId, $serviceEntity);
 $serviceDataWithPrice = cmsEntityCapabilityData($serviceId, $serviceEntity);

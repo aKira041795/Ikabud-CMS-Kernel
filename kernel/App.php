@@ -204,71 +204,7 @@ class App
                 $template = (string)$payload['template'];
             }
 
-            $appUrl = external_base_url((string)$this->config('app.url', ''));
-            $baseUrl = rtrim(parse_url($appUrl, PHP_URL_PATH) ?: '', '/');
-
-            $user = $this->user();
-            if ($user) {
-                if (empty($user['first_name']) && !empty($user['name'])) {
-                    $parts = explode(' ', $user['name'], 2);
-                    $user['first_name'] = $parts[0];
-                    $user['last_name'] = $parts[1] ?? '';
-                }
-            }
-
-            if ($this->cachedNavItems === null) {
-                $this->cachedNavItems = $this->hooks()->filter('kernel.nav_items', [], $user);
-            }
-
-            if ($this->cachedGuiContext === null) {
-                $appName = $this->config('app.name', 'Baron Bakeshop');
-                $parts = explode(' ', $appName, 2);
-
-                $kernelDefaults = [
-                    'app_name' => $appName, 'app_name_accent' => $parts[0], 'app_name_rest' => $parts[1] ?? '',
-                    'color_bg' => '#f4f5f7', 'color_surface' => '#ffffff', 'color_border' => '#dfe3e8',
-                    'color_text' => '#2d3748', 'color_text_muted' => '#5a6577', 'color_text_light' => '#8895a7',
-                    'color_primary' => '#2563eb', 'color_primary_hover' => '#1d4ed8', 'color_primary_light' => '#dbeafe',
-                    'color_success' => '#0d9f4f', 'color_success_light' => '#d4f5e0',
-                    'color_warning' => '#c87e08', 'color_warning_light' => '#fef3c7',
-                    'color_danger' => '#d42828', 'color_danger_light' => '#fee2e2',
-                    'color_header_bg' => '#1e293b', 'color_header_text' => '#ffffff', 'color_header_accent' => '#60a5fa',
-                    'font_family' => "'Inter', system-ui, sans-serif",
-                    'font_url' => 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap',
-                    'font_size_base' => '14px', 'font_size_small' => '12px',
-                    'font_size_h1' => '24px', 'font_size_h2' => '18px', 'font_size_nav' => '13px',
-                    'border_radius' => '8px', 'header_height' => '56px', 'nav_height' => '44px', 'max_width' => '1200px',
-                    'css_overrides' => '',
-                ];
-
-                $guiFile = ($this->config('paths.storage', '') ?: (defined('STORAGE_PATH') ? STORAGE_PATH : '')) . '/gui-settings.json';
-                if ($guiFile !== '/gui-settings.json' && is_file($guiFile)) {
-                    $saved = json_decode((string) file_get_contents($guiFile), true);
-                    if (is_array($saved)) {
-                        $kernelDefaults = array_merge($kernelDefaults, $saved);
-                    }
-                }
-
-                $this->cachedGuiContext = $this->hooks()->filter('kernel.gui_context', $kernelDefaults);
-            }
-
-            $baseContext = [
-                'user' => $user,
-                'is_htmx' => $this->isHtmx() && !$this->isHtmxBoosted(),
-                'base_url' => $baseUrl,
-                'app_url' => $appUrl,
-                'cookie_name' => $this->config('app.cookie_name', 'guidance_token'),
-                'csrf_token' => $this->csrfToken(),
-                'csrf_field' => $this->csrfField(),
-                'nav_items' => $this->cachedNavItems,
-                'gui' => $this->cachedGuiContext,
-            ];
-
-            if ($template !== '') {
-                $baseContext = $this->hooks()->filter('kernel.render_context', $baseContext, $template);
-            }
-
-            return $baseContext;
+            return $this->buildRenderBaseContext($template);
         }, 1000, ['first'], $kernelCapabilityMeta('kernel.render.context@1'));
 
         // kernel.auth.authenticate@1 (pipeline):
@@ -949,23 +885,11 @@ class App
         }
     }
 
-    /**
-     * Render a DiSyL template.
-     * 
-     * The kernel builds a base context from its own state, then lets any
-     * registered hook listeners enrich it (navigation, GUI overrides, etc.).
-     * Zero function_exists() calls — all extension is via the Hooks system.
-     * 
-     * Well-known hooks fired during render:
-     *   'kernel.nav_items'      (filter)  array $items, ?array $user
-     *   'kernel.gui_context'    (filter)  array $guiDefaults
-     *   'kernel.render_context' (filter)  array $context, string $template
-     */
-    public function render(string $template, array $context = []): string
+    private function buildRenderBaseContext(string $template = ''): array
     {
         $appUrl = external_base_url((string)$this->config('app.url', ''));
         $baseUrl = rtrim(parse_url($appUrl, PHP_URL_PATH) ?: '', '/');
-        
+
         $user = $this->user();
         if ($user) {
             if (empty($user['first_name']) && !empty($user['name'])) {
@@ -974,15 +898,11 @@ class App
                 $user['last_name'] = $parts[1] ?? '';
             }
         }
-        
-        // ── Navigation (cached per-request) ────────────────────────
-        // The kernel provides an empty array; modules add their items via hook.
+
         if ($this->cachedNavItems === null) {
             $this->cachedNavItems = $this->hooks()->filter('kernel.nav_items', [], $user);
         }
-        
-        // ── GUI / theme context (cached per-request) ───────────────
-        // Kernel owns the full default set. Modules may overlay via hook.
+
         if ($this->cachedGuiContext === null) {
             $appName = $this->config('app.name', 'Baron Bakeshop');
             $parts = explode(' ', $appName, 2);
@@ -1004,7 +924,6 @@ class App
                 'css_overrides' => '',
             ];
 
-            // Layer 1: honour saved settings JSON (survives module disable)
             $guiFile = ($this->config('paths.storage', '') ?: (defined('STORAGE_PATH') ? STORAGE_PATH : '')) . '/gui-settings.json';
             if ($guiFile !== '/gui-settings.json' && is_file($guiFile)) {
                 $saved = json_decode((string) file_get_contents($guiFile), true);
@@ -1013,11 +932,9 @@ class App
                 }
             }
 
-            // Layer 2: hook — modules may override/enrich (e.g. gui-settings adds css_overrides)
             $this->cachedGuiContext = $this->hooks()->filter('kernel.gui_context', $kernelDefaults);
         }
-        
-        // ── Build render context ───────────────────────────────────
+
         $baseContext = [
             'user' => $user,
             'is_htmx' => $this->isHtmx() && !$this->isHtmxBoosted(),
@@ -1030,11 +947,37 @@ class App
             'gui' => $this->cachedGuiContext,
         ];
 
-        // Hook: let modules inject extra context vars
-        $baseContext = $this->hooks()->filter('kernel.render_context', $baseContext, $template);
+        if ($template !== '') {
+            $baseContext = $this->hooks()->filter('kernel.render_context', $baseContext, $template);
+        }
 
+        return $baseContext;
+    }
+
+    private function finalizeRenderContext(string $template, array $context): array
+    {
+        $context = \kernelNormalizeRenderContextContracts($context, $template);
+        return $this->hooks()->filter('kernel.render_context.finalize', $context, $template);
+    }
+
+    /**
+     * Render a DiSyL template.
+     * 
+     * The kernel builds a base context from its own state, then lets any
+     * registered hook listeners enrich it (navigation, GUI overrides, etc.).
+     * Zero function_exists() calls — all extension is via the Hooks system.
+     * 
+     * Well-known hooks fired during render:
+     *   'kernel.nav_items'      (filter)  array $items, ?array $user
+     *   'kernel.gui_context'    (filter)  array $guiDefaults
+     *   'kernel.render_context' (filter)  array $context, string $template
+     *   'kernel.render_context.finalize' (filter)  array $context, string $template
+     */
+    public function render(string $template, array $context = []): string
+    {
         // Caller context overrides base (so handlers can override any key)
-        $context = array_merge($baseContext, $context);
+        $context = array_merge($this->buildRenderBaseContext($template), $context);
+        $context = $this->finalizeRenderContext($template, $context);
         
         return $this->templates()->render($template, $context);
     }

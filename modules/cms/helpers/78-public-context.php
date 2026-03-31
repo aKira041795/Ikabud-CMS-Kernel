@@ -346,20 +346,12 @@ function cmsPublicContext(array $extra = []): array
     if (!empty($extra['entity']['id'])) {
         $entityId = (int)$extra['entity']['id'];
         $stageStart = $timingEnabled ? microtime(true) : 0.0;
-        try {
-            $runtime = cmsEntityCapabilityRuntimeState($entityId, $extra['entity']);
-            $ctx['capabilities']    = is_array($runtime['capabilities'] ?? null) ? $runtime['capabilities'] : [];
-            $ctx['capability_data'] = is_array($runtime['capability_data'] ?? null) ? $runtime['capability_data'] : [];
-            $ctx['entity_context']  = is_array($runtime['resolved_context'] ?? null) ? $runtime['resolved_context'] : [];
-        } catch (\Throwable $e) {
-            write_log('warn', 'cms.public_context.capability_data_error', [
-                'entity_id' => $entityId,
-                'error'     => $e->getMessage(),
-            ]);
-            $ctx['capabilities']    = [];
-            $ctx['capability_data'] = [];
-            $ctx['entity_context']  = [];
-        }
+        $ctx = array_merge($ctx, cmsEntityRenderProjection($extra['entity'], [
+            'base_url' => $baseUrl,
+            'include_cart' => true,
+            'include_action_sections' => true,
+            'log_error_event' => 'cms.public_context.capability_data_error',
+        ]));
         if ($detailedTimingEnabled) {
             cmsPublicContextLogStage('entity_capabilities', $stageStart, [
                 'theme' => $activeThemeSlug,
@@ -367,34 +359,14 @@ function cmsPublicContext(array $extra = []): array
                 'entity_id' => $entityId,
             ]);
         }
-
-        // Risk 1: Cart availability — gate buy-button on cart.add capability
-        $ctx['cart_enabled']    = false;
-        $ctx['cart_action_url'] = '';
-        try {
-            if (!empty($ctx['capabilities']['pricing']) && app()->capabilities()->has('cms.cart.add@1')) {
-                $ctx['cart_enabled']    = true;
-                $ctx['cart_action_url'] = $baseUrl . '/ecommerce/cart/add';
-            }
-        } catch (\Throwable $e) {}
-
-        // Risk 4: Hook-based action sections for extensibility
-        $ctx['action_sections'] = '';
-        try {
-            $sections = app()->hooks()->filter('cms.entity.action_block.sections', [], [
-                'entity'          => $extra['entity'],
-                'capabilities'    => $ctx['capabilities'],
-                'capability_data' => $ctx['capability_data'],
-                'base_url'        => $baseUrl,
-            ]);
-            if (is_string($sections) && $sections !== '') {
-                $ctx['action_sections'] = $sections;
-            }
-        } catch (\Throwable $e) {}
     } else {
         $ctx['capabilities']    = [];
         $ctx['capability_data'] = [];
         $ctx['entity_context']  = [];
+    }
+
+    if (!array_key_exists('action_sections', $ctx)) {
+        $ctx['action_sections'] = '';
     }
 
     // Ensure cart_enabled/cart_action_url are available at page level for entity lists
@@ -434,6 +406,297 @@ function cmsPublicContext(array $extra = []): array
 
     return array_merge($ctx, $extra);
 }
+
+function cmsCanonicalRenderTemplateContract(string $template): string
+{
+    $template = str_replace('\\', '/', trim($template));
+    if ($template === '') {
+        return '';
+    }
+
+    if (str_ends_with($template, 'entity.view.disyl')) {
+        return 'entity.view';
+    }
+
+    if (str_ends_with($template, 'entity.list.disyl')) {
+        return 'entity.list';
+    }
+
+    return '';
+}
+
+function cmsCanonicalRenderContractStrictMode(): bool
+{
+    if (function_exists('kernelRenderContextContractStrictMode') && kernelRenderContextContractStrictMode()) {
+        return true;
+    }
+
+    $explicit = $_ENV['CMS_RENDER_CONTRACT_STRICT'] ?? null;
+    if (is_string($explicit) && $explicit !== '') {
+        return filter_var($explicit, FILTER_VALIDATE_BOOLEAN);
+    }
+
+    $ci = $_ENV['CI'] ?? null;
+    if (is_string($ci) && $ci !== '') {
+        return filter_var($ci, FILTER_VALIDATE_BOOLEAN);
+    }
+
+    if (function_exists('config')) {
+        return strtolower((string)config('app.env', 'development')) === 'testing';
+    }
+
+    return false;
+}
+
+function cmsCanonicalRenderContractMismatchMessage(string $template, string $contract, array $missingKeys, array $typeMismatches): string
+{
+    $parts = ['Canonical render context mismatch for ' . $template . ' (' . $contract . ')'];
+    if ($missingKeys !== []) {
+        $parts[] = 'missing keys: ' . implode(', ', $missingKeys);
+    }
+    if ($typeMismatches !== []) {
+        $pairs = [];
+        foreach ($typeMismatches as $key => $type) {
+            $pairs[] = $key . '=' . $type;
+        }
+        $parts[] = 'type mismatches: ' . implode(', ', $pairs);
+    }
+
+    return implode('; ', $parts);
+}
+
+function cmsCanonicalRenderContextNormalize(array $context, string $template): array
+{
+    $contract = cmsCanonicalRenderTemplateContract($template);
+    if ($contract === '') {
+        return $context;
+    }
+
+    $shouldLog = !empty($context['__render_contract_validate']);
+    unset($context['__render_contract_validate']);
+
+    $missingKeys = [];
+    $typeMismatches = [];
+
+    if ($contract === 'entity.view') {
+        $defaults = [
+            'entity' => [],
+            'capabilities' => [],
+            'capability_data' => [],
+            'entity_context' => [],
+            'entity_view_context' => [],
+            'entity_presentation' => [],
+            'entity_presentation_settings' => [],
+            'entity_taxonomies' => ['categories' => [], 'tags' => []],
+            'show_entity_categories' => false,
+            'show_entity_tags' => false,
+            'entity_back_link_url' => '',
+            'entity_back_link_label' => 'Back',
+            'post_html' => '',
+            'builder_enabled' => false,
+            'builder_page_settings' => [],
+            'cms_head' => '',
+            'structured_data' => '',
+            'cart_enabled' => false,
+            'cart_action_url' => '',
+            'action_sections' => '',
+            'public_render_origin' => 'cms',
+            'public_route_kind' => 'generic',
+            'public_presentation_mode' => 'canonical',
+            'storefront' => [],
+            'theme_settings' => [],
+        ];
+        $requiredKeys = [
+            'entity',
+            'capabilities',
+            'capability_data',
+            'entity_context',
+            'entity_view_context',
+            'entity_presentation',
+            'entity_taxonomies',
+            'post_html',
+            'builder_enabled',
+            'builder_page_settings',
+            'cart_enabled',
+            'cart_action_url',
+            'action_sections',
+            'public_render_origin',
+            'public_route_kind',
+            'public_presentation_mode',
+        ];
+    } else {
+        $defaults = [
+            'items' => [],
+            'entity_list_context' => [],
+            'entity_presentation' => [],
+            'pagination' => [],
+            'cms_head' => '',
+            'public_render_origin' => 'cms',
+            'public_route_kind' => 'generic',
+            'public_presentation_mode' => 'canonical',
+            'storefront' => [],
+        ];
+        $requiredKeys = [
+            'items',
+            'entity_list_context',
+            'entity_presentation',
+            'pagination',
+            'public_render_origin',
+            'public_route_kind',
+            'public_presentation_mode',
+        ];
+    }
+
+    foreach ($defaults as $key => $defaultValue) {
+        if (!array_key_exists($key, $context)) {
+            $context[$key] = $defaultValue;
+            if (in_array($key, $requiredKeys, true)) {
+                $missingKeys[] = $key;
+            }
+            continue;
+        }
+
+        $value = $context[$key];
+        if (is_array($defaultValue)) {
+            if (!is_array($value)) {
+                $context[$key] = $defaultValue;
+                if (in_array($key, $requiredKeys, true)) {
+                    $typeMismatches[$key] = gettype($value);
+                }
+            }
+            continue;
+        }
+
+        if (is_bool($defaultValue)) {
+            if (!is_bool($value)) {
+                if (in_array($key, $requiredKeys, true)) {
+                    $typeMismatches[$key] = gettype($value);
+                }
+                $context[$key] = (bool)$value;
+            }
+            continue;
+        }
+
+        if (!is_scalar($value) && $value !== null) {
+            $context[$key] = $defaultValue;
+            if (in_array($key, $requiredKeys, true)) {
+                $typeMismatches[$key] = gettype($value);
+            }
+            continue;
+        }
+
+        $context[$key] = (string)$value;
+    }
+
+    if ($contract === 'entity.view') {
+        $context['entity_view_context'] = array_merge([
+            'show_header' => true,
+            'show_meta' => true,
+            'show_media' => true,
+            'show_summary' => true,
+            'show_lessons' => true,
+            'show_taxonomies' => true,
+        ], $context['entity_view_context']);
+        $context['entity_taxonomies'] = array_merge([
+            'categories' => [],
+            'tags' => [],
+        ], $context['entity_taxonomies']);
+        if (!is_array($context['entity_taxonomies']['categories'] ?? null)) {
+            $context['entity_taxonomies']['categories'] = [];
+        }
+        if (!is_array($context['entity_taxonomies']['tags'] ?? null)) {
+            $context['entity_taxonomies']['tags'] = [];
+        }
+    } else {
+        $context['entity_list_context'] = array_merge([
+            'available_categories' => [],
+            'search_action_url' => '',
+            'base_list_url' => '',
+            'all_items_url' => '',
+            'search' => '',
+            'category_slug' => '',
+            'result_count' => 0,
+            'active_filter_count' => 0,
+        ], $context['entity_list_context']);
+        if (!is_array($context['entity_list_context']['available_categories'] ?? null)) {
+            $context['entity_list_context']['available_categories'] = [];
+        }
+
+        $normalizedItems = [];
+        foreach ($context['items'] as $index => $item) {
+            if (!is_array($item)) {
+                $typeMismatches['items[' . $index . ']'] = gettype($item);
+                continue;
+            }
+
+            if (!is_array($item['capabilities'] ?? null)) {
+                $item['capabilities'] = [];
+            }
+            if (!is_array($item['capability_data'] ?? null)) {
+                $item['capability_data'] = [];
+            }
+            if (!is_array($item['entity_context'] ?? null)) {
+                $item['entity_context'] = [];
+            }
+
+            foreach (['url', 'primary_image_url', 'list_card_excerpt', 'list_card_pricing_html', 'list_card_inventory_html', 'list_card_progress_html', 'list_card_action_html'] as $key) {
+                $value = $item[$key] ?? '';
+                $item[$key] = is_scalar($value) || $value === null ? (string)$value : '';
+            }
+
+            $normalizedItems[] = $item;
+        }
+        $context['items'] = $normalizedItems;
+    }
+
+    if ($shouldLog && ($missingKeys !== [] || $typeMismatches !== [])) {
+        write_log('warn', 'cms.render_context.contract_mismatch', [
+            'template' => $template,
+            'contract' => $contract,
+            'missing_keys' => $missingKeys,
+            'type_mismatches' => $typeMismatches,
+        ]);
+
+        $context['__render_contract_mismatch'] = [
+            'contract' => $contract,
+            'missing_keys' => $missingKeys,
+            'type_mismatches' => $typeMismatches,
+        ];
+    } else {
+        unset($context['__render_contract_mismatch']);
+    }
+
+    return $context;
+}
+
+function cmsRenderCanonicalTemplate(string $template, array $context = []): string
+{
+    if (cmsCanonicalRenderTemplateContract($template) !== '') {
+        $context['__render_contract_validate'] = true;
+
+        if (cmsCanonicalRenderContractStrictMode()) {
+            $context = cmsCanonicalRenderContextNormalize($context, $template);
+            $mismatch = is_array($context['__render_contract_mismatch'] ?? null) ? $context['__render_contract_mismatch'] : null;
+            unset($context['__render_contract_mismatch']);
+            if ($mismatch !== null) {
+                throw new RuntimeException(cmsCanonicalRenderContractMismatchMessage(
+                    $template,
+                    (string)($mismatch['contract'] ?? ''),
+                    is_array($mismatch['missing_keys'] ?? null) ? $mismatch['missing_keys'] : [],
+                    is_array($mismatch['type_mismatches'] ?? null) ? $mismatch['type_mismatches'] : []
+                ));
+            }
+        }
+    }
+
+    return cmsRenderThemeAwareTemplate($template, $context);
+}
+
+app()->hooks()->on('kernel.render_context.finalize', function (array $context, string $template): array {
+    $context = cmsCanonicalRenderContextNormalize($context, $template);
+    unset($context['__render_contract_mismatch']);
+    return $context;
+}, 100);
 
 /**
  * Extract social links array from CMS settings.

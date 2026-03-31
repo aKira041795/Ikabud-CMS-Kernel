@@ -5,6 +5,8 @@
 
 declare(strict_types=1);
 
+require_once __DIR__ . '/helpers.php';
+
 // ── Admin Pages ───────────────────────────────────────────────────────────
 
 /**
@@ -23,7 +25,7 @@ function pageAntiSpamDashboard(array $params = []): void
     $db  = $ctx->db();
     $recent = $db->query('SELECT * FROM antispam_log ORDER BY created_at DESC LIMIT 20')->fetchAll(\PDO::FETCH_ASSOC);
 
-    echo $ctx->render('modules/anti-spam/pages/home.disyl', [
+    echo antispamRender('modules/anti-spam/pages/home.disyl', [
         'page_title' => 'Anti-Spam Dashboard',
         'stats'      => $stats,
         'settings'   => $settings,
@@ -64,7 +66,7 @@ function pageAntiSpamLog(array $params = []): void
     $stmt->execute($bindParams);
     $entries = $stmt->fetchAll(\PDO::FETCH_ASSOC);
 
-    echo $ctx->render('modules/anti-spam/pages/log.disyl', [
+    echo antispamRender('modules/anti-spam/pages/log.disyl', [
         'page_title' => 'Anti-Spam Log',
         'entries'    => $entries,
         'filter'     => $filter,
@@ -86,7 +88,7 @@ function pageAntiSpamBlocked(array $params = []): void
     $db = $ctx->db();
     $ips = $db->query('SELECT * FROM antispam_blocked_ips ORDER BY created_at DESC')->fetchAll(\PDO::FETCH_ASSOC);
 
-    echo $ctx->render('modules/anti-spam/pages/blocked.disyl', [
+    echo antispamRender('modules/anti-spam/pages/blocked.disyl', [
         'page_title'  => 'Blocked IPs',
         'blocked_ips' => $ips,
     ]);
@@ -103,7 +105,7 @@ function pageAntiSpamSettings(array $params = []): void
 
     $settings = antispamGetSettings();
 
-    echo $ctx->render('modules/anti-spam/pages/settings.disyl', [
+    echo antispamRender('modules/anti-spam/pages/settings.disyl', [
         'page_title' => 'Anti-Spam Settings',
         'settings'   => $settings,
     ]);
