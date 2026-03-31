@@ -96,6 +96,21 @@ The theme package is responsible for:
 
 The theme package should not be the place where entity-specific behavior or structural divergence is invented.
 
+### 3.2.1 Traditional native themes still use canonical entities
+
+For a traditional native theme, "traditional" should describe the shell and visual language, not a separate family of CMS route templates.
+
+In practice that means a bundled theme like `native-default` should treat these files as its CMS source of truth:
+
+- `layouts/public.disyl`
+- `public/entity.view.disyl`
+- `public/entity.list.disyl`
+- canonical detail/list partials and style fragments that support those templates
+
+It should not keep long-lived `home`, `archive`, `search`, `page`, and `single` template forks for CMS public routes once the runtime has already cut those routes over to canonical entity rendering.
+
+That approach keeps the theme editorial and familiar without polluting it with a second, drifting template architecture.
+
 ### 3.3 The theme customizer owns presentation choices
 
 The active theme customizer is the correct place for entity-view presentation changes such as:

@@ -59,6 +59,7 @@ $nativeEntityPresentationSettings = cmsCustomizerGet($db, 'entity_presentation',
 $singleHtml = '';
 $pageHtml = '';
 $builderHtml = '';
+$suppressedChromeHtml = '';
 $taxonomyHtml = '';
 $searchListHtml = '';
 $bookHtml = '';
@@ -196,6 +197,29 @@ try {
             'show_meta' => false,
             'show_media' => false,
             'bypass_shell' => true,
+        ],
+        'public_render_origin' => 'cms',
+        'public_route_kind' => 'page',
+        'public_presentation_mode' => 'canonical',
+    ]);
+
+    $suppressedChromeHtml = cmsPublicCanonicalRenderEntityView([
+        'id' => 0,
+        'title' => 'Flagged Page',
+        'slug' => 'flagged-page-' . $suffix,
+        'body' => '<p>Flagged page body.</p>',
+        'type' => 'page',
+        'author_name' => 'Flag Author',
+        'published_at' => '2026-03-30 09:00:00',
+        'featured_image_url' => '/uploads/flagged-page-hero.jpg',
+    ], [
+        'content_type' => 'page',
+        'rendered_html' => '<p>Flagged page body.</p>',
+        'entity_view_context' => [
+            'show_header' => true,
+            'show_meta' => false,
+            'show_media' => false,
+            'bypass_shell' => false,
         ],
         'public_render_origin' => 'cms',
         'public_route_kind' => 'page',
@@ -343,7 +367,7 @@ t('post route renders back-to-blog link', str_contains($singleHtml, '/cms/blog')
 
 t('page route renders canonical presentation mode', str_contains($pageHtml, 'data-public-presentation-mode="canonical"'));
 t('page route renders canonical route kind', str_contains($pageHtml, 'data-public-route-kind="page"'));
-t('page route omits canonical meta block', !str_contains($pageHtml, 'cms-entity-meta__author'));
+t('page route omits canonical meta block', !str_contains($pageHtml, '<div class="cms-entity-meta'));
 t('page route omits hero media wrapper', !str_contains($pageHtml, '<div class="cms-entity-hero'));
 
 echo "\n=== ACTION ROUTES ===\n";
@@ -361,6 +385,8 @@ echo "\n=== VIEW HELPER ===\n";
 t('builder bypass keeps builder fragment', str_contains($builderHtml, 'builder-fragment'));
 t('builder bypass keeps builder container class', str_contains($builderHtml, 'builder-shell'));
 t('builder bypass omits canonical header wrapper', !str_contains($builderHtml, '<header class="cms-entity-header'));
+t('canonical view honors explicit false meta flag', !str_contains($suppressedChromeHtml, '<div class="cms-entity-meta'));
+t('canonical view honors explicit false media flag', !str_contains($suppressedChromeHtml, '<div class="cms-entity-hero'));
 t('canonical post helper renders category link', str_contains($taxonomyHtml, '/cms/category/' . $categorySlug));
 t('canonical post helper renders tag link', str_contains($taxonomyHtml, '/cms/tag/' . cmsSlugify($tagName)));
 

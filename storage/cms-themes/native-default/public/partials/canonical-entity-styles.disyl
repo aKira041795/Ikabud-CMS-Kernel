@@ -205,8 +205,21 @@
         margin-bottom: 0;
     }
 
-    .native-canonical-view__header .post-title {
-        margin-bottom: 0.75rem;
+    .native-canonical-view__title {
+        margin: 0 0 0.75rem;
+        color: var(--color-text);
+        line-height: 1.08;
+        letter-spacing: -0.03em;
+        font-size: clamp(2.2rem, 5vw, 3.35rem);
+        text-wrap: balance;
+    }
+
+    .native-canonical-view__header .cms-entity-meta {
+        margin: 0;
+    }
+
+    .native-canonical-view__header .cms-progress-block {
+        margin-top: 0.5rem;
     }
 
     .native-canonical-view__hero {
@@ -215,6 +228,8 @@
 
     .native-canonical-view__hero img {
         width: 100%;
+        display: block;
+        border-radius: var(--radius-lg);
     }
 
     .native-canonical-view__body {

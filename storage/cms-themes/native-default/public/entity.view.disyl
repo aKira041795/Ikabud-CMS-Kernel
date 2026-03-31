@@ -15,7 +15,7 @@
         {post_html | raw}
     </div>
     {else}
-    <div class="cms-entity-body post-content prose native-canonical-view__body native-canonical-view__body--contained">
+    <div class="cms-entity-body prose native-canonical-view__body native-canonical-view__body--contained">
         {post_html | raw}
     </div>
     {/if}
@@ -25,8 +25,8 @@
     <div class="native-canonical-view__article">
         {if entity_presentation.header_before_media}
             {if entity_view_context.show_header|default:1}
-            <header class="cms-entity-header post-header native-canonical-view__header">
-                <h1 class="post-title">{entity_view_context.header_title|default:entity.title}</h1>
+            <header class="cms-entity-header native-canonical-view__header">
+                <h1 class="native-canonical-view__title">{entity_view_context.header_title|default:entity.title}</h1>
 
                 {if entity_view_context.show_meta|default:1}
                 {include "modules/cms/public/blocks/meta.block.disyl"}
@@ -42,7 +42,7 @@
                 {if capabilities.media_gallery}
                 {include "modules/cms/public/blocks/media-gallery.block.disyl"}
                 {elseif entity.featured_image_url}
-                <div class="cms-entity-hero post-featured-image native-canonical-view__hero">
+                <div class="cms-entity-hero native-canonical-view__hero">
                     <img src="{entity.featured_image_url}" alt="{entity.title}">
                 </div>
                 {/if}
@@ -52,15 +52,15 @@
                 {if capabilities.media_gallery}
                 {include "modules/cms/public/blocks/media-gallery.block.disyl"}
                 {elseif entity.featured_image_url}
-                <div class="cms-entity-hero post-featured-image native-canonical-view__hero">
+                <div class="cms-entity-hero native-canonical-view__hero">
                     <img src="{entity.featured_image_url}" alt="{entity.title}">
                 </div>
                 {/if}
             {/if}
 
             {if entity_view_context.show_header|default:1}
-            <header class="cms-entity-header post-header native-canonical-view__header">
-                <h1 class="post-title">{entity_view_context.header_title|default:entity.title}</h1>
+            <header class="cms-entity-header native-canonical-view__header">
+                <h1 class="native-canonical-view__title">{entity_view_context.header_title|default:entity.title}</h1>
 
                 {if entity_view_context.show_meta|default:1}
                 {include "modules/cms/public/blocks/meta.block.disyl"}
@@ -83,7 +83,7 @@
                             {post_html | raw}
                         </div>
                         {else}
-                        <div class="cms-entity-body post-content prose native-canonical-view__body">
+                        <div class="cms-entity-body prose native-canonical-view__body">
                             {post_html | raw}
                         </div>
                         {/if}
@@ -107,7 +107,7 @@
                         {post_html | raw}
                     </div>
                     {else}
-                    <div class="cms-entity-body post-content prose native-canonical-view__body native-canonical-view__body--contained">
+                    <div class="cms-entity-body prose native-canonical-view__body native-canonical-view__body--contained">
                         {post_html | raw}
                     </div>
                     {/if}
@@ -124,7 +124,7 @@
                     {post_html | raw}
                 </div>
                 {else}
-                <div class="cms-entity-body post-content prose native-canonical-view__body native-canonical-view__body--contained">
+                <div class="cms-entity-body prose native-canonical-view__body native-canonical-view__body--contained">
                     {post_html | raw}
                 </div>
                 {/if}
@@ -152,7 +152,7 @@
                     {post_html | raw}
                 </div>
                 {else}
-                <div class="cms-entity-body post-content prose native-canonical-view__body native-canonical-view__body--contained">
+                <div class="cms-entity-body prose native-canonical-view__body native-canonical-view__body--contained">
                     {post_html | raw}
                 </div>
                 {/if}
@@ -169,7 +169,7 @@
                 {post_html | raw}
             </div>
             {else}
-            <div class="cms-entity-body post-content prose native-canonical-view__body native-canonical-view__body--contained">
+            <div class="cms-entity-body prose native-canonical-view__body native-canonical-view__body--contained">
                 {post_html | raw}
             </div>
             {/if}

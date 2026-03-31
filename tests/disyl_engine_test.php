@@ -436,8 +436,14 @@ check(
 
 check(
     'default filter with false',
-    'fallback',
+    '',
     $engine->renderString('{val | default:"fallback"}', ['val' => false])
+);
+
+check(
+    'default filter preserves explicit false in conditions',
+    'hidden',
+    $engine->renderString('{if val | default:1}visible{else}hidden{/if}', ['val' => false])
 );
 
 check(

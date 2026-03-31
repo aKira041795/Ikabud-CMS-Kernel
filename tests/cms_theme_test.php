@@ -1218,6 +1218,13 @@ $baseProductTemplateContent = file_get_contents(BASE_PATH . '/templates/modules/
 $nativeCanonicalStylesContent = file_get_contents(BASE_PATH . '/storage/cms-themes/native-default/public/partials/canonical-entity-styles.disyl') ?: '';
 $nativeCanonicalEntityListTemplateContent = file_get_contents(BASE_PATH . '/storage/cms-themes/native-default/public/entity.list.disyl') ?: '';
 $nativeCanonicalEntityViewTemplateContent = file_get_contents(BASE_PATH . '/storage/cms-themes/native-default/public/entity.view.disyl') ?: '';
+$nativeLegacyRouteTemplates = [
+    'home' => BASE_PATH . '/storage/cms-themes/native-default/public/home.disyl',
+    'archive' => BASE_PATH . '/storage/cms-themes/native-default/public/archive.disyl',
+    'search' => BASE_PATH . '/storage/cms-themes/native-default/public/search.disyl',
+    'page' => BASE_PATH . '/storage/cms-themes/native-default/public/page.disyl',
+    'single' => BASE_PATH . '/storage/cms-themes/native-default/public/single.disyl',
+];
 $nativeArchiveProductTemplateContent = file_get_contents(BASE_PATH . '/storage/cms-themes/native-default/public/ecommerce/archive-product.disyl') ?: '';
 $nativeSingleProductTemplateContent = file_get_contents(BASE_PATH . '/storage/cms-themes/native-default/public/ecommerce/single-product.disyl') ?: '';
 t('customizer tracks per-section dirty state for scoped saves', str_contains($customizerTemplateContent, 'dirtySections: { footer: false, header: false, sidebar: false, colors: false, custom_code: false, theme: false, entity_presentation: false }'));
@@ -1232,6 +1239,9 @@ t('native default theme ships canonical entity list template', str_contains($nat
 t('native default theme canonical entity list template keeps storefront contract markers', str_contains($nativeCanonicalEntityListTemplateContent, 'data-storefront-route-kind=') && str_contains($nativeCanonicalEntityListTemplateContent, 'cms-entity-list__grid native-canonical-list__grid'), $nativeCanonicalEntityListTemplateContent);
 t('native default theme ships canonical entity view template', str_contains($nativeCanonicalEntityViewTemplateContent, '{extends "_cms_active_theme/layouts/public.disyl"}') && str_contains($nativeCanonicalEntityViewTemplateContent, 'data-native-canonical-template="entity-view"'), $nativeCanonicalEntityViewTemplateContent);
 t('native default theme canonical entity view template keeps shared block includes for canonical contracts', str_contains($nativeCanonicalEntityViewTemplateContent, 'modules/cms/public/blocks/entity-summary.block.disyl') && str_contains($nativeCanonicalEntityViewTemplateContent, 'modules/cms/public/blocks/meta.block.disyl'), $nativeCanonicalEntityViewTemplateContent);
+t('native default theme no longer ships legacy CMS route template forks', array_reduce($nativeLegacyRouteTemplates, static fn(bool $carry, string $path): bool => $carry && !is_file($path), true), json_encode($nativeLegacyRouteTemplates));
+t('native default canonical entity view avoids legacy post template classes', !str_contains($nativeCanonicalEntityViewTemplateContent, 'post-header') && !str_contains($nativeCanonicalEntityViewTemplateContent, 'post-title') && !str_contains($nativeCanonicalEntityViewTemplateContent, 'post-content') && !str_contains($nativeCanonicalEntityViewTemplateContent, 'post-featured-image'), $nativeCanonicalEntityViewTemplateContent);
+t('native default canonical entity styles define their own title treatment', str_contains($nativeCanonicalStylesContent, '.native-canonical-view__title {') && !str_contains($nativeCanonicalStylesContent, '.native-canonical-view__header .post-title {'), $nativeCanonicalStylesContent);
 t('native default theme ships dedicated archive-product storefront template', str_contains($nativeArchiveProductTemplateContent, 'data-native-ecommerce-template="archive-product"'), $nativeArchiveProductTemplateContent);
 t('native archive-product storefront template uses editorial catalog masthead and chip rail', str_contains($nativeArchiveProductTemplateContent, 'native-shop-masthead') && str_contains($nativeArchiveProductTemplateContent, 'native-shop-chip'), $nativeArchiveProductTemplateContent);
 t('native archive-product storefront template supports category dropdown navigation mode', str_contains($nativeArchiveProductTemplateContent, "theme_settings.entity_list_category_navigation == 'dropdown'") && str_contains($nativeArchiveProductTemplateContent, 'native-shop-category-picker'), $nativeArchiveProductTemplateContent);

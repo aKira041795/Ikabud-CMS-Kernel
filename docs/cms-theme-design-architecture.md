@@ -13,7 +13,7 @@ CMS themes are intentionally lightweight.
 They are responsible for the **public presentation layer only**:
 
 - public layouts
-- public page/post/archive/search templates
+- canonical public entity/list templates and optional custom page templates
 - optional theme CSS/JS assets
 - design-system defaults that the theme customizer can activate or adjust
 
@@ -101,16 +101,22 @@ Preferred order:
 
 ### Public template resolution
 
-Common template paths include:
+The current CMS route contract is centered on the canonical entity templates:
+
+- `public/entity.view.disyl`
+- `public/entity.list.disyl`
+
+Bundled native themes should treat those as the primary source of truth for CMS detail and list routes.
+
+Legacy route-shaped files such as these still exist as compatibility paths in the broader platform, but they are no longer the preferred architecture for bundled themes:
 
 - `public/home.disyl`
 - `public/page.disyl`
 - `public/single.disyl`
 - `public/archive.disyl`
 - `public/search.disyl`
-- `public/sidebar.disyl`
 
-If an active theme provides the file, the themed version is used. Otherwise the CMS default template is used.
+If an active theme provides the canonical entity/list files, the themed version is used. Otherwise the CMS default template is used.
 
 ### Content-specific templates
 
@@ -135,19 +141,22 @@ my-theme/
 ├── layouts/
 │   └── public.disyl         # recommended public layout override
 └── public/
-    ├── home.disyl           # optional
-    ├── page.disyl           # optional
-    ├── single.disyl         # optional
-    ├── archive.disyl        # optional
-    ├── search.disyl         # optional
-    ├── sidebar.disyl        # optional
+  ├── entity.view.disyl    # recommended canonical detail override
+  ├── entity.list.disyl    # recommended canonical list override
     ├── full-width.disyl     # optional custom template
     └── landing.disyl        # optional custom template
 ```
 
 You only need to include files you intend to override.
 
-For entity pages specifically, prefer supplying design defaults and customizer-compatible styling instead of shipping theme-specific `entity.view` forks as a primary customization strategy.
+For bundled themes, the cleaner native architecture is:
+
+- shell in `layouts/public.disyl`
+- canonical CMS detail/list presentation in `public/entity.view.disyl` and `public/entity.list.disyl`
+- optional custom templates only for explicit editor-selected layouts
+- dedicated ecommerce route templates only where the route is not already on the canonical entity/list path
+
+That keeps native themes traditional in feel without reviving a second CMS route-template family inside the theme.
 
 ---
 
@@ -328,7 +337,7 @@ The `cz-mobile-header` and `cz-header-dropdown` inline `<style>` blocks are inje
 - design for customizer-generated colors/fonts/layout variables
 - design entity pages so customizer-selected presentation rules can apply consistently
 - provide optional content templates for page layouts
-- test with posts, pages, search, archives, and builder-driven pages
+- test with canonical CMS post/page/list routes and builder-driven pages
 
 ### Do not
 
@@ -345,10 +354,10 @@ The `cz-mobile-header` and `cz-header-dropdown` inline `<style>` blocks are inje
 
 1. create `theme.json`
 2. add `layouts/public.disyl`
-3. add at least `public/home.disyl`, `public/page.disyl`, and `public/single.disyl`
+3. add `public/entity.view.disyl` and `public/entity.list.disyl`
 4. add `style.css`
 5. activate the theme from CMS admin
-6. verify menu rendering, sidebar behavior, builder pages, archives, search, RSS/sitemap unaffected, and customizer compatibility
+6. verify menu rendering, canonical CMS post/page/list routes, builder pages, RSS/sitemap unaffected, and customizer compatibility
 7. verify that entity pages can live inside the same design system without requiring a separate theme-owned entity template family
 
 ---

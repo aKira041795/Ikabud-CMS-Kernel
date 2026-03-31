@@ -119,6 +119,8 @@ Pipe-chain syntax: `{value | filter1 | filter2:arg}`. Multiple filters chain lef
 | `merge:key,val` | `{obj \| merge:extra,true}` | merge key into array |
 | `striptags` | alias of `strip_tags` | strip HTML |
 
+`default` falls back only when the incoming value is `null`, unresolved, or an empty string. Explicit `false` and `0` are preserved so boolean template flags can safely use fallback expressions like `{if entity_view_context.show_meta | default:1}`.
+
 ### Filter Chaining
 
 ```disyl

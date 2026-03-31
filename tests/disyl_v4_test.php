@@ -7,7 +7,7 @@
  * 2. {literal} inside {foreach} — no longer leaks ___LITERAL___
  * 3. {if}/{foreach} inside <script> — full control structures in JS
  * 4. |json filter — raw output, no HTML-escaping
- * 5. |default filter — handles null from nested paths
+ * 5. |default filter — handles null from nested paths and preserves explicit false
  */
 
 require_once __DIR__ . '/../kernel/DiSyL/TemplateEngine.php';
@@ -231,6 +231,18 @@ check(
     'default with zero does NOT use fallback (0 is valid)',
     '0',
     $engine->renderString("{val | default:'Fallback'}", ['val' => 0])
+);
+
+check(
+    'default with false does NOT use fallback (explicit false is preserved)',
+    '',
+    $engine->renderString("{val | default:'Fallback'}", ['val' => false])
+);
+
+check(
+    'default preserves explicit false in conditions',
+    'Hidden',
+    $engine->renderString("{if val | default:1}Visible{else}Hidden{/if}", ['val' => false])
 );
 
 check(

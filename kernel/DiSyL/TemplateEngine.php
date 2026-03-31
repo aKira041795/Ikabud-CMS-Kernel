@@ -11,7 +11,7 @@
  * - <script> blocks: full control structure support ({if}, {foreach}, {for}),
  *   not just variable resolution. JS curly braces protected via temporary markers.
  * - |json filter: outputs raw by default (no HTML-escaping)
- * - |default filter: correctly handles null from unresolved nested dot paths
+ * - |default filter: correctly handles null from unresolved nested dot paths while preserving explicit false
  * 
  * v3.0.0 changes:
  * - Arithmetic expressions: {page + 1}, {total - count}, {price * qty}, {x / y}, {x % y}
@@ -1697,7 +1697,7 @@ class TemplateEngine
             'nl2br' => fn($v) => nl2br((string) $v),
             'json' => fn($v) => json_encode($v, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
             'date' => fn($v, $a) => $v ? date($a[0] ?? 'Y-m-d', is_numeric($v) ? (int)$v : strtotime((string)$v)) : '',
-            'default' => fn($v, $a) => ($v !== null && $v !== '' && $v !== false) ? $v : ($a[0] ?? ''),
+            'default' => fn($v, $a) => ($v !== null && $v !== '') ? $v : ($a[0] ?? ''),
             'count' => fn($v) => is_countable($v) ? count($v) : 0,
             'join' => fn($v, $a) => is_array($v) ? implode($a[0] ?? ', ', $v) : $v,
             'first' => fn($v) => is_array($v) ? reset($v) : (is_string($v) ? mb_substr($v, 0, 1) : $v),
