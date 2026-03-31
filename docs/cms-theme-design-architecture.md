@@ -49,8 +49,9 @@ The active theme is mounted into:
 
 `templates/_cms_active_theme`
 
-This path is managed by symlink creation/removal in the theme helper layer.
-Activation and themed render access are serialized with a filesystem lock so requests from different tenants cannot interleave symlink changes during public rendering.
+This remains the public alias used by DiSyL templates.
+At runtime, the helper/template layer now resolves that alias against the current request's active theme directly, so normal public renders do not depend on mutating the filesystem symlink.
+The symlink is still maintained for compatibility and explicit activation flows, and those mutations remain lock-guarded.
 
 ### Public asset copy target
 
@@ -74,7 +75,7 @@ Copied asset roots currently include:
 3. public assets are copied to `public/assets/cms/themes/{slug}`
 4. activating the theme updates CMS settings (`active_theme`) through the module settings API
 5. in multi-tenant mode, `active_theme` can be overridden per tenant through `tenant_module_settings`
-6. the CMS recreates `templates/_cms_active_theme` as a symlink to the chosen theme directory under a runtime lock
+6. the CMS updates the compatibility symlink at `templates/_cms_active_theme` under a runtime lock when a theme is explicitly activated or reset
 
 If the active theme is reset to default, the symlink is removed and CMS built-in public templates are used.
 
@@ -82,7 +83,7 @@ If the active theme is reset to default, the symlink is removed and CMS built-in
 
 - Global fallback settings still exist in `storage/modules.json`
 - Tenant-specific theme selection is read from `tenant_module_settings` when a tenant context is resolved
-- The symlink path is still shared, but lock-guarded activation and render flow prevents one tenant request from leaking another tenant's active theme during rendering
+- Request-scoped alias resolution prevents one tenant or route context from leaking another tenant's active theme during rendering; the shared compatibility symlink is only lock-guarded during explicit activation/reset work
 
 ---
 

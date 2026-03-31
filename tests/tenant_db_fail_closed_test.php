@@ -122,6 +122,7 @@ try {
     $errorLog = trim((string)@file_get_contents(STORAGE_PATH . '/logs/error.log'));
     t('app.log contains tenant DB failure entry', str_contains($appLog, 'Tenant DB resolution failed'));
     t('app.log includes tenant id context', str_contains($appLog, '"tenant_id":' . $tenantId), $appLog !== '' ? substr($appLog, 0, 300) : '');
+    t('app.log suggests checking CONTROL_DB_ENC_KEY for decryption failures', str_contains($appLog, 'CONTROL_DB_ENC_KEY'), $appLog !== '' ? substr($appLog, 0, 300) : '');
     t('No PHP error output leaked to error.log', $errorLog === '', $errorLog !== '' ? substr($errorLog, 0, 200) : '');
 } finally {
     setPrivateProperty($app, 'config', $originalAppConfig);

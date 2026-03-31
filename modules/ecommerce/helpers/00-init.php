@@ -119,8 +119,7 @@ function ecResolvePublicThemeTemplate(string $template, array $context = []): st
 
     if (!function_exists('cmsActiveTheme')
         || !function_exists('cmsActiveThemeManifest')
-        || !function_exists('cmsEnsureThemeSymlink')
-        || !defined('CMS_THEME_SYMLINK')) {
+        || !function_exists('cmsActiveThemeTemplateExists')) {
         return $template;
     }
 
@@ -133,19 +132,12 @@ function ecResolvePublicThemeTemplate(string $template, array $context = []): st
         return $template;
     }
 
-    cmsEnsureThemeSymlink();
-
     foreach ($candidates as $candidate) {
         if (!str_starts_with($candidate, '_cms_active_theme/')) {
             continue;
         }
 
-        $relativePath = substr($candidate, strlen('_cms_active_theme/'));
-        if ($relativePath === false || $relativePath === '') {
-            continue;
-        }
-
-        if (is_file((string)CMS_THEME_SYMLINK . '/' . $relativePath)) {
+        if (cmsActiveThemeTemplateExists($candidate)) {
             return $candidate;
         }
     }

@@ -586,6 +586,36 @@ class App
     }
 
     /**
+     * Resolve the plaintext tenant DB password from a control-plane row.
+     * Fails closed when encrypted credentials cannot be decrypted.
+     *
+     * @param array<string, mixed> $row
+     */
+    private function tenantDbPasswordFromRow(array $row, int $tenantId): string
+    {
+        $password = (string)($row['db_pass'] ?? '');
+        $cipher = (string)($row['db_pass_ciphertext'] ?? '');
+        $iv = (string)($row['db_pass_iv'] ?? '');
+        $tag = (string)($row['db_pass_tag'] ?? '');
+        if ($cipher === '' || $iv === '' || $tag === '') {
+            return $password;
+        }
+
+        try {
+            $crypto = new Crypto();
+            return $crypto->decryptString($cipher, $iv, $tag);
+        } catch (\Throwable $e) {
+            throw new \RuntimeException(
+                'Tenant DB credential decryption failed. Verify CONTROL_DB_ENC_KEY matches the key used to save tenant '
+                . $tenantId
+                . ' credentials, or re-save the tenant DB password to re-encrypt it.',
+                0,
+                $e
+            );
+        }
+    }
+
+    /**
      * Resolve the tenant database connection config from the control plane.
      * Returns null when multi-tenancy is disabled or tenant cannot be resolved.
      */
@@ -610,14 +640,7 @@ class App
                 throw new \UnexpectedValueException('Tenant database configuration is missing or incomplete for tenant ' . $tenantId);
             }
 
-            $password = (string)($row['db_pass'] ?? '');
-            $cipher = (string)($row['db_pass_ciphertext'] ?? '');
-            $iv = (string)($row['db_pass_iv'] ?? '');
-            $tag = (string)($row['db_pass_tag'] ?? '');
-            if ($cipher !== '' && $iv !== '' && $tag !== '') {
-                $crypto = new Crypto();
-                $password = $crypto->decryptString($cipher, $iv, $tag);
-            }
+            $password = $this->tenantDbPasswordFromRow($row, $tenantId);
 
             return [
                 'driver' => (string)($row['db_driver'] ?? 'mysql'),
@@ -734,14 +757,7 @@ class App
                 return null;
             }
 
-            $password = (string)($row['db_pass'] ?? '');
-            $cipher = (string)($row['db_pass_ciphertext'] ?? '');
-            $iv = (string)($row['db_pass_iv'] ?? '');
-            $tag = (string)($row['db_pass_tag'] ?? '');
-            if ($cipher !== '' && $iv !== '' && $tag !== '') {
-                $crypto = new Crypto();
-                $password = $crypto->decryptString($cipher, $iv, $tag);
-            }
+            $password = $this->tenantDbPasswordFromRow($row, $tenantId);
 
             $dbConfig = [
                 'driver' => (string)($row['db_driver'] ?? 'mysql'),

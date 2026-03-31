@@ -1736,6 +1736,18 @@ class TemplateEngine
         if (pathinfo($template, PATHINFO_EXTENSION) !== 'disyl') {
             $template .= '.disyl';
         }
+
+        if (str_starts_with($template, '_cms_active_theme/') && function_exists('cmsResolveThemeTemplateAliasPath')) {
+            $resolvedPath = cmsResolveThemeTemplateAliasPath($template);
+            if ($resolvedPath !== '') {
+                return $resolvedPath;
+            }
+        }
+
+        if (str_starts_with($template, '/')) {
+            return $template;
+        }
+
         return $this->templateDir . '/' . $template;
     }
 

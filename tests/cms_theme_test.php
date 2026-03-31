@@ -582,6 +582,73 @@ t('route-scoped diagnostics keep site theme source without storefront override',
 t('route-scoped diagnostics keep traditional presentation mode without storefront override', ($scopedRuntimeDiagnostics['public_presentation_mode'] ?? '') === 'traditional', json_encode($scopedRuntimeDiagnostics));
 t('route-scoped diagnostics expose ecommerce route kind', ($scopedRuntimeDiagnostics['public_route_kind'] ?? '') === 'shop_index', json_encode($scopedRuntimeDiagnostics));
 
+$splitThemeSettings = $minimalScopeSettings;
+$splitThemeSettings['active_ecommerce_theme'] = 'native-default';
+saveModuleSettings('cms', $splitThemeSettings);
+cmsResetThemeRuntimeCache();
+cmsActivateThemeSymlink('minimal');
+
+$staleSymlinkAliasPath = cmsWithPublicThemeContext([
+    'public_render_origin' => 'ecommerce',
+    'public_route_kind' => 'shop_index',
+], static function (): string {
+    return cmsResolveThemeTemplateAliasPath('_cms_active_theme/public/ecommerce/archive-product.disyl');
+});
+t('route-scoped storefront alias resolves native-default template even when symlink is stale', str_contains($staleSymlinkAliasPath, '/storage/cms-themes/native-default/public/ecommerce/archive-product.disyl'), $staleSymlinkAliasPath);
+
+$staleSymlinkProducts = [[
+    'id' => 1,
+    'slug' => 'demo-product',
+    'title' => 'Demo Product',
+    'excerpt' => 'A short excerpt.',
+    'primary_image_url' => '',
+    'pricing' => [
+        'formatted' => '$19.00',
+        'on_sale' => false,
+        'regular_fmt' => '$19.00',
+        'price' => 19.0,
+    ],
+    'inventory' => [
+        'track_stock' => true,
+        'stock_qty' => 6,
+        'in_stock' => true,
+        'out_of_stock' => false,
+        'low_stock' => false,
+    ],
+]];
+$staleSymlinkStorefront = ecBuildStorefrontCatalogContext($staleSymlinkProducts, [
+    'route_kind' => 'shop_index',
+    'presentation_mode' => 'traditional',
+    'page_title' => 'Shop',
+    'categories' => [],
+    'search' => '',
+    'search_action_url' => '/ecommerce/shop',
+    'all_items_url' => '/ecommerce/shop',
+    'base_list_url' => '/ecommerce/shop',
+    'item_base_url' => '/ecommerce/shop',
+    'page' => 1,
+    'total_pages' => 1,
+    'total' => 1,
+    'cart_count' => 0,
+]);
+$staleSymlinkShopHtml = captureEcRender('modules/ecommerce/public/shop.disyl', [
+    'page_title' => 'Shop',
+    'products' => $staleSymlinkProducts,
+    'total' => 1,
+    'categories' => [],
+    'search' => '',
+    'category_id' => 0,
+    'page' => 1,
+    'per_page' => 12,
+    'total_pages' => 1,
+    'cart_count' => 0,
+    'storefront' => $staleSymlinkStorefront,
+    'public_render_origin' => 'ecommerce',
+    'public_route_kind' => 'shop_index',
+    'public_presentation_mode' => 'traditional',
+]);
+t('route-scoped storefront render ignores stale theme symlink and uses native-default template', str_contains($staleSymlinkShopHtml, 'data-native-ecommerce-template="archive-product"') && str_contains($staleSymlinkShopHtml, 'assets/cms/themes/native-default/style.css') && !str_contains($staleSymlinkShopHtml, 'Powered by CMS Module &middot; Minimal Theme'), $staleSymlinkShopHtml);
+
 // ═══════════════════════════════════════════════════════════════════
 // 5b. Native ecommerce theme templates
 // ═══════════════════════════════════════════════════════════════════
@@ -2488,7 +2555,7 @@ t('poc entity list stylesheet styles storefront filter controls', str_contains($
 t('poc entity list stylesheet styles category picker controls', str_contains($pocListStyles, '.poc-entity-list__category-picker') && str_contains($pocListStyles, '.poc-entity-list__category-select') && str_contains($pocListStyles, '.poc-entity-list__category-submit'), $pocListStyles);
 
 // ═══════════════════════════════════════════════════════════════════
-// 6b. Shared render lock must not re-enter symlink mutation
+// 6b. Public render path must not depend on symlink repair
 // ═══════════════════════════════════════════════════════════════════
 echo "\n=== SHARED LOCK RENDER PATH ===\n";
 
@@ -2504,8 +2571,8 @@ $renderedHome = cmsPublicRender('public/home.disyl', [
     'page_num' => 1,
     'next_page' => 1,
 ]);
-t('cmsPublicRender repairs missing symlink before shared render lock', str_contains($renderedHome, '<!DOCTYPE html>'));
-t('cmsPublicRender recreated the theme symlink', is_link($link));
+t('cmsPublicRender still renders when the compatibility symlink is missing', str_contains($renderedHome, '<!DOCTYPE html>'));
+t('cmsPublicRender does not recreate the compatibility symlink on demand', !is_link($link) && !file_exists($link));
 
 // ═══════════════════════════════════════════════════════════════════
 // 7. cmsAdminContext does NOT change (admin is never themed)

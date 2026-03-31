@@ -29,7 +29,7 @@ The kernel owns routing, auth infrastructure, hooks, event delivery, caching, re
 2. handlers perform auth, permissions, request validation, database work, and rendering/API output
 3. helpers centralize theme resolution, builder rendering, cache operations, extension hooks, SEO/public context, and customizer output
 4. templates provide admin and public views
-5. active themes override only the public view layer through `_cms_active_theme`, with activation and render access serialized in the helper layer
+5. active themes override only the public view layer through `_cms_active_theme`, which is resolved against the current request's active theme in the helper/template layer; the legacy filesystem symlink is mutated only for explicit activation and compatibility flows
 
 This is a sound layering model and should be preserved.
 
@@ -57,7 +57,7 @@ Public rendering for posts/pages follows this shape:
 - `cmsEntityCapabilityRuntimeState()` is now the shared bridge for attached capability rows plus entity-context registry profiles; public handlers, canonical list rendering, builder entity contexts, and entity capability APIs should reuse it instead of diverging on active-flag logic
 - customizer data should be preloaded in one pass, then reused for the request; avoid per-section duplicate reads on the hot path
 - builder-enabled pages should skip sidebar work that cannot affect the final layout
-- public theme rendering must resolve the template before taking a shared symlink lock; symlink mutation belongs only to exclusive lock paths
+- public theme rendering should resolve `_cms_active_theme` from the current request context without mutating the legacy symlink; symlink mutation belongs only to explicit activation or repair paths
 - animation or page-transition concealment must ship a no-JS / stalled-JS reveal fallback so the page never remains blank after the backend render finishes
 - critical CTA or availability decisions in DiSyL should use simple nested branches instead of brittle compound boolean expressions
 
@@ -79,7 +79,7 @@ This is a good SEO-safe architecture.
 The CMS has a working theme system with these rules:
 
 - themes live in `storage/cms-themes/{slug}`
-- the active theme is mounted through `templates/_cms_active_theme`
+- the active theme is addressed through the `_cms_active_theme` alias, which resolves to the current request's active theme and is still mirrored by `templates/_cms_active_theme` for compatibility
 - active theme selection is persisted through module settings, with tenant-specific overrides when multi-tenancy is active
 - only public templates are overridden
 - theme public assets are copied to `public/assets/cms/themes/{slug}` on install/upgrade

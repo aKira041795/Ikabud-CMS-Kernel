@@ -3941,22 +3941,14 @@ function cmsRenderActiveThemeCustomizerPartial(string $partialName, array $conte
         return '';
     }
 
-    try {
-        cmsEnsureThemeSymlink();
-    } catch (Throwable $e) {
-        return '';
-    }
-
     $relativePath = 'public/' . $partialName . '.disyl';
-    $fullPath = CMS_THEME_SYMLINK . '/' . $relativePath;
-    if (!is_file($fullPath)) {
+    $templatePath = '_cms_active_theme/' . $relativePath;
+    if (!function_exists('cmsActiveThemeTemplateExists') || !cmsActiveThemeTemplateExists($templatePath)) {
         return '';
     }
 
     try {
-        return cmsWithThemeSymlinkLock(static function () use ($relativePath, $context): string {
-            return cmsRender('_cms_active_theme/' . $relativePath, $context);
-        }, LOCK_SH);
+        return cmsRender($templatePath, $context);
     } catch (Throwable $e) {
         return '';
     }

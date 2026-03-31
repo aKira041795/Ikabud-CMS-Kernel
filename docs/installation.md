@@ -228,12 +228,23 @@ npm run type-check
 | Login redirect loop | Verify `JWT_SECRET` is set and cookie domain is correct |
 | Module not loading | Check `storage/modules.json` for enabled state |
 | Template errors | Clear `storage/cache/` directory |
+| `Tenant DB resolution failed: Decryption failed.` | Verify the live `CONTROL_DB_ENC_KEY` was preserved across the upgrade, then audit tenant DB ciphertext with `php scripts/audit-tenant-db-crypto.php --all` |
 
 HTTP smoke test for the installer without `curl`:
 
 ```bash
 php scripts/test-install-http.php
 ```
+
+Tenant DB encryption audit and repair:
+
+```bash
+php scripts/audit-tenant-db-crypto.php --all
+php scripts/audit-tenant-db-crypto.php --tenant=203 --legacy-key='OLD_KEY' --apply
+php scripts/audit-tenant-db-crypto.php --tenant=203 --set-password='tenant-db-password' --apply
+```
+
+Use the first command to confirm which tenant rows decrypt with the current `CONTROL_DB_ENC_KEY`. If a tenant row only decrypts with an older key, rerun with `--legacy-key=... --apply` to re-encrypt it under the current key. If the old key is unavailable, reset that tenant's DB password with `--set-password=... --apply` after confirming the real database credential.
 
 This checks the live `lock.php` endpoint over HTTP and verifies that installed systems keep the web installer locked.
 

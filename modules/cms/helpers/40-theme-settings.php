@@ -618,6 +618,62 @@ function cmsThemeSymlinkLockPath(): string
     return $locksDir . '/cms-theme-symlink.lock';
 }
 
+function cmsThemeTemplateAliasPrefix(): string
+{
+    return '_cms_active_theme/';
+}
+
+function cmsThemeTemplateRelativePath(string $template): string
+{
+    $template = ltrim(trim($template), '/');
+    $prefix = cmsThemeTemplateAliasPrefix();
+    if (str_starts_with($template, $prefix)) {
+        $template = substr($template, strlen($prefix));
+    }
+
+    return ltrim($template, '/');
+}
+
+function cmsThemeTemplatePathForSlug(?string $slug, string $template): string
+{
+    $relativePath = cmsThemeTemplateRelativePath($template);
+    if ($relativePath === '') {
+        return '';
+    }
+
+    $slug = trim((string)$slug);
+    if ($slug === '' || !cmsThemeExists($slug)) {
+        return '';
+    }
+
+    return cmsThemesPath() . '/' . $slug . '/' . $relativePath;
+}
+
+function cmsResolveThemeTemplateAliasPath(string $template): string
+{
+    $relativePath = cmsThemeTemplateRelativePath($template);
+    if ($relativePath === '') {
+        return '';
+    }
+
+    $activePath = cmsThemeTemplatePathForSlug(cmsActiveTheme(), $relativePath);
+    if ($activePath !== '') {
+        return $activePath;
+    }
+
+    return (string)CMS_THEME_SYMLINK . '/' . $relativePath;
+}
+
+function cmsActiveThemeTemplateExists(string $template): bool
+{
+    $activePath = cmsThemeTemplatePathForSlug(cmsActiveTheme(), $template);
+    if ($activePath !== '') {
+        return is_file($activePath);
+    }
+
+    return false;
+}
+
 /**
  * Execute callback while holding an exclusive lock for theme symlink operations.
  */
@@ -676,23 +732,35 @@ function cmsThemeRenderLockDepth(): int
 function cmsWithThemeRenderLock(callable $callback): mixed
 {
     $depth = cmsThemeRenderLockDepth();
-    if ($depth > 0) {
-        $GLOBALS['cms_theme_render_lock_depth'] = $depth + 1;
-        try {
-            return $callback();
-        } finally {
+    $GLOBALS['cms_theme_render_lock_depth'] = $depth + 1;
+    try {
+        return $callback();
+    } finally {
+        if ($depth > 0) {
             $GLOBALS['cms_theme_render_lock_depth'] = $depth;
+        } else {
+            unset($GLOBALS['cms_theme_render_lock_depth']);
+        }
+    }
+}
+
+function cmsApplyThemeSymlinkState(?string $slug): void
+{
+    cmsResetThemeRuntimeCache();
+    $link = (string)CMS_THEME_SYMLINK;
+    if (is_link($link) || is_dir($link) || is_file($link)) {
+        kernelDeletePath($link);
+    }
+
+    $slug = trim((string)$slug);
+    if ($slug !== '' && $slug !== 'default') {
+        $target = cmsThemesPath() . '/' . $slug;
+        if (is_dir($target)) {
+            @symlink($target, $link);
         }
     }
 
-    return cmsWithThemeSymlinkLock(function () use ($callback): mixed {
-        $GLOBALS['cms_theme_render_lock_depth'] = 1;
-        try {
-            return $callback();
-        } finally {
-            unset($GLOBALS['cms_theme_render_lock_depth']);
-        }
-    }, LOCK_SH);
+    kernelFlushCodeCaches();
 }
 
 /**
@@ -703,22 +771,7 @@ function cmsWithThemeRenderLock(callable $callback): mixed
 function cmsActivateThemeSymlink(?string $slug): void
 {
     cmsWithThemeSymlinkLock(function () use ($slug): void {
-        cmsResetThemeRuntimeCache();
-        $link = (string)CMS_THEME_SYMLINK;
-        // Remove existing symlink/file
-        if (is_link($link)) {
-            kernelDeletePath($link);
-        } elseif (is_dir($link)) {
-            kernelDeletePath($link);
-        }
-        if ($slug === null || $slug === '' || $slug === 'default') {
-            return;
-        }
-        $target = cmsThemesPath() . '/' . $slug;
-        if (is_dir($target)) {
-            @symlink($target, $link);
-        }
-        kernelFlushCodeCaches();
+        cmsApplyThemeSymlinkState($slug);
     }, LOCK_EX);
 }
 
@@ -736,19 +789,31 @@ function cmsEnsureThemeSymlink(): void
     $active = cmsActiveTheme();
     $link = (string)CMS_THEME_SYMLINK;
     if ($active === null) {
-        // No active theme — remove symlink if it exists
-        if (is_link($link)) {
-            kernelDeletePath($link);
+        if (!is_link($link) && !is_dir($link) && !is_file($link)) {
+            return;
         }
+
+        cmsWithThemeSymlinkLock(function () use ($checkedKey): void {
+            cmsApplyThemeSymlinkState(null);
+            $GLOBALS[$checkedKey] = true;
+        }, LOCK_EX);
         return;
     }
+
     $target = cmsThemesPath() . '/' . $active;
-    // Check if symlink already points to the right place
     if (is_link($link) && readlink($link) === $target) {
         return;
     }
-    // Recreate
-    cmsActivateThemeSymlink($active);
+
+    cmsWithThemeSymlinkLock(function () use ($active, $target, $link, $checkedKey): void {
+        if (is_link($link) && readlink($link) === $target) {
+            $GLOBALS[$checkedKey] = true;
+            return;
+        }
+
+        cmsApplyThemeSymlinkState($active);
+        $GLOBALS[$checkedKey] = true;
+    }, LOCK_EX);
 }
 
 /**
@@ -783,13 +848,11 @@ function cmsResolveTemplate(string $subPath): string
         return $default;
     }
 
-    cmsEnsureThemeSymlink();
-    $overridePath = (string)CMS_THEME_SYMLINK . '/' . $subPath;
-    if (!is_file($overridePath)) {
+    if (!cmsActiveThemeTemplateExists(cmsThemeTemplateAliasPrefix() . $subPath)) {
         return $default;
     }
 
-    return '_cms_active_theme/' . $subPath;
+    return cmsThemeTemplateAliasPrefix() . $subPath;
 }
 
 /**
@@ -994,12 +1057,10 @@ function cmsResolveBlockTemplate(string $block, array $context = []): string
         }
     }
 
-    cmsEnsureThemeSymlink();
     // Strip a leading "modules/cms/" prefix to find the theme-relative path
     $themeRelative = preg_replace('#^modules/cms/#', '', $candidateBlock);
-    $overridePath  = (string)CMS_THEME_SYMLINK . '/' . $themeRelative;
-    if (is_file($overridePath)) {
-        return '_cms_active_theme/' . $themeRelative;
+    if (is_string($themeRelative) && cmsActiveThemeTemplateExists(cmsThemeTemplateAliasPrefix() . $themeRelative)) {
+        return cmsThemeTemplateAliasPrefix() . $themeRelative;
     }
 
     return $candidateBlock;
@@ -1015,20 +1076,7 @@ function cmsRenderThemeAwareBlockTemplate(string $block, array $context = []): s
  */
 function cmsRenderThemeAwareTemplate(string $template, array $context = []): string
 {
-    $needsThemeLock = str_starts_with($template, '_cms_active_theme/')
-        || str_starts_with($template, 'modules/cms/public/');
-
-    if (!$needsThemeLock) {
-        return cmsRender($template, $context);
-    }
-
-    if (cmsThemeRenderLockDepth() > 0) {
-        return cmsRender($template, $context);
-    }
-
-    return cmsWithThemeSymlinkLock(function () use ($template, $context): string {
-        return cmsRender($template, $context);
-    }, LOCK_SH);
+    return cmsRender($template, $context);
 }
 
 /**
@@ -1039,20 +1087,7 @@ function cmsRenderThemeAwareTemplate(string $template, array $context = []): str
 function cmsPublicRender(string $subPath, array $context = []): string
 {
     $template = cmsResolveTemplate($subPath);
-    $needsThemeLock = str_starts_with($template, '_cms_active_theme/')
-        || str_starts_with($template, 'modules/cms/public/');
-
-    if ($needsThemeLock && cmsThemeRenderLockDepth() > 0) {
-        return cmsRender($template, $context);
-    }
-
-    if (!str_starts_with($template, '_cms_active_theme/')) {
-        return cmsRender($template, $context);
-    }
-
-    return cmsWithThemeSymlinkLock(function () use ($template, $context): string {
-        return cmsRender($template, $context);
-    }, LOCK_SH);
+    return cmsRender($template, $context);
 }
 
 /**
