@@ -697,6 +697,16 @@ function cmsCanonicalRenderContextNormalize(array $context, string $template): a
     }
 
     if ($shouldLog && ($missingKeys !== [] || $typeMismatches !== [])) {
+        if (function_exists('kernelAppendRenderTraceNormalizationAction')) {
+            $context = kernelAppendRenderTraceNormalizationAction($context, [
+                'source' => 'cms_canonical',
+                'contract' => $contract,
+                'schema_id' => cmsCanonicalRenderSchemaId($template),
+                'missing_keys' => $missingKeys,
+                'type_mismatches' => $typeMismatches,
+            ]);
+        }
+
         write_log('warn', 'cms.render_context.contract_mismatch', [
             'template' => $template,
             'contract' => $contract,
@@ -713,6 +723,14 @@ function cmsCanonicalRenderContextNormalize(array $context, string $template): a
             'missing_keys' => $missingKeys,
             'type_mismatches' => $typeMismatches,
         ];
+    } elseif (($missingKeys !== [] || $typeMismatches !== []) && function_exists('kernelAppendRenderTraceNormalizationAction')) {
+        $context = kernelAppendRenderTraceNormalizationAction($context, [
+            'source' => 'cms_canonical',
+            'contract' => $contract,
+            'schema_id' => cmsCanonicalRenderSchemaId($template),
+            'missing_keys' => $missingKeys,
+            'type_mismatches' => $typeMismatches,
+        ]);
     } else {
         unset($context['__render_contract_mismatch']);
     }

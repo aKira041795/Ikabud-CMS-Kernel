@@ -717,6 +717,215 @@ function kernelApplyResolvedRenderContextMetadata(array $context, string $profil
     return $context;
 }
 
+/**
+ * @return array<int, array<string, mixed>>
+ */
+function &kernelRenderTraceBuffer(): array
+{
+    static $traces = [];
+    return $traces;
+}
+
+/**
+ * @return array<int, array<string, mixed>>
+ */
+function kernelRecordedRenderTraces(): array
+{
+    return kernelRenderTraceBuffer();
+}
+
+function kernelLatestRenderTrace(): ?array
+{
+    $traces = kernelRenderTraceBuffer();
+    if ($traces === []) {
+        return null;
+    }
+
+    $trace = end($traces);
+    return is_array($trace) ? $trace : null;
+}
+
+function kernelClearRenderTraces(): void
+{
+    $traces = &kernelRenderTraceBuffer();
+    $traces = [];
+}
+
+function kernelRenderTraceLogsEnabled(): bool
+{
+    return timing_logs_enabled('APP_RENDER_TRACE_LOGS');
+}
+
+function kernelRenderTraceOutputMode(): string
+{
+    $raw = strtolower(trim((string)($_ENV['APP_RENDER_TRACE_OUTPUT'] ?? '')));
+    if ($raw === '') {
+        return '';
+    }
+
+    if (in_array($raw, ['1', 'true', 'yes', 'on'], true)) {
+        return 'comment';
+    }
+
+    return in_array($raw, ['comment', 'header'], true) ? $raw : '';
+}
+
+function kernelRenderTraceOutputEnabled(): bool
+{
+    return kernelRenderTraceOutputMode() !== '';
+}
+
+function kernelRenderTraceThemeSource(array $context): string
+{
+    $themeSource = trim((string)($context['active_theme_slug'] ?? ''));
+    if ($themeSource !== '') {
+        return $themeSource;
+    }
+
+    return trim((string)($context['theme_source'] ?? ''));
+}
+
+/**
+ * @return array<int, array<string, mixed>>
+ */
+function kernelRenderTraceNormalizationActions(array $context): array
+{
+    $actions = $context['__render_trace_normalization_actions'] ?? [];
+    if (!is_array($actions)) {
+        return [];
+    }
+
+    return array_values(array_filter($actions, static fn(mixed $entry): bool => is_array($entry)));
+}
+
+function kernelAppendRenderTraceNormalizationAction(array $context, array $action): array
+{
+    if (!isset($context['__render_trace_normalization_actions']) || !is_array($context['__render_trace_normalization_actions'])) {
+        $context['__render_trace_normalization_actions'] = [];
+    }
+
+    $context['__render_trace_normalization_actions'][] = $action;
+    return $context;
+}
+
+function kernelRenderTraceContractTemplate(string $template, array $context): string
+{
+    $contractTemplate = trim((string)($context['__render_trace_contract_template'] ?? ''));
+    return $contractTemplate !== '' ? $contractTemplate : $template;
+}
+
+function kernelStripInternalRenderTraceContext(array $context): array
+{
+    unset($context['__render_trace_normalization_actions']);
+    unset($context['__render_trace_contract_template']);
+    return $context;
+}
+
+/**
+ * @param array<int, array<string, mixed>> $matchedContracts
+ * @param array<int, array<string, mixed>> $normalizationActions
+ * @return array<string, mixed>
+ */
+function kernelBuildRenderTrace(string $template, string $contractTemplate, array $context, array $matchedContracts, array $normalizationActions, float $startedAt): array
+{
+    $matchedContractIds = [];
+    $matchedSchemaIds = [];
+
+    foreach ($matchedContracts as $contract) {
+        $contractId = trim((string)($contract['id'] ?? ''));
+        if ($contractId !== '') {
+            $matchedContractIds[] = $contractId;
+        }
+
+        $schemaId = trim((string)($contract['schema_id'] ?? ''));
+        if ($schemaId !== '') {
+            $matchedSchemaIds[] = $schemaId;
+        }
+    }
+
+    return [
+        'request_id' => request_id(),
+        'template' => $template,
+        'contract_template' => $contractTemplate,
+        'render_profile_id' => trim((string)($context['render_profile_id'] ?? '')),
+        'render_schema_stack' => is_array($context['render_schema_stack'] ?? null) ? array_values($context['render_schema_stack']) : [],
+        'matched_contract_ids' => array_values(array_unique($matchedContractIds)),
+        'matched_schema_ids' => array_values(array_unique($matchedSchemaIds)),
+        'normalization_actions' => $normalizationActions,
+        'strict_mode' => kernelRenderContextContractStrictMode(),
+        'public_render_origin' => trim((string)($context['public_render_origin'] ?? '')),
+        'public_route_kind' => trim((string)($context['public_route_kind'] ?? '')),
+        'public_presentation_mode' => trim((string)($context['public_presentation_mode'] ?? '')),
+        'theme_source' => kernelRenderTraceThemeSource($context),
+        'duration_ms' => round((microtime(true) - $startedAt) * 1000, 2),
+    ];
+}
+
+function kernelRecordRenderTrace(array $trace): void
+{
+    $traces = &kernelRenderTraceBuffer();
+    $traces[] = $trace;
+    if (count($traces) > 100) {
+        array_shift($traces);
+    }
+
+    if (kernelRenderTraceLogsEnabled()) {
+        write_log('kernel.render_trace', 'info', $trace);
+    }
+}
+
+function kernelRenderTraceComment(array $trace): string
+{
+    $summary = [
+        'request_id' => (string)($trace['request_id'] ?? ''),
+        'template' => (string)($trace['template'] ?? ''),
+        'contract_template' => (string)($trace['contract_template'] ?? ''),
+        'render_profile_id' => (string)($trace['render_profile_id'] ?? ''),
+        'render_schema_stack' => is_array($trace['render_schema_stack'] ?? null) ? array_values($trace['render_schema_stack']) : [],
+        'public_route_kind' => (string)($trace['public_route_kind'] ?? ''),
+        'theme_source' => (string)($trace['theme_source'] ?? ''),
+        'duration_ms' => $trace['duration_ms'] ?? 0,
+    ];
+
+    $json = json_encode($summary, JSON_UNESCAPED_SLASHES) ?: '{}';
+    $json = str_replace('--', '\\u002d\\u002d', $json);
+    return "\n<!-- render-trace {$json} -->";
+}
+
+function kernelApplyRenderTraceOutput(string $output, array $trace): string
+{
+    if (!kernelRenderTraceOutputEnabled()) {
+        return $output;
+    }
+
+    $mode = kernelRenderTraceOutputMode();
+    if ($mode === 'header') {
+        if (!headers_sent()) {
+            $profileId = trim((string)($trace['render_profile_id'] ?? ''));
+            $schemaStack = is_array($trace['render_schema_stack'] ?? null) ? implode(',', $trace['render_schema_stack']) : '';
+            if ($profileId !== '') {
+                header('X-Render-Profile: ' . $profileId);
+            }
+            if ($schemaStack !== '') {
+                header('X-Render-Schema-Stack: ' . $schemaStack);
+            }
+        }
+        return $output;
+    }
+
+    if ($mode !== 'comment') {
+        return $output;
+    }
+
+    $comment = kernelRenderTraceComment($trace);
+    if (stripos($output, '</body>') !== false) {
+        $patched = preg_replace('/<\/body>/i', $comment . "\n</body>", $output, 1);
+        return is_string($patched) ? $patched : ($output . $comment);
+    }
+
+    return $output . $comment;
+}
+
 function kernelApplyRenderContextMetadata(array $context, string $template, ?array $matchedContracts = null): array
 {
     $contracts = is_array($matchedContracts) ? $matchedContracts : kernelMatchedRenderContextContracts($template);
@@ -898,6 +1107,14 @@ function kernelNormalizeRenderContextContracts(array $context, string $template,
             continue;
         }
 
+        $context = kernelAppendRenderTraceNormalizationAction($context, [
+            'source' => 'kernel_contract',
+            'contract' => (string)($contract['id'] ?? ''),
+            'schema_id' => trim((string)($contract['schema_id'] ?? '')),
+            'missing_keys' => $missingKeys,
+            'type_mismatches' => $typeMismatches,
+        ]);
+
         $entry = [
             'template' => $template,
             'contract' => (string)($contract['id'] ?? ''),
@@ -921,6 +1138,10 @@ function kernelNormalizeRenderContextContracts(array $context, string $template,
 
 function kernelPrepareRenderContext(string $template, array $context = []): array
 {
+    if (trim((string)($context['__render_trace_contract_template'] ?? '')) === '') {
+        $context['__render_trace_contract_template'] = $template;
+    }
+
     $context['__render_contract_validate'] = true;
     $mismatches = [];
     $context = kernelNormalizeRenderContextContracts($context, $template, $mismatches);

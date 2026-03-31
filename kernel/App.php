@@ -991,11 +991,22 @@ class App
      */
     public function render(string $template, array $context = []): string
     {
+        $renderStartedAt = microtime(true);
+
         // Caller context overrides base (so handlers can override any key)
         $context = array_merge($this->buildRenderBaseContext($template), $context);
         $context = $this->finalizeRenderContext($template, $context);
-        
-        return $this->templates()->render($template, $context);
+
+        $contractTemplate = \kernelRenderTraceContractTemplate($template, $context);
+        $matchedContracts = \kernelMatchedRenderContextContracts($contractTemplate);
+        $normalizationActions = \kernelRenderTraceNormalizationActions($context);
+        $renderContext = \kernelStripInternalRenderTraceContext($context);
+        $output = $this->templates()->render($template, $renderContext);
+
+        $trace = \kernelBuildRenderTrace($template, $contractTemplate, $context, $matchedContracts, $normalizationActions, $renderStartedAt);
+        \kernelRecordRenderTrace($trace);
+
+        return \kernelApplyRenderTraceOutput($output, $trace);
     }
     
     /**

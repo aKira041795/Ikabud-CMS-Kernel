@@ -563,6 +563,45 @@ The current mismatch event names can stay the same in Render Schema v1.
 
 ---
 
+## Render Trace Output
+
+Render Schema v1 may expose an opt-in render trace on top of the schema/profile registry for local debugging and test coverage.
+
+### Toggles
+
+- `APP_RENDER_TRACE_OUTPUT=comment` appends a `<!-- render-trace ... -->` summary to rendered HTML output
+- `APP_RENDER_TRACE_OUTPUT=header` emits `X-Render-Profile` and `X-Render-Schema-Stack` response headers when headers are still mutable
+- `APP_RENDER_TRACE_LOGS=1` records a `kernel.render_trace` info event in `storage/logs/app.log`
+
+`APP_RENDER_TRACE_OUTPUT=1` is treated the same as `comment`.
+
+### Trace fields
+
+The full trace payload should include:
+
+- `request_id`
+- `template`
+- `contract_template`
+- `render_profile_id`
+- `render_schema_stack`
+- `matched_contract_ids`
+- `matched_schema_ids`
+- `normalization_actions`
+- `strict_mode`
+- `public_render_origin`
+- `public_route_kind`
+- `public_presentation_mode`
+- `theme_source`
+- `duration_ms`
+
+Notes:
+
+- `template` is the actual template path rendered by the template engine.
+- `contract_template` is the canonical contract key used to resolve matched render contracts, which matters when a public render resolves to a theme override path.
+- comment output is intentionally a compact summary; logs and in-memory traces carry the fuller payload.
+
+---
+
 ## Test Requirements
 
 Render Schema v1 should add or update coverage for:

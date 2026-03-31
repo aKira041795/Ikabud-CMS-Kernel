@@ -66,6 +66,8 @@ $bookHtml = '';
 $inquiryHtml = '';
 $canonicalEntityViewContext = [];
 $canonicalEntityListContext = [];
+$tracedCanonicalHtml = '';
+$latestCanonicalTrace = [];
 $bookMissingCapabilityStatus = 200;
 $inquiryMissingCapabilityStatus = 200;
 
@@ -306,6 +308,42 @@ try {
 
     $canonicalEntityViewContext = cmsCanonicalRenderContextNormalize([], 'templates/modules/cms/public/entity.view.disyl');
     $canonicalEntityListContext = cmsCanonicalRenderContextNormalize([], 'templates/modules/cms/public/entity.list.disyl');
+
+    $traceOutputEnv = array_key_exists('APP_RENDER_TRACE_OUTPUT', $_ENV) ? (string)$_ENV['APP_RENDER_TRACE_OUTPUT'] : null;
+    $traceLogEnv = array_key_exists('APP_RENDER_TRACE_LOGS', $_ENV) ? (string)$_ENV['APP_RENDER_TRACE_LOGS'] : null;
+    kernelClearRenderTraces();
+    file_put_contents(STORAGE_PATH . '/logs/app.log', '');
+    try {
+        $_ENV['APP_RENDER_TRACE_OUTPUT'] = 'comment';
+        $_ENV['APP_RENDER_TRACE_LOGS'] = '1';
+        $tracedCanonicalHtml = cmsPublicCanonicalRenderEntityView([
+            'id' => $actionEntityId,
+            'title' => 'Entity Contract Service',
+            'slug' => $actionSlug,
+            'body' => '<p>Canonical service body.</p>',
+            'excerpt' => 'Canonical service excerpt.',
+            'type' => $actionType,
+        ], [
+            'content_type' => $actionType,
+            'rendered_html' => '<p>Canonical service body.</p>',
+            'public_render_origin' => 'cms',
+            'public_route_kind' => 'entity',
+            'public_presentation_mode' => 'canonical',
+        ]);
+        $latestCanonicalTrace = kernelLatestRenderTrace() ?? [];
+    } finally {
+        if ($traceOutputEnv === null) {
+            unset($_ENV['APP_RENDER_TRACE_OUTPUT']);
+        } else {
+            $_ENV['APP_RENDER_TRACE_OUTPUT'] = $traceOutputEnv;
+        }
+
+        if ($traceLogEnv === null) {
+            unset($_ENV['APP_RENDER_TRACE_LOGS']);
+        } else {
+            $_ENV['APP_RENDER_TRACE_LOGS'] = $traceLogEnv;
+        }
+    }
 } finally {
     if ($nativeEntityPresentationExisted) {
         cmsUpsertCustomizerSection(
@@ -402,6 +440,14 @@ t('canonical entity view context reports cms_public profile', ($canonicalEntityV
 t('canonical entity view context reports schema stack', ($canonicalEntityViewContext['render_schema_stack'] ?? null) === ['kernel.shell@1', 'cms.public.entity.view@1'], json_encode($canonicalEntityViewContext['render_schema_stack'] ?? null));
 t('canonical entity list context reports cms_public profile', ($canonicalEntityListContext['render_profile_id'] ?? '') === 'cms_public', json_encode($canonicalEntityListContext['render_profile_id'] ?? null));
 t('canonical entity list context reports schema stack', ($canonicalEntityListContext['render_schema_stack'] ?? null) === ['kernel.shell@1', 'cms.public.entity.list@1'], json_encode($canonicalEntityListContext['render_schema_stack'] ?? null));
+
+echo "\n=== RENDER TRACE ===\n";
+
+t('canonical render emits render-trace HTML comment when enabled', str_contains($tracedCanonicalHtml, '<!-- render-trace ') && str_contains($tracedCanonicalHtml, '"render_profile_id":"cms_public"'), $tracedCanonicalHtml);
+t('canonical render records latest trace metadata', ($latestCanonicalTrace['render_profile_id'] ?? '') === 'cms_public' && (($latestCanonicalTrace['render_schema_stack'] ?? null) === ['kernel.shell@1', 'cms.public.entity.view@1']) && (($latestCanonicalTrace['public_route_kind'] ?? '') === 'entity'), json_encode($latestCanonicalTrace));
+$canonicalTraceLog = @file_get_contents(STORAGE_PATH . '/logs/app.log') ?: '';
+t('canonical render logs render trace when enabled', str_contains($canonicalTraceLog, 'kernel.render_trace') && str_contains($canonicalTraceLog, '"render_profile_id":"cms_public"') && str_contains($canonicalTraceLog, '"public_route_kind":"entity"'), $canonicalTraceLog);
+file_put_contents(STORAGE_PATH . '/logs/app.log', '');
 
 echo "\n=== RENDER LOCK SESSION ===\n";
 

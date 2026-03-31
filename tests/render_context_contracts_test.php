@@ -168,6 +168,45 @@ t('cart render receives empty cart defaults', str_contains($renderedCart, 'Your 
 $renderedProduct = app()->render('modules/ecommerce/public/product.disyl');
 t('product render receives normalized product detail metadata', str_contains($renderedProduct, 'data-storefront-route-kind="product_detail"') && str_contains($renderedProduct, 'data-storefront-page-kind="detail"'), $renderedProduct);
 
+echo "\n=== RENDER TRACE ===\n";
+
+$traceOutputEnv = array_key_exists('APP_RENDER_TRACE_OUTPUT', $_ENV) ? (string)$_ENV['APP_RENDER_TRACE_OUTPUT'] : null;
+$traceLogEnv = array_key_exists('APP_RENDER_TRACE_LOGS', $_ENV) ? (string)$_ENV['APP_RENDER_TRACE_LOGS'] : null;
+kernelClearRenderTraces();
+file_put_contents(STORAGE_PATH . '/logs/app.log', '');
+try {
+    $_ENV['APP_RENDER_TRACE_OUTPUT'] = 'comment';
+    $_ENV['APP_RENDER_TRACE_LOGS'] = '1';
+    $tracedShop = app()->render('modules/ecommerce/public/shop.disyl');
+    $latestTrace = kernelLatestRenderTrace();
+
+    kernelClearRenderTraces();
+    ob_start();
+    ecRender('modules/ecommerce/public/shop.disyl');
+    $helperRenderedShop = (string)ob_get_clean();
+    $helperTrace = kernelLatestRenderTrace();
+} finally {
+    if ($traceOutputEnv === null) {
+        unset($_ENV['APP_RENDER_TRACE_OUTPUT']);
+    } else {
+        $_ENV['APP_RENDER_TRACE_OUTPUT'] = $traceOutputEnv;
+    }
+
+    if ($traceLogEnv === null) {
+        unset($_ENV['APP_RENDER_TRACE_LOGS']);
+    } else {
+        $_ENV['APP_RENDER_TRACE_LOGS'] = $traceLogEnv;
+    }
+}
+
+t('shop render emits render-trace HTML comment when enabled', str_contains($tracedShop, '<!-- render-trace ') && str_contains($tracedShop, '"render_profile_id":"commerce_public"'), $tracedShop);
+t('shop render records latest render trace metadata', is_array($latestTrace) && ($latestTrace['render_profile_id'] ?? '') === 'commerce_public' && (($latestTrace['render_schema_stack'] ?? null) === ['kernel.shell@1', 'ecommerce.public.shell@1', 'ecommerce.public.catalog@1']) && in_array('ecommerce.public.catalog', $latestTrace['matched_contract_ids'] ?? [], true), json_encode($latestTrace));
+$helperNormalizationActions = is_array($helperTrace['normalization_actions'] ?? null) ? $helperTrace['normalization_actions'] : [];
+t('shop helper render preserves canonical trace metadata', str_contains($helperRenderedShop, '<!-- render-trace ') && is_array($helperTrace) && (($helperTrace['contract_template'] ?? '') === 'modules/ecommerce/public/shop.disyl') && in_array('ecommerce.public.catalog', $helperTrace['matched_contract_ids'] ?? [], true) && $helperNormalizationActions !== [], json_encode($helperTrace));
+$traceAppLog = @file_get_contents(STORAGE_PATH . '/logs/app.log') ?: '';
+t('shop render logs render trace when enabled', str_contains($traceAppLog, 'kernel.render_trace') && str_contains($traceAppLog, '"render_profile_id":"commerce_public"') && str_contains($traceAppLog, '"matched_contract_ids":["ecommerce.public.shell","ecommerce.public.catalog"]'), $traceAppLog);
+file_put_contents(STORAGE_PATH . '/logs/app.log', '');
+
 echo "\n=== MISMATCH LOGGING ===\n";
 
 file_put_contents(STORAGE_PATH . '/logs/app.log', '');
