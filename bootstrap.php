@@ -808,15 +808,28 @@ function kernelAppendRenderTraceNormalizationAction(array $context, array $actio
     return $context;
 }
 
+function kernelResolveRenderContextContractTemplate(string $template, array $context = []): string
+{
+    foreach (['__render_contract_template', 'logical_contract_template', '__render_trace_contract_template'] as $key) {
+        $contractTemplate = trim((string)($context[$key] ?? ''));
+        if ($contractTemplate !== '') {
+            return $contractTemplate;
+        }
+    }
+
+    return $template;
+}
+
 function kernelRenderTraceContractTemplate(string $template, array $context): string
 {
-    $contractTemplate = trim((string)($context['__render_trace_contract_template'] ?? ''));
-    return $contractTemplate !== '' ? $contractTemplate : $template;
+    return kernelResolveRenderContextContractTemplate($template, $context);
 }
 
 function kernelStripInternalRenderTraceContext(array $context): array
 {
     unset($context['__render_trace_normalization_actions']);
+    unset($context['__render_contract_template']);
+    unset($context['logical_contract_template']);
     unset($context['__render_trace_contract_template']);
     return $context;
 }
@@ -928,9 +941,10 @@ function kernelApplyRenderTraceOutput(string $output, array $trace): string
 
 function kernelApplyRenderContextMetadata(array $context, string $template, ?array $matchedContracts = null): array
 {
-    $contracts = is_array($matchedContracts) ? $matchedContracts : kernelMatchedRenderContextContracts($template);
-    $profileId = kernelResolveRenderContextProfileId($template, $context, $contracts);
-    $schemaStack = kernelResolveRenderContextSchemaStack($template, $context, $contracts, $profileId);
+    $contractTemplate = kernelResolveRenderContextContractTemplate($template, $context);
+    $contracts = is_array($matchedContracts) ? $matchedContracts : kernelMatchedRenderContextContracts($contractTemplate);
+    $profileId = kernelResolveRenderContextProfileId($contractTemplate, $context, $contracts);
+    $schemaStack = kernelResolveRenderContextSchemaStack($contractTemplate, $context, $contracts, $profileId);
 
     if ($profileId === '' && $schemaStack === []) {
         if (!array_key_exists('render_profile_id', $context)) {
@@ -1065,7 +1079,8 @@ function kernelApplyRenderContextShape(
 
 function kernelNormalizeRenderContextContracts(array $context, string $template, ?array &$mismatches = null): array
 {
-    $contracts = kernelMatchedRenderContextContracts($template);
+    $contractTemplate = kernelResolveRenderContextContractTemplate($template, $context);
+    $contracts = kernelMatchedRenderContextContracts($contractTemplate);
     if ($contracts === []) {
         return $context;
     }
@@ -1095,7 +1110,7 @@ function kernelNormalizeRenderContextContracts(array $context, string $template,
 
         $normalize = $contract['normalize'] ?? null;
         if (is_callable($normalize)) {
-            $context = $normalize($context, $template, $missingKeys, $typeMismatches);
+            $context = $normalize($context, $contractTemplate, $missingKeys, $typeMismatches);
         }
 
         $missingKeys = array_values(array_unique(array_filter(array_map('strval', $missingKeys), static fn(string $key): bool => $key !== '')));
@@ -1117,6 +1132,7 @@ function kernelNormalizeRenderContextContracts(array $context, string $template,
 
         $entry = [
             'template' => $template,
+            'contract_template' => $contractTemplate,
             'contract' => (string)($contract['id'] ?? ''),
             'render_profile_id' => trim((string)($context['render_profile_id'] ?? '')),
             'render_schema_stack' => is_array($context['render_schema_stack'] ?? null) ? array_values($context['render_schema_stack']) : [],
@@ -1138,7 +1154,8 @@ function kernelNormalizeRenderContextContracts(array $context, string $template,
 
 function kernelPrepareRenderContext(string $template, array $context = []): array
 {
-    if (trim((string)($context['__render_trace_contract_template'] ?? '')) === '') {
+    if (trim((string)($context['__render_contract_template'] ?? '')) === '' && trim((string)($context['logical_contract_template'] ?? '')) === '' && trim((string)($context['__render_trace_contract_template'] ?? '')) === '') {
+        $context['__render_contract_template'] = $template;
         $context['__render_trace_contract_template'] = $template;
     }
 

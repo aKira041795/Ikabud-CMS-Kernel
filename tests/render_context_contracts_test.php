@@ -90,6 +90,22 @@ t('prepared catalog context initializes storefront collection items', is_array($
 t('prepared catalog context reports commerce_public profile', ($preparedCatalog['render_profile_id'] ?? '') === 'commerce_public', json_encode($preparedCatalog['render_profile_id'] ?? null));
 t('prepared catalog context reports schema stack in order', ($preparedCatalog['render_schema_stack'] ?? null) === ['kernel.shell@1', 'ecommerce.public.shell@1', 'ecommerce.public.catalog@1'], json_encode($preparedCatalog['render_schema_stack'] ?? null));
 
+$logicalThemeCatalog = kernelNormalizeRenderContextContracts([
+    '__render_contract_template' => 'modules/ecommerce/public/shop.disyl',
+    'page_title' => 'Catalog',
+    'products' => [],
+    'available_categories' => [],
+    'search' => '',
+    'category_id' => 0,
+    'page' => 1,
+    'total' => 0,
+    'total_pages' => 1,
+], '_cms_active_theme/public/ecommerce/shop.disyl');
+
+t('logical contract template resolves commerce_public profile on theme path', ($logicalThemeCatalog['render_profile_id'] ?? '') === 'commerce_public', json_encode($logicalThemeCatalog['render_profile_id'] ?? null));
+t('logical contract template resolves schema stack on theme path', ($logicalThemeCatalog['render_schema_stack'] ?? null) === ['kernel.shell@1', 'ecommerce.public.shell@1', 'ecommerce.public.catalog@1'], json_encode($logicalThemeCatalog['render_schema_stack'] ?? null));
+t('logical contract template keeps catalog route normalization on theme path', (($logicalThemeCatalog['storefront']['route']['kind'] ?? '') === 'shop_index') && (($logicalThemeCatalog['storefront']['page']['kind'] ?? '') === 'catalog'), json_encode($logicalThemeCatalog['storefront'] ?? null));
+
 echo "\n=== ADDITIONAL MODULES ===\n";
 
 $preparedGuidance = kernelPrepareRenderContext('modules/guidance/pages/login.disyl', [
