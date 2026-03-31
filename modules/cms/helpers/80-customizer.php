@@ -292,12 +292,12 @@ function cmsKnownCustomizerSections(): array
     return ['footer', 'header', 'sidebar', 'colors', 'custom_code', 'entity_presentation', 'theme'];
 }
 
-function cmsCustomizerSectionDefaults(string $section): array
+function cmsCustomizerSectionDefaults(string $section, ?string $scope = null): array
 {
     return match ($section) {
         'footer' => cmsFooterSettingsDefaults(),
         'header' => cmsHeaderSettingsDefaults(),
-        'sidebar' => cmsSidebarSettingsDefaults(),
+        'sidebar' => cmsSidebarSettingsDefaults($scope),
         'colors' => cmsColorsSettingsDefaults(),
         'custom_code' => cmsCustomCodeSettingsDefaults(),
         'entity_presentation' => cmsEntityPresentationSectionDefaults(),
@@ -306,12 +306,12 @@ function cmsCustomizerSectionDefaults(string $section): array
     };
 }
 
-function cmsValidateCustomizerSectionSettings(string $section, array $settings): array
+function cmsValidateCustomizerSectionSettings(string $section, array $settings, ?string $scope = null): array
 {
     return match ($section) {
         'footer' => cmsValidateFooterSettings($settings),
         'header' => cmsValidateHeaderSettings($settings),
-        'sidebar' => cmsValidateSidebarSettings($settings),
+        'sidebar' => cmsValidateSidebarSettings($settings, $scope),
         'colors' => cmsValidateColorsSettings($settings),
         'custom_code' => cmsValidateCustomCodeSettings($settings),
         'entity_presentation' => cmsValidateEntityPresentationSettings($settings, cmsEntityPresentationSectionDefaults()),
@@ -491,7 +491,7 @@ function cmsThemeManifestCustomizerDefaults(string $section, ?array $manifest = 
         'colors' => cmsThemeManifestColorsDefaults($manifest),
         'entity_presentation' => cmsEntityPresentationSectionDefaults($scope, $manifest),
         'theme' => cmsThemeManifestThemeLayoutDefaults($manifest, $scope),
-        default => cmsCustomizerSectionDefaults($section),
+        default => cmsCustomizerSectionDefaults($section, $scope),
     };
 }
 
@@ -503,6 +503,12 @@ function cmsActiveCustomizerScope(): string
     }
 
     return cmsThemeCustomizerScopeFromManifest(cmsActiveThemeManifest());
+}
+
+function cmsCustomizerScopeFromPublicContext(array $publicCtx = []): string
+{
+    $requested = trim((string)($publicCtx['active_customizer_scope'] ?? ''));
+    return cmsNormalizeCustomizerScope($requested, cmsActiveCustomizerScope());
 }
 
 function cmsThemeShouldDeferCustomizerPresentation(?array $manifest = null): bool
@@ -533,7 +539,7 @@ function cmsShouldRenderCustomizerPresentationCss(string $section, array $settin
         return true;
     }
 
-    $current = cmsValidateCustomizerSectionSettings($section, $settings);
+    $current = cmsValidateCustomizerSectionSettings($section, $settings, $scope);
     $themeDefaults = cmsThemeManifestCustomizerDefaults($section, $manifest, $scope);
     return !cmsCustomizerSettingsEqual($current, $themeDefaults);
 }
@@ -717,7 +723,7 @@ function cmsCustomizerRenderContextCacheToken(array $publicCtx = []): string
 function cmsUpsertCustomizerSection(object $db, string $section, array $settings, array $widgets = [], ?int $userId = null, ?string $scope = null): void
 {
     $scope = $scope !== null ? trim($scope) : cmsActiveCustomizerScope();
-    $settings = cmsValidateCustomizerSectionSettings($section, $settings);
+    $settings = cmsValidateCustomizerSectionSettings($section, $settings, $scope);
     $settingsJson = json_encode($settings, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
     $widgetsJson = json_encode($widgets, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
 
@@ -963,19 +969,19 @@ function cmsEnsureCustomizerScopeSeeded(object $db, ?string $scope = null): void
         $settings = null;
         $widgets = [];
         if ($section === 'sidebar') {
-            $settings = cmsSidebarSettingsDefaults();
+            $settings = cmsSidebarSettingsDefaults($scope);
             $settings['enabled'] = 0;
         } elseif (in_array($section, ['colors', 'entity_presentation', 'theme'], true)) {
             $settings = cmsThemeManifestCustomizerDefaults($section, cmsActiveThemeManifest(), $scope);
         } elseif ($isNativeScope) {
-            $settings = cmsCustomizerSectionDefaults($section);
+            $settings = cmsCustomizerSectionDefaults($section, $scope);
         } else {
             $source = cmsCustomizerSectionRecord($db, $section, 'native');
             if ($source !== null) {
                 $settings = json_decode((string)($source['settings_json'] ?? '{}'), true) ?: [];
                 $widgets = json_decode((string)($source['widgets_json'] ?? '[]'), true) ?: [];
             } else {
-                $settings = cmsCustomizerSectionDefaults($section);
+                $settings = cmsCustomizerSectionDefaults($section, $scope);
             }
         }
 
@@ -1680,9 +1686,9 @@ function cmsRenderCustomCodeOutput(object $db): array
     return $output;
 }
 
-function cmsSidebarSettingsDefaults(): array
+function cmsSidebarSettingsDefaults(?string $scope = null): array
 {
-    $targets = cmsSidebarTemplateTargets();
+    $targets = cmsSidebarTemplateTargets($scope);
     $defaultScope = !empty($targets) ? (string)($targets[0]['key'] ?? 'home') : 'home';
     return [
         'enabled'                 => 0,
@@ -1734,10 +1740,10 @@ function cmsSidebarNormalizeTemplateRules(mixed $input, array $allowedTargets): 
     return $normalized;
 }
 
-function cmsSidebarResolvedTemplateRules(array $settings): array
+function cmsSidebarResolvedTemplateRules(array $settings, ?string $scope = null): array
 {
-    $allowedTargets = array_map(static fn($t) => (string)($t['key'] ?? ''), cmsSidebarTemplateTargets());
-    $fallbackTarget = !empty($allowedTargets[0]) ? $allowedTargets[0] : (string)(cmsSidebarSettingsDefaults()['template_scope'] ?? 'home');
+    $allowedTargets = cmsSidebarAllowedTemplateKeys($scope);
+    $fallbackTarget = !empty($allowedTargets[0]) ? $allowedTargets[0] : (string)(cmsSidebarSettingsDefaults($scope)['template_scope'] ?? 'home');
     $rules = cmsSidebarNormalizeTemplateRules($settings['template_rules'] ?? [], $allowedTargets);
 
     $legacyTemplateScope = trim((string)($settings['template_scope'] ?? ''));
@@ -1755,18 +1761,20 @@ function cmsSidebarResolvedTemplateRules(array $settings): array
     return $rules;
 }
 
-function cmsSidebarTemplateMatchesScope(array $settings, string $templateKey): bool
+function cmsSidebarTemplateMatchesScope(array $settings, string $templateKey, ?string $scope = null): bool
 {
     $scopeMode = (string)($settings['scope_mode'] ?? 'general');
     if (!in_array($scopeMode, ['general', 'exclude_templates', 'template'], true)) {
         $scopeMode = 'general';
     }
 
-    $rules = cmsSidebarResolvedTemplateRules($settings);
+    $rules = cmsSidebarResolvedTemplateRules($settings, $scope);
+    $matchKeys = cmsSidebarTemplateMatchKeys($templateKey);
+    $hasRuleMatch = count(array_intersect($matchKeys, $rules)) > 0;
 
     return match ($scopeMode) {
-        'exclude_templates' => !in_array($templateKey, $rules, true),
-        'template' => in_array($templateKey, $rules, true),
+        'exclude_templates' => !$hasRuleMatch,
+        'template' => $hasRuleMatch,
         default => true,
     };
 }
@@ -2325,7 +2333,7 @@ function cmsCustomizerGet(object $db, string $section, ?string $scope = null): a
     }
 
     $scope = $scope !== null ? trim($scope) : cmsActiveCustomizerScope();
-    $defaults = cmsCustomizerSectionDefaults($section);
+    $defaults = cmsCustomizerSectionDefaults($section, $scope);
 
     try {
         $row = cmsCustomizerSectionRecord($db, $section, $scope);
@@ -2609,11 +2617,11 @@ function cmsCustomizerFooterWidgetHolderStyle(array $settings): string
     );
 }
 
-function cmsValidateSidebarSettings(array $input): array
+function cmsValidateSidebarSettings(array $input, ?string $scope = null): array
 {
-    $defaults = cmsSidebarSettingsDefaults();
+    $defaults = cmsSidebarSettingsDefaults($scope);
     $validated = [];
-    $allowedTargets = array_map(static fn($t) => (string)($t['key'] ?? ''), cmsSidebarTemplateTargets());
+    $allowedTargets = cmsSidebarAllowedTemplateKeys($scope);
     $fallbackTarget = !empty($allowedTargets[0]) ? $allowedTargets[0] : (string)$defaults['template_scope'];
 
     $validated['enabled'] = (int)(bool)($input['enabled'] ?? $defaults['enabled']);
@@ -2667,9 +2675,10 @@ function cmsValidateSidebarSettings(array $input): array
  *   contact_info - Title + address/phone/email fields
  */
 
-function cmsRenderFooterWidgets(object $db): string
+function cmsRenderFooterWidgets(object $db, ?string $scope = null): string
 {
-    $data = cmsCustomizerGet($db, 'footer');
+    $scope = $scope !== null ? trim($scope) : cmsActiveCustomizerScope();
+    $data = cmsCustomizerGet($db, 'footer', $scope);
     $settings = $data['settings'];
     $widgets  = $data['widgets'];
     $columns  = (int)($settings['columns'] ?? 3);
@@ -2868,7 +2877,8 @@ function cmsRenderCustomizedFooter(object $db, array $publicCtx = []): string
         return (string)$cached['html'];
     }
 
-    $data = cmsCustomizerGet($db, 'footer');
+    $scope = cmsCustomizerScopeFromPublicContext($publicCtx);
+    $data = cmsCustomizerGet($db, 'footer', $scope);
     $settings = $data['settings'];
     $widgets  = $data['widgets'];
 
@@ -2880,7 +2890,7 @@ function cmsRenderCustomizedFooter(object $db, array $publicCtx = []): string
     // Widget area
     $columns = (int)($settings['columns'] ?? 3);
     if ($columns > 0 && !empty($widgets)) {
-        $html .= cmsRenderFooterWidgets($db);
+        $html .= cmsRenderFooterWidgets($db, $scope);
     }
 
     // Footer bar
@@ -2937,8 +2947,9 @@ function cmsRenderCustomizedFooter(object $db, array $publicCtx = []): string
 
 function cmsRenderCustomizedSidebar(object $db, array $publicCtx = []): array
 {
-    $data = cmsCustomizerGet($db, 'sidebar');
-    $settings = $data['settings'] ?? cmsSidebarSettingsDefaults();
+    $scope = cmsCustomizerScopeFromPublicContext($publicCtx);
+    $data = cmsCustomizerGet($db, 'sidebar', $scope);
+    $settings = $data['settings'] ?? cmsSidebarSettingsDefaults($scope);
     $widgets = is_array($data['widgets'] ?? null) ? $data['widgets'] : [];
 
     $enabled = (int)($settings['enabled'] ?? 0) === 1;
@@ -2946,15 +2957,15 @@ function cmsRenderCustomizedSidebar(object $db, array $publicCtx = []): array
         return ['enabled' => false, 'position' => ($settings['placement'] ?? 'right'), 'width' => ($settings['width'] ?? '300'), 'html' => ''];
     }
 
-    $defaultTarget = cmsSidebarSettingsDefaults()['template_scope'] ?? 'home';
+    $defaultTarget = cmsSidebarSettingsDefaults($scope)['template_scope'] ?? 'home';
     $templateKey = (string)$defaultTarget;
     if (isset($publicCtx['sidebar_template']) && is_string($publicCtx['sidebar_template']) && $publicCtx['sidebar_template'] !== '') {
         $templateKey = $publicCtx['sidebar_template'];
     }
 
     $scopeMode = (string)($settings['scope_mode'] ?? 'general');
-    $templateRules = cmsSidebarResolvedTemplateRules($settings);
-    $showForThisTemplate = cmsSidebarTemplateMatchesScope($settings, $templateKey);
+    $templateRules = cmsSidebarResolvedTemplateRules($settings, $scope);
+    $showForThisTemplate = cmsSidebarTemplateMatchesScope($settings, $templateKey, $scope);
     if (!$showForThisTemplate) {
         return ['enabled' => false, 'position' => ($settings['placement'] ?? 'right'), 'width' => ($settings['width'] ?? '300'), 'html' => ''];
     }
@@ -3444,21 +3455,18 @@ function cmsRenderCustomizedHeader(object $db, array $publicCtx = []): string
         return (string)$cached['html'];
     }
 
-    if (!cmsCustomizerSectionExists($db, 'header')) {
+    $scope = cmsCustomizerScopeFromPublicContext($publicCtx);
+    if (!cmsCustomizerSectionExists($db, 'header', $scope)) {
         cmsCustomizerFragmentCacheSet($fragmentKey, ['html' => ''], ['cms:customizer:header', 'cms:settings', 'cms:menus']);
         return '';
     }
 
-    $data = cmsCustomizerGet($db, 'header');
+    $data = cmsCustomizerGet($db, 'header', $scope);
     $settings = $data['settings'];
     $widgets  = $data['widgets'] ?? [];
 
     $cmsSettings = readCmsSettings();
     $baseUrl = rtrim((string)(defined('BASE_URL') ? BASE_URL : ''), '/');
-    $scope = trim((string)($publicCtx['active_customizer_scope'] ?? cmsActiveCustomizerScope()));
-    if ($scope === '') {
-        $scope = cmsActiveCustomizerScope();
-    }
     $homeUrl = cmsCustomizerHomeUrl($baseUrl, $scope, $publicCtx);
     $searchConfig = cmsCustomizerSearchConfig($scope, $publicCtx);
     $searchAction = $baseUrl . $searchConfig['action_path'];

@@ -1982,7 +1982,7 @@ function cmsPublicCanonicalRenderEntityView(array $entity, array $options = []):
     ];
 
     $templatePath = cmsResolveContentTemplate('public/entity.view.disyl', $meta, $type, $entityRenderContext);
-    $sidebarTemplateKey = cmsSidebarTemplateKeyFromPath($templatePath, 'entity-view');
+    $sidebarTemplateKey = cmsSidebarPublicTargetKey($entityRenderContext, $templatePath);
     $templateContext = is_array($options['template_context'] ?? null) ? $options['template_context'] : [];
     if (
         !array_key_exists('storefront', $templateContext)
@@ -2077,7 +2077,7 @@ function cmsPublicCanonicalRenderEntityList(array $items, array $options = []): 
     ];
 
     $templatePath = cmsResolveContentTemplate('public/entity.list.disyl', [], $defaultType, $entityRenderContext);
-    $sidebarTemplateKey = cmsSidebarTemplateKeyFromPath($templatePath, 'entity-list');
+    $sidebarTemplateKey = cmsSidebarPublicTargetKey($entityRenderContext, $templatePath);
     $pagination = is_array($options['pagination'] ?? null) ? $options['pagination'] : [];
     $listContext = is_array($options['entity_list_context'] ?? null) ? $options['entity_list_context'] : [];
     $listContext = array_merge([

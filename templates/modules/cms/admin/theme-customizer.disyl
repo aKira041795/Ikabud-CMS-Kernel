@@ -581,16 +581,16 @@
                         <div>
                             <label class="cz-label">Apply Scope</label>
                             <select class="cz-select" x-model="sidebarSettings.scope_mode" @change="sidebarNormalizeTemplateRules()">
-                                <option value="general">All page templates</option>
-                                <option value="exclude_templates">All except selected templates</option>
-                                <option value="template">Only selected templates</option>
+                                <option value="general">All route targets</option>
+                                <option value="exclude_templates">All except selected targets</option>
+                                <option value="template">Only selected targets</option>
                             </select>
                         </div>
                         <div x-show="sidebarSettings.scope_mode !== 'general'" class="sm:col-span-2">
                             <div class="flex items-start justify-between gap-3">
                                 <div>
-                                    <label class="cz-label" x-text="sidebarSettings.scope_mode === 'exclude_templates' ? 'Exempt Templates' : 'Included Templates'"></label>
-                                    <p class="text-[10px] text-gray-400 mt-1" x-text="sidebarSettings.scope_mode === 'exclude_templates' ? 'The sidebar will stay visible everywhere except the templates selected below.' : 'The sidebar will render only on the templates selected below.'"></p>
+                                    <label class="cz-label" x-text="sidebarSettings.scope_mode === 'exclude_templates' ? 'Excluded Targets' : 'Included Targets'"></label>
+                                    <p class="text-[10px] text-gray-400 mt-1" x-text="sidebarSettings.scope_mode === 'exclude_templates' ? 'The sidebar will stay visible everywhere except the route targets selected below.' : 'The sidebar will render only on the route targets selected below.'"></p>
                                 </div>
                                 <span class="text-[10px] font-medium text-gray-500" x-text="sidebarSelectedTemplateCountLabel()"></span>
                             </div>
@@ -602,7 +602,7 @@
                                     </label>
                                 </template>
                             </div>
-                            <p class="text-[10px] text-gray-400 mt-1">Uses page templates discovered from the active theme.</p>
+                            <p class="text-[10px] text-gray-400 mt-1">Uses route-aware sidebar targets for the current workspace.</p>
                             <p x-show="sidebarTemplateFileExists" class="text-[10px] text-emerald-600 mt-1">Active theme includes `public/sidebar.disyl` override.</p>
                         </div>
                         <div>
@@ -3670,9 +3670,9 @@ function themeCustomizer() {
 
         sidebarSelectedTemplateCountLabel() {
             const count = Array.isArray(this.sidebarSettings.template_rules) ? this.sidebarSettings.template_rules.length : 0;
-            if (count === 0) return 'No templates selected';
-            if (count === 1) return '1 template selected';
-            return count + ' templates selected';
+            if (count === 0) return 'No targets selected';
+            if (count === 1) return '1 target selected';
+            return count + ' targets selected';
         },
 
         sidebarScopeSummary() {
@@ -3682,20 +3682,20 @@ function themeCustomizer() {
                 .map((template) => (template.label || template.key || '').replace(/ Template$/, ''));
 
             if (this.sidebarSettings.scope_mode === 'exclude_templates') {
-                if (labels.length === 0) return 'all page templates';
+                if (labels.length === 0) return 'all route targets';
                 const preview = labels.slice(0, 3).join(', ');
                 const remainder = labels.length > 3 ? ' +' + (labels.length - 3) : '';
-                return 'all templates except ' + preview + remainder;
+                return 'all targets except ' + preview + remainder;
             }
 
             if (this.sidebarSettings.scope_mode === 'template') {
-                if (labels.length === 0) return 'selected templates';
+                if (labels.length === 0) return 'selected targets';
                 const preview = labels.slice(0, 3).join(', ');
                 const remainder = labels.length > 3 ? ' +' + (labels.length - 3) : '';
                 return preview + remainder;
             }
 
-            return 'all page templates';
+            return 'all route targets';
         },
 
         entityPreviewHeaderOffset() {
@@ -3800,10 +3800,10 @@ function themeCustomizer() {
             try {
                 this.availableSidebarTemplates = JSON.parse(document.getElementById('cz-sidebar-templates').textContent);
                 if (!Array.isArray(this.availableSidebarTemplates) || this.availableSidebarTemplates.length === 0) {
-                    this.availableSidebarTemplates = [{ key: 'home', label: 'Home Template' }];
+                    this.availableSidebarTemplates = [{ key: 'home', label: 'Home / Front Page' }];
                 }
             } catch (e) {
-                this.availableSidebarTemplates = [{ key: 'home', label: 'Home Template' }];
+                this.availableSidebarTemplates = [{ key: 'home', label: 'Home / Front Page' }];
             }
             try {
                 this.sidebarTemplateFileExists = ((JSON.parse(document.getElementById('cz-sidebar-template-file-exists').textContent) || 0) == 1);

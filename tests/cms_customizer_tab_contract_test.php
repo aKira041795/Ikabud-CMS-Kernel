@@ -62,6 +62,13 @@ t(
         && str_contains($customizerTemplateContent, 'Top Bar'),
     $customizerTemplateContent
 );
+t(
+    'sidebar customizer copy describes route-aware targets',
+    str_contains($customizerTemplateContent, 'All route targets')
+        && str_contains($customizerTemplateContent, 'Only selected targets')
+        && str_contains($customizerTemplateContent, 'Uses route-aware sidebar targets for the current workspace.'),
+    $customizerTemplateContent
+);
 
 $oldSettings = getModuleSettings('cms');
 $restoreTheme = trim((string)($oldSettings['active_theme'] ?? ''));

@@ -1055,22 +1055,95 @@ function cmsSidebarTemplateKeyFromPath(string $templatePath, string $fallback = 
     return $base;
 }
 
-function cmsSidebarTemplateTargets(): array
+function cmsSidebarCoreTemplateTargets(?string $scope = null): array
 {
-    $targets = [];
+    $scope = function_exists('cmsNormalizeCustomizerScope')
+        ? cmsNormalizeCustomizerScope($scope, function_exists('cmsActiveCustomizerScope') ? cmsActiveCustomizerScope() : 'native')
+        : (($scope === 'ecommerce') ? 'ecommerce' : 'native');
+
+    if ($scope === 'ecommerce') {
+        return [
+            ['key' => 'shop_index', 'label' => 'Shop'],
+            ['key' => 'shop_category', 'label' => 'Shop Category'],
+            ['key' => 'product_detail', 'label' => 'Product Detail'],
+            ['key' => 'cart', 'label' => 'Cart'],
+            ['key' => 'checkout', 'label' => 'Checkout'],
+            ['key' => 'my_orders', 'label' => 'My Orders'],
+            ['key' => 'order_detail', 'label' => 'Order Detail'],
+            ['key' => 'order_confirmation', 'label' => 'Order Confirmation'],
+            ['key' => 'home', 'label' => 'Home / Front Page'],
+            ['key' => 'archive', 'label' => 'Archive / Blog Listing'],
+            ['key' => 'single', 'label' => 'Post / Article'],
+            ['key' => 'page', 'label' => 'Page'],
+            ['key' => 'search', 'label' => 'Search'],
+            ['key' => 'entityview', 'label' => 'Canonical Entity View'],
+            ['key' => 'entitylist', 'label' => 'Canonical Entity List'],
+        ];
+    }
+
+    return [
+        ['key' => 'home', 'label' => 'Home / Front Page'],
+        ['key' => 'archive', 'label' => 'Archive / Blog Listing'],
+        ['key' => 'single', 'label' => 'Post / Article'],
+        ['key' => 'page', 'label' => 'Page'],
+        ['key' => 'search', 'label' => 'Search'],
+        ['key' => 'entityview', 'label' => 'Canonical Entity View'],
+        ['key' => 'entitylist', 'label' => 'Canonical Entity List'],
+    ];
+}
+
+function cmsSidebarDiscoveredTemplateTargets(?string $scope = null): array
+{
+    $scope = function_exists('cmsNormalizeCustomizerScope')
+        ? cmsNormalizeCustomizerScope($scope, function_exists('cmsActiveCustomizerScope') ? cmsActiveCustomizerScope() : 'native')
+        : (($scope === 'ecommerce') ? 'ecommerce' : 'native');
+
+    $dirs = [];
 
     $activeTheme = cmsActiveTheme();
     if ($activeTheme !== null) {
-        $dir = cmsThemesPath() . '/' . $activeTheme . '/public';
+        $baseDir = cmsThemesPath() . '/' . $activeTheme . '/public';
     } else {
         $native = cmsThemesPath() . '/native-default/public';
-        $dir = is_dir($native) ? $native : ((defined('BASE_PATH') ? BASE_PATH : dirname(__DIR__, 2)) . '/templates/modules/cms/public');
+        $baseDir = is_dir($native) ? $native : ((defined('BASE_PATH') ? BASE_PATH : dirname(__DIR__, 2)) . '/templates/modules/cms/public');
     }
 
-    if (is_dir($dir)) {
+    if (is_dir($baseDir)) {
+        $dirs[] = $baseDir;
+    }
+    if ($scope === 'ecommerce' && is_dir($baseDir . '/ecommerce')) {
+        $dirs[] = $baseDir . '/ecommerce';
+    }
+
+    $skipKeys = [
+        'sidebar',
+        'header',
+        'footer',
+        'home',
+        'archive',
+        'single',
+        'page',
+        'search',
+        'entityview',
+        'entitylist',
+        'shop',
+        'product',
+        'archive-product',
+        'single-product',
+        'cart',
+        'checkout',
+        'my-orders',
+        'order-detail',
+        'order-confirmation',
+    ];
+
+    $targets = [];
+    foreach ($dirs as $dir) {
         foreach (glob($dir . '/*.disyl') ?: [] as $file) {
             $key = cmsSidebarTemplateKeyFromPath((string)$file, 'home');
-            if ($key === 'sidebar') continue;
+            if (in_array($key, $skipKeys, true)) {
+                continue;
+            }
             $targets[$key] = [
                 'key' => $key,
                 'label' => ucwords(str_replace(['-', '_'], ' ', $key)) . ' Template',
@@ -1078,26 +1151,117 @@ function cmsSidebarTemplateTargets(): array
         }
     }
 
-    if (empty($targets)) {
-        $targets = [
-            'home' => ['key' => 'home', 'label' => 'Home Template'],
-            'archive' => ['key' => 'archive', 'label' => 'Archive Template'],
-            'single' => ['key' => 'single', 'label' => 'Single Template'],
-            'page' => ['key' => 'page', 'label' => 'Page Template'],
-            'search' => ['key' => 'search', 'label' => 'Search Template'],
-        ];
+    return array_values($targets);
+}
+
+function cmsSidebarTemplateTargets(?string $scope = null): array
+{
+    $targets = [];
+    foreach (cmsSidebarCoreTemplateTargets($scope) as $target) {
+        $key = (string)($target['key'] ?? '');
+        if ($key === '') {
+            continue;
+        }
+        $targets[$key] = $target;
     }
 
-    $preferred = ['home', 'archive', 'single', 'page', 'search'];
-    $ordered = [];
-    foreach ($preferred as $key) {
-        if (isset($targets[$key])) $ordered[] = $targets[$key];
-    }
-    foreach ($targets as $key => $target) {
-        if (!in_array($key, $preferred, true)) $ordered[] = $target;
+    foreach (cmsSidebarDiscoveredTemplateTargets($scope) as $target) {
+        $key = (string)($target['key'] ?? '');
+        if ($key === '' || isset($targets[$key])) {
+            continue;
+        }
+        $targets[$key] = $target;
     }
 
-    return $ordered;
+    return array_values($targets);
+}
+
+function cmsSidebarAllowedTemplateKeys(?string $scope = null): array
+{
+    $keys = array_map(static fn(array $target): string => (string)($target['key'] ?? ''), cmsSidebarTemplateTargets($scope));
+    foreach (['shop', 'product', 'archive-product', 'single-product', 'my-orders', 'order-detail', 'order-confirmation'] as $legacyKey) {
+        if (!in_array($legacyKey, $keys, true)) {
+            $keys[] = $legacyKey;
+        }
+    }
+
+    return array_values(array_filter(array_unique($keys), static fn(string $key): bool => $key !== ''));
+}
+
+function cmsSidebarPublicTargetKey(array $context = [], string $resolvedTemplatePath = ''): string
+{
+    $origin = trim((string)($context['public_render_origin'] ?? 'cms'));
+    $routeKind = trim((string)($context['public_route_kind'] ?? $context['ecommerce_public_route'] ?? 'generic'));
+
+    if ($origin === 'ecommerce' && function_exists('cmsNormalizeEcommercePublicRouteKind')) {
+        $routeKind = cmsNormalizeEcommercePublicRouteKind($routeKind);
+    }
+
+    if ($origin === 'ecommerce') {
+        return match ($routeKind) {
+            'shop_index', 'shop_category', 'product_detail', 'cart', 'checkout', 'order_confirmation', 'my_orders', 'order_detail' => $routeKind,
+            default => $resolvedTemplatePath !== ''
+                ? match (cmsSidebarTemplateKeyFromPath($resolvedTemplatePath, 'shop_index')) {
+                    'shop', 'archive-product' => 'shop_index',
+                    'product', 'single-product' => 'product_detail',
+                    'my-orders' => 'my_orders',
+                    'order-detail' => 'order_detail',
+                    'order-confirmation' => 'order_confirmation',
+                    default => cmsSidebarTemplateKeyFromPath($resolvedTemplatePath, 'shop_index'),
+                }
+                : 'shop_index',
+        };
+    }
+
+    return match ($routeKind) {
+        'front-page', 'blog-home' => 'home',
+        'archive', 'category', 'tag' => 'archive',
+        'search' => 'search',
+        'post' => 'single',
+        'page' => 'page',
+        default => $resolvedTemplatePath !== '' ? cmsSidebarTemplateKeyFromPath($resolvedTemplatePath, 'home') : 'home',
+    };
+}
+
+function cmsSidebarTemplateMatchKeys(string $templateKey): array
+{
+    $keys = [$templateKey];
+
+    if (in_array($templateKey, ['page', 'single', 'product_detail'], true)) {
+        $keys[] = 'entityview';
+    }
+
+    if (in_array($templateKey, ['home', 'archive', 'search', 'shop_index', 'shop_category'], true)) {
+        $keys[] = 'entitylist';
+    }
+
+    if ($templateKey === 'shop_index') {
+        $keys[] = 'shop';
+        $keys[] = 'archive-product';
+    }
+
+    if ($templateKey === 'shop_category') {
+        $keys[] = 'archive-product';
+    }
+
+    if ($templateKey === 'product_detail') {
+        $keys[] = 'product';
+        $keys[] = 'single-product';
+    }
+
+    if ($templateKey === 'my_orders') {
+        $keys[] = 'my-orders';
+    }
+
+    if ($templateKey === 'order_detail') {
+        $keys[] = 'order-detail';
+    }
+
+    if ($templateKey === 'order_confirmation') {
+        $keys[] = 'order-confirmation';
+    }
+
+    return array_values(array_unique(array_filter($keys, static fn(string $key): bool => $key !== '')));
 }
 
 function cmsSidebarThemeTemplateExists(): bool

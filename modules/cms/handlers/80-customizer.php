@@ -56,7 +56,7 @@ function cmsAdminCustomizer(array $params = []): void
         $menus = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     } catch (Throwable $e) {}
     $menuLocations = cmsGetMenuLocations();
-    $sidebarTemplates = cmsSidebarTemplateTargets();
+    $sidebarTemplates = cmsSidebarTemplateTargets($scope);
     $sidebarTemplateFileExists = cmsSidebarThemeTemplateExists();
 
     // Load recent posts for the recent_posts widget preview
@@ -189,7 +189,7 @@ function cmsApiCustomizerSave(array $params = []): void
         exit;
     }
 
-    $settings = cmsValidateCustomizerSectionSettings($section, $settings);
+    $settings = cmsValidateCustomizerSectionSettings($section, $settings, $scope);
 
     $db = cmsDb();
     cmsEnsureCustomizerScopeSeeded($db, $scope);

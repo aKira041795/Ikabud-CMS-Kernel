@@ -233,6 +233,25 @@ t('ecommerce customizer section keys are namespaced', cmsCustomizerStorageSectio
 t('entity presentation customizer section keys are namespaced', cmsCustomizerStorageSection('entity_presentation', 'ecommerce') === 'ecommerce:entity_presentation');
 t('known customizer sections include entity_presentation', in_array('entity_presentation', cmsKnownCustomizerSections(), true));
 t('known customizer sections exclude storefront', !in_array('storefront', cmsKnownCustomizerSections(), true));
+t('native sidebar defaults target home/front-page routes first', ($nativeSidebarDefaults = cmsSidebarSettingsDefaults('native'))['template_scope'] === 'home', json_encode($nativeSidebarDefaults));
+t('ecommerce sidebar defaults target shop routes first', ($ecommerceSidebarDefaults = cmsSidebarSettingsDefaults('ecommerce'))['template_scope'] === 'shop_index', json_encode($ecommerceSidebarDefaults));
+
+$nativeSidebarTargets = array_map(static fn(array $target): string => (string)($target['key'] ?? ''), cmsSidebarTemplateTargets('native'));
+$ecommerceSidebarTargets = array_map(static fn(array $target): string => (string)($target['key'] ?? ''), cmsSidebarTemplateTargets('ecommerce'));
+t('native sidebar targets prioritize CMS route families', array_slice($nativeSidebarTargets, 0, 5) === ['home', 'archive', 'single', 'page', 'search'], json_encode($nativeSidebarTargets));
+t('native sidebar targets keep canonical entity aliases available', in_array('entityview', $nativeSidebarTargets, true) && in_array('entitylist', $nativeSidebarTargets, true), json_encode($nativeSidebarTargets));
+t('ecommerce sidebar targets prioritize storefront route families', array_slice($ecommerceSidebarTargets, 0, 3) === ['shop_index', 'shop_category', 'product_detail'], json_encode($ecommerceSidebarTargets));
+t('ecommerce sidebar targets still include CMS page/post route families', in_array('single', $ecommerceSidebarTargets, true) && in_array('page', $ecommerceSidebarTargets, true), json_encode($ecommerceSidebarTargets));
+t('CMS front page resolves to home sidebar target', cmsSidebarPublicTargetKey(['public_render_origin' => 'cms', 'public_route_kind' => 'front-page']) === 'home');
+t('CMS blog listing resolves to home sidebar target', cmsSidebarPublicTargetKey(['public_render_origin' => 'cms', 'public_route_kind' => 'blog-home']) === 'home');
+t('CMS post detail resolves to single sidebar target', cmsSidebarPublicTargetKey(['public_render_origin' => 'cms', 'public_route_kind' => 'post']) === 'single');
+t('CMS page detail resolves to page sidebar target', cmsSidebarPublicTargetKey(['public_render_origin' => 'cms', 'public_route_kind' => 'page']) === 'page');
+t('CMS search resolves to search sidebar target', cmsSidebarPublicTargetKey(['public_render_origin' => 'cms', 'public_route_kind' => 'search']) === 'search');
+t('storefront shop resolves to shop sidebar target', cmsSidebarPublicTargetKey(['public_render_origin' => 'ecommerce', 'public_route_kind' => 'shop_index']) === 'shop_index');
+t('storefront product resolves to product sidebar target', cmsSidebarPublicTargetKey(['public_render_origin' => 'ecommerce', 'public_route_kind' => 'product_detail']) === 'product_detail');
+t('legacy entity-view sidebar rule still matches native single-post routes', cmsSidebarTemplateMatchesScope(['scope_mode' => 'template', 'template_rules' => ['entityview']], 'single', 'native'));
+t('legacy entity-list sidebar rule still matches storefront shop routes', cmsSidebarTemplateMatchesScope(['scope_mode' => 'template', 'template_rules' => ['entitylist']], 'shop_index', 'ecommerce'));
+t('ecommerce sidebar validation preserves shop target rules', (cmsValidateSidebarSettings(['scope_mode' => 'template', 'template_rules' => ['shop_index']], 'ecommerce')['template_scope'] ?? '') === 'shop_index');
 
 $routes = require BASE_PATH . '/modules/cms/routes.php';
 $getRoutes = is_array($routes['GET'] ?? null) ? $routes['GET'] : [];
@@ -1224,7 +1243,7 @@ t('native customizer explains entities stay inside the active theme shell', str_
 t('native customizer describes canonical entity presentation inside the active theme shell', str_contains($customizerTemplateContent, 'Canonical entity presentation for pages, posts, lists, and commerce routes inside the active theme shell.'));
 t('ecommerce customizer exposes dedicated navigation tab', str_contains($customizerTemplateContent, "activeTab = 'navigation'") && str_contains($customizerTemplateContent, 'Menu Behavior'));
 t('ecommerce customizer keeps native-capable sidebar controls available', str_contains($customizerTemplateContent, "activeTab = 'sidebar'") && str_contains($customizerTemplateContent, 'Sidebar Rail'));
-t('customizer exposes sidebar include and exclude template scope modes', str_contains($customizerTemplateContent, 'All except selected templates') && str_contains($customizerTemplateContent, 'Only selected templates'), $customizerTemplateContent);
+t('customizer exposes sidebar include and exclude target scope modes', str_contains($customizerTemplateContent, 'All except selected targets') && str_contains($customizerTemplateContent, 'Only selected targets'), $customizerTemplateContent);
 t('customizer sidebar preview summarizes selected template scope', str_contains($customizerTemplateContent, 'sidebarScopeSummary()') && str_contains($customizerTemplateContent, 'sidebarNormalizeTemplateRules()'), $customizerTemplateContent);
 t('ecommerce customizer keeps native-capable custom code controls available', str_contains($customizerTemplateContent, "activeTab = 'custom_code'") && str_contains($customizerTemplateContent, 'Store Code'));
 t('ecommerce customizer saves all dirty scoped sections', str_contains($customizerTemplateContent, 'return sections;'));
