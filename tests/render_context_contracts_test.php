@@ -50,9 +50,15 @@ foreach ($moduleIds as $moduleId) {
 }
 
 $contracts = kernelRegisteredRenderContextContracts();
+$profiles = kernelRegisteredRenderContextProfiles();
+t('cms public profile registered', isset($profiles['cms_public']) && ($profiles['cms_public']['shell_schema_stack'] ?? []) === ['kernel.shell@1']);
+t('commerce public profile registered', isset($profiles['commerce_public']) && ($profiles['commerce_public']['shell_schema_stack'] ?? []) === ['kernel.shell@1']);
+t('reserved admin profile registered', isset($profiles['admin']) && ($profiles['admin']['status'] ?? '') === 'reserved');
 t('ecommerce public shell contract registered', isset($contracts['ecommerce.public.shell']));
 t('ecommerce catalog contract registered', isset($contracts['ecommerce.public.catalog']));
 t('ecommerce order confirmation contract registered', isset($contracts['ecommerce.public.order.confirmation']));
+t('ecommerce public shell contract stores schema metadata', ($contracts['ecommerce.public.shell']['schema_id'] ?? '') === 'ecommerce.public.shell@1' && ($contracts['ecommerce.public.shell']['profile_hint'] ?? '') === 'commerce_public');
+t('ecommerce catalog contract stores schema metadata', ($contracts['ecommerce.public.catalog']['schema_id'] ?? '') === 'ecommerce.public.catalog@1' && ($contracts['ecommerce.public.catalog']['schema_version'] ?? 0) === 1 && ($contracts['ecommerce.public.catalog']['profile_hint'] ?? '') === 'commerce_public');
 t('guidance page shell contract registered', isset($contracts['guidance.page.shell']));
 t('gui settings admin contract registered', isset($contracts['gui-settings.admin.settings']));
 t('sms log contract registered', isset($contracts['sms.page.log']));
@@ -81,6 +87,8 @@ t('prepared catalog context infers the storefront route', ($preparedCatalog['sto
 t('prepared catalog context infers catalog page kind', ($preparedCatalog['storefront']['page']['kind'] ?? '') === 'catalog');
 t('prepared catalog context initializes storefront filters', is_array($preparedCatalog['storefront']['filters'] ?? null));
 t('prepared catalog context initializes storefront collection items', is_array($preparedCatalog['storefront']['collection']['items'] ?? null));
+t('prepared catalog context reports commerce_public profile', ($preparedCatalog['render_profile_id'] ?? '') === 'commerce_public', json_encode($preparedCatalog['render_profile_id'] ?? null));
+t('prepared catalog context reports schema stack in order', ($preparedCatalog['render_schema_stack'] ?? null) === ['kernel.shell@1', 'ecommerce.public.shell@1', 'ecommerce.public.catalog@1'], json_encode($preparedCatalog['render_schema_stack'] ?? null));
 
 echo "\n=== ADDITIONAL MODULES ===\n";
 
@@ -180,6 +188,7 @@ kernelPrepareRenderContext('modules/ecommerce/public/shop.disyl', $driftedCatalo
 $appLog = @file_get_contents(STORAGE_PATH . '/logs/app.log') ?: '';
 $contractMismatchLines = array_values(array_filter(explode("\n", $appLog), static fn(string $line): bool => str_contains($line, 'ecommerce.render_context.contract_mismatch')));
 t('prepare render context logs ecommerce mismatch events', !empty($contractMismatchLines), implode('; ', $contractMismatchLines));
+t('prepare render context mismatch logs include profile/schema metadata', str_contains($appLog, '"render_profile_id":"commerce_public"') && str_contains($appLog, '"ecommerce.public.catalog@1"'), $appLog);
 
 echo "\n=== STRICT MODE ===\n";
 

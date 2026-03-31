@@ -399,6 +399,88 @@ function kernelWriteFile(string $path, string $contents): bool
 /**
  * @return array<string, array<string, mixed>>
  */
+function &kernelRenderContextProfileRegistry(): array
+{
+    static $profiles = [];
+    return $profiles;
+}
+
+/**
+ * @return array<string, array<string, mixed>>
+ */
+function kernelRegisteredRenderContextProfiles(): array
+{
+    return kernelRenderContextProfileRegistry();
+}
+
+/**
+ * Register a render-context profile.
+ *
+ * Definition keys:
+ * - shell_schema_stack?: string[]
+ * - status?: string
+ */
+function kernelRegisterRenderContextProfile(string $profileId, array $definition = []): void
+{
+    $profileId = trim($profileId);
+    if ($profileId === '') {
+        throw new InvalidArgumentException('Render context profile id must not be empty.');
+    }
+
+    $shellSchemaStack = [];
+    $rawShellSchemaStack = $definition['shell_schema_stack'] ?? [];
+    if (is_array($rawShellSchemaStack)) {
+        foreach ($rawShellSchemaStack as $schemaId) {
+            $schemaId = trim((string)$schemaId);
+            if ($schemaId !== '') {
+                $shellSchemaStack[] = $schemaId;
+            }
+        }
+    }
+
+    $registry = &kernelRenderContextProfileRegistry();
+    $registry[$profileId] = [
+        'id' => $profileId,
+        'shell_schema_stack' => array_values(array_unique($shellSchemaStack)),
+        'status' => trim((string)($definition['status'] ?? 'active')) ?: 'active',
+    ];
+}
+
+function kernelRenderContextProfileDefinition(string $profileId): ?array
+{
+    $profileId = trim($profileId);
+    if ($profileId === '') {
+        return null;
+    }
+
+    $registry = kernelRenderContextProfileRegistry();
+    $definition = $registry[$profileId] ?? null;
+    return is_array($definition) ? $definition : null;
+}
+
+kernelRegisterRenderContextProfile('cms_public', [
+    'shell_schema_stack' => ['kernel.shell@1'],
+]);
+
+kernelRegisterRenderContextProfile('commerce_public', [
+    'shell_schema_stack' => ['kernel.shell@1'],
+]);
+
+kernelRegisterRenderContextProfile('admin', [
+    'status' => 'reserved',
+]);
+
+kernelRegisterRenderContextProfile('shell_only', [
+    'status' => 'reserved',
+]);
+
+kernelRegisterRenderContextProfile('guidance_public', [
+    'status' => 'reserved',
+]);
+
+/**
+ * @return array<string, array<string, mixed>>
+ */
 function &kernelRenderContextContractRegistry(): array
 {
     static $contracts = [];
@@ -425,6 +507,9 @@ function kernelRegisteredRenderContextContracts(): array
  * - defaults?: array<string, mixed>
  * - required?: string[]
  * - normalize?: callable(array $context, string $template, array &$missingKeys, array &$typeMismatches): array
+ * - schema_id?: string
+ * - schema_version?: int
+ * - profile_hint?: string
  * - log_event?: string
  */
 function kernelRegisterRenderContextContract(string $contractId, array $definition): void
@@ -493,6 +578,17 @@ function kernelRegisterRenderContextContract(string $contractId, array $definiti
         throw new InvalidArgumentException('Render context contract normalizer must be callable when provided.');
     }
 
+    $schemaId = trim((string)($definition['schema_id'] ?? ''));
+    $schemaVersion = isset($definition['schema_version']) ? (int)$definition['schema_version'] : 0;
+    if ($schemaVersion <= 0 && $schemaId !== '' && preg_match('/@(\d+)$/', $schemaId, $matches) === 1) {
+        $schemaVersion = (int)($matches[1] ?? 0);
+    }
+
+    $profileHint = trim((string)($definition['profile_hint'] ?? ''));
+    if ($profileHint !== '' && kernelRenderContextProfileDefinition($profileHint) === null) {
+        throw new InvalidArgumentException('Render context contract profile hint must reference a registered render context profile.');
+    }
+
     $registry = &kernelRenderContextContractRegistry();
     $registry[$contractId] = [
         'id' => $contractId,
@@ -502,6 +598,9 @@ function kernelRegisterRenderContextContract(string $contractId, array $definiti
         'defaults' => $defaults,
         'required' => array_values(array_unique($required)),
         'normalize' => $normalize,
+        'schema_id' => $schemaId,
+        'schema_version' => $schemaVersion,
+        'profile_hint' => $profileHint,
         'log_event' => trim((string)($definition['log_event'] ?? 'kernel.render_context.contract_mismatch')) ?: 'kernel.render_context.contract_mismatch',
     ];
 }
@@ -545,6 +644,96 @@ function kernelMatchedRenderContextContracts(string $template): array
     });
 
     return $matched;
+}
+
+/**
+ * @return string[]
+ */
+function kernelRenderContextProfileShellSchemaStack(string $profileId): array
+{
+    $definition = kernelRenderContextProfileDefinition($profileId);
+    if ($definition === null) {
+        return [];
+    }
+
+    $shellSchemaStack = $definition['shell_schema_stack'] ?? [];
+    if (!is_array($shellSchemaStack)) {
+        return [];
+    }
+
+    return array_values(array_filter(array_map(static fn(mixed $schemaId): string => trim((string)$schemaId), $shellSchemaStack), static fn(string $schemaId): bool => $schemaId !== ''));
+}
+
+function kernelResolveRenderContextProfileId(string $template, array $context = [], ?array $matchedContracts = null): string
+{
+    $contracts = is_array($matchedContracts) ? $matchedContracts : kernelMatchedRenderContextContracts($template);
+    $profileHints = [];
+
+    foreach ($contracts as $contract) {
+        $profileHint = trim((string)($contract['profile_hint'] ?? ''));
+        if ($profileHint !== '' && kernelRenderContextProfileDefinition($profileHint) !== null) {
+            $profileHints[$profileHint] = true;
+        }
+    }
+
+    if (count($profileHints) === 1) {
+        $keys = array_keys($profileHints);
+        return (string)($keys[0] ?? '');
+    }
+
+    return '';
+}
+
+/**
+ * @return string[]
+ */
+function kernelResolveRenderContextSchemaStack(string $template, array $context = [], ?array $matchedContracts = null, ?string $profileId = null): array
+{
+    $contracts = is_array($matchedContracts) ? $matchedContracts : kernelMatchedRenderContextContracts($template);
+    $profileId = $profileId ?? kernelResolveRenderContextProfileId($template, $context, $contracts);
+    $stack = [];
+
+    foreach (kernelRenderContextProfileShellSchemaStack($profileId) as $schemaId) {
+        $schemaId = trim((string)$schemaId);
+        if ($schemaId !== '') {
+            $stack[$schemaId] = true;
+        }
+    }
+
+    foreach ($contracts as $contract) {
+        $schemaId = trim((string)($contract['schema_id'] ?? ''));
+        if ($schemaId !== '') {
+            $stack[$schemaId] = true;
+        }
+    }
+
+    return array_keys($stack);
+}
+
+function kernelApplyResolvedRenderContextMetadata(array $context, string $profileId, array $schemaStack): array
+{
+    $context['render_profile_id'] = trim($profileId);
+    $context['render_schema_stack'] = array_values(array_filter(array_map(static fn(mixed $schemaId): string => trim((string)$schemaId), $schemaStack), static fn(string $schemaId): bool => $schemaId !== ''));
+    return $context;
+}
+
+function kernelApplyRenderContextMetadata(array $context, string $template, ?array $matchedContracts = null): array
+{
+    $contracts = is_array($matchedContracts) ? $matchedContracts : kernelMatchedRenderContextContracts($template);
+    $profileId = kernelResolveRenderContextProfileId($template, $context, $contracts);
+    $schemaStack = kernelResolveRenderContextSchemaStack($template, $context, $contracts, $profileId);
+
+    if ($profileId === '' && $schemaStack === []) {
+        if (!array_key_exists('render_profile_id', $context)) {
+            $context['render_profile_id'] = '';
+        }
+        if (!array_key_exists('render_schema_stack', $context)) {
+            $context['render_schema_stack'] = [];
+        }
+        return $context;
+    }
+
+    return kernelApplyResolvedRenderContextMetadata($context, $profileId, $schemaStack);
 }
 
 function kernelRenderContextContractStrictMode(): bool
@@ -672,6 +861,8 @@ function kernelNormalizeRenderContextContracts(array $context, string $template,
         return $context;
     }
 
+    $context = kernelApplyRenderContextMetadata($context, $template, $contracts);
+
     $shouldLog = !empty($context['__render_contract_validate']);
     $collectMismatches = func_num_args() >= 3;
     if ($collectMismatches && !is_array($mismatches)) {
@@ -710,6 +901,8 @@ function kernelNormalizeRenderContextContracts(array $context, string $template,
         $entry = [
             'template' => $template,
             'contract' => (string)($contract['id'] ?? ''),
+            'render_profile_id' => trim((string)($context['render_profile_id'] ?? '')),
+            'render_schema_stack' => is_array($context['render_schema_stack'] ?? null) ? array_values($context['render_schema_stack']) : [],
             'missing_keys' => $missingKeys,
             'type_mismatches' => $typeMismatches,
         ];

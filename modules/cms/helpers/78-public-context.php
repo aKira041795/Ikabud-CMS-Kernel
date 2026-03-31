@@ -425,6 +425,44 @@ function cmsCanonicalRenderTemplateContract(string $template): string
     return '';
 }
 
+function cmsCanonicalRenderSchemaId(string $template): string
+{
+    return match (cmsCanonicalRenderTemplateContract($template)) {
+        'entity.view' => 'cms.public.entity.view@1',
+        'entity.list' => 'cms.public.entity.list@1',
+        default => '',
+    };
+}
+
+function cmsCanonicalRenderProfileId(string $template): string
+{
+    if (cmsCanonicalRenderTemplateContract($template) === '') {
+        return '';
+    }
+
+    return function_exists('kernelRenderContextProfileDefinition') && kernelRenderContextProfileDefinition('cms_public') === null
+        ? ''
+        : 'cms_public';
+}
+
+/**
+ * @return string[]
+ */
+function cmsCanonicalRenderSchemaStack(string $template): array
+{
+    $profileId = cmsCanonicalRenderProfileId($template);
+    $schemaId = cmsCanonicalRenderSchemaId($template);
+    $stack = function_exists('kernelRenderContextProfileShellSchemaStack')
+        ? kernelRenderContextProfileShellSchemaStack($profileId)
+        : [];
+
+    if ($schemaId !== '') {
+        $stack[] = $schemaId;
+    }
+
+    return array_values(array_unique(array_filter(array_map('strval', $stack), static fn(string $candidate): bool => trim($candidate) !== '')));
+}
+
 function cmsCanonicalRenderContractStrictMode(): bool
 {
     if (function_exists('kernelRenderContextContractStrictMode') && kernelRenderContextContractStrictMode()) {
@@ -470,6 +508,15 @@ function cmsCanonicalRenderContextNormalize(array $context, string $template): a
     $contract = cmsCanonicalRenderTemplateContract($template);
     if ($contract === '') {
         return $context;
+    }
+
+    $profileId = cmsCanonicalRenderProfileId($template);
+    $schemaStack = cmsCanonicalRenderSchemaStack($template);
+    if (function_exists('kernelApplyResolvedRenderContextMetadata')) {
+        $context = kernelApplyResolvedRenderContextMetadata($context, $profileId, $schemaStack);
+    } else {
+        $context['render_profile_id'] = $profileId;
+        $context['render_schema_stack'] = $schemaStack;
     }
 
     $shouldLog = !empty($context['__render_contract_validate']);
@@ -653,12 +700,16 @@ function cmsCanonicalRenderContextNormalize(array $context, string $template): a
         write_log('warn', 'cms.render_context.contract_mismatch', [
             'template' => $template,
             'contract' => $contract,
+            'render_profile_id' => trim((string)($context['render_profile_id'] ?? '')),
+            'render_schema_stack' => is_array($context['render_schema_stack'] ?? null) ? array_values($context['render_schema_stack']) : [],
             'missing_keys' => $missingKeys,
             'type_mismatches' => $typeMismatches,
         ]);
 
         $context['__render_contract_mismatch'] = [
             'contract' => $contract,
+            'render_profile_id' => trim((string)($context['render_profile_id'] ?? '')),
+            'render_schema_stack' => is_array($context['render_schema_stack'] ?? null) ? array_values($context['render_schema_stack']) : [],
             'missing_keys' => $missingKeys,
             'type_mismatches' => $typeMismatches,
         ];

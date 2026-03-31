@@ -501,6 +501,9 @@ kernelRegisterRenderContextContract('ecommerce.public.shell', [
     'prefix' => 'modules/ecommerce/public/',
     'priority' => 10,
     'normalize' => 'ecNormalizePublicShellRenderContext',
+    'schema_id' => 'ecommerce.public.shell@1',
+    'schema_version' => 1,
+    'profile_hint' => 'commerce_public',
     'log_event' => 'ecommerce.render_context.contract_mismatch',
 ]);
 
@@ -508,6 +511,9 @@ kernelRegisterRenderContextContract('ecommerce.public.catalog', [
     'template' => 'modules/ecommerce/public/shop.disyl',
     'priority' => 20,
     'normalize' => 'ecNormalizeCatalogRenderContext',
+    'schema_id' => 'ecommerce.public.catalog@1',
+    'schema_version' => 1,
+    'profile_hint' => 'commerce_public',
     'log_event' => 'ecommerce.render_context.contract_mismatch',
 ]);
 
@@ -515,6 +521,9 @@ kernelRegisterRenderContextContract('ecommerce.public.product', [
     'template' => 'modules/ecommerce/public/product.disyl',
     'priority' => 20,
     'normalize' => 'ecNormalizeProductRenderContext',
+    'schema_id' => 'ecommerce.public.product@1',
+    'schema_version' => 1,
+    'profile_hint' => 'commerce_public',
     'log_event' => 'ecommerce.render_context.contract_mismatch',
 ]);
 
@@ -522,6 +531,9 @@ kernelRegisterRenderContextContract('ecommerce.public.cart', [
     'template' => 'modules/ecommerce/public/cart.disyl',
     'priority' => 20,
     'normalize' => 'ecNormalizeCartRenderContext',
+    'schema_id' => 'ecommerce.public.cart@1',
+    'schema_version' => 1,
+    'profile_hint' => 'commerce_public',
     'log_event' => 'ecommerce.render_context.contract_mismatch',
 ]);
 
@@ -529,6 +541,9 @@ kernelRegisterRenderContextContract('ecommerce.public.checkout', [
     'template' => 'modules/ecommerce/public/checkout.disyl',
     'priority' => 20,
     'normalize' => 'ecNormalizeCheckoutRenderContext',
+    'schema_id' => 'ecommerce.public.checkout@1',
+    'schema_version' => 1,
+    'profile_hint' => 'commerce_public',
     'log_event' => 'ecommerce.render_context.contract_mismatch',
 ]);
 
@@ -536,6 +551,9 @@ kernelRegisterRenderContextContract('ecommerce.public.orders', [
     'template' => 'modules/ecommerce/public/my-orders.disyl',
     'priority' => 20,
     'normalize' => 'ecNormalizeOrdersListRenderContext',
+    'schema_id' => 'ecommerce.public.orders@1',
+    'schema_version' => 1,
+    'profile_hint' => 'commerce_public',
     'log_event' => 'ecommerce.render_context.contract_mismatch',
 ]);
 
@@ -543,6 +561,9 @@ kernelRegisterRenderContextContract('ecommerce.public.order.detail', [
     'template' => 'modules/ecommerce/public/order-detail.disyl',
     'priority' => 20,
     'normalize' => 'ecNormalizeOrderDetailRenderContext',
+    'schema_id' => 'ecommerce.public.order.detail@1',
+    'schema_version' => 1,
+    'profile_hint' => 'commerce_public',
     'log_event' => 'ecommerce.render_context.contract_mismatch',
 ]);
 
@@ -550,5 +571,8 @@ kernelRegisterRenderContextContract('ecommerce.public.order.confirmation', [
     'template' => 'modules/ecommerce/public/order-confirmation.disyl',
     'priority' => 20,
     'normalize' => 'ecNormalizeOrderConfirmationRenderContext',
+    'schema_id' => 'ecommerce.public.order.confirmation@1',
+    'schema_version' => 1,
+    'profile_hint' => 'commerce_public',
     'log_event' => 'ecommerce.render_context.contract_mismatch',
 ]);

@@ -64,6 +64,8 @@ $taxonomyHtml = '';
 $searchListHtml = '';
 $bookHtml = '';
 $inquiryHtml = '';
+$canonicalEntityViewContext = [];
+$canonicalEntityListContext = [];
 $bookMissingCapabilityStatus = 200;
 $inquiryMissingCapabilityStatus = 200;
 
@@ -301,6 +303,9 @@ try {
         'public_route_kind' => 'search',
         'public_presentation_mode' => 'canonical',
     ]);
+
+    $canonicalEntityViewContext = cmsCanonicalRenderContextNormalize([], 'templates/modules/cms/public/entity.view.disyl');
+    $canonicalEntityListContext = cmsCanonicalRenderContextNormalize([], 'templates/modules/cms/public/entity.list.disyl');
 } finally {
     if ($nativeEntityPresentationExisted) {
         cmsUpsertCustomizerSection(
@@ -391,6 +396,13 @@ t('canonical view honors explicit false media flag', !str_contains($suppressedCh
 t('canonical post helper renders category link', str_contains($taxonomyHtml, '/cms/category/' . $categorySlug));
 t('canonical post helper renders tag link', str_contains($taxonomyHtml, '/cms/tag/' . cmsSlugify($tagName)));
 
+echo "\n=== METADATA ===\n";
+
+t('canonical entity view context reports cms_public profile', ($canonicalEntityViewContext['render_profile_id'] ?? '') === 'cms_public', json_encode($canonicalEntityViewContext['render_profile_id'] ?? null));
+t('canonical entity view context reports schema stack', ($canonicalEntityViewContext['render_schema_stack'] ?? null) === ['kernel.shell@1', 'cms.public.entity.view@1'], json_encode($canonicalEntityViewContext['render_schema_stack'] ?? null));
+t('canonical entity list context reports cms_public profile', ($canonicalEntityListContext['render_profile_id'] ?? '') === 'cms_public', json_encode($canonicalEntityListContext['render_profile_id'] ?? null));
+t('canonical entity list context reports schema stack', ($canonicalEntityListContext['render_schema_stack'] ?? null) === ['kernel.shell@1', 'cms.public.entity.list@1'], json_encode($canonicalEntityListContext['render_schema_stack'] ?? null));
+
 echo "\n=== RENDER LOCK SESSION ===\n";
 
 $lockOptimizedHtml = '';
@@ -436,7 +448,7 @@ $lockCountAfter = count(array_values(array_filter(
     static fn(string $line): bool => str_contains($line, 'cms.theme_symlink_lock')
 )));
 $newLockLines = $lockCountAfter - $lockCountBefore;
-t('canonical render reuses one shared theme lock across nested block renders', $newLockLines === 1, (string)$newLockLines);
+t('canonical render avoids request-time theme symlink lock across nested block renders', $newLockLines === 0, (string)$newLockLines);
 t('lock-optimized canonical render still outputs pricing and action blocks', str_contains($lockOptimizedHtml, 'cms-pricing-block') && str_contains($lockOptimizedHtml, 'cms-action-block'), $lockOptimizedHtml);
 
 echo "\n=== LIST HELPER ===\n";
@@ -447,6 +459,17 @@ t('search list renders post URL contract', str_contains($searchListHtml, '/cms/b
 t('search list renders page URL contract', str_contains($searchListHtml, '/cms/page/search-page-' . $suffix));
 t('search list renders type badges', str_contains($searchListHtml, '>Post<') && str_contains($searchListHtml, '>Page<'));
 t('search list renders formatted dates', str_contains($searchListHtml, 'Mar 28, 2026') && str_contains($searchListHtml, 'Mar 27, 2026'));
+
+echo "\n=== CONTRACT LOG METADATA ===\n";
+
+file_put_contents(STORAGE_PATH . '/logs/app.log', '');
+cmsCanonicalRenderContextNormalize([
+    '__render_contract_validate' => true,
+    'entity' => 'bad-entity',
+], 'templates/modules/cms/public/entity.view.disyl');
+$metadataAppLog = @file_get_contents(STORAGE_PATH . '/logs/app.log') ?: '';
+t('canonical contract mismatch logs include cms_public metadata', str_contains($metadataAppLog, '"render_profile_id":"cms_public"') && str_contains($metadataAppLog, '"cms.public.entity.view@1"'), $metadataAppLog);
+file_put_contents(STORAGE_PATH . '/logs/app.log', '');
 
 $renderedOutputs = implode("\n", [$singleHtml, $pageHtml, $builderHtml, $taxonomyHtml, $searchListHtml, $bookHtml, $inquiryHtml]);
 $leakedDisylControlTag = '';
