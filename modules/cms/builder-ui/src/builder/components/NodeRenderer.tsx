@@ -3206,14 +3206,21 @@ const ToggleRenderer: React.FC<{ node: DiSyLNode; style: React.CSSProperties }> 
 // =============================================================================
 
 const SearchBoxRenderer: React.FC<{ node: DiSyLNode; style: React.CSSProperties }> = memo(({ node, style }) => {
-  const { placeholder = 'Search...', buttonText = 'Search', showButton = true, style: inputStyle = 'rounded' } = node.props as any;
+  const {
+    placeholder = 'Search...',
+    buttonText = 'Search',
+    showButton = true,
+    searchUrl = '/cms/search',
+    style: inputStyle = 'rounded'
+  } = node.props as any;
 
   const borderRadius = inputStyle === 'pill' ? '50px' : inputStyle === 'rounded' ? '8px' : '0';
 
   return (
-    <div style={{ display: 'flex', gap: '8px', ...style }}>
+    <form action={searchUrl} method="get" onSubmit={(e) => e.preventDefault()} style={{ display: 'flex', gap: '8px', ...style }}>
       <input
-        type="text"
+        type="search"
+        name="q"
         placeholder={placeholder}
         style={{
           flex: 1,
@@ -3225,7 +3232,7 @@ const SearchBoxRenderer: React.FC<{ node: DiSyLNode; style: React.CSSProperties 
         }}
       />
       {showButton && (
-        <button style={{
+        <button type="submit" style={{
           padding: '12px 24px',
           backgroundColor: '#3b82f6',
           color: 'white',
@@ -3237,6 +3244,128 @@ const SearchBoxRenderer: React.FC<{ node: DiSyLNode; style: React.CSSProperties 
         }}>
           {buttonText}
         </button>
+      )}
+    </form>
+  );
+});
+
+// =============================================================================
+// Badge Renderer (Mar 2026)
+// =============================================================================
+
+const BadgeRenderer: React.FC<{ node: DiSyLNode; style: React.CSSProperties }> = memo(({ node, style }) => {
+  const { text = 'Featured', variant = 'primary', size = 'md' } = node.props as any;
+
+  const paletteMap: Record<string, React.CSSProperties> = {
+    primary: { backgroundColor: '#dbeafe', color: '#1d4ed8' },
+    success: { backgroundColor: '#dcfce7', color: '#15803d' },
+    warning: { backgroundColor: '#fef3c7', color: '#b45309' },
+    neutral: { backgroundColor: '#e5e7eb', color: '#374151' },
+  };
+
+  const sizeMap: Record<string, React.CSSProperties> = {
+    sm: { padding: '4px 10px', fontSize: '11px' },
+    md: { padding: '6px 12px', fontSize: '12px' },
+    lg: { padding: '8px 14px', fontSize: '13px' },
+  };
+
+  const palette = paletteMap[String(variant)] || paletteMap.primary;
+  const sizeStyle = sizeMap[String(size)] || sizeMap.md;
+
+  return (
+    <span style={{
+      display: 'inline-flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: '999px',
+      fontWeight: 700,
+      letterSpacing: '0.08em',
+      textTransform: 'uppercase',
+      ...palette,
+      ...sizeStyle,
+      ...style,
+    }}>
+      {text}
+    </span>
+  );
+});
+
+// =============================================================================
+// Stat Card Renderer (Mar 2026)
+// =============================================================================
+
+const StatCardRenderer: React.FC<{ node: DiSyLNode; style: React.CSSProperties }> = memo(({ node, style }) => {
+  const {
+    value = '128',
+    label = 'Happy Customers',
+    description = 'A quick metric you want visitors to notice immediately.',
+    accentColor = '#0f172a',
+  } = node.props as any;
+
+  return (
+    <div style={{
+      padding: '24px',
+      border: '1px solid #e5e7eb',
+      borderRadius: '16px',
+      backgroundColor: '#ffffff',
+      ...style,
+    }}>
+      <div style={{ fontSize: '40px', fontWeight: 800, lineHeight: 1, color: accentColor }}>{value}</div>
+      <div style={{ marginTop: '10px', fontSize: '12px', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#64748b' }}>{label}</div>
+      {description && (
+        <p style={{ marginTop: '12px', marginBottom: 0, fontSize: '14px', lineHeight: 1.6, color: '#475569' }}>{description}</p>
+      )}
+    </div>
+  );
+});
+
+// =============================================================================
+// Contact Card Renderer (Mar 2026)
+// =============================================================================
+
+const ContactCardRenderer: React.FC<{ node: DiSyLNode; style: React.CSSProperties }> = memo(({ node, style }) => {
+  const {
+    title = "Let's Talk",
+    description = 'Share your project, request a quote, or visit our studio.',
+    phone = '+63 900 000 0000',
+    email = 'hello@example.com',
+    address = '123 Market Street, Manila',
+    buttonText = 'Contact Us',
+    buttonUrl = '/cms/contact',
+  } = node.props as any;
+
+  return (
+    <div style={{
+      padding: '24px',
+      border: '1px solid #e5e7eb',
+      borderRadius: '16px',
+      backgroundColor: '#ffffff',
+      ...style,
+    }}>
+      <div style={{ fontSize: '24px', fontWeight: 700, color: '#0f172a' }}>{title}</div>
+      {description && (
+        <p style={{ marginTop: '10px', marginBottom: '18px', fontSize: '14px', lineHeight: 1.7, color: '#475569' }}>{description}</p>
+      )}
+      <div style={{ display: 'grid', gap: '10px', marginBottom: buttonText ? '18px' : 0 }}>
+        {phone && <div style={{ fontSize: '14px', color: '#0f172a' }}><strong style={{ color: '#64748b' }}>Phone:</strong> {phone}</div>}
+        {email && <div style={{ fontSize: '14px', color: '#0f172a' }}><strong style={{ color: '#64748b' }}>Email:</strong> {email}</div>}
+        {address && <div style={{ fontSize: '14px', color: '#0f172a' }}><strong style={{ color: '#64748b' }}>Address:</strong> {address}</div>}
+      </div>
+      {buttonText && (
+        <a href={buttonUrl || '#'} style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '12px 20px',
+          borderRadius: '999px',
+          backgroundColor: '#0f172a',
+          color: '#ffffff',
+          fontSize: '14px',
+          fontWeight: 600,
+          textDecoration: 'none',
+        }} onClick={(e) => e.preventDefault()}>
+          {buttonText}
+        </a>
       )}
     </div>
   );
@@ -3651,7 +3780,7 @@ const NodeRenderer: React.FC<NodeRendererProps> = memo(({
       : (style.width || (
         ['slideshow', 'gallery', 'tabs', 'accordion', 'form', 'progress', 'alert', 'video', 'table', 'divider',
           'heading', 'toggle', 'posts_grid', 'products_grid', 'team_grid', 'entity_view', 'entity_list', 'logo_grid', 'call_to_action',
-          'countdown', 'search_box'].includes(node.type)
+          'countdown', 'search_box', 'stat_card', 'contact_card'].includes(node.type)
           ? '100%'
           : undefined
       )),
@@ -3845,6 +3974,12 @@ const NodeRenderer: React.FC<NodeRendererProps> = memo(({
         return <ToggleRenderer node={node} style={style} />;
       case 'search_box':
         return <SearchBoxRenderer node={node} style={style} />;
+      case 'badge':
+        return <BadgeRenderer node={node} style={style} />;
+      case 'stat_card':
+        return <StatCardRenderer node={node} style={style} />;
+      case 'contact_card':
+        return <ContactCardRenderer node={node} style={style} />;
       case 'breadcrumbs':
         return <BreadcrumbsRenderer node={node} style={style} />;
       case 'code_block':

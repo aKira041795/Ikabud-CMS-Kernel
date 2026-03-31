@@ -1090,6 +1090,30 @@ function cmsPublicRender(string $subPath, array $context = []): string
     return cmsRender($template, $context);
 }
 
+function cmsPublicRenderNotFound(array $context = []): string
+{
+    $baseUrl = '';
+    if (function_exists('cmsPublicCanonicalBaseUrl')) {
+        $baseUrl = rtrim((string)cmsPublicCanonicalBaseUrl(), '/');
+    }
+    if ($baseUrl === '') {
+        $baseUrl = rtrim((string)(defined('BASE_URL') ? BASE_URL : app()->config('app.url', '')), '/');
+    }
+
+    $defaults = [
+        'page_title' => 'Page Not Found',
+        'not_found_title' => 'Page not found',
+        'not_found_body' => 'The page you requested could not be found or may have moved.',
+        'not_found_primary_href' => $baseUrl . '/cms',
+        'not_found_primary_label' => 'Go to Home',
+        'not_found_secondary_href' => $baseUrl . '/cms/blog',
+        'not_found_secondary_label' => 'Browse Posts',
+        'not_found_search_action' => $baseUrl . '/cms/search',
+    ];
+
+    return cmsPublicRender('public/404.disyl', array_merge($defaults, $context));
+}
+
 /**
  * Resolve a public URL for an active theme asset with safe fallback.
  * Falls back to native-default when the active theme asset is missing.

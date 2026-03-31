@@ -328,6 +328,7 @@ export const CMS_COMPONENTS: ComponentDefinition[] = [
     icon: 'ChevronDown',
     category: 'interactive',
     description: 'Collapsible content sections',
+    keywords: ['faq', 'questions', 'answers', 'collapse'],
     defaultProps: {
       items: [
         { id: 'item1', title: 'Accordion Item 1', content: 'Content for item 1', isOpen: true },
@@ -394,6 +395,7 @@ export const CMS_COMPONENTS: ComponentDefinition[] = [
     icon: 'Hash',
     category: 'interactive',
     description: 'Animated number counter',
+    keywords: ['stats', 'metrics', 'numbers', 'kpi'],
     defaultProps: {
       startValue: '0',
       endValue: '100',
@@ -895,6 +897,7 @@ export const CMS_COMPONENTS: ComponentDefinition[] = [
     icon: 'Megaphone',
     category: 'content',
     description: 'Eye-catching CTA section with title, text, and button',
+    keywords: ['cta', 'banner', 'signup', 'promotion'],
     defaultProps: {
       title: 'Ready to Get Started?',
       description: 'Join thousands of satisfied customers and transform your business today.',
@@ -948,6 +951,7 @@ export const CMS_COMPONENTS: ComponentDefinition[] = [
     icon: 'ImagePlus',
     category: 'content',
     description: 'Image with title and description overlay',
+    keywords: ['feature', 'card', 'promo'],
     defaultProps: {
       src: '',
       alt: 'Image',
@@ -1048,15 +1052,94 @@ export const CMS_COMPONENTS: ComponentDefinition[] = [
     icon: 'Search',
     category: 'interactive',
     description: 'Search input with customizable styling',
+    keywords: ['finder', 'query', 'lookup', 'site search'],
     defaultProps: {
       placeholder: 'Search...',
       buttonText: 'Search',
       showButton: true,
-      searchUrl: '/search',
+      searchUrl: '/cms/search',
       style: 'rounded', // rounded, square, pill
     },
     defaultStyle: {
       maxWidth: '500px',
+      width: '100%',
+    },
+    allowedChildren: [],
+    allowedParents: null,
+    isLeaf: true,
+  },
+
+  // Badge Component
+  {
+    type: 'badge',
+    name: 'Badge',
+    icon: 'Hash',
+    category: 'utility',
+    description: 'Small pill label for status, promos, and highlights',
+    keywords: ['label', 'tag', 'pill', 'status', 'highlight'],
+    defaultProps: {
+      text: 'Featured',
+      variant: 'primary',
+      size: 'md',
+    },
+    defaultStyle: {
+      display: 'inline-flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    allowedChildren: [],
+    allowedParents: null,
+    isLeaf: true,
+  },
+
+  // Stat Card Component
+  {
+    type: 'stat_card',
+    name: 'Stat Card',
+    icon: 'BarChart3',
+    category: 'content',
+    description: 'Single KPI or stat highlight card',
+    keywords: ['stats', 'metric', 'numbers', 'kpi', 'counter'],
+    defaultProps: {
+      value: '128',
+      label: 'Happy Customers',
+      description: 'A quick metric you want visitors to notice immediately.',
+      accentColor: '#0f172a',
+    },
+    defaultStyle: {
+      padding: '24px',
+      border: '1px solid #e5e7eb',
+      borderRadius: '16px',
+      backgroundColor: '#ffffff',
+      width: '100%',
+    },
+    allowedChildren: [],
+    allowedParents: null,
+    isLeaf: true,
+  },
+
+  // Contact Card Component
+  {
+    type: 'contact_card',
+    name: 'Contact Card',
+    icon: 'MapPin',
+    category: 'content',
+    description: 'Compact business contact card with CTA',
+    keywords: ['contact', 'phone', 'email', 'address', 'location'],
+    defaultProps: {
+      title: 'Let\'s Talk',
+      description: 'Share your project, request a quote, or visit our studio.',
+      phone: '+63 900 000 0000',
+      email: 'hello@example.com',
+      address: '123 Market Street, Manila',
+      buttonText: 'Contact Us',
+      buttonUrl: '/cms/contact',
+    },
+    defaultStyle: {
+      padding: '24px',
+      border: '1px solid #e5e7eb',
+      borderRadius: '16px',
+      backgroundColor: '#ffffff',
       width: '100%',
     },
     allowedChildren: [],

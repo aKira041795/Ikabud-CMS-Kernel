@@ -70,7 +70,10 @@ export type CMSComponentType =
   | 'toggle'
   | 'search_box'
   | 'breadcrumbs'
-  | 'code_block';
+  | 'code_block'
+  | 'badge'
+  | 'stat_card'
+  | 'contact_card';
 
 // Admin Theme Builder additional components (template-focused)
 export type ThemeComponentType =
@@ -335,6 +338,7 @@ export interface ComponentDefinition {
   icon: string; // Lucide icon name
   category: 'layout' | 'content' | 'media' | 'utility' | 'interactive' | 'advanced';
   description: string;
+  keywords?: string[];
   defaultProps: Partial<NodeProps>;
   defaultStyle: Partial<NodeStyle>;
   defaultChildren?: DiSyLNode[];

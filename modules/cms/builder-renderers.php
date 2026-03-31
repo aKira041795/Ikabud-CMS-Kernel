@@ -70,6 +70,9 @@ function cmsBuilderWidgetRenderers(): array
         'blockquote'      => 'cmsRenderWidget_blockquote',
         'toggle'          => 'cmsRenderWidget_toggle',
         'search_box'      => 'cmsRenderWidget_search_box',
+        'badge'           => 'cmsRenderWidget_badge',
+        'stat_card'       => 'cmsRenderWidget_stat_card',
+        'contact_card'    => 'cmsRenderWidget_contact_card',
         'breadcrumbs'     => 'cmsRenderWidget_breadcrumbs',
         'code_block'      => 'cmsRenderWidget_code_block',
     ];
@@ -1590,7 +1593,7 @@ function cmsRenderWidget_search_box(array $props, array $style, array $attrs, st
     $sbPlaceholder = cmsBuilderEsc((string)($props['placeholder'] ?? 'Search...'));
     $sbBtnText = cmsBuilderEsc((string)($props['buttonText'] ?? 'Search'));
     $sbShowBtn = ($props['showButton'] ?? true) !== false;
-    $sbUrl = cmsBuilderEsc((string)($props['searchUrl'] ?? '/search'));
+    $sbUrl = cmsBuilderEsc((string)($props['searchUrl'] ?? '/cms/search'));
     $sbInputStyle = (string)($props['style'] ?? 'rounded');
     $borderRadiusMap = ['rounded' => '8px', 'square' => '0', 'pill' => '999px'];
     $inputBorderRadius = $borderRadiusMap[$sbInputStyle] ?? '8px';
@@ -1598,6 +1601,101 @@ function cmsRenderWidget_search_box(array $props, array $style, array $attrs, st
         . '<input type="search" name="q" placeholder="' . $sbPlaceholder . '" style="flex:1;padding:10px 16px;border:1px solid #d1d5db;border-radius:' . $inputBorderRadius . ';font-size:14px;outline:none">'
         . ($sbShowBtn ? '<button type="submit" style="padding:10px 20px;background-color:#3B82F6;color:#fff;border:none;border-radius:' . $inputBorderRadius . ';font-weight:500;font-size:14px;cursor:pointer">' . $sbBtnText . '</button>' : '')
         . '</form>';
+}
+
+function cmsRenderWidget_badge(array $props, array $style, array $attrs, string $children, array $node, array $context): string
+{
+    $text = cmsBuilderEsc((string)($props['text'] ?? 'Featured'));
+    $variant = (string)($props['variant'] ?? 'primary');
+    $size = (string)($props['size'] ?? 'md');
+
+    $paletteMap = [
+        'primary' => ['backgroundColor' => '#dbeafe', 'color' => '#1d4ed8'],
+        'success' => ['backgroundColor' => '#dcfce7', 'color' => '#15803d'],
+        'warning' => ['backgroundColor' => '#fef3c7', 'color' => '#b45309'],
+        'neutral' => ['backgroundColor' => '#e5e7eb', 'color' => '#374151'],
+    ];
+    $sizeMap = [
+        'sm' => ['padding' => '4px 10px', 'fontSize' => '11px'],
+        'md' => ['padding' => '6px 12px', 'fontSize' => '12px'],
+        'lg' => ['padding' => '8px 14px', 'fontSize' => '13px'],
+    ];
+
+    $palette = $paletteMap[$variant] ?? $paletteMap['primary'];
+    $sizeStyle = $sizeMap[$size] ?? $sizeMap['md'];
+
+    return '<span' . cmsBuilderAttrString($attrs) . cmsBuilderStyleAttr(array_merge([
+        'display' => 'inline-flex',
+        'alignItems' => 'center',
+        'justifyContent' => 'center',
+        'borderRadius' => '999px',
+        'fontWeight' => '700',
+        'letterSpacing' => '0.08em',
+        'textTransform' => 'uppercase',
+    ], $palette, $sizeStyle, $style)) . '>' . $text . '</span>';
+}
+
+function cmsRenderWidget_stat_card(array $props, array $style, array $attrs, string $children, array $node, array $context): string
+{
+    $value = cmsBuilderEsc((string)($props['value'] ?? '128'));
+    $label = cmsBuilderEsc((string)($props['label'] ?? 'Happy Customers'));
+    $description = cmsBuilderEsc((string)($props['description'] ?? 'A quick metric you want visitors to notice immediately.'));
+    $accentColor = cmsBuilderEsc((string)($props['accentColor'] ?? '#0f172a'));
+
+    $html = '<div' . cmsBuilderAttrString($attrs) . cmsBuilderStyleAttr(array_merge([
+        'padding' => '24px',
+        'border' => '1px solid #e5e7eb',
+        'borderRadius' => '16px',
+        'backgroundColor' => '#ffffff',
+    ], $style)) . '>';
+    $html .= '<div style="font-size:40px;font-weight:800;line-height:1;color:' . $accentColor . '">' . $value . '</div>';
+    $html .= '<div style="margin-top:10px;font-size:12px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:#64748b">' . $label . '</div>';
+    if ($description !== '') {
+        $html .= '<p style="margin:12px 0 0;font-size:14px;line-height:1.6;color:#475569">' . $description . '</p>';
+    }
+    return $html . '</div>';
+}
+
+function cmsRenderWidget_contact_card(array $props, array $style, array $attrs, string $children, array $node, array $context): string
+{
+    $title = cmsBuilderEsc((string)($props['title'] ?? 'Let\'s Talk'));
+    $description = cmsBuilderEsc((string)($props['description'] ?? 'Share your project, request a quote, or visit our studio.'));
+    $phone = cmsBuilderEsc((string)($props['phone'] ?? '+63 900 000 0000'));
+    $email = cmsBuilderEsc((string)($props['email'] ?? 'hello@example.com'));
+    $address = cmsBuilderEsc((string)($props['address'] ?? '123 Market Street, Manila'));
+    $buttonText = cmsBuilderEsc((string)($props['buttonText'] ?? 'Contact Us'));
+    $buttonUrl = cmsBuilderEsc((string)($props['buttonUrl'] ?? '/cms/contact'));
+
+    $phoneHref = preg_replace('/[^0-9+]/', '', (string)($props['phone'] ?? '+639000000000')) ?? '';
+    $emailHref = trim((string)($props['email'] ?? ''));
+
+    $html = '<div' . cmsBuilderAttrString($attrs) . cmsBuilderStyleAttr(array_merge([
+        'padding' => '24px',
+        'border' => '1px solid #e5e7eb',
+        'borderRadius' => '16px',
+        'backgroundColor' => '#ffffff',
+    ], $style)) . '>';
+    $html .= '<div style="font-size:24px;font-weight:700;color:#0f172a">' . $title . '</div>';
+    if ($description !== '') {
+        $html .= '<p style="margin:10px 0 18px;font-size:14px;line-height:1.7;color:#475569">' . $description . '</p>';
+    }
+    $html .= '<div style="display:grid;gap:10px;margin-bottom:' . ($buttonText !== '' ? '18px' : '0') . '">';
+    if ($phone !== '') {
+        $phoneHtml = $phoneHref !== '' ? '<a href="tel:' . cmsBuilderEsc($phoneHref) . '" style="color:#0f172a;text-decoration:none">' . $phone . '</a>' : $phone;
+        $html .= '<div style="font-size:14px;color:#0f172a"><strong style="color:#64748b">Phone:</strong> ' . $phoneHtml . '</div>';
+    }
+    if ($email !== '') {
+        $emailHtml = $emailHref !== '' ? '<a href="mailto:' . cmsBuilderEsc($emailHref) . '" style="color:#0f172a;text-decoration:none">' . $email . '</a>' : $email;
+        $html .= '<div style="font-size:14px;color:#0f172a"><strong style="color:#64748b">Email:</strong> ' . $emailHtml . '</div>';
+    }
+    if ($address !== '') {
+        $html .= '<div style="font-size:14px;color:#0f172a"><strong style="color:#64748b">Address:</strong> ' . $address . '</div>';
+    }
+    $html .= '</div>';
+    if ($buttonText !== '') {
+        $html .= '<a href="' . $buttonUrl . '" style="display:inline-flex;align-items:center;justify-content:center;padding:12px 20px;border-radius:999px;background-color:#0f172a;color:#ffffff;font-size:14px;font-weight:600;text-decoration:none">' . $buttonText . '</a>';
+    }
+    return $html . '</div>';
 }
 
 function cmsRenderWidget_breadcrumbs(array $props, array $style, array $attrs, string $children, array $node, array $context): string

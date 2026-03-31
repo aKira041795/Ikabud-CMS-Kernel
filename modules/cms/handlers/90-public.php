@@ -539,11 +539,11 @@ function cmsPublicCategoryArchive(array $params = []): void
     $slug = trim((string)($params['slug'] ?? ''));
     if ($slug === '') {
         http_response_code(404);
-        cmsPublicRespond(cmsPublicRender('pages/404.disyl', ['page_title' => 'Not Found']));
+        cmsPublicRespond(cmsPublicRenderNotFound());
         return;
     }
 
-    $page = max(1, (int)(cmsInput('page', 'GET') ?: 1));
+    $page = max(1, (int)(cmsInput('page', 1) ?: 1));
     $cacheKey = cmsPublicResolvedTemplateCacheKey(
         'cms:category:entity_contract_v3:' . $slug . ':page:' . $page,
         'public/entity.list.disyl',
@@ -574,7 +574,11 @@ function cmsPublicCategoryArchive(array $params = []): void
     $category = $catStmt->fetch(PDO::FETCH_ASSOC);
     if (!$category) {
         http_response_code(404);
-        cmsPublicRespond(cmsPublicRender('pages/404.disyl', ['page_title' => 'Category Not Found']));
+        cmsPublicRespond(cmsPublicRenderNotFound([
+            'page_title' => 'Category Not Found',
+            'not_found_title' => 'Category not found',
+            'not_found_body' => 'That category is unavailable or no longer exists.',
+        ]));
         return;
     }
 
@@ -668,11 +672,11 @@ function cmsPublicTagArchive(array $params = []): void
     $slug = trim((string)($params['slug'] ?? ''));
     if ($slug === '') {
         http_response_code(404);
-        cmsPublicRespond(cmsPublicRender('pages/404.disyl', ['page_title' => 'Not Found']));
+        cmsPublicRespond(cmsPublicRenderNotFound());
         return;
     }
 
-    $page = max(1, (int)(cmsInput('page', 'GET') ?: 1));
+    $page = max(1, (int)(cmsInput('page', 1) ?: 1));
     $cacheKey = cmsPublicResolvedTemplateCacheKey(
         'cms:tag:entity_contract_v3:' . $slug . ':page:' . $page,
         'public/entity.list.disyl',
@@ -703,7 +707,11 @@ function cmsPublicTagArchive(array $params = []): void
     $tag = $tagStmt->fetch(PDO::FETCH_ASSOC);
     if (!$tag) {
         http_response_code(404);
-        cmsPublicRespond(cmsPublicRender('pages/404.disyl', ['page_title' => 'Tag Not Found']));
+        cmsPublicRespond(cmsPublicRenderNotFound([
+            'page_title' => 'Tag Not Found',
+            'not_found_title' => 'Tag not found',
+            'not_found_body' => 'That tag is unavailable or no longer exists.',
+        ]));
         return;
     }
 
@@ -791,8 +799,8 @@ function cmsPublicTagArchive(array $params = []): void
 
 function cmsPublicSearch(array $params = []): void
 {
-    $q = trim((string)(cmsInput('search', 'GET') ?: cmsInput('q', 'GET') ?: ''));
-    $page = max(1, (int)(cmsInput('page', 'GET') ?: 1));
+    $q = trim((string)(cmsInput('search', '') ?: cmsInput('q', '') ?: ''));
+    $page = max(1, (int)(cmsInput('page', 1) ?: 1));
     $perPage = 10;
     $offset = ($page - 1) * $perPage;
     $posts = [];
@@ -1003,7 +1011,7 @@ function cmsPublicSingle(array $params = []): void
     $slug = trim((string)($params['slug'] ?? ''));
     if ($slug === '') {
         http_response_code(404);
-        cmsPublicRespond(cmsRender('pages/404.disyl', ['page_title' => 'Not Found']));
+        cmsPublicRespond(cmsPublicRenderNotFound());
         return;
     }
 
@@ -1028,7 +1036,7 @@ function cmsPublicSingle(array $params = []): void
             exit;
         }
         http_response_code(404);
-        cmsPublicRespond(cmsRender('pages/404.disyl', ['page_title' => 'Not Found']));
+        cmsPublicRespond(cmsPublicRenderNotFound());
         return;
     }
 
@@ -1110,7 +1118,7 @@ function cmsPublicPage(array $params = []): void
     $slug = trim((string)($params['slug'] ?? ''));
     if ($slug === '') {
         http_response_code(404);
-        cmsPublicRespond(cmsRender('pages/404.disyl', ['page_title' => 'Not Found']));
+        cmsPublicRespond(cmsPublicRenderNotFound());
         return;
     }
 
@@ -1145,7 +1153,7 @@ function cmsPublicPage(array $params = []): void
             exit;
         }
         http_response_code(404);
-        cmsPublicRespond(cmsRender('pages/404.disyl', ['page_title' => 'Not Found']));
+        cmsPublicRespond(cmsPublicRenderNotFound());
         return;
     }
 
@@ -1241,7 +1249,7 @@ function cmsPublicEntityView(array $params = []): void
     // Reserved prefixes handled by dedicated routes
     if ($type === '' || $slug === '' || in_array($type, ['blog', 'page', 'admin', 'search', 'category', 'tag', 'feed'], true)) {
         http_response_code(404);
-        cmsPublicRespond(cmsRender('pages/404.disyl', ['page_title' => 'Not Found']));
+        cmsPublicRespond(cmsPublicRenderNotFound());
         return;
     }
 
@@ -1257,7 +1265,7 @@ function cmsPublicEntityView(array $params = []): void
             exit;
         }
         http_response_code(404);
-        cmsPublicRespond(cmsRender('pages/404.disyl', ['page_title' => 'Not Found']));
+        cmsPublicRespond(cmsPublicRenderNotFound());
         return;
     }
 
@@ -1389,7 +1397,7 @@ function cmsPublicEntityList(array $params = []): void
     // Reserved prefixes handled by dedicated routes
     if ($type === '' || in_array($type, ['blog', 'page', 'admin', 'search', 'category', 'tag', 'feed', 'sitemap.xml'], true)) {
         http_response_code(404);
-        cmsPublicRespond(cmsRender('pages/404.disyl', ['page_title' => 'Not Found']));
+        cmsPublicRespond(cmsPublicRenderNotFound());
         return;
     }
 
@@ -1500,7 +1508,7 @@ function cmsPublicEntityList(array $params = []): void
         $typeName = $typeStmt->fetchColumn();
         if (!is_string($typeName) || trim($typeName) === '') {
             http_response_code(404);
-            cmsPublicRespond(cmsRender('pages/404.disyl', ['page_title' => 'Not Found']));
+            cmsPublicRespond(cmsPublicRenderNotFound());
             return;
         }
         $listTitle = trim($typeName);
@@ -1509,7 +1517,7 @@ function cmsPublicEntityList(array $params = []): void
         }
     } catch (\Throwable $e) {
         http_response_code(404);
-        cmsPublicRespond(cmsRender('pages/404.disyl', ['page_title' => 'Not Found']));
+        cmsPublicRespond(cmsPublicRenderNotFound());
         return;
     }
 
@@ -1730,7 +1738,7 @@ function cmsPublicRenderEntityActionPage(array $params, string $actionType): voi
     $slug = trim((string)($params['slug'] ?? ''));
     if ($type === '' || $slug === '') {
         http_response_code(404);
-        cmsPublicRespond(cmsRender('pages/404.disyl', ['page_title' => 'Not Found']));
+        cmsPublicRespond(cmsPublicRenderNotFound());
         return;
     }
 
@@ -1738,7 +1746,7 @@ function cmsPublicRenderEntityActionPage(array $params, string $actionType): voi
     $entity = cmsPublicLoadVisibleEntityByTypeSlug($db, $type, $slug);
     if ($entity === null) {
         http_response_code(404);
-        cmsPublicRespond(cmsRender('pages/404.disyl', ['page_title' => 'Not Found']));
+        cmsPublicRespond(cmsPublicRenderNotFound());
         return;
     }
 
@@ -1746,7 +1754,7 @@ function cmsPublicRenderEntityActionPage(array $params, string $actionType): voi
     $capabilities = cmsEntityCapabilityContext((int)$entity['id']);
     if (empty($capabilities[$requiredCapability])) {
         http_response_code(404);
-        cmsPublicRespond(cmsRender('pages/404.disyl', ['page_title' => 'Not Found']));
+        cmsPublicRespond(cmsPublicRenderNotFound());
         return;
     }
 

@@ -3470,7 +3470,7 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
             label="Search URL"
             value={node.props.searchUrl as string || ''}
             onChange={(v) => handlePropChange('searchUrl', v)}
-            placeholder="/search?q="
+            placeholder="/cms/search"
           />
           <SelectInput
             label="Style"
@@ -3481,6 +3481,119 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
               { value: 'square', label: 'Square' },
               { value: 'pill', label: 'Pill' },
             ]}
+          />
+        </CollapsibleSection>
+      )}
+
+      {/* Badge */}
+      {node.type === 'badge' && (
+        <CollapsibleSection title="Badge" icon={<Hash className="w-3 h-3" />} defaultOpen>
+          <TextInput
+            label="Text"
+            value={node.props.text as string || ''}
+            onChange={(v) => handlePropChange('text', v)}
+            placeholder="Featured"
+          />
+          <SelectInput
+            label="Variant"
+            value={node.props.variant as string || 'primary'}
+            onChange={(v) => handlePropChange('variant', v)}
+            options={[
+              { value: 'primary', label: 'Primary' },
+              { value: 'success', label: 'Success' },
+              { value: 'warning', label: 'Warning' },
+              { value: 'neutral', label: 'Neutral' },
+            ]}
+          />
+          <SelectInput
+            label="Size"
+            value={node.props.size as string || 'md'}
+            onChange={(v) => handlePropChange('size', v)}
+            options={[
+              { value: 'sm', label: 'Small' },
+              { value: 'md', label: 'Medium' },
+              { value: 'lg', label: 'Large' },
+            ]}
+          />
+        </CollapsibleSection>
+      )}
+
+      {/* Stat Card */}
+      {node.type === 'stat_card' && (
+        <CollapsibleSection title="Stat Card" icon={<Hash className="w-3 h-3" />} defaultOpen>
+          <TextInput
+            label="Value"
+            value={node.props.value as string || ''}
+            onChange={(v) => handlePropChange('value', v)}
+            placeholder="128"
+          />
+          <TextInput
+            label="Label"
+            value={node.props.label as string || ''}
+            onChange={(v) => handlePropChange('label', v)}
+            placeholder="Happy Customers"
+          />
+          <TextAreaInput
+            label="Description"
+            value={node.props.description as string || ''}
+            onChange={(v) => handlePropChange('description', v)}
+            placeholder="Short supporting context..."
+            rows={2}
+          />
+          <ColorInput
+            label="Accent Color"
+            value={node.props.accentColor as string || '#0f172a'}
+            onChange={(v) => handlePropChange('accentColor', v)}
+          />
+        </CollapsibleSection>
+      )}
+
+      {/* Contact Card */}
+      {node.type === 'contact_card' && (
+        <CollapsibleSection title="Contact Card" icon={<MessageSquare className="w-3 h-3" />} defaultOpen>
+          <TextInput
+            label="Title"
+            value={node.props.title as string || ''}
+            onChange={(v) => handlePropChange('title', v)}
+            placeholder="Let's Talk"
+          />
+          <TextAreaInput
+            label="Description"
+            value={node.props.description as string || ''}
+            onChange={(v) => handlePropChange('description', v)}
+            placeholder="How should people reach you?"
+            rows={2}
+          />
+          <TextInput
+            label="Phone"
+            value={node.props.phone as string || ''}
+            onChange={(v) => handlePropChange('phone', v)}
+            placeholder="+63 900 000 0000"
+          />
+          <TextInput
+            label="Email"
+            value={node.props.email as string || ''}
+            onChange={(v) => handlePropChange('email', v)}
+            placeholder="hello@example.com"
+          />
+          <TextAreaInput
+            label="Address"
+            value={node.props.address as string || ''}
+            onChange={(v) => handlePropChange('address', v)}
+            placeholder="123 Market Street, Manila"
+            rows={2}
+          />
+          <TextInput
+            label="Button Text"
+            value={node.props.buttonText as string || ''}
+            onChange={(v) => handlePropChange('buttonText', v)}
+            placeholder="Contact Us"
+          />
+          <TextInput
+            label="Button URL"
+            value={node.props.buttonUrl as string || ''}
+            onChange={(v) => handlePropChange('buttonUrl', v)}
+            placeholder="/cms/contact"
           />
         </CollapsibleSection>
       )}

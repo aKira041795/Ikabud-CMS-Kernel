@@ -161,7 +161,7 @@ const EnhancedComponentItem: React.FC<EnhancedComponentItemProps> = memo(({
 }) => {
   const Icon = getIcon(component.icon);
   const categoryColor = CATEGORY_COLORS[component.category] || CATEGORY_COLORS.utility;
-  
+
   const handleClick = () => {
     const node = createNode(
       component.type,
@@ -171,7 +171,7 @@ const EnhancedComponentItem: React.FC<EnhancedComponentItemProps> = memo(({
     );
     onAdd(node);
   };
-  
+
   const handleDragStart = (e: React.DragEvent) => {
     const payload = JSON.stringify({
       type: component.type,
@@ -188,7 +188,7 @@ const EnhancedComponentItem: React.FC<EnhancedComponentItemProps> = memo(({
     e.stopPropagation();
     onToggleFavorite(component.type);
   };
-  
+
   if (compact) {
     return (
       <button
@@ -204,7 +204,7 @@ const EnhancedComponentItem: React.FC<EnhancedComponentItemProps> = memo(({
           {component.name}
         </span>
         {showCategory && (
-          <span 
+          <span
             className="absolute -top-1 -right-1 text-[8px] px-1 py-0.5 rounded-full font-medium"
             style={{ backgroundColor: categoryColor.bg, color: categoryColor.text }}
           >
@@ -214,7 +214,7 @@ const EnhancedComponentItem: React.FC<EnhancedComponentItemProps> = memo(({
       </button>
     );
   }
-  
+
   return (
     <div className="group relative">
       <button
@@ -231,15 +231,14 @@ const EnhancedComponentItem: React.FC<EnhancedComponentItemProps> = memo(({
           {component.name}
         </span>
       </button>
-      
+
       {/* Favorite button */}
       <button
         onClick={handleFavoriteClick}
-        className={`absolute top-1 right-1 p-1 rounded-full transition-all duration-150 ${
-          isFavorite 
-            ? 'text-yellow-400 bg-yellow-400/20' 
+        className={`absolute top-1 right-1 p-1 rounded-full transition-all duration-150 ${isFavorite
+            ? 'text-yellow-400 bg-yellow-400/20'
             : 'text-white/30 hover:text-yellow-400 hover:bg-white/10 opacity-0 group-hover:opacity-100'
-        }`}
+          }`}
         title={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
       >
         <Heart className={`w-3 h-3 ${isFavorite ? 'fill-current' : ''}`} />
@@ -269,13 +268,13 @@ const CategoryHeader: React.FC<CategoryHeaderProps> = memo(({
 }) => {
   const CategoryIcon = ICON_MAP[category.icon] || LayoutGrid;
   const categoryColor = CATEGORY_COLORS[category.id] || CATEGORY_COLORS.utility;
-  
+
   return (
     <button
       onClick={onToggle}
       className="w-full flex items-center gap-2 px-2 py-2 hover:bg-white/5 rounded-lg transition-colors group"
     >
-      <div 
+      <div
         className="p-1.5 rounded-md"
         style={{ backgroundColor: categoryColor.bg }}
       >
@@ -318,7 +317,7 @@ const HorizontalCategoryDropdown: React.FC<HorizontalCategoryDropdownProps> = me
   const [dropdownPosition, setDropdownPosition] = useState({ left: 0, bottom: 0 });
   const CategoryIcon = ICON_MAP[category.icon] || LayoutGrid;
   const categoryColor = CATEGORY_COLORS[category.id] || CATEGORY_COLORS.utility;
-  
+
   const handleToggle = useCallback(() => {
     if (!isOpen && buttonRef.current) {
       const rect = buttonRef.current.getBoundingClientRect();
@@ -329,17 +328,16 @@ const HorizontalCategoryDropdown: React.FC<HorizontalCategoryDropdownProps> = me
     }
     setIsOpen(!isOpen);
   }, [isOpen]);
-  
+
   return (
     <div className="relative">
       <button
         ref={buttonRef}
         onClick={handleToggle}
-        className={`flex items-center gap-2 px-3 py-2 rounded-lg border transition-all duration-150 ${
-          isOpen 
-            ? 'bg-[#353535] border-[#0078d4]' 
+        className={`flex items-center gap-2 px-3 py-2 rounded-lg border transition-all duration-150 ${isOpen
+            ? 'bg-[#353535] border-[#0078d4]'
             : 'bg-[#2d2d2d] border-[#3c3c3c] hover:border-[#0078d4]'
-        }`}
+          }`}
         style={{ borderLeftColor: categoryColor.border, borderLeftWidth: '3px' }}
       >
         <CategoryIcon className="w-4 h-4" style={{ color: categoryColor.text }} />
@@ -349,19 +347,19 @@ const HorizontalCategoryDropdown: React.FC<HorizontalCategoryDropdownProps> = me
         </span>
         <ChevronDown className={`w-3 h-3 text-white/40 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
       </button>
-      
+
       {isOpen && (
         <>
           {/* Backdrop */}
-          <div 
-            className="fixed inset-0 z-40" 
+          <div
+            className="fixed inset-0 z-40"
             onClick={() => setIsOpen(false)}
           />
-          
+
           {/* Dropdown - using fixed positioning to escape overflow:hidden */}
-          <div 
+          <div
             className="fixed p-3 bg-[#1e1e1e] border border-[#3c3c3c] rounded-xl shadow-2xl z-50 min-w-[280px] max-h-[400px] overflow-y-auto"
-            style={{ 
+            style={{
               left: dropdownPosition.left,
               bottom: dropdownPosition.bottom,
               boxShadow: '0 -10px 40px rgba(0,0,0,0.5)',
@@ -373,7 +371,7 @@ const HorizontalCategoryDropdown: React.FC<HorizontalCategoryDropdownProps> = me
               <CategoryIcon className="w-5 h-5" style={{ color: categoryColor.text }} />
               <span className="text-sm font-semibold text-white">{category.name}</span>
             </div>
-            
+
             <div className="grid grid-cols-3 gap-2">
               {category.components.map(component => (
                 <EnhancedComponentItem
@@ -428,8 +426,8 @@ const SectionWizard: React.FC<SectionWizardProps> = ({ onSelect, onClose }) => {
   const createSectionWithColumns = (preset: ColumnPreset) => {
     // Use flex-grow ratios for column widths - more reliable than calc()
     // For [50, 50] -> both get flex: 1, for [33, 67] -> flex: 1 and flex: 2
-    const columns = preset.columns.map((width) => 
-      createNode('column', {}, { 
+    const columns = preset.columns.map((width) =>
+      createNode('column', {}, {
         // Use flex with grow ratio based on percentage (e.g., 50% = 1, 33% ≈ 1, 67% ≈ 2)
         flex: `${Math.round(width / 25)} 1 0%`,
         padding: '16px',
@@ -437,14 +435,14 @@ const SectionWizard: React.FC<SectionWizardProps> = ({ onSelect, onClose }) => {
         boxSizing: 'border-box',
       }, [])
     );
-    
+
     const row = createNode('row', {}, {
       display: 'flex',
       flexDirection: 'row',
       gap: '24px',
       width: '100%',
     }, columns);
-    
+
     const container = createNode('container', {}, {
       width: '100%',
       maxWidth: '1200px',
@@ -452,16 +450,16 @@ const SectionWizard: React.FC<SectionWizardProps> = ({ onSelect, onClose }) => {
       padding: '0 24px',
       boxSizing: 'border-box',
     }, [row]);
-    
+
     const section = createNode('section', {}, {
       padding: '48px 0',
       width: '100%',
     }, [container]);
-    
+
     onSelect(section);
     onClose();
   };
-  
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
       <div className="bg-[#1e1e1e] border border-[#3c3c3c] rounded-2xl p-6 w-[400px] shadow-2xl">
@@ -475,14 +473,14 @@ const SectionWizard: React.FC<SectionWizardProps> = ({ onSelect, onClose }) => {
               <p className="text-xs text-white/50">Select a column structure</p>
             </div>
           </div>
-          <button 
+          <button
             onClick={onClose}
             className="p-2 text-white/50 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
-        
+
         <div className="grid grid-cols-4 gap-3">
           {COLUMN_PRESETS.map(preset => (
             <button
@@ -498,7 +496,7 @@ const SectionWizard: React.FC<SectionWizardProps> = ({ onSelect, onClose }) => {
             </button>
           ))}
         </div>
-        
+
         <div className="mt-6 pt-4 border-t border-[#3c3c3c] flex gap-3">
           <button
             onClick={onClose}
@@ -535,9 +533,9 @@ interface ComponentPanelEnhancedProps {
   horizontal?: boolean;
 }
 
-const ComponentPanelEnhanced: React.FC<ComponentPanelEnhancedProps> = ({ 
-  onAddComponent, 
-  horizontal = false 
+const ComponentPanelEnhanced: React.FC<ComponentPanelEnhancedProps> = ({
+  onAddComponent,
+  horizontal = false
 }) => {
   // State
   const [searchQuery, setSearchQuery] = useState('');
@@ -580,7 +578,7 @@ const ComponentPanelEnhanced: React.FC<ComponentPanelEnhancedProps> = ({
   }, [collapsedCategories]);
 
   // All components flattened
-  const allComponents = useMemo(() => 
+  const allComponents = useMemo(() =>
     COMPONENT_CATEGORIES.flatMap(cat => cat.components),
     []
   );
@@ -589,22 +587,27 @@ const ComponentPanelEnhanced: React.FC<ComponentPanelEnhancedProps> = ({
   const filteredComponents = useMemo(() => {
     if (!searchQuery.trim()) return null;
     const query = searchQuery.toLowerCase();
-    return allComponents.filter(c => 
-      c.name.toLowerCase().includes(query) ||
-      c.description.toLowerCase().includes(query) ||
-      c.category.toLowerCase().includes(query) ||
-      c.type.toLowerCase().includes(query)
-    );
+    return allComponents.filter((component) => {
+      const haystack = [
+        component.name,
+        component.description,
+        component.category,
+        component.type,
+        ...(component.keywords || []),
+      ].join(' ').toLowerCase();
+
+      return haystack.includes(query);
+    });
   }, [searchQuery, allComponents]);
 
   // Favorite components
-  const favoriteComponents = useMemo(() => 
+  const favoriteComponents = useMemo(() =>
     allComponents.filter(c => favorites.includes(c.type)),
     [allComponents, favorites]
   );
 
   // Recent components
-  const recentComponents = useMemo(() => 
+  const recentComponents = useMemo(() =>
     recentlyUsed
       .map(type => allComponents.find(c => c.type === type))
       .filter((c): c is ComponentDefinition => c !== undefined)
@@ -614,8 +617,8 @@ const ComponentPanelEnhanced: React.FC<ComponentPanelEnhancedProps> = ({
 
   // Toggle favorite
   const toggleFavorite = useCallback((type: string) => {
-    setFavorites(prev => 
-      prev.includes(type) 
+    setFavorites(prev =>
+      prev.includes(type)
         ? prev.filter(t => t !== type)
         : [...prev, type]
     );
@@ -655,7 +658,7 @@ const ComponentPanelEnhanced: React.FC<ComponentPanelEnhancedProps> = ({
   // Horizontal layout for bottom drawer
   if (horizontal) {
     return (
-      <div 
+      <div
         className="h-full flex items-center bg-[#1e1e1e] border-t border-[#3c3c3c]"
         role="region"
         aria-label="Component library"
@@ -734,33 +737,33 @@ const ComponentPanelEnhanced: React.FC<ComponentPanelEnhancedProps> = ({
             ))}
           </div>
         )}
-        
+
         {showSectionWizard && (
-          <SectionWizard 
+          <SectionWizard
             onSelect={(node) => {
               addToRecent('section');
               onAddComponent(node);
-            }} 
-            onClose={() => setShowSectionWizard(false)} 
+            }}
+            onClose={() => setShowSectionWizard(false)}
           />
         )}
-        
+
         {showLayoutPresetPicker && (
-          <LayoutPresetPicker 
+          <LayoutPresetPicker
             onSelect={(node) => {
               addToRecent('container');
               onAddComponent(node);
-            }} 
-            onClose={() => setShowLayoutPresetPicker(false)} 
+            }}
+            onClose={() => setShowLayoutPresetPicker(false)}
           />
         )}
       </div>
     );
   }
-  
+
   // Vertical layout (default - sidebar)
   return (
-    <div 
+    <div
       className="h-full flex flex-col bg-[#1e1e1e]"
       role="region"
       aria-label="Component library"
@@ -785,27 +788,25 @@ const ComponentPanelEnhanced: React.FC<ComponentPanelEnhancedProps> = ({
             </button>
           )}
         </div>
-        
+
         {/* Tabs */}
         <div className="flex gap-1 mt-3">
           <button
             onClick={() => setActiveTab('all')}
-            className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 text-[10px] font-medium rounded-md transition-colors ${
-              activeTab === 'all' 
-                ? 'bg-[#0078d4] text-white' 
+            className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 text-[10px] font-medium rounded-md transition-colors ${activeTab === 'all'
+                ? 'bg-[#0078d4] text-white'
                 : 'text-white/60 hover:text-white hover:bg-white/5'
-            }`}
+              }`}
           >
             <LayoutGrid className="w-3 h-3" />
             All
           </button>
           <button
             onClick={() => setActiveTab('favorites')}
-            className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 text-[10px] font-medium rounded-md transition-colors ${
-              activeTab === 'favorites' 
-                ? 'bg-[#0078d4] text-white' 
+            className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 text-[10px] font-medium rounded-md transition-colors ${activeTab === 'favorites'
+                ? 'bg-[#0078d4] text-white'
                 : 'text-white/60 hover:text-white hover:bg-white/5'
-            }`}
+              }`}
           >
             <Heart className="w-3 h-3" />
             Favorites
@@ -815,37 +816,36 @@ const ComponentPanelEnhanced: React.FC<ComponentPanelEnhancedProps> = ({
           </button>
           <button
             onClick={() => setActiveTab('recent')}
-            className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 text-[10px] font-medium rounded-md transition-colors ${
-              activeTab === 'recent' 
-                ? 'bg-[#0078d4] text-white' 
+            className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 text-[10px] font-medium rounded-md transition-colors ${activeTab === 'recent'
+                ? 'bg-[#0078d4] text-white'
                 : 'text-white/60 hover:text-white hover:bg-white/5'
-            }`}
+              }`}
           >
             <Clock className="w-3 h-3" />
             Recent
           </button>
         </div>
       </div>
-      
+
       {/* Content */}
       <div className="flex-1 overflow-y-auto p-3">
         {showSectionWizard && (
-          <SectionWizard 
+          <SectionWizard
             onSelect={(node) => {
               addToRecent('section');
               onAddComponent(node);
-            }} 
-            onClose={() => setShowSectionWizard(false)} 
+            }}
+            onClose={() => setShowSectionWizard(false)}
           />
         )}
-        
+
         {showLayoutPresetPicker && (
-          <LayoutPresetPicker 
+          <LayoutPresetPicker
             onSelect={(node) => {
               addToRecent('container');
               onAddComponent(node);
-            }} 
-            onClose={() => setShowLayoutPresetPicker(false)} 
+            }}
+            onClose={() => setShowLayoutPresetPicker(false)}
           />
         )}
 
@@ -934,7 +934,7 @@ const ComponentPanelEnhanced: React.FC<ComponentPanelEnhancedProps> = ({
           <div className="space-y-2">
             {COMPONENT_CATEGORIES.map(category => {
               const isExpanded = !collapsedCategories.includes(category.id);
-              
+
               return (
                 <div key={category.id} className="rounded-lg overflow-hidden">
                   <CategoryHeader
@@ -943,7 +943,7 @@ const ComponentPanelEnhanced: React.FC<ComponentPanelEnhancedProps> = ({
                     onToggle={() => toggleCategory(category.id)}
                     componentCount={category.components.length}
                   />
-                  
+
                   {isExpanded && (
                     <div className="grid grid-cols-3 gap-2 p-2 bg-[#252526] rounded-b-lg">
                       {category.components.map(component => (

@@ -93,6 +93,54 @@ $validation = cmsBuilderValidateDocument([
                 'meta' => [],
             ],
             [
+                'id' => 'search-box-test',
+                'type' => 'search_box',
+                'props' => [
+                    'placeholder' => 'Search the site',
+                ],
+                'style' => [],
+                'children' => [],
+                'meta' => [],
+            ],
+            [
+                'id' => 'badge-test',
+                'type' => 'badge',
+                'props' => [
+                    'text' => 'Featured',
+                    'variant' => 'success',
+                ],
+                'style' => [],
+                'children' => [],
+                'meta' => [],
+            ],
+            [
+                'id' => 'stat-card-test',
+                'type' => 'stat_card',
+                'props' => [
+                    'value' => '256',
+                    'label' => 'Open Seats',
+                    'description' => 'Available for the next cohort.',
+                ],
+                'style' => [],
+                'children' => [],
+                'meta' => [],
+            ],
+            [
+                'id' => 'contact-card-test',
+                'type' => 'contact_card',
+                'props' => [
+                    'title' => 'Talk to Admissions',
+                    'phone' => '+63 917 555 0100',
+                    'email' => 'admissions@example.test',
+                    'address' => 'Makati City',
+                    'buttonText' => 'Request Info',
+                    'buttonUrl' => '/cms/contact',
+                ],
+                'style' => [],
+                'children' => [],
+                'meta' => [],
+            ],
+            [
                 'id' => 'flip-box-test',
                 'type' => 'flip_box',
                 'props' => [
@@ -191,12 +239,68 @@ $flipBoxHtml = cmsBuilderRenderNode([
     'meta' => [],
 ], []);
 
+$searchBoxHtml = cmsBuilderRenderNode([
+    'id' => 'search-box-test',
+    'type' => 'search_box',
+    'props' => [
+        'placeholder' => 'Search the site',
+    ],
+    'style' => [],
+    'children' => [],
+    'meta' => [],
+], []);
+
+$badgeHtml = cmsBuilderRenderNode([
+    'id' => 'badge-test',
+    'type' => 'badge',
+    'props' => [
+        'text' => 'Featured',
+        'variant' => 'success',
+    ],
+    'style' => [],
+    'children' => [],
+    'meta' => [],
+], []);
+
+$statCardHtml = cmsBuilderRenderNode([
+    'id' => 'stat-card-test',
+    'type' => 'stat_card',
+    'props' => [
+        'value' => '256',
+        'label' => 'Open Seats',
+        'description' => 'Available for the next cohort.',
+    ],
+    'style' => [],
+    'children' => [],
+    'meta' => [],
+], []);
+
+$contactCardHtml = cmsBuilderRenderNode([
+    'id' => 'contact-card-test',
+    'type' => 'contact_card',
+    'props' => [
+        'title' => 'Talk to Admissions',
+        'phone' => '+63 917 555 0100',
+        'email' => 'admissions@example.test',
+        'address' => 'Makati City',
+        'buttonText' => 'Request Info',
+        'buttonUrl' => '/cms/contact',
+    ],
+    'style' => [],
+    'children' => [],
+    'meta' => [],
+], []);
+
 t('pricing table renderer outputs configured ribbon', str_contains($pricingHtml, 'Best Value'), $pricingHtml);
 t('countdown renderer hides disabled hour and second labels', !str_contains($countdownHtml, 'Hours Left') && !str_contains($countdownHtml, 'Seconds Left'), $countdownHtml);
 t('countdown renderer keeps enabled unit labels', str_contains($countdownHtml, 'Days Left') && str_contains($countdownHtml, 'Minutes Left'), $countdownHtml);
 t('CTA renderer outputs both primary and secondary buttons', str_contains($ctaHtml, 'Start Now') && str_contains($ctaHtml, 'See Plans') && str_contains($ctaHtml, '/plans'), $ctaHtml);
 t('map renderer outputs configured embed iframe', str_contains($mapHtml, 'https://maps.example.test/embed/location') && str_contains($mapHtml, '<iframe'), $mapHtml);
 t('flip box renderer outputs front description without errors', str_contains($flipBoxHtml, 'Hover for more details') && str_contains($flipBoxHtml, 'Back Side'), $flipBoxHtml);
+t('search box renderer defaults to the CMS search endpoint', str_contains($searchBoxHtml, 'action="/cms/search"') && str_contains($searchBoxHtml, 'name="q"'), $searchBoxHtml);
+t('badge renderer outputs the configured label', str_contains($badgeHtml, 'Featured'), $badgeHtml);
+t('stat card renderer outputs value and label', str_contains($statCardHtml, '256') && str_contains($statCardHtml, 'Open Seats'), $statCardHtml);
+t('contact card renderer outputs contact details and CTA', str_contains($contactCardHtml, 'admissions@example.test') && str_contains($contactCardHtml, 'Request Info') && str_contains($contactCardHtml, 'Makati City'), $contactCardHtml);
 
 $appLog = trim((string)@file_get_contents(STORAGE_PATH . '/logs/app.log'));
 $errorLog = trim((string)@file_get_contents(STORAGE_PATH . '/logs/error.log'));

@@ -2,6 +2,16 @@
 
 declare(strict_types=1);
 
+function cmsAdminBuilderAssetUrl(string $asset): string
+{
+    $baseUrl = rtrim((string)(defined('BASE_URL') ? BASE_URL : ''), '/');
+    $relativePath = 'assets/cms/builder/' . ltrim($asset, '/');
+    $absolutePath = PUBLIC_PATH . '/' . $relativePath;
+    $version = is_file($absolutePath) ? (string)@filemtime($absolutePath) : '';
+
+    return $baseUrl . '/' . $relativePath . ($version !== '' ? '?v=' . $version : '');
+}
+
 function cmsAdminReactBuilderCreate(array $params = []): void
 {
     $user = cmsRequireCap('builder.access');
@@ -21,7 +31,7 @@ function cmsAdminReactBuilderCreate(array $params = []): void
     echo cmsRender('modules/cms/admin/react-page-builder.disyl', [
         'page_title'        => 'Page Builder',
         'site_name'         => app()->config('app_name', 'CMS'),
-        'builder_css_url'   => $baseUrl . '/assets/cms/builder/builder.css',
+        'builder_css_url'   => cmsAdminBuilderAssetUrl('builder.css'),
         'builder_boot_json' => json_encode($bootData, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
     ]);
 }
@@ -72,7 +82,7 @@ function cmsAdminReactBuilderEdit(array $params = []): void
     echo cmsRender('modules/cms/admin/react-page-builder.disyl', [
         'page_title'        => 'Page Builder: ' . ($content['title'] ?? ''),
         'site_name'         => app()->config('app_name', 'CMS'),
-        'builder_css_url'   => $baseUrl . '/assets/cms/builder/builder.css',
+        'builder_css_url'   => cmsAdminBuilderAssetUrl('builder.css'),
         'builder_boot_json' => json_encode($bootData, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
     ]);
 }
