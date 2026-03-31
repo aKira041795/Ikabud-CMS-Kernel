@@ -94,7 +94,7 @@ This model is intentionally lighter than WordPress and fits the module architect
 - themes stay out of admin surfaces
 - customizer adds header/footer/sidebar/shell-layout controls plus canonical `entity_presentation` controls without requiring theme authors to rebuild everything
 - the customizer `Entities` workspace is now schema-driven from registry examples/capability metadata, so admin controls stay aligned with runtime entity behavior without introducing a second persistence format
-- the shared theme symlink is now lock-guarded during activation and themed renders, which prevents cross-tenant bleed on shared workers
+- request-scoped `_cms_active_theme` alias resolution keeps normal public renders off the shared symlink path, while the compatibility symlink remains lock-guarded for activation/reset work
 
 ### Current theme pipeline weaknesses
 
@@ -146,7 +146,7 @@ The CMS emits content, media, settings, and builder lifecycle events. However, n
 - runtime settings and active-theme lookups use lightweight request-level caching
 - public handlers now centralize final output through `cmsPublicRespond()`, which releases the PHP session lock after render
 - public-context assembly now preloads the customizer bundle, reuses a shared DB handle, and skips absent sections on the request hot path
-- theme renders use shared locks without re-entering symlink mutation, removing a deadlock class from public requests
+- theme renders now resolve the active alias from request context without relying on symlink mutation in the normal public hot path, removing a deadlock and lock-contention class from public requests
 - timing diagnostics keep total request timings available while detailed fragment timings stay opt-in
 - public layouts include reveal fallbacks so frontend animation gating cannot leave the page blank when JS stalls
 

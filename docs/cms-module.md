@@ -74,7 +74,7 @@ Implemented public features include:
 - Tag-based cache plus `ETag` / `Last-Modified`
 - Session-safe public responses via `cmsPublicRespond()`
 - Public-context preloading and section-aware hot-path skips for faster cold renders
-- Theme render locking that separates shared read locks from exclusive symlink mutation
+- Request-scoped `_cms_active_theme` alias resolution, with the compatibility symlink only mutated on activation/reset paths
 - No-JS / stalled-JS reveal fallbacks in public layouts so animation gates cannot blank rendered pages
 
 Entity-capability note:
@@ -139,7 +139,7 @@ When changing CMS public rendering, follow these rules:
 2. Cache lookup should happen before expensive render work, and cache writes should keep `ETag` / `Last-Modified` metadata with tag-based invalidation.
 3. `cmsPublicContext()` is the shared assembly point for theme/customizer context. Do not re-fetch the same customizer sections in handlers or templates.
 4. Reuse `cmsEntityCapabilityRuntimeState()` when you need entity capability flags, capability data, or resolved entity-context metadata; do not recompute those independently in handlers, builders, or APIs.
-5. Theme render paths must not mutate the active-theme symlink while holding a shared render lock.
+5. Theme render paths should resolve `_cms_active_theme` from the current request and keep compatibility-symlink mutation off the normal public hot path.
 6. Builder pages should keep frontend JS optional for visibility. If CSS/JS can hide content before hydration, ship a synchronous reveal fallback.
 7. For critical stock / booking / CTA states in DiSyL, prefer small nested boolean checks over compound expressions.
 
@@ -166,7 +166,7 @@ Cross-module dependencies are declared in `module.json`. The CMS also reads `wor
 ### Theme storage and activation
 
 - Theme source of truth: `storage/cms-themes/{slug}/`
-- Active theme mount point: `templates/_cms_active_theme`
+- Active theme alias: `_cms_active_theme` (mirrored by `templates/_cms_active_theme` for compatibility)
 - Public assets copy target: `public/assets/cms/themes/{slug}/`
 - Active theme slug is persisted in CMS settings as `active_theme`, with tenant-scoped overrides when multi-tenancy is active
 
@@ -271,9 +271,9 @@ See `docs/cms-capability-map.md` and `docs/cms-extension-points.md` for capabili
 - Granular CMS permissions via `cmsRequireCap()`
 - MIME allowlist, upload size limits, thumbnail generation, and dangerous-signature checks for media
 - CMS module installer now only manages **CMS-installed** sub-modules, not kernel/application modules
-- Theme activation is isolated to the CMS theme mount point and module settings
+- Theme activation is isolated to CMS theme settings plus the compatibility symlink update path
 - Tenant-scoped CMS settings now persist through `tenant_module_settings` with global fallback in `storage/modules.json`
-- Public theme rendering uses a lock-guarded symlink flow so concurrent tenant requests do not leak active theme state
+- Public theme rendering resolves the active alias from request context so concurrent tenant or route-scoped requests do not leak theme state through one shared symlink target
 - Theme/module ZIP uploads are validated before extraction (path traversal, absolute paths, null bytes, symlink entries)
 - Theme and module manifest validation now enforces required and typed fields during upload
 - Installer lifecycle operations now write structured audit entries (`CMS installer audit`) to app logs

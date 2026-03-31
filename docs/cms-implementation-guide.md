@@ -77,18 +77,18 @@ Primary implementation files:
 
 ## 4. Theme render rules
 
-The active theme is mounted through `templates/_cms_active_theme` and guarded by a lock file.
+The public theme alias is `_cms_active_theme`, with `templates/_cms_active_theme` retained as a compatibility symlink.
 
-### Required split
+### Current split
 
-- **Exclusive lock**: activation or symlink mutation
-- **Shared lock**: themed render reads
+- **Request-time render path**: resolve `_cms_active_theme` against the current request's active theme in code
+- **Exclusive lock**: activation, reset, or explicit compatibility-symlink repair
 
 ### Rules
 
-1. Resolve the target template before entering the shared read lock when possible.
-2. Do not call symlink-mutation helpers from inside a shared render lock.
-3. If a request needs to repair the symlink, do that before or outside the shared render path.
+1. Do not depend on mutating `templates/_cms_active_theme` during normal public renders.
+2. Resolve `_cms_active_theme` from request context so route-scoped or tenant-scoped theme selection cannot fight over one global symlink target.
+3. Keep compatibility-symlink mutation on explicit activation/reset paths only.
 
 Primary implementation file:
 
