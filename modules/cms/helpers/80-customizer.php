@@ -1758,6 +1758,11 @@ function cmsSidebarResolvedTemplateRules(array $settings, ?string $scope = null)
         }
     }
 
+    $rules = cmsSidebarNormalizeStoredTemplateRules($rules, $scope);
+    if ($rules === [] && $fallbackTarget !== '' && (string)($settings['scope_mode'] ?? 'general') === 'template') {
+        $rules[] = $fallbackTarget;
+    }
+
     return $rules;
 }
 
@@ -2340,8 +2345,12 @@ function cmsCustomizerGet(object $db, string $section, ?string $scope = null): a
         if (is_array($row)) {
             $settings = json_decode($row['settings_json'] ?? '{}', true) ?: [];
             $widgets  = json_decode($row['widgets_json'] ?? '[]', true) ?: [];
+            $mergedSettings = array_merge($defaults, $settings);
+            if ($section === 'sidebar') {
+                $mergedSettings = cmsValidateSidebarSettings($mergedSettings, $scope);
+            }
             return [
-                'settings' => array_merge($defaults, $settings),
+                'settings' => $mergedSettings,
                 'widgets'  => $widgets,
             ];
         }
@@ -2633,6 +2642,10 @@ function cmsValidateSidebarSettings(array $input, ?string $scope = null): array
     if ($validated['template_rules'] === [] && $legacyTemplateScope !== '') {
         $validated['template_rules'] = [$legacyTemplateScope];
     }
+    if ($validated['template_rules'] === [] && $validated['scope_mode'] === 'template') {
+        $validated['template_rules'] = [$fallbackTarget];
+    }
+    $validated['template_rules'] = cmsSidebarNormalizeStoredTemplateRules($validated['template_rules'], $scope);
     if ($validated['template_rules'] === [] && $validated['scope_mode'] === 'template') {
         $validated['template_rules'] = [$fallbackTarget];
     }

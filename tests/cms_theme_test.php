@@ -239,9 +239,10 @@ t('ecommerce sidebar defaults target shop routes first', ($ecommerceSidebarDefau
 $nativeSidebarTargets = array_map(static fn(array $target): string => (string)($target['key'] ?? ''), cmsSidebarTemplateTargets('native'));
 $ecommerceSidebarTargets = array_map(static fn(array $target): string => (string)($target['key'] ?? ''), cmsSidebarTemplateTargets('ecommerce'));
 t('native sidebar targets prioritize CMS route families', array_slice($nativeSidebarTargets, 0, 5) === ['home', 'archive', 'single', 'page', 'search'], json_encode($nativeSidebarTargets));
-t('native sidebar targets keep canonical entity aliases available', in_array('entityview', $nativeSidebarTargets, true) && in_array('entitylist', $nativeSidebarTargets, true), json_encode($nativeSidebarTargets));
+t('native sidebar targets hide legacy canonical aliases from visible choices', !in_array('entityview', $nativeSidebarTargets, true) && !in_array('entitylist', $nativeSidebarTargets, true), json_encode($nativeSidebarTargets));
 t('ecommerce sidebar targets prioritize storefront route families', array_slice($ecommerceSidebarTargets, 0, 3) === ['shop_index', 'shop_category', 'product_detail'], json_encode($ecommerceSidebarTargets));
 t('ecommerce sidebar targets still include CMS page/post route families', in_array('single', $ecommerceSidebarTargets, true) && in_array('page', $ecommerceSidebarTargets, true), json_encode($ecommerceSidebarTargets));
+t('sidebar allowed keys keep legacy canonical aliases for compatibility', in_array('entityview', cmsSidebarAllowedTemplateKeys('native'), true) && in_array('entitylist', cmsSidebarAllowedTemplateKeys('native'), true), json_encode(cmsSidebarAllowedTemplateKeys('native')));
 t('CMS front page resolves to home sidebar target', cmsSidebarPublicTargetKey(['public_render_origin' => 'cms', 'public_route_kind' => 'front-page']) === 'home');
 t('CMS blog listing resolves to home sidebar target', cmsSidebarPublicTargetKey(['public_render_origin' => 'cms', 'public_route_kind' => 'blog-home']) === 'home');
 t('CMS post detail resolves to single sidebar target', cmsSidebarPublicTargetKey(['public_render_origin' => 'cms', 'public_route_kind' => 'post']) === 'single');
@@ -251,6 +252,7 @@ t('storefront shop resolves to shop sidebar target', cmsSidebarPublicTargetKey([
 t('storefront product resolves to product sidebar target', cmsSidebarPublicTargetKey(['public_render_origin' => 'ecommerce', 'public_route_kind' => 'product_detail']) === 'product_detail');
 t('legacy entity-view sidebar rule still matches native single-post routes', cmsSidebarTemplateMatchesScope(['scope_mode' => 'template', 'template_rules' => ['entityview']], 'single', 'native'));
 t('legacy entity-list sidebar rule still matches storefront shop routes', cmsSidebarTemplateMatchesScope(['scope_mode' => 'template', 'template_rules' => ['entitylist']], 'shop_index', 'ecommerce'));
+t('legacy canonical sidebar aliases expand into explicit native route targets', ($expandedLegacySidebar = cmsValidateSidebarSettings(['scope_mode' => 'exclude_templates', 'template_rules' => ['home', 'entityview', 'entitylist']], 'native'))['template_rules'] === ['home', 'single', 'page', 'archive', 'search'], json_encode($expandedLegacySidebar));
 t('ecommerce sidebar validation preserves shop target rules', (cmsValidateSidebarSettings(['scope_mode' => 'template', 'template_rules' => ['shop_index']], 'ecommerce')['template_scope'] ?? '') === 'shop_index');
 
 $routes = require BASE_PATH . '/modules/cms/routes.php';

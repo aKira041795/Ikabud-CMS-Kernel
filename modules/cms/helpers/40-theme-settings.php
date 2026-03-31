@@ -1076,8 +1076,6 @@ function cmsSidebarCoreTemplateTargets(?string $scope = null): array
             ['key' => 'single', 'label' => 'Post / Article'],
             ['key' => 'page', 'label' => 'Page'],
             ['key' => 'search', 'label' => 'Search'],
-            ['key' => 'entityview', 'label' => 'Canonical Entity View'],
-            ['key' => 'entitylist', 'label' => 'Canonical Entity List'],
         ];
     }
 
@@ -1087,8 +1085,6 @@ function cmsSidebarCoreTemplateTargets(?string $scope = null): array
         ['key' => 'single', 'label' => 'Post / Article'],
         ['key' => 'page', 'label' => 'Page'],
         ['key' => 'search', 'label' => 'Search'],
-        ['key' => 'entityview', 'label' => 'Canonical Entity View'],
-        ['key' => 'entitylist', 'label' => 'Canonical Entity List'],
     ];
 }
 
@@ -1179,13 +1175,53 @@ function cmsSidebarTemplateTargets(?string $scope = null): array
 function cmsSidebarAllowedTemplateKeys(?string $scope = null): array
 {
     $keys = array_map(static fn(array $target): string => (string)($target['key'] ?? ''), cmsSidebarTemplateTargets($scope));
-    foreach (['shop', 'product', 'archive-product', 'single-product', 'my-orders', 'order-detail', 'order-confirmation'] as $legacyKey) {
+    foreach (['entityview', 'entitylist', 'shop', 'product', 'archive-product', 'single-product', 'my-orders', 'order-detail', 'order-confirmation'] as $legacyKey) {
         if (!in_array($legacyKey, $keys, true)) {
             $keys[] = $legacyKey;
         }
     }
 
     return array_values(array_filter(array_unique($keys), static fn(string $key): bool => $key !== ''));
+}
+
+function cmsSidebarExpandedTemplateRuleKeys(string $templateKey, ?string $scope = null): array
+{
+    $scope = function_exists('cmsNormalizeCustomizerScope')
+        ? cmsNormalizeCustomizerScope($scope, function_exists('cmsActiveCustomizerScope') ? cmsActiveCustomizerScope() : 'native')
+        : (($scope === 'ecommerce') ? 'ecommerce' : 'native');
+
+    return match ($templateKey) {
+        'entityview' => $scope === 'ecommerce'
+            ? ['single', 'page', 'product_detail']
+            : ['single', 'page'],
+        'entitylist' => $scope === 'ecommerce'
+            ? ['home', 'archive', 'search', 'shop_index', 'shop_category']
+            : ['home', 'archive', 'search'],
+        'shop' => ['shop_index'],
+        'archive-product' => ['shop_index', 'shop_category'],
+        'product', 'single-product' => ['product_detail'],
+        'my-orders' => ['my_orders'],
+        'order-detail' => ['order_detail'],
+        'order-confirmation' => ['order_confirmation'],
+        default => [$templateKey],
+    };
+}
+
+function cmsSidebarNormalizeStoredTemplateRules(array $rules, ?string $scope = null): array
+{
+    $visibleKeys = array_map(static fn(array $target): string => (string)($target['key'] ?? ''), cmsSidebarTemplateTargets($scope));
+    $normalized = [];
+
+    foreach ($rules as $rule) {
+        foreach (cmsSidebarExpandedTemplateRuleKeys((string)$rule, $scope) as $expandedKey) {
+            if ($expandedKey === '' || !in_array($expandedKey, $visibleKeys, true) || in_array($expandedKey, $normalized, true)) {
+                continue;
+            }
+            $normalized[] = $expandedKey;
+        }
+    }
+
+    return $normalized;
 }
 
 function cmsSidebarPublicTargetKey(array $context = [], string $resolvedTemplatePath = ''): string
