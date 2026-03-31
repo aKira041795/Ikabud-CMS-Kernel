@@ -6,6 +6,8 @@ This document defines the first implementation-ready context profile model for t
 
 It sits beside `docs/render-schema-spec-v1.md`.
 
+Resolution flow companion spec: `docs/render-resolution-flow-spec-v1.md`
+
 Render schemas define stable data shapes.
 Context profiles define which schema family, enrichers, and route policies apply to a request before DiSyL renders.
 
@@ -87,6 +89,7 @@ Rules:
 - `render_profile_id` is a single string or an empty string when no profile is resolved.
 - `render_schema_stack` is ordered from broadest layer to most specific layer.
 - profile-owned shell schemas appear before route-specific schemas.
+- when multiple schemas in the resolved stack describe the same root key, the later schema takes precedence.
 - the runtime may set these fields even when no mismatch occurs.
 
 ---
@@ -97,9 +100,10 @@ Context Profiles v1 uses deterministic resolution from the template boundary plu
 
 ### Resolution order
 
-1. Check whether the render path belongs to a known canonical CMS template family.
-2. Check matched kernel render-contract registrations for profile hints.
-3. Fall back to no profile when the route family is outside the v1 scope.
+1. Resolve a logical contract template key from canonical helper mappings or the requested template key.
+2. Check whether that logical template belongs to a known canonical CMS template family.
+3. Otherwise inspect matched kernel render-contract registrations for one unique valid `profile_hint`.
+4. Fall back to no profile when the route family is outside the v1 scope.
 
 ### Foundation constraints
 
@@ -108,6 +112,77 @@ For the first implementation pass:
 - canonical CMS entity view and entity list renders resolve through explicit CMS helpers
 - ecommerce public renders resolve through profile hints attached to existing kernel contracts
 - non-public module/admin screens do not need profile resolution yet unless they already have a clear shared shell contract
+- `profile_hint` is advisory bridge metadata for v1 and must not override stronger canonical helper mappings or an explicit route-family resolver
+- physical theme override paths must not change profile or schema resolution once a stable logical contract template key is known
+
+## Code-Level Resolution Flow
+
+The v1 runtime should stay simple and deterministic.
+
+### Flow summary
+
+1. Resolve a logical contract template key.
+2. Resolve one profile id or none.
+3. Resolve one ordered schema stack.
+4. Apply precedence from left to right, with the later schema winning for overlapping roots.
+
+### Reference pseudocode
+
+```php
+function resolveLogicalContractTemplate(string $template, array $context): string
+{
+  $logicalTemplate = trim((string)($context['logical_contract_template'] ?? ''));
+  return $logicalTemplate !== '' ? $logicalTemplate : $template;
+}
+
+function resolveRenderProfileId(string $template, array $context): string
+{
+  $logicalTemplate = resolveLogicalContractTemplate($template, $context);
+
+  if (isCmsCanonicalTemplateFamily($logicalTemplate)) {
+    return 'cms_public';
+  }
+
+  $contracts = kernelMatchedRenderContextContracts($logicalTemplate);
+  $validHints = [];
+
+  foreach ($contracts as $contract) {
+    $hint = trim((string)($contract['profile_hint'] ?? ''));
+    if ($hint !== '' && profileRegistryHas($hint)) {
+      $validHints[$hint] = true;
+    }
+  }
+
+  if (count($validHints) === 1) {
+    return array_key_first($validHints) ?: '';
+  }
+
+  return '';
+}
+
+function resolveRenderSchemaStack(string $template, array $context, string $profileId): array
+{
+  $logicalTemplate = resolveLogicalContractTemplate($template, $context);
+  $contracts = kernelMatchedRenderContextContracts($logicalTemplate);
+  $stack = profileShellSchemas($profileId);
+
+  foreach ($contracts as $contract) {
+    $schemaId = trim((string)($contract['schema_id'] ?? ''));
+    if ($schemaId !== '' && !in_array($schemaId, $stack, true)) {
+      $stack[] = $schemaId;
+    }
+  }
+
+  return $stack;
+}
+```
+
+### Operational notes
+
+- canonical CMS mappings are stronger than contract hints
+- `profile_hint` remains acceptable for v1 families such as `commerce_public` where contract registrations already map one-to-one to the profile
+- if the runtime cannot derive one trusted profile, it should emit no profile id rather than guessing
+- theme-aware rendering may change the physical file path, but not the logical template used for contract and profile resolution
 
 ---
 
@@ -236,6 +311,14 @@ For example, `commerce_public` does not collapse catalog and product pages into 
 
 If the runtime cannot resolve a trusted profile, it should emit no profile id rather than guessing.
 
+### Rule 5
+
+Physical theme override paths must not change the resolved profile or schema stack once a stable logical contract template key exists.
+
+### Rule 6
+
+Profile resolution does not weaken schema enforcement. If a required root is missing from all trusted producers, Render Schema v1 should log the mismatch even when normalization supplies a fallback.
+
 ---
 
 ## Suggested Runtime Shape
@@ -265,6 +348,8 @@ combined with helper-level CMS canonical mappings for:
 
 - `entity.view` -> `cms_public` + `cms.public.entity.view@1`
 - `entity.list` -> `cms_public` + `cms.public.entity.list@1`
+
+The concrete v1 flow is specified in `docs/render-resolution-flow-spec-v1.md`.
 
 ---
 
@@ -298,6 +383,7 @@ Context Profiles v1 should add or update coverage for:
 3. `cms_public` profile metadata on canonical entity view/list normalization
 4. mismatch log payloads including profile/schema metadata
 5. preservation of current contract ids and current render normalization behavior
+6. resolution using the logical contract template instead of a physical theme override path
 
 Likely starting tests:
 
@@ -320,6 +406,7 @@ Docs:
 
 - `docs/render-schema-context-profiles-plan.md`
 - `docs/render-schema-spec-v1.md`
+- `docs/render-resolution-flow-spec-v1.md`
 
 ---
 

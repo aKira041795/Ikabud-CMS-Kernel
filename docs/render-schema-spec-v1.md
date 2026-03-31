@@ -10,6 +10,7 @@ This spec does not replace the current render-contract system. It layers named s
 
 Related roadmap: `docs/render-schema-context-profiles-plan.md`
 Profile companion spec: `docs/context-profiles-spec-v1.md`
+Resolution companion spec: `docs/render-resolution-flow-spec-v1.md`
 
 ---
 
@@ -119,6 +120,7 @@ Notes:
 - `schema_id` is the canonical documented schema name for that contract layer.
 - `schema_version` is redundant with `@1`, but useful for filters and later tooling.
 - `profile_hint` is optional and only valid when the contract belongs to one profile family.
+- `profile_hint` is advisory bridge metadata for v1. It may support profile resolution for narrow contract families, but it must not override stronger canonical helper mappings or an explicit route-family resolver.
 
 ### Resolved render metadata
 
@@ -139,7 +141,29 @@ Rules:
 
 - `render_schema_stack` is ordered from broadest layer to most specific layer.
 - the stack is resolved from matched contracts plus any profile-owned shell schema.
+- when multiple schemas define the same root key, the later schema in the resolved stack takes precedence.
+- example precedence for a commerce detail render is `kernel.shell@1 < ecommerce.public.shell@1 < ecommerce.public.product@1`.
 - CMS canonical templates that still use `cmsCanonicalRenderContextNormalize()` should emit the same metadata even before they are migrated into the kernel registry.
+
+### Optional root ownership note
+
+Schema documentation may optionally declare ownership for top-level business roots:
+
+```php
+[
+    'ownership' => [
+        'entity' => 'cms',
+        'cart' => 'ecommerce',
+        'order' => 'ecommerce',
+    ],
+]
+```
+
+Rules:
+
+- use ownership only for top-level business roots that should have one stable producer
+- do not use ownership for shared shell or composition roots such as `page_title`, `storefront`, `theme_style_url`, or render metadata fields
+- non-owning modules should not overwrite owned roots; Render Schema v1 should log violations rather than fail requests
 
 ---
 
@@ -543,6 +567,14 @@ Schema ids must be visible in logs without enabling strict mode.
 
 If a root is used by templates but not declared in the schema spec, that is a schema bug and should be fixed in the schema or producer code, not hidden in template conditionals.
 
+### Rule 6
+
+When multiple schemas describe the same root key, the last schema in the resolved schema stack wins.
+
+### Rule 7
+
+A required root missing from all trusted producers is a producer bug. In Render Schema v1 it must be logged even if normalization supplies a fallback. A later strict mode may fail these renders.
+
 ---
 
 ## Logging Requirements
@@ -611,6 +643,7 @@ Render Schema v1 should add or update coverage for:
 3. stable schema-stack ordering for commerce public routes
 4. log payload coverage for render profile and schema stack
 5. preservation of current contract ids and current normalization behavior
+6. precedence of more specific schema layers when shell and route-specific layers overlap on the same root key
 
 Likely starting tests:
 
@@ -633,6 +666,7 @@ Docs:
 
 - `docs/render-schema-context-profiles-plan.md`
 - `docs/entity-view-block-schema.md`
+- `docs/render-resolution-flow-spec-v1.md`
 - `docs/disyl-implementation-spec.md`
 - `docs/module-development-guide.md`
 
