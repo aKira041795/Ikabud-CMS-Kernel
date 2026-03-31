@@ -27,6 +27,11 @@ return [
         'expiration' => (int) ($_ENV['JWT_EXPIRATION'] ?? 14400),
     ],
 
+    'auth' => [
+        'login_rate_limit_max' => (int)($_ENV['AUTH_LOGIN_RATE_LIMIT_MAX'] ?? 10),
+        'login_rate_limit_window' => (int)($_ENV['AUTH_LOGIN_RATE_LIMIT_WINDOW'] ?? 300),
+    ],
+
     'capabilities' => [
         'timeout_ms' => (int) ($_ENV['CAP_TIMEOUT_MS'] ?? 2000),
         'retries' => (int) ($_ENV['CAP_RETRIES'] ?? 0),

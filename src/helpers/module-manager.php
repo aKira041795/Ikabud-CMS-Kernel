@@ -2527,6 +2527,17 @@ function executeModuleHandler(string $handler, array $params = []): void
     $isModuleLogin = (bool)preg_match('#^/[a-zA-Z0-9\-]+/auth/login$#', $requestUri);
     $isApiRoute = str_starts_with($requestUri, '/api/') || (bool)preg_match('#^/[a-zA-Z0-9\-]+/api/#', $requestUri);
     $isCacheSafePublicCartAdd = $requestUri === '/ecommerce/cart/add';
+
+    if ($requestMethod === 'POST' && $isModuleLogin) {
+        $loginRateLimit = kernelConsumeLoginRateLimit($moduleId);
+        if (!empty($loginRateLimit['limited'])) {
+            kernelEmitLoginRateLimitJson($loginRateLimit);
+            modulePopContext();
+            unset($GLOBALS['_capability_call_context']);
+            return;
+        }
+    }
+
     if (in_array($requestMethod, ['POST', 'PUT', 'DELETE'], true) && !$isApiRoute && !$isModuleLogin && !$isCacheSafePublicCartAdd) {
         app()->csrfEnforce();
     }

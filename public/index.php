@@ -1495,36 +1495,10 @@ switch ($handler) {
     case 'authLogin':
         header('Content-Type: application/json');
 
-        // Rate limit: 10 attempts per 5 minutes per (tenant, IP)
-        $loginIp = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
-        $loginTid = app()->tenant()->current();
-        $loginRateId = ($loginTid !== null ? 't' . $loginTid . ':' : '') . 'ip:' . $loginIp;
-        try {
-            $rlStmt = app()->db()->prepare(
-                'SELECT attempts, window_start FROM rate_limits WHERE identifier = :id AND action = :action LIMIT 1'
-            );
-            $rlStmt->execute([':id' => $loginRateId, ':action' => 'login']);
-            $rlRow = $rlStmt->fetch(PDO::FETCH_ASSOC);
-            $rlCutoff = date('Y-m-d H:i:s', time() - 300);
-
-            if (is_array($rlRow) && $rlRow['window_start'] >= $rlCutoff && (int) $rlRow['attempts'] >= 10) {
-                $rlRetry = 300 - (time() - strtotime($rlRow['window_start']));
-                header('Retry-After: ' . max(1, $rlRetry));
-                http_response_code(429);
-                echo json_encode(['ok' => false, 'error' => 'Too many login attempts. Try again later.', 'retry_after' => max(1, $rlRetry)]);
-                exit;
-            }
-
-            // Increment or insert
-            app()->db()->prepare(
-                'INSERT INTO rate_limits (identifier, action, attempts, window_start)
-                 VALUES (:id, :action, 1, CURRENT_TIMESTAMP)
-                 ON DUPLICATE KEY UPDATE
-                     attempts = IF(window_start >= :cutoff, attempts + 1, 1),
-                     window_start = IF(window_start >= :cutoff2, window_start, CURRENT_TIMESTAMP)'
-            )->execute([':id' => $loginRateId, ':action' => 'login', ':cutoff' => $rlCutoff, ':cutoff2' => $rlCutoff]);
-        } catch (Throwable $e) {
-            // Non-fatal: allow login if rate_limits table doesn't exist yet
+        $loginRateLimit = kernelConsumeLoginRateLimit();
+        if (!empty($loginRateLimit['limited'])) {
+            kernelEmitLoginRateLimitJson($loginRateLimit);
+            exit;
         }
 
         $input = app()->input();

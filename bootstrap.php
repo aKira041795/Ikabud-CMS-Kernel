@@ -180,6 +180,147 @@ function write_log(string $message, string $level = 'error', array $context = []
     @file_put_contents($logDir . '/app.log', $line, FILE_APPEND | LOCK_EX);
 }
 
+function kernelLoginRateLimitMaxAttempts(): int
+{
+    $configured = null;
+    if (function_exists('config')) {
+        $configured = config('auth.login_rate_limit_max', null);
+    }
+
+    $raw = $_ENV['AUTH_LOGIN_RATE_LIMIT_MAX'] ?? $configured ?? 10;
+    return max(1, (int)$raw);
+}
+
+function kernelLoginRateLimitWindowSeconds(): int
+{
+    $configured = null;
+    if (function_exists('config')) {
+        $configured = config('auth.login_rate_limit_window', null);
+    }
+
+    $raw = $_ENV['AUTH_LOGIN_RATE_LIMIT_WINDOW'] ?? $configured ?? 300;
+    return max(1, (int)$raw);
+}
+
+function kernelLoginRateLimitIdentifier(?string $moduleId = null, ?string $ip = null): string
+{
+    $identifierParts = [];
+
+    try {
+        $tenantId = function_exists('app') ? app()->tenant()->current() : null;
+    } catch (Throwable $ignored) {
+        $tenantId = null;
+    }
+
+    if ($tenantId !== null) {
+        $identifierParts[] = 't' . $tenantId;
+    }
+
+    $moduleId = trim((string)$moduleId);
+    if ($moduleId !== '') {
+        $identifierParts[] = 'module:' . $moduleId;
+    }
+
+    $resolvedIp = trim((string)($ip ?? ($_SERVER['REMOTE_ADDR'] ?? 'unknown')));
+    $identifierParts[] = 'ip:' . ($resolvedIp !== '' ? $resolvedIp : 'unknown');
+
+    return implode(':', $identifierParts);
+}
+
+/**
+ * @return array<string, mixed>
+ */
+function kernelConsumeLoginRateLimit(?string $moduleId = null, ?int $maxAttempts = null, ?int $windowSeconds = null): array
+{
+    $maxAttempts = max(1, (int)($maxAttempts ?? kernelLoginRateLimitMaxAttempts()));
+    $windowSeconds = max(1, (int)($windowSeconds ?? kernelLoginRateLimitWindowSeconds()));
+    $identifier = kernelLoginRateLimitIdentifier($moduleId);
+    $action = 'login';
+
+    try {
+        $statement = app()->db()->prepare(
+            'SELECT attempts, window_start FROM rate_limits WHERE identifier = :id AND action = :action LIMIT 1'
+        );
+        $statement->execute([':id' => $identifier, ':action' => $action]);
+        $row = $statement->fetch(PDO::FETCH_ASSOC);
+        $cutoff = date('Y-m-d H:i:s', time() - $windowSeconds);
+
+        if (is_array($row) && ($row['window_start'] ?? '') >= $cutoff && (int)($row['attempts'] ?? 0) >= $maxAttempts) {
+            $retryAfter = max(1, $windowSeconds - (time() - strtotime((string)$row['window_start'])));
+            write_log('auth.login_rate_limited', 'warning', [
+                'identifier' => $identifier,
+                'module_id' => trim((string)$moduleId),
+                'action' => $action,
+                'max_attempts' => $maxAttempts,
+                'window_seconds' => $windowSeconds,
+                'retry_after' => $retryAfter,
+            ]);
+
+            return [
+                'limited' => true,
+                'retry_after' => $retryAfter,
+                'identifier' => $identifier,
+                'module_id' => trim((string)$moduleId),
+                'action' => $action,
+                'max_attempts' => $maxAttempts,
+                'window_seconds' => $windowSeconds,
+                'enforced' => true,
+            ];
+        }
+
+        app()->db()->prepare(
+            'INSERT INTO rate_limits (identifier, action, attempts, window_start)
+             VALUES (:id, :action, 1, CURRENT_TIMESTAMP)
+             ON DUPLICATE KEY UPDATE
+                 attempts = IF(window_start >= :cutoff, attempts + 1, 1),
+                 window_start = IF(window_start >= :cutoff2, window_start, CURRENT_TIMESTAMP)'
+        )->execute([
+            ':id' => $identifier,
+            ':action' => $action,
+            ':cutoff' => $cutoff,
+            ':cutoff2' => $cutoff,
+        ]);
+    } catch (Throwable $ignored) {
+        return [
+            'limited' => false,
+            'retry_after' => 0,
+            'identifier' => $identifier,
+            'module_id' => trim((string)$moduleId),
+            'action' => $action,
+            'max_attempts' => $maxAttempts,
+            'window_seconds' => $windowSeconds,
+            'enforced' => false,
+        ];
+    }
+
+    return [
+        'limited' => false,
+        'retry_after' => 0,
+        'identifier' => $identifier,
+        'module_id' => trim((string)$moduleId),
+        'action' => $action,
+        'max_attempts' => $maxAttempts,
+        'window_seconds' => $windowSeconds,
+        'enforced' => true,
+    ];
+}
+
+function kernelEmitLoginRateLimitJson(array $rateLimit, string $message = 'Too many login attempts. Try again later.'): void
+{
+    $retryAfter = max(1, (int)($rateLimit['retry_after'] ?? 1));
+    if (!headers_sent()) {
+        header('Content-Type: application/json');
+        header('Retry-After: ' . $retryAfter);
+        http_response_code(429);
+    }
+
+    echo json_encode([
+        'ok' => false,
+        'error' => $message,
+        'retry_after' => $retryAfter,
+    ]);
+}
+
 function release_session_lock_if_active(): bool
 {
     if (session_status() !== PHP_SESSION_ACTIVE) {

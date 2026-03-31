@@ -215,12 +215,31 @@ return [
     'GET' => [
         '/my-module/page'          => 'my-module:handleMyPage',
         '/my-module/settings'      => 'my-module:handleSettings',
+        '/my-module/login'         => 'my-module:pageLogin',
     ],
     'POST' => [
+        '/my-module/auth/login'    => 'my-module:authLogin',
         '/api/v1/my-module/save'   => 'my-module:apiSave',
     ],
 ];
 ```
+
+### Module-Owned Login Routes
+
+If a module uses the conventional login route pair:
+
+- `GET /<module-id>/login`
+- `POST /<module-id>/auth/login`
+
+the kernel automatically applies the shared login brute-force limiter before the handler runs.
+
+Current default policy:
+
+- 10 attempts
+- 5 minutes
+- scoped by tenant and client IP
+
+If a module chooses a non-conventional login endpoint, the handler should call `kernelConsumeLoginRateLimit()` and return `kernelEmitLoginRateLimitJson()` on block so the module keeps the same protection.
 
 ### Route Conventions
 
