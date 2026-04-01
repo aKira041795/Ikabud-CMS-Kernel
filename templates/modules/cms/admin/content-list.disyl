@@ -1,6 +1,7 @@
 {extends "modules/cms/layouts/admin.disyl"}
 
 {block content}
+<div x-data="cmsBulkActions()">
 <div class="flex items-start justify-between mb-6">
     <div>
         <h1 class="text-xl font-bold text-gray-900">
@@ -93,7 +94,7 @@
     </div>
 </div>
 {else}
-<div x-data="cmsBulkActions()" class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+<div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
     <!-- Bulk action bar -->
     <div x-show="selected.length > 0" x-transition class="flex items-center gap-3 px-5 py-2.5 bg-sky-50 border-b border-sky-100">
         <span class="text-xs font-semibold text-sky-700" x-text="selected.length + ' selected'"></span>
@@ -251,6 +252,7 @@
 </div>
 </div>
 {/if}
+</div>
 {/block}
 
 {block scripts}
