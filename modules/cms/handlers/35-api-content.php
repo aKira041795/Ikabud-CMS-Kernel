@@ -72,8 +72,9 @@ function cmsApiContentList(array $params = []): void
         }
     }
     if ($q !== null && $q !== '') {
-        $where[] = '(c.title LIKE :q OR c.excerpt LIKE :q)';
-        $bind[':q'] = '%' . $q . '%';
+        $where[] = '(c.title LIKE :q1 OR c.excerpt LIKE :q2)';
+        $bind[':q1'] = '%' . $q . '%';
+        $bind[':q2'] = '%' . $q . '%';
     }
 
     $db = cmsDb();

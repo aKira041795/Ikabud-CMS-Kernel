@@ -152,8 +152,10 @@ function cmsAdminContentList(array $params = []): void
         $bind[':status'] = $status;
     }
     if ($q !== '') {
-        $where[] = '(c.title LIKE :q OR c.excerpt LIKE :q OR c.body LIKE :q)';
-        $bind[':q'] = '%' . $q . '%';
+        $where[] = '(c.title LIKE :q1 OR c.excerpt LIKE :q2 OR c.body LIKE :q3)';
+        $bind[':q1'] = '%' . $q . '%';
+        $bind[':q2'] = '%' . $q . '%';
+        $bind[':q3'] = '%' . $q . '%';
     }
     if ($authorId !== null && $authorId > 0) {
         $where[] = 'c.author_id = :filter_author';
@@ -720,8 +722,10 @@ function cmsAdminUsers(array $params = []): void
     $where = ['1=1'];
     $bind  = [];
     if ($q !== '') {
-        $where[] = '(username LIKE :q OR display_name LIKE :q OR email LIKE :q)';
-        $bind[':q'] = '%' . $q . '%';
+        $where[] = '(username LIKE :q1 OR display_name LIKE :q2 OR email LIKE :q3)';
+        $bind[':q1'] = '%' . $q . '%';
+        $bind[':q2'] = '%' . $q . '%';
+        $bind[':q3'] = '%' . $q . '%';
     }
 
     $whereStr = implode(' AND ', $where);
