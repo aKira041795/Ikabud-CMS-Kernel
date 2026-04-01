@@ -69,7 +69,7 @@
             <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
                 <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
             </div>
-            <input type="search" name="q" id="searchInput" placeholder="Search by title…" value="{search}" oninput="filterRows(this.value)" class="w-full pl-9 pr-4 py-2 text-sm bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 focus:bg-white transition-colors">
+            <input type="search" name="q" id="searchInput" placeholder="Search all content…" value="{search}" oninput="liveSearch(this.value)" class="w-full pl-9 pr-4 py-2 text-sm bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 focus:bg-white transition-colors">
         </div>
         <button type="submit" class="px-4 py-2 bg-gray-100 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-200 transition-colors">Search</button>
     </form>
@@ -259,11 +259,12 @@
 
 {block scripts}
 <script>
-function filterRows(q) {
-    const term = q.trim().toLowerCase();
-    document.querySelectorAll('table tbody tr[data-title]').forEach(row => {
-        row.style.display = term === '' || row.dataset.title.includes(term) ? '' : 'none';
-    });
+let _liveSearchTimer = null;
+function liveSearch(q) {
+    clearTimeout(_liveSearchTimer);
+    _liveSearchTimer = setTimeout(() => {
+        document.getElementById('contentListForm').submit();
+    }, 350);
 }
 
 function cmsBulkActions() {
