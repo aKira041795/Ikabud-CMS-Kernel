@@ -109,6 +109,28 @@ export const BASIC_PRESETS: LayoutPreset[] = [
     mobileCollapse: true,
   },
   {
+    id: 'two-column-25-75',
+    name: '25/75',
+    description: 'Narrow left, wide right (1/4 columns)',
+    layoutMode: 'flex',
+    icon: 'two-left',
+    category: 'basic',
+    settings: { direction: 'row', gap: PRESET_DEFAULTS.gap, wrap: 'wrap' } as FlexSettings,
+    placeholders: 2,
+    mobileCollapse: true,
+  },
+  {
+    id: 'two-column-75-25',
+    name: '75/25',
+    description: 'Wide left, narrow right (3/4 columns)',
+    layoutMode: 'flex',
+    icon: 'two-right',
+    category: 'basic',
+    settings: { direction: 'row', gap: PRESET_DEFAULTS.gap, wrap: 'wrap' } as FlexSettings,
+    placeholders: 2,
+    mobileCollapse: true,
+  },
+  {
     id: 'two-column-left',
     name: '33/67',
     description: 'Narrow left, wide right (sidebar layout)',
@@ -323,6 +345,10 @@ function getFlexBasisForPreset(presetId: string, count: number): string[] | unde
   switch (presetId) {
     case 'two-column-equal':
       return [buildRatioFlexValue(50), buildRatioFlexValue(50)];
+    case 'two-column-25-75':
+      return [buildRatioFlexValue(25), buildRatioFlexValue(75)];
+    case 'two-column-75-25':
+      return [buildRatioFlexValue(75), buildRatioFlexValue(25)];
     case 'two-column-left':
       return [buildRatioFlexValue(33.333), buildRatioFlexValue(66.667)];
     case 'two-column-right':

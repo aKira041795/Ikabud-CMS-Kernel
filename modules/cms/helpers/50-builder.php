@@ -477,7 +477,7 @@ function cmsBuilderDefaultStyle(string $type): array
         // wrapper behavior on the public frontend.
         'container'  => ['boxSizing' => 'border-box'],
         'row'        => ['display' => 'flex', 'flexDirection' => 'row', 'flexWrap' => 'wrap', 'gap' => '24px', 'justifyContent' => 'center', 'alignItems' => 'stretch'],
-        'column'     => ['display' => 'flex', 'flexDirection' => 'column', 'gap' => '16px', 'alignItems' => 'stretch', 'boxSizing' => 'border-box'],
+        'column'     => ['display' => 'flex', 'flexDirection' => 'column', 'gap' => '16px', 'alignItems' => 'stretch', 'boxSizing' => 'border-box', 'minWidth' => '0'],
         'heading'    => ['fontSize' => '32px', 'fontWeight' => '700', 'lineHeight' => '1.2', 'color' => '#111827', 'textAlign' => 'center', 'width' => '100%'],
         'text'       => ['fontSize' => '16px', 'textAlign' => 'left', 'lineHeight' => '1.6', 'color' => '#4B5563'],
         // Button: backgroundColor and color omitted from defaults — theme CSS classes

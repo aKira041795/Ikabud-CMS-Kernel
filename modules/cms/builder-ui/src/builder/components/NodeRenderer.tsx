@@ -715,7 +715,7 @@ const ColumnRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties; children
         alignItems: 'stretch',
         ...(hasExplicitSize ? {} : { flex: 1 }),
         minHeight: '50px',
-        minWidth: '50px',
+        minWidth: style.minWidth || '0', // Prevents flex blowout from content (min-width: auto bug)
         boxSizing: 'border-box',
         // Editor visual aid - dashed border to show column boundaries
         outline: '1px dashed rgba(255, 255, 255, 0.2)',
