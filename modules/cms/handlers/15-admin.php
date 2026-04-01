@@ -102,7 +102,7 @@ function cmsAdminContentList(array $params = []): void
     $perPage = isset($input['per_page']) ? max(5, min(100, (int)$input['per_page'])) : $defaultPerPage;
 
     $cacheKey = 'cms.content_list:' . md5(json_encode([
-        'type' => $type,
+        'type' => ($q !== '' ? '' : $type),
         'status' => $status,
         'q' => $q,
         'page' => $page,
@@ -152,7 +152,7 @@ function cmsAdminContentList(array $params = []): void
         $bind[':status'] = $status;
     }
     if ($q !== '') {
-        $where[] = '(c.title LIKE :q OR c.excerpt LIKE :q)';
+        $where[] = '(c.title LIKE :q OR c.excerpt LIKE :q OR c.body LIKE :q)';
         $bind[':q'] = '%' . $q . '%';
     }
     if ($authorId !== null && $authorId > 0) {
