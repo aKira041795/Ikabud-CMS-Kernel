@@ -11,6 +11,7 @@
  */
 
 import { DiSyLNode, createNode, LAYOUT_CONSTRAINTS, DEFAULT_MOBILE_COLLAPSE, TEMPLATE_DEFAULTS } from './types';
+import { buildRatioFlexValue } from './layoutSizing';
 
 // =============================================================================
 // Preset Defaults (Configurable - no hardcoded values in presets)
@@ -19,28 +20,28 @@ import { DiSyLNode, createNode, LAYOUT_CONSTRAINTS, DEFAULT_MOBILE_COLLAPSE, TEM
 export const PRESET_DEFAULTS = {
   /** Default gap between items - references LAYOUT_CONSTRAINTS */
   gap: LAYOUT_CONSTRAINTS.DEFAULT_GAP,
-  
+
   /** Smaller gap for tighter layouts */
   gapSmall: '16px',
-  
+
   /** Larger gap for spacious layouts */
   gapLarge: '32px',
-  
+
   /** Container padding */
   containerPadding: TEMPLATE_DEFAULTS.container.padding,
-  
+
   /** Minimum height for containers */
   containerMinHeight: TEMPLATE_DEFAULTS.container.minHeight,
-  
+
   /** Placeholder child min height */
   placeholderMinHeight: '80px',
-  
+
   /** Placeholder child padding */
   placeholderPadding: '16px',
-  
+
   /** Placeholder background - transparent for WYSIWYG (no visual artifacts) */
   placeholderBg: 'transparent',
-  
+
   /** Placeholder border - none for WYSIWYG (no visual artifacts) */
   placeholderBorder: 'none',
 } as const;
@@ -273,13 +274,13 @@ export function createContainerWithPreset(preset: LayoutPreset, customSettings?:
   // Create placeholder children
   const children: DiSyLNode[] = [];
   const placeholderCount = Math.min(preset.placeholders, LAYOUT_CONSTRAINTS.MAX_COLUMNS);
-  
+
   if (placeholderCount > 1) {
     // Calculate flex basis for flex layouts
-    const flexBasis = preset.layoutMode === 'flex' 
+    const flexBasis = preset.layoutMode === 'flex'
       ? getFlexBasisForPreset(preset.id, placeholderCount)
       : undefined;
-    
+
     for (let i = 0; i < placeholderCount; i++) {
       const childStyle: Record<string, unknown> = {
         minHeight: PRESET_DEFAULTS.placeholderMinHeight,
@@ -290,23 +291,23 @@ export function createContainerWithPreset(preset: LayoutPreset, customSettings?:
         alignItems: 'center',
         justifyContent: 'center',
       };
-      
+
       // Apply flex basis for proper column widths
       if (flexBasis) {
         childStyle.flex = flexBasis[i] || '1 1 0';
       }
-      
+
       // Mobile: full width
       childStyle.mobile = { flex: '1 1 100%' };
-      
+
       children.push(createNode('container', {}, childStyle));
     }
   }
 
   return createNode(
     'container',
-    { 
-      layoutMode: preset.layoutMode, 
+    {
+      layoutMode: preset.layoutMode,
       presetId: preset.id,
       category: preset.category,
     },
@@ -321,13 +322,13 @@ export function createContainerWithPreset(preset: LayoutPreset, customSettings?:
 function getFlexBasisForPreset(presetId: string, count: number): string[] | undefined {
   switch (presetId) {
     case 'two-column-equal':
-      return ['1 1 calc(50% - 12px)', '1 1 calc(50% - 12px)'];
+      return [buildRatioFlexValue(50), buildRatioFlexValue(50)];
     case 'two-column-left':
-      return ['1 1 calc(33.333% - 16px)', '2 1 calc(66.666% - 8px)'];
+      return [buildRatioFlexValue(33.333), buildRatioFlexValue(66.667)];
     case 'two-column-right':
-      return ['2 1 calc(66.666% - 8px)', '1 1 calc(33.333% - 16px)'];
+      return [buildRatioFlexValue(66.667), buildRatioFlexValue(33.333)];
     case 'three-column':
-      return Array(count).fill('1 1 calc(33.333% - 16px)');
+      return Array.from({ length: count }, (_, index) => buildRatioFlexValue(index === 1 ? 33.334 : 33.333));
     default:
       return undefined;
   }
@@ -370,27 +371,27 @@ export function createCustomContainer(settings: {
   padding?: string;
   minHeight?: string;
 }): DiSyLNode {
-  const { 
-    layoutMode, 
-    columns = 2, 
-    direction = 'row', 
-    gap = PRESET_DEFAULTS.gap, 
-    alignItems, 
+  const {
+    layoutMode,
+    columns = 2,
+    direction = 'row',
+    gap = PRESET_DEFAULTS.gap,
+    alignItems,
     justifyContent,
     padding = PRESET_DEFAULTS.containerPadding,
     minHeight = PRESET_DEFAULTS.containerMinHeight,
   } = settings;
-  
+
   // Enforce constraints
   const safeColumns = Math.min(columns, LAYOUT_CONSTRAINTS.MAX_COLUMNS);
-  
+
   const style: Record<string, unknown> = {
     width: '100%',
     padding,
     minHeight,
     gap,
   };
-  
+
   if (layoutMode === 'flex') {
     style.display = 'flex';
     style.flexDirection = direction;
@@ -401,12 +402,12 @@ export function createCustomContainer(settings: {
     style.display = 'grid';
     style.gridTemplateColumns = `repeat(${safeColumns}, 1fr)`;
   }
-  
+
   // Auto mobile collapse for horizontal layouts
   if (direction === 'row' || layoutMode === 'grid') {
     style.mobile = { ...DEFAULT_MOBILE_COLLAPSE };
   }
-  
+
   return createNode(
     'container',
     { layoutMode, category: 'custom', isCustom: true },

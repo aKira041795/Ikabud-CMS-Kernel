@@ -61,6 +61,7 @@ import {
 import { Editor } from '@tinymce/tinymce-react';
 import { DiSyLNode, NodeProps, NodeStyle } from '../core/types';
 import { getComponentDefinition } from '../core/components';
+import { buildFlexPartStyle, buildFlexWidthStyle, deriveFlexPart, deriveLayoutWidth, hasExplicitFlexSizing } from '../core/layoutSizing';
 import MediaLibrary from './MediaLibrary';
 
 // =============================================================================
@@ -611,31 +612,52 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
     included: feature.included !== false,
   })), [createRepeaterId]);
 
+  const getEffectiveStyle = useCallback((): Partial<NodeStyle> => {
+    if (!node) return {};
+
+    const { tablet, mobile, ...desktopStyle } = node.style;
+    const resolvedStyle: Partial<NodeStyle> = { ...desktopStyle };
+
+    if (styleViewport === 'tablet' || styleViewport === 'mobile') {
+      Object.assign(resolvedStyle, tablet || {});
+    }
+
+    if (styleViewport === 'mobile') {
+      Object.assign(resolvedStyle, mobile || {});
+    }
+
+    return resolvedStyle;
+  }, [node, styleViewport]);
+
+  const usesFlexSizing = useCallback((effectiveStyle: Partial<NodeStyle>): boolean => {
+    if (!node) return false;
+    return node.type === 'column' || (node.type === 'container' && hasExplicitFlexSizing(effectiveStyle));
+  }, [node]);
+
   // Get the effective style value for current viewport.
   // For tablet/mobile, returns the viewport-specific override if set,
   // otherwise falls through to the desktop (inherited) value.
   const getStyleValue = useCallback((key: string): string => {
     if (!node) return '';
-    if (styleViewport === 'desktop') {
-      return (node.style as Record<string, unknown>)[key] as string || '';
+    const effectiveStyle = getEffectiveStyle();
+    const resolvedValue = (effectiveStyle as Record<string, unknown>)[key];
+
+    if (typeof resolvedValue === 'string' && resolvedValue !== '') {
+      return resolvedValue;
     }
-    // Check viewport-specific value first
-    const viewportStyles = node.style[styleViewport] as Record<string, unknown> | undefined;
-    const viewportVal = viewportStyles?.[key] as string | undefined;
-    if (viewportVal !== undefined && viewportVal !== null && viewportVal !== '') {
-      return viewportVal;
-    }
-    // Mobile also inherits tablet overrides
-    if (styleViewport === 'mobile') {
-      const tabletStyles = node.style.tablet as Record<string, unknown> | undefined;
-      const tabletVal = tabletStyles?.[key] as string | undefined;
-      if (tabletVal !== undefined && tabletVal !== null && tabletVal !== '') {
-        return tabletVal;
+
+    if (usesFlexSizing(effectiveStyle)) {
+      if (key === 'width') {
+        return deriveLayoutWidth(effectiveStyle);
+      }
+
+      if (key === 'flexGrow' || key === 'flexShrink' || key === 'flexBasis') {
+        return deriveFlexPart(effectiveStyle, key);
       }
     }
-    // Fall through to desktop (inherited) value
-    return (node.style as Record<string, unknown>)[key] as string || '';
-  }, [node, styleViewport]);
+
+    return '';
+  }, [getEffectiveStyle, node, usesFlexSizing]);
 
   // Check whether current viewport has an explicit override for this key
   const isStyleOverridden = useCallback((key: string): boolean => {
@@ -649,20 +671,41 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
   const handleStyleChange = useCallback((key: string, value: string) => {
     if (!node) return;
 
+    const effectiveStyle = getEffectiveStyle();
+    const flexSizedLayout = usesFlexSizing(effectiveStyle);
+
+    let stylePatch: Partial<NodeStyle>;
+    if (flexSizedLayout && key === 'width') {
+      stylePatch = buildFlexWidthStyle(value);
+    } else if (flexSizedLayout && (key === 'flexGrow' || key === 'flexShrink' || key === 'flexBasis')) {
+      stylePatch = buildFlexPartStyle(effectiveStyle, key, value);
+    } else if (flexSizedLayout && key === 'flex') {
+      const cleanedValue = value.trim();
+      stylePatch = {
+        flex: cleanedValue || undefined,
+        width: undefined,
+        flexGrow: undefined,
+        flexShrink: undefined,
+        flexBasis: undefined,
+      };
+    } else {
+      stylePatch = { [key]: value || undefined };
+    }
+
     if (styleViewport === 'desktop') {
       // Desktop styles go directly on the node
-      onUpdateStyle(node.id, { [key]: value });
+      onUpdateStyle(node.id, stylePatch);
     } else {
       // Tablet/mobile styles go in responsive overrides
       const currentViewportStyles = (node.style[styleViewport] as Record<string, unknown>) || {};
       onUpdateStyle(node.id, {
         [styleViewport]: {
           ...currentViewportStyles,
-          [key]: value || undefined, // Remove empty values
+          ...stylePatch,
         }
       });
     }
-  }, [node, onUpdateStyle, styleViewport]);
+  }, [getEffectiveStyle, node, onUpdateStyle, styleViewport, usesFlexSizing]);
 
 
   // Helper to parse spacing values

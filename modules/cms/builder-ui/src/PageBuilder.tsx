@@ -64,17 +64,17 @@ const COMPONENT_DND_MIME = 'application/x-cms-component';
 export default function PageBuilder() {
   const boot = getBootData();
   const id = boot.contentId ? String(boot.contentId) : null;
-  
+
   // Page data
   const [pageData, setPageData] = useState<PageData | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saveMessage, setSaveMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
-  
+
   // Builder state
   const builder = useBuilderState();
-  
+
   // Panel state - NEW LAYOUT per spec
   // Left: Properties (context-sensitive)
   // Right: Navigator + Global Settings
@@ -84,61 +84,61 @@ export default function PageBuilder() {
   const [rightPanelCollapsed, setRightPanelCollapsed] = useState(false);
   const [componentDrawerOpen, setComponentDrawerOpen] = useState(true);
   const [zoom, setZoom] = useState(100);
-  
+
   // Legacy - keep for backward compatibility during transition
   const [_sidebarTab, _setSidebarTab] = useState<'components' | 'layers' | 'settings'>('components');
-  
+
   // Global styles state
   const [globalStyles, setGlobalStyles] = useState<GlobalStyles>(defaultGlobalStyles);
-  
+
   // SEO settings state
   const [seoSettings, setSeoSettings] = useState<SEOSettings>(defaultSEOSettings);
-  
+
   // Context menu state
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; nodeId: string; nodeType: string } | null>(null);
-  
+
   // Auto-save state
   const [lastAutoSave, setLastAutoSave] = useState<Date | null>(null);
   const autoSaveIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
-  
+
   // Title editing state
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [editingTitleValue, setEditingTitleValue] = useState('');
   const titleInputRef = useRef<HTMLInputElement>(null);
-  
+
   // Version history state
   const [versionHistoryOpen, setVersionHistoryOpen] = useState(false);
-  
+
   // Finder state
   const [finderOpen, setFinderOpen] = useState(false);
   const [finderQuery, setFinderQuery] = useState('');
   const finderInputRef = useRef<HTMLInputElement>(null);
-  
+
   // Keyboard shortcuts help state
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
-  
+
   // Structure Mode state - shows all outlines and labels
   const [structureMode, setStructureMode] = useState(false);
-  
+
   // Save as Template modal state
   const [saveTemplateModalOpen, setSaveTemplateModalOpen] = useState(false);
-  
+
   // Save as Block modal state
   const [saveBlockModalOpen, setSaveBlockModalOpen] = useState(false);
   const [blockToSave, setBlockToSave] = useState<DiSyLNode | null>(null);
-  
+
   // Auto-expand left panel when element is selected
   useEffect(() => {
     if (builder.selectedIds.length > 0) {
       setLeftPanelCollapsed(false);
     }
   }, [builder.selectedIds]);
-  
+
   // =============================================================================
   // Data Fetching
   // =============================================================================
-  
+
   useEffect(() => {
     if (id) {
       fetchPage();
@@ -162,7 +162,7 @@ export default function PageBuilder() {
       }
     }
   }, [id]);
-  
+
   // Normalize template content to ensure all nodes have required properties
   const normalizeNode = (node: any): DiSyLNode => {
     const compDef = CMS_COMPONENTS.find(c => c.type === node.type);
@@ -192,10 +192,10 @@ export default function PageBuilder() {
       // Fetch template - this also increments usage_count on the backend
       const response = await authFetch(`/api/v1/cms/builder/templates/${templateId}?use=true`);
       const data = await response.json();
-      
+
       if ((data.ok || data.success) && data.data) {
         const template = data.data;
-        
+
         // Set page data with template name as title
         setPageData({
           id: 0,
@@ -205,7 +205,7 @@ export default function PageBuilder() {
           status: 'draft',
           type: 'page',
         });
-        
+
         // Load template content into builder with normalization
         if (template.content) {
           const normalizedContent = normalizeNode(template.content);
@@ -213,14 +213,14 @@ export default function PageBuilder() {
         } else {
           builder.setDocument(createEmptyDocument());
         }
-        
+
         // Load global styles if available
         if (template.global_styles) {
           setGlobalStyles(template.global_styles);
         } else {
           setGlobalStyles(defaultGlobalStyles);
         }
-        
+
         setSaveMessage({ type: 'success', text: `Loaded template: ${template.name}` });
         setTimeout(() => setSaveMessage(null), 3000);
       } else {
@@ -235,25 +235,25 @@ export default function PageBuilder() {
       setLoading(false);
     }
   };
-  
+
   // =============================================================================
   // Auto-Save (every 30 seconds if dirty)
   // =============================================================================
-  
+
   useEffect(() => {
     autoSaveIntervalRef.current = setInterval(() => {
       if (builder.isDirty && pageData && !saving) {
         handleAutoSave();
       }
     }, 30000); // 30 seconds
-    
+
     return () => {
       if (autoSaveIntervalRef.current) {
         clearInterval(autoSaveIntervalRef.current);
       }
     };
   }, [builder.isDirty, pageData, saving]);
-  
+
   // Auto-save on blur (leaving page)
   useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
@@ -262,16 +262,16 @@ export default function PageBuilder() {
         e.returnValue = 'You have unsaved changes. Are you sure you want to leave?';
       }
     };
-    
+
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'hidden' && builder.isDirty && pageData && !saving) {
         handleAutoSave();
       }
     };
-    
+
     window.addEventListener('beforeunload', handleBeforeUnload);
     document.addEventListener('visibilitychange', handleVisibilityChange);
-    
+
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
@@ -293,10 +293,10 @@ export default function PageBuilder() {
       if (cleanup) cleanup();
     };
   }, [builder.document, builder.viewport]);
-  
+
   const handleAutoSave = async () => {
     if (!pageData || !pageData.id || saving) return;
-    
+
     try {
       const response = await authFetch(`/api/v1/cms/content/${pageData.id}/builder/autosave`, {
         method: 'POST',
@@ -305,9 +305,9 @@ export default function PageBuilder() {
           global_styles: globalStyles,
         }),
       });
-      
+
       const data = await response.json();
-      
+
       if (data.ok || data.success) {
         builder.markClean();
         setLastAutoSave(new Date());
@@ -316,20 +316,20 @@ export default function PageBuilder() {
       console.error('Auto-save failed:', err);
     }
   };
-  
+
   const fetchPage = async () => {
     try {
       setLoading(true);
       setError(null);
-      
+
       const response = await authFetch(`/api/v1/cms/content/${id}/builder`);
       const data = await response.json();
-      
+
       // API returns { ok: true, data: { content: {...}, document: {...}, ... } }
       if ((data.ok || data.success) && data.data) {
         const contentInfo = data.data.content || data.data;
         const builderDocument = data.data.document || null;
-        
+
         setPageData({
           id: contentInfo.id,
           title: contentInfo.title,
@@ -338,7 +338,7 @@ export default function PageBuilder() {
           status: contentInfo.status,
           type: (contentInfo.type || 'page') as 'page' | 'post',
         });
-        
+
         // Load global styles if available
         const globalStylesRaw = data.data.global_styles || contentInfo.global_styles;
         if (globalStylesRaw) {
@@ -349,7 +349,7 @@ export default function PageBuilder() {
             setGlobalStyles(defaultGlobalStyles);
           }
         }
-        
+
         // Load SEO settings if available
         const seoRaw = data.data.seo_settings || contentInfo.seo_settings;
         if (seoRaw) {
@@ -360,7 +360,7 @@ export default function PageBuilder() {
             setSeoSettings(defaultSEOSettings);
           }
         }
-        
+
         // Load content into builder (normalize to merge defaultProps into null values)
         if (builderDocument && typeof builderDocument === 'object' && builderDocument.type) {
           if (builderDocument.type === 'section') {
@@ -384,20 +384,20 @@ export default function PageBuilder() {
       setLoading(false);
     }
   };
-  
+
   // =============================================================================
   // Save Handler
   // =============================================================================
-  
+
   const handleSave = async () => {
     if (!pageData) return;
-    
+
     try {
       setSaving(true);
       setSaveMessage(null);
-      
+
       const isNewPage = pageData.id === 0;
-      
+
       if (isNewPage) {
         // Step 1: Create the content record via CMS API
         const createResp = await authFetch('/api/v1/cms/content', {
@@ -409,16 +409,16 @@ export default function PageBuilder() {
             status: pageData.status,
           }),
         });
-        
+
         const createData = await createResp.json();
-        
+
         if (!createData.ok || !createData.id) {
           setSaveMessage({ type: 'error', text: createData.error || 'Failed to create page' });
           return;
         }
-        
+
         const newId = createData.id;
-        
+
         // Step 2: Save the builder document to the new content
         const builderResp = await authFetch(`/api/v1/cms/content/${newId}/builder`, {
           method: 'POST',
@@ -428,18 +428,18 @@ export default function PageBuilder() {
             seo_settings: seoSettings,
           }),
         });
-        
+
         const builderData = await builderResp.json();
         if (!builderData.ok && !builderData.success) {
           console.warn('Builder document save returned:', builderData);
         }
-        
+
         builder.markClean();
         setPageData({ ...pageData, id: newId });
         window.history.replaceState(null, '', `/cms/admin/react-builder/${newId}`);
         setSaveMessage({ type: 'success', text: 'Page created' });
         setTimeout(() => setSaveMessage(null), 3000);
-        
+
       } else {
         // Existing page: save builder document directly
         const response = await authFetch(`/api/v1/cms/content/${pageData.id}/builder`, {
@@ -453,9 +453,9 @@ export default function PageBuilder() {
             seo_settings: seoSettings,
           }),
         });
-        
+
         const data = await response.json();
-        
+
         if (data.ok || data.success) {
           builder.markClean();
           setSaveMessage({ type: 'success', text: 'Saved successfully' });
@@ -471,7 +471,7 @@ export default function PageBuilder() {
       setSaving(false);
     }
   };
-  
+
   // Handle version restore
   const handleRestoreVersion = useCallback((content: string) => {
     try {
@@ -484,11 +484,11 @@ export default function PageBuilder() {
       setSaveMessage({ type: 'error', text: 'Failed to restore version' });
     }
   }, [builder]);
-  
+
   // =============================================================================
   // Title Editing Handlers
   // =============================================================================
-  
+
   const handleStartEditTitle = useCallback(() => {
     if (!pageData) return;
     setEditingTitleValue(pageData.title);
@@ -496,23 +496,23 @@ export default function PageBuilder() {
     // Focus input after render
     setTimeout(() => titleInputRef.current?.focus(), 0);
   }, [pageData]);
-  
+
   const handleSaveTitle = useCallback(() => {
     if (!pageData || !editingTitleValue.trim()) {
       setIsEditingTitle(false);
       return;
     }
-    
+
     const newTitle = editingTitleValue.trim();
     setPageData({ ...pageData, title: newTitle });
     setIsEditingTitle(false);
-    
+
     // Mark as dirty so it gets saved
     if (newTitle !== pageData.title) {
       builder.updateProps(builder.document.id, {}); // Trigger dirty state
     }
   }, [pageData, editingTitleValue, builder]);
-  
+
   const handleTitleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
       e.preventDefault();
@@ -522,26 +522,52 @@ export default function PageBuilder() {
       setIsEditingTitle(false);
     }
   }, [handleSaveTitle]);
-  
+
   // =============================================================================
   // Component Handlers
   // =============================================================================
-  
+
+  const resolvePreferredInsertParent = useCallback((requestedParentId: string, childType: DiSyLNode['type']) => {
+    const requestedParent = builder.findNode(requestedParentId);
+    if (!requestedParent) {
+      return requestedParentId;
+    }
+
+    const isStructuralChild = ['document', 'section', 'container', 'row', 'column'].includes(childType);
+
+    if (requestedParent.type === 'row' && childType !== 'column') {
+      const firstColumn = requestedParent.children.find((child) => child.type === 'column');
+      if (firstColumn) {
+        return firstColumn.id;
+      }
+    }
+
+    if (requestedParent.type === 'section' && !isStructuralChild) {
+      const firstContainer = requestedParent.children.find((child) => child.type === 'container');
+      if (firstContainer) {
+        return firstContainer.id;
+      }
+    }
+
+    return requestedParentId;
+  }, [builder]);
+
   const handleAddComponent = useCallback((node: DiSyLNode) => {
     // Add to selected node or root
-    const parentId = builder.selectedNode?.id || builder.document.id;
+    const requestedParentId = builder.selectedNode?.id || builder.document.id;
+    const parentId = resolvePreferredInsertParent(requestedParentId, node.type);
     const parent = builder.findNode(parentId);
     const index = parent?.children.length || 0;
     builder.insertNode(node, parentId, index);
-  }, [builder]);
-  
+  }, [builder, resolvePreferredInsertParent]);
+
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     const data =
       e.dataTransfer.getData(COMPONENT_DND_MIME) ||
       e.dataTransfer.getData('application/json');
     if (!data) return;
-    
+
     try {
       const componentData = JSON.parse(data) as {
         type?: string;
@@ -571,12 +597,12 @@ export default function PageBuilder() {
       console.error('Drop error:', err);
     }
   }, [handleAddComponent]);
-  
+
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'copy';
   }, []);
-  
+
   // Context menu handler
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -591,11 +617,11 @@ export default function PageBuilder() {
       }
     }
   }, [builder]);
-  
+
   const handleContextMenuClose = useCallback(() => {
     setContextMenu(null);
   }, []);
-  
+
   const handleMoveNode = useCallback((direction: 'up' | 'down') => {
     if (contextMenu) {
       builder.moveNodeInDirection(contextMenu.nodeId, direction);
@@ -603,11 +629,11 @@ export default function PageBuilder() {
       builder.moveNodeInDirection(builder.selectedIds[0], direction);
     }
   }, [contextMenu, builder]);
-  
+
   // =============================================================================
   // Keyboard Shortcuts
   // =============================================================================
-  
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Save: Ctrl/Cmd + S
@@ -615,53 +641,53 @@ export default function PageBuilder() {
         e.preventDefault();
         handleSave();
       }
-      
+
       // Delete: Delete or Backspace
       if ((e.key === 'Delete' || e.key === 'Backspace') && builder.selectedIds.length > 0) {
         const target = e.target as HTMLElement;
-        
+
         // Don't delete if editing text in input/textarea
         if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') {
           return;
         }
-        
+
         // Don't delete if inside TinyMCE editor (contenteditable or iframe)
         if (target.isContentEditable || target.closest('[contenteditable="true"]') || target.closest('.tox-tinymce')) {
           return;
         }
-        
+
         // Don't delete if target is inside an iframe (TinyMCE classic mode)
         if (target.ownerDocument !== document) {
           return;
         }
-        
+
         e.preventDefault();
         builder.selectedIds.forEach(id => builder.deleteNode(id));
       }
-      
+
       // Escape: Deselect
       if (e.key === 'Escape') {
         builder.deselectAll();
       }
-      
+
       // Duplicate: Ctrl/Cmd + D
       if ((e.ctrlKey || e.metaKey) && e.key === 'd' && builder.selectedNode) {
         e.preventDefault();
         builder.duplicateNode(builder.selectedNode.id);
       }
-      
+
       // Undo: Ctrl/Cmd + Z
       if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
         e.preventDefault();
         builder.undo();
       }
-      
+
       // Redo: Ctrl/Cmd + Shift + Z or Ctrl/Cmd + Y
       if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
         e.preventDefault();
         builder.redo();
       }
-      
+
       // Copy: Ctrl/Cmd + C
       if ((e.ctrlKey || e.metaKey) && e.key === 'c' && builder.selectedIds.length > 0) {
         // Don't intercept if editing text
@@ -669,7 +695,7 @@ export default function PageBuilder() {
         e.preventDefault();
         builder.copyNodes(builder.selectedIds);
       }
-      
+
       // Paste: Ctrl/Cmd + V
       if ((e.ctrlKey || e.metaKey) && e.key === 'v' && builder.clipboard) {
         // Don't intercept if editing text
@@ -680,14 +706,14 @@ export default function PageBuilder() {
         const index = parent?.children.length || 0;
         builder.pasteNodes(parentId, index);
       }
-      
+
       // Finder: Ctrl/Cmd + E or Ctrl/Cmd + K
       if ((e.ctrlKey || e.metaKey) && (e.key === 'e' || e.key === 'k')) {
         e.preventDefault();
         setFinderOpen(true);
         setTimeout(() => finderInputRef.current?.focus(), 0);
       }
-      
+
       // Keyboard shortcuts: Ctrl/Cmd + / (but not bare ? to allow typing in TinyMCE)
       if ((e.ctrlKey || e.metaKey) && (e.key === '/' || e.key === '?')) {
         e.preventDefault();
@@ -710,15 +736,15 @@ export default function PageBuilder() {
         handleMoveNode('down');
       }
     };
-    
+
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [builder, handleSave, handleMoveNode]);
-  
+
   // =============================================================================
   // Render
   // =============================================================================
-  
+
   if (loading) {
     return (
       <div className="h-screen flex items-center justify-center bg-[#1e1e1e]">
@@ -726,7 +752,7 @@ export default function PageBuilder() {
       </div>
     );
   }
-  
+
   if (error || !pageData) {
     return (
       <div className="h-screen flex flex-col items-center justify-center bg-[#1e1e1e] gap-4">
@@ -741,7 +767,7 @@ export default function PageBuilder() {
       </div>
     );
   }
-  
+
   // Collect all nodes with hover animations for CSS generation
   const collectHoverAnimations = (node: DiSyLNode, result: { id: string; animation: string }[] = []): { id: string; animation: string }[] => {
     const hoverAnim = node.props?.hoverAnimation as string;
@@ -759,7 +785,7 @@ export default function PageBuilder() {
     if (!builder.document) return '';
     const animations = collectHoverAnimations(builder.document);
     if (!animations.length) return '';
-    
+
     const hoverEffects: Record<string, { transform?: string; boxShadow?: string; animation?: string; filter?: string }> = {
       grow: { transform: 'scale(1.05)' },
       shrink: { transform: 'scale(0.95)' },
@@ -772,7 +798,7 @@ export default function PageBuilder() {
       shadow: { boxShadow: '0 10px 30px rgba(0,0,0,0.15)' },
       shadowGrow: { transform: 'scale(1.05)', boxShadow: '0 15px 40px rgba(0,0,0,0.25)' },
     };
-    
+
     return animations.map(({ id, animation }) => {
       const effect = hoverEffects[animation];
       if (!effect) return '';
@@ -870,12 +896,12 @@ export default function PageBuilder() {
     .builder-canvas [style*="text-align: left"] { text-align: left !important; }
     .builder-canvas [style*="text-align: justify"] { text-align: justify !important; }
   `;
-  
+
   return (
     <div className="h-screen flex flex-col bg-[#1e1e1e]">
       {/* Builder Styles (animations + rich text) */}
       <style dangerouslySetInnerHTML={{ __html: builderStyles }} />
-      
+
       {/* Top Bar - Dark professional header */}
       <header className="h-12 bg-[#252526] border-b border-[#3c3c3c] flex items-center justify-between px-3 flex-shrink-0">
         {/* Left: Back + Title */}
@@ -910,16 +936,15 @@ export default function PageBuilder() {
                 <Pencil className="w-3 h-3 text-white/30 group-hover:text-white/70" />
               </button>
             )}
-            <span className={`text-[10px] px-1.5 py-0.5 uppercase tracking-wide ${
-              pageData.status === 'published' 
-                ? 'bg-emerald-500/20 text-emerald-400' 
+            <span className={`text-[10px] px-1.5 py-0.5 uppercase tracking-wide ${pageData.status === 'published'
+                ? 'bg-emerald-500/20 text-emerald-400'
                 : 'bg-amber-500/20 text-amber-400'
-            }`}>
+              }`}>
               {pageData.status}
             </span>
           </div>
         </div>
-        
+
         {/* Center: Tools */}
         <div className="flex items-center gap-1">
           {/* Undo/Redo */}
@@ -941,38 +966,35 @@ export default function PageBuilder() {
               <Redo2 className="w-4 h-4 text-white/70" />
             </button>
           </div>
-          
+
           {/* Viewport Switcher */}
           <div className="flex items-center bg-[#1e1e1e] p-0.5">
             <button
               onClick={() => builder.setViewport('desktop')}
-              className={`p-1.5 transition-colors ${
-                builder.viewport === 'desktop' ? 'bg-[#0078d4] text-white' : 'text-white/50 hover:text-white/80'
-              }`}
+              className={`p-1.5 transition-colors ${builder.viewport === 'desktop' ? 'bg-[#0078d4] text-white' : 'text-white/50 hover:text-white/80'
+                }`}
               title="Desktop"
             >
               <Monitor className="w-4 h-4" />
             </button>
             <button
               onClick={() => builder.setViewport('tablet')}
-              className={`p-1.5 transition-colors ${
-                builder.viewport === 'tablet' ? 'bg-[#0078d4] text-white' : 'text-white/50 hover:text-white/80'
-              }`}
+              className={`p-1.5 transition-colors ${builder.viewport === 'tablet' ? 'bg-[#0078d4] text-white' : 'text-white/50 hover:text-white/80'
+                }`}
               title="Tablet"
             >
               <Tablet className="w-4 h-4" />
             </button>
             <button
               onClick={() => builder.setViewport('mobile')}
-              className={`p-1.5 transition-colors ${
-                builder.viewport === 'mobile' ? 'bg-[#0078d4] text-white' : 'text-white/50 hover:text-white/80'
-              }`}
+              className={`p-1.5 transition-colors ${builder.viewport === 'mobile' ? 'bg-[#0078d4] text-white' : 'text-white/50 hover:text-white/80'
+                }`}
               title="Mobile"
             >
               <Smartphone className="w-4 h-4" />
             </button>
           </div>
-          
+
           {/* Zoom */}
           <div className="flex items-center border-l border-white/10 pl-2 ml-2">
             <button
@@ -992,44 +1014,42 @@ export default function PageBuilder() {
             </button>
           </div>
         </div>
-        
+
         {/* Right: Actions */}
         <div className="flex items-center gap-2">
           {/* Save indicator */}
           {saveMessage && (
-            <span className={`text-xs flex items-center gap-1 ${
-              saveMessage.type === 'success' ? 'text-emerald-400' : 'text-red-400'
-            }`}>
+            <span className={`text-xs flex items-center gap-1 ${saveMessage.type === 'success' ? 'text-emerald-400' : 'text-red-400'
+              }`}>
               {saveMessage.type === 'success' ? <Check className="w-3 h-3" /> : <AlertCircle className="w-3 h-3" />}
               {saveMessage.text}
             </span>
           )}
-          
+
           {builder.isDirty && (
             <span className="text-[10px] text-amber-400 bg-amber-500/20 px-1.5 py-0.5">
               Unsaved
             </span>
           )}
-          
+
           {!builder.isDirty && lastAutoSave && (
             <span className="text-[10px] text-white/40">
               Auto-saved {lastAutoSave.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
             </span>
           )}
-          
+
           {/* Structure Mode Toggle */}
           <button
             onClick={() => setStructureMode(!structureMode)}
-            className={`p-1.5 transition-colors ${
-              structureMode 
-                ? 'text-[#0078d4] bg-[#0078d4]/20' 
+            className={`p-1.5 transition-colors ${structureMode
+                ? 'text-[#0078d4] bg-[#0078d4]/20'
                 : 'text-white/50 hover:text-white hover:bg-white/10'
-            }`}
+              }`}
             title={structureMode ? 'Normal View' : 'Structure Mode'}
           >
             <Layers className="w-4 h-4" />
           </button>
-          
+
           {/* Version History */}
           <button
             onClick={() => setVersionHistoryOpen(true)}
@@ -1038,7 +1058,7 @@ export default function PageBuilder() {
           >
             <Clock className="w-4 h-4" />
           </button>
-          
+
           {/* Save as Template */}
           <button
             onClick={() => setSaveTemplateModalOpen(true)}
@@ -1048,7 +1068,7 @@ export default function PageBuilder() {
           >
             <FileText className="w-4 h-4" />
           </button>
-          
+
           {/* Preview */}
           <button
             onClick={() => pageData.id > 0 && window.open(`/api/v1/cms/content/${pageData.id}/builder/preview`, '_blank')}
@@ -1058,7 +1078,7 @@ export default function PageBuilder() {
             <Eye className="w-4 h-4" />
             Preview
           </button>
-          
+
           {/* Save */}
           <button
             onClick={handleSave}
@@ -1070,15 +1090,14 @@ export default function PageBuilder() {
           </button>
         </div>
       </header>
-      
+
       {/* Main Content - NEW LAYOUT: Left=Properties, Center=Canvas, Right=Navigator+Global, Bottom=Components */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Top row: Left Panel + Canvas + Right Panel */}
         <div className="flex-1 flex overflow-hidden">
           {/* Left Sidebar - Properties Panel (Context-Sensitive) */}
-          <aside className={`bg-[#252526] border-r border-[#3c3c3c] flex flex-col flex-shrink-0 transition-all ${
-            leftPanelCollapsed ? 'w-10' : 'w-80'
-          }`}>
+          <aside className={`bg-[#252526] border-r border-[#3c3c3c] flex flex-col flex-shrink-0 transition-all ${leftPanelCollapsed ? 'w-10' : 'w-80'
+            }`}>
             {/* Panel Header */}
             <div className="h-9 flex items-center justify-between px-3 border-b border-[#3c3c3c]">
               {!leftPanelCollapsed && (
@@ -1101,7 +1120,7 @@ export default function PageBuilder() {
                 )}
               </button>
             </div>
-            
+
             {/* Panel Content - Properties */}
             {!leftPanelCollapsed && (
               <div className="flex-1 overflow-hidden">
@@ -1125,320 +1144,310 @@ export default function PageBuilder() {
               </div>
             )}
           </aside>
-        
-        {/* Canvas Area */}
-        <main 
-          className="flex-1 overflow-auto bg-[#1e1e1e] relative flex flex-col"
-          onDrop={handleDrop}
-          onDragOver={handleDragOver}
-          onClick={() => { builder.deselectAll(); setContextMenu(null); }}
-        >
-          {/* Breadcrumb Navigation */}
-          {builder.selectedNodePath.length > 0 && (
-            <div 
-              className="h-8 bg-[#252526] border-b border-[#3c3c3c] flex items-center px-3 gap-1 text-xs flex-shrink-0"
-              onClick={(e) => e.stopPropagation()}
-            >
-              {builder.selectedNodePath.map((node, index) => (
-                <span key={node.id} className="flex items-center gap-1">
-                  {index > 0 && <span className="text-white/30">›</span>}
-                  <button
-                    onClick={() => builder.selectNode(node.id, false)}
-                    className={`px-1.5 py-0.5 rounded transition-colors ${
-                      index === builder.selectedNodePath.length - 1
-                        ? 'text-[#0078d4] bg-[#0078d4]/10'
-                        : 'text-white/60 hover:text-white hover:bg-white/10'
-                    }`}
-                  >
-                    {node.meta?.name || node.type.charAt(0).toUpperCase() + node.type.slice(1).replace(/_/g, ' ')}
-                  </button>
-                </span>
-              ))}
-            </div>
-          )}
-          
-          {/* Canvas Content */}
-          <div 
-            className="flex-1 overflow-auto"
-            onContextMenu={handleContextMenu}
+
+          {/* Canvas Area */}
+          <main
+            className="flex-1 overflow-auto bg-[#1e1e1e] relative flex flex-col"
+            onDrop={handleDrop}
+            onDragOver={handleDragOver}
+            onClick={() => { builder.deselectAll(); setContextMenu(null); }}
           >
-          {/* Canvas Container */}
-          <div className="min-h-full p-8 flex items-start justify-center">
-            <div 
-              ref={canvasRef}
-              className={`builder-canvas bg-white shadow-2xl transition-all origin-top ${
-                builder.viewport === 'desktop' ? 'w-full max-w-[1400px]' :
-                builder.viewport === 'tablet' ? 'w-[768px]' :
-                'w-[375px]'
-              }`}
-              style={{ 
-                minHeight: 'auto',
-                transform: `scale(${zoom / 100})`,
-                paddingBottom: '200px', // Extra space at bottom for adding more content
-              }}
+            {/* Breadcrumb Navigation */}
+            {builder.selectedNodePath.length > 0 && (
+              <div
+                className="h-8 bg-[#252526] border-b border-[#3c3c3c] flex items-center px-3 gap-1 text-xs flex-shrink-0"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {builder.selectedNodePath.map((node, index) => (
+                  <span key={node.id} className="flex items-center gap-1">
+                    {index > 0 && <span className="text-white/30">›</span>}
+                    <button
+                      onClick={() => builder.selectNode(node.id, false)}
+                      className={`px-1.5 py-0.5 rounded transition-colors ${index === builder.selectedNodePath.length - 1
+                          ? 'text-[#0078d4] bg-[#0078d4]/10'
+                          : 'text-white/60 hover:text-white hover:bg-white/10'
+                        }`}
+                    >
+                      {node.meta?.name || node.type.charAt(0).toUpperCase() + node.type.slice(1).replace(/_/g, ' ')}
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+
+            {/* Canvas Content */}
+            <div
+              className="flex-1 overflow-auto"
+              onContextMenu={handleContextMenu}
             >
-              {/* Render document */}
-              <NodeRenderer
-                node={builder.document}
-                viewport={builder.viewport}
-                isSelected={builder.selectedIds.includes(builder.document.id)}
-                isHovered={builder.hoveredId === builder.document.id}
-                structureMode={structureMode}
-                onSelect={builder.selectNode}
-                onHover={builder.hoverNode}
-                onContentChange={(nodeId, content) => builder.updateProps(nodeId, { content })}
-                onPropsChange={(nodeId, props) => builder.updateProps(nodeId, props)}
-                onMoveNode={builder.moveNode}
-                onStyleChange={builder.updateStyle}
-                selectedIds={builder.selectedIds}
+              {/* Canvas Container */}
+              <div className="min-h-full p-8 flex items-start justify-center">
+                <div
+                  ref={canvasRef}
+                  className={`builder-canvas bg-white shadow-2xl transition-all origin-top ${builder.viewport === 'desktop' ? 'w-full max-w-[1400px]' :
+                      builder.viewport === 'tablet' ? 'w-[768px]' :
+                        'w-[375px]'
+                    }`}
+                  style={{
+                    minHeight: 'auto',
+                    transform: `scale(${zoom / 100})`,
+                    paddingBottom: '200px', // Extra space at bottom for adding more content
+                  }}
+                >
+                  {/* Render document */}
+                  <NodeRenderer
+                    node={builder.document}
+                    viewport={builder.viewport}
+                    isSelected={builder.selectedIds.includes(builder.document.id)}
+                    isHovered={builder.hoveredId === builder.document.id}
+                    structureMode={structureMode}
+                    onSelect={builder.selectNode}
+                    onHover={builder.hoverNode}
+                    onContentChange={(nodeId, content) => builder.updateProps(nodeId, { content })}
+                    onPropsChange={(nodeId, props) => builder.updateProps(nodeId, props)}
+                    onMoveNode={builder.moveNode}
+                    onStyleChange={builder.updateStyle}
+                    selectedIds={builder.selectedIds}
+                  />
+
+                  {/* Empty state - show when document has no sections or all sections are empty */}
+                  {(builder.document.children.length === 0 ||
+                    (builder.document.children.length === 1 && builder.document.children[0].children.length === 0)) && (
+                      <div className="flex flex-col items-center justify-center py-24 text-center px-8">
+                        {/* Animated icon */}
+                        <div className="relative mb-8">
+                          <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-blue-500/20 to-purple-500/20 flex items-center justify-center">
+                            <Plus className="w-10 h-10 text-blue-500" />
+                          </div>
+                          <div className="absolute -top-1 -right-1 w-4 h-4 bg-blue-500 rounded-full animate-pulse" />
+                        </div>
+
+                        <h3 className="text-xl font-semibold text-gray-700 mb-2">
+                          Start Building Your Page
+                        </h3>
+                        <p className="text-sm text-gray-500 max-w-sm mb-8">
+                          Choose a template to get started quickly, or add sections manually from the component drawer below.
+                        </p>
+
+                        {/* Quick action buttons */}
+                        <div className="flex flex-col sm:flex-row gap-3 mb-8">
+                          <button
+                            onClick={() => setRightPanelTab('templates')}
+                            className="flex items-center justify-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium shadow-lg shadow-blue-500/25"
+                          >
+                            <FileText className="w-4 h-4" />
+                            Browse Templates
+                          </button>
+                          <button
+                            onClick={() => {
+                              // Add a blank section
+                              const newSection = createNode('section', {}, {
+                                padding: '64px 24px',
+                                minHeight: '300px',
+                                backgroundColor: '#ffffff',
+                              });
+                              builder.insertNode(newSection, builder.document.id, builder.document.children.length);
+                            }}
+                            className="flex items-center justify-center gap-2 px-6 py-3 bg-white text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium border border-gray-200 shadow-sm"
+                          >
+                            <Plus className="w-4 h-4" />
+                            Add Blank Section
+                          </button>
+                        </div>
+
+                        {/* Keyboard shortcut hint */}
+                        <div className="flex items-center gap-2 text-xs text-gray-400">
+                          <span>Pro tip: Press</span>
+                          <kbd className="px-2 py-0.5 bg-gray-100 rounded text-gray-500 font-mono">⌘</kbd>
+                          <span>+</span>
+                          <kbd className="px-2 py-0.5 bg-gray-100 rounded text-gray-500 font-mono">K</kbd>
+                          <span>to open the command finder</span>
+                        </div>
+                      </div>
+                    )}
+                </div>
+              </div>
+            </div>
+
+            {/* Context Menu */}
+            {contextMenu && (
+              <ContextMenu
+                x={contextMenu.x}
+                y={contextMenu.y}
+                nodeId={contextMenu.nodeId}
+                nodeType={contextMenu.nodeType}
+                onClose={handleContextMenuClose}
+                onCopy={() => builder.copyNodes([contextMenu.nodeId])}
+                onPaste={() => {
+                  const parent = builder.findNode(contextMenu.nodeId);
+                  if (parent) {
+                    builder.pasteNodes(contextMenu.nodeId, parent.children.length);
+                  }
+                }}
+                onDuplicate={() => builder.duplicateNode(contextMenu.nodeId)}
+                onDelete={() => builder.deleteNode(contextMenu.nodeId)}
+                onMoveUp={() => handleMoveNode('up')}
+                onMoveDown={() => handleMoveNode('down')}
+                onSaveAsBlock={() => {
+                  const node = builder.findNode(contextMenu.nodeId);
+                  if (node && ['section', 'container'].includes(node.type)) {
+                    setBlockToSave(node);
+                    setSaveBlockModalOpen(true);
+                  }
+                }}
+                canPaste={!!builder.clipboard && builder.clipboard.length > 0}
+                canMoveUp={(() => {
+                  const parent = builder.findParent(contextMenu.nodeId);
+                  if (!parent) return false;
+                  const idx = parent.children.findIndex(c => c.id === contextMenu.nodeId);
+                  return idx > 0;
+                })()}
+                canMoveDown={(() => {
+                  const parent = builder.findParent(contextMenu.nodeId);
+                  if (!parent) return false;
+                  const idx = parent.children.findIndex(c => c.id === contextMenu.nodeId);
+                  return idx < parent.children.length - 1;
+                })()}
               />
-              
-              {/* Empty state - show when document has no sections or all sections are empty */}
-              {(builder.document.children.length === 0 || 
-                (builder.document.children.length === 1 && builder.document.children[0].children.length === 0)) && (
-                <div className="flex flex-col items-center justify-center py-24 text-center px-8">
-                  {/* Animated icon */}
-                  <div className="relative mb-8">
-                    <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-blue-500/20 to-purple-500/20 flex items-center justify-center">
-                      <Plus className="w-10 h-10 text-blue-500" />
-                    </div>
-                    <div className="absolute -top-1 -right-1 w-4 h-4 bg-blue-500 rounded-full animate-pulse" />
-                  </div>
-                  
-                  <h3 className="text-xl font-semibold text-gray-700 mb-2">
-                    Start Building Your Page
-                  </h3>
-                  <p className="text-sm text-gray-500 max-w-sm mb-8">
-                    Choose a template to get started quickly, or add sections manually from the component drawer below.
-                  </p>
-                  
-                  {/* Quick action buttons */}
-                  <div className="flex flex-col sm:flex-row gap-3 mb-8">
-                    <button
-                      onClick={() => setRightPanelTab('templates')}
-                      className="flex items-center justify-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium shadow-lg shadow-blue-500/25"
-                    >
-                      <FileText className="w-4 h-4" />
-                      Browse Templates
-                    </button>
-                    <button
-                      onClick={() => {
-                        // Add a blank section
-                        const newSection = createNode('section', {}, {
-                          padding: '64px 24px',
-                          minHeight: '300px',
-                          backgroundColor: '#ffffff',
-                        });
-                        builder.insertNode(newSection, builder.document.id, builder.document.children.length);
-                      }}
-                      className="flex items-center justify-center gap-2 px-6 py-3 bg-white text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium border border-gray-200 shadow-sm"
-                    >
-                      <Plus className="w-4 h-4" />
-                      Add Blank Section
-                    </button>
-                  </div>
-                  
-                  {/* Keyboard shortcut hint */}
-                  <div className="flex items-center gap-2 text-xs text-gray-400">
-                    <span>Pro tip: Press</span>
-                    <kbd className="px-2 py-0.5 bg-gray-100 rounded text-gray-500 font-mono">⌘</kbd>
-                    <span>+</span>
-                    <kbd className="px-2 py-0.5 bg-gray-100 rounded text-gray-500 font-mono">K</kbd>
-                    <span>to open the command finder</span>
-                  </div>
+            )}
+          </main>
+
+          {/* Right Sidebar - Navigator + Global Settings */}
+          <aside className={`bg-[#252526] border-l border-[#3c3c3c] flex flex-col flex-shrink-0 transition-all ${rightPanelCollapsed ? 'w-10' : 'w-72'
+            }`}>
+            {/* Panel Header */}
+            <div className="h-9 flex items-center justify-between px-3 border-b border-[#3c3c3c]">
+              <button
+                onClick={() => setRightPanelCollapsed(!rightPanelCollapsed)}
+                className="p-1 hover:bg-white/10 transition-colors"
+              >
+                {rightPanelCollapsed ? (
+                  <Maximize2 className="w-3.5 h-3.5 text-white/50" />
+                ) : (
+                  <Minimize2 className="w-3.5 h-3.5 text-white/50" />
+                )}
+              </button>
+              {!rightPanelCollapsed && (
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => setRightPanelTab('navigator')}
+                    className={`px-2 py-1 text-xs transition-colors ${rightPanelTab === 'navigator'
+                        ? 'text-white bg-[#0078d4]'
+                        : 'text-white/60 hover:text-white/90'
+                      }`}
+                  >
+                    Navigator
+                  </button>
+                  <button
+                    onClick={() => setRightPanelTab('templates')}
+                    className={`px-2 py-1 text-xs transition-colors ${rightPanelTab === 'templates'
+                        ? 'text-white bg-[#0078d4]'
+                        : 'text-white/60 hover:text-white/90'
+                      }`}
+                  >
+                    Templates
+                  </button>
+                  <button
+                    onClick={() => setRightPanelTab('blocks')}
+                    className={`px-2 py-1 text-xs transition-colors ${rightPanelTab === 'blocks'
+                        ? 'text-white bg-[#0078d4]'
+                        : 'text-white/60 hover:text-white/90'
+                      }`}
+                  >
+                    Blocks
+                  </button>
+                  <button
+                    onClick={() => setRightPanelTab('global')}
+                    className={`px-2 py-1 text-xs transition-colors ${rightPanelTab === 'global'
+                        ? 'text-white bg-[#0078d4]'
+                        : 'text-white/60 hover:text-white/90'
+                      }`}
+                  >
+                    Global
+                  </button>
+                  <button
+                    onClick={() => setRightPanelTab('seo')}
+                    className={`px-2 py-1 text-xs transition-colors ${rightPanelTab === 'seo'
+                        ? 'text-white bg-[#0078d4]'
+                        : 'text-white/60 hover:text-white/90'
+                      }`}
+                  >
+                    SEO
+                  </button>
+                  <button
+                    onClick={() => setRightPanelTab('capabilities')}
+                    className={`px-2 py-1 text-xs transition-colors ${rightPanelTab === 'capabilities'
+                        ? 'text-white bg-[#0078d4]'
+                        : 'text-white/60 hover:text-white/90'
+                      }`}
+                  >
+                    Features
+                  </button>
                 </div>
               )}
             </div>
-          </div>
-          </div>
-          
-          {/* Context Menu */}
-          {contextMenu && (
-            <ContextMenu
-              x={contextMenu.x}
-              y={contextMenu.y}
-              nodeId={contextMenu.nodeId}
-              nodeType={contextMenu.nodeType}
-              onClose={handleContextMenuClose}
-              onCopy={() => builder.copyNodes([contextMenu.nodeId])}
-              onPaste={() => {
-                const parent = builder.findNode(contextMenu.nodeId);
-                if (parent) {
-                  builder.pasteNodes(contextMenu.nodeId, parent.children.length);
-                }
-              }}
-              onDuplicate={() => builder.duplicateNode(contextMenu.nodeId)}
-              onDelete={() => builder.deleteNode(contextMenu.nodeId)}
-              onMoveUp={() => handleMoveNode('up')}
-              onMoveDown={() => handleMoveNode('down')}
-              onSaveAsBlock={() => {
-                const node = builder.findNode(contextMenu.nodeId);
-                if (node && ['section', 'container'].includes(node.type)) {
-                  setBlockToSave(node);
-                  setSaveBlockModalOpen(true);
-                }
-              }}
-              canPaste={!!builder.clipboard && builder.clipboard.length > 0}
-              canMoveUp={(() => {
-                const parent = builder.findParent(contextMenu.nodeId);
-                if (!parent) return false;
-                const idx = parent.children.findIndex(c => c.id === contextMenu.nodeId);
-                return idx > 0;
-              })()}
-              canMoveDown={(() => {
-                const parent = builder.findParent(contextMenu.nodeId);
-                if (!parent) return false;
-                const idx = parent.children.findIndex(c => c.id === contextMenu.nodeId);
-                return idx < parent.children.length - 1;
-              })()}
-            />
-          )}
-        </main>
-        
-        {/* Right Sidebar - Navigator + Global Settings */}
-        <aside className={`bg-[#252526] border-l border-[#3c3c3c] flex flex-col flex-shrink-0 transition-all ${
-          rightPanelCollapsed ? 'w-10' : 'w-72'
-        }`}>
-          {/* Panel Header */}
-          <div className="h-9 flex items-center justify-between px-3 border-b border-[#3c3c3c]">
-            <button
-              onClick={() => setRightPanelCollapsed(!rightPanelCollapsed)}
-              className="p-1 hover:bg-white/10 transition-colors"
-            >
-              {rightPanelCollapsed ? (
-                <Maximize2 className="w-3.5 h-3.5 text-white/50" />
-              ) : (
-                <Minimize2 className="w-3.5 h-3.5 text-white/50" />
-              )}
-            </button>
+
+            {/* Panel Content */}
             {!rightPanelCollapsed && (
-              <div className="flex items-center gap-1">
-                <button
-                  onClick={() => setRightPanelTab('navigator')}
-                  className={`px-2 py-1 text-xs transition-colors ${
-                    rightPanelTab === 'navigator'
-                      ? 'text-white bg-[#0078d4]'
-                      : 'text-white/60 hover:text-white/90'
-                  }`}
-                >
-                  Navigator
-                </button>
-                <button
-                  onClick={() => setRightPanelTab('templates')}
-                  className={`px-2 py-1 text-xs transition-colors ${
-                    rightPanelTab === 'templates'
-                      ? 'text-white bg-[#0078d4]'
-                      : 'text-white/60 hover:text-white/90'
-                  }`}
-                >
-                  Templates
-                </button>
-                <button
-                  onClick={() => setRightPanelTab('blocks')}
-                  className={`px-2 py-1 text-xs transition-colors ${
-                    rightPanelTab === 'blocks'
-                      ? 'text-white bg-[#0078d4]'
-                      : 'text-white/60 hover:text-white/90'
-                  }`}
-                >
-                  Blocks
-                </button>
-                <button
-                  onClick={() => setRightPanelTab('global')}
-                  className={`px-2 py-1 text-xs transition-colors ${
-                    rightPanelTab === 'global'
-                      ? 'text-white bg-[#0078d4]'
-                      : 'text-white/60 hover:text-white/90'
-                  }`}
-                >
-                  Global
-                </button>
-                <button
-                  onClick={() => setRightPanelTab('seo')}
-                  className={`px-2 py-1 text-xs transition-colors ${
-                    rightPanelTab === 'seo'
-                      ? 'text-white bg-[#0078d4]'
-                      : 'text-white/60 hover:text-white/90'
-                  }`}
-                >
-                  SEO
-                </button>
-                <button
-                  onClick={() => setRightPanelTab('capabilities')}
-                  className={`px-2 py-1 text-xs transition-colors ${
-                    rightPanelTab === 'capabilities'
-                      ? 'text-white bg-[#0078d4]'
-                      : 'text-white/60 hover:text-white/90'
-                  }`}
-                >
-                  Features
-                </button>
-              </div>
+              <>
+                {rightPanelTab === 'navigator' && (
+                  <LayersPanel
+                    document={builder.document}
+                    selectedIds={builder.selectedIds}
+                    hoveredId={builder.hoveredId}
+                    onSelect={builder.selectNode}
+                    onHover={builder.hoverNode}
+                    onDelete={builder.deleteNode}
+                    onDuplicate={builder.duplicateNode}
+                    onMoveNode={builder.moveNodeInDirection}
+                    onDragMoveNode={builder.moveNode}
+                  />
+                )}
+                {rightPanelTab === 'templates' && (
+                  <TemplatesPanel
+                    onInsertTemplate={(node) => {
+                      const nodesToInsert = node.type === 'document' ? (Array.isArray(node.children) ? node.children : []) : [node];
+                      nodesToInsert.forEach((child, index) => {
+                        builder.insertNode(child, builder.document.id, builder.document.children.length + index);
+                      });
+                    }}
+                  />
+                )}
+                {rightPanelTab === 'blocks' && (
+                  <BlocksPanel
+                    onInsertBlock={(node) => {
+                      // Insert block as a new section in the document
+                      builder.insertNode(node, builder.document.id, builder.document.children.length);
+                    }}
+                  />
+                )}
+                {rightPanelTab === 'global' && (
+                  <GlobalStylesPanel
+                    styles={globalStyles}
+                    onUpdateStyles={setGlobalStyles}
+                  />
+                )}
+                {rightPanelTab === 'seo' && (
+                  <SEOPanel
+                    settings={seoSettings}
+                    onUpdateSettings={setSeoSettings}
+                    pageTitle={pageData.title}
+                    pageUrl={pageData.slug ? `/${pageData.slug}` : ''}
+                  />
+                )}
+                {rightPanelTab === 'capabilities' && pageData && pageData.id > 0 && (
+                  <CapabilityPanel contentId={pageData.id} />
+                )}
+              </>
             )}
-          </div>
-          
-          {/* Panel Content */}
-          {!rightPanelCollapsed && (
-            <>
-              {rightPanelTab === 'navigator' && (
-                <LayersPanel
-                  document={builder.document}
-                  selectedIds={builder.selectedIds}
-                  hoveredId={builder.hoveredId}
-                  onSelect={builder.selectNode}
-                  onHover={builder.hoverNode}
-                  onDelete={builder.deleteNode}
-                  onDuplicate={builder.duplicateNode}
-                  onMoveNode={builder.moveNodeInDirection}
-                  onDragMoveNode={builder.moveNode}
-                />
-              )}
-              {rightPanelTab === 'templates' && (
-                <TemplatesPanel
-                  onInsertTemplate={(node) => {
-                    const nodesToInsert = node.type === 'document' ? (Array.isArray(node.children) ? node.children : []) : [node];
-                    nodesToInsert.forEach((child, index) => {
-                      builder.insertNode(child, builder.document.id, builder.document.children.length + index);
-                    });
-                  }}
-                />
-              )}
-              {rightPanelTab === 'blocks' && (
-                <BlocksPanel
-                  onInsertBlock={(node) => {
-                    // Insert block as a new section in the document
-                    builder.insertNode(node, builder.document.id, builder.document.children.length);
-                  }}
-                />
-              )}
-              {rightPanelTab === 'global' && (
-                <GlobalStylesPanel
-                  styles={globalStyles}
-                  onUpdateStyles={setGlobalStyles}
-                />
-              )}
-              {rightPanelTab === 'seo' && (
-                <SEOPanel
-                  settings={seoSettings}
-                  onUpdateSettings={setSeoSettings}
-                  pageTitle={pageData.title}
-                  pageUrl={pageData.slug ? `/${pageData.slug}` : ''}
-                />
-              )}
-              {rightPanelTab === 'capabilities' && pageData && pageData.id > 0 && (
-                <CapabilityPanel contentId={pageData.id} />
-              )}
-            </>
-          )}
-        </aside>
+          </aside>
         </div>
-        
+
         {/* Bottom Component Drawer */}
-        <div className={`bg-[#252526] border-t border-[#3c3c3c] transition-all ${
-          componentDrawerOpen ? 'h-20' : 'h-8'
-        }`}>
+        <div className={`bg-[#252526] border-t border-[#3c3c3c] transition-all ${componentDrawerOpen ? 'h-20' : 'h-8'
+          }`}>
           {/* Drawer Header */}
-          <div 
+          <div
             className="h-8 flex items-center justify-between px-3 cursor-pointer hover:bg-white/5"
             onClick={() => setComponentDrawerOpen(!componentDrawerOpen)}
           >
@@ -1452,7 +1461,7 @@ export default function PageBuilder() {
               )}
             </div>
           </div>
-          
+
           {/* Drawer Content */}
           {componentDrawerOpen && (
             <div className="h-12 overflow-x-auto overflow-y-hidden">
@@ -1461,7 +1470,7 @@ export default function PageBuilder() {
           )}
         </div>
       </div>
-      
+
       {/* Version History Modal */}
       <VersionHistory
         contentId={pageData.id}
@@ -1470,7 +1479,7 @@ export default function PageBuilder() {
         onRestore={handleRestoreVersion}
         currentContent={JSON.stringify(builder.document)}
       />
-      
+
       {/* Save as Template Modal */}
       {builder.document && (
         <SaveTemplateModal
@@ -1484,7 +1493,7 @@ export default function PageBuilder() {
           }}
         />
       )}
-      
+
       {/* Save as Block Modal */}
       {blockToSave && (
         <SaveBlockModal
@@ -1502,15 +1511,15 @@ export default function PageBuilder() {
           }}
         />
       )}
-      
+
       {/* Onboarding Tooltips */}
       <OnboardingTooltips />
-      
+
       {/* Keyboard Shortcuts Help */}
       {shortcutsOpen && (
         <KeyboardShortcutsPanel onClose={() => setShortcutsOpen(false)} />
       )}
-      
+
       {/* Finder Modal (Cmd+E / Cmd+K) */}
       {finderOpen && (
         <FinderModal
@@ -1557,32 +1566,38 @@ interface KeyboardShortcutsPanelProps {
 }
 
 const SHORTCUTS = [
-  { category: 'General', items: [
-    { keys: ['⌘', 'S'], description: 'Save page' },
-    { keys: ['⌘', 'Z'], description: 'Undo' },
-    { keys: ['⌘', '⇧', 'Z'], description: 'Redo' },
-    { keys: ['⌘', 'E'], description: 'Find element' },
-    { keys: ['⌘', '/'], description: 'Toggle shortcuts' },
-  ]},
-  { category: 'Selection', items: [
-    { keys: ['Esc'], description: 'Deselect all' },
-    { keys: ['Del'], description: 'Delete selected' },
-    { keys: ['⌘', 'D'], description: 'Duplicate selected' },
-  ]},
-  { category: 'Clipboard', items: [
-    { keys: ['⌘', 'C'], description: 'Copy element' },
-    { keys: ['⌘', 'V'], description: 'Paste element' },
-  ]},
+  {
+    category: 'General', items: [
+      { keys: ['⌘', 'S'], description: 'Save page' },
+      { keys: ['⌘', 'Z'], description: 'Undo' },
+      { keys: ['⌘', '⇧', 'Z'], description: 'Redo' },
+      { keys: ['⌘', 'E'], description: 'Find element' },
+      { keys: ['⌘', '/'], description: 'Toggle shortcuts' },
+    ]
+  },
+  {
+    category: 'Selection', items: [
+      { keys: ['Esc'], description: 'Deselect all' },
+      { keys: ['Del'], description: 'Delete selected' },
+      { keys: ['⌘', 'D'], description: 'Duplicate selected' },
+    ]
+  },
+  {
+    category: 'Clipboard', items: [
+      { keys: ['⌘', 'C'], description: 'Copy element' },
+      { keys: ['⌘', 'V'], description: 'Paste element' },
+    ]
+  },
 ];
 
 function KeyboardShortcutsPanel({ onClose }: KeyboardShortcutsPanelProps) {
   return (
-    <div 
+    <div
       className="fixed inset-0 z-50 flex items-center justify-center"
       onClick={onClose}
     >
       <div className="absolute inset-0 bg-black/60" />
-      <div 
+      <div
         className="relative w-full max-w-md bg-[#252526] border border-[#3c3c3c] shadow-2xl rounded-lg overflow-hidden"
         onClick={e => e.stopPropagation()}
       >
@@ -1599,7 +1614,7 @@ function KeyboardShortcutsPanel({ onClose }: KeyboardShortcutsPanelProps) {
             <X className="w-4 h-4 text-white/50" />
           </button>
         </div>
-        
+
         {/* Content */}
         <div className="p-4 max-h-[400px] overflow-y-auto">
           {SHORTCUTS.map(section => (
@@ -1627,7 +1642,7 @@ function KeyboardShortcutsPanel({ onClose }: KeyboardShortcutsPanelProps) {
             </div>
           ))}
         </div>
-        
+
         {/* Footer */}
         <div className="px-4 py-2 border-t border-[#3c3c3c] text-center">
           <span className="text-[10px] text-white/30">Press Esc or ⌘/ to close</span>
@@ -1641,34 +1656,34 @@ function FinderModal({ isOpen, onClose, query, onQueryChange, inputRef, document
   // Flatten all nodes for searching
   const flattenNodes = (node: DiSyLNode, depth = 0): Array<{ node: DiSyLNode; depth: number; path: string[] }> => {
     const result: Array<{ node: DiSyLNode; depth: number; path: string[] }> = [];
-    
+
     const traverse = (n: DiSyLNode, d: number, p: string[]) => {
       const label = n.meta?.name || n.props.content?.toString().slice(0, 30) || n.type;
       result.push({ node: n, depth: d, path: [...p, label] });
       n.children.forEach(child => traverse(child, d + 1, [...p, label]));
     };
-    
+
     traverse(node, depth, []);
     return result;
   };
-  
+
   const allNodes = flattenNodes(document);
-  
+
   // Filter nodes based on query
   const filteredNodes = query.trim()
     ? allNodes.filter(({ node, path }) => {
-        const searchText = [
-          node.type,
-          node.meta?.name,
-          node.props.content,
-          node.props.title,
-          node.props.alt,
-          path.join(' '),
-        ].filter(Boolean).join(' ').toLowerCase();
-        return searchText.includes(query.toLowerCase());
-      })
+      const searchText = [
+        node.type,
+        node.meta?.name,
+        node.props.content,
+        node.props.title,
+        node.props.alt,
+        path.join(' '),
+      ].filter(Boolean).join(' ').toLowerCase();
+      return searchText.includes(query.toLowerCase());
+    })
     : allNodes.slice(0, 20); // Show first 20 when no query
-  
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Escape') {
       onClose();
@@ -1676,19 +1691,19 @@ function FinderModal({ isOpen, onClose, query, onQueryChange, inputRef, document
       onSelectNode(filteredNodes[0].node.id);
     }
   };
-  
+
   if (!isOpen) return null;
-  
+
   return (
-    <div 
+    <div
       className="fixed inset-0 z-50 flex items-start justify-center pt-[15vh]"
       onClick={onClose}
     >
       {/* Backdrop */}
       <div className="absolute inset-0 bg-black/60" />
-      
+
       {/* Modal */}
-      <div 
+      <div
         className="relative w-full max-w-lg bg-[#252526] border border-[#3c3c3c] shadow-2xl rounded-lg overflow-hidden"
         onClick={e => e.stopPropagation()}
       >
@@ -1716,7 +1731,7 @@ function FinderModal({ isOpen, onClose, query, onQueryChange, inputRef, document
             <X className="w-4 h-4 text-white/50" />
           </button>
         </div>
-        
+
         {/* Results */}
         <div className="max-h-[300px] overflow-y-auto">
           {filteredNodes.length === 0 ? (
@@ -1746,7 +1761,7 @@ function FinderModal({ isOpen, onClose, query, onQueryChange, inputRef, document
             </div>
           )}
         </div>
-        
+
         {/* Footer */}
         <div className="px-4 py-2 border-t border-[#3c3c3c] flex items-center justify-between text-[10px] text-white/30">
           <span>{filteredNodes.length} element{filteredNodes.length !== 1 ? 's' : ''}</span>

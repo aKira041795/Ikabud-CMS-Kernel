@@ -57,6 +57,7 @@ import {
 } from 'lucide-react';
 import { COMPONENT_CATEGORIES, ComponentDefinition } from '../core/components';
 import { DiSyLNode, createNode } from '../core/types';
+import { buildRatioFlexValue } from '../core/layoutSizing';
 import LayoutPresetPicker from './LayoutPresetPicker';
 
 const COMPONENT_DND_MIME = 'application/x-cms-component';
@@ -236,8 +237,8 @@ const EnhancedComponentItem: React.FC<EnhancedComponentItemProps> = memo(({
       <button
         onClick={handleFavoriteClick}
         className={`absolute top-1 right-1 p-1 rounded-full transition-all duration-150 ${isFavorite
-            ? 'text-yellow-400 bg-yellow-400/20'
-            : 'text-white/30 hover:text-yellow-400 hover:bg-white/10 opacity-0 group-hover:opacity-100'
+          ? 'text-yellow-400 bg-yellow-400/20'
+          : 'text-white/30 hover:text-yellow-400 hover:bg-white/10 opacity-0 group-hover:opacity-100'
           }`}
         title={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
       >
@@ -335,8 +336,8 @@ const HorizontalCategoryDropdown: React.FC<HorizontalCategoryDropdownProps> = me
         ref={buttonRef}
         onClick={handleToggle}
         className={`flex items-center gap-2 px-3 py-2 rounded-lg border transition-all duration-150 ${isOpen
-            ? 'bg-[#353535] border-[#0078d4]'
-            : 'bg-[#2d2d2d] border-[#3c3c3c] hover:border-[#0078d4]'
+          ? 'bg-[#353535] border-[#0078d4]'
+          : 'bg-[#2d2d2d] border-[#3c3c3c] hover:border-[#0078d4]'
           }`}
         style={{ borderLeftColor: categoryColor.border, borderLeftWidth: '3px' }}
       >
@@ -409,10 +410,10 @@ interface ColumnPreset {
 const COLUMN_PRESETS: ColumnPreset[] = [
   { id: '1', name: '1 Column', columns: [100], icon: <div className="w-full h-4 bg-white/30 rounded-sm" /> },
   { id: '2-equal', name: '2 Equal', columns: [50, 50], icon: <div className="flex gap-0.5 w-full"><div className="flex-1 h-4 bg-white/30 rounded-sm" /><div className="flex-1 h-4 bg-white/30 rounded-sm" /></div> },
-  { id: '3-equal', name: '3 Equal', columns: [33, 34, 33], icon: <div className="flex gap-0.5 w-full"><div className="flex-1 h-4 bg-white/30 rounded-sm" /><div className="flex-1 h-4 bg-white/30 rounded-sm" /><div className="flex-1 h-4 bg-white/30 rounded-sm" /></div> },
+  { id: '3-equal', name: '3 Equal', columns: [33.333, 33.334, 33.333], icon: <div className="flex gap-0.5 w-full"><div className="flex-1 h-4 bg-white/30 rounded-sm" /><div className="flex-1 h-4 bg-white/30 rounded-sm" /><div className="flex-1 h-4 bg-white/30 rounded-sm" /></div> },
   { id: '4-equal', name: '4 Equal', columns: [25, 25, 25, 25], icon: <div className="flex gap-0.5 w-full"><div className="flex-1 h-4 bg-white/30 rounded-sm" /><div className="flex-1 h-4 bg-white/30 rounded-sm" /><div className="flex-1 h-4 bg-white/30 rounded-sm" /><div className="flex-1 h-4 bg-white/30 rounded-sm" /></div> },
-  { id: '2-1-3', name: '1/3 + 2/3', columns: [33, 67], icon: <div className="flex gap-0.5 w-full"><div className="w-1/3 h-4 bg-white/30 rounded-sm" /><div className="w-2/3 h-4 bg-white/30 rounded-sm" /></div> },
-  { id: '2-3-1', name: '2/3 + 1/3', columns: [67, 33], icon: <div className="flex gap-0.5 w-full"><div className="w-2/3 h-4 bg-white/30 rounded-sm" /><div className="w-1/3 h-4 bg-white/30 rounded-sm" /></div> },
+  { id: '2-1-3', name: '1/3 + 2/3', columns: [33.333, 66.667], icon: <div className="flex gap-0.5 w-full"><div className="w-1/3 h-4 bg-white/30 rounded-sm" /><div className="w-2/3 h-4 bg-white/30 rounded-sm" /></div> },
+  { id: '2-3-1', name: '2/3 + 1/3', columns: [66.667, 33.333], icon: <div className="flex gap-0.5 w-full"><div className="w-2/3 h-4 bg-white/30 rounded-sm" /><div className="w-1/3 h-4 bg-white/30 rounded-sm" /></div> },
   { id: '3-1-2-1', name: '1/4 + 1/2 + 1/4', columns: [25, 50, 25], icon: <div className="flex gap-0.5 w-full"><div className="w-1/4 h-4 bg-white/30 rounded-sm" /><div className="w-1/2 h-4 bg-white/30 rounded-sm" /><div className="w-1/4 h-4 bg-white/30 rounded-sm" /></div> },
   { id: '2-1-4', name: '1/4 + 3/4', columns: [25, 75], icon: <div className="flex gap-0.5 w-full"><div className="w-1/4 h-4 bg-white/30 rounded-sm" /><div className="w-3/4 h-4 bg-white/30 rounded-sm" /></div> },
 ];
@@ -424,12 +425,10 @@ interface SectionWizardProps {
 
 const SectionWizard: React.FC<SectionWizardProps> = ({ onSelect, onClose }) => {
   const createSectionWithColumns = (preset: ColumnPreset) => {
-    // Use flex-grow ratios for column widths - more reliable than calc()
-    // For [50, 50] -> both get flex: 1, for [33, 67] -> flex: 1 and flex: 2
+    // Use exact ratio-based flex values so the created layout matches the preset thumbnail.
     const columns = preset.columns.map((width) =>
       createNode('column', {}, {
-        // Use flex with grow ratio based on percentage (e.g., 50% = 1, 33% ≈ 1, 67% ≈ 2)
-        flex: `${Math.round(width / 25)} 1 0%`,
+        flex: buildRatioFlexValue(width),
         padding: '16px',
         minHeight: '100px',
         boxSizing: 'border-box',
@@ -794,8 +793,8 @@ const ComponentPanelEnhanced: React.FC<ComponentPanelEnhancedProps> = ({
           <button
             onClick={() => setActiveTab('all')}
             className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 text-[10px] font-medium rounded-md transition-colors ${activeTab === 'all'
-                ? 'bg-[#0078d4] text-white'
-                : 'text-white/60 hover:text-white hover:bg-white/5'
+              ? 'bg-[#0078d4] text-white'
+              : 'text-white/60 hover:text-white hover:bg-white/5'
               }`}
           >
             <LayoutGrid className="w-3 h-3" />
@@ -804,8 +803,8 @@ const ComponentPanelEnhanced: React.FC<ComponentPanelEnhancedProps> = ({
           <button
             onClick={() => setActiveTab('favorites')}
             className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 text-[10px] font-medium rounded-md transition-colors ${activeTab === 'favorites'
-                ? 'bg-[#0078d4] text-white'
-                : 'text-white/60 hover:text-white hover:bg-white/5'
+              ? 'bg-[#0078d4] text-white'
+              : 'text-white/60 hover:text-white hover:bg-white/5'
               }`}
           >
             <Heart className="w-3 h-3" />
@@ -817,8 +816,8 @@ const ComponentPanelEnhanced: React.FC<ComponentPanelEnhancedProps> = ({
           <button
             onClick={() => setActiveTab('recent')}
             className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 text-[10px] font-medium rounded-md transition-colors ${activeTab === 'recent'
-                ? 'bg-[#0078d4] text-white'
-                : 'text-white/60 hover:text-white hover:bg-white/5'
+              ? 'bg-[#0078d4] text-white'
+              : 'text-white/60 hover:text-white hover:bg-white/5'
               }`}
           >
             <Clock className="w-3 h-3" />

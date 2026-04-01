@@ -5,6 +5,7 @@
 
 import React, { memo, useCallback, useState, useRef, useEffect, CSSProperties, lazy, Suspense } from 'react';
 import { DiSyLNode, NodeStyle } from '../core/types';
+import { buildFlexWidthStyle, buildRatioFlexValue, deriveLayoutWidth, hasExplicitFlexSizing } from '../core/layoutSizing';
 
 // Inline SVG placeholder — zero-dependency fallback for missing images
 function placeholderSvg(w: number, h: number, bg: string, text: string): string {
@@ -507,12 +508,12 @@ interface QuickWidthToolbarProps {
 }
 
 const WIDTH_PRESETS = [
-  { label: '25%', value: '25%', flex: '1 1 25%' },
-  { label: '33%', value: '33.333%', flex: '1 1 33.333%' },
-  { label: '50%', value: '50%', flex: '1 1 50%' },
-  { label: '67%', value: '66.666%', flex: '2 1 66.666%' },
-  { label: '75%', value: '75%', flex: '3 1 75%' },
-  { label: '100%', value: '100%', flex: '1 1 100%' },
+  { label: '25%', value: '25%', flex: buildRatioFlexValue(25) },
+  { label: '33%', value: '33.333%', flex: buildRatioFlexValue(33.333) },
+  { label: '50%', value: '50%', flex: buildRatioFlexValue(50) },
+  { label: '67%', value: '66.667%', flex: buildRatioFlexValue(66.667) },
+  { label: '75%', value: '75%', flex: buildRatioFlexValue(75) },
+  { label: '100%', value: '100%', flex: buildRatioFlexValue(100) },
   { label: 'Auto', value: 'auto', flex: '1 1 0' },
 ];
 
@@ -520,9 +521,21 @@ const QuickWidthToolbar: React.FC<QuickWidthToolbarProps> = memo(({ currentWidth
   // Determine which preset is currently active
   const getActivePreset = () => {
     if (!currentWidth) return 'Auto';
-    const normalized = currentWidth.replace(/\s/g, '');
+    const normalized = currentWidth.replace(/\s/g, '').toLowerCase();
+    const currentPercent = normalized.endsWith('%') ? Number.parseFloat(normalized) : null;
+
     for (const preset of WIDTH_PRESETS) {
-      if (normalized.includes(preset.value) || normalized === preset.flex) {
+      const presetPercent = preset.value.endsWith('%') ? Number.parseFloat(preset.value) : null;
+
+      if (
+        currentPercent !== null
+        && presetPercent !== null
+        && Math.abs(currentPercent - presetPercent) < 0.75
+      ) {
+        return preset.label;
+      }
+
+      if (normalized === preset.value.replace(/\s/g, '').toLowerCase() || normalized === preset.flex.replace(/\s/g, '').toLowerCase()) {
         return preset.label;
       }
     }
@@ -3528,6 +3541,7 @@ const NodeRenderer: React.FC<NodeRendererProps> = memo(({
 
   const resizeConfig = getResizeConfig();
   const isResizable = resizeConfig.resizable;
+  const usesFlexSizing = node.type === 'column' || (node.type === 'container' && hasExplicitFlexSizing(style as Partial<NodeStyle>));
 
   // Determine if label bar should show (not for document)
   // Also keep visible while dragging so the handle doesn't vanish mid-drag
@@ -3557,14 +3571,10 @@ const NodeRenderer: React.FC<NodeRendererProps> = memo(({
     const newStyle: Partial<NodeStyle> = {};
     if (direction.includes('e') || direction.includes('w')) {
       const widthPx = `${Math.round(newWidth)}px`;
-      newStyle.width = widthPx;
-
-      // For containers/columns, also set flex to use the width as flex-basis
-      // This ensures the width is respected in flex layouts
-      if (node.type === 'container' || node.type === 'column') {
-        // Use flex: 0 0 <width> to prevent flex from overriding the width
-        // flex-grow: 0, flex-shrink: 0, flex-basis: width
-        newStyle.flex = `0 0 ${widthPx}`;
+      if (usesFlexSizing) {
+        Object.assign(newStyle, buildFlexWidthStyle(widthPx));
+      } else {
+        newStyle.width = widthPx;
       }
     }
     if (direction.includes('s') || direction.includes('n')) {
@@ -3572,7 +3582,7 @@ const NodeRenderer: React.FC<NodeRendererProps> = memo(({
     }
 
     onStyleChange(node.id, newStyle);
-  }, [node.id, node.type, onStyleChange]);
+  }, [node.id, onStyleChange, usesFlexSizing]);
 
   // Handle resize end
   const handleResizeEnd = useCallback(() => {
@@ -3769,9 +3779,14 @@ const NodeRenderer: React.FC<NodeRendererProps> = memo(({
     // Without these, flex sizing (e.g. 33/67 preset) is lost because the
     // inner renderer div is NOT the direct child of the parent flex container.
     flex: style.flex,
+    flexGrow: style.flexGrow,
+    flexShrink: style.flexShrink,
     flexBasis: style.flexBasis,
     order: style.order,
-    maxWidth: node.type === 'image' ? '100%' : undefined,
+    minWidth: node.type === 'column' ? (style.minWidth || '0') : style.minWidth,
+    minHeight: style.minHeight,
+    maxWidth: node.type === 'image' ? (style.maxWidth || '100%') : style.maxWidth,
+    maxHeight: style.maxHeight,
     // Width: pass through from style for non-button nodes (buttons use fit-content).
     // Naturally full-width widgets default to 100% so they don't shrink inside
     // flex parents with alignItems:'center' (e.g. section columns).
@@ -4071,9 +4086,9 @@ const NodeRenderer: React.FC<NodeRendererProps> = memo(({
       {/* Quick Width Presets Toolbar - show for containers/columns when selected */}
       {isSelected && ['container', 'column'].includes(node.type) && onStyleChange && (
         <QuickWidthToolbar
-          currentWidth={node.style.width || node.style.flex}
+          currentWidth={deriveLayoutWidth(style as Partial<NodeStyle>) || (typeof style.width === 'string' ? style.width : '')}
           onWidthChange={(width) => onStyleChange(node.id, { width, flex: undefined })}
-          onFlexChange={(flex) => onStyleChange(node.id, { flex, width: undefined })}
+          onFlexChange={(flex) => onStyleChange(node.id, { flex, width: undefined, flexGrow: undefined, flexShrink: undefined, flexBasis: undefined })}
         />
       )}
 
