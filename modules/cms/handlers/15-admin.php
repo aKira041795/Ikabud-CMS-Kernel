@@ -96,11 +96,17 @@ function cmsAdminContentList(array $params = []): void
     $q      = trim((string)($input['q'] ?? ''));
     $page   = max(1, (int)($input['page'] ?? 1));
 
+    // Allow per-page override from URL (5–100); falls back to setting default
+    $cmsSettings = readCmsSettings();
+    $defaultPerPage = max(5, min(100, (int)($cmsSettings['posts_per_page'] ?? 20)));
+    $perPage = isset($input['per_page']) ? max(5, min(100, (int)$input['per_page'])) : $defaultPerPage;
+
     $cacheKey = 'cms.content_list:' . md5(json_encode([
         'type' => $type,
         'status' => $status,
         'q' => $q,
         'page' => $page,
+        'per_page' => $perPage,
         'author_id' => $input['author_id'] ?? null,
         'category_id' => $input['category_id'] ?? null,
         'tag' => $input['tag'] ?? null,
@@ -123,8 +129,7 @@ function cmsAdminContentList(array $params = []): void
         return;
     }
 
-    $cmsSettings = readCmsSettings();
-    $perPage = max(5, min(100, (int)($cmsSettings['posts_per_page'] ?? 20)));
+    // $cmsSettings and $perPage already resolved above
 
     $authorId   = isset($input['author_id'])   ? (int)$input['author_id']   : null;
     $categoryId = isset($input['category_id']) ? (int)$input['category_id'] : null;
@@ -308,6 +313,8 @@ function cmsAdminContentList(array $params = []): void
         'category_list'      => $categoryList,
         'custom_types'       => $customTypes,
         'trash_count'        => $trashCount,
+        'per_page'           => $perPage,
+        'default_per_page'   => $defaultPerPage,
     ];
 
     adminViewCacheSet($cacheKey, $payload, ['cms:admin', 'cms:admin:content', 'cms:type:' . $type], $user);

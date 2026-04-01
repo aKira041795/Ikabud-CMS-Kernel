@@ -48,10 +48,11 @@
             {if trash_count > 0}<span class="ml-1 inline-flex items-center justify-center min-w-[1.1rem] h-[1.1rem] px-1 text-[10px] font-bold rounded-full {if status_filter == 'trash'}bg-red-200 text-red-700{else}bg-gray-200 text-gray-600{/if}">{trash_count}</span>{/if}
         </a>
     </div>
-    <!-- Search -->
-    <form class="flex items-center gap-2 px-4 py-3" method="get" action="{base_url}/cms/admin/content">
+    <!-- Search + per-page -->
+    <form class="flex items-center gap-2 px-4 py-3" method="get" action="{base_url}/cms/admin/content" id="contentListForm">
         <input type="hidden" name="type" value="{content_type}">
         {if status_filter}<input type="hidden" name="status" value="{status_filter}">{/if}
+        <input type="hidden" name="per_page" value="{per_page}" id="perPageHidden">
         <div class="relative flex-1">
             <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
                 <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
@@ -59,6 +60,15 @@
             <input type="search" name="q" placeholder="Search by title…" value="{search}" class="w-full pl-9 pr-4 py-2 text-sm bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 focus:bg-white transition-colors">
         </div>
         <button type="submit" class="px-4 py-2 bg-gray-100 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-200 transition-colors">Search</button>
+        <div class="flex items-center gap-1.5 border-l border-gray-100 pl-3">
+            <label class="text-xs text-gray-400 whitespace-nowrap">Show</label>
+            <select class="px-2 py-1.5 text-xs border border-gray-200 rounded-lg bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 cursor-pointer"
+                onchange="document.getElementById('perPageHidden').value=this.value;document.getElementById('contentListForm').submit()">
+                {foreach [5,10,20,50,100] as n}
+                <option value="{n}" {if per_page == n}selected{/if}>{n} per page</option>
+                {/foreach}
+            </select>
+        </div>
     </form>
 </div>
 
@@ -181,16 +191,16 @@
 
     {if total_pages > 1}
     <div class="flex items-center justify-between mt-4">
-        <p class="text-xs text-gray-400">Page {page_num} of {total_pages}</p>
+        <p class="text-xs text-gray-400">Page {page_num} of {total_pages} &mdash; {total} item{if total != 1}s{/if}</p>
         <div class="flex items-center gap-1">
             {if page_num > 1}
-            <a href="{base_url}/cms/admin/content?type={content_type}&page=1&q={search}&status={status_filter}" class="px-3 py-1.5 text-sm border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-gray-600">«</a>
-            <a href="{base_url}/cms/admin/content?type={content_type}&page={prev_page}&q={search}&status={status_filter}" class="px-3 py-1.5 text-sm border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-gray-600">‹</a>
+            <a href="{base_url}/cms/admin/content?type={content_type}&page=1&q={search}&status={status_filter}&per_page={per_page}" class="px-3 py-1.5 text-sm border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-gray-600">«</a>
+            <a href="{base_url}/cms/admin/content?type={content_type}&page={prev_page}&q={search}&status={status_filter}&per_page={per_page}" class="px-3 py-1.5 text-sm border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-gray-600">‹</a>
             {/if}
             <span class="px-3 py-1.5 text-sm bg-sky-600 text-white rounded-lg font-medium">{page_num}</span>
             {if page_num < total_pages}
-            <a href="{base_url}/cms/admin/content?type={content_type}&page={next_page}&q={search}&status={status_filter}" class="px-3 py-1.5 text-sm border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-gray-600">›</a>
-            <a href="{base_url}/cms/admin/content?type={content_type}&page={total_pages}&q={search}&status={status_filter}" class="px-3 py-1.5 text-sm border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-gray-600">»</a>
+            <a href="{base_url}/cms/admin/content?type={content_type}&page={next_page}&q={search}&status={status_filter}&per_page={per_page}" class="px-3 py-1.5 text-sm border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-gray-600">›</a>
+            <a href="{base_url}/cms/admin/content?type={content_type}&page={total_pages}&q={search}&status={status_filter}&per_page={per_page}" class="px-3 py-1.5 text-sm border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-gray-600">»</a>
             {/if}
         </div>
     </div>
