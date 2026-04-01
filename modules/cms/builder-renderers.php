@@ -70,6 +70,14 @@ function cmsBuilderWidgetRenderers(): array
         'blockquote'      => 'cmsRenderWidget_blockquote',
         'toggle'          => 'cmsRenderWidget_toggle',
         'search_box'      => 'cmsRenderWidget_search_box',
+        'nav_menu'        => 'cmsRenderWidget_nav_menu',
+        'recent_posts'    => 'cmsRenderWidget_recent_posts',
+        'social_links'    => 'cmsRenderWidget_social_links_widget',
+        'contact_info'    => 'cmsRenderWidget_contact_info',
+        'categories'      => 'cmsRenderWidget_categories',
+        'tag_cloud'       => 'cmsRenderWidget_tag_cloud',
+        'archives'        => 'cmsRenderWidget_archives',
+        'opening_hours'   => 'cmsRenderWidget_opening_hours',
         'badge'           => 'cmsRenderWidget_badge',
         'stat_card'       => 'cmsRenderWidget_stat_card',
         'contact_card'    => 'cmsRenderWidget_contact_card',
@@ -1586,6 +1594,350 @@ function cmsRenderWidget_toggle(array $props, array $style, array $attrs, string
         . '<summary style="padding:16px;cursor:pointer;font-weight:500;font-size:15px;color:#1f2937;list-style:none;display:flex;justify-content:space-between;align-items:center">' . $tgTitle . '<span style="font-size:12px;color:#9ca3af">▼</span></summary>'
         . '<div style="padding:0 16px 16px;font-size:14px;color:#6b7280;line-height:1.6">' . $tgContent . '</div>'
         . '</details>';
+}
+
+function cmsBuilderRenderThemeWidgetShell(array $attrs, array $style, string $title, string $body): string
+{
+    $html = '<div' . cmsBuilderAttrString($attrs) . cmsBuilderStyleAttr($style) . '>';
+    if ($title !== '') {
+        $html .= '<div style="margin:0 0 16px;font-size:16px;font-weight:700;line-height:1.3;color:#0f172a">' . cmsBuilderEsc($title) . '</div>';
+    }
+    return $html . $body . '</div>';
+}
+
+function cmsBuilderRenderThemeWidgetEmpty(string $message): string
+{
+    return '<p style="margin:0;font-size:14px;line-height:1.6;color:#64748b">' . cmsBuilderEsc($message) . '</p>';
+}
+
+function cmsBuilderRenderMenuWidgetItems(array $items, ?string $scope = null, int $depth = 0): string
+{
+    if ($items === []) {
+        return '';
+    }
+
+    $html = '<ul style="list-style:none;margin:' . ($depth === 0 ? '0' : '10px 0 0') . ';padding:' . ($depth === 0 ? '0' : '0 0 0 16px') . ';display:grid;gap:10px">';
+    foreach ($items as $item) {
+        if (!is_array($item)) {
+            continue;
+        }
+        $label = cmsBuilderEsc((string)($item['label'] ?? 'Menu Item'));
+        $url = function_exists('cmsResolveMenuItemUrl')
+            ? cmsResolveMenuItemUrl($item, $scope)
+            : (string)($item['url'] ?? '#');
+        $target = (string)($item['target'] ?? '') === '_blank' ? ' target="_blank" rel="noopener noreferrer"' : '';
+
+        $html .= '<li>';
+        $html .= '<a href="' . cmsBuilderEsc($url) . '"' . $target . ' style="color:#0f172a;text-decoration:none;font-size:14px;line-height:1.5">' . $label . '</a>';
+        if (!empty($item['children']) && is_array($item['children'])) {
+            $html .= cmsBuilderRenderMenuWidgetItems($item['children'], $scope, $depth + 1);
+        }
+        $html .= '</li>';
+    }
+    return $html . '</ul>';
+}
+
+function cmsRenderWidget_nav_menu(array $props, array $style, array $attrs, string $children, array $node, array $context): string
+{
+    $title = trim((string)($props['title'] ?? ''));
+    $menuId = (int)($props['menuId'] ?? 0);
+
+    if ($menuId <= 0 || !function_exists('cmsGetMenuItemsTree')) {
+        return cmsBuilderRenderThemeWidgetShell($attrs, $style, $title, cmsBuilderRenderThemeWidgetEmpty('Select a menu to display here.'));
+    }
+
+    $items = cmsGetMenuItemsTree($menuId);
+    if ($items === []) {
+        return cmsBuilderRenderThemeWidgetShell($attrs, $style, $title, cmsBuilderRenderThemeWidgetEmpty('This menu does not have any items yet.'));
+    }
+
+    return cmsBuilderRenderThemeWidgetShell($attrs, $style, $title, cmsBuilderRenderMenuWidgetItems($items));
+}
+
+function cmsRenderWidget_recent_posts(array $props, array $style, array $attrs, string $children, array $node, array $context): string
+{
+    $title = trim((string)($props['title'] ?? ''));
+    $count = max(1, min(10, (int)($props['count'] ?? 5)));
+    $showDate = ($props['showDate'] ?? true) !== false;
+    $posts = [];
+
+    try {
+        $stmt = cmsDb()->prepare(
+            "SELECT c.title, c.slug, COALESCE(c.published_at, c.created_at) AS published_at
+             FROM cms_content c
+             WHERE c.type = 'post' AND c.deleted_at IS NULL AND " . cmsPublicVisibilitySql('c') . "
+             ORDER BY COALESCE(c.published_at, c.created_at) DESC
+             LIMIT :n"
+        );
+        $stmt->bindValue(':n', $count, \PDO::PARAM_INT);
+        $stmt->execute();
+        $posts = $stmt->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+    } catch (\Throwable $e) {
+        $posts = [];
+    }
+
+    if ($posts === []) {
+        return cmsBuilderRenderThemeWidgetShell($attrs, $style, $title, cmsBuilderRenderThemeWidgetEmpty('No published posts found.'));
+    }
+
+    $body = '<div style="display:grid;gap:12px">';
+    foreach ($posts as $post) {
+        $slug = trim((string)($post['slug'] ?? ''));
+        $href = $slug !== '' && function_exists('cmsBuilderEntityPermalink')
+            ? cmsBuilderEntityPermalink('post', $slug)
+            : '/cms/blog/' . rawurlencode($slug);
+        $postTitle = cmsBuilderEsc((string)($post['title'] ?? 'Untitled'));
+        $body .= '<article style="display:grid;gap:4px">';
+        $body .= '<a href="' . cmsBuilderEsc($href) . '" style="color:#0f172a;text-decoration:none;font-size:14px;font-weight:600;line-height:1.5">' . $postTitle . '</a>';
+        if ($showDate && !empty($post['published_at'])) {
+            $body .= '<div style="font-size:12px;line-height:1.4;color:#64748b">' . cmsBuilderEsc(date('M j, Y', strtotime((string)$post['published_at']))) . '</div>';
+        }
+        $body .= '</article>';
+    }
+    $body .= '</div>';
+
+    return cmsBuilderRenderThemeWidgetShell($attrs, $style, $title, $body);
+}
+
+function cmsRenderWidget_social_links_widget(array $props, array $style, array $attrs, string $children, array $node, array $context): string
+{
+    $title = trim((string)($props['title'] ?? ''));
+    $displayStyle = (string)($props['displayStyle'] ?? 'icons');
+    if (!in_array($displayStyle, ['icons', 'labels', 'inline'], true)) {
+        $displayStyle = 'icons';
+    }
+
+    $settings = function_exists('readCmsSettings') ? readCmsSettings() : [];
+    $links = function_exists('cmsPublicSocialLinks') ? cmsPublicSocialLinks($settings) : [];
+    if ($links === []) {
+        return cmsBuilderRenderThemeWidgetShell($attrs, $style, $title, cmsBuilderRenderThemeWidgetEmpty('Add social links in CMS settings to populate this widget.'));
+    }
+
+    $monograms = [
+        'facebook' => 'Fb',
+        'twitter' => 'X',
+        'instagram' => 'Ig',
+        'youtube' => 'Yt',
+        'linkedin' => 'In',
+    ];
+
+    if ($displayStyle === 'labels') {
+        $body = '<div style="display:grid;gap:10px">';
+        foreach ($links as $link) {
+            $label = cmsBuilderEsc((string)($link['label'] ?? 'Link'));
+            $url = cmsBuilderEsc((string)($link['url'] ?? '#'));
+            $body .= '<a href="' . $url . '" target="_blank" rel="noopener noreferrer" style="display:inline-flex;align-items:center;justify-content:center;padding:10px 12px;border:1px solid #e5e7eb;border-radius:999px;color:#0f172a;text-decoration:none;font-size:14px;font-weight:500">' . $label . '</a>';
+        }
+        $body .= '</div>';
+        return cmsBuilderRenderThemeWidgetShell($attrs, $style, $title, $body);
+    }
+
+    if ($displayStyle === 'inline') {
+        $body = '<div style="display:flex;flex-wrap:wrap;gap:12px">';
+        foreach ($links as $link) {
+            $label = cmsBuilderEsc((string)($link['label'] ?? 'Link'));
+            $url = cmsBuilderEsc((string)($link['url'] ?? '#'));
+            $body .= '<a href="' . $url . '" target="_blank" rel="noopener noreferrer" style="color:#2563eb;text-decoration:none;font-size:14px;font-weight:500">' . $label . '</a>';
+        }
+        $body .= '</div>';
+        return cmsBuilderRenderThemeWidgetShell($attrs, $style, $title, $body);
+    }
+
+    $body = '<div style="display:flex;flex-wrap:wrap;gap:12px">';
+    foreach ($links as $link) {
+        $name = strtolower(trim((string)($link['name'] ?? 'link')));
+        $label = cmsBuilderEsc((string)($link['label'] ?? ucfirst($name)));
+        $url = cmsBuilderEsc((string)($link['url'] ?? '#'));
+        $badge = $monograms[$name] ?? strtoupper(substr($name, 0, 2));
+        $body .= '<a href="' . $url . '" target="_blank" rel="noopener noreferrer" title="' . $label . '" aria-label="' . $label . '" style="display:inline-flex;align-items:center;justify-content:center;width:40px;height:40px;border-radius:999px;background-color:#f8fafc;border:1px solid #e2e8f0;color:#0f172a;text-decoration:none;font-size:12px;font-weight:700">' . cmsBuilderEsc($badge) . '</a>';
+    }
+    $body .= '</div>';
+
+    return cmsBuilderRenderThemeWidgetShell($attrs, $style, $title, $body);
+}
+
+function cmsRenderWidget_contact_info(array $props, array $style, array $attrs, string $children, array $node, array $context): string
+{
+    $title = trim((string)($props['title'] ?? ''));
+    $address = trim((string)($props['address'] ?? ''));
+    $phone = trim((string)($props['phone'] ?? ''));
+    $email = trim((string)($props['email'] ?? ''));
+
+    $rows = [];
+    if ($address !== '') {
+        $rows[] = '<div style="display:grid;gap:4px"><div style="font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#64748b">Address</div><div style="font-size:14px;line-height:1.6;color:#0f172a">' . cmsBuilderEsc($address) . '</div></div>';
+    }
+    if ($phone !== '') {
+        $phoneHref = preg_replace('/[^0-9+]/', '', $phone) ?? '';
+        $phoneHtml = $phoneHref !== ''
+            ? '<a href="tel:' . cmsBuilderEsc($phoneHref) . '" style="color:#0f172a;text-decoration:none">' . cmsBuilderEsc($phone) . '</a>'
+            : cmsBuilderEsc($phone);
+        $rows[] = '<div style="display:grid;gap:4px"><div style="font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#64748b">Phone</div><div style="font-size:14px;line-height:1.6;color:#0f172a">' . $phoneHtml . '</div></div>';
+    }
+    if ($email !== '') {
+        $rows[] = '<div style="display:grid;gap:4px"><div style="font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#64748b">Email</div><div style="font-size:14px;line-height:1.6;color:#0f172a"><a href="mailto:' . cmsBuilderEsc($email) . '" style="color:#0f172a;text-decoration:none">' . cmsBuilderEsc($email) . '</a></div></div>';
+    }
+
+    $body = $rows === []
+        ? cmsBuilderRenderThemeWidgetEmpty('Add an address, phone number, or email to populate this widget.')
+        : '<div style="display:grid;gap:14px">' . implode('', $rows) . '</div>';
+
+    return cmsBuilderRenderThemeWidgetShell($attrs, $style, $title, $body);
+}
+
+function cmsRenderWidget_categories(array $props, array $style, array $attrs, string $children, array $node, array $context): string
+{
+    $title = trim((string)($props['title'] ?? ''));
+    $count = max(1, min(30, (int)($props['count'] ?? 8)));
+    $showCount = ($props['showCount'] ?? true) !== false;
+    $rows = [];
+    $baseUrl = rtrim((string)(defined('BASE_URL') ? BASE_URL : ''), '/');
+
+    try {
+        $stmt = cmsDb()->prepare(
+            "SELECT c.name, c.slug, COUNT(p.id) AS post_count
+             FROM cms_categories c
+             LEFT JOIN cms_content_categories cc ON cc.category_id = c.id
+             LEFT JOIN cms_content p ON p.id = cc.content_id
+               AND p.type = 'post' AND p.deleted_at IS NULL AND " . cmsPublicVisibilitySql('p') . "
+             GROUP BY c.id, c.name, c.slug
+             ORDER BY c.name ASC
+             LIMIT :n"
+        );
+        $stmt->bindValue(':n', $count, \PDO::PARAM_INT);
+        $stmt->execute();
+        $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+    } catch (\Throwable $e) {
+        $rows = [];
+    }
+
+    if ($rows === []) {
+        return cmsBuilderRenderThemeWidgetShell($attrs, $style, $title, cmsBuilderRenderThemeWidgetEmpty('No categories found.'));
+    }
+
+    $body = '<div style="display:grid;gap:10px">';
+    foreach ($rows as $row) {
+        $slug = (string)($row['slug'] ?? '');
+        $href = $baseUrl . '/cms/blog?category=' . rawurlencode($slug);
+        $body .= '<a href="' . cmsBuilderEsc($href) . '" style="display:flex;align-items:center;justify-content:space-between;gap:12px;color:#0f172a;text-decoration:none;font-size:14px;line-height:1.5">';
+        $body .= '<span>' . cmsBuilderEsc((string)($row['name'] ?? 'Category')) . '</span>';
+        if ($showCount) {
+            $body .= '<span style="color:#64748b">' . (int)($row['post_count'] ?? 0) . '</span>';
+        }
+        $body .= '</a>';
+    }
+    $body .= '</div>';
+
+    return cmsBuilderRenderThemeWidgetShell($attrs, $style, $title, $body);
+}
+
+function cmsRenderWidget_tag_cloud(array $props, array $style, array $attrs, string $children, array $node, array $context): string
+{
+    $title = trim((string)($props['title'] ?? ''));
+    $count = max(1, min(60, (int)($props['count'] ?? 16)));
+    $rows = [];
+    $baseUrl = rtrim((string)(defined('BASE_URL') ? BASE_URL : ''), '/');
+
+    try {
+        $stmt = cmsDb()->prepare(
+            "SELECT t.name, t.slug, COUNT(p.id) AS post_count
+             FROM cms_tags t
+             LEFT JOIN cms_content_tags ct ON ct.tag_id = t.id
+             LEFT JOIN cms_content p ON p.id = ct.content_id
+               AND p.type = 'post' AND p.deleted_at IS NULL AND " . cmsPublicVisibilitySql('p') . "
+             GROUP BY t.id, t.name, t.slug
+             ORDER BY post_count DESC, t.name ASC
+             LIMIT :n"
+        );
+        $stmt->bindValue(':n', $count, \PDO::PARAM_INT);
+        $stmt->execute();
+        $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+    } catch (\Throwable $e) {
+        $rows = [];
+    }
+
+    if ($rows === []) {
+        return cmsBuilderRenderThemeWidgetShell($attrs, $style, $title, cmsBuilderRenderThemeWidgetEmpty('No tags found.'));
+    }
+
+    $body = '<div style="display:flex;flex-wrap:wrap;gap:10px">';
+    foreach ($rows as $row) {
+        $slug = (string)($row['slug'] ?? '');
+        $href = $baseUrl . '/cms/blog?tag=' . rawurlencode($slug);
+        $body .= '<a href="' . cmsBuilderEsc($href) . '" style="display:inline-flex;align-items:center;padding:6px 12px;border-radius:999px;border:1px solid #e2e8f0;background-color:#f8fafc;color:#0f172a;text-decoration:none;font-size:12px;font-weight:600;line-height:1.2">' . cmsBuilderEsc((string)($row['name'] ?? 'Tag')) . '</a>';
+    }
+    $body .= '</div>';
+
+    return cmsBuilderRenderThemeWidgetShell($attrs, $style, $title, $body);
+}
+
+function cmsRenderWidget_archives(array $props, array $style, array $attrs, string $children, array $node, array $context): string
+{
+    $title = trim((string)($props['title'] ?? ''));
+    $count = max(1, min(36, (int)($props['count'] ?? 6)));
+    $showCount = ($props['showCount'] ?? true) !== false;
+    $rows = [];
+    $baseUrl = rtrim((string)(defined('BASE_URL') ? BASE_URL : ''), '/');
+
+    try {
+        $stmt = cmsDb()->prepare(
+            "SELECT DATE_FORMAT(c.published_at, '%Y-%m') AS ym,
+                    DATE_FORMAT(c.published_at, '%M %Y') AS label,
+                    COUNT(*) AS post_count
+             FROM cms_content c
+             WHERE c.type = 'post' AND c.deleted_at IS NULL AND " . cmsPublicVisibilitySql('c') . "
+             GROUP BY DATE_FORMAT(c.published_at, '%Y-%m'), DATE_FORMAT(c.published_at, '%M %Y')
+             ORDER BY ym DESC
+             LIMIT :n"
+        );
+        $stmt->bindValue(':n', $count, \PDO::PARAM_INT);
+        $stmt->execute();
+        $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+    } catch (\Throwable $e) {
+        $rows = [];
+    }
+
+    if ($rows === []) {
+        return cmsBuilderRenderThemeWidgetShell($attrs, $style, $title, cmsBuilderRenderThemeWidgetEmpty('No archive months found.'));
+    }
+
+    $body = '<div style="display:grid;gap:10px">';
+    foreach ($rows as $row) {
+        $ym = trim((string)($row['ym'] ?? ''));
+        if ($ym === '') {
+            continue;
+        }
+        $href = $baseUrl . '/cms/blog?archive=' . rawurlencode($ym);
+        $body .= '<a href="' . cmsBuilderEsc($href) . '" style="display:flex;align-items:center;justify-content:space-between;gap:12px;color:#0f172a;text-decoration:none;font-size:14px;line-height:1.5">';
+        $body .= '<span>' . cmsBuilderEsc((string)($row['label'] ?? $ym)) . '</span>';
+        if ($showCount) {
+            $body .= '<span style="color:#64748b">' . (int)($row['post_count'] ?? 0) . '</span>';
+        }
+        $body .= '</a>';
+    }
+    $body .= '</div>';
+
+    return cmsBuilderRenderThemeWidgetShell($attrs, $style, $title, $body);
+}
+
+function cmsRenderWidget_opening_hours(array $props, array $style, array $attrs, string $children, array $node, array $context): string
+{
+    $title = trim((string)($props['title'] ?? ''));
+    $text = trim((string)($props['text'] ?? ''));
+    $showIcon = ($props['showIcon'] ?? true) !== false;
+
+    if ($text === '') {
+        return cmsBuilderRenderThemeWidgetShell($attrs, $style, $title, cmsBuilderRenderThemeWidgetEmpty('Add your opening hours text to display this widget.'));
+    }
+
+    $icon = '';
+    if ($showIcon) {
+        $icon = '<span aria-hidden="true" style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:999px;background-color:#f8fafc;border:1px solid #e2e8f0;color:#0f172a;flex-shrink:0"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg></span>';
+    }
+
+    $body = '<div style="display:flex;align-items:flex-start;gap:12px;font-size:14px;line-height:1.6;color:#0f172a">' . $icon . '<div>' . cmsBuilderEsc($text) . '</div></div>';
+
+    return cmsBuilderRenderThemeWidgetShell($attrs, $style, $title, $body);
 }
 
 function cmsRenderWidget_search_box(array $props, array $style, array $attrs, string $children, array $node, array $context): string

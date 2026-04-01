@@ -3214,6 +3214,258 @@ const ToggleRenderer: React.FC<{ node: DiSyLNode; style: React.CSSProperties }> 
   );
 });
 
+const ThemeWidgetFrame: React.FC<{ title?: string; style: React.CSSProperties; children: React.ReactNode }> = ({ title, style, children }) => (
+  <div style={{
+    padding: '20px',
+    border: '1px solid #e5e7eb',
+    borderRadius: '16px',
+    backgroundColor: '#ffffff',
+    width: '100%',
+    ...style,
+  }}>
+    {title && (
+      <div style={{
+        marginBottom: '14px',
+        fontSize: '12px',
+        fontWeight: 700,
+        letterSpacing: '0.12em',
+        textTransform: 'uppercase',
+        color: '#64748b',
+      }}>
+        {title}
+      </div>
+    )}
+    {children}
+  </div>
+);
+
+// =============================================================================
+// Theme-style Widget Renderers (Apr 2026)
+// =============================================================================
+
+const NavMenuRenderer: React.FC<{ node: DiSyLNode; style: React.CSSProperties }> = memo(({ node, style }) => {
+  const { title = 'Browse', menuId = 0 } = node.props as any;
+  const links = ['Home', 'About', 'Services', 'Contact'];
+
+  return (
+    <ThemeWidgetFrame title={title} style={style}>
+      <div style={{ marginBottom: '10px', fontSize: '12px', color: '#94a3b8' }}>
+        {menuId > 0 ? `Menu ID: ${menuId}` : 'Select a CMS menu ID in the inspector.'}
+      </div>
+      <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: '10px' }}>
+        {links.map((label) => (
+          <li key={label} style={{ fontSize: '14px', color: '#0f172a' }}>
+            <span style={{ color: '#3b82f6' }}>{label}</span>
+          </li>
+        ))}
+      </ul>
+    </ThemeWidgetFrame>
+  );
+});
+
+const RecentPostsRenderer: React.FC<{ node: DiSyLNode; style: React.CSSProperties }> = memo(({ node, style }) => {
+  const { title = 'Latest Posts', count = 5, showDate = true } = node.props as any;
+  const postTitles = [
+    'Designing a cleaner homepage layout',
+    'What changed in the latest release',
+    'Five ways to improve your content flow',
+    'How we structure a conversion-focused footer',
+    'Editorial checklist for launch week',
+  ].slice(0, Math.max(1, Math.min(Number(count) || 5, 5)));
+
+  return (
+    <ThemeWidgetFrame title={title} style={style}>
+      <div style={{ display: 'grid', gap: '12px' }}>
+        {postTitles.map((post, index) => (
+          <div key={post} style={{ display: 'grid', gap: '4px' }}>
+            <span style={{ fontSize: '14px', fontWeight: 600, color: '#0f172a' }}>{post}</span>
+            {showDate && (
+              <span style={{ fontSize: '12px', color: '#94a3b8' }}>
+                {['Mar 28, 2026', 'Mar 24, 2026', 'Mar 18, 2026', 'Mar 10, 2026', 'Mar 02, 2026'][index]}
+              </span>
+            )}
+          </div>
+        ))}
+      </div>
+    </ThemeWidgetFrame>
+  );
+});
+
+const SocialLinksWidgetRenderer: React.FC<{ node: DiSyLNode; style: React.CSSProperties }> = memo(({ node, style }) => {
+  const { title = 'Follow Us', displayStyle = 'icons' } = node.props as any;
+  const links = [
+    { label: 'Facebook', short: 'Fb' },
+    { label: 'Instagram', short: 'Ig' },
+    { label: 'LinkedIn', short: 'In' },
+    { label: 'YouTube', short: 'Yt' },
+  ];
+
+  return (
+    <ThemeWidgetFrame title={title} style={style}>
+      {displayStyle === 'labels' ? (
+        <div style={{ display: 'grid', gap: '10px' }}>
+          {links.map((link) => (
+            <span key={link.label} style={{ fontSize: '14px', color: '#3b82f6' }}>{link.label}</span>
+          ))}
+        </div>
+      ) : displayStyle === 'inline' ? (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px' }}>
+          {links.map((link, index) => (
+            <span key={link.label} style={{ fontSize: '14px', color: '#3b82f6' }}>
+              {link.label}{index < links.length - 1 ? ' /' : ''}
+            </span>
+          ))}
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
+          {links.map((link) => (
+            <span key={link.label} style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: '40px',
+              height: '40px',
+              borderRadius: '999px',
+              backgroundColor: '#eff6ff',
+              color: '#1d4ed8',
+              fontSize: '12px',
+              fontWeight: 700,
+            }}>
+              {link.short}
+            </span>
+          ))}
+        </div>
+      )}
+    </ThemeWidgetFrame>
+  );
+});
+
+const ContactInfoWidgetRenderer: React.FC<{ node: DiSyLNode; style: React.CSSProperties }> = memo(({ node, style }) => {
+  const {
+    title = 'Contact Info',
+    address = '123 Market Street, Manila',
+    phone = '+63 900 000 0000',
+    email = 'hello@example.com',
+  } = node.props as any;
+
+  return (
+    <ThemeWidgetFrame title={title} style={style}>
+      <div style={{ display: 'grid', gap: '10px' }}>
+        {address && <div style={{ fontSize: '14px', color: '#0f172a' }}><strong style={{ color: '#64748b' }}>Address:</strong> {address}</div>}
+        {phone && <div style={{ fontSize: '14px', color: '#0f172a' }}><strong style={{ color: '#64748b' }}>Phone:</strong> {phone}</div>}
+        {email && <div style={{ fontSize: '14px', color: '#0f172a' }}><strong style={{ color: '#64748b' }}>Email:</strong> {email}</div>}
+      </div>
+    </ThemeWidgetFrame>
+  );
+});
+
+const CategoriesRenderer: React.FC<{ node: DiSyLNode; style: React.CSSProperties }> = memo(({ node, style }) => {
+  const { title = 'Categories', count = 8, showCount = true } = node.props as any;
+  const categories = [
+    { label: 'Announcements', count: 12 },
+    { label: 'Tutorials', count: 8 },
+    { label: 'Releases', count: 5 },
+    { label: 'Insights', count: 9 },
+    { label: 'Storefront', count: 4 },
+    { label: 'Events', count: 3 },
+  ].slice(0, Math.max(1, Math.min(Number(count) || 8, 6)));
+
+  return (
+    <ThemeWidgetFrame title={title} style={style}>
+      <div style={{ display: 'grid', gap: '10px' }}>
+        {categories.map((category) => (
+          <div key={category.label} style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', fontSize: '14px', color: '#0f172a' }}>
+            <span>{category.label}</span>
+            {showCount && <span style={{ color: '#94a3b8' }}>{category.count}</span>}
+          </div>
+        ))}
+      </div>
+    </ThemeWidgetFrame>
+  );
+});
+
+const TagCloudRenderer: React.FC<{ node: DiSyLNode; style: React.CSSProperties }> = memo(({ node, style }) => {
+  const { title = 'Popular Tags', count = 16 } = node.props as any;
+  const tags = ['Design', 'SEO', 'Growth', 'Launch', 'Pricing', 'CMS', 'Retail', 'Menus', 'Builder', 'Layouts']
+    .slice(0, Math.max(1, Math.min(Number(count) || 16, 10)));
+
+  return (
+    <ThemeWidgetFrame title={title} style={style}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+        {tags.map((tag) => (
+          <span key={tag} style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            padding: '6px 10px',
+            borderRadius: '999px',
+            backgroundColor: '#f8fafc',
+            color: '#334155',
+            fontSize: '12px',
+            fontWeight: 600,
+          }}>
+            {tag}
+          </span>
+        ))}
+      </div>
+    </ThemeWidgetFrame>
+  );
+});
+
+const ArchivesRenderer: React.FC<{ node: DiSyLNode; style: React.CSSProperties }> = memo(({ node, style }) => {
+  const { title = 'Archives', count = 6, showCount = true } = node.props as any;
+  const months = [
+    { label: 'March 2026', count: 6 },
+    { label: 'February 2026', count: 4 },
+    { label: 'January 2026', count: 7 },
+    { label: 'December 2025', count: 5 },
+    { label: 'November 2025', count: 3 },
+    { label: 'October 2025', count: 4 },
+  ].slice(0, Math.max(1, Math.min(Number(count) || 6, 6)));
+
+  return (
+    <ThemeWidgetFrame title={title} style={style}>
+      <div style={{ display: 'grid', gap: '10px' }}>
+        {months.map((month) => (
+          <div key={month.label} style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', fontSize: '14px', color: '#0f172a' }}>
+            <span>{month.label}</span>
+            {showCount && <span style={{ color: '#94a3b8' }}>{month.count}</span>}
+          </div>
+        ))}
+      </div>
+    </ThemeWidgetFrame>
+  );
+});
+
+const OpeningHoursRenderer: React.FC<{ node: DiSyLNode; style: React.CSSProperties }> = memo(({ node, style }) => {
+  const { title = 'Opening Hours', text = 'Mon-Fri, 9:00 AM - 6:00 PM', showIcon = true } = node.props as any;
+
+  return (
+    <ThemeWidgetFrame title={title} style={style}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '14px', color: '#0f172a' }}>
+        {showIcon && (
+          <span style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: '32px',
+            height: '32px',
+            borderRadius: '999px',
+            backgroundColor: '#eff6ff',
+            color: '#1d4ed8',
+            fontSize: '14px',
+          }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="12" cy="12" r="10" />
+              <polyline points="12 6 12 12 16 14" />
+            </svg>
+          </span>
+        )}
+        <span>{text}</span>
+      </div>
+    </ThemeWidgetFrame>
+  );
+});
+
 // =============================================================================
 // Search Box Renderer (Jan 2026)
 // =============================================================================
@@ -3987,6 +4239,22 @@ const NodeRenderer: React.FC<NodeRendererProps> = memo(({
         return <BlockquoteRenderer node={node} style={style} />;
       case 'toggle':
         return <ToggleRenderer node={node} style={style} />;
+      case 'nav_menu':
+        return <NavMenuRenderer node={node} style={style} />;
+      case 'recent_posts':
+        return <RecentPostsRenderer node={node} style={style} />;
+      case 'social_links':
+        return <SocialLinksWidgetRenderer node={node} style={style} />;
+      case 'contact_info':
+        return <ContactInfoWidgetRenderer node={node} style={style} />;
+      case 'categories':
+        return <CategoriesRenderer node={node} style={style} />;
+      case 'tag_cloud':
+        return <TagCloudRenderer node={node} style={style} />;
+      case 'archives':
+        return <ArchivesRenderer node={node} style={style} />;
+      case 'opening_hours':
+        return <OpeningHoursRenderer node={node} style={style} />;
       case 'search_box':
         return <SearchBoxRenderer node={node} style={style} />;
       case 'badge':

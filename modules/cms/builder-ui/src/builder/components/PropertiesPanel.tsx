@@ -3484,6 +3484,216 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
       )}
 
       {/* Search Box */}
+
+      {/* Navigation Menu */}
+      {node.type === 'nav_menu' && (
+        <CollapsibleSection title="Navigation Menu" icon={<Navigation className="w-3 h-3" />} defaultOpen>
+          <TextInput
+            label="Title"
+            value={node.props.title as string || ''}
+            onChange={(v) => handlePropChange('title', v)}
+            placeholder="Browse"
+          />
+          <TextInput
+            label="Menu ID"
+            type="number"
+            value={String((node.props.menuId as number) || '')}
+            onChange={(v) => handlePropChange('menuId', v === '' ? 0 : Number(v))}
+            placeholder="1"
+          />
+        </CollapsibleSection>
+      )}
+
+      {/* Recent Posts */}
+      {node.type === 'recent_posts' && (
+        <CollapsibleSection title="Recent Posts" icon={<List className="w-3 h-3" />} defaultOpen>
+          <TextInput
+            label="Title"
+            value={node.props.title as string || ''}
+            onChange={(v) => handlePropChange('title', v)}
+            placeholder="Latest Posts"
+          />
+          <TextInput
+            label="Count"
+            type="number"
+            value={String((node.props.count as number) || 5)}
+            onChange={(v) => handlePropChange('count', v === '' ? 0 : Number(v))}
+            placeholder="5"
+          />
+          <div className="flex items-center justify-between">
+            <label className="text-xs text-white/70">Show Date</label>
+            <button
+              onClick={() => handlePropChange('showDate', !(node.props.showDate !== false))}
+              className={`relative w-10 h-5 rounded-full transition-colors ${node.props.showDate !== false ? 'bg-[#0078d4]' : 'bg-[#3c3c3c]'
+                }`}
+            >
+              <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform ${node.props.showDate !== false ? 'translate-x-5' : 'translate-x-0'
+                }`} />
+            </button>
+          </div>
+        </CollapsibleSection>
+      )}
+
+      {/* Site Social Links */}
+      {node.type === 'social_links' && (
+        <CollapsibleSection title="Site Social Links" icon={<Share2 className="w-3 h-3" />} defaultOpen>
+          <TextInput
+            label="Title"
+            value={node.props.title as string || ''}
+            onChange={(v) => handlePropChange('title', v)}
+            placeholder="Follow Us"
+          />
+          <SelectInput
+            label="Display Style"
+            value={node.props.displayStyle as string || 'icons'}
+            onChange={(v) => handlePropChange('displayStyle', v)}
+            options={[
+              { value: 'icons', label: 'Icons' },
+              { value: 'labels', label: 'Labels' },
+              { value: 'inline', label: 'Inline Links' },
+            ]}
+          />
+        </CollapsibleSection>
+      )}
+
+      {/* Contact Info */}
+      {node.type === 'contact_info' && (
+        <CollapsibleSection title="Contact Info" icon={<MessageSquare className="w-3 h-3" />} defaultOpen>
+          <TextInput
+            label="Title"
+            value={node.props.title as string || ''}
+            onChange={(v) => handlePropChange('title', v)}
+            placeholder="Contact Info"
+          />
+          <TextAreaInput
+            label="Address"
+            value={node.props.address as string || ''}
+            onChange={(v) => handlePropChange('address', v)}
+            placeholder="123 Market Street, Manila"
+            rows={2}
+          />
+          <TextInput
+            label="Phone"
+            value={node.props.phone as string || ''}
+            onChange={(v) => handlePropChange('phone', v)}
+            placeholder="+63 900 000 0000"
+          />
+          <TextInput
+            label="Email"
+            value={node.props.email as string || ''}
+            onChange={(v) => handlePropChange('email', v)}
+            placeholder="hello@example.com"
+          />
+        </CollapsibleSection>
+      )}
+
+      {/* Categories */}
+      {node.type === 'categories' && (
+        <CollapsibleSection title="Categories" icon={<List className="w-3 h-3" />} defaultOpen>
+          <TextInput
+            label="Title"
+            value={node.props.title as string || ''}
+            onChange={(v) => handlePropChange('title', v)}
+            placeholder="Categories"
+          />
+          <TextInput
+            label="Count"
+            type="number"
+            value={String((node.props.count as number) || 8)}
+            onChange={(v) => handlePropChange('count', v === '' ? 0 : Number(v))}
+            placeholder="8"
+          />
+          <div className="flex items-center justify-between">
+            <label className="text-xs text-white/70">Show Counts</label>
+            <button
+              onClick={() => handlePropChange('showCount', !(node.props.showCount !== false))}
+              className={`relative w-10 h-5 rounded-full transition-colors ${node.props.showCount !== false ? 'bg-[#0078d4]' : 'bg-[#3c3c3c]'
+                }`}
+            >
+              <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform ${node.props.showCount !== false ? 'translate-x-5' : 'translate-x-0'
+                }`} />
+            </button>
+          </div>
+        </CollapsibleSection>
+      )}
+
+      {/* Tag Cloud */}
+      {node.type === 'tag_cloud' && (
+        <CollapsibleSection title="Tag Cloud" icon={<Hash className="w-3 h-3" />} defaultOpen>
+          <TextInput
+            label="Title"
+            value={node.props.title as string || ''}
+            onChange={(v) => handlePropChange('title', v)}
+            placeholder="Popular Tags"
+          />
+          <TextInput
+            label="Count"
+            type="number"
+            value={String((node.props.count as number) || 16)}
+            onChange={(v) => handlePropChange('count', v === '' ? 0 : Number(v))}
+            placeholder="16"
+          />
+        </CollapsibleSection>
+      )}
+
+      {/* Archives */}
+      {node.type === 'archives' && (
+        <CollapsibleSection title="Archives" icon={<Clock className="w-3 h-3" />} defaultOpen>
+          <TextInput
+            label="Title"
+            value={node.props.title as string || ''}
+            onChange={(v) => handlePropChange('title', v)}
+            placeholder="Archives"
+          />
+          <TextInput
+            label="Count"
+            type="number"
+            value={String((node.props.count as number) || 6)}
+            onChange={(v) => handlePropChange('count', v === '' ? 0 : Number(v))}
+            placeholder="6"
+          />
+          <div className="flex items-center justify-between">
+            <label className="text-xs text-white/70">Show Counts</label>
+            <button
+              onClick={() => handlePropChange('showCount', !(node.props.showCount !== false))}
+              className={`relative w-10 h-5 rounded-full transition-colors ${node.props.showCount !== false ? 'bg-[#0078d4]' : 'bg-[#3c3c3c]'
+                }`}
+            >
+              <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform ${node.props.showCount !== false ? 'translate-x-5' : 'translate-x-0'
+                }`} />
+            </button>
+          </div>
+        </CollapsibleSection>
+      )}
+
+      {/* Opening Hours */}
+      {node.type === 'opening_hours' && (
+        <CollapsibleSection title="Opening Hours" icon={<Clock className="w-3 h-3" />} defaultOpen>
+          <TextInput
+            label="Title"
+            value={node.props.title as string || ''}
+            onChange={(v) => handlePropChange('title', v)}
+            placeholder="Opening Hours"
+          />
+          <TextInput
+            label="Text"
+            value={node.props.text as string || ''}
+            onChange={(v) => handlePropChange('text', v)}
+            placeholder="Mon-Fri, 9:00 AM - 6:00 PM"
+          />
+          <div className="flex items-center justify-between">
+            <label className="text-xs text-white/70">Show Icon</label>
+            <button
+              onClick={() => handlePropChange('showIcon', !(node.props.showIcon !== false))}
+              className={`relative w-10 h-5 rounded-full transition-colors ${node.props.showIcon !== false ? 'bg-[#0078d4]' : 'bg-[#3c3c3c]'
+                }`}
+            >
+              <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform ${node.props.showIcon !== false ? 'translate-x-5' : 'translate-x-0'
+                }`} />
+            </button>
+          </div>
+        </CollapsibleSection>
+      )}
       {node.type === 'search_box' && (
         <CollapsibleSection title="Search Box" icon={<Search className="w-3 h-3" />} defaultOpen>
           <TextInput

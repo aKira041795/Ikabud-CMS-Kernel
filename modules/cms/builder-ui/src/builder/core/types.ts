@@ -69,6 +69,14 @@ export type CMSComponentType =
   | 'blockquote'
   | 'toggle'
   | 'search_box'
+  | 'nav_menu'
+  | 'recent_posts'
+  | 'social_links'
+  | 'contact_info'
+  | 'categories'
+  | 'tag_cloud'
+  | 'archives'
+  | 'opening_hours'
   | 'breadcrumbs'
   | 'code_block'
   | 'badge'
@@ -205,6 +213,16 @@ export interface NodeProps {
   // Social Icons
   icons?: Array<{ platform: string; url: string }>;
   style?: string;
+
+  // Widget-style content blocks
+  menuId?: number;
+  count?: number;
+  showCount?: boolean;
+  displayStyle?: string;
+  showIcon?: boolean;
+  text?: string;
+  url?: string;
+  newTab?: boolean;
 
   // List
   listType?: 'bullet' | 'number' | 'check';

@@ -21,6 +21,14 @@ function placeholderSvg(w: number, h: number, bg: string, text: string): string 
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 }
 
+const themeWidgetCardStyle = {
+  padding: '20px',
+  border: '1px solid #e5e7eb',
+  borderRadius: '16px',
+  backgroundColor: '#ffffff',
+  width: '100%',
+};
+
 // =============================================================================
 // CMS Page Builder Components
 // =============================================================================
@@ -1050,7 +1058,7 @@ export const CMS_COMPONENTS: ComponentDefinition[] = [
     type: 'search_box',
     name: 'Search Box',
     icon: 'Search',
-    category: 'interactive',
+    category: 'content',
     description: 'Search input with customizable styling',
     keywords: ['finder', 'query', 'lookup', 'site search'],
     defaultProps: {
@@ -1063,6 +1071,158 @@ export const CMS_COMPONENTS: ComponentDefinition[] = [
     defaultStyle: {
       maxWidth: '500px',
       width: '100%',
+    },
+    allowedChildren: [],
+    allowedParents: null,
+    isLeaf: true,
+  },
+
+  // Theme-style widget components
+  {
+    type: 'nav_menu',
+    name: 'Navigation Menu',
+    icon: 'Navigation',
+    category: 'content',
+    description: 'Widget-style navigation menu rendered from a CMS menu ID',
+    keywords: ['widget', 'menu', 'navigation', 'footer', 'sidebar', 'links'],
+    defaultProps: {
+      title: 'Browse',
+      menuId: 0,
+    },
+    defaultStyle: {
+      ...themeWidgetCardStyle,
+    },
+    allowedChildren: [],
+    allowedParents: null,
+    isLeaf: true,
+  },
+  {
+    type: 'recent_posts',
+    name: 'Recent Posts',
+    icon: 'FileText',
+    category: 'content',
+    description: 'Compact latest-posts widget for content rails and footers',
+    keywords: ['widget', 'posts', 'blog', 'recent', 'sidebar', 'footer'],
+    defaultProps: {
+      title: 'Latest Posts',
+      count: 5,
+      showDate: true,
+    },
+    defaultStyle: {
+      ...themeWidgetCardStyle,
+    },
+    allowedChildren: [],
+    allowedParents: null,
+    isLeaf: true,
+  },
+  {
+    type: 'social_links',
+    name: 'Site Social Links',
+    icon: 'Share2',
+    category: 'content',
+    description: 'Auto-render social links from CMS site settings',
+    keywords: ['widget', 'social', 'footer', 'header', 'sidebar', 'icons'],
+    defaultProps: {
+      title: 'Follow Us',
+      displayStyle: 'icons',
+    },
+    defaultStyle: {
+      ...themeWidgetCardStyle,
+    },
+    allowedChildren: [],
+    allowedParents: null,
+    isLeaf: true,
+  },
+  {
+    type: 'contact_info',
+    name: 'Contact Info',
+    icon: 'MapPin',
+    category: 'content',
+    description: 'Widget-style contact details block for address, phone, and email',
+    keywords: ['widget', 'contact', 'address', 'phone', 'email', 'footer', 'sidebar'],
+    defaultProps: {
+      title: 'Contact Info',
+      address: '123 Market Street, Manila',
+      phone: '+63 900 000 0000',
+      email: 'hello@example.com',
+    },
+    defaultStyle: {
+      ...themeWidgetCardStyle,
+    },
+    allowedChildren: [],
+    allowedParents: null,
+    isLeaf: true,
+  },
+  {
+    type: 'categories',
+    name: 'Categories',
+    icon: 'List',
+    category: 'content',
+    description: 'Blog category list widget with optional post counts',
+    keywords: ['widget', 'categories', 'blog', 'taxonomy', 'sidebar'],
+    defaultProps: {
+      title: 'Categories',
+      count: 8,
+      showCount: true,
+    },
+    defaultStyle: {
+      ...themeWidgetCardStyle,
+    },
+    allowedChildren: [],
+    allowedParents: null,
+    isLeaf: true,
+  },
+  {
+    type: 'tag_cloud',
+    name: 'Tag Cloud',
+    icon: 'Hash',
+    category: 'content',
+    description: 'Popular tags widget rendered as a compact cloud of labels',
+    keywords: ['widget', 'tags', 'tag cloud', 'blog', 'sidebar'],
+    defaultProps: {
+      title: 'Popular Tags',
+      count: 16,
+    },
+    defaultStyle: {
+      ...themeWidgetCardStyle,
+    },
+    allowedChildren: [],
+    allowedParents: null,
+    isLeaf: true,
+  },
+  {
+    type: 'archives',
+    name: 'Archives',
+    icon: 'Clock',
+    category: 'content',
+    description: 'Archive links by month and year with optional counts',
+    keywords: ['widget', 'archives', 'blog', 'months', 'sidebar'],
+    defaultProps: {
+      title: 'Archives',
+      count: 6,
+      showCount: true,
+    },
+    defaultStyle: {
+      ...themeWidgetCardStyle,
+    },
+    allowedChildren: [],
+    allowedParents: null,
+    isLeaf: true,
+  },
+  {
+    type: 'opening_hours',
+    name: 'Opening Hours',
+    icon: 'Clock',
+    category: 'content',
+    description: 'Compact business-hours widget for top bars, footers, and contact areas',
+    keywords: ['widget', 'hours', 'business', 'footer', 'header', 'sidebar'],
+    defaultProps: {
+      title: 'Opening Hours',
+      text: 'Mon-Fri, 9:00 AM - 6:00 PM',
+      showIcon: true,
+    },
+    defaultStyle: {
+      ...themeWidgetCardStyle,
     },
     allowedChildren: [],
     allowedParents: null,
