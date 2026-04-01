@@ -393,3 +393,75 @@ function cmsApiContentPublishScheduled(array $params = []): void
     echo json_encode(['ok' => true, 'published' => $published, 'count' => count($published)]);
     exit;
 }
+
+// ═══════════════════════════════════════════════════════════════════════
+// EMPTY TRASH
+// ═══════════════════════════════════════════════════════════════════════
+
+/**
+ * POST /api/v1/cms/content/empty-trash
+ *
+ * Permanently deletes all items currently in the trash.
+ * Optional body param: { type: 'post'|'page'|'...' } — scope to a single content type.
+ * Requires administrator role.
+ */
+function cmsApiEmptyTrash(array $params = []): void
+{
+    header('Content-Type: application/json');
+    $user = cmsRequireCap('content.bulk_actions');
+    $role = (string)($user['role'] ?? '');
+
+    if (!cmsRoleAtLeast($role, 'administrator')) {
+        http_response_code(403);
+        echo json_encode(['ok' => false, 'error' => 'Requires administrator role']);
+        exit;
+    }
+
+    $input = cmsInput();
+    $type  = trim((string)($input['type'] ?? ''));
+
+    $db = cmsDb();
+    $deleted = 0;
+
+    try {
+        $where = ['deleted_at IS NOT NULL'];
+        $bind  = [];
+        if ($type !== '') {
+            $where[] = 'type = :type';
+            $bind[':type'] = $type;
+        }
+        $whereStr = implode(' AND ', $where);
+
+        $idStmt = $db->prepare("SELECT id FROM cms_content WHERE {$whereStr}");
+        $idStmt->execute($bind);
+        $ids = array_column($idStmt->fetchAll(\PDO::FETCH_ASSOC), 'id');
+
+        foreach ($ids as $id) {
+            $db->prepare("DELETE FROM cms_content_meta WHERE content_id = :id")->execute([':id' => $id]);
+            $db->prepare("DELETE FROM cms_content_categories WHERE content_id = :id")->execute([':id' => $id]);
+            $db->prepare("DELETE FROM cms_content_tags WHERE content_id = :id")->execute([':id' => $id]);
+            $db->prepare("DELETE FROM cms_media_usage WHERE content_id = :id")->execute([':id' => $id]);
+            $db->prepare("DELETE FROM cms_content WHERE id = :id")->execute([':id' => $id]);
+            $deleted++;
+        }
+
+        adminViewCacheInvalidate(['cms:admin', 'cms:admin:dashboard', 'cms:admin:content']);
+    } catch (\Throwable $e) {
+        http_response_code(500);
+        echo json_encode(['ok' => false, 'error' => 'Database error']);
+        exit;
+    }
+
+    try {
+        app()->cap()->call('kernel.audit.record@1', [
+            'module'      => 'cms',
+            'action'      => 'content.empty_trash',
+            'entity_type' => 'cms_content',
+            'entity_id'   => '0',
+            'old_data'    => ['type' => $type ?: 'all', 'deleted' => $deleted],
+        ]);
+    } catch (\Throwable $e) {}
+
+    echo json_encode(['ok' => true, 'deleted' => $deleted]);
+    exit;
+}

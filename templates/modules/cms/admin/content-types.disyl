@@ -2,6 +2,26 @@
 
 {block content}
 <div x-data="cmsContentTypes()" x-init="init()">
+
+    <!-- What are Content Types? -->
+    <div class="bg-sky-50 border border-sky-200 rounded-xl p-4 mb-5 flex gap-4">
+        <div class="flex-shrink-0 mt-0.5">
+            <svg class="w-5 h-5 text-sky-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        </div>
+        <div>
+            <h3 class="text-sm font-semibold text-sky-800 mb-1">What are Content Types?</h3>
+            <p class="text-sm text-sky-700 leading-relaxed">
+                Content Types let you define structured content beyond the default <strong>Post</strong> and <strong>Page</strong>. For example, you can create a <em>Portfolio</em> type with fields like <em>Client</em> and <em>Project URL</em>, or a <em>Testimonial</em> type with <em>Rating</em> and <em>Author</em> fields.
+            </p>
+            <ol class="mt-2 space-y-0.5 text-xs text-sky-700 list-decimal list-inside">
+                <li><strong>Create a type</strong> — give it a name and slug (e.g. <code class="bg-sky-100 px-1 rounded">portfolio</code>).</li>
+                <li><strong>Add fields</strong> — text, number, select, date, image, etc. These appear in the content editor.</li>
+                <li><strong>Create content</strong> — go to <em>Content → Posts/Pages</em> and use the type tab that appears, or add <code class="bg-sky-100 px-1 rounded">?type=portfolio</code> to the content URL.</li>
+                <li><strong>Display it</strong> — field values are stored in <code class="bg-sky-100 px-1 rounded">cms_content_meta</code> and are accessible in templates via the entity context.</li>
+            </ol>
+        </div>
+    </div>
+
     <div class="flex items-center justify-between mb-4">
         <div>
             <div class="text-sm text-gray-500">Define custom content types and their fields. Fields are stored in <span class="font-mono">cms_content_meta</span>.</div>

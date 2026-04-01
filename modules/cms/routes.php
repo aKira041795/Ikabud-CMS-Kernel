@@ -114,6 +114,7 @@ return [
         // ── Content API ──────────────────────────────────────────
         '/api/v1/cms/content'             => 'cms:cmsApiContentCreate',
         '/api/v1/cms/content/bulk'            => 'cms:cmsApiContentBulk',
+        '/api/v1/cms/content/empty-trash'     => 'cms:cmsApiEmptyTrash',
         '/api/v1/cms/content/publish-scheduled' => 'cms:cmsApiContentPublishScheduled',
         '/api/v1/cms/content/{id}'        => 'cms:cmsApiContentUpdate',
         '/api/v1/cms/content/{id}/builder' => 'cms:cmsApiBuilderDocumentSave',

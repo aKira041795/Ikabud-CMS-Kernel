@@ -134,7 +134,8 @@ function cmsAdminContentList(array $params = []): void
     $isSticky   = isset($input['is_sticky'])   ? (int)(bool)$input['is_sticky']    : null;
     $isFeatured = isset($input['is_featured']) ? (int)(bool)$input['is_featured']  : null;
 
-    $where = ['c.deleted_at IS NULL'];
+    // Trash items have deleted_at set; all other views exclude soft-deleted rows
+    $where = [$status === 'trash' ? 'c.deleted_at IS NOT NULL' : 'c.deleted_at IS NULL'];
     $bind  = [];
 
     if ($type !== '') {
@@ -236,7 +237,8 @@ function cmsAdminContentList(array $params = []): void
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     } catch (Throwable $e) {}
 
-    foreach ($rows as &$row) {
+    foreach ($rows as $i => &$row) {
+        $row['row_number'] = ($page - 1) * $perPage + $i + 1;
         $row['url'] = cmsResolveUploadUrl((string)($row['file_path'] ?? ''));
     }
     unset($row);
@@ -264,6 +266,26 @@ function cmsAdminContentList(array $params = []): void
         $categoryList = $catListStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     } catch (Throwable $e) {}
 
+    // Active custom content types (beyond post/page) for tab navigation
+    $customTypes = [];
+    try {
+        $ctStmt = $db->query(
+            "SELECT slug, label FROM cms_content_types WHERE is_active = 1 AND slug NOT IN ('post','page') ORDER BY sort_order ASC, slug ASC"
+        );
+        $customTypes = $ctStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    } catch (Throwable $e) {}
+
+    // Trash item count for the badge on the Trash tab
+    $trashCount = 0;
+    try {
+        $trashBind  = [':trash_type' => $type];
+        $trashStmt  = $db->prepare(
+            "SELECT COUNT(*) FROM cms_content WHERE deleted_at IS NOT NULL AND type = :trash_type"
+        );
+        $trashStmt->execute($trashBind);
+        $trashCount = (int)$trashStmt->fetchColumn();
+    } catch (Throwable $e) {}
+
     $payload = [
         'page_title'         => ucfirst($type) . 's',
         'content_type'       => $type,
@@ -284,6 +306,8 @@ function cmsAdminContentList(array $params = []): void
         'is_featured_filter' => $isFeatured,
         'author_list'        => $authorList,
         'category_list'      => $categoryList,
+        'custom_types'       => $customTypes,
+        'trash_count'        => $trashCount,
     ];
 
     adminViewCacheSet($cacheKey, $payload, ['cms:admin', 'cms:admin:content', 'cms:type:' . $type], $user);
