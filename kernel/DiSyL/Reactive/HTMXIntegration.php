@@ -19,9 +19,9 @@ namespace Ikabud\Kernel\DiSyL\Reactive;
  */
 class HTMXTemplateIntegration
 {
-    private \Ikabud\Kernel\DiSyL\DiSyLEngine $engine;
+    private \Ikabud\Kernel\DiSyL\TemplateEngine $engine;
     
-    public function __construct(\Ikabud\Kernel\DiSyL\DiSyLEngine $engine)
+    public function __construct(\Ikabud\Kernel\DiSyL\TemplateEngine $engine)
     {
         $this->engine = $engine;
     }
@@ -80,27 +80,27 @@ class HTMXTemplateIntegration
     public function registerFilters(\Ikabud\Kernel\DiSyL\v4\FilterRegistry $filters): void
     {
         // {{ url | hx_get }} - Generate hx-get attribute
-        $filters->register('hx_get', fn($url) => "hx-get=\"{$url}\"");
+        $filters->register('hx_get', fn($url) => 'hx-get="' . htmlspecialchars((string) $url, ENT_QUOTES, 'UTF-8') . '"');
         
         // {{ url | hx_post }} - Generate hx-post attribute
-        $filters->register('hx_post', fn($url) => "hx-post=\"{$url}\"");
+        $filters->register('hx_post', fn($url) => 'hx-post="' . htmlspecialchars((string) $url, ENT_QUOTES, 'UTF-8') . '"');
         
         // {{ selector | hx_target }} - Generate hx-target attribute
-        $filters->register('hx_target', fn($selector) => "hx-target=\"{$selector}\"");
+        $filters->register('hx_target', fn($selector) => 'hx-target="' . htmlspecialchars((string) $selector, ENT_QUOTES, 'UTF-8') . '"');
         
         // {{ strategy | hx_swap }} - Generate hx-swap attribute
-        $filters->register('hx_swap', fn($strategy) => "hx-swap=\"{$strategy}\"");
+        $filters->register('hx_swap', fn($strategy) => 'hx-swap="' . htmlspecialchars((string) $strategy, ENT_QUOTES, 'UTF-8') . '"');
         
         // {{ event | hx_trigger }} - Generate hx-trigger attribute
-        $filters->register('hx_trigger', fn($event) => "hx-trigger=\"{$event}\"");
+        $filters->register('hx_trigger', fn($event) => 'hx-trigger="' . htmlspecialchars((string) $event, ENT_QUOTES, 'UTF-8') . '"');
         
         // {{ selector | hx_indicator }} - Generate hx-indicator attribute
-        $filters->register('hx_indicator', fn($selector) => "hx-indicator=\"{$selector}\"");
+        $filters->register('hx_indicator', fn($selector) => 'hx-indicator="' . htmlspecialchars((string) $selector, ENT_QUOTES, 'UTF-8') . '"');
         
         // {{ json | hx_vals }} - Generate hx-vals attribute
         $filters->register('hx_vals', function($data) {
-            $json = is_string($data) ? $data : json_encode($data);
-            return "hx-vals='{$json}'";
+            $json = is_string($data) ? $data : json_encode($data, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT);
+            return 'hx-vals="' . htmlspecialchars($json, ENT_QUOTES, 'UTF-8') . '"';
         });
     }
 }

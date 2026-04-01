@@ -63,15 +63,132 @@ $config = [
         : require CONFIG_PATH . '/database.php',
 ];
 
+/**
+ * Request-scoped context store with legacy global mirroring for compatibility.
+ * This lets kernel internals stop depending on ad hoc globals directly while
+ * keeping older tests and module code working during the transition.
+ *
+ * @return array<string, mixed>
+ */
+function &kernel_request_context_store(): array
+{
+    static $context = [];
+    return $context;
+}
+
+function kernel_request_context_has(string $key): bool
+{
+    $context = &kernel_request_context_store();
+    return array_key_exists($key, $context) || array_key_exists($key, $GLOBALS);
+}
+
+function kernel_request_context_get(string $key, mixed $default = null): mixed
+{
+    $context = &kernel_request_context_store();
+    if (array_key_exists($key, $context)) {
+        return $context[$key];
+    }
+
+    if (array_key_exists($key, $GLOBALS)) {
+        $context[$key] = $GLOBALS[$key];
+        return $context[$key];
+    }
+
+    return $default;
+}
+
+function kernel_request_context_set(string $key, mixed $value): mixed
+{
+    $context = &kernel_request_context_store();
+    $context[$key] = $value;
+
+    if ($key !== '' && $key[0] === '_') {
+        $GLOBALS[$key] = $value;
+    }
+
+    return $value;
+}
+
+function kernel_request_context_delete(string $key): void
+{
+    $context = &kernel_request_context_store();
+    unset($context[$key]);
+
+    if (array_key_exists($key, $GLOBALS)) {
+        unset($GLOBALS[$key]);
+    }
+}
+
+/**
+ * @return array<int, mixed>
+ */
+function kernel_request_context_push(string $key, mixed $value): array
+{
+    $stack = kernel_request_context_get($key, []);
+    if (!is_array($stack)) {
+        $stack = [];
+    }
+
+    $stack[] = $value;
+    kernel_request_context_set($key, $stack);
+    return $stack;
+}
+
+function kernel_request_context_pop(string $key, mixed $default = null): mixed
+{
+    $stack = kernel_request_context_get($key, []);
+    if (!is_array($stack) || $stack === []) {
+        return $default;
+    }
+
+    $value = array_pop($stack);
+    kernel_request_context_set($key, $stack);
+    return $value;
+}
+
+function kernel_csp_nonce(): string
+{
+    $nonce = kernel_request_context_get('_csp_nonce');
+    if (is_string($nonce) && $nonce !== '') {
+        return $nonce;
+    }
+
+    $nonce = base64_encode(random_bytes(16));
+    return (string) kernel_request_context_set('_csp_nonce', $nonce);
+}
+
+function kernel_validate_redirect_target(string $target): string
+{
+    $target = trim($target);
+    if ($target === '') {
+        return '/';
+    }
+
+    $decoded = rawurldecode($target);
+    if (preg_match('/[\x00-\x1F\x7F]/', $target) === 1 || preg_match('/[\r\n]/', $decoded) === 1) {
+        throw new InvalidArgumentException('Invalid redirect target');
+    }
+
+    return $target;
+}
+
+function kernel_emit_redirect_header(string $target, int $status = 302, string $headerName = 'Location'): string
+{
+    $safeTarget = kernel_validate_redirect_target($target);
+    header($headerName . ': ' . $safeTarget, true, $status);
+    return $safeTarget;
+}
+
 function request_id(): string
 {
-    if (isset($GLOBALS['_request_id']) && is_string($GLOBALS['_request_id']) && $GLOBALS['_request_id'] !== '') {
-        return $GLOBALS['_request_id'];
+    $existing = kernel_request_context_get('_request_id');
+    if (is_string($existing) && $existing !== '') {
+        return $existing;
     }
 
     $incoming = trim((string)($_SERVER['HTTP_X_REQUEST_ID'] ?? ''));
     if ($incoming !== '' && preg_match('/^[A-Za-z0-9\-]{8,128}$/', $incoming)) {
-        $GLOBALS['_request_id'] = $incoming;
+        kernel_request_context_set('_request_id', $incoming);
         $_SERVER['REQUEST_ID'] = $incoming;
         return $incoming;
     }
@@ -82,7 +199,7 @@ function request_id(): string
         $generated = uniqid('req_', true);
     }
 
-    $GLOBALS['_request_id'] = $generated;
+    kernel_request_context_set('_request_id', $generated);
     $_SERVER['REQUEST_ID'] = $generated;
     return $generated;
 }
@@ -155,7 +272,7 @@ function should_enforce_https(): bool
 
 function capability_call_context(): ?array
 {
-    $ctx = $GLOBALS['_capability_call_context'] ?? null;
+    $ctx = kernel_request_context_get('_capability_call_context');
     return is_array($ctx) ? $ctx : null;
 }
 
@@ -179,6 +296,174 @@ function write_log(string $message, string $level = 'error', array $context = []
     );
     @file_put_contents($logDir . '/app.log', $line, FILE_APPEND | LOCK_EX);
 }
+
+
+    function kernelBuildRequestDispatchContext(string $method, string $uri, array $extra = []): array
+    {
+        $normalizedMethod = strtoupper(trim($method));
+        if ($normalizedMethod === '') {
+            $normalizedMethod = 'GET';
+        }
+
+        $normalizedUri = trim($uri);
+        if ($normalizedUri === '') {
+            $normalizedUri = '/';
+        }
+
+        $context = [
+            'method' => $normalizedMethod,
+            'uri' => $normalizedUri,
+            'handled' => false,
+            'redirect' => null,
+            'redirect_status' => 302,
+            'request_id' => request_id(),
+            'is_api' => str_starts_with($normalizedUri, '/api/'),
+            'is_htmx' => function_exists('app') ? app()->isHtmx() : false,
+        ];
+
+        if (function_exists('app')) {
+            $context['user'] = app()->user();
+        }
+
+        $context = array_merge($context, $extra);
+        kernel_request_context_set('_request_dispatch_context', $context);
+        return $context;
+    }
+
+    function kernelCurrentRequestDispatchContext(): ?array
+    {
+        $context = kernel_request_context_get('_request_dispatch_context');
+        return is_array($context) ? $context : null;
+    }
+
+    function kernelApplyRequestBeforeDispatch(array $context): array
+    {
+        if (!function_exists('app')) {
+            kernel_request_context_set('_request_dispatch_context', $context);
+            return $context;
+        }
+
+        $filtered = app()->hooks()->filter('kernel.request.before_dispatch', $context);
+        if (!is_array($filtered)) {
+            $filtered = $context;
+        }
+
+        if (!isset($filtered['method']) || !is_string($filtered['method']) || trim($filtered['method']) === '') {
+            $filtered['method'] = (string)($context['method'] ?? 'GET');
+        }
+        if (!isset($filtered['uri']) || !is_string($filtered['uri']) || trim($filtered['uri']) === '') {
+            $filtered['uri'] = (string)($context['uri'] ?? '/');
+        }
+        if (!array_key_exists('handled', $filtered)) {
+            $filtered['handled'] = (bool)($context['handled'] ?? false);
+        }
+        if (!array_key_exists('redirect', $filtered)) {
+            $filtered['redirect'] = $context['redirect'] ?? null;
+        }
+        if (!array_key_exists('redirect_status', $filtered)) {
+            $filtered['redirect_status'] = (int)($context['redirect_status'] ?? 302);
+        }
+
+        $filtered['method'] = strtoupper(trim((string)$filtered['method']));
+        $filtered['uri'] = trim((string)$filtered['uri']) !== '' ? (string)$filtered['uri'] : '/';
+        $redirect = $filtered['redirect'] ?? null;
+        $filtered['redirect'] = is_string($redirect) && trim($redirect) !== '' ? trim($redirect) : null;
+        $filtered['redirect_status'] = max(300, min(399, (int)$filtered['redirect_status']));
+
+        kernel_request_context_set('_request_dispatch_context', $filtered);
+        return $filtered;
+    }
+
+    function kernelRequestDispatchPath(array $context): string
+    {
+        $uri = trim((string)($context['uri'] ?? '/'));
+        if ($uri === '') {
+            return '/';
+        }
+
+        $path = parse_url($uri, PHP_URL_PATH);
+        if (!is_string($path) || $path === '') {
+            return $uri;
+        }
+
+        return $path;
+    }
+
+    function kernelRequestDispatchRedirect(array $context, string $target, int $status = 302): array
+    {
+        $context['handled'] = true;
+        $context['redirect'] = $target;
+        $context['redirect_status'] = $status;
+        return $context;
+    }
+
+    function kernelResolveAuthenticatedHomeRedirect(?array $user = null, bool $fallbackToRoot = false): ?string
+    {
+        if ($user === null && function_exists('app')) {
+            $resolved = app()->user();
+            $user = is_array($resolved) ? $resolved : null;
+        }
+
+        if (!is_array($user)) {
+            return $fallbackToRoot ? '/' : null;
+        }
+
+        $role = trim((string)($user['role'] ?? ''));
+        $source = trim((string)($user['source'] ?? ''));
+        if ($role === 'superadmin' && $source === 'kernel') {
+            return '/superadmin/settings';
+        }
+
+        if (function_exists('app')) {
+            $homeUrl = app()->hooks()->filter('kernel.home_url', null, $role, $user);
+            if (is_string($homeUrl) && trim($homeUrl) !== '') {
+                return trim($homeUrl);
+            }
+        }
+
+        return $fallbackToRoot ? '/' : null;
+    }
+
+    function kernelRegisterCoreRequestDispatchHooks(): void
+    {
+        static $registered = false;
+
+        if ($registered || !function_exists('app')) {
+            return;
+        }
+        $registered = true;
+
+        app()->hooks()->on('kernel.request.before_dispatch', static function (array $context): array {
+            $method = strtoupper((string)($context['method'] ?? 'GET'));
+            if (!in_array($method, ['GET', 'HEAD'], true)) {
+                return $context;
+            }
+
+            $path = kernelRequestDispatchPath($context);
+            $user = is_array($context['user'] ?? null) ? $context['user'] : app()->user();
+
+            if ($path === '/login') {
+                $target = kernelResolveAuthenticatedHomeRedirect(is_array($user) ? $user : null, true);
+                if ($target !== null && is_array($user)) {
+                    return kernelRequestDispatchRedirect($context, $target);
+                }
+                return $context;
+            }
+
+            if ($path === '/' && !is_array($user)) {
+                return kernelRequestDispatchRedirect($context, '/login');
+            }
+
+            if ($path === '/' && is_array($user)) {
+                $target = kernelResolveAuthenticatedHomeRedirect($user, false);
+                if ($target !== null) {
+                    return kernelRequestDispatchRedirect($context, $target);
+                }
+            }
+
+            return $context;
+        }, -1000);
+    }
 
 function kernelLoginRateLimitMaxAttempts(): int
 {
@@ -238,14 +523,29 @@ function kernelConsumeLoginRateLimit(?string $moduleId = null, ?int $maxAttempts
     $action = 'login';
 
     try {
-        $statement = app()->db()->prepare(
+        $db = app()->db();
+        $cutoff = date('Y-m-d H:i:s', time() - $windowSeconds);
+
+        $db->prepare(
+            'INSERT INTO rate_limits (identifier, action, attempts, window_start)
+             VALUES (:id, :action, 1, CURRENT_TIMESTAMP)
+             ON DUPLICATE KEY UPDATE
+                 attempts = IF(window_start >= :cutoff, attempts + 1, 1),
+                 window_start = IF(window_start >= :cutoff2, window_start, CURRENT_TIMESTAMP)'
+        )->execute([
+            ':id' => $identifier,
+            ':action' => $action,
+            ':cutoff' => $cutoff,
+            ':cutoff2' => $cutoff,
+        ]);
+
+        $statement = $db->prepare(
             'SELECT attempts, window_start FROM rate_limits WHERE identifier = :id AND action = :action LIMIT 1'
         );
         $statement->execute([':id' => $identifier, ':action' => $action]);
         $row = $statement->fetch(PDO::FETCH_ASSOC);
-        $cutoff = date('Y-m-d H:i:s', time() - $windowSeconds);
 
-        if (is_array($row) && ($row['window_start'] ?? '') >= $cutoff && (int)($row['attempts'] ?? 0) >= $maxAttempts) {
+        if (is_array($row) && ($row['window_start'] ?? '') >= $cutoff && (int)($row['attempts'] ?? 0) > $maxAttempts) {
             $retryAfter = max(1, $windowSeconds - (time() - strtotime((string)$row['window_start'])));
             write_log('auth.login_rate_limited', 'warning', [
                 'identifier' => $identifier,
@@ -267,19 +567,6 @@ function kernelConsumeLoginRateLimit(?string $moduleId = null, ?int $maxAttempts
                 'enforced' => true,
             ];
         }
-
-        app()->db()->prepare(
-            'INSERT INTO rate_limits (identifier, action, attempts, window_start)
-             VALUES (:id, :action, 1, CURRENT_TIMESTAMP)
-             ON DUPLICATE KEY UPDATE
-                 attempts = IF(window_start >= :cutoff, attempts + 1, 1),
-                 window_start = IF(window_start >= :cutoff2, window_start, CURRENT_TIMESTAMP)'
-        )->execute([
-            ':id' => $identifier,
-            ':action' => $action,
-            ':cutoff' => $cutoff,
-            ':cutoff2' => $cutoff,
-        ]);
     } catch (Throwable $ignored) {
         return [
             'limited' => false,
@@ -421,6 +708,32 @@ function dbConnectionLost(Throwable $e): bool
     }
 
     return false;
+}
+
+function kernelFireShutdownHooks(): void
+{
+    static $fired = false;
+
+    if ($fired) {
+        return;
+    }
+    $fired = true;
+
+    if (!function_exists('app')) {
+        return;
+    }
+
+    try {
+        app()->hooks()->action('kernel.shutdown', app());
+    } catch (Throwable $e) {
+        if (function_exists('write_log')) {
+            write_log('kernel.shutdown hook failed: ' . $e->getMessage(), 'error', [
+                'exception' => get_class($e),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+            ]);
+        }
+    }
 }
 
 set_exception_handler(function (Throwable $e): void {
@@ -658,6 +971,12 @@ function kernelRegisterRenderContextContract(string $contractId, array $definiti
     $contractId = trim($contractId);
     if ($contractId === '') {
         throw new InvalidArgumentException('Render context contract id must not be empty.');
+    }
+
+    // Validate contract ID format: alphanumeric, dots, hyphens, underscores, colons, @ signs only.
+    // Examples of valid IDs: 'cms.public.entity.view@1', 'ecommerce:shell', 'kernel.render.context@1'
+    if (!preg_match('/^[a-zA-Z0-9._:@-]+$/', $contractId)) {
+        throw new InvalidArgumentException("Render context contract id contains invalid characters: '{$contractId}'. Allowed: alphanumeric, dot, hyphen, underscore, colon, @.");
     }
 
     $templates = [];
@@ -914,6 +1233,11 @@ function kernelRenderTraceOutputMode(): string
 function kernelRenderTraceOutputEnabled(): bool
 {
     return kernelRenderTraceOutputMode() !== '';
+}
+
+function kernelRenderTraceCaptureEnabled(): bool
+{
+    return kernelRenderTraceLogsEnabled() || kernelRenderTraceOutputEnabled();
 }
 
 function kernelRenderTraceThemeSource(array $context): string

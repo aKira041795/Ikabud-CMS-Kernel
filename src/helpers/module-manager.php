@@ -273,21 +273,22 @@ function readTenantModuleSettings(string $moduleId): array
 function preloadAllTenantModuleSettings(): void
 {
     $cacheKey = '_tenant_module_settings_cache';
-    if (isset($GLOBALS[$cacheKey])) {
+    if (kernel_request_context_has($cacheKey)) {
         return; // Already loaded
     }
 
     $tenantId = moduleTenantSettingsTenantId();
     if ($tenantId === null) {
-        $GLOBALS[$cacheKey] = [];
+        kernel_request_context_set($cacheKey, []);
         return;
     }
 
-    $GLOBALS['_kernel_db_unguarded'] = true;
+    $previousUnguarded = (bool)kernel_request_context_get('_kernel_db_unguarded', false);
+    kernel_request_context_set('_kernel_db_unguarded', true);
     try {
         $db = app()->db();
         if (!moduleTenantSettingsEnsureTable($db)) {
-            $GLOBALS[$cacheKey] = [];
+            kernel_request_context_set($cacheKey, []);
             return;
         }
 
@@ -311,11 +312,11 @@ function preloadAllTenantModuleSettings(): void
             $cache[$mid][$key] = (json_last_error() === JSON_ERROR_NONE) ? $decoded : $raw;
         }
 
-        $GLOBALS[$cacheKey] = $cache;
+        kernel_request_context_set($cacheKey, $cache);
     } catch (Throwable $e) {
-        $GLOBALS[$cacheKey] = [];
+        kernel_request_context_set($cacheKey, []);
     } finally {
-        $GLOBALS['_kernel_db_unguarded'] = false;
+        kernel_request_context_set('_kernel_db_unguarded', $previousUnguarded);
     }
 }
 
@@ -324,7 +325,7 @@ function preloadAllTenantModuleSettings(): void
  */
 function invalidateTenantModuleSettingsCache(): void
 {
-    unset($GLOBALS['_tenant_module_settings_cache']);
+    kernel_request_context_delete('_tenant_module_settings_cache');
 }
 
 /**
@@ -333,7 +334,8 @@ function invalidateTenantModuleSettingsCache(): void
  */
 function _readTenantModuleSettingsSingle(string $moduleId, int $tenantId, ?PDO $dbOverride = null): array
 {
-    $GLOBALS['_kernel_db_unguarded'] = true;
+    $previousUnguarded = (bool)kernel_request_context_get('_kernel_db_unguarded', false);
+    kernel_request_context_set('_kernel_db_unguarded', true);
     try {
         $db = $dbOverride ?? app()->db();
         if (!moduleTenantSettingsEnsureTable($db)) {
@@ -365,7 +367,7 @@ function _readTenantModuleSettingsSingle(string $moduleId, int $tenantId, ?PDO $
     } catch (Throwable $e) {
         return [];
     } finally {
-        $GLOBALS['_kernel_db_unguarded'] = false;
+        kernel_request_context_set('_kernel_db_unguarded', $previousUnguarded);
     }
 }
 
@@ -381,7 +383,8 @@ function saveTenantModuleSettings(string $moduleId, array $settings): bool
 
     // Kernel-level operation: bypass ModuleDB enforcement so any module
     // can persist its own settings without declaring tenant_module_settings.
-    $GLOBALS['_kernel_db_unguarded'] = true;
+    $previousUnguarded = (bool)kernel_request_context_get('_kernel_db_unguarded', false);
+    kernel_request_context_set('_kernel_db_unguarded', true);
     try {
         $db = app()->db();
         if (!moduleTenantSettingsEnsureTable($db)) {
@@ -411,7 +414,7 @@ function saveTenantModuleSettings(string $moduleId, array $settings): bool
     } catch (Throwable $e) {
         return false;
     } finally {
-        $GLOBALS['_kernel_db_unguarded'] = false;
+        kernel_request_context_set('_kernel_db_unguarded', $previousUnguarded);
         invalidateTenantModuleSettingsCache();
     }
 }
@@ -444,7 +447,8 @@ function saveTenantModuleSettingsForTenant(string $moduleId, int $tenantId, arra
         return false;
     }
 
-    $GLOBALS['_kernel_db_unguarded'] = true;
+    $previousUnguarded = (bool)kernel_request_context_get('_kernel_db_unguarded', false);
+    kernel_request_context_set('_kernel_db_unguarded', true);
     try {
         $db = app()->dbForTenant($tenantId);
         if ($db === null || !moduleTenantSettingsEnsureTable($db)) {
@@ -474,7 +478,7 @@ function saveTenantModuleSettingsForTenant(string $moduleId, int $tenantId, arra
     } catch (Throwable $e) {
         return false;
     } finally {
-        $GLOBALS['_kernel_db_unguarded'] = false;
+        kernel_request_context_set('_kernel_db_unguarded', $previousUnguarded);
     }
 }
 
@@ -2240,23 +2244,20 @@ function moduleCurrentId(): ?string
 
 function modulePushContext(string|\Ikabud\Kernel\Contracts\ModuleContext $module): ?\Ikabud\Kernel\Contracts\ModuleContext
 {
-    global $_activeModuleContext, $_moduleContextStack;
-
     $ctx = is_string($module) ? moduleContextFor($module) : $module;
     if (!$ctx) {
         return null;
     }
 
-    $_moduleContextStack[] = $_activeModuleContext;
-    $_activeModuleContext = $ctx;
+    kernel_request_context_push('_moduleContextStack', module());
+    kernel_request_context_set('_activeModuleContext', $ctx);
     return $ctx;
 }
 
 function modulePopContext(): void
 {
-    global $_activeModuleContext, $_moduleContextStack;
-
-    $_activeModuleContext = array_pop($_moduleContextStack) ?? null;
+    $previous = kernel_request_context_pop('_moduleContextStack');
+    kernel_request_context_set('_activeModuleContext', $previous);
 }
 
 function moduleWithContext(string|\Ikabud\Kernel\Contracts\ModuleContext $module, callable $callback): mixed
@@ -2368,15 +2369,15 @@ $_activeModuleContext = null;
  */
 function module(?string $moduleId = null): ?\Ikabud\Kernel\Contracts\ModuleContext
 {
-    global $_activeModuleContext;
+    $activeContext = kernel_request_context_get('_activeModuleContext');
 
     if ($moduleId === null || trim($moduleId) === '') {
-        return $_activeModuleContext;
+        return $activeContext instanceof \Ikabud\Kernel\Contracts\ModuleContext ? $activeContext : null;
     }
 
     $moduleId = trim($moduleId);
-    if ($_activeModuleContext && $_activeModuleContext->moduleId() === $moduleId) {
-        return $_activeModuleContext;
+    if ($activeContext instanceof \Ikabud\Kernel\Contracts\ModuleContext && $activeContext->moduleId() === $moduleId) {
+        return $activeContext;
     }
 
     return moduleContextFor($moduleId);
@@ -2440,8 +2441,6 @@ function buildModuleContext(string $moduleId, array $manifest): \Ikabud\Kernel\C
  */
 function executeModuleHandler(string $handler, array $params = []): void
 {
-    global $_activeModuleContext;
-
     if (!str_contains($handler, ':')) {
         http_response_code(500);
         echo 'Invalid module handler format';
@@ -2515,11 +2514,11 @@ function executeModuleHandler(string $handler, array $params = []): void
         return;
     }
 
-    $GLOBALS['_capability_call_context'] = [
+    kernel_request_context_set('_capability_call_context', [
         'module' => $moduleId,
         'user' => $user,
         'request_id' => request_id(),
-    ];
+    ]);
 
     // ── Kernel-enforced CSRF on state-mutating module routes ──────────
     // API routes (Bearer-authenticated) are exempt; browser form posts must pass.
@@ -2533,7 +2532,7 @@ function executeModuleHandler(string $handler, array $params = []): void
         if (!empty($loginRateLimit['limited'])) {
             kernelEmitLoginRateLimitJson($loginRateLimit);
             modulePopContext();
-            unset($GLOBALS['_capability_call_context']);
+            kernel_request_context_delete('_capability_call_context');
             return;
         }
     }
@@ -2579,7 +2578,7 @@ function executeModuleHandler(string $handler, array $params = []): void
                     'detail' => $detail,
                 ]);
                 modulePopContext();
-                unset($GLOBALS['_capability_call_context']);
+                kernel_request_context_delete('_capability_call_context');
                 return;
             }
         } catch (\Throwable $e) {
@@ -2626,7 +2625,7 @@ function executeModuleHandler(string $handler, array $params = []): void
         }
     } finally {
         modulePopContext();
-        unset($GLOBALS['_capability_call_context']);
+        kernel_request_context_delete('_capability_call_context');
     }
 }
 

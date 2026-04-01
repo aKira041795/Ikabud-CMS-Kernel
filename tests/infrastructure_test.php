@@ -126,6 +126,13 @@ $ev->enableHistory(true); $ev->fire('h.1'); $ev->fire('h.2');
 ok('history records', count($ev->history()) === 2);
 $ev->reset();
 
+heading('EventBus — Deferred');
+$deferredEvents = [];
+$ev->listen('t.defer', function($p,$e) use (&$deferredEvents) { $deferredEvents[] = $e . ':' . (int)($p['id'] ?? 0); });
+ok('fireDeferred queues without immediate delivery', $ev->fireDeferred('t.defer', ['id' => 9]) === 1 && $ev->deferredCount() === 1 && $deferredEvents === []);
+ok('flushDeferred delivers queued event', $ev->flushDeferred() === 1 && $ev->deferredCount() === 0 && $deferredEvents === ['t.defer:9']);
+$ev->reset();
+
 // ── 3. MIGRATION RUNNER ─────────────────────────────────────────
 heading('MigrationRunner');
 $runner = new MigrationRunner($pdo);

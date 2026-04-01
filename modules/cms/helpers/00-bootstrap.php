@@ -28,6 +28,19 @@ define('CMS_ROLES', [
     'subscriber'    => 10,
 ]);
 
+app()->hooks()->on('kernel.request.before_dispatch', static function (array $context): array {
+    if (kernelRequestDispatchPath($context) !== '/cms/login') {
+        return $context;
+    }
+
+    $user = cmsCtxUser();
+    if (is_array($user) && (($user['source'] ?? '') === 'cms' || (($user['source'] ?? '') === 'kernel' && ($user['role'] ?? '') === 'admin'))) {
+        return kernelRequestDispatchRedirect($context, '/cms/admin');
+    }
+
+    return $context;
+}, 50);
+
 function cmsRuntimeTenantId(): int
 {
     $tenantId = function_exists('moduleTenantSettingsTenantId')

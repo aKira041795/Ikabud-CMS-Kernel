@@ -1362,6 +1362,26 @@ check(
     'h1'
 );
 
+check(
+    'ikb_text invalid tag falls back to p',
+    true ? (
+        preg_match('/<p\s/', $engine->renderString('{ikb_text tag="script"}Hello{/ikb_text}', []))
+            ? 'p_tag' : 'not_p'
+    ) : '',
+    'p_tag'
+);
+
+check(
+    'ikb_section escapes id attribute',
+    true ? (
+        str_contains(
+            $engine->renderString('{ikb_section id="hero&quot; onclick=&quot;alert(1)"}Body{/ikb_section}', []),
+            'id="hero&amp;quot; onclick=&amp;quot;alert(1)"'
+        ) ? 'escaped' : 'not_escaped'
+    ) : '',
+    'escaped'
+);
+
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 section('26. Components — ikb_button');
@@ -1778,6 +1798,20 @@ check(
     'esc_url passes relative URL (no scheme)',
     '/path/to/page',
     $engine->renderString('{url | esc_url | raw}', ['url' => '/path/to/page'])
+);
+
+check(
+    'esc_url rejects protocol-relative URL → #',
+    '#',
+    $engine->renderString('{url | esc_url | raw}', ['url' => '//evil.example/path'])
+);
+
+$filterNameEngine = new TemplateEngine($tmpDir, '/tmp/disyl_test_cache', false);
+$filterNameEngine->registerFilter('my_esc_html_thing', fn($value) => '<b>' . (string) $value . '</b>');
+check(
+    'filter name substring does not suppress auto-escape',
+    '&lt;b&gt;Alice&lt;/b&gt;',
+    $filterNameEngine->renderString('{name | my_esc_html_thing}', ['name' => 'Alice'])
 );
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

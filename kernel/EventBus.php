@@ -28,6 +28,10 @@
  * Wildcard listeners:
  *   app()->events()->listen('order.*', fn($payload, $event) => logEvent($event, $payload));
  * 
+ * Deferred events:
+ *   app()->events()->fireDeferred('order.placed', ['order_id' => 42]);
+ *   // flushed automatically at shutdown or manually via flushDeferred()
+ * 
  * @package Ikabud\Kernel
  * @version 1.0.0
  */
@@ -44,13 +48,32 @@ class EventBus
     /** @var array<int, array{event: string, payload: array, fired_at: float, module: string}> */
     private array $history = [];
 
+    /** @var array<string, bool> */
+    private array $listenerSortDirty = [];
+
+    /** @var array<int, array{pattern: string, regex: string}> */
+    private array $compiledWildcards = [];
+
+    private bool $wildcardsDirty = true;
+
     /** @var bool Whether to record event history (useful for debugging/testing) */
     private bool $recordHistory = false;
 
     /** @var int Max history entries to keep */
     private int $maxHistory = 100;
 
-    private function __construct() {}
+    /** @var array<int, array{event: string, payload: array, module: string, queued_at: float}> */
+    private array $deferred = [];
+
+    private bool $deferredFlushRegistered = false;
+    private bool $flushingDeferred = false;
+
+    private const MAX_DEFERRED_FLUSH_BATCHES = 100;
+
+    private function __construct()
+    {
+        $this->registerDeferredFlush();
+    }
 
     public static function getInstance(): self
     {
@@ -80,8 +103,102 @@ class EventBus
             'priority' => $priority,
             'module'   => $module,
         ];
-        // Stable sort by priority
-        usort($this->listeners[$event], fn($a, $b) => $a['priority'] <=> $b['priority']);
+        $this->listenerSortDirty[$event] = true;
+        if ($this->isWildcardPattern($event)) {
+            $this->wildcardsDirty = true;
+        }
+    }
+
+    private function isWildcardPattern(string $event): bool
+    {
+        return strpbrk($event, '*?') !== false;
+    }
+
+    private function patternToRegex(string $pattern): string
+    {
+        return '/^' . str_replace(['\\*', '\\?'], ['[^.]+', '.'], preg_quote($pattern, '/')) . '$/';
+    }
+
+    /**
+     * @return array<int, array{callback: callable, priority: int, module: string}>
+     */
+    private function listenersFor(string $event): array
+    {
+        if (empty($this->listeners[$event])) {
+            return [];
+        }
+
+        if (!empty($this->listenerSortDirty[$event])) {
+            usort($this->listeners[$event], fn($a, $b) => $a['priority'] <=> $b['priority']);
+            $this->listenerSortDirty[$event] = false;
+        }
+
+        return $this->listeners[$event];
+    }
+
+    /**
+     * @return array<int, array{pattern: string, regex: string}>
+     */
+    private function wildcardPatterns(): array
+    {
+        if (!$this->wildcardsDirty) {
+            return $this->compiledWildcards;
+        }
+
+        $compiled = [];
+        foreach (array_keys($this->listeners) as $pattern) {
+            if (!$this->isWildcardPattern($pattern)) {
+                continue;
+            }
+
+            $compiled[] = [
+                'pattern' => $pattern,
+                'regex' => $this->patternToRegex($pattern),
+            ];
+        }
+
+        $this->compiledWildcards = $compiled;
+        $this->wildcardsDirty = false;
+        return $this->compiledWildcards;
+    }
+
+    /**
+     * @param array<int, array{callback: callable, priority: int, module: string}> $left
+     * @param array<int, array{callback: callable, priority: int, module: string}> $right
+     * @return array<int, array{callback: callable, priority: int, module: string}>
+     */
+    private function mergeListeners(array $left, array $right): array
+    {
+        if ($left === []) {
+            return $right;
+        }
+        if ($right === []) {
+            return $left;
+        }
+
+        $merged = [];
+        $leftIndex = 0;
+        $rightIndex = 0;
+        $leftCount = count($left);
+        $rightCount = count($right);
+
+        while ($leftIndex < $leftCount && $rightIndex < $rightCount) {
+            if (($left[$leftIndex]['priority'] ?? 0) <= ($right[$rightIndex]['priority'] ?? 0)) {
+                $merged[] = $left[$leftIndex++];
+                continue;
+            }
+
+            $merged[] = $right[$rightIndex++];
+        }
+
+        while ($leftIndex < $leftCount) {
+            $merged[] = $left[$leftIndex++];
+        }
+        while ($rightIndex < $rightCount) {
+            $merged[] = $right[$rightIndex++];
+        }
+
+        return $merged;
     }
 
     /**
@@ -109,30 +226,24 @@ class EventBus
         }
 
         // Collect matching listeners: exact match + wildcard patterns
-        $matched = [];
-
-        // Exact match
-        if (!empty($this->listeners[$event])) {
-            foreach ($this->listeners[$event] as $entry) {
-                $matched[] = $entry;
+        $matchedWildcards = [];
+        foreach ($this->wildcardPatterns() as $compiled) {
+            if (($compiled['pattern'] ?? '') === $event) {
+                continue;
             }
-        }
 
-        // Wildcard match: 'order.*' matches 'order.placed', 'order.cancelled', etc.
-        foreach ($this->listeners as $pattern => $entries) {
-            if ($pattern === $event) continue; // already handled
-            if (!str_contains($pattern, '*')) continue;
-
-            $regex = '/^' . str_replace(['\\*', '\\?'], ['[^.]+', '.'], preg_quote($pattern, '/')) . '$/';
-            if (preg_match($regex, $event)) {
-                foreach ($entries as $entry) {
-                    $matched[] = $entry;
+            if (preg_match((string)$compiled['regex'], $event) === 1) {
+                foreach ($this->listenersFor((string)$compiled['pattern']) as $entry) {
+                    $matchedWildcards[] = $entry;
                 }
             }
         }
 
-        // Sort all matched by priority
-        usort($matched, fn($a, $b) => $a['priority'] <=> $b['priority']);
+        if (count($matchedWildcards) > 1) {
+            usort($matchedWildcards, fn($a, $b) => $a['priority'] <=> $b['priority']);
+        }
+
+        $matched = $this->mergeListeners($this->listenersFor($event), $matchedWildcards);
 
         // Fire
         foreach ($matched as $entry) {
@@ -173,14 +284,14 @@ class EventBus
      */
     public function hasListeners(string $event): bool
     {
-        if (!empty($this->listeners[$event])) {
+        if ($this->listenersFor($event) !== []) {
             return true;
         }
         // Check wildcards
-        foreach ($this->listeners as $pattern => $_) {
-            if (!str_contains($pattern, '*')) continue;
-            $regex = '/^' . str_replace(['\\*', '\\?'], ['[^.]+', '.'], preg_quote($pattern, '/')) . '$/';
-            if (preg_match($regex, $event)) return true;
+        foreach ($this->wildcardPatterns() as $compiled) {
+            if (preg_match((string)$compiled['regex'], $event) === 1) {
+                return true;
+            }
         }
         return false;
     }
@@ -192,6 +303,79 @@ class EventBus
     public function registeredEvents(): array
     {
         return array_keys($this->listeners);
+    }
+
+    private function registerDeferredFlush(): void
+    {
+        if ($this->deferredFlushRegistered) {
+            return;
+        }
+
+        register_shutdown_function([$this, 'flushDeferred']);
+        $this->deferredFlushRegistered = true;
+    }
+
+    public function fireDeferred(string $event, array $payload = [], string $module = ''): int
+    {
+        $this->deferred[] = [
+            'event' => $event,
+            'payload' => $payload,
+            'module' => $module,
+            'queued_at' => microtime(true),
+        ];
+
+        return count($this->deferred);
+    }
+
+    public function defer(string $event, array $payload = [], string $module = ''): int
+    {
+        return $this->fireDeferred($event, $payload, $module);
+    }
+
+    public function deferredCount(): int
+    {
+        return count($this->deferred);
+    }
+
+    public function flushDeferred(): int
+    {
+        if ($this->flushingDeferred || $this->deferred === []) {
+            return 0;
+        }
+
+        $this->flushingDeferred = true;
+        $called = 0;
+        $batches = 0;
+
+        try {
+            while ($this->deferred !== []) {
+                $queue = $this->deferred;
+                $this->deferred = [];
+
+                foreach ($queue as $queued) {
+                    $called += $this->fire(
+                        (string)($queued['event'] ?? ''),
+                        is_array($queued['payload'] ?? null) ? $queued['payload'] : [],
+                        (string)($queued['module'] ?? '')
+                    );
+                }
+
+                $batches++;
+                if ($batches >= self::MAX_DEFERRED_FLUSH_BATCHES) {
+                    if (function_exists('write_log')) {
+                        write_log('EventBus: deferred flush exceeded maximum batches and was aborted', 'warning', [
+                            'remaining' => count($this->deferred),
+                        ]);
+                    }
+                    $this->deferred = [];
+                    break;
+                }
+            }
+        } finally {
+            $this->flushingDeferred = false;
+        }
+
+        return $called;
     }
 
     /**
@@ -208,6 +392,10 @@ class EventBus
     public function off(string $event): void
     {
         unset($this->listeners[$event]);
+        unset($this->listenerSortDirty[$event]);
+        if ($this->isWildcardPattern($event)) {
+            $this->wildcardsDirty = true;
+        }
     }
 
     /**
@@ -234,5 +422,10 @@ class EventBus
     {
         $this->listeners = [];
         $this->history = [];
+        $this->listenerSortDirty = [];
+        $this->compiledWildcards = [];
+        $this->wildcardsDirty = true;
+        $this->deferred = [];
+        $this->flushingDeferred = false;
     }
 }

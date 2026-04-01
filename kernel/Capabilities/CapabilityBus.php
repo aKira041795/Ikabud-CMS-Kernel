@@ -6,9 +6,107 @@ namespace Ikabud\Kernel\Capabilities;
 
 final class CapabilityBus
 {
+    /** @var array<string, array<string, mixed>>|null */
+    private ?array $metricsStateCache = null;
+
+    /** @var array<string, array<string, mixed>>|null */
+    private ?array $breakerStateCache = null;
+
+    /** @var array<string, array{count: int, errors: int, durations: array<int, int>, last_ms: int, max_samples: int}> */
+    private array $metricsDeltas = [];
+
+    /** @var array<string, array<int, array{type: string, now?: int, settings?: array}>> */
+    private array $breakerOperations = [];
+
+    private bool $runtimeFlushRegistered = false;
+
     public function __construct(
         private readonly CapabilityRegistry $registry
     ) {
+        $this->registerRuntimeFlush();
+    }
+
+    private function registerRuntimeFlush(): void
+    {
+        if ($this->runtimeFlushRegistered) {
+            return;
+        }
+
+        register_shutdown_function([$this, 'flushRuntimeState']);
+        $this->runtimeFlushRegistered = true;
+    }
+
+    public function flushRuntimeState(): void
+    {
+        if ($this->breakerOperations !== []) {
+            $operations = $this->breakerOperations;
+            $this->breakerStateCache = $this->mutateJsonFile($this->breakerFile(), function (array $state) use ($operations): array {
+                foreach ($operations as $key => $events) {
+                    foreach ($events as $event) {
+                        $type = (string)($event['type'] ?? '');
+                        if ($type === 'success') {
+                            $this->applyBreakerSuccess($state, (string)$key);
+                            continue;
+                        }
+
+                        if ($type === 'failure') {
+                            $settings = is_array($event['settings'] ?? null) ? $event['settings'] : [];
+                            $now = (int)($event['now'] ?? time());
+                            $this->applyBreakerFailure($state, (string)$key, $settings, $now);
+                        }
+                    }
+                }
+
+                return $state;
+            });
+            $this->breakerOperations = [];
+        }
+
+        if ($this->metricsDeltas !== []) {
+            $deltas = $this->metricsDeltas;
+            $this->metricsStateCache = $this->mutateJsonFile($this->metricsFile(), function (array $metrics) use ($deltas): array {
+                foreach ($deltas as $key => $delta) {
+                    $entry = $metrics[$key] ?? [
+                        'count' => 0,
+                        'errors' => 0,
+                        'durations' => [],
+                        'p95_ms' => 0,
+                        'last_ms' => 0,
+                    ];
+
+                    if (!is_array($entry)) {
+                        $entry = [
+                            'count' => 0,
+                            'errors' => 0,
+                            'durations' => [],
+                            'p95_ms' => 0,
+                            'last_ms' => 0,
+                        ];
+                    }
+
+                    $entry['count'] = (int)($entry['count'] ?? 0) + (int)($delta['count'] ?? 0);
+                    $entry['errors'] = (int)($entry['errors'] ?? 0) + (int)($delta['errors'] ?? 0);
+                    $entry['last_ms'] = (int)($delta['last_ms'] ?? ($entry['last_ms'] ?? 0));
+
+                    $durations = is_array($entry['durations'] ?? null) ? array_map('intval', $entry['durations']) : [];
+                    foreach ((array)($delta['durations'] ?? []) as $duration) {
+                        $durations[] = (int)$duration;
+                    }
+
+                    $maxSamples = max(1, (int)($delta['max_samples'] ?? 200));
+                    if (count($durations) > $maxSamples) {
+                        $durations = array_slice($durations, -$maxSamples);
+                    }
+
+                    $entry['durations'] = $durations;
+                    $entry['p95_ms'] = $this->calculateP95($durations);
+                    $metrics[$key] = $entry;
+                }
+
+                return $metrics;
+            });
+            $this->metricsDeltas = [];
+        }
     }
 
     private function traceEnabled(): bool
@@ -346,12 +444,12 @@ final class CapabilityBus
 
         for ($attempt = 0; $attempt < $attempts; $attempt++) {
             $t0 = microtime(true);
-            $previousContext = $GLOBALS['_capability_call_context'] ?? null;
-            $GLOBALS['_capability_call_context'] = [
+            $previousContext = \kernel_request_context_get('_capability_call_context');
+            \kernel_request_context_set('_capability_call_context', [
                 'module' => $caller['module'] ?? 'kernel',
                 'user' => $caller['user'] ?? null,
                 'request_id' => $caller['request_id'] ?? null,
-            ];
+            ]);
             try {
                 if ($providerId !== '' && $providerId !== 'kernel' && \function_exists('moduleWithContext')) {
                     $result = \moduleWithContext($providerId, static function () use ($provider, $payload, $capabilityId, $providerId): mixed {
@@ -384,9 +482,9 @@ final class CapabilityBus
                 }
             } finally {
                 if ($previousContext === null) {
-                    unset($GLOBALS['_capability_call_context']);
+                    \kernel_request_context_delete('_capability_call_context');
                 } else {
-                    $GLOBALS['_capability_call_context'] = $previousContext;
+                    \kernel_request_context_set('_capability_call_context', $previousContext);
                 }
             }
         }
@@ -639,6 +737,30 @@ final class CapabilityBus
         return rtrim($storage, '/') . '/cache/capability_breakers.json';
     }
 
+    /**
+     * @return array<string, array<string, mixed>>
+     */
+    private function &metricsState(): array
+    {
+        if ($this->metricsStateCache === null) {
+            $this->metricsStateCache = $this->loadJsonFile($this->metricsFile());
+        }
+
+        return $this->metricsStateCache;
+    }
+
+    /**
+     * @return array<string, array<string, mixed>>
+     */
+    private function &breakerState(): array
+    {
+        if ($this->breakerStateCache === null) {
+            $this->breakerStateCache = $this->loadJsonFile($this->breakerFile());
+        }
+
+        return $this->breakerStateCache;
+    }
+
     private function loadJsonFile(string $path): array
     {
         $data = [];
@@ -722,9 +844,56 @@ final class CapabilityBus
         return $capabilityId . '|' . $providerId;
     }
 
+    /**
+     * @param array<string, mixed> $state
+     */
+    private function applyBreakerSuccess(array &$state, string $key): void
+    {
+        if (isset($state[$key]) && is_array($state[$key])) {
+            $state[$key]['failures'] = 0;
+            $state[$key]['first_failure'] = 0;
+            $state[$key]['open_until'] = 0;
+        }
+    }
+
+    /**
+     * @param array<string, mixed> $state
+     */
+    private function applyBreakerFailure(array &$state, string $key, array $settings, int $now): void
+    {
+        $entry = $state[$key] ?? [
+            'failures' => 0,
+            'first_failure' => $now,
+            'open_until' => 0,
+        ];
+
+        if (!is_array($entry)) {
+            $entry = [
+                'failures' => 0,
+                'first_failure' => $now,
+                'open_until' => 0,
+            ];
+        }
+
+        $window = max(1, (int)($settings['breaker_window_sec'] ?? 30));
+        if ((int)($entry['first_failure'] ?? 0) + $window < $now) {
+            $entry['failures'] = 0;
+            $entry['first_failure'] = $now;
+        }
+
+        $entry['failures'] = (int)($entry['failures'] ?? 0) + 1;
+        $threshold = max(1, (int)($settings['breaker_threshold'] ?? 5));
+        if ($entry['failures'] >= $threshold) {
+            $cooldown = max(1, (int)($settings['breaker_cooldown_sec'] ?? 60));
+            $entry['open_until'] = $now + $cooldown;
+        }
+
+        $state[$key] = $entry;
+    }
+
     private function isBreakerOpen(string $capabilityId, string $providerId): bool
     {
-        $state = $this->loadJsonFile($this->breakerFile());
+        $state = &$this->breakerState();
         $key = $this->breakerKey($capabilityId, $providerId);
         $entry = $state[$key] ?? null;
         if (!is_array($entry)) {
@@ -737,14 +906,9 @@ final class CapabilityBus
     private function recordBreakerSuccess(string $capabilityId, string $providerId): void
     {
         $key = $this->breakerKey($capabilityId, $providerId);
-        $this->mutateJsonFile($this->breakerFile(), static function (array $state) use ($key): array {
-            if (isset($state[$key]) && is_array($state[$key])) {
-                $state[$key]['failures'] = 0;
-                $state[$key]['first_failure'] = 0;
-                $state[$key]['open_until'] = 0;
-            }
-            return $state;
-        });
+        $state = &$this->breakerState();
+        $this->applyBreakerSuccess($state, $key);
+        $this->breakerOperations[$key][] = ['type' => 'success'];
     }
 
     private function recordBreakerFailure(string $capabilityId, string $providerId, array $settings): void
@@ -752,78 +916,72 @@ final class CapabilityBus
         $key = $this->breakerKey($capabilityId, $providerId);
         $now = time();
 
-        $this->mutateJsonFile($this->breakerFile(), static function (array $state) use ($key, $now, $settings): array {
-            $entry = $state[$key] ?? [
-                'failures' => 0,
-                'first_failure' => $now,
-                'open_until' => 0,
-            ];
-
-            if (!is_array($entry)) {
-                $entry = [
-                    'failures' => 0,
-                    'first_failure' => $now,
-                    'open_until' => 0,
-                ];
-            }
-
-            $window = max(1, (int)$settings['breaker_window_sec']);
-            if ((int)($entry['first_failure'] ?? 0) + $window < $now) {
-                $entry['failures'] = 0;
-                $entry['first_failure'] = $now;
-            }
-
-            $entry['failures'] = (int)($entry['failures'] ?? 0) + 1;
-            $threshold = max(1, (int)$settings['breaker_threshold']);
-            if ($entry['failures'] >= $threshold) {
-                $cooldown = max(1, (int)$settings['breaker_cooldown_sec']);
-                $entry['open_until'] = $now + $cooldown;
-            }
-
-            $state[$key] = $entry;
-            return $state;
-        });
+        $state = &$this->breakerState();
+        $this->applyBreakerFailure($state, $key, $settings, $now);
+        $this->breakerOperations[$key][] = [
+            'type' => 'failure',
+            'now' => $now,
+            'settings' => $settings,
+        ];
     }
 
     private function updateMetrics(string $capabilityId, string $providerId, int $durationMs, bool $ok, int $maxSamples): void
     {
         $key = $this->breakerKey($capabilityId, $providerId);
-        $metricsFile = $this->metricsFile();
-        $this->mutateJsonFile($metricsFile, function (array $metrics) use ($key, $durationMs, $ok, $maxSamples): array {
-            $entry = $metrics[$key] ?? [
+        $metrics = &$this->metricsState();
+        $entry = $metrics[$key] ?? [
+            'count' => 0,
+            'errors' => 0,
+            'durations' => [],
+            'p95_ms' => 0,
+            'last_ms' => 0,
+        ];
+
+        if (!is_array($entry)) {
+            $entry = [
                 'count' => 0,
                 'errors' => 0,
                 'durations' => [],
                 'p95_ms' => 0,
                 'last_ms' => 0,
             ];
+        }
 
-            if (!is_array($entry)) {
-                $entry = [
-                    'count' => 0,
-                    'errors' => 0,
-                    'durations' => [],
-                    'p95_ms' => 0,
-                    'last_ms' => 0,
-                ];
-            }
+        $entry['count'] = (int)$entry['count'] + 1;
+        if (!$ok) {
+            $entry['errors'] = (int)$entry['errors'] + 1;
+        }
+        $entry['last_ms'] = $durationMs;
+        $durations = is_array($entry['durations'] ?? null) ? array_map('intval', $entry['durations']) : [];
+        $durations[] = $durationMs;
+        if (count($durations) > $maxSamples) {
+            $durations = array_slice($durations, -$maxSamples);
+        }
+        $entry['durations'] = $durations;
+        $entry['p95_ms'] = $this->calculateP95($durations);
 
-            $entry['count'] = (int)$entry['count'] + 1;
-            if (!$ok) {
-                $entry['errors'] = (int)$entry['errors'] + 1;
-            }
-            $entry['last_ms'] = $durationMs;
-            $durations = is_array($entry['durations'] ?? null) ? $entry['durations'] : [];
-            $durations[] = $durationMs;
-            if (count($durations) > $maxSamples) {
-                $durations = array_slice($durations, -$maxSamples);
-            }
-            $entry['durations'] = $durations;
-            $entry['p95_ms'] = $this->calculateP95($durations);
+        $metrics[$key] = $entry;
 
-            $metrics[$key] = $entry;
-            return $metrics;
-        });
+        $delta = $this->metricsDeltas[$key] ?? [
+            'count' => 0,
+            'errors' => 0,
+            'durations' => [],
+            'last_ms' => 0,
+            'max_samples' => $maxSamples,
+        ];
+        $delta['count']++;
+        if (!$ok) {
+            $delta['errors']++;
+        }
+        $delta['last_ms'] = $durationMs;
+        $delta['max_samples'] = max((int)$delta['max_samples'], $maxSamples);
+        $deltaDurations = is_array($delta['durations'] ?? null) ? $delta['durations'] : [];
+        $deltaDurations[] = $durationMs;
+        if (count($deltaDurations) > $delta['max_samples']) {
+            $deltaDurations = array_slice($deltaDurations, -$delta['max_samples']);
+        }
+        $delta['durations'] = $deltaDurations;
+        $this->metricsDeltas[$key] = $delta;
     }
 
     private function calculateP95(array $values): int
@@ -840,8 +998,8 @@ final class CapabilityBus
     public function healthForProvider(string $capabilityId, string $providerId): array
     {
         $key = $this->breakerKey($capabilityId, $providerId);
-        $metrics = $this->loadJsonFile($this->metricsFile());
-        $breakers = $this->loadJsonFile($this->breakerFile());
+        $metrics = $this->metricsState();
+        $breakers = $this->breakerState();
 
         $m = $metrics[$key] ?? null;
         $b = $breakers[$key] ?? null;
@@ -859,8 +1017,8 @@ final class CapabilityBus
 
     public function healthAll(): array
     {
-        $metrics = $this->loadJsonFile($this->metricsFile());
-        $breakers = $this->loadJsonFile($this->breakerFile());
+        $metrics = $this->metricsState();
+        $breakers = $this->breakerState();
         $now = time();
         $out = [];
 

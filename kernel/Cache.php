@@ -42,6 +42,9 @@ class Cache
 
     /** @var bool Skip persisting stats on shutdown after an explicit full reset */
     private bool $skipStatsPersist = false;
+
+    /** @var bool Whether stats have been loaded for this request */
+    private bool $statsLoaded = false;
     
     public function __construct(string $cacheDir = null, int $maxCacheSizeMB = 0)
     {
@@ -58,9 +61,6 @@ class Cache
         if (self::$apcuAvailable === null) {
             self::$apcuAvailable = function_exists('apcu_fetch') && apcu_enabled();
         }
-        
-        // Load persisted stats
-        $this->loadStats();
         
         // Register shutdown handler to save stats at end of request
         register_shutdown_function([$this, 'saveStats']);
@@ -90,6 +90,17 @@ class Cache
                 }
             }
         }
+
+        $this->statsLoaded = true;
+    }
+
+    private function ensureStatsLoaded(): void
+    {
+        if ($this->statsLoaded) {
+            return;
+        }
+
+        $this->loadStats();
     }
     
     /**
@@ -99,6 +110,10 @@ class Cache
     public function saveStats(): void
     {
         if ($this->skipStatsPersist) {
+            return;
+        }
+
+        if (!$this->statsLoaded) {
             return;
         }
 
@@ -125,6 +140,7 @@ class Cache
      */
     private function incrementStat(string $key): void
     {
+        $this->ensureStatsLoaded();
         $this->stats[$key]++;
     }
     
@@ -756,6 +772,7 @@ class Cache
     public function resetStats(): void
     {
         $this->skipStatsPersist = true;
+        $this->statsLoaded = true;
         $this->stats = [
             'hits' => 0,
             'misses' => 0,
@@ -865,6 +882,7 @@ class Cache
      */
     public function getStats(): array
     {
+        $this->ensureStatsLoaded();
         $files = $this->getAllCachedFiles();
         $totalFiles = count($files);
         $totalSize = array_sum(array_column($files, 'size'));

@@ -73,8 +73,14 @@ class TemplateEngine
     /** @var array In-memory cache of compiled output per request */
     private array $outputCache = [];
 
+    /** @var array<string, string> Per-request template source cache */
+    private array $templateSourceCache = [];
+
     /** Maximum number of entries in the in-memory output cache */
     private const OUTPUT_CACHE_MAX = 200;
+
+    /** Maximum number of template source entries cached per request */
+    private const TEMPLATE_SOURCE_CACHE_MAX = 100;
     
     public function render(string $template, array $context = []): string
     {
@@ -86,7 +92,11 @@ class TemplateEngine
             throw new \RuntimeException("Template not found: {$template}");
         }
         
-        $content = file_get_contents($templatePath);
+        $content = $this->readTemplateSource($templatePath);
+        if ($content === false) {
+            $this->logError("Failed to read template: {$template}");
+            throw new \RuntimeException("Failed to read template: {$template}");
+        }
         $context = array_merge($this->globals, $context);
         
         // In-memory cache for repeated renders within same request (e.g., HTMX partials)
@@ -228,56 +238,50 @@ class TemplateEngine
             . '|[a-zA-Z_][\w.]*'              // Variables: {name}, {user.email}
             . ')/s';
         
-        // Step 1: Find all DiSyL tags and mark their positions
-        $protected = '';
-        $lastPos = 0;
+        // Step 1: Protect JS curly braces in a single pass without repeatedly
+        // mutating the string, which avoids O(n^2) behavior on script-heavy templates.
         $jsMarkers = [];
         $markerCount = 0;
+        $protectedBody = '';
+        $insideDisylTag = false;
         
-        // Iterate character by character to find { } pairs
         $len = strlen($body);
         $i = 0;
         while ($i < $len) {
-            if ($body[$i] === '{') {
+            $char = $body[$i];
+
+            if ($char === '{') {
                 // Check if this looks like a DiSyL tag
                 $remaining = substr($body, $i);
-                if (preg_match($disylPattern, $remaining, $m, 0, 0) && strpos($remaining, $m[0]) === 0) {
-                    // This is a DiSyL tag — leave it as-is
+                if (preg_match($disylPattern, $remaining, $m, 0, 0) && str_starts_with($remaining, $m[0])) {
+                    $insideDisylTag = true;
+                    $protectedBody .= $char;
                     $i++;
                     continue;
                 }
-                // JS curly brace — replace with marker
+
                 $marker = "___JSCURLY_OPEN_{$markerCount}___";
                 $jsMarkers[$marker] = '{';
-                $body = substr($body, 0, $i) . $marker . substr($body, $i + 1);
-                $len = strlen($body);
-                $i += strlen($marker);
+                $protectedBody .= $marker;
                 $markerCount++;
-                continue;
-            } elseif ($body[$i] === '}') {
-                // Check if this closes a DiSyL tag by looking backwards
-                // If there's a pending DiSyL open brace, let it be
-                // Otherwise, protect it
-                $beforeBrace = substr($body, 0, $i);
-                $lastOpen = strrpos($beforeBrace, '{');
-                if ($lastOpen !== false) {
-                    $between = substr($body, $lastOpen, $i - $lastOpen + 1);
-                    if (preg_match('/^\{(?:[a-zA-Z_\/!]|else\})/', $between)) {
-                        // Part of a DiSyL tag
-                        $i++;
-                        continue;
-                    }
+            } elseif ($char === '}') {
+                if ($insideDisylTag) {
+                    $insideDisylTag = false;
+                    $protectedBody .= $char;
+                } else {
+                    $marker = "___JSCURLY_CLOSE_{$markerCount}___";
+                    $jsMarkers[$marker] = '}';
+                    $protectedBody .= $marker;
+                    $markerCount++;
                 }
-                $marker = "___JSCURLY_CLOSE_{$markerCount}___";
-                $jsMarkers[$marker] = '}';
-                $body = substr($body, 0, $i) . $marker . substr($body, $i + 1);
-                $len = strlen($body);
-                $i += strlen($marker);
-                $markerCount++;
-                continue;
+            } else {
+                $protectedBody .= $char;
             }
+
             $i++;
         }
+
+        $body = $protectedBody;
         
         // Step 2: Run full compilation (control structures + variables)
         //         Variables are output raw by default in script context.
@@ -532,7 +536,13 @@ class TemplateEngine
 
             $seenPaths[$realPath] = true;
             $chain[] = $current;
-            $current = file_get_contents($layoutPath);
+            $layoutContent = $this->readTemplateSource($layoutPath);
+            if ($layoutContent === false) {
+                $this->logError("Failed to read layout: {$layoutName}");
+                $current = preg_replace('/\{extends\s+"[^"]+"\s*\}/', '', $current);
+                break;
+            }
+            $current = $layoutContent;
         }
 
         // $current is now the root ancestor. Collect block overrides from the chain
@@ -1104,6 +1114,12 @@ class TemplateEngine
     /** @var array Include stack for circular-include detection (keyed by real path) */
     private array $includeStack = [];
 
+    /** @var array<string, string> Cached template file contents keyed by resolved path */
+    private array $includeSourceCache = [];
+
+    /** @var int Current component nesting depth (tracks compile()-within-compile() via component children) */
+    private int $componentDepth = 0;
+
     /**
      * Process includes
      */
@@ -1135,8 +1151,13 @@ class TemplateEngine
                         $extra = $this->parseInlineObject($match[2], $context);
                         $includeContext = array_merge($context, $extra);
                     }
-                    
-                    $includeContent = file_get_contents($includePath);
+
+                    $includeContent = $this->readIncludeSource($includePath);
+                    if ($includeContent === false) {
+                        unset($this->includeStack[$realPath]);
+                        $this->logError("Failed to read include: {$match[1]}");
+                        return '';
+                    }
                     $result = $this->compile($includeContent, $includeContext);
 
                     unset($this->includeStack[$realPath]);
@@ -1150,9 +1171,56 @@ class TemplateEngine
         return $content;
     }
 
+    private function readIncludeSource(string $includePath): string|false
+    {
+        if ($this->cacheEnabled && isset($this->includeSourceCache[$includePath])) {
+            return $this->includeSourceCache[$includePath];
+        }
+
+        $includeContent = file_get_contents($includePath);
+        if ($includeContent === false) {
+            return false;
+        }
+
+        if ($this->cacheEnabled) {
+            if (count($this->includeSourceCache) >= self::TEMPLATE_SOURCE_CACHE_MAX) {
+                reset($this->includeSourceCache);
+                unset($this->includeSourceCache[key($this->includeSourceCache)]);
+            }
+            $this->includeSourceCache[$includePath] = $includeContent;
+        }
+
+        return $includeContent;
+    }
+
+    private function readTemplateSource(string $templatePath): string|false
+    {
+        if ($this->cacheEnabled && isset($this->templateSourceCache[$templatePath])) {
+            return $this->templateSourceCache[$templatePath];
+        }
+
+        $content = file_get_contents($templatePath);
+        if ($content === false) {
+            return false;
+        }
+
+        if ($this->cacheEnabled) {
+            if (count($this->templateSourceCache) >= self::TEMPLATE_SOURCE_CACHE_MAX) {
+                reset($this->templateSourceCache);
+                unset($this->templateSourceCache[key($this->templateSourceCache)]);
+            }
+            $this->templateSourceCache[$templatePath] = $content;
+        }
+
+        return $content;
+    }
+
     /**
      * Process components with proper quote handling
      */
+    /** Maximum number of component nesting levels (prevents runaway depth) */
+    private const COMPONENT_MAX_DEPTH = 30;
+
     private function processComponents(string $content, array $context): string
     {
         $maxIterations = 200;
@@ -1198,8 +1266,15 @@ class TemplateEngine
                 $children = substr($content, $tagEnd + 1, $closePos - $tagEnd - 1);
                 $attrs = $this->parseAttributes($attrString, $context);
                 
-                // Compile children
-                $compiledChildren = $this->compile($children, $context);
+                // Compile children with nesting depth guard
+                if ($this->componentDepth >= self::COMPONENT_MAX_DEPTH) {
+                    $this->logError("Component nesting depth limit (" . self::COMPONENT_MAX_DEPTH . ") exceeded for: {$componentName}");
+                    $compiledChildren = '';
+                } else {
+                    $this->componentDepth++;
+                    $compiledChildren = $this->compile($children, $context);
+                    $this->componentDepth--;
+                }
                 $replacement = $this->renderComponent($componentName, $attrs, $compiledChildren, $context);
                 
                 $content = substr($content, 0, $tagStart) . $replacement . substr($content, $closePos + strlen($closeTag));
@@ -1345,8 +1420,14 @@ class TemplateEngine
                     return '';
                 }
                 
+                // Collect parsed filter names for precise escape-filter detection
+                $filterNames = [];
+                foreach ($filters as $f) {
+                    $filterNames[] = trim(explode(':', trim($f), 2)[0]);
+                }
+                
                 // Auto-escape unless | raw was specified or another escape filter was used
-                if (!$hasRaw && !$this->hasEscapeFilter($expr)) {
+                if (!$hasRaw && !$this->hasEscapeFilter($expr, $filterNames)) {
                     return htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8');
                 }
                 
@@ -1429,13 +1510,27 @@ class TemplateEngine
     }
     
     /**
-     * Check if expression already has an escape filter applied
+     * Check if expression already has an escape filter applied.
+     * Accepts the already-parsed filter name list to avoid false positives
+     * from substring matches (e.g. a variable named "my_esc_html_thing").
      */
-    private function hasEscapeFilter(string $expr): bool
+    private function hasEscapeFilter(string $expr, array $parsedFilterNames = []): bool
     {
         $escapeFilters = ['esc_html', 'esc_attr', 'esc_url', 'esc_js', 'json', 'url_encode', 'base64', 'nl2br'];
-        foreach ($escapeFilters as $filter) {
-            if (str_contains($expr, $filter)) {
+        if ($parsedFilterNames !== []) {
+            foreach ($parsedFilterNames as $name) {
+                if (in_array($name, $escapeFilters, true)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        // Fallback: scan pipe-split names from the raw expression to avoid substring matches
+        $parts = $this->splitByPipe($expr);
+        array_shift($parts); // drop variable path
+        foreach ($parts as $part) {
+            $filterName = trim(explode(':', trim($part), 2)[0]);
+            if (in_array($filterName, $escapeFilters, true)) {
                 return true;
             }
         }
@@ -1466,6 +1561,9 @@ class TemplateEngine
         return $value;
     }
     
+    /** Maximum number of filters allowed in a single filter chain */
+    private const FILTER_CHAIN_MAX = 20;
+
     /**
      * Resolve value with filters applied
      */
@@ -1476,7 +1574,12 @@ class TemplateEngine
         
         $value = $this->resolveValue($varPath, $context);
         
+        $filterCount = 0;
         foreach ($parts as $filter) {
+            if (++$filterCount > self::FILTER_CHAIN_MAX) {
+                $this->logError("Filter chain exceeds maximum depth (" . self::FILTER_CHAIN_MAX . ") on: {$expr}");
+                break;
+            }
             $value = $this->applyFilter(trim($filter), $value, $context);
         }
         
@@ -1790,6 +1893,10 @@ class TemplateEngine
             'esc_attr' => fn($v) => htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8'),
             'esc_url' => function($v) {
                 $url = filter_var((string) $v, FILTER_SANITIZE_URL);
+                // Reject protocol-relative URLs that resolve to external hosts (e.g. //evil.com)
+                if (str_starts_with($url, '//')) {
+                    return '#';
+                }
                 // Reject dangerous schemes that survive FILTER_SANITIZE_URL
                 $scheme = strtolower((string) parse_url($url, PHP_URL_SCHEME));
                 if ($scheme !== '' && !in_array($scheme, ['http', 'https', 'mailto', 'tel', 'ftp'], true)) {
@@ -1946,12 +2053,9 @@ class TemplateEngine
             $value = $attrs[$key] ?? $attrs[$camelKey] ?? null;
             
             if ($value !== null) {
-                // For hx-vals (JSON), use single quotes to preserve double quotes in JSON
-                if ($key === 'hx-vals' && strpos($value, '"') !== false) {
-                    $htmxAttrs[] = "{$key}='" . str_replace("'", "&#39;", $value) . "'";
-                } else {
-                    $htmxAttrs[] = "{$key}=\"" . htmlspecialchars($value, ENT_QUOTES) . "\"";
-                }
+                // For all HTMX attributes, use double quotes and htmlspecialchars to prevent
+                // attribute injection regardless of the attribute value's content.
+                $htmxAttrs[] = "{$key}=\"" . htmlspecialchars((string)$value, ENT_QUOTES, 'UTF-8') . "\"";
             }
         }
         
@@ -1981,7 +2085,7 @@ class TemplateEngine
         $padding = $attrs['padding'] ?? 'medium';
         $bg = $attrs['background'] ?? '';
         $class = $attrs['class'] ?? '';
-        $id = isset($attrs['id']) ? " id=\"{$attrs['id']}\"" : '';
+        $id = isset($attrs['id']) ? ' id="' . htmlspecialchars((string) $attrs['id'], ENT_QUOTES, 'UTF-8') . '"' : '';
         
         $paddingClass = match($padding) {
             'none' => '', 'small' => 'py-4', 'medium' => 'py-8',
@@ -2034,7 +2138,7 @@ class TemplateEngine
         $variant = $attrs['variant'] ?? 'default';
         $padding = $attrs['padding'] ?? 'medium';
         $class = $attrs['class'] ?? '';
-        $id = isset($attrs['id']) ? " id=\"{$attrs['id']}\"" : '';
+        $id = isset($attrs['id']) ? ' id="' . htmlspecialchars((string) $attrs['id'], ENT_QUOTES, 'UTF-8') . '"' : '';
         
         $variantClass = match($variant) {
             'elevated' => 'bg-white shadow-lg hover:shadow-xl transition-shadow',
@@ -2053,7 +2157,9 @@ class TemplateEngine
     
     private function renderText(array $attrs, string $children): string
     {
-        $tag = $attrs['tag'] ?? 'p';
+        $allowedTags = ['p', 'span', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'strong', 'em', 'small', 'label', 'li', 'dt', 'dd', 'figcaption'];
+        $requestedTag = (string) ($attrs['tag'] ?? 'p');
+        $tag = in_array($requestedTag, $allowedTags, true) ? $requestedTag : 'p';
         $size = $attrs['size'] ?? 'base';
         $weight = $attrs['weight'] ?? 'normal';
         $color = $attrs['color'] ?? '';

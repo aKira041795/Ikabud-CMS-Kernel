@@ -20,6 +20,8 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
+register_shutdown_function('kernelFireShutdownHooks');
+
 /**
  * Release PHP session write lock for safe GET/HEAD requests after render.
  * This allows concurrent subsequent requests to proceed instead of being blocked.
@@ -179,7 +181,7 @@ if (should_enforce_https() && !is_https()) {
     $host = trim((string)($_SERVER['HTTP_HOST'] ?? ''));
     if ($host !== '') {
         $target = 'https://' . $host . ($_SERVER['REQUEST_URI'] ?? '/');
-        header('Location: ' . $target, true, 301);
+        kernel_emit_redirect_header($target, 301);
         exit;
     }
 }
@@ -393,6 +395,27 @@ try {
 preloadAllTenantModuleSettings();
 
 $routes = loadModuleRoutes($routes);
+kernelRegisterCoreRequestDispatchHooks();
+
+$dispatchContext = kernelApplyRequestBeforeDispatch(kernelBuildRequestDispatchContext($method, $uri));
+$method = strtoupper((string)($dispatchContext['method'] ?? $method));
+if ($method === 'HEAD') {
+    $method = 'GET';
+}
+
+$uriCandidate = trim((string)($dispatchContext['uri'] ?? $uri));
+$uriPath = parse_url($uriCandidate, PHP_URL_PATH);
+$uri = rawurldecode(($uriPath === false || $uriPath === null || $uriPath === '') ? $uriCandidate : $uriPath);
+$uri = $uri === '' ? '/' : $uri;
+
+$dispatchRedirect = $dispatchContext['redirect'] ?? null;
+if (is_string($dispatchRedirect) && $dispatchRedirect !== '') {
+    app()->redirect($dispatchRedirect, (int)($dispatchContext['redirect_status'] ?? 302));
+}
+
+if (!empty($dispatchContext['handled'])) {
+    exit;
+}
 
 $routePatterns = array_keys($routes[$method] ?? []);
 usort($routePatterns, 'compareRoutePatternsForMatching');
@@ -430,15 +453,9 @@ switch ($handler) {
     case 'pageHome':
         $user = app()->user();
         if (!$user) {
-            header('Location: /login');
-            exit;
+            app()->redirect('/login');
         }
-        $homeRole = (string)($user['role'] ?? '');
-        if ($homeRole === 'superadmin' && (string)($user['source'] ?? '') === 'kernel') {
-            app()->redirect('/superadmin/settings');
-            exit;
-        }
-        $homeUrl = app()->hooks()->filter('kernel.home_url', null, $homeRole, $user);
+        $homeUrl = kernelResolveAuthenticatedHomeRedirect($user, false);
         if ($homeUrl) {
             app()->redirect($homeUrl);
         } else {
@@ -945,14 +962,9 @@ switch ($handler) {
         exit;
 
     case 'pageLogin':
-        if (app()->user()) {
-            $loginUser = app()->user();
-            $loginRole = (string)($loginUser['role'] ?? '');
-            if ($loginRole === 'superadmin' && (string)($loginUser['source'] ?? '') === 'kernel') {
-                app()->redirect('/superadmin/settings');
-                exit;
-            }
-            $loginHome = app()->hooks()->filter('kernel.home_url', null, $loginRole, $loginUser) ?? '/';
+        $loginUser = app()->user();
+        if ($loginUser) {
+            $loginHome = kernelResolveAuthenticatedHomeRedirect($loginUser, true) ?? '/';
             app()->redirect($loginHome);
             exit;
         }
@@ -1576,6 +1588,7 @@ switch ($handler) {
             'secure' => is_https(),
             'samesite' => config('cookie.samesite', 'Strict'),
         ]);
+        app()->csrfRotate(true);
 
         // API clients (Accept: application/json) get token + refresh_token in body
         $accept = (string) ($_SERVER['HTTP_ACCEPT'] ?? '');
@@ -1616,12 +1629,7 @@ switch ($handler) {
             exit;
         }
 
-        // Redirect based on role — kernel hook resolves landing page from modules
-        if ($role === 'superadmin' && $authSource === 'kernel') {
-            echo json_encode(['ok' => true, 'redirect' => '/superadmin/settings']);
-            exit;
-        }
-        $loginRedirect = app()->hooks()->filter('kernel.home_url', null, $role, $payload) ?? '/';
+        $loginRedirect = kernelResolveAuthenticatedHomeRedirect($payload, true) ?? '/';
         echo json_encode(['ok' => true, 'redirect' => $loginRedirect]);
         exit;
 
@@ -1732,6 +1740,7 @@ switch ($handler) {
 
         $cookieName = config('app.cookie_name', 'app_token');
         clearAuthCookie($cookieName);
+        app()->csrfRotate(true);
 
         // API clients get JSON instead of redirect
         $accept = (string) ($_SERVER['HTTP_ACCEPT'] ?? '');
@@ -1745,12 +1754,10 @@ switch ($handler) {
         // to that module's login page instead of the kernel OS login.
         $ref = strtolower((string)($_SERVER['HTTP_REFERER'] ?? ''));
         if ($ref !== '' && str_contains($ref, '/cms')) {
-            header('Location: /cms/login');
-            exit;
+            app()->redirect('/cms/login');
         }
 
-        header('Location: /login');
-        exit;
+        app()->redirect('/login');
 
     case 'apiMe':
         header('Content-Type: application/json');
@@ -3246,6 +3253,7 @@ switch ($handler) {
                 'full_name' => $fullName,
                 'name' => $fullName,
             ]));
+            app()->csrfRotate(true);
 
             // Re-issue auth cookie JWT so subsequent page loads show updated name.
             $newPayload = (array)$user;

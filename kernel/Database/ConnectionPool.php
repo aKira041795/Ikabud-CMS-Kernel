@@ -17,6 +17,8 @@ use Exception;
 
 class ConnectionPool
 {
+    private const IDLE_VALIDATION_SECONDS = 15;
+
     /** @var array Connection pool storage */
     private array $pool = [];
 
@@ -73,6 +75,7 @@ class ConnectionPool
             ],
             'connection' => null,
             'last_used' => null,
+            'last_verified' => null,
         ];
     }
     
@@ -96,15 +99,24 @@ class ConnectionPool
         }
         
         $pool = &$this->pool[$name];
+        $now = time();
         
         // Return existing connection if valid
         if ($pool['connection'] !== null) {
+            $lastVerified = (int)($pool['last_verified'] ?? 0);
+            if ($lastVerified > 0 && ($now - $lastVerified) < self::IDLE_VALIDATION_SECONDS) {
+                $pool['last_used'] = $now;
+                return $pool['connection'];
+            }
+
             try {
                 $pool['connection']->query('SELECT 1');
-                $pool['last_used'] = time();
+                $pool['last_used'] = $now;
+                $pool['last_verified'] = $now;
                 return $pool['connection'];
             } catch (Exception $e) {
                 $pool['connection'] = null;
+                $pool['last_verified'] = null;
             }
         }
         
@@ -126,7 +138,8 @@ class ConnectionPool
                 PDO::ATTR_EMULATE_PREPARES => false,
                 PDO::ATTR_TIMEOUT => 5,
             ]);
-            $pool['last_used'] = time();
+            $pool['last_used'] = $now;
+            $pool['last_verified'] = $now;
             return $pool['connection'];
         } catch (Exception $e) {
             error_log("[ConnectionPool] Failed to connect '{$name}': " . $e->getMessage());

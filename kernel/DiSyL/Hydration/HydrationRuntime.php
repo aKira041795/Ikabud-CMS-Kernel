@@ -355,6 +355,12 @@ class HydrationContext
         return window.DiSyLComponents[name];
       }
       
+      // Validate component name before dynamic import to prevent path traversal
+      if (!/^[a-zA-Z0-9_-]+$/.test(name)) {
+        console.error(`DiSyL: Invalid component name "${name}" — only alphanumeric, hyphen, and underscore are allowed`);
+        return null;
+      }
+      
       // Try dynamic import
       try {
         return await import(`/components/${name}.js`);

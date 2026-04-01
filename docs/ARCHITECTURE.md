@@ -122,6 +122,7 @@ Browser → Apache mod_rewrite → public/index.php
   ├── Request ID injection (X-Request-Id)
   ├── CORS handling (/api/* routes, origin whitelist from env)
   ├── Module static asset routing (/assets/modules/{moduleId}/{path})
+  ├── kernel.request.before_dispatch hook (Allows short-circuit, rewrite, redirect)
   ├── Tenant entry routing (TenantEntryRouter: domain → entry module rewrite)
   ├── Core route matching (auth, health, admin, superadmin)
   ├── Module route matching (loaded from module routes.php files)
@@ -131,15 +132,18 @@ Browser → Apache mod_rewrite → public/index.php
   │       ├── Auth enforcement
   │       ├── Capability / hook invocation
   │       └── Template render or JSON response
-  └── 404 fallback
+  ├── 404 fallback
+  └── kernel.shutdown hook (Guaranteed execution on script exit via register_shutdown_function)
 ```
 
 ### Security Hardening
 
 - **CORS:** Whitelist-only origins from `CORS_ORIGINS` env variable; never `*` with credentials
-- **CSRF:** Token generation via `csrfToken()`, server-side enforcement via `csrfEnforce()`
+- **CSRF:** Token generation via `csrfToken()`, server-side enforcement via `csrfEnforce()`, rotated on auth state changes
 - **Static assets:** Path traversal hardened — `..`, `\`, and empty paths are rejected
 - **JWT:** HS256, 4-hour expiration, httpOnly + secure + sameSite=Strict cookies
+- **Redirects:** Target domains and paths are strictly validated before header emission to prevent open redirects and CRLF injection.
+- **Request Context:** Global ad-hoc variables have been replaced with a request-scoped helper layer (`kernel_request_context_set`).
 
 ---
 
@@ -189,28 +193,38 @@ The kernel provides three complementary extension mechanisms:
 ### 1. Hooks (`kernel/Hooks.php`)
 
 WordPress-style filter/action system for synchronous extension points.
+- **Null Semantics:** `applyFilters()` ignores hooks returning `null` (keeps original value) unless invoked via `filterNullable()`.
+- **Lazy Sorting:** Handled transparently by the engine for high-performance bootstrap phases.
 
 ```php
 // Module registers a filter during boot
-app()->hooks()->addFilter('nav_items', function ($items) {
-    $items[] = ['label' => 'CMS', 'url' => '/admin/cms'];
+app()->hooks()->on('nav_items', function ($items) {
+    if (is_array($items)) {
+        $items[] = ['label' => 'CMS', 'url' => '/admin/cms'];
+    }
     return $items;
 });
 
-// Kernel applies the filter
-$nav = app()->hooks()->applyFilters('nav_items', $defaultItems);
+// Kernel applies the filter synchronously
+$nav = app()->hooks()->filter('nav_items', $defaultItems);
 ```
 
 ### 2. Events (`kernel/EventBus.php`)
 
-Asynchronous publish/subscribe notifications.
+Publish/subscribe notifications featuring pre-indexed wildcard routes and a deferred queue.
+
+- **Synchronous Dispatch:** Immediate execution (`fire()`). Good for intra-request logic.
+- **Deferred Dispatch:** Queued in-memory execution pushed to `kernel.shutdown` via `fireDeferred()` or `defer()`. Good for non-blocking side-effects.
 
 ```php
 // Subscribe
 app()->events()->listen('content.published', function ($payload) { ... });
 
-// Publish
-app()->events()->dispatch('content.published', ['id' => $contentId]);
+// Publish Synchronously
+app()->events()->fire('content.published', ['id' => $contentId]);
+
+// Defer Asynchronously
+app()->events()->defer('content.published', ['id' => $contentId]);
 ```
 
 ### 3. Capabilities (`kernel/Capabilities/`)

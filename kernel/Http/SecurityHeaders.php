@@ -110,13 +110,17 @@ class SecurityHeaders
      */
     private function applyCSP(): void
     {
-        $baseDomain = $this->getBaseDomain();
+        $nonce = function_exists('kernel_csp_nonce') ? kernel_csp_nonce() : '';
+        $scriptSrc = ["'self'", "'unsafe-inline'", 'https://cdn.tailwindcss.com', 'https://unpkg.com'];
+        if ($nonce !== '') {
+            $scriptSrc[] = "'nonce-{$nonce}'";
+        }
         
         $csp = implode('; ', [
             "default-src 'self'",
-            "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://unpkg.com",
-            "style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://cdn.tailwindcss.com",
-            "font-src 'self' data: https://cdnjs.cloudflare.com",
+            'script-src ' . implode(' ', $scriptSrc),
+            "style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://cdn.tailwindcss.com https://fonts.googleapis.com",
+            "font-src 'self' data: https://cdnjs.cloudflare.com https://fonts.gstatic.com",
             "img-src 'self' data: blob: https:",
             "connect-src 'self'",
             "frame-ancestors 'self'",

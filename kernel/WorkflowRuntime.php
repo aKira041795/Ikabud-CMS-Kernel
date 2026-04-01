@@ -108,41 +108,56 @@ final class WorkflowRuntime
             return;
         }
 
+        $context = [
+            'workflow_key' => $workflowKey,
+            'module' => $module,
+            'entity_type' => $entityType,
+        ];
+
         try {
-            $stmt = $this->app->db()->prepare(
-                'INSERT INTO workflow_definitions (workflow_key, module, entity_type, initial_state, states_json, transitions_json, is_active, created_at) '
-                . 'VALUES (:wk, :m, :et, :init, :states, :trans, 1, NOW()) '
-                . 'ON DUPLICATE KEY UPDATE initial_state = VALUES(initial_state), states_json = VALUES(states_json), transitions_json = VALUES(transitions_json), is_active = 1, updated_at = NOW()'
-            );
-            $stmt->execute([
-                ':wk' => $workflowKey,
-                ':m' => $module,
-                ':et' => $entityType,
-                ':init' => $initialState,
-                ':states' => json_encode($states),
-                ':trans' => json_encode($transitions),
-            ]);
+            $this->runPrimaryDbOperation(static function (PDO $db) use ($workflowKey, $module, $entityType, $initialState, $states, $transitions): void {
+                $stmt = $db->prepare(
+                    'INSERT INTO workflow_definitions (workflow_key, module, entity_type, initial_state, states_json, transitions_json, is_active, created_at) '
+                    . 'VALUES (:wk, :m, :et, :init, :states, :trans, 1, NOW()) '
+                    . 'ON DUPLICATE KEY UPDATE initial_state = VALUES(initial_state), states_json = VALUES(states_json), transitions_json = VALUES(transitions_json), is_active = 1, updated_at = NOW()'
+                );
+                $stmt->execute([
+                    ':wk' => $workflowKey,
+                    ':m' => $module,
+                    ':et' => $entityType,
+                    ':init' => $initialState,
+                    ':states' => json_encode($states),
+                    ':trans' => json_encode($transitions),
+                ]);
+            }, 'ensure_definition', $context);
+
             if ($syncTtl > 0) {
                 $this->app->cache()->set($this->definitionSyncInstance(), $syncKey, ['synced' => true], $syncTtl);
             }
         } catch (Throwable $e) {
-            $this->log('workflow definition seed failed', [
-                'workflow_key' => $workflowKey,
-                'module' => $module,
-                'entity_type' => $entityType,
-                'error' => $e->getMessage(),
-            ]);
+            $this->logDbFailure('workflow definition seed failed', 'ensure_definition', $e, $context);
         }
     }
 
     public function getDefinition(string $workflowKey, string $module, string $entityType): ?array
     {
         try {
-            $stmt = $this->app->db()->prepare('SELECT * FROM workflow_definitions WHERE workflow_key = :wk AND module = :m AND entity_type = :et AND is_active = 1 LIMIT 1');
-            $stmt->execute([':wk' => $workflowKey, ':m' => $module, ':et' => $entityType]);
-            $row = $stmt->fetch(PDO::FETCH_ASSOC);
-            return is_array($row) ? $row : null;
+            return $this->runPrimaryDbOperation(static function (PDO $db) use ($workflowKey, $module, $entityType): ?array {
+                $stmt = $db->prepare('SELECT * FROM workflow_definitions WHERE workflow_key = :wk AND module = :m AND entity_type = :et AND is_active = 1 LIMIT 1');
+                $stmt->execute([':wk' => $workflowKey, ':m' => $module, ':et' => $entityType]);
+                $row = $stmt->fetch(PDO::FETCH_ASSOC);
+                return is_array($row) ? $row : null;
+            }, 'get_definition', [
+                'workflow_key' => $workflowKey,
+                'module' => $module,
+                'entity_type' => $entityType,
+            ]);
         } catch (Throwable $e) {
+            $this->logDbFailure('workflow definition lookup failed', 'get_definition', $e, [
+                'workflow_key' => $workflowKey,
+                'module' => $module,
+                'entity_type' => $entityType,
+            ]);
             return null;
         }
     }
@@ -183,25 +198,37 @@ final class WorkflowRuntime
     public function getOrCreateInstance(string $workflowKey, string $module, string $entityType, string $entityId, string $defaultState): ?array
     {
         try {
-            $db = $this->app->db();
-            $stmt = $db->prepare('SELECT * FROM workflow_instances WHERE workflow_key = :wk AND module = :m AND entity_type = :et AND entity_id = :eid LIMIT 1');
-            $args = [':wk' => $workflowKey, ':m' => $module, ':et' => $entityType, ':eid' => $entityId];
-            $stmt->execute($args);
-            $row = $stmt->fetch(PDO::FETCH_ASSOC);
-            if (is_array($row)) {
-                return $row;
-            }
+            return $this->runPrimaryDbOperation(static function (PDO $db) use ($workflowKey, $module, $entityType, $entityId, $defaultState): ?array {
+                $stmt = $db->prepare('SELECT * FROM workflow_instances WHERE workflow_key = :wk AND module = :m AND entity_type = :et AND entity_id = :eid LIMIT 1');
+                $args = [':wk' => $workflowKey, ':m' => $module, ':et' => $entityType, ':eid' => $entityId];
+                $stmt->execute($args);
+                $row = $stmt->fetch(PDO::FETCH_ASSOC);
+                if (is_array($row)) {
+                    return $row;
+                }
 
-            try {
-                $db->prepare('INSERT INTO workflow_instances (workflow_key, module, entity_type, entity_id, state, created_at) VALUES (:wk, :m, :et, :eid, :st, NOW())')
-                    ->execute($args + [':st' => $defaultState]);
-            } catch (Throwable $e) {
-            }
+                try {
+                    $db->prepare('INSERT INTO workflow_instances (workflow_key, module, entity_type, entity_id, state, created_at) VALUES (:wk, :m, :et, :eid, :st, NOW())')
+                        ->execute($args + [':st' => $defaultState]);
+                } catch (Throwable $e) {
+                }
 
-            $stmt->execute($args);
-            $row = $stmt->fetch(PDO::FETCH_ASSOC);
-            return is_array($row) ? $row : null;
+                $stmt->execute($args);
+                $row = $stmt->fetch(PDO::FETCH_ASSOC);
+                return is_array($row) ? $row : null;
+            }, 'get_or_create_instance', [
+                'workflow_key' => $workflowKey,
+                'module' => $module,
+                'entity_type' => $entityType,
+                'entity_id' => $entityId,
+            ]);
         } catch (Throwable $e) {
+            $this->logDbFailure('workflow instance lookup failed', 'get_or_create_instance', $e, [
+                'workflow_key' => $workflowKey,
+                'module' => $module,
+                'entity_type' => $entityType,
+                'entity_id' => $entityId,
+            ]);
             return null;
         }
     }
@@ -311,6 +338,28 @@ final class WorkflowRuntime
             if ($startedTransaction && $db->inTransaction()) {
                 $db->rollBack();
             }
+
+            $context = [
+                'workflow_key' => $workflowKey,
+                'module' => $module,
+                'entity_type' => $entityType,
+                'entity_id' => $entityId,
+                'instance_id' => (int)($instance['id'] ?? 0),
+                'action' => $action,
+                'from_state' => $from,
+                'to_state' => $to,
+            ];
+            $this->logDbFailure('workflow transition failed', 'transition', $e, $context);
+
+            if (function_exists('dbConnectionLost') && dbConnectionLost($e)) {
+                try {
+                    $this->app->reconnectDb();
+                    $this->log('workflow database reconnected after transition failure', $this->dbLogContext('transition', $context));
+                } catch (Throwable $reconnectError) {
+                    $this->logDbFailure('workflow reconnect failed after transition failure', 'transition_reconnect', $reconnectError, $context);
+                }
+            }
+
             return ['ok' => false, 'error' => 'Database error'];
         }
 
@@ -349,6 +398,67 @@ final class WorkflowRuntime
             'role' => $role !== '' ? $role : null,
             'actor_id' => $actorId > 0 ? $actorId : null,
         ];
+    }
+
+    private function runPrimaryDbOperation(callable $operation, string $phase, array $context = [], bool $retryOnDisconnect = true): mixed
+    {
+        $attempts = $retryOnDisconnect ? 2 : 1;
+        $lastError = null;
+
+        for ($attempt = 1; $attempt <= $attempts; $attempt++) {
+            try {
+                return $operation($this->app->db());
+            } catch (Throwable $e) {
+                $lastError = $e;
+                $lostConnection = function_exists('dbConnectionLost') && dbConnectionLost($e);
+                if (!$retryOnDisconnect || !$lostConnection || $attempt >= $attempts) {
+                    break;
+                }
+
+                $this->log('workflow database reconnect retry scheduled', $this->dbLogContext($phase, $context + ['attempt' => $attempt], $e));
+
+                try {
+                    $this->app->reconnectDb();
+                } catch (Throwable $reconnectError) {
+                    $this->logDbFailure('workflow database reconnect failed', $phase . '_reconnect', $reconnectError, $context + ['attempt' => $attempt]);
+                    $lastError = $reconnectError;
+                    break;
+                }
+            }
+        }
+
+        if ($lastError instanceof Throwable) {
+            throw $lastError;
+        }
+
+        throw new \RuntimeException('Workflow database operation failed');
+    }
+
+    private function dbLogContext(string $phase, array $context = [], ?Throwable $e = null): array
+    {
+        $logContext = [
+            'phase' => $phase,
+            'tenant_id' => $this->app->tenant()->current(),
+        ];
+
+        if (function_exists('request_id')) {
+            $logContext['request_id'] = request_id();
+        }
+
+        if ($e !== null) {
+            $logContext['error'] = $e->getMessage();
+            $logContext['exception'] = $e::class;
+            if (function_exists('dbConnectionLost')) {
+                $logContext['db_connection_lost'] = dbConnectionLost($e);
+            }
+        }
+
+        return array_merge($logContext, $context);
+    }
+
+    private function logDbFailure(string $message, string $phase, Throwable $e, array $context = []): void
+    {
+        $this->log($message, $this->dbLogContext($phase, $context, $e));
     }
 
     private function log(string $message, array $context = []): void

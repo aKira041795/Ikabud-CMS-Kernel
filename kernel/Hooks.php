@@ -7,7 +7,7 @@
  * Modules register listeners during their bootstrap phase.
  * 
  * Hook types:
- *   filter  — transforms a value through a chain of callbacks (returns modified value)
+ *   filter  — transforms a value through a chain of callbacks (null means no change)
  *   action  — fires side-effect callbacks (returns nothing)
  * 
  * The kernel defines well-known hooks it fires:
@@ -15,6 +15,7 @@
  *   'kernel.gui_context'     (filter)  — merge GUI settings into the theme context
  *   'kernel.gui_css'         (filter)  — generate CSS override block
  *   'kernel.home_url'        (filter)  — resolve the home URL for a role
+ *   'kernel.request.before_dispatch' (filter) — mutate or short-circuit request dispatch context before route matching
  *   'kernel.csrf_token'      (filter)  — provide CSRF token string
  *   'kernel.csrf_field'      (filter)  — provide CSRF hidden input HTML
  *   'kernel.render_context'  (filter)  — modify the global render context before template compilation
@@ -33,6 +34,9 @@ class Hooks
 
     /** @var array<string, array<int, array{callback: callable, priority: int, module: string}>> */
     private array $listeners = [];
+
+    /** @var array<string, bool> */
+    private array $listenerSortDirty = [];
 
     private function __construct() {}
 
@@ -61,20 +65,52 @@ class Hooks
             'priority' => $priority,
             'module' => $module,
         ];
-        // Sort by priority (stable sort)
-        usort($this->listeners[$hook], fn($a, $b) => $a['priority'] <=> $b['priority']);
+        $this->listenerSortDirty[$hook] = true;
+    }
+
+    /**
+     * @return array<int, array{callback: callable, priority: int, module: string}>
+     */
+    private function listenersFor(string $hook): array
+    {
+        if (empty($this->listeners[$hook])) {
+            return [];
+        }
+
+        if (!empty($this->listenerSortDirty[$hook])) {
+            usort($this->listeners[$hook], fn($a, $b) => $a['priority'] <=> $b['priority']);
+            $this->listenerSortDirty[$hook] = false;
+        }
+
+        return $this->listeners[$hook];
     }
 
     /**
      * Fire a filter hook — passes $value through each listener and returns the result.
-     * Each listener receives ($value, ...$args) and must return the (possibly modified) value.
+     * Each listener receives ($value, ...$args). Returning null preserves the current value.
      */
     public function filter(string $hook, mixed $value, mixed ...$args): mixed
     {
-        if (empty($this->listeners[$hook])) {
+        return $this->applyFilter($hook, $value, false, ...$args);
+    }
+
+    /**
+     * Fire a filter hook that allows null to become the next value in the chain.
+     * Use this when null is a meaningful result instead of a no-op sentinel.
+     */
+    public function filterNullable(string $hook, mixed $value, mixed ...$args): mixed
+    {
+        return $this->applyFilter($hook, $value, true, ...$args);
+    }
+
+    private function applyFilter(string $hook, mixed $value, bool $allowNullResult, mixed ...$args): mixed
+    {
+        $listeners = $this->listenersFor($hook);
+        if ($listeners === []) {
             return $value;
         }
-        foreach ($this->listeners[$hook] as $entry) {
+
+        foreach ($listeners as $entry) {
             try {
                 $result = null;
                 $module = (string)($entry['module'] ?? '');
@@ -85,9 +121,7 @@ class Hooks
                 } else {
                     $result = ($entry['callback'])($value, ...$args);
                 }
-                // Only accept the result if the callback returned the same type
-                // (prevents a broken filter from nullifying the chain)
-                if ($result !== null) {
+                if ($allowNullResult || $result !== null) {
                     $value = $result;
                 }
             } catch (\Throwable $e) {
@@ -109,10 +143,11 @@ class Hooks
      */
     public function action(string $hook, mixed ...$args): void
     {
-        if (empty($this->listeners[$hook])) {
+        $listeners = $this->listenersFor($hook);
+        if ($listeners === []) {
             return;
         }
-        foreach ($this->listeners[$hook] as $entry) {
+        foreach ($listeners as $entry) {
             try {
                 $module = (string)($entry['module'] ?? '');
                 if ($module !== '' && \function_exists('moduleWithContext')) {
@@ -149,6 +184,7 @@ class Hooks
     public function off(string $hook): void
     {
         unset($this->listeners[$hook]);
+        unset($this->listenerSortDirty[$hook]);
     }
 
     /**
@@ -157,5 +193,6 @@ class Hooks
     public function reset(): void
     {
         $this->listeners = [];
+        $this->listenerSortDirty = [];
     }
 }

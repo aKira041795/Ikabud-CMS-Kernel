@@ -223,6 +223,77 @@ $traceAppLog = @file_get_contents(STORAGE_PATH . '/logs/app.log') ?: '';
 t('shop render logs render trace when enabled', str_contains($traceAppLog, 'kernel.render_trace') && str_contains($traceAppLog, '"render_profile_id":"commerce_public"') && str_contains($traceAppLog, '"matched_contract_ids":["ecommerce.public.shell","ecommerce.public.catalog"]'), $traceAppLog);
 file_put_contents(STORAGE_PATH . '/logs/app.log', '');
 
+$traceOutputEnv = array_key_exists('APP_RENDER_TRACE_OUTPUT', $_ENV) ? (string)$_ENV['APP_RENDER_TRACE_OUTPUT'] : null;
+$traceLogEnv = array_key_exists('APP_RENDER_TRACE_LOGS', $_ENV) ? (string)$_ENV['APP_RENDER_TRACE_LOGS'] : null;
+kernelClearRenderTraces();
+try {
+    unset($_ENV['APP_RENDER_TRACE_OUTPUT']);
+    unset($_ENV['APP_RENDER_TRACE_LOGS']);
+    $untracedShop = app()->render('modules/ecommerce/public/shop.disyl');
+    $disabledTrace = kernelLatestRenderTrace();
+} finally {
+    if ($traceOutputEnv === null) {
+        unset($_ENV['APP_RENDER_TRACE_OUTPUT']);
+    } else {
+        $_ENV['APP_RENDER_TRACE_OUTPUT'] = $traceOutputEnv;
+    }
+
+    if ($traceLogEnv === null) {
+        unset($_ENV['APP_RENDER_TRACE_LOGS']);
+    } else {
+        $_ENV['APP_RENDER_TRACE_LOGS'] = $traceLogEnv;
+    }
+}
+
+t('shop render does not emit render-trace output when disabled', !str_contains($untracedShop, '<!-- render-trace '), $untracedShop);
+t('shop render does not record render trace when disabled', $disabledTrace === null, json_encode($disabledTrace));
+
+echo "\n=== RENDER FAILURES ===\n";
+
+$renderFailure = null;
+$renderFailureMessage = '';
+$renderFailurePrevious = null;
+file_put_contents(STORAGE_PATH . '/logs/app.log', '');
+
+try {
+    app()->render('_cms_active_theme/public/ecommerce/missing-shop.disyl', [
+        '__render_contract_template' => 'modules/ecommerce/public/shop.disyl',
+        '__render_trace_contract_template' => 'modules/ecommerce/public/shop.disyl',
+    ]);
+} catch (RuntimeException $e) {
+    $renderFailure = $e;
+    $renderFailureMessage = $e->getMessage();
+    $renderFailurePrevious = $e->getPrevious();
+}
+
+t(
+    'theme-aware render failure includes canonical contract metadata',
+    $renderFailure instanceof RuntimeException
+        && str_contains($renderFailureMessage, 'Template render failed for _cms_active_theme/public/ecommerce/missing-shop.disyl')
+        && str_contains($renderFailureMessage, '"contract_template":"modules/ecommerce/public/shop.disyl"')
+        && str_contains($renderFailureMessage, '"render_profile_id":"commerce_public"')
+        && str_contains($renderFailureMessage, '"matched_contract_ids":["ecommerce.public.shell","ecommerce.public.catalog"]'),
+    $renderFailureMessage
+);
+
+t(
+    'theme-aware render failure preserves original template exception',
+    $renderFailurePrevious instanceof RuntimeException && str_contains($renderFailurePrevious->getMessage(), 'Template not found: _cms_active_theme/public/ecommerce/missing-shop.disyl'),
+    $renderFailurePrevious instanceof Throwable ? $renderFailurePrevious->getMessage() : 'no previous exception'
+);
+
+$renderFailureLog = @file_get_contents(STORAGE_PATH . '/logs/app.log') ?: '';
+t(
+    'theme-aware render failure writes structured render failure log',
+    str_contains($renderFailureLog, 'kernel.render_failure')
+        && str_contains($renderFailureLog, '"contract_template":"modules/ecommerce/public/shop.disyl"')
+        && str_contains($renderFailureLog, '"render_profile_id":"commerce_public"')
+        && str_contains($renderFailureLog, '"matched_contract_ids":["ecommerce.public.shell","ecommerce.public.catalog"]')
+        && str_contains($renderFailureLog, '"exception_class":"RuntimeException"'),
+    $renderFailureLog
+);
+file_put_contents(STORAGE_PATH . '/logs/app.log', '');
+
 echo "\n=== MISMATCH LOGGING ===\n";
 
 file_put_contents(STORAGE_PATH . '/logs/app.log', '');

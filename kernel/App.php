@@ -28,11 +28,14 @@ use PDO;
 class App
 {
     private static ?App $instance = null;
+    private const DB_IDLE_VALIDATION_SECONDS = 15;
     
     private array $config = [];
     private ?PDO $db = null;
+    private ?int $dbLastVerified = null;
     private ?PDO $controlDb = null;
-    /** @var array<int, PDO> */
+    private ?int $controlDbLastVerified = null;
+    /** @var array<int, array{pdo: PDO, last_used: float, last_verified: int}> */
     private array $tenantDbPool = [];
     private ?TemplateEngine $templateEngine = null;
     private ?JWT $jwt = null;
@@ -49,6 +52,9 @@ class App
     private bool $booted = false;
     private ?array $cachedNavItems = null;
     private ?array $cachedGuiContext = null;
+    private ?array $cachedGuiDefaults = null;
+    private ?string $cachedAppUrl = null;
+    private ?string $cachedBaseUrl = null;
     
     public const KERNEL_VERSION = '3.1.0';
     public const KERNEL_CODENAME = 'clarity';
@@ -80,6 +86,7 @@ class App
         
         $this->config = $config;
         $this->hooks = Hooks::getInstance();
+        $this->primeRenderBaseCaches();
         $this->booted = true;
 
         // Register kernel core capability providers before modules boot.
@@ -256,6 +263,47 @@ class App
         $this->hooks->action('kernel.boot', $this);
         
         return $this;
+    }
+
+    private function primeRenderBaseCaches(): void
+    {
+        $appUrl = external_base_url((string)$this->config('app.url', ''));
+        $this->cachedAppUrl = $appUrl;
+        $this->cachedBaseUrl = rtrim(parse_url($appUrl, PHP_URL_PATH) ?: '', '/');
+        $this->cachedGuiDefaults = $this->buildKernelGuiDefaults();
+    }
+
+    private function buildKernelGuiDefaults(): array
+    {
+        $appName = $this->config('app.name', 'Baron Bakeshop');
+        $parts = explode(' ', $appName, 2);
+
+        $kernelDefaults = [
+            'app_name' => $appName, 'app_name_accent' => $parts[0], 'app_name_rest' => $parts[1] ?? '',
+            'color_bg' => '#f4f5f7', 'color_surface' => '#ffffff', 'color_border' => '#dfe3e8',
+            'color_text' => '#2d3748', 'color_text_muted' => '#5a6577', 'color_text_light' => '#8895a7',
+            'color_primary' => '#2563eb', 'color_primary_hover' => '#1d4ed8', 'color_primary_light' => '#dbeafe',
+            'color_success' => '#0d9f4f', 'color_success_light' => '#d4f5e0',
+            'color_warning' => '#c87e08', 'color_warning_light' => '#fef3c7',
+            'color_danger' => '#d42828', 'color_danger_light' => '#fee2e2',
+            'color_header_bg' => '#1e293b', 'color_header_text' => '#ffffff', 'color_header_accent' => '#60a5fa',
+            'font_family' => "'Inter', system-ui, sans-serif",
+            'font_url' => 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap',
+            'font_size_base' => '14px', 'font_size_small' => '12px',
+            'font_size_h1' => '24px', 'font_size_h2' => '18px', 'font_size_nav' => '13px',
+            'border_radius' => '8px', 'header_height' => '56px', 'nav_height' => '44px', 'max_width' => '1200px',
+            'css_overrides' => '',
+        ];
+
+        $guiFile = ($this->config('paths.storage', '') ?: (defined('STORAGE_PATH') ? STORAGE_PATH : '')) . '/gui-settings.json';
+        if ($guiFile !== '/gui-settings.json' && is_file($guiFile)) {
+            $saved = json_decode((string) file_get_contents($guiFile), true);
+            if (is_array($saved)) {
+                $kernelDefaults = array_merge($kernelDefaults, $saved);
+            }
+        }
+
+        return $kernelDefaults;
     }
     
     /**
@@ -615,6 +663,77 @@ class App
         }
     }
 
+    private function tenantDbPoolMax(): int
+    {
+        return max(1, (int)$this->config('app.multi_tenant.db_pool_max', 20));
+    }
+
+    private function shouldValidateConnection(?int $lastVerified): bool
+    {
+        return $lastVerified === null || $lastVerified <= 0 || (time() - $lastVerified) >= self::DB_IDLE_VALIDATION_SECONDS;
+    }
+
+    private function touchTenantDbPoolEntry(int $tenantId): ?PDO
+    {
+        $entry = $this->tenantDbPool[$tenantId] ?? null;
+        if (!is_array($entry) || !($entry['pdo'] ?? null) instanceof PDO) {
+            return null;
+        }
+
+        $pdo = $entry['pdo'];
+        if (!$pdo->inTransaction() && $this->shouldValidateConnection((int)($entry['last_verified'] ?? 0))) {
+            try {
+                $pdo->query('SELECT 1');
+                $this->tenantDbPool[$tenantId]['last_verified'] = time();
+            } catch (\Throwable $e) {
+                unset($this->tenantDbPool[$tenantId]);
+                $this->log(
+                    'Tenant DB pool validation failed: ' . $e->getMessage(),
+                    'warning',
+                    $this->tenantDbFailureContext($tenantId, ['exception' => get_class($e)])
+                );
+                return null;
+            }
+        }
+
+        $this->tenantDbPool[$tenantId]['last_used'] = microtime(true);
+        return $pdo;
+    }
+
+    private function trimTenantDbPool(?int $preserveTenantId = null): void
+    {
+        if (count($this->tenantDbPool) < $this->tenantDbPoolMax()) {
+            return;
+        }
+
+        $oldestTenantId = null;
+        $oldestLastUsed = null;
+        foreach ($this->tenantDbPool as $tenantId => $entry) {
+            if ($preserveTenantId !== null && $tenantId === $preserveTenantId) {
+                continue;
+            }
+
+            $lastUsed = (float)($entry['last_used'] ?? 0.0);
+            if ($oldestTenantId === null || $lastUsed < (float)$oldestLastUsed) {
+                $oldestTenantId = (int)$tenantId;
+                $oldestLastUsed = $lastUsed;
+            }
+        }
+
+        if ($oldestTenantId !== null) {
+            unset($this->tenantDbPool[$oldestTenantId]);
+        }
+    }
+
+    public function tenantDbPoolStats(): array
+    {
+        return [
+            'active' => count($this->tenantDbPool),
+            'max' => $this->tenantDbPoolMax(),
+            'tenant_ids' => array_values(array_map('intval', array_keys($this->tenantDbPool))),
+        ];
+    }
+
     /**
      * Resolve the tenant database connection config from the control plane.
      * Returns null when multi-tenancy is disabled or tenant cannot be resolved.
@@ -626,8 +745,8 @@ class App
             return null;
         }
 
-        $previousUnguarded = (bool)($GLOBALS['_kernel_db_unguarded'] ?? false);
-        $GLOBALS['_kernel_db_unguarded'] = true;
+        $previousUnguarded = (bool)kernel_request_context_get('_kernel_db_unguarded', false);
+        kernel_request_context_set('_kernel_db_unguarded', true);
         try {
             $stmt = $this->controlDb()->prepare(
                 'SELECT db_driver, db_host, db_port, db_name, db_user, db_pass, db_charset, '
@@ -661,7 +780,7 @@ class App
             );
             throw new \RuntimeException('Tenant database configuration could not be resolved for tenant ' . $tenantId, 0, $e);
         } finally {
-            $GLOBALS['_kernel_db_unguarded'] = $previousUnguarded;
+            kernel_request_context_set('_kernel_db_unguarded', $previousUnguarded);
         }
     }
     
@@ -670,6 +789,24 @@ class App
      */
     public function db(): PDO
     {
+        if ($this->db instanceof PDO) {
+            if ($this->db->inTransaction() || !$this->shouldValidateConnection($this->dbLastVerified)) {
+                return $this->db;
+            }
+
+            try {
+                $this->db->query('SELECT 1');
+                $this->dbLastVerified = time();
+                return $this->db;
+            } catch (\Throwable $e) {
+                $this->log('Primary DB validation failed: ' . $e->getMessage(), 'warning', [
+                    'exception' => get_class($e),
+                ]);
+                $this->db = null;
+                $this->dbLastVerified = null;
+            }
+        }
+
         if ($this->db === null) {
             $dbConfig = $this->config['database'] ?? [];
 
@@ -692,6 +829,7 @@ class App
                     PDO::MYSQL_ATTR_INIT_COMMAND => "SET NAMES 'utf8mb4' COLLATE 'utf8mb4_unicode_ci'",
                 ]
             );
+            $this->dbLastVerified = time();
         }
         
         return $this->db;
@@ -703,6 +841,24 @@ class App
      */
     public function controlDb(): PDO
     {
+        if ($this->controlDb instanceof PDO) {
+            if ($this->controlDb->inTransaction() || !$this->shouldValidateConnection($this->controlDbLastVerified)) {
+                return $this->controlDb;
+            }
+
+            try {
+                $this->controlDb->query('SELECT 1');
+                $this->controlDbLastVerified = time();
+                return $this->controlDb;
+            } catch (\Throwable $e) {
+                $this->log('Control DB validation failed: ' . $e->getMessage(), 'warning', [
+                    'exception' => get_class($e),
+                ]);
+                $this->controlDb = null;
+                $this->controlDbLastVerified = null;
+            }
+        }
+
         if ($this->controlDb === null) {
             $dbConfig = $this->config['control_database'] ?? ($this->config['database'] ?? []);
             $dsn = $this->buildDsn($dbConfig);
@@ -719,6 +875,7 @@ class App
                     PDO::MYSQL_ATTR_INIT_COMMAND => "SET NAMES 'utf8mb4' COLLATE 'utf8mb4_unicode_ci'",
                 ]
             );
+            $this->controlDbLastVerified = time();
         }
 
         return $this->controlDb;
@@ -739,12 +896,13 @@ class App
         }
 
         // Return cached connection if available
-        if (isset($this->tenantDbPool[$tenantId])) {
-            return $this->tenantDbPool[$tenantId];
+        $pooled = $this->touchTenantDbPoolEntry($tenantId);
+        if ($pooled instanceof PDO) {
+            return $pooled;
         }
 
-        $previousUnguarded = (bool)($GLOBALS['_kernel_db_unguarded'] ?? false);
-        $GLOBALS['_kernel_db_unguarded'] = true;
+        $previousUnguarded = (bool)kernel_request_context_get('_kernel_db_unguarded', false);
+        kernel_request_context_set('_kernel_db_unguarded', true);
         try {
             $stmt = $this->controlDb()->prepare(
                 'SELECT db_driver, db_host, db_port, db_name, db_user, db_pass, db_charset, '
@@ -779,24 +937,31 @@ class App
 
             $pdoClass = '\\Ikabud\\Kernel\\Database\\KernelPDO';
             $pdo = new $pdoClass($dsn, $dbConfig['username'], $dbConfig['password'], $options);
-            $this->tenantDbPool[$tenantId] = $pdo;
+            $this->trimTenantDbPool($tenantId);
+            $this->tenantDbPool[$tenantId] = [
+                'pdo' => $pdo,
+                'last_used' => microtime(true),
+                'last_verified' => time(),
+            ];
             return $pdo;
         } catch (\Throwable $e) {
             return null;
         } finally {
-            $GLOBALS['_kernel_db_unguarded'] = $previousUnguarded;
+            kernel_request_context_set('_kernel_db_unguarded', $previousUnguarded);
         }
     }
 
     public function reconnectDb(): PDO
     {
         $this->db = null;
+        $this->dbLastVerified = null;
         return $this->db();
     }
 
     public function reconnectControlDb(): PDO
     {
         $this->controlDb = null;
+        $this->controlDbLastVerified = null;
         return $this->controlDb();
     }
 
@@ -881,6 +1046,23 @@ class App
     }
 
     /**
+     * Rotate the CSRF token and optionally regenerate the session identifier.
+     */
+    public function csrfRotate(bool $regenerateSessionId = false): string
+    {
+        if (session_status() !== PHP_SESSION_ACTIVE && !headers_sent()) {
+            session_start();
+        }
+
+        if ($regenerateSessionId && session_status() === PHP_SESSION_ACTIVE && !headers_sent()) {
+            @session_regenerate_id(true);
+        }
+
+        $_SESSION['_csrf_token'] = bin2hex(random_bytes(32));
+        return $_SESSION['_csrf_token'];
+    }
+
+    /**
      * Generate a CSRF hidden input field.
      */
     public function csrfField(): string
@@ -903,8 +1085,8 @@ class App
 
     private function buildRenderBaseContext(string $template = ''): array
     {
-        $appUrl = external_base_url((string)$this->config('app.url', ''));
-        $baseUrl = rtrim(parse_url($appUrl, PHP_URL_PATH) ?: '', '/');
+        $appUrl = $this->cachedAppUrl ?? external_base_url((string)$this->config('app.url', ''));
+        $baseUrl = $this->cachedBaseUrl ?? rtrim(parse_url($appUrl, PHP_URL_PATH) ?: '', '/');
 
         $user = $this->user();
         if ($user) {
@@ -920,35 +1102,7 @@ class App
         }
 
         if ($this->cachedGuiContext === null) {
-            $appName = $this->config('app.name', 'Baron Bakeshop');
-            $parts = explode(' ', $appName, 2);
-
-            $kernelDefaults = [
-                'app_name' => $appName, 'app_name_accent' => $parts[0], 'app_name_rest' => $parts[1] ?? '',
-                'color_bg' => '#f4f5f7', 'color_surface' => '#ffffff', 'color_border' => '#dfe3e8',
-                'color_text' => '#2d3748', 'color_text_muted' => '#5a6577', 'color_text_light' => '#8895a7',
-                'color_primary' => '#2563eb', 'color_primary_hover' => '#1d4ed8', 'color_primary_light' => '#dbeafe',
-                'color_success' => '#0d9f4f', 'color_success_light' => '#d4f5e0',
-                'color_warning' => '#c87e08', 'color_warning_light' => '#fef3c7',
-                'color_danger' => '#d42828', 'color_danger_light' => '#fee2e2',
-                'color_header_bg' => '#1e293b', 'color_header_text' => '#ffffff', 'color_header_accent' => '#60a5fa',
-                'font_family' => "'Inter', system-ui, sans-serif",
-                'font_url' => 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap',
-                'font_size_base' => '14px', 'font_size_small' => '12px',
-                'font_size_h1' => '24px', 'font_size_h2' => '18px', 'font_size_nav' => '13px',
-                'border_radius' => '8px', 'header_height' => '56px', 'nav_height' => '44px', 'max_width' => '1200px',
-                'css_overrides' => '',
-            ];
-
-            $guiFile = ($this->config('paths.storage', '') ?: (defined('STORAGE_PATH') ? STORAGE_PATH : '')) . '/gui-settings.json';
-            if ($guiFile !== '/gui-settings.json' && is_file($guiFile)) {
-                $saved = json_decode((string) file_get_contents($guiFile), true);
-                if (is_array($saved)) {
-                    $kernelDefaults = array_merge($kernelDefaults, $saved);
-                }
-            }
-
-            $this->cachedGuiContext = $this->hooks()->filter('kernel.gui_context', $kernelDefaults);
+            $this->cachedGuiContext = $this->hooks()->filter('kernel.gui_context', $this->cachedGuiDefaults ?? $this->buildKernelGuiDefaults());
         }
 
         $baseContext = [
@@ -959,6 +1113,7 @@ class App
             'cookie_name' => $this->config('app.cookie_name', 'guidance_token'),
             'csrf_token' => $this->csrfToken(),
             'csrf_field' => $this->csrfField(),
+            'csp_nonce' => function_exists('kernel_csp_nonce') ? kernel_csp_nonce() : '',
             'nav_items' => $this->cachedNavItems,
             'gui' => $this->cachedGuiContext,
         ];
@@ -974,6 +1129,55 @@ class App
     {
         $context = \kernelNormalizeRenderContextContracts($context, $template);
         return $this->hooks()->filter('kernel.render_context.finalize', $context, $template);
+    }
+
+    /**
+     * Build a compact, contract-aware render failure payload for exception messages.
+     * This keeps theme-aware failures debuggable without leaking the full context.
+     */
+    private function renderFailurePayload(string $template, array $context): array
+    {
+        $contractTemplate = \kernelRenderTraceContractTemplate($template, $context);
+        $matchedContracts = \kernelMatchedRenderContextContracts($contractTemplate);
+        $matchedContractIds = [];
+
+        foreach ($matchedContracts as $contract) {
+            $contractId = trim((string)($contract['id'] ?? ''));
+            if ($contractId !== '') {
+                $matchedContractIds[] = $contractId;
+            }
+        }
+
+        return [
+            'template' => $template,
+            'contract_template' => $contractTemplate,
+            'render_profile_id' => trim((string)($context['render_profile_id'] ?? '')),
+            'render_schema_stack' => is_array($context['render_schema_stack'] ?? null) ? array_values($context['render_schema_stack']) : [],
+            'matched_contract_ids' => array_values(array_unique($matchedContractIds)),
+            'public_route_kind' => trim((string)($context['public_route_kind'] ?? '')),
+            'public_presentation_mode' => trim((string)($context['public_presentation_mode'] ?? '')),
+        ];
+    }
+
+    private function wrapRenderFailure(string $template, array $context, \Throwable $e): \RuntimeException
+    {
+        $payload = $this->renderFailurePayload($template, $context);
+        $payloadJson = json_encode($payload, JSON_UNESCAPED_SLASHES);
+        $message = 'Template render failed for ' . $template . ': ' . $e->getMessage();
+
+        if (is_string($payloadJson) && $payloadJson !== '') {
+            $message .= ' | context=' . $payloadJson;
+        }
+
+        return new \RuntimeException($message, 0, $e);
+    }
+
+    private function logRenderFailure(string $template, array $context, \Throwable $e): void
+    {
+        $payload = $this->renderFailurePayload($template, $context);
+        $payload['exception_class'] = get_class($e);
+        $payload['exception_message'] = $e->getMessage();
+        $this->log('kernel.render_failure', 'error', $payload);
     }
 
     /**
@@ -997,11 +1201,21 @@ class App
         $context = array_merge($this->buildRenderBaseContext($template), $context);
         $context = $this->finalizeRenderContext($template, $context);
 
+        $renderContext = \kernelStripInternalRenderTraceContext($context);
+        try {
+            $output = $this->templates()->render($template, $renderContext);
+        } catch (\Throwable $e) {
+            $this->logRenderFailure($template, $context, $e);
+            throw $this->wrapRenderFailure($template, $context, $e);
+        }
+
+        if (!\kernelRenderTraceCaptureEnabled()) {
+            return $output;
+        }
+
         $contractTemplate = \kernelRenderTraceContractTemplate($template, $context);
         $matchedContracts = \kernelMatchedRenderContextContracts($contractTemplate);
         $normalizationActions = \kernelRenderTraceNormalizationActions($context);
-        $renderContext = \kernelStripInternalRenderTraceContext($context);
-        $output = $this->templates()->render($template, $renderContext);
 
         $trace = \kernelBuildRenderTrace($template, $contractTemplate, $context, $matchedContracts, $normalizationActions, $renderStartedAt);
         \kernelRecordRenderTrace($trace);
@@ -1242,11 +1456,21 @@ class App
                 $url = $basePath . $url;
             }
         }
+
+        try {
+            $url = \kernel_validate_redirect_target($url);
+        } catch (\Throwable $e) {
+            $this->log('Blocked invalid redirect target', 'warning', [
+                'redirect_target' => $url,
+                'exception' => get_class($e),
+            ]);
+            $url = '/';
+        }
         
         if ($this->isHtmx()) {
-            header("HX-Redirect: {$url}");
+            \kernel_emit_redirect_header($url, $status, 'HX-Redirect');
         } else {
-            header("Location: {$url}", true, $status);
+            \kernel_emit_redirect_header($url, $status);
         }
         exit;
     }
