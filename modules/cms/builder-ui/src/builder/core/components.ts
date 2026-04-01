@@ -1158,12 +1158,15 @@ export const CMS_COMPONENTS: ComponentDefinition[] = [
     name: 'Categories',
     icon: 'List',
     category: 'content',
-    description: 'Blog category list widget with optional post counts',
-    keywords: ['widget', 'categories', 'blog', 'taxonomy', 'sidebar'],
+    description: 'Category list widget — supports blog posts or products',
+    keywords: ['widget', 'categories', 'blog', 'taxonomy', 'sidebar', 'products', 'ecommerce'],
     defaultProps: {
       title: 'Categories',
+      module: 'post',
       count: 8,
       showCount: true,
+      orderBy: 'name',
+      showEmpty: false,
     },
     defaultStyle: {
       ...themeWidgetCardStyle,
@@ -1182,6 +1185,7 @@ export const CMS_COMPONENTS: ComponentDefinition[] = [
     defaultProps: {
       title: 'Popular Tags',
       count: 16,
+      orderBy: 'count',
     },
     defaultStyle: {
       ...themeWidgetCardStyle,
@@ -1201,6 +1205,7 @@ export const CMS_COMPONENTS: ComponentDefinition[] = [
       title: 'Archives',
       count: 6,
       showCount: true,
+      orderBy: 'date_desc',
     },
     defaultStyle: {
       ...themeWidgetCardStyle,
@@ -1350,6 +1355,47 @@ export const CMS_COMPONENTS: ComponentDefinition[] = [
     defaultStyle: {
       borderRadius: '8px',
       overflow: 'hidden',
+    },
+    allowedChildren: [],
+    allowedParents: null,
+    isLeaf: true,
+  },
+
+  // Audio Component
+  {
+    type: 'audio',
+    name: 'Audio Player',
+    icon: 'Volume2',
+    category: 'media',
+    description: 'Audio player with controls',
+    defaultProps: {
+      src: '',
+      title: '',
+      artist: '',
+      autoplay: false,
+      loop: false,
+      controls: true,
+    },
+    defaultStyle: {
+      width: '100%',
+    },
+    allowedChildren: [],
+    allowedParents: null,
+    isLeaf: true,
+  },
+
+  // HTML Embed Component
+  {
+    type: 'html_embed',
+    name: 'HTML Embed',
+    icon: 'Code2',
+    category: 'utility',
+    description: 'Embed raw HTML or iframe code',
+    defaultProps: {
+      html: '',
+    },
+    defaultStyle: {
+      width: '100%',
     },
     allowedChildren: [],
     allowedParents: null,

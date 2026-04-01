@@ -81,7 +81,9 @@ export type CMSComponentType =
   | 'code_block'
   | 'badge'
   | 'stat_card'
-  | 'contact_card';
+  | 'contact_card'
+  | 'audio'
+  | 'html_embed';
 
 // Admin Theme Builder additional components (template-focused)
 export type ThemeComponentType =
@@ -192,7 +194,7 @@ export interface NodeProps {
   gridColumns?: number;
   postType?: 'post' | 'page';
   teamType?: string;
-  orderBy?: 'date' | 'title' | 'name' | 'price' | 'role' | 'random';
+  orderBy?: 'date' | 'title' | 'name' | 'price' | 'role' | 'random' | 'count' | 'date_desc' | 'date_asc';
   order?: 'desc' | 'asc';
 
   // Entity view/list

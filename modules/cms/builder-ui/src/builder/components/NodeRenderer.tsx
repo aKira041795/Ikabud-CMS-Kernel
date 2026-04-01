@@ -1515,160 +1515,248 @@ interface SlideItem {
   description?: string;
   link?: string;
   ctaText?: string;
+  cta2Text?: string;
+  cta2Link?: string;
+  bgColor?: string;
 }
 
 const SlideshowRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties }> =
   ({ node, style }) => {
     const slides = (node.props.slides as SlideItem[]) || [
-      { id: 'slide1', image: placeholderSvg(1200, 500, '#3B82F6', 'Slide 1'), title: 'Slide 1', description: 'First slide description' },
-      { id: 'slide2', image: placeholderSvg(1200, 500, '#10B981', 'Slide 2'), title: 'Slide 2', description: 'Second slide description' },
-      { id: 'slide3', image: placeholderSvg(1200, 500, '#F59E0B', 'Slide 3'), title: 'Slide 3', description: 'Third slide description' },
+      { id: 'slide1', image: placeholderSvg(1200, 500, '#3B82F6', 'Slide 1'), title: 'Slide 1', description: 'First slide description', bgColor: '#1e293b' },
+      { id: 'slide2', image: placeholderSvg(1200, 500, '#10B981', 'Slide 2'), title: 'Slide 2', description: 'Second slide description', bgColor: '#064e3b' },
+      { id: 'slide3', image: placeholderSvg(1200, 500, '#F59E0B', 'Slide 3'), title: 'Slide 3', description: 'Third slide description', bgColor: '#78350f' },
     ];
 
     const [currentSlide, setCurrentSlide] = useState(0);
     const [kenBurnsIndex, setKenBurnsIndex] = useState(0);
+    const [isPaused, setIsPaused] = useState(false);
+
+    // ── Display props ──
     const showArrows = node.props.showArrows !== false;
     const showDots = node.props.showDots !== false;
     const fullWidth = node.props.fullWidth === true;
+    const showCaption = node.props.showCaption !== false;
+
+    // ── Caption props ──
     const captionAlign = (node.props.captionAlign as string) || 'center';
     const captionPosition = (node.props.captionPosition as string) || 'bottom';
     const captionColor = (node.props.captionColor as string) || '#ffffff';
     const captionTitleSize = (node.props.captionTitleSize as string) || '32px';
     const captionDescSize = (node.props.captionDescSize as string) || '18px';
+    const captionBgProp = (node.props.captionBg as string) || 'auto';
+    const captionWidth = (node.props.captionWidth as string) || 'full';
+    const captionMaxWidth = (node.props.captionMaxWidth as string) || '';
+
+    // ── Layout props ──
     const slideHeight = (node.props.height as string) || '500px';
+    const imageObjectFit = (node.props.imageObjectFit as string) || 'cover';
+
+    // ── Animation props ──
     const animationStyle = (node.props.animationStyle as string) || 'slide';
+    const transitionSpeed = (node.props.transitionSpeed as number) || 600;
+    const transitionEasing = (node.props.transitionEasing as string) || 'ease-in-out';
+    const kenBurnsIntensity = (node.props.kenBurnsIntensity as string) || 'medium';
+
+    // ── Playback props ──
     const autoplay = node.props.autoplay === true;
     const interval = (node.props.interval as number) || 5000;
+    const pauseOnHover = node.props.pauseOnHover !== false;
+    const loop = node.props.loop !== false;
+
+    // ── Arrow / dot style ──
+    const arrowStyle = (node.props.arrowStyle as string) || 'rounded';
+    const dotStyle = (node.props.dotStyle as string) || 'dots';
+
+    // ── Button style props ──
+    const btnColor = (node.props.btnColor as string) || '#2563EB';
+    const btnTextColor = (node.props.btnTextColor as string) || '#ffffff';
+    const btnBorderRadius = (node.props.btnBorderRadius as string) || '6px';
+    const btnSize = (node.props.btnSize as string) || 'md';
+    const btn2Style = (node.props.btn2Style as string) || 'outline';
+    const btn2Color = (node.props.btn2Color as string) || '#ffffff';
+
+    const btnPadMap: Record<string, string> = { sm: '7px 16px', md: '10px 20px', lg: '13px 28px', xl: '16px 36px' };
+    const btnFontMap: Record<string, string> = { sm: '12px', md: '14px', lg: '16px', xl: '18px' };
+    const btnPadding = btnPadMap[btnSize] || '10px 20px';
+    const btnFontSize = btnFontMap[btnSize] || '14px';
+
+    // Computed caption bg
+    const captionBg = captionBgProp === 'auto'
+      ? (captionPosition === 'center' ? 'rgba(0,0,0,0.4)' : 'linear-gradient(transparent, rgba(0,0,0,0.6))')
+      : captionBgProp;
+
+    // Caption inner max-width
+    const captionInnerMaxWidth = captionMaxWidth || (captionWidth === 'narrow' ? '800px' : captionWidth === 'boxed' ? '1200px' : '');
+
+    // Ken Burns scale
+    const kbScaleMap: Record<string, number> = { subtle: 1.05, medium: 1.1, strong: 1.2, dramatic: 1.3 };
+    const kbScale = kbScaleMap[kenBurnsIntensity] || 1.1;
+    const kbTransforms = [
+      `scale(${kbScale}) translate(-2%, -1%)`,
+      `scale(${kbScale}) translate(2%, 1%)`,
+      `scale(${kbScale}) translate(-1%, 2%)`,
+      `scale(${kbScale}) translate(1%, -2%)`,
+    ];
 
     const nextSlide = useCallback(() => {
-      setCurrentSlide((prev) => (prev + 1) % slides.length);
+      setCurrentSlide((prev) => {
+        const next = prev + 1;
+        return loop ? next % slides.length : Math.min(next, slides.length - 1);
+      });
       if (animationStyle === 'kenburns') setKenBurnsIndex((prev) => (prev + 1) % 4);
-    }, [slides.length, animationStyle]);
+    }, [slides.length, animationStyle, loop]);
 
-    const prevSlide = () => {
-      setCurrentSlide((prev) => (prev - 1 + slides.length) % slides.length);
+    const prevSlide = useCallback(() => {
+      setCurrentSlide((prev) => {
+        const next = prev - 1;
+        return loop ? (next + slides.length) % slides.length : Math.max(next, 0);
+      });
       if (animationStyle === 'kenburns') setKenBurnsIndex((prev) => (prev + 1) % 4);
-    };
+    }, [slides.length, animationStyle, loop]);
 
-    const goToSlide = (index: number) => {
-      setCurrentSlide(index);
-    };
+    const goToSlide = (index: number) => setCurrentSlide(index);
 
-    // Autoplay timer
+    // Autoplay
     useEffect(() => {
-      if (!autoplay || slides.length < 2) return;
+      if (!autoplay || slides.length < 2 || isPaused) return;
       const timer = setInterval(nextSlide, interval);
       return () => clearInterval(timer);
-    }, [autoplay, interval, slides.length, nextSlide]);
+    }, [autoplay, interval, slides.length, nextSlide, isPaused]);
+
+    // Keyboard navigation
+    useEffect(() => {
+      if (node.props.keyboardNav === false) return;
+      const handleKey = (e: KeyboardEvent) => {
+        if (e.key === 'ArrowLeft') prevSlide();
+        if (e.key === 'ArrowRight') nextSlide();
+      };
+      window.addEventListener('keydown', handleKey);
+      return () => window.removeEventListener('keydown', handleKey);
+    }, [prevSlide, nextSlide, node.props.keyboardNav]);
+
+    // Arrow button style helper
+    const getArrowBtnStyle = (side: 'left' | 'right'): CSSProperties => {
+      const inset = arrowStyle === 'overlap' ? '-24px' : '16px';
+      const base: CSSProperties = {
+        position: 'absolute', top: '50%', transform: 'translateY(-50%)',
+        [side]: inset, zIndex: 10, cursor: 'pointer', border: 'none',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        width: '44px', height: '44px', transition: 'all 0.2s',
+      };
+      if (arrowStyle === 'minimal') return { ...base, background: 'transparent', color: '#ffffff', filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.6))', width: '32px', height: '32px' };
+      if (arrowStyle === 'dark') return { ...base, background: 'rgba(0,0,0,0.65)', color: '#ffffff', borderRadius: '50%', boxShadow: '0 2px 8px rgba(0,0,0,0.4)' };
+      if (arrowStyle === 'square') return { ...base, background: 'rgba(255,255,255,0.92)', color: '#1e293b', borderRadius: '4px', boxShadow: '0 2px 8px rgba(0,0,0,0.2)' };
+      if (arrowStyle === 'overlap') return { ...base, background: 'rgba(255,255,255,0.92)', color: '#1e293b', borderRadius: '50%', boxShadow: '0 4px 12px rgba(0,0,0,0.15)' };
+      // default: rounded white
+      return { ...base, background: 'rgba(255,255,255,0.92)', color: '#1e293b', borderRadius: '50%', boxShadow: '0 2px 8px rgba(0,0,0,0.2)' };
+    };
+
+    // Caption renderer
+    const renderCaption = (slide: SlideItem) => {
+      if (!showCaption || (!slide.title && !slide.description && !slide.ctaText && !slide.cta2Text)) return null;
+
+      const posStyle: CSSProperties = {
+        position: 'absolute', left: 0, right: 0, padding: '24px', zIndex: 2,
+        background: captionBg,
+        textAlign: captionAlign as CSSProperties['textAlign'],
+        color: captionColor,
+        textShadow: '0 2px 4px rgba(0,0,0,0.5)',
+        ...(captionPosition === 'top' ? { top: 0 } : captionPosition === 'center' ? { top: '50%', transform: 'translateY(-50%)' } : { bottom: 0 }),
+      };
+
+      const innerStyle: CSSProperties = captionInnerMaxWidth ? { maxWidth: captionInnerMaxWidth, margin: '0 auto' } : {};
+
+      // Secondary button style
+      const btn2Css: CSSProperties = btn2Style === 'ghost'
+        ? { background: 'transparent', color: btn2Color, border: 'none' }
+        : btn2Style === 'solid'
+          ? { background: btnColor, color: btnTextColor, border: 'none' }
+          : btn2Style === 'inverted'
+            ? { background: '#ffffff', color: '#1e293b', border: 'none' }
+            : { background: 'transparent', color: btn2Color, border: `2px solid ${btn2Color}` };
+
+      const btnRowJustify: CSSProperties['justifyContent'] = captionAlign === 'center' ? 'center' : captionAlign === 'right' ? 'flex-end' : 'flex-start';
+
+      return (
+        <div style={posStyle}>
+          <div style={innerStyle}>
+            {slide.title && <h3 style={{ fontSize: captionTitleSize, fontWeight: 700, margin: '0 0 8px 0', lineHeight: 1.2 }}>{slide.title}</h3>}
+            {slide.description && <p style={{ fontSize: captionDescSize, margin: 0, opacity: 0.9, lineHeight: 1.5 }}>{slide.description}</p>}
+            {(slide.ctaText || slide.cta2Text) && (
+              <div style={{ marginTop: '16px', display: 'flex', gap: '8px', justifyContent: btnRowJustify, flexWrap: 'wrap' }}>
+                {slide.ctaText && (
+                  <a href={slide.link || '#'} style={{ display: 'inline-block', padding: btnPadding, background: btnColor, color: btnTextColor, borderRadius: btnBorderRadius, textDecoration: 'none', fontSize: btnFontSize, fontWeight: 500, textShadow: 'none' }}>{slide.ctaText}</a>
+                )}
+                {slide.cta2Text && (
+                  <a href={slide.cta2Link || '#'} style={{ display: 'inline-block', padding: btnPadding, borderRadius: btnBorderRadius, textDecoration: 'none', fontSize: btnFontSize, fontWeight: 500, textShadow: 'none', ...btn2Css }}>{slide.cta2Text}</a>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    };
+
+    const slideTransition = `transform ${transitionSpeed}ms ${transitionEasing}`;
+    const opacityTransition = `opacity ${transitionSpeed}ms ${transitionEasing}`;
 
     return (
-      <div style={{
-        position: 'relative',
-        width: fullWidth ? '100vw' : '100%',
-        marginLeft: fullWidth ? 'calc(-50vw + 50%)' : '0',
-        overflow: 'hidden',
-        backgroundColor: '#000',
-        ...style
-      }}>
+      <div
+        style={{ position: 'relative', width: fullWidth ? '100vw' : '100%', marginLeft: fullWidth ? 'calc(-50vw + 50%)' : '0', overflow: 'hidden', backgroundColor: '#000', ...style }}
+        onMouseEnter={() => { if (pauseOnHover) setIsPaused(true); }}
+        onMouseLeave={() => { if (pauseOnHover) setIsPaused(false); }}
+      >
         {/* Slides */}
-        {animationStyle === 'slide' || animationStyle === 'carousel' || animationStyle === 'coverflow' ? (
-          <div style={{
-            position: 'relative',
-            height: slideHeight,
-            display: 'flex',
-            transition: 'transform 0.5s ease-in-out',
-            transform: `translateX(-${currentSlide * 100}%)`,
-          }}>
-            {slides.map((slide, slideIdx) => (
-              <div
-                key={slide.id}
-                style={{
-                  minWidth: '100%',
-                  height: '100%',
-                  position: 'relative',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                <img
-                  src={slide.image}
-                  alt={slide.title || 'Slide'}
-                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                />
-                {(slide.title || slide.description || (slide.ctaText && slide.link)) && (
-                  <div style={{
-                    position: 'absolute',
-                    ...(captionPosition === 'top' ? { top: 0 } : captionPosition === 'center' ? { top: '50%', transform: 'translateY(-50%)' } : { bottom: 0 }),
-                    left: 0, right: 0, padding: '24px',
-                    background: captionPosition === 'center' ? 'rgba(0,0,0,0.4)' : 'linear-gradient(transparent, rgba(0,0,0,0.6))',
-                    textAlign: captionAlign as React.CSSProperties['textAlign'],
-                    color: captionColor,
-                    textShadow: '0 2px 4px rgba(0,0,0,0.5)',
-                  }}>
-                    {slide.title && <h3 style={{ fontSize: captionTitleSize, fontWeight: 700, margin: '0 0 8px 0' }}>{slide.title}</h3>}
-                    {slide.description && <p style={{ fontSize: captionDescSize, margin: 0, opacity: 0.9 }}>{slide.description}</p>}
-                    {slide.ctaText && slide.link && (
-                      <a href={slide.link} style={{ display: 'inline-block', marginTop: '12px', padding: '10px 20px', background: '#2563EB', color: '#fff', borderRadius: '6px', textDecoration: 'none', fontSize: '14px', fontWeight: 500, textShadow: 'none' }}>{slide.ctaText}</a>
-                    )}
-                  </div>
-                )}
+        {(animationStyle === 'slide' || animationStyle === 'carousel' || animationStyle === 'coverflow') ? (
+          <div style={{ position: 'relative', height: slideHeight, display: 'flex', transition: slideTransition, transform: `translateX(-${currentSlide * 100}%)` }}>
+            {slides.map((slide) => (
+              <div key={slide.id} style={{ minWidth: '100%', height: '100%', position: 'relative', flexShrink: 0, backgroundColor: slide.bgColor || '#1e293b' }}>
+                {slide.image && <img src={slide.image} alt={slide.title || 'Slide'} style={{ width: '100%', height: '100%', objectFit: imageObjectFit as CSSProperties['objectFit'] }} />}
+                {renderCaption(slide)}
               </div>
             ))}
           </div>
         ) : (
-          /* Fade / Zoom / Ken Burns / Flip — stacked slides with opacity transition */
+          /* Fade / Zoom / Ken Burns / Flip / Cube — stacked */
           <div style={{ position: 'relative', height: slideHeight }}>
             {slides.map((slide, slideIdx) => {
               const isActive = slideIdx === currentSlide;
-              const kbTransforms = ['scale(1.1) translate(-2%, -1%)', 'scale(1.15) translate(2%, 1%)', 'scale(1.2) translate(-1%, 2%)', 'scale(1.1) translate(1%, -2%)'];
               const imgStyle: CSSProperties = {
-                width: '100%', height: '100%', objectFit: 'cover' as const,
-                ...(animationStyle === 'kenburns' && isActive ? {
-                  transition: 'transform 8s ease-in-out',
-                  transform: kbTransforms[kenBurnsIndex % kbTransforms.length],
-                } : animationStyle === 'kenburns' ? {
-                  transition: 'none', transform: 'scale(1)',
-                } : animationStyle === 'zoom' && isActive ? {
-                  transition: 'transform 0.6s ease-in-out', transform: 'scale(1)',
-                } : animationStyle === 'zoom' ? {
-                  transition: 'transform 0.6s ease-in-out', transform: 'scale(1.1)',
+                width: '100%', height: '100%',
+                objectFit: imageObjectFit as CSSProperties['objectFit'],
+                ...(animationStyle === 'kenburns' && isActive
+                  ? { transition: 'transform 8s ease-in-out', transform: kbTransforms[kenBurnsIndex % kbTransforms.length] }
+                  : animationStyle === 'kenburns'
+                    ? { transition: 'none', transform: 'scale(1)' }
+                    : animationStyle === 'zoom' && isActive
+                      ? { transition: `transform ${transitionSpeed}ms ${transitionEasing}`, transform: 'scale(1)' }
+                      : animationStyle === 'zoom'
+                        ? { transition: `transform ${transitionSpeed}ms ${transitionEasing}`, transform: `scale(${kbScale})` }
+                        : {}),
+              };
+              const containerStyle: CSSProperties = {
+                position: slideIdx === 0 ? 'relative' : 'absolute',
+                top: 0, left: 0, width: '100%', height: '100%',
+                opacity: isActive ? 1 : 0,
+                transition: (animationStyle === 'flip' || animationStyle === 'cube')
+                  ? `transform ${transitionSpeed}ms ${transitionEasing}, opacity ${transitionSpeed}ms ${transitionEasing}`
+                  : opacityTransition,
+                ...(animationStyle === 'flip' ? {
+                  transform: isActive ? 'rotateY(0deg)' : 'rotateY(90deg)',
+                  backfaceVisibility: 'hidden' as const,
+                } : animationStyle === 'cube' ? {
+                  transform: isActive ? 'rotateY(0deg)' : 'rotateY(-90deg)',
+                  transformOrigin: 'center center',
                 } : {}),
+                overflow: 'hidden',
+                zIndex: isActive ? 1 : 0,
+                backgroundColor: slide.bgColor || '#1e293b',
               };
               return (
-                <div
-                  key={slide.id}
-                  style={{
-                    position: slideIdx === 0 ? 'relative' as const : 'absolute' as const,
-                    top: 0, left: 0, width: '100%', height: '100%',
-                    opacity: isActive ? 1 : 0,
-                    transition: animationStyle === 'flip' ? 'opacity 0s' : 'opacity 0.8s ease-in-out',
-                    ...(animationStyle === 'flip' ? {
-                      transform: isActive ? 'rotateY(0deg)' : 'rotateY(90deg)',
-                      backfaceVisibility: 'hidden' as const,
-                    } : {}),
-                    overflow: 'hidden',
-                    zIndex: isActive ? 1 : 0,
-                  }}
-                >
-                  <img src={slide.image} alt={slide.title || 'Slide'} style={imgStyle} />
-                  {(slide.title || slide.description || (slide.ctaText && slide.link)) && (
-                    <div style={{
-                      position: 'absolute',
-                      ...(captionPosition === 'top' ? { top: 0 } : captionPosition === 'center' ? { top: '50%', transform: 'translateY(-50%)' } : { bottom: 0 }),
-                      left: 0, right: 0, padding: '24px', zIndex: 2,
-                      background: captionPosition === 'center' ? 'rgba(0,0,0,0.4)' : 'linear-gradient(transparent, rgba(0,0,0,0.6))',
-                      textAlign: captionAlign as React.CSSProperties['textAlign'],
-                      color: captionColor,
-                      textShadow: '0 2px 4px rgba(0,0,0,0.5)',
-                    }}>
-                      {slide.title && <h3 style={{ fontSize: captionTitleSize, fontWeight: 700, margin: '0 0 8px 0' }}>{slide.title}</h3>}
-                      {slide.description && <p style={{ fontSize: captionDescSize, margin: 0, opacity: 0.9 }}>{slide.description}</p>}
-                      {slide.ctaText && slide.link && (
-                        <a href={slide.link} style={{ display: 'inline-block', marginTop: '12px', padding: '10px 20px', background: '#2563EB', color: '#fff', borderRadius: '6px', textDecoration: 'none', fontSize: '14px', fontWeight: 500, textShadow: 'none' }}>{slide.ctaText}</a>
-                      )}
-                    </div>
-                  )}
+                <div key={slide.id} style={containerStyle}>
+                  {slide.image && <img src={slide.image} alt={slide.title || 'Slide'} style={imgStyle} />}
+                  {renderCaption(slide)}
                 </div>
               );
             })}
@@ -1678,84 +1766,30 @@ const SlideshowRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties }> =
         {/* Navigation Arrows */}
         {showArrows && slides.length > 1 && (
           <>
-            <button
-              onClick={prevSlide}
-              style={{
-                position: 'absolute',
-                left: '20px',
-                top: '50%',
-                transform: 'translateY(-50%)',
-                background: 'rgba(255,255,255,0.9)',
-                border: 'none',
-                borderRadius: '50%',
-                width: '48px',
-                height: '48px',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
-                zIndex: 10,
-              }}
-            >
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <polyline points="15 18 9 12 15 6" />
-              </svg>
+            <button onClick={prevSlide} style={getArrowBtnStyle('left')} aria-label="Previous slide">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="15 18 9 12 15 6" /></svg>
             </button>
-            <button
-              onClick={nextSlide}
-              style={{
-                position: 'absolute',
-                right: '20px',
-                top: '50%',
-                transform: 'translateY(-50%)',
-                background: 'rgba(255,255,255,0.9)',
-                border: 'none',
-                borderRadius: '50%',
-                width: '48px',
-                height: '48px',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
-                zIndex: 10,
-              }}
-            >
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <polyline points="9 18 15 12 9 6" />
-              </svg>
+            <button onClick={nextSlide} style={getArrowBtnStyle('right')} aria-label="Next slide">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="9 18 15 12 9 6" /></svg>
             </button>
           </>
         )}
 
-        {/* Dots Navigation */}
+        {/* Indicators */}
         {showDots && slides.length > 1 && (
-          <div style={{
-            position: 'absolute',
-            bottom: '20px',
-            left: '50%',
-            transform: 'translateX(-50%)',
-            display: 'flex',
-            gap: '8px',
-            zIndex: 10,
-          }}>
-            {slides.map((_, index) => (
-              <button
-                key={index}
-                onClick={() => goToSlide(index)}
-                style={{
-                  width: '12px',
-                  height: '12px',
-                  borderRadius: '50%',
-                  border: 'none',
-                  background: index === currentSlide ? '#fff' : 'rgba(255,255,255,0.5)',
-                  cursor: 'pointer',
-                  padding: 0,
-                  transition: 'all 0.3s',
-                }}
-              />
-            ))}
+          <div style={{ position: 'absolute', bottom: '16px', left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: (dotStyle === 'bars' || dotStyle === 'lines') ? '4px' : '8px', zIndex: 10, alignItems: 'center' }}>
+            {slides.map((_, index) => {
+              const active = index === currentSlide;
+              if (dotStyle === 'bars') {
+                return <button key={index} onClick={() => goToSlide(index)} style={{ width: active ? '28px' : '10px', height: '6px', borderRadius: '3px', border: 'none', background: active ? '#fff' : 'rgba(255,255,255,0.5)', cursor: 'pointer', padding: 0, transition: 'all 0.3s' }} aria-label={`Slide ${index + 1}`} />;
+              } else if (dotStyle === 'lines') {
+                return <button key={index} onClick={() => goToSlide(index)} style={{ width: '24px', height: '3px', borderRadius: '2px', border: 'none', background: active ? '#fff' : 'rgba(255,255,255,0.4)', cursor: 'pointer', padding: 0, transition: 'all 0.3s' }} aria-label={`Slide ${index + 1}`} />;
+              } else if (dotStyle === 'numbers') {
+                return <button key={index} onClick={() => goToSlide(index)} style={{ minWidth: '28px', height: '28px', borderRadius: '50%', border: active ? '2px solid #fff' : '2px solid rgba(255,255,255,0.4)', background: active ? '#fff' : 'transparent', color: active ? '#0f172a' : '#fff', cursor: 'pointer', padding: 0, fontSize: '11px', fontWeight: 600, transition: 'all 0.3s' }} aria-label={`Slide ${index + 1}`}>{index + 1}</button>;
+              }
+              // default dots
+              return <button key={index} onClick={() => goToSlide(index)} style={{ width: '10px', height: '10px', borderRadius: '50%', border: 'none', background: active ? '#fff' : 'rgba(255,255,255,0.5)', cursor: 'pointer', padding: 0, transition: 'all 0.3s', transform: active ? 'scale(1.3)' : 'scale(1)' }} aria-label={`Slide ${index + 1}`} />;
+            })}
           </div>
         )}
       </div>
@@ -3360,15 +3394,25 @@ const ContactInfoWidgetRenderer: React.FC<{ node: DiSyLNode; style: React.CSSPro
 });
 
 const CategoriesRenderer: React.FC<{ node: DiSyLNode; style: React.CSSProperties }> = memo(({ node, style }) => {
-  const { title = 'Categories', count = 8, showCount = true } = node.props as any;
-  const categories = [
+  const { title = 'Categories', module: mod = 'post', count = 8, showCount = true } = node.props as any;
+  const blogCategories = [
     { label: 'Announcements', count: 12 },
     { label: 'Tutorials', count: 8 },
     { label: 'Releases', count: 5 },
     { label: 'Insights', count: 9 },
     { label: 'Storefront', count: 4 },
     { label: 'Events', count: 3 },
-  ].slice(0, Math.max(1, Math.min(Number(count) || 8, 6)));
+  ];
+  const productCategories = [
+    { label: 'Beverages', count: 14 },
+    { label: 'Pastries', count: 9 },
+    { label: 'Breads', count: 7 },
+    { label: 'Cakes & Tarts', count: 11 },
+    { label: 'Gift Boxes', count: 5 },
+    { label: 'Seasonal', count: 3 },
+  ];
+  const categories = (mod === 'product' ? productCategories : blogCategories)
+    .slice(0, Math.max(1, Math.min(Number(count) || 8, 6)));
 
   return (
     <ThemeWidgetFrame title={title} style={style}>
@@ -3723,6 +3767,85 @@ const CodeBlockRenderer: React.FC<{ node: DiSyLNode; style: React.CSSProperties 
           </div>
         ))}
       </pre>
+    </div>
+  );
+});
+
+// =============================================================================
+// Audio Renderer
+// =============================================================================
+
+const AudioRenderer: React.FC<{ node: DiSyLNode; style: React.CSSProperties }> = memo(({ node, style }) => {
+  const { src = '', title = '', artist = '', controls = true } = node.props as any;
+
+  return (
+    <figure style={{ margin: 0, width: '100%', ...style }}>
+      {(title || artist) && (
+        <figcaption style={{ marginBottom: '8px', fontSize: '13px', color: '#374151' }}>
+          {title && <strong>{title}</strong>}
+          {artist && <span style={{ color: '#6b7280' }}> — {artist}</span>}
+        </figcaption>
+      )}
+      {src ? (
+        <audio
+          src={src}
+          controls={controls !== false}
+          style={{ width: '100%', display: 'block' }}
+        />
+      ) : (
+        <div style={{
+          padding: '20px',
+          border: '1px dashed #d1d5db',
+          borderRadius: '6px',
+          color: '#9ca3af',
+          fontSize: '13px',
+          textAlign: 'center'
+        }}>
+          🎵 Audio Player — add a source URL
+        </div>
+      )}
+    </figure>
+  );
+});
+
+// =============================================================================
+// HTML Embed Renderer
+// =============================================================================
+
+const HtmlEmbedRenderer: React.FC<{ node: DiSyLNode; style: React.CSSProperties }> = memo(({ node, style }) => {
+  const { html = '' } = node.props as any;
+
+  return (
+    <div style={{ width: '100%', ...style }}>
+      {html.trim() ? (
+        <div
+          style={{
+            padding: '12px',
+            border: '1px dashed #6366f1',
+            borderRadius: '6px',
+            backgroundColor: '#f5f3ff',
+            color: '#4f46e5',
+            fontSize: '12px',
+            fontFamily: 'ui-monospace, monospace',
+            overflow: 'hidden',
+            maxHeight: '120px',
+          }}
+        >
+          <div style={{ color: '#7c3aed', fontWeight: 600, marginBottom: '4px', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>HTML Embed</div>
+          <div style={{ color: '#6b7280', whiteSpace: 'pre-wrap', overflow: 'hidden' }}>{html.substring(0, 200)}{html.length > 200 ? '...' : ''}</div>
+        </div>
+      ) : (
+        <div style={{
+          padding: '20px',
+          border: '1px dashed #d1d5db',
+          borderRadius: '6px',
+          color: '#9ca3af',
+          fontSize: '13px',
+          textAlign: 'center'
+        }}>
+          {'<>'} HTML Embed — paste your code in the panel
+        </div>
+      )}
     </div>
   );
 });
@@ -4267,6 +4390,10 @@ const NodeRenderer: React.FC<NodeRendererProps> = memo(({
         return <BreadcrumbsRenderer node={node} style={style} />;
       case 'code_block':
         return <CodeBlockRenderer node={node} style={style} />;
+      case 'audio':
+        return <AudioRenderer node={node} style={style} />;
+      case 'html_embed':
+        return <HtmlEmbedRenderer node={node} style={style} />;
       default:
         return <div style={style}>{renderChildren()}</div>;
     }

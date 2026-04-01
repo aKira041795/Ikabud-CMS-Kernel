@@ -682,17 +682,16 @@ const contactSimple: SectionTemplate = {
   id: 'contact-simple',
   name: 'Contact Section',
   category: 'contact',
-  description: 'Simple contact information',
-  createNode: () => createNode('section', {}, {
+  description: 'Two-column contact section with info and a contact form',
+  createNode: () => createSection({}, {
     padding: '80px 24px',
     backgroundColor: '#f8fafc',
   }, [
-    createNode('container', {}, {
-      maxWidth: '600px',
+    createContainer({}, {
+      maxWidth: '1100px',
       display: 'flex',
       flexDirection: 'column',
-      alignItems: 'center',
-      gap: '32px',
+      gap: '48px',
     }, [
       createNode('heading', { content: 'Get in Touch', level: 2 }, {
         fontSize: '36px',
@@ -700,20 +699,40 @@ const contactSimple: SectionTemplate = {
         textAlign: 'center',
         color: '#0f172a',
       }),
-      createNode('text', { content: 'Have questions? We\'d love to hear from you. Send us a message and we\'ll respond as soon as possible.' }, {
-        fontSize: '16px',
-        textAlign: 'center',
-        color: '#64748b',
-        lineHeight: '1.6',
-      }),
-      createNode('row', {}, { display: 'flex' }, [
-        createNode('column', {}, { display: 'flex', flexDirection: 'column', gap: '16px', width: '100%' }, [
-          createNode('text', { content: '📧 hello@example.com' }, { fontSize: '16px', color: '#0f172a', textAlign: 'center' }),
-          createNode('text', { content: '📞 +1 (555) 123-4567' }, { fontSize: '16px', color: '#0f172a', textAlign: 'center' }),
-          createNode('text', { content: '📍 123 Main St, City, Country' }, { fontSize: '16px', color: '#0f172a', textAlign: 'center' }),
+      createFlexRow({}, { gap: '64px', alignItems: 'flex-start' }, [
+        // Left: contact details
+        createFlexColumn({}, { flex: '1 1 300px', gap: '24px' }, [
+          createNode('text', { content: 'Have questions? We\'d love to hear from you. Send us a message and we\'ll respond as soon as possible.' }, {
+            fontSize: '16px',
+            color: '#64748b',
+            lineHeight: '1.7',
+          }),
+          createNode('container', {}, { display: 'flex', flexDirection: 'column', gap: '16px', marginTop: '8px' }, [
+            createNode('text', { content: '📧  hello@example.com' }, { fontSize: '15px', color: '#0f172a' }),
+            createNode('text', { content: '📞  +1 (555) 123-4567' }, { fontSize: '15px', color: '#0f172a' }),
+            createNode('text', { content: '📍  123 Main St, City, Country' }, { fontSize: '15px', color: '#0f172a' }),
+          ]),
+        ]),
+        // Right: contact form
+        createFlexColumn({}, {
+          flex: '1 1 400px',
+          backgroundColor: '#ffffff',
+          borderRadius: '16px',
+          padding: '32px',
+          boxShadow: '0 4px 24px rgba(15,23,42,0.07)',
+        }, [
+          createNode('form', {
+            submitText: 'Send Message',
+            successMessage: 'Thank you! We\'ll get back to you shortly.',
+            fields: [
+              { id: 'name', label: 'Your Name', type: 'text', placeholder: 'Jane Smith', required: true },
+              { id: 'email', label: 'Email Address', type: 'email', placeholder: 'jane@example.com', required: true },
+              { id: 'subject', label: 'Subject', type: 'text', placeholder: 'How can we help?', required: false },
+              { id: 'message', label: 'Message', type: 'textarea', placeholder: 'Tell us more...', required: true },
+            ],
+          }, { width: '100%' }),
         ]),
       ]),
-      createNode('button', { content: 'Send Message', variant: 'primary' }, { padding: '14px 32px' }),
     ]),
   ]),
 };
@@ -726,31 +745,67 @@ const footerSimple: SectionTemplate = {
   id: 'footer-simple',
   name: 'Simple Footer',
   category: 'footer',
-  description: 'Minimal footer with links',
-  createNode: () => createNode('section', {}, {
-    padding: '48px 24px',
+  description: 'Footer with branding, navigation links, social icons, and copyright',
+  createNode: () => createSection({}, {
+    padding: '48px 24px 32px',
     backgroundColor: '#0f172a',
   }, [
-    createNode('container', {}, {
+    createContainer({}, {
       maxWidth: '1200px',
       display: 'flex',
       flexDirection: 'column',
-      alignItems: 'center',
-      gap: '24px',
+      gap: '32px',
     }, [
-      createNode('row', {}, { display: 'flex', gap: '32px', flexWrap: 'wrap', justifyContent: 'center' }, [
-        createNode('text', { content: 'Home' }, { fontSize: '14px', color: '#94a3b8' }),
-        createNode('text', { content: 'About' }, { fontSize: '14px', color: '#94a3b8' }),
-        createNode('text', { content: 'Services' }, { fontSize: '14px', color: '#94a3b8' }),
-        createNode('text', { content: 'Contact' }, { fontSize: '14px', color: '#94a3b8' }),
-        createNode('text', { content: 'Privacy' }, { fontSize: '14px', color: '#94a3b8' }),
+      // Top row: brand + nav
+      createFlexRow({}, { gap: '48px', alignItems: 'flex-start', flexWrap: 'wrap', justifyContent: 'space-between' }, [
+        // Brand
+        createFlexColumn({}, { flex: '0 1 260px', gap: '12px' }, [
+          createNode('heading', { content: 'Your Brand', level: 3 }, { fontSize: '20px', fontWeight: '700', color: '#ffffff' }),
+          createNode('text', { content: 'Building exceptional digital experiences for modern businesses worldwide.' }, { fontSize: '14px', color: '#94a3b8', lineHeight: '1.6', maxWidth: '240px' }),
+          createNode('social_icons', {
+            icons: [
+              { platform: 'facebook', url: '#' },
+              { platform: 'twitter', url: '#' },
+              { platform: 'instagram', url: '#' },
+              { platform: 'linkedin', url: '#' },
+            ],
+            size: '18',
+            style: 'minimal',
+          }, { marginTop: '8px' }),
+        ]),
+        // Nav columns
+        createFlexRow({}, { gap: '48px', flexWrap: 'wrap' }, [
+          createFlexColumn({}, { gap: '12px' }, [
+            createNode('text', { content: 'Company' }, { fontSize: '13px', fontWeight: '600', color: '#ffffff', letterSpacing: '0.05em', marginBottom: '4px' }),
+            createNode('text', { content: 'About' }, { fontSize: '14px', color: '#94a3b8' }),
+            createNode('text', { content: 'Careers' }, { fontSize: '14px', color: '#94a3b8' }),
+            createNode('text', { content: 'Blog' }, { fontSize: '14px', color: '#94a3b8' }),
+          ]),
+          createFlexColumn({}, { gap: '12px' }, [
+            createNode('text', { content: 'Services' }, { fontSize: '13px', fontWeight: '600', color: '#ffffff', letterSpacing: '0.05em', marginBottom: '4px' }),
+            createNode('text', { content: 'Web Design' }, { fontSize: '14px', color: '#94a3b8' }),
+            createNode('text', { content: 'Development' }, { fontSize: '14px', color: '#94a3b8' }),
+            createNode('text', { content: 'Marketing' }, { fontSize: '14px', color: '#94a3b8' }),
+          ]),
+          createFlexColumn({}, { gap: '12px' }, [
+            createNode('text', { content: 'Support' }, { fontSize: '13px', fontWeight: '600', color: '#ffffff', letterSpacing: '0.05em', marginBottom: '4px' }),
+            createNode('text', { content: 'Help Center' }, { fontSize: '14px', color: '#94a3b8' }),
+            createNode('text', { content: 'Contact' }, { fontSize: '14px', color: '#94a3b8' }),
+            createNode('text', { content: 'Privacy' }, { fontSize: '14px', color: '#94a3b8' }),
+          ]),
+        ]),
       ]),
-      createNode('divider', {}, { width: '100%', maxWidth: '400px' }),
-      createNode('text', { content: '© 2024 Your Company. All rights reserved.' }, {
-        fontSize: '14px',
-        color: '#64748b',
-        textAlign: 'center',
-      }),
+      // Divider
+      createNode('divider', {}, { width: '100%', borderColor: 'rgba(255,255,255,0.1)' }),
+      // Bottom row: copyright + legal links
+      createFlexRow({}, { justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }, [
+        createNode('text', { content: '© 2025 Your Brand. All rights reserved.' }, { fontSize: '13px', color: '#64748b' }),
+        createFlexRow({}, { gap: '24px' }, [
+          createNode('text', { content: 'Privacy Policy' }, { fontSize: '13px', color: '#64748b' }),
+          createNode('text', { content: 'Terms of Service' }, { fontSize: '13px', color: '#64748b' }),
+          createNode('text', { content: 'Cookie Policy' }, { fontSize: '13px', color: '#64748b' }),
+        ]),
+      ]),
     ]),
   ]),
 };
@@ -776,7 +831,7 @@ const slideshowHeroFullscreen: SectionTemplate = {
           title: 'Welcome to Our Platform',
           description: 'Build amazing digital experiences with our powerful, intuitive tools designed for modern businesses',
           ctaText: 'Get Started Free',
-          ctaLink: '#signup'
+          link: '#signup'
         },
         {
           id: 'slide2',
@@ -784,7 +839,7 @@ const slideshowHeroFullscreen: SectionTemplate = {
           title: 'Collaborate Seamlessly',
           description: 'Work together with your team in real-time. Share ideas, track progress, and achieve goals faster',
           ctaText: 'See How It Works',
-          ctaLink: '#features'
+          link: '#features'
         },
         {
           id: 'slide3',
@@ -792,7 +847,7 @@ const slideshowHeroFullscreen: SectionTemplate = {
           title: 'Grow Your Business',
           description: 'Scale with confidence using our enterprise-grade solutions trusted by thousands of companies worldwide',
           ctaText: 'View Success Stories',
-          ctaLink: '#testimonials'
+          link: '#testimonials'
         },
       ],
       autoplay: true,
@@ -805,6 +860,9 @@ const slideshowHeroFullscreen: SectionTemplate = {
       captionTitleSize: '48px',
       captionDescSize: '20px',
       captionPosition: 'center',
+      captionColor: '#ffffff',
+      captionAlign: 'center',
+      captionBg: 'rgba(0,0,0,0.4)',
     }, {
       minHeight: '600px',
     }),
@@ -838,7 +896,7 @@ const slideshowProductShowcase: SectionTemplate = {
             title: 'Premium Headphones',
             description: 'Experience crystal clear sound with our award-winning noise-canceling technology. Starting at $299',
             ctaText: 'Shop Now',
-            ctaLink: '#product-headphones'
+            link: '#product-headphones'
           },
           {
             id: 'product2',
@@ -846,7 +904,7 @@ const slideshowProductShowcase: SectionTemplate = {
             title: 'Smart Watch Pro',
             description: 'Stay connected on the go with health tracking, notifications, and 7-day battery life. From $399',
             ctaText: 'Shop Now',
-            ctaLink: '#product-watch'
+            link: '#product-watch'
           },
           {
             id: 'product3',
@@ -854,7 +912,7 @@ const slideshowProductShowcase: SectionTemplate = {
             title: 'Designer Sunglasses',
             description: 'Where style meets UV protection. Handcrafted Italian frames with polarized lenses. $199',
             ctaText: 'Shop Now',
-            ctaLink: '#product-sunglasses'
+            link: '#product-sunglasses'
           },
         ],
         autoplay: true,
@@ -867,6 +925,9 @@ const slideshowProductShowcase: SectionTemplate = {
         captionTitleSize: '36px',
         captionDescSize: '18px',
         captionPosition: 'bottom',
+        captionColor: '#ffffff',
+        captionAlign: 'center',
+        captionBg: 'auto',
       }, {
         borderRadius: '12px',
         overflow: 'hidden',
@@ -923,6 +984,12 @@ const slideshowTestimonials: SectionTemplate = {
         animationStyle: 'slide',
         fullWidth: false,
         height: '500px',
+        captionTitleSize: '28px',
+        captionDescSize: '16px',
+        captionPosition: 'center',
+        captionColor: '#ffffff',
+        captionAlign: 'center',
+        captionBg: 'rgba(0,0,0,0.5)',
       }, {
         borderRadius: '16px',
         overflow: 'hidden',
@@ -956,19 +1023,25 @@ const slideshowPortfolio: SectionTemplate = {
             id: 'project1',
             image: 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=1600&h=700&fit=crop',
             title: 'E-Commerce Platform',
-            description: 'Modern shopping experience for global brands'
+            description: 'Modern shopping experience for global brands',
+            ctaText: 'View Project',
+            link: '#'
           },
           {
             id: 'project2',
             image: 'https://images.unsplash.com/photo-1551434678-e076c223a692?w=1600&h=700&fit=crop',
             title: 'Mobile App Design',
-            description: 'Intuitive interfaces that users love'
+            description: 'Intuitive interfaces that users love',
+            ctaText: 'View Project',
+            link: '#'
           },
           {
             id: 'project3',
             image: 'https://images.unsplash.com/photo-1542744173-8e7e53415bb0?w=1600&h=700&fit=crop',
             title: 'Brand Identity',
-            description: 'Creating memorable visual experiences'
+            description: 'Creating memorable visual experiences',
+            ctaText: 'View Project',
+            link: '#'
           },
         ],
         autoplay: true,
@@ -978,6 +1051,12 @@ const slideshowPortfolio: SectionTemplate = {
         animationStyle: 'cube',
         fullWidth: false,
         height: '700px',
+        captionTitleSize: '36px',
+        captionDescSize: '18px',
+        captionPosition: 'bottom',
+        captionColor: '#ffffff',
+        captionAlign: 'left',
+        captionBg: 'auto',
       }, {}),
     ]),
   ]),
@@ -1001,19 +1080,25 @@ const slideshowCompactBanner: SectionTemplate = {
             id: 'promo1',
             image: 'https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?w=1200&h=300&fit=crop',
             title: '🎉 Summer Sale - 50% Off',
-            description: 'Limited time offer on all products'
+            description: 'Limited time offer on all products',
+            ctaText: 'Shop Sale',
+            link: '#'
           },
           {
             id: 'promo2',
             image: 'https://images.unsplash.com/photo-1607082349566-187342175e2f?w=1200&h=300&fit=crop',
             title: '🚀 New Arrivals',
-            description: 'Check out our latest collection'
+            description: 'Check out our latest collection',
+            ctaText: 'Browse Now',
+            link: '#'
           },
           {
             id: 'promo3',
             image: 'https://images.unsplash.com/photo-1607082350899-7e105aa886ae?w=1200&h=300&fit=crop',
             title: '📦 Free Shipping',
-            description: 'On orders over $50'
+            description: 'On orders over $50',
+            ctaText: 'Shop Now',
+            link: '#'
           },
         ],
         autoplay: true,
@@ -1023,6 +1108,12 @@ const slideshowCompactBanner: SectionTemplate = {
         animationStyle: 'slide',
         fullWidth: false,
         height: '300px',
+        captionTitleSize: '24px',
+        captionDescSize: '14px',
+        captionPosition: 'center',
+        captionColor: '#ffffff',
+        captionAlign: 'center',
+        captionBg: 'rgba(0,0,0,0.4)',
       }, {
         borderRadius: '8px',
         overflow: 'hidden',

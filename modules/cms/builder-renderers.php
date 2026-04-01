@@ -83,6 +83,8 @@ function cmsBuilderWidgetRenderers(): array
         'contact_card'    => 'cmsRenderWidget_contact_card',
         'breadcrumbs'     => 'cmsRenderWidget_breadcrumbs',
         'code_block'      => 'cmsRenderWidget_code_block',
+        'audio'           => 'cmsRenderWidget_audio',
+        'html_embed'      => 'cmsRenderWidget_html_embed',
     ];
 
     // Allow modules to extend/override widget renderers via kernel Hooks (filter).
@@ -180,6 +182,8 @@ function cmsRenderWidget_image(array $props, array $style, array $attrs, string 
     }
     $alt = (string)($props['alt'] ?? '');
     $caption = (string)($props['caption'] ?? '');
+    $linkUrl = (string)($props['linkUrl'] ?? '');
+    $linkTarget = (string)($props['linkTarget'] ?? '');
 
     // Extract image-specific CSS props that belong on <img>, not <figure>
     $imgStyle = [];
@@ -200,8 +204,16 @@ function cmsRenderWidget_image(array $props, array $style, array $attrs, string 
     }
 
     $imgStyleStr = cmsBuilderStyleAttr($imgStyle);
+    $imgTag = '<img src="' . cmsBuilderEsc($src) . '" alt="' . cmsBuilderEsc($alt) . '" loading="lazy"' . $imgStyleStr . '>';
+
+    // Wrap in link if linkUrl provided
+    if ($linkUrl !== '') {
+        $targetAttr = $linkTarget === '_blank' ? ' target="_blank" rel="noopener noreferrer"' : '';
+        $imgTag = '<a href="' . cmsBuilderEsc($linkUrl) . '"' . $targetAttr . '>' . $imgTag . '</a>';
+    }
+
     $html = '<figure' . cmsBuilderAttrString($attrs) . cmsBuilderStyleAttr($style) . '>'
-        . '<img src="' . cmsBuilderEsc($src) . '" alt="' . cmsBuilderEsc($alt) . '" loading="lazy"' . $imgStyleStr . '>';
+        . $imgTag;
     if ($caption !== '') {
         $html .= '<figcaption>' . cmsBuilderEsc($caption) . '</figcaption>';
     }
@@ -240,8 +252,23 @@ function cmsRenderWidget_divider(array $props, array $style, array $attrs, strin
     $dividerStyle = (string)($props['dividerStyle'] ?? 'solid');
     $thickness = (string)($props['thickness'] ?? '');
     $color = (string)($props['color'] ?? '');
+    $width = (string)($props['width'] ?? '100%');
+    $label = trim((string)($props['label'] ?? ''));
+
+    // Text divider: render as flex row with line-text-line
+    if ($label !== '') {
+        $lineColor = $color !== '' ? $color : '#e5e7eb';
+        $lineThickness = $thickness !== '' ? $thickness : '1px';
+        $wrapStyle = array_merge(['display' => 'flex', 'alignItems' => 'center', 'gap' => '12px', 'width' => $width, 'margin' => '0 auto'], $style);
+        return '<div' . cmsBuilderAttrString($attrs) . cmsBuilderStyleAttr($wrapStyle) . '>'
+            . '<span style="flex:1;height:' . cmsBuilderEsc($lineThickness) . ';background:' . cmsBuilderEsc($lineColor) . '"></span>'
+            . '<span style="font-size:13px;color:#6b7280;white-space:nowrap">' . cmsBuilderEsc($label) . '</span>'
+            . '<span style="flex:1;height:' . cmsBuilderEsc($lineThickness) . ';background:' . cmsBuilderEsc($lineColor) . '"></span>'
+            . '</div>';
+    }
+
     // Map panel props into style equivalents (panel props override defaults but user style wins)
-    $base = ['border' => 'none', 'width' => '100%'];
+    $base = ['border' => 'none', 'width' => $width, 'display' => 'block', 'margin' => '0 auto'];
     if ($thickness !== '') {
         $base['height'] = $thickness;
     } else {
@@ -349,6 +376,13 @@ function cmsRenderWidget_tabs(array $props, array $style, array $attrs, string $
 {
     $tabs = cmsBuilderNormalizeItems($props['tabs'] ?? [], 'tabs');
     $activeTab = (string)($props['activeTab'] ?? ($tabs[0]['id'] ?? ''));
+    $tabStyle = (string)($props['tabStyle'] ?? 'underline');
+    $tabAlign = (string)($props['tabAlign'] ?? 'left');
+    $justifyContent = match ($tabAlign) {
+        'center' => 'center',
+        'right' => 'flex-end',
+        default => 'flex-start',
+    };
     $nav = '';
     $panels = '';
     foreach ($tabs as $tab) {
@@ -358,14 +392,26 @@ function cmsRenderWidget_tabs(array $props, array $style, array $attrs, string $
         $tabId = cmsBuilderEsc((string)($tab['id'] ?? ''));
         $isActive = (string)($tab['id'] ?? '') === $activeTab;
         $activeCls = $isActive ? ' active' : '';
-        $nav .= '<button type="button" class="cms-builder-tab-btn' . $activeCls . '" data-tab="' . $tabId . '">' . cmsBuilderEsc((string)($tab['label'] ?? 'Tab')) . '</button>';
+        $nav .= '<button type="button" class="cms-builder-tab-btn cms-builder-tab-btn--' . $tabStyle . $activeCls . '" data-tab="' . $tabId . '">' . cmsBuilderEsc((string)($tab['label'] ?? 'Tab')) . '</button>';
         $panels .= '<div class="cms-builder-tab-panel' . $activeCls . '" data-tab="' . $tabId . '">' . cmsBuilderEsc((string)($tab['content'] ?? '')) . '</div>';
     }
-    // Inline CSS to hide inactive panels (JS adds/removes .active class)
-    $panelCss = '<style>.cms-builder-tab-panel{display:none}.cms-builder-tab-panel.active{display:block}'
-        . '.cms-builder-tab-btn{padding:10px 20px;border:none;background:transparent;cursor:pointer;font-size:14px;font-weight:500;color:#6b7280;border-bottom:2px solid transparent}'
-        . '.cms-builder-tab-btn.active{color:#2563EB;border-bottom-color:#2563EB}</style>';
-    return $panelCss . '<div' . cmsBuilderAttrString($attrs) . cmsBuilderStyleAttr($style) . '><div style="display:flex;border-bottom:1px solid #e5e7eb;margin-bottom:16px">' . $nav . '</div><div>' . $panels . '</div></div>';
+    // Style variants
+    if ($tabStyle === 'pills') {
+        $btnCss = '.cms-builder-tab-btn--pills{padding:8px 18px;border:none;border-radius:999px;background:transparent;cursor:pointer;font-size:14px;font-weight:500;color:#6b7280}'
+            . '.cms-builder-tab-btn--pills.active{background:#2563EB;color:#fff}';
+        $navBorderCss = 'display:flex;gap:6px;margin-bottom:16px;justify-content:' . $justifyContent;
+    } elseif ($tabStyle === 'boxed') {
+        $btnCss = '.cms-builder-tab-btn--boxed{padding:10px 20px;border:1px solid #e5e7eb;border-bottom:none;background:#f9fafb;cursor:pointer;font-size:14px;font-weight:500;color:#6b7280;border-radius:6px 6px 0 0}'
+            . '.cms-builder-tab-btn--boxed.active{background:#fff;color:#2563EB;border-color:#2563EB}';
+        $navBorderCss = 'display:flex;gap:4px;border-bottom:1px solid #e5e7eb;margin-bottom:16px;justify-content:' . $justifyContent;
+    } else {
+        // Default: underline
+        $btnCss = '.cms-builder-tab-btn--underline{padding:10px 20px;border:none;background:transparent;cursor:pointer;font-size:14px;font-weight:500;color:#6b7280;border-bottom:2px solid transparent}'
+            . '.cms-builder-tab-btn--underline.active{color:#2563EB;border-bottom-color:#2563EB}';
+        $navBorderCss = 'display:flex;border-bottom:1px solid #e5e7eb;margin-bottom:16px;justify-content:' . $justifyContent;
+    }
+    $panelCss = '<style>.cms-builder-tab-panel{display:none}.cms-builder-tab-panel.active{display:block}' . $btnCss . '</style>';
+    return $panelCss . '<div' . cmsBuilderAttrString($attrs) . cmsBuilderStyleAttr($style) . '><div style="' . $navBorderCss . '">' . $nav . '</div><div>' . $panels . '</div></div>';
 }
 
 function cmsRenderWidget_accordion(array $props, array $style, array $attrs, string $children, array $node, array $context): string
@@ -391,12 +437,21 @@ function cmsRenderWidget_social_icons(array $props, array $style, array $attrs, 
 {
     $icons = isset($props['icons']) && is_array($props['icons']) ? $props['icons'] : [];
     $size = (int)($props['size'] ?? 24);
-    $html = '<div' . cmsBuilderAttrString($attrs) . cmsBuilderStyleAttr(array_merge(['display' => 'flex', 'gap' => '12px', 'alignItems' => 'center'], $style)) . '>';
+    $iconStyle = (string)($props['style'] ?? 'filled');
+    $html = '<div' . cmsBuilderAttrString($attrs) . cmsBuilderStyleAttr(array_merge(['display' => 'flex', 'gap' => '12px', 'alignItems' => 'center', 'flexWrap' => 'wrap'], $style)) . '>';
     foreach ($icons as $ico) {
         if (!is_array($ico)) continue;
         $platform = cmsBuilderEsc((string)($ico['platform'] ?? 'link'));
         $url = cmsBuilderEsc((string)($ico['url'] ?? '#'));
-        $html .= '<a href="' . $url . '" target="_blank" rel="noopener noreferrer" class="cms-builder-social-icon" data-platform="' . $platform . '" style="display:inline-flex;align-items:center;justify-content:center;width:' . ($size + 16) . 'px;height:' . ($size + 16) . 'px;border-radius:50%;background-color:#f3f4f6;color:#374151">' . $platform . '</a>';
+        $boxSize = $size + 16;
+        if ($iconStyle === 'outline') {
+            $itemStyle = 'display:inline-flex;align-items:center;justify-content:center;width:' . $boxSize . 'px;height:' . $boxSize . 'px;border-radius:50%;background-color:transparent;border:2px solid #374151;color:#374151;text-decoration:none;font-size:12px;font-weight:600';
+        } elseif ($iconStyle === 'minimal') {
+            $itemStyle = 'display:inline-flex;align-items:center;justify-content:center;color:#374151;text-decoration:none;font-size:13px;font-weight:500;padding:4px 6px';
+        } else {
+            $itemStyle = 'display:inline-flex;align-items:center;justify-content:center;width:' . $boxSize . 'px;height:' . $boxSize . 'px;border-radius:50%;background-color:#f3f4f6;color:#374151;text-decoration:none;font-size:12px;font-weight:600';
+        }
+        $html .= '<a href="' . $url . '" target="_blank" rel="noopener noreferrer" class="cms-builder-social-icon" data-platform="' . $platform . '" style="' . $itemStyle . '">' . $platform . '</a>';
     }
     return $html . '</div>';
 }
@@ -405,12 +460,15 @@ function cmsRenderWidget_list(array $props, array $style, array $attrs, string $
 {
     $listItems = cmsBuilderNormalizeItems($props['items'] ?? []);
     $listType = (string)($props['listType'] ?? 'bullet');
+    $icon = (string)($props['icon'] ?? 'Check');
     $tag = $listType === 'number' ? 'ol' : 'ul';
     $isCheck = $listType === 'check';
     $listStyle = $isCheck ? ['listStyle' => 'none', 'paddingLeft' => '0'] : ['paddingLeft' => '1.5em'];
+    $iconMap = ['Check' => '&#x2713;', 'CheckCircle' => '&#x25C9;', 'Star' => '&#x2605;', 'ArrowRight' => '&#x2192;', 'Dash' => '&mdash;'];
+    $iconChar = $iconMap[$icon] ?? '&#x2713;';
     $html = '<' . $tag . cmsBuilderAttrString($attrs) . cmsBuilderStyleAttr(array_merge(['display' => 'flex', 'flexDirection' => 'column', 'gap' => '8px'], $listStyle, $style)) . '>';
     foreach ($listItems as $li) {
-        $prefix = $isCheck ? '<span style="color:#22c55e;margin-right:8px">✓</span>' : '';
+        $prefix = $isCheck ? '<span style="color:#22c55e;margin-right:8px">' . $iconChar . '</span>' : '';
         $html .= '<li' . ($isCheck ? ' style="display:flex;align-items:center"' : '') . '>' . $prefix . cmsBuilderEsc((string)$li) . '</li>';
     }
     return $html . '</' . $tag . '>';
@@ -465,20 +523,72 @@ function cmsRenderWidget_testimonial(array $props, array $style, array $attrs, s
 
 function cmsRenderWidget_slideshow(array $props, array $style, array $attrs, string $children, array $node, array $context): string
 {
-    $slides = cmsBuilderNormalizeItems($props['slides'] ?? [], 'slides');
-    $height = cmsBuilderEsc((string)($props['height'] ?? '500px'));
-    $interval = (int)($props['interval'] ?? 5000);
-    $showArrows = ($props['showArrows'] ?? true) !== false;
-    $showDots = ($props['showDots'] ?? true) !== false;
-    $autoplay = !empty($props['autoplay']);
+    $slides        = cmsBuilderNormalizeItems($props['slides'] ?? [], 'slides');
+    $height        = cmsBuilderEsc((string)($props['height'] ?? '500px'));
+    $interval      = (int)($props['interval'] ?? 5000);
+    $showArrows    = ($props['showArrows'] ?? true) !== false;
+    $showDots      = ($props['showDots'] ?? true) !== false;
+    $autoplay      = !empty($props['autoplay']);
     $animationStyle = cmsBuilderEsc((string)($props['animationStyle'] ?? 'slide'));
-    $fullWidth = !empty($props['fullWidth']);
-    $captionAlign = cmsBuilderEsc((string)($props['captionAlign'] ?? 'center'));
+    $fullWidth     = !empty($props['fullWidth']);
+    $showCaption   = ($props['showCaption'] ?? true) !== false;
+
+    // Playback extras
+    $loop         = ($props['loop'] ?? true) !== false;
+    $pauseOnHover = ($props['pauseOnHover'] ?? true) !== false;
+    $keyboardNav  = ($props['keyboardNav'] ?? true) !== false;
+
+    // Animation extras
+    $transitionSpeed  = max(100, (int)($props['transitionSpeed'] ?? 600));
+    $transitionEasing = cmsBuilderEsc((string)($props['transitionEasing'] ?? 'ease-in-out'));
+    $imageObjectFit   = cmsBuilderEsc((string)($props['imageObjectFit'] ?? 'cover'));
+
+    // Caption props
+    $captionAlign    = cmsBuilderEsc((string)($props['captionAlign'] ?? 'center'));
     $captionPosition = (string)($props['captionPosition'] ?? 'bottom');
-    $captionColor = cmsBuilderEsc((string)($props['captionColor'] ?? '#ffffff'));
+    $captionColor    = cmsBuilderEsc((string)($props['captionColor'] ?? '#ffffff'));
     $captionTitleSize = cmsBuilderEsc((string)($props['captionTitleSize'] ?? '32px'));
-    $captionDescSize = cmsBuilderEsc((string)($props['captionDescSize'] ?? '18px'));
-    // Position styles for caption overlay
+    $captionDescSize  = cmsBuilderEsc((string)($props['captionDescSize'] ?? '18px'));
+    $captionBgProp   = (string)($props['captionBg'] ?? 'auto');
+    $captionWidth    = (string)($props['captionWidth'] ?? 'full');
+    $captionMaxWidth = cmsBuilderEsc((string)($props['captionMaxWidth'] ?? ''));
+
+    // Arrow / dot styles
+    $arrowStyleProp = (string)($props['arrowStyle'] ?? 'rounded');
+    $dotStyleProp   = (string)($props['dotStyle'] ?? 'dots');
+
+    // Button styles
+    $btnColor        = cmsBuilderEsc((string)($props['btnColor'] ?? '#2563EB'));
+    $btnTextColor    = cmsBuilderEsc((string)($props['btnTextColor'] ?? '#ffffff'));
+    $btnBorderRadius = cmsBuilderEsc((string)($props['btnBorderRadius'] ?? '6px'));
+    $btnSize         = (string)($props['btnSize'] ?? 'md');
+    $btn2Style       = (string)($props['btn2Style'] ?? 'outline');
+    $btn2Color       = cmsBuilderEsc((string)($props['btn2Color'] ?? '#ffffff'));
+
+    $btnPaddingMap = ['sm' => '7px 16px', 'md' => '10px 20px', 'lg' => '13px 28px', 'xl' => '16px 36px'];
+    $btnFontMap    = ['sm' => '12px', 'md' => '14px', 'lg' => '16px', 'xl' => '18px'];
+    $btnPad  = $btnPaddingMap[$btnSize] ?? '10px 20px';
+    $btnFont = $btnFontMap[$btnSize] ?? '14px';
+
+    // Caption inner max-width
+    if ($captionMaxWidth !== '') {
+        $captionInnerMaxWidth = $captionMaxWidth;
+    } elseif ($captionWidth === 'narrow') {
+        $captionInnerMaxWidth = '800px';
+    } elseif ($captionWidth === 'boxed') {
+        $captionInnerMaxWidth = '1200px';
+    } else {
+        $captionInnerMaxWidth = '';
+    }
+
+    // Caption background
+    if ($captionBgProp === '' || $captionBgProp === 'auto') {
+        $bgGrad = $captionPosition === 'center' ? 'rgba(0,0,0,0.4)' : 'linear-gradient(transparent,rgba(0,0,0,0.6))';
+    } else {
+        $bgGrad = cmsBuilderEsc($captionBgProp);
+    }
+
+    // Caption position CSS
     $posStyle = 'position:absolute;left:0;right:0;padding:24px;z-index:2;';
     if ($captionPosition === 'top') {
         $posStyle .= 'top:0;';
@@ -487,74 +597,169 @@ function cmsRenderWidget_slideshow(array $props, array $style, array $attrs, str
     } else {
         $posStyle .= 'bottom:0;';
     }
-    $bgGrad = $captionPosition === 'center' ? 'rgba(0,0,0,0.4)' : 'linear-gradient(transparent,rgba(0,0,0,0.6))';
+
+    // Button row alignment
+    $btnJustify = $captionAlign === 'right' ? 'flex-end' : ($captionAlign === 'center' ? 'center' : 'flex-start');
+
+    // Transition speed in seconds string
+    $transSpeedSec   = round($transitionSpeed / 1000, 2) . 's';
+    $trackTransition = 'transform ' . $transSpeedSec . ' ' . $transitionEasing;
+    $stackTransition = 'opacity ' . $transSpeedSec . ' ' . $transitionEasing;
+
     // Full-width support
     $wrapStyle = ['position' => 'relative', 'overflow' => 'hidden'];
     if ($fullWidth) {
-        // Remove conflicting node styles that would override the breakout
         unset($style['width'], $style['margin'], $style['marginLeft'], $style['marginRight']);
-        $wrapStyle['width'] = '100vw';
+        $wrapStyle['width']      = '100vw';
         $wrapStyle['marginLeft'] = 'calc(-50vw + 50%)';
-        // Prevent flex cross-axis centering from shifting the breakout
-        $wrapStyle['alignSelf'] = 'flex-start';
+        $wrapStyle['alignSelf']  = 'flex-start';
     }
+
+    // Data attributes
     $dataAttrs = ' data-interval="' . $interval . '"'
         . ' data-autoplay="' . ($autoplay ? 'true' : 'false') . '"'
-        . ' data-animation="' . $animationStyle . '"';
+        . ' data-animation="' . $animationStyle . '"'
+        . ' data-loop="' . ($loop ? 'true' : 'false') . '"'
+        . ' data-pause-hover="' . ($pauseOnHover ? 'true' : 'false') . '"'
+        . ' data-keyboard="' . ($keyboardNav ? 'true' : 'false') . '"'
+        . ' data-transition-speed="' . $transitionSpeed . '"'
+        . ' data-transition-easing="' . $transitionEasing . '"';
+
     $html = '<div' . cmsBuilderAttrString($attrs) . $dataAttrs . cmsBuilderStyleAttr(array_merge($style, $wrapStyle)) . '>';
-    // For slide animation: use a flex track wrapper; for fade/kenburns/zoom: stack slides
+
     $useSlideTrack = in_array($animationStyle, ['slide', 'carousel', 'coverflow']);
     if ($useSlideTrack) {
-        $html .= '<div class="cms-builder-slide-track" style="display:flex;transition:transform 0.5s ease-in-out;height:' . $height . '">';
+        $html .= '<div class="cms-builder-slide-track" style="display:flex;transition:' . $trackTransition . ';height:' . $height . '">';
     }
+
     foreach ($slides as $idx => $slide) {
         if (!is_array($slide)) continue;
-        $img = cmsBuilderEsc((string)($slide['image'] ?? ''));
-        $sTitle = cmsBuilderEsc((string)($slide['title'] ?? ''));
-        $sDesc = cmsBuilderEsc((string)($slide['description'] ?? ''));
-        $sLink = cmsBuilderEsc((string)($slide['link'] ?? ''));
-        $sCtaText = cmsBuilderEsc((string)($slide['ctaText'] ?? ''));
+        $img       = cmsBuilderEsc((string)($slide['image'] ?? ''));
+        $sBgColor  = cmsBuilderEsc((string)($slide['bgColor'] ?? '#1e293b'));
+        $sTitle    = cmsBuilderEsc((string)($slide['title'] ?? ''));
+        $sDesc     = cmsBuilderEsc((string)($slide['description'] ?? ''));
+        $sLink     = cmsBuilderEsc((string)($slide['link'] ?? ''));
+        $sCtaText  = cmsBuilderEsc((string)($slide['ctaText'] ?? ''));
+        $sCta2Text = cmsBuilderEsc((string)($slide['cta2Text'] ?? ''));
+        $sCta2Link = cmsBuilderEsc((string)($slide['cta2Link'] ?? ''));
+
         if ($useSlideTrack) {
-            // Slide track: each slide is min-width:100%
-            $html .= '<div class="cms-builder-slide" style="min-width:100%;height:100%;position:relative;flex-shrink:0">';
+            $html .= '<div class="cms-builder-slide" style="min-width:100%;height:100%;position:relative;flex-shrink:0;background-color:' . $sBgColor . '">';
         } else {
-            // Stacked: first slide relative (holds height), rest absolute
             $stackStyle = $idx === 0
-                ? 'position:relative;width:100%;height:' . $height . ';overflow:hidden'
-                : 'position:absolute;top:0;left:0;width:100%;height:100%;opacity:0;overflow:hidden;transition:opacity 0.8s ease-in-out';
+                ? 'position:relative;width:100%;height:' . $height . ';overflow:hidden;background-color:' . $sBgColor
+                : 'position:absolute;top:0;left:0;width:100%;height:100%;opacity:0;overflow:hidden;transition:' . $stackTransition . ';background-color:' . $sBgColor;
             $html .= '<div class="cms-builder-slide" style="' . $stackStyle . '">';
         }
+
         $imgClass = $animationStyle === 'kenburns' ? ' class="cms-kb-img"' : '';
-        $html .= ($img !== '' ? '<img' . $imgClass . ' src="' . $img . '" alt="' . $sTitle . '" style="width:100%;height:100%;object-fit:cover" loading="lazy">' : '');
-        // Caption overlay
-        $hasCaption = $sTitle !== '' || $sDesc !== '' || ($sCtaText !== '' && $sLink !== '');
-        if ($hasCaption) {
-            $html .= '<div style="' . $posStyle . 'background:' . $bgGrad . ';color:' . $captionColor . ';text-align:' . $captionAlign . ';text-shadow:0 2px 4px rgba(0,0,0,0.5)">';
-            $html .= ($sTitle !== '' ? '<h3 style="margin:0 0 8px 0;font-size:' . $captionTitleSize . '">' . $sTitle . '</h3>' : '');
-            $html .= ($sDesc !== '' ? '<p style="margin:0 0 12px 0;font-size:' . $captionDescSize . ';opacity:0.9">' . $sDesc . '</p>' : '');
-            $html .= ($sCtaText !== '' && $sLink !== '' ? '<a href="' . $sLink . '" style="display:inline-block;padding:10px 20px;background:#2563EB;color:#fff;border-radius:6px;text-decoration:none;font-size:14px;font-weight:500">' . $sCtaText . '</a>' : '');
-            $html .= '</div>';
+        if ($img !== '') {
+            $html .= '<img' . $imgClass . ' src="' . $img . '" alt="' . $sTitle . '" style="width:100%;height:100%;object-fit:' . $imageObjectFit . '" loading="lazy">';
         }
+
+        // Caption overlay
+        if ($showCaption) {
+            $hasCaption = $sTitle !== '' || $sDesc !== '' || $sCtaText !== '' || $sCta2Text !== '';
+            if ($hasCaption) {
+                $html .= '<div style="' . $posStyle . 'background:' . $bgGrad . ';color:' . $captionColor . ';text-align:' . $captionAlign . ';text-shadow:0 2px 4px rgba(0,0,0,0.5)">';
+                // Optional inner max-width container
+                if ($captionInnerMaxWidth !== '') {
+                    $html .= '<div style="max-width:' . $captionInnerMaxWidth . ';margin:0 auto">';
+                }
+                $html .= ($sTitle !== '' ? '<h3 style="margin:0 0 8px 0;font-size:' . $captionTitleSize . ';font-weight:700;line-height:1.2">' . $sTitle . '</h3>' : '');
+                $html .= ($sDesc !== '' ? '<p style="margin:0;font-size:' . $captionDescSize . ';opacity:0.9;line-height:1.5">' . $sDesc . '</p>' : '');
+
+                // CTA button row
+                if ($sCtaText !== '' || $sCta2Text !== '') {
+                    $html .= '<div style="margin-top:16px;display:flex;gap:8px;justify-content:' . $btnJustify . ';flex-wrap:wrap">';
+
+                    // Primary button
+                    if ($sCtaText !== '' && $sLink !== '') {
+                        $html .= '<a href="' . $sLink . '" style="display:inline-block;padding:' . $btnPad . ';background:' . $btnColor . ';color:' . $btnTextColor . ';border-radius:' . $btnBorderRadius . ';text-decoration:none;font-size:' . $btnFont . ';font-weight:500;text-shadow:none">' . $sCtaText . '</a>';
+                    }
+
+                    // Secondary button
+                    if ($sCta2Text !== '' && $sCta2Link !== '') {
+                        if ($btn2Style === 'ghost') {
+                            $btn2Css = 'background:transparent;color:' . $btn2Color . ';border:none';
+                        } elseif ($btn2Style === 'solid') {
+                            $btn2Css = 'background:' . $btnColor . ';color:' . $btnTextColor . ';border:none';
+                        } elseif ($btn2Style === 'inverted') {
+                            $btn2Css = 'background:#ffffff;color:#1e293b;border:none';
+                        } else {
+                            // outline (default)
+                            $btn2Css = 'background:transparent;color:' . $btn2Color . ';border:2px solid ' . $btn2Color;
+                        }
+                        $html .= '<a href="' . $sCta2Link . '" style="display:inline-block;padding:' . $btnPad . ';border-radius:' . $btnBorderRadius . ';text-decoration:none;font-size:' . $btnFont . ';font-weight:500;text-shadow:none;' . $btn2Css . '">' . $sCta2Text . '</a>';
+                    }
+                    $html .= '</div>';
+                }
+
+                if ($captionInnerMaxWidth !== '') {
+                    $html .= '</div>';
+                }
+                $html .= '</div>';
+            }
+        }
+
         $html .= '</div>';
     }
+
     if ($useSlideTrack) {
         $html .= '</div>';
     }
+
     // Arrow navigation
     if ($showArrows && count($slides) > 1) {
-        $arrowStyle = 'position:absolute;top:50%;transform:translateY(-50%);z-index:2;background:rgba(0,0,0,0.4);color:#fff;border:none;cursor:pointer;width:48px;height:48px;display:flex;align-items:center;justify-content:center;font-size:18px;border-radius:50%;line-height:1;box-shadow:0 2px 8px rgba(0,0,0,0.2)';
-        $html .= '<button type="button" class="cms-builder-slide-prev" style="' . $arrowStyle . ';left:12px" aria-label="Previous slide">&#8249;</button>';
-        $html .= '<button type="button" class="cms-builder-slide-next" style="' . $arrowStyle . ';right:12px" aria-label="Next slide">&#8250;</button>';
+        if ($arrowStyleProp === 'dark') {
+            $arrowBase = 'position:absolute;top:50%;transform:translateY(-50%);z-index:10;background:rgba(0,0,0,0.65);color:#fff;border:none;cursor:pointer;width:44px;height:44px;display:flex;align-items:center;justify-content:center;border-radius:50%;box-shadow:0 2px 8px rgba(0,0,0,0.4);font-size:22px;line-height:1';
+            $arrowInset = '12px';
+        } elseif ($arrowStyleProp === 'square') {
+            $arrowBase = 'position:absolute;top:50%;transform:translateY(-50%);z-index:10;background:rgba(255,255,255,0.92);color:#1e293b;border:none;cursor:pointer;width:44px;height:44px;display:flex;align-items:center;justify-content:center;border-radius:4px;box-shadow:0 2px 8px rgba(0,0,0,0.2);font-size:22px;line-height:1';
+            $arrowInset = '12px';
+        } elseif ($arrowStyleProp === 'minimal') {
+            $arrowBase = 'position:absolute;top:50%;transform:translateY(-50%);z-index:10;background:transparent;color:#fff;border:none;cursor:pointer;width:32px;height:32px;display:flex;align-items:center;justify-content:center;filter:drop-shadow(0 2px 4px rgba(0,0,0,0.6));font-size:28px;line-height:1';
+            $arrowInset = '12px';
+        } elseif ($arrowStyleProp === 'overlap') {
+            $arrowBase = 'position:absolute;top:50%;transform:translateY(-50%);z-index:10;background:rgba(255,255,255,0.92);color:#1e293b;border:none;cursor:pointer;width:44px;height:44px;display:flex;align-items:center;justify-content:center;border-radius:50%;box-shadow:0 4px 12px rgba(0,0,0,0.15);font-size:22px;line-height:1';
+            $arrowInset = '-24px';
+        } else {
+            // rounded (default)
+            $arrowBase = 'position:absolute;top:50%;transform:translateY(-50%);z-index:10;background:rgba(255,255,255,0.92);color:#1e293b;border:none;cursor:pointer;width:44px;height:44px;display:flex;align-items:center;justify-content:center;border-radius:50%;box-shadow:0 2px 8px rgba(0,0,0,0.2);font-size:22px;line-height:1';
+            $arrowInset = '12px';
+        }
+        $html .= '<button type="button" class="cms-builder-slide-prev" style="' . $arrowBase . ';left:' . $arrowInset . '" aria-label="Previous slide">&#8249;</button>';
+        $html .= '<button type="button" class="cms-builder-slide-next" style="' . $arrowBase . ';right:' . $arrowInset . '" aria-label="Next slide">&#8250;</button>';
     }
-    // Dot navigation
+
+    // Dot/indicator navigation
     if ($showDots && count($slides) > 1) {
-        $html .= '<div style="position:absolute;bottom:12px;left:50%;transform:translateX(-50%);display:flex;gap:8px;z-index:2">';
+        $dotGap = ($dotStyleProp === 'bars' || $dotStyleProp === 'lines') ? '4px' : '8px';
+        $html .= '<div style="position:absolute;bottom:16px;left:50%;transform:translateX(-50%);display:flex;gap:' . $dotGap . ';z-index:10;align-items:center">';
         foreach ($slides as $di => $ds) {
-            $dotActive = $di === 0 ? 'opacity:1' : 'opacity:0.5';
-            $html .= '<button type="button" class="cms-builder-slide-dot" style="width:10px;height:10px;border-radius:50%;background:#fff;border:none;cursor:pointer;padding:0;' . $dotActive . '" aria-label="Go to slide ' . ($di + 1) . '"></button>';
+            $active = $di === 0;
+            if ($dotStyleProp === 'bars') {
+                $w   = $active ? '28px' : '10px';
+                $css = 'width:' . $w . ';height:6px;border-radius:3px;background:#fff;border:none;cursor:pointer;padding:0;opacity:' . ($active ? '1' : '0.5') . ';transition:all 0.3s';
+            } elseif ($dotStyleProp === 'lines') {
+                $css = 'width:24px;height:3px;border-radius:2px;background:#fff;border:none;cursor:pointer;padding:0;opacity:' . ($active ? '1' : '0.4') . ';transition:all 0.3s';
+            } elseif ($dotStyleProp === 'numbers') {
+                $bg  = $active ? '#fff' : 'transparent';
+                $col = $active ? '#0f172a' : '#fff';
+                $bdr = $active ? '2px solid #fff' : '2px solid rgba(255,255,255,0.4)';
+                $css = 'min-width:28px;height:28px;border-radius:50%;background:' . $bg . ';color:' . $col . ';border:' . $bdr . ';cursor:pointer;padding:0;font-size:11px;font-weight:600;display:flex;align-items:center;justify-content:center';
+                $html .= '<button type="button" class="cms-builder-slide-dot" style="' . $css . '" aria-label="Go to slide ' . ($di + 1) . '">' . ($di + 1) . '</button>';
+                continue;
+            } else {
+                // dots (default)
+                $scale = $active ? 'scale(1.3)' : 'scale(1)';
+                $css   = 'width:10px;height:10px;border-radius:50%;background:#fff;border:none;cursor:pointer;padding:0;opacity:' . ($active ? '1' : '0.5') . ';transform:' . $scale . ';transition:all 0.3s';
+            }
+            $html .= '<button type="button" class="cms-builder-slide-dot" style="' . $css . '" aria-label="Go to slide ' . ($di + 1) . '"></button>';
         }
         $html .= '</div>';
     }
+
     return $html . '</div>';
 }
 
@@ -693,6 +898,7 @@ function cmsRenderWidget_table(array $props, array $style, array $attrs, string 
 
 function cmsRenderWidget_alert(array $props, array $style, array $attrs, string $children, array $node, array $context): string
 {
+    $alertTitle = trim((string)($props['title'] ?? ''));
     $alertContent = cmsBuilderEsc((string)($props['content'] ?? 'This is an alert message.'));
     $alertType = (string)($props['alertType'] ?? 'info');
     $alertColors = [
@@ -713,7 +919,12 @@ function cmsRenderWidget_alert(array $props, array $style, array $attrs, string 
         $baseStyle['position'] = 'relative';
         $baseStyle['paddingRight'] = '40px';
     }
-    return '<div' . cmsBuilderAttrString($attrs) . cmsBuilderStyleAttr(array_merge($baseStyle, $style)) . '>' . $dismissBtn . $alertContent . '</div>';
+    $body = '';
+    if ($alertTitle !== '') {
+        $body .= '<strong style="display:block;font-size:15px;margin-bottom:4px">' . cmsBuilderEsc($alertTitle) . '</strong>';
+    }
+    $body .= $alertContent;
+    return '<div' . cmsBuilderAttrString($attrs) . cmsBuilderStyleAttr(array_merge($baseStyle, $style)) . '>' . $dismissBtn . $body . '</div>';
 }
 
 function cmsRenderWidget_anchor(array $props, array $style, array $attrs, string $children, array $node, array $context): string
@@ -1494,12 +1705,24 @@ function cmsRenderWidget_call_to_action(array $props, array $style, array $attrs
     $ctaSecText = cmsBuilderEsc((string)($props['secondaryButtonText'] ?? ''));
     $ctaSecUrl = cmsBuilderEsc((string)($props['secondaryButtonUrl'] ?? '#'));
     $ctaLayout = (string)($props['layout'] ?? 'horizontal');
-    $flexDir = $ctaLayout === 'vertical' ? 'column' : 'row';
-    $html = '<div' . cmsBuilderAttrString($attrs) . cmsBuilderStyleAttr(array_merge(['padding' => '48px', 'backgroundColor' => '#3b82f6', 'borderRadius' => '16px', 'color' => '#ffffff', 'display' => 'flex', 'flexDirection' => $flexDir, 'alignItems' => 'center', 'justifyContent' => 'space-between', 'gap' => '24px'], $style)) . '>';
+    if ($ctaLayout === 'vertical') {
+        $flexDir = 'column';
+        $alignItems = 'center';
+        $justify = 'center';
+    } elseif ($ctaLayout === 'split') {
+        $flexDir = 'row';
+        $alignItems = 'center';
+        $justify = 'space-between';
+    } else {
+        $flexDir = 'row';
+        $alignItems = 'center';
+        $justify = 'space-between';
+    }
+    $html = '<div' . cmsBuilderAttrString($attrs) . cmsBuilderStyleAttr(array_merge(['padding' => '48px', 'backgroundColor' => '#3b82f6', 'borderRadius' => '16px', 'color' => '#ffffff', 'display' => 'flex', 'flexDirection' => $flexDir, 'alignItems' => $alignItems, 'justifyContent' => $justify, 'gap' => '24px'], $style)) . '>';
     $html .= '<div' . ($ctaLayout !== 'vertical' ? ' style="flex:1"' : '') . '>';
     $html .= '<h2 style="font-size:28px;font-weight:700;margin:0 0 8px;color:inherit">' . $ctaTitle . '</h2>';
     if ($ctaDesc !== '') $html .= '<p style="font-size:16px;margin:0;opacity:0.9;color:inherit">' . $ctaDesc . '</p>';
-    $html .= '</div><div style="display:flex;gap:12px;flex-shrink:0">';
+    $html .= '</div><div style="display:flex;gap:12px;flex-shrink:0' . ($ctaLayout === 'vertical' ? ';margin-top:16px' : '') . '">';
     $html .= '<a href="' . $ctaBtnUrl . '" class="cms-builder-button" style="display:inline-block;padding:14px 28px;background:#fff;color:#3b82f6;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px">' . $ctaBtnText . '</a>';
     if ($ctaSecText !== '') {
         $html .= '<a href="' . $ctaSecUrl . '" style="display:inline-block;padding:14px 28px;background:transparent;color:#fff;border:1px solid rgba(255,255,255,0.4);border-radius:8px;text-decoration:none;font-weight:500;font-size:14px">' . $ctaSecText . '</a>';
@@ -1581,7 +1804,15 @@ function cmsRenderWidget_logo_grid(array $props, array $style, array $attrs, str
     $logos = isset($props['logos']) && is_array($props['logos']) ? $props['logos'] : [];
     $lgCols = max(1, (int)($props['columns'] ?? 4));
     $grayscale = !empty($props['grayscale']);
-    $html = '<div' . cmsBuilderAttrString($attrs) . cmsBuilderStyleAttr(array_merge(['display' => 'grid', 'gridTemplateColumns' => 'repeat(' . $lgCols . ', 1fr)', 'gap' => '32px', 'alignItems' => 'center'], $style)) . '>';
+    $hoverEffect = (string)($props['hoverEffect'] ?? 'color');
+    $gridId = 'cms-logo-grid-' . substr(md5(serialize(['c' => $lgCols, 'h' => $hoverEffect])), 0, 8);
+    $css = '';
+    if ($hoverEffect === 'color' && $grayscale) {
+        $css = '<style>#' . $gridId . ' img{transition:filter 0.25s,opacity 0.25s}#' . $gridId . ' a:hover img,#' . $gridId . ' div:hover img{filter:none!important;opacity:1!important}</style>';
+    } elseif ($hoverEffect === 'scale') {
+        $css = '<style>#' . $gridId . ' a,#' . $gridId . ' div{transition:transform 0.2s}#' . $gridId . ' a:hover,#' . $gridId . ' div:hover{transform:scale(1.06)}</style>';
+    }
+    $html = $css . '<div id="' . $gridId . '"' . cmsBuilderAttrString($attrs) . cmsBuilderStyleAttr(array_merge(['display' => 'grid', 'gridTemplateColumns' => 'repeat(' . $lgCols . ', 1fr)', 'gap' => '32px', 'alignItems' => 'center'], $style)) . '>';
     foreach ($logos as $logo) {
         if (!is_array($logo)) continue;
         $lSrc = cmsBuilderEsc((string)($logo['src'] ?? ''));
@@ -1899,22 +2130,40 @@ function cmsRenderWidget_contact_info(array $props, array $style, array $attrs, 
 function cmsRenderWidget_categories(array $props, array $style, array $attrs, string $children, array $node, array $context): string
 {
     $title = trim((string)($props['title'] ?? ''));
-    $count = max(1, min(30, (int)($props['count'] ?? 8)));
+    $count = max(1, min(50, (int)($props['count'] ?? 8)));
     $showCount = ($props['showCount'] ?? true) !== false;
+    $module = (string)($props['module'] ?? 'post');
+    $orderBy = (string)($props['orderBy'] ?? 'name');
+    $showEmpty = !empty($props['showEmpty']);
+
+    // Resolve taxonomy and content type from the module prop
+    $taxonomy = $module === 'product' ? 'product' : 'default';
+    $contentType = $module === 'product' ? 'product' : 'post';
     $rows = [];
     $baseUrl = rtrim((string)(defined('BASE_URL') ? BASE_URL : ''), '/');
 
+    // ORDER BY clause — name A-Z or item count desc
+    $orderSql = $orderBy === 'count' ? 'post_count DESC, c.name ASC' : 'c.name ASC';
+
+    // When showEmpty=false only include categories that have at least one linked item
+    $havingSql = $showEmpty ? '' : 'HAVING post_count > 0';
+
     try {
-        $stmt = cmsDb()->prepare(
+        $db = cmsDb();
+        $stmt = $db->prepare(
             "SELECT c.name, c.slug, COUNT(p.id) AS post_count
              FROM cms_categories c
              LEFT JOIN cms_content_categories cc ON cc.category_id = c.id
              LEFT JOIN cms_content p ON p.id = cc.content_id
-               AND p.type = 'post' AND p.deleted_at IS NULL AND " . cmsPublicVisibilitySql('p') . "
+               AND p.type = :content_type AND p.deleted_at IS NULL AND " . cmsPublicVisibilitySql('p') . "
+             WHERE c.taxonomy = :taxonomy
              GROUP BY c.id, c.name, c.slug
-             ORDER BY c.name ASC
+             {$havingSql}
+             ORDER BY {$orderSql}
              LIMIT :n"
         );
+        $stmt->bindValue(':taxonomy', $taxonomy, \PDO::PARAM_STR);
+        $stmt->bindValue(':content_type', $contentType, \PDO::PARAM_STR);
         $stmt->bindValue(':n', $count, \PDO::PARAM_INT);
         $stmt->execute();
         $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC) ?: [];
@@ -1923,13 +2172,19 @@ function cmsRenderWidget_categories(array $props, array $style, array $attrs, st
     }
 
     if ($rows === []) {
-        return cmsBuilderRenderThemeWidgetShell($attrs, $style, $title, cmsBuilderRenderThemeWidgetEmpty('No categories found.'));
+        $emptyMsg = $module === 'product' ? 'No product categories found.' : 'No categories found.';
+        return cmsBuilderRenderThemeWidgetShell($attrs, $style, $title, cmsBuilderRenderThemeWidgetEmpty($emptyMsg));
     }
 
+    // Build link URLs — blog uses query param, products use slug path
     $body = '<div style="display:grid;gap:10px">';
     foreach ($rows as $row) {
         $slug = (string)($row['slug'] ?? '');
-        $href = $baseUrl . '/cms/blog?category=' . rawurlencode($slug);
+        if ($module === 'product') {
+            $href = $baseUrl . '/ecommerce/shop?category=' . rawurlencode($slug);
+        } else {
+            $href = $baseUrl . '/cms/category/' . rawurlencode($slug);
+        }
         $body .= '<a href="' . cmsBuilderEsc($href) . '" style="display:flex;align-items:center;justify-content:space-between;gap:12px;color:#0f172a;text-decoration:none;font-size:14px;line-height:1.5">';
         $body .= '<span>' . cmsBuilderEsc((string)($row['name'] ?? 'Category')) . '</span>';
         if ($showCount) {
@@ -1946,6 +2201,8 @@ function cmsRenderWidget_tag_cloud(array $props, array $style, array $attrs, str
 {
     $title = trim((string)($props['title'] ?? ''));
     $count = max(1, min(60, (int)($props['count'] ?? 16)));
+    $orderBy = (string)($props['orderBy'] ?? 'count');
+    $orderSql = $orderBy === 'name' ? 't.name ASC, post_count DESC' : 'post_count DESC, t.name ASC';
     $rows = [];
     $baseUrl = rtrim((string)(defined('BASE_URL') ? BASE_URL : ''), '/');
 
@@ -1957,7 +2214,7 @@ function cmsRenderWidget_tag_cloud(array $props, array $style, array $attrs, str
              LEFT JOIN cms_content p ON p.id = ct.content_id
                AND p.type = 'post' AND p.deleted_at IS NULL AND " . cmsPublicVisibilitySql('p') . "
              GROUP BY t.id, t.name, t.slug
-             ORDER BY post_count DESC, t.name ASC
+             ORDER BY $orderSql
              LIMIT :n"
         );
         $stmt->bindValue(':n', $count, \PDO::PARAM_INT);
@@ -1987,6 +2244,8 @@ function cmsRenderWidget_archives(array $props, array $style, array $attrs, stri
     $title = trim((string)($props['title'] ?? ''));
     $count = max(1, min(36, (int)($props['count'] ?? 6)));
     $showCount = ($props['showCount'] ?? true) !== false;
+    $orderBy = (string)($props['orderBy'] ?? 'date_desc');
+    $orderSql = $orderBy === 'date_asc' ? 'ym ASC' : 'ym DESC';
     $rows = [];
     $baseUrl = rtrim((string)(defined('BASE_URL') ? BASE_URL : ''), '/');
 
@@ -1998,7 +2257,7 @@ function cmsRenderWidget_archives(array $props, array $style, array $attrs, stri
              FROM cms_content c
              WHERE c.type = 'post' AND c.deleted_at IS NULL AND " . cmsPublicVisibilitySql('c') . "
              GROUP BY DATE_FORMAT(c.published_at, '%Y-%m'), DATE_FORMAT(c.published_at, '%M %Y')
-             ORDER BY ym DESC
+             ORDER BY $orderSql
              LIMIT :n"
         );
         $stmt->bindValue(':n', $count, \PDO::PARAM_INT);
@@ -2249,6 +2508,53 @@ function cmsRenderWidget_code_block(array $props, array $style, array $attrs, st
         $html .= '<pre style="margin:0;padding:16px;background:' . $bg . ';color:' . $fg . ';font-size:13px;line-height:1.6;overflow-x:auto"><code>' . $code . '</code></pre>';
     }
     return $html . '</div>';
+}
+
+/**
+ * Audio player widget.
+ */
+function cmsRenderWidget_audio(array $props, array $style, array $attrs, string $children, array $node, array $context): string
+{
+    $src = (string)($props['src'] ?? '');
+    if ($src === '') {
+        return '<div' . cmsBuilderAttrString($attrs) . cmsBuilderStyleAttr($style) . ' style="padding:16px;border:1px dashed #d1d5db;border-radius:6px;color:#6b7280;font-size:13px">No audio source set.</div>';
+    }
+    $title = trim((string)($props['title'] ?? ''));
+    $artist = trim((string)($props['artist'] ?? ''));
+    $controls = ($props['controls'] ?? true) !== false;
+    $autoplay = !empty($props['autoplay']);
+    $loop = !empty($props['loop']);
+    $audioAttrs = ['src' => cmsBuilderEsc($src)];
+    if ($controls) $audioAttrs[] = 'controls';
+    if ($autoplay) $audioAttrs[] = 'autoplay';
+    if ($loop) $audioAttrs[] = 'loop';
+    $attrStr = ' src="' . cmsBuilderEsc($src) . '"'
+        . ($controls ? ' controls' : '')
+        . ($autoplay ? ' autoplay' : '')
+        . ($loop ? ' loop' : '');
+    $wrapStyle = array_merge(['width' => '100%'], $style);
+    $html = '<figure' . cmsBuilderAttrString($attrs) . cmsBuilderStyleAttr($wrapStyle) . '>';
+    if ($title !== '' || $artist !== '') {
+        $html .= '<figcaption style="margin-bottom:8px;font-size:13px;color:#374151">';
+        if ($title !== '') $html .= '<strong>' . cmsBuilderEsc($title) . '</strong>';
+        if ($artist !== '') $html .= ' <span style="color:#6b7280">— ' . cmsBuilderEsc($artist) . '</span>';
+        $html .= '</figcaption>';
+    }
+    $html .= '<audio' . $attrStr . ' style="width:100%;display:block"></audio>';
+    return $html . '</figure>';
+}
+
+/**
+ * HTML Embed widget — outputs raw HTML.
+ */
+function cmsRenderWidget_html_embed(array $props, array $style, array $attrs, string $children, array $node, array $context): string
+{
+    $html = (string)($props['html'] ?? '');
+    if ($html === '') {
+        return '<div' . cmsBuilderAttrString($attrs) . cmsBuilderStyleAttr($style) . ' style="padding:16px;border:1px dashed #d1d5db;border-radius:6px;color:#6b7280;font-size:13px">HTML embed is empty.</div>';
+    }
+    // Output raw — no escaping. The user intentionally embedded this HTML.
+    return '<div' . cmsBuilderAttrString($attrs) . cmsBuilderStyleAttr($style) . '>' . $html . '</div>';
 }
 
 /**
