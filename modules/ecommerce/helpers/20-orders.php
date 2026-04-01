@@ -263,10 +263,16 @@ function ecOrderGet(int $id, ?int $customerId = null, ?string $token = null): ?a
             $order['meta'][$m['meta_key']] = $m['meta_value'];
         }
 
-        $order['payment'] = $db->query(
+        $payment = $db->query(
             "SELECT * FROM ec_payment_transactions WHERE order_id = ? ORDER BY id DESC LIMIT 1",
             [$id]
         )->fetch(\PDO::FETCH_ASSOC) ?: null;
+        if ($payment) {
+            $payment['label'] = ucfirst((string)($payment['gateway'] ?? ''));
+            $order['payment'] = $payment;
+        } else {
+            $order['payment'] = null;
+        }
 
         return ecOrderHydrateData($order);
     } catch (\Throwable $e) {

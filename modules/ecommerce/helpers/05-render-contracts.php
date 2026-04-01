@@ -131,7 +131,7 @@ function ecNormalizeCartContextShape(array $cart, array &$missingKeys, array &$t
         'total' => 0.0,
         'total_fmt' => '',
         'item_count' => 0,
-        'coupon' => false,
+        'coupon' => [],
     ], ['subtotal_fmt', 'discount_fmt', 'tax_fmt', 'total_fmt', 'item_count', 'coupon'], $missingKeys, $typeMismatches, $pathPrefix . 'totals.');
 
     return $cart;

@@ -735,4 +735,28 @@ final class ContextRegistry
     {
         return ucwords(str_replace(['_', '.'], ' ', $id));
     }
+
+    /**
+     * Phase 3B: Expose all registered schemas for introspection and debugging.
+     */
+    public function getRegisteredSchemas(): array
+    {
+        return $this->schemas;
+    }
+
+    /**
+     * Phase 3B: Expose all registered profiles for introspection and debugging.
+     */
+    public function getRegisteredProfiles(): array
+    {
+        return $this->profiles;
+    }
+    
+    /**
+     * Phase 3B: Expose all registered modes for introspection and debugging.
+     */
+    public function getRegisteredModes(): array
+    {
+        return $this->modes;
+    }
 }

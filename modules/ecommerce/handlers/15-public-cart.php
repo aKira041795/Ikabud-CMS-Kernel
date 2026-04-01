@@ -13,7 +13,7 @@ function ecPublicCart(): void
 {
     $cart    = ecCartGet();
     $rates   = ecShippingRates();
-    $message = $_SESSION['ec_message'] ?? null;
+    $message = $_SESSION['ec_message'] ?? ['type' => '', 'text' => ''];
     unset($_SESSION['ec_message']);
 
     ecRender('modules/ecommerce/public/cart.disyl', [

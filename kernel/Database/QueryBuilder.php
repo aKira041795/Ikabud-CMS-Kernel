@@ -671,8 +671,24 @@ class QueryBuilder
     {
         $finalBindings = $hasTenantWhere ? $this->getAllBindings($bindings) : $bindings;
 
+        if (function_exists('app')) {
+            try {
+                $ctx = app()->hooks()->filter('kernel.database.query.before', ['sql' => $sql, 'bindings' => $finalBindings, 'table' => $this->table]);
+                if (is_array($ctx)) {
+                    $sql = $ctx['sql'] ?? $sql;
+                    $finalBindings = $ctx['bindings'] ?? $finalBindings;
+                }
+            } catch (\Throwable $ignored) {}
+        }
+        $start = microtime(true);
+
         $stmt = $this->pdo->prepare($sql);
         $stmt->execute($finalBindings);
+
+        if (function_exists('app')) {
+            try { app()->events()->fire('kernel.database.query.after', ['sql' => $sql, 'table' => $this->table, 'duration_ms' => (microtime(true) - $start) * 1000]); } catch (\Throwable $ignored) {}
+        }
+
         return $stmt;
     }
 }

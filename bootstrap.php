@@ -172,6 +172,21 @@ function kernel_validate_redirect_target(string $target): string
     return $target;
 }
 
+/**
+ * Emits a standardized JSON response and exits.
+ * Handles headers, request correlation IDs, and proper status codes.
+ */
+function kernel_emit_json_response(mixed $payload, int $statusCode = 200): void
+{
+    http_response_code($statusCode);
+    if (!headers_sent()) {
+        header('Content-Type: application/json; charset=utf-8');
+        header('X-Request-Id: ' . request_id());
+    }
+    echo json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    exit;
+}
+
 function kernel_emit_redirect_header(string $target, int $status = 302, string $headerName = 'Location'): string
 {
     $safeTarget = kernel_validate_redirect_target($target);
@@ -596,8 +611,9 @@ function kernelEmitLoginRateLimitJson(array $rateLimit, string $message = 'Too m
 {
     $retryAfter = max(1, (int)($rateLimit['retry_after'] ?? 1));
     if (!headers_sent()) {
-        header('Content-Type: application/json');
+        header('Content-Type: application/json; charset=utf-8');
         header('Retry-After: ' . $retryAfter);
+        header('X-Request-Id: ' . request_id());
         http_response_code(429);
     }
 

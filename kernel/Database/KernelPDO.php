@@ -24,6 +24,9 @@ final class KernelPDO extends PDO
     public function __construct(string $dsn, string $username = '', string $password = '', array $options = [])
     {
         parent::__construct($dsn, $username, $password, $options);
+        
+        // Phase 3B: Database Interceptor Seam (statement level)
+        $this->setAttribute(PDO::ATTR_STATEMENT_CLASS, [KernelPDOStatement::class, []]);
     }
 
     public function prepare(string $query, array $options = []): PDOStatement|false
@@ -35,16 +38,33 @@ final class KernelPDO extends PDO
     public function query(string $query, ?int $fetchMode = null, mixed ...$fetchModeArgs): PDOStatement|false
     {
         $this->enforceModuleAccess($query);
+
+        $start = microtime(true);
         if ($fetchMode === null) {
-            return parent::query($query);
+            $res = parent::query($query);
+        } else {
+            $res = parent::query($query, $fetchMode, ...$fetchModeArgs);
         }
-        return parent::query($query, $fetchMode, ...$fetchModeArgs);
+
+        if (function_exists('app')) {
+            try { app()->events()->fire('kernel.database.query.after', ['sql' => $query, 'duration_ms' => (microtime(true) - $start) * 1000, 'source' => 'pdo_query']); } catch (\Throwable $ignored) {}
+        }
+
+        return $res;
     }
 
     public function exec(string $statement): int|false
     {
         $this->enforceModuleAccess($statement);
-        return parent::exec($statement);
+
+        $start = microtime(true);
+        $res = parent::exec($statement);
+
+        if (function_exists('app')) {
+            try { app()->events()->fire('kernel.database.query.after', ['sql' => $statement, 'duration_ms' => (microtime(true) - $start) * 1000, 'source' => 'pdo_exec']); } catch (\Throwable $ignored) {}
+        }
+
+        return $res;
     }
 
     private function enforceModuleAccess(string $sql): void

@@ -24,7 +24,7 @@ function ecCalculateTotals(array $items, ?string $couponCode = null, ?int $shipp
 
     // Coupon discount
     $discount    = 0.00;
-    $couponData  = null;
+    $couponData  = [];
     if ($couponCode !== null) {
         $validation = ecCouponValidate($couponCode, $subtotal);
         if ($validation['valid']) {

@@ -148,6 +148,7 @@ function ecProductGet(int $id): ?array
         $row['inventory'] = ecProductInventory($id);
         $row['categories'] = ecProductCategories($id);
         $row['variants']   = ecProductVariants($id);
+        $row['badges']     = ['sale' => ($row['pricing']['on_sale'] ?? false) ? 'Sale' : ''];
 
         return $row;
     } catch (\Throwable $e) {
@@ -935,7 +936,7 @@ function ecProductInventory(int $productId): array
         )->fetch(\PDO::FETCH_ASSOC);
 
         if (!$row) {
-            return ['in_stock' => true, 'stock_qty' => null, 'sku' => '', 'track_stock' => false];
+            return ['in_stock' => true, 'out_of_stock' => false, 'low_stock' => false, 'stock_qty' => null, 'sku' => '', 'track_stock' => false, 'badge' => ['label' => '', 'tone' => '']];
         }
 
         $config     = (array)json_decode($row['config'] ?? '{}', true);
@@ -946,6 +947,7 @@ function ecProductInventory(int $productId): array
         return [
             'track_stock' => $trackStock,
             'stock_qty'   => $stockQty,
+            'badge'       => ['label' => ($trackStock && $stockQty <= 0 ? 'Out of stock' : ''), 'tone' => ($trackStock && $stockQty <= 0 ? 'negative' : '')],
             'sku'         => $config['sku'] ?? '',
             'in_stock'    => !$trackStock || $stockQty > 0,
             'out_of_stock' => $trackStock && $stockQty <= 0,

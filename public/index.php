@@ -490,7 +490,8 @@ switch ($handler) {
         exit;
 
     case 'apiTenantCreate':
-        header('Content-Type: application/json');
+        header('Content-Type: application/json; charset=utf-8');
+        header('X-Request-Id: ' . request_id());
         $user = app()->user();
         if (!$user || ($user['role'] ?? '') !== 'admin') {
             http_response_code(403);
@@ -551,7 +552,8 @@ switch ($handler) {
         exit;
 
     case 'apiTenantEntryModuleSet':
-        header('Content-Type: application/json');
+        header('Content-Type: application/json; charset=utf-8');
+        header('X-Request-Id: ' . request_id());
         $user = app()->user();
         if (!$user || ($user['role'] ?? '') !== 'admin') {
             http_response_code(403);
@@ -616,7 +618,8 @@ switch ($handler) {
         exit;
 
     case 'apiTenantDomainAdd':
-        header('Content-Type: application/json');
+        header('Content-Type: application/json; charset=utf-8');
+        header('X-Request-Id: ' . request_id());
         $user = app()->user();
         if (!$user || ($user['role'] ?? '') !== 'admin') {
             http_response_code(403);
@@ -646,7 +649,8 @@ switch ($handler) {
         exit;
 
     case 'apiTenantDomainRemove':
-        header('Content-Type: application/json');
+        header('Content-Type: application/json; charset=utf-8');
+        header('X-Request-Id: ' . request_id());
         $user = app()->user();
         if (!$user || ($user['role'] ?? '') !== 'admin') {
             http_response_code(403);
@@ -676,7 +680,8 @@ switch ($handler) {
         exit;
 
     case 'apiTenantDbUpsert':
-        header('Content-Type: application/json');
+        header('Content-Type: application/json; charset=utf-8');
+        header('X-Request-Id: ' . request_id());
         $user = app()->user();
         if (!$user || ($user['role'] ?? '') !== 'admin') {
             http_response_code(403);
@@ -803,7 +808,8 @@ switch ($handler) {
         exit;
 
     case 'apiTenantStatusSet':
-        header('Content-Type: application/json');
+        header('Content-Type: application/json; charset=utf-8');
+        header('X-Request-Id: ' . request_id());
         $user = app()->user();
         if (!$user || ($user['role'] ?? '') !== 'admin') {
             http_response_code(403);
@@ -833,7 +839,8 @@ switch ($handler) {
         exit;
 
     case 'apiAiSettingsGet':
-        header('Content-Type: application/json');
+        header('Content-Type: application/json; charset=utf-8');
+        header('X-Request-Id: ' . request_id());
         $user = app()->user();
         if (!$user || ($user['role'] ?? '') !== 'admin') {
             http_response_code(403);
@@ -881,7 +888,8 @@ switch ($handler) {
         exit;
 
     case 'apiAiSettingsSave':
-        header('Content-Type: application/json');
+        header('Content-Type: application/json; charset=utf-8');
+        header('X-Request-Id: ' . request_id());
         $user = app()->user();
         if (!$user || ($user['role'] ?? '') !== 'admin') {
             http_response_code(403);
@@ -1221,7 +1229,8 @@ switch ($handler) {
         exit;
 
     case 'apiSuperadminModules':
-        header('Content-Type: application/json');
+        header('Content-Type: application/json; charset=utf-8');
+        header('X-Request-Id: ' . request_id());
         $user = app()->user();
         if (!$user || ($user['role'] ?? '') !== 'superadmin' || ($user['source'] ?? '') !== 'kernel') {
             http_response_code(403);
@@ -1247,7 +1256,8 @@ switch ($handler) {
         exit;
 
     case 'apiSuperadminUpdateModuleSettings':
-        header('Content-Type: application/json');
+        header('Content-Type: application/json; charset=utf-8');
+        header('X-Request-Id: ' . request_id());
         $user = app()->user();
         if (!$user || ($user['role'] ?? '') !== 'superadmin' || ($user['source'] ?? '') !== 'kernel') {
             http_response_code(403);
@@ -1369,7 +1379,8 @@ switch ($handler) {
         exit;
 
     case 'apiSuperadminToggleModule':
-        header('Content-Type: application/json');
+        header('Content-Type: application/json; charset=utf-8');
+        header('X-Request-Id: ' . request_id());
         $user = app()->user();
         if (!$user || ($user['role'] ?? '') !== 'superadmin' || ($user['source'] ?? '') !== 'kernel') {
             http_response_code(403);
@@ -1505,7 +1516,8 @@ switch ($handler) {
         break;
 
     case 'authLogin':
-        header('Content-Type: application/json');
+        header('Content-Type: application/json; charset=utf-8');
+        header('X-Request-Id: ' . request_id());
 
         $loginRateLimit = kernelConsumeLoginRateLimit();
         if (!empty($loginRateLimit['limited'])) {
@@ -1634,7 +1646,8 @@ switch ($handler) {
         exit;
 
     case 'authRefresh':
-        header('Content-Type: application/json');
+        header('Content-Type: application/json; charset=utf-8');
+        header('X-Request-Id: ' . request_id());
         $input = app()->input();
         $refreshToken = trim((string) ($input['refresh_token'] ?? ''));
 
@@ -1745,7 +1758,8 @@ switch ($handler) {
         // API clients get JSON instead of redirect
         $accept = (string) ($_SERVER['HTTP_ACCEPT'] ?? '');
         if (str_contains($accept, 'application/json')) {
-            header('Content-Type: application/json');
+            header('Content-Type: application/json; charset=utf-8');
+        header('X-Request-Id: ' . request_id());
             echo json_encode(['ok' => true]);
             exit;
         }
@@ -1760,7 +1774,8 @@ switch ($handler) {
         app()->redirect('/login');
 
     case 'apiMe':
-        header('Content-Type: application/json');
+        header('Content-Type: application/json; charset=utf-8');
+        header('X-Request-Id: ' . request_id());
         $user = app()->user();
         if (!$user) {
             http_response_code(401);
@@ -1781,7 +1796,8 @@ switch ($handler) {
         exit;
 
     case 'apiAuditLog':
-        header('Content-Type: application/json');
+        header('Content-Type: application/json; charset=utf-8');
+        header('X-Request-Id: ' . request_id());
         $user = app()->user();
         if (!$user) {
             http_response_code(401);
@@ -2008,7 +2024,8 @@ switch ($handler) {
         exit;
 
     case 'apiListModules':
-        header('Content-Type: application/json');
+        header('Content-Type: application/json; charset=utf-8');
+        header('X-Request-Id: ' . request_id());
         $user = app()->user();
         if (!$user || ($user['role'] ?? '') !== 'admin') {
             http_response_code(403);
@@ -2054,7 +2071,8 @@ switch ($handler) {
         exit;
 
     case 'apiModulesHealth':
-        header('Content-Type: application/json');
+        header('Content-Type: application/json; charset=utf-8');
+        header('X-Request-Id: ' . request_id());
         $user = app()->user();
         if (!$user || ($user['role'] ?? '') !== 'admin') {
             http_response_code(403);
@@ -2140,7 +2158,8 @@ switch ($handler) {
         exit;
 
     case 'apiTenantsList':
-        header('Content-Type: application/json');
+        header('Content-Type: application/json; charset=utf-8');
+        header('X-Request-Id: ' . request_id());
         $user = app()->user();
         if (!$user || ($user['role'] ?? '') !== 'admin') {
             http_response_code(403);
@@ -2241,7 +2260,8 @@ switch ($handler) {
         exit;
 
     case 'apiListCapabilities':
-        header('Content-Type: application/json');
+        header('Content-Type: application/json; charset=utf-8');
+        header('X-Request-Id: ' . request_id());
         $user = app()->user();
         if (!$user || ($user['role'] ?? '') !== 'admin') {
             http_response_code(403);
@@ -2263,7 +2283,8 @@ switch ($handler) {
         exit;
 
     case 'apiKernelEventsList':
-        header('Content-Type: application/json');
+        header('Content-Type: application/json; charset=utf-8');
+        header('X-Request-Id: ' . request_id());
         $user = app()->user();
         if (!$user || ($user['role'] ?? '') !== 'admin') {
             http_response_code(403);
@@ -2291,7 +2312,8 @@ switch ($handler) {
         exit;
 
     case 'apiKernelTriggersList':
-        header('Content-Type: application/json');
+        header('Content-Type: application/json; charset=utf-8');
+        header('X-Request-Id: ' . request_id());
         $user = app()->user();
         if (!$user || ($user['role'] ?? '') !== 'admin') {
             http_response_code(403);
@@ -2327,7 +2349,8 @@ switch ($handler) {
         exit;
 
     case 'apiKernelTriggerSave':
-        header('Content-Type: application/json');
+        header('Content-Type: application/json; charset=utf-8');
+        header('X-Request-Id: ' . request_id());
         $user = app()->user();
         if (!$user || ($user['role'] ?? '') !== 'admin') {
             http_response_code(403);
@@ -2389,7 +2412,8 @@ switch ($handler) {
         exit;
 
     case 'apiKernelTriggerDelete':
-        header('Content-Type: application/json');
+        header('Content-Type: application/json; charset=utf-8');
+        header('X-Request-Id: ' . request_id());
         $user = app()->user();
         if (!$user || ($user['role'] ?? '') !== 'admin') {
             http_response_code(403);
@@ -2419,7 +2443,8 @@ switch ($handler) {
         exit;
 
     case 'apiKernelTriggersSuggest':
-        header('Content-Type: application/json');
+        header('Content-Type: application/json; charset=utf-8');
+        header('X-Request-Id: ' . request_id());
         $user = app()->user();
         if (!$user || ($user['role'] ?? '') !== 'admin') {
             http_response_code(403);
@@ -2535,7 +2560,8 @@ switch ($handler) {
         exit;
 
     case 'apiCapabilityMetrics':
-        header('Content-Type: application/json');
+        header('Content-Type: application/json; charset=utf-8');
+        header('X-Request-Id: ' . request_id());
         $user = app()->user();
         if (!$user || ($user['role'] ?? '') !== 'admin') {
             http_response_code(403);
@@ -2547,7 +2573,8 @@ switch ($handler) {
         exit;
 
     case 'apiCapabilityBreakers':
-        header('Content-Type: application/json');
+        header('Content-Type: application/json; charset=utf-8');
+        header('X-Request-Id: ' . request_id());
         $user = app()->user();
         if (!$user || ($user['role'] ?? '') !== 'admin') {
             http_response_code(403);
@@ -2559,7 +2586,8 @@ switch ($handler) {
         exit;
 
     case 'apiCapabilityBreakersReset':
-        header('Content-Type: application/json');
+        header('Content-Type: application/json; charset=utf-8');
+        header('X-Request-Id: ' . request_id());
         $user = app()->user();
         if (!$user || ($user['role'] ?? '') !== 'admin') {
             http_response_code(403);
@@ -2586,7 +2614,8 @@ switch ($handler) {
         exit;
 
     case 'apiCacheHealth':
-        header('Content-Type: application/json');
+        header('Content-Type: application/json; charset=utf-8');
+        header('X-Request-Id: ' . request_id());
         $user = app()->user();
         if (!$user || ($user['role'] ?? '') !== 'admin') {
             http_response_code(403);
@@ -2607,7 +2636,8 @@ switch ($handler) {
         exit;
 
     case 'apiCacheClear':
-        header('Content-Type: application/json');
+        header('Content-Type: application/json; charset=utf-8');
+        header('X-Request-Id: ' . request_id());
         $user = app()->user();
         if (!$user || ($user['role'] ?? '') !== 'admin') {
             http_response_code(403);
@@ -2634,7 +2664,8 @@ switch ($handler) {
         exit;
 
     case 'apiUpdateCapabilityPolicy':
-        header('Content-Type: application/json');
+        header('Content-Type: application/json; charset=utf-8');
+        header('X-Request-Id: ' . request_id());
         $user = app()->user();
         if (!$user || ($user['role'] ?? '') !== 'admin') {
             http_response_code(403);
@@ -2667,7 +2698,8 @@ switch ($handler) {
         exit;
 
     case 'apiUpdateModuleDepends':
-        header('Content-Type: application/json');
+        header('Content-Type: application/json; charset=utf-8');
+        header('X-Request-Id: ' . request_id());
         $user = app()->user();
         if (!$user || ($user['role'] ?? '') !== 'admin') {
             http_response_code(403);
@@ -2699,7 +2731,8 @@ switch ($handler) {
         exit;
 
     case 'apiInstallModule':
-        header('Content-Type: application/json');
+        header('Content-Type: application/json; charset=utf-8');
+        header('X-Request-Id: ' . request_id());
         $user = app()->user();
         if (!$user || ($user['role'] ?? '') !== 'admin') {
             http_response_code(403);
@@ -2847,7 +2880,8 @@ switch ($handler) {
         exit;
 
     case 'apiEnableModule':
-        header('Content-Type: application/json');
+        header('Content-Type: application/json; charset=utf-8');
+        header('X-Request-Id: ' . request_id());
         $user = app()->user();
         if (!$user || ($user['role'] ?? '') !== 'admin') {
             http_response_code(403);
@@ -2915,7 +2949,8 @@ switch ($handler) {
         exit;
 
     case 'apiDisableModule':
-        header('Content-Type: application/json');
+        header('Content-Type: application/json; charset=utf-8');
+        header('X-Request-Id: ' . request_id());
         $user = app()->user();
         if (!$user || ($user['role'] ?? '') !== 'admin') {
             http_response_code(403);
@@ -2952,7 +2987,8 @@ switch ($handler) {
         exit;
 
     case 'apiUpdateModuleSettings':
-        header('Content-Type: application/json');
+        header('Content-Type: application/json; charset=utf-8');
+        header('X-Request-Id: ' . request_id());
         $user = app()->user();
         if (!$user || ($user['role'] ?? '') !== 'admin') {
             http_response_code(403);
@@ -3088,7 +3124,8 @@ switch ($handler) {
         exit;
 
     case 'apiAdminCreateUser':
-        header('Content-Type: application/json');
+        header('Content-Type: application/json; charset=utf-8');
+        header('X-Request-Id: ' . request_id());
         $user = app()->user();
         if (!$user || ($user['role'] ?? '') !== 'admin') {
             http_response_code(403);
@@ -3142,7 +3179,8 @@ switch ($handler) {
         exit;
 
     case 'apiAdminUpdateUser':
-        header('Content-Type: application/json');
+        header('Content-Type: application/json; charset=utf-8');
+        header('X-Request-Id: ' . request_id());
         $user = app()->user();
         if (!$user || ($user['role'] ?? '') !== 'admin') {
             http_response_code(403);
@@ -3203,7 +3241,8 @@ switch ($handler) {
         exit;
 
     case 'apiAdminUpdateProfile':
-        header('Content-Type: application/json');
+        header('Content-Type: application/json; charset=utf-8');
+        header('X-Request-Id: ' . request_id());
         try {
             $user = app()->user();
             if (!$user || !in_array($user['role'] ?? '', ['admin', 'superadmin'], true)) {
@@ -3289,7 +3328,8 @@ switch ($handler) {
         exit;
 
     case 'apiPlatform':
-        header('Content-Type: application/json');
+        header('Content-Type: application/json; charset=utf-8');
+        header('X-Request-Id: ' . request_id());
         $user = app()->user();
         if (!$user || ($user['role'] ?? '') !== 'admin') {
             http_response_code(403);
@@ -3448,7 +3488,8 @@ switch ($handler) {
         exit;
 
     case 'apiAdminCheckUpdates':
-        header('Content-Type: application/json');
+        header('Content-Type: application/json; charset=utf-8');
+        header('X-Request-Id: ' . request_id());
         $user = app()->user();
         if (!$user || !in_array($user['role'] ?? '', ['admin', 'superadmin'], true) || ($user['source'] ?? 'kernel') !== 'kernel') {
             http_response_code(403);
