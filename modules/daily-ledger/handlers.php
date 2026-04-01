@@ -2226,10 +2226,10 @@ function handleAdminProduction(array $params = []): void
         $placeholders = implode(',', array_fill(0, count($allowedBranchIds), '?'));
 
         $branchStmt = $ctx->db()->prepare(
-            "SELECT id, code, name
+            "SELECT id, code, name, COALESCE(area, '') AS area
              FROM dl_branches
              WHERE is_active = 1 AND id IN ({$placeholders})
-             ORDER BY name"
+             ORDER BY area, name"
         );
         $branchStmt->execute($allowedBranchIds);
         $branches = $branchStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
@@ -2241,6 +2241,7 @@ function handleAdminProduction(array $params = []): void
                     pm.movement_type, pm.flow_mode, pm.ledger_date, pm.quantity,
                     pm.override_reason, pm.created_at,
                     b.name AS destination_name, b.code AS destination_code,
+                    COALESCE(b.area, '') AS destination_area,
                     p.name AS product_name, p.sku,
                     pm.created_by_role,
                     EXISTS(
@@ -2267,6 +2268,15 @@ function handleAdminProduction(array $params = []): void
         $movementRows = $moveStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 
+    $areas = [];
+    foreach ($branches as $b) {
+        $a = trim((string)($b['area'] ?? ''));
+        if ($a !== '' && !in_array($a, $areas, true)) {
+            $areas[] = $a;
+        }
+    }
+    sort($areas);
+
     $role = (string)($user['role'] ?? '');
     $userName = (string)($user['name'] ?? $user['full_name'] ?? $user['username'] ?? 'User');
     $canProductionOverride = dl_roleHasPermission($role, 'production.override');
@@ -2292,6 +2302,7 @@ function handleAdminProduction(array $params = []): void
         'auto_close_enabled' => $clockLabel['auto_close_enabled'],
         'operating_timezone' => $clockLabel['operating_timezone'],
         'operating_region' => $clockLabel['operating_region'],
+        'areas' => $areas,
     ]);
 }
 
@@ -2322,10 +2333,10 @@ function handleAdminProductionOutput(array $params = []): void
         $placeholders = implode(',', array_fill(0, count($allowedBranchIds), '?'));
 
         $branchStmt = $ctx->db()->prepare(
-            "SELECT id, code, name
+            "SELECT id, code, name, COALESCE(area, '') AS area
              FROM dl_branches
              WHERE is_active = 1 AND id IN ({$placeholders})
-             ORDER BY name"
+             ORDER BY area, name"
         );
         $branchStmt->execute($allowedBranchIds);
         $branches = $branchStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
@@ -2337,6 +2348,7 @@ function handleAdminProductionOutput(array $params = []): void
                     pm.movement_type, pm.flow_mode, pm.ledger_date, pm.quantity,
                     pm.override_reason, pm.created_at,
                     b.name AS destination_name, b.code AS destination_code,
+                    COALESCE(b.area, '') AS destination_area,
                     p.name AS product_name, p.sku,
                     pm.created_by_role,
                     EXISTS(
@@ -2363,6 +2375,15 @@ function handleAdminProductionOutput(array $params = []): void
         $movementRows = $moveStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 
+    $areas = [];
+    foreach ($branches as $b) {
+        $a = trim((string)($b['area'] ?? ''));
+        if ($a !== '' && !in_array($a, $areas, true)) {
+            $areas[] = $a;
+        }
+    }
+    sort($areas);
+
     $role = (string)($user['role'] ?? '');
     $userName = (string)($user['name'] ?? $user['full_name'] ?? $user['username'] ?? 'User');
     $featureSettings = dl_featureSettings();
@@ -2386,6 +2407,7 @@ function handleAdminProductionOutput(array $params = []): void
         'auto_close_enabled' => $clockLabel['auto_close_enabled'],
         'operating_timezone' => $clockLabel['operating_timezone'],
         'operating_region' => $clockLabel['operating_region'],
+        'areas' => $areas,
     ]);
 }
 
@@ -3043,6 +3065,7 @@ function apiCreateBranch(array $params = []): void
     $code    = strtoupper(trim((string)($input['code'] ?? '')));
     $name    = trim((string)($input['name'] ?? ''));
     $address = trim((string)($input['address'] ?? ''));
+    $area    = trim((string)($input['area'] ?? ''));
 
     if ($code === '' || $name === '') {
         header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Code and name are required', 'type' => 'error']]));
@@ -3052,8 +3075,8 @@ function apiCreateBranch(array $params = []): void
 
     try {
         $ctx->db()->prepare(
-            'INSERT INTO dl_branches (code, name, address) VALUES (:code, :name, :addr)'
-        )->execute([':code' => $code, ':name' => $name, ':addr' => $address]);
+            'INSERT INTO dl_branches (code, name, address, area) VALUES (:code, :name, :addr, :area)'
+        )->execute([':code' => $code, ':name' => $name, ':addr' => $address, ':area' => $area !== '' ? $area : null]);
 
         $branchId = (int)$ctx->db()->lastInsertId();
 
@@ -3065,7 +3088,7 @@ function apiCreateBranch(array $params = []): void
             )->execute([':bid' => $branchId, ':pid' => (int)$p['id']]);
         }
 
-        dl_auditLog('create_branch', $branchId, 'branch', (string)$branchId, null, ['code' => $code, 'name' => $name]);
+        dl_auditLog('create_branch', $branchId, 'branch', (string)$branchId, null, ['code' => $code, 'name' => $name, 'area' => $area]);
 
         header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Branch created', 'type' => 'success']]));
         $ctx->json(['ok' => true, 'branch_id' => $branchId]);
@@ -3090,6 +3113,7 @@ function apiUpdateBranch(array $params = []): void
     $branchId = (int)($input['branch_id'] ?? 0);
     $name     = trim((string)($input['name'] ?? ''));
     $address  = trim((string)($input['address'] ?? ''));
+    $area     = trim((string)($input['area'] ?? ''));
     $isActive = (int)($input['is_active'] ?? 1);
 
     if (!$branchId || $name === '') {
@@ -3100,8 +3124,8 @@ function apiUpdateBranch(array $params = []): void
 
     try {
         $ctx->db()->prepare(
-            'UPDATE dl_branches SET name = :name, address = :addr, is_active = :active WHERE id = :id'
-        )->execute([':name' => $name, ':addr' => $address, ':active' => $isActive, ':id' => $branchId]);
+            'UPDATE dl_branches SET name = :name, address = :addr, area = :area, is_active = :active WHERE id = :id'
+        )->execute([':name' => $name, ':addr' => $address, ':area' => $area !== '' ? $area : null, ':active' => $isActive, ':id' => $branchId]);
 
         dl_auditLog('update_branch', $branchId, 'branch', (string)$branchId);
 

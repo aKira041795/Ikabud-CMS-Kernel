@@ -55,6 +55,18 @@
         {/if}
 
         {if branches | count > 0}
+        {if areas | count > 0}
+        <div class="mb-4 flex flex-wrap items-center gap-3">
+            <label class="form-label mb-0 whitespace-nowrap font-medium">Filter by Area</label>
+            <select id="area-filter" class="form-input w-auto min-w-[160px]" onchange="filterBranchRows()">
+                <option value="">All Areas</option>
+                {foreach areas as a}
+                <option value="{a}">{a}</option>
+                {/foreach}
+            </select>
+            <span id="area-branch-count" class="text-sm text-muted"></span>
+        </div>
+        {/if}
         <div class="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-4 mb-4">
             <div class="form-group mb-0">
                 <label class="form-label">Ledger Date</label>
@@ -94,14 +106,16 @@
                     <tr>
                         <th>Branch Code</th>
                         <th>Branch Name</th>
+                        <th>Area</th>
                         <th class="text-right">Withdrawal Qty</th>
                     </tr>
                 </thead>
                 <tbody>
                     {foreach branches as br}
-                    <tr>
+                    <tr data-area="{br.area}">
                         <td class="font-mono text-sm">{br.code}</td>
                         <td>{br.name}</td>
+                        <td class="text-sm text-muted">{br.area}</td>
                         <td class="text-right" style="min-width: 180px;">
                             <input
                                 type="number"
@@ -158,6 +172,7 @@
                     <th>Created</th>
                     <th>Date</th>
                     <th>Type</th>
+                    <th>Area</th>
                     <th>Branch</th>
                     <th>Product</th>
                     <th>Flow</th>
@@ -168,7 +183,7 @@
             </thead>
             <tbody>
                 {if movement_rows | count == 0}
-                <tr><td colspan="9" class="px-4 py-10 text-center text-sm text-gray-500">No production movement history in selected range.</td></tr>
+                <tr><td colspan="10" class="px-4 py-10 text-center text-sm text-gray-500">No production movement history in selected range.</td></tr>
                 {/if}
                 {foreach movement_rows as row}
                 <tr data-movement-type="{row.movement_type}">
@@ -185,6 +200,7 @@
                         {/if}
                     </td>
                     <td>{row.destination_name} <span class="text-muted">({row.destination_code})</span></td>
+                    <td class="text-sm text-muted">{row.destination_area}</td>
                     <td>{row.product_name} <span class="text-muted">({row.sku})</span></td>
                     <td>{row.flow_mode}</td>
                     <td class="text-right font-semibold">{row.quantity}</td>
@@ -241,6 +257,22 @@
 
 {block scripts}
 <script>
+    function filterBranchRows() {
+        var sel = document.getElementById('area-filter');
+        var area = sel ? sel.value : '';
+        var rows = document.querySelectorAll('tr[data-area]');
+        var visible = 0;
+        rows.forEach(function(row) {
+            var match = area === '' || row.getAttribute('data-area') === area;
+            row.style.display = match ? '' : 'none';
+            if (match) visible++;
+        });
+        var counter = document.getElementById('area-branch-count');
+        if (counter) {
+            counter.textContent = area !== '' ? visible + ' branch' + (visible !== 1 ? 'es' : '') : '';
+        }
+    }
+
     function filterProductOptions() {
         var input = document.getElementById('product-search');
         var select = document.getElementById('product-id');
