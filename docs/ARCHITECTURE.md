@@ -106,7 +106,7 @@ Executed on every request before routing:
 2. **Error handling** — PHP error reporting routed to `storage/logs/error.log`, stack traces never exposed to clients
 3. **`.env` loading** — Parse `BASE_PATH/.env` (key=value, comments ignored); supports single- and double-quoted values with backslash escape sequences; only `[A-Z][A-Z0-9_]*` keys are accepted
 4. **Config merge** — Load `config/app.php`, `config/database.php`, `config/control_database.php`
-5. **Global helpers** — `request_id()`, `is_https()`, `write_log()`, `config()`, `app()`, `db()`, `kernelPdo()`
+5. **Global helpers** — `request_id()`, `is_https()`, `write_log()`, `config()`, `app()`, `db()`, `kernelPdo()`, `kernel_emit_json_response()`
 6. **Autoloader** — SPL autoloader for `Ikabud\Kernel\*` namespace
 7. **Exception handler** — Global catch-all → log + generic 500 HTML
 
@@ -241,6 +241,17 @@ $content = app()->cap('cms.content.get@1', ['slug' => 'about']);
 
 **Bus features:** timeout, retries, circuit breaker threshold, schema validation mode — all configured in `config/app.php`.
 
+### 4. Kernel Adapter Contracts (`kernel/Contracts/`)
+
+Typed PHP interfaces for swappable adapters:
+
+| Interface | File | Methods |
+|-----------|------|---------|
+| `CacheContract` | `kernel/Contracts/CacheContract.php` | `get`, `set`, `delete`, `clear`, `has` |
+| `CapabilityProviderContract` | `kernel/Contracts/CapabilityProviderContract.php` | `getCapabilityId`, `getInputSchema`, `getOutputSchema`, `handle` |
+
+Modules that register structured capabilities should implement `CapabilityProviderContract`. Cache adapters injected into kernel caching layers must implement `CacheContract`.
+
 ---
 
 ## Multi-Tenancy
@@ -314,6 +325,17 @@ Fluent query builder wrapping PDO with prepared statements:
 db()->table('users')->where('role', 'admin')->get();
 db()->table('cms_content')->insert(['title' => $title, 'slug' => $slug]);
 ```
+
+### DB Query Interceptor Seam
+
+All database execution paths are instrumented with two hook/event seams:
+
+| Seam | Type | Location | Payload |
+|------|------|----------|---------|
+| `kernel.database.query.before` | `hooks()->filter()` | `QueryBuilder::execute()` | `['sql' => ..., 'bindings' => [...]]` — return a modified array to rewrite SQL/bindings |
+| `kernel.database.query.after` | `events()->fire()` | `QueryBuilder`, `KernelPDO::query/exec`, `KernelPDOStatement::execute` | `['sql' => ..., 'bindings' => [...], 'duration_ms' => ...]` |
+
+**`KernelPDOStatement`** (`kernel/Database/KernelPDOStatement.php`) — a `PDOStatement` subclass registered via `PDO::ATTR_STATEMENT_CLASS` on every `KernelPDO` instance so prepared-statement executions emit the after-event automatically. All hook/event calls are wrapped in try/catch; failures never abort a DB operation.
 
 ### Migration System
 

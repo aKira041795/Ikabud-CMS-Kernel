@@ -25,9 +25,51 @@ This release introduces comprehensive foundational stability, scalability, and s
 - **Hook Semantics & Caching:** Formalized hook `filter()` semantics to explicitly bypass processing if a listener returns `null` unless invoked specifically via `filterNullable()`. Implemented lazy sorting across event and hook busses alongside lazy statistics caching for faster startup execution speeds.
 - **Deterministic Capability Testing:** Extended the Capability Test Runner CLI to seamlessly interpret isolated sql setups/teardowns per test case from capability JSON fixtures.
 
+## Phase 3B: DB Interceptor Seam, Adapter Contracts, and Registry Introspection
+
+### DB Query Interceptor Seam
+- **`kernel.database.query.before` filter hook** — Registered on `QueryBuilder::execute()`. Listeners receive `['sql' => ..., 'bindings' => [...]]` and may return a modified array to rewrite the SQL or bindings before execution. Registered via `app()->hooks()->filter()`.
+- **`kernel.database.query.after` event** — Emitted on `QueryBuilder::execute()`, `KernelPDO::query()`, `KernelPDO::exec()`, and `KernelPDOStatement::execute()`. Carries `['sql' => ..., 'bindings' => [...], 'duration_ms' => ...]` for observability (logging, profiling, APM). Registered via `app()->events()->fire()`. Hook/event failures in both seams are caught and suppressed so that no hook error can crash a DB operation.
+- **`KernelPDOStatement`** (`kernel/Database/KernelPDOStatement.php`) — New `PDOStatement` subclass registered via `PDO::ATTR_STATEMENT_CLASS` on every `KernelPDO` instance. Intercepts `execute()` to emit the after-event for all prepared-statement executions.
+
+### Kernel Adapter Contracts
+Two new PHP interfaces have been added under `kernel/Contracts/` to enable typed, swappable adapter injection:
+- **`CacheContract`** (`kernel/Contracts/CacheContract.php`) — `get`, `set`, `delete`, `clear`, `has` — standard cache adapter surface.
+- **`CapabilityProviderContract`** (`kernel/Contracts/CapabilityProviderContract.php`) — `getCapabilityId`, `getInputSchema`, `getOutputSchema`, `handle` — typed capability provider surface for modules that export structured capabilities.
+
+### ContextRegistry Introspection
+Three public getter methods added to `kernel/EntityContext/ContextRegistry.php`:
+- `getRegisteredSchemas()` — returns all registered render schemas
+- `getRegisteredProfiles()` — returns all registered context profiles
+- `getRegisteredModes()` — returns all registered render modes
+
+These enable diagnostic tooling and test assertions without accessing internal state directly.
+
+---
+
+## Phase 4: JSON Response Standardisation, Ecommerce Contract Fixes, and Workspace Cleanup
+
+### JSON Response Standardisation
+- All 41 bare `Content-Type: application/json` header emissions in `public/index.php` have been standardised to include `charset=utf-8` and the `X-Request-Id` correlation header.
+- The `429 Too Many Requests` rate-limit response in `bootstrap.php` received the same normalisation.
+- New global helper **`kernel_emit_json_response(array $payload, int $status = 200)`** added to `bootstrap.php`. Emits correctly typed JSON with consistent headers and terminates the request lifecycle.
+
+### Ecommerce Render Contract Fixes
+- `product.badges` — corrected `$row['badges']` duplicate-assignment bug in `modules/ecommerce/helpers/30-products.php`; badges array is now reliably populated.
+- `inventory.badge` — `modules/ecommerce/helpers/05-render-contracts.php` updated to surface inventory badge status correctly.
+- `cart.message` — `modules/ecommerce/handlers/15-public-cart.php` default `$message` now initialises as `['type' => '', 'text' => '']` (not `null`) to satisfy the render contract type check.
+- `cart.totals.coupon` — `modules/ecommerce/helpers/40-pricing.php` coupon data initialised as `[]` instead of `null` to prevent type mismatch in totals rendering.
+- `order.payment.label` — `modules/ecommerce/helpers/20-orders.php` sets `$payment['label'] = ucfirst($payment['gateway'])` before returning, satisfying the payment label contract.
+
+### Workspace Cleanup
+- Removed 12 temporary `patch_*.php` and `fix-*.php` scripts from the workspace root that were no longer needed after the hardening fixes were applied.
+
+---
+
 ## Verification
 
 - Full suite of Kernel Hardening test cases passing comprehensively around `kernel_request_context`, deferred queues, shutdown firing, and redirect validation logic.
 - Request Dispatch Subprocess Integration Test passing.
 - Infrastructure and capability functional suites verified and stable.
 - Storage and log output verification completed ensuring zero unexpected errors during healthy kernel boot cycles.
+- Application log clean after Phase 3B crash fix (resolved `App::bound()` regression and `Hooks::fire()` misuse — both replaced with correct API calls: `app()->hooks()->filter()` and `app()->events()->fire()`).
