@@ -350,6 +350,60 @@ interface PropertiesPanelProps {
 }
 
 // =============================================================================
+// Menu Selector Component (fetches menus from CMS API)
+// =============================================================================
+
+interface MenuSelectorProps {
+  value: number;
+  onChange: (value: number) => void;
+}
+
+const MenuSelector: React.FC<MenuSelectorProps> = ({ value, onChange }) => {
+  const [menus, setMenus] = useState<Array<{ id: number; name: string; location: string | null; item_count: number }>>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchMenus = async () => {
+      try {
+        const response = await fetch('/api/v1/cms/menus', {
+          credentials: 'include',
+          headers: { 'Accept': 'application/json' },
+        });
+        const data = await response.json();
+        if (Array.isArray(data.menus)) {
+          setMenus(data.menus);
+        } else if (Array.isArray(data.data)) {
+          setMenus(data.data);
+        }
+      } catch (error) {
+        console.error('Failed to fetch menus:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchMenus();
+  }, []);
+
+  if (loading) return <div className="text-xs text-white/60 py-1">Loading menus…</div>;
+  if (menus.length === 0) return <div className="text-xs text-white/50 py-1">No menus found. Create one in CMS → Menus.</div>;
+
+  return (
+    <select
+      value={value || 0}
+      onChange={(e) => onChange(Number(e.target.value))}
+      className="w-full px-2 py-1.5 text-xs bg-[#1e1e1e] border border-[#3c3c3c] text-white/90 focus:outline-none focus:border-[#0078d4] rounded"
+    >
+      <option value={0}>— Select a menu —</option>
+      {menus.map((menu) => (
+        <option key={menu.id} value={menu.id}>
+          {menu.name}{menu.location ? ` (${menu.location})` : ''} · {menu.item_count} items
+        </option>
+      ))}
+    </select>
+  );
+};
+
+// =============================================================================
 // Category Selector Component
 // =============================================================================
 
@@ -2158,7 +2212,7 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
 
       {/* Icon Box */}
       {node.type === 'icon_box' && (
-        <CollapsibleSection title="Icon Box" icon={<Star className="w-3 h-3" />}>
+        <CollapsibleSection title="Icon Box" icon={<Star className="w-3 h-3" />} defaultOpen>
           <SelectInput
             label="Icon"
             value={node.props.icon as string || 'Star'}
@@ -2170,6 +2224,22 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
               { value: 'Zap', label: 'Zap' },
               { value: 'Shield', label: 'Shield' },
               { value: 'Clock', label: 'Clock' },
+              { value: 'Globe', label: 'Globe' },
+              { value: 'Mail', label: 'Mail' },
+              { value: 'Phone', label: 'Phone' },
+              { value: 'Lock', label: 'Lock' },
+              { value: 'Rocket', label: 'Rocket' },
+              { value: 'Lightbulb', label: 'Lightbulb' },
+            ]}
+          />
+          <SelectInput
+            label="Layout"
+            value={node.props.layout as string || 'top'}
+            onChange={(v) => handlePropChange('layout', v)}
+            options={[
+              { value: 'top', label: 'Icon above (centered)' },
+              { value: 'left', label: 'Icon left inline' },
+              { value: 'right', label: 'Icon right inline' },
             ]}
           />
           <TextInput
@@ -2184,6 +2254,20 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
             onChange={(v) => handlePropChange('description', v)}
             placeholder="Feature description..."
           />
+          <TextInput
+            label="Link URL"
+            value={node.props.linkUrl as string || ''}
+            onChange={(v) => handlePropChange('linkUrl', v)}
+            placeholder="https://... or /page"
+          />
+          {(node.props.linkUrl as string || '') !== '' && (
+            <TextInput
+              label="Link Text"
+              value={node.props.linkText as string || 'Learn more'}
+              onChange={(v) => handlePropChange('linkText', v)}
+              placeholder="Learn more"
+            />
+          )}
         </CollapsibleSection>
       )}
 
@@ -3494,12 +3578,31 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
             onChange={(v) => handlePropChange('title', v)}
             placeholder="Browse"
           />
-          <TextInput
-            label="Menu ID"
-            type="number"
-            value={String((node.props.menuId as number) || '')}
-            onChange={(v) => handlePropChange('menuId', v === '' ? 0 : Number(v))}
-            placeholder="1"
+          <div className="space-y-1">
+            <label className="block text-[10px] font-medium text-white/40 uppercase tracking-wide">Menu</label>
+            <MenuSelector
+              value={node.props.menuId as number || 0}
+              onChange={(v) => handlePropChange('menuId', v)}
+            />
+          </div>
+          <SelectInput
+            label="Orientation"
+            value={node.props.orientation as string || 'vertical'}
+            onChange={(v) => handlePropChange('orientation', v)}
+            options={[
+              { value: 'vertical', label: 'Vertical (list)' },
+              { value: 'horizontal', label: 'Horizontal (inline)' },
+            ]}
+          />
+          <SelectInput
+            label="Style"
+            value={node.props.menuStyle as string || 'plain'}
+            onChange={(v) => handlePropChange('menuStyle', v)}
+            options={[
+              { value: 'plain', label: 'Plain links' },
+              { value: 'underline', label: 'Underline on hover' },
+              { value: 'button', label: 'Button style' },
+            ]}
           />
         </CollapsibleSection>
       )}
@@ -3520,15 +3623,48 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
             onChange={(v) => handlePropChange('count', v === '' ? 0 : Number(v))}
             placeholder="5"
           />
+          <SelectInput
+            label="Order By"
+            value={node.props.orderBy as string || 'date'}
+            onChange={(v) => handlePropChange('orderBy', v)}
+            options={[
+              { value: 'date', label: 'Newest first' },
+              { value: 'title', label: 'By title (A–Z)' },
+              { value: 'random', label: 'Random' },
+            ]}
+          />
+          <div className="space-y-1">
+            <label className="block text-[10px] font-medium text-white/40 uppercase tracking-wide">Filter by Category</label>
+            <CategorySelector
+              value={(node.props.categoryIds as number[]) || []}
+              onChange={(v) => handlePropChange('categoryIds', v)}
+            />
+          </div>
           <div className="flex items-center justify-between">
             <label className="text-xs text-white/70">Show Date</label>
             <button
               onClick={() => handlePropChange('showDate', !(node.props.showDate !== false))}
-              className={`relative w-10 h-5 rounded-full transition-colors ${node.props.showDate !== false ? 'bg-[#0078d4]' : 'bg-[#3c3c3c]'
-                }`}
+              className={`relative w-10 h-5 rounded-full transition-colors ${node.props.showDate !== false ? 'bg-[#0078d4]' : 'bg-[#3c3c3c]'}`}
             >
-              <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform ${node.props.showDate !== false ? 'translate-x-5' : 'translate-x-0'
-                }`} />
+              <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform ${node.props.showDate !== false ? 'translate-x-5' : 'translate-x-0'}`} />
+            </button>
+          </div>
+          <div className="flex items-center justify-between">
+            <label className="text-xs text-white/70">Show Thumbnail</label>
+            <button
+              onClick={() => handlePropChange('showThumbnail', !node.props.showThumbnail)}
+              className={`relative w-10 h-5 rounded-full transition-colors ${node.props.showThumbnail ? 'bg-[#0078d4]' : 'bg-[#3c3c3c]'}`}
+            >
+              <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform ${node.props.showThumbnail ? 'translate-x-5' : 'translate-x-0'}`} />
+            </button>
+          </div>
+          <div className="flex items-center justify-between">
+            <label className="text-xs text-white/70">Show Excerpt</label>
+            <button
+              onClick={() => handlePropChange('showExcerpt', !node.props.showExcerpt)}
+              className={`relative w-10 h-5 rounded-full transition-colors ${node.props.showExcerpt ? 'bg-[#0078d4]' : 'bg-[#3c3c3c]'}`}
+            >
+              <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform ${node.props.showExcerpt ? 'translate-x-5' : 'translate-x-0'}`} />
             </button>
           </div>
         </CollapsibleSection>
@@ -3548,11 +3684,27 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
             value={node.props.displayStyle as string || 'icons'}
             onChange={(v) => handlePropChange('displayStyle', v)}
             options={[
-              { value: 'icons', label: 'Icons' },
-              { value: 'labels', label: 'Labels' },
-              { value: 'inline', label: 'Inline Links' },
+              { value: 'icons', label: 'Icons only' },
+              { value: 'labels', label: 'Platform labels' },
+              { value: 'inline', label: 'Inline text links' },
             ]}
           />
+          <TextInput
+            label="Icon Size (px)"
+            type="number"
+            value={String(node.props.iconSize as number || 20)}
+            onChange={(v) => handlePropChange('iconSize', v === '' ? 20 : Number(v))}
+            placeholder="20"
+          />
+          <div className="flex items-center justify-between">
+            <label className="text-xs text-white/70">Open in New Tab</label>
+            <button
+              onClick={() => handlePropChange('targetBlank', !(node.props.targetBlank))}
+              className={`relative w-10 h-5 rounded-full transition-colors ${node.props.targetBlank ? 'bg-[#0078d4]' : 'bg-[#3c3c3c]'}`}
+            >
+              <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform ${node.props.targetBlank ? 'translate-x-5' : 'translate-x-0'}`} />
+            </button>
+          </div>
         </CollapsibleSection>
       )}
 
@@ -3584,6 +3736,21 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
             onChange={(v) => handlePropChange('email', v)}
             placeholder="hello@example.com"
           />
+          <TextInput
+            label="Website"
+            value={node.props.website as string || ''}
+            onChange={(v) => handlePropChange('website', v)}
+            placeholder="https://yoursite.com"
+          />
+          <div className="flex items-center justify-between mt-1">
+            <label className="text-xs text-white/70">Show Map Link</label>
+            <button
+              onClick={() => handlePropChange('showMapLink', !node.props.showMapLink)}
+              className={`relative w-10 h-5 rounded-full transition-colors ${node.props.showMapLink ? 'bg-[#0078d4]' : 'bg-[#3c3c3c]'}`}
+            >
+              <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform ${node.props.showMapLink ? 'translate-x-5' : 'translate-x-0'}`} />
+            </button>
+          </div>
         </CollapsibleSection>
       )}
 
@@ -3675,21 +3842,70 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
             onChange={(v) => handlePropChange('title', v)}
             placeholder="Opening Hours"
           />
-          <TextInput
-            label="Text"
-            value={node.props.text as string || ''}
-            onChange={(v) => handlePropChange('text', v)}
-            placeholder="Mon-Fri, 9:00 AM - 6:00 PM"
+          <SelectInput
+            label="Display Mode"
+            value={node.props.displayMode as string || 'table'}
+            onChange={(v) => handlePropChange('displayMode', v)}
+            options={[
+              { value: 'table', label: 'Day-by-day table' },
+              { value: 'text', label: 'Free text' },
+            ]}
           />
-          <div className="flex items-center justify-between">
+          {(node.props.displayMode as string || 'table') === 'text' ? (
+            <TextAreaInput
+              label="Hours Text"
+              value={node.props.text as string || ''}
+              onChange={(v) => handlePropChange('text', v)}
+              placeholder="Mon–Fri, 9:00 AM – 6:00 PM"
+              rows={3}
+            />
+          ) : (
+            <div className="space-y-2 mt-1">
+              <div className="text-[10px] font-medium text-white/40 uppercase tracking-wide">Schedule</div>
+              {(['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] as const).map((day) => {
+                const schedule = (node.props.schedule as Record<string, { open: string; close: string; closed: boolean }> | undefined) || {};
+                const entry = schedule[day] || { open: '9:00 AM', close: '6:00 PM', closed: false };
+                const updateDay = (patch: Partial<typeof entry>) => {
+                  handlePropChange('schedule', { ...schedule, [day]: { ...entry, ...patch } });
+                };
+                return (
+                  <div key={day} className="grid grid-cols-[80px_1fr_1fr_auto] gap-1 items-center">
+                    <span className="text-[11px] text-white/70">{day.slice(0, 3)}</span>
+                    <input
+                      type="text"
+                      value={entry.closed ? '' : entry.open}
+                      disabled={entry.closed}
+                      onChange={(e) => updateDay({ open: e.target.value })}
+                      placeholder="9:00 AM"
+                      className="px-1.5 py-1 text-[11px] bg-[#1e1e1e] border border-[#3c3c3c] text-white/90 rounded focus:outline-none focus:border-[#0078d4] disabled:opacity-30"
+                    />
+                    <input
+                      type="text"
+                      value={entry.closed ? '' : entry.close}
+                      disabled={entry.closed}
+                      onChange={(e) => updateDay({ close: e.target.value })}
+                      placeholder="6:00 PM"
+                      className="px-1.5 py-1 text-[11px] bg-[#1e1e1e] border border-[#3c3c3c] text-white/90 rounded focus:outline-none focus:border-[#0078d4] disabled:opacity-30"
+                    />
+                    <button
+                      onClick={() => updateDay({ closed: !entry.closed })}
+                      className={`text-[10px] px-1.5 py-1 rounded border transition-colors ${entry.closed ? 'border-red-500/60 text-red-400 bg-red-500/10' : 'border-[#3c3c3c] text-white/30 hover:text-white/60'}`}
+                      title={entry.closed ? 'Closed — click to open' : 'Open — click to close'}
+                    >
+                      {entry.closed ? 'Closed' : 'Open'}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          <div className="flex items-center justify-between mt-2">
             <label className="text-xs text-white/70">Show Icon</label>
             <button
               onClick={() => handlePropChange('showIcon', !(node.props.showIcon !== false))}
-              className={`relative w-10 h-5 rounded-full transition-colors ${node.props.showIcon !== false ? 'bg-[#0078d4]' : 'bg-[#3c3c3c]'
-                }`}
+              className={`relative w-10 h-5 rounded-full transition-colors ${node.props.showIcon !== false ? 'bg-[#0078d4]' : 'bg-[#3c3c3c]'}`}
             >
-              <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform ${node.props.showIcon !== false ? 'translate-x-5' : 'translate-x-0'
-                }`} />
+              <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform ${node.props.showIcon !== false ? 'translate-x-5' : 'translate-x-0'}`} />
             </button>
           </div>
         </CollapsibleSection>
@@ -3707,6 +3923,22 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
             value={node.props.buttonText as string || 'Search'}
             onChange={(v) => handlePropChange('buttonText', v)}
             placeholder="Search"
+          />
+          <TextInput
+            label="Search URL"
+            value={node.props.searchUrl as string || '/cms/search'}
+            onChange={(v) => handlePropChange('searchUrl', v)}
+            placeholder="/cms/search"
+          />
+          <SelectInput
+            label="Input Style"
+            value={node.props.style as string || 'rounded'}
+            onChange={(v) => handlePropChange('style', v)}
+            options={[
+              { value: 'rounded', label: 'Rounded' },
+              { value: 'pill', label: 'Pill' },
+              { value: 'square', label: 'Square' },
+            ]}
           />
           <div className="flex items-center justify-between">
             <label className="text-xs text-white/70">Show Button</label>
@@ -3935,6 +4167,12 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
                 }`} />
             </button>
           </div>
+          <TextInput
+            label="Filename / Caption"
+            value={node.props.caption as string || ''}
+            onChange={(v) => handlePropChange('caption', v)}
+            placeholder="e.g. main.js"
+          />
         </CollapsibleSection>
       )}
 

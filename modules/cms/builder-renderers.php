@@ -294,12 +294,55 @@ function cmsRenderWidget_icon(array $props, array $style, array $attrs, string $
     return '<span' . cmsBuilderAttrString($attrs) . cmsBuilderStyleAttr($style) . '>' . cmsBuilderEsc((string)($props['icon'] ?? 'Icon')) . '</span>';
 }
 
+function cmsBuilderIconSvgPath(string $icon): string
+{
+    return match ($icon) {
+        'Heart'     => '<path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>',
+        'Check'     => '<polyline points="20 6 9 17 4 12"/>',
+        'Zap'       => '<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>',
+        'Shield'    => '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>',
+        'Clock'     => '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
+        'Globe'     => '<circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10A15.3 15.3 0 0 1 12 2z"/>',
+        'Mail'      => '<path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/>',
+        'Phone'     => '<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.6 1.22h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.91a16 16 0 0 0 5.55 5.55l.91-.91a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 21 16.92z"/>',
+        'Lock'      => '<rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
+        'Rocket'    => '<path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/>',
+        'Lightbulb' => '<line x1="9" y1="18" x2="15" y2="18"/><line x1="10" y1="22" x2="14" y2="22"/><path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1 .23 2.23 1.5 3.5A4.61 4.61 0 0 1 8.91 14"/>',
+        default     => '<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>',
+    };
+}
+
 function cmsRenderWidget_icon_box(array $props, array $style, array $attrs, string $children, array $node, array $context): string
 {
-    return '<div' . cmsBuilderAttrString($attrs) . cmsBuilderStyleAttr($style) . '>'
-        . '<div>' . cmsBuilderEsc((string)($props['icon'] ?? 'Star')) . '</div>'
-        . '<h3>' . cmsBuilderEsc((string)($props['title'] ?? '')) . '</h3>'
-        . '<p>' . cmsBuilderEsc((string)($props['description'] ?? '')) . '</p></div>';
+    $icon        = (string)($props['icon']        ?? 'Star');
+    $title       = cmsBuilderEsc((string)($props['title']       ?? ''));
+    $description = cmsBuilderEsc((string)($props['description'] ?? ''));
+    $layout      = in_array((string)($props['layout'] ?? ''), ['left', 'right', 'top'], true) ? (string)$props['layout'] : 'top';
+    $linkUrl     = trim((string)($props['linkUrl']  ?? ''));
+    $linkText    = trim((string)($props['linkText'] ?? 'Learn more'));
+
+    $iconSvg  = '<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' . cmsBuilderIconSvgPath($icon) . '</svg>';
+    $iconWrap = '<div style="display:inline-flex;align-items:center;justify-content:center;width:48px;height:48px;border-radius:12px;background:#f1f5f9;color:#0f172a;flex-shrink:0">' . $iconSvg . '</div>';
+
+    $ctaHtml = '';
+    if ($linkUrl !== '') {
+        $ctaHtml = '<div style="margin-top:8px"><a href="' . cmsBuilderEsc($linkUrl) . '" style="font-size:13px;color:#2563eb;text-decoration:none;font-weight:500">' . cmsBuilderEsc($linkText) . ' &rarr;</a></div>';
+    }
+
+    $textBlock = '<div>';
+    if ($title !== '')       { $textBlock .= '<h3 style="margin:0 0 6px;font-size:15px;font-weight:600;color:#0f172a;line-height:1.4">' . $title . '</h3>'; }
+    if ($description !== '') { $textBlock .= '<p style="margin:0;font-size:14px;line-height:1.6;color:#475569">' . $description . '</p>'; }
+    $textBlock .= $ctaHtml . '</div>';
+
+    $isInline = in_array($layout, ['left', 'right'], true);
+    if ($isInline) {
+        $flexDir  = $layout === 'right' ? 'row-reverse' : 'row';
+        $innerHtml = '<div style="display:flex;flex-direction:' . $flexDir . ';align-items:flex-start;gap:16px">' . $iconWrap . $textBlock . '</div>';
+    } else {
+        $innerHtml = '<div style="display:flex;flex-direction:column;align-items:center;text-align:center;gap:12px">' . $iconWrap . $textBlock . '</div>';
+    }
+
+    return '<div' . cmsBuilderAttrString($attrs) . cmsBuilderStyleAttr($style) . '>' . $innerHtml . '</div>';
 }
 
 function cmsRenderWidget_tabs(array $props, array $style, array $attrs, string $children, array $node, array $context): string
@@ -1610,13 +1653,23 @@ function cmsBuilderRenderThemeWidgetEmpty(string $message): string
     return '<p style="margin:0;font-size:14px;line-height:1.6;color:#64748b">' . cmsBuilderEsc($message) . '</p>';
 }
 
-function cmsBuilderRenderMenuWidgetItems(array $items, ?string $scope = null, int $depth = 0): string
+function cmsBuilderRenderMenuWidgetItems(array $items, ?string $scope = null, int $depth = 0, string $orientation = 'vertical', string $menuStyle = 'plain'): string
 {
     if ($items === []) {
         return '';
     }
 
-    $html = '<ul style="list-style:none;margin:' . ($depth === 0 ? '0' : '10px 0 0') . ';padding:' . ($depth === 0 ? '0' : '0 0 0 16px') . ';display:grid;gap:10px">';
+    $isHorizontal = $depth === 0 && $orientation === 'horizontal';
+    $ulStyle = $isHorizontal
+        ? 'list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:4px 20px;align-items:center'
+        : 'list-style:none;margin:' . ($depth === 0 ? '0' : '10px 0 0') . ';padding:' . ($depth === 0 ? '0' : '0 0 0 16px') . ';display:grid;gap:10px';
+    $linkStyle = match ($menuStyle) {
+        'underline' => 'color:#0f172a;text-decoration:underline;font-size:14px;line-height:1.5',
+        'button'    => 'display:inline-block;color:#0f172a;text-decoration:none;font-size:13px;line-height:1;padding:6px 12px;border-radius:4px;background:#f1f5f9',
+        default     => 'color:#0f172a;text-decoration:none;font-size:14px;line-height:1.5',
+    };
+
+    $html = '<ul style="' . $ulStyle . '">';
     foreach ($items as $item) {
         if (!is_array($item)) {
             continue;
@@ -1628,7 +1681,7 @@ function cmsBuilderRenderMenuWidgetItems(array $items, ?string $scope = null, in
         $target = (string)($item['target'] ?? '') === '_blank' ? ' target="_blank" rel="noopener noreferrer"' : '';
 
         $html .= '<li>';
-        $html .= '<a href="' . cmsBuilderEsc($url) . '"' . $target . ' style="color:#0f172a;text-decoration:none;font-size:14px;line-height:1.5">' . $label . '</a>';
+        $html .= '<a href="' . cmsBuilderEsc($url) . '"' . $target . ' style="' . $linkStyle . '">' . $label . '</a>';
         if (!empty($item['children']) && is_array($item['children'])) {
             $html .= cmsBuilderRenderMenuWidgetItems($item['children'], $scope, $depth + 1);
         }
@@ -1639,8 +1692,10 @@ function cmsBuilderRenderMenuWidgetItems(array $items, ?string $scope = null, in
 
 function cmsRenderWidget_nav_menu(array $props, array $style, array $attrs, string $children, array $node, array $context): string
 {
-    $title = trim((string)($props['title'] ?? ''));
-    $menuId = (int)($props['menuId'] ?? 0);
+    $title     = trim((string)($props['title']   ?? ''));
+    $menuId    = (int)($props['menuId'] ?? 0);
+    $orientation = in_array((string)($props['orientation'] ?? ''), ['horizontal', 'vertical'], true) ? (string)$props['orientation'] : 'vertical';
+    $menuStyle   = in_array((string)($props['menuStyle']   ?? ''), ['plain', 'underline', 'button'], true) ? (string)$props['menuStyle'] : 'plain';
 
     if ($menuId <= 0 || !function_exists('cmsGetMenuItemsTree')) {
         return cmsBuilderRenderThemeWidgetShell($attrs, $style, $title, cmsBuilderRenderThemeWidgetEmpty('Select a menu to display here.'));
@@ -1651,25 +1706,54 @@ function cmsRenderWidget_nav_menu(array $props, array $style, array $attrs, stri
         return cmsBuilderRenderThemeWidgetShell($attrs, $style, $title, cmsBuilderRenderThemeWidgetEmpty('This menu does not have any items yet.'));
     }
 
-    return cmsBuilderRenderThemeWidgetShell($attrs, $style, $title, cmsBuilderRenderMenuWidgetItems($items));
+    return cmsBuilderRenderThemeWidgetShell($attrs, $style, $title, cmsBuilderRenderMenuWidgetItems($items, null, 0, $orientation, $menuStyle));
 }
 
 function cmsRenderWidget_recent_posts(array $props, array $style, array $attrs, string $children, array $node, array $context): string
 {
-    $title = trim((string)($props['title'] ?? ''));
-    $count = max(1, min(10, (int)($props['count'] ?? 5)));
-    $showDate = ($props['showDate'] ?? true) !== false;
+    $title         = trim((string)($props['title'] ?? ''));
+    $count         = max(1, min(10, (int)($props['count'] ?? 5)));
+    $showDate      = ($props['showDate'] ?? true) !== false;
+    $showThumbnail = !empty($props['showThumbnail']);
+    $showExcerpt   = !empty($props['showExcerpt']);
+    $orderBy       = (string)($props['orderBy'] ?? 'date');
+    $categoryIds   = is_array($props['categoryIds'] ?? null) ? array_map('intval', (array)$props['categoryIds']) : [];
+    $categoryIds   = array_values(array_filter($categoryIds, fn($v) => $v > 0));
     $posts = [];
 
     try {
+        $orderSql = match ($orderBy) {
+            'title'  => 'c.title ASC',
+            'random' => 'RAND()',
+            default  => 'COALESCE(c.published_at, c.created_at) DESC',
+        };
+        $catJoin  = '';
+        $catWhere = '';
+        $params   = [':n' => [$count, \PDO::PARAM_INT]];
+        if ($categoryIds !== []) {
+            $catJoin  = ' INNER JOIN cms_content_categories cc ON cc.content_id = c.id';
+            $placeholders = [];
+            foreach ($categoryIds as $i => $cid) {
+                $k = ':cat' . $i;
+                $placeholders[] = $k;
+                $params[$k]     = [$cid, \PDO::PARAM_INT];
+            }
+            $catWhere = ' AND cc.category_id IN (' . implode(',', $placeholders) . ')';
+        }
+        $thumbJoin = $showThumbnail ? ' LEFT JOIN cms_media m ON m.id = c.featured_image_id AND m.deleted_at IS NULL' : '';
+        $thumbSel  = $showThumbnail ? ', m.file_key AS featured_image_key' : '';
         $stmt = cmsDb()->prepare(
-            "SELECT c.title, c.slug, COALESCE(c.published_at, c.created_at) AS published_at
-             FROM cms_content c
-             WHERE c.type = 'post' AND c.deleted_at IS NULL AND " . cmsPublicVisibilitySql('c') . "
-             ORDER BY COALESCE(c.published_at, c.created_at) DESC
-             LIMIT :n"
+            "SELECT c.title, c.slug, c.excerpt, COALESCE(c.published_at, c.created_at) AS published_at"
+            . $thumbSel
+            . " FROM cms_content c" . $catJoin . $thumbJoin
+            . " WHERE c.type = 'post' AND c.deleted_at IS NULL AND " . cmsPublicVisibilitySql('c')
+            . $catWhere
+            . " ORDER BY " . $orderSql
+            . " LIMIT :n"
         );
-        $stmt->bindValue(':n', $count, \PDO::PARAM_INT);
+        foreach ($params as $k => $binding) {
+            $stmt->bindValue($k, $binding[0], $binding[1]);
+        }
         $stmt->execute();
         $posts = $stmt->fetchAll(\PDO::FETCH_ASSOC) ?: [];
     } catch (\Throwable $e) {
@@ -1680,17 +1764,28 @@ function cmsRenderWidget_recent_posts(array $props, array $style, array $attrs, 
         return cmsBuilderRenderThemeWidgetShell($attrs, $style, $title, cmsBuilderRenderThemeWidgetEmpty('No published posts found.'));
     }
 
-    $body = '<div style="display:grid;gap:12px">';
+    $body = '<div style="display:grid;gap:16px">';
     foreach ($posts as $post) {
         $slug = trim((string)($post['slug'] ?? ''));
         $href = $slug !== '' && function_exists('cmsBuilderEntityPermalink')
             ? cmsBuilderEntityPermalink('post', $slug)
             : '/cms/blog/' . rawurlencode($slug);
         $postTitle = cmsBuilderEsc((string)($post['title'] ?? 'Untitled'));
-        $body .= '<article style="display:grid;gap:4px">';
+        $body .= '<article style="display:grid;gap:6px">';
+        if ($showThumbnail && !empty($post['featured_image_key'])) {
+            $imgUrl = function_exists('cmsUploadsUrl') ? cmsBuilderEsc(cmsUploadsUrl((string)$post['featured_image_key'])) : '';
+            if ($imgUrl !== '') {
+                $body .= '<a href="' . cmsBuilderEsc($href) . '"><img src="' . $imgUrl . '" alt="' . $postTitle . '" loading="lazy" style="width:100%;height:160px;object-fit:cover;border-radius:4px;display:block"></a>';
+            }
+        }
         $body .= '<a href="' . cmsBuilderEsc($href) . '" style="color:#0f172a;text-decoration:none;font-size:14px;font-weight:600;line-height:1.5">' . $postTitle . '</a>';
         if ($showDate && !empty($post['published_at'])) {
             $body .= '<div style="font-size:12px;line-height:1.4;color:#64748b">' . cmsBuilderEsc(date('M j, Y', strtotime((string)$post['published_at']))) . '</div>';
+        }
+        if ($showExcerpt && !empty($post['excerpt'])) {
+            $raw     = mb_substr(strip_tags((string)$post['excerpt']), 0, 120);
+            $excerpt = mb_strlen((string)$post['excerpt']) > 120 ? $raw . "\u{2026}" : $raw;
+            $body   .= '<div style="font-size:13px;line-height:1.5;color:#475569">' . cmsBuilderEsc($excerpt) . '</div>';
         }
         $body .= '</article>';
     }
@@ -1701,8 +1796,11 @@ function cmsRenderWidget_recent_posts(array $props, array $style, array $attrs, 
 
 function cmsRenderWidget_social_links_widget(array $props, array $style, array $attrs, string $children, array $node, array $context): string
 {
-    $title = trim((string)($props['title'] ?? ''));
+    $title        = trim((string)($props['title'] ?? ''));
     $displayStyle = (string)($props['displayStyle'] ?? 'icons');
+    $iconSize     = max(16, min(64, (int)($props['iconSize'] ?? 40)));
+    $targetBlank  = ($props['targetBlank'] ?? true) !== false;
+    $targetAttr   = $targetBlank ? ' target="_blank" rel="noopener noreferrer"' : '';
     if (!in_array($displayStyle, ['icons', 'labels', 'inline'], true)) {
         $displayStyle = 'icons';
     }
@@ -1726,7 +1824,7 @@ function cmsRenderWidget_social_links_widget(array $props, array $style, array $
         foreach ($links as $link) {
             $label = cmsBuilderEsc((string)($link['label'] ?? 'Link'));
             $url = cmsBuilderEsc((string)($link['url'] ?? '#'));
-            $body .= '<a href="' . $url . '" target="_blank" rel="noopener noreferrer" style="display:inline-flex;align-items:center;justify-content:center;padding:10px 12px;border:1px solid #e5e7eb;border-radius:999px;color:#0f172a;text-decoration:none;font-size:14px;font-weight:500">' . $label . '</a>';
+            $body .= '<a href="' . $url . '"' . $targetAttr . ' style="display:inline-flex;align-items:center;justify-content:center;padding:10px 12px;border:1px solid #e5e7eb;border-radius:999px;color:#0f172a;text-decoration:none;font-size:14px;font-weight:500">' . $label . '</a>';
         }
         $body .= '</div>';
         return cmsBuilderRenderThemeWidgetShell($attrs, $style, $title, $body);
@@ -1737,19 +1835,20 @@ function cmsRenderWidget_social_links_widget(array $props, array $style, array $
         foreach ($links as $link) {
             $label = cmsBuilderEsc((string)($link['label'] ?? 'Link'));
             $url = cmsBuilderEsc((string)($link['url'] ?? '#'));
-            $body .= '<a href="' . $url . '" target="_blank" rel="noopener noreferrer" style="color:#2563eb;text-decoration:none;font-size:14px;font-weight:500">' . $label . '</a>';
+            $body .= '<a href="' . $url . '"' . $targetAttr . ' style="color:#2563eb;text-decoration:none;font-size:14px;font-weight:500">' . $label . '</a>';
         }
         $body .= '</div>';
         return cmsBuilderRenderThemeWidgetShell($attrs, $style, $title, $body);
     }
 
+    $sz  = $iconSize . 'px';
     $body = '<div style="display:flex;flex-wrap:wrap;gap:12px">';
     foreach ($links as $link) {
-        $name = strtolower(trim((string)($link['name'] ?? 'link')));
+        $name  = strtolower(trim((string)($link['name'] ?? 'link')));
         $label = cmsBuilderEsc((string)($link['label'] ?? ucfirst($name)));
-        $url = cmsBuilderEsc((string)($link['url'] ?? '#'));
+        $url   = cmsBuilderEsc((string)($link['url'] ?? '#'));
         $badge = $monograms[$name] ?? strtoupper(substr($name, 0, 2));
-        $body .= '<a href="' . $url . '" target="_blank" rel="noopener noreferrer" title="' . $label . '" aria-label="' . $label . '" style="display:inline-flex;align-items:center;justify-content:center;width:40px;height:40px;border-radius:999px;background-color:#f8fafc;border:1px solid #e2e8f0;color:#0f172a;text-decoration:none;font-size:12px;font-weight:700">' . cmsBuilderEsc($badge) . '</a>';
+        $body .= '<a href="' . $url . '"' . $targetAttr . ' title="' . $label . '" aria-label="' . $label . '" style="display:inline-flex;align-items:center;justify-content:center;width:' . $sz . ';height:' . $sz . ';border-radius:999px;background-color:#f8fafc;border:1px solid #e2e8f0;color:#0f172a;text-decoration:none;font-size:12px;font-weight:700">' . cmsBuilderEsc($badge) . '</a>';
     }
     $body .= '</div>';
 
@@ -1758,14 +1857,21 @@ function cmsRenderWidget_social_links_widget(array $props, array $style, array $
 
 function cmsRenderWidget_contact_info(array $props, array $style, array $attrs, string $children, array $node, array $context): string
 {
-    $title = trim((string)($props['title'] ?? ''));
-    $address = trim((string)($props['address'] ?? ''));
-    $phone = trim((string)($props['phone'] ?? ''));
-    $email = trim((string)($props['email'] ?? ''));
+    $title      = trim((string)($props['title']   ?? ''));
+    $address    = trim((string)($props['address'] ?? ''));
+    $phone      = trim((string)($props['phone']   ?? ''));
+    $email      = trim((string)($props['email']   ?? ''));
+    $website    = trim((string)($props['website'] ?? ''));
+    $showMapLink = ($props['showMapLink'] ?? false) !== false;
 
     $rows = [];
     if ($address !== '') {
-        $rows[] = '<div style="display:grid;gap:4px"><div style="font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#64748b">Address</div><div style="font-size:14px;line-height:1.6;color:#0f172a">' . cmsBuilderEsc($address) . '</div></div>';
+        $mapLink = '';
+        if ($showMapLink) {
+            $mapQuery = rawurlencode($address);
+            $mapLink  = '<div style="margin-top:4px"><a href="https://maps.google.com/?q=' . $mapQuery . '" target="_blank" rel="noopener noreferrer" style="font-size:12px;color:#2563eb;text-decoration:none">View on map &rarr;</a></div>';
+        }
+        $rows[] = '<div style="display:grid;gap:4px"><div style="font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#64748b">Address</div><div style="font-size:14px;line-height:1.6;color:#0f172a">' . cmsBuilderEsc($address) . $mapLink . '</div></div>';
     }
     if ($phone !== '') {
         $phoneHref = preg_replace('/[^0-9+]/', '', $phone) ?? '';
@@ -1776,6 +1882,11 @@ function cmsRenderWidget_contact_info(array $props, array $style, array $attrs, 
     }
     if ($email !== '') {
         $rows[] = '<div style="display:grid;gap:4px"><div style="font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#64748b">Email</div><div style="font-size:14px;line-height:1.6;color:#0f172a"><a href="mailto:' . cmsBuilderEsc($email) . '" style="color:#0f172a;text-decoration:none">' . cmsBuilderEsc($email) . '</a></div></div>';
+    }
+    if ($website !== '') {
+        $websiteHref  = cmsBuilderEsc($website);
+        $websiteLabel = cmsBuilderEsc(preg_replace('#^https?://#', '', $website) ?? $website);
+        $rows[] = '<div style="display:grid;gap:4px"><div style="font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#64748b">Website</div><div style="font-size:14px;line-height:1.6;color:#0f172a"><a href="' . $websiteHref . '" target="_blank" rel="noopener noreferrer" style="color:#2563eb;text-decoration:none">' . $websiteLabel . '</a></div></div>';
     }
 
     $body = $rows === []
@@ -1922,21 +2033,49 @@ function cmsRenderWidget_archives(array $props, array $style, array $attrs, stri
 
 function cmsRenderWidget_opening_hours(array $props, array $style, array $attrs, string $children, array $node, array $context): string
 {
-    $title = trim((string)($props['title'] ?? ''));
-    $text = trim((string)($props['text'] ?? ''));
-    $showIcon = ($props['showIcon'] ?? true) !== false;
-
-    if ($text === '') {
-        return cmsBuilderRenderThemeWidgetShell($attrs, $style, $title, cmsBuilderRenderThemeWidgetEmpty('Add your opening hours text to display this widget.'));
-    }
+    $title       = trim((string)($props['title'] ?? ''));
+    $displayMode = (string)($props['displayMode'] ?? 'text');
+    $showIcon    = ($props['showIcon'] ?? true) !== false;
 
     $icon = '';
     if ($showIcon) {
         $icon = '<span aria-hidden="true" style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:999px;background-color:#f8fafc;border:1px solid #e2e8f0;color:#0f172a;flex-shrink:0"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg></span>';
     }
 
-    $body = '<div style="display:flex;align-items:flex-start;gap:12px;font-size:14px;line-height:1.6;color:#0f172a">' . $icon . '<div>' . cmsBuilderEsc($text) . '</div></div>';
+    if ($displayMode === 'table') {
+        $schedule = is_array($props['schedule'] ?? null) ? $props['schedule'] : [];
+        $days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+        $hasAny = false;
+        $rows = '';
+        foreach ($days as $day) {
+            $entry  = is_array($schedule[$day] ?? null) ? $schedule[$day] : [];
+            $closed = !empty($entry['closed']);
+            $open   = trim((string)($entry['open']  ?? ''));
+            $close  = trim((string)($entry['close'] ?? ''));
+            if ($open !== '' || $close !== '' || $closed) {
+                $hasAny = true;
+            }
+            $hoursText = $closed ? 'Closed' : (($open !== '' || $close !== '') ? trim($open . ($close !== '' ? ' – ' . $close : '')) : '—');
+            $dayColor  = $closed ? '#94a3b8' : '#0f172a';
+            $rows .= '<div style="display:contents">'
+                . '<div style="font-size:13px;color:#64748b;padding:4px 0">' . cmsBuilderEsc($day) . '</div>'
+                . '<div style="font-size:13px;color:' . $dayColor . ';padding:4px 0;text-align:right">' . cmsBuilderEsc($hoursText) . '</div>'
+                . '</div>';
+        }
+        if (!$hasAny) {
+            return cmsBuilderRenderThemeWidgetShell($attrs, $style, $title, cmsBuilderRenderThemeWidgetEmpty('Set your opening hours in the editor to display this widget.'));
+        }
+        $tableHtml = '<div style="display:grid;grid-template-columns:auto 1fr;gap:0 16px">' . $rows . '</div>';
+        $body = $icon !== '' ? '<div style="display:flex;align-items:flex-start;gap:12px">' . $icon . $tableHtml . '</div>' : $tableHtml;
+        return cmsBuilderRenderThemeWidgetShell($attrs, $style, $title, $body);
+    }
 
+    // Fallback: free-text mode
+    $text = trim((string)($props['text'] ?? ''));
+    if ($text === '') {
+        return cmsBuilderRenderThemeWidgetShell($attrs, $style, $title, cmsBuilderRenderThemeWidgetEmpty('Add your opening hours text to display this widget.'));
+    }
+    $body = '<div style="display:flex;align-items:flex-start;gap:12px;font-size:14px;line-height:1.6;color:#0f172a">' . $icon . '<div>' . cmsBuilderEsc($text) . '</div></div>';
     return cmsBuilderRenderThemeWidgetShell($attrs, $style, $title, $body);
 }
 
@@ -2088,7 +2227,14 @@ function cmsRenderWidget_code_block(array $props, array $style, array $attrs, st
         $headerRight = '<button type="button" class="cms-code-copy" style="background:transparent;border:none;cursor:pointer;color:inherit;font-size:12px;padding:2px 8px" data-code="' . $code . '" onclick="navigator.clipboard.writeText(this.dataset.code);this.textContent=\'Copied!\';setTimeout(()=>this.textContent=\'Copy\',1500)">Copy</button>';
     }
     $html = '<div' . cmsBuilderAttrString($attrs) . cmsBuilderStyleAttr(array_merge(['borderRadius' => '8px', 'overflow' => 'hidden'], $style)) . '>';
-    $html .= '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 16px;background:' . ($theme === 'light' ? '#e2e8f0' : '#181825') . ';font-size:12px;color:' . ($theme === 'light' ? '#64748b' : '#a6adc8') . '">' . $lang . $headerRight . '</div>';
+    $html .= '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 16px;background:' . ($theme === 'light' ? '#e2e8f0' : '#181825') . ';font-size:12px;color:' . ($theme === 'light' ? '#64748b' : '#a6adc8') . '">';
+    $caption = trim((string)($props['caption'] ?? ''));
+    if ($caption !== '') {
+        $html .= '<span>' . cmsBuilderEsc($caption) . '<span style="margin-left:8px;opacity:0.55">' . $lang . '</span></span>';
+    } else {
+        $html .= $lang;
+    }
+    $html .= $headerRight . '</div>';
     if ($showLineNumbers) {
         $lines = explode("\n", $code);
         $lineNums = '';
