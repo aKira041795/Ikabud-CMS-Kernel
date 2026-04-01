@@ -18,10 +18,10 @@
         "dl_products",
         "dl_product_price_history",
         "dl_branch_products",
-        "dl_production_movements"
+        "dl_production_movements",
+        "audit_logs"
     ],
     "reads_tables": [
-        "audit_logs",
         "rate_limits",
         "refresh_tokens",
         "users"
