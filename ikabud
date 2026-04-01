@@ -2612,11 +2612,18 @@ PHP;
             $scanDirs = [
                 BASE_PATH . '/templates',
             ];
-            // Add module template dirs
+            // Add module template dirs and module public dirs (ecommerce, cms, etc.)
             foreach (glob(BASE_PATH . '/modules/*/') as $modDir) {
                 $modTemplates = $modDir . 'templates';
                 if (is_dir($modTemplates)) {
                     $scanDirs[] = $modTemplates;
+                }
+                // Also scan module public/ and other top-level .disyl locations
+                foreach (['public', 'views', 'pages'] as $subDir) {
+                    $candidate = rtrim($modDir, '/') . '/' . $subDir;
+                    if (is_dir($candidate)) {
+                        $scanDirs[] = $candidate;
+                    }
                 }
             }
             foreach ($scanDirs as $dir) {
@@ -2634,6 +2641,139 @@ PHP;
 
         sort($files);
         $fileCount = count($files);
+
+        // ── Contract map builder ─────────────────────────────────
+        // Statically extract template-to-declared-key mappings from module
+        // helper files that call kernelRegisterRenderContextContract().
+        // Only contracts with explicit 'required' or 'defaults' keys are
+        // included — contracts that rely solely on a normalize callback are
+        // skipped to avoid false-positive warnings.
+
+        /** Find the contents of a PHP array block starting at $openPos.
+         *  Returns the full substring from '[' to its matching ']'. */
+        function disylExtractArrayBlock(string $src, int $openPos): string
+        {
+            $depth = 0;
+            $end = -1;
+            for ($i = $openPos, $len = strlen($src); $i < $len; $i++) {
+                if ($src[$i] === '[') {
+                    $depth++;
+                } elseif ($src[$i] === ']') {
+                    $depth--;
+                    if ($depth === 0) {
+                        $end = $i;
+                        break;
+                    }
+                }
+            }
+            return $end !== -1 ? substr($src, $openPos, $end - $openPos + 1) : '';
+        }
+
+        /**
+         * @return array<string, list<string>>  key is template path or 'prefix:pfx',
+         *                                       value is list of declared variable root names
+         */
+        function disylBuildContractMap(): array
+        {
+            $contractMap = [];
+            $sources = [];
+
+            if (is_dir(BASE_PATH . '/modules')) {
+                $phpFiles = new RecursiveIteratorIterator(
+                    new RecursiveDirectoryIterator(BASE_PATH . '/modules', FilesystemIterator::SKIP_DOTS)
+                );
+                foreach ($phpFiles as $phpFile) {
+                    if (!$phpFile->isFile() || $phpFile->getExtension() !== 'php') {
+                        continue;
+                    }
+                    $src = file_get_contents($phpFile->getPathname());
+                    if (strpos($src, 'kernelRegisterRenderContextContract(') !== false) {
+                        $sources[] = $src;
+                    }
+                }
+            }
+
+            foreach ($sources as $src) {
+                $offset = 0;
+                while (($pos = strpos($src, 'kernelRegisterRenderContextContract(', $offset)) !== false) {
+                    // Find the opening '[' of the definition array
+                    $bracketStart = strpos($src, '[', $pos);
+                    if ($bracketStart === false) {
+                        $offset = $pos + 1;
+                        continue;
+                    }
+                    $defBlock = disylExtractArrayBlock($src, $bracketStart);
+                    if ($defBlock === '') {
+                        $offset = $pos + 1;
+                        continue;
+                    }
+
+                    // Extract template path matchers
+                    $templates = [];
+                    $prefixes  = [];
+                    if (preg_match("/'template'\s*=>\s*'([^']+)'/", $defBlock, $m)) {
+                        $templates[] = $m[1];
+                    }
+                    if (preg_match("/'templates'\s*=>\s*(\[)/", $defBlock, $m, PREG_OFFSET_CAPTURE)) {
+                        $tplBlock = disylExtractArrayBlock($defBlock, $m[1][1]);
+                        preg_match_all("/'([^']+\.disyl)'/", $tplBlock, $ms);
+                        $templates = array_merge($templates, $ms[1]);
+                    }
+                    if (preg_match("/'prefix'\s*=>\s*'([^']+)'/", $defBlock, $m)) {
+                        $prefixes[] = $m[1];
+                    }
+                    if (preg_match("/'prefixes'\s*=>\s*(\[)/", $defBlock, $m, PREG_OFFSET_CAPTURE)) {
+                        $pfxBlock = disylExtractArrayBlock($defBlock, $m[1][1]);
+                        preg_match_all("/'([^']+)'/", $pfxBlock, $ms);
+                        $prefixes = array_merge($prefixes, $ms[1]);
+                    }
+
+                    if ($templates === [] && $prefixes === []) {
+                        $offset = $bracketStart + strlen($defBlock);
+                        continue;
+                    }
+
+                    // Extract declared keys from 'required' and 'defaults'
+                    $declaredKeys = [];
+                    if (preg_match("/'required'\s*=>\s*(\[)/", $defBlock, $m, PREG_OFFSET_CAPTURE)) {
+                        $reqBlock = disylExtractArrayBlock($defBlock, $m[1][1]);
+                        preg_match_all("/'([a-zA-Z_][a-zA-Z0-9_]*)'/", $reqBlock, $ms);
+                        $declaredKeys = array_merge($declaredKeys, $ms[1]);
+                    }
+                    if (preg_match("/'defaults'\s*=>\s*(\[)/", $defBlock, $m, PREG_OFFSET_CAPTURE)) {
+                        $dflBlock = disylExtractArrayBlock($defBlock, $m[1][1]);
+                        preg_match_all("/'([a-zA-Z_][a-zA-Z0-9_]*)'\s*=>/", $dflBlock, $ms);
+                        $declaredKeys = array_merge($declaredKeys, $ms[1]);
+                    }
+
+                    // Skip contracts with no explicit declared keys — normalize-only
+                    // contracts are opaque to static analysis
+                    if (empty($declaredKeys)) {
+                        $offset = $bracketStart + strlen($defBlock);
+                        continue;
+                    }
+
+                    $declaredKeys = array_values(array_unique($declaredKeys));
+                    foreach ($templates as $tpl) {
+                        $contractMap[$tpl] = array_values(array_unique(
+                            array_merge($contractMap[$tpl] ?? [], $declaredKeys)
+                        ));
+                    }
+                    foreach ($prefixes as $pfx) {
+                        $key = 'prefix:' . $pfx;
+                        $contractMap[$key] = array_values(array_unique(
+                            array_merge($contractMap[$key] ?? [], $declaredKeys)
+                        ));
+                    }
+
+                    $offset = $bracketStart + strlen($defBlock);
+                }
+            }
+
+            return $contractMap;
+        }
+
+        $contractMap = disylBuildContractMap();
 
         out('  ' . bold('DiSyL Template Linter'));
         out('  Scanning ' . cyan((string)$fileCount) . ' template(s)...');
@@ -2788,6 +2928,77 @@ PHP;
                     $lineNum = substr_count($content, "\n", 0, $cMatches[0][0][1]) + 1;
                     $issues[] = ['type' => 'warning', 'line' => $lineNum,
                         'msg' => "{/{$closeTag}} found but no {{$closeTag}} — did you mean {/{$confusedWith}}?"];
+                }
+            }
+
+            // ── Check 8: Contract-aware variable root check ──
+            // Fires only when a contract with explicit required/defaults keys
+            // matches the current template; warns about variable roots that are
+            // not declared in the contract or provided by the kernel base context.
+            $matchedDeclaredKeys = null;
+            if (isset($contractMap[$relPath])) {
+                $matchedDeclaredKeys = $contractMap[$relPath];
+            }
+            if ($matchedDeclaredKeys === null) {
+                foreach ($contractMap as $mapKey => $mapKeys) {
+                    if (str_starts_with($mapKey, 'prefix:')) {
+                        $pfx = substr($mapKey, 7);
+                        if ($pfx !== '' && str_starts_with($relPath, $pfx)) {
+                            $matchedDeclaredKeys = array_values(array_unique(
+                                array_merge($matchedDeclaredKeys ?? [], $mapKeys)
+                            ));
+                        }
+                    }
+                }
+            }
+
+            if ($matchedDeclaredKeys !== null) {
+                // Kernel base context always provides these roots
+                $kernelBaseKeys = [
+                    'user', 'nav_items', 'gui', 'base_url', 'request_uri',
+                    'page_meta', 'module_settings', 'csrf_token', 'flash',
+                    'errors', 'site_name', 'loop',
+                ];
+
+                // Collect loop-scoped variable names declared inside the template
+                $loopVars = [];
+                preg_match_all('/\{foreach\s+\S+\s+as\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*\}/', $lintContent, $lm);
+                $loopVars = array_merge($loopVars, $lm[1] ?? []);
+                preg_match_all('/\{each\s+\S+\s+as\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*\}/', $lintContent, $lm);
+                $loopVars = array_merge($loopVars, $lm[1] ?? []);
+                preg_match_all('/\{for\s+([a-zA-Z_][a-zA-Z0-9_]*)\s+in\s+/', $lintContent, $lm);
+                $loopVars = array_merge($loopVars, $lm[1] ?? []);
+
+                // Collect {set}-declared variable names
+                $setVars = [];
+                preg_match_all('/\{set\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*=/', $lintContent, $sm);
+                $setVars = $sm[1] ?? [];
+
+                // DiSyL keywords that look like variables but are not data roots
+                $disylKeywords = [
+                    'if', 'elseif', 'else', 'endif', 'for', 'foreach', 'each',
+                    'set', 'include', 'extends', 'block', 'endblock', 'literal',
+                    'verbatim', 'empty', 'component', 'slot', 'props', 'end',
+                    'partial', 'yield', 'true', 'false', 'null',
+                ];
+
+                // Extract all bare variable root names from the template
+                preg_match_all('/\{([a-zA-Z_][a-zA-Z0-9_]*)[\s.\|}\[]/m', $lintContent, $vm);
+                $usedRoots = array_unique($vm[1] ?? []);
+
+                $allAllowed = array_merge($kernelBaseKeys, $matchedDeclaredKeys, $loopVars, $setVars);
+                foreach ($usedRoots as $root) {
+                    if (in_array($root, $disylKeywords, true)) {
+                        continue;
+                    }
+                    if (in_array($root, $allAllowed, true)) {
+                        continue;
+                    }
+                    $issues[] = [
+                        'type' => 'warning',
+                        'line' => 0,
+                        'msg'  => "Variable root \"{$root}\" is not declared in the matched render contract (not in required/defaults)",
+                    ];
                 }
             }
 

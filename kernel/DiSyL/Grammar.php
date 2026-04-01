@@ -21,7 +21,7 @@ namespace Ikabud\Kernel\DiSyL;
 class Grammar
 {
     // ========== Schema Version ==========
-    public const SCHEMA_VERSION = '2.0.0';
+    public const SCHEMA_VERSION = '4.0.0';
     
     // ========== Type Constants ==========
     public const TYPE_STRING = 'string';

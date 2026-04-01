@@ -72,6 +72,9 @@ class TemplateEngine
     
     /** @var array In-memory cache of compiled output per request */
     private array $outputCache = [];
+
+    /** Maximum number of entries in the in-memory output cache */
+    private const OUTPUT_CACHE_MAX = 200;
     
     public function render(string $template, array $context = []): string
     {
@@ -94,6 +97,12 @@ class TemplateEngine
             }
             
             $result = $this->compile($content, $context);
+
+            // Evict oldest entry when cache is full to bound memory growth
+            if (count($this->outputCache) >= self::OUTPUT_CACHE_MAX) {
+                reset($this->outputCache);
+                unset($this->outputCache[key($this->outputCache)]);
+            }
             $this->outputCache[$memKey] = $result;
             return $result;
         }
@@ -472,45 +481,89 @@ class TemplateEngine
     }
     
     /**
-     * Process template extends with HTMX partial support
+     * Process template extends with HTMX partial support.
+     * Supports multi-level inheritance (grandchild → parent → grandparent).
+     * Detects and breaks circular {extends} chains.
+     *
+     * Algorithm: walk the full inheritance chain, collecting block overrides
+     * from child to root (child wins). Apply all overrides to the root ancestor
+     * in a single pass — no recursive merging, avoids nested-block ambiguity.
      */
     private function processExtends(string $content, array $context): string
     {
         $isHtmx = !empty($context['is_htmx']);
-        
-        if (preg_match('/\{extends\s+"([^"]+)"\s*\}/', $content, $match)) {
-            if ($isHtmx) {
-                // For HTMX: extract block content without layout
-                preg_match_all('/\{block\s+(\w+)\}(.*?)\{\/block\}/s', $content, $blocks, PREG_SET_ORDER);
-                $blockContent = '';
-                foreach ($blocks as $block) {
-                    $blockContent .= $block[2];
-                }
-                return preg_replace('/\{extends\s+"[^"]+"\s*\}/', '', $blockContent ?: $content);
+
+        if (!preg_match('/\{extends\s+"([^"]+)"\s*\}/', $content, $match)) {
+            return $content;
+        }
+
+        if ($isHtmx) {
+            // For HTMX: extract block content without any layout wrapping
+            preg_match_all('/\{block\s+(\w+)\}(.*?)\{\/block\}/s', $content, $blocks, PREG_SET_ORDER);
+            $blockContent = '';
+            foreach ($blocks as $block) {
+                $blockContent .= $block[2];
             }
-            
-            // Full page: apply layout inheritance
-            $layoutPath = $this->resolveTemplatePath($match[1]);
-            if (file_exists($layoutPath)) {
-                $layout = file_get_contents($layoutPath);
-                
-                // Extract blocks from child
-                preg_match_all('/\{block\s+(\w+)\}(.*?)\{\/block\}/s', $content, $blocks, PREG_SET_ORDER);
-                $childBlocks = [];
-                foreach ($blocks as $block) {
-                    $childBlocks[$block[1]] = $block[2];
+            return preg_replace('/\{extends\s+"[^"]+"\s*\}/', '', $blockContent ?: $content);
+        }
+
+        // Walk the full inheritance chain from child → root, collecting each template.
+        // $chain[0] is the child; last element is the first ancestor with no {extends}.
+        $chain    = [];
+        $seenPaths = [];
+        $current  = $content;
+
+        while (preg_match('/\{extends\s+"([^"]+)"\s*\}/', $current, $extMatch)) {
+            $layoutName = $extMatch[1];
+            $layoutPath = $this->resolveTemplatePath($layoutName);
+
+            if (!file_exists($layoutPath)) {
+                // Missing layout: strip directive and treat this as the root
+                $current = preg_replace('/\{extends\s+"[^"]+"\s*\}/', '', $current);
+                break;
+            }
+
+            $realPath = realpath($layoutPath) ?: $layoutPath;
+            if (isset($seenPaths[$realPath])) {
+                $this->logError("Circular {extends} detected: \"{$layoutName}\"");
+                $current = preg_replace('/\{extends\s+"[^"]+"\s*\}/', '', $current);
+                break;
+            }
+
+            $seenPaths[$realPath] = true;
+            $chain[] = $current;
+            $current = file_get_contents($layoutPath);
+        }
+
+        // $current is now the root ancestor. Collect block overrides from the chain
+        // with child definitions winning over parent definitions (first one wins).
+        $allBlocks = [];
+        foreach ($chain as $template) {
+            preg_match_all('/\{block\s+(\w+)\}(.*?)\{\/block\}/s', $template, $blocks, PREG_SET_ORDER);
+            foreach ($blocks as $block) {
+                if (!isset($allBlocks[$block[1]])) {
+                    $allBlocks[$block[1]] = $block[2];
                 }
-                
-                // Replace blocks in layout
-                $content = preg_replace_callback(
-                    '/\{block\s+(\w+)\}(.*?)\{\/block\}/s',
-                    fn($m) => $childBlocks[$m[1]] ?? $m[2],
-                    $layout
-                );
             }
         }
-        
-        return preg_replace('/\{extends\s+"[^"]+"\s*\}/', '', $content);
+
+        // Apply all collected overrides to the root ancestor in one pass.
+        // Iterate until stable to handle multiple block levels in the ancestor itself.
+        $result   = $current;
+        $maxPasses = 10;
+        for ($pass = 0; $pass < $maxPasses; $pass++) {
+            $new = preg_replace_callback(
+                '/\{block\s+(\w+)\}(.*?)\{\/block\}/s',
+                fn($m) => $allBlocks[$m[1]] ?? $m[2],
+                $result
+            );
+            if ($new === $result) {
+                break;
+            }
+            $result = $new;
+        }
+
+        return preg_replace('/\{extends\s+"[^"]+"\s*\}/', '', $result ?? $current);
     }
     
     /**
@@ -798,13 +851,28 @@ class TemplateEngine
         }
         
         $body = substr($content, $afterOpen, $closePos - $afterOpen);
-        
+
+        // Extract optional {empty} clause (content shown when list is empty)
+        $emptyContent = '';
+        if (($emptyTagPos = strpos($body, '{empty}')) !== false) {
+            $emptyContent = substr($body, $emptyTagPos + 7);
+            $body = substr($body, 0, $emptyTagPos);
+        }
+
         // Get the list
         $list = $this->resolveValue($listExpr, $context);
         if (!is_array($list)) {
             $list = [];
         }
-        
+
+        $closeLen = strlen('{/for}');
+
+        // Empty list — render {empty} clause if present
+        if (empty($list)) {
+            $emptyResult = $emptyContent !== '' ? $this->compile($emptyContent, $context) : '';
+            return substr($content, 0, $startPos) . $emptyResult . substr($content, $closePos + $closeLen);
+        }
+
         // Iterate
         $result = '';
         $index = 0;
@@ -826,7 +894,6 @@ class TemplateEngine
             $index++;
         }
         
-        $closeLen = strlen('{/for}');
         return substr($content, 0, $startPos) . $result . substr($content, $closePos + $closeLen);
     }
     
@@ -864,13 +931,28 @@ class TemplateEngine
         }
         
         $body = substr($content, $afterOpen, $closePos - $afterOpen);
-        
+
+        // Extract optional {empty} clause (content shown when list is empty)
+        $emptyContent = '';
+        if (($emptyTagPos = strpos($body, '{empty}')) !== false) {
+            $emptyContent = substr($body, $emptyTagPos + 7);
+            $body = substr($body, 0, $emptyTagPos);
+        }
+
         // Get the list
         $list = $this->resolveValue($listExpr, $context);
         if (!is_array($list)) {
             $list = [];
         }
-        
+
+        $closeLen = strlen('{/foreach}');
+
+        // Empty list — render {empty} clause if present
+        if (empty($list)) {
+            $emptyResult = $emptyContent !== '' ? $this->compile($emptyContent, $context) : '';
+            return substr($content, 0, $startPos) . $emptyResult . substr($content, $closePos + $closeLen);
+        }
+
         // Iterate
         $result = '';
         $index = 0;
@@ -895,7 +977,6 @@ class TemplateEngine
             $index++;
         }
         
-        $closeLen = strlen('{/foreach}');
         return substr($content, 0, $startPos) . $result . substr($content, $closePos + $closeLen);
     }
     
@@ -933,13 +1014,28 @@ class TemplateEngine
         }
         
         $body = substr($content, $afterOpen, $closePos - $afterOpen);
-        
+
+        // Extract optional {empty} clause (content shown when list is empty)
+        $emptyContent = '';
+        if (($emptyTagPos = strpos($body, '{empty}')) !== false) {
+            $emptyContent = substr($body, $emptyTagPos + 7);
+            $body = substr($body, 0, $emptyTagPos);
+        }
+
         // Get the list
         $list = $this->resolveValue($listExpr, $context);
         if (!is_array($list)) {
             $list = [];
         }
-        
+
+        $closeLen = strlen('{/each}');
+
+        // Empty list — render {empty} clause if present
+        if (empty($list)) {
+            $emptyResult = $emptyContent !== '' ? $this->compile($emptyContent, $context) : '';
+            return substr($content, 0, $startPos) . $emptyResult . substr($content, $closePos + $closeLen);
+        }
+
         // Iterate
         $result = '';
         $index = 0;
@@ -964,7 +1060,6 @@ class TemplateEngine
             $index++;
         }
         
-        $closeLen = strlen('{/each}');
         return substr($content, 0, $startPos) . $result . substr($content, $closePos + $closeLen);
     }
     
@@ -1006,6 +1101,9 @@ class TemplateEngine
         return false;
     }
     
+    /** @var array Include stack for circular-include detection (keyed by real path) */
+    private array $includeStack = [];
+
     /**
      * Process includes
      */
@@ -1023,6 +1121,14 @@ class TemplateEngine
                         $this->logError("Include not found: {$match[1]}");
                         return '';
                     }
+
+                    // Circular include detection
+                    $realPath = realpath($includePath) ?: $includePath;
+                    if (isset($this->includeStack[$realPath])) {
+                        $this->logError("Circular include detected: {$match[1]}");
+                        return '';
+                    }
+                    $this->includeStack[$realPath] = true;
                     
                     $includeContext = $context;
                     if (!empty($match[2])) {
@@ -1031,7 +1137,10 @@ class TemplateEngine
                     }
                     
                     $includeContent = file_get_contents($includePath);
-                    return $this->compile($includeContent, $includeContext);
+                    $result = $this->compile($includeContent, $includeContext);
+
+                    unset($this->includeStack[$realPath]);
+                    return $result;
                 },
                 $content
             );
@@ -1679,7 +1788,15 @@ class TemplateEngine
         $this->filters = [
             'esc_html' => fn($v) => htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8'),
             'esc_attr' => fn($v) => htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8'),
-            'esc_url' => fn($v) => filter_var($v, FILTER_SANITIZE_URL),
+            'esc_url' => function($v) {
+                $url = filter_var((string) $v, FILTER_SANITIZE_URL);
+                // Reject dangerous schemes that survive FILTER_SANITIZE_URL
+                $scheme = strtolower((string) parse_url($url, PHP_URL_SCHEME));
+                if ($scheme !== '' && !in_array($scheme, ['http', 'https', 'mailto', 'tel', 'ftp'], true)) {
+                    return '#';
+                }
+                return $url;
+            },
             'esc_js' => fn($v) => str_replace(
                 ['\\', "'", '"', "\n", "\r", '</', "\xe2\x80\xa8", "\xe2\x80\xa9"],
                 ['\\\\', "\\'", '\\"', '\\n', '\\r', '<\\/', '\\u2028', '\\u2029'],
@@ -1745,10 +1862,42 @@ class TemplateEngine
         }
 
         if (str_starts_with($template, '/')) {
+            // Absolute paths are used by trusted kernel/module callers only.
             return $template;
         }
 
-        return $this->templateDir . '/' . $template;
+        // Normalize to detect and block path traversal (e.g. ../../etc/passwd.disyl)
+        $candidate = $this->templateDir . '/' . $template;
+        $normalizedCandidate = $this->normalizePath($candidate);
+        $normalizedTemplateDir = $this->normalizePath($this->templateDir);
+
+        if (!str_starts_with($normalizedCandidate, $normalizedTemplateDir . '/')) {
+            $this->logError("Path traversal attempt blocked: {$template}");
+            return ''; // Will trigger "Template not found" gracefully
+        }
+
+        return $candidate;
+    }
+
+    /**
+     * Normalize a filesystem path by resolving '..' and '.' segments.
+     * Works on paths that may not exist on disk (unlike realpath()).
+     */
+    private function normalizePath(string $path): string
+    {
+        $parts = explode('/', $path);
+        $normalized = [];
+        foreach ($parts as $part) {
+            if ($part === '' || $part === '.') {
+                continue;
+            }
+            if ($part === '..') {
+                array_pop($normalized);
+            } else {
+                $normalized[] = $part;
+            }
+        }
+        return '/' . implode('/', $normalized);
     }
 
     /**
@@ -1809,6 +1958,24 @@ class TemplateEngine
         return !empty($htmxAttrs) ? ' ' . implode(' ', $htmxAttrs) : '';
     }
     
+    /**
+     * Sanitize a URL for use in an href attribute.
+     * Rejects javascript:, vbscript:, and data: schemes to prevent XSS.
+     */
+    private function sanitizeHref(string $href): string
+    {
+        $href = trim($href);
+        if ($href === '') {
+            return '#';
+        }
+        // Check scheme — strip everything before first colon and compare
+        $scheme = strtolower((string) parse_url($href, PHP_URL_SCHEME));
+        if ($scheme !== '' && !in_array($scheme, ['http', 'https', 'mailto', 'tel', 'ftp'], true)) {
+            return '#';
+        }
+        return htmlspecialchars($href, ENT_QUOTES, 'UTF-8');
+    }
+
     private function renderSection(array $attrs, string $children): string
     {
         $padding = $attrs['padding'] ?? 'medium';
@@ -1948,7 +2115,8 @@ class TemplateEngine
         $htmx = $this->buildHtmxAttrs($attrs);
         
         if ($href && !$disabled) {
-            return "<a href=\"{$href}\" class=\"inline-flex items-center justify-center rounded-lg font-medium transition {$variantClass} {$sizeClass} {$class}\"{$htmx}>{$children}</a>";
+            $safeHref = $this->sanitizeHref($href);
+            return "<a href=\"{$safeHref}\" class=\"inline-flex items-center justify-center rounded-lg font-medium transition {$variantClass} {$sizeClass} {$class}\"{$htmx}>{$children}</a>";
         }
         
         return "<button type=\"{$type}\" class=\"inline-flex items-center justify-center rounded-lg font-medium transition {$variantClass} {$sizeClass} {$disabledClass} {$class}\"{$disabledAttr}{$htmx}>{$children}</button>";
@@ -2043,8 +2211,8 @@ class TemplateEngine
     
     private function renderLink(array $attrs, string $children): string
     {
-        $href = $attrs['href'] ?? '#';
-        $class = $attrs['class'] ?? 'text-indigo-600 hover:underline';
+        $href = $this->sanitizeHref($attrs['href'] ?? '#');
+        $class = htmlspecialchars($attrs['class'] ?? 'text-indigo-600 hover:underline', ENT_QUOTES, 'UTF-8');
         $htmx = $this->buildHtmxAttrs($attrs);
         
         return "<a href=\"{$href}\" class=\"{$class}\"{$htmx}>{$children}</a>";

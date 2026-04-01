@@ -76,6 +76,11 @@ use Ikabud\Kernel\DiSyL\Services\SecurityService;
 use Ikabud\Kernel\DiSyL\Services\FederationService;
 use Ikabud\Kernel\DiSyL\Services\ExperimentService;
 
+/**
+ * @internal This class is aspirational v11 scaffolding and is NOT yet functional.
+ * Do NOT instantiate. The live template engine is {@see \Ikabud\Kernel\DiSyL\TemplateEngine}.
+ * @deprecated Will be superseded by a complete v11 implementation.
+ */
 class DiSyLEngine
 {
     // Core components
@@ -161,6 +166,10 @@ class DiSyLEngine
     
     public function __construct(?CMSAdapterInterface $cms = null)
     {
+        throw new \LogicException(
+            'DiSyLEngine is not yet implemented. Use ' . TemplateEngine::class . ' instead.'
+        );
+        // @phpstan-ignore-next-line
         $this->parser = new Parser();
         $this->filters = new FilterRegistry();
         $this->cms = $cms ?? new NullAdapter();
