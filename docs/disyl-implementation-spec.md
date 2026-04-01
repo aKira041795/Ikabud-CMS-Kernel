@@ -2,7 +2,7 @@
 
 **Engine:** `kernel/DiSyL/TemplateEngine.php`  
 **Version:** 4.0.0  
-**Test suite:** `tests/disyl_engine_test.php` (211 tests, 34 sections)  
+**Test suite:** `tests/disyl_engine_test.php` (243 tests, 40 sections)  
 **Linter:** `php ikabud disyl:lint [path] [--verbose]`
 
 ---
@@ -23,8 +23,9 @@
 12. [Components](#components)
 13. [Globals](#globals)
 14. [Custom Filters](#custom-filters)
-15. [Error Handling](#error-handling)
-16. [Linter Checks](#linter-checks)
+15. [Security](#security)
+16. [Error Handling](#error-handling)
+17. [Linter Checks](#linter-checks)
 
 ---
 
@@ -225,6 +226,16 @@ Loop variables: `{loop.index}` (0-based), `{loop.index1}` (1-based), `{loop.firs
 {/for}
 ```
 
+Empty clause (rendered when the iterable resolves to an empty list):
+
+```disyl
+{for item in items}
+  <li>{item}</li>
+{empty}
+  <p>No items found.</p>
+{/for}
+```
+
 ### Foreach Loops
 
 Iterate over arrays.
@@ -414,6 +425,29 @@ DiSyL variables **inside** script tags still work when they follow template synt
 
 Unoverridden blocks fall back to the parent's default content.
 
+### Multi-level inheritance
+
+Chains of any depth are supported. A grandchild can extend a parent that itself extends a grandparent:
+
+```disyl
+{!-- grandparent: base.disyl --}
+<html><body>{block content}default{/block}</body></html>
+
+{!-- parent: layout.disyl --}
+{extends "base"}
+{block content}<main>{block body}parent body{/block}</main>{/block}
+
+{!-- child: page.disyl --}
+{extends "layout"}
+{block body}<h1>{title}</h1>{/block}
+```
+
+Block resolution: the most-derived child's declaration wins. Uninherited blocks in intermediate parents are preserved without modification.
+
+Circular `{extends}` chains (A extends B extends A) are detected at render time and break gracefully — the engine logs the error and renders what it has so far.
+
+**Limitation:** nesting `{block}` directives inside other `{block}` bodies in the same template file is not supported. Place nested structure in the ancestor template, not in the child overrides.
+
 ### HTMX Partial Mode
 
 When `is_htmx` is truthy in context, `{extends}` is skipped and only block contents are emitted — enabling HTMX partial responses without layout chrome.
@@ -495,18 +529,33 @@ Custom filters chain with built-in filters normally.
 
 ---
 
+## Security
+
+### Path traversal protection
+
+Template names passed to `{include}` and `{extends}` are normalized before resolution. Path segments containing `..` that would escape the configured `templateDir` are blocked. The engine logs the attempt and returns an empty string for the include.
+
+Absolute paths from trusted callers (e.g. module render helpers) are permitted.
+
+### URL sanitization
+
+The `esc_url` filter and the `href` attribute of `{ikb_button}` / `{ikb_link}` components reject dangerous URL schemes (`javascript:`, `vbscript:`, `data:`) and return `#` in their place. Safe schemes: `http`, `https`, `mailto`, `tel`, `ftp`, and relative paths.
+
+---
+
 ## Error Handling
 
 - Missing variables render as empty string (no exception)
 - Missing include files render as empty string
 - Invalid filter names render the value unchanged
-- Circular `{extends}` references are caught and produce an error
+- Circular `{extends}` references are detected and logged; rendering continues with available content
+- Circular `{include}` references are detected after one full cycle and logged
 
 ---
 
 ## Linter Checks
 
-The `disyl:lint` command performs 7 structural checks on `.disyl` template files:
+The `disyl:lint` command performs 8 structural checks on `.disyl` template files:
 
 | # | Check | Severity |
 |---|-------|----------|
@@ -517,8 +566,20 @@ The `disyl:lint` command performs 7 structural checks on `.disyl` template files
 | 5 | Missing `{extends}` layout references | Warning |
 | 6 | Empty control structure bodies | Warning |
 | 7 | `{for}` / `{foreach}` tag confusion (wrong syntax for the tag) | Warning |
+| 8 | Variable roots not declared in matched render contract | Warning |
 
 The linter strips DiSyL comments (`{!-- --}`) and JS single-line comments before structural analysis to avoid false positives from commented-out code.
+
+**Scan paths:** `templates/`, all `modules/*/templates/`, `modules/*/public/`, `modules/*/views/`, and `modules/*/pages/`.
+
+### Check 8 — contract-aware variable root linting
+
+When a render context contract is registered for the current template (matched by exact path or prefix), the linter statically extracts `required` and `defaults` keys from the contract definition and warns about variable roots used in the template that are not covered. Checks are skipped for:
+
+- kernel base context roots (`user`, `nav_items`, `gui`, `base_url`, `loop`, etc.)
+- variables declared inline with `{set ...}`
+- loop-bound variable names (`{foreach items as item}`, `{for x in ...}`, etc.)
+- contracts that rely solely on a `normalize` callback with no explicit `required`/`defaults` keys (opaque to static analysis)
 
 ```bash
 php ikabud disyl:lint                            # scan all templates

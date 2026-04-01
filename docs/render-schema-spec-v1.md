@@ -27,7 +27,7 @@ Render Schema v1 covers:
 Render Schema v1 does not yet cover:
 
 - new DiSyL syntax
-- full contract-aware linting
+- ~~full contract-aware linting~~ _(implemented: `disyl:lint` Check 8, April 2026)_
 - a full admin schema taxonomy
 - a complete schema for every historical CMS page template
 
@@ -687,4 +687,4 @@ Tests:
 5. Add tests that freeze the new names.
 6. Update the broader docs once runtime metadata is live.
 
-That is enough to establish the Render Schema v1 foundation without taking on linting or new DiSyL language work yet.
+That is enough to establish the Render Schema v1 foundation. Contract-aware linting (`disyl:lint` Check 8) has since been implemented as a separate step — see `docs/disyl-implementation-spec.md`.
