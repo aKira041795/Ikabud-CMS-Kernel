@@ -135,7 +135,7 @@
                         </div>
                         <div class="min-w-0">
                             <a href="{base_url}/cms/admin/content/edit/{row.id}" class="text-sm font-semibold text-gray-900 hover:text-sky-600 transition-colors">{row.title}</a>
-                            <div class="text-[11px] text-gray-400 font-mono mt-0.5">{if content_type == 'post'}/blog/{elseif content_type == 'page'}/page/{else}/{content_type}/{/if}{row.slug}</div>
+                            <div class="text-[11px] text-gray-400 font-mono mt-0.5">{if search}<span class="inline-flex items-center px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 mr-1">{row.type}</span>{/if}{if row.type == 'post'}/blog/{elseif row.type == 'page'}/page/{else}/{row.type}/{/if}{row.slug}</div>
                         </div>
                     </div>
                 </td>

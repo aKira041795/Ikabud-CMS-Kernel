@@ -143,7 +143,7 @@ function cmsAdminContentList(array $params = []): void
     $where = [$status === 'trash' ? 'c.deleted_at IS NOT NULL' : 'c.deleted_at IS NULL'];
     $bind  = [];
 
-    if ($type !== '') {
+    if ($type !== '' && $q === '') {
         $where[] = 'c.type = :type';
         $bind[':type'] = $type;
     }
