@@ -18,7 +18,7 @@
     <div class="px-4 py-3 rounded-lg border text-sm {if message.type == 'error'}bg-red-50 border-red-200 text-red-700{else}bg-emerald-50 border-emerald-200 text-emerald-700{/if}">{message.text}</div>
     {/if}
 
-    <div class="bg-white rounded-lg border border-gray-200 p-5">
+    <div class="bg-white rounded-xl border border-gray-200 p-5">
         <form method="get" action="{base_url}/cms/admin/contact-forms/submissions" class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
             <div>
                 <label class="block text-sm font-semibold text-gray-700 mb-1">Filter by Form</label>
@@ -45,7 +45,7 @@
         </form>
     </div>
 
-    <div class="bg-white rounded-lg border border-gray-200 overflow-hidden">
+    <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
         <div class="px-5 py-3 border-b border-gray-200 flex items-center justify-between">
             <h3 class="text-sm font-semibold text-gray-700">Entries</h3>
             <span class="text-xs text-gray-400">Page {page} of {total_pages}</span>
@@ -66,7 +66,7 @@
                 </thead>
                 <tbody class="divide-y divide-gray-100">
                     {foreach submissions as submission}
-                    <tr>
+                    <tr class="hover:bg-slate-50 transition-colors">
                         <td class="px-5 py-4 text-sm">
                             <span class="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold {if submission.status == 'new'}bg-sky-50 text-sky-700{elseif submission.status == 'reviewed'}bg-emerald-50 text-emerald-700{elseif submission.status == 'archived'}bg-slate-100 text-slate-700{else}bg-rose-50 text-rose-700{/if}">{submission.status_label}</span>
                         </td>

@@ -9,7 +9,10 @@
         </div>
         <div class="flex flex-wrap gap-2">
             <a href="{base_url}/cms/admin/contact-forms/submissions" class="inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">View Entries</a>
-            <a href="{base_url}/cms/admin/contact-forms/create" class="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-sky-600 rounded-lg hover:bg-sky-700">New Form</a>
+        <a href="{base_url}/cms/admin/contact-forms/create" class="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white bg-sky-600 rounded-xl hover:bg-sky-700 shadow-sm">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/></svg>
+            New Form
+        </a>
         </div>
     </div>
 
@@ -18,21 +21,36 @@
     {/if}
 
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div class="bg-white rounded-lg border border-gray-200 p-5">
-            <div class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">Total Forms</div>
-            <div class="text-3xl font-bold text-gray-900">{stats.total}</div>
+        <div class="bg-white rounded-xl border border-gray-200 p-5 flex items-start gap-4">
+            <div class="flex-shrink-0 rounded-lg bg-slate-100 p-2.5">
+                <svg class="w-5 h-5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+            </div>
+            <div>
+                <div class="text-xs font-semibold uppercase tracking-wider text-gray-400">Total Forms</div>
+                <div class="mt-1 text-3xl font-bold text-gray-900">{stats.total}</div>
+            </div>
         </div>
-        <div class="bg-white rounded-lg border border-gray-200 p-5">
-            <div class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">Active</div>
-            <div class="text-3xl font-bold text-emerald-600">{stats.active}</div>
+        <div class="bg-white rounded-xl border border-gray-200 p-5 flex items-start gap-4">
+            <div class="flex-shrink-0 rounded-lg bg-emerald-50 p-2.5">
+                <svg class="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            </div>
+            <div>
+                <div class="text-xs font-semibold uppercase tracking-wider text-gray-400">Active</div>
+                <div class="mt-1 text-3xl font-bold text-emerald-600">{stats.active}</div>
+            </div>
         </div>
-        <div class="bg-white rounded-lg border border-gray-200 p-5">
-            <div class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">Inactive</div>
-            <div class="text-3xl font-bold text-amber-600">{stats.inactive}</div>
+        <div class="bg-white rounded-xl border border-gray-200 p-5 flex items-start gap-4">
+            <div class="flex-shrink-0 rounded-lg bg-amber-50 p-2.5">
+                <svg class="w-5 h-5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            </div>
+            <div>
+                <div class="text-xs font-semibold uppercase tracking-wider text-gray-400">Inactive</div>
+                <div class="mt-1 text-3xl font-bold text-amber-600">{stats.inactive}</div>
+            </div>
         </div>
     </div>
 
-    <div class="bg-white rounded-lg border border-gray-200 overflow-hidden">
+    <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
         <div class="px-5 py-3 border-b border-gray-200 flex items-center justify-between">
             <h3 class="text-sm font-semibold text-gray-700">Saved Forms</h3>
             <span class="text-xs text-gray-400">{stats.total} total</span>
@@ -54,7 +72,7 @@
                 </thead>
                 <tbody class="divide-y divide-gray-100">
                     {foreach forms as form}
-                    <tr>
+                    <tr class="hover:bg-slate-50 transition-colors">
                         <td class="px-5 py-4 align-top">
                             <div class="font-semibold text-gray-900">{form.name}</div>
                             <div class="text-xs text-gray-500 mt-1 font-mono">{form.slug}</div>
@@ -91,10 +109,16 @@
             </table>
         </div>
         {else}
-        <div class="px-6 py-14 text-center">
+        <div class="px-6 py-16 text-center">
+            <div class="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100">
+                <svg class="h-7 w-7 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+            </div>
             <div class="text-lg font-semibold text-gray-800">No saved forms yet</div>
-            <p class="text-sm text-gray-500 mt-2">Create your first form, add a few fields, and then select it from the Contact Form builder block.</p>
-            <a href="{base_url}/cms/admin/contact-forms/create" class="inline-flex items-center px-4 py-2 mt-4 text-sm font-medium text-white bg-sky-600 rounded-lg hover:bg-sky-700">Create First Form</a>
+            <p class="mt-2 max-w-sm mx-auto text-sm text-gray-500">Create your first form, add a few fields, and then embed it anywhere using the Contact Form builder block.</p>
+            <a href="{base_url}/cms/admin/contact-forms/create" class="inline-flex items-center gap-1.5 px-5 py-2.5 mt-5 text-sm font-semibold text-white bg-sky-600 rounded-xl hover:bg-sky-700">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/></svg>
+                Create First Form
+            </a>
         </div>
         {/if}
     </div>

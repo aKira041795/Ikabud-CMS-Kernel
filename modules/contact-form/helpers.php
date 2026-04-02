@@ -1214,16 +1214,19 @@ function contactFormRenderSharedStyles(): string
 }
 .contact-form-status {
     display: none;
-    padding: .85rem 1rem;
+    padding: 1.1rem 1.25rem;
     border-radius: 12px;
     font-size: .94rem;
     font-weight: 500;
+    line-height: 1.5;
 }
 .contact-form-success {
     display: block;
     background: #ecfdf5;
     border: 1px solid #a7f3d0;
     color: #065f46;
+    font-size: 1rem;
+    font-weight: 600;
 }
 .contact-form-error {
     display: block;
@@ -1242,6 +1245,58 @@ function contactFormRenderSharedStyles(): string
         padding: 1rem;
         border-radius: 14px;
     }
+}
+.contact-form input:hover,
+.contact-form textarea:hover,
+.contact-form select:hover {
+    border-color: #94a3b8;
+}
+.contact-form .form-group.has-error input,
+.contact-form .form-group.has-error textarea,
+.contact-form .form-group.has-error select {
+    border-color: #ef4444;
+    box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.12);
+}
+.contact-form .form-group.has-error label {
+    color: #dc2626;
+}
+.contact-form-field-error {
+    color: #dc2626;
+    font-size: .82rem;
+    font-weight: 500;
+}
+.contact-form-field-error:empty {
+    display: none;
+}
+.contact-form-required-legend {
+    margin: -.15rem 0 .5rem;
+    font-size: .8rem;
+    color: #94a3b8;
+}
+.contact-form select {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3E%3Cpath stroke='%2394a3b8' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right .75rem center;
+    background-size: 16px 16px;
+    padding-right: 2.5rem;
+}
+@keyframes cf-spin {
+    to { transform: rotate(360deg); }
+}
+.cf-spinner {
+    display: none;
+    width: 14px;
+    height: 14px;
+    border: 2px solid rgba(255,255,255,.4);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: cf-spin .6s linear infinite;
+    vertical-align: middle;
+    margin-right: .45rem;
+    flex-shrink: 0;
+}
+.contact-form-submit.is-loading .cf-spinner {
+    display: inline-block;
 }
 </style>
 HTML;
@@ -1274,8 +1329,10 @@ function contactFormRenderCaptchaMarkup(string $formId): string
     return <<<HTML
 <div class="form-group contact-form-captcha-group">
     <label for="{$formId}-captcha_answer" data-captcha-question>{$question}</label>
+    <input type="text" id="{$formId}-captcha_answer" name="captcha_answer" required inputmode="numeric" placeholder="Your answer" autocomplete="off" aria-describedby="{$formId}-captcha-help">
     <input type="hidden" name="captcha_token" value="{$token}">
-    <input type="text" id="{$formId}-captcha_answer" name="captcha_answer" required inputmode="numeric" placeholder="Answer">
+    <div class="contact-form-help" id="{$formId}-captcha-help">Answer to confirm you are not a robot.</div>
+    <div class="contact-form-field-error" role="alert" aria-live="assertive"></div>
 </div>
 HTML;
 }
@@ -1288,15 +1345,28 @@ function contactFormRenderFieldMarkup(array $field, string $formId): string
     $placeholder = contactFormEscape($field['placeholder']);
     $fieldName = contactFormEscape($field['name']);
     $requiredAttr = $field['required'] ? ' required' : '';
-    $requiredMark = $field['required'] ? ' *' : '';
+    $requiredMark = $field['required'] ? ' <span aria-hidden="true">*</span>' : '';
+    $fieldTypeLower = strtolower((string) $field['field_type']);
+    $fieldNameLower = strtolower((string) $field['name']);
+    $autocompleteAttr = '';
+    if ($fieldTypeLower === 'email' || $fieldNameLower === 'email') {
+        $autocompleteAttr = ' autocomplete="email"';
+    } elseif ($fieldTypeLower === 'tel' || $fieldNameLower === 'phone' || $fieldNameLower === 'tel') {
+        $autocompleteAttr = ' autocomplete="tel"';
+    } elseif ($fieldNameLower === 'name' || $fieldNameLower === 'full_name' || $fieldNameLower === 'fullname') {
+        $autocompleteAttr = ' autocomplete="name"';
+    }
+    $ariaRequiredAttr = $field['required'] ? ' aria-required="true"' : '';
+    $helpId = $field['help_text'] !== '' ? ($fieldInputId . '-help') : '';
+    $ariaDescAttr = $helpId !== '' ? (' aria-describedby="' . $helpId . '"') : '';
     $helpHtml = $field['help_text'] !== ''
-        ? '<div class="contact-form-help">' . contactFormEscape($field['help_text']) . '</div>'
+        ? '<div class="contact-form-help" id="' . $helpId . '">' . contactFormEscape($field['help_text']) . '</div>'
         : '';
 
     $inputHtml = '';
     if ($field['field_type'] === 'textarea') {
         $inputHtml = '<textarea id="' . $fieldInputId . '" name="' . $fieldName . '"' . $requiredAttr
-            . ' rows="5" placeholder="' . $placeholder . '"></textarea>';
+            . $ariaRequiredAttr . $ariaDescAttr . ' rows="5" placeholder="' . $placeholder . '"></textarea>';
     } elseif ($field['field_type'] === 'select') {
         $optionsHtml = '<option value="">' . contactFormEscape($field['required'] ? 'Select an option' : 'Optional') . '</option>';
         foreach (contactFormParseOptionsText($field['options_text']) as $option) {
@@ -1313,20 +1383,22 @@ function contactFormRenderFieldMarkup(array $field, string $formId): string
             $optionsHtml .= '<option value="' . $optionValue . '">' . $optionLabel . '</option>';
         }
 
-        $inputHtml = '<select id="' . $fieldInputId . '" name="' . $fieldName . '"' . $requiredAttr . '>'
+        $inputHtml = '<select id="' . $fieldInputId . '" name="' . $fieldName . '"' . $requiredAttr
+            . $ariaRequiredAttr . $ariaDescAttr . '>'
             . $optionsHtml
             . '</select>';
     } else {
         $fieldType = contactFormEscape(contactFormFieldInputType((string) $field['field_type']));
         $extraAttr = $field['field_type'] === 'number' ? ' inputmode="decimal" step="any"' : '';
         $inputHtml = '<input type="' . $fieldType . '" id="' . $fieldInputId . '" name="' . $fieldName . '"'
-            . $requiredAttr . $extraAttr . ' placeholder="' . $placeholder . '">';
+            . $requiredAttr . $ariaRequiredAttr . $extraAttr . $autocompleteAttr . $ariaDescAttr . ' placeholder="' . $placeholder . '">';
     }
 
     return '<div class="form-group">'
         . '<label for="' . $fieldInputId . '">' . $fieldLabel . $requiredMark . '</label>'
         . $inputHtml
         . $helpHtml
+        . '<div class="contact-form-field-error" role="alert" aria-live="assertive"></div>'
         . '</div>';
 }
 
@@ -1343,8 +1415,43 @@ function contactFormRenderClientScript(string $formId, string $successMessage, b
 
     var statusEl = form.parentElement.querySelector('.contact-form-status');
     var submitBtn = form.querySelector('.contact-form-submit');
+    var btnLabel = submitBtn ? submitBtn.querySelector('.cf-btn-label') : null;
     var successMsg = {$successJson};
     var hasCaptcha = {$hasCaptchaJson};
+    var originalLabel = btnLabel ? btnLabel.textContent : '';
+
+    function setLoading(isLoading) {
+        submitBtn.disabled = isLoading;
+        submitBtn.classList.toggle('is-loading', isLoading);
+        if (btnLabel) {
+            btnLabel.textContent = isLoading ? 'Sending\u2026' : originalLabel;
+        }
+    }
+
+    function clearFieldErrors() {
+        form.querySelectorAll('.form-group.has-error').forEach(function (g) {
+            g.classList.remove('has-error');
+        });
+        form.querySelectorAll('.contact-form-field-error').forEach(function (el) {
+            el.textContent = '';
+        });
+    }
+
+    function showFieldErrors(fieldErrors) {
+        if (!fieldErrors || typeof fieldErrors !== 'object') return;
+        Object.keys(fieldErrors).forEach(function (fieldName) {
+            var input = form.querySelector('[name="' + fieldName + '"]');
+            if (!input) return;
+            var group = input.closest('.form-group');
+            if (group) {
+                group.classList.add('has-error');
+                var errorEl = group.querySelector('.contact-form-field-error');
+                if (errorEl) errorEl.textContent = fieldErrors[fieldName];
+            }
+        });
+        var firstError = form.querySelector('.form-group.has-error input, .form-group.has-error textarea, .form-group.has-error select');
+        if (firstError) firstError.focus();
+    }
 
     function refreshCaptcha() {
         if (!hasCaptcha) return Promise.resolve();
@@ -1355,29 +1462,25 @@ function contactFormRenderClientScript(string $formId, string $successMessage, b
                 var questionEl = form.querySelector('[data-captcha-question]');
                 var tokenInput = form.querySelector('[name="captcha_token"]');
                 var answerInput = form.querySelector('[name="captcha_answer"]');
-                if (questionEl && payload.question) {
-                    questionEl.textContent = payload.question;
-                }
-                if (tokenInput && payload.token) {
-                    tokenInput.value = payload.token;
-                }
-                if (answerInput) {
-                    answerInput.value = '';
-                }
+                if (questionEl && payload.question) questionEl.textContent = payload.question;
+                if (tokenInput && payload.token) tokenInput.value = payload.token;
+                if (answerInput) answerInput.value = '';
             });
     }
 
     form.addEventListener('submit', function (event) {
         event.preventDefault();
 
+        clearFieldErrors();
+
         var data = {};
         new FormData(form).forEach(function (value, key) {
             data[key] = value;
         });
 
-        submitBtn.disabled = true;
+        setLoading(true);
         statusEl.style.display = 'none';
-        statusEl.textContent = '';
+        statusEl.className = 'contact-form-status';
 
         fetch(form.dataset.submitUrl, {
             method: 'POST',
@@ -1388,20 +1491,20 @@ function contactFormRenderClientScript(string $formId, string $successMessage, b
         })
             .then(function (response) { return response.json(); })
             .then(function (payload) {
-                statusEl.style.display = '';
-                statusEl.className = 'contact-form-status ' + (payload.ok ? 'contact-form-success' : 'contact-form-error');
-                statusEl.textContent = payload.ok ? (payload.message || successMsg) : (payload.error || 'Error sending message.');
-
                 if (payload.ok) {
+                    statusEl.className = 'contact-form-status contact-form-success';
+                    statusEl.innerHTML = '\u2714 ' + (payload.message || successMsg);
+                    statusEl.style.display = '';
+                    statusEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
                     form.reset();
-                    if (hasCaptcha) {
-                        refreshCaptcha();
-                    }
-                    return;
-                }
-
-                if (payload.refresh_captcha) {
-                    refreshCaptcha();
+                    clearFieldErrors();
+                    if (hasCaptcha) refreshCaptcha();
+                } else {
+                    statusEl.className = 'contact-form-status contact-form-error';
+                    statusEl.textContent = payload.error || 'Please check the form below and try again.';
+                    statusEl.style.display = '';
+                    if (payload.field_errors) showFieldErrors(payload.field_errors);
+                    if (payload.refresh_captcha) refreshCaptcha();
                 }
             })
             .catch(function () {
@@ -1410,7 +1513,7 @@ function contactFormRenderClientScript(string $formId, string $successMessage, b
                 statusEl.textContent = 'A network error occurred. Please try again.';
             })
             .finally(function () {
-                submitBtn.disabled = false;
+                setLoading(false);
             });
     });
 })();
@@ -1438,6 +1541,7 @@ function contactFormRenderFrame(
         ? '<input type="text" name="_hp_name" class="contact-form-hp" tabindex="-1" autocomplete="off" style="display:none!important;position:absolute;left:-9999px" aria-hidden="true">'
         : '';
     $submitLabelHtml = contactFormEscape($submitLabel);
+    $requiredLegend = '<p class="contact-form-required-legend">Fields marked <span aria-hidden="true">*</span> are required</p>';
     $scriptHtml = contactFormRenderClientScript($formId, $successMessage, $hasCaptcha);
     $submitUrl = contactFormEscape(contactFormPath('/api/v1/contact-form/submit'));
     $captchaUrl = contactFormEscape(contactFormPath('/api/v1/contact-form/captcha'));
@@ -1446,6 +1550,7 @@ function contactFormRenderFrame(
 {$stylesHtml}
 <div class="contact-form-wrap" id="wrap-{$formId}">
     {$titleHtml}
+    {$requiredLegend}
     {$noteHtml}
     <form id="{$formId}" class="contact-form" data-submit-url="{$submitUrl}" data-captcha-url="{$captchaUrl}" novalidate>
         {$hiddenHtml}
@@ -1453,7 +1558,10 @@ function contactFormRenderFrame(
         {$fieldsHtml}
         {$captchaHtml}
         <div class="contact-form-status" role="status" aria-live="polite" style="display:none"></div>
-        <button type="submit" class="btn btn-primary contact-form-submit">{$submitLabelHtml}</button>
+        <button type="submit" class="btn btn-primary contact-form-submit">
+            <span class="cf-spinner" aria-hidden="true"></span>
+            <span class="cf-btn-label">{$submitLabelHtml}</span>
+        </button>
     </form>
     {$scriptHtml}
 </div>
@@ -1471,16 +1579,19 @@ function contactFormRender(array $attrs = []): string
 
     $fieldsHtml = <<<HTML
 <div class="form-group">
-    <label for="{$formId}-name">Name</label>
-    <input type="text" id="{$formId}-name" name="name" required placeholder="Your name">
+    <label for="{$formId}-name">Name <span aria-hidden="true">*</span></label>
+    <input type="text" id="{$formId}-name" name="name" required aria-required="true" autocomplete="name" placeholder="Your name">
+    <div class="contact-form-field-error" role="alert" aria-live="assertive"></div>
 </div>
 <div class="form-group">
-    <label for="{$formId}-email">Email</label>
-    <input type="email" id="{$formId}-email" name="email" required placeholder="Your email">
+    <label for="{$formId}-email">Email <span aria-hidden="true">*</span></label>
+    <input type="email" id="{$formId}-email" name="email" required aria-required="true" autocomplete="email" placeholder="your@email.com">
+    <div class="contact-form-field-error" role="alert" aria-live="assertive"></div>
 </div>
 <div class="form-group">
-    <label for="{$formId}-message">Message</label>
-    <textarea id="{$formId}-message" name="message" required rows="5" placeholder="Your message"></textarea>
+    <label for="{$formId}-message">Message <span aria-hidden="true">*</span></label>
+    <textarea id="{$formId}-message" name="message" required aria-required="true" rows="5" placeholder="How can we help you?"></textarea>
+    <div class="contact-form-field-error" role="alert" aria-live="assertive"></div>
 </div>
 HTML;
 
@@ -1514,7 +1625,7 @@ function contactFormRenderDynamic(int $savedFormId, array $attrs = []): string
 
     $submitLabel = trim((string) ($attrs['submit_label'] ?? ''));
     if ($submitLabel === '') {
-        $submitLabel = 'Submit';
+        $submitLabel = 'Send Message';
     }
 
     $successMessage = trim((string) ($attrs['success_message'] ?? ''));

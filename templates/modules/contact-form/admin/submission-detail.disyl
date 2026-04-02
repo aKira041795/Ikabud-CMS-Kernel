@@ -8,15 +8,15 @@
             <p class="text-sm text-gray-500 mt-1">Inspect the full payload, update its workflow state, and triage follow-up work from one place.</p>
         </div>
         <div class="flex flex-wrap gap-2">
-            <a href="{base_url}/cms/admin/contact-forms/submissions" class="inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">Back to Entries</a>
+            <a href="{base_url}/cms/admin/contact-forms/submissions" class="inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-xl hover:bg-gray-50">Back to Entries</a>
             {if submission.form_id > 0}
-            <a href="{base_url}/cms/admin/contact-forms/{submission.form_id}/edit" class="inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">Open Form</a>
+            <a href="{base_url}/cms/admin/contact-forms/{submission.form_id}/edit" class="inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-xl hover:bg-gray-50">Open Form</a>
             {/if}
         </div>
     </div>
 
     {if message}
-    <div class="px-4 py-3 rounded-lg border text-sm {if message.type == 'error'}bg-red-50 border-red-200 text-red-700{else}bg-emerald-50 border-emerald-200 text-emerald-700{/if}">{message.text}</div>
+    <div class="px-4 py-3 rounded-xl border text-sm {if message.type == 'error'}bg-red-50 border-red-200 text-red-700{else}bg-emerald-50 border-emerald-200 text-emerald-700{/if}">{message.text}</div>
     {/if}
 
     <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
