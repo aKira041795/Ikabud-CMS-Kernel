@@ -41,13 +41,22 @@
     <div class="px-4 py-3 rounded-lg border text-sm bg-red-50 border-red-200 text-red-700">{error}</div>
     {/if}
 
-    <div class="flex flex-wrap gap-2">
-        <button type="button" data-tab-target="overview" class="cf-tab-trigger inline-flex items-center rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:border-sky-300 hover:text-sky-700">Overview</button>
-        <button type="button" data-tab-target="fields" class="cf-tab-trigger inline-flex items-center rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:border-sky-300 hover:text-sky-700">Fields</button>
-        <button type="button" data-tab-target="embed" class="cf-tab-trigger inline-flex items-center rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:border-sky-300 hover:text-sky-700">Embed + Delivery</button>
+    <div class="flex border-b border-slate-200 bg-white rounded-2xl rounded-b-none shadow-sm -mb-6 overflow-hidden">
+        <button type="button" data-tab-target="overview" class="cf-tab-trigger inline-flex items-center gap-2 px-6 py-3.5 text-sm font-medium text-slate-500 hover:text-slate-800 border-b-2 border-transparent -mb-px transition-colors">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><circle cx="12" cy="12" r="3"/></svg>
+            Settings
+        </button>
+        <button type="button" data-tab-target="fields" class="cf-tab-trigger inline-flex items-center gap-2 px-6 py-3.5 text-sm font-medium text-slate-500 hover:text-slate-800 border-b-2 border-transparent -mb-px transition-colors">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+            Fields
+        </button>
+        <button type="button" data-tab-target="embed" class="cf-tab-trigger inline-flex items-center gap-2 px-6 py-3.5 text-sm font-medium text-slate-500 hover:text-slate-800 border-b-2 border-transparent -mb-px transition-colors">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/></svg>
+            Embed
+        </button>
     </div>
 
-    <div id="tab-panel-overview" data-tab-panel="overview" class="space-y-6">
+    <div id="tab-panel-overview" data-tab-panel="overview" class="space-y-6 pt-6">
         <div class="grid grid-cols-1 xl:grid-cols-[minmax(0,2fr),minmax(280px,1fr)] gap-6">
             <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
                 <div class="flex items-start justify-between gap-4">
@@ -122,140 +131,201 @@
         </div>
     </div>
 
-    <div id="tab-panel-fields" data-tab-panel="fields" class="hidden space-y-6">
+    <div id="tab-panel-fields" data-tab-panel="fields" class="hidden">
         {if is_edit}
-        <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
-            <div class="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
-                <div>
-                    <h3 class="text-lg font-semibold text-slate-900">Field Builder</h3>
-                    <p class="mt-1 text-sm text-slate-500">Mix text, email, phone, number, textarea, and select fields. Drag cards to save a new order instantly.</p>
+        <div class="cf-builder flex flex-col lg:flex-row rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden" style="min-height:580px">
+
+            <!-- LEFT: Field Palette -->
+            <div class="cf-palette lg:w-[260px] flex-shrink-0 border-b lg:border-b-0 lg:border-r border-slate-200 bg-slate-50 flex flex-col">
+                <div class="px-4 pt-4 pb-2 border-b border-slate-200 bg-slate-100/60">
+                    <h3 class="text-xs font-bold uppercase tracking-[0.22em] text-slate-500">Add Fields</h3>
+                    <p class="text-[11px] text-slate-400 mt-1">Click a type to configure and add it below</p>
                 </div>
-                <div class="rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-amber-700">Drag to reorder</div>
+
+                <div class="px-3 pt-4 pb-3 flex-1 overflow-y-auto">
+                    <div class="text-[10px] font-bold uppercase tracking-[0.22em] text-slate-400 px-1 mb-2">Basic</div>
+                    <div class="grid grid-cols-2 gap-1.5 mb-5">
+                        <button type="button" class="cf-palette-tile flex flex-col items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white p-3 text-xs font-medium text-slate-600 hover:border-sky-400 hover:bg-sky-50 hover:text-sky-700 transition-colors" data-type="text" data-default-label="Text Field">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M4 6h16M4 12h10M4 18h12"/></svg>
+                            <span>Text</span>
+                        </button>
+                        <button type="button" class="cf-palette-tile flex flex-col items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white p-3 text-xs font-medium text-slate-600 hover:border-sky-400 hover:bg-sky-50 hover:text-sky-700 transition-colors" data-type="email" data-default-label="Email Address">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+                            <span>Email</span>
+                        </button>
+                        <button type="button" class="cf-palette-tile flex flex-col items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white p-3 text-xs font-medium text-slate-600 hover:border-sky-400 hover:bg-sky-50 hover:text-sky-700 transition-colors" data-type="tel" data-default-label="Phone Number">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/></svg>
+                            <span>Phone</span>
+                        </button>
+                        <button type="button" class="cf-palette-tile flex flex-col items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white p-3 text-xs font-medium text-slate-600 hover:border-sky-400 hover:bg-sky-50 hover:text-sky-700 transition-colors" data-type="number" data-default-label="Number">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14"/></svg>
+                            <span>Number</span>
+                        </button>
+                    </div>
+
+                    <div class="text-[10px] font-bold uppercase tracking-[0.22em] text-slate-400 px-1 mb-2">Advanced</div>
+                    <div class="grid grid-cols-2 gap-1.5">
+                        <button type="button" class="cf-palette-tile flex flex-col items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white p-3 text-xs font-medium text-slate-600 hover:border-sky-400 hover:bg-sky-50 hover:text-sky-700 transition-colors" data-type="textarea" data-default-label="Message">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M4 6h16M4 10h16M4 14h10M4 18h7"/></svg>
+                            <span>Textarea</span>
+                        </button>
+                        <button type="button" class="cf-palette-tile flex flex-col items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white p-3 text-xs font-medium text-slate-600 hover:border-sky-400 hover:bg-sky-50 hover:text-sky-700 transition-colors" data-type="select" data-default-label="Select Field">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M19 9l-7 7-7-7"/></svg>
+                            <span>Select</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Quick Add Form (appears in palette bottom when a tile is chosen) -->
+                <div class="border-t border-slate-200 bg-white px-4 pt-4 pb-4" id="cf-quick-add-section">
+                    <div class="flex items-center gap-2 mb-3">
+                        <span class="text-xs font-bold uppercase tracking-[0.2em] text-slate-500">Add</span>
+                        <span id="cf-quick-type-badge" class="hidden rounded-full bg-sky-100 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-sky-700"></span>
+                    </div>
+                    <form method="post" action="{base_url}/cms/admin/contact-forms/{form.id}/fields/create" id="cf-quick-add-form">
+                        <input type="hidden" name="_token" value="{csrf_token}">
+                        <input type="hidden" name="field_type" id="cf-quick-type" value="text">
+                        <input type="hidden" name="sort_order" value="9999">
+                        <div class="mb-2.5">
+                            <label for="cf-quick-label" class="block text-xs font-semibold text-slate-600 mb-1">Label</label>
+                            <input type="text" name="label" id="cf-quick-label" required
+                                class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-sky-500 outline-none"
+                                placeholder="Choose a field type above">
+                        </div>
+                        <div id="cf-quick-options-section" class="mb-2.5 hidden">
+                            <label class="block text-xs font-semibold text-slate-600 mb-1">Options</label>
+                            <textarea name="options_text" rows="3"
+                                class="w-full rounded-lg border border-slate-300 px-3 py-2 text-xs font-mono focus:border-sky-500 outline-none resize-none"
+                                placeholder="value|Label&#10;one_more|Another option"></textarea>
+                            <p class="mt-1 text-[11px] text-slate-400">Format: <span class="font-mono">value|Label</span>, one per line</p>
+                        </div>
+                        <label class="inline-flex items-center gap-2 text-xs text-slate-600 cursor-pointer mb-3">
+                            <input type="checkbox" name="required" value="1" checked class="rounded border-slate-300 text-sky-600">
+                            <span>Required field</span>
+                        </label>
+                        <button type="submit" id="cf-quick-add-btn"
+                            class="w-full inline-flex items-center justify-center gap-1.5 rounded-xl bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-sky-700 disabled:opacity-40 disabled:cursor-not-allowed"
+                            disabled>
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/></svg>
+                            Add Field
+                        </button>
+                    </form>
+                </div>
             </div>
 
-            <form method="post" action="{base_url}/cms/admin/contact-forms/{form.id}/fields/create" class="mt-6 grid grid-cols-1 gap-4 xl:grid-cols-12">
-                <input type="hidden" name="_token" value="{csrf_token}">
-                <div class="xl:col-span-3">
-                    <label class="block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500 mb-2">Field Type</label>
-                    <select name="field_type" data-field-type-select class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm bg-white focus:border-sky-500 outline-none">
-                        {foreach field_type_options as typeOption}
-                        <option value="{typeOption.value}">{typeOption.label}</option>
-                        {/foreach}
-                    </select>
+            <!-- RIGHT: Form Canvas -->
+            <div class="cf-canvas flex-1 flex flex-col min-w-0">
+                <div class="px-5 py-3.5 border-b border-slate-200 flex items-center justify-between bg-white">
+                    <div>
+                        <h3 class="text-sm font-semibold text-slate-900">Form Canvas</h3>
+                        <p class="text-xs text-slate-400 mt-0.5">Drag cards to reorder &middot; Click to expand and edit</p>
+                    </div>
+                    <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">{fields | count} fields</span>
                 </div>
-                <div class="xl:col-span-4">
-                    <label class="block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500 mb-2">Label</label>
-                    <input type="text" name="label" id="cf-new-field-label" required class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-sky-500 outline-none" placeholder="Company Name">
+
+                <div class="flex-1 overflow-y-auto p-4" data-field-sortable>
+                    {if fields | count > 0}
+                    {foreach fields as field}
+                    <div class="cf-field-card mb-2 rounded-xl border border-slate-200 bg-white" draggable="true" data-field-id="{field.id}">
+
+                        <!-- Card header (always visible) -->
+                        <div class="cf-card-header flex items-center gap-3 px-4 py-3 cursor-pointer select-none hover:bg-slate-50/80 rounded-xl transition-colors" data-expand-toggle>
+                            <div class="text-slate-300 cursor-grab flex-shrink-0" title="Drag to reorder">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 8h16M4 16h16"/></svg>
+                            </div>
+                            <div class="flex-1 min-w-0 flex items-center gap-2.5">
+                                <div class="flex-1 min-w-0">
+                                    <div class="text-sm font-semibold text-slate-900 truncate">{field.label}</div>
+                                    <div class="text-[11px] font-mono text-slate-400 truncate">{field.name}</div>
+                                </div>
+                                <span class="flex-shrink-0 rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-500">{field.field_type}</span>
+                                {if field.required == 1}
+                                <span class="flex-shrink-0 hidden sm:inline-flex rounded-full bg-sky-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-sky-600">req.</span>
+                                {/if}
+                            </div>
+                            <svg class="cf-expand-icon w-4 h-4 text-slate-400 flex-shrink-0 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                        </div>
+
+                        <!-- Expanded edit body -->
+                        <div class="cf-card-body hidden border-t border-slate-100">
+                            <form method="post" action="{base_url}/cms/admin/contact-forms/{form.id}/fields/{field.id}/save" class="px-4 py-4 space-y-3">
+                                <input type="hidden" name="_token" value="{csrf_token}">
+
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <div>
+                                        <label class="block text-xs font-semibold text-slate-500 mb-1.5">Label</label>
+                                        <input type="text" name="label" value="{field.label}" required class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-sky-500 outline-none">
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs font-semibold text-slate-500 mb-1.5">Field Name <span class="font-normal text-slate-400 normal-case">(internal)</span></label>
+                                        <input type="text" name="name" value="{field.name}" required class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-mono focus:border-sky-500 outline-none">
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs font-semibold text-slate-500 mb-1.5">Field Type</label>
+                                        <select name="field_type" data-field-type-select class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white focus:border-sky-500 outline-none">
+                                            {foreach field_type_options as typeOption}
+                                            <option value="{typeOption.value}" {if field.field_type == typeOption.value}selected{/if}>{typeOption.label}</option>
+                                            {/foreach}
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs font-semibold text-slate-500 mb-1.5">Placeholder</label>
+                                        <input type="text" name="placeholder" value="{field.placeholder}" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-sky-500 outline-none">
+                                    </div>
+                                    <div class="sm:col-span-2">
+                                        <label class="block text-xs font-semibold text-slate-500 mb-1.5">Help Text</label>
+                                        <input type="text" name="help_text" value="{field.help_text}" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-sky-500 outline-none" placeholder="Optional note shown below the field">
+                                    </div>
+                                    <div class="sm:col-span-2 cf-field-options-panel {if field.field_type != 'select'}hidden{/if}" data-options-for="select">
+                                        <label class="block text-xs font-semibold text-slate-500 mb-1.5">Options</label>
+                                        <textarea name="options_text" rows="4" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-mono focus:border-sky-500 outline-none resize-y">{field.options_text}</textarea>
+                                        <p class="mt-1 text-[11px] text-slate-400">One per line &middot; Format: <span class="font-mono">value|Label</span></p>
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs font-semibold text-slate-500 mb-1.5">Sort Order</label>
+                                        <input type="number" name="sort_order" value="{field.sort_order}" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-sky-500 outline-none">
+                                    </div>
+                                    <div class="flex items-end pb-1">
+                                        <label class="inline-flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
+                                            <input type="checkbox" name="required" value="1" {if field.required == 1}checked{/if} class="rounded border-slate-300 text-sky-600 focus:ring-sky-500/20">
+                                            <span>Required field</span>
+                                        </label>
+                                    </div>
+                                </div>
+
+                                <div class="flex items-center justify-between pt-2 border-t border-slate-100">
+                                    <button type="submit" formaction="{base_url}/cms/admin/contact-forms/{form.id}/fields/{field.id}/delete" formnovalidate onclick="return confirm('Delete this field and all its saved data?');" class="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium text-red-600 hover:bg-red-50 transition-colors">
+                                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                                        Delete Field
+                                    </button>
+                                    <button type="submit" class="inline-flex items-center gap-1.5 rounded-xl bg-sky-600 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-700">
+                                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                                        Save Field
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                    {/foreach}
+                    {else}
+                    <div class="flex flex-col items-center justify-center h-full min-h-[300px] text-center px-6 py-12">
+                        <div class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-100">
+                            <svg class="h-8 w-8 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                        </div>
+                        <p class="text-sm font-semibold text-slate-500">No fields yet</p>
+                        <p class="mt-1 text-xs text-slate-400 max-w-xs">Click a field type in the left panel, fill in the label, and press Add Field</p>
+                    </div>
+                    {/if}
                 </div>
-                <div class="xl:col-span-3">
-                    <label class="block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500 mb-2">Field Name</label>
-                    <input type="text" name="name" id="cf-new-field-name" class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm font-mono focus:border-sky-500 outline-none" placeholder="company_name">
-                </div>
-                <div class="xl:col-span-2">
-                    <label class="block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500 mb-2">Sort Order</label>
-                    <input type="number" name="sort_order" value="0" class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-sky-500 outline-none">
-                </div>
-                <div class="xl:col-span-6">
-                    <label class="block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500 mb-2">Placeholder</label>
-                    <input type="text" name="placeholder" class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-sky-500 outline-none" placeholder="Acme Inc">
-                </div>
-                <div class="xl:col-span-6">
-                    <label class="block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500 mb-2">Help Text</label>
-                    <input type="text" name="help_text" class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-sky-500 outline-none" placeholder="Add a note for this field">
-                </div>
-                <div class="xl:col-span-12 cf-field-options-panel hidden" data-options-for="select">
-                    <label class="block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500 mb-2">Select Options</label>
-                    <textarea name="options_text" rows="4" class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm font-mono focus:border-sky-500 outline-none resize-y" placeholder="sales|Sales inquiry&#10;support|Support request&#10;billing|Billing"></textarea>
-                    <p class="mt-2 text-xs text-slate-400">One option per line. Use <span class="font-mono">value|Label</span> to keep machine-safe values.</p>
-                </div>
-                <div class="xl:col-span-12 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                    <label class="inline-flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
-                        <input type="checkbox" name="required" value="1" checked class="rounded border-slate-300 text-sky-600 focus:ring-sky-500/20">
-                        <span>Required field</span>
-                    </label>
-                    <button type="submit" class="inline-flex items-center rounded-xl bg-sky-600 px-5 py-3 text-sm font-medium text-white hover:bg-sky-700">Add Field</button>
-                </div>
-            </form>
+            </div>
         </div>
 
         <form id="cf-reorder-form" method="post" action="{base_url}/cms/admin/contact-forms/{form.id}/fields/reorder" class="hidden">
             <input type="hidden" name="_token" value="{csrf_token}">
             <input type="hidden" name="field_order" id="cf-field-order-input" value="">
         </form>
-
-        <div class="space-y-4" data-field-sortable>
-            {if fields | count > 0}
-            {foreach fields as field}
-            <div class="cf-field-card rounded-2xl border border-slate-200 bg-white p-5 shadow-sm" draggable="true" data-field-id="{field.id}">
-                <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                    <div class="flex items-start gap-3">
-                        <div class="mt-1 inline-flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 text-slate-500" title="Drag to reorder">::</div>
-                        <div>
-                            <div class="text-sm font-semibold text-slate-900">{field.label}</div>
-                            <div class="mt-1 text-xs font-mono text-slate-500">{field.name}</div>
-                        </div>
-                    </div>
-                    <div class="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-slate-600">{field.field_type}</div>
-                </div>
-
-                <form method="post" action="{base_url}/cms/admin/contact-forms/{form.id}/fields/{field.id}/save" class="mt-5 space-y-4">
-                    <input type="hidden" name="_token" value="{csrf_token}">
-
-                    <div class="grid grid-cols-1 gap-4 xl:grid-cols-12">
-                        <div class="xl:col-span-3">
-                            <label class="block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500 mb-2">Field Type</label>
-                            <select name="field_type" data-field-type-select class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm bg-white focus:border-sky-500 outline-none">
-                                {foreach field_type_options as typeOption}
-                                <option value="{typeOption.value}" {if field.field_type == typeOption.value}selected{/if}>{typeOption.label}</option>
-                                {/foreach}
-                            </select>
-                        </div>
-                        <div class="xl:col-span-4">
-                            <label class="block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500 mb-2">Label</label>
-                            <input type="text" name="label" value="{field.label}" required class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-sky-500 outline-none">
-                        </div>
-                        <div class="xl:col-span-3">
-                            <label class="block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500 mb-2">Field Name</label>
-                            <input type="text" name="name" value="{field.name}" required class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm font-mono focus:border-sky-500 outline-none">
-                        </div>
-                        <div class="xl:col-span-2">
-                            <label class="block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500 mb-2">Sort Order</label>
-                            <input type="number" name="sort_order" value="{field.sort_order}" class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-sky-500 outline-none">
-                        </div>
-                        <div class="xl:col-span-6">
-                            <label class="block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500 mb-2">Placeholder</label>
-                            <input type="text" name="placeholder" value="{field.placeholder}" class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-sky-500 outline-none">
-                        </div>
-                        <div class="xl:col-span-6">
-                            <label class="block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500 mb-2">Help Text</label>
-                            <input type="text" name="help_text" value="{field.help_text}" class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-sky-500 outline-none">
-                        </div>
-                        <div class="xl:col-span-12 cf-field-options-panel {if field.field_type != 'select'}hidden{/if}" data-options-for="select">
-                            <label class="block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500 mb-2">Select Options</label>
-                            <textarea name="options_text" rows="4" class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm font-mono focus:border-sky-500 outline-none resize-y">{field.options_text}</textarea>
-                            <p class="mt-2 text-xs text-slate-400">One option per line. Use <span class="font-mono">value|Label</span> when the stored value should differ from the visible label.</p>
-                        </div>
-                    </div>
-
-                    <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                        <label class="inline-flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
-                            <input type="checkbox" name="required" value="1" {if field.required == 1}checked{/if} class="rounded border-slate-300 text-sky-600 focus:ring-sky-500/20">
-                            <span>Required field</span>
-                        </label>
-                        <div class="flex flex-wrap gap-2">
-                            <button type="submit" class="inline-flex items-center rounded-xl bg-sky-50 px-4 py-2 text-sm font-medium text-sky-700 hover:bg-sky-100">Save Field</button>
-                            <button type="submit" formaction="{base_url}/cms/admin/contact-forms/{form.id}/fields/{field.id}/delete" formnovalidate onclick="return confirm('Delete this field?');" class="inline-flex items-center rounded-xl bg-red-50 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-100">Delete</button>
-                        </div>
-                    </div>
-                </form>
-            </div>
-            {/foreach}
-            {else}
-            <div class="rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-12 text-center text-sm text-slate-500">No fields yet. Add the first field above to start building this form.</div>
-            {/if}
-        </div>
         {else}
-        <div class="rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-12 text-center text-sm text-slate-500">Create the form first, then use this tab to add advanced field types and drag them into order.</div>
+        <div class="rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-12 text-center text-sm text-slate-500">Create the form first, then use this tab to add field types and drag them into order.</div>
         {/if}
     </div>
 
@@ -306,60 +376,51 @@
 {block scripts}
 <script>
 (function () {
-    var formNameInput = document.getElementById('cf-form-name');
-    var formSlugInput = document.getElementById('cf-form-slug');
-    var newFieldLabelInput = document.getElementById('cf-new-field-label');
-    var newFieldNameInput = document.getElementById('cf-new-field-name');
-    var tabButtons = Array.prototype.slice.call(document.querySelectorAll('[data-tab-target]'));
-    var tabPanels = Array.prototype.slice.call(document.querySelectorAll('[data-tab-panel]'));
-    var reorderForm = document.getElementById('cf-reorder-form');
-    var reorderInput = document.getElementById('cf-field-order-input');
+    // ── Elements ──────────────────────────────────────────────────────────────
+    var formNameInput  = document.getElementById('cf-form-name');
+    var formSlugInput  = document.getElementById('cf-form-slug');
+    var tabButtons     = Array.prototype.slice.call(document.querySelectorAll('[data-tab-target]'));
+    var tabPanels      = Array.prototype.slice.call(document.querySelectorAll('[data-tab-panel]'));
+    var reorderForm    = document.getElementById('cf-reorder-form');
+    var reorderInput   = document.getElementById('cf-field-order-input');
     var sortableContainer = document.querySelector('[data-field-sortable]');
-    var draggingId = null;
+    var draggingId     = null;
 
+    // Palette / quick-add elements
+    var paletteTiles          = Array.prototype.slice.call(document.querySelectorAll('.cf-palette-tile'));
+    var quickTypeInput        = document.getElementById('cf-quick-type');
+    var quickLabelInput       = document.getElementById('cf-quick-label');
+    var quickTypeBadge        = document.getElementById('cf-quick-type-badge');
+    var quickAddBtn           = document.getElementById('cf-quick-add-btn');
+    var quickOptionsSection   = document.getElementById('cf-quick-options-section');
+
+    var paletteDefaultLabels = {
+        'text':     'Text Field',
+        'email':    'Email Address',
+        'tel':      'Phone Number',
+        'number':   'Number',
+        'textarea': 'Message',
+        'select':   'Select Field'
+    };
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
     function slugify(value) {
-        return String(value || '')
-            .toLowerCase()
-            .trim()
-            .replace(/[^a-z0-9]+/g, '-')
-            .replace(/^-+|-+$/g, '')
-            .replace(/-{2,}/g, '-')
-            .slice(0, 100);
+        return String(value || '').toLowerCase().trim()
+            .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
+            .replace(/-{2,}/g, '-').slice(0, 100);
     }
 
-    function fieldNameify(value) {
-        var normalized = String(value || '')
-            .toLowerCase()
-            .trim()
-            .replace(/[^a-z0-9]+/g, '_')
-            .replace(/^_+|_+$/g, '')
-            .replace(/_{2,}/g, '_')
-            .slice(0, 100);
-
-        if (!normalized) {
-            return '';
-        }
-
-        if (!/^[a-z]/.test(normalized)) {
-            normalized = 'field_' + normalized;
-        }
-
-        return normalized.slice(0, 100);
-    }
-
+    // ── Tab bar ───────────────────────────────────────────────────────────────
     function activateTab(tabName, updateHash) {
-        if (!tabName) {
-            return;
-        }
+        if (!tabName) return;
 
-        tabButtons.forEach(function (button) {
-            var active = button.getAttribute('data-tab-target') === tabName;
-            button.classList.toggle('bg-sky-600', active);
-            button.classList.toggle('text-white', active);
-            button.classList.toggle('border-sky-600', active);
-            button.classList.toggle('shadow-sm', active);
-            button.classList.toggle('bg-white', !active);
-            button.classList.toggle('text-slate-700', !active);
+        tabButtons.forEach(function (btn) {
+            var active = btn.getAttribute('data-tab-target') === tabName;
+            btn.classList.toggle('border-sky-600', active);
+            btn.classList.toggle('text-sky-700',   active);
+            btn.classList.toggle('font-semibold',  active);
+            btn.classList.toggle('border-transparent', !active);
+            btn.classList.toggle('text-slate-500', !active);
         });
 
         tabPanels.forEach(function (panel) {
@@ -375,51 +436,94 @@
         }
     }
 
+    tabButtons.forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            activateTab(btn.getAttribute('data-tab-target'), true);
+        });
+    });
+
+    // ── Palette tiles ─────────────────────────────────────────────────────────
+    function activatePaletteTile(type) {
+        paletteTiles.forEach(function (tile) {
+            var active = tile.getAttribute('data-type') === type;
+            tile.classList.toggle('border-sky-500', active);
+            tile.classList.toggle('bg-sky-50',      active);
+            tile.classList.toggle('text-sky-700',   active);
+            tile.classList.toggle('border-slate-200', !active);
+            tile.classList.toggle('bg-white',       !active);
+            tile.classList.toggle('text-slate-600', !active);
+        });
+        if (quickTypeInput) quickTypeInput.value = type;
+        if (quickTypeBadge) {
+            quickTypeBadge.textContent = type;
+            quickTypeBadge.classList.remove('hidden');
+        }
+        if (quickLabelInput) {
+            quickLabelInput.value = paletteDefaultLabels[type] || (type.charAt(0).toUpperCase() + type.slice(1)) + ' Field';
+            quickLabelInput.select();
+            quickLabelInput.focus();
+        }
+        if (quickOptionsSection) {
+            quickOptionsSection.classList.toggle('hidden', type !== 'select');
+        }
+        if (quickAddBtn) quickAddBtn.disabled = false;
+    }
+
+    paletteTiles.forEach(function (tile) {
+        tile.addEventListener('click', function () {
+            activatePaletteTile(tile.getAttribute('data-type') || 'text');
+        });
+    });
+
+    // ── Field card expand/collapse ────────────────────────────────────────────
+    document.addEventListener('click', function (event) {
+        var toggle = event.target.closest('[data-expand-toggle]');
+        if (!toggle) return;
+        var card = toggle.closest('.cf-field-card');
+        if (!card) return;
+        var body = card.querySelector('.cf-card-body');
+        var icon = card.querySelector('.cf-expand-icon');
+        if (!body) return;
+        var isOpen = !body.classList.contains('hidden');
+
+        // Collapse all other cards first
+        document.querySelectorAll('.cf-field-card .cf-card-body').forEach(function (b) { b.classList.add('hidden'); });
+        document.querySelectorAll('.cf-field-card .cf-expand-icon').forEach(function (i) { i.style.transform = ''; });
+        document.querySelectorAll('.cf-field-card .cf-card-header').forEach(function (h) { h.classList.remove('bg-slate-50', 'rounded-b-none'); });
+
+        if (!isOpen) {
+            body.classList.remove('hidden');
+            if (icon) icon.style.transform = 'rotate(180deg)';
+            toggle.classList.add('bg-slate-50', 'rounded-b-none');
+        }
+    });
+
+    // ── Field-type select: show/hide options panel ────────────────────────────
     function syncFieldOptionPanels(scope) {
         var root = scope || document;
         Array.prototype.slice.call(root.querySelectorAll('[data-field-type-select]')).forEach(function (select) {
             var form = select.closest('form');
-            if (!form) {
-                return;
-            }
-
+            if (!form) return;
             Array.prototype.slice.call(form.querySelectorAll('.cf-field-options-panel')).forEach(function (panel) {
-                var shouldShow = panel.getAttribute('data-options-for') === select.value;
-                panel.classList.toggle('hidden', !shouldShow);
+                panel.classList.toggle('hidden', panel.getAttribute('data-options-for') !== select.value);
             });
         });
     }
 
-    function submitFieldOrder() {
-        if (!sortableContainer || !reorderForm || !reorderInput) {
-            return;
+    document.addEventListener('change', function (event) {
+        if (event.target && event.target.matches('[data-field-type-select]')) {
+            syncFieldOptionPanels(event.target.closest('form'));
         }
-
-        var orderedIds = Array.prototype.slice.call(sortableContainer.querySelectorAll('[data-field-id]')).map(function (card) {
-            return card.getAttribute('data-field-id');
-        }).filter(Boolean);
-
-        if (!orderedIds.length) {
-            return;
-        }
-
-        reorderInput.value = orderedIds.join(',');
-        reorderForm.submit();
-    }
-
-    tabButtons.forEach(function (button) {
-        button.addEventListener('click', function () {
-            activateTab(button.getAttribute('data-tab-target'), true);
-        });
     });
 
+    syncFieldOptionPanels(document);
+
+    // ── Slug auto-generation from form name ───────────────────────────────────
     if (formNameInput && formSlugInput) {
         var autoSlug = formSlugInput.value.trim() === '';
 
         formNameInput.addEventListener('input', function () {
-            if (!autoSlug) {
-                return;
-            }
+            if (!autoSlug) return;
             formSlugInput.value = slugify(formNameInput.value);
         });
 
@@ -440,42 +544,23 @@
         }
     }
 
-    if (newFieldLabelInput && newFieldNameInput) {
-        var autoFieldName = newFieldNameInput.value.trim() === '';
-
-        newFieldLabelInput.addEventListener('input', function () {
-            if (!autoFieldName) {
-                return;
-            }
-            newFieldNameInput.value = fieldNameify(newFieldLabelInput.value);
-        });
-
-        newFieldNameInput.addEventListener('input', function () {
-            newFieldNameInput.value = fieldNameify(newFieldNameInput.value);
-            autoFieldName = newFieldNameInput.value.trim() === '';
-        });
-
-        newFieldNameInput.addEventListener('blur', function () {
-            if (newFieldNameInput.value.trim() === '') {
-                autoFieldName = true;
-                newFieldNameInput.value = fieldNameify(newFieldLabelInput.value);
-            }
-        });
+    // ── Drag-and-drop reorder ─────────────────────────────────────────────────
+    function submitFieldOrder() {
+        if (!sortableContainer || !reorderForm || !reorderInput) return;
+        var orderedIds = Array.prototype.slice.call(
+            sortableContainer.querySelectorAll('[data-field-id]')
+        ).map(function (card) {
+            return card.getAttribute('data-field-id');
+        }).filter(Boolean);
+        if (!orderedIds.length) return;
+        reorderInput.value = orderedIds.join(',');
+        reorderForm.submit();
     }
-
-    document.addEventListener('change', function (event) {
-        if (event.target && event.target.matches('[data-field-type-select]')) {
-            syncFieldOptionPanels(event.target.closest('form'));
-        }
-    });
 
     if (sortableContainer) {
         sortableContainer.addEventListener('dragstart', function (event) {
             var card = event.target.closest('[data-field-id]');
-            if (!card) {
-                return;
-            }
-
+            if (!card) return;
             draggingId = card.getAttribute('data-field-id');
             card.classList.add('opacity-60');
             if (event.dataTransfer) {
@@ -486,46 +571,30 @@
 
         sortableContainer.addEventListener('dragend', function (event) {
             var card = event.target.closest('[data-field-id]');
-            if (card) {
-                card.classList.remove('opacity-60');
-            }
+            if (card) card.classList.remove('opacity-60');
         });
 
         sortableContainer.addEventListener('dragover', function (event) {
-            if (!event.target.closest('[data-field-id]')) {
-                return;
-            }
-            event.preventDefault();
+            if (event.target.closest('[data-field-id]')) event.preventDefault();
         });
 
         sortableContainer.addEventListener('drop', function (event) {
             var target = event.target.closest('[data-field-id]');
             var source = draggingId ? sortableContainer.querySelector('[data-field-id="' + draggingId + '"]') : null;
-            if (!target || !source || target === source) {
-                return;
-            }
-
+            if (!target || !source || target === source) return;
             event.preventDefault();
             var midpoint = target.getBoundingClientRect().top + (target.offsetHeight / 2);
-            if (event.clientY > midpoint) {
-                target.after(source);
-            } else {
-                target.before(source);
-            }
-
+            if (event.clientY > midpoint) { target.after(source); } else { target.before(source); }
             submitFieldOrder();
         });
     }
 
-    syncFieldOptionPanels(document);
-
+    // ── Initial tab ───────────────────────────────────────────────────────────
     var initialHash = window.location.hash ? window.location.hash.replace('#', '') : '';
     var defaultTabElement = document.querySelector('[data-tab-default]');
     var defaultTab = defaultTabElement ? defaultTabElement.getAttribute('data-tab-default') : '';
     var initialTab = initialHash || defaultTab || 'overview';
-    if (!document.querySelector('[data-tab-panel="' + initialTab + '"]')) {
-        initialTab = 'overview';
-    }
+    if (!document.querySelector('[data-tab-panel="' + initialTab + '"]')) initialTab = 'overview';
     activateTab(initialTab, false);
 })();
 </script>
