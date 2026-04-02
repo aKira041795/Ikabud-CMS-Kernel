@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require __DIR__ . '/../bootstrap.php';
+require_once __DIR__ . '/../src/helpers/module-manager.php';
 require_once __DIR__ . '/../modules/cms/helpers.php';
 require_once __DIR__ . '/../modules/cms/handlers.php';
 

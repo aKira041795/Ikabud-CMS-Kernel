@@ -41,7 +41,11 @@
         ],
         "depends": [],
         "policy": {
-            "capabilities": {}
+            "capabilities": {
+                "antispam.check@1": {
+                    "allow_callers": ["cms"]
+                }
+            }
         }
     },
     "settings_fields": [

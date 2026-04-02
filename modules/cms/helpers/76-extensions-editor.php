@@ -437,7 +437,7 @@ function cmsEditorSanitizeHtml(string $html, string $context = 'cms.content'): s
     } catch (Throwable $e) {
     }
 
-    return trim($html);
+    return strip_tags($html, '<p><br><strong><b><em><i><u><a><ul><ol><li><blockquote><code><pre><h1><h2><h3><h4><h5><h6><img><figure><figcaption><table><thead><tbody><tr><th><td><hr>');
 }
 
 // ── Structured Data (JSON-LD) — adopted from ikabud-kernel SEOService ──

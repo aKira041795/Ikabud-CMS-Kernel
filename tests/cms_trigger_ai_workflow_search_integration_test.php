@@ -4,10 +4,15 @@ declare(strict_types=1);
 
 require __DIR__ . '/../bootstrap.php';
 require_once __DIR__ . '/../kernel/EventTriggers.php';
+require_once __DIR__ . '/../src/helpers/module-manager.php';
 require_once __DIR__ . '/../modules/cms/helpers.php';
 require_once __DIR__ . '/../modules/workflow/helpers.php';
 require_once __DIR__ . '/../modules/search/helpers.php';
 require_once __DIR__ . '/../modules/ai/helpers.php';
+
+foreach (search_capability_handlers() as $capId => $handler) {
+    try { app()->capabilities()->register($capId, 'search', $handler, 100, ['first']); } catch (Throwable $e) {}
+}
 
 $pass=0;$fail=0;$errs=[];
 function t($l,$ok,$d=''){global $pass,$fail,$errs; if($ok){$pass++;echo"  ✓ $l\n";}else{$fail++;$errs[]=$l.($d?": $d":'');echo"  ✗ $l".($d?" — $d":'')."\n";}}
