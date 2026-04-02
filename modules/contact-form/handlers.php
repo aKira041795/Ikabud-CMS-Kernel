@@ -502,7 +502,31 @@ function contactFormAdminFormCreate(array $params = []): void
                 ]);
 
                 $formId = (int) contactFormDb()->lastInsertId();
-                contactFormSetFlash('success', 'Form created. Add fields to make it live.');
+
+                // Seed three default fields: Name, Email, Message
+                $fieldStmt = contactFormDb()->prepare(
+                    'INSERT INTO contact_form_fields (form_id, field_type, label, name, placeholder, help_text, options_text, required, sort_order, created_at, updated_at)'
+                    . ' VALUES (:form_id, :field_type, :label, :name, :placeholder, :help_text, :options_text, :required, :sort_order, NOW(), NOW())'
+                );
+                foreach ([
+                    ['field_type' => 'text',     'label' => 'Full Name',     'name' => 'full_name', 'placeholder' => 'Your full name',  'required' => 1, 'sort_order' => 10],
+                    ['field_type' => 'email',    'label' => 'Email Address', 'name' => 'email',     'placeholder' => 'you@example.com', 'required' => 1, 'sort_order' => 20],
+                    ['field_type' => 'textarea', 'label' => 'Message',       'name' => 'message',   'placeholder' => 'Your message…',   'required' => 1, 'sort_order' => 30],
+                ] as $df) {
+                    $fieldStmt->execute([
+                        ':form_id'      => $formId,
+                        ':field_type'   => $df['field_type'],
+                        ':label'        => $df['label'],
+                        ':name'         => $df['name'],
+                        ':placeholder'  => $df['placeholder'],
+                        ':help_text'    => '',
+                        ':options_text' => '',
+                        ':required'     => $df['required'],
+                        ':sort_order'   => $df['sort_order'],
+                    ]);
+                }
+
+                contactFormSetFlash('success', 'Form created with default fields. Customise them in the Fields tab.');
                 contactFormRedirectTo('/cms/admin/contact-forms/' . $formId . '/edit');
             } catch (Throwable $e) {
                 write_log('contact-form: failed to create form: ' . $e->getMessage(), 'error');

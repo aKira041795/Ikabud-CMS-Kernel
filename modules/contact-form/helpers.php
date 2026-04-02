@@ -113,7 +113,7 @@ function contactFormFormDefaults(): array
         'name' => '',
         'slug' => '',
         'success_message' => '',
-        'submit_label' => '',
+        'submit_label' => 'Send Message',
         'captcha_enabled' => 1,
         'status' => 'active',
         'created_at' => '',
