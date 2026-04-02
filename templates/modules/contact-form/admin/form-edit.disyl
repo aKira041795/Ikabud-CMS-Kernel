@@ -248,7 +248,7 @@
                             <textarea name="options_text" rows="3"
                                 class="w-full rounded-lg border border-slate-300 px-3 py-2 text-xs font-mono focus:border-sky-500 outline-none resize-none"
                                 placeholder="value|Label&#10;one_more|Another option"></textarea>
-                            <p class="mt-1 text-[11px] text-slate-400">Format: <span class="font-mono">value|Label</span>, one per line</p>
+                            <p class="mt-1 text-[11px] text-slate-400">One per line &middot; Format: <span class="font-mono">value|Label</span> &middot; Used by Select, Radio &amp; Checkbox</p>
                         </div>
                         <div id="cf-hidden-value-section" class="mb-2.5 hidden">
                             <label class="block text-xs font-semibold text-slate-600 mb-1">Hidden Value <span class="font-normal text-slate-400">(optional)</span></label>
@@ -332,10 +332,10 @@
                                         <label class="block text-xs font-semibold text-slate-500 mb-1.5">Help Text</label>
                                         <input type="text" name="help_text" value="{field.help_text}" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-sky-500 outline-none" placeholder="Optional note shown below the field">
                                     </div>
-                                    <div class="sm:col-span-2 cf-field-options-panel {if field.field_type != 'select' && field.field_type != 'radio'}hidden{/if}" data-options-for="select,radio">
+                                    <div class="sm:col-span-2 cf-field-options-panel {if field.field_type != 'select' && field.field_type != 'radio' && field.field_type != 'checkbox'}hidden{/if}" data-options-for="select,radio,checkbox">
                                         <label class="block text-xs font-semibold text-slate-500 mb-1.5">Options</label>
                                         <textarea name="options_text" rows="4" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-mono focus:border-sky-500 outline-none resize-y">{field.options_text}</textarea>
-                                        <p class="mt-1 text-[11px] text-slate-400">One per line &middot; Format: <span class="font-mono">value|Label</span></p>
+                                        <p class="mt-1 text-[11px] text-slate-400">One per line &middot; Format: <span class="font-mono">value|Label</span> &middot; Used by Select, Radio &amp; Checkbox. Checkbox with no options becomes a single agree/disagree toggle.</p>
                                     </div>
                                     <div>
                                         <label class="block text-xs font-semibold text-slate-500 mb-1.5">Sort Order</label>
@@ -532,9 +532,9 @@
             quickLabelInput.select();
             quickLabelInput.focus();
         }
-        // Options panel: visible for select + radio
+        // Options panel: visible for select, radio, and checkbox
         if (quickOptionsSection) {
-            quickOptionsSection.classList.toggle('hidden', type !== 'select' && type !== 'radio');
+            quickOptionsSection.classList.toggle('hidden', type !== 'select' && type !== 'radio' && type !== 'checkbox');
         }
         // Hidden-value panel: visible only for hidden type
         if (quickHiddenSection) {

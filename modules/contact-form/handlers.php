@@ -344,6 +344,18 @@ function contactFormPrepareDynamicSubmission(array $fields, array $input): array
 
         $field = contactFormNormalizeFieldRow($field);
         $rawValue = $input[$field['name']] ?? '';
+
+        // Checkbox group: submitted as an array; validate each checked value is in allowed options
+        if ($field['field_type'] === 'checkbox' && is_array($rawValue) && $field['options_text'] !== '') {
+            $allowedValues = array_map(static fn(array $option): string => (string) ($option['value'] ?? ''), contactFormParseOptionsText((string) $field['options_text']));
+            foreach ($rawValue as $checkedVal) {
+                $checkedVal = trim((string) $checkedVal);
+                if ($checkedVal !== '' && $allowedValues !== [] && !in_array($checkedVal, $allowedValues, true)) {
+                    return ['error' => 'Invalid selection for ' . $field['label'] . '.'];
+                }
+            }
+        }
+
         if (is_array($rawValue)) {
             $rawValue = implode(', ', array_map(static fn($value): string => trim((string) $value), $rawValue));
         }
@@ -368,6 +380,13 @@ function contactFormPrepareDynamicSubmission(array $fields, array $input): array
             }
 
             if ($field['field_type'] === 'select') {
+                $allowedValues = array_map(static fn(array $option): string => (string) ($option['value'] ?? ''), contactFormParseOptionsText((string) ($field['options_text'] ?? '')));
+                if ($allowedValues === [] || !in_array($value, $allowedValues, true)) {
+                    return ['error' => 'Please choose a valid option for ' . $field['label'] . '.'];
+                }
+            }
+
+            if ($field['field_type'] === 'radio') {
                 $allowedValues = array_map(static fn(array $option): string => (string) ($option['value'] ?? ''), contactFormParseOptionsText((string) ($field['options_text'] ?? '')));
                 if ($allowedValues === [] || !in_array($value, $allowedValues, true)) {
                     return ['error' => 'Please choose a valid option for ' . $field['label'] . '.'];

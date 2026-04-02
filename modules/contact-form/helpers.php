@@ -498,7 +498,7 @@ function contactFormFieldTypeOptions(): array
 
 function contactFormFieldTypesWithOptions(): array
 {
-    return ['select', 'radio'];
+    return ['select', 'radio', 'checkbox'];
 }
 
 function contactFormFieldInputType(string $fieldType): string
@@ -1336,6 +1336,11 @@ function contactFormRenderSharedStyles(): string
     margin-top: .15rem;
     flex-shrink: 0;
 }
+.contact-form-checkbox-multi-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
 .contact-form-radio-group {
     display: flex;
     flex-direction: column;
@@ -1571,6 +1576,41 @@ function contactFormRenderFieldMarkup(array $field, string $formId): string
             . $descHtml
             . '</div>';
     } elseif ($field['field_type'] === 'checkbox') {
+        $parsedOptions = contactFormParseOptionsText($field['options_text']);
+        $hasOptions = $parsedOptions !== [];
+
+        if ($hasOptions) {
+            // Multi-select checkbox group
+            $groupName = $fieldName . '[]';
+            $checkboxesHtml = '';
+            foreach ($parsedOptions as $option) {
+                if (!is_array($option)) {
+                    continue;
+                }
+
+                $optVal = contactFormEscape((string) ($option['value'] ?? ''));
+                $optLbl = contactFormEscape((string) ($option['label'] ?? ''));
+                if ($optVal === '' || $optLbl === '') {
+                    continue;
+                }
+
+                $checkboxesHtml .= '<label class="contact-form-checkbox-label">'
+                    . '<input type="checkbox" name="' . $groupName . '" value="' . $optVal . '"' . $ariaDescAttr . '>'
+                    . ' ' . $optLbl
+                    . '</label>';
+            }
+
+            return '<div class="form-group">'
+                . '<label>' . $fieldLabel . $requiredMark . '</label>'
+                . '<div class="contact-form-checkbox-multi-group" role="group" aria-label="' . $fieldLabel . '"' . $ariaDescAttr . '>'
+                . ($checkboxesHtml !== '' ? $checkboxesHtml : '<span class="contact-form-help">No options configured.</span>')
+                . '</div>'
+                . $helpHtml
+                . '<div class="contact-form-field-error" role="alert" aria-live="assertive"></div>'
+                . '</div>';
+        }
+
+        // Single agree/disagree checkbox (no options configured)
         $checkboxLabel = $placeholder !== '' ? $placeholder : $fieldLabel;
         $inputHtml = '<label class="contact-form-checkbox-label">'
             . '<input type="checkbox" id="' . $fieldInputId . '" name="' . $fieldName . '" value="1"'
@@ -1673,7 +1713,13 @@ function contactFormRenderClientScript(string $formId, string $successMessage, b
 
         var data = {};
         new FormData(form).forEach(function (value, key) {
-            data[key] = value;
+            if (key.slice(-2) === '[]') {
+                var arrKey = key.slice(0, -2);
+                if (!Array.isArray(data[arrKey])) data[arrKey] = [];
+                data[arrKey].push(value);
+            } else {
+                data[key] = value;
+            }
         });
 
         setLoading(true);
