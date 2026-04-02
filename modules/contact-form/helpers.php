@@ -113,6 +113,7 @@ function contactFormFormDefaults(): array
         'name' => '',
         'slug' => '',
         'success_message' => '',
+        'submit_label' => '',
         'captcha_enabled' => 1,
         'status' => 'active',
         'created_at' => '',
@@ -129,6 +130,7 @@ function contactFormNormalizeFormRow(array $row): array
         'name' => trim((string) ($row['name'] ?? '')),
         'slug' => trim((string) ($row['slug'] ?? '')),
         'success_message' => trim((string) ($row['success_message'] ?? '')),
+        'submit_label' => trim((string) ($row['submit_label'] ?? '')),
         'captcha_enabled' => (int) ($row['captcha_enabled'] ?? 0),
         'status' => trim((string) ($row['status'] ?? 'inactive')),
         'created_at' => trim((string) ($row['created_at'] ?? '')),
@@ -461,12 +463,17 @@ function contactFormBoolish(mixed $value): bool
 function contactFormFieldTypeLabels(): array
 {
     return [
-        'text' => 'Text',
-        'email' => 'Email',
-        'tel' => 'Telephone',
-        'number' => 'Number',
+        'text'     => 'Text',
+        'email'    => 'Email',
+        'tel'      => 'Telephone',
+        'number'   => 'Number',
+        'url'      => 'Website URL',
+        'date'     => 'Date',
+        'time'     => 'Time',
         'textarea' => 'Textarea',
-        'select' => 'Select',
+        'select'   => 'Select / Dropdown',
+        'checkbox' => 'Checkbox',
+        'hidden'   => 'Hidden',
     ];
 }
 
@@ -491,10 +498,15 @@ function contactFormFieldTypesWithOptions(): array
 function contactFormFieldInputType(string $fieldType): string
 {
     return match ($fieldType) {
-        'email' => 'email',
-        'tel' => 'tel',
-        'number' => 'number',
-        default => 'text',
+        'email'    => 'email',
+        'tel'      => 'tel',
+        'number'   => 'number',
+        'url'      => 'url',
+        'date'     => 'date',
+        'time'     => 'time',
+        'checkbox' => 'checkbox',
+        'hidden'   => 'hidden',
+        default    => 'text',
     };
 }
 
@@ -868,7 +880,7 @@ function contactFormGetFormById(int $formId, bool $withFields = false, bool $act
     }
 
     try {
-        $sql = 'SELECT id, name, slug, success_message, captcha_enabled, status, created_at, updated_at FROM contact_forms WHERE id = :id';
+        $sql = 'SELECT id, name, slug, success_message, submit_label, captcha_enabled, status, created_at, updated_at FROM contact_forms WHERE id = :id';
         if ($activeOnly) {
             $sql .= " AND status = 'active'";
         }
@@ -905,7 +917,7 @@ function contactFormGetFormBySlug(string $slug, bool $withFields = false, bool $
     }
 
     try {
-        $sql = 'SELECT id, name, slug, success_message, captcha_enabled, status, created_at, updated_at FROM contact_forms WHERE slug = :slug';
+        $sql = 'SELECT id, name, slug, success_message, submit_label, captcha_enabled, status, created_at, updated_at FROM contact_forms WHERE slug = :slug';
         if ($activeOnly) {
             $sql .= " AND status = 'active'";
         }
@@ -1298,6 +1310,23 @@ function contactFormRenderSharedStyles(): string
 .contact-form-submit.is-loading .cf-spinner {
     display: inline-block;
 }
+.contact-form-checkbox-group {
+    gap: .3rem;
+}
+.contact-form-checkbox-label {
+    display: inline-flex;
+    align-items: flex-start;
+    gap: .5rem;
+    font-size: .95rem;
+    color: #334155;
+    cursor: pointer;
+    line-height: 1.5;
+}
+.contact-form-checkbox-label input[type="checkbox"] {
+    width: auto;
+    margin-top: .15rem;
+    flex-shrink: 0;
+}
 </style>
 HTML;
 }
@@ -1387,6 +1416,21 @@ function contactFormRenderFieldMarkup(array $field, string $formId): string
             . $ariaRequiredAttr . $ariaDescAttr . '>'
             . $optionsHtml
             . '</select>';
+    } elseif ($field['field_type'] === 'checkbox') {
+        $checkboxLabel = $placeholder !== '' ? $placeholder : $fieldLabel;
+        $inputHtml = '<label class="contact-form-checkbox-label">'
+            . '<input type="checkbox" id="' . $fieldInputId . '" name="' . $fieldName . '" value="1"'
+            . $requiredAttr . $ariaRequiredAttr . $ariaDescAttr . '>'
+            . ' ' . contactFormEscape($checkboxLabel)
+            . '</label>';
+
+        return '<div class="form-group contact-form-checkbox-group">'
+            . $inputHtml
+            . $helpHtml
+            . '<div class="contact-form-field-error" role="alert" aria-live="assertive"></div>'
+            . '</div>';
+    } elseif ($field['field_type'] === 'hidden') {
+        return '<input type="hidden" name="' . $fieldName . '" value="' . $placeholder . '">';
     } else {
         $fieldType = contactFormEscape(contactFormFieldInputType((string) $field['field_type']));
         $extraAttr = $field['field_type'] === 'number' ? ' inputmode="decimal" step="any"' : '';
@@ -1624,6 +1668,9 @@ function contactFormRenderDynamic(int $savedFormId, array $attrs = []): string
     }
 
     $submitLabel = trim((string) ($attrs['submit_label'] ?? ''));
+    if ($submitLabel === '') {
+        $submitLabel = trim((string) ($form['submit_label'] ?? ''));
+    }
     if ($submitLabel === '') {
         $submitLabel = 'Send Message';
     }

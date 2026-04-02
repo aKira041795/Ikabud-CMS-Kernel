@@ -56,6 +56,7 @@ function contactFormValidateFormInput(array $input, ?int $existingId = null): ar
     }
 
     $successMessage = contactFormLimit(trim((string) ($input['success_message'] ?? '')), 5000);
+    $submitLabel = contactFormLimit(trim((string) ($input['submit_label'] ?? '')), 100);
     $status = trim((string) ($input['status'] ?? 'active'));
     if (!in_array($status, ['active', 'inactive'], true)) {
         $status = 'active';
@@ -79,6 +80,7 @@ function contactFormValidateFormInput(array $input, ?int $existingId = null): ar
             'name' => $name,
             'slug' => $slug,
             'success_message' => $successMessage,
+            'submit_label' => $submitLabel,
             'captcha_enabled' => $captchaEnabled,
             'status' => $status,
         ],
@@ -91,6 +93,7 @@ function contactFormHydrateFormFromInput(array $input, array $fallback = []): ar
     $form['name'] = contactFormLimit(trim((string) ($input['name'] ?? $form['name'] ?? '')), 255);
     $form['slug'] = contactFormSlugify((string) ($input['slug'] ?? $form['slug'] ?? $form['name']));
     $form['success_message'] = contactFormLimit(trim((string) ($input['success_message'] ?? $form['success_message'] ?? '')), 5000);
+    $form['submit_label'] = contactFormLimit(trim((string) ($input['submit_label'] ?? $form['submit_label'] ?? '')), 100);
     $form['captcha_enabled'] = contactFormBoolish($input['captcha_enabled'] ?? ($form['captcha_enabled'] ?? 1)) ? 1 : 0;
     $form['status'] = in_array((string) ($input['status'] ?? $form['status'] ?? 'active'), ['active', 'inactive'], true)
         ? (string) ($input['status'] ?? $form['status'])
@@ -416,12 +419,12 @@ function contactFormAdminForms(array $params = []): void
     } else {
         try {
             $rows = contactFormDb()->query(
-                'SELECT f.id, f.name, f.slug, f.success_message, f.captcha_enabled, f.status, f.created_at, f.updated_at,'
+                'SELECT f.id, f.name, f.slug, f.success_message, f.submit_label, f.captcha_enabled, f.status, f.created_at, f.updated_at,'
                 . ' COUNT(DISTINCT ff.id) AS field_count, COUNT(DISTINCT s.id) AS submission_count'
                 . ' FROM contact_forms f'
                 . ' LEFT JOIN contact_form_fields ff ON ff.form_id = f.id'
                 . ' LEFT JOIN contact_form_submissions s ON s.form_id = f.id'
-                . ' GROUP BY f.id, f.name, f.slug, f.success_message, f.captcha_enabled, f.status, f.created_at, f.updated_at'
+                . ' GROUP BY f.id, f.name, f.slug, f.success_message, f.submit_label, f.captcha_enabled, f.status, f.created_at, f.updated_at'
                 . ' ORDER BY f.created_at DESC'
             )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
 
@@ -486,13 +489,14 @@ function contactFormAdminFormCreate(array $params = []): void
             try {
                 $payload = $validation['data'];
                 $stmt = contactFormDb()->prepare(
-                    'INSERT INTO contact_forms (name, slug, success_message, captcha_enabled, status, created_at, updated_at)'
-                    . ' VALUES (:name, :slug, :success_message, :captcha_enabled, :status, NOW(), NOW())'
+                    'INSERT INTO contact_forms (name, slug, success_message, submit_label, captcha_enabled, status, created_at, updated_at)'
+                    . ' VALUES (:name, :slug, :success_message, :submit_label, :captcha_enabled, :status, NOW(), NOW())'
                 );
                 $stmt->execute([
                     ':name' => $payload['name'],
                     ':slug' => $payload['slug'],
                     ':success_message' => $payload['success_message'],
+                    ':submit_label' => $payload['submit_label'],
                     ':captcha_enabled' => $payload['captcha_enabled'],
                     ':status' => $payload['status'],
                 ]);
@@ -567,7 +571,7 @@ function contactFormAdminFormEdit(array $params = []): void
                 $payload = $validation['data'];
                 $stmt = contactFormDb()->prepare(
                     'UPDATE contact_forms'
-                    . ' SET name = :name, slug = :slug, success_message = :success_message,'
+                    . ' SET name = :name, slug = :slug, success_message = :success_message, submit_label = :submit_label,'
                     . ' captcha_enabled = :captcha_enabled, status = :status, updated_at = NOW()'
                     . ' WHERE id = :id LIMIT 1'
                 );
@@ -575,6 +579,7 @@ function contactFormAdminFormEdit(array $params = []): void
                     ':name' => $payload['name'],
                     ':slug' => $payload['slug'],
                     ':success_message' => $payload['success_message'],
+                    ':submit_label' => $payload['submit_label'],
                     ':captcha_enabled' => $payload['captcha_enabled'],
                     ':status' => $payload['status'],
                     ':id' => $formId,
