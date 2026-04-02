@@ -3,11 +3,8 @@
     "description": "Ikabud Kernel",
     "type": "project",
     "scripts": {
-        "test": [
-            "php tests/manifest_settings_defaults_test.php",
-            "php tests/ecommerce_storefront_media_test.php",
-            "php tests/cms_entity_list_product_image_test.php"
-        ],
+        "test": "php scripts/run-tests.php",
+        "test:single": "php",
         "benchmark:disyl": "php scripts/benchmark-disyl.php",
         "guard:manifests": "php scripts/guard-module-manifests.php"
     },

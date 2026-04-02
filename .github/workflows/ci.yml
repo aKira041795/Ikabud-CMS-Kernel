@@ -1,0 +1,77 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: ci_root_pass
+          MYSQL_DATABASE: baronbakeshop_ci
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping --silent"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: pdo, pdo_mysql, mbstring, json, openssl
+          coverage: none
+
+      - name: Install Composer dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Prepare environment
+        run: cp .env.ci .env
+
+      - name: Run database migrations
+        run: |
+          php -r "
+            \$_SERVER['HTTP_HOST'] = 'applicationos.test';
+            \$_SERVER['REQUEST_URI'] = '/';
+            require 'bootstrap.php';
+            \$db = app()->db();
+            \$files = glob('database/migrations/*.sql');
+            sort(\$files);
+            foreach (\$files as \$f) {
+              \$sql = file_get_contents(\$f);
+              foreach (array_filter(array_map('trim', explode(';', \$sql))) as \$stmt) {
+                try { \$db->exec(\$stmt); } catch (PDOException \$e) {
+                  if (!\str_contains(\$e->getMessage(), 'already exists') &&
+                      !\str_contains(\$e->getMessage(), 'Duplicate')) {
+                    echo 'Migration error in ' . \$f . ': ' . \$e->getMessage() . PHP_EOL;
+                  }
+                }
+              }
+            }
+            echo 'Migrations complete' . PHP_EOL;
+          "
+        continue-on-error: true
+
+      - name: Run test suite
+        run: composer test
+
+      - name: Upload log artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: logs
+          path: storage/logs/
+          retention-days: 7

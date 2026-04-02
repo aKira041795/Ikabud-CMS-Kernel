@@ -283,6 +283,39 @@ function cmsPublicHome(array $params = []): void
             $staticPage = $stmt->fetch(PDO::FETCH_ASSOC);
 
             if ($staticPage) {
+                $staticCacheKey = cmsPublicResolvedTemplateCacheKey(
+                    'cms:home:static_page:v1:' . $pageId,
+                    'public/entity.view.disyl',
+                    [],
+                    'page',
+                    [
+                        'public_render_origin' => 'cms',
+                        'public_route_kind' => 'front-page',
+                        'public_presentation_mode' => 'canonical',
+                    ]
+                );
+                $cacheStageStart = $timingEnabled ? microtime(true) : 0.0;
+                $cachedStatic = cmsCacheGet($staticCacheKey);
+                if ($timingEnabled) {
+                    cmsPublicRenderLogTiming('cms.public.home.static_page.cache_lookup', $cacheStageStart, [
+                        'page_id' => $pageId,
+                        'cache_hit' => $cachedStatic !== null && isset($cachedStatic['html']),
+                    ]);
+                }
+                if ($cachedStatic !== null && isset($cachedStatic['html'])) {
+                    if (!empty($cachedStatic['etag']) && !empty($cachedStatic['updated_at'])) {
+                        cmsSendCacheHeaders($cachedStatic['etag'], $cachedStatic['updated_at']);
+                    }
+                    if ($timingEnabled) {
+                        cmsPublicRenderLogTiming('cms.public.home.static_page.total', $requestStart, [
+                            'page_id' => $pageId,
+                            'cache_status' => 'hit',
+                        ]);
+                    }
+                    cmsPublicRespond((string)$cachedStatic['html']);
+                    return;
+                }
+
                 $meta = cmsLoadContentMeta($db, (int)$staticPage['id']);
                 $staticPage['meta'] = $meta;
                 $renderedHtml = cmsFilterRenderedContent(cmsContentRenderedHtml($staticPage), $staticPage);
@@ -313,10 +346,27 @@ function cmsPublicHome(array $params = []): void
                     ],
                 ]);
 
+                $etag = md5($html);
+                $updatedAt = (string)($staticPage['published_at'] ?? date('Y-m-d H:i:s'));
+                $staticCacheTags = ['cms:home', 'cms:content:' . $pageId, 'cms:type:page'];
+                $cacheWriteStageStart = $timingEnabled ? microtime(true) : 0.0;
+                cmsCacheSet($staticCacheKey, [
+                    'html'       => $html,
+                    'etag'       => $etag,
+                    'updated_at' => $updatedAt,
+                ], $staticCacheTags);
+                if ($timingEnabled) {
+                    cmsPublicRenderLogTiming('cms.public.home.static_page.cache_store', $cacheWriteStageStart, [
+                        'page_id' => $pageId,
+                        'tag_count' => count($staticCacheTags),
+                    ]);
+                }
+
+                cmsSendCacheHeaders($etag, $updatedAt);
                 if ($timingEnabled) {
                     cmsPublicRenderLogTiming('cms.public.home.static_page.total', $requestStart, [
-                        'page_id' => (int)($staticPage['id'] ?? 0),
-                        'cache_status' => 'bypass_static_page',
+                        'page_id' => $pageId,
+                        'cache_status' => 'miss',
                     ]);
                 }
                 cmsPublicRespond($html);

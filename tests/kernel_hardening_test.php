@@ -438,6 +438,80 @@ if ($originalMethod === null) {
     $_SERVER['REQUEST_METHOD'] = $originalMethod;
 }
 
+// ── CSP Browser Contract ─────────────────────────────────────────────────────
+// These assertions guard the exact trust model required by Alpine.js v3 (CDN)
+// and Tailwind CSS CDN JIT: both use new Function() / eval-based scanning.
+// A nonce in script-src overrides 'unsafe-inline' per CSP Level 2/3 spec,
+// breaking all inline scripts without matching nonce="" attributes.
+heading('CSP Browser Contract');
+
+$cspBrowserHeaders = new \Ikabud\Kernel\Http\SecurityHeaders('/login', 'applicationos.test');
+$cspBrowserHeaderList = $cspBrowserHeaders->headers();
+$cspBrowserValues = array_values(array_filter($cspBrowserHeaderList, static function (string $h): bool {
+    return str_starts_with($h, 'Content-Security-Policy: ');
+}));
+$cspValue = count($cspBrowserValues) === 1 ? substr($cspBrowserValues[0], strlen('Content-Security-Policy: ')) : '';
+$scriptSrcMatch = '';
+foreach (explode(';', $cspValue) as $directive) {
+    $directive = trim($directive);
+    if (str_starts_with($directive, 'script-src ')) {
+        $scriptSrcMatch = $directive;
+        break;
+    }
+}
+
+t(
+    "CSP script-src contains 'unsafe-eval' (required by Alpine.js v3 + Tailwind CDN JIT)",
+    str_contains($scriptSrcMatch, "'unsafe-eval'"),
+    $scriptSrcMatch !== '' ? $scriptSrcMatch : 'script-src directive not found'
+);
+t(
+    "CSP script-src contains 'unsafe-inline'",
+    str_contains($scriptSrcMatch, "'unsafe-inline'"),
+    $scriptSrcMatch
+);
+t(
+    "CSP script-src has no nonce- token (nonce overrides unsafe-inline per CSP3)",
+    !str_contains($scriptSrcMatch, 'nonce-'),
+    $scriptSrcMatch
+);
+t(
+    "CSP X-XSS-Protection omitted (deprecated, causes bypass on old browsers)",
+    empty(array_filter($cspBrowserHeaderList, static function (string $h): bool {
+        return str_starts_with($h, 'X-XSS-Protection:');
+    })),
+    json_encode($cspBrowserHeaderList)
+);
+
+// ── Error Page Rendering ─────────────────────────────────────────────────────
+heading('Error Page Rendering');
+
+$render500Error = null;
+$render500Html  = '';
+try {
+    $render500Html = app()->templates()->render('pages/500', ['base_url' => '']);
+} catch (Throwable $renderThrowable) {
+    $render500Error = $renderThrowable->getMessage();
+}
+
+t(
+    '500.disyl renders without throwing',
+    $render500Error === null,
+    (string)$render500Error
+);
+t(
+    '500.disyl output is non-empty HTML',
+    strlen($render500Html) > 50 && str_contains($render500Html, '<'),
+    'length=' . strlen($render500Html)
+);
+t(
+    '500.disyl output does not leak exception details',
+    !str_contains($render500Html, 'Exception')
+        && !str_contains($render500Html, 'Stack trace')
+        && !str_contains($render500Html, '#0 '),
+    'no trace leaked'
+);
+
 echo "\n══════════════════════════════════════════════════\n";
 echo "  PASS: {$pass}  FAIL: {$fail}\n";
 echo "══════════════════════════════════════════════════\n";

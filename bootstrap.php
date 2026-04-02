@@ -880,7 +880,26 @@ set_exception_handler(function (Throwable $e): void {
         http_response_code(500);
         header('Content-Type: text/html; charset=utf-8');
     }
-    // Never leak stack traces or internal paths to the client
+    // Tier 1: attempt to render the styled 500 page via DiSyL. Guard carefully —
+    // the exception may have occurred during bootstrapping so app() or the template
+    // engine may itself be unavailable.
+    if (function_exists('app') && function_exists('external_base_url')) {
+        try {
+            $html500 = app()->templates()->render('pages/500', [
+                'base_url' => external_base_url(),
+            ]);
+            echo $html500;
+            exit;
+        } catch (Throwable $renderEx) {
+            // Tier 1 failed — fall through to bare HTML. Log the render failure
+            // only as a warning so the original critical error is not obscured.
+            write_log('500 page render failed: ' . $renderEx->getMessage(), 'warning', [
+                'file' => $renderEx->getFile(),
+                'line' => $renderEx->getLine(),
+            ]);
+        }
+    }
+    // Tier 2: bare HTML fallback — never leaks stack traces or internal paths
     echo '<!DOCTYPE html><html><head><title>Error</title></head><body>'
        . '<h1>Application Error</h1><p>An unexpected error occurred. Please try again later.</p>'
        . '</body></html>';
