@@ -127,7 +127,12 @@ function cmsSendCacheHeaders(string $etag, string $lastModified): bool
     $etag = '"' . $etag . '"';
     header('ETag: ' . $etag);
     header('Last-Modified: ' . gmdate('D, d M Y H:i:s', strtotime($lastModified)) . ' GMT');
-    header('Cache-Control: public, max-age=' . cmsCacheTtl());
+    // Use no-cache so the browser always revalidates with the server via ETag/If-None-Match.
+    // max-age=N suppresses requests entirely for N seconds, meaning browser-side cached HTML
+    // persists even after a server-side cache flush (e.g. customizer save, settings change,
+    // content publish). With no-cache the server returns 304 instantly when nothing changed
+    // (no body retransmitted), so performance is equivalent while content is always fresh.
+    header('Cache-Control: public, no-cache');
 
     // Check If-None-Match
     $clientEtag = trim((string)($_SERVER['HTTP_IF_NONE_MATCH'] ?? ''));
