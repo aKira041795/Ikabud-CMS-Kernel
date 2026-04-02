@@ -331,6 +331,7 @@ $routes = [
         '/admin/ai' => 'pageAdminAi',
         '/superadmin/settings' => 'pageSuperadminSettings',
         '/api/v1/superadmin/modules' => 'apiSuperadminModules',
+        '/api/v1/superadmin/perf' => 'apiSuperadminPerf',
         '/api/v1/admin/modules' => 'apiListModules',
         '/api/v1/admin/modules/health' => 'apiModulesHealth',
         '/api/v1/admin/capabilities' => 'apiListCapabilities',
@@ -1371,6 +1372,83 @@ switch ($handler) {
 
         adminViewCacheInvalidate(['admin:view:modules', 'admin:view:platform', 'admin:view:capabilities']);
         echo json_encode(['ok' => true, 'module_id' => $modId, 'settings' => $newSettings]);
+        exit;
+
+    case 'apiSuperadminPerf':
+        header('Content-Type: application/json; charset=utf-8');
+        header('X-Request-Id: ' . request_id());
+        header('Cache-Control: no-store');
+        $user = app()->user();
+        if (!$user || ($user['role'] ?? '') !== 'superadmin' || ($user['source'] ?? '') !== 'kernel') {
+            http_response_code(403);
+            echo json_encode(['ok' => false, 'error' => 'Superadmin only']);
+            exit;
+        }
+
+        $perfResults = [];
+        $perfOverall = microtime(true);
+
+        // ── 1. DB round-trip ─────────────────────────────────────
+        $t = microtime(true);
+        try {
+            app()->db()->query('SELECT 1');
+            $perfResults['db_ping_ms'] = round((microtime(true) - $t) * 1000, 2);
+            $perfResults['db_ok'] = true;
+        } catch (Throwable $e) {
+            $perfResults['db_ping_ms'] = null;
+            $perfResults['db_ok'] = false;
+        }
+
+        // ── 2. Module discovery (cached) ──────────────────────────
+        $t = microtime(true);
+        $perfMods = discoverModules();
+        $perfResults['module_discover_ms'] = round((microtime(true) - $t) * 1000, 2);
+        $perfResults['module_count'] = count($perfMods);
+
+        // ── 3. Module discovery (cold — bypass cache) ─────────────
+        $t = microtime(true);
+        discoverModules(true);
+        $perfResults['module_discover_cold_ms'] = round((microtime(true) - $t) * 1000, 2);
+
+        // ── 4. Settings preload ───────────────────────────────────
+        $t = microtime(true);
+        preloadAllTenantModuleSettings();
+        $perfResults['settings_preload_ms'] = round((microtime(true) - $t) * 1000, 2);
+
+        // ── 5. Cache read/write round trip ────────────────────────
+        $t = microtime(true);
+        $cacheKey = '_perf_probe_' . request_id();
+        $perfCacheOk = false;
+        try {
+            app()->cache()->set($cacheKey, 'probe', 10);
+            $perfCacheOk = app()->cache()->get($cacheKey) === 'probe';
+            app()->cache()->delete($cacheKey);
+        } catch (Throwable $e) {}
+        $perfResults['cache_roundtrip_ms'] = round((microtime(true) - $t) * 1000, 2);
+        $perfResults['cache_ok'] = $perfCacheOk;
+
+        // ── 6. DiSyL template render ──────────────────────────────
+        $t = microtime(true);
+        try {
+            ob_start();
+            app()->render('pages/login.disyl', ['page_title' => '__perf_probe__', 'base_url' => external_base_url()]);
+            ob_get_clean();
+            $perfResults['disyl_render_login_ms'] = round((microtime(true) - $t) * 1000, 2);
+            $perfResults['disyl_ok'] = true;
+        } catch (Throwable $e) {
+            ob_get_clean();
+            $perfResults['disyl_render_login_ms'] = null;
+            $perfResults['disyl_ok'] = false;
+            $perfResults['disyl_error'] = $e->getMessage();
+        }
+
+        $perfResults['total_ms'] = round((microtime(true) - $perfOverall) * 1000, 2);
+        $perfResults['php_version'] = PHP_VERSION;
+        $perfResults['peak_memory_kb'] = (int) round(memory_get_peak_usage(true) / 1024);
+        $perfResults['timestamp'] = date('c');
+        $perfResults['host'] = $_SERVER['HTTP_HOST'] ?? '';
+
+        echo json_encode(['ok' => true, 'perf' => $perfResults], JSON_PRETTY_PRINT);
         exit;
 
     case 'apiSuperadminToggleModule':
