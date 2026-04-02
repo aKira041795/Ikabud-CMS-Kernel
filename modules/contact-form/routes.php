@@ -7,6 +7,7 @@ return [
         '/cms/admin/contact-forms' => 'contact-form:contactFormAdminForms',
         '/cms/admin/contact-forms/create' => 'contact-form:contactFormAdminFormCreate',
         '/cms/admin/contact-forms/{id}/edit' => 'contact-form:contactFormAdminFormEdit',
+        '/cms/admin/contact-forms/{id}/preview' => 'contact-form:contactFormAdminFormPreview',
         '/cms/admin/contact-forms/submissions' => 'contact-form:contactFormAdminSubmissions',
         '/cms/admin/contact-forms/submissions/export' => 'contact-form:contactFormAdminSubmissionsExport',
         '/cms/admin/contact-forms/submissions/{id}' => 'contact-form:contactFormAdminSubmissionDetail',

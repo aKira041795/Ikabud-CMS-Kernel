@@ -139,16 +139,35 @@ function contactFormValidateFieldInput(array $input, int $formId, ?int $existing
     $required = contactFormBoolish($input['required'] ?? '') ? 1 : 0;
 
     try {
-        $stmt = contactFormDb()->prepare(
-            'SELECT id FROM contact_form_fields WHERE form_id = :form_id AND name = :name LIMIT 1'
-        );
-        $stmt->execute([
-            ':form_id' => $formId,
-            ':name' => $name,
-        ]);
-        $row = $stmt->fetch(\PDO::FETCH_ASSOC);
-        if ($row && (int) ($row['id'] ?? 0) !== (int) $existingFieldId) {
-            return ['error' => 'That field name is already in use on this form.'];
+        if ($existingFieldId === null) {
+            // Creating: auto-suffix the name until it is unique (_2, _3 …)
+            $baseName = $name;
+            $counter = 2;
+            while (true) {
+                $stmt = contactFormDb()->prepare(
+                    'SELECT id FROM contact_form_fields WHERE form_id = :form_id AND name = :name LIMIT 1'
+                );
+                $stmt->execute([':form_id' => $formId, ':name' => $name]);
+                if (!$stmt->fetch(\PDO::FETCH_ASSOC)) {
+                    break; // name is unique
+                }
+
+                if ($counter > 99) {
+                    return ['error' => 'Could not generate a unique field name.'];
+                }
+
+                $name = $baseName . '_' . $counter++;
+            }
+        } else {
+            // Updating: name conflict with a different field is an error
+            $stmt = contactFormDb()->prepare(
+                'SELECT id FROM contact_form_fields WHERE form_id = :form_id AND name = :name LIMIT 1'
+            );
+            $stmt->execute([':form_id' => $formId, ':name' => $name]);
+            $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+            if ($row && (int) ($row['id'] ?? 0) !== (int) $existingFieldId) {
+                return ['error' => 'That field name is already in use on this form.'];
+            }
         }
     } catch (Throwable $e) {
         return ['error' => 'Unable to validate the field name right now.'];
@@ -701,6 +720,102 @@ function contactFormAdminFormDelete(array $params = []): void
     }
 
     contactFormRedirectTo('/cms/admin/contact-forms');
+}
+
+function contactFormAdminFormPreview(array $params = []): void
+{
+    contactFormRequireAdmin();
+
+    $formId = (int) ($params['id'] ?? 0);
+    $schema = contactFormSchemaStatus();
+
+    $esc = static fn(string $v): string => htmlspecialchars($v, ENT_QUOTES, 'UTF-8');
+
+    if (empty($schema['ready'])) {
+        header('Content-Type: text/html; charset=utf-8');
+        echo '<!DOCTYPE html><html><body style="font-family:sans-serif;color:#94a3b8;padding:2rem">Schema not ready.</body></html>';
+        return;
+    }
+
+    $form = contactFormGetFormById($formId, true, false);
+    if (!$form) {
+        header('Content-Type: text/html; charset=utf-8');
+        echo '<!DOCTYPE html><html><body style="font-family:sans-serif;color:#94a3b8;padding:2rem">Form not found.</body></html>';
+        return;
+    }
+
+    $settings = contactFormGetSettings();
+    $submitLabel = trim((string) ($form['submit_label'] ?? ''));
+    if ($submitLabel === '') {
+        $submitLabel = 'Send Message';
+    }
+
+    $successMessage = trim((string) ($form['success_message'] ?? ''));
+    if ($successMessage === '') {
+        $successMessage = trim((string) ($settings['success_message'] ?? 'Thank you for your submission.'));
+    }
+
+    $fields = is_array($form['fields'] ?? null) ? $form['fields'] : [];
+    $renderId = 'cf-preview-' . $formId;
+
+    if ($fields === []) {
+        $formHtml = '<p style="font-family:sans-serif;color:#94a3b8;padding:2rem;text-align:center">No fields have been added to this form yet.</p>';
+    } else {
+        $fieldMarkup = [];
+        foreach ($fields as $field) {
+            if (!is_array($field)) {
+                continue;
+            }
+
+            $fieldMarkup[] = contactFormRenderFieldMarkup($field, $renderId);
+        }
+
+        $hiddenHtml = '<input type="hidden" name="form_id" value="' . $formId . '">';
+        $captchaHtml = $form['captcha_enabled'] ? contactFormRenderCaptchaMarkup($renderId) : '';
+        $honeypot = ($settings['spam_protection'] ?? 'honeypot') === 'honeypot';
+        $formHtml = contactFormRenderFrame(
+            $renderId,
+            '',
+            implode("\n", $fieldMarkup),
+            $submitLabel,
+            $successMessage,
+            $hiddenHtml,
+            '',
+            $captchaHtml,
+            $honeypot,
+            $form['captcha_enabled'] === 1
+        );
+    }
+
+    $formName = $esc(trim((string) ($form['name'] ?? 'Form')));
+    header('Content-Type: text/html; charset=utf-8');
+    echo <<<HTML
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Preview: {$formName}</title>
+<style>
+* { box-sizing: border-box; }
+body { margin: 0; padding: 1.5rem 1.5rem 3rem; background: #f1f5f9; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+.cf-preview-banner {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
+    color: #64748b; background: #e2e8f0; border-radius: 20px;
+    padding: 4px 12px; margin-bottom: 1.25rem;
+}
+</style>
+</head>
+<body>
+<div class="cf-preview-banner">
+  <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+  Preview — submissions are disabled
+</div>
+{$formHtml}
+</body>
+</html>
+HTML;
 }
 
 function contactFormAdminFieldCreate(array $params = []): void
