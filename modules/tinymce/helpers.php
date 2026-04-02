@@ -77,6 +77,7 @@ function tinymceConfigGet(array $payload = []): array
 
     $config = [
         'selector' => '[data-tinymce-editor]',
+        'license_key' => 'gpl',
         'base_url' => $baseUrl . '/assets/cms/tinymce',
         'suffix' => '.min',
         'menubar' => true,
