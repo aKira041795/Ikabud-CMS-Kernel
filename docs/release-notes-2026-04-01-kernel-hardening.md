@@ -66,6 +66,38 @@ These enable diagnostic tooling and test assertions without accessing internal s
 
 ---
 
+## Phase 4B: Kernel and DiSyL Hardening Follow-Through
+
+### Security and Request Handling
+- `kernel/Http/SecurityHeaders.php` is now the canonical response-header policy. `public/index.php` delegates to it directly, CSP is emitted from the same source of truth, and deprecated `X-XSS-Protection` emission has been removed.
+- `bootstrap.php` now rejects cross-origin and protocol-relative absolute redirect targets while still allowing same-origin absolute redirects for internal flows and HTTPS upgrades.
+
+### Stability and Performance
+- Tenant DB idle validation is now configurable via `app.database.idle_validation_seconds` / `APP_DB_IDLE_VALIDATION_SECONDS`, with a safer 60-second default instead of an aggressive fixed 15-second cadence.
+- DiSyL now enforces a 20-template `{extends}` chain cap, adds stage gates for include/component/variable passes, uses a scan-based control-structure walk instead of collecting all tags with a full-template regex pass, and fast-paths plain variable resolution without unnecessary filter splitting.
+- Added `scripts/benchmark-disyl.php` and the Composer entrypoint `composer benchmark:disyl` to formalize repeatable CLI benchmarking for the engine’s main hot paths.
+
+### Reference Benchmark Run
+
+Reference run executed on 2026-04-02 with PHP 8.3.6 on Linux using `php scripts/benchmark-disyl.php --iterations=3000 --samples=5 --warmup=1`.
+
+| Scenario | Median μs/op |
+|---|---:|
+| `renderString plain` | 0.63 |
+| `renderString variables` | 12.92 |
+| `renderString script-aware` | 24.87 |
+| `processControlStructures nested` | 108.21 |
+| `processVariables simple` | 8.29 |
+| `processVariables filtered` | 30.28 |
+| `processScriptVariables simple` | 3.88 |
+| `resolveValue plain` | 0.84 |
+| `resolveValue dot-path` | 1.04 |
+| `resolveValue filtered` | 5.16 |
+
+These numbers are environment-specific and serve as a same-machine regression baseline, not as a universal SLA.
+
+---
+
 ## Verification
 
 - Full suite of Kernel Hardening test cases passing comprehensively around `kernel_request_context`, deferred queues, shutdown firing, and redirect validation logic.

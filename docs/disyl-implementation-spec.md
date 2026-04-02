@@ -2,7 +2,7 @@
 
 **Engine:** `kernel/DiSyL/TemplateEngine.php`  
 **Version:** 4.0.0  
-**Test suite:** `tests/disyl_engine_test.php` (243 tests, 40 sections)  
+**Test suite:** `tests/disyl_engine_test.php` (257 tests, 42 sections)  
 **Linter:** `php ikabud disyl:lint [path] [--verbose]`
 
 ---
@@ -26,6 +26,7 @@
 15. [Security](#security)
 16. [Error Handling](#error-handling)
 17. [Linter Checks](#linter-checks)
+18. [Performance & Benchmarking](#performance--benchmarking)
 
 ---
 
@@ -446,6 +447,8 @@ Block resolution: the most-derived child's declaration wins. Uninherited blocks 
 
 Circular `{extends}` chains (A extends B extends A) are detected at render time and break gracefully — the engine logs the error and renders what it has so far.
 
+`{extends}` walks are also capped at 20 ancestor templates. If the cap is exceeded, the engine logs the error, strips the overflowing `{extends}` directive, and continues from the nearest safe ancestor so rendering still completes deterministically.
+
 **Limitation:** nesting `{block}` directives inside other `{block}` bodies in the same template file is not supported. Place nested structure in the ancestor template, not in the child overrides.
 
 ### HTMX Partial Mode
@@ -586,3 +589,24 @@ php ikabud disyl:lint                            # scan all templates
 php ikabud disyl:lint templates/modules/mymod    # scan specific path
 php ikabud disyl:lint --verbose                  # show passing files
 ```
+
+---
+
+## Performance & Benchmarking
+
+DiSyL now ships with a dedicated CLI benchmark harness for regression-checking the hot paths that have been under active optimization.
+
+```bash
+composer benchmark:disyl
+php scripts/benchmark-disyl.php --iterations=3000 --samples=5 --warmup=1
+php scripts/benchmark-disyl.php --json > /tmp/disyl-benchmark.json
+```
+
+The harness covers these scenarios:
+
+- `renderString()` for plain, variable-heavy, and script-aware templates
+- nested control-structure processing through `processControlStructures()`
+- variable resolution with plain, dot-path, and filtered expressions
+- output-cache key generation for both the fast fingerprint path and the serialize fallback path
+
+Results are reported in microseconds per operation. Compare medians on the same machine, PHP version, and iteration count rather than comparing absolute numbers across different environments.

@@ -1238,6 +1238,12 @@ check(
     $engine->renderString('<script>const fn = () => { return 1; };</script>', [])
 );
 
+check(
+    'mixed JS object braces and DiSyL variables survive in script context',
+    '<script>const cfg = { label: "Alice", nested: { ok: true } };</script>',
+    $engine->renderString('<script>const cfg = { label: "{name}", nested: { ok: true } };</script>', ['name' => 'Alice'])
+);
+
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 section('22. Template Inheritance (extends/block)');
@@ -1911,11 +1917,42 @@ check(
     !empty(array_filter($circExtendsErrors, fn($e) => str_contains($e, 'Circular') || str_contains($e, 'circular')))
 );
 
+for ($depth = 0; $depth <= 21; $depth++) {
+    $name = 'deep_chain_' . $depth;
+    $nextName = 'deep_chain_' . ($depth + 1);
+    $content = $depth === 21
+        ? '<deep>{block body}DEEP ROOT BODY{/block}</deep>'
+        : '{extends "' . $nextName . '"}{block body}LEVEL ' . $depth . ' BODY{/block}';
+    file_put_contents($tmpDir . '/' . $name . '.disyl', $content);
+}
+
+$deepExtendsEngine = new TemplateEngine($tmpDir, '/tmp/disyl_test_cache', false);
+$deepExtendsOutput = $deepExtendsEngine->render('deep_chain_0', []);
+$deepExtendsErrors = $deepExtendsEngine->getErrors();
+check(
+    'extends chain depth guard prevents runaway inheritance walks',
+    true,
+    $deepExtendsOutput !== ''
+);
+check(
+    'extends chain depth guard logs a depth error',
+    true,
+    !empty(array_filter($deepExtendsErrors, fn($e) => str_contains($e, 'Extends chain depth exceeded maximum')))
+);
+check(
+    'extends chain depth guard preserves child overrides on the nearest safe ancestor',
+    true,
+    str_contains($deepExtendsOutput, 'LEVEL 0 BODY') && !str_contains($deepExtendsOutput, 'DEEP ROOT BODY')
+);
+
 @unlink($tmpDir . '/gp_root.disyl');
 @unlink($tmpDir . '/gp_parent.disyl');
 @unlink($tmpDir . '/gp_child.disyl');
 @unlink($tmpDir . '/circ_a.disyl');
 @unlink($tmpDir . '/circ_b.disyl');
+for ($depth = 0; $depth <= 21; $depth++) {
+    @unlink($tmpDir . '/deep_chain_' . $depth . '.disyl');
+}
 
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1974,6 +2011,78 @@ check(
         '{for item in items}{loop.index}:{item},{/for}',
         ['items' => ['A', 'B']]
     )
+);
+
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+section('41. Hardening — output cache key fast path');
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+$cacheKeyMethod = new ReflectionMethod(TemplateEngine::class, 'buildOutputCacheKey');
+$cacheKeyMethod->setAccessible(true);
+
+$cacheKeyA = $cacheKeyMethod->invoke($engine, '/tmp/example.disyl', [
+    'user' => ['name' => 'Alice'],
+    'count' => 1,
+]);
+$cacheKeyB = $cacheKeyMethod->invoke($engine, '/tmp/example.disyl', [
+    'user' => ['name' => 'Alice'],
+    'count' => 1,
+]);
+$cacheKeyC = $cacheKeyMethod->invoke($engine, '/tmp/example.disyl', [
+    'user' => ['name' => 'Bob'],
+    'count' => 1,
+]);
+$deepCacheKey = $cacheKeyMethod->invoke($engine, '/tmp/example.disyl', [
+    'a' => ['b' => ['c' => ['d' => ['e' => ['f' => ['g' => ['h' => ['i' => 1]]]]]]]],
+]);
+
+check(
+    'output cache key is stable for identical nested contexts',
+    'same',
+    $cacheKeyA === $cacheKeyB ? 'same' : 'different'
+);
+
+check(
+    'output cache key changes when nested context values change',
+    'different',
+    $cacheKeyA !== $cacheKeyC ? 'different' : 'same'
+);
+
+check(
+    'output cache key still resolves for deep contexts via safe fallback',
+    'non-empty',
+    is_string($deepCacheKey) && $deepCacheKey !== '' ? 'non-empty' : 'empty'
+);
+
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+section('42. Hardening — stage gating no-ops');
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+$processIncludesMethod = new ReflectionMethod(TemplateEngine::class, 'processIncludes');
+$processIncludesMethod->setAccessible(true);
+$processComponentsMethod = new ReflectionMethod(TemplateEngine::class, 'processComponents');
+$processComponentsMethod->setAccessible(true);
+$processVariablesMethod = new ReflectionMethod(TemplateEngine::class, 'processVariables');
+$processVariablesMethod->setAccessible(true);
+
+check(
+    'include stage fast-gate preserves plain content',
+    '<div>No include directive here</div>',
+    $processIncludesMethod->invoke($engine, '<div>No include directive here</div>', [])
+);
+
+check(
+    'component stage fast-gate preserves non-component brace content',
+    '<div>{not-a-component}</div>',
+    $processComponentsMethod->invoke($engine, '<div>{not-a-component}</div>', [])
+);
+
+check(
+    'variable stage fast-gate preserves brace-free content',
+    '<div>No variables here</div>',
+    $processVariablesMethod->invoke($engine, '<div>No variables here</div>', [])
 );
 
 

@@ -28,7 +28,7 @@ use PDO;
 class App
 {
     private static ?App $instance = null;
-    private const DB_IDLE_VALIDATION_SECONDS = 15;
+    private const DB_IDLE_VALIDATION_SECONDS = 60;
     
     private array $config = [];
     private ?PDO $db = null;
@@ -668,9 +668,14 @@ class App
         return max(1, (int)$this->config('app.multi_tenant.db_pool_max', 20));
     }
 
+    private function dbIdleValidationSeconds(): int
+    {
+        return max(5, (int)$this->config('app.database.idle_validation_seconds', self::DB_IDLE_VALIDATION_SECONDS));
+    }
+
     private function shouldValidateConnection(?int $lastVerified): bool
     {
-        return $lastVerified === null || $lastVerified <= 0 || (time() - $lastVerified) >= self::DB_IDLE_VALIDATION_SECONDS;
+        return $lastVerified === null || $lastVerified <= 0 || (time() - $lastVerified) >= $this->dbIdleValidationSeconds();
     }
 
     private function touchTenantDbPoolEntry(int $tenantId): ?PDO

@@ -81,6 +81,12 @@ class TemplateEngine
 
     /** Maximum number of template source entries cached per request */
     private const TEMPLATE_SOURCE_CACHE_MAX = 100;
+
+    /** Maximum nesting depth for the fast output-cache key path before falling back to serialize() */
+    private const OUTPUT_CACHE_KEY_FAST_DEPTH = 8;
+
+    /** Maximum number of ancestor templates allowed in an {extends} chain */
+    private const EXTENDS_CHAIN_MAX = 20;
     
     public function render(string $template, array $context = []): string
     {
@@ -101,7 +107,7 @@ class TemplateEngine
         
         // In-memory cache for repeated renders within same request (e.g., HTMX partials)
         if ($this->cacheEnabled) {
-            $memKey = $templatePath . '|' . md5(serialize($context));
+            $memKey = $this->buildOutputCacheKey($templatePath, $context);
             if (isset($this->outputCache[$memKey])) {
                 return $this->outputCache[$memKey];
             }
@@ -119,6 +125,91 @@ class TemplateEngine
         
         return $this->compile($content, $context);
     }
+
+    private function buildOutputCacheKey(string $templatePath, array $context): string
+    {
+        $fastFingerprint = $this->tryBuildFastContextFingerprint($context);
+        if ($fastFingerprint !== null) {
+            return $templatePath . '|' . $fastFingerprint;
+        }
+
+        return $templatePath . '|' . md5(serialize($context));
+    }
+
+    private function tryBuildFastContextFingerprint(array $context): ?string
+    {
+        $hash = hash_init('md5');
+        if (!$this->hashContextValue($hash, $context, 0)) {
+            return null;
+        }
+
+        return hash_final($hash);
+    }
+
+    private function hashContextValue($hash, mixed $value, int $depth): bool
+    {
+        if ($depth > self::OUTPUT_CACHE_KEY_FAST_DEPTH) {
+            return false;
+        }
+
+        if ($value === null || is_scalar($value)) {
+            hash_update($hash, serialize($value));
+            return true;
+        }
+
+        if (is_array($value)) {
+            hash_update($hash, 'a' . count($value) . '{');
+            foreach ($value as $key => $item) {
+                if (!$this->hashContextValue($hash, $key, $depth + 1)) {
+                    return false;
+                }
+                if (!$this->hashContextValue($hash, $item, $depth + 1)) {
+                    return false;
+                }
+            }
+            hash_update($hash, '}');
+            return true;
+        }
+
+        if ($value instanceof \DateTimeInterface) {
+            hash_update($hash, 'dt:' . get_class($value) . ':' . $value->format(\DateTimeInterface::ATOM));
+            return true;
+        }
+
+        if ($value instanceof \JsonSerializable) {
+            hash_update($hash, 'js:' . get_class($value) . '{');
+            $ok = $this->hashContextValue($hash, $value->jsonSerialize(), $depth + 1);
+            hash_update($hash, '}');
+            return $ok;
+        }
+
+        if ($value instanceof \Stringable) {
+            hash_update($hash, 'st:' . get_class($value) . ':' . (string)$value);
+            return true;
+        }
+
+        if ($value instanceof \UnitEnum) {
+            hash_update($hash, 'en:' . get_class($value) . ':' . $value->name);
+            return true;
+        }
+
+        if ($value instanceof \Closure || is_resource($value)) {
+            return false;
+        }
+
+        if (is_object($value)) {
+            try {
+                $serialized = serialize($value);
+            } catch (\Throwable $e) {
+                return false;
+            }
+
+            hash_update($hash, 'ob:' . $serialized);
+            return true;
+        }
+
+        return false;
+    }
     
     public function renderString(string $content, array $context = []): string
     {
@@ -132,6 +223,10 @@ class TemplateEngine
      */
     private function compile(string $content, array $context): string
     {
+        if (!str_contains($content, '{') && stripos($content, '<script') === false) {
+            return $content;
+        }
+
         // 0. Extract {verbatim}...{/verbatim} blocks — truly inert, restored last
         $verbatims = [];
         $content = preg_replace_callback('/\{verbatim\}(.*?)\{\/verbatim\}/s', function($match) use (&$verbatims) {
@@ -187,13 +282,19 @@ class TemplateEngine
         $content = $this->processControlStructures($content, $context);
         
         // 8. Process includes
-        $content = $this->processIncludes($content, $context);
+        if (str_contains($content, '{include ')) {
+            $content = $this->processIncludes($content, $context);
+        }
         
         // 9. Process components
-        $content = $this->processComponents($content, $context);
+        if (str_contains($content, '{ikb_') || str_contains($content, '{island')) {
+            $content = $this->processComponents($content, $context);
+        }
         
         // 10. Process remaining variables (including arithmetic and ternary expressions)
-        $content = $this->processVariables($content, $context);
+        if (str_contains($content, '{')) {
+            $content = $this->processVariables($content, $context);
+        }
         
         // 11. Restore {literal} blocks (raw, no processing)
         if (!empty($literals)) {
@@ -242,7 +343,7 @@ class TemplateEngine
         // mutating the string, which avoids O(n^2) behavior on script-heavy templates.
         $jsMarkers = [];
         $markerCount = 0;
-        $protectedBody = '';
+        $chunks = [];
         $insideDisylTag = false;
         
         $len = strlen($body);
@@ -252,36 +353,35 @@ class TemplateEngine
 
             if ($char === '{') {
                 // Check if this looks like a DiSyL tag
-                $remaining = substr($body, $i);
-                if (preg_match($disylPattern, $remaining, $m, 0, 0) && str_starts_with($remaining, $m[0])) {
+                if (preg_match($disylPattern, $body, $m, PREG_OFFSET_CAPTURE, $i) === 1 && ($m[0][1] ?? -1) === $i) {
                     $insideDisylTag = true;
-                    $protectedBody .= $char;
+                    $chunks[] = $char;
                     $i++;
                     continue;
                 }
 
                 $marker = "___JSCURLY_OPEN_{$markerCount}___";
                 $jsMarkers[$marker] = '{';
-                $protectedBody .= $marker;
+                $chunks[] = $marker;
                 $markerCount++;
             } elseif ($char === '}') {
                 if ($insideDisylTag) {
                     $insideDisylTag = false;
-                    $protectedBody .= $char;
+                    $chunks[] = $char;
                 } else {
                     $marker = "___JSCURLY_CLOSE_{$markerCount}___";
                     $jsMarkers[$marker] = '}';
-                    $protectedBody .= $marker;
+                    $chunks[] = $marker;
                     $markerCount++;
                 }
             } else {
-                $protectedBody .= $char;
+                $chunks[] = $char;
             }
 
             $i++;
         }
 
-        $body = $protectedBody;
+        $body = implode('', $chunks);
         
         // Step 2: Run full compilation (control structures + variables)
         //         Variables are output raw by default in script context.
@@ -336,37 +436,54 @@ class TemplateEngine
     private function processScriptVariables(string $content, array $context): string
     {
         // First pass: ternary expressions
-        $content = preg_replace_callback(
-            '/\{([^}]+\?[^}]+:[^}]+)\}/',
-            function($match) use ($context) {
-                return $this->evaluateTernary(trim($match[1]), $context);
-            },
-            $content
-        );
+        if (str_contains($content, '?') && str_contains($content, ':')) {
+            $content = preg_replace_callback(
+                '/\{([^}]+\?[^}]+:[^}]+)\}/',
+                function($match) use ($context) {
+                    return $this->evaluateTernary(trim($match[1]), $context);
+                },
+                $content
+            );
+        }
         
         // Second pass: arithmetic
-        $content = preg_replace_callback(
-            '/\{([a-zA-Z_][\w.]*\s*[+\-*\/%]\s*[\w.]+)\}/',
-            function($match) use ($context) {
-                $result = $this->evaluateArithmetic(trim($match[1]), $context);
-                if ($result !== null) {
-                    return (string) $result;
-                }
-                // Arithmetic operands with dots are template expressions — output empty
-                if (str_contains($match[1], '.')) {
-                    return '';
-                }
-                return $match[0];
-            },
-            $content
-        );
+        if (strpbrk($content, '+-*/%') !== false) {
+            $content = preg_replace_callback(
+                '/\{([a-zA-Z_][\w.]*\s*[+\-*\/%]\s*[\w.]+)\}/',
+                function($match) use ($context) {
+                    $result = $this->evaluateArithmetic(trim($match[1]), $context);
+                    if ($result !== null) {
+                        return (string) $result;
+                    }
+                    // Arithmetic operands with dots are template expressions — output empty
+                    if (str_contains($match[1], '.')) {
+                        return '';
+                    }
+                    return $match[0];
+                },
+                $content
+            );
+        }
         
         // Third pass: variables with filters
         return preg_replace_callback(
             '/(?<!\$)\{([a-zA-Z_][\w.]*(?:\s*\|\s*[^}]+)?)\}/',
             function($match) use ($context) {
                 $expr = trim($match[1]);
-                
+                if (!str_contains($expr, '|')) {
+                    $value = $this->resolveValue($expr, $context);
+
+                    if (!is_scalar($value)) {
+                        $rootKey = explode('.', $expr, 2)[0];
+                        if (str_contains($expr, '.') || array_key_exists($rootKey, $context)) {
+                            return '';
+                        }
+                        return $match[0];
+                    }
+
+                    return (string) $value;
+                }
+
                 // Split filters
                 $filters = $this->splitByPipe($expr);
                 $varPath = trim(array_shift($filters));
@@ -516,8 +633,15 @@ class TemplateEngine
         $chain    = [];
         $seenPaths = [];
         $current  = $content;
+        $chainDepth = 0;
 
         while (preg_match('/\{extends\s+"([^"]+)"\s*\}/', $current, $extMatch)) {
+            if ($chainDepth >= self::EXTENDS_CHAIN_MAX) {
+                $this->logError('Extends chain depth exceeded maximum (' . self::EXTENDS_CHAIN_MAX . ')');
+                $current = preg_replace('/\{extends\s+"[^"]+"\s*\}/', '', $current);
+                break;
+            }
+
             $layoutName = $extMatch[1];
             $layoutPath = $this->resolveTemplatePath($layoutName);
 
@@ -543,6 +667,7 @@ class TemplateEngine
                 break;
             }
             $current = $layoutContent;
+            $chainDepth++;
         }
 
         // $current is now the root ancestor. Collect block overrides from the chain
@@ -590,6 +715,19 @@ class TemplateEngine
      */
     private function processControlStructures(string $content, array $context): string
     {
+        if (!str_contains($content, '{')) {
+            return $content;
+        }
+
+        if (
+            !str_contains($content, '{if')
+            && !str_contains($content, '{for')
+            && !str_contains($content, '{foreach')
+            && !str_contains($content, '{each')
+        ) {
+            return $content;
+        }
+
         $maxIterations = 100;
         $iteration = 0;
         
@@ -617,51 +755,137 @@ class TemplateEngine
      */
     private function processOneControlStructure(string $content, array $context): string
     {
-        // Find all opening tags and their positions
-        $tags = [];
-        
-        // Match {if condition}, {for item in list}, {foreach list as item}, {each list as item}
-        if (preg_match_all('/\{(if|for|foreach|each)\s+([^}]+)\}/s', $content, $matches, PREG_OFFSET_CAPTURE)) {
-            foreach ($matches[0] as $i => $match) {
-                $tags[] = [
-                    'type' => $matches[1][$i][0],
-                    'expr' => $matches[2][$i][0],
-                    'pos' => $match[1],
-                    'len' => strlen($match[0]),
-                    'full' => $match[0]
-                ];
-            }
+        $result = $this->processFirstLoopStructure($content, $context);
+        if ($result !== null) {
+            return $result;
         }
-        
-        if (empty($tags)) {
-            return $content;
+
+        $result = $this->processLastIfStructure($content, $context);
+        if ($result !== null) {
+            return $result;
         }
-        
-        // First pass: process OUTERMOST loop (for/foreach/each).
-        // The loop body is compiled per-iteration via compile(), which
-        // recursively handles any inner loops/conditions with the
-        // correct loop variable context.
-        foreach ($tags as $tag) {
-            if ($tag['type'] === 'for' || $tag['type'] === 'foreach' || $tag['type'] === 'each') {
-                $result = $this->extractAndProcessStructure($content, $tag, $context);
-                if ($result !== null) {
-                    return $result;
-                }
-            }
-        }
-        
-        // Second pass: process INNERMOST if (bottom-up evaluation)
-        $reversed = array_reverse($tags);
-        foreach ($reversed as $tag) {
-            if ($tag['type'] === 'if') {
-                $result = $this->extractAndProcessStructure($content, $tag, $context);
-                if ($result !== null) {
-                    return $result;
-                }
-            }
-        }
-        
+
         return $content;
+    }
+
+    private function processFirstLoopStructure(string $content, array $context): ?string
+    {
+        $offset = 0;
+        $len = strlen($content);
+
+        while ($offset < $len) {
+            $tag = $this->findNextOpeningControlTag($content, $offset, ['for', 'foreach', 'each']);
+            if ($tag === null) {
+                break;
+            }
+
+            $result = $this->extractAndProcessStructure($content, $tag, $context);
+            if ($result !== null) {
+                return $result;
+            }
+
+            $offset = $tag['pos'] + 1;
+        }
+
+        return null;
+    }
+
+    private function processLastIfStructure(string $content, array $context): ?string
+    {
+        $ifTags = [];
+        $offset = 0;
+        $len = strlen($content);
+
+        while ($offset < $len) {
+            $tag = $this->findNextOpeningControlTag($content, $offset, ['if']);
+            if ($tag === null) {
+                break;
+            }
+
+            $ifTags[] = $tag;
+            $offset = $tag['pos'] + 1;
+        }
+
+        for ($index = count($ifTags) - 1; $index >= 0; $index--) {
+            $result = $this->extractAndProcessStructure($content, $ifTags[$index], $context);
+            if ($result !== null) {
+                return $result;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Find the next opening control tag from the given offset.
+     *
+     * @param array<int, string> $allowedTypes
+     * @return array{type: string, expr: string, pos: int, len: int, full: string}|null
+     */
+    private function findNextOpeningControlTag(string $content, int $offset, array $allowedTypes): ?array
+    {
+        $len = strlen($content);
+
+        while ($offset < $len) {
+            $pos = strpos($content, '{', $offset);
+            if ($pos === false) {
+                return null;
+            }
+
+            $tag = $this->readOpeningControlTagAt($content, $pos, $allowedTypes);
+            if ($tag !== null) {
+                return $tag;
+            }
+
+            $offset = $pos + 1;
+        }
+
+        return null;
+    }
+
+    /**
+     * Parse an opening control tag at a known "{" position.
+     *
+     * @param array<int, string> $allowedTypes
+     * @return array{type: string, expr: string, pos: int, len: int, full: string}|null
+     */
+    private function readOpeningControlTagAt(string $content, int $pos, array $allowedTypes): ?array
+    {
+        foreach ($allowedTypes as $type) {
+            $keyword = '{' . $type;
+            $keywordLen = strlen($keyword);
+            if (substr_compare($content, $keyword, $pos, $keywordLen) !== 0) {
+                continue;
+            }
+
+            $whitespacePos = $pos + $keywordLen;
+            $nextChar = $content[$whitespacePos] ?? '';
+            if ($nextChar === '' || !ctype_space($nextChar)) {
+                continue;
+            }
+
+            $tagEnd = strpos($content, '}', $whitespacePos + 1);
+            if ($tagEnd === false) {
+                return null;
+            }
+
+            $full = substr($content, $pos, $tagEnd - $pos + 1);
+            $expr = trim(substr($content, $whitespacePos + 1, $tagEnd - $whitespacePos - 1));
+
+            if ($expr === '') {
+                continue;
+            }
+
+            return [
+                'type' => $type,
+                'expr' => $expr,
+                'pos' => $pos,
+                'len' => strlen($full),
+                'full' => $full,
+            ];
+        }
+
+        return null;
     }
     
     /**
@@ -1125,6 +1349,10 @@ class TemplateEngine
      */
     private function processIncludes(string $content, array $context): string
     {
+        if (!str_contains($content, '{include ')) {
+            return $content;
+        }
+
         $maxIterations = 20;
         $iteration = 0;
         
@@ -1223,6 +1451,10 @@ class TemplateEngine
 
     private function processComponents(string $content, array $context): string
     {
+        if (!str_contains($content, '{ikb_') && !str_contains($content, '{island')) {
+            return $content;
+        }
+
         $maxIterations = 200;
         $iteration = 0;
         
@@ -1373,57 +1605,77 @@ class TemplateEngine
      */
     private function processVariables(string $content, array $context): string
     {
+        if (!str_contains($content, '{')) {
+            return $content;
+        }
+
         // First pass: ternary expressions {condition ? 'trueVal' : 'falseVal'}
-        $content = preg_replace_callback(
-            '/\{([^}]+\?[^}]+:[^}]+)\}/',
-            function($match) use ($context) {
-                return $this->evaluateTernary(trim($match[1]), $context);
-            },
-            $content
-        );
+        if (str_contains($content, '?') && str_contains($content, ':')) {
+            $content = preg_replace_callback(
+                '/\{([^}]+\?[^}]+:[^}]+)\}/',
+                function($match) use ($context) {
+                    return $this->evaluateTernary(trim($match[1]), $context);
+                },
+                $content
+            );
+        }
         
         // Second pass: arithmetic expressions {var + num}, {var - num}, etc.
-        $content = preg_replace_callback(
-            '/\{([a-zA-Z_][\w.]*\s*[+\-*\/%]\s*[\w.]+)\}/',
-            function($match) use ($context) {
-                $result = $this->evaluateArithmetic(trim($match[1]), $context);
-                if ($result !== null) {
-                    return htmlspecialchars((string) $result, ENT_QUOTES, 'UTF-8');
-                }
-                // Unresolvable arithmetic — output empty to avoid leaking tag syntax
-                return '';
-            },
-            $content
-        );
+        if (strpbrk($content, '+-*/%') !== false) {
+            $content = preg_replace_callback(
+                '/\{([a-zA-Z_][\w.]*\s*[+\-*\/%]\s*[\w.]+)\}/',
+                function($match) use ($context) {
+                    $result = $this->evaluateArithmetic(trim($match[1]), $context);
+                    if ($result !== null) {
+                        return htmlspecialchars((string) $result, ENT_QUOTES, 'UTF-8');
+                    }
+                    // Unresolvable arithmetic — output empty to avoid leaking tag syntax
+                    return '';
+                },
+                $content
+            );
+        }
         
         // Third pass: standard variables with filters
         $content = preg_replace_callback(
             '/(?<!\$)\{([a-zA-Z_][\w.]*(?:\s*\|\s*[^}]+)?)\}/',
             function($match) use ($context) {
                 $expr = trim($match[1]);
-                
+                if (!str_contains($expr, '|')) {
+                    $value = $this->resolveValue($expr, $context);
+
+                    if (!is_scalar($value)) {
+                        return '';
+                    }
+
+                    return htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8');
+                }
+
                 // Check if | raw filter is present (bypass auto-escape)
                 $hasRaw = false;
+                $filterNames = [];
                 $filters = $this->splitByPipe($expr);
-                foreach ($filters as $i => $f) {
-                    if (trim($f) === 'raw') {
-                        $hasRaw = true;
-                        unset($filters[$i]);
-                        break;
+                $varPath = trim((string) array_shift($filters));
+                $value = $this->resolveValue($varPath, $context);
+
+                foreach ($filters as $filter) {
+                    $filter = trim($filter);
+                    if ($filter === '') {
+                        continue;
                     }
+
+                    $filterName = trim(explode(':', $filter, 2)[0]);
+                    if ($filterName === 'raw') {
+                        $hasRaw = true;
+                        continue;
+                    }
+
+                    $filterNames[] = $filterName;
+                    $value = $this->applyFilter($filter, $value, $context);
                 }
-                $cleanExpr = implode('|', $filters);
-                
-                $value = $this->resolveValueWithFilters($cleanExpr, $context);
                 
                 if (!is_scalar($value)) {
                     return '';
-                }
-                
-                // Collect parsed filter names for precise escape-filter detection
-                $filterNames = [];
-                foreach ($filters as $f) {
-                    $filterNames[] = trim(explode(':', trim($f), 2)[0]);
                 }
                 
                 // Auto-escape unless | raw was specified or another escape filter was used
@@ -1569,6 +1821,10 @@ class TemplateEngine
      */
     private function resolveValueWithFilters(string $expr, array $context)
     {
+        if (!str_contains($expr, '|')) {
+            return $this->resolveValue($expr, $context);
+        }
+
         $parts = $this->splitByPipe($expr);
         $varPath = trim(array_shift($parts));
         

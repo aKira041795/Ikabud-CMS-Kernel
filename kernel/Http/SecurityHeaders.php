@@ -72,35 +72,43 @@ class SecurityHeaders
      */
     public function apply(): bool
     {
-        // Skip for static assets (served directly by Apache)
-        if ($this->isStaticAsset) {
+        $headers = $this->headers();
+        if ($headers === []) {
             return false;
         }
-        
-        // Clickjacking protection
-        header('X-Frame-Options: SAMEORIGIN');
-        
-        // MIME type sniffing protection
-        header('X-Content-Type-Options: nosniff');
-        
-        // XSS filter (legacy browsers)
-        header('X-XSS-Protection: 1; mode=block');
-        
-        // Content Security Policy
-        $this->applyCSP();
-        
-        // Referrer policy
-        header('Referrer-Policy: strict-origin-when-cross-origin');
-        
-        // Permissions policy — disable unused browser features
-        header('Permissions-Policy: geolocation=(), microphone=(), camera=(), payment=(), usb=()');
-        
-        // HSTS when on HTTPS
-        if ($this->isHttps()) {
-            header('Strict-Transport-Security: max-age=31536000; includeSubDomains');
+
+        foreach ($headers as $headerValue) {
+            header($headerValue);
         }
-        
+
         return true;
+    }
+
+    /**
+     * Build the response security headers for the current request.
+     * Exposed so header policy can be tested without relying on SAPI header state.
+     *
+     * @return array<int, string>
+     */
+    public function headers(): array
+    {
+        if ($this->isStaticAsset) {
+            return [];
+        }
+
+        $headers = [
+            'X-Frame-Options: SAMEORIGIN',
+            'X-Content-Type-Options: nosniff',
+            'Content-Security-Policy: ' . $this->buildCspHeaderValue(),
+            'Referrer-Policy: strict-origin-when-cross-origin',
+            'Permissions-Policy: geolocation=(), microphone=(), camera=(), payment=(), usb=()',
+        ];
+
+        if ($this->isHttps()) {
+            $headers[] = 'Strict-Transport-Security: max-age=31536000; includeSubDomains';
+        }
+
+        return $headers;
     }
     
     /**
@@ -108,7 +116,7 @@ class SecurityHeaders
      * 
      * Allows CDN resources used by the app (Tailwind, HTMX, Alpine, Font Awesome)
      */
-    private function applyCSP(): void
+    private function buildCspHeaderValue(): string
     {
         $nonce = function_exists('kernel_csp_nonce') ? kernel_csp_nonce() : '';
         $scriptSrc = ["'self'", "'unsafe-inline'", 'https://cdn.tailwindcss.com', 'https://unpkg.com'];
@@ -128,8 +136,8 @@ class SecurityHeaders
             "form-action 'self'",
             "worker-src 'self' blob:",
         ]);
-        
-        header("Content-Security-Policy: " . $csp);
+
+        return $csp;
     }
     
     /**

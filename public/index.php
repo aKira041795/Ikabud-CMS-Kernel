@@ -186,14 +186,7 @@ if (should_enforce_https() && !is_https()) {
     }
 }
 
-header('X-Content-Type-Options: nosniff');
-header('X-Frame-Options: SAMEORIGIN');
-header('X-XSS-Protection: 1; mode=block');
-header('Referrer-Policy: strict-origin-when-cross-origin');
-header('Permissions-Policy: camera=(), microphone=(), geolocation=()');
-if (is_https()) {
-    header('Strict-Transport-Security: max-age=31536000; includeSubDomains');
-}
+(new \Ikabud\Kernel\Http\SecurityHeaders())->apply();
 header('X-Request-Id: ' . request_id());
 
 // ── CORS for API consumers (Android app, external clients) ──────────

@@ -169,7 +169,95 @@ function kernel_validate_redirect_target(string $target): string
         throw new InvalidArgumentException('Invalid redirect target');
     }
 
+    $parts = parse_url($target);
+    if ($parts === false) {
+        throw new InvalidArgumentException('Invalid redirect target');
+    }
+
+    $scheme = strtolower((string)($parts['scheme'] ?? ''));
+    $host = strtolower((string)($parts['host'] ?? ''));
+
+    if ($host !== '' || $scheme !== '') {
+        if ($scheme === '' || $host === '') {
+            throw new InvalidArgumentException('Invalid redirect target');
+        }
+
+        if (!in_array($scheme, ['http', 'https'], true)) {
+            throw new InvalidArgumentException('Invalid redirect target');
+        }
+
+        if (!kernel_is_allowed_redirect_origin($scheme, $host, isset($parts['port']) ? (int)$parts['port'] : null)) {
+            throw new InvalidArgumentException('Invalid redirect target');
+        }
+    }
+
     return $target;
+}
+
+/**
+ * Absolute redirects are only allowed for current/configured app origins.
+ */
+function kernel_is_allowed_redirect_origin(string $scheme, string $host, ?int $port = null): bool
+{
+    $targetHost = strtolower($host);
+    if ($targetHost === '') {
+        return false;
+    }
+
+    $allowedOrigins = [];
+
+    $requestHost = trim((string)($_SERVER['HTTP_HOST'] ?? ''));
+    if ($requestHost !== '') {
+        $parsedRequest = parse_url(request_scheme() . '://' . $requestHost);
+        $requestOriginHost = strtolower((string)($parsedRequest['host'] ?? ''));
+        if ($requestOriginHost !== '') {
+            $requestPort = isset($parsedRequest['port']) ? (int)$parsedRequest['port'] : null;
+            $allowedOrigins[] = [
+                'scheme' => strtolower(request_scheme()),
+                'host' => $requestOriginHost,
+                'port' => $requestPort,
+            ];
+
+            if (should_enforce_https()) {
+                $allowedOrigins[] = [
+                    'scheme' => 'https',
+                    'host' => $requestOriginHost,
+                    'port' => $requestPort,
+                ];
+            }
+        }
+    }
+
+    $configuredAppUrl = trim((string)config('app.url', ''));
+    if ($configuredAppUrl !== '') {
+        $parsedConfigured = parse_url($configuredAppUrl);
+        if ($parsedConfigured !== false) {
+            $configuredHost = strtolower((string)($parsedConfigured['host'] ?? ''));
+            $configuredScheme = strtolower((string)($parsedConfigured['scheme'] ?? ''));
+            if ($configuredHost !== '' && in_array($configuredScheme, ['http', 'https'], true)) {
+                $allowedOrigins[] = [
+                    'scheme' => $configuredScheme,
+                    'host' => $configuredHost,
+                    'port' => isset($parsedConfigured['port']) ? (int)$parsedConfigured['port'] : null,
+                ];
+            }
+        }
+    }
+
+    foreach ($allowedOrigins as $origin) {
+        if (($origin['scheme'] ?? '') !== strtolower($scheme)) {
+            continue;
+        }
+        if (($origin['host'] ?? '') !== $targetHost) {
+            continue;
+        }
+        if (($origin['port'] ?? null) !== $port) {
+            continue;
+        }
+        return true;
+    }
+
+    return false;
 }
 
 /**

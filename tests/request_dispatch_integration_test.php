@@ -20,6 +20,13 @@ function t(string $label, bool $ok, string $detail = ''): void
     echo "  ✗ {$label}" . ($detail !== '' ? " — {$detail}" : '') . "\n";
 }
 
+function headerValues(array $headers, string $prefix): array
+{
+    return array_values(array_filter($headers, static function (string $header) use ($prefix): bool {
+        return stripos($header, $prefix . ':') === 0;
+    }));
+}
+
 function runRequestThroughEntrypoint(array $server, ?array $user = null, ?string $hookCode = null): array
 {
     $runnerPath = sys_get_temp_dir() . '/ikabud-request-dispatch-' . getmypid() . '-' . bin2hex(random_bytes(4)) . '.php';
@@ -141,6 +148,23 @@ t(
     'public entrypoint redirects authenticated CMS users away from CMS login',
     ($cmsLoginRedirect['context']['redirect'] ?? '') === '/cms/admin',
     json_encode($cmsLoginRedirect['context'])
+);
+
+$entrypointSource = (string)file_get_contents(__DIR__ . '/../public/index.php');
+$securityHeadersCallPos = strpos($entrypointSource, 'SecurityHeaders())->apply();');
+$tenantMaintenancePos = strpos($entrypointSource, "IK_TENANT_SUSPENDED");
+
+t(
+    'public entrypoint delegates response security headers to SecurityHeaders',
+    $securityHeadersCallPos !== false,
+    $entrypointSource
+);
+t(
+    'public entrypoint applies security headers before maintenance exits',
+    $securityHeadersCallPos !== false
+        && $tenantMaintenancePos !== false
+        && $securityHeadersCallPos < $tenantMaintenancePos,
+    json_encode([$securityHeadersCallPos, $tenantMaintenancePos])
 );
 
 echo "\n══════════════════════════════════════════════════\n";

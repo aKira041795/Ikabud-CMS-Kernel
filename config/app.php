@@ -66,7 +66,12 @@ return [
             ? (int) $_ENV['APP_TENANT_DEFAULT']
             : null,
         'column' => (string) ($_ENV['APP_TENANT_COLUMN'] ?? 'tenant_id'),
+        'db_pool_max' => max(1, (int) ($_ENV['APP_TENANT_DB_POOL_MAX'] ?? 20)),
         'host_map' => [],
+    ],
+
+    'database' => [
+        'idle_validation_seconds' => max(5, (int) ($_ENV['APP_DB_IDLE_VALIDATION_SECONDS'] ?? 60)),
     ],
 
     'crypto' => [

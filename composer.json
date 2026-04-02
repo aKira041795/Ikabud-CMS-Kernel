@@ -8,6 +8,7 @@
             "php tests/ecommerce_storefront_media_test.php",
             "php tests/cms_entity_list_product_image_test.php"
         ],
+        "benchmark:disyl": "php scripts/benchmark-disyl.php",
         "guard:manifests": "php scripts/guard-module-manifests.php"
     },
     "require": {

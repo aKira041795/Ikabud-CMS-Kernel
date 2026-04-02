@@ -89,6 +89,44 @@ heading('Redirect Validation');
 
 t('relative redirect target is allowed', kernel_validate_redirect_target('/login') === '/login');
 
+$originalHttpHost = $_SERVER['HTTP_HOST'] ?? null;
+$originalHttps = $_SERVER['HTTPS'] ?? null;
+$_SERVER['HTTP_HOST'] = 'applicationos.test';
+$_SERVER['HTTPS'] = 'on';
+
+t(
+    'same-origin absolute redirect target is allowed',
+    kernel_validate_redirect_target('https://applicationos.test/login') === 'https://applicationos.test/login'
+);
+
+$threw = false;
+try {
+    kernel_validate_redirect_target('https://evil.test/login');
+} catch (InvalidArgumentException $e) {
+    $threw = true;
+}
+t('redirect validator rejects cross-origin absolute redirects', $threw);
+
+$threw = false;
+try {
+    kernel_validate_redirect_target('//evil.test/login');
+} catch (InvalidArgumentException $e) {
+    $threw = true;
+}
+t('redirect validator rejects protocol-relative redirects', $threw);
+
+if ($originalHttpHost === null) {
+    unset($_SERVER['HTTP_HOST']);
+} else {
+    $_SERVER['HTTP_HOST'] = $originalHttpHost;
+}
+
+if ($originalHttps === null) {
+    unset($_SERVER['HTTPS']);
+} else {
+    $_SERVER['HTTPS'] = $originalHttps;
+}
+
 $threw = false;
 try {
     kernel_validate_redirect_target("/bad\r\nX-Test: injected");
@@ -104,6 +142,76 @@ try {
     $threw = true;
 }
 t('redirect validator rejects encoded CRLF', $threw);
+
+heading('DB Validation Cadence');
+
+$appInstance = app();
+$appReflection = new ReflectionClass($appInstance);
+$configProperty = $appReflection->getProperty('config');
+$configProperty->setAccessible(true);
+$shouldValidateConnection = $appReflection->getMethod('shouldValidateConnection');
+$shouldValidateConnection->setAccessible(true);
+
+$originalConfig = $configProperty->getValue($appInstance);
+$adjustedConfig = $originalConfig;
+$adjustedConfig['app']['database']['idle_validation_seconds'] = 60;
+$configProperty->setValue($appInstance, $adjustedConfig);
+
+t(
+    'db validation skips ping before configured idle threshold',
+    $shouldValidateConnection->invoke($appInstance, time() - 30) === false
+);
+t(
+    'db validation pings after configured idle threshold',
+    $shouldValidateConnection->invoke($appInstance, time() - 61) === true
+);
+
+$configProperty->setValue($appInstance, $originalConfig);
+
+heading('Security Headers');
+
+$originalHttpHost = $_SERVER['HTTP_HOST'] ?? null;
+$originalHttps = $_SERVER['HTTPS'] ?? null;
+$_SERVER['HTTP_HOST'] = 'applicationos.test';
+$_SERVER['HTTPS'] = 'on';
+
+$securityHeaders = new \Ikabud\Kernel\Http\SecurityHeaders('/login', 'applicationos.test');
+$headerList = $securityHeaders->headers();
+$cspHeaders = array_values(array_filter($headerList, static function (string $header): bool {
+    return str_starts_with($header, 'Content-Security-Policy: ');
+}));
+
+t(
+    'security header builder emits a CSP header with nonce support',
+    count($cspHeaders) === 1
+        && str_contains($cspHeaders[0], "default-src 'self'")
+        && str_contains($cspHeaders[0], 'nonce-'),
+    json_encode($headerList)
+);
+t(
+    'security header builder emits HSTS on HTTPS requests',
+    in_array('Strict-Transport-Security: max-age=31536000; includeSubDomains', $headerList, true),
+    json_encode($headerList)
+);
+t(
+    'security header builder does not emit deprecated X-XSS-Protection',
+    empty(array_filter($headerList, static function (string $header): bool {
+        return str_starts_with($header, 'X-XSS-Protection:');
+    })),
+    json_encode($headerList)
+);
+
+if ($originalHttpHost === null) {
+    unset($_SERVER['HTTP_HOST']);
+} else {
+    $_SERVER['HTTP_HOST'] = $originalHttpHost;
+}
+
+if ($originalHttps === null) {
+    unset($_SERVER['HTTPS']);
+} else {
+    $_SERVER['HTTPS'] = $originalHttps;
+}
 
 heading('CSRF Rotation');
 
