@@ -118,11 +118,16 @@ class SecurityHeaders
      */
     private function buildCspHeaderValue(): string
     {
-        $nonce = function_exists('kernel_csp_nonce') ? kernel_csp_nonce() : '';
-        $scriptSrc = ["'self'", "'unsafe-inline'", 'https://cdn.tailwindcss.com', 'https://unpkg.com'];
-        if ($nonce !== '') {
-            $scriptSrc[] = "'nonce-{$nonce}'";
-        }
+        // NOTE: Do NOT add the nonce to script-src while 'unsafe-inline' is present.
+        // Per CSP Level 2/3, a nonce in script-src overrides 'unsafe-inline', so any
+        // inline <script> without the matching nonce attribute is blocked by modern browsers.
+        // When templates are updated to carry nonce="..." on every inline script, remove
+        // 'unsafe-inline' and re-add the nonce here.
+        //
+        // 'unsafe-eval' is required by:
+        //   - Alpine.js v3 (CDN build uses new Function() for expression evaluation)
+        //   - Tailwind CSS CDN (JIT mode generates styles via eval-based class scanning)
+        $scriptSrc = ["'self'", "'unsafe-inline'", "'unsafe-eval'", 'https://cdn.tailwindcss.com', 'https://unpkg.com'];
         
         $csp = implode('; ', [
             "default-src 'self'",

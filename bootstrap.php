@@ -341,6 +341,36 @@ function request_scheme(): string
     return is_https() ? 'https' : 'http';
 }
 
+function kernel_request_base_path(?string $scriptName = null, ?string $appUrl = null): string
+{
+    $configured = trim((string)($appUrl ?? config('app.url', '')));
+    $configuredPath = rtrim((string)parse_url($configured, PHP_URL_PATH), '/');
+    if ($configuredPath !== '') {
+        return $configuredPath;
+    }
+
+    $scriptPath = trim((string)($scriptName ?? ($_SERVER['SCRIPT_NAME'] ?? ($_SERVER['PHP_SELF'] ?? ''))));
+    if ($scriptPath === '') {
+        return '';
+    }
+
+    $scriptPath = str_replace('\\', '/', $scriptPath);
+    $scriptPath = (string)(parse_url($scriptPath, PHP_URL_PATH) ?? $scriptPath);
+
+    if (str_ends_with($scriptPath, '/index.php')) {
+        $scriptPath = substr($scriptPath, 0, -strlen('/index.php'));
+    }
+
+    $scriptPath = rtrim($scriptPath, '/');
+
+    if (str_ends_with($scriptPath, '/public')) {
+        $scriptPath = substr($scriptPath, 0, -strlen('/public'));
+    }
+
+    $scriptPath = rtrim($scriptPath, '/');
+    return ($scriptPath === '' || $scriptPath === '/') ? '' : $scriptPath;
+}
+
 function external_base_url(?string $appUrl = null): string
 {
     $configured = trim((string)($appUrl ?? config('app.url', '')));
@@ -350,7 +380,7 @@ function external_base_url(?string $appUrl = null): string
         return $fallback;
     }
 
-    $basePath = rtrim((string)parse_url($configured, PHP_URL_PATH), '/');
+    $basePath = kernel_request_base_path(null, $configured);
     return rtrim(request_scheme() . '://' . $host . $basePath, '/');
 }
 

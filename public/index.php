@@ -276,8 +276,8 @@ if ($method === 'GET' && preg_match('#^/assets/modules/([a-zA-Z0-9\-]+)/(.+)$#',
     exit;
 }
 
-$basePath = rtrim((string) parse_url((string) config('app.url', ''), PHP_URL_PATH), '/');
-if ($basePath !== '' && str_starts_with($uri, $basePath)) {
+$basePath = kernel_request_base_path();
+if ($basePath !== '' && ($uri === $basePath || str_starts_with($uri, $basePath . '/'))) {
     $uri = substr($uri, strlen($basePath));
     $uri = $uri === '' ? '/' : $uri;
 }
@@ -448,6 +448,8 @@ switch ($handler) {
         if (!$user) {
             app()->redirect('/login');
         }
+        $homeRole = trim((string)($user['role'] ?? ''));
+        $homeSource = trim((string)($user['source'] ?? 'kernel'));
         $homeUrl = kernelResolveAuthenticatedHomeRedirect($user, false);
         if ($homeUrl) {
             app()->redirect($homeUrl);
@@ -462,7 +464,7 @@ switch ($handler) {
             $enabledCount = count($enabledNames);
 
             $accessibleNames = $enabledNames;
-            if ($homeRole === 'admin' && (string)($user['source'] ?? 'kernel') === 'kernel') {
+            if ($homeRole === 'admin' && $homeSource === 'kernel') {
                 $accessibleNames = [];
                 foreach ($enabledModules as $m) {
                     $settings = is_array($m['_settings'] ?? null) ? $m['_settings'] : [];

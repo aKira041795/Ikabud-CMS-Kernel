@@ -269,7 +269,7 @@ class App
     {
         $appUrl = external_base_url((string)$this->config('app.url', ''));
         $this->cachedAppUrl = $appUrl;
-        $this->cachedBaseUrl = rtrim(parse_url($appUrl, PHP_URL_PATH) ?: '', '/');
+        $this->cachedBaseUrl = kernel_request_base_path(null, (string)$this->config('app.url', ''));
         $this->cachedGuiDefaults = $this->buildKernelGuiDefaults();
     }
 
@@ -1091,7 +1091,7 @@ class App
     private function buildRenderBaseContext(string $template = ''): array
     {
         $appUrl = $this->cachedAppUrl ?? external_base_url((string)$this->config('app.url', ''));
-        $baseUrl = $this->cachedBaseUrl ?? rtrim(parse_url($appUrl, PHP_URL_PATH) ?: '', '/');
+        $baseUrl = $this->cachedBaseUrl ?? kernel_request_base_path(null, (string)$this->config('app.url', ''));
 
         $user = $this->user();
         if ($user) {
@@ -1455,9 +1455,8 @@ class App
 
         // Auto-prefix with base path for relative URLs
         if ($url[0] === '/' && strpos($url, '//') !== 0) {
-            $appUrl = $this->config('app.url', '');
-            $basePath = rtrim(parse_url($appUrl, PHP_URL_PATH) ?: '', '/');
-            if ($basePath && strpos($url, $basePath) !== 0) {
+            $basePath = kernel_request_base_path(null, (string)$this->config('app.url', ''));
+            if ($basePath && $url !== $basePath && strpos($url, $basePath . '/') !== 0) {
                 $url = $basePath . $url;
             }
         }

@@ -51,7 +51,7 @@ function runRequestThroughEntrypoint(array $server, ?array $user = null, ?string
     file_put_contents($runnerPath, $script);
     $output = [];
     $exitCode = 0;
-    exec('php ' . escapeshellarg($runnerPath), $output, $exitCode);
+    exec('php ' . escapeshellarg($runnerPath) . ' 2>&1', $output, $exitCode);
     @unlink($runnerPath);
 
     $stdout = implode("\n", $output);
@@ -128,6 +128,33 @@ t(
     'public entrypoint redirects authenticated kernel superadmin away from login',
     ($loginRedirect['context']['redirect'] ?? '') === '/superadmin/settings',
     json_encode($loginRedirect['context'])
+);
+
+$authenticatedRootFallback = runRequestThroughEntrypoint(
+    [
+        'REQUEST_METHOD' => 'GET',
+        'REQUEST_URI' => '/',
+        'HTTP_HOST' => 'applicationos.test',
+    ],
+    [
+        'id' => 7,
+        'username' => 'auditor',
+        'name' => 'Auditor User',
+        'role' => 'auditor',
+        'source' => 'kernel',
+    ],
+    <<<'PHP'
+app()->hooks()->on('kernel.home_url', static function ($value) {
+    return false;
+}, 999999);
+PHP
+);
+t(
+    'public entrypoint renders authenticated root fallback without undefined-variable warnings',
+    !str_contains($authenticatedRootFallback['raw'] ?? '', 'Undefined variable $homeRole')
+        && ($authenticatedRootFallback['context']['redirect'] ?? '') === ''
+        && str_contains($authenticatedRootFallback['body'] ?? '', 'Kernel OS status overview'),
+    $authenticatedRootFallback['raw']
 );
 
 $cmsLoginRedirect = runRequestThroughEntrypoint(

@@ -89,6 +89,52 @@ heading('Redirect Validation');
 
 t('relative redirect target is allowed', kernel_validate_redirect_target('/login') === '/login');
 
+heading('Base Path Inference');
+
+$originalScriptName = $_SERVER['SCRIPT_NAME'] ?? null;
+$originalPhpSelf = $_SERVER['PHP_SELF'] ?? null;
+$originalHttpHost = $_SERVER['HTTP_HOST'] ?? null;
+$originalHttps = $_SERVER['HTTPS'] ?? null;
+
+$_SERVER['SCRIPT_NAME'] = '/kernelappos/index.php';
+$_SERVER['PHP_SELF'] = '/kernelappos/index.php';
+$_SERVER['HTTP_HOST'] = 'example.com';
+$_SERVER['HTTPS'] = 'on';
+
+t(
+    'base path infers shared-hosting subdirectory from script name when APP_URL path is empty',
+    kernel_request_base_path('/kernelappos/index.php', 'https://example.com') === '/kernelappos'
+);
+t(
+    'external base url reuses inferred shared-hosting subdirectory',
+    external_base_url('https://example.com') === 'https://example.com/kernelappos',
+    external_base_url('https://example.com')
+);
+
+if ($originalScriptName === null) {
+    unset($_SERVER['SCRIPT_NAME']);
+} else {
+    $_SERVER['SCRIPT_NAME'] = $originalScriptName;
+}
+
+if ($originalPhpSelf === null) {
+    unset($_SERVER['PHP_SELF']);
+} else {
+    $_SERVER['PHP_SELF'] = $originalPhpSelf;
+}
+
+if ($originalHttpHost === null) {
+    unset($_SERVER['HTTP_HOST']);
+} else {
+    $_SERVER['HTTP_HOST'] = $originalHttpHost;
+}
+
+if ($originalHttps === null) {
+    unset($_SERVER['HTTPS']);
+} else {
+    $_SERVER['HTTPS'] = $originalHttps;
+}
+
 $originalHttpHost = $_SERVER['HTTP_HOST'] ?? null;
 $originalHttps = $_SERVER['HTTPS'] ?? null;
 $_SERVER['HTTP_HOST'] = 'applicationos.test';
@@ -182,10 +228,11 @@ $cspHeaders = array_values(array_filter($headerList, static function (string $he
 }));
 
 t(
-    'security header builder emits a CSP header with nonce support',
+    'security header builder emits a CSP header without nonce (unsafe-inline present; nonce would override it per CSP3)',
     count($cspHeaders) === 1
         && str_contains($cspHeaders[0], "default-src 'self'")
-        && str_contains($cspHeaders[0], 'nonce-'),
+        && str_contains($cspHeaders[0], "'unsafe-inline'")
+        && !str_contains($cspHeaders[0], 'nonce-'),
     json_encode($headerList)
 );
 t(
