@@ -44,6 +44,9 @@ jobs:
       - name: Create storage directories
         run: mkdir -p storage/logs storage/cache/disyl storage/cache/cms storage/uploads
 
+      - name: Configure test hosts
+        run: echo "127.0.0.1 applicationos.test" | sudo tee -a /etc/hosts
+
       - name: Run control-plane migrations
         run: php ikabud migrate:control
 
@@ -65,6 +68,11 @@ jobs:
 
       - name: Seed CI tenant control data
         run: php database/seeds/ci_tenants.php
+
+      - name: Configure anti-spam for CI testing
+        run: |
+          mysql -h 127.0.0.1 -u root -pci_root_pass baronbakeshop_ci -e "INSERT INTO antispam_settings (setting_key, setting_value) VALUES ('rate_limit_max', '1000') ON DUPLICATE KEY UPDATE setting_value = '1000';" 2>/dev/null || true
+          mysql -h 127.0.0.1 -u root -pci_root_pass clientsite_ci -e "INSERT INTO antispam_settings (setting_key, setting_value) VALUES ('rate_limit_max', '1000') ON DUPLICATE KEY UPDATE setting_value = '1000';" 2>/dev/null || true
 
       - name: Start PHP development server
         run: |

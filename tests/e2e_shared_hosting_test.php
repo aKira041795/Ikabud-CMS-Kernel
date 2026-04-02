@@ -25,6 +25,13 @@ $USERNAME    = getenv('E2E_USER') ?: 'admin';
 $PASSWORD    = getenv('E2E_PASS') ?: 'Admin123!';
 $COOKIE_JAR  = tempnam(sys_get_temp_dir(), 'e2e_cookies_');
 
+// ── Host availability guard (skip in CI when vhost not configured) ─
+$_e2eHost = parse_url($BASE, PHP_URL_HOST) ?: '';
+if ($_e2eHost !== '' && gethostbyname($_e2eHost) === $_e2eHost) {
+    echo "SKIP: Host {$_e2eHost} does not resolve. This test requires a configured local vhost.\n";
+    exit(0);
+}
+
 // ── Bookkeeping ────────────────────────────────────────────────────
 $pass   = 0;
 $fail   = 0;
