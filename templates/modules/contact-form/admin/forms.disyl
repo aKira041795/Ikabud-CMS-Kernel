@@ -1,0 +1,102 @@
+{extends "modules/cms/layouts/admin.disyl"}
+
+{block content}
+<div class="space-y-6">
+    <div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+        <div>
+            <h2 class="text-2xl font-bold text-gray-900">Contact Forms</h2>
+            <p class="text-sm text-gray-500 mt-1">Create saved forms, manage their fields, and embed them in the page builder.</p>
+        </div>
+        <div class="flex flex-wrap gap-2">
+            <a href="{base_url}/cms/admin/contact-forms/submissions" class="inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">View Entries</a>
+            <a href="{base_url}/cms/admin/contact-forms/create" class="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-sky-600 rounded-lg hover:bg-sky-700">New Form</a>
+        </div>
+    </div>
+
+    {if message}
+    <div class="px-4 py-3 rounded-lg border text-sm {if message.type == 'error'}bg-red-50 border-red-200 text-red-700{else}bg-emerald-50 border-emerald-200 text-emerald-700{/if}">{message.text}</div>
+    {/if}
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div class="bg-white rounded-lg border border-gray-200 p-5">
+            <div class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">Total Forms</div>
+            <div class="text-3xl font-bold text-gray-900">{stats.total}</div>
+        </div>
+        <div class="bg-white rounded-lg border border-gray-200 p-5">
+            <div class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">Active</div>
+            <div class="text-3xl font-bold text-emerald-600">{stats.active}</div>
+        </div>
+        <div class="bg-white rounded-lg border border-gray-200 p-5">
+            <div class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">Inactive</div>
+            <div class="text-3xl font-bold text-amber-600">{stats.inactive}</div>
+        </div>
+    </div>
+
+    <div class="bg-white rounded-lg border border-gray-200 overflow-hidden">
+        <div class="px-5 py-3 border-b border-gray-200 flex items-center justify-between">
+            <h3 class="text-sm font-semibold text-gray-700">Saved Forms</h3>
+            <span class="text-xs text-gray-400">{stats.total} total</span>
+        </div>
+
+        {if forms | count > 0}
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Form</th>
+                        <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Fields</th>
+                        <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Entries</th>
+                        <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Captcha</th>
+                        <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Status</th>
+                        <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Updated</th>
+                        <th class="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100">
+                    {foreach forms as form}
+                    <tr>
+                        <td class="px-5 py-4 align-top">
+                            <div class="font-semibold text-gray-900">{form.name}</div>
+                            <div class="text-xs text-gray-500 mt-1 font-mono">{form.slug}</div>
+                        </td>
+                        <td class="px-5 py-4 text-sm text-gray-700">{form.field_count}</td>
+                        <td class="px-5 py-4 text-sm text-gray-700">{form.submission_count}</td>
+                        <td class="px-5 py-4 text-sm">
+                            {if form.captcha_enabled == 1}
+                            <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700">Enabled</span>
+                            {else}
+                            <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-600">Off</span>
+                            {/if}
+                        </td>
+                        <td class="px-5 py-4 text-sm">
+                            {if form.status == 'active'}
+                            <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700">Active</span>
+                            {else}
+                            <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-700">Inactive</span>
+                            {/if}
+                        </td>
+                        <td class="px-5 py-4 text-sm text-gray-500">{form.updated_at}</td>
+                        <td class="px-5 py-4">
+                            <div class="flex justify-end gap-2">
+                                <a href="{base_url}/cms/admin/contact-forms/{form.id}/edit" class="inline-flex items-center px-3 py-2 text-sm font-medium text-sky-700 bg-sky-50 rounded-lg hover:bg-sky-100">Edit</a>
+                                <form method="post" action="{base_url}/cms/admin/contact-forms/{form.id}/delete" onsubmit="return confirm('Delete this form? Existing entries will remain in the log.');">
+                                    <input type="hidden" name="_token" value="{csrf_token}">
+                                    <button type="submit" class="inline-flex items-center px-3 py-2 text-sm font-medium text-red-700 bg-red-50 rounded-lg hover:bg-red-100">Delete</button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                    {/foreach}
+                </tbody>
+            </table>
+        </div>
+        {else}
+        <div class="px-6 py-14 text-center">
+            <div class="text-lg font-semibold text-gray-800">No saved forms yet</div>
+            <p class="text-sm text-gray-500 mt-2">Create your first form, add a few fields, and then select it from the Contact Form builder block.</p>
+            <a href="{base_url}/cms/admin/contact-forms/create" class="inline-flex items-center px-4 py-2 mt-4 text-sm font-medium text-white bg-sky-600 rounded-lg hover:bg-sky-700">Create First Form</a>
+        </div>
+        {/if}
+    </div>
+</div>
+{/block}

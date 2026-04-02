@@ -1,0 +1,532 @@
+{extends "modules/cms/layouts/admin.disyl"}
+
+{block content}
+<div class="space-y-6" data-tab-default="{active_tab}">
+    <div class="rounded-2xl bg-slate-950 text-slate-50 px-6 py-6 shadow-xl shadow-slate-950/10">
+        <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+                <div class="text-xs font-semibold uppercase tracking-[0.24em] text-sky-200/80">Contact Form Studio</div>
+                <h2 class="mt-2 text-3xl font-semibold">{if is_edit}{form.name}{else}Create a Saved Form{/if}</h2>
+                <p class="mt-2 max-w-2xl text-sm leading-6 text-slate-300">Build richer form flows with advanced field types, drag-to-reorder editing, and direct submission management from the CMS.</p>
+            </div>
+            <div class="flex flex-wrap gap-2">
+                <a href="{base_url}/cms/admin/contact-forms" class="inline-flex items-center rounded-xl border border-slate-700 bg-slate-900/60 px-4 py-2 text-sm font-medium text-slate-100 hover:bg-slate-800">Back to Forms</a>
+                {if is_edit}
+                <a href="{base_url}/cms/admin/contact-forms/submissions?form_id={form.id}" class="inline-flex items-center rounded-xl border border-slate-700 bg-slate-900/60 px-4 py-2 text-sm font-medium text-slate-100 hover:bg-slate-800">View Entries</a>
+                {/if}
+            </div>
+        </div>
+
+        <div class="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div class="rounded-xl border border-slate-800 bg-white/5 px-4 py-3">
+                <div class="text-xs uppercase tracking-[0.22em] text-slate-400">Status</div>
+                <div class="mt-2 text-lg font-semibold">{if form.status == 'active'}Active{else}Inactive{/if}</div>
+            </div>
+            <div class="rounded-xl border border-slate-800 bg-white/5 px-4 py-3">
+                <div class="text-xs uppercase tracking-[0.22em] text-slate-400">Captcha</div>
+                <div class="mt-2 text-lg font-semibold">{if form.captcha_enabled == 1}Enabled{else}Disabled{/if}</div>
+            </div>
+            <div class="rounded-xl border border-slate-800 bg-white/5 px-4 py-3">
+                <div class="text-xs uppercase tracking-[0.22em] text-slate-400">Fields</div>
+                <div class="mt-2 text-lg font-semibold">{if is_edit}{fields | count}{else}0{/if}</div>
+            </div>
+        </div>
+    </div>
+
+    {if message}
+    <div class="px-4 py-3 rounded-lg border text-sm {if message.type == 'error'}bg-red-50 border-red-200 text-red-700{else}bg-emerald-50 border-emerald-200 text-emerald-700{/if}">{message.text}</div>
+    {/if}
+
+    {if error}
+    <div class="px-4 py-3 rounded-lg border text-sm bg-red-50 border-red-200 text-red-700">{error}</div>
+    {/if}
+
+    <div class="flex flex-wrap gap-2">
+        <button type="button" data-tab-target="overview" class="cf-tab-trigger inline-flex items-center rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:border-sky-300 hover:text-sky-700">Overview</button>
+        <button type="button" data-tab-target="fields" class="cf-tab-trigger inline-flex items-center rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:border-sky-300 hover:text-sky-700">Fields</button>
+        <button type="button" data-tab-target="embed" class="cf-tab-trigger inline-flex items-center rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:border-sky-300 hover:text-sky-700">Embed + Delivery</button>
+    </div>
+
+    <div id="tab-panel-overview" data-tab-panel="overview" class="space-y-6">
+        <div class="grid grid-cols-1 xl:grid-cols-[minmax(0,2fr),minmax(280px,1fr)] gap-6">
+            <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+                <div class="flex items-start justify-between gap-4">
+                    <div>
+                        <h3 class="text-lg font-semibold text-slate-900">Form Settings</h3>
+                        <p class="mt-1 text-sm text-slate-500">Configure identity, delivery messaging, and publication settings.</p>
+                    </div>
+                    <div class="rounded-full bg-sky-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-sky-700">Setup</div>
+                </div>
+
+                <form method="post" action="" class="mt-6 space-y-5" id="cf-form-editor">
+                    <input type="hidden" name="_token" value="{csrf_token}">
+
+                    <div class="grid grid-cols-1 gap-5 lg:grid-cols-2">
+                        <div class="lg:col-span-2">
+                            <label class="block text-sm font-semibold text-slate-700 mb-1">Form Name</label>
+                            <input type="text" name="name" id="cf-form-name" value="{form.name}" required class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-sky-500 outline-none">
+                        </div>
+                        <div class="lg:col-span-2">
+                            <label class="block text-sm font-semibold text-slate-700 mb-1">Slug</label>
+                            <input type="text" name="slug" id="cf-form-slug" value="{form.slug}" required class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm font-mono text-slate-600 focus:border-sky-500 outline-none">
+                            <p class="mt-2 text-xs text-slate-400">Generated from the form name until you edit it manually. Used by the shortcode and builder lookup.</p>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-semibold text-slate-700 mb-1">Captcha</label>
+                            <select name="captcha_enabled" class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm bg-white focus:border-sky-500 outline-none">
+                                <option value="1" {if form.captcha_enabled == 1}selected{/if}>Enabled</option>
+                                <option value="0" {if form.captcha_enabled == 0}selected{/if}>Disabled</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-semibold text-slate-700 mb-1">Status</label>
+                            <select name="status" class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm bg-white focus:border-sky-500 outline-none">
+                                <option value="active" {if form.status == 'active'}selected{/if}>Active</option>
+                                <option value="inactive" {if form.status == 'inactive'}selected{/if}>Inactive</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-semibold text-slate-700 mb-1">Success Message</label>
+                        <textarea name="success_message" rows="4" class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-sky-500 outline-none resize-y">{form.success_message}</textarea>
+                        <p class="mt-2 text-xs text-slate-400">Shown after a successful submission. Leave blank to fall back to the module-level default message.</p>
+                    </div>
+
+                    <div class="flex justify-end">
+                        <button type="submit" class="inline-flex items-center rounded-xl bg-sky-600 px-5 py-3 text-sm font-medium text-white hover:bg-sky-700">{if is_edit}Save Form Settings{else}Create Form{/if}</button>
+                    </div>
+                </form>
+            </div>
+
+            <div class="space-y-6">
+                <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+                    <h3 class="text-sm font-semibold uppercase tracking-[0.2em] text-slate-500">Publishing Checklist</h3>
+                    <div class="mt-4 space-y-3 text-sm text-slate-600">
+                        <div class="flex items-start gap-3"><span class="mt-1 h-2.5 w-2.5 rounded-full {if form.name}bg-emerald-500{else}bg-slate-300{/if}"></span><span>Name and slug are configured.</span></div>
+                        <div class="flex items-start gap-3"><span class="mt-1 h-2.5 w-2.5 rounded-full {if is_edit && (fields | count) > 0}bg-emerald-500{else}bg-slate-300{/if}"></span><span>Add multiple field types and drag them into a sensible order.</span></div>
+                        <div class="flex items-start gap-3"><span class="mt-1 h-2.5 w-2.5 rounded-full {if form.status == 'active'}bg-emerald-500{else}bg-amber-400{/if}"></span><span>Activate the form when it is ready to appear in the builder.</span></div>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+                    <h3 class="text-sm font-semibold uppercase tracking-[0.2em] text-slate-500">Form Snapshot</h3>
+                    <dl class="mt-4 space-y-3 text-sm text-slate-600">
+                        <div class="flex justify-between gap-4"><dt>Status</dt><dd class="font-medium text-slate-900">{form.status}</dd></div>
+                        <div class="flex justify-between gap-4"><dt>Captcha</dt><dd class="font-medium text-slate-900">{if form.captcha_enabled == 1}Enabled{else}Disabled{/if}</dd></div>
+                        <div class="flex justify-between gap-4"><dt>Fields</dt><dd class="font-medium text-slate-900">{if is_edit}{fields | count}{else}0{/if}</dd></div>
+                        <div class="flex justify-between gap-4"><dt>Slug</dt><dd class="font-medium font-mono text-slate-900">{if form.slug}{form.slug}{else}pending{/if}</dd></div>
+                    </dl>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="tab-panel-fields" data-tab-panel="fields" class="hidden space-y-6">
+        {if is_edit}
+        <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+            <div class="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
+                <div>
+                    <h3 class="text-lg font-semibold text-slate-900">Field Builder</h3>
+                    <p class="mt-1 text-sm text-slate-500">Mix text, email, phone, number, textarea, and select fields. Drag cards to save a new order instantly.</p>
+                </div>
+                <div class="rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-amber-700">Drag to reorder</div>
+            </div>
+
+            <form method="post" action="{base_url}/cms/admin/contact-forms/{form.id}/fields/create" class="mt-6 grid grid-cols-1 gap-4 xl:grid-cols-12">
+                <input type="hidden" name="_token" value="{csrf_token}">
+                <div class="xl:col-span-3">
+                    <label class="block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500 mb-2">Field Type</label>
+                    <select name="field_type" data-field-type-select class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm bg-white focus:border-sky-500 outline-none">
+                        {foreach field_type_options as typeOption}
+                        <option value="{typeOption.value}">{typeOption.label}</option>
+                        {/foreach}
+                    </select>
+                </div>
+                <div class="xl:col-span-4">
+                    <label class="block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500 mb-2">Label</label>
+                    <input type="text" name="label" id="cf-new-field-label" required class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-sky-500 outline-none" placeholder="Company Name">
+                </div>
+                <div class="xl:col-span-3">
+                    <label class="block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500 mb-2">Field Name</label>
+                    <input type="text" name="name" id="cf-new-field-name" class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm font-mono focus:border-sky-500 outline-none" placeholder="company_name">
+                </div>
+                <div class="xl:col-span-2">
+                    <label class="block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500 mb-2">Sort Order</label>
+                    <input type="number" name="sort_order" value="0" class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-sky-500 outline-none">
+                </div>
+                <div class="xl:col-span-6">
+                    <label class="block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500 mb-2">Placeholder</label>
+                    <input type="text" name="placeholder" class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-sky-500 outline-none" placeholder="Acme Inc">
+                </div>
+                <div class="xl:col-span-6">
+                    <label class="block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500 mb-2">Help Text</label>
+                    <input type="text" name="help_text" class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-sky-500 outline-none" placeholder="Add a note for this field">
+                </div>
+                <div class="xl:col-span-12 cf-field-options-panel hidden" data-options-for="select">
+                    <label class="block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500 mb-2">Select Options</label>
+                    <textarea name="options_text" rows="4" class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm font-mono focus:border-sky-500 outline-none resize-y" placeholder="sales|Sales inquiry&#10;support|Support request&#10;billing|Billing"></textarea>
+                    <p class="mt-2 text-xs text-slate-400">One option per line. Use <span class="font-mono">value|Label</span> to keep machine-safe values.</p>
+                </div>
+                <div class="xl:col-span-12 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <label class="inline-flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
+                        <input type="checkbox" name="required" value="1" checked class="rounded border-slate-300 text-sky-600 focus:ring-sky-500/20">
+                        <span>Required field</span>
+                    </label>
+                    <button type="submit" class="inline-flex items-center rounded-xl bg-sky-600 px-5 py-3 text-sm font-medium text-white hover:bg-sky-700">Add Field</button>
+                </div>
+            </form>
+        </div>
+
+        <form id="cf-reorder-form" method="post" action="{base_url}/cms/admin/contact-forms/{form.id}/fields/reorder" class="hidden">
+            <input type="hidden" name="_token" value="{csrf_token}">
+            <input type="hidden" name="field_order" id="cf-field-order-input" value="">
+        </form>
+
+        <div class="space-y-4" data-field-sortable>
+            {if fields | count > 0}
+            {foreach fields as field}
+            <div class="cf-field-card rounded-2xl border border-slate-200 bg-white p-5 shadow-sm" draggable="true" data-field-id="{field.id}">
+                <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                    <div class="flex items-start gap-3">
+                        <div class="mt-1 inline-flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 text-slate-500" title="Drag to reorder">::</div>
+                        <div>
+                            <div class="text-sm font-semibold text-slate-900">{field.label}</div>
+                            <div class="mt-1 text-xs font-mono text-slate-500">{field.name}</div>
+                        </div>
+                    </div>
+                    <div class="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-slate-600">{field.field_type}</div>
+                </div>
+
+                <form method="post" action="{base_url}/cms/admin/contact-forms/{form.id}/fields/{field.id}/save" class="mt-5 space-y-4">
+                    <input type="hidden" name="_token" value="{csrf_token}">
+
+                    <div class="grid grid-cols-1 gap-4 xl:grid-cols-12">
+                        <div class="xl:col-span-3">
+                            <label class="block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500 mb-2">Field Type</label>
+                            <select name="field_type" data-field-type-select class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm bg-white focus:border-sky-500 outline-none">
+                                {foreach field_type_options as typeOption}
+                                <option value="{typeOption.value}" {if field.field_type == typeOption.value}selected{/if}>{typeOption.label}</option>
+                                {/foreach}
+                            </select>
+                        </div>
+                        <div class="xl:col-span-4">
+                            <label class="block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500 mb-2">Label</label>
+                            <input type="text" name="label" value="{field.label}" required class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-sky-500 outline-none">
+                        </div>
+                        <div class="xl:col-span-3">
+                            <label class="block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500 mb-2">Field Name</label>
+                            <input type="text" name="name" value="{field.name}" required class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm font-mono focus:border-sky-500 outline-none">
+                        </div>
+                        <div class="xl:col-span-2">
+                            <label class="block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500 mb-2">Sort Order</label>
+                            <input type="number" name="sort_order" value="{field.sort_order}" class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-sky-500 outline-none">
+                        </div>
+                        <div class="xl:col-span-6">
+                            <label class="block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500 mb-2">Placeholder</label>
+                            <input type="text" name="placeholder" value="{field.placeholder}" class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-sky-500 outline-none">
+                        </div>
+                        <div class="xl:col-span-6">
+                            <label class="block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500 mb-2">Help Text</label>
+                            <input type="text" name="help_text" value="{field.help_text}" class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-sky-500 outline-none">
+                        </div>
+                        <div class="xl:col-span-12 cf-field-options-panel {if field.field_type != 'select'}hidden{/if}" data-options-for="select">
+                            <label class="block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500 mb-2">Select Options</label>
+                            <textarea name="options_text" rows="4" class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm font-mono focus:border-sky-500 outline-none resize-y">{field.options_text}</textarea>
+                            <p class="mt-2 text-xs text-slate-400">One option per line. Use <span class="font-mono">value|Label</span> when the stored value should differ from the visible label.</p>
+                        </div>
+                    </div>
+
+                    <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                        <label class="inline-flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
+                            <input type="checkbox" name="required" value="1" {if field.required == 1}checked{/if} class="rounded border-slate-300 text-sky-600 focus:ring-sky-500/20">
+                            <span>Required field</span>
+                        </label>
+                        <div class="flex flex-wrap gap-2">
+                            <button type="submit" class="inline-flex items-center rounded-xl bg-sky-50 px-4 py-2 text-sm font-medium text-sky-700 hover:bg-sky-100">Save Field</button>
+                            <button type="submit" formaction="{base_url}/cms/admin/contact-forms/{form.id}/fields/{field.id}/delete" formnovalidate onclick="return confirm('Delete this field?');" class="inline-flex items-center rounded-xl bg-red-50 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-100">Delete</button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            {/foreach}
+            {else}
+            <div class="rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-12 text-center text-sm text-slate-500">No fields yet. Add the first field above to start building this form.</div>
+            {/if}
+        </div>
+        {else}
+        <div class="rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-12 text-center text-sm text-slate-500">Create the form first, then use this tab to add advanced field types and drag them into order.</div>
+        {/if}
+    </div>
+
+    <div id="tab-panel-embed" data-tab-panel="embed" class="hidden space-y-6">
+        <div class="grid grid-cols-1 xl:grid-cols-[minmax(0,1.5fr),minmax(280px,1fr)] gap-6">
+            <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-5">
+                <div>
+                    <h3 class="text-lg font-semibold text-slate-900">Embed Options</h3>
+                    <p class="mt-1 text-sm text-slate-500">Drop the form into the builder or paste a shortcode into CMS content.</p>
+                </div>
+
+                {if is_edit}
+                <div>
+                    <label class="block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500 mb-2">Shortcode</label>
+                    <input type="text" readonly value="{shortcode}" class="w-full rounded-xl border border-slate-300 bg-slate-50 px-4 py-3 text-sm font-mono text-slate-700">
+                </div>
+
+                <div class="rounded-2xl border border-slate-200 bg-slate-50 px-5 py-4 text-sm text-slate-600">
+                    Use the <span class="font-semibold text-slate-900">Contact Form</span> builder block and choose this saved form from the select list. Builder overrides can still change the title, button label, and success message.
+                </div>
+                {else}
+                <div class="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-5 py-8 text-center text-sm text-slate-500">Create the form first to unlock shortcode and builder embedding.</div>
+                {/if}
+            </div>
+
+            <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-4">
+                <h3 class="text-sm font-semibold uppercase tracking-[0.2em] text-slate-500">Feature Summary</h3>
+                <div class="space-y-3 text-sm text-slate-600">
+                    <div class="rounded-xl border border-slate-200 px-4 py-3">
+                        <div class="font-semibold text-slate-900">Richer field palette</div>
+                        <div class="mt-1">Text, email, telephone, number, textarea, and select field types are supported.</div>
+                    </div>
+                    <div class="rounded-xl border border-slate-200 px-4 py-3">
+                        <div class="font-semibold text-slate-900">Submission workflow</div>
+                        <div class="mt-1">Review, archive, and classify form entries without leaving the CMS.</div>
+                    </div>
+                    <div class="rounded-xl border border-slate-200 px-4 py-3">
+                        <div class="font-semibold text-slate-900">Operational export</div>
+                        <div class="mt-1">Export filtered submissions to CSV for external reporting or follow-up.</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{/block}
+
+{block scripts}
+<script>
+(function () {
+    var formNameInput = document.getElementById('cf-form-name');
+    var formSlugInput = document.getElementById('cf-form-slug');
+    var newFieldLabelInput = document.getElementById('cf-new-field-label');
+    var newFieldNameInput = document.getElementById('cf-new-field-name');
+    var tabButtons = Array.prototype.slice.call(document.querySelectorAll('[data-tab-target]'));
+    var tabPanels = Array.prototype.slice.call(document.querySelectorAll('[data-tab-panel]'));
+    var reorderForm = document.getElementById('cf-reorder-form');
+    var reorderInput = document.getElementById('cf-field-order-input');
+    var sortableContainer = document.querySelector('[data-field-sortable]');
+    var draggingId = null;
+
+    function slugify(value) {
+        return String(value || '')
+            .toLowerCase()
+            .trim()
+            .replace(/[^a-z0-9]+/g, '-')
+            .replace(/^-+|-+$/g, '')
+            .replace(/-{2,}/g, '-')
+            .slice(0, 100);
+    }
+
+    function fieldNameify(value) {
+        var normalized = String(value || '')
+            .toLowerCase()
+            .trim()
+            .replace(/[^a-z0-9]+/g, '_')
+            .replace(/^_+|_+$/g, '')
+            .replace(/_{2,}/g, '_')
+            .slice(0, 100);
+
+        if (!normalized) {
+            return '';
+        }
+
+        if (!/^[a-z]/.test(normalized)) {
+            normalized = 'field_' + normalized;
+        }
+
+        return normalized.slice(0, 100);
+    }
+
+    function activateTab(tabName, updateHash) {
+        if (!tabName) {
+            return;
+        }
+
+        tabButtons.forEach(function (button) {
+            var active = button.getAttribute('data-tab-target') === tabName;
+            button.classList.toggle('bg-sky-600', active);
+            button.classList.toggle('text-white', active);
+            button.classList.toggle('border-sky-600', active);
+            button.classList.toggle('shadow-sm', active);
+            button.classList.toggle('bg-white', !active);
+            button.classList.toggle('text-slate-700', !active);
+        });
+
+        tabPanels.forEach(function (panel) {
+            panel.classList.toggle('hidden', panel.getAttribute('data-tab-panel') !== tabName);
+        });
+
+        if (updateHash) {
+            if (window.history && window.history.replaceState) {
+                window.history.replaceState(null, '', '#' + tabName);
+            } else {
+                window.location.hash = tabName;
+            }
+        }
+    }
+
+    function syncFieldOptionPanels(scope) {
+        var root = scope || document;
+        Array.prototype.slice.call(root.querySelectorAll('[data-field-type-select]')).forEach(function (select) {
+            var form = select.closest('form');
+            if (!form) {
+                return;
+            }
+
+            Array.prototype.slice.call(form.querySelectorAll('.cf-field-options-panel')).forEach(function (panel) {
+                var shouldShow = panel.getAttribute('data-options-for') === select.value;
+                panel.classList.toggle('hidden', !shouldShow);
+            });
+        });
+    }
+
+    function submitFieldOrder() {
+        if (!sortableContainer || !reorderForm || !reorderInput) {
+            return;
+        }
+
+        var orderedIds = Array.prototype.slice.call(sortableContainer.querySelectorAll('[data-field-id]')).map(function (card) {
+            return card.getAttribute('data-field-id');
+        }).filter(Boolean);
+
+        if (!orderedIds.length) {
+            return;
+        }
+
+        reorderInput.value = orderedIds.join(',');
+        reorderForm.submit();
+    }
+
+    tabButtons.forEach(function (button) {
+        button.addEventListener('click', function () {
+            activateTab(button.getAttribute('data-tab-target'), true);
+        });
+    });
+
+    if (formNameInput && formSlugInput) {
+        var autoSlug = formSlugInput.value.trim() === '';
+
+        formNameInput.addEventListener('input', function () {
+            if (!autoSlug) {
+                return;
+            }
+            formSlugInput.value = slugify(formNameInput.value);
+        });
+
+        formSlugInput.addEventListener('input', function () {
+            formSlugInput.value = slugify(formSlugInput.value);
+            autoSlug = formSlugInput.value.trim() === '';
+        });
+
+        formSlugInput.addEventListener('blur', function () {
+            if (formSlugInput.value.trim() === '') {
+                autoSlug = true;
+                formSlugInput.value = slugify(formNameInput.value);
+            }
+        });
+
+        if (formSlugInput.value.trim() === '' && formNameInput.value.trim() !== '') {
+            formSlugInput.value = slugify(formNameInput.value);
+        }
+    }
+
+    if (newFieldLabelInput && newFieldNameInput) {
+        var autoFieldName = newFieldNameInput.value.trim() === '';
+
+        newFieldLabelInput.addEventListener('input', function () {
+            if (!autoFieldName) {
+                return;
+            }
+            newFieldNameInput.value = fieldNameify(newFieldLabelInput.value);
+        });
+
+        newFieldNameInput.addEventListener('input', function () {
+            newFieldNameInput.value = fieldNameify(newFieldNameInput.value);
+            autoFieldName = newFieldNameInput.value.trim() === '';
+        });
+
+        newFieldNameInput.addEventListener('blur', function () {
+            if (newFieldNameInput.value.trim() === '') {
+                autoFieldName = true;
+                newFieldNameInput.value = fieldNameify(newFieldLabelInput.value);
+            }
+        });
+    }
+
+    document.addEventListener('change', function (event) {
+        if (event.target && event.target.matches('[data-field-type-select]')) {
+            syncFieldOptionPanels(event.target.closest('form'));
+        }
+    });
+
+    if (sortableContainer) {
+        sortableContainer.addEventListener('dragstart', function (event) {
+            var card = event.target.closest('[data-field-id]');
+            if (!card) {
+                return;
+            }
+
+            draggingId = card.getAttribute('data-field-id');
+            card.classList.add('opacity-60');
+            if (event.dataTransfer) {
+                event.dataTransfer.effectAllowed = 'move';
+                event.dataTransfer.setData('text/plain', draggingId || '');
+            }
+        });
+
+        sortableContainer.addEventListener('dragend', function (event) {
+            var card = event.target.closest('[data-field-id]');
+            if (card) {
+                card.classList.remove('opacity-60');
+            }
+        });
+
+        sortableContainer.addEventListener('dragover', function (event) {
+            if (!event.target.closest('[data-field-id]')) {
+                return;
+            }
+            event.preventDefault();
+        });
+
+        sortableContainer.addEventListener('drop', function (event) {
+            var target = event.target.closest('[data-field-id]');
+            var source = draggingId ? sortableContainer.querySelector('[data-field-id="' + draggingId + '"]') : null;
+            if (!target || !source || target === source) {
+                return;
+            }
+
+            event.preventDefault();
+            var midpoint = target.getBoundingClientRect().top + (target.offsetHeight / 2);
+            if (event.clientY > midpoint) {
+                target.after(source);
+            } else {
+                target.before(source);
+            }
+
+            submitFieldOrder();
+        });
+    }
+
+    syncFieldOptionPanels(document);
+
+    var initialHash = window.location.hash ? window.location.hash.replace('#', '') : '';
+    var defaultTabElement = document.querySelector('[data-tab-default]');
+    var defaultTab = defaultTabElement ? defaultTabElement.getAttribute('data-tab-default') : '';
+    var initialTab = initialHash || defaultTab || 'overview';
+    if (!document.querySelector('[data-tab-panel="' + initialTab + '"]')) {
+        initialTab = 'overview';
+    }
+    activateTab(initialTab, false);
+})();
+</script>
+{/block}

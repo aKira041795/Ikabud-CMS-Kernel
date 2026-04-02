@@ -1382,6 +1382,39 @@ function syncTenantMigrationsForTenant(int $tenantId, ?string $entryModuleId = n
     }
 }
 
+function tenantMigrationSyncPlanFingerprint(int $tenantId, ?string $entryModuleId = null): string
+{
+    if ($tenantId <= 0) {
+        return 'tenant-invalid';
+    }
+
+    $entryModuleId = $entryModuleId !== null ? trim($entryModuleId) : tenantEntryModuleIdForTenant($tenantId);
+    $plannedModules = tenantProvisionModulePlan($entryModuleId !== '' ? $entryModuleId : null);
+    $allModules = discoverModules();
+
+    $modules = [];
+    foreach ($plannedModules as $moduleId) {
+        $manifest = $allModules[$moduleId] ?? null;
+        if (!is_array($manifest)) {
+            continue;
+        }
+
+        $modules[(string)$moduleId] = [
+            'migrations' => array_values(array_map('strval', is_array($manifest['migrations'] ?? null) ? $manifest['migrations'] : [])),
+            'seeds' => array_values(array_map('strval', is_array($manifest['seeds'] ?? null) ? $manifest['seeds'] : [])),
+        ];
+    }
+
+    ksort($modules);
+
+    return hash('sha256', serialize([
+        'tenant_id' => $tenantId,
+        'entry_module_id' => $entryModuleId !== '' ? $entryModuleId : null,
+        'kernel' => tenantSafeKernelMigrationFiles(),
+        'modules' => $modules,
+    ]));
+}
+
 function syncTenantMigrationsForCurrentRequest(): array
 {
     static $done = null;
@@ -1407,9 +1440,12 @@ function syncTenantMigrationsForCurrentRequest(): array
         return $done;
     }
 
+    $entryModuleId = tenantEntryModuleIdForTenant($tenantId);
+    $entryModuleId = is_string($entryModuleId) ? trim($entryModuleId) : '';
+
     $syncTtl = max(0, (int)($_ENV['APP_REQUEST_TENANT_MIGRATION_SYNC_TTL'] ?? 300));
     if (PHP_SAPI !== 'cli' && $syncTtl > 0) {
-        $cacheKey = 'tenant_migration_sync:' . $tenantId;
+        $cacheKey = 'tenant_migration_sync:' . $tenantId . ':' . tenantMigrationSyncPlanFingerprint($tenantId, $entryModuleId);
         $cached = app()->cache()->get('kernel_tenant_request_sync', $cacheKey);
         if (is_array($cached) && !empty($cached['ok'])) {
             $done = [
@@ -1422,12 +1458,12 @@ function syncTenantMigrationsForCurrentRequest(): array
         }
     }
 
-    $done = syncTenantMigrationsForTenant($tenantId);
+    $done = syncTenantMigrationsForTenant($tenantId, $entryModuleId !== '' ? $entryModuleId : null);
 
     if (PHP_SAPI !== 'cli' && $syncTtl > 0 && !empty($done['ok'])) {
         app()->cache()->set(
             'kernel_tenant_request_sync',
-            'tenant_migration_sync:' . $tenantId,
+            'tenant_migration_sync:' . $tenantId . ':' . tenantMigrationSyncPlanFingerprint($tenantId, $entryModuleId),
             [
                 'ok' => true,
                 'checked_at' => date('c'),

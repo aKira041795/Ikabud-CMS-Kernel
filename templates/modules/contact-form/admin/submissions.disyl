@@ -1,0 +1,210 @@
+{extends "modules/cms/layouts/admin.disyl"}
+
+{block content}
+<div class="space-y-6">
+    <div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+        <div>
+            <h2 class="text-2xl font-bold text-gray-900">Contact Form Entries</h2>
+            <p class="text-sm text-gray-500 mt-1">Review saved-form submissions and legacy contact form messages in one place.</p>
+        </div>
+        <div class="flex flex-wrap gap-2">
+            <a href="{base_url}/cms/admin/contact-forms" class="inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">Back to Forms</a>
+            <a href="{export_url}" class="inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">Export CSV</a>
+            <a href="{base_url}/cms/admin/contact-forms/create" class="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-sky-600 rounded-lg hover:bg-sky-700">New Form</a>
+        </div>
+    </div>
+
+    {if message}
+    <div class="px-4 py-3 rounded-lg border text-sm {if message.type == 'error'}bg-red-50 border-red-200 text-red-700{else}bg-emerald-50 border-emerald-200 text-emerald-700{/if}">{message.text}</div>
+    {/if}
+
+    <div class="bg-white rounded-lg border border-gray-200 p-5">
+        <form method="get" action="{base_url}/cms/admin/contact-forms/submissions" class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-1">Filter by Form</label>
+                <select name="form_id" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:border-sky-500 outline-none">
+                    <option value="0">All Forms</option>
+                    {foreach forms as form}
+                    <option value="{form.id}" {if selected_form_id == form.id}selected{/if}>{form.name}</option>
+                    {/foreach}
+                </select>
+            </div>
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-1">Status</label>
+                <select name="status" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:border-sky-500 outline-none">
+                    <option value="">All Statuses</option>
+                    {foreach status_options as status_option}
+                    <option value="{status_option.value}" {if selected_status == status_option.value}selected{/if}>{status_option.label}</option>
+                    {/foreach}
+                </select>
+            </div>
+            <div class="text-sm text-gray-500">Showing {total} entr{if total == 1}y{else}ies{/if}</div>
+            <div class="flex justify-start md:justify-end">
+                <button type="submit" class="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-sky-600 rounded-lg hover:bg-sky-700">Apply Filter</button>
+            </div>
+        </form>
+    </div>
+
+    <div class="bg-white rounded-lg border border-gray-200 overflow-hidden">
+        <div class="px-5 py-3 border-b border-gray-200 flex items-center justify-between">
+            <h3 class="text-sm font-semibold text-gray-700">Entries</h3>
+            <span class="text-xs text-gray-400">Page {page} of {total_pages}</span>
+        </div>
+
+        {if submissions | count > 0}
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Status</th>
+                        <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Form</th>
+                        <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Submitter</th>
+                        <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Preview</th>
+                        <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Created</th>
+                        <th class="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100">
+                    {foreach submissions as submission}
+                    <tr>
+                        <td class="px-5 py-4 text-sm">
+                            <span class="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold {if submission.status == 'new'}bg-sky-50 text-sky-700{elseif submission.status == 'reviewed'}bg-emerald-50 text-emerald-700{elseif submission.status == 'archived'}bg-slate-100 text-slate-700{else}bg-rose-50 text-rose-700{/if}">{submission.status_label}</span>
+                        </td>
+                        <td class="px-5 py-4 text-sm text-gray-700">{submission.form_label}</td>
+                        <td class="px-5 py-4 align-top">
+                            <div class="font-medium text-gray-900">{if submission.name}{submission.name}{else}Anonymous{/if}</div>
+                            {if submission.email}
+                            <div class="text-xs text-gray-500 mt-1">{submission.email}</div>
+                            {/if}
+                        </td>
+                        <td class="px-5 py-4 text-sm text-gray-600 max-w-xl">{submission.preview}</td>
+                        <td class="px-5 py-4 text-sm text-gray-500">{submission.created_at}</td>
+                        <td class="px-5 py-4 text-right">
+                            <a href="{base_url}/cms/admin/contact-forms/submissions/{submission.id}" class="inline-flex items-center px-3 py-2 text-sm font-medium text-sky-700 bg-sky-50 rounded-lg hover:bg-sky-100">View</a>
+                        </td>
+                    </tr>
+                    {/foreach}
+                </tbody>
+            </table>
+        </div>
+        {else}
+        <div class="px-6 py-14 text-center text-sm text-gray-500">No entries found for the current filter.</div>
+        {/if}
+    </div>
+
+    {if total_pages > 1}
+    <div class="flex items-center justify-between">
+        <div class="text-sm text-gray-500">Total {total} entr{if total == 1}y{else}ies{/if}</div>
+        <div class="flex gap-2">
+            {if has_prev}
+            <a href="{base_url}/cms/admin/contact-forms/submissions?page={prev_page}{if selected_form_id > 0}&form_id={selected_form_id}{/if}{if selected_status}&status={selected_status}{/if}" class="inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">Previous</a>
+            {/if}
+            {if has_next}
+            <a href="{base_url}/cms/admin/contact-forms/submissions?page={next_page}{if selected_form_id > 0}&form_id={selected_form_id}{/if}{if selected_status}&status={selected_status}{/if}" class="inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">Next</a>
+            {/if}
+        </div>
+    </div>
+    {/if}
+</div>
+{/block}
+*** Add File: /var/www/html/applicationostest/templates/modules/contact-form/admin/submission-detail.disyl
+{extends "modules/cms/layouts/admin.disyl"}
+
+{block content}
+<div class="space-y-6">
+    <div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+        <div>
+            <h2 class="text-2xl font-bold text-gray-900">Submission #{submission.id}</h2>
+            <p class="text-sm text-gray-500 mt-1">Inspect the full payload, update its workflow state, and triage follow-up work from one place.</p>
+        </div>
+        <div class="flex flex-wrap gap-2">
+            <a href="{base_url}/cms/admin/contact-forms/submissions" class="inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">Back to Entries</a>
+            {if submission.form_id > 0}
+            <a href="{base_url}/cms/admin/contact-forms/{submission.form_id}/edit" class="inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">Open Form</a>
+            {/if}
+        </div>
+    </div>
+
+    {if message}
+    <div class="px-4 py-3 rounded-lg border text-sm {if message.type == 'error'}bg-red-50 border-red-200 text-red-700{else}bg-emerald-50 border-emerald-200 text-emerald-700{/if}">{message.text}</div>
+    {/if}
+
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div class="bg-white rounded-xl border border-gray-200 p-5">
+            <div class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">Status</div>
+            <div class="text-lg font-semibold {if submission.status == 'new'}text-sky-700{elseif submission.status == 'reviewed'}text-emerald-700{elseif submission.status == 'archived'}text-slate-700{else}text-rose-700{/if}">{submission.status_label}</div>
+        </div>
+        <div class="bg-white rounded-xl border border-gray-200 p-5">
+            <div class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">Form</div>
+            <div class="text-lg font-semibold text-gray-900">{submission.form_label}</div>
+        </div>
+        <div class="bg-white rounded-xl border border-gray-200 p-5">
+            <div class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">Submitted</div>
+            <div class="text-lg font-semibold text-gray-900">{submission.created_at}</div>
+        </div>
+        <div class="bg-white rounded-xl border border-gray-200 p-5">
+            <div class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">Reviewed</div>
+            <div class="text-lg font-semibold text-gray-900">{if submission.reviewed_at}{submission.reviewed_at}{else}Not yet{/if}</div>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 xl:grid-cols-[minmax(0,2fr),minmax(320px,1fr)] gap-6">
+        <div class="space-y-6">
+            <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                <div class="px-5 py-4 border-b border-gray-200">
+                    <h3 class="text-lg font-semibold text-gray-900">Captured Values</h3>
+                </div>
+
+                {if records | count > 0}
+                <dl class="divide-y divide-gray-100">
+                    {foreach records as record}
+                    <div class="px-5 py-4 grid grid-cols-1 md:grid-cols-[220px,1fr] gap-3">
+                        <dt>
+                            <div class="text-sm font-semibold text-gray-900">{record.label}</div>
+                            {if record.name}
+                            <div class="text-xs font-mono text-gray-400 mt-1">{record.name}</div>
+                            {/if}
+                        </dt>
+                        <dd class="text-sm text-gray-700 whitespace-pre-wrap break-words">{if record.value}{record.value}{else}<span class="text-gray-400">No value provided</span>{/if}</dd>
+                    </div>
+                    {/foreach}
+                </dl>
+                {else}
+                <div class="px-5 py-10 text-center text-sm text-gray-500">No field payload was stored for this submission.</div>
+                {/if}
+            </div>
+        </div>
+
+        <div class="space-y-6">
+            <div class="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
+                <h3 class="text-sm font-semibold uppercase tracking-[0.2em] text-gray-500">Workflow</h3>
+                <div class="grid grid-cols-1 gap-2">
+                    {foreach status_options as status_option}
+                    <form method="post" action="{base_url}/cms/admin/contact-forms/submissions/{submission.id}/status">
+                        <input type="hidden" name="_token" value="{csrf_token}">
+                        <input type="hidden" name="status" value="{status_option.value}">
+                        <button type="submit" class="w-full inline-flex items-center justify-between rounded-xl border px-4 py-3 text-sm font-medium {if submission.status == status_option.value}border-sky-600 bg-sky-50 text-sky-700{else}border-gray-300 bg-white text-gray-700 hover:border-sky-300 hover:text-sky-700{/if}">
+                            <span>{status_option.label}</span>
+                            {if submission.status == status_option.value}
+                            <span class="text-xs uppercase tracking-[0.18em]">Current</span>
+                            {/if}
+                        </button>
+                    </form>
+                    {/foreach}
+                </div>
+            </div>
+
+            <div class="bg-white rounded-xl border border-gray-200 p-5 space-y-3">
+                <h3 class="text-sm font-semibold uppercase tracking-[0.2em] text-gray-500">Metadata</h3>
+                <div class="text-sm text-gray-600 space-y-2">
+                    <div><span class="font-semibold text-gray-900">Submitter:</span> {if submission.name}{submission.name}{else}Anonymous{/if}</div>
+                    <div><span class="font-semibold text-gray-900">Email:</span> {if submission.email}{submission.email}{else}Not provided{/if}</div>
+                    <div><span class="font-semibold text-gray-900">IP Address:</span> {if submission.ip_address}{submission.ip_address}{else}Unknown{/if}</div>
+                    <div><span class="font-semibold text-gray-900">Reviewer ID:</span> {if submission.reviewed_by}{submission.reviewed_by}{else}-{/if}</div>
+                    <div><span class="font-semibold text-gray-900">Updated:</span> {if submission.updated_at}{submission.updated_at}{else}{submission.created_at}{/if}</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{/block}

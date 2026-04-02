@@ -1,0 +1,88 @@
+{
+  "id": "contact-form",
+  "name": "Simple Contact Form",
+  "version": "1.4.0",
+  "author": "Test Author",
+  "description": "A lightweight contact form module for CMS pages. Integrates with the page builder as a drag-and-drop block.",
+  "owns_tables": [
+    "contact_form_submissions",
+    "contact_forms",
+    "contact_form_fields"
+  ],
+  "migrations": [
+    "migrations/001_contact_form_submissions.sql",
+    "migrations/002_contact_forms_and_fields.sql",
+    "migrations/003_contact_form_submissions_v130.sql",
+    "migrations/004_contact_form_editor_and_submission_upgrades.sql"
+  ],
+  "capabilities": [],
+  "hooks": [
+    "cms.admin.nav_items",
+    "cms.editor.block_types",
+    "cms.builder.renderers",
+    "cms.public.render_content",
+    "cms.public.head"
+  ],
+  "events": [],
+  "nav": [],
+  "settings_fields": [
+    {
+      "key": "recipient_email",
+      "type": "email",
+      "default": "",
+      "label": "Recipient Email",
+      "placeholder": "you@example.com",
+      "help": "Where submission notifications are sent. Leave blank to disable email."
+    },
+    {
+      "key": "email_subject",
+      "type": "text",
+      "default": "New Contact Form Submission",
+      "label": "Email Subject Prefix",
+      "placeholder": "New Contact Form Submission",
+      "help": "The sender\u2019s name is appended automatically."
+    },
+    {
+      "key": "success_message",
+      "type": "text",
+      "default": "Thank you for your message. We will get back to you soon.",
+      "label": "Success Message",
+      "placeholder": "Thank you for your message!",
+      "help": "Shown after a successful submission. Overridable per block in the builder."
+    },
+    {
+      "key": "spam_protection",
+      "type": "select",
+      "default": "honeypot",
+      "label": "Spam Protection",
+      "options": [
+        {
+          "value": "honeypot",
+          "label": "Honeypot (recommended)"
+        },
+        {
+          "value": "none",
+          "label": "None"
+        }
+      ],
+      "help": "Honeypot adds a hidden field that bots fill in, triggering silent rejection."
+    },
+    {
+      "key": "store_submissions",
+      "type": "select",
+      "default": "1",
+      "label": "Store Submissions",
+      "options": [
+        {
+          "value": "1",
+          "label": "Yes \u2014 save to database"
+        },
+        {
+          "value": "0",
+          "label": "No"
+        }
+      ],
+      "help": "Saves every submission to the contact_form_submissions table."
+    }
+  ]
+}
