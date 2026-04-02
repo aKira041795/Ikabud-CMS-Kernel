@@ -2650,7 +2650,8 @@ function getModuleNavItems(?string $role = null): array
     if ($role === 'superadmin') {
         return [
             ['label' => 'Feature Settings', 'url' => '/superadmin/settings', 'icon' => 'settings', 'module' => '_kernel', 'target' => null],
-            ['label' => 'Profile',          'url' => '/admin/profile',       'icon' => 'user',     'module' => '_kernel', 'target' => null],
+            ['label' => 'Performance',       'url' => '/superadmin/perf',     'icon' => 'chart',    'module' => '_kernel', 'target' => null],
+            ['label' => 'Profile',           'url' => '/admin/profile',       'icon' => 'user',     'module' => '_kernel', 'target' => null],
         ];
     }
 
