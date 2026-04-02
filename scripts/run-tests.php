@@ -37,6 +37,18 @@ foreach ($files as $file) {
     $name  = basename($file, '.php');
     $start = microtime(true);
 
+    // Reset module registry state before each test so settings written by one
+    // test (e.g. active_theme, low_stock_threshold) cannot pollute the next.
+    @unlink($root . '/storage/modules.json');
+    // Also clear any persistent per-tenant CMS settings cache entries so that
+    // saveModuleSettings() calls inside a test are immediately visible to the
+    // same test process via readCmsSettings() (important when CMS_SETTINGS_CACHE_TTL > 0).
+    foreach (glob($root . '/storage/cache/cms_settings_t*', GLOB_ONLYDIR) as $cacheDir) {
+        foreach (glob($cacheDir . '/*.cache') ?: [] as $cacheFile) {
+            @unlink($cacheFile);
+        }
+    }
+
     $descriptors = [
         0 => ['pipe', 'r'],
         1 => ['pipe', 'w'],

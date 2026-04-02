@@ -546,6 +546,11 @@ function isModuleEnabled(string $moduleId): bool
     if (empty($registry)) {
         return true;
     }
+    // If the module appears in the registry but has no explicit 'enabled' flag
+    // (e.g. only settings were saved), treat it as enabled by default.
+    if (!array_key_exists('enabled', $registry[$moduleId] ?? [])) {
+        return true;
+    }
     return !empty($registry[$moduleId]['enabled']);
 }
 
@@ -563,6 +568,11 @@ function isModuleEnabledForTenant(string $moduleId, int $tenantId): bool
     // No per-tenant override — fall back to global registry.
     $registry = readModuleRegistry();
     if (empty($registry)) {
+        return true;
+    }
+    // If the module appears in the registry but has no explicit 'enabled' flag
+    // (e.g. only settings were saved), treat it as enabled by default.
+    if (!array_key_exists('enabled', $registry[$moduleId] ?? [])) {
         return true;
     }
     return !empty($registry[$moduleId]['enabled']);
