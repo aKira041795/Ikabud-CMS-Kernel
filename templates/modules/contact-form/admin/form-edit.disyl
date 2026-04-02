@@ -180,9 +180,21 @@
                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M19 9l-7 7-7-7"/></svg>
                             <span>Select</span>
                         </button>
+                        <button type="button" class="cf-palette-tile flex flex-col items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white p-3 text-xs font-medium text-slate-600 hover:border-sky-400 hover:bg-sky-50 hover:text-sky-700 transition-colors" data-type="radio" data-default-label="Choose One">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" stroke-width="1.8"/><circle cx="12" cy="12" r="4" fill="currentColor"/></svg>
+                            <span>Radio</span>
+                        </button>
+                        <button type="button" class="cf-palette-tile flex flex-col items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white p-3 text-xs font-medium text-slate-600 hover:border-sky-400 hover:bg-sky-50 hover:text-sky-700 transition-colors" data-type="checkbox" data-default-label="I agree">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3" stroke-width="1.8"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12l3 3 5-5"/></svg>
+                            <span>Checkbox</span>
+                        </button>
                         <button type="button" class="cf-palette-tile flex flex-col items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white p-3 text-xs font-medium text-slate-600 hover:border-sky-400 hover:bg-sky-50 hover:text-sky-700 transition-colors" data-type="url" data-default-label="Website URL">
                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg>
                             <span>URL</span>
+                        </button>
+                        <button type="button" class="cf-palette-tile flex flex-col items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white p-3 text-xs font-medium text-slate-600 hover:border-sky-400 hover:bg-sky-50 hover:text-sky-700 transition-colors" data-type="password" data-default-label="Password">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+                            <span>Password</span>
                         </button>
                         <button type="button" class="cf-palette-tile flex flex-col items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white p-3 text-xs font-medium text-slate-600 hover:border-sky-400 hover:bg-sky-50 hover:text-sky-700 transition-colors" data-type="date" data-default-label="Date">
                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" ry="2" stroke-width="1.8"/><line x1="16" y1="2" x2="16" y2="6" stroke-width="1.8" stroke-linecap="round"/><line x1="8" y1="2" x2="8" y2="6" stroke-width="1.8" stroke-linecap="round"/><line x1="3" y1="10" x2="21" y2="10" stroke-width="1.8"/></svg>
@@ -192,9 +204,21 @@
                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" stroke-width="1.8"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M12 7v5l3 3"/></svg>
                             <span>Time</span>
                         </button>
-                        <button type="button" class="cf-palette-tile flex flex-col items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white p-3 text-xs font-medium text-slate-600 hover:border-sky-400 hover:bg-sky-50 hover:text-sky-700 transition-colors" data-type="checkbox" data-default-label="I agree">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3" stroke-width="1.8"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12l3 3 5-5"/></svg>
-                            <span>Checkbox</span>
+                        <button type="button" class="cf-palette-tile flex flex-col items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white p-3 text-xs font-medium text-slate-600 hover:border-sky-400 hover:bg-sky-50 hover:text-sky-700 transition-colors" data-type="rating" data-default-label="Rate your experience">
+                            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                            <span>Rating</span>
+                        </button>
+                        <button type="button" class="cf-palette-tile flex flex-col items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white p-3 text-xs font-medium text-slate-600 hover:border-sky-400 hover:bg-sky-50 hover:text-sky-700 transition-colors" data-type="range" data-default-label="Satisfaction Score">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M4 12h16M8 8l-4 4 4 4M16 8l4 4-4 4"/></svg>
+                            <span>Slider</span>
+                        </button>
+                        <button type="button" class="cf-palette-tile flex flex-col items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white p-3 text-xs font-medium text-slate-600 hover:border-sky-400 hover:bg-sky-50 hover:text-sky-700 transition-colors" data-type="color" data-default-label="Favourite Color">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="13.5" cy="6.5" r=".5" fill="currentColor"/><circle cx="17.5" cy="10.5" r=".5" fill="currentColor"/><circle cx="8.5" cy="7.5" r=".5" fill="currentColor"/><circle cx="6.5" cy="12.5" r=".5" fill="currentColor"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10c.557 0 1 .452 1 1a2 2 0 004 0c0-1.06-.422-2.016-1.102-2.727A9.957 9.957 0 0022 12c0-5.523-4.477-10-10-10z"/></svg>
+                            <span>Color</span>
+                        </button>
+                        <button type="button" class="cf-palette-tile flex flex-col items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white p-3 text-xs font-medium text-slate-600 hover:border-sky-400 hover:bg-sky-50 hover:text-sky-700 transition-colors" data-type="section" data-default-label="Section Heading">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M4 6h16M4 10h7"/></svg>
+                            <span>Section</span>
                         </button>
                         <button type="button" class="cf-palette-tile flex flex-col items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white p-3 text-xs font-medium text-slate-600 hover:border-sky-400 hover:bg-sky-50 hover:text-sky-700 transition-colors" data-type="hidden" data-default-label="Hidden Field">
                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 4.411m0 0L21 21"/></svg>
@@ -438,8 +462,14 @@
         'time':     'Time',
         'textarea': 'Message',
         'select':   'Select Field',
+        'radio':    'Choose One',
         'checkbox': 'I agree to the terms',
-        'hidden':   'Hidden Field'
+        'password': 'Password',
+        'rating':   'Rate your experience',
+        'range':    'Satisfaction Score',
+        'color':    'Favourite Color',
+        'hidden':   'Hidden Field',
+        'section':  'Section Heading'
     };
 
     // ── Helpers ───────────────────────────────────────────────────────────────
@@ -502,15 +532,21 @@
             quickLabelInput.select();
             quickLabelInput.focus();
         }
+        // Options panel: visible for select + radio
         if (quickOptionsSection) {
-            quickOptionsSection.classList.toggle('hidden', type !== 'select');
+            quickOptionsSection.classList.toggle('hidden', type !== 'select' && type !== 'radio');
         }
+        // Hidden-value panel: visible only for hidden type
         if (quickHiddenSection) {
             quickHiddenSection.classList.toggle('hidden', type !== 'hidden');
-            // Copy hidden value into placeholder field name when type is hidden
-            if (quickHiddenSection && quickHiddenValueInput) {
+            if (quickHiddenValueInput) {
                 quickHiddenValueInput.name = type === 'hidden' ? 'placeholder' : '_hidden_value_placeholder';
             }
+        }
+        // Required checkbox: hide for section and hidden (they can't be required)
+        var quickRequiredLabel = document.querySelector('#cf-quick-add-form label:has([name="required"])');
+        if (quickRequiredLabel) {
+            quickRequiredLabel.style.display = (type === 'section' || type === 'hidden') ? 'none' : '';
         }
         if (quickAddBtn) quickAddBtn.disabled = false;
     }

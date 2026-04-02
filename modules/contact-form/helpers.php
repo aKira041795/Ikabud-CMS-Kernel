@@ -472,8 +472,14 @@ function contactFormFieldTypeLabels(): array
         'time'     => 'Time',
         'textarea' => 'Textarea',
         'select'   => 'Select / Dropdown',
+        'radio'    => 'Radio Buttons',
         'checkbox' => 'Checkbox',
+        'password' => 'Password',
+        'rating'   => 'Star Rating',
+        'range'    => 'Range Slider',
+        'color'    => 'Color Picker',
         'hidden'   => 'Hidden',
+        'section'  => 'Section Divider',
     ];
 }
 
@@ -492,7 +498,7 @@ function contactFormFieldTypeOptions(): array
 
 function contactFormFieldTypesWithOptions(): array
 {
-    return ['select'];
+    return ['select', 'radio'];
 }
 
 function contactFormFieldInputType(string $fieldType): string
@@ -506,6 +512,9 @@ function contactFormFieldInputType(string $fieldType): string
         'time'     => 'time',
         'checkbox' => 'checkbox',
         'hidden'   => 'hidden',
+        'password' => 'password',
+        'range'    => 'range',
+        'color'    => 'color',
         default    => 'text',
     };
 }
@@ -1327,6 +1336,89 @@ function contactFormRenderSharedStyles(): string
     margin-top: .15rem;
     flex-shrink: 0;
 }
+.contact-form-radio-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.contact-form-radio-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: .95rem;
+    font-weight: 400;
+    color: #334155;
+    cursor: pointer;
+    line-height: 1.5;
+}
+.contact-form-radio-label input[type="radio"] {
+    width: auto;
+    flex-shrink: 0;
+}
+.contact-form-rating {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+}
+.cf-star {
+    font-size: 1.75rem;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: #d1d5db;
+    padding: 0;
+    line-height: 1;
+    transition: color .12s;
+}
+.cf-star.cf-star-active {
+    color: #f59e0b;
+}
+.cf-star:hover,
+.cf-star.cf-star-hover {
+    color: #fbbf24;
+}
+.contact-form-range-wrap {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+.contact-form-range-wrap input[type="range"] {
+    flex: 1;
+    width: auto;
+    border: none;
+    padding: 0;
+    box-shadow: none;
+    background: none;
+    border-radius: 0;
+}
+.contact-form-range-wrap input[type="range"]:focus {
+    box-shadow: none;
+}
+.contact-form-range-wrap output {
+    min-width: 2.5rem;
+    text-align: center;
+    font-size: .9rem;
+    color: #64748b;
+    background: #f1f5f9;
+    border-radius: 6px;
+    padding: 2px 6px;
+}
+.contact-form-section {
+    border-top: 2px solid #e2e8f0;
+    padding-top: 12px;
+    margin-top: 4px;
+}
+.contact-form-section-heading {
+    font-size: 1rem;
+    font-weight: 700;
+    color: #1e293b;
+    margin: 0 0 4px;
+}
+.contact-form-section-desc {
+    font-size: .875rem;
+    color: #64748b;
+    margin: 0;
+}
 </style>
 HTML;
 }
@@ -1416,6 +1508,68 @@ function contactFormRenderFieldMarkup(array $field, string $formId): string
             . $ariaRequiredAttr . $ariaDescAttr . '>'
             . $optionsHtml
             . '</select>';
+    } elseif ($field['field_type'] === 'radio') {
+        $radiosHtml = '';
+        foreach (contactFormParseOptionsText($field['options_text']) as $option) {
+            if (!is_array($option)) {
+                continue;
+            }
+
+            $optVal = contactFormEscape((string) ($option['value'] ?? ''));
+            $optLbl = contactFormEscape((string) ($option['label'] ?? ''));
+            if ($optVal === '' || $optLbl === '') {
+                continue;
+            }
+
+            $radiosHtml .= '<label class="contact-form-radio-label">'
+                . '<input type="radio" name="' . $fieldName . '" value="' . $optVal . '"'
+                . $requiredAttr . $ariaRequiredAttr . '>'
+                . ' ' . $optLbl
+                . '</label>';
+        }
+
+        return '<div class="form-group">'
+            . '<label>' . $fieldLabel . $requiredMark . '</label>'
+            . '<div class="contact-form-radio-group" role="group" aria-label="' . $fieldLabel . '"' . $ariaDescAttr . '>'
+            . ($radiosHtml !== '' ? $radiosHtml : '<span class="contact-form-help">No options configured.</span>')
+            . '</div>'
+            . $helpHtml
+            . '<div class="contact-form-field-error" role="alert" aria-live="assertive"></div>'
+            . '</div>';
+    } elseif ($field['field_type'] === 'rating') {
+        $starsHtml = '';
+        for ($i = 1; $i <= 5; $i++) {
+            $label = $i === 1 ? '1 star' : ($i . ' stars');
+            $starsHtml .= '<button type="button" class="cf-star" data-value="' . $i . '" aria-label="' . $label . '">&#9733;</button>';
+        }
+
+        $inputHtml = '<div class="contact-form-rating" data-rating-group="' . $fieldInputId . '">'
+            . '<input type="hidden" name="' . $fieldName . '" id="' . $fieldInputId . '" value=""' . $requiredAttr . '>'
+            . $starsHtml
+            . '</div>';
+
+        return '<div class="form-group">'
+            . '<label>' . $fieldLabel . $requiredMark . '</label>'
+            . $inputHtml
+            . $helpHtml
+            . '<div class="contact-form-field-error" role="alert" aria-live="assertive"></div>'
+            . '</div>';
+    } elseif ($field['field_type'] === 'range') {
+        $inputHtml = '<div class="contact-form-range-wrap">'
+            . '<input type="range" id="' . $fieldInputId . '" name="' . $fieldName . '"'
+            . ' min="0" max="100" value="50"' . $ariaDescAttr
+            . ' oninput="this.nextElementSibling.value=this.value">'
+            . '<output>50</output>'
+            . '</div>';
+    } elseif ($field['field_type'] === 'section') {
+        $descHtml = $field['help_text'] !== ''
+            ? '<p class="contact-form-section-desc">' . contactFormEscape($field['help_text']) . '</p>'
+            : '';
+
+        return '<div class="contact-form-section">'
+            . '<h4 class="contact-form-section-heading">' . $fieldLabel . '</h4>'
+            . $descHtml
+            . '</div>';
     } elseif ($field['field_type'] === 'checkbox') {
         $checkboxLabel = $placeholder !== '' ? $placeholder : $fieldLabel;
         $inputHtml = '<label class="contact-form-checkbox-label">'
@@ -1559,6 +1713,39 @@ function contactFormRenderClientScript(string $formId, string $successMessage, b
             .finally(function () {
                 setLoading(false);
             });
+    });
+
+    // Star rating interaction
+    form.querySelectorAll('.contact-form-rating').forEach(function (ratingEl) {
+        var hiddenInput = ratingEl.querySelector('input[type="hidden"]');
+        var stars = Array.prototype.slice.call(ratingEl.querySelectorAll('.cf-star'));
+        function updateStars(upTo) {
+            stars.forEach(function (s, idx) {
+                s.classList.toggle('cf-star-active', idx < upTo);
+                s.classList.toggle('cf-star-hover', false);
+            });
+        }
+        stars.forEach(function (star) {
+            star.addEventListener('mouseenter', function () {
+                var val = parseInt(star.getAttribute('data-value'), 10);
+                stars.forEach(function (s, idx) {
+                    s.classList.toggle('cf-star-hover', idx < val);
+                });
+            });
+            star.addEventListener('mouseleave', function () {
+                var current = hiddenInput ? parseInt(hiddenInput.value, 10) || 0 : 0;
+                updateStars(current);
+            });
+            star.addEventListener('click', function () {
+                var val = parseInt(star.getAttribute('data-value'), 10);
+                if (hiddenInput) hiddenInput.value = val;
+                updateStars(val);
+            });
+        });
+        ratingEl.addEventListener('mouseleave', function () {
+            var current = hiddenInput ? parseInt(hiddenInput.value, 10) || 0 : 0;
+            updateStars(current);
+        });
     });
 })();
 </script>
