@@ -1002,8 +1002,14 @@ switch ($handler) {
         $t = microtime(true); preloadAllTenantModuleSettings();
         $perfData['settings_preload_ms'] = round((microtime(true) - $t) * 1000, 2);
 
-        $t = microtime(true); $perfCk = '_perf_' . request_id(); $perfCacheOk = false;
-        try { app()->cache()->set($perfCk, 'ok', 10); $perfCacheOk = app()->cache()->get($perfCk) === 'ok'; app()->cache()->delete($perfCk); } catch (Throwable $e) {}
+        $t = microtime(true); $perfCacheOk = false;
+        try {
+            $perfCacheUri = '/__perf_probe_' . request_id() . '__';
+            app()->cache()->set('_perf', $perfCacheUri, ['body' => 'ok', 'status' => 200, '_cache_expires_at' => time() + 10], 10);
+            $perfCacheResult = app()->cache()->get('_perf', $perfCacheUri);
+            $perfCacheOk = is_array($perfCacheResult) && ($perfCacheResult['body'] ?? '') === 'ok';
+            app()->cache()->clear('_perf');
+        } catch (Throwable $e) {}
         $perfData['cache_roundtrip_ms'] = round((microtime(true) - $t) * 1000, 2);
         $perfData['cache_ok'] = $perfCacheOk;
 
@@ -1509,12 +1515,13 @@ switch ($handler) {
 
         // ── 5. Cache read/write round trip ────────────────────────
         $t = microtime(true);
-        $cacheKey = '_perf_probe_' . request_id();
         $perfCacheOk = false;
         try {
-            app()->cache()->set($cacheKey, 'probe', 10);
-            $perfCacheOk = app()->cache()->get($cacheKey) === 'probe';
-            app()->cache()->delete($cacheKey);
+            $perfCacheUri = '/__perf_probe_' . request_id() . '__';
+            app()->cache()->set('_perf', $perfCacheUri, ['body' => 'ok', 'status' => 200, '_cache_expires_at' => time() + 10], 10);
+            $cacheProbeResult = app()->cache()->get('_perf', $perfCacheUri);
+            $perfCacheOk = is_array($cacheProbeResult) && ($cacheProbeResult['body'] ?? '') === 'ok';
+            app()->cache()->clear('_perf');
         } catch (Throwable $e) {}
         $perfResults['cache_roundtrip_ms'] = round((microtime(true) - $t) * 1000, 2);
         $perfResults['cache_ok'] = $perfCacheOk;
