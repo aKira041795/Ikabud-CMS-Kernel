@@ -283,8 +283,14 @@ function cmsPublicHome(array $params = []): void
             $staticPage = $stmt->fetch(PDO::FETCH_ASSOC);
 
             if ($staticPage) {
+                // Include origin (scheme+host) in the cache key so different domains
+                // sharing the same tenant get separate cached copies. The rendered HTML
+                // contains absolute URLs (theme CSS, upload links, base_url vars) that
+                // are host-specific. Serving one domain's cached HTML to another domain
+                // breaks CSP 'self' because the embedded URLs reference the wrong origin.
+                $staticCacheOrigin = md5(rtrim((string)(defined('BASE_URL') ? BASE_URL : ''), '/'));
                 $staticCacheKey = cmsPublicResolvedTemplateCacheKey(
-                    'cms:home:static_page:v1:' . $pageId,
+                    'cms:home:static_page:v1:' . $pageId . ':origin:' . $staticCacheOrigin,
                     'public/entity.view.disyl',
                     [],
                     'page',
