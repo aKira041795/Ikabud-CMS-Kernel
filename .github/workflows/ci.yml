@@ -61,7 +61,7 @@ jobs:
 
       - name: Run clientsite migrations
         env:
-          DB_DATABASE: clientsite_ci
+          APP_TENANT_DEFAULT: "2"
         run: php -d variables_order=EGPCS ikabud migrate
 
       - name: Seed clientsite database
