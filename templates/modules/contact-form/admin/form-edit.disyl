@@ -149,7 +149,7 @@
         <div class="cf-builder flex flex-col lg:flex-row rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden" style="min-height:580px">
 
             <!-- LEFT: Field Palette -->
-            <div class="cf-palette lg:w-[260px] flex-shrink-0 border-b lg:border-b-0 lg:border-r border-slate-200 bg-slate-50 flex flex-col">
+            <div class="cf-palette lg:w-[320px] flex-shrink-0 border-b lg:border-b-0 lg:border-r border-slate-200 bg-slate-50 flex flex-col">
                 <div class="px-4 pt-4 pb-2 border-b border-slate-200 bg-slate-100/60">
                     <h3 class="text-xs font-bold uppercase tracking-[0.22em] text-slate-500">Add Fields</h3>
                     <p class="text-[11px] text-slate-400 mt-1">Click a type to configure and add it below</p>
@@ -157,77 +157,89 @@
 
                 <div class="px-3 pt-4 pb-3 flex-1 overflow-y-auto">
                     <div class="text-[10px] font-bold uppercase tracking-[0.22em] text-slate-400 px-1 mb-2">Basic</div>
-                    <div class="grid grid-cols-2 gap-1.5 mb-5">
-                        <button type="button" class="cf-palette-tile flex flex-col items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white p-3 text-xs font-medium text-slate-600 hover:border-sky-400 hover:bg-sky-50 hover:text-sky-700 transition-colors" data-type="text" data-default-label="Text Field">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M4 6h16M4 12h10M4 18h12"/></svg>
+                    <div class="grid grid-cols-3 gap-1.5 mb-5">
+                        <button type="button" class="cf-palette-tile flex flex-col items-center justify-center gap-1 rounded-xl border border-slate-200 bg-white p-2.5 text-xs font-medium text-slate-600 hover:border-sky-400 hover:bg-sky-50 hover:text-sky-700 transition-colors" data-type="text" data-default-label="Text Field">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M4 6h16M4 12h10M4 18h12"/></svg>
                             <span>Text</span>
                         </button>
-                        <button type="button" class="cf-palette-tile flex flex-col items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white p-3 text-xs font-medium text-slate-600 hover:border-sky-400 hover:bg-sky-50 hover:text-sky-700 transition-colors" data-type="email" data-default-label="Email Address">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+                        <button type="button" class="cf-palette-tile flex flex-col items-center justify-center gap-1 rounded-xl border border-slate-200 bg-white p-2.5 text-xs font-medium text-slate-600 hover:border-sky-400 hover:bg-sky-50 hover:text-sky-700 transition-colors" data-type="email" data-default-label="Email Address">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
                             <span>Email</span>
                         </button>
-                        <button type="button" class="cf-palette-tile flex flex-col items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white p-3 text-xs font-medium text-slate-600 hover:border-sky-400 hover:bg-sky-50 hover:text-sky-700 transition-colors" data-type="tel" data-default-label="Phone Number">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/></svg>
+                        <button type="button" class="cf-palette-tile flex flex-col items-center justify-center gap-1 rounded-xl border border-slate-200 bg-white p-2.5 text-xs font-medium text-slate-600 hover:border-sky-400 hover:bg-sky-50 hover:text-sky-700 transition-colors" data-type="tel" data-default-label="Phone Number">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/></svg>
                             <span>Phone</span>
                         </button>
-                        <button type="button" class="cf-palette-tile flex flex-col items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white p-3 text-xs font-medium text-slate-600 hover:border-sky-400 hover:bg-sky-50 hover:text-sky-700 transition-colors" data-type="number" data-default-label="Number">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14"/></svg>
+                        <button type="button" class="cf-palette-tile flex flex-col items-center justify-center gap-1 rounded-xl border border-slate-200 bg-white p-2.5 text-xs font-medium text-slate-600 hover:border-sky-400 hover:bg-sky-50 hover:text-sky-700 transition-colors" data-type="number" data-default-label="Number">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14"/></svg>
                             <span>Number</span>
+                        </button>
+                        <button type="button" class="cf-palette-tile flex flex-col items-center justify-center gap-1 rounded-xl border border-slate-200 bg-white p-2.5 text-xs font-medium text-slate-600 hover:border-sky-400 hover:bg-sky-50 hover:text-sky-700 transition-colors" data-type="textarea" data-default-label="Message">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M4 6h16M4 10h16M4 14h10M4 18h7"/></svg>
+                            <span>Textarea</span>
+                        </button>
+                        <button type="button" class="cf-palette-tile flex flex-col items-center justify-center gap-1 rounded-xl border border-slate-200 bg-white p-2.5 text-xs font-medium text-slate-600 hover:border-sky-400 hover:bg-sky-50 hover:text-sky-700 transition-colors" data-type="select" data-default-label="Select Field">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M19 9l-7 7-7-7"/></svg>
+                            <span>Select</span>
+                        </button>
+                        <button type="button" class="cf-palette-tile flex flex-col items-center justify-center gap-1 rounded-xl border border-slate-200 bg-white p-2.5 text-xs font-medium text-slate-600 hover:border-sky-400 hover:bg-sky-50 hover:text-sky-700 transition-colors" data-type="radio" data-default-label="Choose One">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" stroke-width="1.8"/><circle cx="12" cy="12" r="4" fill="currentColor"/></svg>
+                            <span>Radio</span>
+                        </button>
+                        <button type="button" class="cf-palette-tile flex flex-col items-center justify-center gap-1 rounded-xl border border-slate-200 bg-white p-2.5 text-xs font-medium text-slate-600 hover:border-sky-400 hover:bg-sky-50 hover:text-sky-700 transition-colors" data-type="checkbox" data-default-label="I agree to the terms">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3" stroke-width="1.8"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12l3 3 5-5"/></svg>
+                            <span>Checkbox</span>
                         </button>
                     </div>
 
                     <div class="text-[10px] font-bold uppercase tracking-[0.22em] text-slate-400 px-1 mb-2">Advanced</div>
-                    <div class="grid grid-cols-2 gap-1.5">
-                        <button type="button" class="cf-palette-tile flex flex-col items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white p-3 text-xs font-medium text-slate-600 hover:border-sky-400 hover:bg-sky-50 hover:text-sky-700 transition-colors" data-type="textarea" data-default-label="Message">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M4 6h16M4 10h16M4 14h10M4 18h7"/></svg>
-                            <span>Textarea</span>
-                        </button>
-                        <button type="button" class="cf-palette-tile flex flex-col items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white p-3 text-xs font-medium text-slate-600 hover:border-sky-400 hover:bg-sky-50 hover:text-sky-700 transition-colors" data-type="select" data-default-label="Select Field">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M19 9l-7 7-7-7"/></svg>
-                            <span>Select</span>
-                        </button>
-                        <button type="button" class="cf-palette-tile flex flex-col items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white p-3 text-xs font-medium text-slate-600 hover:border-sky-400 hover:bg-sky-50 hover:text-sky-700 transition-colors" data-type="radio" data-default-label="Choose One">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" stroke-width="1.8"/><circle cx="12" cy="12" r="4" fill="currentColor"/></svg>
-                            <span>Radio</span>
-                        </button>
-                        <button type="button" class="cf-palette-tile flex flex-col items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white p-3 text-xs font-medium text-slate-600 hover:border-sky-400 hover:bg-sky-50 hover:text-sky-700 transition-colors" data-type="checkbox" data-default-label="I agree">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3" stroke-width="1.8"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12l3 3 5-5"/></svg>
-                            <span>Checkbox</span>
-                        </button>
-                        <button type="button" class="cf-palette-tile flex flex-col items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white p-3 text-xs font-medium text-slate-600 hover:border-sky-400 hover:bg-sky-50 hover:text-sky-700 transition-colors" data-type="url" data-default-label="Website URL">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg>
+                    <div class="grid grid-cols-3 gap-1.5">
+                        <button type="button" class="cf-palette-tile flex flex-col items-center justify-center gap-1 rounded-xl border border-slate-200 bg-white p-2.5 text-xs font-medium text-slate-600 hover:border-sky-400 hover:bg-sky-50 hover:text-sky-700 transition-colors" data-type="url" data-default-label="Website URL">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg>
                             <span>URL</span>
                         </button>
-                        <button type="button" class="cf-palette-tile flex flex-col items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white p-3 text-xs font-medium text-slate-600 hover:border-sky-400 hover:bg-sky-50 hover:text-sky-700 transition-colors" data-type="password" data-default-label="Password">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
-                            <span>Password</span>
-                        </button>
-                        <button type="button" class="cf-palette-tile flex flex-col items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white p-3 text-xs font-medium text-slate-600 hover:border-sky-400 hover:bg-sky-50 hover:text-sky-700 transition-colors" data-type="date" data-default-label="Date">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" ry="2" stroke-width="1.8"/><line x1="16" y1="2" x2="16" y2="6" stroke-width="1.8" stroke-linecap="round"/><line x1="8" y1="2" x2="8" y2="6" stroke-width="1.8" stroke-linecap="round"/><line x1="3" y1="10" x2="21" y2="10" stroke-width="1.8"/></svg>
+                        <button type="button" class="cf-palette-tile flex flex-col items-center justify-center gap-1 rounded-xl border border-slate-200 bg-white p-2.5 text-xs font-medium text-slate-600 hover:border-sky-400 hover:bg-sky-50 hover:text-sky-700 transition-colors" data-type="date" data-default-label="Date">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" ry="2" stroke-width="1.8"/><line x1="16" y1="2" x2="16" y2="6" stroke-width="1.8" stroke-linecap="round"/><line x1="8" y1="2" x2="8" y2="6" stroke-width="1.8" stroke-linecap="round"/><line x1="3" y1="10" x2="21" y2="10" stroke-width="1.8"/></svg>
                             <span>Date</span>
                         </button>
-                        <button type="button" class="cf-palette-tile flex flex-col items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white p-3 text-xs font-medium text-slate-600 hover:border-sky-400 hover:bg-sky-50 hover:text-sky-700 transition-colors" data-type="time" data-default-label="Time">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" stroke-width="1.8"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M12 7v5l3 3"/></svg>
+                        <button type="button" class="cf-palette-tile flex flex-col items-center justify-center gap-1 rounded-xl border border-slate-200 bg-white p-2.5 text-xs font-medium text-slate-600 hover:border-sky-400 hover:bg-sky-50 hover:text-sky-700 transition-colors" data-type="time" data-default-label="Time">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" stroke-width="1.8"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M12 7v5l3 3"/></svg>
                             <span>Time</span>
                         </button>
-                        <button type="button" class="cf-palette-tile flex flex-col items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white p-3 text-xs font-medium text-slate-600 hover:border-sky-400 hover:bg-sky-50 hover:text-sky-700 transition-colors" data-type="rating" data-default-label="Rate your experience">
-                            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                        <button type="button" class="cf-palette-tile flex flex-col items-center justify-center gap-1 rounded-xl border border-slate-200 bg-white p-2.5 text-xs font-medium text-slate-600 hover:border-sky-400 hover:bg-sky-50 hover:text-sky-700 transition-colors" data-type="datetime" data-default-label="Date & Time">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" ry="2" stroke-width="1.8"/><line x1="16" y1="2" x2="16" y2="6" stroke-width="1.8" stroke-linecap="round"/><line x1="3" y1="10" x2="21" y2="10" stroke-width="1.8"/><circle cx="16" cy="16" r="3" stroke-width="1.8"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M16 14.5v1.5l1 1"/></svg>
+                            <span>DateTime</span>
+                        </button>
+                        <button type="button" class="cf-palette-tile flex flex-col items-center justify-center gap-1 rounded-xl border border-slate-200 bg-white p-2.5 text-xs font-medium text-slate-600 hover:border-sky-400 hover:bg-sky-50 hover:text-sky-700 transition-colors" data-type="month" data-default-label="Month">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" ry="2" stroke-width="1.8"/><line x1="16" y1="2" x2="16" y2="6" stroke-width="1.8" stroke-linecap="round"/><line x1="8" y1="2" x2="8" y2="6" stroke-width="1.8" stroke-linecap="round"/><line x1="3" y1="10" x2="21" y2="10" stroke-width="1.8"/><line x1="8" y1="15" x2="16" y2="15" stroke-width="1.8" stroke-linecap="round"/></svg>
+                            <span>Month</span>
+                        </button>
+                        <button type="button" class="cf-palette-tile flex flex-col items-center justify-center gap-1 rounded-xl border border-slate-200 bg-white p-2.5 text-xs font-medium text-slate-600 hover:border-sky-400 hover:bg-sky-50 hover:text-sky-700 transition-colors" data-type="week" data-default-label="Week">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" ry="2" stroke-width="1.8"/><line x1="16" y1="2" x2="16" y2="6" stroke-width="1.8" stroke-linecap="round"/><line x1="8" y1="2" x2="8" y2="6" stroke-width="1.8" stroke-linecap="round"/><line x1="3" y1="10" x2="21" y2="10" stroke-width="1.8"/><line x1="7" y1="15" x2="7" y2="19" stroke-width="1.8" stroke-linecap="round"/><line x1="12" y1="13" x2="12" y2="19" stroke-width="1.8" stroke-linecap="round"/><line x1="17" y1="15" x2="17" y2="19" stroke-width="1.8" stroke-linecap="round"/></svg>
+                            <span>Week</span>
+                        </button>
+                        <button type="button" class="cf-palette-tile flex flex-col items-center justify-center gap-1 rounded-xl border border-slate-200 bg-white p-2.5 text-xs font-medium text-slate-600 hover:border-sky-400 hover:bg-sky-50 hover:text-sky-700 transition-colors" data-type="password" data-default-label="Password">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+                            <span>Password</span>
+                        </button>
+                        <button type="button" class="cf-palette-tile flex flex-col items-center justify-center gap-1 rounded-xl border border-slate-200 bg-white p-2.5 text-xs font-medium text-slate-600 hover:border-sky-400 hover:bg-sky-50 hover:text-sky-700 transition-colors" data-type="rating" data-default-label="Rate your experience">
+                            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
                             <span>Rating</span>
                         </button>
-                        <button type="button" class="cf-palette-tile flex flex-col items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white p-3 text-xs font-medium text-slate-600 hover:border-sky-400 hover:bg-sky-50 hover:text-sky-700 transition-colors" data-type="range" data-default-label="Satisfaction Score">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M4 12h16M8 8l-4 4 4 4M16 8l4 4-4 4"/></svg>
+                        <button type="button" class="cf-palette-tile flex flex-col items-center justify-center gap-1 rounded-xl border border-slate-200 bg-white p-2.5 text-xs font-medium text-slate-600 hover:border-sky-400 hover:bg-sky-50 hover:text-sky-700 transition-colors" data-type="range" data-default-label="Satisfaction Score">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M4 12h16M8 8l-4 4 4 4M16 8l4 4-4 4"/></svg>
                             <span>Slider</span>
                         </button>
-                        <button type="button" class="cf-palette-tile flex flex-col items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white p-3 text-xs font-medium text-slate-600 hover:border-sky-400 hover:bg-sky-50 hover:text-sky-700 transition-colors" data-type="color" data-default-label="Favourite Color">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="13.5" cy="6.5" r=".5" fill="currentColor"/><circle cx="17.5" cy="10.5" r=".5" fill="currentColor"/><circle cx="8.5" cy="7.5" r=".5" fill="currentColor"/><circle cx="6.5" cy="12.5" r=".5" fill="currentColor"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10c.557 0 1 .452 1 1a2 2 0 004 0c0-1.06-.422-2.016-1.102-2.727A9.957 9.957 0 0022 12c0-5.523-4.477-10-10-10z"/></svg>
+                        <button type="button" class="cf-palette-tile flex flex-col items-center justify-center gap-1 rounded-xl border border-slate-200 bg-white p-2.5 text-xs font-medium text-slate-600 hover:border-sky-400 hover:bg-sky-50 hover:text-sky-700 transition-colors" data-type="color" data-default-label="Favourite Color">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="13.5" cy="6.5" r=".5" fill="currentColor"/><circle cx="17.5" cy="10.5" r=".5" fill="currentColor"/><circle cx="8.5" cy="7.5" r=".5" fill="currentColor"/><circle cx="6.5" cy="12.5" r=".5" fill="currentColor"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10c.557 0 1 .452 1 1a2 2 0 004 0c0-1.06-.422-2.016-1.102-2.727A9.957 9.957 0 0022 12c0-5.523-4.477-10-10-10z"/></svg>
                             <span>Color</span>
                         </button>
-                        <button type="button" class="cf-palette-tile flex flex-col items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white p-3 text-xs font-medium text-slate-600 hover:border-sky-400 hover:bg-sky-50 hover:text-sky-700 transition-colors" data-type="section" data-default-label="Section Heading">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M4 6h16M4 10h7"/></svg>
+                        <button type="button" class="cf-palette-tile flex flex-col items-center justify-center gap-1 rounded-xl border border-slate-200 bg-white p-2.5 text-xs font-medium text-slate-600 hover:border-sky-400 hover:bg-sky-50 hover:text-sky-700 transition-colors" data-type="section" data-default-label="Section Heading">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M4 6h16M4 10h7"/></svg>
                             <span>Section</span>
                         </button>
-                        <button type="button" class="cf-palette-tile flex flex-col items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white p-3 text-xs font-medium text-slate-600 hover:border-sky-400 hover:bg-sky-50 hover:text-sky-700 transition-colors" data-type="hidden" data-default-label="Hidden Field">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 4.411m0 0L21 21"/></svg>
+                        <button type="button" class="cf-palette-tile flex flex-col items-center justify-center gap-1 rounded-xl border border-slate-200 bg-white p-2.5 text-xs font-medium text-slate-600 hover:border-sky-400 hover:bg-sky-50 hover:text-sky-700 transition-colors" data-type="hidden" data-default-label="Hidden Field">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 4.411m0 0L21 21"/></svg>
                             <span>Hidden</span>
                         </button>
                     </div>
@@ -316,6 +328,18 @@
                         <div class="cf-card-body hidden border-t border-slate-100">
                             <form method="post" action="{base_url}/cms/admin/contact-forms/{form.id}/fields/{field.id}/save" class="px-4 py-4 space-y-3">
                                 <input type="hidden" name="_token" value="{csrf_token}">
+
+                                <!-- Quick save/delete bar always visible at top of expanded card -->
+                                <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+                                    <button type="submit" formaction="{base_url}/cms/admin/contact-forms/{form.id}/fields/{field.id}/delete" formnovalidate onclick="return confirm('Delete this field and all its saved data?');" class="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-red-500 hover:bg-red-50 transition-colors">
+                                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                                        Delete
+                                    </button>
+                                    <button type="submit" class="inline-flex items-center gap-1.5 rounded-xl bg-sky-600 px-4 py-1.5 text-xs font-semibold text-white hover:bg-sky-700">
+                                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                                        Save Field
+                                    </button>
+                                </div>
 
                                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                     <div>
@@ -508,7 +532,10 @@
         'range':    'Satisfaction Score',
         'color':    'Favourite Color',
         'hidden':   'Hidden Field',
-        'section':  'Section Heading'
+        'section':  'Section Heading',
+        'datetime': 'Date & Time',
+        'month':    'Month',
+        'week':     'Week'
     };
 
     // ── Helpers ───────────────────────────────────────────────────────────────
