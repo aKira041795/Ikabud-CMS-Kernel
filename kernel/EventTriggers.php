@@ -40,6 +40,20 @@ function kernelEventAvailableVars(string $eventKey): array
         $stmt->execute([$eventKey]);
         $raw = $stmt->fetchColumn();
         if ($raw === false || $raw === null || trim((string)$raw) === '') {
+            // Fallback: check deferred registrations not yet flushed to DB
+            $pending = $GLOBALS['_kernel_pending_event_registrations'] ?? [];
+            foreach ($pending as $moduleEvents) {
+                foreach ($moduleEvents as $e) {
+                    if (is_array($e) && trim((string)($e['key'] ?? '')) === $eventKey) {
+                        $vars = $e['available_vars'] ?? null;
+                        if (is_array($vars)) {
+                            $vars = array_values(array_unique(array_filter($vars, fn($v) => is_string($v) && trim($v) !== '')));
+                            sort($vars);
+                            return $vars;
+                        }
+                    }
+                }
+            }
             return [];
         }
         $decoded = json_decode((string)$raw, true);

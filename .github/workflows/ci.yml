@@ -50,6 +50,27 @@ jobs:
       - name: Run application migrations
         run: php ikabud migrate
 
+      - name: Create clientsite CI database
+        run: mysql -h 127.0.0.1 -u root -pci_root_pass -e "CREATE DATABASE IF NOT EXISTS clientsite_ci CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+
+      - name: Run clientsite migrations
+        env:
+          DB_DATABASE: clientsite_ci
+        run: php -d variables_order=EGPCS ikabud migrate
+
+      - name: Seed clientsite database
+        run: |
+          mysql -h 127.0.0.1 -u root -pci_root_pass clientsite_ci < modules/cms/database/seeds/001_cms_baseline_content_types.sql
+          mysql -h 127.0.0.1 -u root -pci_root_pass clientsite_ci < database/seeds/ci_clientsite.sql
+
+      - name: Seed CI tenant control data
+        run: php database/seeds/ci_tenants.php
+
+      - name: Start PHP development server
+        run: |
+          sudo -E php -S 127.0.0.1:80 -t public/ > /tmp/php-server.log 2>&1 &
+          sleep 3
+
       - name: Run test suite
         run: composer test
 

@@ -110,7 +110,7 @@ foreach ($tenants as $t) {
 }
 ok($baronTenant !== null, 'baronbakeshop tenant exists');
 ok($clientTenant !== null, 'clientsite tenant exists');
-ok(empty($baronTenant['entry_module_id']), 'baronbakeshop entry module = NULL (kernel tenant)');
+ok(($baronTenant['entry_module_id'] ?? '') === 'daily-ledger', 'baronbakeshop entry module = daily-ledger');
 ok(($clientTenant['entry_module_id'] ?? '') === 'cms', 'clientsite entry module = cms');
 ok(($baronTenant['status'] ?? '') === 'active', 'baronbakeshop status = active');
 ok(($clientTenant['status'] ?? '') === 'active', 'clientsite status = active');
