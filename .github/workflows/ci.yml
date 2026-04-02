@@ -41,29 +41,14 @@ jobs:
       - name: Prepare environment
         run: cp .env.ci .env
 
-      - name: Run database migrations
-        run: |
-          php -r "
-            \$_SERVER['HTTP_HOST'] = 'applicationos.test';
-            \$_SERVER['REQUEST_URI'] = '/';
-            require 'bootstrap.php';
-            \$db = app()->db();
-            \$files = glob('database/migrations/*.sql');
-            sort(\$files);
-            foreach (\$files as \$f) {
-              \$sql = file_get_contents(\$f);
-              foreach (array_filter(array_map('trim', explode(';', \$sql))) as \$stmt) {
-                try { \$db->exec(\$stmt); } catch (PDOException \$e) {
-                  if (!\str_contains(\$e->getMessage(), 'already exists') &&
-                      !\str_contains(\$e->getMessage(), 'Duplicate')) {
-                    echo 'Migration error in ' . \$f . ': ' . \$e->getMessage() . PHP_EOL;
-                  }
-                }
-              }
-            }
-            echo 'Migrations complete' . PHP_EOL;
-          "
-        continue-on-error: true
+      - name: Create storage directories
+        run: mkdir -p storage/logs storage/cache/disyl storage/cache/cms storage/uploads
+
+      - name: Run control-plane migrations
+        run: php ikabud migrate:control
+
+      - name: Run application migrations
+        run: php ikabud migrate
 
       - name: Run test suite
         run: composer test
