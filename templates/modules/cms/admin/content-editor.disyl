@@ -2345,7 +2345,7 @@ function cmsEditor() {
                         this.initRichTextFields();
                     })
                     .catch(() => {
-                        toast('TinyMCE failed to load. Check network access to CDN.', 'error');
+                        toast('TinyMCE failed to load.', 'error');
                     });
             });
         },

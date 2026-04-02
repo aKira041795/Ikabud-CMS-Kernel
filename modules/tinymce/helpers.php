@@ -55,12 +55,13 @@ function tinymceSanitizeHtml(string $html): string
 
 function tinymceAssetsGet(array $payload = []): array
 {
+    $baseUrl = rtrim(external_base_url((string)config('app.url', '')), '/');
     return [
         'ok' => true,
         'data' => [
-            'version' => '6',
+            'version' => '8',
             'js_urls' => [
-                'https://cdn.jsdelivr.net/npm/tinymce@6/tinymce.min.js',
+                $baseUrl . '/assets/cms/tinymce/tinymce.min.js',
             ],
             'css_urls' => [],
         ],
@@ -72,9 +73,12 @@ function tinymceConfigGet(array $payload = []): array
     $context = trim((string)($payload['context'] ?? ''));
     $readonly = !empty($payload['readonly']);
     $ctx = module('tinymce');
+    $baseUrl = rtrim(external_base_url((string)config('app.url', '')), '/');
 
     $config = [
         'selector' => '[data-tinymce-editor]',
+        'base_url' => $baseUrl . '/assets/cms/tinymce',
+        'suffix' => '.min',
         'menubar' => true,
         'branding' => false,
         'height' => $context === 'guidance.session' ? 420 : 520,
