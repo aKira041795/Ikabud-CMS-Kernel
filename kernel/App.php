@@ -950,6 +950,11 @@ class App
             ];
             return $pdo;
         } catch (\Throwable $e) {
+            $this->log(
+                'Tenant DB connection initialization failed: ' . $e->getMessage(),
+                'error',
+                $this->tenantDbFailureContext($tenantId, ['exception' => get_class($e)])
+            );
             return null;
         } finally {
             kernel_request_context_set('_kernel_db_unguarded', $previousUnguarded);

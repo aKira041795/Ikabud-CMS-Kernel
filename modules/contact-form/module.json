@@ -1,7 +1,7 @@
 {
   "id": "contact-form",
   "name": "Simple Contact Form",
-  "version": "1.5.0",
+  "version": "1.6.0",
   "author": "Test Author",
   "description": "A lightweight contact form module for CMS pages. Integrates with the page builder as a drag-and-drop block.",
   "owns_tables": [
@@ -15,7 +15,8 @@
     "migrations/003_contact_form_submissions_v130.sql",
     "migrations/004_contact_form_editor_and_submission_upgrades.sql",
     "migrations/005_contact_form_submit_label.sql",
-    "migrations/006_contact_form_field_conditional_logic.sql"
+    "migrations/006_contact_form_field_conditional_logic.sql",
+    "migrations/007_contact_form_submission_workflows.sql"
   ],
   "capabilities": [],
   "hooks": [

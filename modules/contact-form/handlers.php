@@ -75,12 +75,33 @@ function contactFormValidateFormInput(array $input, ?int $existingId = null): ar
         return ['error' => 'Unable to validate the form slug right now.'];
     }
 
+    $confirmationRules = [];
+    $notificationRules = [];
+    if ($existingId !== null && $existingId > 0) {
+        $fields = contactFormGetFieldsForForm($existingId);
+
+        $confirmationValidation = contactFormValidateConfirmationRulesInput($input['confirmation_rules_json'] ?? '[]', $fields);
+        if (!empty($confirmationValidation['error'])) {
+            return ['error' => (string) $confirmationValidation['error']];
+        }
+
+        $notificationValidation = contactFormValidateNotificationRulesInput($input['notification_rules_json'] ?? '[]', $fields);
+        if (!empty($notificationValidation['error'])) {
+            return ['error' => (string) $notificationValidation['error']];
+        }
+
+        $confirmationRules = is_array($confirmationValidation['data'] ?? null) ? $confirmationValidation['data'] : [];
+        $notificationRules = is_array($notificationValidation['data'] ?? null) ? $notificationValidation['data'] : [];
+    }
+
     return [
         'data' => [
             'name' => $name,
             'slug' => $slug,
             'success_message' => $successMessage,
             'submit_label' => $submitLabel,
+            'confirmation_rules' => $confirmationRules,
+            'notification_rules' => $notificationRules,
             'captcha_enabled' => $captchaEnabled,
             'status' => $status,
         ],
@@ -94,12 +115,154 @@ function contactFormHydrateFormFromInput(array $input, array $fallback = []): ar
     $form['slug'] = contactFormSlugify((string) ($input['slug'] ?? $form['slug'] ?? $form['name']));
     $form['success_message'] = contactFormLimit(trim((string) ($input['success_message'] ?? $form['success_message'] ?? '')), 5000);
     $form['submit_label'] = contactFormLimit(trim((string) ($input['submit_label'] ?? $form['submit_label'] ?? '')), 100);
+    $form['confirmation_rules'] = contactFormNormalizeConfirmationRules($input['confirmation_rules_json'] ?? ($form['confirmation_rules'] ?? []));
+    $form['confirmation_rules_json'] = contactFormRulesToJson(is_array($form['confirmation_rules'] ?? null) ? $form['confirmation_rules'] : []);
+    $form['notification_rules'] = contactFormNormalizeNotificationRules($input['notification_rules_json'] ?? ($form['notification_rules'] ?? []));
+    $form['notification_rules_json'] = contactFormRulesToJson(is_array($form['notification_rules'] ?? null) ? $form['notification_rules'] : []);
     $form['captcha_enabled'] = contactFormBoolish($input['captcha_enabled'] ?? ($form['captcha_enabled'] ?? 1)) ? 1 : 0;
     $form['status'] = in_array((string) ($input['status'] ?? $form['status'] ?? 'active'), ['active', 'inactive'], true)
         ? (string) ($input['status'] ?? $form['status'])
         : 'active';
 
     return $form;
+}
+
+function contactFormSubmissionError(string $message, array $fieldErrors = []): array
+{
+    $payload = ['error' => $message];
+
+    $normalizedFieldErrors = [];
+    foreach ($fieldErrors as $fieldName => $fieldMessage) {
+        $fieldName = trim((string) $fieldName);
+        $fieldMessage = trim((string) $fieldMessage);
+        if ($fieldName === '' || $fieldMessage === '') {
+            continue;
+        }
+
+        $normalizedFieldErrors[$fieldName] = $fieldMessage;
+    }
+
+    if ($normalizedFieldErrors !== []) {
+        $payload['field_errors'] = $normalizedFieldErrors;
+    }
+
+    return $payload;
+}
+
+function contactFormDecodeJsonArrayInput(mixed $value, string $label): array
+{
+    if (is_string($value)) {
+        $value = trim($value);
+        if ($value === '') {
+            return ['data' => []];
+        }
+
+        $decoded = json_decode($value, true);
+        if (!is_array($decoded)) {
+            return ['error' => 'Invalid ' . $label . ' configuration.'];
+        }
+
+        return ['data' => $decoded];
+    }
+
+    if (is_array($value)) {
+        return ['data' => $value];
+    }
+
+    if ($value === null || $value === '') {
+        return ['data' => []];
+    }
+
+    return ['error' => 'Invalid ' . $label . ' configuration.'];
+}
+
+function contactFormValidateConditionSet(array $conditions, array $availableFields, string $contextLabel): ?string
+{
+    if ($conditions === []) {
+        return 'Add at least one condition to each ' . $contextLabel . ' rule.';
+    }
+
+    foreach ($conditions as $condition) {
+        $sourceFieldId = (int) ($condition['field_id'] ?? 0);
+        if ($sourceFieldId <= 0 || !isset($availableFields[$sourceFieldId])) {
+            return 'One or more ' . $contextLabel . ' rules reference a field that no longer exists.';
+        }
+    }
+
+    return null;
+}
+
+function contactFormValidateConfirmationRulesInput(mixed $value, array $fields): array
+{
+    $decoded = contactFormDecodeJsonArrayInput($value, 'confirmation workflow');
+    if (!empty($decoded['error'])) {
+        return ['error' => (string) $decoded['error']];
+    }
+
+    $rawRules = is_array($decoded['data'] ?? null) ? $decoded['data'] : [];
+    $rules = contactFormNormalizeConfirmationRules($rawRules);
+    if ($rawRules !== [] && $rules === []) {
+        return ['error' => 'Add at least one valid confirmation rule or clear the confirmation workflow.'];
+    }
+
+    $availableFields = contactFormAvailableConditionFields($fields);
+    foreach ($rules as $rule) {
+        $conditions = is_array($rule['conditions'] ?? null) ? $rule['conditions'] : [];
+        $conditionError = contactFormValidateConditionSet($conditions, $availableFields, 'confirmation');
+        if ($conditionError !== null) {
+            return ['error' => $conditionError];
+        }
+
+        $type = trim((string) ($rule['type'] ?? 'message'));
+        if ($type === 'message' && trim((string) ($rule['message'] ?? '')) === '') {
+            return ['error' => 'Each confirmation message rule needs a message.'];
+        }
+
+        if ($type === 'redirect') {
+            $redirectTarget = trim((string) ($rule['redirect_url'] ?? ''));
+            if ($redirectTarget === '') {
+                return ['error' => 'Each redirect rule needs a redirect URL.'];
+            }
+
+            try {
+                kernel_validate_redirect_target($redirectTarget);
+            } catch (Throwable $e) {
+                return ['error' => 'One or more redirect targets are invalid.'];
+            }
+        }
+    }
+
+    return ['data' => $rules];
+}
+
+function contactFormValidateNotificationRulesInput(mixed $value, array $fields): array
+{
+    $decoded = contactFormDecodeJsonArrayInput($value, 'notification routing');
+    if (!empty($decoded['error'])) {
+        return ['error' => (string) $decoded['error']];
+    }
+
+    $rawRules = is_array($decoded['data'] ?? null) ? $decoded['data'] : [];
+    $rules = contactFormNormalizeNotificationRules($rawRules);
+    if ($rawRules !== [] && $rules === []) {
+        return ['error' => 'Add at least one valid notification routing rule or clear the routing builder.'];
+    }
+
+    $availableFields = contactFormAvailableConditionFields($fields);
+    foreach ($rules as $rule) {
+        $conditions = is_array($rule['conditions'] ?? null) ? $rule['conditions'] : [];
+        $conditionError = contactFormValidateConditionSet($conditions, $availableFields, 'notification');
+        if ($conditionError !== null) {
+            return ['error' => $conditionError];
+        }
+
+        $recipientEmail = trim((string) ($rule['recipient_email'] ?? ''));
+        if ($recipientEmail === '' || !filter_var($recipientEmail, FILTER_VALIDATE_EMAIL)) {
+            return ['error' => 'Each notification routing rule needs a valid recipient email address.'];
+        }
+    }
+
+    return ['data' => $rules];
 }
 
 function contactFormValidateConditionalLogicInput(array $input, int $formId, ?int $existingFieldId = null): array
@@ -241,7 +404,6 @@ function contactFormValidateFieldInput(array $input, int $formId, ?int $existing
 
     try {
         if ($existingFieldId === null) {
-            // Creating: auto-suffix the name until it is unique (_2, _3 …)
             $baseName = $name;
             $counter = 2;
             while (true) {
@@ -250,7 +412,7 @@ function contactFormValidateFieldInput(array $input, int $formId, ?int $existing
                 );
                 $stmt->execute([':form_id' => $formId, ':name' => $name]);
                 if (!$stmt->fetch(\PDO::FETCH_ASSOC)) {
-                    break; // name is unique
+                    break;
                 }
 
                 if ($counter > 99) {
@@ -260,7 +422,6 @@ function contactFormValidateFieldInput(array $input, int $formId, ?int $existing
                 $name = $baseName . '_' . $counter++;
             }
         } else {
-            // Updating: name conflict with a different field is an error
             $stmt = contactFormDb()->prepare(
                 'SELECT id FROM contact_form_fields WHERE form_id = :form_id AND name = :name LIMIT 1'
             );
@@ -433,16 +594,25 @@ function contactFormPrepareLegacySubmission(array $input): array
     $email = contactFormLimit(trim((string) ($input['email'] ?? '')), 255);
     $message = contactFormLimit(trim((string) ($input['message'] ?? '')), 5000);
 
-    if ($name === '' || $email === '' || $message === '') {
-        return ['error' => 'Name, email, and message are required.'];
+    $fieldErrors = [];
+    if ($name === '') {
+        $fieldErrors['name'] = 'Name is required.';
     }
 
-    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-        return ['error' => 'Invalid email format.'];
+    if ($email === '') {
+        $fieldErrors['email'] = 'Email is required.';
+    } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        $fieldErrors['email'] = 'Please enter a valid email address.';
     }
 
-    if (strlen($message) < 10) {
-        return ['error' => 'Message must be at least 10 characters.'];
+    if ($message === '') {
+        $fieldErrors['message'] = 'Message is required.';
+    } elseif (strlen($message) < 10) {
+        $fieldErrors['message'] = 'Message must be at least 10 characters.';
+    }
+
+    if ($fieldErrors !== []) {
+        return contactFormSubmissionError('Please correct the highlighted fields and try again.', $fieldErrors);
     }
 
     return [
@@ -460,7 +630,7 @@ function contactFormPrepareLegacySubmission(array $input): array
 function contactFormPrepareDynamicSubmission(array $fields, array $input): array
 {
     if ($fields === []) {
-        return ['error' => 'This form has no fields yet.'];
+        return contactFormSubmissionError('This form has no fields yet.');
     }
 
     $records = [];
@@ -468,6 +638,7 @@ function contactFormPrepareDynamicSubmission(array $fields, array $input): array
     $summaryEmail = '';
     $hasValue = false;
     $visibility = contactFormResolveFieldVisibility($fields, $input);
+    $fieldErrors = [];
 
     foreach ($fields as $field) {
         if (!is_array($field)) {
@@ -488,52 +659,73 @@ function contactFormPrepareDynamicSubmission(array $fields, array $input): array
         }
 
         $rawValue = $input[$field['name']] ?? '';
+        $normalizedArrayValues = [];
 
-        // Checkbox group: submitted as an array; validate each checked value is in allowed options
         if ($field['field_type'] === 'checkbox' && is_array($rawValue) && $field['options_text'] !== '') {
             $allowedValues = array_map(static fn(array $option): string => (string) ($option['value'] ?? ''), contactFormParseOptionsText((string) $field['options_text']));
             foreach ($rawValue as $checkedVal) {
                 $checkedVal = trim((string) $checkedVal);
                 if ($checkedVal !== '' && $allowedValues !== [] && !in_array($checkedVal, $allowedValues, true)) {
-                    return ['error' => 'Invalid selection for ' . $field['label'] . '.'];
+                    $fieldErrors[$field['name']] = 'Invalid selection for ' . $field['label'] . '.';
+                    continue 2;
                 }
             }
         }
 
         if (is_array($rawValue)) {
-            $rawValue = implode(', ', array_map(static fn($value): string => trim((string) $value), $rawValue));
+            $normalizedArrayValues = array_values(array_filter(
+                array_map(static fn($value): string => trim((string) $value), $rawValue),
+                static fn(string $value): bool => $value !== ''
+            ));
+            $rawValue = implode(', ', $normalizedArrayValues);
         }
 
         $maxLength = $field['field_type'] === 'textarea' ? 5000 : 2000;
         $value = contactFormLimit(trim((string) $rawValue), $maxLength);
         if ($field['required'] && $value === '') {
-            return ['error' => $field['label'] . ' is required.'];
+            $fieldErrors[$field['name']] = $field['label'] . ' is required.';
+            continue;
         }
 
         if ($value !== '') {
             if ($field['field_type'] === 'email' && !filter_var($value, FILTER_VALIDATE_EMAIL)) {
-                return ['error' => 'Please enter a valid email for ' . $field['label'] . '.'];
+                $fieldErrors[$field['name']] = 'Please enter a valid email for ' . $field['label'] . '.';
+                continue;
             }
 
             if ($field['field_type'] === 'tel' && !preg_match('/^[0-9\+\(\)\-\.\s\/]{5,40}$/', $value)) {
-                return ['error' => 'Please enter a valid phone number for ' . $field['label'] . '.'];
+                $fieldErrors[$field['name']] = 'Please enter a valid phone number for ' . $field['label'] . '.';
+                continue;
             }
 
             if ($field['field_type'] === 'number' && !is_numeric($value)) {
-                return ['error' => $field['label'] . ' must be a number.'];
+                $fieldErrors[$field['name']] = $field['label'] . ' must be a number.';
+                continue;
             }
 
             if ($field['field_type'] === 'select') {
                 $allowedValues = array_map(static fn(array $option): string => (string) ($option['value'] ?? ''), contactFormParseOptionsText((string) ($field['options_text'] ?? '')));
                 if ($allowedValues === [] || !in_array($value, $allowedValues, true)) {
-                    return ['error' => 'Please choose a valid option for ' . $field['label'] . '.'];
+                    $fieldErrors[$field['name']] = 'Please choose a valid option for ' . $field['label'] . '.';
+                    continue;
                 }
             }
 
             if ($field['field_type'] === 'radio') {
                 $allowedValues = array_map(static fn(array $option): string => (string) ($option['value'] ?? ''), contactFormParseOptionsText((string) ($field['options_text'] ?? '')));
                 if ($allowedValues === [] || !in_array($value, $allowedValues, true)) {
-                    return ['error' => 'Please choose a valid option for ' . $field['label'] . '.'];
+                    $fieldErrors[$field['name']] = 'Please choose a valid option for ' . $field['label'] . '.';
+                    continue;
+                }
+            }
+
+            if ($field['field_type'] === 'checkbox' && $normalizedArrayValues !== [] && $field['options_text'] !== '') {
+                $allowedValues = array_map(static fn(array $option): string => (string) ($option['value'] ?? ''), contactFormParseOptionsText((string) ($field['options_text'] ?? '')));
+                foreach ($normalizedArrayValues as $checkedValue) {
+                    if ($allowedValues !== [] && !in_array($checkedValue, $allowedValues, true)) {
+                        $fieldErrors[$field['name']] = 'Invalid selection for ' . $field['label'] . '.';
+                        continue 2;
+                    }
                 }
             }
         }
@@ -559,8 +751,12 @@ function contactFormPrepareDynamicSubmission(array $fields, array $input): array
         ];
     }
 
+    if ($fieldErrors !== []) {
+        return contactFormSubmissionError('Please correct the highlighted fields and try again.', $fieldErrors);
+    }
+
     if (!$hasValue) {
-        return ['error' => 'Please fill out at least one field.'];
+        return contactFormSubmissionError('Please fill out at least one field.');
     }
 
     return [
@@ -654,40 +850,40 @@ function contactFormAdminFormCreate(array $params = []): void
             try {
                 $payload = $validation['data'];
                 $stmt = contactFormDb()->prepare(
-                    'INSERT INTO contact_forms (name, slug, success_message, submit_label, captcha_enabled, status, created_at, updated_at)'
-                    . ' VALUES (:name, :slug, :success_message, :submit_label, :captcha_enabled, :status, NOW(), NOW())'
+                    'INSERT INTO contact_forms (name, slug, success_message, submit_label, confirmation_rules, notification_rules, captcha_enabled, status, created_at, updated_at)'
+                    . ' VALUES (:name, :slug, :success_message, :submit_label, :confirmation_rules, :notification_rules, :captcha_enabled, :status, NOW(), NOW())'
                 );
                 $stmt->execute([
                     ':name' => $payload['name'],
                     ':slug' => $payload['slug'],
                     ':success_message' => $payload['success_message'],
                     ':submit_label' => $payload['submit_label'],
+                    ':confirmation_rules' => contactFormRulesToJson(is_array($payload['confirmation_rules'] ?? null) ? $payload['confirmation_rules'] : []),
+                    ':notification_rules' => contactFormRulesToJson(is_array($payload['notification_rules'] ?? null) ? $payload['notification_rules'] : []),
                     ':captcha_enabled' => $payload['captcha_enabled'],
                     ':status' => $payload['status'],
                 ]);
-
                 $formId = (int) contactFormDb()->lastInsertId();
 
-                // Seed three default fields: Name, Email, Message
                 $fieldStmt = contactFormDb()->prepare(
                     'INSERT INTO contact_form_fields (form_id, field_type, label, name, placeholder, help_text, options_text, required, sort_order, created_at, updated_at)'
                     . ' VALUES (:form_id, :field_type, :label, :name, :placeholder, :help_text, :options_text, :required, :sort_order, NOW(), NOW())'
                 );
                 foreach ([
-                    ['field_type' => 'text',     'label' => 'Full Name',     'name' => 'full_name', 'placeholder' => 'Your full name',  'required' => 1, 'sort_order' => 10],
-                    ['field_type' => 'email',    'label' => 'Email Address', 'name' => 'email',     'placeholder' => 'you@example.com', 'required' => 1, 'sort_order' => 20],
-                    ['field_type' => 'textarea', 'label' => 'Message',       'name' => 'message',   'placeholder' => 'Your message…',   'required' => 1, 'sort_order' => 30],
+                    ['field_type' => 'text', 'label' => 'Full Name', 'name' => 'full_name', 'placeholder' => 'Your full name', 'required' => 1, 'sort_order' => 10],
+                    ['field_type' => 'email', 'label' => 'Email Address', 'name' => 'email_address', 'placeholder' => 'name@example.com', 'required' => 1, 'sort_order' => 20],
+                    ['field_type' => 'textarea', 'label' => 'Message', 'name' => 'message', 'placeholder' => 'Your message…', 'required' => 1, 'sort_order' => 30],
                 ] as $df) {
                     $fieldStmt->execute([
-                        ':form_id'      => $formId,
-                        ':field_type'   => $df['field_type'],
-                        ':label'        => $df['label'],
-                        ':name'         => $df['name'],
-                        ':placeholder'  => $df['placeholder'],
-                        ':help_text'    => '',
+                        ':form_id' => $formId,
+                        ':field_type' => $df['field_type'],
+                        ':label' => $df['label'],
+                        ':name' => $df['name'],
+                        ':placeholder' => $df['placeholder'],
+                        ':help_text' => '',
                         ':options_text' => '',
-                        ':required'     => $df['required'],
-                        ':sort_order'   => $df['sort_order'],
+                        ':required' => $df['required'],
+                        ':sort_order' => $df['sort_order'],
                     ]);
                 }
 
@@ -712,6 +908,7 @@ function contactFormAdminFormCreate(array $params = []): void
         [
             'form' => $form,
             'fields' => [],
+            'condition_fields_json' => contactFormConditionFieldsJson([]),
             'message' => $message,
             'error' => $error,
             'is_edit' => false,
@@ -761,6 +958,7 @@ function contactFormAdminFormEdit(array $params = []): void
                 $stmt = contactFormDb()->prepare(
                     'UPDATE contact_forms'
                     . ' SET name = :name, slug = :slug, success_message = :success_message, submit_label = :submit_label,'
+                    . ' confirmation_rules = :confirmation_rules, notification_rules = :notification_rules,'
                     . ' captcha_enabled = :captcha_enabled, status = :status, updated_at = NOW()'
                     . ' WHERE id = :id LIMIT 1'
                 );
@@ -769,6 +967,8 @@ function contactFormAdminFormEdit(array $params = []): void
                     ':slug' => $payload['slug'],
                     ':success_message' => $payload['success_message'],
                     ':submit_label' => $payload['submit_label'],
+                    ':confirmation_rules' => contactFormRulesToJson(is_array($payload['confirmation_rules'] ?? null) ? $payload['confirmation_rules'] : []),
+                    ':notification_rules' => contactFormRulesToJson(is_array($payload['notification_rules'] ?? null) ? $payload['notification_rules'] : []),
                     ':captcha_enabled' => $payload['captcha_enabled'],
                     ':status' => $payload['status'],
                     ':id' => $formId,
@@ -800,6 +1000,7 @@ function contactFormAdminFormEdit(array $params = []): void
         [
             'form' => $form,
             'fields' => $fields,
+            'condition_fields_json' => contactFormConditionFieldsJson($fields),
             'message' => $message,
             'error' => $error,
             'is_edit' => true,
@@ -937,7 +1138,7 @@ body { margin: 0; padding: 1.5rem 1.5rem 3rem; background: #f1f5f9; font-family:
 <body>
 <div class="cf-preview-banner">
   <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
-  Preview — submissions are disabled
+  Preview - submissions are disabled
 </div>
 {$formHtml}
 </body>
@@ -1529,18 +1730,28 @@ function submitContactForm(array $params = []): void
         $captchaToken = trim((string) ($input['captcha_token'] ?? ''));
         $captchaAnswer = trim((string) ($input['captcha_answer'] ?? ''));
         if (!contactFormVerifyCaptcha($captchaToken, $captchaAnswer)) {
-            contactFormJsonError('Incorrect answer. Please try again.', 422, ['refresh_captcha' => true]);
+            contactFormJsonError('Incorrect answer. Please try again.', 422, [
+                'refresh_captcha' => true,
+                'field_errors' => ['captcha_answer' => 'Incorrect answer. Please try again.'],
+            ]);
         }
     }
 
+    $fields = $savedForm && is_array($savedForm['fields'] ?? null)
+        ? $savedForm['fields']
+        : [];
+
     $prepared = $savedForm
-        ? contactFormPrepareDynamicSubmission(is_array($savedForm['fields'] ?? null) ? $savedForm['fields'] : [], $input)
+        ? contactFormPrepareDynamicSubmission($fields, $input)
         : contactFormPrepareLegacySubmission($input);
 
     if (!empty($prepared['error'])) {
         $extra = ($savedForm && (int) ($savedForm['captcha_enabled'] ?? 0) === 1)
             ? ['refresh_captcha' => true]
             : [];
+        if (!empty($prepared['field_errors']) && is_array($prepared['field_errors'])) {
+            $extra['field_errors'] = $prepared['field_errors'];
+        }
         contactFormJsonError((string) $prepared['error'], 422, $extra);
     }
 
@@ -1568,21 +1779,44 @@ function submitContactForm(array $params = []): void
         }
     }
 
-    $recipient = trim((string) ($settings['recipient_email'] ?? ''));
-    if ($recipient !== '' && filter_var($recipient, FILTER_VALIDATE_EMAIL) && function_exists('buildEmailTemplate') && function_exists('sendEmail')) {
-        try {
-            $subjectPrefix = trim((string) ($settings['email_subject'] ?? 'New Contact Form Submission'));
-            $subjectSuffix = $savedForm
-                ? trim((string) ($savedForm['name'] ?? 'Saved Form'))
-                : ($summaryName !== '' ? $summaryName : 'Submission');
-            $subject = trim($subjectPrefix . ' - ' . $subjectSuffix);
-            $sentFrom = $_SERVER['HTTP_HOST'] ?? 'Unknown';
-            $content = contactFormBuildNotificationContent($records, (string) $sentFrom, $savedForm);
-            $body = buildEmailTemplate('New Contact Form Submission', $content);
-            sendEmail($recipient, $subject, $body);
-        } catch (Throwable $e) {
-            write_log('contact-form: notification email failed: ' . $e->getMessage(), 'error');
+    $fallbackRecipient = trim((string) ($settings['recipient_email'] ?? ''));
+    $notificationRecipients = $savedForm
+        ? contactFormResolveConditionalNotificationRecipients($savedForm, $fields, $input, $fallbackRecipient)
+        : (($fallbackRecipient !== '' && filter_var($fallbackRecipient, FILTER_VALIDATE_EMAIL)) ? [$fallbackRecipient] : []);
+
+    if ($notificationRecipients !== [] && function_exists('buildEmailTemplate') && function_exists('sendEmail')) {
+        $subjectPrefix = trim((string) ($settings['email_subject'] ?? 'New Contact Form Submission'));
+        $subjectSuffix = $savedForm
+            ? trim((string) ($savedForm['name'] ?? 'Saved Form'))
+            : ($summaryName !== '' ? $summaryName : 'Submission');
+        $subject = trim($subjectPrefix . ' - ' . $subjectSuffix);
+        $sentFrom = $_SERVER['HTTP_HOST'] ?? 'Unknown';
+        $content = contactFormBuildNotificationContent($records, (string) $sentFrom, $savedForm);
+        $body = buildEmailTemplate('New Contact Form Submission', $content);
+
+        foreach ($notificationRecipients as $recipientEmail) {
+            try {
+                sendEmail($recipientEmail, $subject, $body);
+            } catch (Throwable $e) {
+                write_log('contact-form: notification email failed: ' . $e->getMessage(), 'error', [
+                    'recipient' => $recipientEmail,
+                    'form_id' => $savedForm ? (int) ($savedForm['id'] ?? 0) : null,
+                ]);
+            }
         }
+    }
+
+    if ($savedForm) {
+        $confirmation = contactFormResolveConditionalConfirmation($savedForm, $fields, $input, $responseMessage);
+        $responseMessage = trim((string) ($confirmation['message'] ?? $responseMessage));
+
+        $responsePayload = ['message' => $responseMessage !== '' ? $responseMessage : 'Thank you for your message.'];
+        $redirectUrl = trim((string) ($confirmation['redirect_url'] ?? ''));
+        if ($redirectUrl !== '') {
+            $responsePayload['redirect_url'] = $redirectUrl;
+        }
+
+        contactFormJsonOk($responsePayload);
     }
 
     contactFormJsonOk(['message' => $responseMessage]);

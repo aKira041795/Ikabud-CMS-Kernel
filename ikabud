@@ -105,8 +105,8 @@ switch ($command) {
         out('    ' . green('make:handler') . ' <mod> <fn> [M]  Add handler + route to a module');
         out('');
         out('  ' . bold('Migrations'));
-        out('    ' . green('migrate') . '                     Run all pending migrations');
-        out('    ' . green('migrate') . ' <module>            Run pending for one module');
+        out('    ' . green('migrate') . '                     Run all pending migrations (includes separate tenant DBs)');
+        out('    ' . green('migrate') . ' <module>            Run pending for one module (includes separate tenant DBs)');
         out('    ' . green('migrate:control') . '            Run control-plane migrations (CONTROL DB)');
         out('    ' . green('migrate:status') . '              Show migration status');
         out('    ' . green('migrate:rollback') . ' <module>   Rollback last batch');
@@ -1888,10 +1888,11 @@ DISYL;
         banner();
         try {
             $runner = new MigrationRunner(app()->db());
+            $requestedModuleId = !empty($params[0]) ? trim((string)$params[0]) : null;
 
-            if (!empty($params[0])) {
+            if ($requestedModuleId !== null && $requestedModuleId !== '') {
                 // Single module
-                $moduleId = $params[0];
+                $moduleId = $requestedModuleId;
                 out('  Running migrations for: ' . bold($moduleId));
                 $executed = $runner->migrate($moduleId);
                 if (empty($executed)) {
@@ -1920,6 +1921,95 @@ DISYL;
                     }
                     out('');
                     out('  ' . green('✓') . bold(" {$totalCount} migration(s) executed across " . count($results) . ' module(s).'));
+                }
+            }
+
+            $tenantTargets = function_exists('tenantSeparateDatabaseMigrationTargets')
+                ? tenantSeparateDatabaseMigrationTargets()
+                : [];
+
+            if (!empty($tenantTargets)) {
+                $tenantMigrationCount = 0;
+                $tenantFailures = [];
+
+                out('');
+                out('  Syncing separate tenant databases...');
+                out('');
+
+                foreach ($tenantTargets as $target) {
+                    if (!is_array($target)) {
+                        continue;
+                    }
+
+                    $tenantId = (int)($target['tenant_id'] ?? 0);
+                    if ($tenantId <= 0) {
+                        continue;
+                    }
+
+                    $tenantLabel = '#' . $tenantId;
+                    $tenantKey = trim((string)($target['tenant_key'] ?? ''));
+                    if ($tenantKey !== '') {
+                        $tenantLabel .= ' ' . $tenantKey;
+                    }
+
+                    $entryModuleId = trim((string)($target['entry_module_id'] ?? ''));
+                    $dbName = trim((string)($target['db_name'] ?? ''));
+                    $meta = [];
+                    if ($entryModuleId !== '') {
+                        $meta[] = 'entry=' . $entryModuleId;
+                    }
+                    if ($dbName !== '') {
+                        $meta[] = 'db=' . $dbName;
+                    }
+
+                    out('  ' . bold($tenantLabel) . ($meta !== [] ? ' ' . dim('(' . implode(', ', $meta) . ')') : ''));
+
+                    $sync = function_exists('syncTenantCliMigrationsForTenant')
+                        ? syncTenantCliMigrationsForTenant($tenantId, $requestedModuleId)
+                        : ['ok' => false, 'error' => 'Tenant CLI migration sync helper unavailable'];
+
+                    if (empty($sync['ok'])) {
+                        $error = trim((string)($sync['error'] ?? 'Tenant migration sync failed'));
+                        $tenantFailures[] = $tenantLabel . ': ' . $error;
+                        out('    ' . yellow('!') . ' ' . $error);
+                        continue;
+                    }
+
+                    $tenantModules = is_array($sync['modules'] ?? null) ? $sync['modules'] : [];
+                    if ($tenantModules === []) {
+                        $skipReason = trim((string)($sync['skipped'] ?? ''));
+                        if ($skipReason === 'module_not_in_plan') {
+                            out('    ' . dim('Module not in tenant plan.'));
+                        } else {
+                            out('    ' . dim('Nothing to migrate.'));
+                        }
+                        continue;
+                    }
+
+                    foreach ($tenantModules as $moduleId => $files) {
+                        if (!is_array($files) || $files === []) {
+                            continue;
+                        }
+
+                        out('    ' . bold((string)$moduleId));
+                        foreach ($files as $file) {
+                            out('      ' . green('✓') . ' ' . (string)$file);
+                            $tenantMigrationCount++;
+                        }
+                    }
+                }
+
+                out('');
+                if ($tenantMigrationCount > 0) {
+                    out('  ' . green('✓') . bold(' ' . $tenantMigrationCount . ' tenant migration(s) executed across ' . count($tenantTargets) . ' separate tenant database(s).'));
+                } else {
+                    out('  ' . dim('Separate tenant databases are up to date.'));
+                }
+
+                if (!empty($tenantFailures)) {
+                    out('');
+                    out('  ' . yellow('!') . ' ' . count($tenantFailures) . ' separate tenant database(s) could not be synchronized.');
+                    out('  ' . dim('See storage/logs/app.log for tenant connection details.'));
                 }
             }
         } catch (\Throwable $e) {

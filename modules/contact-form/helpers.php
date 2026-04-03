@@ -114,6 +114,10 @@ function contactFormFormDefaults(): array
         'slug' => '',
         'success_message' => '',
         'submit_label' => 'Send Message',
+        'confirmation_rules' => [],
+        'confirmation_rules_json' => '[]',
+        'notification_rules' => [],
+        'notification_rules_json' => '[]',
         'captcha_enabled' => 1,
         'status' => 'active',
         'created_at' => '',
@@ -124,6 +128,8 @@ function contactFormFormDefaults(): array
 function contactFormNormalizeFormRow(array $row): array
 {
     $defaults = contactFormFormDefaults();
+    $confirmationRules = contactFormNormalizeConfirmationRules($row['confirmation_rules'] ?? null);
+    $notificationRules = contactFormNormalizeNotificationRules($row['notification_rules'] ?? null);
 
     return array_merge($defaults, [
         'id' => (int) ($row['id'] ?? 0),
@@ -131,6 +137,10 @@ function contactFormNormalizeFormRow(array $row): array
         'slug' => trim((string) ($row['slug'] ?? '')),
         'success_message' => trim((string) ($row['success_message'] ?? '')),
         'submit_label' => trim((string) ($row['submit_label'] ?? '')),
+        'confirmation_rules' => $confirmationRules,
+        'confirmation_rules_json' => contactFormRulesToJson($confirmationRules),
+        'notification_rules' => $notificationRules,
+        'notification_rules_json' => contactFormRulesToJson($notificationRules),
         'captcha_enabled' => (int) ($row['captcha_enabled'] ?? 0),
         'status' => trim((string) ($row['status'] ?? 'inactive')),
         'created_at' => trim((string) ($row['created_at'] ?? '')),
@@ -202,13 +212,14 @@ function contactFormNormalizeEditorContext(array $context, string $template, arr
         'page_title' => 'Contact Form',
         'form' => contactFormFormDefaults(),
         'fields' => [],
+        'condition_fields_json' => '[]',
         'message' => null,
         'error' => null,
         'is_edit' => false,
         'shortcode' => '',
         'field_type_options' => [],
         'active_tab' => 'overview',
-    ], ['page_title', 'form', 'fields', 'is_edit', 'shortcode'], $missingKeys, $typeMismatches);
+    ], ['page_title', 'form', 'fields', 'condition_fields_json', 'is_edit', 'shortcode'], $missingKeys, $typeMismatches);
 }
 
 function contactFormNormalizeSubmissionsContext(array $context, string $template, array &$missingKeys = [], array &$typeMismatches = []): array
@@ -493,6 +504,57 @@ function contactFormConditionalLogicOperatorUsesValue(string $operator): bool
     return !in_array(contactFormNormalizeConditionalOperator($operator), ['empty', 'not_empty'], true);
 }
 
+function contactFormNormalizeConditionMatch(string $match): string
+{
+    $match = trim($match);
+    return in_array($match, ['all', 'any'], true) ? $match : 'all';
+}
+
+function contactFormNormalizeConditionRule(mixed $rule): ?array
+{
+    if (!is_array($rule)) {
+        return null;
+    }
+
+    $fieldId = max(0, (int) ($rule['field_id'] ?? 0));
+    if ($fieldId <= 0) {
+        return null;
+    }
+
+    $operator = contactFormNormalizeConditionalOperator((string) ($rule['operator'] ?? 'equals'));
+    $value = contactFormConditionalLogicOperatorUsesValue($operator)
+        ? contactFormLimit(trim((string) ($rule['value'] ?? '')), 255)
+        : '';
+
+    return [
+        'field_id' => $fieldId,
+        'operator' => $operator,
+        'value' => $value,
+    ];
+}
+
+function contactFormNormalizeConditionRules(mixed $rules, int $limit = 20): array
+{
+    if (!is_array($rules)) {
+        return [];
+    }
+
+    $normalized = [];
+    foreach ($rules as $rule) {
+        $condition = contactFormNormalizeConditionRule($rule);
+        if ($condition === null) {
+            continue;
+        }
+
+        $normalized[] = $condition;
+        if (count($normalized) >= $limit) {
+            break;
+        }
+    }
+
+    return $normalized;
+}
+
 function contactFormNormalizeConditionalLogic(mixed $value): array
 {
     if (is_string($value)) {
@@ -509,42 +571,14 @@ function contactFormNormalizeConditionalLogic(mixed $value): array
         return contactFormConditionalLogicDefaults();
     }
 
-    $rules = [];
-    foreach (is_array($value['rules'] ?? null) ? $value['rules'] : [] as $rule) {
-        if (!is_array($rule)) {
-            continue;
-        }
-
-        $fieldId = max(0, (int) ($rule['field_id'] ?? 0));
-        if ($fieldId <= 0) {
-            continue;
-        }
-
-        $operator = contactFormNormalizeConditionalOperator((string) ($rule['operator'] ?? 'equals'));
-        $ruleValue = contactFormConditionalLogicOperatorUsesValue($operator)
-            ? contactFormLimit(trim((string) ($rule['value'] ?? '')), 255)
-            : '';
-
-        $rules[] = [
-            'field_id' => $fieldId,
-            'operator' => $operator,
-            'value' => $ruleValue,
-        ];
-
-        if (count($rules) >= 20) {
-            break;
-        }
-    }
+    $rules = contactFormNormalizeConditionRules($value['rules'] ?? null, 20);
 
     $action = trim((string) ($value['action'] ?? 'show'));
     if (!in_array($action, ['show', 'hide'], true)) {
         $action = 'show';
     }
 
-    $match = trim((string) ($value['match'] ?? 'all'));
-    if (!in_array($match, ['all', 'any'], true)) {
-        $match = 'all';
-    }
+    $match = contactFormNormalizeConditionMatch((string) ($value['match'] ?? 'all'));
 
     return [
         'enabled' => !empty($value['enabled']) && $rules !== [],
@@ -562,6 +596,270 @@ function contactFormConditionalLogicToJson(array $logic): ?string
     }
 
     return json_encode($logic, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+}
+
+function contactFormRulesToJson(array $rules): string
+{
+    $json = json_encode(array_values($rules), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    return is_string($json) ? $json : '[]';
+}
+
+function contactFormConfirmationRuleDefaults(): array
+{
+    return [
+        'type' => 'message',
+        'message' => '',
+        'redirect_url' => '',
+        'match' => 'all',
+        'conditions' => [],
+    ];
+}
+
+function contactFormNormalizeConfirmationRules(mixed $value): array
+{
+    if (is_string($value)) {
+        $value = trim($value);
+        if ($value !== '') {
+            $decoded = json_decode($value, true);
+            if (is_array($decoded)) {
+                $value = $decoded;
+            }
+        }
+    }
+
+    if (!is_array($value)) {
+        return [];
+    }
+
+    $rules = [];
+    foreach ($value as $rule) {
+        if (!is_array($rule)) {
+            continue;
+        }
+
+        $conditions = contactFormNormalizeConditionRules($rule['conditions'] ?? null, 20);
+        if ($conditions === []) {
+            continue;
+        }
+
+        $type = trim((string) ($rule['type'] ?? 'message'));
+        if (!in_array($type, ['message', 'redirect'], true)) {
+            $type = 'message';
+        }
+
+        $rules[] = [
+            'type' => $type,
+            'message' => contactFormLimit(trim((string) ($rule['message'] ?? '')), 5000),
+            'redirect_url' => $type === 'redirect'
+                ? contactFormLimit(trim((string) ($rule['redirect_url'] ?? '')), 2048)
+                : '',
+            'match' => contactFormNormalizeConditionMatch((string) ($rule['match'] ?? 'all')),
+            'conditions' => $conditions,
+        ];
+
+        if (count($rules) >= 10) {
+            break;
+        }
+    }
+
+    return $rules;
+}
+
+function contactFormNotificationRuleDefaults(): array
+{
+    return [
+        'recipient_email' => '',
+        'match' => 'all',
+        'conditions' => [],
+    ];
+}
+
+function contactFormNormalizeNotificationRules(mixed $value): array
+{
+    if (is_string($value)) {
+        $value = trim($value);
+        if ($value !== '') {
+            $decoded = json_decode($value, true);
+            if (is_array($decoded)) {
+                $value = $decoded;
+            }
+        }
+    }
+
+    if (!is_array($value)) {
+        return [];
+    }
+
+    $rules = [];
+    foreach ($value as $rule) {
+        if (!is_array($rule)) {
+            continue;
+        }
+
+        $conditions = contactFormNormalizeConditionRules($rule['conditions'] ?? null, 20);
+        if ($conditions === []) {
+            continue;
+        }
+
+        $recipientEmail = contactFormLimit(trim((string) ($rule['recipient_email'] ?? '')), 255);
+        if ($recipientEmail === '') {
+            continue;
+        }
+
+        $rules[] = [
+            'recipient_email' => $recipientEmail,
+            'match' => contactFormNormalizeConditionMatch((string) ($rule['match'] ?? 'all')),
+            'conditions' => $conditions,
+        ];
+
+        if (count($rules) >= 10) {
+            break;
+        }
+    }
+
+    return $rules;
+}
+
+function contactFormAvailableConditionFields(array $fields): array
+{
+    $available = [];
+    foreach ($fields as $field) {
+        if (!is_array($field)) {
+            continue;
+        }
+
+        $normalized = contactFormNormalizeFieldRow($field);
+        $fieldId = (int) ($normalized['id'] ?? 0);
+        if ($fieldId <= 0 || $normalized['field_type'] === 'section') {
+            continue;
+        }
+
+        $available[$fieldId] = $normalized;
+    }
+
+    return $available;
+}
+
+function contactFormConditionFieldChoices(array $fields): array
+{
+    $choices = [];
+
+    foreach (contactFormAvailableConditionFields($fields) as $fieldId => $field) {
+        $choices[] = [
+            'id' => (int) $fieldId,
+            'label' => trim((string) ($field['label'] ?? 'Field ' . $fieldId)),
+            'name' => trim((string) ($field['name'] ?? '')),
+            'type' => trim((string) ($field['field_type'] ?? 'text')),
+        ];
+    }
+
+    return $choices;
+}
+
+function contactFormConditionFieldsJson(array $fields): string
+{
+    $json = json_encode(contactFormConditionFieldChoices($fields), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    return is_string($json) ? $json : '[]';
+}
+
+function contactFormEvaluateSubmissionConditions(array $conditions, string $match, array $fields, array $input, ?array $visibility = null): bool
+{
+    if ($conditions === []) {
+        return false;
+    }
+
+    $availableFields = contactFormAvailableConditionFields($fields);
+    if ($availableFields === []) {
+        return false;
+    }
+
+    if ($visibility === null) {
+        $visibility = contactFormResolveFieldVisibility($fields, $input);
+    }
+
+    $results = [];
+    foreach ($conditions as $condition) {
+        $sourceFieldId = (int) ($condition['field_id'] ?? 0);
+        $sourceField = $availableFields[$sourceFieldId] ?? null;
+        if (!is_array($sourceField)) {
+            $results[] = false;
+            continue;
+        }
+
+        $sourceVisible = $sourceField['field_type'] === 'hidden'
+            ? true
+            : (bool) ($visibility[$sourceFieldId] ?? true);
+        $rawValue = $sourceVisible ? contactFormFieldRawSubmissionValue($sourceField, $input) : '';
+
+        $results[] = contactFormCompareConditionalRuleValue(
+            $rawValue,
+            (string) ($condition['operator'] ?? 'equals'),
+            (string) ($condition['value'] ?? '')
+        );
+    }
+
+    return contactFormNormalizeConditionMatch($match) === 'any'
+        ? in_array(true, $results, true)
+        : !in_array(false, $results, true);
+}
+
+function contactFormResolveConditionalConfirmation(array $form, array $fields, array $input, string $defaultMessage): array
+{
+    $rules = contactFormNormalizeConfirmationRules($form['confirmation_rules'] ?? null);
+    if ($rules === []) {
+        return ['message' => $defaultMessage, 'redirect_url' => null];
+    }
+
+    $visibility = contactFormResolveFieldVisibility($fields, $input);
+    foreach ($rules as $rule) {
+        $conditions = is_array($rule['conditions'] ?? null) ? $rule['conditions'] : [];
+        if (!contactFormEvaluateSubmissionConditions($conditions, (string) ($rule['match'] ?? 'all'), $fields, $input, $visibility)) {
+            continue;
+        }
+
+        $message = trim((string) ($rule['message'] ?? ''));
+        $redirectUrl = trim((string) ($rule['redirect_url'] ?? ''));
+
+        return [
+            'message' => $message !== '' ? $message : $defaultMessage,
+            'redirect_url' => (($rule['type'] ?? 'message') === 'redirect' && $redirectUrl !== '') ? $redirectUrl : null,
+        ];
+    }
+
+    return ['message' => $defaultMessage, 'redirect_url' => null];
+}
+
+function contactFormResolveConditionalNotificationRecipients(array $form, array $fields, array $input, string $fallbackRecipient = ''): array
+{
+    $rules = contactFormNormalizeNotificationRules($form['notification_rules'] ?? null);
+    if ($rules === []) {
+        return $fallbackRecipient !== '' ? [$fallbackRecipient] : [];
+    }
+
+    $visibility = contactFormResolveFieldVisibility($fields, $input);
+    $matched = [];
+
+    foreach ($rules as $rule) {
+        $conditions = is_array($rule['conditions'] ?? null) ? $rule['conditions'] : [];
+        if (!contactFormEvaluateSubmissionConditions($conditions, (string) ($rule['match'] ?? 'all'), $fields, $input, $visibility)) {
+            continue;
+        }
+
+        $recipientEmail = trim((string) ($rule['recipient_email'] ?? ''));
+        if ($recipientEmail === '' || !filter_var($recipientEmail, FILTER_VALIDATE_EMAIL)) {
+            continue;
+        }
+
+        $matched[strtolower($recipientEmail)] = $recipientEmail;
+    }
+
+    if ($matched !== []) {
+        return array_values($matched);
+    }
+
+    return ($fallbackRecipient !== '' && filter_var($fallbackRecipient, FILTER_VALIDATE_EMAIL))
+        ? [$fallbackRecipient]
+        : [];
 }
 
 function contactFormCompareConditionalRuleValue(mixed $rawValue, string $operator, string $expected): bool
@@ -986,7 +1284,7 @@ function contactFormCollectSchemaGaps(): array
 
     $missingColumns = [];
     if (!in_array('contact_forms', $missingTables, true)) {
-        foreach (['submit_label'] as $column) {
+        foreach (['submit_label', 'confirmation_rules', 'notification_rules'] as $column) {
             if (!contactFormColumnExists('contact_forms', $column)) {
                 $missingColumns[] = 'contact_forms.' . $column;
             }
@@ -1079,7 +1377,7 @@ function contactFormListForms(bool $activeOnly = false): array
     }
 
     try {
-        $sql = 'SELECT id, name, slug, success_message, captcha_enabled, status, created_at, updated_at'
+        $sql = 'SELECT id, name, slug, success_message, submit_label, confirmation_rules, notification_rules, captcha_enabled, status, created_at, updated_at'
             . ' FROM contact_forms';
         if ($activeOnly) {
             $sql .= " WHERE status = 'active'";
@@ -1129,7 +1427,7 @@ function contactFormGetFormById(int $formId, bool $withFields = false, bool $act
     }
 
     try {
-        $sql = 'SELECT id, name, slug, success_message, submit_label, captcha_enabled, status, created_at, updated_at FROM contact_forms WHERE id = :id';
+        $sql = 'SELECT id, name, slug, success_message, submit_label, confirmation_rules, notification_rules, captcha_enabled, status, created_at, updated_at FROM contact_forms WHERE id = :id';
         if ($activeOnly) {
             $sql .= " AND status = 'active'";
         }
@@ -1166,7 +1464,7 @@ function contactFormGetFormBySlug(string $slug, bool $withFields = false, bool $
     }
 
     try {
-        $sql = 'SELECT id, name, slug, success_message, submit_label, captcha_enabled, status, created_at, updated_at FROM contact_forms WHERE slug = :slug';
+        $sql = 'SELECT id, name, slug, success_message, submit_label, confirmation_rules, notification_rules, captcha_enabled, status, created_at, updated_at FROM contact_forms WHERE slug = :slug';
         if ($activeOnly) {
             $sql .= " AND status = 'active'";
         }
@@ -1942,7 +2240,7 @@ function contactFormRenderClientScript(string $formId, string $successMessage, b
     function showFieldErrors(fieldErrors) {
         if (!fieldErrors || typeof fieldErrors !== 'object') return;
         Object.keys(fieldErrors).forEach(function (fieldName) {
-            var input = form.querySelector('[name="' + fieldName + '"]');
+            var input = form.querySelector('[name="' + fieldName + '"]') || form.querySelector('[name="' + fieldName + '[]"]');
             if (!input) return;
             var group = input.closest('.form-group');
             if (group) {
@@ -2105,12 +2403,21 @@ function contactFormRenderClientScript(string $formId, string $successMessage, b
             .then(function (response) { return response.json(); })
             .then(function (payload) {
                 if (payload.ok) {
+                    var redirectUrl = payload.redirect_url ? String(payload.redirect_url) : '';
                     statusEl.className = 'contact-form-status contact-form-success';
                     statusEl.innerHTML = '\u2714 ' + (payload.message || successMsg);
                     statusEl.style.display = '';
                     statusEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-                    form.reset();
                     clearFieldErrors();
+
+                    if (redirectUrl) {
+                        window.setTimeout(function () {
+                            window.location.assign(redirectUrl);
+                        }, 900);
+                        return;
+                    }
+
+                    form.reset();
                     syncConditionalLogic();
                     if (hasCaptcha) refreshCaptcha();
                 } else {

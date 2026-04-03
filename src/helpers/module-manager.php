@@ -1152,6 +1152,86 @@ function tenantEntryModuleIdForTenant(int $tenantId): ?string
     }
 }
 
+function tenantMigrationDatabaseFingerprint(array $config): string
+{
+    $driver = strtolower(trim((string)($config['driver'] ?? 'mysql')));
+    $host = strtolower(trim((string)($config['host'] ?? 'localhost')));
+    $port = trim((string)($config['port'] ?? '3306'));
+    $database = strtolower(trim((string)($config['database'] ?? $config['db_name'] ?? '')));
+
+    return implode('|', [$driver, $host, $port, $database]);
+}
+
+/**
+ * Return tenants whose DB connection points somewhere other than the primary app DB.
+ * These tenant databases are not covered by the base CLI migrate runner and must be
+ * synchronized explicitly.
+ *
+ * @return array<int, array<string, mixed>>
+ */
+function tenantSeparateDatabaseMigrationTargets(): array
+{
+    if (!(bool) app()->config('app.multi_tenant.enabled', false)) {
+        return [];
+    }
+
+    $baseFingerprint = tenantMigrationDatabaseFingerprint([
+        'driver' => (string) app()->config('database.driver', 'mysql'),
+        'host' => (string) app()->config('database.host', 'localhost'),
+        'port' => (string) app()->config('database.port', '3306'),
+        'database' => (string) app()->config('database.database', ''),
+    ]);
+
+    try {
+        $stmt = app()->controlDb()->query(
+            'SELECT t.id, t.tenant_key, t.entry_module_id, c.db_driver, c.db_host, c.db_port, c.db_name'
+            . ' FROM kernel_tenants t'
+            . ' INNER JOIN kernel_tenant_db_connections c ON c.tenant_id = t.id'
+            . ' ORDER BY t.id ASC'
+        );
+        $rows = $stmt ? ($stmt->fetchAll(PDO::FETCH_ASSOC) ?: []) : [];
+    } catch (Throwable $e) {
+        return [];
+    }
+
+    $targets = [];
+    foreach ($rows as $row) {
+        if (!is_array($row)) {
+            continue;
+        }
+
+        $tenantId = (int)($row['id'] ?? 0);
+        $dbHost = trim((string)($row['db_host'] ?? ''));
+        $dbName = trim((string)($row['db_name'] ?? ''));
+        if ($tenantId <= 0 || $dbHost === '' || $dbName === '') {
+            continue;
+        }
+
+        $fingerprint = tenantMigrationDatabaseFingerprint([
+            'driver' => (string)($row['db_driver'] ?? 'mysql'),
+            'host' => $dbHost,
+            'port' => (string)($row['db_port'] ?? '3306'),
+            'database' => $dbName,
+        ]);
+
+        if ($fingerprint === $baseFingerprint) {
+            continue;
+        }
+
+        $targets[] = [
+            'tenant_id' => $tenantId,
+            'tenant_key' => trim((string)($row['tenant_key'] ?? '')),
+            'entry_module_id' => trim((string)($row['entry_module_id'] ?? '')),
+            'db_host' => $dbHost,
+            'db_port' => trim((string)($row['db_port'] ?? '3306')),
+            'db_name' => $dbName,
+            'fingerprint' => $fingerprint,
+        ];
+    }
+
+    return $targets;
+}
+
 function tenantEnsureMigrationTrackingTable(PDO $db): void
 {
     static $ensured = [];
@@ -1372,6 +1452,111 @@ function syncTenantMigrationsForTenant(int $tenantId, ?string $entryModuleId = n
             $applied = array_merge($executed, $seeded);
             if ($applied !== []) {
                 $results[$moduleId] = $applied;
+            }
+        }
+
+        return [
+            'ok' => true,
+            'tenant_id' => $tenantId,
+            'entry_module_id' => $entryModuleId !== '' ? $entryModuleId : null,
+            'modules' => $results,
+        ];
+    } catch (Throwable $e) {
+        return [
+            'ok' => false,
+            'error' => $e->getMessage(),
+            'tenant_id' => $tenantId,
+            'entry_module_id' => $entryModuleId !== '' ? $entryModuleId : null,
+            'modules' => $results,
+        ];
+    }
+}
+
+/**
+ * CLI-focused tenant migration sync that mirrors `php ikabud migrate` semantics.
+ * It applies kernel + module migrations only, without tenant seed artifacts.
+ */
+function syncTenantCliMigrationsForTenant(int $tenantId, ?string $moduleId = null): array
+{
+    if ($tenantId <= 0) {
+        return ['ok' => false, 'error' => 'Invalid tenant ID'];
+    }
+
+    $db = app()->dbForTenant($tenantId);
+    if ($db === null) {
+        return ['ok' => false, 'error' => 'Tenant DB connection unavailable', 'tenant_id' => $tenantId];
+    }
+
+    $entryModuleId = tenantEntryModuleIdForTenant($tenantId);
+    $entryModuleId = is_string($entryModuleId) ? trim($entryModuleId) : '';
+    $requestedModuleId = $moduleId !== null ? trim($moduleId) : '';
+    $plannedModules = tenantProvisionModulePlan($entryModuleId !== '' ? $entryModuleId : null);
+    $allModules = discoverModules();
+    $results = [];
+
+    try {
+        $allApplied = tenantAllAppliedMigrations($db);
+
+        if ($requestedModuleId === '' || $requestedModuleId === '_kernel') {
+            $kernelApplied = tenantSyncKernelMigrations($db, $allApplied);
+            if ($kernelApplied !== []) {
+                $results['_kernel'] = $kernelApplied;
+            }
+
+            if ($requestedModuleId === '_kernel') {
+                return [
+                    'ok' => true,
+                    'tenant_id' => $tenantId,
+                    'entry_module_id' => $entryModuleId !== '' ? $entryModuleId : null,
+                    'modules' => $results,
+                ];
+            }
+        }
+
+        if ($requestedModuleId !== '') {
+            if (!in_array($requestedModuleId, $plannedModules, true)) {
+                return [
+                    'ok' => true,
+                    'tenant_id' => $tenantId,
+                    'entry_module_id' => $entryModuleId !== '' ? $entryModuleId : null,
+                    'modules' => $results,
+                    'skipped' => 'module_not_in_plan',
+                ];
+            }
+
+            $manifest = $allModules[$requestedModuleId] ?? null;
+            if (!is_array($manifest)) {
+                return [
+                    'ok' => false,
+                    'error' => 'Module manifest unavailable',
+                    'tenant_id' => $tenantId,
+                    'entry_module_id' => $entryModuleId !== '' ? $entryModuleId : null,
+                    'modules' => $results,
+                ];
+            }
+
+            $executed = tenantSyncModuleMigrations($db, $requestedModuleId, $manifest, $allApplied);
+            if ($executed !== []) {
+                $results[$requestedModuleId] = $executed;
+            }
+
+            return [
+                'ok' => true,
+                'tenant_id' => $tenantId,
+                'entry_module_id' => $entryModuleId !== '' ? $entryModuleId : null,
+                'modules' => $results,
+            ];
+        }
+
+        foreach ($plannedModules as $plannedModuleId) {
+            $manifest = $allModules[$plannedModuleId] ?? null;
+            if (!is_array($manifest)) {
+                continue;
+            }
+
+            $executed = tenantSyncModuleMigrations($db, $plannedModuleId, $manifest, $allApplied);
+            if ($executed !== []) {
+                $results[$plannedModuleId] = $executed;
             }
         }
 

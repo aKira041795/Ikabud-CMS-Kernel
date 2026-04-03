@@ -150,7 +150,13 @@ t('hidden required field is skipped during dynamic submission prep', empty($hidd
 t('hidden dependent field is omitted from stored records', !in_array('order_number', $hiddenNames, true), json_encode($hiddenNames));
 
 $visibleResult = contactFormPrepareDynamicSubmission($showHideFields, ['request_type' => 'sales']);
-t('visible dependent field still enforces required validation', (string) ($visibleResult['error'] ?? '') === 'Order Number is required.', json_encode($visibleResult));
+$visibleFieldErrors = is_array($visibleResult['field_errors'] ?? null) ? $visibleResult['field_errors'] : [];
+t(
+    'visible dependent field still enforces required validation',
+    (string) ($visibleResult['error'] ?? '') === 'Please correct the highlighted fields and try again.'
+        && ($visibleFieldErrors['order_number'] ?? '') === 'Order Number is required.',
+    json_encode($visibleResult)
+);
 
 $containsFields = [
     [
