@@ -1909,6 +1909,46 @@ function contactFormRenderSharedStyles(): string
     width: auto;
     flex-shrink: 0;
 }
+/* Restore native appearance for radio/checkbox — the broad input rule above sets
+   appearance:none which makes them invisible/unclickable. */
+.contact-form input[type="radio"],
+.contact-form input[type="checkbox"] {
+    -webkit-appearance: auto;
+    appearance: auto;
+    width: auto;
+    height: auto;
+    border: revert;
+    background: revert;
+    border-radius: revert;
+    padding: revert;
+    box-shadow: none;
+    transition: none;
+}
+.contact-form input[type="radio"]:hover,
+.contact-form input[type="checkbox"]:hover {
+    border-color: revert;
+}
+.contact-form input[type="radio"]:focus,
+.contact-form input[type="checkbox"]:focus {
+    border-color: revert;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2);
+    outline: revert;
+}
+.contact-form .form-group.has-error input[type="radio"],
+.contact-form .form-group.has-error input[type="checkbox"] {
+    border-color: revert;
+    box-shadow: none;
+}
+/* Color picker — restore native picker UI */
+.contact-form input[type="color"] {
+    -webkit-appearance: auto;
+    appearance: auto;
+    width: 60px;
+    height: 40px;
+    padding: 2px;
+    border-radius: 8px;
+    cursor: pointer;
+}
 .contact-form-rating {
     display: flex;
     gap: 4px;
