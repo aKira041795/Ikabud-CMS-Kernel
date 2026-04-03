@@ -745,11 +745,19 @@ function contactFormConditionFieldChoices(array $fields): array
     $choices = [];
 
     foreach (contactFormAvailableConditionFields($fields) as $fieldId => $field) {
+        $fieldType = trim((string) ($field['field_type'] ?? 'text'));
+        $optionsList = [];
+        if (in_array($fieldType, ['select', 'radio', 'checkbox'], true) && trim((string) ($field['options_text'] ?? '')) !== '') {
+            foreach (contactFormParseOptionsText((string) $field['options_text']) as $opt) {
+                $optionsList[] = ['value' => (string) ($opt['value'] ?? ''), 'label' => (string) ($opt['label'] ?? '')];
+            }
+        }
         $choices[] = [
             'id' => (int) $fieldId,
             'label' => trim((string) ($field['label'] ?? 'Field ' . $fieldId)),
             'name' => trim((string) ($field['name'] ?? '')),
-            'type' => trim((string) ($field['field_type'] ?? 'text')),
+            'type' => $fieldType,
+            'options' => $optionsList,
         ];
     }
 

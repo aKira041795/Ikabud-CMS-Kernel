@@ -672,9 +672,10 @@
                         <option value="not_empty">Is Not Empty</option>
                     </select>
                 </div>
-                <div>
+                <div data-condition-value-wrap>
                     <label class="block text-xs font-semibold text-slate-500 mb-1.5">Comparison Value</label>
                     <input type="text" data-condition-value value="" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-sky-500 outline-none" placeholder="Comparison value">
+                    <p data-condition-value-hint class="mt-1 text-[11px] text-slate-400 hidden"></p>
                 </div>
                 <button type="button" class="cf-remove-workflow-condition-btn inline-flex items-center justify-center rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-500 hover:border-red-200 hover:bg-red-50 hover:text-red-600 transition-colors">Remove</button>
             </div>
@@ -1185,11 +1186,106 @@
             var needsValue = operatorSelect.value !== 'empty' && operatorSelect.value !== 'not_empty';
             valueInput.disabled = !needsValue;
             valueInput.classList.toggle('bg-slate-100', !needsValue);
-            valueInput.placeholder = needsValue ? 'Comparison value' : 'No value needed';
+            if (valueInput.tagName === 'INPUT') {
+                valueInput.placeholder = needsValue ? 'Comparison value' : 'No value needed';
+            }
             if (!needsValue) {
                 valueInput.value = '';
             }
         });
+    }
+
+    function getWorkflowConditionFieldMeta(fieldId) {
+        var id = String(fieldId == null ? '' : fieldId).trim();
+        if (id === '') return null;
+        for (var i = 0; i < workflowConditionFields.length; i++) {
+            if (String(workflowConditionFields[i].id) === id) return workflowConditionFields[i];
+        }
+        return null;
+    }
+
+    function syncWorkflowConditionValueControl(row) {
+        if (!row) return;
+        var fieldSelect = row.querySelector('[data-condition-field]');
+        var operatorSelect = row.querySelector('[data-condition-operator]');
+        var valueWrap = row.querySelector('[data-condition-value-wrap]');
+        if (!fieldSelect || !valueWrap) return;
+
+        var meta = getWorkflowConditionFieldMeta(fieldSelect.value);
+        var oldControl = valueWrap.querySelector('[data-condition-value]');
+        var hint = valueWrap.querySelector('[data-condition-value-hint]');
+        var currentValue = oldControl ? String(oldControl.value || '') : '';
+
+        // Build operator context info for the hint
+        var fieldTypeHints = {
+            'email': 'Enter a full email address.',
+            'tel': 'Enter digits only, e.g. 09171234567.',
+            'number': 'Enter a numeric value.',
+            'date': 'Use YYYY-MM-DD format.',
+            'time': 'Use HH:MM format.',
+            'url': 'Enter a full URL.',
+            'rating': 'Enter a number from 1 to 5.',
+            'range': 'Enter a number within the slider range.',
+            'checkbox': 'For checkboxes, match one selected option value.',
+            'hidden': 'Match the hidden field\'s stored value exactly.'
+        };
+
+        var hasOptions = meta && Array.isArray(meta.options) && meta.options.length > 0;
+
+        if (hasOptions) {
+            // Replace text input with a <select>
+            if (oldControl && oldControl.tagName === 'INPUT') {
+                var sel = document.createElement('select');
+                sel.setAttribute('data-condition-value', '');
+                sel.className = oldControl.className;
+                var emptyOpt = document.createElement('option');
+                emptyOpt.value = '';
+                emptyOpt.textContent = 'Select an option…';
+                sel.appendChild(emptyOpt);
+                meta.options.forEach(function (opt) {
+                    var o = document.createElement('option');
+                    o.value = opt.value;
+                    o.textContent = opt.label || opt.value;
+                    if (opt.value === currentValue) o.selected = true;
+                    sel.appendChild(o);
+                });
+                oldControl.parentNode.replaceChild(sel, oldControl);
+            } else if (oldControl && oldControl.tagName === 'SELECT') {
+                // Rebuild options list (field may have changed)
+                var existingVal = oldControl.value;
+                while (oldControl.firstChild) oldControl.removeChild(oldControl.firstChild);
+                var emptyOpt2 = document.createElement('option');
+                emptyOpt2.value = '';
+                emptyOpt2.textContent = 'Select an option…';
+                oldControl.appendChild(emptyOpt2);
+                meta.options.forEach(function (opt) {
+                    var o = document.createElement('option');
+                    o.value = opt.value;
+                    o.textContent = opt.label || opt.value;
+                    if (opt.value === existingVal) o.selected = true;
+                    oldControl.appendChild(o);
+                });
+            }
+            if (hint) { hint.textContent = ''; hint.classList.add('hidden'); }
+        } else {
+            // Ensure it's a plain text input
+            if (oldControl && oldControl.tagName === 'SELECT') {
+                var inp = document.createElement('input');
+                inp.type = 'text';
+                inp.setAttribute('data-condition-value', '');
+                inp.className = oldControl.className;
+                inp.value = currentValue;
+                oldControl.parentNode.replaceChild(inp, oldControl);
+            }
+            var hintText = meta && fieldTypeHints[meta.type] ? fieldTypeHints[meta.type] : '';
+            if (hint) {
+                if (hintText) { hint.textContent = hintText; hint.classList.remove('hidden'); }
+                else { hint.textContent = ''; hint.classList.add('hidden'); }
+            }
+        }
+
+        // Re-run operator-based disable gating on the (possibly new) control
+        syncWorkflowConditionValueInputs(row);
     }
 
     function syncConfirmationWorkflowPanels(scope) {
@@ -1216,7 +1312,6 @@
 
         var fieldSelect = condition.querySelector('[data-condition-field]');
         var operatorSelect = condition.querySelector('[data-condition-operator]');
-        var valueInput = condition.querySelector('[data-condition-value]');
         var fieldId = conditionData && conditionData.field_id != null ? String(conditionData.field_id) : '';
         var operator = conditionData && conditionData.operator ? String(conditionData.operator) : 'equals';
         var value = conditionData && conditionData.value != null ? String(conditionData.value) : '';
@@ -1225,11 +1320,14 @@
         if (operatorSelect) {
             operatorSelect.value = operator || 'equals';
         }
-        if (valueInput) {
-            valueInput.value = value;
+
+        // Swap plain input → option select (if field has options), then set saved value
+        syncWorkflowConditionValueControl(condition);
+        var valueControl = condition.querySelector('[data-condition-value]');
+        if (valueControl) {
+            valueControl.value = value;
         }
 
-        syncWorkflowConditionValueInputs(condition);
         return condition;
     }
 
@@ -1396,6 +1494,10 @@
         if (event.target && event.target.matches('[data-condition-operator]')) {
             syncWorkflowConditionValueInputs(event.target.closest('[data-workflow-condition]') || document);
         }
+
+        if (event.target && event.target.matches('[data-condition-field]')) {
+            syncWorkflowConditionValueControl(event.target.closest('[data-workflow-condition]'));
+        }
     });
 
     document.addEventListener('click', function (event) {
@@ -1431,7 +1533,8 @@
             if (!conditionBody || !newCondition) return;
 
             conditionBody.appendChild(newCondition);
-            syncWorkflowConditionValueInputs(newCondition);
+            syncWorkflowConditionFieldSelect(newCondition.querySelector('[data-condition-field]'), '');
+            syncWorkflowConditionValueControl(newCondition);
             return;
         }
 
@@ -1446,11 +1549,9 @@
         if (rows.length <= 1) {
             var fieldSelect = conditionRow.querySelector('[data-condition-field]');
             var operatorSelect = conditionRow.querySelector('[data-condition-operator]');
-            var valueInput = conditionRow.querySelector('[data-condition-value]');
             if (fieldSelect) fieldSelect.value = '';
             if (operatorSelect) operatorSelect.value = 'equals';
-            if (valueInput) valueInput.value = '';
-            syncWorkflowConditionValueInputs(conditionRow);
+            syncWorkflowConditionValueControl(conditionRow);
             return;
         }
 
@@ -1469,7 +1570,9 @@
     );
     syncWorkflowEmptyStates(document);
     syncWorkflowConditionFieldOptions(document);
-    syncWorkflowConditionValueInputs(document);
+    workflowConditionsFromScope(document).forEach(function (row) {
+        syncWorkflowConditionValueControl(row);
+    });
     syncConfirmationWorkflowPanels(document);
 
     if (editorForm) {
