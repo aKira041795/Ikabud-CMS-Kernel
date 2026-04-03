@@ -75,9 +75,9 @@
 
                 <form method="post" action="" class="mt-6 space-y-5" id="cf-form-editor">
                     <input type="hidden" name="_token" value="{csrf_token}">
-                    <textarea name="confirmation_rules_json" id="cf-confirmation-rules-json" class="hidden">{form.confirmation_rules_json}</textarea>
-                    <textarea name="notification_rules_json" id="cf-notification-rules-json" class="hidden">{form.notification_rules_json}</textarea>
-                    <textarea id="cf-condition-fields-json" class="hidden">{condition_fields_json}</textarea>
+                    <textarea name="confirmation_rules_json" id="cf-confirmation-rules-json" class="hidden">{form.confirmation_rules_json | raw}</textarea>
+                    <textarea name="notification_rules_json" id="cf-notification-rules-json" class="hidden">{form.notification_rules_json | raw}</textarea>
+                    <textarea id="cf-condition-fields-json" class="hidden">{condition_fields_json | raw}</textarea>
 
                     <div class="grid grid-cols-1 gap-5 lg:grid-cols-2">
                         <div class="lg:col-span-2">
@@ -970,16 +970,75 @@
         logicRows = logicRows.concat(Array.prototype.slice.call(root.querySelectorAll('.cf-logic-row')));
         logicRows.forEach(function (row) {
             var operatorSelect = row.querySelector('select[name="conditional_logic_operator[]"]');
-            var valueInput = row.querySelector('input[name="conditional_logic_value[]"]');
-            if (!operatorSelect || !valueInput) return;
+            var valueControl = row.querySelector('[name="conditional_logic_value[]"]');
+            if (!operatorSelect || !valueControl) return;
             var needsValue = operatorSelect.value !== 'empty' && operatorSelect.value !== 'not_empty';
-            valueInput.disabled = !needsValue;
-            valueInput.classList.toggle('bg-slate-100', !needsValue);
-            valueInput.placeholder = needsValue ? 'Comparison value' : 'No value needed';
+            valueControl.disabled = !needsValue;
+            valueControl.classList.toggle('bg-slate-100', !needsValue);
+            if (valueControl.tagName === 'INPUT') {
+                valueControl.placeholder = needsValue ? 'Comparison value' : 'No value needed';
+            }
             if (!needsValue) {
-                valueInput.value = '';
+                valueControl.value = '';
             }
         });
+    }
+
+    function syncConditionalLogicValueControl(row) {
+        if (!row) return;
+        var sourceFieldSelect = row.querySelector('select[name="conditional_logic_field_id[]"]');
+        if (!sourceFieldSelect) return;
+        var meta = getWorkflowConditionFieldMeta(sourceFieldSelect.value);
+        var oldControl = row.querySelector('[name="conditional_logic_value[]"]');
+        if (!oldControl) return;
+        var currentValue = String(oldControl.value || '');
+        var hasOptions = meta && Array.isArray(meta.options) && meta.options.length > 0;
+
+        if (hasOptions) {
+            if (oldControl.tagName === 'INPUT') {
+                var sel = document.createElement('select');
+                sel.name = 'conditional_logic_value[]';
+                sel.className = oldControl.className;
+                var emptyOpt = document.createElement('option');
+                emptyOpt.value = '';
+                emptyOpt.textContent = 'Select an option…';
+                sel.appendChild(emptyOpt);
+                meta.options.forEach(function (opt) {
+                    var o = document.createElement('option');
+                    o.value = opt.value;
+                    o.textContent = opt.label || opt.value;
+                    if (opt.value === currentValue) o.selected = true;
+                    sel.appendChild(o);
+                });
+                oldControl.parentNode.replaceChild(sel, oldControl);
+            } else if (oldControl.tagName === 'SELECT') {
+                var existingVal = oldControl.value;
+                while (oldControl.firstChild) oldControl.removeChild(oldControl.firstChild);
+                var emptyOpt2 = document.createElement('option');
+                emptyOpt2.value = '';
+                emptyOpt2.textContent = 'Select an option…';
+                oldControl.appendChild(emptyOpt2);
+                meta.options.forEach(function (opt) {
+                    var o = document.createElement('option');
+                    o.value = opt.value;
+                    o.textContent = opt.label || opt.value;
+                    if (opt.value === existingVal) o.selected = true;
+                    oldControl.appendChild(o);
+                });
+            }
+        } else {
+            if (oldControl.tagName === 'SELECT') {
+                var inp = document.createElement('input');
+                inp.type = 'text';
+                inp.name = 'conditional_logic_value[]';
+                inp.className = oldControl.className;
+                inp.value = currentValue;
+                inp.placeholder = 'Comparison value';
+                oldControl.parentNode.replaceChild(inp, oldControl);
+            }
+        }
+
+        syncConditionalLogicValueInputs(row);
     }
 
     document.addEventListener('change', function (event) {
@@ -987,7 +1046,10 @@
             syncConditionalLogicPanels(event.target.closest('[data-conditional-logic-root]'));
         }
         if (event.target && event.target.matches('select[name="conditional_logic_operator[]"]')) {
-            syncConditionalLogicValueInputs(event.target.closest('[data-conditional-logic-panel]') || document);
+            syncConditionalLogicValueInputs(event.target.closest('.cf-logic-row') || document);
+        }
+        if (event.target && event.target.matches('select[name="conditional_logic_field_id[]"]')) {
+            syncConditionalLogicValueControl(event.target.closest('.cf-logic-row'));
         }
     });
 
@@ -1008,6 +1070,17 @@
                     input.value = '';
                 }
             });
+            // If the cloned row had a select for value (because source field had options),
+            // swap it back to a plain text input since source field is now cleared.
+            var clonedValueSel = clone.querySelector('select[name="conditional_logic_value[]"]');
+            if (clonedValueSel) {
+                var resetInp = document.createElement('input');
+                resetInp.type = 'text';
+                resetInp.name = 'conditional_logic_value[]';
+                resetInp.className = clonedValueSel.className;
+                resetInp.placeholder = 'Comparison value';
+                clonedValueSel.parentNode.replaceChild(resetInp, clonedValueSel);
+            }
             body.appendChild(clone);
             syncConditionalLogicValueInputs(clone);
             return;
@@ -1030,7 +1103,7 @@
                     input.value = '';
                 }
             });
-            syncConditionalLogicValueInputs(removeRow);
+            syncConditionalLogicValueControl(removeRow);
             return;
         }
 
@@ -1572,6 +1645,9 @@
     syncWorkflowConditionFieldOptions(document);
     workflowConditionsFromScope(document).forEach(function (row) {
         syncWorkflowConditionValueControl(row);
+    });
+    Array.prototype.slice.call(document.querySelectorAll('.cf-logic-row')).forEach(function (row) {
+        syncConditionalLogicValueControl(row);
     });
     syncConfirmationWorkflowPanels(document);
 
