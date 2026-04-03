@@ -1144,7 +1144,7 @@
         select.appendChild(placeholder);
 
         workflowConditionFields.forEach(function (field) {
-            var optionValue = String(field && field.value != null ? field.value : '');
+            var optionValue = String(field && field.id != null ? field.id : '');
             if (optionValue === '') return;
 
             var option = document.createElement('option');
