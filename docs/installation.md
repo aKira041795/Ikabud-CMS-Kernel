@@ -27,6 +27,57 @@
 3. **Run installer** — Visit `https://yourdomain.com/lock.php` → Enter app DB credentials and admin account. If multi-tenant mode is enabled, also enter the control-plane DB settings.
 4. **Secure** — Delete `public/lock.php` after verifying the application works
 
+### cPanel Primary Domain Serving A Tenant CMS
+
+Use this when the hosting account's primary domain must stay on `public_html/`, but the Kernel OS code lives in a subfolder such as `public_html/kernelappos/` and the domain should serve one tenant's CMS.
+
+1. Install or extract the application into a subfolder such as `public_html/kernelappos/`
+2. If you are creating a new CMS tenant, create it with the CMS entry module:
+
+```bash
+php ikabud tenant:create <tenant_key> zdnorte.net --entry=cms
+```
+
+If the tenant already exists, verify it resolves to the CMS entry module and then add the tenant domain in the control plane and set it as canonical:
+
+```bash
+php ikabud tenant:list
+php ikabud tenant:domain:add <tenant_id> zdnorte.net
+php ikabud tenant:canonical-domain:set <tenant_id> zdnorte.net
+```
+
+3. Add a root rewrite file at `public_html/.htaccess` so the domain points into the app's `public/` folder while still presenting the tenant at `/`:
+
+```apache
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    RewriteCond %{HTTP:Authorization} .
+    RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+
+    # Force root-relative URL generation even though the code lives in /kernelappos.
+    SetEnv IKABUD_BASE_PATH /
+
+    RewriteCond %{REQUEST_URI} !^/kernelappos/
+    RewriteCond %{DOCUMENT_ROOT}/kernelappos/public/$1 -f
+    RewriteRule ^(.+)$ /kernelappos/public/$1 [L]
+
+    RewriteCond %{REQUEST_URI} !^/kernelappos/
+    RewriteRule ^$ /kernelappos/public/index.php [QSA,L]
+
+    RewriteCond %{REQUEST_URI} !^/kernelappos/
+    RewriteRule ^(.*)$ /kernelappos/public/index.php [QSA,L]
+</IfModule>
+```
+
+Notes:
+
+- This root `.htaccess` lives in the domain document root, not in `kernelappos/public/`
+- Leave `kernelappos/public/.htaccess` in place; it still handles the app's front-controller rewrite once requests reach the app
+- The extra file-pass-through rule is required for theme CSS, theme JS, builder assets, and other files that physically live in `kernelappos/public/assets/`
+- Do not set `APP_URL` to a filesystem-style subpath such as `https://zdnorte.net/kernelappos` or `https://zdnorte.net/kernelappos/public`
+- Tenant requests generate links from the current `HTTP_HOST`; `IKABUD_BASE_PATH=/` prevents `/kernelappos` from leaking into generated URLs, redirects, login forms, and CMS assets
+
 ### Bluehost Upgrade Kit For Existing Installs
 
 If Bluehost is already running an older version and you want a package that includes both the updated files and importable SQL bundles, generate the upgrade kit locally:
@@ -118,6 +169,8 @@ CONTROL_DB_ENC_KEY=your-encryption-key
 Notes:
 
 - `APP_COOKIE_NAME` is derived automatically from `APP_URL` when it is not set.
+- If the app is intentionally served from a real URL subpath, include that path in `APP_URL`.
+- If a shared-hosting root domain rewrites into a subfolder install, keep `APP_URL` host-only and use `SetEnv IKABUD_BASE_PATH /` in the domain root `.htaccess` instead.
 - AI and SMS provider credentials are managed by their modules and are not required in the base `.env`.
 
 ### 4. Set Permissions

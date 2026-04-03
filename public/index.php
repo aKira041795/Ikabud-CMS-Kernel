@@ -276,6 +276,62 @@ if ($method === 'GET' && preg_match('#^/assets/modules/([a-zA-Z0-9\-]+)/(.+)$#',
     exit;
 }
 
+// ── Public static assets fallback ────────────────────────────────
+// Shared-hosting installs may rewrite root-domain requests into index.php from
+// a parent directory, which prevents Apache from serving files that physically
+// live under public/assets/. Serve them here when the request still arrives at
+// the front controller.
+if ($method === 'GET' && preg_match('#^/assets/(.+)$#', $uri, $m)) {
+    $rel = ltrim((string)$m[1], '/');
+    if ($rel === '' || str_contains($rel, '..') || str_contains($rel, '\\')) {
+        http_response_code(404);
+        exit;
+    }
+
+    $assetPath = BASE_PATH . '/public/assets/' . $rel;
+    $real = realpath($assetPath);
+    $root = realpath(BASE_PATH . '/public/assets');
+
+    if ($real === false || $root === false || !str_starts_with($real, $root) || !is_file($real)) {
+        http_response_code(404);
+        exit;
+    }
+
+    $ext = strtolower(pathinfo($real, PATHINFO_EXTENSION));
+    $types = [
+        'css' => 'text/css; charset=utf-8',
+        'js' => 'application/javascript; charset=utf-8',
+        'mjs' => 'application/javascript; charset=utf-8',
+        'json' => 'application/json; charset=utf-8',
+        'png' => 'image/png',
+        'jpg' => 'image/jpeg',
+        'jpeg' => 'image/jpeg',
+        'gif' => 'image/gif',
+        'svg' => 'image/svg+xml',
+        'webp' => 'image/webp',
+        'ico' => 'image/x-icon',
+        'woff' => 'font/woff',
+        'woff2' => 'font/woff2',
+        'ttf' => 'font/ttf',
+        'otf' => 'font/otf',
+    ];
+    $ctype = $types[$ext] ?? 'application/octet-stream';
+
+    $mtime = (int) @filemtime($real);
+    $etag = 'W/"' . sha1($real . '|' . $mtime . '|' . (string) @filesize($real)) . '"';
+    header('ETag: ' . $etag);
+    header('Cache-Control: public, max-age=3600');
+    if (!empty($_SERVER['HTTP_IF_NONE_MATCH']) && trim((string)$_SERVER['HTTP_IF_NONE_MATCH']) === $etag) {
+        http_response_code(304);
+        exit;
+    }
+
+    header('Content-Type: ' . $ctype);
+    header('Content-Length: ' . (string) filesize($real));
+    readfile($real);
+    exit;
+}
+
 $basePath = kernel_request_base_path();
 if ($basePath !== '' && ($uri === $basePath || str_starts_with($uri, $basePath . '/'))) {
     $uri = substr($uri, strlen($basePath));
@@ -1253,12 +1309,9 @@ switch ($handler) {
             }
 
             // In multi-tenant mode, check if module is relevant for the selected tenant
-            if ($multiTenant && $selectedTenantId !== null) {
-                // If we have a whitelist, skip modules not in it
-                if ($tenantRelevantModules !== null && !isset($tenantRelevantModules[$moduleId])) {
-                    continue;
-                }
-            }
+            // All discovered modules are shown for every tenant.
+            // isModuleEnabledForTenant() defaults to true when no tenant record exists,
+            // so modules are opt-out (default enabled) rather than opt-in.
 
             // Determine enabled state
             $isEnabled = true;

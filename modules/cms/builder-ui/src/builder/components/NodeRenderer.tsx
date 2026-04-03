@@ -3,7 +3,7 @@
  * Renders DiSyL nodes as React components
  */
 
-import React, { memo, useCallback, useState, useRef, useEffect, CSSProperties, lazy, Suspense } from 'react';
+import React, { memo, useCallback, useState, useRef, useEffect, CSSProperties } from 'react';
 import { DiSyLNode, NodeStyle } from '../core/types';
 import { buildFlexWidthStyle, buildRatioFlexValue, deriveLayoutWidth, hasExplicitFlexSizing } from '../core/layoutSizing';
 
@@ -17,8 +17,7 @@ function placeholderSvg(w: number, h: number, bg: string, text: string): string 
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 }
 
-// Lazy load TinyMCE editor to reduce initial bundle size
-const InlineEditor = lazy(() => import('./InlineEditor'));
+import InlineEditor from './InlineEditor';
 
 // Import MediaLibrary for image selection
 import MediaLibrary from './MediaLibrary';
@@ -782,19 +781,13 @@ const EditableText: React.FC<EditableTextProps> = memo(({
 
   if (isEditing) {
     return (
-      <Suspense fallback={
-        <div style={{ ...style, minHeight: '1em', opacity: 0.5 }}>
-          {localContent || placeholder}
-        </div>
-      }>
-        <InlineEditor
-          content={localContent}
-          onSave={handleSave}
-          onCancel={handleCancel}
-          placeholder={placeholder}
-          style={style}
-        />
-      </Suspense>
+      <InlineEditor
+        content={localContent}
+        onSave={handleSave}
+        onCancel={handleCancel}
+        placeholder={placeholder}
+        style={style}
+      />
     );
   }
 

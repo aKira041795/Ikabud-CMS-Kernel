@@ -349,6 +349,14 @@ function kernel_request_base_path(?string $scriptName = null, ?string $appUrl = 
         return $configuredPath;
     }
 
+    // Allow hosting envs to force base path via Apache SetEnv in .htaccess.
+    // IKABUD_BASE_PATH=/ means "no subfolder prefix".
+    $envBasePath = trim((string)($_SERVER['IKABUD_BASE_PATH'] ?? $_ENV['IKABUD_BASE_PATH'] ?? ''));
+    if ($envBasePath !== '') {
+        $envBasePath = rtrim($envBasePath, '/');
+        return ($envBasePath === '' || $envBasePath === '/') ? '' : $envBasePath;
+    }
+
     $scriptPath = trim((string)($scriptName ?? ($_SERVER['SCRIPT_NAME'] ?? ($_SERVER['PHP_SELF'] ?? ''))));
     if ($scriptPath === '') {
         return '';

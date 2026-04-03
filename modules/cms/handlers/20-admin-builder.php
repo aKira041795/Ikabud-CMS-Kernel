@@ -32,6 +32,7 @@ function cmsAdminReactBuilderCreate(array $params = []): void
         'page_title'        => 'Page Builder',
         'site_name'         => app()->config('app_name', 'CMS'),
         'builder_css_url'   => cmsAdminBuilderAssetUrl('builder.css'),
+        'builder_js_url'    => cmsAdminBuilderAssetUrl('builder.js'),
         'builder_boot_json' => json_encode($bootData, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
     ]);
 }
@@ -83,6 +84,7 @@ function cmsAdminReactBuilderEdit(array $params = []): void
         'page_title'        => 'Page Builder: ' . ($content['title'] ?? ''),
         'site_name'         => app()->config('app_name', 'CMS'),
         'builder_css_url'   => cmsAdminBuilderAssetUrl('builder.css'),
+        'builder_js_url'    => cmsAdminBuilderAssetUrl('builder.js'),
         'builder_boot_json' => json_encode($bootData, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
     ]);
 }

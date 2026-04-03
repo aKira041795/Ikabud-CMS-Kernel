@@ -15,17 +15,18 @@
     <script id="builder-boot-data" type="application/json">
         {builder_boot_json|raw}
     </script>
-    <div id="root"></div>
+    <div id="root" data-builder-js-url="{builder_js_url}"></div>
     <script>
     {literal}
     (function() {
-        var cssLink = document.querySelector('link[href*="builder.css"]');
-        if (!cssLink) return;
+        var root = document.getElementById('root');
+        var builderJsUrl = root ? root.getAttribute('data-builder-js-url') : '';
+        if (!root || !builderJsUrl) return;
         var s = document.createElement('script');
         s.type = 'module';
-        s.src = cssLink.href.replace('builder.css', 'builder.js');
+        s.src = builderJsUrl;
         s.onerror = function() {
-            document.getElementById('root').innerHTML = '<div style="padding:3rem;text-align:center;color:#ef4444;font-family:system-ui"><h2>Failed to load Page Builder</h2><p>The builder JS bundle could not be loaded. Run <code>npm run build</code> in modules/cms/builder-ui/.</p></div>';
+            root.innerHTML = '<div style="padding:3rem;text-align:center;color:#ef4444;font-family:system-ui"><h2>Failed to load Page Builder</h2><p>The builder JS bundle could not be loaded. Run <code>npm run build</code> in modules/cms/builder-ui/.</p></div>';
         };
         document.body.appendChild(s);
     })();
