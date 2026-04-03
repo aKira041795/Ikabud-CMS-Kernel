@@ -389,8 +389,9 @@ function contactFormValidateFieldInput(array $input, int $formId, ?int $existing
     $placeholder = contactFormLimit(trim((string) ($input['placeholder'] ?? '')), 255);
     $helpText = contactFormLimit(trim((string) ($input['help_text'] ?? '')), 1000);
     $optionsText = contactFormNormalizeOptionsText(contactFormLimit((string) ($input['options_text'] ?? ''), 5000));
-    if (in_array($fieldType, contactFormFieldTypesWithOptions(), true) && $optionsText === '') {
-        return ['error' => 'Select fields need at least one option.'];
+    // select and radio always require at least one option; checkbox may be empty (becomes a single agree/disagree toggle)
+    if (in_array($fieldType, ['select', 'radio'], true) && $optionsText === '') {
+        return ['error' => 'Select and Radio fields need at least one option.'];
     }
     if (!in_array($fieldType, contactFormFieldTypesWithOptions(), true)) {
         $optionsText = '';

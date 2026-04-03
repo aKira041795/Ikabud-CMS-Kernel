@@ -1939,6 +1939,18 @@ function contactFormRenderSharedStyles(): string
     border-color: revert;
     box-shadow: none;
 }
+/* Highlight radio/checkbox group containers when required validation fails */
+.contact-form .form-group.has-error .contact-form-checkbox-multi-group,
+.contact-form .form-group.has-error .contact-form-radio-group {
+    outline: 2px solid rgba(239, 68, 68, 0.45);
+    border-radius: 8px;
+    padding: .35rem .5rem;
+}
+.contact-form .form-group.contact-form-checkbox-group.has-error {
+    outline: 2px solid rgba(239, 68, 68, 0.45);
+    border-radius: 8px;
+    padding: .35rem .5rem;
+}
 /* Color picker — restore native picker UI */
 .contact-form input[type="color"] {
     -webkit-appearance: auto;
