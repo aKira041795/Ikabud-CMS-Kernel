@@ -268,6 +268,15 @@ function contactFormValidateNotificationRulesInput(mixed $value, array $fields):
 function contactFormValidateConditionalLogicInput(array $input, int $formId, ?int $existingFieldId = null): array
 {
     $enabled = contactFormBoolish($input['conditional_logic_enabled'] ?? '');
+
+    // When conditional logic is disabled, skip rule parsing entirely.
+    // The form always renders a blank template rule row whose operator select is
+    // non-empty ('equals'), which would otherwise falsely trigger the
+    // "Choose a source field" error and block the save.
+    if (!$enabled) {
+        return ['data' => contactFormConditionalLogicDefaults()];
+    }
+
     $action = trim((string) ($input['conditional_logic_action'] ?? 'show'));
     if (!in_array($action, ['show', 'hide'], true)) {
         $action = 'show';
@@ -315,10 +324,6 @@ function contactFormValidateConditionalLogicInput(array $input, int $formId, ?in
             'operator' => $operator,
             'value' => $value,
         ];
-    }
-
-    if (!$enabled) {
-        return ['data' => contactFormConditionalLogicDefaults()];
     }
 
     if ($rules === []) {
