@@ -85,8 +85,23 @@ class MigrationRunner
                 continue;
             }
 
-            // Execute multi-statement SQL
-            $this->executeSql($sql);
+            // Execute multi-statement SQL.
+            // Idempotent DDL errors (column/key/table already exists) are treated as
+            // success so that migrations applied manually outside the runner can still
+            // be recorded in the tracking table on the next run.
+            try {
+                $this->executeSql($sql);
+            } catch (\PDOException $e) {
+                $mysqlCode = isset($e->errorInfo[1]) ? (int)$e->errorInfo[1] : 0;
+                $idempotentCodes = [
+                    1060, // Duplicate column name  — ADD COLUMN on existing column
+                    1061, // Duplicate key name     — ADD INDEX on existing index
+                    1050, // Table already exists   — CREATE TABLE without IF NOT EXISTS
+                ];
+                if (!in_array($mysqlCode, $idempotentCodes, true)) {
+                    throw $e;
+                }
+            }
 
             // Record in tracking table
             $stmt = $this->pdo->prepare(

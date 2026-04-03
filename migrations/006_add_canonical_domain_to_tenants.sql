@@ -5,4 +5,4 @@
 -- This enforces a single-domain contract for sessions, links, and SEO.
 
 ALTER TABLE `kernel_tenants`
-    ADD COLUMN IF NOT EXISTS `canonical_domain` VARCHAR(255) DEFAULT NULL AFTER `entry_module_id`;
+    ADD COLUMN `canonical_domain` VARCHAR(255) DEFAULT NULL AFTER `entry_module_id`;
