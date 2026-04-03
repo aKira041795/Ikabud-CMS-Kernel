@@ -102,6 +102,104 @@ function contactFormHydrateFormFromInput(array $input, array $fallback = []): ar
     return $form;
 }
 
+function contactFormValidateConditionalLogicInput(array $input, int $formId, ?int $existingFieldId = null): array
+{
+    $enabled = contactFormBoolish($input['conditional_logic_enabled'] ?? '');
+    $action = trim((string) ($input['conditional_logic_action'] ?? 'show'));
+    if (!in_array($action, ['show', 'hide'], true)) {
+        $action = 'show';
+    }
+
+    $match = trim((string) ($input['conditional_logic_match'] ?? 'all'));
+    if (!in_array($match, ['all', 'any'], true)) {
+        $match = 'all';
+    }
+
+    $fieldIds = is_array($input['conditional_logic_field_id'] ?? null) ? $input['conditional_logic_field_id'] : [];
+    $operators = is_array($input['conditional_logic_operator'] ?? null) ? $input['conditional_logic_operator'] : [];
+    $values = is_array($input['conditional_logic_value'] ?? null) ? $input['conditional_logic_value'] : [];
+    $rowCount = max(count($fieldIds), count($operators), count($values));
+    $rules = [];
+
+    for ($index = 0; $index < $rowCount; $index++) {
+        $fieldId = max(0, (int) ($fieldIds[$index] ?? 0));
+        $operator = contactFormNormalizeConditionalOperator((string) ($operators[$index] ?? 'equals'));
+        $value = contactFormLimit(trim((string) ($values[$index] ?? '')), 255);
+
+        $rowHasAnyValue = $fieldId > 0 || trim((string) ($operators[$index] ?? '')) !== '' || $value !== '';
+        if (!$rowHasAnyValue) {
+            continue;
+        }
+
+        if ($fieldId <= 0) {
+            return ['error' => 'Choose a source field for every conditional rule.'];
+        }
+
+        if ($existingFieldId !== null && $fieldId === $existingFieldId) {
+            return ['error' => 'A field cannot depend on itself.'];
+        }
+
+        if (contactFormConditionalLogicOperatorUsesValue($operator) && $value === '') {
+            return ['error' => 'Enter a comparison value for every conditional rule that requires one.'];
+        }
+
+        if (!contactFormConditionalLogicOperatorUsesValue($operator)) {
+            $value = '';
+        }
+
+        $rules[] = [
+            'field_id' => $fieldId,
+            'operator' => $operator,
+            'value' => $value,
+        ];
+    }
+
+    if (!$enabled) {
+        return ['data' => contactFormConditionalLogicDefaults()];
+    }
+
+    if ($rules === []) {
+        return ['error' => 'Add at least one conditional rule or turn conditional logic off.'];
+    }
+
+    try {
+        $stmt = contactFormDb()->prepare('SELECT id, field_type FROM contact_form_fields WHERE form_id = :form_id');
+        $stmt->execute([':form_id' => $formId]);
+        $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+    } catch (Throwable $e) {
+        return ['error' => 'Unable to validate conditional logic right now.'];
+    }
+
+    $available = [];
+    foreach ($rows as $row) {
+        if (!is_array($row)) {
+            continue;
+        }
+
+        $available[(int) ($row['id'] ?? 0)] = trim((string) ($row['field_type'] ?? 'text'));
+    }
+
+    foreach ($rules as $rule) {
+        $sourceFieldId = (int) ($rule['field_id'] ?? 0);
+        if ($sourceFieldId <= 0 || !array_key_exists($sourceFieldId, $available)) {
+            return ['error' => 'One or more conditional rules reference a field that no longer exists.'];
+        }
+
+        if (($available[$sourceFieldId] ?? '') === 'section') {
+            return ['error' => 'Section headings cannot be used as conditional logic sources.'];
+        }
+    }
+
+    return [
+        'data' => [
+            'enabled' => true,
+            'action' => $action,
+            'match' => $match,
+            'rules' => $rules,
+        ],
+    ];
+}
+
 function contactFormValidateFieldInput(array $input, int $formId, ?int $existingFieldId = null): array
 {
     $schema = contactFormSchemaStatus();
@@ -137,6 +235,9 @@ function contactFormValidateFieldInput(array $input, int $formId, ?int $existing
 
     $sortOrder = max(0, (int) ($input['sort_order'] ?? 0));
     $required = contactFormBoolish($input['required'] ?? '') ? 1 : 0;
+    if (in_array($fieldType, ['hidden', 'section'], true)) {
+        $required = 0;
+    }
 
     try {
         if ($existingFieldId === null) {
@@ -173,6 +274,16 @@ function contactFormValidateFieldInput(array $input, int $formId, ?int $existing
         return ['error' => 'Unable to validate the field name right now.'];
     }
 
+    $conditionalLogic = contactFormConditionalLogicDefaults();
+    if ($fieldType !== 'hidden') {
+        $logicValidation = contactFormValidateConditionalLogicInput($input, $formId, $existingFieldId);
+        if (!empty($logicValidation['error'])) {
+            return ['error' => (string) $logicValidation['error']];
+        }
+
+        $conditionalLogic = contactFormNormalizeConditionalLogic($logicValidation['data'] ?? null);
+    }
+
     return [
         'data' => [
             'field_type' => $fieldType,
@@ -181,6 +292,7 @@ function contactFormValidateFieldInput(array $input, int $formId, ?int $existing
             'placeholder' => $placeholder,
             'help_text' => $helpText,
             'options_text' => $optionsText,
+            'conditional_logic' => $conditionalLogic,
             'required' => $required,
             'sort_order' => $sortOrder,
         ],
@@ -355,6 +467,7 @@ function contactFormPrepareDynamicSubmission(array $fields, array $input): array
     $summaryName = '';
     $summaryEmail = '';
     $hasValue = false;
+    $visibility = contactFormResolveFieldVisibility($fields, $input);
 
     foreach ($fields as $field) {
         if (!is_array($field)) {
@@ -362,6 +475,18 @@ function contactFormPrepareDynamicSubmission(array $fields, array $input): array
         }
 
         $field = contactFormNormalizeFieldRow($field);
+        if ($field['field_type'] === 'section') {
+            continue;
+        }
+
+        $fieldId = (int) ($field['id'] ?? 0);
+        $isVisible = $field['field_type'] === 'hidden'
+            ? true
+            : ($fieldId > 0 ? (bool) ($visibility[$fieldId] ?? true) : true);
+        if (!$isVisible) {
+            continue;
+        }
+
         $rawValue = $input[$field['name']] ?? '';
 
         // Checkbox group: submitted as an array; validate each checked value is in allowed options
@@ -414,11 +539,13 @@ function contactFormPrepareDynamicSubmission(array $fields, array $input): array
         }
 
         if ($value !== '') {
-            $hasValue = true;
-            if ($summaryName === '') {
+            if ($field['field_type'] !== 'hidden') {
+                $hasValue = true;
+            }
+            if ($summaryName === '' && $field['field_type'] !== 'hidden') {
                 $summaryName = $value;
             }
-            if ($summaryEmail === '' && filter_var($value, FILTER_VALIDATE_EMAIL)) {
+            if ($summaryEmail === '' && $field['field_type'] !== 'hidden' && filter_var($value, FILTER_VALIDATE_EMAIL)) {
                 $summaryEmail = $value;
             }
         }
@@ -846,9 +973,10 @@ function contactFormAdminFieldCreate(array $params = []): void
 
     try {
         $payload = $validation['data'];
+        $conditionalLogicJson = contactFormConditionalLogicToJson($payload['conditional_logic'] ?? []);
         $stmt = contactFormDb()->prepare(
-            'INSERT INTO contact_form_fields (form_id, field_type, label, name, placeholder, help_text, options_text, required, sort_order, created_at, updated_at)'
-            . ' VALUES (:form_id, :field_type, :label, :name, :placeholder, :help_text, :options_text, :required, :sort_order, NOW(), NOW())'
+            'INSERT INTO contact_form_fields (form_id, field_type, label, name, placeholder, help_text, options_text, conditional_logic, required, sort_order, created_at, updated_at)'
+            . ' VALUES (:form_id, :field_type, :label, :name, :placeholder, :help_text, :options_text, :conditional_logic, :required, :sort_order, NOW(), NOW())'
         );
         $stmt->execute([
             ':form_id' => $formId,
@@ -858,6 +986,7 @@ function contactFormAdminFieldCreate(array $params = []): void
             ':placeholder' => $payload['placeholder'],
             ':help_text' => $payload['help_text'],
             ':options_text' => $payload['options_text'],
+            ':conditional_logic' => $conditionalLogicJson,
             ':required' => $payload['required'],
             ':sort_order' => $payload['sort_order'],
         ]);
@@ -970,9 +1099,10 @@ function contactFormAdminFieldUpdate(array $params = []): void
 
     try {
         $payload = $validation['data'];
+        $conditionalLogicJson = contactFormConditionalLogicToJson($payload['conditional_logic'] ?? []);
         $stmt = contactFormDb()->prepare(
             'UPDATE contact_form_fields'
-            . ' SET field_type = :field_type, label = :label, name = :name, placeholder = :placeholder, help_text = :help_text, options_text = :options_text, required = :required,'
+            . ' SET field_type = :field_type, label = :label, name = :name, placeholder = :placeholder, help_text = :help_text, options_text = :options_text, conditional_logic = :conditional_logic, required = :required,'
             . ' sort_order = :sort_order, updated_at = NOW()'
             . ' WHERE id = :id AND form_id = :form_id LIMIT 1'
         );
@@ -983,6 +1113,7 @@ function contactFormAdminFieldUpdate(array $params = []): void
             ':placeholder' => $payload['placeholder'],
             ':help_text' => $payload['help_text'],
             ':options_text' => $payload['options_text'],
+            ':conditional_logic' => $conditionalLogicJson,
             ':required' => $payload['required'],
             ':sort_order' => $payload['sort_order'],
             ':id' => $fieldId,

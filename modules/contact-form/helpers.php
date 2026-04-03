@@ -149,6 +149,7 @@ function contactFormFieldDefaults(): array
         'placeholder' => '',
         'help_text' => '',
         'options_text' => '',
+        'conditional_logic' => contactFormConditionalLogicDefaults(),
         'required' => 1,
         'sort_order' => 0,
         'created_at' => '',
@@ -169,6 +170,7 @@ function contactFormNormalizeFieldRow(array $row): array
         'placeholder' => trim((string) ($row['placeholder'] ?? '')),
         'help_text' => trim((string) ($row['help_text'] ?? '')),
         'options_text' => trim((string) ($row['options_text'] ?? '')),
+        'conditional_logic' => contactFormNormalizeConditionalLogic($row['conditional_logic'] ?? null),
         'required' => (int) ($row['required'] ?? 0),
         'sort_order' => (int) ($row['sort_order'] ?? 0),
         'created_at' => trim((string) ($row['created_at'] ?? '')),
@@ -458,6 +460,222 @@ function contactFormBoolish(mixed $value): bool
 
     $value = strtolower(trim((string) $value));
     return in_array($value, ['1', 'true', 'yes', 'on'], true);
+}
+
+function contactFormConditionalLogicDefaults(): array
+{
+    return [
+        'enabled' => false,
+        'action' => 'show',
+        'match' => 'all',
+        'rules' => [],
+    ];
+}
+
+function contactFormNormalizeConditionalOperator(string $operator): string
+{
+    $operator = strtolower(trim($operator));
+
+    return match ($operator) {
+        '=', '==', 'equal', 'equals' => 'equals',
+        '!=', '<>', 'not_equal', 'not_equals' => 'not_equals',
+        'contains' => 'contains',
+        '>', 'gt', 'greater_than', 'greater' => 'greater_than',
+        '<', 'lt', 'less_than', 'less' => 'less_than',
+        'empty' => 'empty',
+        'not_empty' => 'not_empty',
+        default => 'equals',
+    };
+}
+
+function contactFormConditionalLogicOperatorUsesValue(string $operator): bool
+{
+    return !in_array(contactFormNormalizeConditionalOperator($operator), ['empty', 'not_empty'], true);
+}
+
+function contactFormNormalizeConditionalLogic(mixed $value): array
+{
+    if (is_string($value)) {
+        $value = trim($value);
+        if ($value !== '') {
+            $decoded = json_decode($value, true);
+            if (is_array($decoded)) {
+                $value = $decoded;
+            }
+        }
+    }
+
+    if (!is_array($value)) {
+        return contactFormConditionalLogicDefaults();
+    }
+
+    $rules = [];
+    foreach (is_array($value['rules'] ?? null) ? $value['rules'] : [] as $rule) {
+        if (!is_array($rule)) {
+            continue;
+        }
+
+        $fieldId = max(0, (int) ($rule['field_id'] ?? 0));
+        if ($fieldId <= 0) {
+            continue;
+        }
+
+        $operator = contactFormNormalizeConditionalOperator((string) ($rule['operator'] ?? 'equals'));
+        $ruleValue = contactFormConditionalLogicOperatorUsesValue($operator)
+            ? contactFormLimit(trim((string) ($rule['value'] ?? '')), 255)
+            : '';
+
+        $rules[] = [
+            'field_id' => $fieldId,
+            'operator' => $operator,
+            'value' => $ruleValue,
+        ];
+
+        if (count($rules) >= 20) {
+            break;
+        }
+    }
+
+    $action = trim((string) ($value['action'] ?? 'show'));
+    if (!in_array($action, ['show', 'hide'], true)) {
+        $action = 'show';
+    }
+
+    $match = trim((string) ($value['match'] ?? 'all'));
+    if (!in_array($match, ['all', 'any'], true)) {
+        $match = 'all';
+    }
+
+    return [
+        'enabled' => !empty($value['enabled']) && $rules !== [],
+        'action' => $action,
+        'match' => $match,
+        'rules' => $rules,
+    ];
+}
+
+function contactFormConditionalLogicToJson(array $logic): ?string
+{
+    $logic = contactFormNormalizeConditionalLogic($logic);
+    if (empty($logic['enabled']) || empty($logic['rules'])) {
+        return null;
+    }
+
+    return json_encode($logic, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+}
+
+function contactFormCompareConditionalRuleValue(mixed $rawValue, string $operator, string $expected): bool
+{
+    $operator = contactFormNormalizeConditionalOperator($operator);
+    $values = is_array($rawValue)
+        ? array_values(array_filter(array_map(static fn(mixed $value): string => trim((string) $value), $rawValue), static fn(string $value): bool => $value !== ''))
+        : [trim((string) $rawValue)];
+    $first = $values[0] ?? '';
+    $contains = false;
+    if ($expected !== '') {
+        foreach ($values as $value) {
+            if (stripos($value, $expected) !== false) {
+                $contains = true;
+                break;
+            }
+        }
+    }
+
+    return match ($operator) {
+        'equals' => is_array($rawValue) ? in_array($expected, $values, true) : $first === $expected,
+        'not_equals' => is_array($rawValue) ? !in_array($expected, $values, true) : $first !== $expected,
+        'contains' => $contains,
+        'greater_than' => is_numeric($first) && is_numeric($expected) && (float) $first > (float) $expected,
+        'less_than' => is_numeric($first) && is_numeric($expected) && (float) $first < (float) $expected,
+        'empty' => $values === [] || ($values === ['']),
+        'not_empty' => !($values === [] || ($values === [''])),
+        default => false,
+    };
+}
+
+function contactFormFieldRawSubmissionValue(array $field, array $input): mixed
+{
+    $name = trim((string) ($field['name'] ?? ''));
+    if ($name === '') {
+        return '';
+    }
+
+    return $input[$name] ?? '';
+}
+
+function contactFormResolveFieldVisibility(array $fields, array $input): array
+{
+    $fieldsById = [];
+    foreach ($fields as $field) {
+        if (!is_array($field)) {
+            continue;
+        }
+
+        $normalized = contactFormNormalizeFieldRow($field);
+        $fieldId = (int) ($normalized['id'] ?? 0);
+        if ($fieldId > 0) {
+            $fieldsById[$fieldId] = $normalized;
+        }
+    }
+
+    $memo = [];
+    foreach (array_keys($fieldsById) as $fieldId) {
+        $memo[$fieldId] = contactFormResolveFieldVisibilityState($fieldId, $fieldsById, $input, $memo, []);
+    }
+
+    return $memo;
+}
+
+function contactFormResolveFieldVisibilityState(int $fieldId, array $fieldsById, array $input, array &$memo, array $stack): bool
+{
+    if (array_key_exists($fieldId, $memo)) {
+        return (bool) $memo[$fieldId];
+    }
+
+    if (in_array($fieldId, $stack, true)) {
+        if (function_exists('write_log')) {
+            write_log('contact-form: conditional logic cycle detected', 'warning', ['field_id' => $fieldId]);
+        }
+        $memo[$fieldId] = false;
+        return false;
+    }
+
+    $field = $fieldsById[$fieldId] ?? null;
+    if (!is_array($field)) {
+        $memo[$fieldId] = true;
+        return true;
+    }
+
+    $logic = contactFormNormalizeConditionalLogic($field['conditional_logic'] ?? null);
+    if (empty($logic['enabled']) || empty($logic['rules'])) {
+        $memo[$fieldId] = true;
+        return true;
+    }
+
+    $stack[] = $fieldId;
+    $results = [];
+    foreach ($logic['rules'] as $rule) {
+        $sourceFieldId = (int) ($rule['field_id'] ?? 0);
+        if ($sourceFieldId <= 0 || !isset($fieldsById[$sourceFieldId])) {
+            $results[] = false;
+            continue;
+        }
+
+        $sourceVisible = contactFormResolveFieldVisibilityState($sourceFieldId, $fieldsById, $input, $memo, $stack);
+        $rawValue = $sourceVisible ? contactFormFieldRawSubmissionValue($fieldsById[$sourceFieldId], $input) : '';
+        $results[] = contactFormCompareConditionalRuleValue(
+            $rawValue,
+            (string) ($rule['operator'] ?? 'equals'),
+            (string) ($rule['value'] ?? '')
+        );
+    }
+
+    $matched = ($logic['match'] ?? 'all') === 'any'
+        ? in_array(true, $results, true)
+        : !in_array(false, $results, true);
+
+    $memo[$fieldId] = ($logic['action'] ?? 'show') === 'hide' ? !$matched : $matched;
+    return (bool) $memo[$fieldId];
 }
 
 function contactFormFieldTypeLabels(): array
@@ -767,8 +985,24 @@ function contactFormCollectSchemaGaps(): array
     }
 
     $missingColumns = [];
+    if (!in_array('contact_forms', $missingTables, true)) {
+        foreach (['submit_label'] as $column) {
+            if (!contactFormColumnExists('contact_forms', $column)) {
+                $missingColumns[] = 'contact_forms.' . $column;
+            }
+        }
+    }
+
+    if (!in_array('contact_form_fields', $missingTables, true)) {
+        foreach (['help_text', 'options_text', 'conditional_logic'] as $column) {
+            if (!contactFormColumnExists('contact_form_fields', $column)) {
+                $missingColumns[] = 'contact_form_fields.' . $column;
+            }
+        }
+    }
+
     if (!in_array('contact_form_submissions', $missingTables, true)) {
-        foreach (['form_id', 'form_data'] as $column) {
+        foreach (['form_id', 'form_data', 'reviewed_at', 'reviewed_by', 'updated_at'] as $column) {
             if (!contactFormColumnExists('contact_form_submissions', $column)) {
                 $missingColumns[] = 'contact_form_submissions.' . $column;
             }
@@ -872,7 +1106,7 @@ function contactFormGetFieldsForForm(int $formId): array
 
     try {
         $stmt = contactFormDb()->prepare(
-            'SELECT id, form_id, field_type, label, name, placeholder, help_text, options_text, required, sort_order, created_at, updated_at'
+            'SELECT id, form_id, field_type, label, name, placeholder, help_text, options_text, conditional_logic, required, sort_order, created_at, updated_at'
             . ' FROM contact_form_fields WHERE form_id = :form_id ORDER BY sort_order ASC, id ASC'
         );
         $stmt->execute([':form_id' => $formId]);
@@ -969,7 +1203,7 @@ function contactFormGetFieldById(int $fieldId): ?array
 
     try {
         $stmt = contactFormDb()->prepare(
-            'SELECT id, form_id, field_type, label, name, placeholder, help_text, options_text, required, sort_order, created_at, updated_at'
+            'SELECT id, form_id, field_type, label, name, placeholder, help_text, options_text, conditional_logic, required, sort_order, created_at, updated_at'
             . ' FROM contact_form_fields WHERE id = :id LIMIT 1'
         );
         $stmt->execute([':id' => $fieldId]);
@@ -1267,6 +1501,9 @@ function contactFormRenderSharedStyles(): string
     background: #f8fafc;
     color: #475569;
 }
+.contact-form-logic-hidden {
+    display: none !important;
+}
 @media (max-width: 640px) {
     .contact-form-wrap {
         padding: 1rem;
@@ -1491,6 +1728,13 @@ function contactFormRenderFieldMarkup(array $field, string $formId): string
     $ariaRequiredAttr = $field['required'] ? ' aria-required="true"' : '';
     $helpId = $field['help_text'] !== '' ? ($fieldInputId . '-help') : '';
     $ariaDescAttr = $helpId !== '' ? (' aria-describedby="' . $helpId . '"') : '';
+    $fieldId = (int) ($field['id'] ?? 0);
+    $sourceAttr = $fieldId > 0 ? ' data-cf-source-field-id="' . $fieldId . '"' : '';
+    $wrapperAttrs = $fieldId > 0 ? ' data-cf-target-field-id="' . $fieldId . '"' : '';
+    $logic = contactFormNormalizeConditionalLogic($field['conditional_logic'] ?? null);
+    if ($field['field_type'] !== 'hidden' && !empty($logic['enabled']) && !empty($logic['rules']) && $fieldId > 0) {
+        $wrapperAttrs .= ' data-cf-logic="' . contactFormEscape((string) json_encode($logic, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) . '"';
+    }
     $helpHtml = $field['help_text'] !== ''
         ? '<div class="contact-form-help" id="' . $helpId . '">' . contactFormEscape($field['help_text']) . '</div>'
         : '';
@@ -1498,7 +1742,7 @@ function contactFormRenderFieldMarkup(array $field, string $formId): string
     $inputHtml = '';
     if ($field['field_type'] === 'textarea') {
         $inputHtml = '<textarea id="' . $fieldInputId . '" name="' . $fieldName . '"' . $requiredAttr
-            . $ariaRequiredAttr . $ariaDescAttr . ' rows="5" placeholder="' . $placeholder . '"></textarea>';
+            . $ariaRequiredAttr . $ariaDescAttr . $sourceAttr . ' rows="5" placeholder="' . $placeholder . '"></textarea>';
     } elseif ($field['field_type'] === 'select') {
         $optionsHtml = '<option value="">' . contactFormEscape($field['required'] ? 'Select an option' : 'Optional') . '</option>';
         foreach (contactFormParseOptionsText($field['options_text']) as $option) {
@@ -1516,6 +1760,7 @@ function contactFormRenderFieldMarkup(array $field, string $formId): string
         }
 
         $inputHtml = '<select id="' . $fieldInputId . '" name="' . $fieldName . '"' . $requiredAttr
+            . $sourceAttr
             . $ariaRequiredAttr . $ariaDescAttr . '>'
             . $optionsHtml
             . '</select>';
@@ -1534,12 +1779,12 @@ function contactFormRenderFieldMarkup(array $field, string $formId): string
 
             $radiosHtml .= '<label class="contact-form-radio-label">'
                 . '<input type="radio" name="' . $fieldName . '" value="' . $optVal . '"'
-                . $requiredAttr . $ariaRequiredAttr . '>'
+                . $requiredAttr . $ariaRequiredAttr . $sourceAttr . '>'
                 . ' ' . $optLbl
                 . '</label>';
         }
 
-        return '<div class="form-group">'
+        return '<div class="form-group"' . $wrapperAttrs . '>'
             . '<label>' . $fieldLabel . $requiredMark . '</label>'
             . '<div class="contact-form-radio-group" role="group" aria-label="' . $fieldLabel . '"' . $ariaDescAttr . '>'
             . ($radiosHtml !== '' ? $radiosHtml : '<span class="contact-form-help">No options configured.</span>')
@@ -1555,11 +1800,11 @@ function contactFormRenderFieldMarkup(array $field, string $formId): string
         }
 
         $inputHtml = '<div class="contact-form-rating" data-rating-group="' . $fieldInputId . '">'
-            . '<input type="hidden" name="' . $fieldName . '" id="' . $fieldInputId . '" value=""' . $requiredAttr . '>'
+            . '<input type="hidden" name="' . $fieldName . '" id="' . $fieldInputId . '" value=""' . $requiredAttr . $sourceAttr . '>'
             . $starsHtml
             . '</div>';
 
-        return '<div class="form-group">'
+        return '<div class="form-group"' . $wrapperAttrs . '>'
             . '<label>' . $fieldLabel . $requiredMark . '</label>'
             . $inputHtml
             . $helpHtml
@@ -1568,7 +1813,7 @@ function contactFormRenderFieldMarkup(array $field, string $formId): string
     } elseif ($field['field_type'] === 'range') {
         $inputHtml = '<div class="contact-form-range-wrap">'
             . '<input type="range" id="' . $fieldInputId . '" name="' . $fieldName . '"'
-            . ' min="0" max="100" value="50"' . $ariaDescAttr
+            . ' min="0" max="100" value="50"' . $ariaDescAttr . $sourceAttr
             . ' oninput="this.nextElementSibling.value=this.value">'
             . '<output>50</output>'
             . '</div>';
@@ -1577,7 +1822,7 @@ function contactFormRenderFieldMarkup(array $field, string $formId): string
             ? '<p class="contact-form-section-desc">' . contactFormEscape($field['help_text']) . '</p>'
             : '';
 
-        return '<div class="contact-form-section">'
+        return '<div class="contact-form-section"' . $wrapperAttrs . '>'
             . '<h4 class="contact-form-section-heading">' . $fieldLabel . '</h4>'
             . $descHtml
             . '</div>';
@@ -1601,12 +1846,12 @@ function contactFormRenderFieldMarkup(array $field, string $formId): string
                 }
 
                 $checkboxesHtml .= '<label class="contact-form-checkbox-label">'
-                    . '<input type="checkbox" name="' . $groupName . '" value="' . $optVal . '"' . $ariaDescAttr . '>'
+                    . '<input type="checkbox" name="' . $groupName . '" value="' . $optVal . '"' . $ariaDescAttr . $sourceAttr . '>'
                     . ' ' . $optLbl
                     . '</label>';
             }
 
-            return '<div class="form-group">'
+            return '<div class="form-group"' . $wrapperAttrs . '>'
                 . '<label>' . $fieldLabel . $requiredMark . '</label>'
                 . '<div class="contact-form-checkbox-multi-group" role="group" aria-label="' . $fieldLabel . '"' . $ariaDescAttr . '>'
                 . ($checkboxesHtml !== '' ? $checkboxesHtml : '<span class="contact-form-help">No options configured.</span>')
@@ -1620,25 +1865,25 @@ function contactFormRenderFieldMarkup(array $field, string $formId): string
         $checkboxLabel = $placeholder !== '' ? $placeholder : $fieldLabel;
         $inputHtml = '<label class="contact-form-checkbox-label">'
             . '<input type="checkbox" id="' . $fieldInputId . '" name="' . $fieldName . '" value="1"'
-            . $requiredAttr . $ariaRequiredAttr . $ariaDescAttr . '>'
+            . $requiredAttr . $ariaRequiredAttr . $ariaDescAttr . $sourceAttr . '>'
             . ' ' . contactFormEscape($checkboxLabel)
             . '</label>';
 
-        return '<div class="form-group contact-form-checkbox-group">'
+        return '<div class="form-group contact-form-checkbox-group"' . $wrapperAttrs . '>'
             . $inputHtml
             . $helpHtml
             . '<div class="contact-form-field-error" role="alert" aria-live="assertive"></div>'
             . '</div>';
     } elseif ($field['field_type'] === 'hidden') {
-        return '<input type="hidden" name="' . $fieldName . '" value="' . $placeholder . '">';
+        return '<input type="hidden" name="' . $fieldName . '" value="' . $placeholder . '"' . $sourceAttr . '>';
     } else {
         $fieldType = contactFormEscape(contactFormFieldInputType((string) $field['field_type']));
         $extraAttr = $field['field_type'] === 'number' ? ' inputmode="decimal" step="any"' : '';
         $inputHtml = '<input type="' . $fieldType . '" id="' . $fieldInputId . '" name="' . $fieldName . '"'
-            . $requiredAttr . $ariaRequiredAttr . $extraAttr . $autocompleteAttr . $ariaDescAttr . ' placeholder="' . $placeholder . '">';
+            . $requiredAttr . $ariaRequiredAttr . $extraAttr . $autocompleteAttr . $ariaDescAttr . $sourceAttr . ' placeholder="' . $placeholder . '">';
     }
 
-    return '<div class="form-group">'
+    return '<div class="form-group"' . $wrapperAttrs . '>'
         . '<label for="' . $fieldInputId . '">' . $fieldLabel . $requiredMark . '</label>'
         . $inputHtml
         . $helpHtml
@@ -1663,6 +1908,19 @@ function contactFormRenderClientScript(string $formId, string $successMessage, b
     var successMsg = {$successJson};
     var hasCaptcha = {$hasCaptchaJson};
     var originalLabel = btnLabel ? btnLabel.textContent : '';
+    var logicTargets = Array.prototype.slice.call(form.querySelectorAll('[data-cf-target-field-id]'));
+    var logicMap = {};
+
+    logicTargets.forEach(function (target) {
+        var fieldId = parseInt(target.getAttribute('data-cf-target-field-id') || '0', 10);
+        var rawLogic = target.getAttribute('data-cf-logic');
+        if (!fieldId || !rawLogic) return;
+        try {
+            logicMap[fieldId] = JSON.parse(rawLogic);
+        } catch (error) {
+            logicMap[fieldId] = null;
+        }
+    });
 
     function setLoading(isLoading) {
         submitBtn.disabled = isLoading;
@@ -1712,9 +1970,114 @@ function contactFormRenderClientScript(string $formId, string $successMessage, b
             });
     }
 
+    function getFieldControls(fieldId) {
+        return Array.prototype.slice.call(form.querySelectorAll('[data-cf-source-field-id="' + fieldId + '"]'));
+    }
+
+    function readFieldValue(fieldId) {
+        var controls = getFieldControls(fieldId);
+        if (!controls.length) return '';
+
+        var first = controls[0];
+        var type = String(first.type || '').toLowerCase();
+        if (type === 'radio') {
+            var checkedRadio = controls.find(function (control) { return control.checked; });
+            return checkedRadio ? checkedRadio.value : '';
+        }
+
+        if (type === 'checkbox') {
+            var isMulti = String(first.name || '').slice(-2) === '[]';
+            if (!isMulti && controls.length === 1) {
+                return first.checked ? first.value : '';
+            }
+
+            return controls.filter(function (control) { return control.checked; }).map(function (control) { return control.value; });
+        }
+
+        return first.value || '';
+    }
+
+    function compareConditionalValue(rawValue, operator, expected) {
+        var values = Array.isArray(rawValue)
+            ? rawValue.map(function (value) { return String(value || '').trim(); }).filter(Boolean)
+            : [String(rawValue || '').trim()];
+        var first = values[0] || '';
+
+        switch (operator) {
+            case 'equals':
+                return Array.isArray(rawValue) ? values.indexOf(expected) !== -1 : first === expected;
+            case 'not_equals':
+                return Array.isArray(rawValue) ? values.indexOf(expected) === -1 : first !== expected;
+            case 'contains':
+                if (!expected) return false;
+                return values.some(function (value) {
+                    return value.toLowerCase().indexOf(String(expected).toLowerCase()) !== -1;
+                });
+            case 'greater_than':
+                return !isNaN(first) && !isNaN(expected) && parseFloat(first) > parseFloat(expected);
+            case 'less_than':
+                return !isNaN(first) && !isNaN(expected) && parseFloat(first) < parseFloat(expected);
+            case 'empty':
+                return values.length === 0 || (values.length === 1 && values[0] === '');
+            case 'not_empty':
+                return !(values.length === 0 || (values.length === 1 && values[0] === ''));
+            default:
+                return false;
+        }
+    }
+
+    function fieldVisible(fieldId, memo, stack) {
+        if (Object.prototype.hasOwnProperty.call(memo, fieldId)) {
+            return memo[fieldId];
+        }
+
+        if (stack.indexOf(fieldId) !== -1) {
+            memo[fieldId] = false;
+            return false;
+        }
+
+        var logic = logicMap[fieldId];
+        if (!logic || !logic.enabled || !Array.isArray(logic.rules) || !logic.rules.length) {
+            memo[fieldId] = true;
+            return true;
+        }
+
+        var nextStack = stack.concat([fieldId]);
+        var results = logic.rules.map(function (rule) {
+            var sourceId = parseInt(rule.field_id || 0, 10);
+            if (!sourceId) return false;
+            var sourceVisible = fieldVisible(sourceId, memo, nextStack);
+            var rawValue = sourceVisible ? readFieldValue(sourceId) : '';
+            return compareConditionalValue(rawValue, String(rule.operator || 'equals'), String(rule.value || ''));
+        });
+        var matched = String(logic.match || 'all') === 'any'
+            ? results.some(Boolean)
+            : results.every(Boolean);
+        memo[fieldId] = String(logic.action || 'show') === 'hide' ? !matched : matched;
+        return memo[fieldId];
+    }
+
+    function syncConditionalLogic() {
+        if (!logicTargets.length) return;
+
+        var memo = {};
+        logicTargets.forEach(function (target) {
+            var fieldId = parseInt(target.getAttribute('data-cf-target-field-id') || '0', 10);
+            if (!fieldId || !logicMap[fieldId]) return;
+
+            var visible = fieldVisible(fieldId, memo, []);
+            target.classList.toggle('contact-form-logic-hidden', !visible);
+            target.querySelectorAll('input, select, textarea, button').forEach(function (control) {
+                if (control.type === 'hidden') return;
+                control.disabled = !visible;
+            });
+        });
+    }
+
     form.addEventListener('submit', function (event) {
         event.preventDefault();
 
+        syncConditionalLogic();
         clearFieldErrors();
 
         var data = {};
@@ -1748,6 +2111,7 @@ function contactFormRenderClientScript(string $formId, string $successMessage, b
                     statusEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
                     form.reset();
                     clearFieldErrors();
+                    syncConditionalLogic();
                     if (hasCaptcha) refreshCaptcha();
                 } else {
                     statusEl.className = 'contact-form-status contact-form-error';
@@ -1766,6 +2130,9 @@ function contactFormRenderClientScript(string $formId, string $successMessage, b
                 setLoading(false);
             });
     });
+
+    form.addEventListener('change', syncConditionalLogic);
+    form.addEventListener('input', syncConditionalLogic);
 
     // Star rating interaction
     form.querySelectorAll('.contact-form-rating').forEach(function (ratingEl) {
@@ -1799,6 +2166,8 @@ function contactFormRenderClientScript(string $formId, string $successMessage, b
             updateStars(current);
         });
     });
+
+    syncConditionalLogic();
 })();
 </script>
 HTML;
