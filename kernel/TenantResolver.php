@@ -181,7 +181,7 @@ class TenantResolver
         try {
             $pdo = app()->controlDb();
             $stmt = $pdo->prepare(
-                'SELECT td.tenant_id, t.entry_module_id, t.status '
+                'SELECT td.tenant_id, t.entry_module_id, t.status, t.canonical_domain '
                 . 'FROM kernel_tenant_domains td '
                 . 'JOIN kernel_tenants t ON t.id = td.tenant_id '
                 . 'WHERE td.domain = :d LIMIT 1'

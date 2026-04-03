@@ -45,6 +45,11 @@ class TenantEntryRouter
                 return $uri;
             }
 
+            $canonicalDomain = strtolower(trim((string)($row['canonical_domain'] ?? '')));
+            if ($canonicalDomain !== '' && $canonicalDomain !== $host) {
+                $_SERVER['IK_CANONICAL_DOMAIN'] = $canonicalDomain;
+            }
+
             $entry = trim((string)($row['entry_module_id'] ?? ''));
             if ($entry === '') {
                 return $uri;

@@ -289,6 +289,19 @@ try {
 } catch (Throwable $ignored) {
 }
 
+// ── Canonical domain enforcement ──────────────────────────────────
+// When a tenant designates a canonical_domain, any request arriving on
+// a different domain (e.g. cms.ikabudkernel.com vs ikabudkernel.com)
+// is 301-redirected before session data, links, or cookies are emitted.
+if (!empty($_SERVER['IK_CANONICAL_DOMAIN']) && PHP_SAPI !== 'cli') {
+    $canonicalHost = strtolower(trim((string)$_SERVER['IK_CANONICAL_DOMAIN']));
+    if ($canonicalHost !== '') {
+        $target = request_scheme() . '://' . $canonicalHost . ($_SERVER['REQUEST_URI'] ?? '/');
+        kernel_emit_redirect_header($target, 301);
+        exit;
+    }
+}
+
 // If the resolved tenant is suspended, show maintenance mode.
 // This is intentionally done after the router has resolved tenant_id from host.
 if (!empty($_SERVER['IK_TENANT_SUSPENDED'])) {
@@ -370,6 +383,7 @@ $routes = [
         '/api/v1/admin/tenants/entry-module' => 'apiTenantEntryModuleSet',
         '/api/v1/admin/tenants/domain/add' => 'apiTenantDomainAdd',
         '/api/v1/admin/tenants/domain/remove' => 'apiTenantDomainRemove',
+        '/api/v1/admin/tenants/canonical-domain' => 'apiTenantCanonicalDomainSet',
         '/api/v1/admin/tenants/db/upsert' => 'apiTenantDbUpsert',
         '/api/v1/admin/tenants/status' => 'apiTenantStatusSet',
     ],
@@ -673,6 +687,59 @@ switch ($handler) {
         } catch (Throwable $e) {
             http_response_code(500);
             echo json_encode(['ok' => false, 'error' => 'Failed to remove domain']);
+        }
+        exit;
+
+    case 'apiTenantCanonicalDomainSet':
+        header('Content-Type: application/json; charset=utf-8');
+        header('X-Request-Id: ' . request_id());
+        $user = app()->user();
+        if (!$user || ($user['role'] ?? '') !== 'admin') {
+            http_response_code(403);
+            echo json_encode(['ok' => false, 'error' => 'Admin only']);
+            exit;
+        }
+        app()->csrfEnforce();
+
+        $input = app()->input();
+        $tenantId = (int)($input['tenant_id'] ?? 0);
+        $domain = strtolower(trim((string)($input['domain'] ?? '')));
+        // Passing an empty domain clears the canonical enforcement (no redirect).
+        if ($tenantId <= 0) {
+            http_response_code(422);
+            echo json_encode(['ok' => false, 'error' => 'tenant_id is required']);
+            exit;
+        }
+        if ($domain !== '' && !preg_match('/^[a-z0-9\-\.]+$/', $domain)) {
+            http_response_code(422);
+            echo json_encode(['ok' => false, 'error' => 'Invalid domain format']);
+            exit;
+        }
+        // Ensure the domain (if non-empty) is registered to this tenant.
+        if ($domain !== '') {
+            $chkStmt = app()->controlDb()->prepare(
+                'SELECT id FROM kernel_tenant_domains WHERE domain = :d AND tenant_id = :tid LIMIT 1'
+            );
+            $chkStmt->execute([':d' => $domain, ':tid' => $tenantId]);
+            if (!$chkStmt->fetch()) {
+                http_response_code(422);
+                echo json_encode(['ok' => false, 'error' => 'Domain is not registered to this tenant']);
+                exit;
+            }
+        }
+
+        try {
+            $setVal = $domain !== '' ? $domain : null;
+            $stmt = app()->controlDb()->prepare(
+                'UPDATE kernel_tenants SET canonical_domain = :cd, updated_at = NOW() WHERE id = :tid'
+            );
+            $stmt->execute([':cd' => $setVal, ':tid' => $tenantId]);
+            \Ikabud\Kernel\TenantResolver::clearControlHostCache();
+            adminViewCacheInvalidate(['admin:view:tenants', 'admin:view:platform']);
+            echo json_encode(['ok' => true]);
+        } catch (Throwable $e) {
+            http_response_code(500);
+            echo json_encode(['ok' => false, 'error' => 'Failed to set canonical domain']);
         }
         exit;
 

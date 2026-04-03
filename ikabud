@@ -117,6 +117,8 @@ switch ($command) {
         out('    ' . green('tenant:create') . ' <key> <domain> [--entry=<module_id>]');
         out('    ' . green('tenant:domain:add') . ' <tenant_id> <domain>');
         out('    ' . green('tenant:domain:remove') . ' <tenant_id> <domain>');
+        out('    ' . green('tenant:canonical-domain:set') . ' <tenant_id> <domain>');
+        out('    ' . dim('    ') . green('tenant:canonical-domain:set') . ' <tenant_id> --clear');
         out('    ' . green('tenant:db:set') . ' <tenant_id> --host=.. --name=.. --user=.. [--port=3306] [--driver=mysql] [--charset=utf8mb4] [--pass=..]');
         out('    ' . green('tenant:db:check') . ' <tenant_id>    Show DB config + pass status');
         out('    ' . green('tenant:provision') . ' <tenant_id> [--skip-db-create] [--admin-user=..] [--admin-pass=..] [--admin-name=..]');
@@ -361,6 +363,67 @@ switch ($command) {
             }
             out('  ' . green('✓') . ' Removed domain from tenant ' . cyan('#' . (string)$tenantId));
             out('    ' . dim('domain: ') . $domain);
+            out('');
+        } catch (\Throwable $e) {
+            out('  ' . red('✗ Failed: ') . $e->getMessage());
+            out('');
+            exit(1);
+        }
+        break;
+
+    // ── tenant:canonical-domain:set ───────────────────────────────
+    // Sets (or clears) the canonical domain for a tenant.
+    // All requests arriving on non-canonical domains are 301-redirected.
+    // Pass an empty string or "--clear" to remove enforcement.
+    case 'tenant:canonical-domain:set':
+        $clean = paramsWithoutFlags($params);
+        $tenantId = (int)($clean[0] ?? 0);
+        $clearFlag = in_array('--clear', $params, true);
+        $domain = $clearFlag ? '' : strtolower(trim((string)($clean[1] ?? '')));
+        banner();
+        if ($tenantId <= 0) {
+            out('  ' . red('✗ Usage: ') . 'php ikabud tenant:canonical-domain:set <tenant_id> <domain>');
+            out('  ' . dim('         ') . 'php ikabud tenant:canonical-domain:set <tenant_id> --clear');
+            out('');
+            exit(1);
+        }
+        if ($domain !== '' && !preg_match('/^[a-z0-9][a-z0-9\.\-]{1,253}[a-z0-9]$/', $domain)) {
+            out('  ' . red('✗ Invalid domain format.'));
+            out('');
+            exit(1);
+        }
+        try {
+            $pdo = app()->controlDb();
+            // Verify tenant exists.
+            $tenantRow = $pdo->prepare('SELECT id FROM kernel_tenants WHERE id = :tid LIMIT 1');
+            $tenantRow->execute([':tid' => $tenantId]);
+            if (!$tenantRow->fetch()) {
+                out('  ' . red('✗ Tenant #' . (string)$tenantId . ' not found.'));
+                out('');
+                exit(1);
+            }
+            // Verify the domain is registered to this tenant (if non-empty).
+            if ($domain !== '') {
+                $chk = $pdo->prepare('SELECT id FROM kernel_tenant_domains WHERE domain = :d AND tenant_id = :tid LIMIT 1');
+                $chk->execute([':d' => $domain, ':tid' => $tenantId]);
+                if (!$chk->fetch()) {
+                    out('  ' . red('✗ Domain "' . $domain . '" is not registered to tenant #' . (string)$tenantId . '.'));
+                    out('  ' . dim('  Run: ') . 'php ikabud tenant:domain:add ' . (string)$tenantId . ' ' . $domain . ' first.');
+                    out('');
+                    exit(1);
+                }
+            }
+            $setVal = $domain !== '' ? $domain : null;
+            $stmt = $pdo->prepare('UPDATE kernel_tenants SET canonical_domain = :cd, updated_at = NOW() WHERE id = :tid');
+            $stmt->execute([':cd' => $setVal, ':tid' => $tenantId]);
+            if ($setVal !== null) {
+                out('  ' . green('✓') . ' Canonical domain set for tenant ' . cyan('#' . (string)$tenantId));
+                out('    ' . dim('canonical: ') . $domain);
+                out('    All other registered domains will 301-redirect here.');
+            } else {
+                out('  ' . green('✓') . ' Canonical domain cleared for tenant ' . cyan('#' . (string)$tenantId));
+                out('    Domain enforcement disabled — all domains serve content directly.');
+            }
             out('');
         } catch (\Throwable $e) {
             out('  ' . red('✗ Failed: ') . $e->getMessage());
