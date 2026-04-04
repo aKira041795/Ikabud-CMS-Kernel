@@ -1093,6 +1093,15 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
               </button>
             </div>
           )}
+          <div className="flex items-center justify-between">
+            <label className="text-xs text-white/70">Full Width Breakout</label>
+            <button
+              onClick={() => handlePropChange('fullWidth', !node.props.fullWidth)}
+              className={`relative w-10 h-5 rounded-full transition-colors ${node.props.fullWidth ? 'bg-[#0078d4]' : 'bg-[#3c3c3c]'}`}
+            >
+              <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform ${node.props.fullWidth ? 'translate-x-5' : 'translate-x-0'}`} />
+            </button>
+          </div>
         </CollapsibleSection>
       )}
 
@@ -1153,6 +1162,15 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
             >
               <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform ${node.props.muted ? 'translate-x-5' : 'translate-x-0'
                 }`} />
+            </button>
+          </div>
+          <div className="flex items-center justify-between">
+            <label className="text-xs text-white/70">Full Width Breakout</label>
+            <button
+              onClick={() => handlePropChange('fullWidth', !node.props.fullWidth)}
+              className={`relative w-10 h-5 rounded-full transition-colors ${node.props.fullWidth ? 'bg-[#0078d4]' : 'bg-[#3c3c3c]'}`}
+            >
+              <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform ${node.props.fullWidth ? 'translate-x-5' : 'translate-x-0'}`} />
             </button>
           </div>
         </CollapsibleSection>
@@ -3092,6 +3110,15 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
                 </label>
               </div>
             </div>
+            <div className="flex items-center justify-between">
+              <label className="text-xs text-white/70">Full Width Breakout</label>
+              <button
+                onClick={() => handlePropChange('fullWidth', !node.props.fullWidth)}
+                className={`relative w-10 h-5 rounded-full transition-colors ${node.props.fullWidth ? 'bg-[#0078d4]' : 'bg-[#3c3c3c]'}`}
+              >
+                <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform ${node.props.fullWidth ? 'translate-x-5' : 'translate-x-0'}`} />
+              </button>
+            </div>
 
           </CollapsibleSection>
         </>
@@ -3394,6 +3421,15 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
               { value: '500px', label: 'X-Large (500px)' },
             ]}
           />
+          <div className="flex items-center justify-between">
+            <label className="text-xs text-white/70">Full Width Breakout</label>
+            <button
+              onClick={() => handlePropChange('fullWidth', !node.props.fullWidth)}
+              className={`relative w-10 h-5 rounded-full transition-colors ${node.props.fullWidth ? 'bg-[#0078d4]' : 'bg-[#3c3c3c]'}`}
+            >
+              <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform ${node.props.fullWidth ? 'translate-x-5' : 'translate-x-0'}`} />
+            </button>
+          </div>
         </CollapsibleSection>
       )}
 

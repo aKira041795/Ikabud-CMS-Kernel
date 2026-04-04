@@ -4772,6 +4772,15 @@ const NodeRenderer: React.FC<NodeRendererProps> = memo(({
     // Hover animation styles
     ...getHoverAnimationStyles(),
     ...visibilityPreviewStyle,
+    // Full-width breakout: expand widget to 100vw, bleeding past its column.
+    // Mirrors cmsBuilderApplyFullWidth() in builder-renderers.php.
+    // Applied after all other width/margin props so it wins the override order.
+    ...(node.props.fullWidth === true && ['image', 'video', 'gallery', 'map'].includes(node.type) ? {
+      width: '100vw',
+      marginLeft: 'calc(-50vw + 50%)',
+      alignSelf: 'flex-start',
+      overflow: 'hidden',
+    } : {}),
   };
 
   const entranceAnimationStyles = getEntranceAnimationStyles();

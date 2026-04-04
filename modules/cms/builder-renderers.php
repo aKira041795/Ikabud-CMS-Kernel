@@ -97,6 +97,19 @@ function cmsBuilderWidgetRenderers(): array
 
 // ─── Widget Render Functions ─────────────────────────────────────────────
 
+/**
+ * Apply full-width breakout styles: expand to 100vw and bleed past the column.
+ * Mirrors the React NodeRenderer wrapperStyle full-width override.
+ */
+function cmsBuilderApplyFullWidth(array &$style): void
+{
+    unset($style['width'], $style['margin'], $style['marginLeft'], $style['marginRight']);
+    $style['width']      = '100vw';
+    $style['marginLeft'] = 'calc(-50vw + 50%)';
+    $style['alignSelf']  = 'flex-start';
+    $style['overflow']   = 'hidden';
+}
+
 function cmsRenderWidget_document(array $props, array $style, array $attrs, string $children, array $node, array $context): string
 {
     return $children;
@@ -204,6 +217,12 @@ function cmsRenderWidget_image(array $props, array $style, array $attrs, string 
         $imgStyle['height'] = '100%';
     }
 
+    // Full-width breakout: expand figure to 100vw and ensure img fills it
+    if (!empty($props['fullWidth'])) {
+        cmsBuilderApplyFullWidth($style);
+        $imgStyle['width'] = '100%';
+    }
+
     $imgStyleStr = cmsBuilderStyleAttr($imgStyle);
     $imgTag = '<img src="' . cmsBuilderEsc($src) . '" alt="' . cmsBuilderEsc($alt) . '" loading="lazy"' . $imgStyleStr . '>';
 
@@ -297,6 +316,9 @@ function cmsRenderWidget_video(array $props, array $style, array $attrs, string 
     $src = (string)($props['src'] ?? $props['url'] ?? '');
     if ($src === '') {
         return '';
+    }
+    if (!empty($props['fullWidth'])) {
+        cmsBuilderApplyFullWidth($style);
     }
     if (preg_match('/youtube\.com\/watch|youtu\.be\/|vimeo\.com\//', $src)) {
         return '<div' . cmsBuilderAttrString($attrs) . cmsBuilderStyleAttr($style) . '>' . cmsGenerateEmbedHtml($src, cmsDetectEmbedProvider($src)) . '</div>';
@@ -813,6 +835,9 @@ function cmsRenderWidget_gallery(array $props, array $style, array $attrs, strin
     $aspectRatio = (string)($props['aspectRatio'] ?? '');
     $layout = (string)($props['layout'] ?? 'grid');
     $imageSize = (string)($props['imageSize'] ?? 'cover');
+    if (!empty($props['fullWidth'])) {
+        cmsBuilderApplyFullWidth($style);
+    }
     // Masonry layout uses CSS columns instead of grid
     $isMasonry = $layout === 'masonry';
     if ($isMasonry) {
@@ -862,6 +887,9 @@ function cmsRenderWidget_map(array $props, array $style, array $attrs, string $c
     $embedUrl = (string)($props['embedUrl'] ?? '');
     $address = (string)($props['address'] ?? '');
     $mapHeight = cmsBuilderEsc((string)($style['height'] ?? $props['height'] ?? '400px'));
+    if (!empty($props['fullWidth'])) {
+        cmsBuilderApplyFullWidth($style);
+    }
     if ($embedUrl !== '') {
         return '<div' . cmsBuilderAttrString($attrs) . cmsBuilderStyleAttr($style) . '><iframe src="' . cmsBuilderEsc($embedUrl) . '" width="100%" height="' . $mapHeight . '" style="border:0;border-radius:8px" loading="lazy" allowfullscreen></iframe></div>';
     }
