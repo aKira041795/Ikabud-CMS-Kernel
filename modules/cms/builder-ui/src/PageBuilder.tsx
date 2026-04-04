@@ -58,6 +58,55 @@ interface PageData {
 const COMPONENT_DND_MIME = 'application/x-cms-component';
 
 // =============================================================================
+// Smart parent resolution helper
+// Drills through section → container → row → column to find the deepest
+// valid insertion target for a given child type.
+// Pure function — no React dependency.
+// =============================================================================
+function drillToInsertParent(
+  parentNode: DiSyLNode,
+  childType: string,
+  findNode: (id: string) => DiSyLNode | null,
+): string {
+  const isStructural = ['document', 'section', 'container', 'row', 'column'].includes(childType);
+
+  // Row: non-column content → first column
+  if (parentNode.type === 'row' && childType !== 'column') {
+    const firstColumn = parentNode.children.find((c) => c.type === 'column');
+    if (firstColumn) return firstColumn.id;
+  }
+
+  // Container: non-structural content → first row (then recurse)
+  if (parentNode.type === 'container' && !isStructural) {
+    const firstRow = parentNode.children.find((c) => c.type === 'row');
+    if (firstRow) {
+      const rowNode = findNode(firstRow.id);
+      if (rowNode) return drillToInsertParent(rowNode, childType, findNode);
+    }
+  }
+
+  // Section: non-structural content → first container (then recurse)
+  if (parentNode.type === 'section' && !isStructural) {
+    const firstContainer = parentNode.children.find((c) => c.type === 'container');
+    if (firstContainer) {
+      const containerNode = findNode(firstContainer.id);
+      if (containerNode) return drillToInsertParent(containerNode, childType, findNode);
+    }
+  }
+
+  // Document: non-section content → last/first section (then recurse)
+  if (parentNode.type === 'document' && childType !== 'section') {
+    const lastSection = [...parentNode.children].reverse().find((c) => c.type === 'section');
+    if (lastSection) {
+      const sectionNode = findNode(lastSection.id);
+      if (sectionNode) return drillToInsertParent(sectionNode, childType, findNode);
+    }
+  }
+
+  return parentNode.id;
+}
+
+// =============================================================================
 // Page Builder Component
 // =============================================================================
 
@@ -549,24 +598,7 @@ export default function PageBuilder() {
     if (!requestedParent) {
       return requestedParentId;
     }
-
-    const isStructuralChild = ['document', 'section', 'container', 'row', 'column'].includes(childType);
-
-    if (requestedParent.type === 'row' && childType !== 'column') {
-      const firstColumn = requestedParent.children.find((child) => child.type === 'column');
-      if (firstColumn) {
-        return firstColumn.id;
-      }
-    }
-
-    if (requestedParent.type === 'section' && !isStructuralChild) {
-      const firstContainer = requestedParent.children.find((child) => child.type === 'container');
-      if (firstContainer) {
-        return firstContainer.id;
-      }
-    }
-
-    return requestedParentId;
+    return drillToInsertParent(requestedParent, childType, builder.findNode);
   }, [builder]);
 
   const handleAddComponent = useCallback((node: DiSyLNode) => {
@@ -577,6 +609,36 @@ export default function PageBuilder() {
     const index = parent?.children.length || 0;
     builder.insertNode(node, parentId, index);
   }, [builder, resolvePreferredInsertParent]);
+
+  // Smart canvas move: applies parent resolution when dropping "inside" a container,
+  // so content widgets always land in the deepest valid target (e.g. column, not section root).
+  const handleSmartMoveNode = useCallback((nodeId: string, targetParentId: string, targetIndex: number) => {
+    const draggedNode = builder.findNode(nodeId);
+    if (!draggedNode) {
+      builder.moveNode(nodeId, targetParentId, targetIndex);
+      return;
+    }
+    const resolvedParentId = resolvePreferredInsertParent(targetParentId, draggedNode.type);
+    if (resolvedParentId !== targetParentId) {
+      const resolvedParent = builder.findNode(resolvedParentId);
+      builder.moveNode(nodeId, resolvedParentId, resolvedParent?.children.length ?? 0);
+    } else {
+      builder.moveNode(nodeId, targetParentId, targetIndex);
+    }
+  }, [builder, resolvePreferredInsertParent]);
+
+  // Add a new equal-width column to an existing row node.
+  const handleAddColumnToRow = useCallback((rowId: string) => {
+    const row = builder.findNode(rowId);
+    if (!row) return;
+    const newColumn = createNode('column', {}, {
+      flex: '1 1 0%',
+      padding: '16px',
+      minHeight: '100px',
+      boxSizing: 'border-box',
+    }, []);
+    builder.insertNode(newColumn, rowId, row.children.length);
+  }, [builder]);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -1222,8 +1284,9 @@ export default function PageBuilder() {
                     onHover={builder.hoverNode}
                     onContentChange={(nodeId, content) => builder.updateProps(nodeId, { content })}
                     onPropsChange={(nodeId, props) => builder.updateProps(nodeId, props)}
-                    onMoveNode={builder.moveNode}
+                    onMoveNode={handleSmartMoveNode}
                     onStyleChange={builder.updateStyle}
+                    onAddColumnToRow={handleAddColumnToRow}
                     selectedIds={builder.selectedIds}
                   />
 

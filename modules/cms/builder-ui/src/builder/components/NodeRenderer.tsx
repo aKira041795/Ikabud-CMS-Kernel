@@ -222,9 +222,11 @@ interface NodeRendererProps {
   onPropsChange?: (nodeId: string, props: Record<string, unknown>) => void; // For updating any props (e.g., image src)
   onMoveNode?: (nodeId: string, newParentId: string, newIndex: number) => void;
   onStyleChange?: (nodeId: string, style: Partial<NodeStyle>) => void;
+  onAddColumnToRow?: (rowId: string) => void; // Quick-add column to a row from its label bar
   selectedIds?: string[];
   parentId?: string;
   indexInParent?: number;
+  parentType?: string; // Parent node type — used to show context in label bar
 }
 
 const INTERNAL_NODE_DND_MIME = 'application/x-cms-node-id';
@@ -238,48 +240,88 @@ interface ElementLabelBarProps {
   nodeName?: string;
   isSelected: boolean;
   isHovered: boolean;
+  parentType?: string; // Shows breadcrumb hint e.g. "Section > Container > Row"
+  onAddColumn?: () => void; // Row-specific: quick-add column button
 }
 
-const ElementLabelBar: React.FC<ElementLabelBarProps> = memo(({ nodeType, nodeName, isSelected, isHovered }) => {
+const ElementLabelBar: React.FC<ElementLabelBarProps> = memo(({ nodeType, nodeName, isSelected, isHovered, parentType, onAddColumn }) => {
   if (!isSelected && !isHovered) return null;
 
   // Format type name for display
   const displayName = nodeName || nodeType.charAt(0).toUpperCase() + nodeType.slice(1).replace(/_/g, ' ');
+  const parentLabel = parentType ? parentType.charAt(0).toUpperCase() + parentType.slice(1) : null;
 
   return (
     <div
-      data-drag-handle
       style={{
         position: 'absolute',
-        top: '-24px',
+        top: '-26px',
         left: '0',
         display: 'flex',
         alignItems: 'center',
-        gap: '4px',
-        padding: '2px 8px',
-        backgroundColor: isSelected ? '#0078d4' : '#6b7280',
-        color: 'white',
-        fontSize: '11px',
-        fontWeight: 500,
-        borderRadius: '4px 4px 0 0',
-        whiteSpace: 'nowrap',
+        gap: '0',
         zIndex: 1000,
         pointerEvents: 'auto',
         userSelect: 'none',
-        cursor: 'grab',
       }}
-      title="Drag to reorder"
     >
-      {/* Drag handle icon */}
-      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-        <circle cx="9" cy="5" r="1" fill="currentColor" />
-        <circle cx="9" cy="12" r="1" fill="currentColor" />
-        <circle cx="9" cy="19" r="1" fill="currentColor" />
-        <circle cx="15" cy="5" r="1" fill="currentColor" />
-        <circle cx="15" cy="12" r="1" fill="currentColor" />
-        <circle cx="15" cy="19" r="1" fill="currentColor" />
-      </svg>
-      {displayName}
+      {/* Main label + drag handle */}
+      <div
+        data-drag-handle
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '4px',
+          padding: '2px 8px',
+          backgroundColor: isSelected ? '#0078d4' : '#6b7280',
+          color: 'white',
+          fontSize: '11px',
+          fontWeight: 500,
+          borderRadius: '4px 4px 0 0',
+          whiteSpace: 'nowrap',
+          cursor: 'grab',
+        }}
+        title={parentLabel ? `Inside: ${parentLabel}` : 'Drag to reorder'}
+      >
+        {/* Drag handle icon */}
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <circle cx="9" cy="5" r="1" fill="currentColor" />
+          <circle cx="9" cy="12" r="1" fill="currentColor" />
+          <circle cx="9" cy="19" r="1" fill="currentColor" />
+          <circle cx="15" cy="5" r="1" fill="currentColor" />
+          <circle cx="15" cy="12" r="1" fill="currentColor" />
+          <circle cx="15" cy="19" r="1" fill="currentColor" />
+        </svg>
+        {/* Parent breadcrumb context (e.g. "Row >") */}
+        {parentLabel && isSelected && (
+          <span style={{ opacity: 0.65, fontWeight: 400, fontSize: '10px' }}>{parentLabel} &rsaquo;</span>
+        )}
+        {displayName}
+      </div>
+      {/* Row-specific: Add Column quick action */}
+      {nodeType === 'row' && isSelected && onAddColumn && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onAddColumn(); }}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '2px',
+            padding: '2px 7px',
+            backgroundColor: '#16a34a',
+            color: 'white',
+            fontSize: '11px',
+            fontWeight: 500,
+            borderRadius: '0 4px 0 0',
+            whiteSpace: 'nowrap',
+            cursor: 'pointer',
+            border: 'none',
+            marginLeft: '1px',
+          }}
+          title="Add Column"
+        >
+          + Col
+        </button>
+      )}
     </div>
   );
 });
@@ -3860,9 +3902,11 @@ const NodeRenderer: React.FC<NodeRendererProps> = memo(({
   onPropsChange,
   onMoveNode,
   onStyleChange,
+  onAddColumnToRow,
   selectedIds = [],
   parentId,
   indexInParent = 0,
+  parentType,
 }) => {
   const nodeRef = useRef<HTMLDivElement>(null);
   const style = nodeStyleToCSS(node.style, viewport, node.type);
@@ -4260,9 +4304,11 @@ const NodeRenderer: React.FC<NodeRendererProps> = memo(({
         onPropsChange={onPropsChange}
         onMoveNode={onMoveNode}
         onStyleChange={onStyleChange}
+        onAddColumnToRow={onAddColumnToRow}
         selectedIds={selectedIds}
         parentId={node.id}
         indexInParent={index}
+        parentType={node.type}
       />
     ));
   };
@@ -4447,6 +4493,8 @@ const NodeRenderer: React.FC<NodeRendererProps> = memo(({
           nodeName={node.meta?.name}
           isSelected={isSelected}
           isHovered={isHovered}
+          parentType={parentType}
+          onAddColumn={node.type === 'row' && onAddColumnToRow ? () => onAddColumnToRow(node.id) : undefined}
         />
       )}
       {dropIndicatorStyle && (
