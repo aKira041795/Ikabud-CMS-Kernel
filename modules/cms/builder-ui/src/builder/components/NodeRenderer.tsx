@@ -724,6 +724,12 @@ const ContainerRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties; child
 
     const wrapperDefaults: CSSProperties = isWrapperContainer && !isLayoutItem && !isExplicitLayout && !hasExplicitConstraint
       ? {
+        // width: 100% mirrors the public CSS rule
+        //   `.cms-builder-node--section > .cms-builder-node--container { width: 100% }`
+        // Without it, the NodeRenderer wrapper in a flex-column section with
+        // align-items:center shrinks the container to content-width, breaking
+        // the preset flex-ratio percentages on its children.
+        width: '100%',
         maxWidth: 'var(--cms-builder-container-max-width, 1200px)',
         margin: '0 auto',
         padding: (style.padding as CSSProperties['padding']) ?? '0 24px',
@@ -4731,15 +4737,27 @@ const NodeRenderer: React.FC<NodeRendererProps> = memo(({
     // Width: pass through from style for non-button nodes (buttons use fit-content).
     // Naturally full-width widgets default to 100% so they don't shrink inside
     // flex parents with alignItems:'center' (e.g. section columns).
+    //
+    // `container` (page-width wrapper) must always fill the section's horizontal
+    // space so that the nested layout_container and its flex-based preset ratios
+    // resolve against the correct 100% / maxWidth baseline — exactly what the
+    // public CSS class `.cms-builder-node--section > .cms-builder-node--container
+    // { width: 100% }` provides on the frontend.
+    //
+    // `layout_container` that is NOT a flex/grid ratio item (usesFlexSizing
+    // false) also defaults to 100% width; flex-ratio items let flex-basis drive
+    // their size instead.
     width: node.type === 'button'
       ? 'fit-content'
-      : (style.width || (
-        ['slideshow', 'gallery', 'tabs', 'accordion', 'form', 'progress', 'alert', 'video', 'table', 'divider',
-          'heading', 'toggle', 'posts_grid', 'products_grid', 'team_grid', 'entity_view', 'entity_list', 'logo_grid', 'call_to_action',
-          'countdown', 'search_box', 'stat_card', 'contact_card'].includes(node.type)
-          ? '100%'
-          : undefined
-      )),
+      : node.type === 'layout_container' && !usesFlexSizing
+        ? (style.width || '100%')
+        : (style.width || (
+          ['container', 'slideshow', 'gallery', 'tabs', 'accordion', 'form', 'progress', 'alert', 'video', 'table', 'divider',
+            'heading', 'toggle', 'posts_grid', 'products_grid', 'team_grid', 'entity_view', 'entity_list', 'logo_grid', 'call_to_action',
+            'countdown', 'search_box', 'stat_card', 'contact_card'].includes(node.type)
+            ? '100%'
+            : undefined
+        )),
     // Pass through text alignment to wrapper for block elements
     textAlign: style.textAlign,
     // Pass through vertical alignment (alignSelf) for flex children
