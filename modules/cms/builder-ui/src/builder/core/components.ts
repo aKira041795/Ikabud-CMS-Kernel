@@ -112,7 +112,6 @@ export const CMS_COMPONENTS: ComponentDefinition[] = [
       display: 'flex',
       flexDirection: 'row',
       gap: '24px',
-      flexWrap: 'wrap',
       justifyContent: 'center',
       alignItems: 'stretch',
     },

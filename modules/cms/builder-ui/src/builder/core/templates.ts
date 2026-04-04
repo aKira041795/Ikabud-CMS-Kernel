@@ -390,7 +390,7 @@ const featuresThreeColumn: SectionTemplate = {
           }),
         ]),
       ]),
-      createNode('row', {}, { display: 'flex', gap: '32px', flexWrap: 'wrap' }, [
+      createNode('row', {}, { display: 'flex', gap: '32px' }, [
         createNode('column', {}, { flex: '1', minWidth: '280px', padding: '32px', backgroundColor: '#f8fafc', display: 'flex', flexDirection: 'column', gap: '16px' }, [
           createNode('heading', { content: 'Easy to Use', level: 3 }, { fontSize: '20px', fontWeight: '600', color: '#0f172a' }),
           createNode('text', { content: 'Intuitive drag-and-drop interface that anyone can master in minutes.' }, { fontSize: '16px', color: '#64748b', lineHeight: '1.6' }),
@@ -595,7 +595,7 @@ const testimonialCards: SectionTemplate = {
         textAlign: 'center',
         color: '#0f172a',
       }),
-      createNode('row', {}, { display: 'flex', gap: '24px', flexWrap: 'wrap' }, [
+      createNode('row', {}, { display: 'flex', gap: '24px' }, [
         createNode('column', {}, { flex: '1', minWidth: '300px', padding: '32px', backgroundColor: '#ffffff', display: 'flex', flexDirection: 'column', gap: '16px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }, [
           createNode('text', { content: '"This tool has completely transformed how we build websites. Incredible time savings!"' }, { fontSize: '16px', color: '#475569', lineHeight: '1.6', fontStyle: 'italic' }),
           createNode('text', { content: '— Sarah Johnson, CEO' }, { fontSize: '14px', color: '#94a3b8', fontWeight: '500' }),
@@ -647,7 +647,7 @@ const pricingThreeColumn: SectionTemplate = {
           }),
         ]),
       ]),
-      createNode('row', {}, { display: 'flex', gap: '24px', alignItems: 'stretch', flexWrap: 'wrap' }, [
+      createNode('row', {}, { display: 'flex', gap: '24px', alignItems: 'stretch' }, [
         // Starter
         createNode('column', {}, { flex: '1', minWidth: '280px', padding: '32px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: '24px' }, [
           createNode('heading', { content: 'Starter', level: 3 }, { fontSize: '20px', fontWeight: '600', color: '#0f172a' }),

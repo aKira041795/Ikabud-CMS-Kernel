@@ -421,7 +421,7 @@ export function createCustomContainer(settings: {
   if (layoutMode === 'flex') {
     style.display = 'flex';
     style.flexDirection = direction;
-    style.flexWrap = 'wrap';
+    style.flexWrap = 'nowrap';
     if (alignItems) style.alignItems = alignItems;
     if (justifyContent) style.justifyContent = justifyContent;
   } else {
