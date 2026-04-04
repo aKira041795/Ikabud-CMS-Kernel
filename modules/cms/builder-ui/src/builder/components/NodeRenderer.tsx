@@ -4723,7 +4723,14 @@ const NodeRenderer: React.FC<NodeRendererProps> = memo(({
     // behaves correctly as a flex/grid item inside a parent flex/grid container.
     // Without these, flex sizing (e.g. 33/67 preset) is lost because the
     // inner renderer div is NOT the direct child of the parent flex container.
-    flex: style.flex,
+    //
+    // For column nodes with no explicit flex or width, default to flex:1 so
+    // they evenly share row space — mirrors the PHP renderer which injects
+    // flex:1 for the same case via the $hasExplicitSize check.
+    // Without this, columns inside a flex-wrap:wrap Row that contain full-width
+    // widgets (posts_grid, recent_posts, etc.) each stretch to 100% and stack
+    // vertically instead of sitting side-by-side.
+    flex: (node.type === 'column' && !style.flex && !style.width) ? '1' : style.flex,
     flexGrow: style.flexGrow,
     flexShrink: style.flexShrink,
     flexBasis: style.flexBasis,
