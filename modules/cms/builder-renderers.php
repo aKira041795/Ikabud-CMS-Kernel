@@ -970,7 +970,7 @@ function cmsRenderWidget_posts_grid(array $props, array $style, array $attrs, st
     $orderBy = match ((string)($props['orderBy'] ?? 'date')) {
         'title' => 'c.title',
         'random' => 'RAND()',
-        default => 'COALESCE(c.published_at, c.created_at)',
+        default => 'sort_date',
     };
     $order = strtolower((string)($props['order'] ?? 'desc')) === 'asc' ? 'ASC' : 'DESC';
     $readMoreText = trim((string)($props['readMoreText'] ?? 'Read More')) ?: 'Read More';
@@ -982,10 +982,7 @@ function cmsRenderWidget_posts_grid(array $props, array $style, array $attrs, st
     try {
         $db = cmsDb();
         $params = [':type' => $postType];
-        $sql = "SELECT DISTINCT c.id, c.title, c.slug, c.excerpt, c.published_at, c.created_at, u.display_name as author_name, m.file_path AS featured_image FROM cms_content c LEFT JOIN cms_users u ON u.id = c.author_id LEFT JOIN cms_media m ON m.id = c.featured_image_id ";
-        if ($categoryIds !== []) {
-            $sql .= 'INNER JOIN cms_content_categories cc ON cc.content_id = c.id ';
-        }
+        $sql = "SELECT c.id, c.title, c.slug, c.excerpt, c.published_at, COALESCE(c.published_at, c.created_at) AS sort_date, u.display_name as author_name, m.file_path AS featured_image FROM cms_content c LEFT JOIN cms_users u ON u.id = c.author_id LEFT JOIN cms_media m ON m.id = c.featured_image_id ";
         $sql .= "WHERE c.deleted_at IS NULL AND c.type = :type AND " . cmsPublicVisibilitySql('c') . ' ';
         if ($categoryIds !== []) {
             $placeholders = [];
@@ -994,7 +991,7 @@ function cmsRenderWidget_posts_grid(array $props, array $style, array $attrs, st
                 $placeholders[] = $placeholder;
                 $params[$placeholder] = $categoryId;
             }
-            $sql .= 'AND cc.category_id IN (' . implode(', ', $placeholders) . ') ';
+            $sql .= 'AND EXISTS (SELECT 1 FROM cms_content_categories cc WHERE cc.content_id = c.id AND cc.category_id IN (' . implode(', ', $placeholders) . ')) ';
         }
         $sql .= 'ORDER BY ' . $orderBy;
         if ($orderBy !== 'RAND()') {
