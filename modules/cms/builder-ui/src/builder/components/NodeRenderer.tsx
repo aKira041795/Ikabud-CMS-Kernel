@@ -1790,7 +1790,18 @@ const SlideshowRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties }> =
 
     return (
       <div
-        style={{ position: 'relative', width: fullWidth ? '100vw' : '100%', marginLeft: fullWidth ? 'calc(-50vw + 50%)' : '0', overflow: 'hidden', backgroundColor: '#000', ...style }}
+        style={{
+          position: 'relative',
+          overflow: 'hidden',
+          backgroundColor: '#000',
+          ...style,
+          // fullWidth overrides MUST come after ...style spread so the `margin`
+          // shorthand in defaultStyle ('0 auto') cannot clobber marginLeft.
+          width: fullWidth ? '100vw' : (style.width || '100%'),
+          marginLeft: fullWidth ? 'calc(-50vw + 50%)' : (style.marginLeft ?? '0'),
+          marginRight: fullWidth ? undefined : style.marginRight,
+          alignSelf: fullWidth ? 'flex-start' : style.alignSelf,
+        }}
         onMouseEnter={() => { if (pauseOnHover) setIsPaused(true); }}
         onMouseLeave={() => { if (pauseOnHover) setIsPaused(false); }}
       >
