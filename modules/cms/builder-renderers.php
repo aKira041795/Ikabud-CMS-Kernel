@@ -1005,6 +1005,7 @@ function cmsRenderWidget_posts_grid(array $props, array $style, array $attrs, st
         $stmt->execute($params);
         $posts = $stmt->fetchAll(\PDO::FETCH_ASSOC) ?: [];
     } catch (\Throwable $e) {
+        write_log('cms.builder.posts_grid.query_error', ['message' => $e->getMessage(), 'type' => $postType], 'error');
         $posts = [];
     }
     if (empty($posts)) {
@@ -1544,6 +1545,7 @@ function cmsRenderWidget_entity_list(array $props, array $style, array $attrs, s
         $stmt->execute([':type' => $entityType]);
         $items = $stmt->fetchAll(\PDO::FETCH_ASSOC) ?: [];
     } catch (\Throwable $e) {
+        write_log('cms.builder.entity_list.query_error', ['message' => $e->getMessage(), 'type' => $entityType], 'error');
         $items = [];
     }
 
@@ -1982,8 +1984,8 @@ function cmsRenderWidget_recent_posts(array $props, array $style, array $attrs, 
             }
             $catWhere = ' AND cc.category_id IN (' . implode(',', $placeholders) . ')';
         }
-        $thumbJoin = $showThumbnail ? ' LEFT JOIN cms_media m ON m.id = c.featured_image_id AND m.deleted_at IS NULL' : '';
-        $thumbSel  = $showThumbnail ? ', m.file_key AS featured_image_key' : '';
+        $thumbJoin = $showThumbnail ? ' LEFT JOIN cms_media m ON m.id = c.featured_image_id' : '';
+        $thumbSel  = $showThumbnail ? ', m.file_path AS featured_image_key' : ''
         $stmt = cmsDb()->prepare(
             "SELECT c.title, c.slug, c.excerpt, COALESCE(c.published_at, c.created_at) AS published_at"
             . $thumbSel
@@ -1999,6 +2001,7 @@ function cmsRenderWidget_recent_posts(array $props, array $style, array $attrs, 
         $stmt->execute();
         $posts = $stmt->fetchAll(\PDO::FETCH_ASSOC) ?: [];
     } catch (\Throwable $e) {
+        write_log('cms.builder.recent_posts.query_error', ['message' => $e->getMessage()], 'error');
         $posts = [];
     }
 
@@ -2015,7 +2018,7 @@ function cmsRenderWidget_recent_posts(array $props, array $style, array $attrs, 
         $postTitle = cmsBuilderEsc((string)($post['title'] ?? 'Untitled'));
         $body .= '<article style="display:grid;gap:6px">';
         if ($showThumbnail && !empty($post['featured_image_key'])) {
-            $imgUrl = function_exists('cmsUploadsUrl') ? cmsBuilderEsc(cmsUploadsUrl((string)$post['featured_image_key'])) : '';
+            $imgUrl = function_exists('cmsResolveUploadUrl') ? cmsBuilderEsc(cmsResolveUploadUrl((string)$post['featured_image_key'])) : '';
             if ($imgUrl !== '') {
                 $body .= '<a href="' . cmsBuilderEsc($href) . '"><img src="' . $imgUrl . '" alt="' . $postTitle . '" loading="lazy" style="width:100%;height:160px;object-fit:cover;border-radius:4px;display:block"></a>';
             }

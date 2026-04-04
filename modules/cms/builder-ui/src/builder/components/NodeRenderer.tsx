@@ -2460,7 +2460,7 @@ const PostsGridRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties; viewp
             setLivePosts(data.data);
           }
         })
-        .catch(() => {});
+        .catch(() => { });
       return () => { cancelled = true; };
     }, [postCount]);
 
@@ -2478,15 +2478,15 @@ const PostsGridRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties; viewp
 
     const displayPosts = livePosts
       ? livePosts.slice(0, postCount).map((p, i) => ({
-          id: p.id,
-          title: p.title || `Post ${i + 1}`,
-          excerpt: p.excerpt || '',
-          date: p.published_at
-            ? new Date(p.published_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
-            : '',
-          author: p.author_name || '',
-          image: p.featured_image_url || placeholderSvg(400, 250, '#cbd5e1', `Post ${i + 1}`),
-        }))
+        id: p.id,
+        title: p.title || `Post ${i + 1}`,
+        excerpt: p.excerpt || '',
+        date: p.published_at
+          ? new Date(p.published_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+          : '',
+        author: p.author_name || '',
+        image: p.featured_image_url || placeholderSvg(400, 250, '#cbd5e1', `Post ${i + 1}`),
+      }))
       : placeholderPosts;
 
     const gridStyle: CSSProperties = {
@@ -2610,96 +2610,113 @@ const ProductsGridRenderer: React.FC<{ node: DiSyLNode; style: React.CSSProperti
     showAction?: boolean;
   };
   const gridCols = viewport === 'mobile' ? 1 : viewport === 'tablet' ? Math.min(2, gridColumns) : gridColumns;
+  const limit = Math.min(Math.max(1, itemCount), 6);
+
+  // Live data fetch from ecommerce products API
+  const [liveProducts, setLiveProducts] = useState<Array<{
+    id: number; title: string; slug?: string; excerpt?: string;
+    featured_image_url?: string;
+    pricing?: { formatted?: string; active_price?: number; currency?: string };
+    inventory?: { out_of_stock?: boolean; low_stock?: boolean };
+  }> | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`/api/v1/ecommerce/products?limit=${limit}&status=published`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (!cancelled && data?.ok && Array.isArray(data.items) && data.items.length > 0) {
+          setLiveProducts(data.items);
+        }
+      })
+      .catch(() => { });
+    return () => { cancelled = true; };
+  }, [limit]);
+
+  const displayProducts = liveProducts
+    ? liveProducts.slice(0, limit)
+    : Array.from({ length: limit }, (_, i) => ({ id: i + 1, title: '' as string, slug: undefined as string | undefined, excerpt: undefined as string | undefined, featured_image_url: undefined as string | undefined, pricing: undefined as { formatted?: string; active_price?: number } | undefined }));
+  const isLive = liveProducts !== null;
 
   return (
-    <div style={previewShellStyle(style)} className="pb-products-grid-preview">
+    <div style={{ ...previewShellStyle(style), position: 'relative' }} className="pb-products-grid-preview">
       <div style={{
-        width: '100%',
-        boxSizing: 'border-box',
-        padding: '14px',
-        backgroundColor: '#f8fafc',
-        borderRadius: '12px',
-        border: '2px dashed #cbd5e1'
+        position: 'absolute', top: '-24px', left: 0,
+        fontSize: '10px', color: '#9ca3af', backgroundColor: '#f0fdf4',
+        padding: '2px 8px', borderRadius: '4px', border: '1px dashed #86efac',
       }}>
-        <div style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          gap: '10px',
-          flexWrap: 'wrap',
-          marginBottom: '14px',
-          fontSize: '11px',
-          color: '#64748b'
-        }}>
-          <span>Products Grid</span>
-          <span>{itemCount} products</span>
-          <span>{categoryIds.length > 0 ? `${categoryIds.length} categories` : 'All categories'}</span>
-        </div>
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: `repeat(${gridCols}, minmax(0, 1fr))`,
-          gap: '16px',
-          width: '100%'
-        }}>
-          {Array.from({ length: Math.min(itemCount, 6) }).map((_, index) => (
-            <div key={index} style={{
-              backgroundColor: '#ffffff',
-              border: '1px solid #dee2e6',
-              borderRadius: '6px',
-              padding: '12px',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '8px'
-            }}>
-              {showImage && (
+        Products Grid{isLive ? ' • live' : ' • placeholder'}
+      </div>
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: `repeat(${gridCols}, minmax(0, 1fr))`,
+        gap: '16px',
+        width: '100%',
+      }}>
+        {displayProducts.map((product, index) => (
+          <div key={product.id} style={{
+            backgroundColor: '#ffffff',
+            border: '1px solid #e2e8f0',
+            borderRadius: '12px',
+            overflow: 'hidden',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '0',
+          }}>
+            {showImage && (
+              isLive && product.featured_image_url ? (
+                <img
+                  src={product.featured_image_url}
+                  alt={product.title}
+                  style={{ display: 'block', width: '100%', height: '160px', objectFit: 'cover' }}
+                />
+              ) : (
                 <div style={{
-                  height: '120px',
-                  backgroundColor: '#e9ecef',
-                  borderRadius: '4px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: '#6c757d',
-                  fontSize: '12px'
-                }}>
-                  Product Image
-                </div>
-              )}
-              {showTitle && (
-                <div style={{
-                  height: '8px',
-                  backgroundColor: '#dee2e6',
-                  borderRadius: '4px',
-                  width: '80%'
+                  height: '160px',
+                  backgroundImage: `url(${placeholderSvg(320, 160, index % 2 === 0 ? '#bfdbfe' : '#fde68a', 'Product')})`,
+                  backgroundSize: 'cover',
                 }} />
+              )
+            )}
+            <div style={{ padding: '12px', display: 'flex', flexDirection: 'column', gap: '6px', flex: 1 }}>
+              {showTitle && (
+                isLive ? (
+                  <span style={{ fontSize: '14px', fontWeight: 600, color: '#0f172a', lineHeight: 1.4 }}>{product.title}</span>
+                ) : (
+                  <div style={{ height: '8px', backgroundColor: '#e2e8f0', borderRadius: '4px', width: '80%' }} />
+                )
               )}
               {showExcerpt && (
-                <div style={{
-                  height: '6px',
-                  backgroundColor: '#e9ecef',
-                  borderRadius: '4px',
-                  width: '60%'
-                }} />
+                isLive && product.excerpt ? (
+                  <span style={{ fontSize: '12px', color: '#64748b', lineHeight: 1.5 }}>
+                    {product.excerpt.substring(0, 80)}{product.excerpt.length > 80 ? '…' : ''}
+                  </span>
+                ) : (
+                  <div style={{ height: '6px', backgroundColor: '#f1f5f9', borderRadius: '4px', width: '60%' }} />
+                )
               )}
               {showMeta && (
-                <div style={{
-                  height: '6px',
-                  backgroundColor: '#0f766e',
-                  borderRadius: '4px',
-                  width: '45%'
-                }} />
+                isLive ? (
+                  <span style={{ fontSize: '13px', fontWeight: 700, color: '#0f766e' }}>
+                    {product.pricing?.formatted || (product.pricing?.active_price != null ? `$${Number(product.pricing.active_price).toFixed(2)}` : '')}
+                  </span>
+                ) : (
+                  <div style={{ height: '6px', backgroundColor: '#ccfbf1', borderRadius: '4px', width: '45%' }} />
+                )
               )}
               {showAction && (
-                <div style={{
-                  marginTop: 'auto',
-                  height: '28px',
-                  backgroundColor: '#0f172a',
-                  borderRadius: '6px',
-                  width: '100%'
-                }} />
+                <div style={{ marginTop: 'auto', paddingTop: '8px' }}>
+                  <div style={{
+                    height: '28px', backgroundColor: '#0f172a', borderRadius: '6px',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}>
+                    {isLive && <span style={{ fontSize: '11px', color: '#fff', fontWeight: 600 }}>View Product</span>}
+                  </div>
+                </div>
               )}
             </div>
-          ))}
-        </div>
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -2966,7 +2983,7 @@ const EntityListRenderer: React.FC<{ node: DiSyLNode; style: React.CSSProperties
           setLiveItems(data.data);
         }
       })
-      .catch(() => {});
+      .catch(() => { });
     return () => { cancelled = true; };
   }, [entityType, itemCount]);
 
@@ -2990,14 +3007,14 @@ const EntityListRenderer: React.FC<{ node: DiSyLNode; style: React.CSSProperties
 
   const displayItems = liveItems
     ? liveItems.slice(0, Math.min(itemCount, 6)).map((item, index) => ({
-        id: item.id,
-        title: item.title || `${entityType} ${index + 1}`,
-        excerpt: item.excerpt || '',
-        price: `$${(29 + index * 5).toFixed(2)}`,
-        stock: index % 3 === 0 ? 'Low stock' : index % 2 === 0 ? 'In stock' : 'Out of stock',
-        progress: 24 + index * 11,
-        image: item.featured_image_url || placeholderSvg(720, 405, index % 2 === 0 ? '#93c5fd' : '#fcd34d', `${entityType} ${index + 1}`),
-      }))
+      id: item.id,
+      title: item.title || `${entityType} ${index + 1}`,
+      excerpt: item.excerpt || '',
+      price: `$${(29 + index * 5).toFixed(2)}`,
+      stock: index % 3 === 0 ? 'Low stock' : index % 2 === 0 ? 'In stock' : 'Out of stock',
+      progress: 24 + index * 11,
+      image: item.featured_image_url || placeholderSvg(720, 405, index % 2 === 0 ? '#93c5fd' : '#fcd34d', `${entityType} ${index + 1}`),
+    }))
     : placeholderItems;
 
   const actionLabel = entityType === 'course'
@@ -3399,24 +3416,54 @@ const NavMenuRenderer: React.FC<{ node: DiSyLNode; style: React.CSSProperties }>
 
 const RecentPostsRenderer: React.FC<{ node: DiSyLNode; style: React.CSSProperties }> = memo(({ node, style }) => {
   const { title = 'Latest Posts', count = 5, showDate = true } = node.props as any;
-  const postTitles = [
+  const limit = Math.max(1, Math.min(Number(count) || 5, 10));
+
+  // Live data fetch from public posts API
+  const [livePosts, setLivePosts] = useState<Array<{
+    id: number; title: string; slug?: string; published_at?: string; created_at?: string;
+  }> | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`/api/v1/cms/public/content/post?per_page=${limit}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (!cancelled && data?.ok && Array.isArray(data.data) && data.data.length > 0) {
+          setLivePosts(data.data);
+        }
+      })
+      .catch(() => { });
+    return () => { cancelled = true; };
+  }, [limit]);
+
+  const placeholderTitles = [
     'Designing a cleaner homepage layout',
     'What changed in the latest release',
     'Five ways to improve your content flow',
     'How we structure a conversion-focused footer',
     'Editorial checklist for launch week',
-  ].slice(0, Math.max(1, Math.min(Number(count) || 5, 5)));
+  ].slice(0, limit);
+
+  const placeholderDates = ['Mar 28, 2026', 'Mar 24, 2026', 'Mar 18, 2026', 'Mar 10, 2026', 'Mar 02, 2026'];
+
+  const displayPosts = livePosts
+    ? livePosts.slice(0, limit).map(p => ({
+      id: p.id,
+      title: p.title,
+      date: p.published_at
+        ? new Date(p.published_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+        : '',
+    }))
+    : placeholderTitles.map((t, i) => ({ id: i + 1, title: t, date: placeholderDates[i] }));
 
   return (
     <ThemeWidgetFrame title={title} style={style}>
       <div style={{ display: 'grid', gap: '12px' }}>
-        {postTitles.map((post, index) => (
-          <div key={post} style={{ display: 'grid', gap: '4px' }}>
-            <span style={{ fontSize: '14px', fontWeight: 600, color: '#0f172a' }}>{post}</span>
-            {showDate && (
-              <span style={{ fontSize: '12px', color: '#94a3b8' }}>
-                {['Mar 28, 2026', 'Mar 24, 2026', 'Mar 18, 2026', 'Mar 10, 2026', 'Mar 02, 2026'][index]}
-              </span>
+        {displayPosts.map((post) => (
+          <div key={post.id} style={{ display: 'grid', gap: '4px' }}>
+            <span style={{ fontSize: '14px', fontWeight: 600, color: '#0f172a' }}>{post.title}</span>
+            {showDate && post.date && (
+              <span style={{ fontSize: '12px', color: '#94a3b8' }}>{post.date}</span>
             )}
           </div>
         ))}
