@@ -2,11 +2,11 @@
  * CMS Builder — Public Frontend Scripts
  * Handles interactive widgets: slideshows, tabs, counters, flip boxes.
  */
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', function () {
   'use strict';
 
   // ─── Slideshow ─────────────────────────────────────────────────────────
-  document.querySelectorAll('.cms-builder-node--slideshow').forEach(function(s) {
+  document.querySelectorAll('.cms-builder-node--slideshow').forEach(function (s) {
     var slides = [].slice.call(s.querySelectorAll('.cms-builder-slide'));
     if (slides.length < 2 || s.dataset.initialized) return;
     s.dataset.initialized = '1';
@@ -32,7 +32,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (track) track.style.transform = 'translateX(-' + (idx * 100) + '%)';
       } else {
         // Stacked opacity transitions (fade, zoom, kenburns, flip)
-        slides.forEach(function(slide, i) {
+        slides.forEach(function (slide, i) {
           var isActive = i === idx;
           slide.style.opacity = isActive ? '1' : '0';
           slide.style.zIndex = isActive ? '1' : '0';
@@ -62,7 +62,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (animation === 'kenburns') kbIdx++;
       }
       // Sync dot active state
-      dots.forEach(function(dot, i) {
+      dots.forEach(function (dot, i) {
         dot.style.opacity = i === idx ? '1' : '0.5';
       });
     }
@@ -74,7 +74,7 @@ document.addEventListener('DOMContentLoaded', function() {
     var autoTimer = null;
     function startAutoTimer() {
       if (!autoplay) return;
-      autoTimer = setInterval(function() {
+      autoTimer = setInterval(function () {
         current = (current + 1) % slides.length;
         showSlide(current);
       }, interval);
@@ -89,7 +89,7 @@ document.addEventListener('DOMContentLoaded', function() {
     var prevBtn = s.querySelector('.cms-builder-slide-prev');
     var nextBtn = s.querySelector('.cms-builder-slide-next');
     if (prevBtn) {
-      prevBtn.addEventListener('click', function(e) {
+      prevBtn.addEventListener('click', function (e) {
         e.preventDefault();
         current = (current - 1 + slides.length) % slides.length;
         showSlide(current);
@@ -97,7 +97,7 @@ document.addEventListener('DOMContentLoaded', function() {
       });
     }
     if (nextBtn) {
-      nextBtn.addEventListener('click', function(e) {
+      nextBtn.addEventListener('click', function (e) {
         e.preventDefault();
         current = (current + 1) % slides.length;
         showSlide(current);
@@ -106,8 +106,8 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // Dot navigation
-    dots.forEach(function(dot, i) {
-      dot.addEventListener('click', function(e) {
+    dots.forEach(function (dot, i) {
+      dot.addEventListener('click', function (e) {
         e.preventDefault();
         current = i;
         showSlide(current);
@@ -117,23 +117,23 @@ document.addEventListener('DOMContentLoaded', function() {
   });
 
   // ─── Tab Panel Switching ──────────────────────────────────────────────
-  document.querySelectorAll('.cms-builder-node--tabs').forEach(function(tabsWidget) {
+  document.querySelectorAll('.cms-builder-node--tabs').forEach(function (tabsWidget) {
     var buttons = [].slice.call(tabsWidget.querySelectorAll('.cms-builder-tab-btn'));
     var panels = [].slice.call(tabsWidget.querySelectorAll('.cms-builder-tab-panel'));
     if (buttons.length === 0 || panels.length === 0) return;
 
     // Activate first tab by default
-    if (!buttons.some(function(b) { return b.classList.contains('active'); })) {
+    if (!buttons.some(function (b) { return b.classList.contains('active'); })) {
       buttons[0].classList.add('active');
       if (panels[0]) panels[0].classList.add('active');
     }
 
-    buttons.forEach(function(btn, idx) {
-      btn.addEventListener('click', function(e) {
+    buttons.forEach(function (btn, idx) {
+      btn.addEventListener('click', function (e) {
         e.preventDefault();
         // Deactivate all
-        buttons.forEach(function(b) { b.classList.remove('active'); });
-        panels.forEach(function(p) { p.classList.remove('active'); });
+        buttons.forEach(function (b) { b.classList.remove('active'); });
+        panels.forEach(function (p) { p.classList.remove('active'); });
         // Activate clicked
         btn.classList.add('active');
         var targetId = btn.getAttribute('data-tab');
@@ -149,8 +149,8 @@ document.addEventListener('DOMContentLoaded', function() {
   if ('IntersectionObserver' in window) {
     var counters = document.querySelectorAll('.cms-builder-node--counter');
     if (counters.length > 0) {
-      var counterObserver = new IntersectionObserver(function(entries) {
-        entries.forEach(function(entry) {
+      var counterObserver = new IntersectionObserver(function (entries) {
+        entries.forEach(function (entry) {
           if (!entry.isIntersecting || entry.target.dataset.counted) return;
           entry.target.dataset.counted = '1';
           var el = entry.target.querySelector('.cms-builder-counter-value');
@@ -159,7 +159,6 @@ document.addEventListener('DOMContentLoaded', function() {
           var duration = parseInt(el.getAttribute('data-duration'), 10) || 2000;
           var prefix = el.getAttribute('data-prefix') || '';
           var suffix = el.getAttribute('data-suffix') || '';
-          var start = 0;
           var startTime = null;
 
           function animateCounter(timestamp) {
@@ -178,23 +177,23 @@ document.addEventListener('DOMContentLoaded', function() {
         });
       }, { threshold: 0.3 });
 
-      counters.forEach(function(c) { counterObserver.observe(c); });
+      counters.forEach(function (c) { counterObserver.observe(c); });
     }
   }
 
   // ─── Flip Box Interaction ─────────────────────────────────────────────
   // Flip on click for touch devices, hover is handled via CSS
-  document.querySelectorAll('.cms-builder-node--flip_box').forEach(function(flipBox) {
-    flipBox.addEventListener('click', function() {
+  document.querySelectorAll('.cms-builder-node--flip_box').forEach(function (flipBox) {
+    flipBox.addEventListener('click', function () {
       flipBox.classList.toggle('flipped');
     });
   });
 
   // ─── Accordion (fallback for non-details) ────────────────────────────
-  document.querySelectorAll('.cms-builder-accordion-header').forEach(function(header) {
+  document.querySelectorAll('.cms-builder-accordion-header').forEach(function (header) {
     var parent = header.parentElement;
     if (parent && parent.tagName !== 'DETAILS') {
-      header.addEventListener('click', function() {
+      header.addEventListener('click', function () {
         var body = parent.querySelector('.cms-builder-accordion-body');
         if (body) {
           var isOpen = body.style.display === 'block';
@@ -209,31 +208,26 @@ document.addEventListener('DOMContentLoaded', function() {
   if ('IntersectionObserver' in window) {
     var animatedElements = document.querySelectorAll('[data-animate]');
     if (animatedElements.length > 0) {
-      var animObserver = new IntersectionObserver(function(entries) {
-        entries.forEach(function(entry) {
+      var animObserver = new IntersectionObserver(function (entries) {
+        entries.forEach(function (entry) {
           if (!entry.isIntersecting) return;
           var el = entry.target;
-          var duration = el.getAttribute('data-animate-duration');
-          var delay = el.getAttribute('data-animate-delay');
-          if (duration) el.style.transitionDuration = duration;
-          if (delay) el.style.transitionDelay = delay;
-          // Trigger the animation by adding the class
           el.classList.add('cms-animated');
           animObserver.unobserve(el);
         });
       }, { threshold: 0.15 });
 
-      animatedElements.forEach(function(el) { animObserver.observe(el); });
+      animatedElements.forEach(function (el) { animObserver.observe(el); });
     }
   } else {
     // Fallback: show everything immediately
-    document.querySelectorAll('[data-animate]').forEach(function(el) {
+    document.querySelectorAll('[data-animate]').forEach(function (el) {
       el.classList.add('cms-animated');
     });
   }
 
   // ─── Countdown Timer ──────────────────────────────────────────────────
-  document.querySelectorAll('.cms-builder-node--countdown').forEach(function(cdWidget) {
+  document.querySelectorAll('.cms-builder-node--countdown').forEach(function (cdWidget) {
     var targetAttr = cdWidget.getAttribute('data-target-date');
     if (!targetAttr) return;
     var targetTime = new Date(targetAttr).getTime();
@@ -264,13 +258,13 @@ document.addEventListener('DOMContentLoaded', function() {
   });
 
   // ─── Alert Dismiss ────────────────────────────────────────────────────
-  document.querySelectorAll('.cms-builder-alert-dismiss').forEach(function(btn) {
-    btn.addEventListener('click', function() {
+  document.querySelectorAll('.cms-builder-alert-dismiss').forEach(function (btn) {
+    btn.addEventListener('click', function () {
       var alert = btn.closest('.cms-builder-node--alert');
       if (alert) {
         alert.style.transition = 'opacity 0.3s';
         alert.style.opacity = '0';
-        setTimeout(function() { alert.style.display = 'none'; }, 300);
+        setTimeout(function () { alert.style.display = 'none'; }, 300);
       }
     });
   });
