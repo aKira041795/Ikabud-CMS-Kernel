@@ -1985,7 +1985,7 @@ function cmsRenderWidget_recent_posts(array $props, array $style, array $attrs, 
             $catWhere = ' AND cc.category_id IN (' . implode(',', $placeholders) . ')';
         }
         $thumbJoin = $showThumbnail ? ' LEFT JOIN cms_media m ON m.id = c.featured_image_id' : '';
-        $thumbSel  = $showThumbnail ? ', m.file_path AS featured_image_key' : ''
+        $thumbSel  = $showThumbnail ? ', m.file_path AS featured_image_key' : '';
         $stmt = cmsDb()->prepare(
             "SELECT c.title, c.slug, c.excerpt, COALESCE(c.published_at, c.created_at) AS published_at"
             . $thumbSel
