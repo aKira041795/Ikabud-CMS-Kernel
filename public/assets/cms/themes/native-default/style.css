@@ -1955,11 +1955,15 @@ img {
         flex: none !important;
     }
 
-    .cms-builder-node--container[data-mobile-layout="1"] {
+    .cms-builder-node--container[data-mobile-layout="1"],
+    .cms-builder-node--layout_container[data-mobile-layout="1"] {
         flex-direction: column !important;
     }
 
-    .cms-builder-node--container[data-mobile-layout="1"]>.cms-builder-node--container {
+    .cms-builder-node--container[data-mobile-layout="1"]>.cms-builder-node--container,
+    .cms-builder-node--container[data-mobile-layout="1"]>.cms-builder-node--layout_container,
+    .cms-builder-node--layout_container[data-mobile-layout="1"]>.cms-builder-node--container,
+    .cms-builder-node--layout_container[data-mobile-layout="1"]>.cms-builder-node--layout_container {
         flex: 1 1 100% !important;
         width: 100% !important;
     }

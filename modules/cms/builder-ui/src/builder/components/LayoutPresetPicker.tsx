@@ -1,6 +1,6 @@
 /**
  * Ikabud Page Builder - Layout Preset Picker
- * Modal for selecting a layout preset when adding a container
+ * Modal for selecting a layout preset when adding a layout container
  */
 
 import React, { memo } from 'react';
@@ -108,14 +108,14 @@ interface LayoutPresetPickerProps {
 
 const LayoutPresetPicker: React.FC<LayoutPresetPickerProps> = ({ onSelect, onClose }) => {
   const handlePresetSelect = (preset: LayoutPreset) => {
-    const containerNode = createContainerWithPreset(preset);
-    onSelect(containerNode);
+    const layoutNode = createContainerWithPreset(preset);
+    onSelect(layoutNode);
     onClose();
   };
 
   const handleEmptyContainer = () => {
-    // Create empty container with default flex column
-    const node = createNode('container', {}, {
+    // Create empty layout container with default flex column
+    const node = createNode('layout_container', {}, {
       padding: '24px',
       minHeight: '100px',
       display: 'flex',
@@ -128,7 +128,7 @@ const LayoutPresetPicker: React.FC<LayoutPresetPickerProps> = ({ onSelect, onClo
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div 
+      <div
         className="bg-[#252526] border border-[#3c3c3c] rounded-lg shadow-2xl w-[480px] max-h-[80vh] overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
@@ -136,7 +136,7 @@ const LayoutPresetPicker: React.FC<LayoutPresetPickerProps> = ({ onSelect, onClo
         <div className="flex items-center justify-between px-4 py-3 border-b border-[#3c3c3c]">
           <div>
             <h2 className="text-sm font-medium text-white">Choose a Layout</h2>
-            <p className="text-xs text-white/50 mt-0.5">Select a preset or start with an empty container</p>
+            <p className="text-xs text-white/50 mt-0.5">Select a preset or start with an empty layout</p>
           </div>
           <button
             onClick={onClose}
@@ -171,7 +171,7 @@ const LayoutPresetPicker: React.FC<LayoutPresetPickerProps> = ({ onSelect, onClo
             onClick={handleEmptyContainer}
             className="text-xs text-white/50 hover:text-white/80 transition-colors"
           >
-            Skip - Empty Container
+            Skip - Empty Layout
           </button>
           <button
             onClick={onClose}

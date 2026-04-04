@@ -646,7 +646,7 @@ const ComponentPanelEnhanced: React.FC<ComponentPanelEnhancedProps> = ({
       setShowSectionWizard(true);
       return;
     }
-    if (node.type === 'container') {
+    if (node.type === 'layout_container') {
       setShowLayoutPresetPicker(true);
       return;
     }
@@ -750,7 +750,7 @@ const ComponentPanelEnhanced: React.FC<ComponentPanelEnhancedProps> = ({
         {showLayoutPresetPicker && (
           <LayoutPresetPicker
             onSelect={(node) => {
-              addToRecent('container');
+              addToRecent('layout_container');
               onAddComponent(node);
             }}
             onClose={() => setShowLayoutPresetPicker(false)}

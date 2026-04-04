@@ -27,6 +27,7 @@ export type CMSComponentType =
   | 'document'  // Root wrapper that contains sections
   | 'section'
   | 'container'
+  | 'layout_container'
   | 'row'
   | 'column'
   | 'heading'

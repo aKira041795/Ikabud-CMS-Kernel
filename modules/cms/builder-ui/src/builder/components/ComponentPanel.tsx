@@ -240,8 +240,8 @@ const ComponentPanel: React.FC<ComponentPanelProps> = ({ onAddComponent, horizon
       setShowSectionWizard(true);
       return;
     }
-    // Show layout preset picker for container type
-    if (node.type === 'container') {
+    // Show layout preset picker for layout container type
+    if (node.type === 'layout_container') {
       setShowLayoutPresetPicker(true);
       return;
     }
@@ -277,6 +277,10 @@ const ComponentPanel: React.FC<ComponentPanelProps> = ({ onAddComponent, horizon
               onClick={() => {
                 if (component.type === 'section') {
                   setShowSectionWizard(true);
+                  return;
+                }
+                if (component.type === 'layout_container') {
+                  setShowLayoutPresetPicker(true);
                   return;
                 }
                 const node = createNode(

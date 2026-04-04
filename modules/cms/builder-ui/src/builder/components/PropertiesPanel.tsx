@@ -832,7 +832,7 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
 
   const usesFlexSizing = useCallback((effectiveStyle: Partial<NodeStyle>): boolean => {
     if (!node) return false;
-    return node.type === 'column' || (node.type === 'container' && hasExplicitFlexSizing(effectiveStyle));
+    return node.type === 'column' || ((node.type === 'container' || node.type === 'layout_container') && hasExplicitFlexSizing(effectiveStyle));
   }, [node]);
 
   // Get the effective style value for current viewport.
@@ -938,7 +938,7 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
   }
 
   const componentDef = getComponentDefinition(node.type);
-  const isContainer = ['section', 'container', 'row', 'column'].includes(node.type);
+  const isContainer = ['section', 'container', 'layout_container', 'row', 'column'].includes(node.type);
   const isTextElement = ['heading', 'text', 'button'].includes(node.type);
   const selectedCategoryIds = normalizeSelectedIds(node.props.categoryIds);
   const selectedPostIds = normalizeSelectedIds(node.props.postIds);
@@ -5907,7 +5907,7 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
       </CollapsibleSection>
 
       {/* Self Alignment - for containers/columns inside flex parents */}
-      {(node.type === 'container' || node.type === 'column') && (
+      {(node.type === 'container' || node.type === 'layout_container' || node.type === 'column') && (
         <CollapsibleSection title="Self Alignment" defaultOpen={false}>
           <SelectInput
             label="Align Self"

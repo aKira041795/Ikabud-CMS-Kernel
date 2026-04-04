@@ -64,33 +64,33 @@ const LayerItem: React.FC<LayerItemProps> = memo(({
   const [dropPosition, setDropPosition] = useState<'before' | 'after' | 'inside' | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const itemRef = useRef<HTMLDivElement>(null);
-  
+
   // Auto-scroll into view when selected
   useEffect(() => {
     if (isSelected && itemRef.current) {
       itemRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
   }, [isSelected]);
-  
+
   const hasChildren = node.children && node.children.length > 0;
   const componentDef = getComponentDefinition(node.type);
   const displayName = node.meta.name || componentDef?.name || node.type;
-  
+
   const handleClick = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
     onSelect(node.id, e.shiftKey);
   }, [node.id, onSelect]);
-  
+
   const handleToggle = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
     setIsExpanded(!isExpanded);
   }, [isExpanded]);
-  
+
   const handleDelete = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
     onDelete(node.id);
   }, [node.id, onDelete]);
-  
+
   const handleDuplicate = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
     onDuplicate(node.id);
@@ -127,7 +127,7 @@ const LayerItem: React.FC<LayerItemProps> = memo(({
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
     const y = e.clientY - rect.top;
     const height = rect.height;
-    const isContainer = ['document', 'section', 'container', 'row', 'column'].includes(node.type);
+    const isContainer = ['document', 'section', 'container', 'layout_container', 'row', 'column'].includes(node.type);
 
     if (isContainer && y > height * 0.25 && y < height * 0.75) {
       setDropPosition('inside');
@@ -226,17 +226,17 @@ const LayerItem: React.FC<LayerItemProps> = memo(({
             <ChevronRight className="w-3 h-3 text-white/40" />
           )}
         </button>
-        
+
         {/* Drag Handle */}
         {node.type !== 'document' && (
           <GripVertical className="w-3 h-3 text-white/20 cursor-grab" />
         )}
-        
+
         {/* Name */}
         <span className={`flex-1 text-[11px] truncate ${isSelected ? 'text-white' : 'text-white/70'}`}>
           {displayName}
         </span>
-        
+
         {/* Actions */}
         {(showActions || isSelected) && node.type !== 'document' && (
           <div className="flex items-center gap-0.5" onClick={(e) => e.stopPropagation()}>
@@ -275,7 +275,7 @@ const LayerItem: React.FC<LayerItemProps> = memo(({
           </div>
         )}
       </div>
-      
+
       {/* Children */}
       {hasChildren && isExpanded && (
         <div>

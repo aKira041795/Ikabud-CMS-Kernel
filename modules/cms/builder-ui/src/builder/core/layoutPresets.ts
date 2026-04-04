@@ -322,12 +322,12 @@ export function createContainerWithPreset(preset: LayoutPreset, customSettings?:
       // Mobile: full width
       childStyle.mobile = { flex: '1 1 100%' };
 
-      children.push(createNode('container', {}, childStyle));
+      children.push(createNode('layout_container', {}, childStyle));
     }
   }
 
   return createNode(
-    'container',
+    'layout_container',
     {
       layoutMode: preset.layoutMode,
       presetId: preset.id,

@@ -16,11 +16,13 @@ function cmsAdminReactBuilderCreate(array $params = []): void
 {
     $user = cmsRequireCap('builder.access');
     $baseUrl = rtrim((string)(defined('BASE_URL') ? BASE_URL : ''), '/');
+    $previewTheme = cmsBuilderLivePreviewThemePayload();
 
     $bootData = [
         'contentId' => null,
         'baseUrl'   => $baseUrl,
         'csrfToken' => app()->csrfToken(),
+        'previewTheme' => $previewTheme,
         'user'      => [
             'id'       => (int)($user['id'] ?? 0),
             'username' => (string)($user['username'] ?? $user['name'] ?? ''),
@@ -69,10 +71,18 @@ function cmsAdminReactBuilderEdit(array $params = []): void
         return;
     }
 
+    $previewTheme = cmsBuilderLivePreviewThemePayload([
+        'content' => $content,
+        'public_render_origin' => 'cms',
+        'public_route_kind' => 'page',
+        'public_presentation_mode' => 'traditional',
+    ]);
+
     $bootData = [
         'contentId' => (int)$content['id'],
         'baseUrl'   => $baseUrl,
         'csrfToken' => app()->csrfToken(),
+        'previewTheme' => $previewTheme,
         'user'      => [
             'id'       => (int)($user['id'] ?? 0),
             'username' => (string)($user['username'] ?? $user['name'] ?? ''),

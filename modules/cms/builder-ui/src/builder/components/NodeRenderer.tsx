@@ -100,6 +100,7 @@ function nodeStyleToCSS(
   if (nodeType && viewport !== 'desktop') {
     const effectiveDirection = baseStyle.flexDirection || (nodeType === 'row' ? 'row' : undefined);
     const isHorizontalFlex = baseStyle.display === 'flex' || nodeType === 'row' || nodeType === 'column';
+    const isContainerLike = nodeType === 'container' || nodeType === 'layout_container';
     const hasExplicitMobileDir = mobile?.flexDirection;
     const hasExplicitTabletDir = tablet?.flexDirection;
 
@@ -109,7 +110,7 @@ function nodeStyleToCSS(
         baseStyle.flexDirection = 'column';
       }
       // Flex-row containers auto-stack on mobile (matches data-mobile-layout rule)
-      if (nodeType === 'container' && isHorizontalFlex && effectiveDirection === 'row' && !hasExplicitMobileDir) {
+      if (isContainerLike && isHorizontalFlex && effectiveDirection === 'row' && !hasExplicitMobileDir) {
         baseStyle.flexDirection = 'column';
       }
       // Columns inside (now-stacked) rows: full-width + no flex sizing
@@ -120,7 +121,7 @@ function nodeStyleToCSS(
       }
       // Containers inside layout containers: also go full-width when parent stacks
       // Matches: .cms-builder-node--container[data-mobile-layout="1"] > .cms-builder-node--container
-      if (nodeType === 'container' && (baseStyle.flex || baseStyle.flexBasis)) {
+      if (isContainerLike && (baseStyle.flex || baseStyle.flexBasis)) {
         if (!mobile?.width && !mobile?.flex) {
           baseStyle.width = '100%';
           baseStyle.flex = 'none';
@@ -706,7 +707,7 @@ const SectionRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties; childre
       flexDirection: 'column',
       alignItems: 'center',
       justifyContent: 'center',
-      padding: '48px 24px',
+      padding: 'var(--cms-builder-section-padding, 48px 24px)',
       // User styles override defaults
       ...style,
     }}>
@@ -716,13 +717,14 @@ const SectionRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties; childre
 
 const ContainerRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties; children: React.ReactNode }> =
   ({ node, style, children }) => {
+    const isWrapperContainer = node.type === 'container';
     const isLayoutItem = Boolean(style.flex || style.flexBasis || style.order || style.alignSelf);
     const isExplicitLayout = style.display === 'flex' || style.display === 'grid';
     const hasExplicitConstraint = style.maxWidth !== undefined || style.margin !== undefined;
 
-    const wrapperDefaults: CSSProperties = !isLayoutItem && !isExplicitLayout && !hasExplicitConstraint
+    const wrapperDefaults: CSSProperties = isWrapperContainer && !isLayoutItem && !isExplicitLayout && !hasExplicitConstraint
       ? {
-        maxWidth: '1200px',
+        maxWidth: 'var(--cms-builder-container-max-width, 1200px)',
         margin: '0 auto',
         padding: (style.padding as CSSProperties['padding']) ?? '0 24px',
       }
@@ -732,6 +734,7 @@ const ContainerRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties; child
       <div
         style={{
           minHeight: '60px',
+          minWidth: node.type === 'layout_container' ? (style.minWidth || '0') : style.minWidth,
           boxSizing: 'border-box',
           ...wrapperDefaults,
           // Editor visual aid - subtle border to show container boundaries
@@ -753,7 +756,7 @@ const RowRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties; children: R
       display: 'flex',
       flexDirection: 'row',
       flexWrap: 'wrap',
-      gap: '24px',
+      gap: 'var(--cms-builder-element-gap, 24px)',
       justifyContent: 'center',
       alignItems: 'stretch',
       minHeight: '50px',
@@ -779,7 +782,7 @@ const ColumnRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties; children
         // Defaults — must match cmsBuilderDefaultStyle('column') in helpers.php
         display: 'flex',
         flexDirection: 'column',
-        gap: '16px',
+        gap: 'var(--cms-builder-element-gap, 16px)',
         alignItems: 'stretch',
         ...(hasExplicitSize ? {} : { flex: 1 }),
         minHeight: '50px',
@@ -987,18 +990,34 @@ const ButtonRenderer: React.FC<{
 }> = ({ node, style, isEditing, onStartEdit, onEndEdit }) => {
   const variant = node.props.variant || 'primary';
   const variantStyles: Record<string, CSSProperties> = {
-    primary: { backgroundColor: '#3b82f6', color: '#fff' },
-    secondary: { backgroundColor: '#64748b', color: '#fff' },
-    outline: { backgroundColor: 'transparent', border: '2px solid currentColor', color: '#3b82f6' },
-    ghost: { backgroundColor: 'transparent', color: '#3b82f6' },
+    primary: {
+      backgroundColor: 'var(--cms-builder-color-primary, #3b82f6)',
+      borderColor: 'var(--cms-builder-color-primary, #3b82f6)',
+      color: '#fff',
+    },
+    secondary: {
+      backgroundColor: 'var(--cms-builder-color-secondary, #64748b)',
+      borderColor: 'var(--cms-builder-color-secondary, #64748b)',
+      color: '#fff',
+    },
+    outline: {
+      backgroundColor: 'transparent',
+      border: '2px solid var(--cms-builder-color-primary, #3b82f6)',
+      color: 'var(--cms-builder-color-primary, #3b82f6)',
+    },
+    ghost: {
+      backgroundColor: 'transparent',
+      color: 'var(--cms-builder-color-primary, #3b82f6)',
+    },
   };
 
   const buttonStyle: CSSProperties = {
     cursor: 'pointer',
     border: 'none',
-    padding: '12px 24px',
+    borderRadius: 'var(--cms-builder-button-radius, 4px)',
+    padding: 'var(--cms-builder-button-padding-y, 12px) var(--cms-builder-button-padding-x, 24px)',
     fontWeight: 500,
-    fontSize: '14px',
+    fontSize: 'var(--cms-builder-button-font-size, 14px)',
     width: 'fit-content',
     minWidth: '120px',
     ...variantStyles[variant],
@@ -4445,6 +4464,7 @@ const NodeRenderer: React.FC<NodeRendererProps> = memo(({
       case 'section':
         return { resizable: true, horizontal: false, vertical: true }; // Height only
       case 'container':
+      case 'layout_container':
       case 'column':
         return { resizable: true, horizontal: true, vertical: true }; // Full control
       case 'row':
@@ -4460,7 +4480,7 @@ const NodeRenderer: React.FC<NodeRendererProps> = memo(({
 
   const resizeConfig = getResizeConfig();
   const isResizable = resizeConfig.resizable;
-  const usesFlexSizing = node.type === 'column' || (node.type === 'container' && hasExplicitFlexSizing(style as Partial<NodeStyle>));
+  const usesFlexSizing = node.type === 'column' || ((node.type === 'container' || node.type === 'layout_container') && hasExplicitFlexSizing(style as Partial<NodeStyle>));
 
   // Determine if label bar should show (not for document)
   // Also keep visible while dragging so the handle doesn't vanish mid-drag
@@ -4586,7 +4606,7 @@ const NodeRenderer: React.FC<NodeRendererProps> = memo(({
     const height = rect.height;
 
     // Determine drop position based on mouse position
-    const isContainer = ['document', 'section', 'container', 'row', 'column'].includes(node.type);
+    const isContainer = ['document', 'section', 'container', 'layout_container', 'row', 'column'].includes(node.type);
 
     if (isContainer && y > height * 0.25 && y < height * 0.75) {
       setDropPosition('inside');
@@ -4702,7 +4722,9 @@ const NodeRenderer: React.FC<NodeRendererProps> = memo(({
     flexShrink: style.flexShrink,
     flexBasis: style.flexBasis,
     order: style.order,
-    minWidth: node.type === 'column' ? (style.minWidth || '0') : style.minWidth,
+    // The outer wrapper is the actual flex/grid item, so it needs min-width: 0
+    // whenever preset sizing is expressed through flex values.
+    minWidth: usesFlexSizing ? (style.minWidth || '0') : style.minWidth,
     minHeight: style.minHeight,
     maxWidth: node.type === 'image' ? (style.maxWidth || '100%') : style.maxWidth,
     maxHeight: style.maxHeight,
@@ -4828,6 +4850,7 @@ const NodeRenderer: React.FC<NodeRendererProps> = memo(({
       case 'section':
         return <SectionRenderer node={node} style={style}>{renderChildren()}</SectionRenderer>;
       case 'container':
+      case 'layout_container':
         return <ContainerRenderer node={node} style={style}>{renderChildren()}</ContainerRenderer>;
       case 'row':
         return <RowRenderer node={node} style={style}>{renderChildren()}</RowRenderer>;

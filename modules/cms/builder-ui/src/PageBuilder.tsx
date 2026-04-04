@@ -36,7 +36,7 @@ import {
   FileText,
 } from 'lucide-react';
 
-import { useBuilderState, DiSyLNode, createNode, createEmptyDocument, CMS_COMPONENTS } from './builder/core';
+import { useBuilderState, DiSyLNode, createNode, createEmptyDocument, CMS_COMPONENTS, normalizeBuilderNode } from './builder/core';
 import { NodeRenderer, ComponentPanelEnhanced, PropertiesPanel, LayersPanel, ContextMenu, GlobalStylesPanel, defaultGlobalStyles, VersionHistory, OnboardingTooltips, TemplatesPanel, SaveTemplateModal, SaveBlockModal, BlocksPanel, SEOPanel, defaultSEOSettings, CapabilityPanel } from './builder/components';
 import type { GlobalStyles, SEOSettings } from './builder/components';
 import { initBuilderPreviewRuntime } from './builder/runtime/previewRuntime';
@@ -57,6 +57,233 @@ interface PageData {
 
 const COMPONENT_DND_MIME = 'application/x-cms-component';
 
+type GlobalStyleOverrides = Partial<{
+  colors: Partial<GlobalStyles['colors']>;
+  typography: Partial<GlobalStyles['typography']>;
+  spacing: Partial<GlobalStyles['spacing']>;
+  buttons: Partial<GlobalStyles['buttons']>;
+  page: Partial<GlobalStyles['page']>;
+}>;
+
+interface PreviewShellSettings {
+  maxWidth?: string;
+  paddingTop?: string;
+  paddingRight?: string;
+  paddingBottom?: string;
+  paddingLeft?: string;
+}
+
+const BUILDER_PREVIEW_SCOPE_CLASS = 'cms-builder-live-preview';
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function normalizeGlobalStyleOverrides(value: unknown): GlobalStyleOverrides {
+  if (!isRecord(value)) {
+    return {};
+  }
+
+  const sectionKeys: Array<keyof GlobalStyleOverrides> = ['colors', 'typography', 'spacing', 'buttons', 'page'];
+  const normalized: GlobalStyleOverrides = {};
+
+  for (const sectionKey of sectionKeys) {
+    const section = value[sectionKey];
+    if (!isRecord(section)) {
+      continue;
+    }
+
+    const entries = Object.entries(section).filter(([, sectionValue]) => (
+      typeof sectionValue === 'string' || typeof sectionValue === 'boolean'
+    ));
+
+    if (entries.length === 0) {
+      continue;
+    }
+
+    normalized[sectionKey] = Object.fromEntries(entries) as NonNullable<GlobalStyleOverrides[typeof sectionKey]>;
+  }
+
+  return normalized;
+}
+
+function mergeGlobalStyles(base: GlobalStyles, overrides: unknown): GlobalStyles {
+  const normalized = normalizeGlobalStyleOverrides(overrides);
+
+  return {
+    colors: { ...base.colors, ...(normalized.colors ?? {}) },
+    typography: { ...base.typography, ...(normalized.typography ?? {}) },
+    spacing: { ...base.spacing, ...(normalized.spacing ?? {}) },
+    buttons: { ...base.buttons, ...(normalized.buttons ?? {}) },
+    page: { ...base.page, ...(normalized.page ?? {}) },
+  };
+}
+
+function diffSection<T extends Record<string, string | boolean>>(base: T, current: T): Partial<T> | null {
+  const diff: Partial<T> = {};
+
+  for (const key of Object.keys(current) as Array<keyof T>) {
+    if (current[key] !== base[key]) {
+      diff[key] = current[key];
+    }
+  }
+
+  return Object.keys(diff).length > 0 ? diff : null;
+}
+
+function diffGlobalStyles(base: GlobalStyles, current: GlobalStyles): GlobalStyleOverrides {
+  const diff: GlobalStyleOverrides = {};
+  const colorDiff = diffSection(base.colors, current.colors);
+  const typographyDiff = diffSection(base.typography, current.typography);
+  const spacingDiff = diffSection(base.spacing, current.spacing);
+  const buttonDiff = diffSection(base.buttons, current.buttons);
+  const pageDiff = diffSection(base.page, current.page);
+
+  if (colorDiff) {
+    diff.colors = colorDiff;
+  }
+  if (typographyDiff) {
+    diff.typography = typographyDiff;
+  }
+  if (spacingDiff) {
+    diff.spacing = spacingDiff;
+  }
+  if (buttonDiff) {
+    diff.buttons = buttonDiff;
+  }
+  if (pageDiff) {
+    diff.page = pageDiff;
+  }
+
+  return diff;
+}
+
+function hasGlobalStyleOverrides(overrides: GlobalStyleOverrides): boolean {
+  return Object.values(overrides).some((section) => isRecord(section) && Object.keys(section).length > 0);
+}
+
+function normalizePreviewShellSettings(value: unknown): PreviewShellSettings {
+  if (!isRecord(value)) {
+    return {};
+  }
+
+  const normalized: PreviewShellSettings = {};
+  const shellKeys: Array<keyof PreviewShellSettings> = ['maxWidth', 'paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft'];
+
+  for (const key of shellKeys) {
+    const shellValue = value[key];
+    if (typeof shellValue === 'string' && shellValue.trim() !== '') {
+      normalized[key] = shellValue.trim();
+    }
+  }
+
+  return normalized;
+}
+
+function renderScopedGlobalStyleCss(overrides: GlobalStyleOverrides, scopeClass: string): string {
+  const normalized = normalizeGlobalStyleOverrides(overrides);
+  const colors = normalized.colors ?? {};
+  const typography = normalized.typography ?? {};
+  const spacing = normalized.spacing ?? {};
+  const buttons = normalized.buttons ?? {};
+  const scope = `.${scopeClass}`;
+  const rules: string[] = [];
+  const rootDeclarations: string[] = [];
+
+  if (typeof colors.background === 'string' && colors.background.trim() !== '') {
+    rootDeclarations.push(`--cms-builder-background:${colors.background}`);
+    rootDeclarations.push(`background-color:${colors.background}`);
+  }
+  if (typeof colors.backgroundAlt === 'string' && colors.backgroundAlt.trim() !== '') {
+    rootDeclarations.push(`--cms-builder-background-alt:${colors.backgroundAlt}`);
+  }
+  if (typeof colors.primary === 'string' && colors.primary.trim() !== '') {
+    rootDeclarations.push(`--cms-builder-color-primary:${colors.primary}`);
+  }
+  if (typeof colors.secondary === 'string' && colors.secondary.trim() !== '') {
+    rootDeclarations.push(`--cms-builder-color-secondary:${colors.secondary}`);
+  }
+  if (typeof colors.accent === 'string' && colors.accent.trim() !== '') {
+    rootDeclarations.push(`--cms-builder-color-accent:${colors.accent}`);
+  }
+  if (typeof colors.text === 'string' && colors.text.trim() !== '') {
+    rootDeclarations.push(`--cms-builder-text:${colors.text}`);
+    rootDeclarations.push(`color:${colors.text}`);
+  }
+  if (typeof colors.textLight === 'string' && colors.textLight.trim() !== '') {
+    rootDeclarations.push(`--cms-builder-text-light:${colors.textLight}`);
+  }
+  if (typeof typography.fontFamily === 'string' && typography.fontFamily.trim() !== '') {
+    rootDeclarations.push(`--cms-builder-font-family:${typography.fontFamily}`);
+    rootDeclarations.push(`font-family:${typography.fontFamily}`);
+  }
+  if (typeof typography.headingFontFamily === 'string' && typography.headingFontFamily.trim() !== '') {
+    rootDeclarations.push(`--cms-builder-heading-font-family:${typography.headingFontFamily}`);
+  }
+  if (typeof typography.baseFontSize === 'string' && typography.baseFontSize.trim() !== '') {
+    rootDeclarations.push(`--cms-builder-base-font-size:${typography.baseFontSize}`);
+    rootDeclarations.push(`font-size:${typography.baseFontSize}`);
+  }
+  if (typeof typography.lineHeight === 'string' && typography.lineHeight.trim() !== '') {
+    rootDeclarations.push(`--cms-builder-line-height:${typography.lineHeight}`);
+    rootDeclarations.push(`line-height:${typography.lineHeight}`);
+  }
+  if (typeof typography.h1Size === 'string' && typography.h1Size.trim() !== '') {
+    rootDeclarations.push(`--cms-builder-h1-size:${typography.h1Size}`);
+  }
+  if (typeof typography.h2Size === 'string' && typography.h2Size.trim() !== '') {
+    rootDeclarations.push(`--cms-builder-h2-size:${typography.h2Size}`);
+  }
+  if (typeof typography.h3Size === 'string' && typography.h3Size.trim() !== '') {
+    rootDeclarations.push(`--cms-builder-h3-size:${typography.h3Size}`);
+  }
+  if (typeof typography.h4Size === 'string' && typography.h4Size.trim() !== '') {
+    rootDeclarations.push(`--cms-builder-h4-size:${typography.h4Size}`);
+  }
+  if (typeof spacing.sectionPadding === 'string' && spacing.sectionPadding.trim() !== '') {
+    rootDeclarations.push(`--cms-builder-section-padding:${spacing.sectionPadding}`);
+  }
+  if (typeof spacing.containerMaxWidth === 'string' && spacing.containerMaxWidth.trim() !== '') {
+    rootDeclarations.push(`--cms-builder-container-max-width:${spacing.containerMaxWidth}`);
+  }
+  if (typeof spacing.elementGap === 'string' && spacing.elementGap.trim() !== '') {
+    rootDeclarations.push(`--cms-builder-element-gap:${spacing.elementGap}`);
+  }
+  if (typeof buttons.borderRadius === 'string' && buttons.borderRadius.trim() !== '') {
+    rootDeclarations.push(`--cms-builder-button-radius:${buttons.borderRadius}`);
+  }
+  if (typeof buttons.paddingX === 'string' && buttons.paddingX.trim() !== '') {
+    rootDeclarations.push(`--cms-builder-button-padding-x:${buttons.paddingX}`);
+  }
+  if (typeof buttons.paddingY === 'string' && buttons.paddingY.trim() !== '') {
+    rootDeclarations.push(`--cms-builder-button-padding-y:${buttons.paddingY}`);
+  }
+  if (typeof buttons.fontSize === 'string' && buttons.fontSize.trim() !== '') {
+    rootDeclarations.push(`--cms-builder-button-font-size:${buttons.fontSize}`);
+  }
+  if (rootDeclarations.length > 0) {
+    rules.push(`${scope}{${rootDeclarations.join(';')}}`);
+  }
+
+  if (typeof typography.headingFontFamily === 'string' && typography.headingFontFamily.trim() !== '') {
+    rules.push(`${scope} h1,${scope} h2,${scope} h3,${scope} h4,${scope} h5,${scope} h6{font-family:${typography.headingFontFamily}}`);
+  }
+  if (typeof typography.h1Size === 'string' && typography.h1Size.trim() !== '') {
+    rules.push(`${scope} h1{font-size:${typography.h1Size}}`);
+  }
+  if (typeof typography.h2Size === 'string' && typography.h2Size.trim() !== '') {
+    rules.push(`${scope} h2{font-size:${typography.h2Size}}`);
+  }
+  if (typeof typography.h3Size === 'string' && typography.h3Size.trim() !== '') {
+    rules.push(`${scope} h3{font-size:${typography.h3Size}}`);
+  }
+  if (typeof typography.h4Size === 'string' && typography.h4Size.trim() !== '') {
+    rules.push(`${scope} h4{font-size:${typography.h4Size}}`);
+  }
+
+  return rules.join('');
+}
+
 // =============================================================================
 // Smart parent resolution helper
 // Drills through section → container → row → column to find the deepest
@@ -68,7 +295,7 @@ function drillToInsertParent(
   childType: string,
   findNode: (id: string) => DiSyLNode | null,
 ): string {
-  const isStructural = ['document', 'section', 'container', 'row', 'column'].includes(childType);
+  const isStructural = ['document', 'section', 'container', 'layout_container', 'row', 'column'].includes(childType);
 
   // Row: non-column content → first column
   if (parentNode.type === 'row' && childType !== 'column') {
@@ -77,7 +304,7 @@ function drillToInsertParent(
   }
 
   // Container: non-structural content → first row (then recurse)
-  if (parentNode.type === 'container' && !isStructural) {
+  if ((parentNode.type === 'container' || parentNode.type === 'layout_container') && !isStructural) {
     const firstRow = parentNode.children.find((c) => c.type === 'row');
     if (firstRow) {
       const rowNode = findNode(firstRow.id);
@@ -87,7 +314,7 @@ function drillToInsertParent(
 
   // Section: non-structural content → first container (then recurse)
   if (parentNode.type === 'section' && !isStructural) {
-    const firstContainer = parentNode.children.find((c) => c.type === 'container');
+    const firstContainer = parentNode.children.find((c) => c.type === 'container' || c.type === 'layout_container');
     if (firstContainer) {
       const containerNode = findNode(firstContainer.id);
       if (containerNode) return drillToInsertParent(containerNode, childType, findNode);
@@ -113,6 +340,9 @@ function drillToInsertParent(
 export default function PageBuilder() {
   const boot = getBootData();
   const id = boot.contentId ? String(boot.contentId) : null;
+  const previewThemeOverrides = normalizeGlobalStyleOverrides(boot.previewTheme?.global_styles);
+  const previewShell = normalizePreviewShellSettings(boot.previewTheme?.shell);
+  const previewStyleBase = mergeGlobalStyles(defaultGlobalStyles, previewThemeOverrides);
 
   // Page data
   const [pageData, setPageData] = useState<PageData | null>(null);
@@ -138,7 +368,7 @@ export default function PageBuilder() {
   const [_sidebarTab, _setSidebarTab] = useState<'components' | 'layers' | 'settings'>('components');
 
   // Global styles state
-  const [globalStyles, setGlobalStyles] = useState<GlobalStyles>(defaultGlobalStyles);
+  const [globalStyles, setGlobalStyles] = useState<GlobalStyles>(previewStyleBase);
 
   // SEO settings state
   const [seoSettings, setSeoSettings] = useState<SEOSettings>(defaultSEOSettings);
@@ -150,6 +380,43 @@ export default function PageBuilder() {
   const [lastAutoSave, setLastAutoSave] = useState<Date | null>(null);
   const autoSaveIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
+  const pageStyleOverrides = diffGlobalStyles(previewStyleBase, globalStyles);
+  const previewThemeCss = renderScopedGlobalStyleCss(previewThemeOverrides, BUILDER_PREVIEW_SCOPE_CLASS);
+  const pageOverrideCss = renderScopedGlobalStyleCss(pageStyleOverrides, BUILDER_PREVIEW_SCOPE_CLASS);
+  const previewShellStyle = {
+    width: '100%',
+    boxSizing: 'border-box' as const,
+    maxWidth: previewShell.maxWidth || undefined,
+    marginLeft: 'auto',
+    marginRight: 'auto',
+    paddingTop: previewShell.paddingTop || undefined,
+    paddingRight: previewShell.paddingRight || undefined,
+    paddingBottom: previewShell.paddingBottom || undefined,
+    paddingLeft: previewShell.paddingLeft || undefined,
+  };
+
+  const handleAutoSave = useCallback(async () => {
+    if (!pageData || !pageData.id || saving) return;
+
+    try {
+      const response = await authFetch(`/api/v1/cms/content/${pageData.id}/builder/autosave`, {
+        method: 'POST',
+        body: JSON.stringify({
+          document: builder.document,
+          global_styles: pageStyleOverrides,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.ok || data.success) {
+        builder.markClean();
+        setLastAutoSave(new Date());
+      }
+    } catch (err) {
+      console.error('Auto-save failed:', err);
+    }
+  }, [pageData, saving, builder, pageStyleOverrides]);
 
   // Title editing state
   const [isEditingTitle, setIsEditingTitle] = useState(false);
@@ -212,28 +479,6 @@ export default function PageBuilder() {
     }
   }, [id]);
 
-  // Normalize template content to ensure all nodes have required properties
-  const normalizeNode = (node: any): DiSyLNode => {
-    const compDef = CMS_COMPONENTS.find(c => c.type === node.type);
-    const defaults = compDef?.defaultProps ?? {};
-    // Merge defaultProps into node props, replacing null/undefined values
-    const rawProps = node.props || {};
-    const mergedProps: Record<string, any> = { ...defaults };
-    for (const [key, value] of Object.entries(rawProps)) {
-      if (value !== null && value !== undefined) {
-        mergedProps[key] = value;
-      }
-    }
-    return {
-      id: node.id || `node_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      type: node.type,
-      props: mergedProps,
-      style: node.style || {},
-      children: (node.children || []).map(normalizeNode),
-      meta: node.meta || {},
-    };
-  };
-
   // Load template content
   const loadTemplate = async (templateId: string) => {
     setLoading(true);
@@ -257,7 +502,7 @@ export default function PageBuilder() {
 
         // Load template content into builder with normalization
         if (template.content) {
-          const normalizedContent = normalizeNode(template.content);
+          const normalizedContent = normalizeBuilderNode(template.content, { isRoot: template.content?.type === 'document' });
           builder.setDocument(normalizedContent);
         } else {
           builder.setDocument(createEmptyDocument());
@@ -265,18 +510,9 @@ export default function PageBuilder() {
 
         // Load global styles if available
         if (template.global_styles) {
-          const tg = template.global_styles;
-          setGlobalStyles({
-            ...defaultGlobalStyles,
-            ...tg,
-            colors: { ...defaultGlobalStyles.colors, ...(tg.colors || {}) },
-            typography: { ...defaultGlobalStyles.typography, ...(tg.typography || {}) },
-            spacing: { ...defaultGlobalStyles.spacing, ...(tg.spacing || {}) },
-            buttons: { ...defaultGlobalStyles.buttons, ...(tg.buttons || {}) },
-            page: { ...defaultGlobalStyles.page, ...(tg.page || {}) },
-          });
+          setGlobalStyles(mergeGlobalStyles(previewStyleBase, template.global_styles));
         } else {
-          setGlobalStyles(defaultGlobalStyles);
+          setGlobalStyles(previewStyleBase);
         }
 
         setSaveMessage({ type: 'success', text: `Loaded template: ${template.name}` });
@@ -310,7 +546,7 @@ export default function PageBuilder() {
         clearInterval(autoSaveIntervalRef.current);
       }
     };
-  }, [builder.isDirty, pageData, saving]);
+  }, [builder.isDirty, pageData, saving, handleAutoSave]);
 
   // Auto-save on blur (leaving page)
   useEffect(() => {
@@ -334,7 +570,7 @@ export default function PageBuilder() {
       window.removeEventListener('beforeunload', handleBeforeUnload);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [builder.isDirty, pageData, saving]);
+  }, [builder.isDirty, pageData, saving, handleAutoSave]);
 
   // Run frontend-like interactive scripts in builder canvas after updates.
   useEffect(() => {
@@ -351,29 +587,6 @@ export default function PageBuilder() {
       if (cleanup) cleanup();
     };
   }, [builder.document, builder.viewport]);
-
-  const handleAutoSave = async () => {
-    if (!pageData || !pageData.id || saving) return;
-
-    try {
-      const response = await authFetch(`/api/v1/cms/content/${pageData.id}/builder/autosave`, {
-        method: 'POST',
-        body: JSON.stringify({
-          document: builder.document,
-          global_styles: globalStyles,
-        }),
-      });
-
-      const data = await response.json();
-
-      if (data.ok || data.success) {
-        builder.markClean();
-        setLastAutoSave(new Date());
-      }
-    } catch (err) {
-      console.error('Auto-save failed:', err);
-    }
-  };
 
   const fetchPage = async () => {
     try {
@@ -402,18 +615,12 @@ export default function PageBuilder() {
         if (globalStylesRaw) {
           try {
             const parsed = typeof globalStylesRaw === 'string' ? JSON.parse(globalStylesRaw) : globalStylesRaw;
-            setGlobalStyles({
-              ...defaultGlobalStyles,
-              ...parsed,
-              colors: { ...defaultGlobalStyles.colors, ...(parsed.colors || {}) },
-              typography: { ...defaultGlobalStyles.typography, ...(parsed.typography || {}) },
-              spacing: { ...defaultGlobalStyles.spacing, ...(parsed.spacing || {}) },
-              buttons: { ...defaultGlobalStyles.buttons, ...(parsed.buttons || {}) },
-              page: { ...defaultGlobalStyles.page, ...(parsed.page || {}) },
-            });
+            setGlobalStyles(mergeGlobalStyles(previewStyleBase, parsed));
           } catch {
-            setGlobalStyles(defaultGlobalStyles);
+            setGlobalStyles(previewStyleBase);
           }
+        } else {
+          setGlobalStyles(previewStyleBase);
         }
 
         // Load SEO settings if available
@@ -430,10 +637,10 @@ export default function PageBuilder() {
         // Load content into builder (normalize to merge defaultProps into null values)
         if (builderDocument && typeof builderDocument === 'object' && builderDocument.type) {
           if (builderDocument.type === 'section') {
-            const migratedDocument = createNode('document', {}, {}, [normalizeNode(builderDocument)]);
+            const migratedDocument = createNode('document', {}, {}, [normalizeBuilderNode(builderDocument)]);
             builder.setDocument(migratedDocument);
           } else if (builderDocument.type === 'document') {
-            builder.setDocument(normalizeNode(builderDocument));
+            builder.setDocument(normalizeBuilderNode(builderDocument, { isRoot: true }));
           } else {
             builder.setDocument(createEmptyDocument());
           }
@@ -490,7 +697,7 @@ export default function PageBuilder() {
           method: 'POST',
           body: JSON.stringify({
             document: builder.document,
-            global_styles: globalStyles,
+            global_styles: pageStyleOverrides,
             seo_settings: seoSettings,
           }),
         });
@@ -515,7 +722,7 @@ export default function PageBuilder() {
             slug: pageData.slug,
             status: pageData.status,
             document: builder.document,
-            global_styles: globalStyles,
+            global_styles: pageStyleOverrides,
             seo_settings: seoSettings,
           }),
         });
@@ -607,7 +814,10 @@ export default function PageBuilder() {
     const parentId = resolvePreferredInsertParent(requestedParentId, node.type);
     const parent = builder.findNode(parentId);
     const index = parent?.children.length || 0;
-    builder.insertNode(node, parentId, index);
+    const nodeToInsert = parent?.type === 'section' && node.type === 'layout_container'
+      ? createNode('container', {}, {}, [node])
+      : node;
+    builder.insertNode(nodeToInsert, parentId, index);
   }, [builder, resolvePreferredInsertParent]);
 
   // Smart canvas move: applies parent resolution when dropping "inside" a container,
@@ -1263,7 +1473,7 @@ export default function PageBuilder() {
               <div className="min-h-full p-8 flex items-start justify-center">
                 <div
                   ref={canvasRef}
-                  className={`builder-canvas bg-white shadow-2xl transition-all origin-top ${builder.viewport === 'desktop' ? 'w-full max-w-[1400px]' :
+                  className={`builder-canvas ${BUILDER_PREVIEW_SCOPE_CLASS} bg-white shadow-2xl transition-all origin-top ${builder.viewport === 'desktop' ? 'w-full max-w-[1400px]' :
                     builder.viewport === 'tablet' ? 'w-[768px]' :
                       'w-[375px]'
                     }`}
@@ -1273,78 +1483,83 @@ export default function PageBuilder() {
                     paddingBottom: '200px', // Extra space at bottom for adding more content
                   }}
                 >
-                  {/* Render document */}
-                  <NodeRenderer
-                    node={builder.document}
-                    viewport={builder.viewport}
-                    isSelected={builder.selectedIds.includes(builder.document.id)}
-                    isHovered={builder.hoveredId === builder.document.id}
-                    structureMode={structureMode}
-                    onSelect={builder.selectNode}
-                    onHover={builder.hoverNode}
-                    onContentChange={(nodeId, content) => builder.updateProps(nodeId, { content })}
-                    onPropsChange={(nodeId, props) => builder.updateProps(nodeId, props)}
-                    onMoveNode={handleSmartMoveNode}
-                    onStyleChange={builder.updateStyle}
-                    onAddColumnToRow={handleAddColumnToRow}
-                    selectedIds={builder.selectedIds}
-                  />
+                  {(previewThemeCss !== '' || hasGlobalStyleOverrides(pageStyleOverrides)) && (
+                    <style>{previewThemeCss + pageOverrideCss}</style>
+                  )}
+                  <div style={previewShellStyle}>
+                    {/* Render document */}
+                    <NodeRenderer
+                      node={builder.document}
+                      viewport={builder.viewport}
+                      isSelected={builder.selectedIds.includes(builder.document.id)}
+                      isHovered={builder.hoveredId === builder.document.id}
+                      structureMode={structureMode}
+                      onSelect={builder.selectNode}
+                      onHover={builder.hoverNode}
+                      onContentChange={(nodeId, content) => builder.updateProps(nodeId, { content })}
+                      onPropsChange={(nodeId, props) => builder.updateProps(nodeId, props)}
+                      onMoveNode={handleSmartMoveNode}
+                      onStyleChange={builder.updateStyle}
+                      onAddColumnToRow={handleAddColumnToRow}
+                      selectedIds={builder.selectedIds}
+                    />
 
-                  {/* Empty state - show when document has no sections or all sections are empty */}
-                  {(builder.document.children.length === 0 ||
-                    (builder.document.children.length === 1 && builder.document.children[0].children.length === 0)) && (
-                      <div className="flex flex-col items-center justify-center py-24 text-center px-8">
-                        {/* Animated icon */}
-                        <div className="relative mb-8">
-                          <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-blue-500/20 to-purple-500/20 flex items-center justify-center">
-                            <Plus className="w-10 h-10 text-blue-500" />
+                    {/* Empty state - show when document has no sections or all sections are empty */}
+                    {(builder.document.children.length === 0 ||
+                      (builder.document.children.length === 1 && builder.document.children[0].children.length === 0)) && (
+                        <div className="flex flex-col items-center justify-center py-24 text-center px-8">
+                          {/* Animated icon */}
+                          <div className="relative mb-8">
+                            <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-blue-500/20 to-purple-500/20 flex items-center justify-center">
+                              <Plus className="w-10 h-10 text-blue-500" />
+                            </div>
+                            <div className="absolute -top-1 -right-1 w-4 h-4 bg-blue-500 rounded-full animate-pulse" />
                           </div>
-                          <div className="absolute -top-1 -right-1 w-4 h-4 bg-blue-500 rounded-full animate-pulse" />
-                        </div>
 
-                        <h3 className="text-xl font-semibold text-gray-700 mb-2">
-                          Start Building Your Page
-                        </h3>
-                        <p className="text-sm text-gray-500 max-w-sm mb-8">
-                          Choose a template to get started quickly, or add sections manually from the component drawer below.
-                        </p>
+                          <h3 className="text-xl font-semibold text-gray-700 mb-2">
+                            Start Building Your Page
+                          </h3>
+                          <p className="text-sm text-gray-500 max-w-sm mb-8">
+                            Choose a template to get started quickly, or add sections manually from the component drawer below.
+                          </p>
 
-                        {/* Quick action buttons */}
-                        <div className="flex flex-col sm:flex-row gap-3 mb-8">
-                          <button
-                            onClick={() => setRightPanelTab('templates')}
-                            className="flex items-center justify-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium shadow-lg shadow-blue-500/25"
-                          >
-                            <FileText className="w-4 h-4" />
-                            Browse Templates
-                          </button>
-                          <button
-                            onClick={() => {
-                              // Add a blank section
-                              const newSection = createNode('section', {}, {
-                                padding: '64px 24px',
-                                minHeight: '300px',
-                                backgroundColor: '#ffffff',
-                              });
-                              builder.insertNode(newSection, builder.document.id, builder.document.children.length);
-                            }}
-                            className="flex items-center justify-center gap-2 px-6 py-3 bg-white text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium border border-gray-200 shadow-sm"
-                          >
-                            <Plus className="w-4 h-4" />
-                            Add Blank Section
-                          </button>
-                        </div>
+                          {/* Quick action buttons */}
+                          <div className="flex flex-col sm:flex-row gap-3 mb-8">
+                            <button
+                              onClick={() => setRightPanelTab('templates')}
+                              className="flex items-center justify-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium shadow-lg shadow-blue-500/25"
+                            >
+                              <FileText className="w-4 h-4" />
+                              Browse Templates
+                            </button>
+                            <button
+                              onClick={() => {
+                                // Add a blank section
+                                const newSection = createNode('section', {}, {
+                                  padding: '64px 24px',
+                                  minHeight: '300px',
+                                  backgroundColor: '#ffffff',
+                                });
+                                builder.insertNode(newSection, builder.document.id, builder.document.children.length);
+                              }}
+                              className="flex items-center justify-center gap-2 px-6 py-3 bg-white text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium border border-gray-200 shadow-sm"
+                            >
+                              <Plus className="w-4 h-4" />
+                              Add Blank Section
+                            </button>
+                          </div>
 
-                        {/* Keyboard shortcut hint */}
-                        <div className="flex items-center gap-2 text-xs text-gray-400">
-                          <span>Pro tip: Press</span>
-                          <kbd className="px-2 py-0.5 bg-gray-100 rounded text-gray-500 font-mono">⌘</kbd>
-                          <span>+</span>
-                          <kbd className="px-2 py-0.5 bg-gray-100 rounded text-gray-500 font-mono">K</kbd>
-                          <span>to open the command finder</span>
+                          {/* Keyboard shortcut hint */}
+                          <div className="flex items-center gap-2 text-xs text-gray-400">
+                            <span>Pro tip: Press</span>
+                            <kbd className="px-2 py-0.5 bg-gray-100 rounded text-gray-500 font-mono">⌘</kbd>
+                            <span>+</span>
+                            <kbd className="px-2 py-0.5 bg-gray-100 rounded text-gray-500 font-mono">K</kbd>
+                            <span>to open the command finder</span>
+                          </div>
                         </div>
-                      </div>
-                    )}
+                      )}
+                  </div>
                 </div>
               </div>
             </div>
@@ -1370,7 +1585,7 @@ export default function PageBuilder() {
                 onMoveDown={() => handleMoveNode('down')}
                 onSaveAsBlock={() => {
                   const node = builder.findNode(contextMenu.nodeId);
-                  if (node && ['section', 'container'].includes(node.type)) {
+                  if (node && ['section', 'container', 'layout_container'].includes(node.type)) {
                     setBlockToSave(node);
                     setSaveBlockModalOpen(true);
                   }
@@ -1497,7 +1712,12 @@ export default function PageBuilder() {
                   <BlocksPanel
                     onInsertBlock={(node) => {
                       // Insert block as a new section in the document
-                      builder.insertNode(node, builder.document.id, builder.document.children.length);
+                      const blockNode = node.type === 'section'
+                        ? node
+                        : createNode('section', {}, { padding: '48px 24px' }, [
+                          node.type === 'layout_container' ? createNode('container', {}, {}, [node]) : node,
+                        ]);
+                      builder.insertNode(blockNode, builder.document.id, builder.document.children.length);
                     }}
                   />
                 )}

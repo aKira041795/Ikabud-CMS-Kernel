@@ -257,7 +257,7 @@ function auditNode(array &$node, string $path, array &$issues, array &$fixes, bo
     $entrance = trim((string)($props['entranceAnimation'] ?? ''));
 
     // Rule 2: parent layout animation duplication with child button animation.
-    $layoutTypes = ['section', 'container', 'row', 'column'];
+    $layoutTypes = ['section', 'container', 'layout_container', 'row', 'column'];
     if (in_array($type, $layoutTypes, true) && ($hover !== '' || $entrance !== '')) {
         $buttons = [];
         collectDescendantButtons($node, $path, $buttons, '');

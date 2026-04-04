@@ -12,6 +12,11 @@ export interface BuilderBootData {
   contentId: number | null;
   baseUrl: string;
   csrfToken: string;
+  previewTheme?: {
+    active_customizer_scope?: string;
+    global_styles?: Record<string, unknown> | null;
+    shell?: Record<string, unknown> | null;
+  } | null;
   user: {
     id: number;
     username: string;
@@ -25,12 +30,12 @@ export interface BuilderBootData {
 export function getBootData(): BuilderBootData {
   const el = document.getElementById('builder-boot-data');
   if (!el) {
-    return { contentId: null, baseUrl: '', csrfToken: '', user: null };
+    return { contentId: null, baseUrl: '', csrfToken: '', previewTheme: null, user: null };
   }
   try {
     return JSON.parse(el.textContent || '{}');
   } catch {
-    return { contentId: null, baseUrl: '', csrfToken: '', user: null };
+    return { contentId: null, baseUrl: '', csrfToken: '', previewTheme: null, user: null };
   }
 }
 

@@ -30,6 +30,7 @@ function cmsBuilderWidgetRenderers(): array
         'document'        => 'cmsRenderWidget_document',
         'section'         => 'cmsRenderWidget_layout',
         'container'       => 'cmsRenderWidget_layout',
+        'layout_container' => 'cmsRenderWidget_layout',
         'row'             => 'cmsRenderWidget_layout',
         'column'          => 'cmsRenderWidget_layout',
         'heading'         => 'cmsRenderWidget_heading',
@@ -145,7 +146,7 @@ function cmsRenderWidget_layout(array $props, array $style, array $attrs, string
 
     // Flag layout containers with responsive mobile collapse rules so CSS can target only
     // preset/custom layout containers instead of every generic container on the site.
-    if ($type === 'container') {
+    if (in_array($type, ['container', 'layout_container'], true)) {
         $mobile = isset($rawStyle['mobile']) && is_array($rawStyle['mobile']) ? $rawStyle['mobile'] : [];
         if (($style['display'] ?? null) === 'flex' || ($style['display'] ?? null) === 'grid') {
             $attrs['data-layout-display'] = (string)$style['display'];

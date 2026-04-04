@@ -73,6 +73,11 @@ function cmsBuilderNormalizeDocument(mixed $document): array
     $seenNodeIds = [];
     $reactNode = _cmsBuilderSanitizeNode($reactNode, $seenNodeIds, true);
 
+    // Step 4b: Split legacy overloaded containers into constrained wrappers
+    // and unconstrained layout containers so old documents render consistently
+    // with the new builder semantics.
+    $reactNode = _cmsBuilderMigrateContainerSemantics($reactNode, $seenNodeIds);
+
     // Step 5: Return clean DB envelope — ONLY schema_version + document
     return [
         'schema_version' => (string)($document['schema_version'] ?? '1.0'),
@@ -168,6 +173,88 @@ function _cmsBuilderSanitizeNode(array $node, array &$seenNodeIds = [], bool $is
     ];
 }
 
+function _cmsBuilderGenerateNodeId(array &$seenNodeIds, string $prefix = 'node'): string
+{
+    do {
+        $id = $prefix . '_' . substr(bin2hex(random_bytes(8)), 0, 12);
+    } while (isset($seenNodeIds[$id]));
+    $seenNodeIds[$id] = true;
+    return $id;
+}
+
+function _cmsBuilderNodeHasValue(mixed $value): bool
+{
+    return $value !== null && $value !== '';
+}
+
+function _cmsBuilderContainerHasConstraint(array $style): bool
+{
+    foreach (['maxWidth', 'margin', 'marginLeft', 'marginRight'] as $key) {
+        if (array_key_exists($key, $style) && _cmsBuilderNodeHasValue($style[$key])) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+function _cmsBuilderLooksLikeLayoutContainer(array $node): bool
+{
+    $props = isset($node['props']) && is_array($node['props']) ? $node['props'] : [];
+    $style = isset($node['style']) && is_array($node['style']) ? $node['style'] : [];
+
+    if (_cmsBuilderNodeHasValue($props['layoutMode'] ?? null) || _cmsBuilderNodeHasValue($props['presetId'] ?? null)) {
+        return true;
+    }
+
+    $display = trim((string)($style['display'] ?? ''));
+    if (in_array($display, ['flex', 'grid'], true)) {
+        return true;
+    }
+
+    foreach (['flexDirection', 'flexWrap', 'gap', 'gridTemplateColumns', 'gridTemplateRows', 'justifyContent', 'alignItems', 'alignContent', 'placeItems', 'placeContent', 'flex', 'flexBasis', 'flexGrow', 'flexShrink', 'order', 'alignSelf'] as $key) {
+        if (array_key_exists($key, $style) && _cmsBuilderNodeHasValue($style[$key])) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+function _cmsBuilderMigrateContainerSemantics(array $node, array &$seenNodeIds, ?string $parentType = null): array
+{
+    $type = (string)($node['type'] ?? '');
+    $style = isset($node['style']) && is_array($node['style']) ? $node['style'] : [];
+
+    if ($type === 'container' && _cmsBuilderLooksLikeLayoutContainer($node) && !_cmsBuilderContainerHasConstraint($style)) {
+        $node['type'] = 'layout_container';
+        $type = 'layout_container';
+    }
+
+    $children = isset($node['children']) && is_array($node['children']) ? $node['children'] : [];
+    $migratedChildren = [];
+    foreach ($children as $child) {
+        if (!is_array($child)) {
+            continue;
+        }
+        $migratedChildren[] = _cmsBuilderMigrateContainerSemantics($child, $seenNodeIds, $type !== '' ? $type : $parentType);
+    }
+    $node['children'] = array_values($migratedChildren);
+
+    if ($type === 'layout_container' && $parentType === 'section') {
+        return [
+            'id' => _cmsBuilderGenerateNodeId($seenNodeIds),
+            'type' => 'container',
+            'props' => [],
+            'style' => [],
+            'children' => [$node],
+            'meta' => [],
+        ];
+    }
+
+    return $node;
+}
+
 function cmsBuilderValidateDocument(mixed $document): array
 {
     $normalized = cmsBuilderNormalizeDocument($document);
@@ -183,7 +270,7 @@ function cmsBuilderValidateDocument(mixed $document): array
 
     // All React component types the builder can produce
     $allowedTypes = [
-        'document', 'section', 'columns', 'container', 'row', 'column',
+        'document', 'section', 'columns', 'container', 'layout_container', 'row', 'column',
         'heading', 'text', 'button', 'image', 'video', 'icon', 'icon_box',
         'social_icons', 'list', 'testimonial', 'blockquote', 'image_box',
         'logo_grid', 'star_rating', 'call_to_action', 'pricing_table',
@@ -475,6 +562,7 @@ function cmsBuilderDefaultStyle(string $type): array
         // minimal so preset child containers do not accidentally inherit constrained-width
         // wrapper behavior on the public frontend.
         'container'  => ['boxSizing' => 'border-box'],
+        'layout_container' => ['boxSizing' => 'border-box', 'minWidth' => '0'],
         'row'        => ['display' => 'flex', 'flexDirection' => 'row', 'flexWrap' => 'wrap', 'gap' => '24px', 'justifyContent' => 'center', 'alignItems' => 'stretch'],
         'column'     => ['display' => 'flex', 'flexDirection' => 'column', 'gap' => '16px', 'alignItems' => 'stretch', 'boxSizing' => 'border-box', 'minWidth' => '0'],
         'heading'    => ['fontSize' => '32px', 'fontWeight' => '700', 'lineHeight' => '1.2', 'color' => '#111827', 'textAlign' => 'center', 'width' => '100%'],
@@ -939,7 +1027,7 @@ function cmsBuilderRenderGlobalStyleTag(array $globalStyles, string $scopeClass)
     if (!empty($typography['h4Size'])) $rules[] = '.' . $scopeClass . ' h4{font-size:' . $typography['h4Size'] . '}';
     if (!empty($spacing['sectionPadding'])) $rules[] = '.' . $scopeClass . ' .cms-builder-node--section{padding:' . $spacing['sectionPadding'] . '}';
     if (!empty($spacing['containerMaxWidth'])) $rules[] = '.' . $scopeClass . ' .cms-builder-node--container{max-width:' . $spacing['containerMaxWidth'] . ';margin-left:auto;margin-right:auto;width:100%}';
-    if (!empty($spacing['elementGap'])) $rules[] = '.' . $scopeClass . ' .cms-builder-node--row,.' . $scopeClass . ' .cms-builder-node--column,.' . $scopeClass . ' .cms-builder-node--container{gap:' . $spacing['elementGap'] . '}';
+    if (!empty($spacing['elementGap'])) $rules[] = '.' . $scopeClass . ' .cms-builder-node--row,.' . $scopeClass . ' .cms-builder-node--column,.' . $scopeClass . ' .cms-builder-node--layout_container{gap:' . $spacing['elementGap'] . '}';
     if (!empty($buttons['borderRadius']) || !empty($buttons['paddingY']) || !empty($buttons['paddingX']) || !empty($buttons['fontSize'])) {
         $buttonRules = [];
         if (!empty($buttons['borderRadius'])) $buttonRules[] = 'border-radius:' . $buttons['borderRadius'];
@@ -1302,7 +1390,7 @@ function cmsBuilderEditorBlocksToDocument(array $blocks, string $title = ''): ar
         $children[] = [
             'id' => 'editor_' . $index,
             'type' => $nodeType,
-            'kind' => in_array($nodeType, ['section', 'container', 'columns'], true) ? 'section' : 'widget',
+            'kind' => in_array($nodeType, ['section', 'container', 'layout_container', 'columns'], true) ? 'section' : 'widget',
             'version' => 1,
             'props' => $props,
             'style' => [],
@@ -1340,6 +1428,70 @@ function cmsPageBuilderSettings(array $meta): array
 
     $decoded = json_decode($raw, true);
     return is_array($decoded) ? $decoded : [];
+}
+
+function cmsBuilderLivePreviewThemePayload(array $context = []): array
+{
+    $policy = function_exists('cmsResolveEcommerceThemePolicy')
+        ? cmsResolveEcommerceThemePolicy(array_merge([
+            'public_render_origin' => 'cms',
+            'public_route_kind' => 'page',
+            'public_presentation_mode' => 'traditional',
+        ], $context))
+        : ['active_theme_scope' => function_exists('cmsActiveCustomizerScope') ? cmsActiveCustomizerScope() : 'native'];
+
+    $scope = function_exists('cmsNormalizeCustomizerScope')
+        ? cmsNormalizeCustomizerScope((string)($policy['active_theme_scope'] ?? 'native'), function_exists('cmsActiveCustomizerScope') ? cmsActiveCustomizerScope() : 'native')
+        : ((string)($policy['active_theme_scope'] ?? 'native') === 'ecommerce' ? 'ecommerce' : 'native');
+
+    try {
+        $db = cmsDb();
+        $colorsData = cmsCustomizerGet($db, 'colors', $scope);
+        $themeData = cmsCustomizerGet($db, 'theme', $scope);
+        $colors = cmsValidateColorsSettings(is_array($colorsData['settings'] ?? null) ? $colorsData['settings'] : []);
+        $theme = cmsValidateThemeLayoutSettings(is_array($themeData['settings'] ?? null) ? $themeData['settings'] : []);
+    } catch (Throwable $e) {
+        $colors = cmsColorsSettingsDefaults();
+        $theme = cmsThemeLayoutSettingsDefaults();
+    }
+
+    return [
+        'active_customizer_scope' => $scope,
+        'global_styles' => [
+            'colors' => [
+                'primary' => (string)($colors['color_primary'] ?? '#3b82f6'),
+                'secondary' => (string)($colors['color_secondary'] ?? '#64748b'),
+                'accent' => (string)($colors['color_accent'] ?? '#f59e0b'),
+                'text' => (string)($colors['body_text_color'] ?? '#1e293b'),
+                'textLight' => (string)($colors['body_text_light'] ?? '#64748b'),
+                'background' => (string)($colors['body_bg_color'] ?? '#ffffff'),
+                'backgroundAlt' => (string)($colors['light_bg_color'] ?? '#f8fafc'),
+            ],
+            'typography' => [
+                'fontFamily' => cmsCustomizerFontCssValue((string)($colors['font_body'] ?? 'Inter'), 'system-ui,-apple-system,BlinkMacSystemFont,sans-serif'),
+                'headingFontFamily' => cmsCustomizerFontCssValue((string)($colors['font_heading'] ?? 'Inter'), 'system-ui,-apple-system,BlinkMacSystemFont,sans-serif'),
+                'baseFontSize' => (string)($colors['font_size_base'] ?? '16') . 'px',
+                'lineHeight' => (string)($colors['line_height'] ?? '1.6'),
+                'h1Size' => (string)($colors['h1_size'] ?? '2.5') . 'rem',
+                'h2Size' => (string)($colors['h2_size'] ?? '2') . 'rem',
+                'h3Size' => (string)($colors['h3_size'] ?? '1.5') . 'rem',
+                'h4Size' => (string)($colors['h4_size'] ?? '1.25') . 'rem',
+            ],
+            'spacing' => [
+                'containerMaxWidth' => (string)($colors['container_width'] ?? '1200') . 'px',
+            ],
+            'buttons' => [
+                'borderRadius' => (string)($colors['border_radius'] ?? '0.5') . 'rem',
+            ],
+        ],
+        'shell' => [
+            'maxWidth' => (string)($theme['site_max_width'] ?? '1280') . 'px',
+            'paddingTop' => (string)($theme['content_padding_top'] ?? '32') . 'px',
+            'paddingRight' => (string)($theme['content_padding_x'] ?? '16') . 'px',
+            'paddingBottom' => (string)($theme['content_padding_bottom'] ?? '32') . 'px',
+            'paddingLeft' => (string)($theme['content_padding_x'] ?? '16') . 'px',
+        ],
+    ];
 }
 
 function cmsPageBuilderContentJson(array $meta, mixed $fallback = null): ?string
@@ -1425,7 +1577,8 @@ function cmsBuilderWidgetRegistry(): array
         // Layout
         ['type' => 'section',       'label' => 'Section',       'kind' => 'section', 'category' => 'layout',   'supports_children' => true,  'description' => 'Flex/Grid section (nestable)',  'icon' => 'section'],
         ['type' => 'columns',       'label' => 'Columns',       'kind' => 'section', 'category' => 'layout',   'supports_children' => true,  'description' => 'Flex/Grid column layout',       'icon' => 'columns'],
-        ['type' => 'container',     'label' => 'Container',     'kind' => 'section', 'category' => 'layout',   'supports_children' => true,  'description' => 'Nestable flex/grid container',  'icon' => 'container'],
+        ['type' => 'container',     'label' => 'Container',     'kind' => 'section', 'category' => 'layout',   'supports_children' => true,  'description' => 'Constrained content wrapper',   'icon' => 'container'],
+        ['type' => 'layout_container', 'label' => 'Layout',     'kind' => 'section', 'category' => 'layout',   'supports_children' => true,  'description' => 'Flex/grid layout container',    'icon' => 'container'],
         ['type' => 'spacer',        'label' => 'Spacer',        'kind' => 'widget',  'category' => 'layout',   'supports_children' => false, 'description' => 'Vertical spacing',          'icon' => 'spacer'],
         // Media
         ['type' => 'gallery',       'label' => 'Gallery',       'kind' => 'widget',  'category' => 'media',    'supports_children' => false, 'description' => 'Image gallery grid',        'icon' => 'gallery'],
