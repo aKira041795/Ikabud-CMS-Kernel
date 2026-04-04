@@ -652,6 +652,8 @@ export const CMS_COMPONENTS: ComponentDefinition[] = [
     description: 'Dynamic grid of blog posts with configurable options',
     defaultProps: {
       postCount: 3,
+      sourceMode: 'latest',
+      postIds: [],
       categoryIds: [],
       showDate: true,
       showExcerpt: true,
@@ -1106,7 +1108,13 @@ export const CMS_COMPONENTS: ComponentDefinition[] = [
     defaultProps: {
       title: 'Latest Posts',
       count: 5,
+      sourceMode: 'latest',
+      postIds: [],
+      categoryIds: [],
+      orderBy: 'date',
       showDate: true,
+      showThumbnail: false,
+      showExcerpt: false,
     },
     defaultStyle: {
       ...themeWidgetCardStyle,

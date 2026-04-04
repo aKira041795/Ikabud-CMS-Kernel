@@ -818,6 +818,111 @@ function cmsApiBuilderDynamicSources(array $params = []): void
     exit;
 }
 
+function cmsApiBuilderWidgetPosts(array $params = []): void
+{
+    header('Content-Type: application/json');
+    cmsRequireCap('builder.access');
+
+    $input = cmsInput();
+    $rows = cmsBuilderFetchPosts([
+        'type' => (string)($input['type'] ?? 'post'),
+        'limit' => (int)($input['limit'] ?? 10),
+        'source_mode' => (string)($input['source_mode'] ?? ''),
+        'category_ids' => $input['category_ids'] ?? [],
+        'post_ids' => $input['post_ids'] ?? [],
+        'order_by' => (string)($input['order_by'] ?? 'date'),
+        'order' => (string)($input['order'] ?? 'desc'),
+        'include_author' => (($input['include_author'] ?? '') === '1'),
+        'include_featured_image' => (($input['include_featured_image'] ?? '') === '1'),
+    ]);
+
+    foreach ($rows as &$row) {
+        if (!empty($row['featured_image']) && function_exists('cmsResolveUploadUrl')) {
+            $row['featured_image_url'] = cmsResolveUploadUrl((string)$row['featured_image']);
+        }
+    }
+    unset($row);
+
+    echo json_encode(['ok' => true, 'data' => $rows]);
+    exit;
+}
+
+function cmsApiBuilderWidgetCategories(array $params = []): void
+{
+    header('Content-Type: application/json');
+    cmsRequireCap('builder.access');
+
+    $input = cmsInput();
+    $rows = cmsBuilderFetchCategorySummary([
+        'module' => (string)($input['module'] ?? 'post'),
+        'count' => (int)($input['count'] ?? 8),
+        'order_by' => (string)($input['order_by'] ?? 'name'),
+        'show_empty' => (($input['show_empty'] ?? '') === '1'),
+    ]);
+
+    echo json_encode(['ok' => true, 'data' => $rows]);
+    exit;
+}
+
+function cmsApiBuilderWidgetTags(array $params = []): void
+{
+    header('Content-Type: application/json');
+    cmsRequireCap('builder.access');
+
+    $input = cmsInput();
+    $rows = cmsBuilderFetchTagSummary([
+        'count' => (int)($input['count'] ?? 16),
+        'order_by' => (string)($input['order_by'] ?? 'count'),
+    ]);
+
+    echo json_encode(['ok' => true, 'data' => $rows]);
+    exit;
+}
+
+function cmsApiBuilderWidgetArchives(array $params = []): void
+{
+    header('Content-Type: application/json');
+    cmsRequireCap('builder.access');
+
+    $input = cmsInput();
+    $rows = cmsBuilderFetchArchiveSummary([
+        'count' => (int)($input['count'] ?? 6),
+        'order_by' => (string)($input['order_by'] ?? 'date_desc'),
+    ]);
+
+    echo json_encode(['ok' => true, 'data' => $rows]);
+    exit;
+}
+
+function cmsApiBuilderWidgetContext(array $params = []): void
+{
+    header('Content-Type: application/json');
+    cmsRequireCap('builder.access');
+
+    echo json_encode([
+        'ok' => true,
+        'data' => [
+            'social_links' => cmsBuilderSocialLinksData(),
+        ],
+    ]);
+    exit;
+}
+
+function cmsApiBuilderWidgetMenus(array $params = []): void
+{
+    header('Content-Type: application/json');
+    cmsRequireCap('builder.access');
+
+    $menus = cmsGetMenus();
+    foreach ($menus as &$menu) {
+        $menu['items'] = cmsGetMenuItemsTree((int)($menu['id'] ?? 0));
+    }
+    unset($menu);
+
+    echo json_encode(['ok' => true, 'data' => $menus]);
+    exit;
+}
+
 function cmsApiBuilderTemplateSave(array $params = []): void
 {
     header('Content-Type: application/json');

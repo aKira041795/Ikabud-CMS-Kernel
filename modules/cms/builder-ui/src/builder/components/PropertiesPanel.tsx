@@ -66,6 +66,32 @@ import { getComponentDefinition } from '../core/components';
 import { buildFlexPartStyle, buildFlexWidthStyle, deriveFlexPart, deriveLayoutWidth, hasExplicitFlexSizing } from '../core/layoutSizing';
 import MediaLibrary from './MediaLibrary';
 
+function normalizeSelectedIds(value: unknown): number[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return Array.from(new Set(value.map((item) => Number(item)).filter((item) => Number.isInteger(item) && item > 0)));
+}
+
+function deriveWidgetSourceMode(props: Record<string, unknown>): 'latest' | 'posts' | 'categories' {
+  const explicit = String(props.sourceMode || '').trim();
+  if (explicit === 'posts' || explicit === 'categories' || explicit === 'latest') {
+    return explicit;
+  }
+
+  const postIds = normalizeSelectedIds(props.postIds);
+  if (postIds.length > 0) {
+    return 'posts';
+  }
+
+  const categoryIds = normalizeSelectedIds(props.categoryIds);
+  if (categoryIds.length > 0) {
+    return 'categories';
+  }
+
+  return 'latest';
+}
+
 // =============================================================================
 // Property Input Components
 // =============================================================================
@@ -596,6 +622,108 @@ const ProductCategorySelector: React.FC<CategorySelectorProps> = ({ value, onCha
   );
 };
 
+interface PostSelectorProps {
+  value: number[];
+  onChange: (value: number[]) => void;
+  contentType?: string;
+}
+
+const PostSelector: React.FC<PostSelectorProps> = ({ value, onChange, contentType = 'post' }) => {
+  const [posts, setPosts] = useState<Array<{ id: number; title: string; slug?: string }>>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+    const fetchPosts = async () => {
+      try {
+        const params = new URLSearchParams({
+          type: contentType,
+          limit: '50',
+          source_mode: 'latest',
+          order_by: 'title',
+          order: 'asc',
+        });
+        const response = await fetch(`/api/v1/cms/builder/widget-data/posts?${params.toString()}`, {
+          credentials: 'include',
+          headers: { 'Accept': 'application/json' },
+        });
+        const data = await response.json();
+        if (!cancelled) {
+          setPosts(Array.isArray(data?.data) ? data.data : []);
+        }
+      } catch (error) {
+        console.error('Failed to fetch selectable content:', error);
+        if (!cancelled) {
+          setPosts([]);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    };
+
+    setLoading(true);
+    fetchPosts();
+    return () => { cancelled = true; };
+  }, [contentType]);
+
+  const normalizedValue = normalizeSelectedIds(value);
+  const searchNeedle = search.trim().toLowerCase();
+  const filteredPosts = posts.filter((post) => {
+    if (searchNeedle === '') {
+      return true;
+    }
+    return String(post.title || '').toLowerCase().includes(searchNeedle)
+      || String(post.slug || '').toLowerCase().includes(searchNeedle);
+  });
+
+  const handleToggle = (postId: number) => {
+    if (normalizedValue.includes(postId)) {
+      onChange(normalizedValue.filter((id) => id !== postId));
+    } else {
+      onChange([...normalizedValue, postId]);
+    }
+  };
+
+  if (loading) {
+    return <div className="text-xs text-white/60">Loading {contentType === 'page' ? 'pages' : 'posts'}...</div>;
+  }
+
+  if (posts.length === 0) {
+    return <div className="text-xs text-white/60">No published {contentType === 'page' ? 'pages' : 'posts'} found.</div>;
+  }
+
+  return (
+    <div className="space-y-2">
+      <input
+        type="text"
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        placeholder={`Search ${contentType === 'page' ? 'pages' : 'posts'}...`}
+        className="w-full px-2 py-1.5 text-xs bg-[#1e1e1e] border border-[#3c3c3c] text-white/90 placeholder-white/30 focus:outline-none focus:border-[#0078d4]"
+      />
+      <div className="text-[10px] text-white/50">
+        {normalizedValue.length} selected
+      </div>
+      <div className="space-y-2 max-h-40 overflow-y-auto">
+        {filteredPosts.map((post) => (
+          <label key={post.id} className="flex items-start gap-2 text-xs text-white/80 cursor-pointer hover:text-white">
+            <input
+              type="checkbox"
+              checked={normalizedValue.includes(post.id)}
+              onChange={() => handleToggle(post.id)}
+              className="w-3 h-3 mt-0.5 bg-[#1e1e1e] border border-[#3c3c3c] rounded focus:outline-none focus:border-[#0078d4]"
+            />
+            <span className="leading-5">{post.title || `Untitled #${post.id}`}</span>
+          </label>
+        ))}
+      </div>
+    </div>
+  );
+};
+
 type TabType = 'content' | 'style' | 'advanced';
 type StyleViewport = 'desktop' | 'tablet' | 'mobile';
 
@@ -812,6 +940,10 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
   const componentDef = getComponentDefinition(node.type);
   const isContainer = ['section', 'container', 'row', 'column'].includes(node.type);
   const isTextElement = ['heading', 'text', 'button'].includes(node.type);
+  const selectedCategoryIds = normalizeSelectedIds(node.props.categoryIds);
+  const selectedPostIds = normalizeSelectedIds(node.props.postIds);
+  const widgetSourceMode = deriveWidgetSourceMode(node.props as Record<string, unknown>);
+  const widgetContentType = String(node.props.postType || 'post');
 
   // Handle media selection for Gallery
   const handleMediaSelect = useCallback((item: any) => {
@@ -1487,9 +1619,9 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
           <div className="mb-3 p-3 bg-[#1a1a2e] rounded-lg border border-white/10">
             <div className="text-[10px] font-medium text-white/40 uppercase tracking-wide mb-2">This block currently shows</div>
             <div className="text-xs text-white/80 space-y-1">
-              <div><span className="text-white/50">Source:</span> {(node.props.categoryIds as number[])?.length > 0 ? `${(node.props.categoryIds as number[]).length} categories` : 'All posts'}</div>
+              <div><span className="text-white/50">Source:</span> {widgetSourceMode === 'posts' ? `${selectedPostIds.length} selected ${widgetContentType === 'page' ? 'pages' : 'posts'}` : widgetSourceMode === 'categories' ? `${selectedCategoryIds.length} categories` : `Latest ${widgetContentType === 'page' ? 'pages' : 'posts'}`}</div>
               <div><span className="text-white/50">Display:</span> {node.props.postCount || 3} posts in {node.props.gridColumns || 3} columns</div>
-              <div><span className="text-white/50">Order:</span> {node.props.orderBy === 'title' ? 'By title' : node.props.orderBy === 'random' ? 'Random' : 'Newest first'}</div>
+              <div><span className="text-white/50">Order:</span> {widgetSourceMode === 'posts' ? 'Manual selection order' : node.props.orderBy === 'title' ? 'By title' : node.props.orderBy === 'random' ? 'Random' : 'Newest first'}</div>
             </div>
           </div>
 
@@ -1602,42 +1734,78 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
             </div>
             <SelectInput
               label="Content Type"
-              value={(node.props.postType as string) || 'post'}
-              onChange={(v) => handlePropChange('postType', v)}
+              value={widgetContentType}
+              onChange={(v) => {
+                const nextType: 'post' | 'page' = v === 'page' ? 'page' : 'post';
+                const nextProps: Partial<NodeProps> = { postType: nextType };
+                if (nextType === 'page' && widgetSourceMode === 'categories') {
+                  nextProps.sourceMode = 'latest';
+                }
+                onUpdateProps(node.id, nextProps);
+              }}
               options={[
                 { value: 'post', label: 'Blog Posts' },
                 { value: 'page', label: 'Pages' },
               ]}
             />
-            <div className="mt-3">
-              <label className="block text-[10px] font-medium text-white/40 uppercase tracking-wide mb-1">Filter by Category</label>
-              <div className="text-[10px] text-white/50 mb-2">
-                Leave empty to show all posts
+            <SelectInput
+              label="Source"
+              value={widgetSourceMode}
+              onChange={(v) => handlePropChange('sourceMode', v)}
+              options={[
+                { value: 'latest', label: `Latest ${widgetContentType === 'page' ? 'pages' : 'posts'}` },
+                { value: 'posts', label: `Selected ${widgetContentType === 'page' ? 'pages' : 'posts'}` },
+                ...(widgetContentType === 'post' ? [{ value: 'categories', label: 'Selected Categories' }] : []),
+              ]}
+            />
+            {widgetSourceMode === 'posts' && (
+              <div className="mt-3">
+                <label className="block text-[10px] font-medium text-white/40 uppercase tracking-wide mb-1">Select {widgetContentType === 'page' ? 'Pages' : 'Posts'}</label>
+                <div className="text-[10px] text-white/50 mb-2">
+                  The frontend keeps this manual order.
+                </div>
+                <PostSelector
+                  value={selectedPostIds}
+                  onChange={(ids) => handlePropChange('postIds', ids)}
+                  contentType={widgetContentType}
+                />
               </div>
-              <CategorySelector
-                value={(node.props.categoryIds as number[]) || []}
-                onChange={(ids) => handlePropChange('categoryIds', ids)}
-              />
-            </div>
-            <SelectInput
-              label="Sort By"
-              value={(node.props.orderBy as string) || 'date'}
-              onChange={(v) => handlePropChange('orderBy', v)}
-              options={[
-                { value: 'date', label: 'Publication Date' },
-                { value: 'title', label: 'Title (A-Z)' },
-                { value: 'random', label: 'Random' },
-              ]}
-            />
-            <SelectInput
-              label="Sort Order"
-              value={(node.props.order as string) || 'desc'}
-              onChange={(v) => handlePropChange('order', v)}
-              options={[
-                { value: 'desc', label: 'Newest First' },
-                { value: 'asc', label: 'Oldest First' },
-              ]}
-            />
+            )}
+            {widgetSourceMode === 'categories' && widgetContentType === 'post' && (
+              <div className="mt-3">
+                <label className="block text-[10px] font-medium text-white/40 uppercase tracking-wide mb-1">Filter by Category</label>
+                <div className="text-[10px] text-white/50 mb-2">
+                  Posts from any selected category will be shown.
+                </div>
+                <CategorySelector
+                  value={selectedCategoryIds}
+                  onChange={(ids) => handlePropChange('categoryIds', ids)}
+                />
+              </div>
+            )}
+            {widgetSourceMode !== 'posts' && (
+              <>
+                <SelectInput
+                  label="Sort By"
+                  value={(node.props.orderBy as string) || 'date'}
+                  onChange={(v) => handlePropChange('orderBy', v)}
+                  options={[
+                    { value: 'date', label: 'Publication Date' },
+                    { value: 'title', label: 'Title (A-Z)' },
+                    { value: 'random', label: 'Random' },
+                  ]}
+                />
+                <SelectInput
+                  label="Sort Order"
+                  value={(node.props.order as string) || 'desc'}
+                  onChange={(v) => handlePropChange('order', v)}
+                  options={[
+                    { value: 'desc', label: 'Newest First' },
+                    { value: 'asc', label: 'Oldest First' },
+                  ]}
+                />
+              </>
+            )}
             {node.props.showExcerpt !== false && (
               <SelectInput
                 label="Excerpt Length"
@@ -3849,6 +4017,14 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
       {/* Recent Posts */}
       {node.type === 'recent_posts' && (
         <CollapsibleSection title="Recent Posts" icon={<List className="w-3 h-3" />} defaultOpen>
+          <div className="mb-3 p-3 bg-[#1a1a2e] rounded-lg border border-white/10">
+            <div className="text-[10px] font-medium text-white/40 uppercase tracking-wide mb-2">This widget currently shows</div>
+            <div className="text-xs text-white/80 space-y-1">
+              <div><span className="text-white/50">Source:</span> {widgetSourceMode === 'posts' ? `${selectedPostIds.length} selected posts` : widgetSourceMode === 'categories' ? `${selectedCategoryIds.length} categories` : 'Latest posts'}</div>
+              <div><span className="text-white/50">Count:</span> {String((node.props.count as number) || 5)} posts</div>
+              <div><span className="text-white/50">Order:</span> {widgetSourceMode === 'posts' ? 'Manual selection order' : node.props.orderBy === 'title' ? 'By title' : node.props.orderBy === 'random' ? 'Random' : 'Newest first'}</div>
+            </div>
+          </div>
           <TextInput
             label="Title"
             value={node.props.title as string || ''}
@@ -3863,22 +4039,46 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
             placeholder="5"
           />
           <SelectInput
-            label="Order By"
-            value={node.props.orderBy as string || 'date'}
-            onChange={(v) => handlePropChange('orderBy', v)}
+            label="Source"
+            value={widgetSourceMode}
+            onChange={(v) => handlePropChange('sourceMode', v)}
             options={[
-              { value: 'date', label: 'Newest first' },
-              { value: 'title', label: 'By title (A–Z)' },
-              { value: 'random', label: 'Random' },
+              { value: 'latest', label: 'Latest Posts' },
+              { value: 'posts', label: 'Selected Posts' },
+              { value: 'categories', label: 'Selected Categories' },
             ]}
           />
-          <div className="space-y-1">
-            <label className="block text-[10px] font-medium text-white/40 uppercase tracking-wide">Filter by Category</label>
-            <CategorySelector
-              value={(node.props.categoryIds as number[]) || []}
-              onChange={(v) => handlePropChange('categoryIds', v)}
+          {widgetSourceMode === 'posts' && (
+            <div className="space-y-1">
+              <label className="block text-[10px] font-medium text-white/40 uppercase tracking-wide">Select Posts</label>
+              <PostSelector
+                value={selectedPostIds}
+                onChange={(v) => handlePropChange('postIds', v)}
+                contentType="post"
+              />
+            </div>
+          )}
+          {widgetSourceMode === 'categories' && (
+            <div className="space-y-1">
+              <label className="block text-[10px] font-medium text-white/40 uppercase tracking-wide">Filter by Category</label>
+              <CategorySelector
+                value={selectedCategoryIds}
+                onChange={(v) => handlePropChange('categoryIds', v)}
+              />
+            </div>
+          )}
+          {widgetSourceMode !== 'posts' && (
+            <SelectInput
+              label="Order By"
+              value={node.props.orderBy as string || 'date'}
+              onChange={(v) => handlePropChange('orderBy', v)}
+              options={[
+                { value: 'date', label: 'Newest first' },
+                { value: 'title', label: 'By title (A–Z)' },
+                { value: 'random', label: 'Random' },
+              ]}
             />
-          </div>
+          )}
           <div className="flex items-center justify-between">
             <label className="text-xs text-white/70">Show Date</label>
             <button

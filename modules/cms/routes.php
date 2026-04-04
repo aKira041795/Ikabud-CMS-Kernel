@@ -58,6 +58,12 @@ return [
         '/api/v1/cms/builder/templates/{id}' => 'cms:cmsApiBuilderTemplateGet',
         '/api/v1/cms/builder/widgets' => 'cms:cmsApiBuilderWidgetList',
         '/api/v1/cms/builder/dynamic-sources' => 'cms:cmsApiBuilderDynamicSources',
+        '/api/v1/cms/builder/widget-data/posts' => 'cms:cmsApiBuilderWidgetPosts',
+        '/api/v1/cms/builder/widget-data/categories' => 'cms:cmsApiBuilderWidgetCategories',
+        '/api/v1/cms/builder/widget-data/tags' => 'cms:cmsApiBuilderWidgetTags',
+        '/api/v1/cms/builder/widget-data/archives' => 'cms:cmsApiBuilderWidgetArchives',
+        '/api/v1/cms/builder/widget-data/context' => 'cms:cmsApiBuilderWidgetContext',
+        '/api/v1/cms/builder/widget-data/menus' => 'cms:cmsApiBuilderWidgetMenus',
         '/api/v1/cms/content-types'        => 'cms:cmsApiContentTypesList',
 
         // ── Entity Capability API (GET) ──────────────────────────

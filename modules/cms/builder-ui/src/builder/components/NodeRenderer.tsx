@@ -21,6 +21,33 @@ import InlineEditor from './InlineEditor';
 
 // Import MediaLibrary for image selection
 import MediaLibrary from './MediaLibrary';
+import { authFetch } from '@/lib/api';
+
+function normalizeSelectedIds(value: unknown): number[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return Array.from(new Set(value.map((item) => Number(item)).filter((item) => Number.isInteger(item) && item > 0)));
+}
+
+function deriveWidgetSourceMode(props: Record<string, unknown>): 'latest' | 'posts' | 'categories' {
+  const explicit = String(props.sourceMode || '').trim();
+  if (explicit === 'posts' || explicit === 'categories' || explicit === 'latest') {
+    return explicit;
+  }
+
+  const postIds = normalizeSelectedIds(props.postIds);
+  if (postIds.length > 0) {
+    return 'posts';
+  }
+
+  const categoryIds = normalizeSelectedIds(props.categoryIds);
+  if (categoryIds.length > 0) {
+    return 'categories';
+  }
+
+  return 'latest';
+}
 
 // =============================================================================
 // Style Conversion
@@ -2442,9 +2469,13 @@ const PostsGridRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties; viewp
     const readMoreText = String(node.props.readMoreText || 'Read More');
     const desktopCols = (node.props.gridColumns as number) || 3;
     const gridColumns = viewport === 'mobile' ? 1 : viewport === 'tablet' ? Math.min(2, desktopCols) : desktopCols;
-    const categoryIds = (node.props.categoryIds as number[]) || [];
+    const categoryIds = normalizeSelectedIds(node.props.categoryIds);
+    const postIds = normalizeSelectedIds(node.props.postIds);
+    const sourceMode = deriveWidgetSourceMode(node.props as Record<string, unknown>);
+    const postType = String(node.props.postType || 'post');
+    const orderBy = String(node.props.orderBy || 'date');
+    const order = String(node.props.order || 'desc').toLowerCase() === 'asc' ? 'asc' : 'desc';
 
-    // Live data fetch from public API
     const [livePosts, setLivePosts] = useState<Array<{
       id: number; title: string; excerpt?: string; published_at?: string; created_at?: string;
       author_name?: string; featured_image_url?: string;
@@ -2453,22 +2484,40 @@ const PostsGridRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties; viewp
     useEffect(() => {
       let cancelled = false;
       const limit = Math.max(1, postCount);
-      fetch(`/api/v1/cms/public/content/post?per_page=${limit}&include=featured_image`)
+      const params = new URLSearchParams({
+        type: postType,
+        limit: String(limit),
+        source_mode: sourceMode,
+        order_by: orderBy,
+        order,
+        include_author: showAuthor ? '1' : '0',
+        include_featured_image: showFeaturedImage ? '1' : '0',
+      });
+      if (sourceMode === 'posts' && postIds.length > 0) {
+        params.set('post_ids', postIds.join(','));
+      } else if (sourceMode === 'categories' && categoryIds.length > 0) {
+        params.set('category_ids', categoryIds.join(','));
+      }
+
+      authFetch(`/api/v1/cms/builder/widget-data/posts?${params.toString()}`)
         .then(r => r.ok ? r.json() : null)
         .then(data => {
-          if (!cancelled && data?.ok && Array.isArray(data.data) && data.data.length > 0) {
-            setLivePosts(data.data);
+          if (!cancelled) {
+            setLivePosts(Array.isArray(data?.data) ? data.data : []);
           }
         })
-        .catch(() => { });
+        .catch(() => {
+          if (!cancelled) {
+            setLivePosts([]);
+          }
+        });
       return () => { cancelled = true; };
-    }, [postCount]);
+    }, [postCount, postType, sourceMode, orderBy, order, showAuthor, showFeaturedImage, postIds.join(','), categoryIds.join(',')]);
 
-    // Fallback placeholders when no live data yet
     const placeholderPosts = Array.from({ length: postCount }, (_, i) => ({
       id: i + 1,
       title: `Sample Post Title ${i + 1}`,
-      excerpt: 'This is a sample excerpt that will be replaced with actual post content when rendered on the frontend.',
+      excerpt: 'This preview is loading live post data from the CMS.',
       date: new Date(Date.now() - i * 86400000).toLocaleDateString('en-US', {
         year: 'numeric', month: 'long', day: 'numeric'
       }),
@@ -2476,8 +2525,9 @@ const PostsGridRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties; viewp
       image: placeholderSvg(400, 250, '#cbd5e1', `Post ${i + 1}`),
     }));
 
-    const displayPosts = livePosts
-      ? livePosts.slice(0, postCount).map((p, i) => ({
+    const displayPosts = livePosts === null
+      ? placeholderPosts
+      : livePosts.slice(0, postCount).map((p, i) => ({
         id: p.id,
         title: p.title || `Post ${i + 1}`,
         excerpt: p.excerpt || '',
@@ -2485,9 +2535,8 @@ const PostsGridRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties; viewp
           ? new Date(p.published_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
           : '',
         author: p.author_name || '',
-        image: p.featured_image_url || placeholderSvg(400, 250, '#cbd5e1', `Post ${i + 1}`),
-      }))
-      : placeholderPosts;
+        image: p.featured_image_url || '',
+      }));
 
     const gridStyle: CSSProperties = {
       ...previewShellStyle(style),
@@ -2496,6 +2545,33 @@ const PostsGridRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties; viewp
       gridTemplateColumns: `repeat(${gridColumns}, 1fr)`,
       gap: '24px',
     };
+
+    const sourceLabel = sourceMode === 'posts'
+      ? `${postIds.length} selected posts`
+      : sourceMode === 'categories'
+        ? `${categoryIds.length} categories`
+        : `latest ${postType === 'page' ? 'pages' : 'posts'}`;
+
+    if (livePosts !== null && livePosts.length === 0) {
+      const emptyMessage = sourceMode === 'posts'
+        ? (postIds.length === 0 ? 'Select one or more posts in the inspector.' : 'No matching published posts were found.')
+        : sourceMode === 'categories'
+          ? (categoryIds.length === 0 ? 'Select one or more categories in the inspector.' : 'No published posts were found in the selected categories.')
+          : 'No published content matched this grid.';
+
+      return (
+        <div style={gridStyle}>
+          <div style={{ gridColumn: '1 / -1', padding: '24px', borderRadius: '12px', border: '1px dashed #cbd5e1', color: '#64748b', fontSize: '14px', textAlign: 'center' }}>
+            {emptyMessage}
+          </div>
+          <div style={{
+            position: 'absolute', top: '-24px', left: '0', fontSize: '10px', color: '#9ca3af', backgroundColor: '#f9fafb', padding: '2px 8px', borderRadius: '4px', border: '1px dashed #d1d5db',
+          }}>
+            Posts Grid • {sourceLabel} • live
+          </div>
+        </div>
+      );
+    }
 
     return (
       <div style={gridStyle}>
@@ -2511,7 +2587,7 @@ const PostsGridRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties; viewp
               flexDirection: 'column',
             }}
           >
-            {showFeaturedImage && (
+            {showFeaturedImage && (livePosts === null ? (
               <div style={{
                 height: '180px',
                 backgroundColor: '#f3f4f6',
@@ -2519,7 +2595,15 @@ const PostsGridRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties; viewp
                 backgroundSize: 'cover',
                 backgroundPosition: 'center',
               }} />
-            )}
+            ) : post.image ? (
+              <div style={{
+                height: '180px',
+                backgroundColor: '#f3f4f6',
+                backgroundImage: `url(${post.image})`,
+                backgroundSize: 'cover',
+                backgroundPosition: 'center',
+              }} />
+            ) : null)}
             <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '8px', flex: 1 }}>
               {showDate && post.date && (
                 <span style={{ fontSize: '12px', color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
@@ -2547,7 +2631,6 @@ const PostsGridRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties; viewp
             </div>
           </div>
         ))}
-        {/* Builder hint */}
         <div style={{
           position: 'absolute',
           top: '-24px',
@@ -2559,7 +2642,7 @@ const PostsGridRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties; viewp
           borderRadius: '4px',
           border: '1px dashed #d1d5db',
         }}>
-          Posts Grid • {postCount} posts{categoryIds.length > 0 ? ` • ${categoryIds.length} categories` : ''}{livePosts ? ' • live' : ''}
+          Posts Grid • {sourceLabel}{livePosts !== null ? ' • live' : ''}
         </div>
       </div>
     );
@@ -2592,27 +2675,33 @@ const previewShellStyle = (style: React.CSSProperties): React.CSSProperties => {
 const ProductsGridRenderer: React.FC<{ node: DiSyLNode; style: React.CSSProperties; viewport?: 'desktop' | 'tablet' | 'mobile' }> = memo(({ node, style, viewport }) => {
   const {
     itemCount = 6,
-    categoryIds = [],
     gridColumns = 3,
     showImage = true,
     showTitle = true,
     showExcerpt = true,
+    excerptLength = 120,
     showMeta = true,
     showAction = true,
+    actionText = 'View Product',
+    orderBy = 'date',
+    order = 'desc',
   } = node.props as {
     itemCount?: number;
-    categoryIds?: number[];
     gridColumns?: number;
     showImage?: boolean;
     showTitle?: boolean;
     showExcerpt?: boolean;
+    excerptLength?: number;
     showMeta?: boolean;
     showAction?: boolean;
+    actionText?: string;
+    orderBy?: string;
+    order?: string;
   };
+  const categoryIds = normalizeSelectedIds(node.props.categoryIds);
   const gridCols = viewport === 'mobile' ? 1 : viewport === 'tablet' ? Math.min(2, gridColumns) : gridColumns;
   const limit = Math.min(Math.max(1, itemCount), 6);
 
-  // Live data fetch from ecommerce products API
   const [liveProducts, setLiveProducts] = useState<Array<{
     id: number; title: string; slug?: string; excerpt?: string;
     featured_image_url?: string;
@@ -2622,21 +2711,62 @@ const ProductsGridRenderer: React.FC<{ node: DiSyLNode; style: React.CSSProperti
 
   useEffect(() => {
     let cancelled = false;
-    fetch(`/api/v1/ecommerce/products?limit=${limit}&status=published`)
+    const params = new URLSearchParams({
+      limit: String(limit),
+      status: 'published',
+      orderBy,
+      order: String(order || 'desc').toLowerCase() === 'asc' ? 'asc' : 'desc',
+    });
+    categoryIds.forEach((categoryId) => params.append('cats[]', String(categoryId)));
+
+    fetch(`/api/v1/ecommerce/products?${params.toString()}`)
       .then(r => r.ok ? r.json() : null)
       .then(data => {
-        if (!cancelled && data?.ok && Array.isArray(data.items) && data.items.length > 0) {
-          setLiveProducts(data.items);
+        if (!cancelled) {
+          const items = Array.isArray(data?.items)
+            ? data.items
+            : Array.isArray(data?.data?.items)
+              ? data.data.items
+              : [];
+          setLiveProducts(items);
         }
       })
-      .catch(() => { });
+      .catch(() => {
+        if (!cancelled) {
+          setLiveProducts([]);
+        }
+      });
     return () => { cancelled = true; };
-  }, [limit]);
+  }, [limit, orderBy, order, categoryIds.join(',')]);
 
   const displayProducts = liveProducts
     ? liveProducts.slice(0, limit)
     : Array.from({ length: limit }, (_, i) => ({ id: i + 1, title: '' as string, slug: undefined as string | undefined, excerpt: undefined as string | undefined, featured_image_url: undefined as string | undefined, pricing: undefined as { formatted?: string; active_price?: number } | undefined }));
   const isLive = liveProducts !== null;
+
+  if (isLive && liveProducts.length === 0) {
+    return (
+      <div style={{ ...previewShellStyle(style), position: 'relative' }} className="pb-products-grid-preview">
+        <div style={{
+          position: 'absolute', top: '-24px', left: 0,
+          fontSize: '10px', color: '#9ca3af', backgroundColor: '#f0fdf4',
+          padding: '2px 8px', borderRadius: '4px', border: '1px dashed #86efac',
+        }}>
+          Products Grid • {categoryIds.length > 0 ? `${categoryIds.length} categories` : 'all products'} • live
+        </div>
+        <div style={{
+          padding: '24px',
+          borderRadius: '12px',
+          border: '1px dashed #cbd5e1',
+          color: '#64748b',
+          fontSize: '14px',
+          textAlign: 'center',
+        }}>
+          {categoryIds.length > 0 ? 'No published products matched the selected categories.' : 'No published products were found.'}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ ...previewShellStyle(style), position: 'relative' }} className="pb-products-grid-preview">
@@ -2645,7 +2775,7 @@ const ProductsGridRenderer: React.FC<{ node: DiSyLNode; style: React.CSSProperti
         fontSize: '10px', color: '#9ca3af', backgroundColor: '#f0fdf4',
         padding: '2px 8px', borderRadius: '4px', border: '1px dashed #86efac',
       }}>
-        Products Grid{isLive ? ' • live' : ' • placeholder'}
+        Products Grid • {categoryIds.length > 0 ? `${categoryIds.length} categories` : 'all products'}{isLive ? ' • live' : ' • placeholder'}
       </div>
       <div style={{
         display: 'grid',
@@ -2689,7 +2819,7 @@ const ProductsGridRenderer: React.FC<{ node: DiSyLNode; style: React.CSSProperti
               {showExcerpt && (
                 isLive && product.excerpt ? (
                   <span style={{ fontSize: '12px', color: '#64748b', lineHeight: 1.5 }}>
-                    {product.excerpt.substring(0, 80)}{product.excerpt.length > 80 ? '…' : ''}
+                    {product.excerpt.substring(0, excerptLength)}{product.excerpt.length > excerptLength ? '…' : ''}
                   </span>
                 ) : (
                   <div style={{ height: '6px', backgroundColor: '#f1f5f9', borderRadius: '4px', width: '60%' }} />
@@ -2710,7 +2840,7 @@ const ProductsGridRenderer: React.FC<{ node: DiSyLNode; style: React.CSSProperti
                     height: '28px', backgroundColor: '#0f172a', borderRadius: '6px',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                   }}>
-                    {isLive && <span style={{ fontSize: '11px', color: '#fff', fontWeight: 600 }}>View Product</span>}
+                    {isLive && <span style={{ fontSize: '11px', color: '#fff', fontWeight: 600 }}>{actionText}</span>}
                   </div>
                 </div>
               )}
@@ -3395,46 +3525,135 @@ const ThemeWidgetFrame: React.FC<{ title?: string; style: React.CSSProperties; c
 // =============================================================================
 
 const NavMenuRenderer: React.FC<{ node: DiSyLNode; style: React.CSSProperties }> = memo(({ node, style }) => {
-  const { title = 'Browse', menuId = 0 } = node.props as any;
-  const links = ['Home', 'About', 'Services', 'Contact'];
+  const { title = 'Browse', menuId = 0, orientation = 'vertical' } = node.props as any;
+  const [menus, setMenus] = useState<Array<{ id: number; name: string; items?: any[] }> | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    authFetch('/api/v1/cms/builder/widget-data/menus')
+      .then((response) => response.ok ? response.json() : null)
+      .then((data) => {
+        if (!cancelled) {
+          setMenus(Array.isArray(data?.data) ? data.data : []);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setMenus([]);
+        }
+      });
+    return () => { cancelled = true; };
+  }, []);
+
+  const selectedMenu = Array.isArray(menus)
+    ? menus.find((menu) => Number(menu.id) === Number(menuId)) ?? null
+    : null;
+  const items = Array.isArray(selectedMenu?.items) ? selectedMenu.items : [];
+
+  const renderMenuItems = (menuItems: any[], depth = 0): React.ReactNode => {
+    const isHorizontalRoot = depth === 0 && orientation === 'horizontal';
+    return (
+      <div style={isHorizontalRoot ? {
+        display: 'flex',
+        flexWrap: 'wrap',
+        gap: '14px',
+      } : {
+        display: 'grid',
+        gap: '10px',
+        paddingLeft: depth === 0 ? 0 : '14px',
+        borderLeft: depth === 0 ? undefined : '1px solid #e2e8f0',
+      }}>
+        {menuItems.map((item, index) => {
+          const label = String(item?.label || item?.title || `Menu Item ${index + 1}`);
+          const children = Array.isArray(item?.children) ? item.children : [];
+          return (
+            <div key={`${item?.id ?? label}-${depth}-${index}`} style={{ display: 'grid', gap: '8px' }}>
+              <span style={isHorizontalRoot ? {
+                display: 'inline-flex',
+                alignItems: 'center',
+                padding: '8px 12px',
+                borderRadius: '999px',
+                border: '1px solid #dbeafe',
+                color: '#2563eb',
+                fontSize: '13px',
+                fontWeight: 600,
+              } : {
+                color: '#0f172a',
+                fontSize: '14px',
+                fontWeight: depth === 0 ? 600 : 500,
+                lineHeight: 1.5,
+              }}>
+                {label}
+              </span>
+              {children.length > 0 ? renderMenuItems(children, depth + 1) : null}
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
 
   return (
     <ThemeWidgetFrame title={title} style={style}>
-      <div style={{ marginBottom: '10px', fontSize: '12px', color: '#94a3b8' }}>
-        {menuId > 0 ? `Menu ID: ${menuId}` : 'Select a CMS menu ID in the inspector.'}
-      </div>
-      <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: '10px' }}>
-        {links.map((label) => (
-          <li key={label} style={{ fontSize: '14px', color: '#0f172a' }}>
-            <span style={{ color: '#3b82f6' }}>{label}</span>
-          </li>
-        ))}
-      </ul>
+      {menuId <= 0 ? (
+        <div style={{ fontSize: '12px', color: '#94a3b8' }}>Select a CMS menu in the inspector.</div>
+      ) : menus === null ? (
+        <div style={{ fontSize: '12px', color: '#94a3b8' }}>Loading menu…</div>
+      ) : items.length === 0 ? (
+        <div style={{ fontSize: '12px', color: '#94a3b8' }}>This menu does not have any items yet.</div>
+      ) : (
+        <>
+          <div style={{ marginBottom: '12px', fontSize: '12px', color: '#94a3b8' }}>
+            {selectedMenu?.name || `Menu ID: ${menuId}`}
+          </div>
+          {renderMenuItems(items)}
+        </>
+      )}
     </ThemeWidgetFrame>
   );
 });
 
 const RecentPostsRenderer: React.FC<{ node: DiSyLNode; style: React.CSSProperties }> = memo(({ node, style }) => {
-  const { title = 'Latest Posts', count = 5, showDate = true } = node.props as any;
+  const { title = 'Latest Posts', count = 5, showDate = true, showThumbnail = false, showExcerpt = false, orderBy = 'date' } = node.props as any;
   const limit = Math.max(1, Math.min(Number(count) || 5, 10));
+  const categoryIds = normalizeSelectedIds(node.props.categoryIds);
+  const postIds = normalizeSelectedIds(node.props.postIds);
+  const sourceMode = deriveWidgetSourceMode(node.props as Record<string, unknown>);
 
-  // Live data fetch from public posts API
   const [livePosts, setLivePosts] = useState<Array<{
-    id: number; title: string; slug?: string; published_at?: string; created_at?: string;
+    id: number; title: string; slug?: string; excerpt?: string; published_at?: string; created_at?: string; featured_image_url?: string;
   }> | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    fetch(`/api/v1/cms/public/content/post?per_page=${limit}`)
+    const params = new URLSearchParams({
+      type: 'post',
+      limit: String(limit),
+      source_mode: sourceMode,
+      order_by: orderBy,
+      order: 'desc',
+      include_featured_image: showThumbnail ? '1' : '0',
+    });
+    if (sourceMode === 'posts' && postIds.length > 0) {
+      params.set('post_ids', postIds.join(','));
+    } else if (sourceMode === 'categories' && categoryIds.length > 0) {
+      params.set('category_ids', categoryIds.join(','));
+    }
+
+    authFetch(`/api/v1/cms/builder/widget-data/posts?${params.toString()}`)
       .then(r => r.ok ? r.json() : null)
       .then(data => {
-        if (!cancelled && data?.ok && Array.isArray(data.data) && data.data.length > 0) {
-          setLivePosts(data.data);
+        if (!cancelled) {
+          setLivePosts(Array.isArray(data?.data) ? data.data : []);
         }
       })
-      .catch(() => { });
+      .catch(() => {
+        if (!cancelled) {
+          setLivePosts([]);
+        }
+      });
     return () => { cancelled = true; };
-  }, [limit]);
+  }, [limit, sourceMode, orderBy, showThumbnail, postIds.join(','), categoryIds.join(',')]);
 
   const placeholderTitles = [
     'Designing a cleaner homepage layout',
@@ -3450,22 +3669,50 @@ const RecentPostsRenderer: React.FC<{ node: DiSyLNode; style: React.CSSPropertie
     ? livePosts.slice(0, limit).map(p => ({
       id: p.id,
       title: p.title,
+      excerpt: p.excerpt || '',
+      image: p.featured_image_url || '',
       date: p.published_at
         ? new Date(p.published_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
         : '',
     }))
-    : placeholderTitles.map((t, i) => ({ id: i + 1, title: t, date: placeholderDates[i] }));
+    : placeholderTitles.map((t, i) => ({ id: i + 1, title: t, excerpt: 'Preview content will be replaced with live posts.', image: placeholderSvg(320, 180, '#cbd5e1', `Post ${i + 1}`), date: placeholderDates[i] }));
+
+  if (livePosts !== null && livePosts.length === 0) {
+    const emptyMessage = sourceMode === 'posts'
+      ? (postIds.length === 0 ? 'Select one or more posts in the inspector.' : 'No matching published posts were found.')
+      : sourceMode === 'categories'
+        ? (categoryIds.length === 0 ? 'Select one or more categories in the inspector.' : 'No published posts were found in the selected categories.')
+        : 'No published posts were found.';
+
+    return (
+      <ThemeWidgetFrame title={title} style={style}>
+        <div style={{ fontSize: '12px', color: '#94a3b8' }}>{emptyMessage}</div>
+      </ThemeWidgetFrame>
+    );
+  }
 
   return (
     <ThemeWidgetFrame title={title} style={style}>
       <div style={{ display: 'grid', gap: '12px' }}>
         {displayPosts.map((post) => (
-          <div key={post.id} style={{ display: 'grid', gap: '4px' }}>
-            <span style={{ fontSize: '14px', fontWeight: 600, color: '#0f172a' }}>{post.title}</span>
+          <article key={post.id} style={{ display: 'grid', gap: '8px' }}>
+            {showThumbnail && post.image ? (
+              <img
+                src={post.image}
+                alt={post.title}
+                style={{ display: 'block', width: '100%', height: '160px', objectFit: 'cover', borderRadius: '8px' }}
+              />
+            ) : null}
+            <span style={{ fontSize: '14px', fontWeight: 600, color: '#0f172a', lineHeight: 1.5 }}>{post.title}</span>
             {showDate && post.date && (
               <span style={{ fontSize: '12px', color: '#94a3b8' }}>{post.date}</span>
             )}
-          </div>
+            {showExcerpt && post.excerpt && (
+              <span style={{ fontSize: '13px', lineHeight: 1.5, color: '#475569' }}>
+                {post.excerpt.substring(0, 120)}{post.excerpt.length > 120 ? '…' : ''}
+              </span>
+            )}
+          </article>
         ))}
       </div>
     </ThemeWidgetFrame>
@@ -3473,46 +3720,81 @@ const RecentPostsRenderer: React.FC<{ node: DiSyLNode; style: React.CSSPropertie
 });
 
 const SocialLinksWidgetRenderer: React.FC<{ node: DiSyLNode; style: React.CSSProperties }> = memo(({ node, style }) => {
-  const { title = 'Follow Us', displayStyle = 'icons' } = node.props as any;
-  const links = [
-    { label: 'Facebook', short: 'Fb' },
-    { label: 'Instagram', short: 'Ig' },
-    { label: 'LinkedIn', short: 'In' },
-    { label: 'YouTube', short: 'Yt' },
+  const { title = 'Follow Us', displayStyle = 'icons', iconSize = 40 } = node.props as any;
+  const [links, setLinks] = useState<Array<{ name?: string; label?: string; url?: string }> | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    authFetch('/api/v1/cms/builder/widget-data/context')
+      .then((response) => response.ok ? response.json() : null)
+      .then((data) => {
+        if (!cancelled) {
+          setLinks(Array.isArray(data?.data?.social_links) ? data.data.social_links : []);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setLinks([]);
+        }
+      });
+    return () => { cancelled = true; };
+  }, []);
+
+  const monograms: Record<string, string> = {
+    facebook: 'Fb',
+    twitter: 'X',
+    instagram: 'Ig',
+    youtube: 'Yt',
+    linkedin: 'In',
+  };
+
+  if (links !== null && links.length === 0) {
+    return (
+      <ThemeWidgetFrame title={title} style={style}>
+        <div style={{ fontSize: '12px', color: '#94a3b8' }}>Add social links in CMS settings to populate this widget.</div>
+      </ThemeWidgetFrame>
+    );
+  }
+
+  const displayLinks = links ?? [
+    { name: 'facebook', label: 'Facebook' },
+    { name: 'instagram', label: 'Instagram' },
+    { name: 'linkedin', label: 'LinkedIn' },
+    { name: 'youtube', label: 'YouTube' },
   ];
 
   return (
     <ThemeWidgetFrame title={title} style={style}>
       {displayStyle === 'labels' ? (
         <div style={{ display: 'grid', gap: '10px' }}>
-          {links.map((link) => (
-            <span key={link.label} style={{ fontSize: '14px', color: '#3b82f6' }}>{link.label}</span>
+          {displayLinks.map((link, index) => (
+            <span key={`${link.label || link.name || 'link'}-${index}`} style={{ fontSize: '14px', color: '#3b82f6' }}>{link.label || link.name || 'Link'}</span>
           ))}
         </div>
       ) : displayStyle === 'inline' ? (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px' }}>
-          {links.map((link, index) => (
-            <span key={link.label} style={{ fontSize: '14px', color: '#3b82f6' }}>
-              {link.label}{index < links.length - 1 ? ' /' : ''}
+          {displayLinks.map((link, index) => (
+            <span key={`${link.label || link.name || 'link'}-${index}`} style={{ fontSize: '14px', color: '#3b82f6' }}>
+              {link.label || link.name || 'Link'}{index < displayLinks.length - 1 ? ' /' : ''}
             </span>
           ))}
         </div>
       ) : (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
-          {links.map((link) => (
-            <span key={link.label} style={{
+          {displayLinks.map((link, index) => (
+            <span key={`${link.label || link.name || 'link'}-${index}`} style={{
               display: 'inline-flex',
               alignItems: 'center',
               justifyContent: 'center',
-              width: '40px',
-              height: '40px',
+              width: `${Math.max(16, Number(iconSize) || 40)}px`,
+              height: `${Math.max(16, Number(iconSize) || 40)}px`,
               borderRadius: '999px',
               backgroundColor: '#eff6ff',
               color: '#1d4ed8',
               fontSize: '12px',
               fontWeight: 700,
             }}>
-              {link.short}
+              {monograms[String(link.name || '').toLowerCase()] || String(link.label || link.name || 'Li').slice(0, 2)}
             </span>
           ))}
         </div>
@@ -3541,33 +3823,53 @@ const ContactInfoWidgetRenderer: React.FC<{ node: DiSyLNode; style: React.CSSPro
 });
 
 const CategoriesRenderer: React.FC<{ node: DiSyLNode; style: React.CSSProperties }> = memo(({ node, style }) => {
-  const { title = 'Categories', module: mod = 'post', count = 8, showCount = true } = node.props as any;
-  const blogCategories = [
-    { label: 'Announcements', count: 12 },
-    { label: 'Tutorials', count: 8 },
-    { label: 'Releases', count: 5 },
-    { label: 'Insights', count: 9 },
-    { label: 'Storefront', count: 4 },
-    { label: 'Events', count: 3 },
-  ];
-  const productCategories = [
-    { label: 'Beverages', count: 14 },
-    { label: 'Pastries', count: 9 },
-    { label: 'Breads', count: 7 },
-    { label: 'Cakes & Tarts', count: 11 },
-    { label: 'Gift Boxes', count: 5 },
-    { label: 'Seasonal', count: 3 },
-  ];
-  const categories = (mod === 'product' ? productCategories : blogCategories)
-    .slice(0, Math.max(1, Math.min(Number(count) || 8, 6)));
+  const { title = 'Categories', module: mod = 'post', count = 8, showCount = true, orderBy = 'name', showEmpty = false } = node.props as any;
+  const [categories, setCategories] = useState<Array<{ name?: string; slug?: string; post_count?: number }> | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const params = new URLSearchParams({
+      module: mod,
+      count: String(Math.max(1, Math.min(Number(count) || 8, 50))),
+      order_by: orderBy,
+      show_empty: showEmpty ? '1' : '0',
+    });
+    authFetch(`/api/v1/cms/builder/widget-data/categories?${params.toString()}`)
+      .then((response) => response.ok ? response.json() : null)
+      .then((data) => {
+        if (!cancelled) {
+          setCategories(Array.isArray(data?.data) ? data.data : []);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setCategories([]);
+        }
+      });
+    return () => { cancelled = true; };
+  }, [mod, count, orderBy, showEmpty]);
+
+  if (categories !== null && categories.length === 0) {
+    return (
+      <ThemeWidgetFrame title={title} style={style}>
+        <div style={{ fontSize: '12px', color: '#94a3b8' }}>{mod === 'product' ? 'No product categories found.' : 'No categories found.'}</div>
+      </ThemeWidgetFrame>
+    );
+  }
+
+  const displayCategories = categories ?? Array.from({ length: Math.min(Math.max(1, Number(count) || 8), 6) }, (_, index) => ({
+    name: `Category ${index + 1}`,
+    slug: '',
+    post_count: 0,
+  }));
 
   return (
     <ThemeWidgetFrame title={title} style={style}>
       <div style={{ display: 'grid', gap: '10px' }}>
-        {categories.map((category) => (
-          <div key={category.label} style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', fontSize: '14px', color: '#0f172a' }}>
-            <span>{category.label}</span>
-            {showCount && <span style={{ color: '#94a3b8' }}>{category.count}</span>}
+        {displayCategories.map((category, index) => (
+          <div key={`${category.slug || category.name || 'category'}-${index}`} style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', fontSize: '14px', color: '#0f172a' }}>
+            <span>{category.name || `Category ${index + 1}`}</span>
+            {showCount && <span style={{ color: '#94a3b8' }}>{Number(category.post_count || 0)}</span>}
           </div>
         ))}
       </div>
@@ -3576,15 +3878,45 @@ const CategoriesRenderer: React.FC<{ node: DiSyLNode; style: React.CSSProperties
 });
 
 const TagCloudRenderer: React.FC<{ node: DiSyLNode; style: React.CSSProperties }> = memo(({ node, style }) => {
-  const { title = 'Popular Tags', count = 16 } = node.props as any;
-  const tags = ['Design', 'SEO', 'Growth', 'Launch', 'Pricing', 'CMS', 'Retail', 'Menus', 'Builder', 'Layouts']
-    .slice(0, Math.max(1, Math.min(Number(count) || 16, 10)));
+  const { title = 'Popular Tags', count = 16, orderBy = 'count' } = node.props as any;
+  const [tags, setTags] = useState<Array<{ name?: string; slug?: string }> | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const params = new URLSearchParams({
+      count: String(Math.max(1, Math.min(Number(count) || 16, 60))),
+      order_by: orderBy,
+    });
+    authFetch(`/api/v1/cms/builder/widget-data/tags?${params.toString()}`)
+      .then((response) => response.ok ? response.json() : null)
+      .then((data) => {
+        if (!cancelled) {
+          setTags(Array.isArray(data?.data) ? data.data : []);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setTags([]);
+        }
+      });
+    return () => { cancelled = true; };
+  }, [count, orderBy]);
+
+  if (tags !== null && tags.length === 0) {
+    return (
+      <ThemeWidgetFrame title={title} style={style}>
+        <div style={{ fontSize: '12px', color: '#94a3b8' }}>No tags found.</div>
+      </ThemeWidgetFrame>
+    );
+  }
+
+  const displayTags = tags ?? ['Design', 'SEO', 'Growth', 'Launch', 'Pricing'].map((name) => ({ name, slug: '' }));
 
   return (
     <ThemeWidgetFrame title={title} style={style}>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-        {tags.map((tag) => (
-          <span key={tag} style={{
+        {displayTags.map((tag, index) => (
+          <span key={`${tag.slug || tag.name || 'tag'}-${index}`} style={{
             display: 'inline-flex',
             alignItems: 'center',
             padding: '6px 10px',
@@ -3594,7 +3926,7 @@ const TagCloudRenderer: React.FC<{ node: DiSyLNode; style: React.CSSProperties }
             fontSize: '12px',
             fontWeight: 600,
           }}>
-            {tag}
+            {tag.name || `Tag ${index + 1}`}
           </span>
         ))}
       </div>
@@ -3603,23 +3935,51 @@ const TagCloudRenderer: React.FC<{ node: DiSyLNode; style: React.CSSProperties }
 });
 
 const ArchivesRenderer: React.FC<{ node: DiSyLNode; style: React.CSSProperties }> = memo(({ node, style }) => {
-  const { title = 'Archives', count = 6, showCount = true } = node.props as any;
-  const months = [
-    { label: 'March 2026', count: 6 },
-    { label: 'February 2026', count: 4 },
-    { label: 'January 2026', count: 7 },
-    { label: 'December 2025', count: 5 },
-    { label: 'November 2025', count: 3 },
-    { label: 'October 2025', count: 4 },
-  ].slice(0, Math.max(1, Math.min(Number(count) || 6, 6)));
+  const { title = 'Archives', count = 6, showCount = true, orderBy = 'date_desc' } = node.props as any;
+  const [months, setMonths] = useState<Array<{ ym?: string; label?: string; post_count?: number }> | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const params = new URLSearchParams({
+      count: String(Math.max(1, Math.min(Number(count) || 6, 36))),
+      order_by: orderBy,
+    });
+    authFetch(`/api/v1/cms/builder/widget-data/archives?${params.toString()}`)
+      .then((response) => response.ok ? response.json() : null)
+      .then((data) => {
+        if (!cancelled) {
+          setMonths(Array.isArray(data?.data) ? data.data : []);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setMonths([]);
+        }
+      });
+    return () => { cancelled = true; };
+  }, [count, orderBy]);
+
+  if (months !== null && months.length === 0) {
+    return (
+      <ThemeWidgetFrame title={title} style={style}>
+        <div style={{ fontSize: '12px', color: '#94a3b8' }}>No archive months found.</div>
+      </ThemeWidgetFrame>
+    );
+  }
+
+  const displayMonths = months ?? [
+    { label: 'March 2026', post_count: 6 },
+    { label: 'February 2026', post_count: 4 },
+    { label: 'January 2026', post_count: 7 },
+  ];
 
   return (
     <ThemeWidgetFrame title={title} style={style}>
       <div style={{ display: 'grid', gap: '10px' }}>
-        {months.map((month) => (
-          <div key={month.label} style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', fontSize: '14px', color: '#0f172a' }}>
-            <span>{month.label}</span>
-            {showCount && <span style={{ color: '#94a3b8' }}>{month.count}</span>}
+        {displayMonths.map((month, index) => (
+          <div key={`${month.ym || month.label || 'archive'}-${index}`} style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', fontSize: '14px', color: '#0f172a' }}>
+            <span>{month.label || `Archive ${index + 1}`}</span>
+            {showCount && <span style={{ color: '#94a3b8' }}>{Number(month.post_count || 0)}</span>}
           </div>
         ))}
       </div>

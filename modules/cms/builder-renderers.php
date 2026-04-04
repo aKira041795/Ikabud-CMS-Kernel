@@ -956,6 +956,204 @@ function cmsBuilderGridStyle(array $style, string $templateColumns, string $gap 
     ], $style);
 }
 
+function cmsBuilderNormalizeIntList(mixed $value): array
+{
+    $items = [];
+    if (is_array($value)) {
+        $items = $value;
+    } elseif (is_string($value) && trim($value) !== '') {
+        $items = preg_split('/\s*,\s*/', trim($value)) ?: [];
+    }
+
+    return array_values(array_unique(array_filter(array_map('intval', $items), static fn (int $id): bool => $id > 0)));
+}
+
+function cmsBuilderFetchPosts(array $options = []): array
+{
+    $postType = trim((string)($options['type'] ?? 'post')) ?: 'post';
+    $limit = max(1, min(100, (int)($options['limit'] ?? 5)));
+    $categoryIds = cmsBuilderNormalizeIntList($options['category_ids'] ?? []);
+    $postIds = cmsBuilderNormalizeIntList($options['post_ids'] ?? []);
+    $sourceMode = trim((string)($options['source_mode'] ?? ''));
+    $includeAuthor = !empty($options['include_author']);
+    $includeFeaturedImage = !empty($options['include_featured_image']);
+    $orderByInput = (string)($options['order_by'] ?? 'date');
+    $order = strtolower((string)($options['order'] ?? 'desc')) === 'asc' ? 'ASC' : 'DESC';
+    $logKey = trim((string)($options['log_key'] ?? ''));
+
+    if (!in_array($sourceMode, ['latest', 'posts', 'categories'], true)) {
+        $sourceMode = $postIds !== [] ? 'posts' : ($categoryIds !== [] ? 'categories' : 'latest');
+    }
+    if ($sourceMode === 'posts' && $postIds === []) {
+        return [];
+    }
+    if ($sourceMode === 'categories' && $categoryIds === []) {
+        return [];
+    }
+
+    try {
+        $db = cmsDb();
+        $params = [':type' => $postType];
+        $select = [
+            'c.id',
+            'c.title',
+            'c.slug',
+            'c.excerpt',
+            'c.published_at',
+            'c.created_at',
+            'COALESCE(c.published_at, c.created_at) AS sort_date',
+        ];
+        $joins = '';
+
+        if ($includeAuthor) {
+            $joins .= ' LEFT JOIN cms_users u ON u.id = c.author_id';
+            $select[] = 'u.display_name AS author_name';
+        }
+        if ($includeFeaturedImage) {
+            $joins .= ' LEFT JOIN cms_media m ON m.id = c.featured_image_id';
+            $select[] = 'm.file_path AS featured_image';
+        }
+
+        $sql = 'SELECT ' . implode(', ', $select) . ' FROM cms_content c' . $joins . ' ';
+        $sql .= "WHERE c.deleted_at IS NULL AND c.type = :type AND " . cmsPublicVisibilitySql('c') . ' ';
+
+        if ($sourceMode === 'posts') {
+            $placeholders = [];
+            foreach ($postIds as $index => $postId) {
+                $placeholder = ':post_' . $index;
+                $placeholders[] = $placeholder;
+                $params[$placeholder] = $postId;
+            }
+            $sql .= 'AND c.id IN (' . implode(', ', $placeholders) . ') ';
+            $orderSql = 'FIELD(c.id, ' . implode(', ', $postIds) . ')';
+        } else {
+            if ($sourceMode === 'categories' && $categoryIds !== []) {
+                $placeholders = [];
+                foreach ($categoryIds as $index => $categoryId) {
+                    $placeholder = ':category_' . $index;
+                    $placeholders[] = $placeholder;
+                    $params[$placeholder] = $categoryId;
+                }
+                $sql .= 'AND EXISTS (SELECT 1 FROM cms_content_categories cc WHERE cc.content_id = c.id AND cc.category_id IN (' . implode(', ', $placeholders) . ')) ';
+            }
+
+            $orderSql = match ($orderByInput) {
+                'title' => 'c.title ' . $order . ', c.id DESC',
+                'random' => 'RAND()',
+                default => 'sort_date ' . $order . ', c.id DESC',
+            };
+        }
+
+        $sql .= 'ORDER BY ' . $orderSql;
+        $sql .= ' LIMIT ' . $limit;
+
+        $stmt = $db->prepare($sql);
+        $stmt->execute($params);
+        return $stmt->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+    } catch (\Throwable $e) {
+        if ($logKey !== '') {
+            write_log($logKey, 'error', [
+                'message' => $e->getMessage(),
+                'type' => $postType,
+                'post_ids' => $postIds,
+                'category_ids' => $categoryIds,
+            ]);
+        }
+        return [];
+    }
+}
+
+function cmsBuilderFetchCategorySummary(array $options = []): array
+{
+    $module = (string)($options['module'] ?? 'post');
+    $count = max(1, min(50, (int)($options['count'] ?? 8)));
+    $orderBy = (string)($options['order_by'] ?? 'name');
+    $showEmpty = !empty($options['show_empty']);
+    $taxonomy = $module === 'product' ? 'product' : 'default';
+    $contentType = $module === 'product' ? 'product' : 'post';
+    $orderSql = $orderBy === 'count' ? 'post_count DESC, c.name ASC' : 'c.name ASC';
+    $havingSql = $showEmpty ? '' : 'HAVING post_count > 0';
+
+    try {
+        $db = cmsDb();
+        $stmt = $db->prepare(
+            "SELECT c.name, c.slug, COUNT(p.id) AS post_count
+             FROM cms_categories c
+             LEFT JOIN cms_content_categories cc ON cc.category_id = c.id
+             LEFT JOIN cms_content p ON p.id = cc.content_id
+               AND p.type = :content_type AND p.deleted_at IS NULL AND " . cmsPublicVisibilitySql('p') . "
+             WHERE c.taxonomy = :taxonomy
+             GROUP BY c.id, c.name, c.slug
+             {$havingSql}
+             ORDER BY {$orderSql}
+             LIMIT :n"
+        );
+        $stmt->bindValue(':taxonomy', $taxonomy, \PDO::PARAM_STR);
+        $stmt->bindValue(':content_type', $contentType, \PDO::PARAM_STR);
+        $stmt->bindValue(':n', $count, \PDO::PARAM_INT);
+        $stmt->execute();
+        return $stmt->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+    } catch (\Throwable $e) {
+        return [];
+    }
+}
+
+function cmsBuilderFetchTagSummary(array $options = []): array
+{
+    $count = max(1, min(60, (int)($options['count'] ?? 16)));
+    $orderBy = (string)($options['order_by'] ?? 'count');
+    $orderSql = $orderBy === 'name' ? 't.name ASC, post_count DESC' : 'post_count DESC, t.name ASC';
+
+    try {
+        $stmt = cmsDb()->prepare(
+            "SELECT t.id, t.name, t.slug, COUNT(p.id) AS post_count
+             FROM cms_tags t
+             LEFT JOIN cms_content_tags ct ON ct.tag_id = t.id
+             LEFT JOIN cms_content p ON p.id = ct.content_id
+               AND p.type = 'post' AND p.deleted_at IS NULL AND " . cmsPublicVisibilitySql('p') . "
+             GROUP BY t.id, t.name, t.slug
+             ORDER BY {$orderSql}
+             LIMIT :n"
+        );
+        $stmt->bindValue(':n', $count, \PDO::PARAM_INT);
+        $stmt->execute();
+        return $stmt->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+    } catch (\Throwable $e) {
+        return [];
+    }
+}
+
+function cmsBuilderFetchArchiveSummary(array $options = []): array
+{
+    $count = max(1, min(36, (int)($options['count'] ?? 6)));
+    $orderBy = (string)($options['order_by'] ?? 'date_desc');
+    $orderSql = $orderBy === 'date_asc' ? 'ym ASC' : 'ym DESC';
+
+    try {
+        $stmt = cmsDb()->prepare(
+            "SELECT DATE_FORMAT(c.published_at, '%Y-%m') AS ym,
+                    DATE_FORMAT(c.published_at, '%M %Y') AS label,
+                    COUNT(*) AS post_count
+             FROM cms_content c
+             WHERE c.type = 'post' AND c.deleted_at IS NULL AND " . cmsPublicVisibilitySql('c') . "
+             GROUP BY DATE_FORMAT(c.published_at, '%Y-%m'), DATE_FORMAT(c.published_at, '%M %Y')
+             ORDER BY {$orderSql}
+             LIMIT :n"
+        );
+        $stmt->bindValue(':n', $count, \PDO::PARAM_INT);
+        $stmt->execute();
+        return $stmt->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+    } catch (\Throwable $e) {
+        return [];
+    }
+}
+
+function cmsBuilderSocialLinksData(): array
+{
+    $settings = function_exists('readCmsSettings') ? readCmsSettings() : [];
+    return function_exists('cmsPublicSocialLinks') ? cmsPublicSocialLinks($settings) : [];
+}
+
 function cmsRenderWidget_posts_grid(array $props, array $style, array $attrs, string $children, array $node, array $context): string
 {
     $postCount = max(1, min(12, (int)($props['postCount'] ?? 3)));
@@ -967,44 +1165,21 @@ function cmsRenderWidget_posts_grid(array $props, array $style, array $attrs, st
     $showReadMore = ($props['showReadMore'] ?? true) !== false;
     $excerptLen = max(20, (int)($props['excerptLength'] ?? 120));
     $postType = (string)($props['postType'] ?? 'post');
-    $orderBy = match ((string)($props['orderBy'] ?? 'date')) {
-        'title' => 'c.title',
-        'random' => 'RAND()',
-        default => 'sort_date',
-    };
+    $orderBy = (string)($props['orderBy'] ?? 'date');
     $order = strtolower((string)($props['order'] ?? 'desc')) === 'asc' ? 'ASC' : 'DESC';
     $readMoreText = trim((string)($props['readMoreText'] ?? 'Read More')) ?: 'Read More';
-    $categoryIds = [];
-    if (!empty($props['categoryIds']) && is_array($props['categoryIds'])) {
-        $categoryIds = array_values(array_unique(array_filter(array_map('intval', $props['categoryIds']), static fn (int $id): bool => $id > 0)));
-    }
-    $posts = [];
-    try {
-        $db = cmsDb();
-        $params = [':type' => $postType];
-        $sql = "SELECT c.id, c.title, c.slug, c.excerpt, c.published_at, COALESCE(c.published_at, c.created_at) AS sort_date, u.display_name as author_name, m.file_path AS featured_image FROM cms_content c LEFT JOIN cms_users u ON u.id = c.author_id LEFT JOIN cms_media m ON m.id = c.featured_image_id ";
-        $sql .= "WHERE c.deleted_at IS NULL AND c.type = :type AND " . cmsPublicVisibilitySql('c') . ' ';
-        if ($categoryIds !== []) {
-            $placeholders = [];
-            foreach ($categoryIds as $index => $categoryId) {
-                $placeholder = ':category_' . $index;
-                $placeholders[] = $placeholder;
-                $params[$placeholder] = $categoryId;
-            }
-            $sql .= 'AND EXISTS (SELECT 1 FROM cms_content_categories cc WHERE cc.content_id = c.id AND cc.category_id IN (' . implode(', ', $placeholders) . ')) ';
-        }
-        $sql .= 'ORDER BY ' . $orderBy;
-        if ($orderBy !== 'RAND()') {
-            $sql .= ' ' . $order;
-        }
-        $sql .= ' LIMIT ' . $postCount;
-        $stmt = $db->prepare($sql);
-        $stmt->execute($params);
-        $posts = $stmt->fetchAll(\PDO::FETCH_ASSOC) ?: [];
-    } catch (\Throwable $e) {
-        write_log('cms.builder.posts_grid.query_error', 'error', ['message' => $e->getMessage(), 'type' => $postType]);
-        $posts = [];
-    }
+    $posts = cmsBuilderFetchPosts([
+        'type' => $postType,
+        'limit' => $postCount,
+        'source_mode' => (string)($props['sourceMode'] ?? ''),
+        'category_ids' => $props['categoryIds'] ?? [],
+        'post_ids' => $props['postIds'] ?? [],
+        'order_by' => $orderBy,
+        'order' => strtolower($order),
+        'include_author' => $showAuthor,
+        'include_featured_image' => $showFeaturedImage,
+        'log_key' => 'cms.builder.posts_grid.query_error',
+    ]);
     if (empty($posts)) {
         return '<div' . cmsBuilderAttrString($attrs) . cmsBuilderStyleAttr($style) . '><p style="color:#6b7280;text-align:center">No posts found.</p></div>';
     }
@@ -1960,47 +2135,17 @@ function cmsRenderWidget_recent_posts(array $props, array $style, array $attrs, 
     $orderBy       = (string)($props['orderBy'] ?? 'date');
     $categoryIds   = is_array($props['categoryIds'] ?? null) ? array_map('intval', (array)$props['categoryIds']) : [];
     $categoryIds   = array_values(array_filter($categoryIds, fn($v) => $v > 0));
-    $posts = [];
-
-    try {
-        $orderSql = match ($orderBy) {
-            'title'  => 'c.title ASC',
-            'random' => 'RAND()',
-            default  => 'COALESCE(c.published_at, c.created_at) DESC',
-        };
-        $catJoin  = '';
-        $catWhere = '';
-        $params   = [':n' => [$count, \PDO::PARAM_INT]];
-        if ($categoryIds !== []) {
-            $catJoin  = ' INNER JOIN cms_content_categories cc ON cc.content_id = c.id';
-            $placeholders = [];
-            foreach ($categoryIds as $i => $cid) {
-                $k = ':cat' . $i;
-                $placeholders[] = $k;
-                $params[$k]     = [$cid, \PDO::PARAM_INT];
-            }
-            $catWhere = ' AND cc.category_id IN (' . implode(',', $placeholders) . ')';
-        }
-        $thumbJoin = $showThumbnail ? ' LEFT JOIN cms_media m ON m.id = c.featured_image_id' : '';
-        $thumbSel  = $showThumbnail ? ', m.file_path AS featured_image_key' : '';
-        $stmt = cmsDb()->prepare(
-            "SELECT c.title, c.slug, c.excerpt, COALESCE(c.published_at, c.created_at) AS published_at"
-            . $thumbSel
-            . " FROM cms_content c" . $catJoin . $thumbJoin
-            . " WHERE c.type = 'post' AND c.deleted_at IS NULL AND " . cmsPublicVisibilitySql('c')
-            . $catWhere
-            . " ORDER BY " . $orderSql
-            . " LIMIT :n"
-        );
-        foreach ($params as $k => $binding) {
-            $stmt->bindValue($k, $binding[0], $binding[1]);
-        }
-        $stmt->execute();
-        $posts = $stmt->fetchAll(\PDO::FETCH_ASSOC) ?: [];
-    } catch (\Throwable $e) {
-        write_log('cms.builder.recent_posts.query_error', 'error', ['message' => $e->getMessage()]);
-        $posts = [];
-    }
+    $posts = cmsBuilderFetchPosts([
+        'type' => 'post',
+        'limit' => $count,
+        'source_mode' => (string)($props['sourceMode'] ?? ''),
+        'category_ids' => $categoryIds,
+        'post_ids' => $props['postIds'] ?? [],
+        'order_by' => $orderBy,
+        'order' => 'desc',
+        'include_featured_image' => $showThumbnail,
+        'log_key' => 'cms.builder.recent_posts.query_error',
+    ]);
 
     if ($posts === []) {
         return cmsBuilderRenderThemeWidgetShell($attrs, $style, $title, cmsBuilderRenderThemeWidgetEmpty('No published posts found.'));
@@ -2014,8 +2159,8 @@ function cmsRenderWidget_recent_posts(array $props, array $style, array $attrs, 
             : '/cms/blog/' . rawurlencode($slug);
         $postTitle = cmsBuilderEsc((string)($post['title'] ?? 'Untitled'));
         $body .= '<article style="display:grid;gap:6px">';
-        if ($showThumbnail && !empty($post['featured_image_key'])) {
-            $imgUrl = function_exists('cmsResolveUploadUrl') ? cmsBuilderEsc(cmsResolveUploadUrl((string)$post['featured_image_key'])) : '';
+        if ($showThumbnail && !empty($post['featured_image'])) {
+            $imgUrl = function_exists('cmsResolveUploadUrl') ? cmsBuilderEsc(cmsResolveUploadUrl((string)$post['featured_image'])) : '';
             if ($imgUrl !== '') {
                 $body .= '<a href="' . cmsBuilderEsc($href) . '"><img src="' . $imgUrl . '" alt="' . $postTitle . '" loading="lazy" style="width:100%;height:160px;object-fit:cover;border-radius:4px;display:block"></a>';
             }
@@ -2047,8 +2192,7 @@ function cmsRenderWidget_social_links_widget(array $props, array $style, array $
         $displayStyle = 'icons';
     }
 
-    $settings = function_exists('readCmsSettings') ? readCmsSettings() : [];
-    $links = function_exists('cmsPublicSocialLinks') ? cmsPublicSocialLinks($settings) : [];
+    $links = cmsBuilderSocialLinksData();
     if ($links === []) {
         return cmsBuilderRenderThemeWidgetShell($attrs, $style, $title, cmsBuilderRenderThemeWidgetEmpty('Add social links in CMS settings to populate this widget.'));
     }
@@ -2150,37 +2294,13 @@ function cmsRenderWidget_categories(array $props, array $style, array $attrs, st
     // Resolve taxonomy and content type from the module prop
     $taxonomy = $module === 'product' ? 'product' : 'default';
     $contentType = $module === 'product' ? 'product' : 'post';
-    $rows = [];
     $baseUrl = rtrim((string)(defined('BASE_URL') ? BASE_URL : ''), '/');
-
-    // ORDER BY clause — name A-Z or item count desc
-    $orderSql = $orderBy === 'count' ? 'post_count DESC, c.name ASC' : 'c.name ASC';
-
-    // When showEmpty=false only include categories that have at least one linked item
-    $havingSql = $showEmpty ? '' : 'HAVING post_count > 0';
-
-    try {
-        $db = cmsDb();
-        $stmt = $db->prepare(
-            "SELECT c.name, c.slug, COUNT(p.id) AS post_count
-             FROM cms_categories c
-             LEFT JOIN cms_content_categories cc ON cc.category_id = c.id
-             LEFT JOIN cms_content p ON p.id = cc.content_id
-               AND p.type = :content_type AND p.deleted_at IS NULL AND " . cmsPublicVisibilitySql('p') . "
-             WHERE c.taxonomy = :taxonomy
-             GROUP BY c.id, c.name, c.slug
-             {$havingSql}
-             ORDER BY {$orderSql}
-             LIMIT :n"
-        );
-        $stmt->bindValue(':taxonomy', $taxonomy, \PDO::PARAM_STR);
-        $stmt->bindValue(':content_type', $contentType, \PDO::PARAM_STR);
-        $stmt->bindValue(':n', $count, \PDO::PARAM_INT);
-        $stmt->execute();
-        $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC) ?: [];
-    } catch (\Throwable $e) {
-        $rows = [];
-    }
+    $rows = cmsBuilderFetchCategorySummary([
+        'module' => $module,
+        'count' => $count,
+        'order_by' => $orderBy,
+        'show_empty' => $showEmpty,
+    ]);
 
     if ($rows === []) {
         $emptyMsg = $module === 'product' ? 'No product categories found.' : 'No categories found.';
@@ -2213,27 +2333,11 @@ function cmsRenderWidget_tag_cloud(array $props, array $style, array $attrs, str
     $title = trim((string)($props['title'] ?? ''));
     $count = max(1, min(60, (int)($props['count'] ?? 16)));
     $orderBy = (string)($props['orderBy'] ?? 'count');
-    $orderSql = $orderBy === 'name' ? 't.name ASC, post_count DESC' : 'post_count DESC, t.name ASC';
-    $rows = [];
     $baseUrl = rtrim((string)(defined('BASE_URL') ? BASE_URL : ''), '/');
-
-    try {
-        $stmt = cmsDb()->prepare(
-            "SELECT t.name, t.slug, COUNT(p.id) AS post_count
-             FROM cms_tags t
-             LEFT JOIN cms_content_tags ct ON ct.tag_id = t.id
-             LEFT JOIN cms_content p ON p.id = ct.content_id
-               AND p.type = 'post' AND p.deleted_at IS NULL AND " . cmsPublicVisibilitySql('p') . "
-             GROUP BY t.id, t.name, t.slug
-             ORDER BY $orderSql
-             LIMIT :n"
-        );
-        $stmt->bindValue(':n', $count, \PDO::PARAM_INT);
-        $stmt->execute();
-        $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC) ?: [];
-    } catch (\Throwable $e) {
-        $rows = [];
-    }
+    $rows = cmsBuilderFetchTagSummary([
+        'count' => $count,
+        'order_by' => $orderBy,
+    ]);
 
     if ($rows === []) {
         return cmsBuilderRenderThemeWidgetShell($attrs, $style, $title, cmsBuilderRenderThemeWidgetEmpty('No tags found.'));
@@ -2256,27 +2360,11 @@ function cmsRenderWidget_archives(array $props, array $style, array $attrs, stri
     $count = max(1, min(36, (int)($props['count'] ?? 6)));
     $showCount = ($props['showCount'] ?? true) !== false;
     $orderBy = (string)($props['orderBy'] ?? 'date_desc');
-    $orderSql = $orderBy === 'date_asc' ? 'ym ASC' : 'ym DESC';
-    $rows = [];
     $baseUrl = rtrim((string)(defined('BASE_URL') ? BASE_URL : ''), '/');
-
-    try {
-        $stmt = cmsDb()->prepare(
-            "SELECT DATE_FORMAT(c.published_at, '%Y-%m') AS ym,
-                    DATE_FORMAT(c.published_at, '%M %Y') AS label,
-                    COUNT(*) AS post_count
-             FROM cms_content c
-             WHERE c.type = 'post' AND c.deleted_at IS NULL AND " . cmsPublicVisibilitySql('c') . "
-             GROUP BY DATE_FORMAT(c.published_at, '%Y-%m'), DATE_FORMAT(c.published_at, '%M %Y')
-             ORDER BY $orderSql
-             LIMIT :n"
-        );
-        $stmt->bindValue(':n', $count, \PDO::PARAM_INT);
-        $stmt->execute();
-        $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC) ?: [];
-    } catch (\Throwable $e) {
-        $rows = [];
-    }
+    $rows = cmsBuilderFetchArchiveSummary([
+        'count' => $count,
+        'order_by' => $orderBy,
+    ]);
 
     if ($rows === []) {
         return cmsBuilderRenderThemeWidgetShell($attrs, $style, $title, cmsBuilderRenderThemeWidgetEmpty('No archive months found.'));
