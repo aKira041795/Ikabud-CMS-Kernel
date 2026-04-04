@@ -121,6 +121,14 @@ function cmsRenderWidget_layout(array $props, array $style, array $attrs, string
     $tag = $type === 'section' ? 'section' : 'div';
     $rawStyle = isset($node['style']) && is_array($node['style']) ? $node['style'] : [];
 
+    // fullWidth prop: for sections this bleeds to 100vw; for containers this
+    // removes the page-width wrapper defaults (maxWidth / margin: 0 auto).
+    $isFullWidth = !empty($props['fullWidth']);
+
+    if ($type === 'section' && $isFullWidth) {
+        cmsBuilderApplyFullWidth($style);
+    }
+
     // Container is used in two different roles:
     // 1) constrained page-width wrapper (top-level inside a section)
     // 2) generic flex/grid layout cell inside presets / other flex containers
@@ -143,7 +151,7 @@ function cmsRenderWidget_layout(array $props, array $style, array $attrs, string
         // (sections contain a single centered container by convention).
         $isDirectSectionChild = $parentType === 'section';
 
-        if (!$isLayoutItem && !$isExplicitLayout && !$hasExplicitConstraint && (!$isFlexChild || $isDirectSectionChild)) {
+        if (!$isLayoutItem && !$isExplicitLayout && !$hasExplicitConstraint && !$isFullWidth && (!$isFlexChild || $isDirectSectionChild)) {
             $style = ['maxWidth' => '1200px', 'margin' => '0 auto', 'padding' => '0 24px'] + $style;
         }
     }

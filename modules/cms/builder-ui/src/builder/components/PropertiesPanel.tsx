@@ -4730,6 +4730,30 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
         />
       )}
 
+      {/* Full Width — Section & Container */}
+      {(node.type === 'section' || node.type === 'container') && (
+        <CollapsibleSection title="Full Width" icon={<Maximize className="w-3 h-3" />} defaultOpen>
+          <div className="flex items-center justify-between">
+            <div>
+              <label className="text-xs text-white/70 block">
+                {node.type === 'section' ? 'Full Viewport Width' : 'Remove Max-Width Constraint'}
+              </label>
+              <span className="text-[10px] text-white/40">
+                {node.type === 'section'
+                  ? 'Bleed edge-to-edge, ignoring parent constraints'
+                  : 'Stretch to fill section, no centering or max-width'}
+              </span>
+            </div>
+            <button
+              onClick={() => handlePropChange('fullWidth', !node.props.fullWidth)}
+              className={`relative flex-shrink-0 w-10 h-5 rounded-full transition-colors ${node.props.fullWidth ? 'bg-[#0078d4]' : 'bg-[#3c3c3c]'}`}
+            >
+              <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform ${node.props.fullWidth ? 'translate-x-5' : 'translate-x-0'}`} />
+            </button>
+          </div>
+        </CollapsibleSection>
+      )}
+
       {/* Container Layout */}
       {isContainer && (() => {
         // Compute effective (viewport-inherited) layout values so controls

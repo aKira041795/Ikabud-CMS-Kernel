@@ -697,7 +697,7 @@ const DocumentRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties; childr
 // IMPORTANT: User styles must be spread LAST to allow overriding defaults
 
 const SectionRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties; children: React.ReactNode }> =
-  ({ style, children }) => (
+  ({ node, style, children }) => (
     <section style={{
       // Defaults first — must match cmsBuilderDefaultStyle('section') in helpers.php
       width: '100%',
@@ -710,6 +710,12 @@ const SectionRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties; childre
       padding: 'var(--cms-builder-section-padding, 48px 24px)',
       // User styles override defaults
       ...style,
+      // fullWidth: bleed edge-to-edge past any constraining ancestor
+      ...(node.props.fullWidth === true ? {
+        width: '100vw',
+        marginLeft: 'calc(-50vw + 50%)',
+        alignSelf: 'flex-start',
+      } : {}),
     }}>
       {children}
     </section>
@@ -721,8 +727,10 @@ const ContainerRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties; child
     const isLayoutItem = Boolean(style.flex || style.flexBasis || style.order || style.alignSelf);
     const isExplicitLayout = style.display === 'flex' || style.display === 'grid';
     const hasExplicitConstraint = style.maxWidth !== undefined || style.margin !== undefined;
+    // fullWidth=true: fill section without maxWidth/centering defaults
+    const isFullWidth = node.props.fullWidth === true;
 
-    const wrapperDefaults: CSSProperties = isWrapperContainer && !isLayoutItem && !isExplicitLayout && !hasExplicitConstraint
+    const wrapperDefaults: CSSProperties = isWrapperContainer && !isLayoutItem && !isExplicitLayout && !hasExplicitConstraint && !isFullWidth
       ? {
         // width: 100% mirrors the public CSS rule
         //   `.cms-builder-node--section > .cms-builder-node--container { width: 100% }`
