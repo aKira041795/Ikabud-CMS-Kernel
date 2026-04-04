@@ -982,7 +982,7 @@ function cmsRenderWidget_posts_grid(array $props, array $style, array $attrs, st
     try {
         $db = cmsDb();
         $params = [':type' => $postType];
-        $sql = "SELECT DISTINCT c.id, c.title, c.slug, c.excerpt, c.published_at, u.display_name as author_name, m.file_path AS featured_image FROM cms_content c LEFT JOIN cms_users u ON u.id = c.author_id LEFT JOIN cms_media m ON m.id = c.featured_image_id ";
+        $sql = "SELECT DISTINCT c.id, c.title, c.slug, c.excerpt, c.published_at, c.created_at, u.display_name as author_name, m.file_path AS featured_image FROM cms_content c LEFT JOIN cms_users u ON u.id = c.author_id LEFT JOIN cms_media m ON m.id = c.featured_image_id ";
         if ($categoryIds !== []) {
             $sql .= 'INNER JOIN cms_content_categories cc ON cc.content_id = c.id ';
         }
