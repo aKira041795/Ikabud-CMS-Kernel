@@ -191,12 +191,11 @@ function cmsBuilderValidateDocument(mixed $document): array
         'accordion', 'counter', 'progress', 'countdown', 'flip_box',
         'toggle', 'search_box', 'form', 'spacer', 'divider', 'alert',
         'anchor', 'breadcrumbs', 'badge', 'stat_card', 'contact_card', 'posts_grid', 'products_grid', 'team_grid',
-        'entity_view', 'entity_list',
+        'entity_view', 'entity_list', 'html_embed',
     ];
-    // Also include any widget registry types
-    foreach (cmsBuilderWidgetRegistry() as $widget) {
-        $wType = (string)($widget['type'] ?? '');
-        if ($wType !== '' && !in_array($wType, $allowedTypes, true)) {
+    // Also include any widget registry types (iterate keys since registry is type => callback)
+    foreach (array_keys(cmsBuilderWidgetRenderers()) as $wType) {
+        if (!in_array($wType, $allowedTypes, true)) {
             $allowedTypes[] = $wType;
         }
     }

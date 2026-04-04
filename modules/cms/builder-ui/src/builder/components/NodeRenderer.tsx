@@ -2444,7 +2444,27 @@ const PostsGridRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties; viewp
     const gridColumns = viewport === 'mobile' ? 1 : viewport === 'tablet' ? Math.min(2, desktopCols) : desktopCols;
     const categoryIds = (node.props.categoryIds as number[]) || [];
 
-    // Placeholder posts for builder preview
+    // Live data fetch from public API
+    const [livePosts, setLivePosts] = useState<Array<{
+      id: number; title: string; excerpt?: string; published_at?: string; created_at?: string;
+      author_name?: string; featured_image_url?: string;
+    }> | null>(null);
+
+    useEffect(() => {
+      let cancelled = false;
+      const limit = Math.max(1, postCount);
+      fetch(`/api/v1/cms/public/content/post?per_page=${limit}&include=featured_image`)
+        .then(r => r.ok ? r.json() : null)
+        .then(data => {
+          if (!cancelled && data?.ok && Array.isArray(data.data) && data.data.length > 0) {
+            setLivePosts(data.data);
+          }
+        })
+        .catch(() => {});
+      return () => { cancelled = true; };
+    }, [postCount]);
+
+    // Fallback placeholders when no live data yet
     const placeholderPosts = Array.from({ length: postCount }, (_, i) => ({
       id: i + 1,
       title: `Sample Post Title ${i + 1}`,
@@ -2453,8 +2473,21 @@ const PostsGridRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties; viewp
         year: 'numeric', month: 'long', day: 'numeric'
       }),
       author: `Author ${i + 1}`,
-      image: `https://images.unsplash.com/photo-${1499750310107 + i * 1000}-5fef28a66643?w=400&h=250&fit=crop`,
+      image: placeholderSvg(400, 250, '#cbd5e1', `Post ${i + 1}`),
     }));
+
+    const displayPosts = livePosts
+      ? livePosts.slice(0, postCount).map((p, i) => ({
+          id: p.id,
+          title: p.title || `Post ${i + 1}`,
+          excerpt: p.excerpt || '',
+          date: p.published_at
+            ? new Date(p.published_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+            : '',
+          author: p.author_name || '',
+          image: p.featured_image_url || placeholderSvg(400, 250, '#cbd5e1', `Post ${i + 1}`),
+        }))
+      : placeholderPosts;
 
     const gridStyle: CSSProperties = {
       ...previewShellStyle(style),
@@ -2466,7 +2499,7 @@ const PostsGridRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties; viewp
 
     return (
       <div style={gridStyle}>
-        {placeholderPosts.map((post) => (
+        {displayPosts.map((post) => (
           <div
             key={post.id}
             style={{
@@ -2488,12 +2521,12 @@ const PostsGridRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties; viewp
               }} />
             )}
             <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '8px', flex: 1 }}>
-              {showDate && (
+              {showDate && post.date && (
                 <span style={{ fontSize: '12px', color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                   {post.date}
                 </span>
               )}
-              {showAuthor && (
+              {showAuthor && post.author && (
                 <span style={{ fontSize: '12px', color: '#94a3b8' }}>
                   By {post.author}
                 </span>
@@ -2501,9 +2534,9 @@ const PostsGridRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties; viewp
               <h3 style={{ fontSize: '18px', fontWeight: '600', color: '#1f2937', margin: 0, lineHeight: '1.4' }}>
                 {post.title}
               </h3>
-              {showExcerpt && (
+              {showExcerpt && post.excerpt && (
                 <p style={{ fontSize: '14px', color: '#6b7280', margin: 0, lineHeight: '1.5' }}>
-                  {post.excerpt.substring(0, excerptLength)}...
+                  {post.excerpt.substring(0, excerptLength)}{post.excerpt.length > excerptLength ? '...' : ''}
                 </p>
               )}
               {showReadMore && (
@@ -2526,7 +2559,7 @@ const PostsGridRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties; viewp
           borderRadius: '4px',
           border: '1px dashed #d1d5db',
         }}>
-          Posts Grid • {postCount} posts{categoryIds.length > 0 ? ` • ${categoryIds.length} categories` : ''}
+          Posts Grid • {postCount} posts{categoryIds.length > 0 ? ` • ${categoryIds.length} categories` : ''}{livePosts ? ' • live' : ''}
         </div>
       </div>
     );
@@ -2918,6 +2951,25 @@ const EntityListRenderer: React.FC<{ node: DiSyLNode; style: React.CSSProperties
     gridColumns?: number;
   };
 
+  // Live data fetch from public API
+  const [liveItems, setLiveItems] = useState<Array<{
+    id: number; title: string; excerpt?: string; featured_image_url?: string;
+  }> | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const limit = Math.min(Math.max(1, itemCount), 6);
+    fetch(`/api/v1/cms/public/content/${encodeURIComponent(entityType)}?per_page=${limit}&include=featured_image`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (!cancelled && data?.ok && Array.isArray(data.data) && data.data.length > 0) {
+          setLiveItems(data.data);
+        }
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [entityType, itemCount]);
+
   const columns = layout === 'list'
     ? 1
     : viewport === 'mobile'
@@ -2926,14 +2978,27 @@ const EntityListRenderer: React.FC<{ node: DiSyLNode; style: React.CSSProperties
         ? Math.min(2, gridColumns)
         : gridColumns;
 
-  const items = Array.from({ length: Math.min(itemCount, 6) }, (_, index) => ({
+  const placeholderItems = Array.from({ length: Math.min(itemCount, 6) }, (_, index) => ({
     id: index + 1,
     title: `Sample ${entityType} ${index + 1}`,
     excerpt: 'This item previews the shared entity-list contract used by the public theme, including media, pricing, and stock states.',
     price: `$${(29 + index * 5).toFixed(2)}`,
     stock: index % 3 === 0 ? 'Low stock' : index % 2 === 0 ? 'In stock' : 'Out of stock',
     progress: 24 + index * 11,
+    image: placeholderSvg(720, 405, index % 2 === 0 ? '#93c5fd' : '#fcd34d', `${entityType} ${index + 1}`),
   }));
+
+  const displayItems = liveItems
+    ? liveItems.slice(0, Math.min(itemCount, 6)).map((item, index) => ({
+        id: item.id,
+        title: item.title || `${entityType} ${index + 1}`,
+        excerpt: item.excerpt || '',
+        price: `$${(29 + index * 5).toFixed(2)}`,
+        stock: index % 3 === 0 ? 'Low stock' : index % 2 === 0 ? 'In stock' : 'Out of stock',
+        progress: 24 + index * 11,
+        image: item.featured_image_url || placeholderSvg(720, 405, index % 2 === 0 ? '#93c5fd' : '#fcd34d', `${entityType} ${index + 1}`),
+      }))
+    : placeholderItems;
 
   const actionLabel = entityType === 'course'
     ? 'Enroll Now'
@@ -2945,12 +3010,12 @@ const EntityListRenderer: React.FC<{ node: DiSyLNode; style: React.CSSProperties
 
   return (
     <div style={{ ...previewShellStyle(style), display: 'grid', gridTemplateColumns: `repeat(${columns}, 1fr)`, gap: '20px' }}>
-      {items.map((item) => (
+      {displayItems.map((item) => (
         <article key={item.id} style={{ backgroundColor: '#ffffff', borderRadius: '18px', border: '1px solid #e2e8f0', overflow: 'hidden', boxShadow: '0 10px 30px rgba(15, 23, 42, 0.06)' }}>
           {showFeaturedImage && (
             <div style={{ aspectRatio: '16 / 9', backgroundColor: '#e2e8f0' }}>
               <img
-                src={placeholderSvg(720, 405, item.id % 2 === 0 ? '#93c5fd' : '#fcd34d', item.title)}
+                src={item.image}
                 alt={item.title}
                 style={{ display: 'block', width: '100%', height: '100%', objectFit: 'cover' }}
               />
@@ -2958,7 +3023,7 @@ const EntityListRenderer: React.FC<{ node: DiSyLNode; style: React.CSSProperties
           )}
           <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
             {showTitle && <h3 style={{ margin: 0, fontSize: '18px', lineHeight: 1.35, color: '#0f172a' }}>{item.title}</h3>}
-            {showExcerpt && <p style={{ margin: 0, fontSize: '14px', lineHeight: 1.6, color: '#64748b' }}>{item.excerpt.substring(0, excerptLength)}{item.excerpt.length > excerptLength ? '...' : ''}</p>}
+            {showExcerpt && item.excerpt && <p style={{ margin: 0, fontSize: '14px', lineHeight: 1.6, color: '#64748b' }}>{item.excerpt.substring(0, excerptLength)}{item.excerpt.length > excerptLength ? '...' : ''}</p>}
             {(showPricing || showInventory) && (
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '4px' }}>
                 {showPricing && <span style={{ fontSize: '13px', fontWeight: 700, color: '#0f766e' }}>{item.price}</span>}
@@ -3849,38 +3914,73 @@ const AudioRenderer: React.FC<{ node: DiSyLNode; style: React.CSSProperties }> =
 
 const HtmlEmbedRenderer: React.FC<{ node: DiSyLNode; style: React.CSSProperties }> = memo(({ node, style }) => {
   const { html = '' } = node.props as any;
+  const [iframeHeight, setIframeHeight] = useState(120);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
 
-  return (
-    <div style={{ width: '100%', ...style }}>
-      {html.trim() ? (
-        <div
-          style={{
-            padding: '12px',
-            border: '1px dashed #6366f1',
-            borderRadius: '6px',
-            backgroundColor: '#f5f3ff',
-            color: '#4f46e5',
-            fontSize: '12px',
-            fontFamily: 'ui-monospace, monospace',
-            overflow: 'hidden',
-            maxHeight: '120px',
-          }}
-        >
-          <div style={{ color: '#7c3aed', fontWeight: 600, marginBottom: '4px', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>HTML Embed</div>
-          <div style={{ color: '#6b7280', whiteSpace: 'pre-wrap', overflow: 'hidden' }}>{html.substring(0, 200)}{html.length > 200 ? '...' : ''}</div>
-        </div>
-      ) : (
+  // Auto-resize iframe to match content height
+  const handleIframeLoad = useCallback(() => {
+    try {
+      const doc = iframeRef.current?.contentDocument;
+      if (doc) {
+        const h = Math.max(60, doc.documentElement.scrollHeight || doc.body?.scrollHeight || 60);
+        setIframeHeight(Math.min(h, 600));
+      }
+    } catch {
+      // cross-origin iframe — leave default height
+    }
+  }, []);
+
+  if (!html.trim()) {
+    return (
+      <div style={{ width: '100%', ...style }}>
         <div style={{
           padding: '20px',
           border: '1px dashed #d1d5db',
           borderRadius: '6px',
           color: '#9ca3af',
           fontSize: '13px',
-          textAlign: 'center'
+          textAlign: 'center',
         }}>
           {'<>'} HTML Embed — paste your code in the panel
         </div>
-      )}
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ width: '100%', ...style }}>
+      <div style={{ position: 'relative' }}>
+        <div style={{
+          position: 'absolute',
+          top: '-18px',
+          left: 0,
+          fontSize: '10px',
+          color: '#9ca3af',
+          backgroundColor: '#f9fafb',
+          padding: '1px 6px',
+          borderRadius: '4px',
+          border: '1px dashed #d1d5db',
+          pointerEvents: 'none',
+          zIndex: 1,
+        }}>
+          HTML Embed preview
+        </div>
+        <iframe
+          ref={iframeRef}
+          srcDoc={html}
+          sandbox="allow-scripts allow-forms allow-popups allow-presentation allow-modals"
+          style={{
+            width: '100%',
+            height: `${iframeHeight}px`,
+            border: '1px solid #e5e7eb',
+            borderRadius: '6px',
+            display: 'block',
+            backgroundColor: '#fff',
+          }}
+          onLoad={handleIframeLoad}
+          title="HTML embed preview"
+        />
+      </div>
     </div>
   );
 });
