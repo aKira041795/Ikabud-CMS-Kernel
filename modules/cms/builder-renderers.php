@@ -1005,7 +1005,7 @@ function cmsRenderWidget_posts_grid(array $props, array $style, array $attrs, st
         $stmt->execute($params);
         $posts = $stmt->fetchAll(\PDO::FETCH_ASSOC) ?: [];
     } catch (\Throwable $e) {
-        write_log('cms.builder.posts_grid.query_error', ['message' => $e->getMessage(), 'type' => $postType], 'error');
+        write_log('cms.builder.posts_grid.query_error', 'error', ['message' => $e->getMessage(), 'type' => $postType]);
         $posts = [];
     }
     if (empty($posts)) {
@@ -1545,7 +1545,7 @@ function cmsRenderWidget_entity_list(array $props, array $style, array $attrs, s
         $stmt->execute([':type' => $entityType]);
         $items = $stmt->fetchAll(\PDO::FETCH_ASSOC) ?: [];
     } catch (\Throwable $e) {
-        write_log('cms.builder.entity_list.query_error', ['message' => $e->getMessage(), 'type' => $entityType], 'error');
+        write_log('cms.builder.entity_list.query_error', 'error', ['message' => $e->getMessage(), 'type' => $entityType]);
         $items = [];
     }
 
@@ -2001,7 +2001,7 @@ function cmsRenderWidget_recent_posts(array $props, array $style, array $attrs, 
         $stmt->execute();
         $posts = $stmt->fetchAll(\PDO::FETCH_ASSOC) ?: [];
     } catch (\Throwable $e) {
-        write_log('cms.builder.recent_posts.query_error', ['message' => $e->getMessage()], 'error');
+        write_log('cms.builder.recent_posts.query_error', 'error', ['message' => $e->getMessage()]);
         $posts = [];
     }
 
