@@ -761,7 +761,7 @@ const RowRenderer: React.FC<{ node: DiSyLNode; style: CSSProperties; children: R
       // Defaults first — must match cmsBuilderDefaultStyle('row') in helpers.php
       display: 'flex',
       flexDirection: 'row',
-      flexWrap: 'wrap',
+      flexWrap: 'nowrap',
       gap: 'var(--cms-builder-element-gap, 24px)',
       justifyContent: 'center',
       alignItems: 'stretch',
