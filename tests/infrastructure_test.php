@@ -146,6 +146,9 @@ ok('control migrate runs or is already up to date', is_array($executedControl));
 ok('kernel_tenants table exists (control)', $cpdo->query("SHOW TABLES LIKE 'kernel_tenants'")->fetchColumn() !== false);
 ok('kernel_tenant_domains table exists (control)', $cpdo->query("SHOW TABLES LIKE 'kernel_tenant_domains'")->fetchColumn() !== false);
 ok('kernel_tenant_db_connections table exists (control)', $cpdo->query("SHOW TABLES LIKE 'kernel_tenant_db_connections'")->fetchColumn() !== false);
+ok('kernel_module_catalog table exists (control)', $cpdo->query("SHOW TABLES LIKE 'kernel_module_catalog'")->fetchColumn() !== false);
+ok('kernel_tenant_module_entitlements table exists (control)', $cpdo->query("SHOW TABLES LIKE 'kernel_tenant_module_entitlements'")->fetchColumn() !== false);
+ok('kernel_tenant_module_access_requests table exists (control)', $cpdo->query("SHOW TABLES LIKE 'kernel_tenant_module_access_requests'")->fetchColumn() !== false);
 
 heading('Crypto — AES-256-GCM');
 $_ENV['CONTROL_DB_ENC_KEY'] = $_ENV['CONTROL_DB_ENC_KEY'] ?? base64_encode(random_bytes(32));

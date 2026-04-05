@@ -625,6 +625,32 @@ The following functions bypass the request-context tenant and operate on an expl
 
 All four live in `src/helpers/module-manager.php`. The underlying DB connection is obtained via `app()->dbForTenant($tenantId)` (defined in `kernel/App.php`), which looks up credentials from `kernel_tenant_db_connections` and caches connections per tenant for the request lifetime.
 
+#### Control-plane catalog and tenant entitlements
+
+Approved reusable packages are now tracked in the control plane instead of being inferred only from files on disk.
+
+- `kernel_module_catalog` stores the platform-approved module package record for a module id, including approved version, install path, approval status, and commercial mode.
+- `kernel_tenant_module_entitlements` stores whether a specific tenant is allowed to use an approved catalog-managed module.
+
+Runtime implications:
+
+- A module present on shared disk is **not** automatically reusable by other tenants.
+- Cross-tenant reuse requires an **approved** catalog record.
+- For approved catalog-managed modules, runtime loading and tenant activation now check tenant entitlement before the module is treated as available.
+- Tenant-specific `_module_enabled` state and tenant entitlement are separate concepts: entitlement answers **may this tenant use it at all**, while `_module_enabled` answers **is it currently activated for this tenant**.
+- Tenant-originated CMS ZIP uploads can still install for the uploading tenant immediately, but they now create or update a **pending** catalog submission until a superadmin approves reuse.
+- Approved catalog modules can then be installed from the CMS module screen without another ZIP upload, using entitlement checks instead of shared-disk inference.
+- Paid catalog modules can be requested by a tenant from the CMS module screen; superadmin review stores that request in the control plane, grants entitlement on approval, and best-effort invokes `module.license.activate@1` if a licensing provider is registered.
+
+#### Tenant access-request review queue
+
+The control plane now tracks a single latest access request per `(tenant_id, module_id)` in `kernel_tenant_module_access_requests`.
+
+- CMS tenants submit or update requests through the approved catalog UI when a module needs superadmin approval.
+- Requests can carry optional review notes and an optional license key. The key is stored encrypted with the control-plane crypto key when provided.
+- Superadmin approval grants tenant entitlement and records the review decision.
+- The optional `module.license.activate@1` capability is invoked on approval so a future licensing or billing provider can perform pro activation without hardcoding module-specific logic into the kernel.
+
 #### `settings_fields` manifest schema
 
 Modules declare user-editable settings in their `module.json` under `settings_fields`. The superadmin settings UI reads this schema to render form controls and validate input.

@@ -5,6 +5,16 @@
     .sa-header { margin-bottom: 24px; }
     .sa-header h2 { font-size: 20px; font-weight: 700; color: var(--text); }
     .sa-header .sa-desc { font-size: 13px; color: var(--text-muted); margin-top: 4px; }
+    .sa-catalog { margin-bottom: 20px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+    .sa-catalog-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 20px; border-bottom: 1px solid var(--border); background: var(--bg); }
+    .sa-catalog-title { font-size: 15px; font-weight: 700; color: var(--text); }
+    .sa-catalog-desc { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+    .sa-catalog-count { font-size: 11px; color: var(--text-muted); }
+    .sa-catalog-table { width: 100%; border-collapse: collapse; }
+    .sa-catalog-table th, .sa-catalog-table td { padding: 12px 16px; border-top: 1px solid var(--border); vertical-align: top; font-size: 12px; }
+    .sa-catalog-table th { text-align: left; color: var(--text-muted); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: .3px; }
+    .sa-catalog-meta { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+    .sa-catalog-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: flex-end; }
     .sa-tenant-bar { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; padding: 12px 16px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; }
     .sa-tenant-bar label { font-size: 13px; font-weight: 600; color: var(--text); white-space: nowrap; }
     .sa-tenant-select { flex: 1; max-width: 360px; border: 1px solid var(--border); border-radius: 8px; padding: 7px 10px; font-size: 13px; color: var(--text); background: var(--bg); }
@@ -21,6 +31,8 @@
     .sa-module-collapse-label { font-size: 11px; font-weight: 600; }
     .sa-module-chevron { width: 8px; height: 8px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: rotate(45deg); transition: transform .15s ease; margin-top: -2px; }
     .sa-module-desc { font-size: 12px; color: var(--text-muted); padding: 4px 20px 0; }
+    .sa-entitlement-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 20px 0; }
+    .sa-entitlement-meta { display: flex; flex-wrap: wrap; gap: 6px; }
     .sa-module-body { display: block; }
     .sa-module[data-expanded="0"] .sa-module-body { display: none; }
     .sa-module[data-expanded="0"] .sa-module-header { border-bottom: none; }
@@ -28,6 +40,7 @@
     .sa-badge { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 6px; text-transform: uppercase; letter-spacing: .3px; }
     .sa-badge-on { background: #d1fae5; color: #065f46; }
     .sa-badge-off { background: #fee2e2; color: #991b1b; }
+    .sa-badge-neutral { background: #e2e8f0; color: #334155; }
     .sa-toggle { position: relative; display: inline-block; width: 38px; height: 22px; flex-shrink: 0; }
     .sa-toggle input { opacity: 0; width: 0; height: 0; }
     .sa-toggle .sa-slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background: #ccc; border-radius: 22px; transition: .2s; }
@@ -45,6 +58,8 @@
     .sa-btn-save { background: var(--primary); color: #fff; border: none; padding: 8px 18px; font-size: 12px; font-weight: 600; border-radius: 8px; cursor: pointer; transition: filter .15s; }
     .sa-btn-save:hover { filter: brightness(.92); }
     .sa-btn-save:disabled { opacity: .55; cursor: not-allowed; }
+    .sa-btn-secondary { background: var(--surface); color: var(--text); border: 1px solid var(--border); padding: 7px 12px; font-size: 12px; font-weight: 600; border-radius: 8px; cursor: pointer; transition: border-color .15s, background .15s; }
+    .sa-btn-secondary:hover { border-color: var(--primary, #2563eb); background: var(--bg); }
     .sa-status { font-size: 12px; padding: 0 20px 12px; }
     .sa-status.ok { color: var(--success, #059669); }
     .sa-status.err { color: var(--danger, #dc2626); }
@@ -67,6 +82,135 @@
     <div class="sa-desc">Manage module feature flags and settings. Changes take effect immediately.</div>
     {/if}
 </div>
+
+{if catalog_entries | count > 0}
+<div class="sa-catalog">
+    <div class="sa-catalog-header">
+        <div>
+            <div class="sa-catalog-title">Catalog Review</div>
+            <div class="sa-catalog-desc">Approve or reject tenant-originated module packages for reuse across tenants, and set the catalog commercial mode.</div>
+        </div>
+        <div class="sa-catalog-count">{catalog_pending_count} pending of {catalog_entries | count} catalog entries</div>
+    </div>
+    <table class="sa-catalog-table">
+        <thead>
+            <tr>
+                <th>Module</th>
+                <th>Status</th>
+                <th>Origin</th>
+                <th style="text-align:right;">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {foreach catalog_entries as entry}
+            <tr>
+                <td>
+                    <div style="font-weight:600;color:var(--text);">{entry.name}</div>
+                    <div style="color:var(--text-muted);margin-top:4px;">{entry.id} · v{entry.version}</div>
+                    <div class="sa-catalog-meta">
+                        <span class="sa-badge {if entry.approval_status == 'approved'}sa-badge-on{elseif entry.approval_status == 'rejected'}sa-badge-off{else}sa-badge-neutral{/if}">{entry.approval_status}</span>
+                        <span class="sa-badge sa-badge-neutral">{entry.commercial_mode}</span>
+                        {if not entry.exists_on_disk}
+                        <span class="sa-badge sa-badge-off">Missing Files</span>
+                        {/if}
+                    </div>
+                </td>
+                <td>
+                    <div style="color:var(--text);">Source: {entry.source}</div>
+                    {if entry.approved_at}
+                    <div style="color:var(--text-muted);margin-top:4px;">Approved: {entry.approved_at}</div>
+                    {/if}
+                </td>
+                <td>
+                    {if entry.origin_tenant_label}
+                    <div style="color:var(--text);">{entry.origin_tenant_label}</div>
+                    {else}
+                    <div style="color:var(--text-muted);">No tenant origin recorded</div>
+                    {/if}
+                </td>
+                <td>
+                    <div class="sa-catalog-actions">
+                        <select id="sa-catalog-mode-{entry.id}" class="sa-select" style="width:auto;min-width:120px;">
+                            <option value="free" {if entry.commercial_mode == 'free'}selected{/if}>Free</option>
+                            <option value="freemium" {if entry.commercial_mode == 'freemium'}selected{/if}>Freemium</option>
+                            <option value="paid" {if entry.commercial_mode == 'paid'}selected{/if}>Paid</option>
+                        </select>
+                        <button type="button" class="sa-btn-secondary" onclick="updateCatalogApproval('{entry.id}', 'approved')">Approve</button>
+                        <button type="button" class="sa-btn-secondary" onclick="updateCatalogApproval('{entry.id}', 'rejected')">Reject</button>
+                    </div>
+                </td>
+            </tr>
+            {/foreach}
+        </tbody>
+    </table>
+</div>
+{/if}
+
+{if access_requests | count > 0}
+<div class="sa-catalog">
+    <div class="sa-catalog-header">
+        <div>
+            <div class="sa-catalog-title">Tenant Access Requests</div>
+            <div class="sa-catalog-desc">Review tenant requests for paid or pro access. Approving a request grants entitlement and invokes module license activation when a provider is available.</div>
+        </div>
+        <div class="sa-catalog-count">{access_request_pending_count} pending of {access_requests | count} requests</div>
+    </div>
+    <table class="sa-catalog-table">
+        <thead>
+            <tr>
+                <th>Tenant / Module</th>
+                <th>Request</th>
+                <th>Status</th>
+                <th style="text-align:right;">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {foreach access_requests as request}
+            <tr>
+                <td>
+                    <div style="font-weight:600;color:var(--text);">{request.module_name}</div>
+                    <div style="color:var(--text-muted);margin-top:4px;">{request.module_id}</div>
+                    <div class="sa-catalog-meta">
+                        <span class="sa-badge sa-badge-neutral">{request.tenant_label}</span>
+                        <span class="sa-badge sa-badge-neutral">{request.requested_mode}</span>
+                        {if request.license_ref}
+                        <span class="sa-badge sa-badge-neutral">{request.license_ref}</span>
+                        {/if}
+                    </div>
+                </td>
+                <td>
+                    {if request.request_notes}
+                    <div style="color:var(--text);">{request.request_notes}</div>
+                    {else}
+                    <div style="color:var(--text-muted);">No request notes supplied.</div>
+                    {/if}
+                    <div style="color:var(--text-muted);margin-top:4px;">Requested: {request.created_at}</div>
+                </td>
+                <td>
+                    <span class="sa-badge {if request.status == 'approved'}sa-badge-on{elseif request.status == 'rejected'}sa-badge-off{else}sa-badge-neutral{/if}">{request.status}</span>
+                    {if request.review_notes}
+                    <div style="color:var(--text-muted);margin-top:6px;">{request.review_notes}</div>
+                    {/if}
+                    {if request.reviewed_at}
+                    <div style="color:var(--text-muted);margin-top:4px;">Reviewed: {request.reviewed_at}</div>
+                    {/if}
+                </td>
+                <td>
+                    <div class="sa-catalog-actions">
+                        {if request.status == 'pending'}
+                        <button type="button" class="sa-btn-secondary" onclick="reviewAccessRequest({request.id}, 'approved')">Approve</button>
+                        <button type="button" class="sa-btn-secondary" onclick="reviewAccessRequest({request.id}, 'rejected')">Reject</button>
+                        {else}
+                        <span class="sa-badge sa-badge-neutral">Reviewed</span>
+                        {/if}
+                    </div>
+                </td>
+            </tr>
+            {/foreach}
+        </tbody>
+    </table>
+</div>
+{/if}
 
 {if multi_tenant}
 <div class="sa-tenant-bar">
@@ -105,7 +249,7 @@
             <div class="sa-module-left">
                 {if tenant_db_ok}
                 <label class="sa-toggle" title="{if mod.is_enabled}Disable{else}Enable{/if} {mod.name}">
-                    <input type="checkbox" onchange="toggleModule('{mod.id}', this.checked)" {if mod.is_enabled}checked{/if}>
+                    <input type="checkbox" onchange="toggleModule('{mod.id}', this.checked)" {if mod.is_enabled}checked{/if} {if mod.entitlement_required and not mod.entitlement_allowed and not mod.is_enabled}disabled{/if}>
                     <span class="sa-slider"></span>
                 </label>
                 {/if}
@@ -131,11 +275,33 @@
         <div class="sa-module-desc">{mod.description}</div>
         {/if}
 
+        {if mod.catalog_managed}
+        <div class="sa-entitlement-bar">
+            <div class="sa-entitlement-meta">
+                <span class="sa-badge sa-badge-neutral">Catalog: {mod.catalog_status}</span>
+                <span class="sa-badge sa-badge-neutral">Mode: {mod.commercial_mode}</span>
+                {if mod.entitlement_required}
+                <span class="sa-badge {if mod.entitlement_allowed}sa-badge-on{else}sa-badge-off{/if}">Access: {mod.entitlement_status}</span>
+                {/if}
+            </div>
+            {if multi_tenant and mod.entitlement_required}
+            <button type="button" class="sa-btn-secondary" onclick="setModuleEntitlement('{mod.id}', {if mod.entitlement_allowed}false{else}true{/if})">
+                {if mod.entitlement_allowed}Revoke Access{else}Grant Access{/if}
+            </button>
+            {/if}
+        </div>
+        {/if}
+
         {if not tenant_db_ok}
         <div class="sa-module-notice">This tenant needs a working database connection before module settings can be updated.</div>
+        {elseif mod.catalog_managed and mod.catalog_status != 'approved'}
+        <div class="sa-module-notice">This package is tracked in the platform catalog, but it is not approved for tenant reuse yet.</div>
         {elseif not mod.has_fields}
         <div class="sa-module-notice">This module has no configurable settings.</div>
         {else}
+        {if mod.entitlement_required and not mod.entitlement_allowed}
+        <div class="sa-module-notice">This tenant is not currently entitled to use this catalog-managed module. Grant access before enabling it.</div>
+        {/if}
         {if not mod.is_enabled}
         <div class="sa-module-notice">This module is disabled for this tenant. You can still save settings now; they will apply when enabled.</div>
         {/if}
@@ -260,6 +426,65 @@ function setStatus(moduleId, message, type) {
     el.textContent = message || '';
 }
 
+function updateCatalogApproval(moduleId, approvalStatus) {
+    var modeSelect = document.getElementById('sa-catalog-mode-' + moduleId);
+    var commercialMode = modeSelect ? modeSelect.value : 'free';
+
+    fetch('/api/v1/superadmin/modules/catalog', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            module_id: moduleId,
+            approval_status: approvalStatus,
+            commercial_mode: commercialMode,
+            _token: CSRF,
+        })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(res) {
+        if (res.ok) {
+            window.location.reload();
+        } else {
+            alert(res.error || 'Catalog update failed');
+        }
+    })
+    .catch(function() {
+        alert('Network error');
+    });
+}
+
+function reviewAccessRequest(requestId, status) {
+    var reviewNotes = window.prompt(
+        status === 'approved' ? 'Optional approval note.' : 'Optional rejection note.',
+        ''
+    );
+    if (reviewNotes === null) {
+        return;
+    }
+
+    fetch('/api/v1/superadmin/modules/access-request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            request_id: requestId,
+            status: status,
+            review_notes: reviewNotes,
+            _token: CSRF,
+        })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(res) {
+        if (res.ok) {
+            window.location.reload();
+        } else {
+            alert(res.error || 'Access request review failed');
+        }
+    })
+    .catch(function() {
+        alert('Network error');
+    });
+}
+
 function toggleModule(moduleId, enabled) {
     var payload = { module_id: moduleId, enabled: enabled, _token: CSRF };
     if (MULTI_TENANT && SELECTED_TENANT_ID) {
@@ -282,6 +507,35 @@ function toggleModule(moduleId, enabled) {
     .catch(function() {
         alert('Network error');
         window.location.reload();
+    });
+}
+
+function setModuleEntitlement(moduleId, entitled) {
+    if (!MULTI_TENANT || !SELECTED_TENANT_ID) {
+        return;
+    }
+
+    setStatus(moduleId, entitled ? 'Granting access...' : 'Revoking access...', '');
+    fetch('/api/v1/superadmin/modules/entitlement', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            module_id: moduleId,
+            tenant_id: SELECTED_TENANT_ID,
+            entitled: entitled,
+            _token: CSRF,
+        })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(res) {
+        if (res.ok) {
+            window.location.reload();
+        } else {
+            setStatus(moduleId, res.error || 'Entitlement update failed', 'err');
+        }
+    })
+    .catch(function() {
+        setStatus(moduleId, 'Network error', 'err');
     });
 }
 

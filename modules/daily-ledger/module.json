@@ -34,7 +34,8 @@
         "database/migrations/006_add_product_output_profile.sql",
         "database/migrations/007_fix_withdrawal_ledger_column.sql",
         "database/migrations/008_reconcile_legacy_kernel_tables.sql",
-        "database/migrations/009_add_branch_area.sql"
+        "database/migrations/009_add_branch_area.sql",
+        "database/migrations/010_reconcile_auto_increment_ids.sql"
     ],
     "capabilities": {
         "exposes": [

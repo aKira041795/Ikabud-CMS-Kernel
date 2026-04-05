@@ -19,6 +19,7 @@ final class CapabilityTestRunner
         $capId = (string)($fixture['capability_id'] ?? '');
         $mode = (string)($fixture['mode'] ?? ($globalOptions['mode'] ?? 'first'));
         $cases = $fixture['cases'] ?? [];
+        $fixtureOptions = is_array($fixture['options'] ?? null) ? $fixture['options'] : [];
         $fixtureSetup = $this->sqlStatements($fixture['setup_sql'] ?? null);
         $fixtureTeardown = $this->sqlStatements($fixture['teardown_sql'] ?? null);
 
@@ -36,7 +37,9 @@ final class CapabilityTestRunner
         }
 
         try {
-            $this->runSqlStatements($fixtureSetup);
+            $this->withTenantContext($fixtureOptions, function () use ($fixtureSetup): void {
+                $this->runSqlStatements($fixtureSetup);
+            });
         } catch (\Throwable $e) {
             return [
                 'ok' => false,
@@ -51,6 +54,7 @@ final class CapabilityTestRunner
                 $name = (string)($case['name'] ?? 'case');
                 $payload = $case['payload'] ?? null;
                 $opts = is_array($case['options'] ?? null) ? $case['options'] : [];
+                $runtimeOpts = array_merge($fixtureOptions, $opts);
                 $caseSetup = $this->sqlStatements($case['setup_sql'] ?? null);
                 $caseTeardown = $this->sqlStatements($case['teardown_sql'] ?? null);
 
@@ -65,22 +69,28 @@ final class CapabilityTestRunner
                 $error = null;
 
                 try {
-                    $this->runSqlStatements($caseSetup);
+                    $this->withTenantContext($runtimeOpts, function () use (&$error, $caseSetup, $capId, $payload, $callOpts, $case, $caseTeardown): void {
+                        try {
+                            $this->runSqlStatements($caseSetup);
 
-                    $result = $this->bus->call($capId, $payload, $callOpts);
-                    $ok = $this->assertExpected($result, $case['expect'] ?? null);
-                    if ($ok !== true) {
-                        $error = $ok;
-                    }
+                            $result = $this->bus->call($capId, $payload, $callOpts);
+                            $ok = $this->assertExpected($result, $case['expect'] ?? null);
+                            if ($ok !== true) {
+                                $error = $ok;
+                            }
+                        } catch (\Throwable $e) {
+                            $error = $e->getMessage();
+                        }
+
+                        try {
+                            $this->runSqlStatements($caseTeardown);
+                        } catch (\Throwable $e) {
+                            $teardownError = 'Teardown failed: ' . $e->getMessage();
+                            $error = $error === null ? $teardownError : $error . '; ' . $teardownError;
+                        }
+                    });
                 } catch (\Throwable $e) {
                     $error = $e->getMessage();
-                }
-
-                try {
-                    $this->runSqlStatements($caseTeardown);
-                } catch (\Throwable $e) {
-                    $teardownError = 'Teardown failed: ' . $e->getMessage();
-                    $error = $error === null ? $teardownError : $error . '; ' . $teardownError;
                 }
 
                 if ($error === null) {
@@ -92,7 +102,9 @@ final class CapabilityTestRunner
             }
         } finally {
             try {
-                $this->runSqlStatements($fixtureTeardown);
+                $this->withTenantContext($fixtureOptions, function () use ($fixtureTeardown): void {
+                    $this->runSqlStatements($fixtureTeardown);
+                });
             } catch (\Throwable $e) {
                 $failed++;
                 $failures[] = ['name' => 'fixture', 'error' => 'Teardown failed: ' . $e->getMessage()];
@@ -153,6 +165,83 @@ final class CapabilityTestRunner
                 throw new \RuntimeException((string)($errorInfo[2] ?? 'SQL execution failed'));
             }
         }
+    }
+
+    private function withTenantContext(array $options, callable $callback): void
+    {
+        $tenantId = function_exists('resolveTenantIdForRuntimeOptions')
+            ? (int)(\resolveTenantIdForRuntimeOptions($options) ?? 0)
+            : (isset($options['tenant_id']) ? (int)$options['tenant_id'] : 0);
+        if ($tenantId <= 0) {
+            $callback();
+            return;
+        }
+
+        $app = \app();
+        $resolver = $app->tenant();
+
+        $originalAppConfig = $this->getPrivateProperty($app, 'config');
+        $originalDb = $this->getPrivateProperty($app, 'db');
+        $originalDbLastVerified = $this->getPrivateProperty($app, 'dbLastVerified');
+        $originalResolver = [
+            'enabled' => $this->getPrivateProperty($resolver, 'enabled'),
+            'strategy' => $this->getPrivateProperty($resolver, 'strategy'),
+            'default' => $this->getPrivateProperty($resolver, 'default'),
+            'resolvedTenantId' => $this->getPrivateProperty($resolver, 'resolvedTenantId'),
+            'resolved' => $this->getPrivateProperty($resolver, 'resolved'),
+        ];
+
+        $appConfig = is_array($originalAppConfig) ? $originalAppConfig : [];
+        if (!isset($appConfig['app']) || !is_array($appConfig['app'])) {
+            $appConfig['app'] = [];
+        }
+        if (!isset($appConfig['app']['multi_tenant']) || !is_array($appConfig['app']['multi_tenant'])) {
+            $appConfig['app']['multi_tenant'] = [];
+        }
+        $appConfig['app']['multi_tenant']['enabled'] = true;
+        if (trim((string)($appConfig['app']['multi_tenant']['strategy'] ?? '')) === '') {
+            $appConfig['app']['multi_tenant']['strategy'] = 'control_host';
+        }
+
+        $this->setPrivateProperty($app, 'config', $appConfig);
+        $this->setPrivateProperty($resolver, 'enabled', true);
+        $this->setPrivateProperty($resolver, 'strategy', (string)($appConfig['app']['multi_tenant']['strategy'] ?? 'control_host'));
+        $resolver->setTenantId($tenantId);
+        $this->setPrivateProperty($app, 'db', null);
+        $this->setPrivateProperty($app, 'dbLastVerified', null);
+        if (function_exists('invalidateModuleContextCache')) {
+            \invalidateModuleContextCache();
+        }
+
+        try {
+            $callback();
+        } finally {
+            $this->setPrivateProperty($app, 'config', $originalAppConfig);
+            $this->setPrivateProperty($resolver, 'enabled', $originalResolver['enabled']);
+            $this->setPrivateProperty($resolver, 'strategy', $originalResolver['strategy']);
+            $this->setPrivateProperty($resolver, 'default', $originalResolver['default']);
+            $this->setPrivateProperty($resolver, 'resolvedTenantId', $originalResolver['resolvedTenantId']);
+            $this->setPrivateProperty($resolver, 'resolved', $originalResolver['resolved']);
+            $this->setPrivateProperty($app, 'db', $originalDb);
+            $this->setPrivateProperty($app, 'dbLastVerified', $originalDbLastVerified);
+            if (function_exists('invalidateModuleContextCache')) {
+                \invalidateModuleContextCache();
+            }
+        }
+    }
+
+    private function setPrivateProperty(object $object, string $property, mixed $value): void
+    {
+        $ref = new \ReflectionProperty($object, $property);
+        $ref->setAccessible(true);
+        $ref->setValue($object, $value);
+    }
+
+    private function getPrivateProperty(object $object, string $property): mixed
+    {
+        $ref = new \ReflectionProperty($object, $property);
+        $ref->setAccessible(true);
+        return $ref->getValue($object);
     }
 
     private function assertExpected(mixed $result, mixed $expect): bool|string

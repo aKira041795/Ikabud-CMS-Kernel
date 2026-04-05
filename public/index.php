@@ -421,7 +421,10 @@ $routes = [
         '/api/v1/admin/modules/enable' => 'apiEnableModule',
         '/api/v1/admin/modules/disable' => 'apiDisableModule',
         '/api/v1/admin/modules/settings' => 'apiUpdateModuleSettings',
+        '/api/v1/superadmin/modules/access-request' => 'apiSuperadminReviewModuleAccessRequest',
+        '/api/v1/superadmin/modules/catalog' => 'apiSuperadminUpdateModuleCatalog',
         '/api/v1/superadmin/modules/settings' => 'apiSuperadminUpdateModuleSettings',
+        '/api/v1/superadmin/modules/entitlement' => 'apiSuperadminSetModuleEntitlement',
         '/api/v1/superadmin/modules/toggle' => 'apiSuperadminToggleModule',
         '/api/v1/admin/ai/settings' => 'apiAiSettingsSave',
         '/api/v1/admin/cache/clear' => 'apiCacheClear',
@@ -1240,7 +1243,90 @@ switch ($handler) {
             }
         }
 
+        $tenantLabelsById = [];
+        foreach ($tenants as $tenantRow) {
+            if (!is_array($tenantRow)) {
+                continue;
+            }
+            $tenantLabel = ($tenantRow['tenant_key'] ?? 'Tenant ' . $tenantRow['id'])
+                . (!empty($tenantRow['domains']) ? ' (' . $tenantRow['domains'] . ')' : '');
+            $tenantLabelsById[(int)$tenantRow['id']] = $tenantLabel;
+        }
+
         $allModules = discoverModules();
+        $catalogEntries = [];
+        foreach (readModuleCatalogRegistry() as $catalogModuleId => $catalogEntry) {
+            if (!is_array($catalogEntry)) {
+                continue;
+            }
+
+            $approvalStatus = strtolower(trim((string)($catalogEntry['approval_status'] ?? 'pending')));
+            $originTenantId = (int)($catalogEntry['origin_tenant_id'] ?? 0);
+            $manifest = $allModules[$catalogModuleId] ?? [];
+
+            $catalogEntries[] = [
+                'id' => $catalogModuleId,
+                'name' => (string)($manifest['name'] ?? $catalogEntry['module_name'] ?? $catalogModuleId),
+                'version' => (string)($manifest['version'] ?? $catalogEntry['approved_version'] ?? '—'),
+                'approval_status' => $approvalStatus,
+                'commercial_mode' => (string)($catalogEntry['commercial_mode'] ?? 'free'),
+                'source' => (string)($catalogEntry['source'] ?? ''),
+                'origin_tenant_id' => $originTenantId,
+                'origin_tenant_label' => $tenantLabelsById[$originTenantId] ?? ($originTenantId > 0 ? 'Tenant ' . $originTenantId : ''),
+                'exists_on_disk' => isset($allModules[$catalogModuleId]),
+                'approved_at' => (string)($catalogEntry['approved_at'] ?? ''),
+            ];
+        }
+        usort($catalogEntries, static function (array $left, array $right): int {
+            $priority = ['pending' => 0, 'approved' => 1, 'rejected' => 2];
+            $leftPriority = $priority[(string)($left['approval_status'] ?? 'pending')] ?? 3;
+            $rightPriority = $priority[(string)($right['approval_status'] ?? 'pending')] ?? 3;
+            if ($leftPriority !== $rightPriority) {
+                return $leftPriority <=> $rightPriority;
+            }
+            return strcasecmp((string)($left['name'] ?? ''), (string)($right['name'] ?? ''));
+        });
+
+        $accessRequests = [];
+        foreach (readModuleAccessRequests() as $requestRow) {
+            if (!is_array($requestRow)) {
+                continue;
+            }
+
+            $requestModuleId = trim((string)($requestRow['module_id'] ?? ''));
+            $requestTenantId = (int)($requestRow['tenant_id'] ?? 0);
+            if ($requestModuleId === '' || $requestTenantId <= 0) {
+                continue;
+            }
+
+            $manifest = $allModules[$requestModuleId] ?? [];
+            $catalogEntry = moduleCatalogEntry($requestModuleId) ?? [];
+            $accessRequests[] = [
+                'id' => (int)($requestRow['id'] ?? 0),
+                'module_id' => $requestModuleId,
+                'module_name' => (string)($manifest['name'] ?? $catalogEntry['module_name'] ?? $requestModuleId),
+                'tenant_id' => $requestTenantId,
+                'tenant_label' => $tenantLabelsById[$requestTenantId] ?? ('Tenant ' . $requestTenantId),
+                'requested_mode' => (string)($requestRow['requested_mode'] ?? ($catalogEntry['commercial_mode'] ?? 'paid')),
+                'status' => strtolower(trim((string)($requestRow['status'] ?? 'pending'))),
+                'request_notes' => (string)($requestRow['request_notes'] ?? ''),
+                'license_ref' => (string)($requestRow['license_ref'] ?? ''),
+                'has_license_key' => !empty($requestRow['has_license_key']),
+                'review_notes' => (string)($requestRow['review_notes'] ?? ''),
+                'created_at' => (string)($requestRow['created_at'] ?? ''),
+                'reviewed_at' => (string)($requestRow['reviewed_at'] ?? ''),
+            ];
+        }
+        usort($accessRequests, static function (array $left, array $right): int {
+            $priority = ['pending' => 0, 'approved' => 1, 'rejected' => 2];
+            $leftPriority = $priority[(string)($left['status'] ?? 'pending')] ?? 3;
+            $rightPriority = $priority[(string)($right['status'] ?? 'pending')] ?? 3;
+            if ($leftPriority !== $rightPriority) {
+                return $leftPriority <=> $rightPriority;
+            }
+
+            return strcmp((string)($right['created_at'] ?? ''), (string)($left['created_at'] ?? ''));
+        });
 
         // ── Build tenant-relevant module whitelist ───────────────────
         $tenantRelevantModules = null;
@@ -1319,6 +1405,20 @@ switch ($handler) {
                 $isEnabled = isModuleEnabledForTenant($moduleId, $selectedTenantId);
             } else {
                 $isEnabled = !empty($m['_enabled']);
+            }
+
+            $catalogEntry = moduleCatalogEntry($moduleId);
+            $entitlement = [
+                'catalog_managed' => is_array($catalogEntry),
+                'required' => false,
+                'allowed' => true,
+                'approval_status' => is_array($catalogEntry) ? (string)($catalogEntry['approval_status'] ?? 'pending') : 'unmanaged',
+                'commercial_mode' => is_array($catalogEntry) ? (string)($catalogEntry['commercial_mode'] ?? 'free') : 'bundled',
+                'entitlement_status' => 'not_required',
+                'reason' => '',
+            ];
+            if ($multiTenant && $selectedTenantId !== null) {
+                $entitlement = moduleTenantEntitlementStatus($moduleId, $selectedTenantId);
             }
 
             $manifest = $m;
@@ -1409,6 +1509,13 @@ switch ($handler) {
                 'settings_url' => $settingsUrl,
                 'is_enabled' => $isEnabled,
                 'has_fields' => $hasFields,
+                'catalog_managed' => !empty($entitlement['catalog_managed']),
+                'catalog_status' => (string)($entitlement['approval_status'] ?? 'unmanaged'),
+                'commercial_mode' => (string)($entitlement['commercial_mode'] ?? 'bundled'),
+                'entitlement_required' => !empty($entitlement['required']),
+                'entitlement_allowed' => !empty($entitlement['allowed']),
+                'entitlement_status' => (string)($entitlement['entitlement_status'] ?? 'not_required'),
+                'entitlement_reason' => (string)($entitlement['reason'] ?? ''),
             ];
         }
 
@@ -1433,6 +1540,10 @@ switch ($handler) {
         echo app()->render('pages/superadmin-settings.disyl', [
             'page_title' => 'Feature Settings',
             'modules' => $moduleList,
+            'catalog_entries' => $catalogEntries,
+            'catalog_pending_count' => count(array_filter($catalogEntries, static fn(array $entry): bool => (string)($entry['approval_status'] ?? '') === 'pending')),
+            'access_requests' => $accessRequests,
+            'access_request_pending_count' => count(array_filter($accessRequests, static fn(array $request): bool => (string)($request['status'] ?? '') === 'pending')),
             'multi_tenant' => $multiTenant,
             'tenants' => $tenantOptions,
             'selected_tenant_id' => $selectedTenantId ?? 0,
@@ -1670,6 +1781,315 @@ switch ($handler) {
         echo json_encode(['ok' => true, 'perf' => $perfResults], JSON_PRETTY_PRINT);
         exit;
 
+    case 'apiSuperadminUpdateModuleCatalog':
+        header('Content-Type: application/json; charset=utf-8');
+        header('X-Request-Id: ' . request_id());
+        $user = app()->user();
+        if (!$user || ($user['role'] ?? '') !== 'superadmin' || ($user['source'] ?? '') !== 'kernel') {
+            http_response_code(403);
+            echo json_encode(['ok' => false, 'error' => 'Forbidden']);
+            exit;
+        }
+
+        $body = json_decode(file_get_contents('php://input'), true);
+        if (!is_array($body)) {
+            $body = [];
+        }
+        $csrfToken = $body['_token'] ?? ($_SERVER['HTTP_X_CSRF_TOKEN'] ?? '');
+        if (!is_string($csrfToken) || $csrfToken === '' || !hash_equals(app()->csrfToken(), $csrfToken)) {
+            http_response_code(419);
+            echo json_encode(['ok' => false, 'error' => 'Invalid CSRF token']);
+            exit;
+        }
+
+        $modId = trim((string)($body['module_id'] ?? ''));
+        $approvalStatus = strtolower(trim((string)($body['approval_status'] ?? 'pending')));
+        $commercialMode = strtolower(trim((string)($body['commercial_mode'] ?? 'free')));
+        if ($modId === '' || !in_array($approvalStatus, ['pending', 'approved', 'rejected'], true)) {
+            http_response_code(422);
+            echo json_encode(['ok' => false, 'error' => 'module_id and a valid approval_status are required']);
+            exit;
+        }
+        if (!in_array($commercialMode, ['free', 'freemium', 'paid'], true)) {
+            http_response_code(422);
+            echo json_encode(['ok' => false, 'error' => 'commercial_mode must be free, freemium, or paid']);
+            exit;
+        }
+
+        $existingCatalog = moduleCatalogEntry($modId);
+        if (!is_array($existingCatalog)) {
+            http_response_code(404);
+            echo json_encode(['ok' => false, 'error' => 'Catalog entry not found']);
+            exit;
+        }
+
+        if ($approvalStatus === 'approved') {
+            $allMods = discoverModules();
+            if (!isset($allMods[$modId])) {
+                http_response_code(422);
+                echo json_encode(['ok' => false, 'error' => 'Module must exist on disk before it can be approved']);
+                exit;
+            }
+        }
+
+        $ok = updateModuleCatalogApproval($modId, $approvalStatus, [
+            'commercial_mode' => $commercialMode,
+            'approved_by_user_id' => (int)($user['id'] ?? 0),
+            'metadata' => ['via' => 'apiSuperadminUpdateModuleCatalog'],
+        ]);
+        if (!$ok) {
+            http_response_code(500);
+            echo json_encode(['ok' => false, 'error' => 'Failed to update module catalog entry']);
+            exit;
+        }
+
+        $updatedCatalog = moduleCatalogEntry($modId);
+        try {
+            app()->cap()->call('kernel.audit.record@1', [
+                'module' => '_kernel',
+                'action' => 'superadmin.module.catalog.update',
+                'entity_type' => 'module',
+                'entity_id' => $modId,
+                'old_data' => $existingCatalog,
+                'new_data' => $updatedCatalog,
+            ], ['mode' => 'first']);
+        } catch (Throwable $e) {}
+
+        kernelFlushCodeCaches();
+        adminViewCacheInvalidate(['admin:view:modules', 'admin:view:platform', 'admin:view:capabilities']);
+        echo json_encode(['ok' => true, 'module_id' => $modId, 'catalog' => $updatedCatalog]);
+        exit;
+
+    case 'apiSuperadminReviewModuleAccessRequest':
+        header('Content-Type: application/json; charset=utf-8');
+        header('X-Request-Id: ' . request_id());
+        $user = app()->user();
+        if (!$user || ($user['role'] ?? '') !== 'superadmin' || ($user['source'] ?? '') !== 'kernel') {
+            http_response_code(403);
+            echo json_encode(['ok' => false, 'error' => 'Forbidden']);
+            exit;
+        }
+
+        $body = json_decode(file_get_contents('php://input'), true);
+        if (!is_array($body)) {
+            $body = [];
+        }
+        $csrfToken = $body['_token'] ?? ($_SERVER['HTTP_X_CSRF_TOKEN'] ?? '');
+        if (!is_string($csrfToken) || $csrfToken === '' || !hash_equals(app()->csrfToken(), $csrfToken)) {
+            http_response_code(419);
+            echo json_encode(['ok' => false, 'error' => 'Invalid CSRF token']);
+            exit;
+        }
+
+        $requestId = isset($body['request_id']) ? (int)$body['request_id'] : 0;
+        $requestStatus = strtolower(trim((string)($body['status'] ?? '')));
+        $reviewNotes = trim((string)($body['review_notes'] ?? ''));
+        if ($requestId <= 0 || !in_array($requestStatus, ['approved', 'rejected'], true)) {
+            http_response_code(422);
+            echo json_encode(['ok' => false, 'error' => 'request_id and a valid status are required']);
+            exit;
+        }
+
+        $existingRequest = moduleAccessRequestById($requestId);
+        if (!is_array($existingRequest)) {
+            http_response_code(404);
+            echo json_encode(['ok' => false, 'error' => 'Access request not found']);
+            exit;
+        }
+
+        $reviewResult = reviewModuleAccessRequest($requestId, $requestStatus, [
+            'reviewed_by_user_id' => (int)($user['id'] ?? 0),
+            'review_notes' => $reviewNotes,
+            'source' => 'superadmin_access_request_review',
+            'license_provider' => (string)($body['license_provider'] ?? ''),
+        ]);
+        if (empty($reviewResult['ok'])) {
+            http_response_code(500);
+            echo json_encode(['ok' => false, 'error' => (string)($reviewResult['error'] ?? 'Failed to review access request')]);
+            exit;
+        }
+
+        try {
+            app()->cap()->call('kernel.audit.record@1', [
+                'module' => '_kernel',
+                'action' => 'superadmin.module.access_request.review',
+                'entity_type' => 'module_access_request',
+                'entity_id' => (string)$requestId,
+                'old_data' => $existingRequest,
+                'new_data' => $reviewResult['request'] ?? null,
+            ], ['mode' => 'first']);
+        } catch (Throwable $e) {}
+
+        kernelFlushCodeCaches();
+        adminViewCacheInvalidate(['admin:view:modules', 'admin:view:platform', 'admin:view:capabilities']);
+        echo json_encode([
+            'ok' => true,
+            'request' => $reviewResult['request'] ?? null,
+            'entitlement' => $reviewResult['entitlement'] ?? null,
+            'license_activation' => $reviewResult['activation'] ?? null,
+        ]);
+        exit;
+
+    case 'apiSuperadminSetModuleEntitlement':
+        header('Content-Type: application/json; charset=utf-8');
+        header('X-Request-Id: ' . request_id());
+        $user = app()->user();
+        if (!$user || ($user['role'] ?? '') !== 'superadmin' || ($user['source'] ?? '') !== 'kernel') {
+            http_response_code(403);
+            echo json_encode(['ok' => false, 'error' => 'Forbidden']);
+            exit;
+        }
+
+        if (!(bool) config('app.multi_tenant.enabled', false)) {
+            http_response_code(400);
+            echo json_encode(['ok' => false, 'error' => 'Tenant entitlements require multi-tenant mode']);
+            exit;
+        }
+
+        $body = json_decode(file_get_contents('php://input'), true);
+        if (!is_array($body)) {
+            $body = [];
+        }
+        $csrfToken = $body['_token'] ?? ($_SERVER['HTTP_X_CSRF_TOKEN'] ?? '');
+        if (!is_string($csrfToken) || $csrfToken === '' || !hash_equals(app()->csrfToken(), $csrfToken)) {
+            http_response_code(419);
+            echo json_encode(['ok' => false, 'error' => 'Invalid CSRF token']);
+            exit;
+        }
+
+        $modId = trim((string)($body['module_id'] ?? ''));
+        $tenantId = isset($body['tenant_id']) ? (int)$body['tenant_id'] : 0;
+        $entitled = (bool)($body['entitled'] ?? false);
+        $requestedStatus = strtolower(trim((string)($body['status'] ?? ($entitled ? 'active' : 'revoked'))));
+        $catalogTier = moduleCatalogCommercialMode($modId);
+        if ($catalogTier === '') {
+            $catalogTier = 'free';
+        }
+        $tier = trim((string)($body['tier'] ?? $catalogTier));
+        $expiresAt = trim((string)($body['expires_at'] ?? ''));
+
+        if ($modId === '' || $tenantId <= 0) {
+            http_response_code(422);
+            echo json_encode(['ok' => false, 'error' => 'module_id and tenant_id are required']);
+            exit;
+        }
+
+        try {
+            $tenantStmt = app()->controlDb()->prepare(
+                'SELECT id FROM kernel_tenants WHERE id = :tenant_id AND status = \'active\' LIMIT 1'
+            );
+            $tenantStmt->execute([':tenant_id' => $tenantId]);
+            if (!$tenantStmt->fetchColumn()) {
+                http_response_code(404);
+                echo json_encode(['ok' => false, 'error' => 'Tenant not found']);
+                exit;
+            }
+        } catch (Throwable $e) {
+            http_response_code(500);
+            echo json_encode(['ok' => false, 'error' => 'Could not verify tenant']);
+            exit;
+        }
+
+        $allMods = discoverModules();
+        if (!isset($allMods[$modId])) {
+            http_response_code(404);
+            echo json_encode(['ok' => false, 'error' => 'Module not found']);
+            exit;
+        }
+
+        if (!moduleCatalogIsApproved($modId)) {
+            http_response_code(422);
+            echo json_encode(['ok' => false, 'error' => 'Only approved catalog modules can be entitled per tenant']);
+            exit;
+        }
+
+        $ok = false;
+        $entitlement = null;
+        $licenseActivation = ['ok' => true, 'status' => 'skipped', 'reason' => 'not_requested'];
+        $pendingRequest = moduleLatestAccessRequestForTenant($modId, $tenantId);
+        if ($entitled) {
+            if (!in_array($requestedStatus, ['active', 'trial'], true)) {
+                $requestedStatus = 'active';
+            }
+            if (is_array($pendingRequest) && (int)($pendingRequest['id'] ?? 0) > 0) {
+                $reviewResult = reviewModuleAccessRequest((int)$pendingRequest['id'], 'approved', [
+                    'reviewed_by_user_id' => (int)($user['id'] ?? 0),
+                    'review_notes' => trim((string)($body['review_notes'] ?? 'Approved via entitlement grant')),
+                    'entitlement_status' => $requestedStatus,
+                    'tier' => $tier !== '' ? $tier : $catalogTier,
+                    'source' => 'superadmin',
+                    'license_provider' => (string)($body['license_provider'] ?? ''),
+                ]);
+                $ok = !empty($reviewResult['ok']);
+                $entitlement = $reviewResult['entitlement'] ?? null;
+                $licenseActivation = $reviewResult['activation'] ?? $licenseActivation;
+            } else {
+                $ok = grantModuleEntitlementForTenant($modId, $tenantId, [
+                    'status' => $requestedStatus,
+                    'tier' => $tier !== '' ? $tier : $catalogTier,
+                    'source' => 'superadmin',
+                    'granted_by_user_id' => (int)($user['id'] ?? 0),
+                    'expires_at' => $expiresAt,
+                    'metadata' => ['via' => 'apiSuperadminSetModuleEntitlement'],
+                ]);
+                if ($ok) {
+                    $licenseActivation = invokeModuleLicenseActivation([
+                        'module_id' => $modId,
+                        'tenant_id' => $tenantId,
+                        'requested_mode' => $tier !== '' ? $tier : $catalogTier,
+                        'commercial_mode' => $catalogTier,
+                        'license_key' => trim((string)($body['license_key'] ?? '')),
+                        'license_ref' => trim((string)($body['license_ref'] ?? '')),
+                        'reviewed_by_user_id' => (int)($user['id'] ?? 0),
+                        'source' => 'superadmin_entitlement_grant',
+                    ], [
+                        'provider' => (string)($body['license_provider'] ?? ''),
+                    ]);
+                }
+            }
+        } else {
+            $ok = revokeModuleEntitlementForTenant($modId, $tenantId, [
+                'tier' => $tier !== '' ? $tier : $catalogTier,
+                'source' => 'superadmin',
+                'granted_by_user_id' => (int)($user['id'] ?? 0),
+                'metadata' => ['via' => 'apiSuperadminSetModuleEntitlement'],
+            ]);
+            if ($ok) {
+                disableModuleForTenant($modId, $tenantId);
+            }
+        }
+
+        if (!$ok) {
+            http_response_code(500);
+            echo json_encode(['ok' => false, 'error' => 'Failed to update tenant entitlement']);
+            exit;
+        }
+
+        if (!is_array($entitlement)) {
+            $entitlement = moduleTenantEntitlementStatus($modId, $tenantId);
+        }
+        try {
+            app()->cap()->call('kernel.audit.record@1', [
+                'module' => '_kernel',
+                'action' => $entitled ? 'superadmin.module.entitlement.grant' : 'superadmin.module.entitlement.revoke',
+                'entity_type' => 'module',
+                'entity_id' => $modId,
+                'old_data' => ['tenant_id' => $tenantId, 'entitled' => !$entitled],
+                'new_data' => ['tenant_id' => $tenantId, 'entitled' => $entitled, 'entitlement' => $entitlement],
+            ], ['mode' => 'first']);
+        } catch (Throwable $e) {}
+
+        kernelFlushCodeCaches();
+        adminViewCacheInvalidate(['admin:view:modules', 'admin:view:platform', 'admin:view:capabilities']);
+        echo json_encode([
+            'ok' => true,
+            'module_id' => $modId,
+            'tenant_id' => $tenantId,
+            'entitlement' => $entitlement,
+            'license_activation' => $licenseActivation,
+        ]);
+        exit;
+
     case 'apiSuperadminToggleModule':
         header('Content-Type: application/json; charset=utf-8');
         header('X-Request-Id: ' . request_id());
@@ -1732,6 +2152,31 @@ switch ($handler) {
                 http_response_code(404);
                 echo json_encode(['ok' => false, 'error' => 'Module not found']);
                 exit;
+            }
+
+            if ($toggleMultiTenant && $toggleTenantId !== null) {
+                $entitlement = moduleTenantEntitlementStatus($modId, $toggleTenantId);
+                if (!empty($entitlement['required']) && empty($entitlement['allowed'])) {
+                    if (moduleCatalogModeAllowsSelfService((string)($entitlement['commercial_mode'] ?? '')) && ($entitlement['entitlement_status'] ?? '') === 'missing') {
+                        ensureSelfServiceModuleEntitlementForTenant($modId, $toggleTenantId, [
+                            'source' => 'superadmin_enable',
+                            'granted_by_user_id' => (int)($user['id'] ?? 0),
+                            'metadata' => ['via' => 'apiSuperadminToggleModule'],
+                        ]);
+                        $entitlement = moduleTenantEntitlementStatus($modId, $toggleTenantId);
+                    }
+
+                    if (!empty($entitlement['required']) && empty($entitlement['allowed'])) {
+                        http_response_code(422);
+                        echo json_encode([
+                            'ok' => false,
+                            'error' => 'Tenant is not entitled to enable this module',
+                            'entitlement_status' => $entitlement['entitlement_status'] ?? 'unknown',
+                            'commercial_mode' => $entitlement['commercial_mode'] ?? 'bundled',
+                        ]);
+                        exit;
+                    }
+                }
             }
         }
 
@@ -3147,6 +3592,26 @@ switch ($handler) {
         ]);
 
         $result = installModuleFromZip($tmpPath);
+
+        if (!empty($result['ok']) && is_array($result['manifest'] ?? null)) {
+            $moduleInstallPath = modulesPath() . '/' . trim((string)($result['module_id'] ?? ''));
+            $catalogOk = registerApprovedModuleCatalogInstall(
+                $result['manifest'],
+                $moduleInstallPath,
+                $tmpPath,
+                [
+                    'source' => 'admin_install',
+                    'approved_by_user_id' => (int)($user['id'] ?? 0),
+                ]
+            );
+            if (!$catalogOk) {
+                write_log('Module catalog registration failed after install', 'warning', [
+                    'source' => 'apiInstallModule',
+                    'module_id' => $result['module_id'] ?? null,
+                    'actor_id' => $user['id'] ?? null,
+                ]);
+            }
+        }
 
         write_log(
             'Module install completed',

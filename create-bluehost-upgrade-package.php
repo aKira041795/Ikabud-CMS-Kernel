@@ -60,6 +60,9 @@ $appSqlFiles = [
 $controlSqlFiles = [
     'control-migrations/001_control_plane_tenants.sql',
     'control-migrations/002_control_plane_encrypt_db_pass.sql',
+    'control-migrations/003_add_canonical_domain_to_tenants.sql',
+    'control-migrations/004_control_plane_module_catalog.sql',
+    'control-migrations/005_control_plane_module_access_requests.sql',
 ];
 
 $moduleMigrationFiles = collectSqlFiles($root . '/modules', [

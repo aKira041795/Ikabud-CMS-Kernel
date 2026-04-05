@@ -237,6 +237,9 @@ To enable multi-tenancy:
 # Apply control-plane schema
 mysql -u control_user -p control_db < control-migrations/001_control_plane_tenants.sql
 mysql -u control_user -p control_db < control-migrations/002_control_plane_encrypt_db_pass.sql
+mysql -u control_user -p control_db < control-migrations/003_add_canonical_domain_to_tenants.sql
+mysql -u control_user -p control_db < control-migrations/004_control_plane_module_catalog.sql
+mysql -u control_user -p control_db < control-migrations/005_control_plane_module_access_requests.sql
 ```
 
 5. Create tenant entries in the `tenants` table

@@ -12,15 +12,70 @@
             <span class="text-xs text-gray-400" x-text="modules.length ? modules.length + ' CMS module(s) installed' : 'No CMS modules installed'"></span>
             <button @click="showUpload = !showUpload" class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-sky-600 rounded-lg hover:bg-sky-700 transition-colors">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
-                Upload Module
+                Upload ZIP
             </button>
+        </div>
+    </div>
+
+    <!-- Approved Catalog -->
+    <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+        <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+            <div>
+                <h3 class="text-sm font-semibold text-gray-700">Approved Catalog</h3>
+                <p class="mt-1 text-xs text-gray-500">Install platform-approved modules that are already available on this host. Free and freemium catalog modules can be installed directly; paid modules need superadmin access first.</p>
+            </div>
+            <span class="text-xs text-gray-400" x-text="catalogModules.length ? catalogModules.length + ' module(s) available' : 'No approved catalog modules available'"></span>
+        </div>
+        <div x-show="catalogMsg" x-cloak class="mb-4 text-sm rounded-lg px-4 py-2" :class="catalogOk ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'" x-text="catalogMsg"></div>
+        <div x-show="catalogModules.length > 0" x-cloak class="space-y-3">
+            <template x-for="mod in catalogModules" :key="mod.id">
+                <div class="flex flex-col gap-4 rounded-xl border border-gray-200 p-4 lg:flex-row lg:items-center lg:justify-between">
+                    <div class="min-w-0">
+                        <div class="flex flex-wrap items-center gap-2">
+                            <p class="font-semibold text-sm text-gray-900" x-text="mod.name"></p>
+                            <span class="inline-flex items-center px-2 py-0.5 text-[10px] font-medium rounded-full bg-slate-100 text-slate-700" x-text="(mod.commercial_mode || 'free').toUpperCase()"></span>
+                            <span x-show="mod.entitlement_allowed" class="inline-flex items-center px-2 py-0.5 text-[10px] font-medium rounded-full bg-green-100 text-green-700">Access ready</span>
+                            <span x-show="!mod.entitlement_allowed && !mod.can_install" class="inline-flex items-center px-2 py-0.5 text-[10px] font-medium rounded-full bg-amber-100 text-amber-700">Needs superadmin access</span>
+                            <span x-show="mod.request_status === 'pending'" class="inline-flex items-center px-2 py-0.5 text-[10px] font-medium rounded-full bg-blue-100 text-blue-700">Request pending</span>
+                            <span x-show="mod.request_status === 'rejected'" class="inline-flex items-center px-2 py-0.5 text-[10px] font-medium rounded-full bg-rose-100 text-rose-700">Request needs update</span>
+                        </div>
+                        <p class="mt-1 text-xs text-gray-500 max-w-2xl" x-text="mod.description || 'No description available.'"></p>
+                        <div class="mt-2 flex flex-wrap gap-2 text-[11px] text-gray-400">
+                            <span x-text="'Version ' + mod.version"></span>
+                            <span x-show="mod.author" x-text="'By ' + mod.author"></span>
+                            <span x-show="mod.request_license_ref" x-text="'License: ' + mod.request_license_ref"></span>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2 lg:justify-end">
+                        <template x-if="mod.can_install">
+                            <button @click="installCatalogModule(mod)" :disabled="installingCatalog === mod.id" class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 disabled:opacity-50 transition-colors">
+                                <template x-if="installingCatalog === mod.id">
+                                    <svg class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
+                                </template>
+                                <span x-text="installingCatalog === mod.id ? 'Installing…' : 'Install from Catalog'"></span>
+                            </button>
+                        </template>
+                        <template x-if="!mod.can_install">
+                            <button @click="requestCatalogAccess(mod)" :disabled="requestingAccess === mod.id" class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-amber-700 bg-amber-50 rounded-lg hover:bg-amber-100 disabled:opacity-50 transition-colors">
+                                <template x-if="requestingAccess === mod.id">
+                                    <svg class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
+                                </template>
+                                <span x-text="mod.request_status === 'pending' ? 'Update Request' : 'Request Access'"></span>
+                            </button>
+                        </template>
+                    </div>
+                </div>
+            </template>
+        </div>
+        <div x-show="catalogModules.length === 0" x-cloak class="text-sm text-gray-500 rounded-xl border border-dashed border-gray-200 px-4 py-8 text-center">
+            No approved catalog modules are currently available for this tenant.
         </div>
     </div>
 
     <!-- Upload Panel -->
     <div x-show="showUpload" x-cloak x-transition class="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
-        <h3 class="text-sm font-semibold text-gray-700 mb-3">Install CMS Module from ZIP</h3>
-        <p class="text-xs text-gray-500 mb-4">Upload a CMS extension module package (.zip) containing a <code class="bg-gray-100 px-1 rounded">module.json</code> manifest. The module will be extracted, migrations will run, and it will be enabled automatically. Only modules installed here can be managed from this page.</p>
+        <h3 class="text-sm font-semibold text-gray-700 mb-3">Upload New Module ZIP</h3>
+        <p class="text-xs text-gray-500 mb-4">Upload a CMS extension module package (.zip) containing a <code class="bg-gray-100 px-1 rounded">module.json</code> manifest. The upload installs the module for this tenant immediately, runs its migrations, and creates or updates a pending catalog submission so a superadmin can approve reuse for other tenants later.</p>
         <form @submit.prevent="uploadModule" class="flex items-end gap-4">
             <div class="flex-1">
                 <label class="block text-xs font-medium text-gray-600 mb-1">Module Package (.zip)</label>
@@ -30,7 +85,7 @@
                 <template x-if="uploading">
                     <svg class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
                 </template>
-                <span x-text="uploading ? 'Installing…' : 'Install'"></span>
+                <span x-text="uploading ? 'Uploading…' : 'Upload & Install'"></span>
             </button>
         </form>
         <div x-show="uploadMsg" x-cloak class="mt-3 text-sm rounded-lg px-4 py-2" :class="uploadOk ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'" x-text="uploadMsg"></div>
@@ -95,6 +150,7 @@
                                 <span x-show="mod.depends_count > 0" class="inline-flex items-center px-2 py-0.5 text-[10px] font-medium rounded-full bg-gray-100 text-gray-600" x-text="mod.depends_count + ' deps'"></span>
                                 <span x-show="mod.tables && mod.tables.length > 0" class="inline-flex items-center px-2 py-0.5 text-[10px] font-medium rounded-full bg-green-100 text-green-700" x-text="mod.tables.length + ' tables'"></span>
                                 <span x-show="mod.settings_fields && mod.settings_fields.length > 0" class="inline-flex items-center px-2 py-0.5 text-[10px] font-medium rounded-full bg-amber-100 text-amber-700" x-text="mod.settings_fields.length + ' settings'"></span>
+                                <span x-show="mod.catalog_managed" class="inline-flex items-center px-2 py-0.5 text-[10px] font-medium rounded-full bg-slate-100 text-slate-700" x-text="'Catalog • ' + (mod.commercial_mode || 'free')"></span>
                             </div>
                         </td>
                         <!-- Status -->
@@ -200,6 +256,7 @@
 <script>
 function cmsModuleManager() {
     const rawModules = JSON.parse('{modules_json|raw}');
+    const rawCatalogModules = JSON.parse('{catalog_json|raw}');
 
     // Pre-populate configValues from each module's current settings
     const configValues = {};
@@ -209,11 +266,16 @@ function cmsModuleManager() {
 
     return {
         modules:     rawModules,
+        catalogModules: rawCatalogModules,
         showUpload:  false,
         uploading:   false,
+        installingCatalog: null,
+        requestingAccess: null,
         toggling:    null,
         uploadMsg:   '',
         uploadOk:    false,
+        catalogMsg:  '',
+        catalogOk:   false,
         testingResetEmail: false,
         resetEmailMsg: '',
         resetEmailOk: false,
@@ -265,6 +327,32 @@ function cmsModuleManager() {
             }
         },
 
+        async installCatalogModule(mod) {
+            this.installingCatalog = mod.id;
+            this.catalogMsg = '';
+            this.catalogOk = false;
+            try {
+                const fd = new FormData();
+                fd.append('module_id', mod.id);
+                fd.append('_token', CMS_CSRF);
+                const res = await fetch(CMS_BASE + '/api/v1/cms/modules/install', { method: 'POST', body: fd });
+                const data = await res.json();
+                if (data.ok) {
+                    this.catalogMsg = data.message || 'Module installed from catalog.';
+                    this.catalogOk = true;
+                    setTimeout(() => window.location.reload(), 1200);
+                } else {
+                    this.catalogMsg = data.error || 'Catalog install failed.';
+                    this.catalogOk = false;
+                }
+            } catch (e) {
+                this.catalogMsg = 'Catalog install failed: ' + e.message;
+                this.catalogOk = false;
+            } finally {
+                this.installingCatalog = null;
+            }
+        },
+
         async uploadModule() {
             const fileInput = this.$refs.moduleFile;
             if (!fileInput.files || !fileInput.files.length) {
@@ -294,6 +382,50 @@ function cmsModuleManager() {
                 this.uploadOk = false;
             } finally {
                 this.uploading = false;
+            }
+        },
+
+        async requestCatalogAccess(mod) {
+            const licenseKey = window.prompt(
+                'Optional license key for ' + mod.name + '. Leave blank if you only want access reviewed.',
+                ''
+            );
+            if (licenseKey === null) {
+                return;
+            }
+
+            const requestNotes = window.prompt(
+                'Optional note for the superadmin review queue.',
+                ''
+            );
+            if (requestNotes === null) {
+                return;
+            }
+
+            this.requestingAccess = mod.id;
+            this.catalogMsg = '';
+            this.catalogOk = false;
+            try {
+                const fd = new FormData();
+                fd.append('module_id', mod.id);
+                fd.append('license_key', licenseKey.trim());
+                fd.append('request_notes', requestNotes.trim());
+                fd.append('_token', CMS_CSRF);
+                const res = await fetch(CMS_BASE + '/api/v1/cms/modules/request-access', { method: 'POST', body: fd });
+                const data = await res.json();
+                if (data.ok) {
+                    this.catalogMsg = data.message || 'Access request submitted.';
+                    this.catalogOk = true;
+                    setTimeout(() => window.location.reload(), 1200);
+                } else {
+                    this.catalogMsg = data.error || 'Access request failed.';
+                    this.catalogOk = false;
+                }
+            } catch (e) {
+                this.catalogMsg = 'Access request failed: ' + e.message;
+                this.catalogOk = false;
+            } finally {
+                this.requestingAccess = null;
             }
         },
 

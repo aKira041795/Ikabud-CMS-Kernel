@@ -36,7 +36,8 @@
       "name": "daily-ledger-cashier-valid",
       "options": {
         "provider": "daily-ledger",
-        "with_modules": true
+        "with_modules": true,
+        "tenant_entry_module": "daily-ledger"
       },
       "setup_sql": [
         "INSERT INTO dl_branches (code, name, is_active) VALUES ('CAPFIX-DL', 'Capability Fixture Branch', 1) ON DUPLICATE KEY UPDATE name = VALUES(name), is_active = VALUES(is_active)",

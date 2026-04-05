@@ -1162,6 +1162,7 @@ switch ($command) {
         $runner = new CapabilityTestRunner(app()->cap());
         $totalPassed = 0;
         $totalFailed = 0;
+        $tenantSyncCache = [];
 
         foreach ($fixtureFiles as $file) {
             if (!is_file($file)) {
@@ -1185,6 +1186,46 @@ switch ($command) {
                 foreach (($fixture['cases'] ?? []) as $i => $c) {
                     if (!is_array($c)) continue;
                     $fixture['cases'][$i]['options'] = array_merge((array)($c['options'] ?? []), ['provider' => $provider]);
+                }
+            }
+
+            if (hasFlag('--with-modules')) {
+                $tenantSyncFailed = false;
+                foreach (($fixture['cases'] ?? []) as $case) {
+                    if (!is_array($case)) {
+                        continue;
+                    }
+
+                    $caseOptions = is_array($case['options'] ?? null) ? $case['options'] : [];
+                    $tenantId = (int)(resolveTenantIdForRuntimeOptions($caseOptions) ?? 0);
+                    if ($tenantId <= 0) {
+                        continue;
+                    }
+
+                    $providerModuleId = trim((string)($caseOptions['provider'] ?? ''));
+                    if ($providerModuleId === 'kernel') {
+                        $providerModuleId = '';
+                    }
+
+                    $syncKey = $tenantId . ':' . ($providerModuleId !== '' ? $providerModuleId : '*');
+                    if (isset($tenantSyncCache[$syncKey])) {
+                        continue;
+                    }
+
+                    $syncResult = syncTenantCliMigrationsForTenant($tenantId, $providerModuleId !== '' ? $providerModuleId : null);
+                    if (empty($syncResult['ok'])) {
+                        out('  ' . red('✗') . ' ' . cyan((string)($fixture['capability_id'] ?? basename($file))) . '  ' . dim('tenant migration sync failed')); 
+                        out('      - tenant ' . $tenantId . ': ' . (string)($syncResult['error'] ?? 'unknown error'));
+                        $totalFailed++;
+                        $tenantSyncFailed = true;
+                        break;
+                    }
+
+                    $tenantSyncCache[$syncKey] = true;
+                }
+
+                if ($tenantSyncFailed) {
+                    continue;
                 }
             }
 

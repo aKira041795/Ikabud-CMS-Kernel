@@ -214,6 +214,8 @@ return [
 
         // ── Module Installer API ───────────────────────────────────
         '/api/v1/cms/modules/upload'                    => 'cms:cmsApiModuleUpload',
+        '/api/v1/cms/modules/install'                   => 'cms:cmsApiModuleInstall',
+        '/api/v1/cms/modules/request-access'            => 'cms:cmsApiModuleRequestAccess',
         '/api/v1/cms/modules/toggle'                    => 'cms:cmsApiModuleToggle',
         '/api/v1/cms/modules/{module_id}/settings'      => 'cms:cmsApiModuleSettingsSave',
         '/api/v1/cms/modules/{module_id}/delete'        => 'cms:cmsApiModuleDelete',
