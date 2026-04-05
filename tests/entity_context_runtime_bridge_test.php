@@ -46,10 +46,55 @@ function createEntity(string $type, string $title): int
     return (int)$db->lastInsertId();
 }
 
+function registerEntityContextsFromManifest(array $manifest): void
+{
+    $moduleId = trim((string)($manifest['id'] ?? ''));
+    if ($moduleId === '') {
+        return;
+    }
+
+    $check = validateModuleEntityContexts($manifest);
+    if (empty($check['ok'])) {
+        return;
+    }
+
+    foreach (($check['definitions'] ?? []) as $definition) {
+        if (!is_array($definition) || empty($definition['id'])) {
+            continue;
+        }
+        app()->entityContexts()->registerContext((string)$definition['id'], $definition, $moduleId, (int)($definition['priority'] ?? 10));
+    }
+
+    foreach (($check['extensions'] ?? []) as $extension) {
+        if (!is_array($extension) || empty($extension['context'])) {
+            continue;
+        }
+        app()->entityContexts()->extendContext((string)$extension['context'], $extension, $moduleId, (int)($extension['priority'] ?? 10));
+    }
+
+    foreach (($check['bindings'] ?? []) as $binding) {
+        if (!is_array($binding) || empty($binding['entity_type'])) {
+            continue;
+        }
+        app()->entityContexts()->bindEntityType((string)$binding['entity_type'], $binding, $moduleId, (int)($binding['priority'] ?? 10));
+    }
+
+    foreach (($check['capability_metadata'] ?? []) as $metadata) {
+        if (!is_array($metadata) || empty($metadata['id'])) {
+            continue;
+        }
+        app()->entityContexts()->registerCapability((string)$metadata['id'], $metadata, $moduleId, (int)($metadata['priority'] ?? 10));
+    }
+}
+
 file_put_contents(STORAGE_PATH . '/logs/app.log', '');
 file_put_contents(STORAGE_PATH . '/logs/error.log', '');
 
 loadModuleRoutes(['GET' => [], 'POST' => [], 'PUT' => [], 'DELETE' => []]);
+
+$modules = discoverModules();
+registerEntityContextsFromManifest($modules['ecommerce'] ?? []);
+registerEntityContextsFromManifest($modules['guidance'] ?? []);
 
 $serviceId = createEntity('service', 'Runtime Bridge Service');
 $courseId = createEntity('course', 'Runtime Bridge Course');

@@ -1429,6 +1429,10 @@ switch ($handler) {
                 $isEnabled = !empty($m['_enabled']);
             }
 
+            if ($moduleId === 'anti-spam' && !empty($m['_enabled'])) {
+                $isEnabled = true;
+            }
+
             $catalogEntry = moduleCatalogEntry($moduleId);
             $entitlement = [
                 'catalog_managed' => is_array($catalogEntry),

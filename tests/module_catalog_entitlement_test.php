@@ -103,7 +103,7 @@ $freemiumAutoGrantOk = ensureSelfServiceModuleEntitlementForTenant($freemiumModu
 t('freemium catalog module self-grants base access', $freemiumAutoGrantOk);
 
 $freemiumStatus = moduleTenantEntitlementStatus($freemiumModuleId, $tenantId);
-t('freemium entitlement allows access', !empty($freemiumStatus['allowed']) && ($freemiumStatus['tier'] ?? '') === 'freemium');
+t('freemium entitlement allows access', !empty($freemiumStatus['allowed']) && ($freemiumStatus['tier'] ?? '') === 'free');
 
 $paidCatalogOk = upsertModuleCatalogEntry($paidModuleId, [
     'module_name' => 'Catalog Entitlement Paid Test',
@@ -148,7 +148,7 @@ t('pending catalog entry can be approved', $approvePendingOk);
 t('approved pending catalog entry becomes approved', moduleCatalogIsApproved($pendingModuleId));
 
 $pendingApprovedStatus = moduleTenantEntitlementStatus($pendingModuleId, $tenantId);
-t('approval grants origin tenant access automatically', !empty($pendingApprovedStatus['allowed']) && ($pendingApprovedStatus['tier'] ?? '') === 'freemium');
+t('approval grants origin tenant access automatically', !empty($pendingApprovedStatus['allowed']) && ($pendingApprovedStatus['tier'] ?? '') === 'free');
 
 cleanupCatalogFixture($controlDb, $freeModuleId);
 cleanupCatalogFixture($controlDb, $freemiumModuleId);

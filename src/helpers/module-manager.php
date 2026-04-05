@@ -888,7 +888,7 @@ function updateModuleCatalogApproval(string $moduleId, string $approvalStatus, a
         if ($originTenantId > 0) {
             grantModuleEntitlementForTenant($moduleId, $originTenantId, [
                 'status' => 'active',
-                'tier' => $commercialMode,
+                'tier' => moduleCatalogDefaultEntitlementTier($moduleId, $commercialMode),
                 'source' => (string)($options['entitlement_source'] ?? 'catalog_approval'),
                 'granted_by_user_id' => isset($options['approved_by_user_id']) ? (int)$options['approved_by_user_id'] : null,
                 'metadata' => $options['metadata'] ?? ['via' => 'updateModuleCatalogApproval'],
@@ -2263,6 +2263,10 @@ function tenantProvisionModulePlan(?string $entryModuleId): array
                 }
             }
         }
+    }
+
+    if (isset($enabled['anti-spam']) && !isset($selected['anti-spam'])) {
+        $selected['anti-spam'] = true;
     }
 
     $planned = [];
