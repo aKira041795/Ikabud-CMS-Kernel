@@ -148,6 +148,19 @@ function myModuleGlobalHelper(): string
 - If your module persists tenant-scoped module settings through `getModuleSettings()` / `saveModuleSettings()` in a multi-tenant request path, declare `tenant_module_settings` in `owns_tables`.
 - If your module reads from `audit_logs`, `rate_limits`, workflow tables, or other shared kernel tables through module-scoped DB access, declare those explicitly as `reads_tables` or `owns_tables` based on the actual SQL you run.
 
+#### Bypassing Table Sandboxing (Kernel Contexts Only)
+When developing kernel-level helpers or features that orchestrate module catalogs (e.g. Guidance module settings, module-manager tasks), you may need to bypass the `KernelPDO` sandbox entirely so that the module executing the request is not incorrectly blocked from querying control-plane databases.
+Use the `_kernel_db_unguarded` request context flag to orchestrate these queries safely:
+```php
+$previousUnguarded = (bool)kernel_request_context_get('_kernel_db_unguarded', false);
+kernel_request_context_set('_kernel_db_unguarded', true);
+try {
+    // Execute control-db queries (e.g. kernel_tenant_module_catalog) safely...
+} finally {
+    kernel_request_context_set('_kernel_db_unguarded', $previousUnguarded);
+}
+```
+
 ### Capability Contracts
 
 Modules communicate synchronously through capability contracts rather than calling each other directly.
