@@ -1108,6 +1108,69 @@ function moduleAccessRequestMaskLicenseKey(string $licenseKey): string
     return substr($licenseKey, 0, 4) . '...' . substr($licenseKey, -4);
 }
 
+function moduleLicenseActivationSettingsKey(): string
+{
+    return '_license_activation';
+}
+
+function moduleLicenseActivationStateForTenant(string $moduleId, int $tenantId): array
+{
+    if ($moduleId === '' || $tenantId <= 0) {
+        return [];
+    }
+
+    $settings = readTenantModuleSettingsForTenant($moduleId, $tenantId);
+    $state = $settings[moduleLicenseActivationSettingsKey()] ?? [];
+    return is_array($state) ? $state : [];
+}
+
+function kernelDefaultModuleLicenseActivationProvider(mixed $payload, string $capabilityId = '', string $providerId = ''): array
+{
+    if (!is_array($payload)) {
+        throw new RuntimeException('License activation payload must be an array.');
+    }
+
+    $moduleId = trim((string)($payload['module_id'] ?? ''));
+    $tenantId = (int)($payload['tenant_id'] ?? 0);
+    if ($moduleId === '' || $tenantId <= 0) {
+        throw new RuntimeException('License activation requires module_id and tenant_id.');
+    }
+
+    $licenseKey = trim((string)($payload['license_key'] ?? ''));
+    $licenseRef = trim((string)($payload['license_ref'] ?? ''));
+    if ($licenseRef === '' && $licenseKey !== '') {
+        $licenseRef = moduleAccessRequestMaskLicenseKey($licenseKey);
+    }
+
+    $previousState = moduleLicenseActivationStateForTenant($moduleId, $tenantId);
+    $state = [
+        'ok' => true,
+        'status' => 'active',
+        'provider' => $providerId !== '' ? $providerId : 'kernel',
+        'capability_id' => $capabilityId !== '' ? $capabilityId : 'module.license.activate@1',
+        'module_id' => $moduleId,
+        'tenant_id' => $tenantId,
+        'requested_mode' => trim((string)($payload['requested_mode'] ?? '')),
+        'commercial_mode' => trim((string)($payload['commercial_mode'] ?? '')),
+        'license_ref' => $licenseRef,
+        'has_license_key' => $licenseKey !== '',
+        'request_id' => isset($payload['request_id']) ? (int)$payload['request_id'] : null,
+        'source' => trim((string)($payload['source'] ?? 'module_access_request')),
+        'reviewed_by_user_id' => isset($payload['reviewed_by_user_id']) ? (int)$payload['reviewed_by_user_id'] : null,
+        'requested_by_user_id' => isset($payload['requested_by_user_id']) ? (int)$payload['requested_by_user_id'] : null,
+        'activated_at' => date('Y-m-d H:i:s'),
+        'activation_count' => max(0, (int)($previousState['activation_count'] ?? 0)) + 1,
+        'previous_status' => trim((string)($previousState['status'] ?? '')),
+        'settings_key' => moduleLicenseActivationSettingsKey(),
+    ];
+
+    if (!saveTenantModuleSettingsForTenant($moduleId, $tenantId, [moduleLicenseActivationSettingsKey() => $state])) {
+        throw new RuntimeException('Could not persist tenant license activation state.');
+    }
+
+    return $state;
+}
+
 /**
  * @return array{ciphertext:?string,iv:?string,tag:?string,error:?string}
  */
@@ -1373,6 +1436,27 @@ function invokeModuleLicenseActivation(array $payload, array $options = []): arr
 
     try {
         $result = app()->cap()->call($resolvedCapabilityId, $payload, $callOptions);
+        if (is_array($result)) {
+            $normalized = array_merge([
+                'ok' => true,
+                'capability_id' => $resolvedCapabilityId,
+                'invoke_status' => 'invoked',
+            ], $result);
+            if (($normalized['ok'] ?? true) === false) {
+                return [
+                    'ok' => false,
+                    'status' => 'error',
+                    'capability_id' => $resolvedCapabilityId,
+                    'result' => $result,
+                    'error' => (string)($normalized['error'] ?? 'Capability provider returned failure.'),
+                ];
+            }
+            if (!isset($normalized['status']) || trim((string)$normalized['status']) === '') {
+                $normalized['status'] = 'invoked';
+            }
+            return $normalized;
+        }
+
         return ['ok' => true, 'status' => 'invoked', 'capability_id' => $resolvedCapabilityId, 'result' => $result];
     } catch (Throwable $e) {
         if (!empty($options['strict'])) {
@@ -2184,6 +2268,17 @@ function resolveTenantIdForRuntimeOptions(array $options): ?int
     }
 
     return null;
+}
+
+try {
+    app()->capabilities()->register(
+        'module.license.activate@1',
+        'kernel',
+        'kernelDefaultModuleLicenseActivationProvider',
+        10,
+        ['first']
+    );
+} catch (Throwable $e) {
 }
 
 function tenantMigrationDatabaseFingerprint(array $config): string

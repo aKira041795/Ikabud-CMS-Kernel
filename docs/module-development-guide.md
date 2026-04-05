@@ -641,6 +641,7 @@ Runtime implications:
 - Tenant-originated CMS ZIP uploads can still install for the uploading tenant immediately, but they now create or update a **pending** catalog submission until a superadmin approves reuse.
 - Approved catalog modules can then be installed from the CMS module screen without another ZIP upload, using entitlement checks instead of shared-disk inference.
 - Paid catalog modules can be requested by a tenant from the CMS module screen; superadmin review stores that request in the control plane, grants entitlement on approval, and best-effort invokes `module.license.activate@1` if a licensing provider is registered.
+- The kernel now ships with a default `module.license.activate@1` provider under `kernel`, which persists a tenant-scoped hidden `_license_activation` settings record so approved access requests produce a concrete activation state even before a dedicated billing module exists.
 
 #### Tenant access-request review queue
 
@@ -650,6 +651,7 @@ The control plane now tracks a single latest access request per `(tenant_id, mod
 - Requests can carry optional review notes and an optional license key. The key is stored encrypted with the control-plane crypto key when provided.
 - Superadmin approval grants tenant entitlement and records the review decision.
 - The optional `module.license.activate@1` capability is invoked on approval so a future licensing or billing provider can perform pro activation without hardcoding module-specific logic into the kernel.
+- Custom licensing modules can still override the default behavior by registering the same capability at higher priority, or by having review flows target a specific provider explicitly.
 
 #### `settings_fields` manifest schema
 

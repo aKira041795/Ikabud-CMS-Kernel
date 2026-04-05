@@ -113,6 +113,9 @@ function _cmsDiscoverCatalogModules(?int $tenantId = null): array
             'request_status' => $requestStatus !== '' ? $requestStatus : 'none',
             'request_pending' => $requestStatus === 'pending',
             'request_license_ref' => is_array($request) ? (string)($request['license_ref'] ?? '') : '',
+            'request_notes' => is_array($request) ? (string)($request['request_notes'] ?? '') : '',
+            'request_review_notes' => is_array($request) ? (string)($request['review_notes'] ?? '') : '',
+            'request_has_license_key' => is_array($request) ? !empty($request['has_license_key']) : false,
         ];
     }
 

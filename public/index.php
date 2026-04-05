@@ -1301,6 +1301,24 @@ switch ($handler) {
 
             $manifest = $allModules[$requestModuleId] ?? [];
             $catalogEntry = moduleCatalogEntry($requestModuleId) ?? [];
+            $requestMetadata = is_array($requestRow['metadata'] ?? null) ? $requestRow['metadata'] : [];
+            $licenseActivation = is_array($requestMetadata['license_activation'] ?? null) ? $requestMetadata['license_activation'] : [];
+            $activationStatus = trim((string)($licenseActivation['status'] ?? ''));
+            if ($activationStatus === '' && is_array($licenseActivation['result'] ?? null)) {
+                $activationStatus = trim((string)($licenseActivation['result']['status'] ?? ''));
+            }
+            $activationProvider = trim((string)($licenseActivation['provider'] ?? ''));
+            if ($activationProvider === '' && is_array($licenseActivation['result'] ?? null)) {
+                $activationProvider = trim((string)($licenseActivation['result']['provider'] ?? ''));
+            }
+            $activationError = trim((string)($licenseActivation['error'] ?? ''));
+            if ($activationError === '' && is_array($licenseActivation['result'] ?? null)) {
+                $activationError = trim((string)($licenseActivation['result']['error'] ?? ''));
+            }
+            $activationAt = trim((string)($licenseActivation['activated_at'] ?? ''));
+            if ($activationAt === '' && is_array($licenseActivation['result'] ?? null)) {
+                $activationAt = trim((string)($licenseActivation['result']['activated_at'] ?? ''));
+            }
             $accessRequests[] = [
                 'id' => (int)($requestRow['id'] ?? 0),
                 'module_id' => $requestModuleId,
@@ -1315,6 +1333,10 @@ switch ($handler) {
                 'review_notes' => (string)($requestRow['review_notes'] ?? ''),
                 'created_at' => (string)($requestRow['created_at'] ?? ''),
                 'reviewed_at' => (string)($requestRow['reviewed_at'] ?? ''),
+                'activation_status' => $activationStatus,
+                'activation_provider' => $activationProvider,
+                'activation_error' => $activationError,
+                'activation_at' => $activationAt,
             ];
         }
         usort($accessRequests, static function (array $left, array $right): int {
@@ -1543,6 +1565,7 @@ switch ($handler) {
             'catalog_entries' => $catalogEntries,
             'catalog_pending_count' => count(array_filter($catalogEntries, static fn(array $entry): bool => (string)($entry['approval_status'] ?? '') === 'pending')),
             'access_requests' => $accessRequests,
+            'access_requests_json' => json_encode($accessRequests, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
             'access_request_pending_count' => count(array_filter($accessRequests, static fn(array $request): bool => (string)($request['status'] ?? '') === 'pending')),
             'multi_tenant' => $multiTenant,
             'tenants' => $tenantOptions,

@@ -27,7 +27,7 @@ function t(string $label, bool $ok, string $detail = ''): void
     echo "  ✗ {$label}" . ($detail !== '' ? ' — ' . $detail : '') . "\n";
 }
 
-function cleanupAccessRequestFixture(PDO $controlDb, string $moduleId): void
+function cleanupAccessRequestFixture(PDO $controlDb, string $moduleId, int $tenantId): void
 {
     $stmt = $controlDb->prepare('DELETE FROM ' . moduleAccessRequestsTable() . ' WHERE module_id = :module_id');
     $stmt->execute([':module_id' => $moduleId]);
@@ -37,6 +37,18 @@ function cleanupAccessRequestFixture(PDO $controlDb, string $moduleId): void
 
     $stmt = $controlDb->prepare('DELETE FROM ' . moduleCatalogTable() . ' WHERE module_id = :module_id');
     $stmt->execute([':module_id' => $moduleId]);
+
+    $tenantDb = app()->dbForTenant($tenantId);
+    if ($tenantDb instanceof PDO) {
+        $stmt = $tenantDb->prepare(
+            'DELETE FROM ' . moduleTenantSettingsTable() . ' WHERE tenant_id = :tenant_id AND module_id = :module_id AND setting_key = :setting_key'
+        );
+        $stmt->execute([
+            ':tenant_id' => $tenantId,
+            ':module_id' => $moduleId,
+            ':setting_key' => moduleLicenseActivationSettingsKey(),
+        ]);
+    }
 
     invalidateModuleCatalogCache();
 }
@@ -54,7 +66,7 @@ $tenantId = (int)($controlDb->query("SELECT id FROM kernel_tenants WHERE status 
 t('active tenant exists for access request tests', $tenantId > 0);
 
 $moduleId = 'catalog-access-request-test';
-cleanupAccessRequestFixture($controlDb, $moduleId);
+cleanupAccessRequestFixture($controlDb, $moduleId, $tenantId);
 
 $catalogOk = upsertModuleCatalogEntry($moduleId, [
     'module_name' => 'Catalog Access Request Test',
@@ -90,14 +102,16 @@ t('superadmin review can approve request', !empty($reviewResult['ok']), (string)
 $approvedRequest = moduleLatestAccessRequestForTenant($moduleId, $tenantId);
 $entitlement = moduleTenantEntitlementStatus($moduleId, $tenantId);
 $activation = $reviewResult['activation'] ?? [];
+$licenseState = moduleLicenseActivationStateForTenant($moduleId, $tenantId);
 
 t('approved request status is persisted', is_array($approvedRequest) && (($approvedRequest['status'] ?? '') === 'approved'));
 t('approved request records reviewer', is_array($approvedRequest) && (int)($approvedRequest['reviewed_by_user_id'] ?? 0) === 1);
 t('approved request grants tenant entitlement', !empty($entitlement['allowed']) && (($entitlement['entitlement_status'] ?? '') === 'active'));
 t('approved request keeps paid tier', (($entitlement['tier'] ?? '') === 'paid'));
-t('license activation hook is best-effort when no provider is registered', (($activation['status'] ?? '') === 'skipped'), is_array($activation) ? json_encode($activation) : '');
+t('license activation provider records an active state', (($activation['status'] ?? '') === 'active'), is_array($activation) ? json_encode($activation) : '');
+t('license activation persists tenant module metadata', (($licenseState['status'] ?? '') === 'active') && (($licenseState['license_ref'] ?? '') === 'PRO-...9999'));
 
-cleanupAccessRequestFixture($controlDb, $moduleId);
+cleanupAccessRequestFixture($controlDb, $moduleId, $tenantId);
 
 $appLog = @file_get_contents(STORAGE_PATH . '/logs/app.log') ?: '';
 $errorLog = @file_get_contents(STORAGE_PATH . '/logs/error.log') ?: '';

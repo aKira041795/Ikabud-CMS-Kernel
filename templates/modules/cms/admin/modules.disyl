@@ -56,7 +56,7 @@
                             </button>
                         </template>
                         <template x-if="!mod.can_install">
-                            <button @click="requestCatalogAccess(mod)" :disabled="requestingAccess === mod.id" class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-amber-700 bg-amber-50 rounded-lg hover:bg-amber-100 disabled:opacity-50 transition-colors">
+                            <button @click="openRequestAccess(mod)" :disabled="requestingAccess === mod.id" class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-amber-700 bg-amber-50 rounded-lg hover:bg-amber-100 disabled:opacity-50 transition-colors">
                                 <template x-if="requestingAccess === mod.id">
                                     <svg class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
                                 </template>
@@ -69,6 +69,51 @@
         </div>
         <div x-show="catalogModules.length === 0" x-cloak class="text-sm text-gray-500 rounded-xl border border-dashed border-gray-200 px-4 py-8 text-center">
             No approved catalog modules are currently available for this tenant.
+        </div>
+    </div>
+
+    <div x-show="requestAccessOpen" x-cloak class="fixed inset-0 z-[70] flex items-center justify-center p-4" @keydown.escape.window="closeRequestAccess()">
+        <div class="fixed inset-0 bg-black/35 backdrop-blur-sm" @click="closeRequestAccess()" x-transition.opacity></div>
+        <div class="relative w-full max-w-xl rounded-2xl border border-gray-200 bg-white shadow-2xl" x-show="requestAccessOpen" x-transition>
+            <div class="flex items-start justify-between gap-4 border-b border-gray-100 px-6 py-5">
+                <div>
+                    <h3 class="text-base font-semibold text-gray-900">Request Catalog Access</h3>
+                    <p class="mt-1 text-sm text-gray-500" x-text="requestAccessForm.moduleName ? 'Submit or update the access request for ' + requestAccessForm.moduleName + '.' : 'Submit an access request for this catalog module.'"></p>
+                </div>
+                <button type="button" class="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-500 hover:bg-gray-50" @click="closeRequestAccess()">Close</button>
+            </div>
+            <form @submit.prevent="submitRequestAccess" class="space-y-4 px-6 py-5">
+                <div class="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600">
+                    <div class="flex flex-wrap gap-2 text-xs text-gray-500">
+                        <span class="inline-flex items-center rounded-full bg-white px-2.5 py-1 font-medium text-gray-600" x-text="'Mode: ' + (requestAccessForm.commercialMode || 'paid')"></span>
+                        <span x-show="requestAccessForm.requestStatus && requestAccessForm.requestStatus !== 'none'" class="inline-flex items-center rounded-full bg-white px-2.5 py-1 font-medium text-gray-600" x-text="'Current request: ' + requestAccessForm.requestStatus"></span>
+                        <span x-show="requestAccessForm.licenseRef" class="inline-flex items-center rounded-full bg-white px-2.5 py-1 font-medium text-gray-600" x-text="'Saved ref: ' + requestAccessForm.licenseRef"></span>
+                        <span x-show="requestAccessForm.hasLicenseKey" class="inline-flex items-center rounded-full bg-white px-2.5 py-1 font-medium text-gray-600">License key on file</span>
+                    </div>
+                    <p x-show="requestAccessForm.reviewNotes" class="mt-3 text-xs text-rose-700" x-text="'Latest review note: ' + requestAccessForm.reviewNotes"></p>
+                </div>
+
+                <div>
+                    <label class="mb-1 block text-xs font-medium uppercase tracking-wide text-gray-500">License Key</label>
+                    <input type="text" x-model="requestAccessForm.licenseKey" class="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-gray-700 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20" placeholder="Optional. Leave blank to request review without a key.">
+                    <p class="mt-1 text-[11px] text-gray-400">A new key is stored securely. Existing keys stay masked and are not shown again.</p>
+                </div>
+
+                <div>
+                    <label class="mb-1 block text-xs font-medium uppercase tracking-wide text-gray-500">Request Note</label>
+                    <textarea x-model="requestAccessForm.requestNotes" rows="4" class="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-gray-700 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20" placeholder="Tell the superadmin what this tenant needs."></textarea>
+                </div>
+
+                <div class="flex items-center justify-end gap-3 border-t border-gray-100 pt-4">
+                    <button type="button" class="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50" @click="closeRequestAccess()">Cancel</button>
+                    <button type="submit" :disabled="requestingAccess === requestAccessForm.moduleId" class="inline-flex items-center gap-2 rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700 disabled:opacity-50">
+                        <template x-if="requestingAccess === requestAccessForm.moduleId">
+                            <svg class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
+                        </template>
+                        <span x-text="requestAccessForm.requestStatus === 'pending' ? 'Update Request' : 'Submit Request'"></span>
+                    </button>
+                </div>
+            </form>
         </div>
     </div>
 
@@ -255,8 +300,8 @@
 
 <script>
 function cmsModuleManager() {
-    const rawModules = JSON.parse('{modules_json|raw}');
-    const rawCatalogModules = JSON.parse('{catalog_json|raw}');
+    const rawModules = {modules_json|raw};
+    const rawCatalogModules = {catalog_json|raw};
 
     // Pre-populate configValues from each module's current settings
     const configValues = {};
@@ -271,6 +316,18 @@ function cmsModuleManager() {
         uploading:   false,
         installingCatalog: null,
         requestingAccess: null,
+        requestAccessOpen: false,
+        requestAccessForm: {
+            moduleId: '',
+            moduleName: '',
+            commercialMode: '',
+            requestStatus: 'none',
+            licenseRef: '',
+            hasLicenseKey: false,
+            licenseKey: '',
+            requestNotes: '',
+            reviewNotes: '',
+        },
         toggling:    null,
         uploadMsg:   '',
         uploadOk:    false,
@@ -353,6 +410,40 @@ function cmsModuleManager() {
             }
         },
 
+        openRequestAccess(mod) {
+            this.requestAccessForm = {
+                moduleId: mod.id,
+                moduleName: mod.name,
+                commercialMode: mod.commercial_mode || 'paid',
+                requestStatus: mod.request_status || 'none',
+                licenseRef: mod.request_license_ref || '',
+                hasLicenseKey: !!mod.request_has_license_key,
+                licenseKey: '',
+                requestNotes: mod.request_notes || '',
+                reviewNotes: mod.request_review_notes || '',
+            };
+            this.requestAccessOpen = true;
+        },
+
+        closeRequestAccess() {
+            if (this.requestingAccess) {
+                return;
+            }
+
+            this.requestAccessOpen = false;
+            this.requestAccessForm = {
+                moduleId: '',
+                moduleName: '',
+                commercialMode: '',
+                requestStatus: 'none',
+                licenseRef: '',
+                hasLicenseKey: false,
+                licenseKey: '',
+                requestNotes: '',
+                reviewNotes: '',
+            };
+        },
+
         async uploadModule() {
             const fileInput = this.$refs.moduleFile;
             if (!fileInput.files || !fileInput.files.length) {
@@ -385,37 +476,27 @@ function cmsModuleManager() {
             }
         },
 
-        async requestCatalogAccess(mod) {
-            const licenseKey = window.prompt(
-                'Optional license key for ' + mod.name + '. Leave blank if you only want access reviewed.',
-                ''
-            );
-            if (licenseKey === null) {
+        async submitRequestAccess() {
+            const form = this.requestAccessForm;
+            if (!form.moduleId) {
                 return;
             }
 
-            const requestNotes = window.prompt(
-                'Optional note for the superadmin review queue.',
-                ''
-            );
-            if (requestNotes === null) {
-                return;
-            }
-
-            this.requestingAccess = mod.id;
+            this.requestingAccess = form.moduleId;
             this.catalogMsg = '';
             this.catalogOk = false;
             try {
                 const fd = new FormData();
-                fd.append('module_id', mod.id);
-                fd.append('license_key', licenseKey.trim());
-                fd.append('request_notes', requestNotes.trim());
+                fd.append('module_id', form.moduleId);
+                fd.append('license_key', form.licenseKey.trim());
+                fd.append('request_notes', form.requestNotes.trim());
                 fd.append('_token', CMS_CSRF);
                 const res = await fetch(CMS_BASE + '/api/v1/cms/modules/request-access', { method: 'POST', body: fd });
                 const data = await res.json();
                 if (data.ok) {
                     this.catalogMsg = data.message || 'Access request submitted.';
                     this.catalogOk = true;
+                    this.closeRequestAccess();
                     setTimeout(() => window.location.reload(), 1200);
                 } else {
                     this.catalogMsg = data.error || 'Access request failed.';

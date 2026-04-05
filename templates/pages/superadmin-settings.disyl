@@ -60,6 +60,21 @@
     .sa-btn-save:disabled { opacity: .55; cursor: not-allowed; }
     .sa-btn-secondary { background: var(--surface); color: var(--text); border: 1px solid var(--border); padding: 7px 12px; font-size: 12px; font-weight: 600; border-radius: 8px; cursor: pointer; transition: border-color .15s, background .15s; }
     .sa-btn-secondary:hover { border-color: var(--primary, #2563eb); background: var(--bg); }
+    .sa-modal { position: fixed; inset: 0; z-index: 1200; display: none; }
+    .sa-modal.show { display: block; }
+    .sa-modal-backdrop { position: absolute; inset: 0; background: rgba(15, 23, 42, .45); }
+    .sa-modal-dialog { position: absolute; top: 10vh; left: 50%; transform: translateX(-50%); width: min(640px, 94vw); max-height: 80vh; overflow: hidden; border-radius: 14px; border: 1px solid var(--border); background: var(--surface); box-shadow: 0 18px 38px rgba(2, 6, 23, .25); display: flex; flex-direction: column; }
+    .sa-modal-header { display: flex; align-items: start; justify-content: space-between; gap: 12px; padding: 16px 18px; border-bottom: 1px solid var(--border); background: var(--bg); }
+    .sa-modal-title { font-size: 14px; font-weight: 700; color: var(--text); }
+    .sa-modal-subtitle { margin-top: 4px; font-size: 12px; color: var(--text-muted); }
+    .sa-modal-body { padding: 18px; overflow-y: auto; display: grid; gap: 14px; }
+    .sa-modal-section { border: 1px solid var(--border); border-radius: 12px; background: var(--bg); padding: 14px; }
+    .sa-modal-grid { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+    .sa-modal-label { font-size: 11px; font-weight: 700; letter-spacing: .3px; text-transform: uppercase; color: var(--text-muted); }
+    .sa-modal-value { margin-top: 4px; font-size: 13px; color: var(--text); }
+    .sa-modal-actions { display: flex; justify-content: flex-end; gap: 8px; padding: 14px 18px; border-top: 1px solid var(--border); }
+    .sa-textarea { width: 100%; min-height: 120px; resize: vertical; border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; font-size: 13px; color: var(--text); background: var(--surface); }
+    .sa-review-meta { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
     .sa-status { font-size: 12px; padding: 0 20px 12px; }
     .sa-status.ok { color: var(--success, #059669); }
     .sa-status.err { color: var(--danger, #dc2626); }
@@ -176,6 +191,9 @@
                         {if request.license_ref}
                         <span class="sa-badge sa-badge-neutral">{request.license_ref}</span>
                         {/if}
+                        {if request.has_license_key}
+                        <span class="sa-badge sa-badge-neutral">Key on file</span>
+                        {/if}
                     </div>
                 </td>
                 <td>
@@ -191,15 +209,29 @@
                     {if request.review_notes}
                     <div style="color:var(--text-muted);margin-top:6px;">{request.review_notes}</div>
                     {/if}
+                    <div class="sa-review-meta">
+                        {if request.activation_status}
+                        <span class="sa-badge {if request.activation_status == 'active'}sa-badge-on{elseif request.activation_status == 'error'}sa-badge-off{else}sa-badge-neutral{/if}">License: {request.activation_status}</span>
+                        {/if}
+                        {if request.activation_provider}
+                        <span class="sa-badge sa-badge-neutral">Provider: {request.activation_provider}</span>
+                        {/if}
+                    </div>
+                    {if request.activation_error}
+                    <div style="color:var(--danger, #dc2626);margin-top:6px;">{request.activation_error}</div>
+                    {/if}
                     {if request.reviewed_at}
                     <div style="color:var(--text-muted);margin-top:4px;">Reviewed: {request.reviewed_at}</div>
+                    {/if}
+                    {if request.activation_at}
+                    <div style="color:var(--text-muted);margin-top:4px;">License updated: {request.activation_at}</div>
                     {/if}
                 </td>
                 <td>
                     <div class="sa-catalog-actions">
                         {if request.status == 'pending'}
-                        <button type="button" class="sa-btn-secondary" onclick="reviewAccessRequest({request.id}, 'approved')">Approve</button>
-                        <button type="button" class="sa-btn-secondary" onclick="reviewAccessRequest({request.id}, 'rejected')">Reject</button>
+                        <button type="button" class="sa-btn-secondary" onclick="openAccessRequestReview({request.id}, 'approved')">Approve</button>
+                        <button type="button" class="sa-btn-secondary" onclick="openAccessRequestReview({request.id}, 'rejected')">Reject</button>
                         {else}
                         <span class="sa-badge sa-badge-neutral">Reviewed</span>
                         {/if}
@@ -211,6 +243,53 @@
     </table>
 </div>
 {/if}
+
+<div id="sa-access-request-modal" class="sa-modal" aria-hidden="true">
+    <div class="sa-modal-backdrop" onclick="closeAccessRequestReview()"></div>
+    <div class="sa-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="sa-access-request-title">
+        <div class="sa-modal-header">
+            <div>
+                <div id="sa-access-request-title" class="sa-modal-title">Review Access Request</div>
+                <div id="sa-access-request-subtitle" class="sa-modal-subtitle">Approve or reject a tenant module access request.</div>
+            </div>
+            <button type="button" class="sa-btn-secondary" onclick="closeAccessRequestReview()">Close</button>
+        </div>
+        <div class="sa-modal-body">
+            <div class="sa-modal-section">
+                <div class="sa-modal-grid">
+                    <div>
+                        <div class="sa-modal-label">Module</div>
+                        <div id="sa-access-request-module" class="sa-modal-value"></div>
+                    </div>
+                    <div>
+                        <div class="sa-modal-label">Tenant</div>
+                        <div id="sa-access-request-tenant" class="sa-modal-value"></div>
+                    </div>
+                    <div>
+                        <div class="sa-modal-label">Requested Mode</div>
+                        <div id="sa-access-request-mode" class="sa-modal-value"></div>
+                    </div>
+                    <div>
+                        <div class="sa-modal-label">License</div>
+                        <div id="sa-access-request-license" class="sa-modal-value"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="sa-modal-section">
+                <div class="sa-modal-label">Tenant Note</div>
+                <div id="sa-access-request-note" class="sa-modal-value"></div>
+            </div>
+            <div class="sa-modal-section">
+                <div class="sa-modal-label">Review Note</div>
+                <textarea id="sa-access-request-review-notes" class="sa-textarea" placeholder="Record why this request is being approved or rejected."></textarea>
+            </div>
+        </div>
+        <div class="sa-modal-actions">
+            <button type="button" class="sa-btn-secondary" onclick="closeAccessRequestReview()">Cancel</button>
+            <button type="button" id="sa-access-request-submit" class="sa-btn-save" onclick="submitAccessRequestReview()">Submit</button>
+        </div>
+    </div>
+</div>
 
 {if multi_tenant}
 <div class="sa-tenant-bar">
@@ -361,6 +440,8 @@ var CSRF = '{csrf_token}';
 var MULTI_TENANT = {if multi_tenant}true{else}false{/if};
 var SELECTED_TENANT_ID = {selected_tenant_id};
 var MODULE_PANEL_STORAGE_KEY = 'superadmin-feature-settings:panels:' + (SELECTED_TENANT_ID || 'global');
+var ACCESS_REQUESTS = {access_requests_json|raw};
+var openAccessRequestReviewState = null;
 
 function readModulePanelState() {
     try {
@@ -453,21 +534,64 @@ function updateCatalogApproval(moduleId, approvalStatus) {
     });
 }
 
-function reviewAccessRequest(requestId, status) {
-    var reviewNotes = window.prompt(
-        status === 'approved' ? 'Optional approval note.' : 'Optional rejection note.',
-        ''
-    );
-    if (reviewNotes === null) {
+function openAccessRequestReview(requestId, status) {
+    var request = null;
+    for (var i = 0; i < ACCESS_REQUESTS.length; i++) {
+        if (Number(ACCESS_REQUESTS[i].id) === Number(requestId)) {
+            request = ACCESS_REQUESTS[i];
+            break;
+        }
+    }
+    if (!request) {
         return;
     }
+
+    openAccessRequestReviewState = {
+        requestId: requestId,
+        status: status,
+    };
+
+    document.getElementById('sa-access-request-title').textContent = status === 'approved' ? 'Approve Access Request' : 'Reject Access Request';
+    document.getElementById('sa-access-request-subtitle').textContent = status === 'approved'
+        ? 'Grant entitlement and record the license activation state for this tenant.'
+        : 'Record the rejection and keep the request in the review history.';
+    document.getElementById('sa-access-request-module').textContent = request.module_name + ' (' + request.module_id + ')';
+    document.getElementById('sa-access-request-tenant').textContent = request.tenant_label;
+    document.getElementById('sa-access-request-mode').textContent = request.requested_mode;
+    document.getElementById('sa-access-request-license').textContent = request.license_ref || (request.has_license_key ? 'License key on file' : 'No license key supplied');
+    document.getElementById('sa-access-request-note').textContent = request.request_notes || 'No request note supplied.';
+    document.getElementById('sa-access-request-review-notes').value = request.review_notes || '';
+    document.getElementById('sa-access-request-submit').textContent = status === 'approved' ? 'Approve Request' : 'Reject Request';
+
+    var modal = document.getElementById('sa-access-request-modal');
+    modal.classList.add('show');
+    modal.setAttribute('aria-hidden', 'false');
+}
+
+function closeAccessRequestReview() {
+    var modal = document.getElementById('sa-access-request-modal');
+    if (!modal) {
+        return;
+    }
+
+    openAccessRequestReviewState = null;
+    modal.classList.remove('show');
+    modal.setAttribute('aria-hidden', 'true');
+}
+
+function submitAccessRequestReview() {
+    if (!openAccessRequestReviewState) {
+        return;
+    }
+
+    var reviewNotes = document.getElementById('sa-access-request-review-notes').value;
 
     fetch('/api/v1/superadmin/modules/access-request', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-            request_id: requestId,
-            status: status,
+            request_id: openAccessRequestReviewState.requestId,
+            status: openAccessRequestReviewState.status,
             review_notes: reviewNotes,
             _token: CSRF,
         })
@@ -475,6 +599,7 @@ function reviewAccessRequest(requestId, status) {
     .then(function(r) { return r.json(); })
     .then(function(res) {
         if (res.ok) {
+            closeAccessRequestReview();
             window.location.reload();
         } else {
             alert(res.error || 'Access request review failed');
