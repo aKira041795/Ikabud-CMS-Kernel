@@ -1988,7 +1988,8 @@ switch ($handler) {
         if ($catalogTier === '') {
             $catalogTier = 'free';
         }
-        $tier = trim((string)($body['tier'] ?? $catalogTier));
+        $defaultTier = moduleCatalogDefaultEntitlementTier($modId, $catalogTier);
+        $tier = trim((string)($body['tier'] ?? $defaultTier));
         $expiresAt = trim((string)($body['expires_at'] ?? ''));
 
         if ($modId === '' || $tenantId <= 0) {
@@ -2039,7 +2040,7 @@ switch ($handler) {
                     'reviewed_by_user_id' => (int)($user['id'] ?? 0),
                     'review_notes' => trim((string)($body['review_notes'] ?? 'Approved via entitlement grant')),
                     'entitlement_status' => $requestedStatus,
-                    'tier' => $tier !== '' ? $tier : $catalogTier,
+                    'tier' => $tier !== '' ? $tier : $defaultTier,
                     'source' => 'superadmin',
                     'license_provider' => (string)($body['license_provider'] ?? ''),
                 ]);
@@ -2049,7 +2050,7 @@ switch ($handler) {
             } else {
                 $ok = grantModuleEntitlementForTenant($modId, $tenantId, [
                     'status' => $requestedStatus,
-                    'tier' => $tier !== '' ? $tier : $catalogTier,
+                    'tier' => $tier !== '' ? $tier : $defaultTier,
                     'source' => 'superadmin',
                     'granted_by_user_id' => (int)($user['id'] ?? 0),
                     'expires_at' => $expiresAt,
@@ -2072,7 +2073,7 @@ switch ($handler) {
             }
         } else {
             $ok = revokeModuleEntitlementForTenant($modId, $tenantId, [
-                'tier' => $tier !== '' ? $tier : $catalogTier,
+                'tier' => $tier !== '' ? $tier : $defaultTier,
                 'source' => 'superadmin',
                 'granted_by_user_id' => (int)($user['id'] ?? 0),
                 'metadata' => ['via' => 'apiSuperadminSetModuleEntitlement'],

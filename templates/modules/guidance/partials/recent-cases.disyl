@@ -4,7 +4,7 @@
 {for case in cases}
 <div class="p-4 hover:bg-gray-50 cursor-pointer transition flex items-center justify-between"
      data-case-id="{case.id}"
-     hx-get="/admin/guidance/pages/cases/{case.id}" 
+     hx-get="/pages/cases/{case.id}" 
      hx-target="#main-content" 
      hx-push-url="{base_url}/cases/{case.id}">
     

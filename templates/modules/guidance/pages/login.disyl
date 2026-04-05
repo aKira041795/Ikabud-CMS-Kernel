@@ -1,103 +1,300 @@
+{!-- Login Page - No layout extends (guest view) --}
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Guidance Sign In</title>
-    <script src="https://unpkg.com/htmx.org@1.9.12"></script>
-    {if gui.font_url}<link href="{gui.font_url}" rel="stylesheet">{/if}
-    <style>
-        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-        :root {
-            --primary: {gui.color_primary}; --primary-hover: {gui.color_primary_hover}; --primary-light: {gui.color_primary_light};
-            --bg: {gui.color_bg}; --surface: {gui.color_surface}; --border: {gui.color_border};
-            --text: {gui.color_text}; --text-muted: {gui.color_text_muted};
-        }
-        body { font-family: {gui.font_family | raw}; background: var(--bg); min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
-        .login-card { background: var(--surface); border-radius: 12px; box-shadow: 0 4px 24px rgba(0,0,0,.08); width: 100%; max-width: 420px; padding: 40px 32px; border: 1px solid var(--border); }
-        .login-logo { text-align: center; margin-bottom: 28px; }
-        .login-logo h1 { font-size: 22px; font-weight: 800; color: var(--text); }
-        .login-logo p { font-size: 13px; color: var(--text-muted); margin-top: 6px; }
-        .form-group { margin-bottom: 18px; }
-        .form-label { display: block; font-size: 13px; font-weight: 600; color: var(--text-muted); margin-bottom: 6px; }
-        .form-input { width: 100%; padding: 10px 14px; border: 1px solid var(--border); border-radius: 8px; font-size: 15px; font-family: inherit; transition: border-color .15s; }
-        .form-input:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-light); }
-        .btn-login { width: 100%; padding: 12px; background: var(--primary); color: #fff; border: none; border-radius: 8px; font-size: 15px; font-weight: 700; font-family: inherit; cursor: pointer; transition: background .15s; }
-        .btn-login:hover { background: var(--primary-hover); }
-        .btn-login:disabled { opacity: .6; cursor: not-allowed; }
-        .error-msg { background: #fee2e2; color: #dc2626; padding: 10px 14px; border-radius: 8px; font-size: 13px; margin-bottom: 16px; display: none; }
-        .error-msg.show { display: block; }
-        .hint { margin-top: 14px; font-size: 12px; color: var(--text-muted); text-align: center; }
-        .hint a { color: var(--primary); text-decoration: none; font-weight: 600; }
-        .hint a:hover { text-decoration: underline; }
-    </style>
-    {if gui.css_overrides}<style>{gui.css_overrides}</style>{/if}
-</head>
-<body>
-    <div class="login-card">
-        <div class="login-logo">
-            <h1>Guidance Portal</h1>
-            <p>Sign in with your Guidance staff account</p>
-        </div>
-
-        <div id="login-error" class="error-msg"></div>
-
-        <form id="login-form" onsubmit="return handleGuidanceLogin(event)">
-            <div class="form-group">
-                <label class="form-label" for="email">Email or Username</label>
-                <input class="form-input" type="text" id="email" name="email" autocomplete="username" required autofocus>
-            </div>
-            <div class="form-group">
-                <label class="form-label" for="password">Password</label>
-                <input class="form-input" type="password" id="password" name="password" autocomplete="current-password" required>
-            </div>
-            <button type="submit" class="btn-login" id="login-btn">Sign In</button>
-        </form>
-
-        <div class="hint">
-            Kernel admin login is available at <a href="/login">/login</a>
-        </div>
-    </div>
-
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Guidance Monitoring System</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <link rel="stylesheet" href="/assets/guidance/css/app.css">
     <script>
-        function handleGuidanceLogin(e) {
-            e.preventDefault();
-            var btn = document.getElementById('login-btn');
-            var errEl = document.getElementById('login-error');
-            btn.disabled = true;
-            btn.textContent = 'Signing in...';
-            errEl.classList.remove('show');
+        var APP_BASE = '{base_url}';
+        var APP_COOKIE = '{cookie_name}';
+        document.addEventListener('htmx:configRequest', function(evt) {
+            var path = evt.detail.path;
+            if (path && path.charAt(0) === '/' && path.indexOf(APP_BASE) !== 0) {
+                evt.detail.path = APP_BASE + path;
+            }
+        });
+    </script>
+</head>
+<body class="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-500 to-purple-600 py-12 px-4">
+    
+    <div class="max-w-md w-full">
+        {!-- Logo & Title --}
+        <div class="text-center mb-8">
+            <div class="inline-flex items-center justify-center w-20 h-20 bg-white rounded-full shadow-lg mb-4">
+                <i class="fas fa-heart-pulse text-indigo-600 text-3xl"></i>
+            </div>
+            <h1 class="text-3xl font-bold text-white">Guidance</h1>
+            <p class="text-indigo-200 mt-2">Monitoring System</p>
+        </div>
+        
+        {!-- Login Card --}
+        <div class="bg-white rounded-2xl shadow-xl p-8">
+            <h2 class="text-2xl font-bold text-gray-800 text-center mb-6" id="card-title">Welcome Back</h2>
+            
+            {!-- Error Message --}
+            <div id="login-error" class="hidden mb-4 p-4 bg-red-50 border-l-4 border-red-500 text-red-700 rounded">
+                <i class="fas fa-exclamation-circle mr-2"></i>
+                <span id="error-message">Invalid credentials</span>
+            </div>
+            
+            {!-- Login Form --}
+            <form id="login-form" class="space-y-5">
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Email Address</label>
+                    <div class="relative">
+                        <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-400">
+                            <i class="fas fa-envelope"></i>
+                        </span>
+                        <input type="email" name="email" required
+                               class="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                               placeholder="you@school.edu">
+                    </div>
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Password</label>
+                    <div class="relative">
+                        <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-400">
+                            <i class="fas fa-lock"></i>
+                        </span>
+                        <input type="password" name="password" required id="login-password"
+                               class="w-full pl-10 pr-10 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                               placeholder="••••••••">
+                        <button type="button" id="toggle-pw" class="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="flex items-center justify-between">
+                    <label class="flex items-center">
+                        <input type="checkbox" name="remember" class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                        <span class="ml-2 text-sm text-gray-600">Remember me</span>
+                    </label>
+                    <a href="{base_url}/forgot-password" class="text-sm text-indigo-600 hover:underline">Forgot password?</a>
+                </div>
+                
+                <button type="submit" 
+                        class="w-full py-3 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 transition flex items-center justify-center">
+                    Sign In
+                </button>
+            </form>
 
-            var data = {
-                email: document.getElementById('email').value,
-                password: document.getElementById('password').value
-            };
+            {!-- OTP Verification Form --}
+            <div id="otp-panel" class="hidden space-y-5">
+                <div class="rounded-lg border border-indigo-200 bg-indigo-50 p-4 text-sm text-indigo-800">
+                    <p class="font-medium">Verification required</p>
+                    <p class="mt-1">Enter the 6-digit code sent to <span id="otp-email" class="font-semibold"></span> to finish signing in.</p>
+                </div>
 
-            fetch('/guidance/auth/login', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-                body: JSON.stringify(data)
-            })
-            .then(function(r) { return r.json(); })
-            .then(function(res) {
-                if (res.ok && res.redirect) {
-                    window.location.href = res.redirect;
+                <form id="otp-form" class="space-y-5">
+                    <input type="hidden" name="ticket" id="otp-ticket">
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Verification Code</label>
+                        <input type="text" name="code" id="otp-code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]*" maxlength="6" required
+                               class="w-full px-4 py-3 text-center tracking-[0.4em] text-lg font-semibold border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                               placeholder="000000">
+                    </div>
+
+                    <button type="submit" id="otp-submit"
+                            class="w-full py-3 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 transition flex items-center justify-center">
+                        Verify &amp; Continue
+                    </button>
+                </form>
+
+                <div class="flex items-center justify-between text-sm">
+                    <button type="button" id="otp-back" class="text-gray-600 hover:text-gray-900">Use different credentials</button>
+                    <button type="button" id="otp-resend" class="text-indigo-600 hover:underline">Resend code</button>
+                </div>
+            </div>
+        </div>
+        
+        {!-- Footer --}
+        <p class="text-center text-indigo-200 text-sm mt-6">
+            Powered by <strong>DiSyL</strong> + <strong>Ikabud CMS</strong>
+        </p>
+    </div>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            var toggleBtn = document.getElementById('toggle-pw');
+            var pwInput = document.getElementById('login-password');
+            toggleBtn.addEventListener('click', function() {
+                var icon = this.querySelector('i');
+                if (pwInput.type === 'password') {
+                    pwInput.type = 'text';
+                    icon.classList.replace('fa-eye', 'fa-eye-slash');
                 } else {
-                    errEl.textContent = res.error || 'Login failed';
-                    errEl.classList.add('show');
-                    btn.disabled = false;
-                    btn.textContent = 'Sign In';
+                    pwInput.type = 'password';
+                    icon.classList.replace('fa-eye-slash', 'fa-eye');
                 }
-            })
-            .catch(function() {
-                errEl.textContent = 'Network error. Please try again.';
-                errEl.classList.add('show');
-                btn.disabled = false;
-                btn.textContent = 'Sign In';
             });
 
-            return false;
-        }
+            const cardTitle = document.getElementById('card-title');
+            const form = document.getElementById('login-form');
+            const otpPanel = document.getElementById('otp-panel');
+            const otpForm = document.getElementById('otp-form');
+            const otpEmail = document.getElementById('otp-email');
+            const otpTicket = document.getElementById('otp-ticket');
+            const otpCode = document.getElementById('otp-code');
+            const otpBack = document.getElementById('otp-back');
+            const otpResend = document.getElementById('otp-resend');
+            const otpSubmit = document.getElementById('otp-submit');
+            const loginSubmit = form.querySelector('button[type="submit"]');
+            const errorDiv = document.getElementById('login-error');
+            const errorMsg = document.getElementById('error-message');
+            const errorIcon = errorDiv.querySelector('i');
+
+            let activeOtpTicket = '';
+            let activeRedirect = '/admin/guidance';
+            
+            function showMessage(msg, type = 'error') {
+                errorDiv.classList.remove('hidden', 'bg-red-50', 'border-red-500', 'text-red-700', 'bg-indigo-50', 'border-indigo-500', 'text-indigo-700');
+                if (type === 'info') {
+                    errorDiv.classList.add('bg-indigo-50', 'border-indigo-500', 'text-indigo-700');
+                    errorIcon.className = 'fas fa-info-circle mr-2';
+                } else {
+                    errorDiv.classList.add('bg-red-50', 'border-red-500', 'text-red-700');
+                    errorIcon.className = 'fas fa-exclamation-circle mr-2';
+                }
+                errorDiv.classList.remove('hidden');
+                errorMsg.textContent = msg;
+            }
+            function hideMessage() {
+                errorDiv.classList.add('hidden');
+            }
+
+            function setLoginSubmitState(isBusy) {
+                loginSubmit.disabled = isBusy;
+                loginSubmit.innerHTML = isBusy
+                    ? '<i class="fas fa-spinner fa-spin mr-2"></i> Signing in...'
+                    : 'Sign In';
+            }
+
+            function setOtpSubmitState(isBusy) {
+                otpSubmit.disabled = isBusy;
+                otpSubmit.innerHTML = isBusy
+                    ? '<i class="fas fa-spinner fa-spin mr-2"></i> Verifying...'
+                    : 'Verify &amp; Continue';
+                otpResend.disabled = isBusy;
+            }
+
+            function showLoginStep() {
+                activeOtpTicket = '';
+                otpTicket.value = '';
+                otpCode.value = '';
+                otpPanel.classList.add('hidden');
+                form.classList.remove('hidden');
+                cardTitle.textContent = 'Welcome Back';
+                setLoginSubmitState(false);
+                setOtpSubmitState(false);
+                hideMessage();
+            }
+
+            function showOtpStep(data) {
+                activeOtpTicket = data.ticket || '';
+                activeRedirect = data.redirect || '/admin/guidance';
+                otpTicket.value = activeOtpTicket;
+                otpEmail.textContent = data.masked_email || 'your email address';
+                form.classList.add('hidden');
+                otpPanel.classList.remove('hidden');
+                cardTitle.textContent = 'Verify Your Sign In';
+                otpCode.value = '';
+                setLoginSubmitState(false);
+                setOtpSubmitState(false);
+                hideMessage();
+                otpCode.focus();
+            }
+            
+            function completeLogin(data) {
+                var redirect = data && data.redirect ? data.redirect : '/admin/guidance';
+                window.location.href = redirect;
+            }
+            
+            form.addEventListener('submit', async function(e) {
+                e.preventDefault();
+                setLoginSubmitState(true);
+                hideMessage();
+                
+                try {
+                    var resp = await fetch(APP_BASE + '/api/auth/login', { method: 'POST', body: new FormData(form) });
+                    var data = await resp.json();
+                    
+                    if (data && data.requires_otp) {
+                        showOtpStep(data);
+                    } else if (data && (data.ok || data.success)) {
+                        completeLogin(data);
+                    } else {
+                        showMessage((data && data.error) || 'Invalid credentials');
+                        setLoginSubmitState(false);
+                    }
+                } catch (err) {
+                    showMessage('Connection error. Please try again.');
+                    setLoginSubmitState(false);
+                }
+            });
+
+            otpForm.addEventListener('submit', async function(e) {
+                e.preventDefault();
+                setOtpSubmitState(true);
+                hideMessage();
+
+                try {
+                    var resp = await fetch(APP_BASE + '/api/auth/verify-otp', { method: 'POST', body: new FormData(otpForm) });
+                    var data = await resp.json();
+
+                    if (data && (data.ok || data.success)) {
+                        completeLogin({ redirect: data.redirect || activeRedirect });
+                    } else {
+                        showMessage((data && data.error) || 'Unable to verify the code.');
+                        setOtpSubmitState(false);
+                    }
+                } catch (err) {
+                    showMessage('Connection error. Please try again.');
+                    setOtpSubmitState(false);
+                }
+            });
+
+            otpBack.addEventListener('click', function() {
+                showLoginStep();
+            });
+
+            otpResend.addEventListener('click', async function() {
+                if (!activeOtpTicket) {
+                    showLoginStep();
+                    return;
+                }
+
+                setOtpSubmitState(true);
+                hideMessage();
+
+                try {
+                    var formData = new FormData();
+                    formData.append('ticket', activeOtpTicket);
+
+                    var resp = await fetch(APP_BASE + '/api/auth/resend-otp', { method: 'POST', body: formData });
+                    var data = await resp.json();
+
+                    if (data && data.requires_otp) {
+                        showOtpStep(data);
+                        showMessage(data.message || 'A new verification code was sent.', 'info');
+                    } else {
+                        showMessage((data && data.error) || 'Unable to resend the verification code.');
+                        setOtpSubmitState(false);
+                    }
+                } catch (err) {
+                    showMessage('Connection error. Please try again.');
+                    setOtpSubmitState(false);
+                }
+            });
+        });
     </script>
 </body>
 </html>

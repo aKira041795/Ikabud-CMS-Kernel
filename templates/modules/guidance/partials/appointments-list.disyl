@@ -37,9 +37,10 @@
 {!-- Appointment Rows (flat: date headers + appointment rows interleaved) --}
 {if rows | count > 0}
 <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden divide-y divide-gray-100">
-    {for row in rows}
+    {each rows as row}
 
     {if row.row_type == 'date_header'}
+    {!-- Date Separator --}
     <div class="px-5 py-3 flex items-center justify-between {if row.is_today}bg-indigo-50{elseif row.is_past}bg-gray-50{else}bg-slate-50{/if}">
         <div class="flex items-center gap-2">
             {if row.is_today}
@@ -56,7 +57,9 @@
     {/if}
 
     {if row.row_type == 'appointment'}
+    {!-- Appointment Row --}
     <div class="px-5 py-3 flex items-center gap-4 hover:bg-gray-50/70 transition group {if row.is_past}opacity-60{/if}">
+        {!-- Time Column --}
         <div class="w-20 flex-shrink-0">
             <div class="text-sm font-bold text-gray-800">{row.scheduled_time}</div>
             <div class="text-xs text-gray-400 mt-0.5">{row.duration_minutes | default:'30'} min</div>
@@ -64,6 +67,7 @@
 
         <div class="w-px h-10 bg-gray-200 flex-shrink-0"></div>
 
+        {!-- Student Info --}
         <div class="flex-1 min-w-0">
             <div class="flex items-center gap-2">
                 <span class="text-sm font-semibold text-gray-900 truncate">{row.student_name | default:'N/A'}</span>
@@ -76,7 +80,7 @@
                 <span class="text-indigo-600 font-medium">{row.case_number}</span>
                 <span class="text-gray-300">|</span>
                 {/if}
-                <span>{row.appointment_type | default:'individual' | title}</span>
+                <span>{row.type_name | default:'Individual'}</span>
                 {if row.counselor_name}
                 <span class="text-gray-300">|</span>
                 <span><i class="fas fa-user-md mr-0.5"></i>{row.counselor_name}</span>
@@ -88,6 +92,7 @@
             </div>
         </div>
 
+        {!-- Status Badge --}
         <div class="flex-shrink-0">
             <span class="px-2.5 py-1 text-xs font-semibold rounded-full inline-flex items-center gap-1
                 {if row.status_key == 'pending'}bg-amber-100 text-amber-800
@@ -109,23 +114,48 @@
             </span>
         </div>
 
+        {!-- Action Buttons --}
         <div class="flex items-center gap-1 flex-shrink-0 opacity-70 group-hover:opacity-100 transition">
             {if row.status_key == 'pending'}
-            <button hx-post="/admin/guidance/api/appointments/{row.id}/approve"
+            <button hx-post="/api/appointments/{row.id}/approve"
                     hx-confirm="Approve this appointment?"
-                    hx-swap="none"
+                    hx-target="#appointments-list" hx-swap="innerHTML"
                     class="p-1.5 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition" title="Approve">
                 <i class="fas fa-check text-xs"></i>
             </button>
-            <button hx-post="/admin/guidance/api/appointments/{row.id}/reject"
+            <button hx-post="/api/appointments/{row.id}/reject"
                     hx-confirm="Reject this appointment?"
-                    hx-swap="none"
+                    hx-target="#appointments-list" hx-swap="innerHTML"
                     class="p-1.5 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition" title="Reject">
                 <i class="fas fa-times text-xs"></i>
             </button>
-            
+
+            {elseif row.status_key == 'scheduled' or row.status_key == 'confirmed'}
+            <button hx-get="/pages/appointments/{row.id}/edit" hx-target="#modal-container" hx-swap="innerHTML"
+                    class="p-1.5 bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-100 transition" title="View/Edit">
+                <i class="fas fa-pen text-xs"></i>
+            </button>
+            <button hx-post="/api/appointments/{row.id}/complete"
+                    hx-confirm="Mark as completed?"
+                    hx-target="#appointments-list" hx-swap="innerHTML"
+                    class="p-1.5 bg-green-50 text-green-600 rounded-lg hover:bg-green-100 transition" title="Complete">
+                <i class="fas fa-check text-xs"></i>
+            </button>
+            <button hx-post="/api/appointments/{row.id}/no-show"
+                    hx-confirm="Mark as no-show?"
+                    hx-target="#appointments-list" hx-swap="innerHTML"
+                    class="p-1.5 bg-yellow-50 text-yellow-600 rounded-lg hover:bg-yellow-100 transition" title="No Show">
+                <i class="fas fa-user-slash text-xs"></i>
+            </button>
+            <button hx-post="/api/appointments/{row.id}/cancel"
+                    hx-confirm="Cancel this appointment?"
+                    hx-target="#appointments-list" hx-swap="innerHTML"
+                    class="p-1.5 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition" title="Cancel">
+                <i class="fas fa-ban text-xs"></i>
+            </button>
+
             {else}
-            <button hx-get="/admin/guidance/pages/appointments/{row.id}" hx-target="#modal-container" hx-swap="innerHTML"
+            <button hx-get="/pages/appointments/{row.id}/edit" hx-target="#modal-container" hx-swap="innerHTML"
                     class="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition" title="View Details">
                 <i class="fas fa-eye text-xs"></i>
             </button>
@@ -134,7 +164,7 @@
     </div>
     {/if}
 
-    {/for}
+    {/each}
 </div>
 
 {else}
@@ -144,7 +174,7 @@
     </div>
     <h3 class="text-lg font-medium text-gray-900 mb-2">No appointments found</h3>
     <p class="text-gray-500 mb-4">Try adjusting your filters or schedule a new appointment.</p>
-    <button hx-get="/admin/guidance/pages/appointments/new" hx-target="#modal-container" hx-swap="innerHTML"
+    <button hx-get="/pages/appointments/new" hx-target="#modal-container" hx-swap="innerHTML"
             class="inline-flex items-center px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition">
         <i class="fas fa-calendar-plus mr-2"></i> New Appointment
     </button>

@@ -1,15 +1,15 @@
 {!-- Tracker Item Form Modal --}
 
 <div class="fixed inset-0 z-50 overflow-y-auto" aria-modal="true">
-    <div class="flex items-center justify-center min-h-screen px-4">
-        <div class="fixed inset-0 bg-black bg-opacity-50" onclick="closeModal()"></div>
+    <div class="guidance-modal-shell">
+        <div class="fixed inset-0 guidance-modal-backdrop" onclick="closeModal()"></div>
 
-        <div class="relative bg-white rounded-xl shadow-xl max-w-lg w-full">
-            <div class="flex items-center justify-between p-4 border-b">
+        <div class="guidance-modal-panel guidance-modal-panel--md">
+            <div class="guidance-modal-header">
                 <h2 class="text-xl font-semibold text-gray-800">
                     {if item.id}Edit Item{else}New Item{/if}
                 </h2>
-                <button onclick="closeModal()" class="text-gray-400 hover:text-gray-600">
+                <button onclick="closeModal()" class="guidance-modal-close">
                     <i class="fas fa-times text-xl"></i>
                 </button>
             </div>

@@ -38,18 +38,16 @@
             </td>
             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{col.sort_order}</td>
             <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
-                {if user_role == 'admin'}
-                <button hx-get="/admin/guidance/pages/colleges/{col.id}/edit" hx-target="#modal-container" hx-swap="innerHTML"
+                <button hx-get="/pages/colleges/{col.id}/edit" hx-target="#modal-container" hx-swap="innerHTML"
                         class="text-indigo-600 hover:text-indigo-900" title="Edit">
                     <i class="fas fa-edit"></i>
                 </button>
                 {if col.is_active == '1'}
-                <button hx-delete="/admin/guidance/api/colleges/{col.id}" hx-confirm="Deactivate this college?"
+                <button hx-delete="/api/colleges/{col.id}" hx-confirm="Deactivate this college?"
                         hx-swap="none"
                         class="text-red-600 hover:text-red-900" title="Deactivate">
                     <i class="fas fa-ban"></i>
                 </button>
-                {/if}
                 {/if}
             </td>
         </tr>

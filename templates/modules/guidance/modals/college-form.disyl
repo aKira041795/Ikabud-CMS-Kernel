@@ -1,11 +1,11 @@
 {!-- College Form Modal --}
 
 <div class="fixed inset-0 z-50 overflow-y-auto" aria-modal="true">
-    <div class="flex items-start justify-center min-h-screen px-4 py-8">
-        <div class="fixed inset-0 bg-black bg-opacity-50" onclick="closeModal()"></div>
+    <div class="guidance-modal-shell">
+        <div class="fixed inset-0 guidance-modal-backdrop" onclick="closeModal()"></div>
         
-        <div class="relative bg-white rounded-2xl shadow-2xl max-w-2xl w-full">
-            <div class="flex items-center justify-between px-6 py-4 border-b bg-gradient-to-r from-indigo-50 to-white rounded-t-2xl">
+        <div class="guidance-modal-panel guidance-modal-panel--lg">
+            <div class="guidance-modal-header px-6 py-4">
                 <div class="flex items-center space-x-3">
                     <div class="w-10 h-10 rounded-xl bg-indigo-100 flex items-center justify-center">
                         <i class="fas fa-university text-indigo-600"></i>
@@ -14,12 +14,12 @@
                         {if college.id}Edit College{else}New College{/if}
                     </h2>
                 </div>
-                <button onclick="closeModal()" class="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg">
+                <button onclick="closeModal()" class="guidance-modal-close">
                     <i class="fas fa-times"></i>
                 </button>
             </div>
             
-            <form {if college.id}hx-put="/admin/guidance/api/colleges/{college.id}"{else}hx-post="/admin/guidance/api/colleges"{/if}
+            <form {if college.id}hx-put="/api/colleges/{college.id}"{else}hx-post="/api/colleges"{/if}
                   hx-swap="none"
                   class="p-6 space-y-5">
                 
@@ -61,6 +61,7 @@
                     {/if}
                 </div>
                 
+                {!-- Assigned Counselors (edit mode only) --}
                 {if college.id}
                 {if assigned_counselors}
                 <div>

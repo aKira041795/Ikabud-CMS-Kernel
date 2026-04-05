@@ -5,6 +5,8 @@
 
 {ikb_section padding="none"}
 
+<div x-data="guidanceTrackerViewPage()">
+
 <div class="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 mb-6">
     <div>
         <div class="flex items-center gap-2">
@@ -23,6 +25,16 @@
     </div>
 
     <div class="flex items-center gap-2">
+        <a href="{base_url}/api/trackers/{tracker.id}/export" target="_blank"
+           class="inline-flex items-center px-3 py-2 bg-white border border-gray-200 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50">
+            <i class="fas fa-download mr-2"></i> Export CSV
+        </a>
+        {if user_role != 'counselor'}
+        <button type="button" @click="showImport = true"
+                class="inline-flex items-center px-3 py-2 bg-emerald-600 text-white text-sm font-medium rounded-lg hover:bg-emerald-700 shadow-sm">
+            <i class="fas fa-file-import mr-2"></i> Import CSV
+        </button>
+        {/if}
         {if user_role != 'counselor'}
         <button hx-get="/admin/guidance/pages/trackers/{tracker.id}/edit" hx-target="#modal-container" hx-swap="innerHTML"
                 class="inline-flex items-center px-3 py-2 bg-white border border-gray-200 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50">
@@ -140,7 +152,7 @@
                             </td>
                             {foreach items as it}
                             <td class="px-4 py-3">
-                                <select name="sub_{s.id}_{it.id}"
+                                <select name="status"
                                         class="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-xs focus:ring-2 focus:ring-indigo-500"
                                         hx-post="/admin/guidance/api/trackers/{tracker.id}/students/{s.id}/submissions"
                                         hx-trigger="change"
@@ -166,6 +178,109 @@
 
 </div>
 
+{if user_role != 'counselor'}
+<div x-show="showImport" x-cloak class="fixed inset-0 z-50 overflow-y-auto" aria-modal="true">
+    <div class="guidance-modal-shell">
+        <div class="fixed inset-0 guidance-modal-backdrop" @click="showImport = false"></div>
+        <div class="guidance-modal-panel guidance-modal-panel--lg">
+            <div class="guidance-modal-header px-5 py-4">
+                <div>
+                    <h3 class="text-lg font-semibold text-gray-900">Import Students from CSV</h3>
+                    <p class="mt-1 text-sm text-gray-500">Upload a CSV, map the columns, then import the rows into this tracker.</p>
+                </div>
+                <button type="button" @click="showImport = false" class="guidance-modal-close">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="space-y-5 px-5 py-5">
+                <form id="tracker-import-upload-form" onsubmit="return guidanceTrackerPreviewImport(event, '{tracker.id}')" class="space-y-4">
+                    <div>
+                        <label for="tracker-import-file" class="mb-2 block text-sm font-medium text-gray-700">CSV File</label>
+                        <input id="tracker-import-file" type="file" name="csv_file" accept=".csv,.txt"
+                               class="block w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 file:mr-3 file:rounded-md file:border-0 file:bg-indigo-50 file:px-3 file:py-2 file:text-sm file:font-medium file:text-indigo-700 hover:file:bg-indigo-100">
+                    </div>
+                    <div class="flex items-center justify-between gap-3 rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-700">
+                        <div>
+                            <div class="font-medium">Need a starter file?</div>
+                            <div class="mt-1 text-blue-600">Download the tracker CSV template with the expected headers.</div>
+                        </div>
+                        <a href="{base_url}/api/trackers/{tracker.id}/import/template" target="_blank"
+                           class="inline-flex items-center rounded-lg bg-white px-3 py-2 font-medium text-indigo-700 shadow-sm ring-1 ring-inset ring-indigo-200 hover:bg-indigo-50">
+                            <i class="fas fa-file-download mr-2"></i> Template
+                        </a>
+                    </div>
+                    <div class="flex items-center justify-end gap-3">
+                        <button type="button" @click="showImport = false" class="rounded-lg px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100">Close</button>
+                        <button id="tracker-import-preview-button" type="submit" class="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700">
+                            <i class="fas fa-search mr-2"></i>Preview Import
+                        </button>
+                    </div>
+                </form>
+
+                <div id="import-mapping-area"></div>
+                <div id="import-result-area"></div>
+            </div>
+        </div>
+    </div>
+</div>
+{/if}
+
+</div>
+
 {/ikb_section}
+
+<script>
+function guidanceTrackerViewPage() {
+    return {
+        showImport: false
+    };
+}
+
+function guidanceTrackerPreviewImport(event, trackerId) {
+    event.preventDefault();
+
+    var form = event.target;
+    var fileInput = document.getElementById('tracker-import-file');
+    if (!fileInput || !fileInput.files || !fileInput.files[0]) {
+        alert('Choose a CSV file first.');
+        return false;
+    }
+
+    var previewButton = document.getElementById('tracker-import-preview-button');
+    var body = new FormData();
+    body.append('csv_file', fileInput.files[0]);
+
+    document.getElementById('import-mapping-area').innerHTML = '';
+    document.getElementById('import-result-area').innerHTML = '';
+
+    previewButton.disabled = true;
+    previewButton.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Analyzing...';
+
+    fetch('/admin/guidance/api/trackers/' + trackerId + '/import/preview', {
+        method: 'POST',
+        body: body,
+        headers: {
+            'X-CSRF-Token': APP_CSRF,
+            'HX-Request': 'true'
+        }
+    })
+        .then(function (response) {
+            return response.text();
+        })
+        .then(function (html) {
+            document.getElementById('import-mapping-area').innerHTML = html;
+        })
+        .catch(function (error) {
+            alert('Import preview failed: ' + error.message);
+        })
+        .finally(function () {
+            previewButton.disabled = false;
+            previewButton.innerHTML = '<i class="fas fa-search mr-2"></i>Preview Import';
+            form.reset();
+        });
+
+    return false;
+}
+</script>
 
 {/block}

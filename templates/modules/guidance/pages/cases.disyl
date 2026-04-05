@@ -11,7 +11,7 @@
             <h1 class="text-2xl font-bold text-gray-900">Cases</h1>
             <p class="text-sm text-gray-500 mt-1">Manage guidance counseling cases</p>
         </div>
-        <button hx-get="/admin/guidance/pages/cases/new" hx-target="#modal-container" hx-swap="innerHTML"
+        <button hx-get="/pages/cases/new" hx-target="#modal-container" hx-swap="innerHTML"
                 class="inline-flex items-center px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition shadow-sm">
             <i class="fas fa-plus mr-2"></i> New Case
         </button>
@@ -25,14 +25,14 @@
                 <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs"></i>
                 <input type="text" name="search" placeholder="Student name, case number..."
                        class="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                       hx-get="/admin/guidance/api/cases" hx-target="#cases-list" hx-trigger="keyup changed delay:400ms"
+                       hx-get="/api/cases" hx-target="#cases-list" hx-trigger="keyup changed delay:400ms"
                        hx-include="[name='status'],[name='severity'],[name='category'],[name='show_deleted'],[name='counselor_id']" />
             </div>
             
             {!-- Status --}
             <select name="status"
                     class="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                    hx-get="/admin/guidance/api/cases" hx-target="#cases-list" hx-trigger="change"
+                    hx-get="/api/cases" hx-target="#cases-list" hx-trigger="change"
                     hx-include="[name='search'],[name='severity'],[name='category'],[name='show_deleted'],[name='counselor_id']">
                 <option value="">All Status</option>
                 <option value="open">Open</option>
@@ -44,7 +44,7 @@
             {!-- Severity --}
             <select name="severity"
                     class="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                    hx-get="/admin/guidance/api/cases" hx-target="#cases-list" hx-trigger="change"
+                    hx-get="/api/cases" hx-target="#cases-list" hx-trigger="change"
                     hx-include="[name='search'],[name='status'],[name='category'],[name='show_deleted'],[name='counselor_id']">
                 <option value="">All Severity</option>
                 <option value="critical">Critical</option>
@@ -56,7 +56,7 @@
             {!-- Category --}
             <select name="category"
                     class="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                    hx-get="/admin/guidance/api/cases" hx-target="#cases-list" hx-trigger="change"
+                    hx-get="/api/cases" hx-target="#cases-list" hx-trigger="change"
                     hx-include="[name='search'],[name='status'],[name='severity'],[name='show_deleted'],[name='counselor_id']">
                 <option value="">All Categories</option>
                 <option value="academic">Academic</option>
@@ -72,7 +72,7 @@
             {if user_role != 'counselor'}
             <select name="counselor_id"
                     class="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                    hx-get="/admin/guidance/api/cases" hx-target="#cases-list" hx-trigger="change"
+                    hx-get="/api/cases" hx-target="#cases-list" hx-trigger="change"
                     hx-include="[name='search'],[name='status'],[name='severity'],[name='category'],[name='show_deleted']">
                 <option value="">All Counselors</option>
                 {foreach counselors as c}
@@ -84,7 +84,7 @@
             {!-- Records --}
             <select name="show_deleted"
                     class="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                    hx-get="/admin/guidance/api/cases" hx-target="#cases-list" hx-trigger="change"
+                    hx-get="/api/cases" hx-target="#cases-list" hx-trigger="change"
                     hx-include="[name='search'],[name='status'],[name='severity'],[name='category'],[name='counselor_id']">
                 <option value="">Active Only</option>
                 <option value="all">All Records</option>
@@ -92,7 +92,7 @@
             </select>
             
             {!-- Clear --}
-            <button type="button" onclick="document.querySelectorAll('[name=search],[name=status],[name=severity],[name=category],[name=show_deleted],[name=counselor_id]').forEach(e=>{e.value=''}); htmx.ajax('GET','/admin/guidance/api/cases',{target:'#cases-list'})"
+            <button type="button" onclick="document.querySelectorAll('[name=search],[name=status],[name=severity],[name=category],[name=show_deleted],[name=counselor_id]').forEach(e=>{e.value=''}); htmx.ajax('GET','/api/cases',{target:'#cases-list'})"
                     class="text-xs text-gray-500 hover:text-red-600 flex-shrink-0 px-2 py-2" title="Clear filters">
                 <i class="fas fa-times-circle mr-1"></i>Clear
             </button>
@@ -101,7 +101,7 @@
     
     {!-- Cases Table --}
     <div id="cases-list" 
-         hx-get="/admin/guidance/api/cases" 
+         hx-get="/api/cases" 
          hx-trigger="load, refreshCases from:body"
          hx-swap="innerHTML">
         <div class="flex items-center justify-center py-16 text-gray-400">

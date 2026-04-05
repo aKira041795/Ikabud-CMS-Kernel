@@ -41,6 +41,38 @@ function ecCtx(): \Ikabud\Kernel\Contracts\ModuleContext
     return $ctx;
 }
 
+function ecTableExists(string $table): bool
+{
+    static $cache = [];
+
+    $table = trim($table);
+    if ($table === '') {
+        return false;
+    }
+
+    if (array_key_exists($table, $cache)) {
+        return $cache[$table];
+    }
+
+    try {
+        $db = app()->db();
+        $stmt = $db->prepare('SHOW TABLES LIKE ?');
+        $stmt->execute([$table]);
+        $cache[$table] = (bool)$stmt->fetchColumn();
+    } catch (\Throwable $e) {
+        $cache[$table] = false;
+    }
+
+    return $cache[$table];
+}
+
+function ecCmsSchemaReady(): bool
+{
+    return ecTableExists('cms_users')
+        && ecTableExists('cms_content')
+        && ecTableExists('cms_content_types');
+}
+
 function ecIsPublicTemplate(string $template): bool
 {
     return str_starts_with($template, 'modules/ecommerce/public/') || $template === 'pages/404.disyl';
@@ -378,6 +410,10 @@ function ecMaybeInstallPages(): void
 
     $settings = readTenantModuleSettings('ecommerce');
 
+    if (!ecCmsSchemaReady()) {
+        return;
+    }
+
     // Ensure 'product' content type exists (idempotent, runs once per tenant).
     if (empty($settings['_product_type_registered'])) {
         try {
@@ -455,7 +491,7 @@ function ecInstallPages(): void
     ];
 
     moduleWithContext('cms', static function () use ($pages): void {
-        $db = app()->db();
+        $db = function_exists('cmsDb') ? cmsDb() : app()->db();
         $authorId = (int)$db->query('SELECT id FROM cms_users ORDER BY id ASC LIMIT 1')->fetchColumn();
         if ($authorId <= 0) {
             throw new \RuntimeException('No CMS author available for ecommerce page install');

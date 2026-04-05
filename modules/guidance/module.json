@@ -3,6 +3,37 @@
     "name": "Guidance Monitoring",
     "version": "1.0.0",
     "description": "School guidance counseling case management and scheduling.",
+    "commercial_mode": "freemium",
+    "tier_features": {
+        "free": [
+            "cases",
+            "appointments",
+            "booking",
+            "dashboard",
+            "users",
+            "colleges",
+            "settings",
+            "profile"
+        ],
+        "pro": [
+            "notes",
+            "tracker",
+            "docx_reports",
+            "ai_reports",
+            "notifications",
+            "2fa",
+            "attachments",
+            "audit",
+            "form_fields",
+            "analytics",
+            "calendar",
+            "password_reset",
+            "health",
+            "availability",
+            "appointment_types",
+            "rate_limiting"
+        ]
+    },
     "author": "Noah C. Omamalin",
     "owns_tables": [
         "gm_users",
@@ -18,15 +49,22 @@
         "gm_appointment_types",
         "gm_appointments",
         "gm_blocked_dates",
+        "gm_counselor_availability",
         "gm_notifications",
         "gm_notification_queue",
         "gm_settings",
         "gm_form_fields",
         "gm_audit_logs",
         "gm_sync_queue",
+        "gm_trackers",
+        "gm_tracker_items",
+        "gm_tracker_students",
+        "gm_tracker_submissions",
+        "gm_tracker_custom_fields",
         "gm_migrations"
     ],
     "reads_tables": [
+        "kernel_tenant_module_entitlements",
         "users",
         "audit_logs",
         "rate_limits"

@@ -107,6 +107,11 @@ class ModuleDB implements DatabaseContract
         return $this->pdo->commit();
     }
 
+    public function inTransaction(): bool
+    {
+        return $this->pdo->inTransaction();
+    }
+
     public function rollBack(): bool
     {
         return $this->pdo->rollBack();

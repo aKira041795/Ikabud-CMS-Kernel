@@ -1,6 +1,9 @@
 # Environment
 .env
 
+# Reference standalone app (do not track)
+/guidance/
+
 # Dependencies
 vendor/
 node_modules/

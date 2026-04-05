@@ -60,6 +60,11 @@ interface DatabaseContract
     public function commit(): bool;
 
     /**
+     * Check whether a transaction is currently active.
+     */
+    public function inTransaction(): bool;
+
+    /**
      * Roll back a transaction.
      */
     public function rollBack(): bool;

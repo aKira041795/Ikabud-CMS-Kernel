@@ -1,143 +1,685 @@
 {extends "modules/guidance/layouts/app.disyl"}
 
 {block content}
-<div class="max-w-2xl mx-auto">
-    <div class="bg-white border border-gray-200 rounded-xl p-6">
-        <div class="mb-5">
-            <h1 class="text-xl font-semibold text-gray-900">Profile</h1>
-            <p class="text-sm text-gray-500 mt-1">Update your own account information.</p>
-        </div>
 
-        <div id="profile-msg" class="hidden mb-4 text-sm rounded-lg p-3"></div>
-
-        <form id="profile-form" onsubmit="return submitProfile(event)">
-            {csrf_field | raw}
-
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">First name</label>
-                    <input id="first_name" name="first_name" class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" type="text" value="{first_name}" required>
+{ikb_section padding="none"}
+    
+    <div class="max-w-2xl mx-auto space-y-6">
+        
+        {!-- Profile Header --}
+        {ikb_card variant="elevated"}
+            <div class="flex items-center space-x-6 mb-6">
+                <div class="w-24 h-24 bg-indigo-600 rounded-full flex items-center justify-center text-white text-3xl font-bold">
+                    {profile.first_name | first | upper}{profile.last_name | first | upper}
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Last name</label>
-                    <input id="last_name" name="last_name" class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" type="text" value="{last_name}" required>
+                    <h1 class="text-2xl font-bold text-gray-900">{profile.first_name} {profile.last_name}</h1>
+                    <p class="text-gray-500">{profile.email}</p>
+                    <span class="inline-block mt-2 px-3 py-1 bg-indigo-100 text-indigo-800 rounded-full text-sm font-medium">
+                        {profile.role | capitalize}
+                    </span>
+                    {if profile.last_login_at}
+                    <p class="text-xs text-gray-400 mt-1">Last login: {profile.last_login_at | date:'M d, Y h:i A'}</p>
+                    {/if}
                 </div>
             </div>
-
-            <div class="mt-4">
-                <label class="block text-sm font-medium text-gray-700 mb-1">Phone</label>
-                <input id="phone" name="phone" class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" type="tel" value="{phone}" placeholder="Optional">
-            </div>
-
-            <div class="mt-4">
-                <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                <input class="w-full px-4 py-2.5 border border-gray-200 rounded-lg bg-gray-50 text-gray-600" type="email" value="{email}" disabled>
-                <p class="text-xs text-gray-500 mt-1">Email cannot be changed.</p>
-            </div>
-
-            <div class="mt-5 border-t border-gray-100 pt-5">
-                <div class="flex items-center justify-between mb-2">
-                    <h2 class="text-sm font-semibold text-gray-900">Change password</h2>
-                    <span class="text-xs text-gray-500">Optional</span>
-                </div>
-
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/ikb_card}
+        
+        {!-- Profile Information --}
+        {ikb_card variant="elevated"}
+            <h3 class="text-lg font-semibold text-gray-800 mb-4">
+                <i class="fas fa-user-edit mr-2 text-indigo-500"></i>Profile Information
+            </h3>
+            <form hx-put="/api/profile" hx-swap="none" class="space-y-4">
+                <div class="grid grid-cols-2 gap-4">
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">New password</label>
-                        <input id="password" name="password" class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" type="password" placeholder="Leave blank to keep current">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">First Name</label>
+                        <input type="text" name="first_name" value="{profile.first_name | esc_html}" required
+                               class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Confirm password</label>
-                        <input id="password_confirm" name="password_confirm" class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" type="password" placeholder="Repeat new password">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Last Name</label>
+                        <input type="text" name="last_name" value="{profile.last_name | esc_html}" required
+                               class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
                     </div>
                 </div>
-            </div>
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
+                    <input type="email" value="{profile.email | esc_html}" readonly
+                           class="w-full px-4 py-2 border border-gray-200 rounded-lg bg-gray-50 text-gray-500">
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Role</label>
+                    <input type="text" value="{profile.role | capitalize}" readonly
+                           class="w-full px-4 py-2 border border-gray-200 rounded-lg bg-gray-50 text-gray-500">
+                </div>
+                
+                <div class="pt-4 flex justify-end">
+                    <button type="submit" class="px-6 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition font-medium">
+                        <i class="fas fa-save mr-2"></i> Update Profile
+                    </button>
+                </div>
+            </form>
+        {/ikb_card}
+        
+        {!-- Change Password --}
+        {ikb_card variant="elevated"}
+            <h3 class="text-lg font-semibold text-gray-800 mb-4">
+                <i class="fas fa-lock mr-2 text-indigo-500"></i>Change Password
+            </h3>
+            <form hx-put="/api/profile" hx-swap="none" class="space-y-4" id="password-form">
+                <input type="hidden" name="first_name" value="{profile.first_name | esc_html}">
+                <input type="hidden" name="last_name" value="{profile.last_name | esc_html}">
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Current Password</label>
+                    <input type="password" name="current_password" required
+                           class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                           placeholder="Enter current password">
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">New Password</label>
+                      <input type="password" name="new_password" required minlength="8"
+                           class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                          placeholder="Minimum 8 characters">
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Confirm New Password</label>
+                      <input type="password" name="confirm_password" required minlength="8"
+                           class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                           placeholder="Repeat new password">
+                </div>
+                
+                <div class="pt-4 flex justify-end">
+                    <button type="submit" class="px-6 py-2.5 bg-gray-800 text-white rounded-lg hover:bg-gray-900 transition font-medium">
+                        <i class="fas fa-key mr-2"></i> Change Password
+                    </button>
+                </div>
+            </form>
+        {/ikb_card}
 
-            <div class="mt-6 flex items-center gap-3">
-                <button id="profile-save" type="submit" class="px-4 py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-semibold">Save changes</button>
-                <a href="/admin/guidance" class="px-4 py-2.5 rounded-lg border border-gray-300 hover:bg-gray-50 text-gray-700 font-semibold">Back</a>
-            </div>
-        </form>
+        {if show_availability_editor}
+        {ikb_card variant="elevated"}
+            <h3 class="text-lg font-semibold text-gray-800 mb-2">
+                <i class="fas fa-clock mr-2 text-indigo-500"></i>Weekly Availability
+            </h3>
+            <p class="text-sm text-gray-500 mb-4">Public booking and counselor slot suggestions use every time range you add here. Start with a preset, then split specific days into multiple blocks when you need breaks, lunch gaps, or limited office windows.</p>
+
+            <form hx-put="/api/profile/availability" hx-swap="none" class="space-y-3" id="availability-form">
+                <div class="rounded-xl border border-gray-200 bg-gray-50 p-4 space-y-3">
+                    <div class="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-3">
+                        <div class="w-full lg:max-w-sm">
+                            <label class="block text-xs font-medium text-gray-600 mb-1">Bulk Preset</label>
+                            <select id="availability-bulk-preset"
+                                    class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                                <option value="default">Office default hours</option>
+                                <option value="full_day">Full day (08:00-17:00)</option>
+                                <option value="split_day">Split day (08:00-12:00, 13:00-17:00)</option>
+                                <option value="morning">Morning only (08:00-12:00)</option>
+                                <option value="afternoon">Afternoon only (13:00-17:00)</option>
+                                <option value="closed">Closed</option>
+                            </select>
+                        </div>
+
+                        <div class="flex flex-wrap gap-2">
+                            <button type="button"
+                                    data-bulk-target="weekdays"
+                                    class="inline-flex items-center px-3 py-2 text-sm font-medium bg-white border border-gray-300 rounded-lg hover:bg-gray-100 transition">
+                                <i class="fas fa-business-time mr-2 text-indigo-500"></i> Apply to Weekdays
+                            </button>
+                            <button type="button"
+                                    data-bulk-target="all"
+                                    class="inline-flex items-center px-3 py-2 text-sm font-medium bg-white border border-gray-300 rounded-lg hover:bg-gray-100 transition">
+                                <i class="fas fa-calendar-week mr-2 text-indigo-500"></i> Apply to All Days
+                            </button>
+                        </div>
+                    </div>
+
+                    <p class="text-xs text-gray-500">Better flow: apply a preset first, then add or remove ranges only on exception days. Use split-day when you want separate morning and afternoon booking windows, and Use Office Default when you want the shared office schedule again.</p>
+                </div>
+
+                {foreach availability as day}
+                <div class="p-4 border border-gray-200 rounded-xl availability-day"
+                     data-day-key="{day.key}"
+                     data-default-available="{if day.default_is_available}1{else}0{/if}"
+                     data-default-ranges="{day.default_ranges_serialized | esc_html}"
+                     data-default-summary="{day.default_summary | esc_html}">
+                        <input type="hidden" name="availability[{day.key}][use_default]" value="{if day.source == 'default'}1{else}0{/if}" data-day-default-flag="{day.key}">
+                        <div class="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-4">
+                            <div class="xl:w-64">
+                                <div class="flex items-center justify-between gap-3 xl:block">
+                                    <div>
+                                        <p class="text-sm font-semibold text-gray-800">{day.label}</p>
+                                        <p class="text-xs text-gray-500 mt-1" data-day-note="{day.key}">
+                                            {if day.source == 'default'}Office default: {day.default_summary}{elseif day.is_available}Custom hours: {day.summary}{else}Custom hours: Closed{/if}
+                                        </p>
+                                    </div>
+                                    <span class="availability-status inline-flex items-center px-2.5 py-1 rounded-full border text-sm {if day.source == 'default'}bg-blue-50 text-blue-700 border-blue-200{elseif day.is_available}bg-emerald-50 text-emerald-700 border-emerald-200{else}bg-gray-100 text-gray-600 border-gray-200{/if}"
+                                          data-day-status="{day.key}">
+                                        {if day.source == 'default'}{if day.default_is_available}Office Default{else}Office Closed{/if}{elseif day.is_available}Available{else}Closed{/if}
+                                    </span>
+                                </div>
+                            </div>
+
+                            <div class="flex-1 space-y-3">
+                                <div class="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-3">
+                                    <div class="w-full lg:max-w-xs">
+                                        <label class="block text-xs font-medium text-gray-600 mb-1">Day Preset</label>
+                                        <select data-day-preset="{day.key}"
+                                                class="availability-preset w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                                            <option value="default">Office default</option>
+                                            <option value="full_day">Full day (08:00-17:00)</option>
+                                            <option value="split_day">Split day (08:00-12:00, 13:00-17:00)</option>
+                                            <option value="morning">Morning only (08:00-12:00)</option>
+                                            <option value="afternoon">Afternoon only (13:00-17:00)</option>
+                                            <option value="closed">Closed</option>
+                                            <option value="custom">Custom ranges</option>
+                                        </select>
+                                    </div>
+
+                                    <div class="flex flex-wrap gap-2">
+                                        <button type="button"
+                                                data-add-range="{day.key}"
+                                                class="inline-flex items-center px-3 py-2 text-sm font-medium bg-white border border-gray-300 rounded-lg hover:bg-gray-100 transition {if day.source == 'default'}hidden{/if}">
+                                            <i class="fas fa-plus mr-2 text-indigo-500"></i> Add Range
+                                        </button>
+                                        <button type="button"
+                                                data-day-default="{day.key}"
+                                                class="inline-flex items-center px-3 py-2 text-sm font-medium bg-white border border-gray-300 rounded-lg hover:bg-gray-100 transition">
+                                            <i class="fas fa-rotate-left mr-2 text-indigo-500"></i> Use Office Default
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div data-day-editor="{day.key}" class="space-y-2 {if day.source == 'default'}hidden{/if}">
+                                    <div class="space-y-2" data-range-list="{day.key}">
+                                        {foreach day.editor_ranges as rangeIndex => range}
+                                        <div class="grid grid-cols-1 md:grid-cols-3 gap-3 items-end availability-range-row" data-range-row>
+                                            <div>
+                                                <label class="block text-xs font-medium text-gray-600 mb-1">Start</label>
+                                                <input type="time"
+                                                       name="availability[{day.key}][ranges][{rangeIndex}][start]"
+                                                       value="{range.start}"
+                                                       data-range-start
+                                                       data-day-key="{day.key}"
+                                                       class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                                            </div>
+                                            <div>
+                                                <label class="block text-xs font-medium text-gray-600 mb-1">End</label>
+                                                <input type="time"
+                                                       name="availability[{day.key}][ranges][{rangeIndex}][end]"
+                                                       value="{range.end}"
+                                                       data-range-end
+                                                       data-day-key="{day.key}"
+                                                       class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                                            </div>
+                                            <div>
+                                                <button type="button"
+                                                        data-remove-range
+                                                        class="w-full md:w-auto inline-flex items-center justify-center px-3 py-2 text-sm font-medium text-red-600 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition">
+                                                    <i class="fas fa-trash-alt mr-2"></i> Remove
+                                                </button>
+                                            </div>
+                                        </div>
+                                        {/foreach}
+                                    </div>
+
+                                    <p class="text-xs text-gray-500 {if day.source == 'default' || day.is_available}hidden{/if}" data-empty-state="{day.key}">No custom ranges yet. Add a range to open this day, or keep it closed.</p>
+                                </div>
+                            </div>
+                        </div>
+                </div>
+                {/foreach}
+
+                <div class="pt-4 flex justify-end">
+                    <button type="submit" class="px-6 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition font-medium">
+                        <i class="fas fa-save mr-2"></i> Save Availability
+                    </button>
+                </div>
+            </form>
+        {/ikb_card}
+        {/if}
+        
     </div>
-</div>
+    
+{/ikb_section}
 
+{/block}
+
+{block scripts}
 <script>
-async function submitProfile(e) {
-    e.preventDefault();
+var passwordForm = document.getElementById('password-form');
+if (passwordForm) {
+    passwordForm.addEventListener('htmx:configRequest', function(evt) {
+        var form = this;
+        var newPw = form.querySelector('[name="new_password"]').value;
+        var confirmPw = form.querySelector('[name="confirm_password"]').value;
+        if (newPw !== confirmPw) {
+            evt.preventDefault();
+            showToast('Passwords do not match', 'error');
+        }
+    });
+}
 
-    const btn = document.getElementById('profile-save');
-    const msg = document.getElementById('profile-msg');
+var availabilityForm = document.getElementById('availability-form');
+var availabilityPresets = {
+    full_day: [{ start: '08:00', end: '17:00' }],
+    split_day: [{ start: '08:00', end: '12:00' }, { start: '13:00', end: '17:00' }],
+    morning: [{ start: '08:00', end: '12:00' }],
+    afternoon: [{ start: '13:00', end: '17:00' }],
+    closed: []
+};
 
-    const first = document.getElementById('first_name').value.trim();
-    const last = document.getElementById('last_name').value.trim();
-    const phone = document.getElementById('phone').value.trim();
-    const pass = document.getElementById('password').value;
-    const pass2 = document.getElementById('password_confirm').value;
-    const csrf = document.querySelector('input[name="_token"]')?.value || '';
+function cloneAvailabilityRanges(ranges) {
+    return ranges.map(function(range) {
+        return { start: range.start || '', end: range.end || '' };
+    });
+}
 
-    msg.classList.add('hidden');
-    msg.textContent = '';
-
-    if (first === '' || last === '') {
-        msg.className = 'mb-4 text-sm rounded-lg p-3 bg-red-50 text-red-700';
-        msg.textContent = 'First and last name are required.';
-        msg.classList.remove('hidden');
-        return false;
+function parseAvailabilityRanges(value) {
+    if (!value) {
+        return [];
     }
 
-    if (pass !== '' && pass.length < 8) {
-        msg.className = 'mb-4 text-sm rounded-lg p-3 bg-red-50 text-red-700';
-        msg.textContent = 'Password must be at least 8 characters.';
-        msg.classList.remove('hidden');
-        return false;
+    return value.split(';').map(function(part) {
+        var pieces = part.split('|');
+        return {
+            start: pieces[0] || '',
+            end: pieces[1] || ''
+        };
+    }).filter(function(range) {
+        return range.start && range.end;
+    });
+}
+
+function getAvailabilityDay(dayKey) {
+    if (!availabilityForm) {
+        return null;
     }
 
-    if (pass !== '' && pass !== pass2) {
-        msg.className = 'mb-4 text-sm rounded-lg p-3 bg-red-50 text-red-700';
-        msg.textContent = 'Passwords do not match.';
-        msg.classList.remove('hidden');
-        return false;
+    var row = availabilityForm.querySelector('.availability-day[data-day-key="' + dayKey + '"]');
+    if (!row) {
+        return null;
     }
 
-    btn.disabled = true;
-    const oldText = btn.textContent;
-    btn.textContent = 'Saving...';
+    return {
+        row: row,
+        preset: availabilityForm.querySelector('[data-day-preset="' + dayKey + '"]'),
+        status: availabilityForm.querySelector('[data-day-status="' + dayKey + '"]'),
+        note: availabilityForm.querySelector('[data-day-note="' + dayKey + '"]'),
+        useDefault: availabilityForm.querySelector('[data-day-default-flag="' + dayKey + '"]'),
+        editor: availabilityForm.querySelector('[data-day-editor="' + dayKey + '"]'),
+        rangeList: availabilityForm.querySelector('[data-range-list="' + dayKey + '"]'),
+        emptyState: availabilityForm.querySelector('[data-empty-state="' + dayKey + '"]'),
+        addButton: availabilityForm.querySelector('[data-add-range="' + dayKey + '"]')
+    };
+}
 
-    try {
-        const res = await fetch('/admin/guidance/api/profile', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-            credentials: 'include',
-            body: JSON.stringify({ _token: csrf, first_name: first, last_name: last, phone: phone, password: pass })
-        });
+function getDayRangeRows(dayKey) {
+    var day = getAvailabilityDay(dayKey);
+    if (!day || !day.rangeList) {
+        return [];
+    }
 
-        const data = await res.json().catch(() => ({}));
+    return Array.prototype.slice.call(day.rangeList.querySelectorAll('[data-range-row]'));
+}
 
-        if (!res.ok || !data.ok) {
-            msg.className = 'mb-4 text-sm rounded-lg p-3 bg-red-50 text-red-700';
-            msg.textContent = data.error || 'Failed to update profile.';
-            msg.classList.remove('hidden');
-            return false;
+function getDayRanges(dayKey) {
+    return getDayRangeRows(dayKey).map(function(row) {
+        var startInput = row.querySelector('[data-range-start]');
+        var endInput = row.querySelector('[data-range-end]');
+
+        return {
+            start: startInput ? startInput.value : '',
+            end: endInput ? endInput.value : ''
+        };
+    });
+}
+
+function getFilledDayRanges(dayKey) {
+    return getDayRanges(dayKey).filter(function(range) {
+        return range.start && range.end;
+    });
+}
+
+function dayHasPartialRanges(dayKey) {
+    return getDayRanges(dayKey).some(function(range) {
+        return (!!range.start && !range.end) || (!range.start && !!range.end);
+    });
+}
+
+function reindexDayRanges(dayKey) {
+    getDayRangeRows(dayKey).forEach(function(row, index) {
+        var startInput = row.querySelector('[data-range-start]');
+        var endInput = row.querySelector('[data-range-end]');
+
+        if (startInput) {
+            startInput.name = 'availability[' + dayKey + '][ranges][' + index + '][start]';
         }
 
-        msg.className = 'mb-4 text-sm rounded-lg p-3 bg-green-50 text-green-700';
-        msg.textContent = 'Profile updated.';
-        msg.classList.remove('hidden');
+        if (endInput) {
+            endInput.name = 'availability[' + dayKey + '][ranges][' + index + '][end]';
+        }
+    });
+}
 
-        document.getElementById('password').value = '';
-        document.getElementById('password_confirm').value = '';
+function createRangeRow(dayKey, range) {
+    var row = document.createElement('div');
+    row.className = 'grid grid-cols-1 md:grid-cols-3 gap-3 items-end availability-range-row';
+    row.setAttribute('data-range-row', '1');
+    row.innerHTML = '' +
+        '<div>' +
+            '<label class="block text-xs font-medium text-gray-600 mb-1">Start</label>' +
+            '<input type="time" data-range-start data-day-key="' + dayKey + '" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">' +
+        '</div>' +
+        '<div>' +
+            '<label class="block text-xs font-medium text-gray-600 mb-1">End</label>' +
+            '<input type="time" data-range-end data-day-key="' + dayKey + '" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">' +
+        '</div>' +
+        '<div>' +
+            '<button type="button" data-remove-range class="w-full md:w-auto inline-flex items-center justify-center px-3 py-2 text-sm font-medium text-red-600 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition">' +
+                '<i class="fas fa-trash-alt mr-2"></i> Remove' +
+            '</button>' +
+        '</div>';
 
-        setTimeout(() => window.location.reload(), 900);
-        return false;
-    } catch (err) {
-        msg.className = 'mb-4 text-sm rounded-lg p-3 bg-red-50 text-red-700';
-        msg.textContent = 'Failed to update profile.';
-        msg.classList.remove('hidden');
-        return false;
-    } finally {
-        btn.disabled = false;
-        btn.textContent = oldText;
+    var startInput = row.querySelector('[data-range-start]');
+    var endInput = row.querySelector('[data-range-end]');
+    if (startInput) {
+        startInput.value = (range && range.start) || '';
     }
+    if (endInput) {
+        endInput.value = (range && range.end) || '';
+    }
+
+    return row;
+}
+
+function setDayRanges(dayKey, ranges) {
+    var day = getAvailabilityDay(dayKey);
+    if (!day || !day.rangeList) {
+        return;
+    }
+
+    day.rangeList.innerHTML = '';
+    cloneAvailabilityRanges(ranges).forEach(function(range) {
+        day.rangeList.appendChild(createRangeRow(dayKey, range));
+    });
+
+    reindexDayRanges(dayKey);
+}
+
+function getDefaultDayRanges(dayKey) {
+    var day = getAvailabilityDay(dayKey);
+    if (!day) {
+        return [];
+    }
+
+    return parseAvailabilityRanges(day.row.getAttribute('data-default-ranges') || '');
+}
+
+function rangesMatchPreset(ranges, presetRanges) {
+    if (ranges.length !== presetRanges.length) {
+        return false;
+    }
+
+    for (var i = 0; i < ranges.length; i += 1) {
+        if (ranges[i].start !== presetRanges[i].start || ranges[i].end !== presetRanges[i].end) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+function detectDayPreset(dayKey) {
+    var day = getAvailabilityDay(dayKey);
+    if (!day || !day.useDefault) {
+        return 'custom';
+    }
+
+    if (day.useDefault.value === '1') {
+        return 'default';
+    }
+
+    if (dayHasPartialRanges(dayKey)) {
+        return 'custom';
+    }
+
+    var ranges = getFilledDayRanges(dayKey);
+    if (ranges.length === 0) {
+        return 'closed';
+    }
+
+    var presetNames = Object.keys(availabilityPresets);
+    for (var i = 0; i < presetNames.length; i += 1) {
+        var presetName = presetNames[i];
+        if (rangesMatchPreset(ranges, availabilityPresets[presetName])) {
+            return presetName;
+        }
+    }
+
+    return 'custom';
+}
+
+function setDayStatus(dayKey, variant, label) {
+    var day = getAvailabilityDay(dayKey);
+    if (!day || !day.status) {
+        return;
+    }
+
+    var classes = {
+        defaultOpen: 'availability-status inline-flex items-center px-2.5 py-1 rounded-full border text-sm bg-blue-50 text-blue-700 border-blue-200',
+        defaultClosed: 'availability-status inline-flex items-center px-2.5 py-1 rounded-full border text-sm bg-slate-100 text-slate-600 border-slate-200',
+        customOpen: 'availability-status inline-flex items-center px-2.5 py-1 rounded-full border text-sm bg-emerald-50 text-emerald-700 border-emerald-200',
+        customClosed: 'availability-status inline-flex items-center px-2.5 py-1 rounded-full border text-sm bg-gray-100 text-gray-600 border-gray-200',
+        incomplete: 'availability-status inline-flex items-center px-2.5 py-1 rounded-full border text-sm bg-amber-50 text-amber-700 border-amber-200'
+    };
+
+    day.status.className = classes[variant] || classes.customClosed;
+    day.status.textContent = label;
+}
+
+function setDayUseDefault(dayKey, useDefault) {
+    var day = getAvailabilityDay(dayKey);
+    if (!day || !day.useDefault) {
+        return;
+    }
+
+    day.useDefault.value = useDefault ? '1' : '0';
+
+    if (day.editor) {
+        day.editor.classList.toggle('hidden', useDefault);
+    }
+
+    if (day.addButton) {
+        day.addButton.classList.toggle('hidden', useDefault);
+    }
+}
+
+function summarizeRanges(ranges) {
+    if (!ranges.length) {
+        return 'Closed';
+    }
+
+    return ranges.map(function(range) {
+        return range.start + '-' + range.end;
+    }).join(', ');
+}
+
+function updateDayPresentation(dayKey) {
+    var day = getAvailabilityDay(dayKey);
+    if (!day) {
+        return;
+    }
+
+    var useDefault = day.useDefault && day.useDefault.value === '1';
+    var filledRanges = getFilledDayRanges(dayKey);
+    var hasPartial = dayHasPartialRanges(dayKey);
+    var defaultAvailable = day.row.getAttribute('data-default-available') === '1';
+    var defaultSummary = day.row.getAttribute('data-default-summary') || 'Closed';
+
+    setDayUseDefault(dayKey, useDefault);
+
+    if (day.emptyState) {
+        day.emptyState.classList.toggle('hidden', useDefault || filledRanges.length > 0 || hasPartial);
+    }
+
+    if (day.note) {
+        if (useDefault) {
+            day.note.textContent = 'Office default: ' + defaultSummary;
+        } else if (hasPartial) {
+            day.note.textContent = 'Custom hours: complete every start and end time before saving.';
+        } else if (filledRanges.length > 0) {
+            day.note.textContent = 'Custom hours: ' + summarizeRanges(filledRanges);
+        } else {
+            day.note.textContent = 'Custom hours: Closed';
+        }
+    }
+
+    if (useDefault) {
+        setDayStatus(dayKey, defaultAvailable ? 'defaultOpen' : 'defaultClosed', defaultAvailable ? 'Office Default' : 'Office Closed');
+    } else if (hasPartial) {
+        setDayStatus(dayKey, 'incomplete', 'Incomplete');
+    } else if (filledRanges.length > 0) {
+        setDayStatus(dayKey, 'customOpen', filledRanges.length > 1 ? (filledRanges.length + ' Ranges') : 'Available');
+    } else {
+        setDayStatus(dayKey, 'customClosed', 'Closed');
+    }
+
+    if (day.preset) {
+        day.preset.value = detectDayPreset(dayKey);
+    }
+}
+
+function getSuggestedRange(dayKey) {
+    var filledRanges = getFilledDayRanges(dayKey);
+    if (filledRanges.length > 0) {
+        var lastRange = filledRanges[filledRanges.length - 1];
+        return { start: lastRange.end || '', end: '' };
+    }
+
+    var defaultRanges = getDefaultDayRanges(dayKey);
+    if (defaultRanges.length > 0) {
+        return cloneAvailabilityRanges([defaultRanges[0]])[0];
+    }
+
+    return { start: '', end: '' };
+}
+
+function ensureCustomDay(dayKey) {
+    var day = getAvailabilityDay(dayKey);
+    if (!day) {
+        return;
+    }
+
+    if (day.useDefault) {
+        day.useDefault.value = '0';
+    }
+
+    setDayUseDefault(dayKey, false);
+}
+
+function applyDayPreset(dayKey, preset) {
+    if (preset === 'default') {
+        setDayUseDefault(dayKey, true);
+        updateDayPresentation(dayKey);
+        return;
+    }
+
+    ensureCustomDay(dayKey);
+
+    if (preset === 'custom') {
+        if (getDayRangeRows(dayKey).length === 0) {
+            setDayRanges(dayKey, [getSuggestedRange(dayKey)]);
+        }
+        updateDayPresentation(dayKey);
+        return;
+    }
+
+    setDayRanges(dayKey, availabilityPresets[preset] || []);
+    updateDayPresentation(dayKey);
+}
+
+if (availabilityForm) {
+    Array.prototype.slice.call(availabilityForm.querySelectorAll('.availability-day')).forEach(function(dayRow) {
+        updateDayPresentation(dayRow.getAttribute('data-day-key'));
+    });
+
+    availabilityForm.addEventListener('change', function(evt) {
+        if (evt.target.matches('[data-day-preset]')) {
+            applyDayPreset(evt.target.getAttribute('data-day-preset'), evt.target.value);
+            return;
+        }
+
+        if (evt.target.matches('[data-range-start], [data-range-end]')) {
+            var dayKey = evt.target.getAttribute('data-day-key');
+            ensureCustomDay(dayKey);
+            updateDayPresentation(dayKey);
+        }
+    });
+
+    availabilityForm.addEventListener('click', function(evt) {
+        var addButton = evt.target.closest('[data-add-range]');
+        if (addButton) {
+            var addDayKey = addButton.getAttribute('data-add-range');
+            var addDay = getAvailabilityDay(addDayKey);
+            if (!addDay || !addDay.rangeList) {
+                return;
+            }
+
+            ensureCustomDay(addDayKey);
+            addDay.rangeList.appendChild(createRangeRow(addDayKey, getSuggestedRange(addDayKey)));
+            reindexDayRanges(addDayKey);
+            updateDayPresentation(addDayKey);
+            return;
+        }
+
+        var removeButton = evt.target.closest('[data-remove-range]');
+        if (removeButton) {
+            var rangeRow = removeButton.closest('[data-range-row]');
+            var rangeInput = rangeRow ? rangeRow.querySelector('[data-range-start], [data-range-end]') : null;
+            var removeDayKey = rangeInput ? rangeInput.getAttribute('data-day-key') : '';
+            if (!rangeRow || !removeDayKey) {
+                return;
+            }
+
+            rangeRow.remove();
+            reindexDayRanges(removeDayKey);
+            updateDayPresentation(removeDayKey);
+            return;
+        }
+
+        var defaultButton = evt.target.closest('[data-day-default]');
+        if (defaultButton) {
+            applyDayPreset(defaultButton.getAttribute('data-day-default'), 'default');
+            return;
+        }
+
+        var bulkButton = evt.target.closest('[data-bulk-target]');
+        if (bulkButton) {
+            var preset = document.getElementById('availability-bulk-preset');
+            if (!preset) {
+                return;
+            }
+
+            Array.prototype.slice.call(availabilityForm.querySelectorAll('.availability-day')).forEach(function(dayRow) {
+                var dayKey = dayRow.getAttribute('data-day-key');
+                if (!dayKey) {
+                    return;
+                }
+
+                if (bulkButton.getAttribute('data-bulk-target') === 'weekdays' && ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'].indexOf(dayKey) === -1) {
+                    return;
+                }
+
+                applyDayPreset(dayKey, preset.value);
+            });
+        }
+    });
 }
 </script>
 {/block}

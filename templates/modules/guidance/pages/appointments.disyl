@@ -5,8 +5,7 @@
 
 {ikb_section padding="none"}
     
-    <div x-data="(window.appointmentsPage ? window.appointmentsPage() : { view: 'list', monthLabel: '', calendarCells: [], init: function(){}, prevMonth: function(){}, nextMonth: function(){}, goToday: function(){}, statusColor: function(){ return 'bg-gray-100 text-gray-700 border border-gray-200'; }, openAppt: function(){} })"
-         x-init="if (typeof init === 'function') init()">
+    <div x-data="appointmentsPage()" x-init="init()">
     
     {!-- Page Header --}
     <div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6 gap-4">
@@ -14,7 +13,7 @@
             <h1 class="text-2xl font-bold text-gray-900">Appointments</h1>
             <p class="text-sm text-gray-500 mt-1">Manage counseling sessions and schedules</p>
         </div>
-        <button hx-get="/admin/guidance/pages/appointments/new" hx-target="#modal-container" hx-swap="innerHTML"
+        <button hx-get="/pages/appointments/new" hx-target="#modal-container" hx-swap="innerHTML"
                 class="inline-flex items-center px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition shadow-sm">
             <i class="fas fa-calendar-plus mr-2"></i> New Appointment
         </button>
@@ -44,14 +43,14 @@
                 <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs"></i>
                 <input type="text" name="search" placeholder="Search student or case..."
                        class="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                       hx-get="/admin/guidance/api/appointments" hx-target="#appointments-list" hx-trigger="keyup changed delay:400ms"
+                       hx-get="/api/appointments" hx-target="#appointments-list" hx-trigger="keyup changed delay:400ms"
                        hx-include="[name='status'],[name='from'],[name='to'],[name='counselor_id']" />
             </div>
             
             {!-- Status Filter --}
             <select name="status"
                     class="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                    hx-get="/admin/guidance/api/appointments" hx-target="#appointments-list" hx-trigger="change"
+                    hx-get="/api/appointments" hx-target="#appointments-list" hx-trigger="change"
                     hx-include="[name='search'],[name='from'],[name='to'],[name='counselor_id']">
                 <option value="">All Status</option>
                 <option value="pending">Pending</option>
@@ -67,12 +66,12 @@
             <div class="flex items-center gap-2">
                 <input type="date" name="from" placeholder="From"
                        class="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                       hx-get="/admin/guidance/api/appointments" hx-target="#appointments-list" hx-trigger="change"
+                       hx-get="/api/appointments" hx-target="#appointments-list" hx-trigger="change"
                        hx-include="[name='search'],[name='status'],[name='to'],[name='counselor_id']" />
                 <span class="text-gray-400 text-xs">to</span>
                 <input type="date" name="to" placeholder="To"
                        class="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                       hx-get="/admin/guidance/api/appointments" hx-target="#appointments-list" hx-trigger="change"
+                       hx-get="/api/appointments" hx-target="#appointments-list" hx-trigger="change"
                        hx-include="[name='search'],[name='status'],[name='from'],[name='counselor_id']" />
             </div>
             
@@ -80,7 +79,7 @@
             {if user_role != 'counselor'}
             <select name="counselor_id"
                     class="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                    hx-get="/admin/guidance/api/appointments" hx-target="#appointments-list" hx-trigger="change"
+                    hx-get="/api/appointments" hx-target="#appointments-list" hx-trigger="change"
                     hx-include="[name='search'],[name='status'],[name='from'],[name='to']">
                 <option value="">All Counselors</option>
                 {foreach counselors as c}
@@ -90,7 +89,7 @@
             {/if}
             
             {!-- Clear Filters --}
-            <button type="button" onclick="document.querySelectorAll('[name=search],[name=status],[name=from],[name=to],[name=counselor_id]').forEach(e=>{e.value=''}); htmx.ajax('GET','/admin/guidance/api/appointments',{target:'#appointments-list'})"
+            <button type="button" onclick="document.querySelectorAll('[name=search],[name=status],[name=from],[name=to],[name=counselor_id]').forEach(e=>{e.value=''}); htmx.ajax('GET','/api/appointments',{target:'#appointments-list'})"
                     class="text-xs text-gray-500 hover:text-red-600 flex-shrink-0 px-2 py-2" title="Clear filters">
                 <i class="fas fa-times-circle mr-1"></i>Clear
             </button>
@@ -100,7 +99,7 @@
     {!-- List View --}
     <div x-show="view === 'list'" x-cloak>
         <div id="appointments-list" 
-             hx-get="/admin/guidance/api/appointments" 
+             hx-get="/api/appointments" 
              hx-trigger="load, refreshAppointments from:body"
              hx-swap="innerHTML">
             <div class="flex items-center justify-center py-16 text-gray-400">
@@ -145,7 +144,7 @@
                             <template x-for="appt in cell.appointments" :key="appt.id">
                                 <div class="text-xs px-1.5 py-0.5 rounded cursor-pointer truncate"
                                      :class="statusColor(appt.status_key || appt.status)"
-                                     :title="(appt.student_name || 'N/A') + ' - ' + appt.scheduled_time"
+                                     :title="appt.student_name + ' - ' + appt.scheduled_time"
                                      @click="openAppt(appt.id)"
                                      x-text="appt.scheduled_time.substring(0,5) + ' ' + (appt.student_name || 'N/A')">
                                 </div>
@@ -166,129 +165,9 @@
             </div>
         </div>
     </div>
-
+    
     </div>
-
+    
 {/ikb_section}
-
-<script>
-    window.appointmentsPage = function() {
-        return {
-            view: 'list',
-            monthDate: new Date(),
-            monthLabel: '',
-            calendarCells: [],
-            calendarAppts: {},
-            init: function() {
-                this.updateMonthLabel();
-                this.buildCalendar();
-                this.fetchCalendar();
-
-                var self = this;
-                document.body.addEventListener('refreshAppointmentsCalendar', function() {
-                    self.fetchCalendar();
-                });
-            },
-            updateMonthLabel: function() {
-                var y = this.monthDate.getFullYear();
-                var m = this.monthDate.getMonth();
-                var d = new Date(y, m, 1);
-                this.monthLabel = d.toLocaleString(undefined, { month: 'long', year: 'numeric' });
-            },
-            monthKey: function() {
-                var y = this.monthDate.getFullYear();
-                var m = this.monthDate.getMonth() + 1;
-                return y + '-' + String(m).padStart(2, '0');
-            },
-            prevMonth: function() {
-                this.monthDate = new Date(this.monthDate.getFullYear(), this.monthDate.getMonth() - 1, 1);
-                this.updateMonthLabel();
-                this.buildCalendar();
-                this.fetchCalendar();
-            },
-            nextMonth: function() {
-                this.monthDate = new Date(this.monthDate.getFullYear(), this.monthDate.getMonth() + 1, 1);
-                this.updateMonthLabel();
-                this.buildCalendar();
-                this.fetchCalendar();
-            },
-            goToday: function() {
-                var t = new Date();
-                this.monthDate = new Date(t.getFullYear(), t.getMonth(), 1);
-                this.updateMonthLabel();
-                this.buildCalendar();
-                this.fetchCalendar();
-            },
-            buildCalendar: function() {
-                var y = this.monthDate.getFullYear();
-                var m = this.monthDate.getMonth();
-                var first = new Date(y, m, 1);
-                var startDow = first.getDay();
-                var start = new Date(y, m, 1 - startDow);
-
-                var today = new Date();
-                var todayKey = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0') + '-' + String(today.getDate()).padStart(2, '0');
-
-                var cells = [];
-                for (var i = 0; i < 42; i++) {
-                    var cur = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i);
-                    var key = cur.getFullYear() + '-' + String(cur.getMonth() + 1).padStart(2, '0') + '-' + String(cur.getDate()).padStart(2, '0');
-                    var currentMonth = (cur.getMonth() === m);
-                    cells.push({
-                        key: key,
-                        day: cur.getDate(),
-                        currentMonth: currentMonth,
-                        isToday: key === todayKey,
-                        appointments: (this.calendarAppts[key] || [])
-                    });
-                }
-                this.calendarCells = cells;
-            },
-            fetchCalendar: function() {
-                var self = this;
-                var qs = new URLSearchParams();
-                qs.set('month', this.monthKey());
-                var counselorSel = document.querySelector("[name='counselor_id']");
-                if (counselorSel && counselorSel.value) {
-                    qs.set('counselor_id', counselorSel.value);
-                }
-                fetch('/admin/guidance/api/appointments/calendar?' + qs.toString(), { headers: { 'Accept': 'application/json' } })
-                    .then(function(r) { return r.json(); })
-                    .then(function(res) {
-                        if (!res || !res.ok || !Array.isArray(res.appointments)) return;
-                        var map = {};
-                        res.appointments.forEach(function(a) {
-                            if (!a || !a.scheduled_date) return;
-                            var k = a.scheduled_date;
-                            if (!map[k]) map[k] = [];
-                            map[k].push(a);
-                        });
-                        self.calendarAppts = map;
-                        self.buildCalendar();
-                    })
-                    .catch(function() {});
-            },
-            statusColor: function(status) {
-                var s = (status || '').toString();
-                if (s === 'pending') return 'bg-amber-100 text-amber-800 border border-amber-200';
-                if (s === 'scheduled') return 'bg-blue-100 text-blue-800 border border-blue-200';
-                if (s === 'confirmed') return 'bg-indigo-100 text-indigo-800 border border-indigo-200';
-                if (s === 'completed') return 'bg-green-100 text-green-800 border border-green-200';
-                if (s === 'cancelled') return 'bg-red-100 text-red-800 border border-red-200';
-                if (s === 'no_show') return 'bg-yellow-100 text-yellow-800 border border-yellow-200';
-                if (s === 'rejected') return 'bg-gray-200 text-gray-700 border border-gray-300';
-                return 'bg-gray-100 text-gray-700 border border-gray-200';
-            },
-            openAppt: function(id) {
-                if (!id) return;
-                if (window.htmx) {
-                    htmx.ajax('GET', '/admin/guidance/pages/appointments/' + id, { target: '#modal-container', swap: 'innerHTML' });
-                } else {
-                    window.location.href = '/admin/guidance/pages/appointments/' + id;
-                }
-            }
-        }
-    }
-</script>
 
 {/block}

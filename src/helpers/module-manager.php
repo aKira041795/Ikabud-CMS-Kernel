@@ -658,6 +658,45 @@ function readModuleCatalogRegistry(): array
     }
 }
 
+function moduleCatalogEntryRefresh(string $moduleId): ?array
+{
+    if ($moduleId === '' || !moduleControlPlaneEnsureCatalogTables()) {
+        return null;
+    }
+
+    $previousUnguarded = (bool)kernel_request_context_get('_kernel_db_unguarded', false);
+    kernel_request_context_set('_kernel_db_unguarded', true);
+    try {
+        $stmt = app()->controlDb()->prepare(
+            'SELECT module_id, module_name, approved_version, checksum_sha256, install_path, source, '
+            . 'approval_status, commercial_mode, origin_tenant_id, approved_by_user_id, approved_at, '
+            . 'created_at, updated_at '
+            . 'FROM ' . moduleCatalogTable() . ' '
+            . 'WHERE module_id = :module_id '
+            . 'LIMIT 1'
+        );
+        $stmt->execute([':module_id' => $moduleId]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!is_array($row)) {
+            return null;
+        }
+
+        $row['module_id'] = $moduleId;
+        $cacheKey = '_kernel_module_catalog_cache';
+        $catalog = isset($GLOBALS[$cacheKey]) && is_array($GLOBALS[$cacheKey])
+            ? $GLOBALS[$cacheKey]
+            : [];
+        $catalog[$moduleId] = $row;
+        $GLOBALS[$cacheKey] = $catalog;
+
+        return $row;
+    } catch (Throwable $e) {
+        return null;
+    } finally {
+        kernel_request_context_set('_kernel_db_unguarded', $previousUnguarded);
+    }
+}
+
 function moduleCatalogEntry(string $moduleId): ?array
 {
     $moduleId = trim($moduleId);
@@ -666,7 +705,11 @@ function moduleCatalogEntry(string $moduleId): ?array
     }
 
     $catalog = readModuleCatalogRegistry();
-    return $catalog[$moduleId] ?? null;
+    if (isset($catalog[$moduleId]) && is_array($catalog[$moduleId])) {
+        return $catalog[$moduleId];
+    }
+
+    return moduleCatalogEntryRefresh($moduleId);
 }
 
 function moduleCatalogIsApproved(string $moduleId): bool
@@ -693,6 +736,19 @@ function moduleCatalogModeAllowsSelfService(string $commercialMode): bool
 {
     $commercialMode = strtolower(trim($commercialMode));
     return in_array($commercialMode, ['free', 'freemium'], true);
+}
+
+function moduleCatalogDefaultEntitlementTier(string $moduleId, ?string $commercialMode = null): string
+{
+    $tier = strtolower(trim((string)($commercialMode ?? moduleCatalogCommercialMode($moduleId))));
+    if ($tier === 'freemium') {
+        return 'free';
+    }
+    if ($tier === '') {
+        return 'free';
+    }
+
+    return $tier;
 }
 
 function upsertModuleCatalogEntry(string $moduleId, array $data): bool
@@ -852,9 +908,13 @@ function readTenantModuleEntitlementsForTenant(int $tenantId): array
         return [];
     }
 
+    $previousUnguarded = (bool)kernel_request_context_get('_kernel_db_unguarded', false);
+    kernel_request_context_set('_kernel_db_unguarded', true);
+
     $cacheKey = '_kernel_module_entitlement_cache';
     $cache = $GLOBALS[$cacheKey] ?? [];
     if (is_array($cache) && isset($cache[$tenantId]) && is_array($cache[$tenantId])) {
+        kernel_request_context_set('_kernel_db_unguarded', $previousUnguarded);
         return $cache[$tenantId];
     }
 
@@ -863,6 +923,7 @@ function readTenantModuleEntitlementsForTenant(int $tenantId): array
             $GLOBALS[$cacheKey] = [];
         }
         $GLOBALS[$cacheKey][$tenantId] = [];
+        kernel_request_context_set('_kernel_db_unguarded', $previousUnguarded);
         return [];
     }
 
@@ -898,6 +959,8 @@ function readTenantModuleEntitlementsForTenant(int $tenantId): array
         $cache[$tenantId] = [];
         $GLOBALS[$cacheKey] = $cache;
         return [];
+    } finally {
+        kernel_request_context_set('_kernel_db_unguarded', $previousUnguarded);
     }
 }
 
@@ -920,10 +983,7 @@ function grantModuleEntitlementForTenant(string $moduleId, int $tenantId, array 
     }
 
     $existing = moduleTenantEntitlementRow($moduleId, $tenantId) ?? [];
-    $catalogTier = moduleCatalogCommercialMode($moduleId);
-    if ($catalogTier === '') {
-        $catalogTier = 'free';
-    }
+    $catalogTier = moduleCatalogDefaultEntitlementTier($moduleId);
     $status = strtolower(trim((string)($options['status'] ?? $existing['status'] ?? 'active')));
     $tier = trim((string)($options['tier'] ?? $existing['tier'] ?? $catalogTier));
     $source = trim((string)($options['source'] ?? $existing['source'] ?? 'superadmin'));
@@ -976,10 +1036,7 @@ function grantModuleEntitlementForTenant(string $moduleId, int $tenantId, array 
 
 function revokeModuleEntitlementForTenant(string $moduleId, int $tenantId, array $options = []): bool
 {
-    $catalogTier = moduleCatalogCommercialMode($moduleId);
-    if ($catalogTier === '') {
-        $catalogTier = 'free';
-    }
+    $catalogTier = moduleCatalogDefaultEntitlementTier($moduleId);
 
     return grantModuleEntitlementForTenant($moduleId, $tenantId, [
         'status' => 'revoked',
@@ -1010,7 +1067,7 @@ function ensureSelfServiceModuleEntitlementForTenant(string $moduleId, int $tena
 
     return grantModuleEntitlementForTenant($moduleId, $tenantId, [
         'status' => 'active',
-        'tier' => (string)($status['commercial_mode'] ?? 'free'),
+        'tier' => moduleCatalogDefaultEntitlementTier($moduleId, (string)($status['commercial_mode'] ?? 'free')),
         'source' => (string)($options['source'] ?? 'self_service'),
         'granted_by_user_id' => isset($options['granted_by_user_id']) ? (int)$options['granted_by_user_id'] : null,
         'metadata' => $options['metadata'] ?? [],
@@ -1220,8 +1277,12 @@ function readModuleAccessRequests(): array
         return $GLOBALS[$cacheKey];
     }
 
+    $previousUnguarded = (bool)kernel_request_context_get('_kernel_db_unguarded', false);
+    kernel_request_context_set('_kernel_db_unguarded', true);
+
     if (!moduleControlPlaneEnsureCatalogTables()) {
         $GLOBALS[$cacheKey] = [];
+        kernel_request_context_set('_kernel_db_unguarded', $previousUnguarded);
         return [];
     }
 
@@ -1260,6 +1321,8 @@ function readModuleAccessRequests(): array
     } catch (Throwable $e) {
         $GLOBALS[$cacheKey] = [];
         return [];
+    } finally {
+        kernel_request_context_set('_kernel_db_unguarded', $previousUnguarded);
     }
 }
 
@@ -1356,6 +1419,9 @@ function submitModuleAccessRequestForTenant(string $moduleId, int $tenantId, arr
 
     $metadataJson = json_encode(is_array($metadata) ? $metadata : [], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
 
+    $previousUnguarded = (bool)kernel_request_context_get('_kernel_db_unguarded', false);
+    kernel_request_context_set('_kernel_db_unguarded', true);
+
     try {
         $stmt = app()->controlDb()->prepare(
             'INSERT INTO ' . moduleAccessRequestsTable() . ' '
@@ -1399,6 +1465,8 @@ function submitModuleAccessRequestForTenant(string $moduleId, int $tenantId, arr
         ];
     } catch (Throwable $e) {
         return ['ok' => false, 'error' => $e->getMessage()];
+    } finally {
+        kernel_request_context_set('_kernel_db_unguarded', $previousUnguarded);
     }
 }
 
@@ -1545,6 +1613,8 @@ function reviewModuleAccessRequest(int $requestId, string $status, array $option
     ];
     $metadataJson = json_encode($metadata, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
 
+    $previousUnguarded = (bool)kernel_request_context_get('_kernel_db_unguarded', false);
+    kernel_request_context_set('_kernel_db_unguarded', true);
     try {
         $stmt = app()->controlDb()->prepare(
             'UPDATE ' . moduleAccessRequestsTable() . ' '
@@ -1569,6 +1639,8 @@ function reviewModuleAccessRequest(int $requestId, string $status, array $option
         ];
     } catch (Throwable $e) {
         return ['ok' => false, 'error' => $e->getMessage()];
+    } finally {
+        kernel_request_context_set('_kernel_db_unguarded', $previousUnguarded);
     }
 }
 
@@ -3843,7 +3915,7 @@ function executeModuleHandler(string $handler, array $params = []): void
         $settings = getModuleSettings($moduleId);
         $allowKernelAdmin = (bool)($settings['allow_kernel_admin'] ?? false);
         if (!$allowKernelAdmin) {
-            $isApiRoute = str_starts_with($requestUri, '/api/') || (bool)preg_match('#^/[a-zA-Z0-9\-]+/api/#', $requestUri);
+            $isApiRoute = str_starts_with($requestUri, '/api/') || (bool)preg_match('#^/(?:admin/)?[a-zA-Z0-9\-]+/api/#', $requestUri);
 
             if (!headers_sent()) {
                 http_response_code(403);
@@ -3883,8 +3955,8 @@ function executeModuleHandler(string $handler, array $params = []): void
     // ── Kernel-enforced CSRF on state-mutating module routes ──────────
     // API routes (Bearer-authenticated) are exempt; browser form posts must pass.
     $requestMethod = $_SERVER['REQUEST_METHOD'] ?? 'GET';
-    $isModuleLogin = (bool)preg_match('#^/[a-zA-Z0-9\-]+/auth/login$#', $requestUri);
-    $isApiRoute = str_starts_with($requestUri, '/api/') || (bool)preg_match('#^/[a-zA-Z0-9\-]+/api/#', $requestUri);
+    $isModuleLogin = (bool)preg_match('#^/(?:admin/)?[a-zA-Z0-9\-]+/auth/login$#', $requestUri);
+    $isApiRoute = str_starts_with($requestUri, '/api/') || (bool)preg_match('#^/(?:admin/)?[a-zA-Z0-9\-]+/api/#', $requestUri);
     $isCacheSafePublicCartAdd = $requestUri === '/ecommerce/cart/add';
 
     if ($requestMethod === 'POST' && $isModuleLogin) {

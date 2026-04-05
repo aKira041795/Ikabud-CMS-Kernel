@@ -20,38 +20,37 @@
     <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
     
     {!-- Application Stylesheet --}
-    <link rel="stylesheet" href="/assets/modules/guidance/css/app.css">
+    <link rel="stylesheet" href="/assets/guidance/css/app.css">
     
     {!-- Global config for JS --}
     <script>
         var APP_BASE = '{base_url}';
         var APP_COOKIE = '{cookie_name}';
         var APP_CSRF = '{csrf_token}';
-        function closeModal() {
-            var container = document.getElementById('modal-container');
-            if (container) {
-                container.innerHTML = '';
+        function guidanceAppPath(path) {
+            if (typeof path !== 'string' || path === '') {
+                return path;
             }
+            if (path.indexOf('http://') === 0 || path.indexOf('https://') === 0 || path.indexOf('//') === 0) {
+                return path;
+            }
+            if (path.charAt(0) !== '/') {
+                return path;
+            }
+            if (APP_BASE && path.indexOf(APP_BASE) === 0) {
+                return path;
+            }
+            return (APP_BASE || '') + path;
         }
-        function showToast(message, type) {
-            var cont = document.getElementById('toast-container');
-            if (!cont) return;
-            var el = document.createElement('div');
-            var cls = (type === 'error') ? 'bg-red-600 text-white' : 'bg-green-600 text-white';
-            el.className = 'mb-2 px-4 py-3 rounded-lg shadow text-sm ' + cls;
-            el.textContent = String(message || 'OK');
-            cont.appendChild(el);
-            setTimeout(function() {
-                if (el && el.parentNode) {
-                    el.parentNode.removeChild(el);
+        if (window.fetch) {
+            var guidanceNativeFetch = window.fetch.bind(window);
+            window.fetch = function(input, init) {
+                if (typeof input === 'string') {
+                    return guidanceNativeFetch(guidanceAppPath(input), init);
                 }
-            }, 3500);
+                return guidanceNativeFetch(input, init);
+            };
         }
-        window.addEventListener('showToast', function(evt) {
-            var d = evt && evt.detail ? evt.detail : null;
-            if (!d) return;
-            showToast(d.message || 'OK', d.type || 'success');
-        });
         // Execute <script> tags in HTMX-swapped content so Alpine components work
         document.addEventListener('htmx:afterSettle', function(evt) {
             var scripts = evt.detail.elt.querySelectorAll('script:not([src])');
@@ -64,55 +63,14 @@
         // Prefix all HTMX requests with the app base path and inject CSRF token
         document.addEventListener('htmx:configRequest', function(evt) {
             var path = evt.detail.path;
-            if (path && path.charAt(0) === '/' && path.indexOf(APP_BASE) !== 0) {
-                evt.detail.path = APP_BASE + path;
+            if (path && path.charAt(0) === '/') {
+                evt.detail.path = guidanceAppPath(path);
             }
             // Add CSRF token header for state-changing requests
             var verb = (evt.detail.verb || '').toUpperCase();
             if (verb === 'POST' || verb === 'PUT' || verb === 'PATCH' || verb === 'DELETE') {
                 evt.detail.headers['X-CSRF-Token'] = APP_CSRF;
             }
-        });
-        document.addEventListener('htmx:afterRequest', function(evt) {
-            var req = evt.detail && evt.detail.requestConfig ? evt.detail.requestConfig : null;
-            var method = req && req.verb ? String(req.verb).toUpperCase() : '';
-            if (method !== 'POST' && method !== 'PUT' && method !== 'PATCH' && method !== 'DELETE') {
-                return;
-            }
-
-            var source = evt.detail ? evt.detail.elt : null;
-            var modalRoot = document.getElementById('modal-container');
-            if (!modalRoot || !source || !modalRoot.contains(source)) {
-                return;
-            }
-
-            var xhr = evt.detail ? evt.detail.xhr : null;
-            if (xhr && xhr.status >= 200 && xhr.status < 300) {
-                closeModal();
-            }
-        });
-        function maybeShowToastFromHeader(xhr) {
-            if (!xhr || typeof xhr.getResponseHeader !== 'function') return;
-            var trig = xhr.getResponseHeader('HX-Trigger');
-            if (!trig) return;
-            try {
-                var data = JSON.parse(trig);
-                if (data && data.showToast) {
-                    showToast(data.showToast.message || 'OK', data.showToast.type || 'error');
-                }
-            } catch (e) {}
-        }
-        document.addEventListener('htmx:responseError', function(evt) {
-            var xhr = evt.detail ? evt.detail.xhr : null;
-            maybeShowToastFromHeader(xhr);
-            if (xhr && xhr.status) {
-                showToast('Request failed (' + xhr.status + ')', 'error');
-                return;
-            }
-            showToast('Request failed', 'error');
-        });
-        document.addEventListener('htmx:sendError', function() {
-            showToast('Network error', 'error');
         });
     </script>
     
@@ -138,7 +96,7 @@
             <nav class="mt-4 px-2">
                 <a href="{base_url}/" 
                    class="flex items-center px-4 py-3 rounded-lg mb-1 hover:bg-indigo-700 {if current_page == 'dashboard'}bg-indigo-700{/if}"
-                   hx-get="/admin/guidance/pages/dashboard" 
+                   hx-get="/pages/dashboard" 
                    hx-target="#main-content" 
                    hx-push-url="{base_url}/">
                     <i class="fas fa-chart-line w-6"></i>
@@ -147,7 +105,7 @@
                 
                 <a href="{base_url}/cases" 
                    class="flex items-center px-4 py-3 rounded-lg mb-1 hover:bg-indigo-700 {if current_page == 'cases'}bg-indigo-700{/if}"
-                   hx-get="/admin/guidance/pages/cases" 
+                   hx-get="/pages/cases" 
                    hx-target="#main-content" 
                    hx-push-url="{base_url}/cases">
                     <i class="fas fa-folder-open w-6"></i>
@@ -156,7 +114,7 @@
                 
                 <a href="{base_url}/appointments" 
                    class="flex items-center px-4 py-3 rounded-lg mb-1 hover:bg-indigo-700 {if current_page == 'appointments'}bg-indigo-700{/if}"
-                   hx-get="/admin/guidance/pages/appointments" 
+                   hx-get="/pages/appointments" 
                    hx-target="#main-content" 
                    hx-push-url="{base_url}/appointments">
                     <i class="fas fa-calendar-alt w-6"></i>
@@ -165,7 +123,7 @@
                 
                 <a href="{base_url}/reports" 
                    class="flex items-center px-4 py-3 rounded-lg mb-1 hover:bg-indigo-700 {if current_page == 'reports'}bg-indigo-700{/if}"
-                   hx-get="/admin/guidance/pages/reports" 
+                   hx-get="/pages/reports" 
                    hx-target="#main-content" 
                    hx-push-url="{base_url}/reports">
                     <i class="fas fa-chart-bar w-6"></i>
@@ -174,93 +132,536 @@
                 
                 <a href="{base_url}/trackers" 
                    class="flex items-center px-4 py-3 rounded-lg mb-1 hover:bg-indigo-700 {if current_page == 'trackers'}bg-indigo-700{/if}"
-                   hx-get="/admin/guidance/pages/trackers" 
+                   hx-get="/pages/trackers" 
                    hx-target="#main-content" 
                    hx-push-url="{base_url}/trackers">
                     <i class="fas fa-clipboard-list w-6"></i>
                     <span class="ml-3" x-show="sidebarOpen" x-cloak>Student Tracker</span>
                 </a>
-
-                <a href="{base_url}/users" 
-                   class="flex items-center px-4 py-3 rounded-lg mb-1 hover:bg-indigo-700 {if current_page == 'users'}bg-indigo-700{/if}"
-                   hx-get="/admin/guidance/pages/users" 
-                   hx-target="#main-content" 
-                   hx-push-url="{base_url}/users">
-                    <i class="fas fa-users w-6"></i>
-                    <span class="ml-3" x-show="sidebarOpen" x-cloak>Users</span>
-                </a>
-
-                <a href="{base_url}/colleges" 
-                   class="flex items-center px-4 py-3 rounded-lg mb-1 hover:bg-indigo-700 {if current_page == 'colleges'}bg-indigo-700{/if}"
-                   hx-get="/admin/guidance/pages/colleges" 
-                   hx-target="#main-content" 
-                   hx-push-url="{base_url}/colleges">
-                    <i class="fas fa-building-columns w-6"></i>
-                    <span class="ml-3" x-show="sidebarOpen" x-cloak>Colleges</span>
-                </a>
-
-                {if user_role == 'admin'}
-                <a href="{base_url}/settings" 
-                   class="flex items-center px-4 py-3 rounded-lg mb-1 hover:bg-indigo-700 {if current_page == 'settings'}bg-indigo-700{/if}"
-                   hx-get="/admin/guidance/pages/settings" 
-                   hx-target="#main-content" 
-                   hx-push-url="{base_url}/settings">
-                    <i class="fas fa-gear w-6"></i>
-                    <span class="ml-3" x-show="sidebarOpen" x-cloak>Settings</span>
-                </a>
+                
+                {if module_nav_items}
+                <div class="mt-6 pt-4 border-t border-indigo-700">
+                    <span class="px-4 text-xs uppercase text-indigo-400" x-show="sidebarOpen" x-cloak>Modules</span>
+                    {foreach module_nav_items as nav}
+                    <a href="{base_url}/{nav.module_id}" 
+                       class="flex items-center px-4 py-3 rounded-lg mb-1 hover:bg-indigo-700 mt-1 {if current_page == nav.module_id}bg-indigo-700{/if}"
+                       hx-get="/pages/{nav.module_id}" 
+                       hx-target="#main-content" 
+                       hx-push-url="{base_url}/{nav.module_id}">
+                        <i class="{nav.icon} w-6"></i>
+                        <span class="ml-3" x-show="sidebarOpen" x-cloak>{nav.label}</span>
+                    </a>
+                    {/foreach}
+                </div>
                 {/if}
+                
+                <div class="mt-6 pt-4 border-t border-indigo-700">
+                    <span class="px-4 text-xs uppercase text-indigo-400" x-show="sidebarOpen" x-cloak>{if user.role == 'admin'}Admin{else}Account{/if}</span>
+                    
+                          <a href="{if user.role == 'admin'}{base_url}/users{else}{base_url}/profile{/if}" 
+                              class="flex items-center px-4 py-3 rounded-lg mb-1 hover:bg-indigo-700 mt-2 {if current_page == 'users' || current_page == 'profile'}bg-indigo-700{/if}"
+                              hx-get="{if user.role == 'admin'}/pages/users{else}/pages/profile{/if}" 
+                              hx-target="#main-content" 
+                              hx-push-url="{if user.role == 'admin'}{base_url}/users{else}{base_url}/profile{/if}">
+                        <i class="fas {if user.role == 'admin'}fa-users{else}fa-user-cog{/if} w-6"></i>
+                        <span class="ml-3" x-show="sidebarOpen" x-cloak>{if user.role == 'admin'}Users{else}My Account{/if}</span>
+                    </a>
+                    
+                {if user.role == 'admin'}
+                    <a href="{base_url}/colleges" 
+                       class="flex items-center px-4 py-3 rounded-lg mb-1 hover:bg-indigo-700 {if current_page == 'colleges'}bg-indigo-700{/if}"
+                       hx-get="/pages/colleges" 
+                       hx-target="#main-content" 
+                       hx-push-url="{base_url}/colleges">
+                        <i class="fas fa-university w-6"></i>
+                        <span class="ml-3" x-show="sidebarOpen" x-cloak>Colleges</span>
+                    </a>
+                    
+                    <a href="{base_url}/settings" 
+                       class="flex items-center px-4 py-3 rounded-lg mb-1 hover:bg-indigo-700 {if current_page == 'settings'}bg-indigo-700{/if}"
+                       hx-get="/pages/settings" 
+                       hx-target="#main-content" 
+                       hx-push-url="{base_url}/settings">
+                        <i class="fas fa-cog w-6"></i>
+                        <span class="ml-3" x-show="sidebarOpen" x-cloak>Settings</span>
+                    </a>
+
+                    <a href="{base_url}/form-settings" 
+                       class="flex items-center px-4 py-3 rounded-lg mb-1 hover:bg-indigo-700 {if current_page == 'form-settings'}bg-indigo-700{/if}"
+                       hx-get="/pages/form-settings" 
+                       hx-target="#main-content" 
+                       hx-push-url="{base_url}/form-settings">
+                        <i class="fas fa-sliders-h w-6"></i>
+                        <span class="ml-3" x-show="sidebarOpen" x-cloak>Form Settings</span>
+                    </a>
+
+                    <a href="{base_url}/email-templates" 
+                       class="flex items-center px-4 py-3 rounded-lg mb-1 hover:bg-indigo-700 {if current_page == 'email-templates'}bg-indigo-700{/if}"
+                       hx-get="/pages/email-templates" 
+                       hx-target="#main-content" 
+                       hx-push-url="{base_url}/email-templates">
+                        <i class="fas fa-envelope w-6"></i>
+                        <span class="ml-3" x-show="sidebarOpen" x-cloak>Email Templates</span>
+                    </a>
+                {/if}
+                </div>
             </nav>
         </aside>
-
-        {!-- Main content --}
+        
+        {!-- Main Content Area --}
         <div class="flex-1 flex flex-col overflow-hidden">
-            {!-- Header --}
-            <header class="bg-white shadow-sm border-b border-gray-100 h-16 flex items-center justify-between px-6">
-                <div class="flex items-center gap-3">
-                    <button class="text-gray-500 hover:text-gray-700" @click="sidebarOpen = !sidebarOpen">
-                        <i class="fas fa-bars"></i>
+            
+            {!-- Top Header --}
+            <header class="bg-white shadow-sm h-16 flex items-center justify-between px-6">
+                <div class="flex items-center">
+                    <button @click="sidebarOpen = !sidebarOpen" class="text-gray-500 hover:text-gray-700 mr-4">
+                        <i class="fas fa-bars text-xl"></i>
                     </button>
-                    <h1 class="text-lg font-semibold text-gray-900">{page_title | default:'Guidance Monitoring System'}</h1>
+                    <h1 class="text-xl font-semibold text-gray-800" id="page-title">{page_title | default:'Dashboard'}</h1>
                 </div>
-
-                <div class="flex items-center gap-4">
-                    <div class="relative" x-data="{open:false}">
-                        <button class="flex items-center gap-2 text-gray-700 hover:text-gray-900" @click="open=!open">
-                            <div class="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-semibold">
-                                {user_initials | default:'U'}
-                            </div>
-                            <div class="hidden md:block text-left">
-                                <div class="text-sm font-medium">{user_name | default:'User'}</div>
-                                <div class="text-xs text-gray-500">{user_role | default:''}</div>
-                            </div>
-                            <i class="fas fa-chevron-down text-xs text-gray-400"></i>
+                
+                <div class="flex items-center space-x-4">
+                    {!-- HTMX Loading Indicator --}
+                    <div class="htmx-indicator">
+                        <div class="animate-spin rounded-full h-5 w-5 border-2 border-gray-300 border-t-indigo-600"></div>
+                    </div>
+                    
+                    {!-- Notifications --}
+                    <div class="relative" x-data="{ notifOpen: false, notifications: [], unread: {notifications_count} }" x-cloak>
+                        <button @click="notifOpen = !notifOpen; if(notifOpen) fetchNotifications($data)" class="relative text-gray-500 hover:text-gray-700">
+                            <i class="fas fa-bell text-xl"></i>
+                            <span x-show="unread > 0" class="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center" x-text="unread"></span>
                         </button>
-                        <div x-show="open" x-cloak @click.away="open=false" class="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-100 overflow-hidden">
-                            <a href="{base_url}/profile" hx-get="/admin/guidance/pages/profile" hx-target="#main-content" hx-push-url="{base_url}/profile" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
-                                <i class="fas fa-user mr-2 text-gray-400"></i> Profile
+                        
+                        <div x-show="notifOpen" @click.away="notifOpen = false"
+                             class="absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-xl border border-gray-200 z-50 overflow-hidden">
+                            <div class="flex items-center justify-between px-4 py-3 bg-gray-50 border-b">
+                                <span class="font-semibold text-sm text-gray-700">Notifications</span>
+                                <button x-show="unread > 0" @click="markAllRead($data)" class="text-xs text-indigo-600 hover:underline">Mark all read</button>
+                            </div>
+                            <div class="max-h-80 overflow-y-auto divide-y divide-gray-100">
+                                <template x-if="notifications.length === 0">
+                                    <div class="px-4 py-8 text-center text-gray-400 text-sm">
+                                        <i class="fas fa-bell-slash text-2xl mb-2"></i>
+                                        <p>No notifications</p>
+                                    </div>
+                                </template>
+                                <template x-for="n in notifications" :key="n.id">
+                                    <a :href="n.link ? (APP_BASE + n.link) : '#'" 
+                                       @click="markRead($data, n)"
+                                       class="block px-4 py-3 hover:bg-gray-50 transition"
+                                       :class="n.is_read == 0 ? 'bg-indigo-50/50' : ''">
+                                        <div class="flex items-start space-x-3">
+                                            <div class="flex-shrink-0 mt-0.5">
+                                                <i class="fas text-sm" :class="{
+                                                    'fa-calendar-check text-green-500': n.type === 'appointment_approved',
+                                                    'fa-calendar-plus text-indigo-500': n.type === 'appointment_request',
+                                                    'fa-calendar-times text-red-500': n.type === 'appointment_rejected',
+                                                    'fa-folder-plus text-blue-500': n.type === 'case_assigned',
+                                                    'fa-info-circle text-gray-400': !['appointment_approved','appointment_request','appointment_rejected','case_assigned'].includes(n.type)
+                                                }"></i>
+                                            </div>
+                                            <div class="flex-1 min-w-0">
+                                                <p class="text-sm font-medium text-gray-900 truncate" x-text="n.title"></p>
+                                                <p class="text-xs text-gray-500 truncate" x-text="n.message"></p>
+                                                <p class="text-xs text-gray-400 mt-1" x-text="timeAgo(n.created_at)"></p>
+                                            </div>
+                                            <div x-show="n.is_read == 0" class="flex-shrink-0">
+                                                <span class="inline-block w-2 h-2 bg-indigo-500 rounded-full"></span>
+                                            </div>
+                                        </div>
+                                    </a>
+                                </template>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    {!-- User Menu --}
+                    <div class="relative" x-data="{ open: false }">
+                        <button @click="open = !open" class="flex items-center space-x-2 text-gray-700 hover:text-gray-900">
+                            <div class="w-8 h-8 bg-indigo-600 rounded-full flex items-center justify-center text-white font-medium">
+                                {user.first_name | first | upper}
+                            </div>
+                            <span class="hidden md:block">{user.first_name}</span>
+                            <i class="fas fa-chevron-down text-xs"></i>
+                        </button>
+                        
+                        <div x-show="open" @click.away="open = false" x-cloak
+                             class="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg py-2 z-50">
+                            <a href="{base_url}/profile" 
+                               hx-get="/pages/profile" 
+                               hx-target="#main-content" 
+                               hx-push-url="{base_url}/profile"
+                               @click="open = false"
+                               class="block px-4 py-2 text-gray-700 hover:bg-gray-100">
+                                <i class="fas fa-user mr-2"></i> Profile
                             </a>
-                            <a href="/guidance/logout" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
-                                <i class="fas fa-right-from-bracket mr-2 text-gray-400"></i> Logout
+                            <hr class="my-2">
+                            <a href="{base_url}/logout" class="block px-4 py-2 text-red-600 hover:bg-gray-100">
+                                <i class="fas fa-sign-out-alt mr-2"></i> Logout
                             </a>
                         </div>
                     </div>
                 </div>
             </header>
-
+            
+            {!-- Main Content --}
             <main id="main-content" class="flex-1 overflow-y-auto p-6">
                 {block content}{/block}
             </main>
-
-            <div id="modal-container"></div>
-            <div id="toast-container" class="fixed top-4 right-4 z-50"></div>
         </div>
     </div>
-
+    
     {else}
-    {!-- Guest Layout --}
-    <main class="min-h-screen flex items-center justify-center p-6">
+    {!-- Guest Layout (Login Page) --}
+    <div class="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-500 to-purple-600 py-12 px-4">
         {block content}{/block}
-    </main>
+    </div>
     {/if}
+    
+    {!-- Toast Notifications Container --}
+    <div id="toast-container" class="fixed bottom-4 right-4 z-50 space-y-2"></div>
+    
+    {!-- Modal Container --}
+    <div id="modal-container"></div>
+    
+    {!-- Global Scripts --}
+    <script>
+        // HTMX event handlers
+        document.body.addEventListener('htmx:beforeRequest', function(evt) {
+            document.body.classList.add('htmx-request');
+        });
+        
+        document.body.addEventListener('htmx:afterRequest', function(evt) {
+            document.body.classList.remove('htmx-request');
+        });
+        
+        // Update sidebar highlighting on HTMX navigation
+        document.body.addEventListener('htmx:pushedIntoHistory', function(evt) {
+            updateSidebarActive(evt.detail.path);
+        });
+
+        function normalizeGuidanceNavPath(path) {
+            if (!path) {
+                return '/';
+            }
+            if (APP_BASE && path.indexOf(APP_BASE) === 0) {
+                path = path.substring(APP_BASE.length);
+            }
+            if (!path) {
+                return '/';
+            }
+            path = path.replace(/\/+$/, '');
+            return path === '' ? '/' : path;
+        }
+        
+        function updateSidebarActive(path) {
+            path = normalizeGuidanceNavPath(path);
+
+            document.querySelectorAll('aside nav a').forEach(link => {
+                link.classList.remove('bg-indigo-700');
+            });
+
+            let matchPath = path;
+            if (matchPath.startsWith('/cases/')) matchPath = '/cases';
+            if (matchPath.startsWith('/appointments/')) matchPath = '/appointments';
+            if (matchPath.startsWith('/trackers/')) matchPath = '/trackers';
+
+            document.querySelectorAll('aside nav a[href]').forEach(link => {
+                const linkPath = normalizeGuidanceNavPath(link.getAttribute('href') || '');
+                if (linkPath === matchPath) {
+                    link.classList.add('bg-indigo-700');
+                }
+            });
+        }
+        
+        // Initialize on page load - strip base path for matching
+        var currentPath = window.location.pathname;
+        if (APP_BASE && currentPath.indexOf(APP_BASE) === 0) {
+            currentPath = currentPath.substring(APP_BASE.length);
+        }
+        if (!currentPath) currentPath = '/';
+        updateSidebarActive(currentPath);
+        
+        // Notification functions
+        function getAuthHeader() {
+            return { 'Authorization': 'Bearer ' + (document.cookie.match(new RegExp(APP_COOKIE + '=([^;]+)'))?.[1] || '') };
+        }
+        
+        function fetchNotifications(ctx) {
+            fetch(APP_BASE + '/api/notifications', { headers: getAuthHeader() })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        ctx.notifications = data.data || [];
+                        ctx.unread = data.unread_count || 0;
+                    }
+                })
+                .catch(() => {});
+        }
+        
+        function markRead(ctx, n) {
+            if (n.is_read == 1) return;
+            n.is_read = 1;
+            ctx.unread = Math.max(0, ctx.unread - 1);
+            fetch(APP_BASE + '/api/notifications/read', {
+                method: 'POST',
+                headers: Object.assign({ 'Content-Type': 'application/x-www-form-urlencoded' }, getAuthHeader()),
+                body: 'id=' + n.id
+            }).catch(() => {});
+        }
+        
+        function markAllRead(ctx) {
+            ctx.notifications.forEach(n => n.is_read = 1);
+            ctx.unread = 0;
+            fetch(APP_BASE + '/api/notifications/read', {
+                method: 'POST',
+                headers: Object.assign({ 'Content-Type': 'application/x-www-form-urlencoded' }, getAuthHeader()),
+                body: ''
+            }).catch(() => {});
+        }
+        
+        function timeAgo(dateStr) {
+            var d = new Date(dateStr.replace(' ', 'T'));
+            var now = new Date();
+            var diff = Math.floor((now - d) / 1000);
+            if (diff < 60) return 'Just now';
+            if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
+            if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
+            if (diff < 604800) return Math.floor(diff / 86400) + 'd ago';
+            return d.toLocaleDateString();
+        }
+        
+        // Toast notification function
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toast-container');
+            const colors = {
+                success: 'bg-green-500',
+                error: 'bg-red-500',
+                warning: 'bg-yellow-500',
+                info: 'bg-blue-500'
+            };
+            
+            const toast = document.createElement('div');
+            toast.className = `${colors[type]} text-white px-6 py-3 rounded-lg shadow-lg transform transition-all duration-300 translate-x-full`;
+            toast.textContent = message;
+            container.appendChild(toast);
+            
+            setTimeout(() => toast.classList.remove('translate-x-full'), 10);
+            setTimeout(() => {
+                toast.classList.add('translate-x-full');
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+        
+        // Handle HTMX errors
+        document.body.addEventListener('htmx:responseError', function(evt) {
+            const xhr = evt.detail && evt.detail.xhr ? evt.detail.xhr : null;
+            if (!xhr) {
+                showToast('An error occurred. Please try again.', 'error');
+                return;
+            }
+
+            const triggerHeader = xhr.getResponseHeader('HX-Trigger');
+            if (triggerHeader) {
+                return;
+            }
+
+            let message = 'An error occurred. Please try again.';
+            const contentType = xhr.getResponseHeader('Content-Type') || '';
+
+            if (contentType.indexOf('application/json') !== -1) {
+                try {
+                    const data = JSON.parse(xhr.responseText || '{}');
+                    if (data && data.error) {
+                        message = data.error;
+                    }
+                } catch (e) {}
+            } else if (xhr.responseText) {
+                const text = xhr.responseText.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+                if (text) {
+                    message = text.length > 160 ? text.slice(0, 157) + '...' : text;
+                }
+            }
+
+            showToast(message, 'error');
+        });
+        
+        // Handle custom showToast trigger from server
+        document.body.addEventListener('showToast', function(evt) {
+            if (evt.detail && evt.detail.message) {
+                showToast(evt.detail.message, evt.detail.type || 'info');
+            }
+        });
+        
+        // Handle refreshUsers trigger - reload users list
+        document.body.addEventListener('refreshUsers', function(evt) {
+            closeModal();
+            const usersList = document.getElementById('users-list');
+            if (usersList) {
+                htmx.trigger(usersList, 'load');
+            }
+        });
+        
+        // Handle closeModal trigger
+        document.body.addEventListener('closeModal', function(evt) {
+            closeModal();
+        });
+        
+        // Handle refreshCases trigger
+        document.body.addEventListener('refreshCases', function(evt) {
+            closeModal();
+            const casesList = document.getElementById('cases-list');
+            if (casesList) {
+                htmx.trigger(casesList, 'load');
+            }
+        });
+        
+        // Handle refreshFormFields trigger
+        document.body.addEventListener('refreshFormFields', function(evt) {
+            var fieldsList = document.getElementById('form-fields-list');
+            if (fieldsList) {
+                htmx.trigger(fieldsList, 'load');
+            }
+        });
+        
+        // Handle refreshColleges trigger
+        document.body.addEventListener('refreshColleges', function(evt) {
+            closeModal();
+            var collegesList = document.getElementById('colleges-list');
+            if (collegesList) {
+                htmx.trigger(collegesList, 'load');
+            }
+        });
+        
+        // Handle refreshAppointments trigger
+        document.body.addEventListener('refreshAppointments', function(evt) {
+            closeModal();
+            const appointmentsList = document.getElementById('appointments-list');
+            if (appointmentsList) {
+                htmx.trigger(appointmentsList, 'load');
+            }
+        });
+        
+        // Handle refreshNotes trigger
+        document.body.addEventListener('refreshNotes', function(evt) {
+            closeModal();
+            const notesList = document.getElementById('notes-list');
+            if (notesList) {
+                htmx.trigger(notesList, 'load');
+            }
+        });
+        
+        // Close modal function
+        function closeModal() {
+            document.getElementById('modal-container').innerHTML = '';
+        }
+        
+        // Close modal on escape key
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') closeModal();
+        });
+        
+        // Alpine.js component: Appointments page with calendar
+        function appointmentsPage() {
+            return {
+                view: 'list',
+                currentDate: new Date(),
+                appointments: [],
+                
+                init() {
+                    this.fetchAppointments();
+                    document.body.addEventListener('refreshAppointments', () => this.fetchAppointments());
+                },
+                
+                get monthLabel() {
+                    return this.currentDate.toLocaleString('default', { month: 'long', year: 'numeric' });
+                },
+                
+                prevMonth() {
+                    this.currentDate = new Date(this.currentDate.getFullYear(), this.currentDate.getMonth() - 1, 1);
+                    this.fetchAppointments();
+                },
+                
+                nextMonth() {
+                    this.currentDate = new Date(this.currentDate.getFullYear(), this.currentDate.getMonth() + 1, 1);
+                    this.fetchAppointments();
+                },
+                
+                goToday() {
+                    this.currentDate = new Date();
+                    this.fetchAppointments();
+                },
+                
+                async fetchAppointments() {
+                    try {
+                        const resp = await fetch(APP_BASE + '/api/appointments', {
+                            headers: { 'Authorization': 'Bearer ' + (document.cookie.match(new RegExp(APP_COOKIE + '=([^;]+)'))?.[1] || '') }
+                        });
+                        const data = await resp.json();
+                        if (data.success) this.appointments = data.data || [];
+                    } catch (e) {
+                        console.error('Failed to fetch appointments', e);
+                    }
+                },
+                
+                get calendarCells() {
+                    const year = this.currentDate.getFullYear();
+                    const month = this.currentDate.getMonth();
+                    const firstDay = new Date(year, month, 1).getDay();
+                    const daysInMonth = new Date(year, month + 1, 0).getDate();
+                    const daysInPrev = new Date(year, month, 0).getDate();
+                    const today = new Date();
+                    const cells = [];
+                    
+                    for (let i = firstDay - 1; i >= 0; i--) {
+                        const d = daysInPrev - i;
+                        cells.push({ key: 'p' + d, day: d, currentMonth: false, isToday: false, appointments: [] });
+                    }
+                    
+                    for (let d = 1; d <= daysInMonth; d++) {
+                        const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+                        const isToday = today.getFullYear() === year && today.getMonth() === month && today.getDate() === d;
+                        const dayAppts = this.appointments.filter(a => a.scheduled_date === dateStr);
+                        cells.push({ key: dateStr, day: d, currentMonth: true, isToday, appointments: dayAppts });
+                    }
+                    
+                    const remaining = 42 - cells.length;
+                    for (let d = 1; d <= remaining; d++) {
+                        cells.push({ key: 'n' + d, day: d, currentMonth: false, isToday: false, appointments: [] });
+                    }
+                    
+                    return cells;
+                },
+                
+                statusColor(status) {
+                    const colors = {
+                        pending: 'bg-amber-100 text-amber-800 border border-amber-200',
+                        scheduled: 'bg-blue-100 text-blue-800 border border-blue-200',
+                        confirmed: 'bg-indigo-100 text-indigo-800 border border-indigo-200',
+                        completed: 'bg-green-100 text-green-800 border border-green-200',
+                        cancelled: 'bg-red-100 text-red-800 border border-red-200',
+                        rejected: 'bg-gray-100 text-gray-800 border border-gray-200',
+                        no_show: 'bg-yellow-100 text-yellow-800 border border-yellow-200',
+                    };
+                    return colors[status] || 'bg-gray-100 text-gray-700';
+                },
+                
+                openAppt(id) {
+                    htmx.ajax('GET', APP_BASE + '/pages/appointments/' + id + '/edit', { target: '#modal-container', swap: 'innerHTML' });
+                }
+            };
+        }
+        
+        // Re-initialize Alpine.js on HTMX content swaps
+        document.body.addEventListener('htmx:afterSettle', function(evt) {
+            if (evt.detail.target.id === 'main-content' && window.Alpine) {
+                // Defer to next tick so HTMX finishes all DOM operations first
+                setTimeout(function() { Alpine.initTree(evt.detail.target); }, 0);
+            }
+        });
+    </script>
+    
+    {block scripts}{/block}
 </body>
 </html>

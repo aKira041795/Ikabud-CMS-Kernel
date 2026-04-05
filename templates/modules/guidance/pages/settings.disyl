@@ -23,6 +23,22 @@
                     <i class="fas fa-clock w-5 text-center"></i>
                     <span class="ml-3">Working Hours</span>
                 </a>
+                <a href="#appointment-types" data-section="appointment-types" class="settings-nav-link flex items-center px-4 py-2.5 text-sm font-medium rounded-lg transition text-gray-600 hover:bg-gray-50">
+                    <i class="fas fa-layer-group w-5 text-center"></i>
+                    <span class="ml-3">Session Types</span>
+                </a>
+                <a href="#student-statuses" data-section="student-statuses" class="settings-nav-link flex items-center px-4 py-2.5 text-sm font-medium rounded-lg transition text-gray-600 hover:bg-gray-50">
+                    <i class="fas fa-user-tag w-5 text-center"></i>
+                    <span class="ml-3">Student Statuses</span>
+                </a>
+                <a href="#guidance-pro" data-section="guidance-pro" class="settings-nav-link flex items-center px-4 py-2.5 text-sm font-medium rounded-lg transition text-gray-600 hover:bg-gray-50">
+                    <i class="fas fa-crown w-5 text-center"></i>
+                    <span class="ml-3">Guidance Pro</span>
+                </a>
+                <a href="#modules" data-section="modules" class="settings-nav-link flex items-center px-4 py-2.5 text-sm font-medium rounded-lg transition text-gray-600 hover:bg-gray-50">
+                    <i class="fas fa-puzzle-piece w-5 text-center"></i>
+                    <span class="ml-3">Modules</span>
+                </a>
                 <a href="#notifications" data-section="notifications" class="settings-nav-link flex items-center px-4 py-2.5 text-sm font-medium rounded-lg transition text-gray-600 hover:bg-gray-50">
                     <i class="fas fa-bell w-5 text-center"></i>
                     <span class="ml-3">Notifications</span>
@@ -35,12 +51,127 @@
                     <i class="fas fa-shield-alt w-5 text-center"></i>
                     <span class="ml-3">Security / 2FA</span>
                 </a>
+                <a href="#ai-provider" data-section="ai-provider" class="settings-nav-link flex items-center px-4 py-2.5 text-sm font-medium rounded-lg transition text-gray-600 hover:bg-gray-50">
+                    <i class="fas fa-robot w-5 text-center"></i>
+                    <span class="ml-3">AI Provider</span>
+                </a>
             </nav>
         </div>
         
         {!-- Settings Form --}
         <div class="flex-1 min-w-0">
-            <form hx-put="/admin/guidance/api/settings" hx-swap="none" class="space-y-5">
+            <div id="guidance-pro" class="bg-white rounded-xl shadow-sm border border-gray-100 p-6 settings-section mb-5">
+                <h2 class="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                    <i class="fas fa-crown mr-2 text-amber-500"></i> Guidance Pro
+                </h2>
+
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-5">
+                    <div class="rounded-xl border border-gray-200 bg-gray-50 p-4">
+                        <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">Current Plan</p>
+                        <p class="mt-2 text-lg font-semibold {if pro_access.plan_tier == 'pro'}text-amber-700{else}text-gray-900{/if}">{pro_access.plan_label}</p>
+                    </div>
+                    <div class="rounded-xl border border-gray-200 bg-gray-50 p-4">
+                        <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">Tenant Access</p>
+                        <p class="mt-2 text-lg font-semibold text-gray-900">{pro_access.entitlement.entitlement_status | default:'unknown' | title}</p>
+                    </div>
+                    <div class="rounded-xl border border-gray-200 bg-gray-50 p-4">
+                        <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">Upgrade Request</p>
+                        <p class="mt-2 text-lg font-semibold text-gray-900">{if pro_access.request.status}{pro_access.request.status | title}{else}None{/if}</p>
+                    </div>
+                </div>
+
+                {if pro_access.license_state.status}
+                <div class="mb-5 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
+                    <div class="flex flex-wrap items-center gap-3">
+                        <span class="inline-flex items-center rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-700">License: {pro_access.license_state.status | title}</span>
+                        {if pro_access.license_state.license_ref}
+                        <span class="inline-flex items-center rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-700">{pro_access.license_state.license_ref}</span>
+                        {/if}
+                        {if pro_access.license_state.provider}
+                        <span class="inline-flex items-center rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-700">Provider: {pro_access.license_state.provider}</span>
+                        {/if}
+                    </div>
+                    {if pro_access.license_state.activated_at}
+                    <p class="mt-3 text-xs text-slate-500">Last license update: {pro_access.license_state.activated_at}</p>
+                    {/if}
+                </div>
+                {/if}
+
+                {if !pro_access.manageable}
+                <div class="rounded-xl border border-rose-200 bg-rose-50 p-5 text-sm text-rose-900">
+                    Guidance Pro licensing is unavailable because this session does not have an active tenant context.
+                </div>
+                {elseif pro_access.plan_tier == 'pro'}
+                <div class="rounded-xl border border-emerald-200 bg-emerald-50 p-5 text-sm text-emerald-900">
+                    <div class="flex items-start gap-3">
+                        <i class="fas fa-badge-check mt-0.5 text-emerald-600"></i>
+                        <div>
+                            <p class="font-medium">Guidance Pro is active for this tenant.</p>
+                            <p class="mt-1 text-emerald-800">Pro-only features such as notes, tracker, availability, form settings, analytics, and 2FA can now be enabled inside Guidance itself.</p>
+                        </div>
+                    </div>
+                </div>
+                {else}
+                <div class="rounded-xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-900 mb-4">
+                    <div class="flex items-start gap-3">
+                        <i class="fas fa-key mt-0.5 text-amber-600"></i>
+                        <div>
+                            <p class="font-medium">Upgrade to Guidance Pro from inside Guidance.</p>
+                            <p class="mt-1 text-amber-800">This module manages its own Pro upgrade. Submitting a license key here creates or updates a Guidance Pro request for superadmin review. Approval switches this tenant's Guidance entitlement tier to Pro.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <form hx-post="/api/pro-access" hx-swap="none" class="space-y-4">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">License Key</label>
+                            <input type="text" name="license_key" placeholder="Optional. Enter the Guidance Pro license key if you already have one." class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" />
+                            <p class="text-xs text-gray-400 mt-1">Keys are stored securely and are not shown again after submission.</p>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Saved License Reference</label>
+                            <div class="w-full min-h-[42px] px-3 py-2 text-sm border border-gray-200 rounded-lg bg-gray-50 text-gray-600 flex items-center">
+                                {if pro_access.request.license_ref}{pro_access.request.license_ref}{elseif pro_access.license_state.license_ref}{pro_access.license_state.license_ref}{else}No license key on file{/if}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Request Note</label>
+                        <textarea name="request_notes" rows="4" class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" placeholder="Optional. Add context for the Guidance Pro upgrade request.">{pro_access.request.request_notes | default:''}</textarea>
+                    </div>
+
+                    {if pro_access.request.review_notes}
+                    <div class="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+                        <span class="font-medium">Latest review note:</span> {pro_access.request.review_notes}
+                    </div>
+                    {/if}
+
+                    <div class="flex items-center justify-end">
+                        <button type="submit" class="inline-flex items-center px-4 py-2 bg-amber-600 text-white text-sm font-medium rounded-lg hover:bg-amber-700 transition">
+                            <i class="fas fa-paper-plane mr-2"></i>{if pro_access.request.status == 'pending'}Update Guidance Pro Request{else}Submit Guidance Pro Request{/if}
+                        </button>
+                    </div>
+                </form>
+                {/if}
+            </div>
+
+            <div id="modules" class="bg-white rounded-xl shadow-sm border border-gray-100 p-6 settings-section mb-5">
+                <h2 class="text-lg font-semibold text-gray-900 mb-2 flex items-center">
+                    <i class="fas fa-puzzle-piece mr-2 text-indigo-500"></i> Modules
+                </h2>
+                <p class="text-sm text-gray-500 mb-5">Activate and configure Guidance add-ons that are installed on this system for the current tenant.</p>
+
+                <div id="guidance-settings-modules-list"
+                     hx-get="/pages/settings/modules"
+                     hx-trigger="refreshGuidanceModules from:body"
+                     hx-target="#guidance-settings-modules-list">
+                    {include "modules/guidance/partials/modules-list.disyl" with {modules: guidance_modules}}
+                </div>
+            </div>
+
+            <form hx-put="/api/settings" hx-swap="none" class="space-y-5">
                 
                 {!-- General Settings --}
                 <div id="general" class="bg-white rounded-xl shadow-sm border border-gray-100 p-6 settings-section">
@@ -54,15 +185,22 @@
                     <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">Country</label>
-                            <input type="text" name="app_country" value="{settings.app_country}" class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" />
+                            <select name="app_country" id="app_country" onchange="updateTimezones()" class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                                <option value="">Select country</option>
+                            </select>
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">Region / City</label>
-                            <input type="text" name="app_region" value="{settings.app_region}" class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" />
+                            <select name="app_region" id="app_region" class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                                <option value="">Select region</option>
+                            </select>
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">Timezone</label>
-                            <input type="text" name="app_timezone" value="{settings.app_timezone}" class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" />
+                            <select name="app_timezone" id="app_timezone" class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                                <option value="">Select timezone</option>
+                            </select>
+                            <p class="text-xs text-gray-400 mt-1" id="tz_current_time"></p>
                         </div>
                     </div>
                     
@@ -97,13 +235,21 @@
                         </div>
                     </div>
                 </div>
-                
+
                 {!-- Notifications --}
                 <div id="notifications" class="bg-white rounded-xl shadow-sm border border-gray-100 p-6 settings-section">
                     <h2 class="text-lg font-semibold text-gray-900 mb-4 flex items-center">
                         <i class="fas fa-bell mr-2 text-indigo-500"></i> Notifications
                     </h2>
                     <div class="space-y-4">
+                        <div class="max-w-xs">
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Notification Channel</label>
+                            <select name="notification_channel" class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                                <option value="email_only" {if settings.notification_channel == 'email_only'}selected{/if}>Email Only</option>
+                                <option value="email_and_sms" {if settings.notification_channel == 'email_and_sms'}selected{/if}>Email + SMS</option>
+                            </select>
+                            <p class="text-xs text-gray-400 mt-1">When "Email + SMS" is selected, SMS notifications will be sent alongside emails for bookings and appointments (requires SMS module enabled).</p>
+                        </div>
                         <div class="max-w-xs">
                             <label class="block text-sm font-medium text-gray-700 mb-1">Reminder Hours Before Appointment</label>
                             <input type="number" name="reminder_hours_before" value="{settings.reminder_hours_before}" class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" />
@@ -138,36 +284,441 @@
                     <h2 class="text-lg font-semibold text-gray-900 mb-4 flex items-center">
                         <i class="fas fa-shield-alt mr-2 text-indigo-500"></i> Security / Two-Factor Authentication
                     </h2>
-                    <p class="text-sm text-gray-500 mb-4">When enabled, a 6-digit verification code will be sent via email before completing the action.</p>
-                    <div class="space-y-3">
-                        <label class="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition cursor-pointer">
-                            <div>
-                                <span class="text-sm font-medium text-gray-700">2FA for Staff Login</span>
-                                <p class="text-xs text-gray-500 mt-0.5">Require OTP email verification when staff members log in</p>
+                    <input type="hidden" name="two_fa_login" value="0">
+                    <input type="hidden" name="two_fa_booking" value="0">
+                    {if is_pro}
+                        <div class="space-y-4">
+                            <label class="flex items-start gap-3 cursor-pointer rounded-lg border border-gray-200 p-4 hover:border-indigo-200 hover:bg-indigo-50/40 transition">
+                                <input type="checkbox" name="two_fa_login" value="1" {if settings.two_fa_login == '1'}checked{/if} class="mt-1 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                                <span>
+                                    <span class="block text-sm font-medium text-gray-800">Require OTP for staff sign-in</span>
+                                    <span class="mt-1 block text-sm text-gray-500">After valid credentials are entered, staff must confirm a 6-digit code sent to their Guidance account email before the session is created.</span>
+                                </span>
+                            </label>
+                            <label class="flex items-start gap-3 cursor-pointer rounded-lg border border-gray-200 p-4 hover:border-indigo-200 hover:bg-indigo-50/40 transition">
+                                <input type="checkbox" name="two_fa_booking" value="1" {if settings.two_fa_booking == '1'}checked{/if} class="mt-1 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                                <span>
+                                    <span class="block text-sm font-medium text-gray-800">Require OTP for public booking requests</span>
+                                    <span class="mt-1 block text-sm text-gray-500">Students must verify their email with a 6-digit code before a public booking request is submitted to the Guidance office.</span>
+                                </span>
+                            </label>
+                            <div class="rounded-lg border border-slate-200 bg-slate-50 p-4 text-xs text-slate-600">
+                                OTP delivery uses the configured outbound email service. If email sending is unavailable, users will not be able to complete sign-in or booking verification while these options are enabled.
                             </div>
-                            <input type="hidden" name="two_fa_login" value="0">
-                            <input type="checkbox" name="two_fa_login" value="1" {if settings.two_fa_login == '1'}checked{/if} class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 h-5 w-5">
-                        </label>
-                        <label class="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition cursor-pointer">
-                            <div>
-                                <span class="text-sm font-medium text-gray-700">2FA for Online Booking</span>
-                                <p class="text-xs text-gray-500 mt-0.5">Require students to verify their email with OTP before submitting a booking</p>
+                        </div>
+                    {else}
+                        <div class="rounded-xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-900">
+                            <div class="flex items-start gap-3">
+                                <i class="fas fa-crown mt-0.5 text-amber-600"></i>
+                                <div>
+                                    <p class="font-medium">Two-factor authentication is available on Guidance Pro.</p>
+                                    <p class="mt-1 text-amber-800">Upgrade the tenant entitlement to Guidance Pro to require email OTP verification for staff sign-in and public booking requests.</p>
+                                </div>
                             </div>
-                            <input type="hidden" name="two_fa_booking" value="0">
-                            <input type="checkbox" name="two_fa_booking" value="1" {if settings.two_fa_booking == '1'}checked{/if} class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 h-5 w-5">
-                        </label>
+                        </div>
+                    {/if}
+                </div>
+                
+                {!-- AI Provider --}
+                <div id="ai-provider" class="bg-white rounded-xl shadow-sm border border-gray-100 p-6 settings-section">
+                    <h2 class="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                        <i class="fas fa-robot mr-2 text-indigo-500"></i> AI Provider
+                    </h2>
+                    <p class="text-sm text-gray-500 mb-4">Select an AI provider for generating session summary reports. Most providers offer a free tier.</p>
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">AI Provider</label>
+                            <select name="ai_provider" id="ai_provider" onchange="updateAiModels()" class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                                <option value="" {if settings.ai_provider == ''}selected{/if}>Disabled (No AI)</option>
+                                <option value="openai" {if settings.ai_provider == 'openai'}selected{/if}>OpenAI</option>
+                                <option value="groq" {if settings.ai_provider == 'groq'}selected{/if}>Groq (Free Tier)</option>
+                                <option value="google" {if settings.ai_provider == 'google'}selected{/if}>Google Gemini (Free Tier)</option>
+                                <option value="cohere" {if settings.ai_provider == 'cohere'}selected{/if}>Cohere (Free Tier)</option>
+                                <option value="mistral" {if settings.ai_provider == 'mistral'}selected{/if}>Mistral AI (Free Tier)</option>
+                                <option value="openrouter" {if settings.ai_provider == 'openrouter'}selected{/if}>OpenRouter (Multi-Provider)</option>
+                            </select>
+                        </div>
+                        <div id="ai_config_fields" style="{if settings.ai_provider == ''}display:none{/if}">
+                            <div class="mb-4">
+                                <label class="block text-sm font-medium text-gray-700 mb-1">API Key</label>
+                                <input type="password" name="ai_api_key" value="{settings.ai_api_key}" placeholder="Enter your API key" class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500">
+                                <p class="text-xs text-gray-400 mt-1" id="ai_key_help"></p>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Model</label>
+                                <select name="ai_model" id="ai_model" class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                                    <option value="">Select a model</option>
+                                </select>
+                                <p class="text-xs text-gray-400 mt-1" id="ai_model_help"></p>
+                            </div>
+                        </div>
+                        <div id="ai_provider_info" class="rounded-lg p-4 bg-gray-50 border border-gray-200 text-sm" style="{if settings.ai_provider == ''}display:none{/if}"></div>
                     </div>
                 </div>
-
+                
+                {!-- Save Button --}
                 <div class="flex justify-end sticky bottom-4">
                     <button type="submit" class="inline-flex items-center px-6 py-2.5 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition shadow-lg shadow-indigo-200">
                         <i class="fas fa-save mr-2"></i> Save Settings
                     </button>
                 </div>
             </form>
+
+            {!-- Appointment Types (separate forms; must stay outside the main settings form) --}
+            <div id="appointment-types" class="bg-white rounded-xl shadow-sm border border-gray-100 p-6 settings-section mt-5">
+                <h2 class="text-lg font-semibold text-gray-900 mb-2 flex items-center">
+                    <i class="fas fa-layer-group mr-2 text-indigo-500"></i> Appointment Session Types
+                </h2>
+                <p class="text-sm text-gray-500 mb-5">Manage the session types available for internal scheduling and, when enabled, for public booking.</p>
+
+                {if is_pro}
+                <div id="appointment-types-list"
+                     hx-get="/api/appointment-types?context=settings&include_inactive=1"
+                     hx-trigger="load, refreshAppointmentTypes from:body"
+                     hx-target="#appointment-types-list">
+                    <div class="text-center py-8 text-gray-400">
+                        <i class="fas fa-spinner fa-spin"></i> Loading session types...
+                    </div>
+                </div>
+                {else}
+                <div class="rounded-xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-900">
+                    <div class="flex items-start gap-3">
+                        <i class="fas fa-lock mt-0.5 text-amber-600"></i>
+                        <div>
+                            <p class="font-medium">Guidance Pro feature</p>
+                            <p class="mt-1 text-amber-800">Session type management is available on the Pro tier. Free tenants can still use the existing default appointment types.</p>
+                        </div>
+                    </div>
+                </div>
+                {/if}
+            </div>
+
+            <div id="student-statuses" class="bg-white rounded-xl shadow-sm border border-gray-100 p-6 settings-section mt-5">
+                <h2 class="text-lg font-semibold text-gray-900 mb-2 flex items-center">
+                    <i class="fas fa-user-tag mr-2 text-indigo-500"></i> Student Statuses
+                </h2>
+                <p class="text-sm text-gray-500 mb-5">Manage the statuses available in case records. Renaming a status updates existing cases automatically.</p>
+
+                <div id="student-statuses-list"
+                     hx-get="/api/student-statuses?context=settings"
+                     hx-trigger="load, refreshStudentStatuses from:body"
+                     hx-target="#student-statuses-list">
+                    <div class="text-center py-8 text-gray-400">
+                        <i class="fas fa-spinner fa-spin"></i> Loading student statuses...
+                    </div>
+                </div>
+            </div>
+            
         </div>
     </div>
-
+    
 {/ikb_section}
+
+<script>
+(function() {
+// ─── Timezone / Country / Region ───────────────────────────
+var tzCountryMap = {
+    'PH': { name: 'Philippines', timezones: ['Asia/Manila'] },
+    'US': { name: 'United States', timezones: ['America/New_York','America/Chicago','America/Denver','America/Los_Angeles','America/Anchorage','Pacific/Honolulu'] },
+    'GB': { name: 'United Kingdom', timezones: ['Europe/London'] },
+    'AU': { name: 'Australia', timezones: ['Australia/Sydney','Australia/Melbourne','Australia/Brisbane','Australia/Perth','Australia/Adelaide','Australia/Darwin'] },
+    'CA': { name: 'Canada', timezones: ['America/Toronto','America/Vancouver','America/Edmonton','America/Winnipeg','America/Halifax','America/St_Johns'] },
+    'IN': { name: 'India', timezones: ['Asia/Kolkata'] },
+    'JP': { name: 'Japan', timezones: ['Asia/Tokyo'] },
+    'KR': { name: 'South Korea', timezones: ['Asia/Seoul'] },
+    'CN': { name: 'China', timezones: ['Asia/Shanghai'] },
+    'SG': { name: 'Singapore', timezones: ['Asia/Singapore'] },
+    'MY': { name: 'Malaysia', timezones: ['Asia/Kuala_Lumpur'] },
+    'TH': { name: 'Thailand', timezones: ['Asia/Bangkok'] },
+    'VN': { name: 'Vietnam', timezones: ['Asia/Ho_Chi_Minh'] },
+    'ID': { name: 'Indonesia', timezones: ['Asia/Jakarta','Asia/Makassar','Asia/Jayapura'] },
+    'AE': { name: 'United Arab Emirates', timezones: ['Asia/Dubai'] },
+    'SA': { name: 'Saudi Arabia', timezones: ['Asia/Riyadh'] },
+    'DE': { name: 'Germany', timezones: ['Europe/Berlin'] },
+    'FR': { name: 'France', timezones: ['Europe/Paris'] },
+    'IT': { name: 'Italy', timezones: ['Europe/Rome'] },
+    'ES': { name: 'Spain', timezones: ['Europe/Madrid'] },
+    'BR': { name: 'Brazil', timezones: ['America/Sao_Paulo','America/Manaus','America/Recife'] },
+    'MX': { name: 'Mexico', timezones: ['America/Mexico_City','America/Cancun','America/Tijuana'] },
+    'NZ': { name: 'New Zealand', timezones: ['Pacific/Auckland'] },
+    'ZA': { name: 'South Africa', timezones: ['Africa/Johannesburg'] },
+    'NG': { name: 'Nigeria', timezones: ['Africa/Lagos'] },
+    'EG': { name: 'Egypt', timezones: ['Africa/Cairo'] },
+    'KE': { name: 'Kenya', timezones: ['Africa/Nairobi'] },
+    'PK': { name: 'Pakistan', timezones: ['Asia/Karachi'] },
+    'BD': { name: 'Bangladesh', timezones: ['Asia/Dhaka'] },
+    'TW': { name: 'Taiwan', timezones: ['Asia/Taipei'] },
+    'HK': { name: 'Hong Kong', timezones: ['Asia/Hong_Kong'] },
+};
+
+var savedCountry = '{settings.app_country}' || 'PH';
+var savedRegion = '{settings.app_region}' || 'Manila';
+var savedTimezone = '{settings.app_timezone}' || 'Asia/Manila';
+
+function initCountryDropdown() {
+    const sel = document.getElementById('app_country');
+    const sorted = Object.entries(tzCountryMap).sort((a,b) => a[1].name.localeCompare(b[1].name));
+    sorted.forEach(function([code, info]) {
+        const opt = document.createElement('option');
+        opt.value = code;
+        opt.textContent = info.name;
+        if (code === savedCountry) opt.selected = true;
+        sel.appendChild(opt);
+    });
+    // Always try to initialize from country first, then detect from timezone
+    if (savedCountry && tzCountryMap[savedCountry]) {
+        updateTimezones();
+    } else if (savedTimezone) {
+        for (const [code, info] of Object.entries(tzCountryMap)) {
+            if (info.timezones.includes(savedTimezone)) {
+                sel.value = code;
+                updateTimezones();
+                return;
+            }
+        }
+    }
+}
+
+function updateTimezones() {
+    const code = document.getElementById('app_country').value;
+    const tzSel = document.getElementById('app_timezone');
+    const regSel = document.getElementById('app_region');
+    const info = tzCountryMap[code];
+    
+    // Update region dropdown with timezone city names
+    regSel.innerHTML = '<option value="">Select region</option>';
+    tzSel.innerHTML = '';
+    
+    if (!info) return;
+    
+    info.timezones.forEach(function(tz) {
+        // Timezone option
+        const tzOpt = document.createElement('option');
+        tzOpt.value = tz;
+        tzOpt.textContent = tz;
+        if (tz === savedTimezone) tzOpt.selected = true;
+        tzSel.appendChild(tzOpt);
+        
+        // Region option (extract city from timezone)
+        const city = tz.split('/').pop().replace(/_/g, ' ');
+        const regOpt = document.createElement('option');
+        regOpt.value = city;
+        regOpt.textContent = city;
+        if (city === savedRegion) regOpt.selected = true;
+        regSel.appendChild(regOpt);
+    });
+    
+    // Sync region selection to timezone
+    regSel.onchange = function() {
+        const city = this.value.replace(/ /g, '_');
+        for (var i = 0; i < tzSel.options.length; i++) {
+            if (tzSel.options[i].value.endsWith('/' + city)) {
+                tzSel.selectedIndex = i;
+                break;
+            }
+        }
+        updateTzPreview();
+    };
+    
+    tzSel.onchange = updateTzPreview;
+    updateTzPreview();
+}
+
+function updateTzPreview() {
+    const tz = document.getElementById('app_timezone').value;
+    const el = document.getElementById('tz_current_time');
+    if (!tz || !el) return;
+    try {
+        const now = new Date().toLocaleString('en-US', { timeZone: tz, dateStyle: 'medium', timeStyle: 'short' });
+        el.textContent = 'Current time: ' + now;
+    } catch(e) { el.textContent = ''; }
+}
+
+const aiProviders = {
+    openai: {
+        name: 'OpenAI',
+        keyUrl: 'https://platform.openai.com/api-keys',
+        keyHelp: 'Get your API key at platform.openai.com/api-keys',
+        info: '<strong>OpenAI</strong> — Industry-leading models. Pay-as-you-go pricing. GPT-4o Mini is very affordable (~$0.15/1M input tokens).',
+        color: '#10a37f',
+        models: [
+            { value: 'gpt-4o-mini', label: 'GPT-4o Mini (Recommended — cheapest)', desc: 'Fast, affordable, great for reports' },
+            { value: 'gpt-4o', label: 'GPT-4o', desc: 'Most capable, higher cost' },
+            { value: 'gpt-4-turbo', label: 'GPT-4 Turbo', desc: 'Previous gen, still powerful' },
+            { value: 'gpt-3.5-turbo', label: 'GPT-3.5 Turbo', desc: 'Cheapest, basic quality' }
+        ]
+    },
+    groq: {
+        name: 'Groq',
+        keyUrl: 'https://console.groq.com/keys',
+        keyHelp: 'Get your free API key at console.groq.com/keys',
+        info: '<strong>Groq</strong> — Extremely fast inference. <span class="text-green-600 font-semibold">Free tier: 6,000 requests/day.</span> Uses open-source models.',
+        color: '#f55036',
+        models: [
+            { value: 'llama-3.3-70b-versatile', label: 'Llama 3.3 70B (Recommended)', desc: 'Best quality, free tier' },
+            { value: 'llama-3.1-8b-instant', label: 'Llama 3.1 8B Instant', desc: 'Fastest, lighter quality' },
+            { value: 'mixtral-8x7b-32768', label: 'Mixtral 8x7B', desc: 'Good balance of speed and quality' },
+            { value: 'gemma2-9b-it', label: 'Gemma 2 9B', desc: 'Google open model on Groq' }
+        ]
+    },
+    google: {
+        name: 'Google Gemini',
+        keyUrl: 'https://aistudio.google.com/apikey',
+        keyHelp: 'Get your free API key at aistudio.google.com/apikey',
+        info: '<strong>Google Gemini</strong> — <span class="text-green-600 font-semibold">Free tier: 15 requests/min, 1,500/day.</span> Powerful multimodal models.',
+        color: '#4285f4',
+        models: [
+            { value: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash (Recommended)', desc: 'Latest, fast, free tier' },
+            { value: 'gemini-1.5-flash', label: 'Gemini 1.5 Flash', desc: 'Fast and efficient' },
+            { value: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro', desc: 'Most capable, lower free limits' }
+        ]
+    },
+    cohere: {
+        name: 'Cohere',
+        keyUrl: 'https://dashboard.cohere.com/api-keys',
+        keyHelp: 'Get your free API key at dashboard.cohere.com/api-keys',
+        info: '<strong>Cohere</strong> — <span class="text-green-600 font-semibold">Free tier: 1,000 requests/month.</span> Excellent for text generation and summarization.',
+        color: '#39594d',
+        models: [
+            { value: 'command-r-plus', label: 'Command R+ (Recommended)', desc: 'Most capable, free tier' },
+            { value: 'command-r', label: 'Command R', desc: 'Fast, good quality' },
+            { value: 'command-light', label: 'Command Light', desc: 'Fastest, basic quality' }
+        ]
+    },
+    mistral: {
+        name: 'Mistral AI',
+        keyUrl: 'https://console.mistral.ai/api-keys',
+        keyHelp: 'Get your free API key at console.mistral.ai/api-keys',
+        info: '<strong>Mistral AI</strong> — European AI provider. <span class="text-green-600 font-semibold">Free tier available for experimentation.</span>',
+        color: '#ff7000',
+        models: [
+            { value: 'mistral-small-latest', label: 'Mistral Small (Recommended)', desc: 'Good balance, affordable' },
+            { value: 'mistral-medium-latest', label: 'Mistral Medium', desc: 'Better quality' },
+            { value: 'mistral-large-latest', label: 'Mistral Large', desc: 'Most capable' },
+            { value: 'open-mistral-7b', label: 'Mistral 7B (Open)', desc: 'Free open-source model' }
+        ]
+    },
+    openrouter: {
+        name: 'OpenRouter',
+        keyUrl: 'https://openrouter.ai/keys',
+        keyHelp: 'Get your API key at openrouter.ai/keys — some models are free',
+        info: '<strong>OpenRouter</strong> — Access 100+ models from one API. <span class="text-green-600 font-semibold">Some models are completely free.</span> Pay-per-use for premium models.',
+        color: '#6366f1',
+        models: [
+            { value: 'meta-llama/llama-3.3-70b-instruct:free', label: 'Llama 3.3 70B (Free)', desc: 'Free, high quality' },
+            { value: 'google/gemini-2.0-flash-exp:free', label: 'Gemini 2.0 Flash (Free)', desc: 'Free, Google model' },
+            { value: 'mistralai/mistral-small-24b-instruct-2501:free', label: 'Mistral Small 24B (Free)', desc: 'Free, Mistral model' },
+            { value: 'deepseek/deepseek-chat-v3-0324:free', label: 'DeepSeek V3 (Free)', desc: 'Free, very capable' },
+            { value: 'qwen/qwen-2.5-72b-instruct:free', label: 'Qwen 2.5 72B (Free)', desc: 'Free, Alibaba model' },
+            { value: 'openai/gpt-4o-mini', label: 'GPT-4o Mini (Paid)', desc: 'OpenAI via OpenRouter' }
+        ]
+    }
+};
+
+const savedModel = '{settings.ai_model}';
+
+function updateAiModels() {
+    const provider = document.getElementById('ai_provider').value;
+    const configFields = document.getElementById('ai_config_fields');
+    const infoPanel = document.getElementById('ai_provider_info');
+    const modelSelect = document.getElementById('ai_model');
+    const keyHelp = document.getElementById('ai_key_help');
+    const modelHelp = document.getElementById('ai_model_help');
+    
+    if (!provider) {
+        configFields.style.display = 'none';
+        infoPanel.style.display = 'none';
+        return;
+    }
+    
+    const p = aiProviders[provider];
+    if (!p) return;
+    
+    configFields.style.display = '';
+    infoPanel.style.display = '';
+    infoPanel.innerHTML = '<p class="text-sm">' + p.info + '</p><a href="' + p.keyUrl + '" target="_blank" class="inline-block mt-2 text-xs text-indigo-600 hover:text-indigo-800"><i class="fas fa-external-link-alt mr-1"></i> Get API Key</a>';
+    keyHelp.textContent = p.keyHelp;
+    
+    modelSelect.innerHTML = '';
+    p.models.forEach(function(m) {
+        const opt = document.createElement('option');
+        opt.value = m.value;
+        opt.textContent = m.label;
+        if (m.value === savedModel) opt.selected = true;
+        modelSelect.appendChild(opt);
+    });
+    
+    if (!savedModel && p.models.length > 0) {
+        modelSelect.selectedIndex = 0;
+    }
+    
+    const selected = p.models.find(m => m.value === modelSelect.value);
+    modelHelp.textContent = selected ? selected.desc : '';
+    
+    modelSelect.onchange = function() {
+        const sel = p.models.find(m => m.value === this.value);
+        modelHelp.textContent = sel ? sel.desc : '';
+    };
+}
+
+// Initialize immediately — script is at bottom of page, DOM is ready
+// (DOMContentLoaded doesn't fire on HTMX swaps)
+initCountryDropdown();
+
+if (document.getElementById('ai_provider') && document.getElementById('ai_provider').value) {
+    updateAiModels();
+}
+
+// Settings sidebar scroll tracking
+var navLinks = document.querySelectorAll('.settings-nav-link');
+var sections = document.querySelectorAll('.settings-section');
+
+function setActiveNav(sectionId) {
+    navLinks.forEach(function(link) {
+        if (link.dataset.section === sectionId) {
+            link.className = 'settings-nav-link flex items-center px-4 py-2.5 text-sm font-medium rounded-lg transition bg-indigo-50 text-indigo-700';
+        } else {
+            link.className = 'settings-nav-link flex items-center px-4 py-2.5 text-sm font-medium rounded-lg transition text-gray-600 hover:bg-gray-50';
+        }
+    });
+}
+
+// Smooth scroll on nav click
+navLinks.forEach(function(link) {
+    link.addEventListener('click', function(e) {
+        e.preventDefault();
+        var target = document.getElementById(this.dataset.section);
+        if (target) {
+            target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            setActiveNav(this.dataset.section);
+        }
+    });
+});
+
+// IntersectionObserver for scroll tracking
+if (sections.length && 'IntersectionObserver' in window) {
+    var observer = new IntersectionObserver(function(entries) {
+        entries.forEach(function(entry) {
+            if (entry.isIntersecting) {
+                setActiveNav(entry.target.id);
+            }
+        });
+    }, { rootMargin: '-20% 0px -60% 0px' });
+    sections.forEach(function(s) { observer.observe(s); });
+}
+
+// Save feedback toast
+document.body.addEventListener('htmx:afterRequest', function(e) {
+    if (e.detail.elt && e.detail.elt.closest && e.detail.elt.closest('form[hx-put="/api/settings"]')) {
+        var toast = document.createElement('div');
+        toast.className = 'fixed bottom-6 right-6 bg-green-600 text-white px-5 py-3 rounded-lg shadow-lg text-sm font-medium flex items-center gap-2 z-50 animate-fade-in';
+        toast.innerHTML = '<i class="fas fa-check-circle"></i> Settings saved successfully';
+        document.body.appendChild(toast);
+        setTimeout(function() { toast.remove(); }, 3000);
+    }
+});
+
+})();
+</script>
 
 {/block}

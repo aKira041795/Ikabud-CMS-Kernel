@@ -113,6 +113,51 @@ t('license activation persists tenant module metadata', (($licenseState['status'
 
 cleanupAccessRequestFixture($controlDb, $moduleId, $tenantId);
 
+$freemiumModuleId = 'catalog-freemium-pro-test';
+cleanupAccessRequestFixture($controlDb, $freemiumModuleId, $tenantId);
+
+$freemiumCatalogOk = upsertModuleCatalogEntry($freemiumModuleId, [
+    'module_name' => 'Catalog Freemium Pro Test',
+    'approved_version' => '1.0.0',
+    'install_path' => modulesPath() . '/' . $freemiumModuleId,
+    'source' => 'test',
+    'approval_status' => 'approved',
+    'commercial_mode' => 'freemium',
+]);
+t('approved freemium catalog entry can be created', $freemiumCatalogOk);
+
+$selfServiceOk = ensureSelfServiceModuleEntitlementForTenant($freemiumModuleId, $tenantId, [
+    'source' => 'module_access_request_test',
+]);
+$freemiumEntitlement = moduleTenantEntitlementStatus($freemiumModuleId, $tenantId);
+t('freemium module can self-grant install entitlement', $selfServiceOk);
+t('freemium self-service defaults tenant tier to free', (($freemiumEntitlement['tier'] ?? '') === 'free'), is_array($freemiumEntitlement) ? (string)($freemiumEntitlement['tier'] ?? '') : '');
+
+$freemiumRequestResult = submitModuleAccessRequestForTenant($freemiumModuleId, $tenantId, [
+    'requested_mode' => 'pro',
+    'request_notes' => 'Upgrade this freemium module to pro.',
+    'license_key' => 'GUID-9999-PRO-0001',
+    'requested_by_user_id' => 77,
+    'metadata' => ['via' => 'module_access_request_test_freemium'],
+]);
+t('freemium module can submit a pro upgrade request', !empty($freemiumRequestResult['ok']), (string)($freemiumRequestResult['error'] ?? ''));
+
+$freemiumRequest = moduleLatestAccessRequestForTenant($freemiumModuleId, $tenantId);
+t('freemium upgrade request stores requested pro mode', is_array($freemiumRequest) && (($freemiumRequest['requested_mode'] ?? '') === 'pro'));
+
+$freemiumReview = reviewModuleAccessRequest((int)($freemiumRequest['id'] ?? 0), 'approved', [
+    'reviewed_by_user_id' => 2,
+    'review_notes' => 'Freemium pro upgrade approved in test.',
+]);
+t('freemium pro upgrade review can approve request', !empty($freemiumReview['ok']), (string)($freemiumReview['error'] ?? ''));
+
+$freemiumApprovedEntitlement = moduleTenantEntitlementStatus($freemiumModuleId, $tenantId);
+$freemiumLicenseState = moduleLicenseActivationStateForTenant($freemiumModuleId, $tenantId);
+t('freemium pro approval upgrades entitlement tier to pro', (($freemiumApprovedEntitlement['tier'] ?? '') === 'pro'), is_array($freemiumApprovedEntitlement) ? (string)($freemiumApprovedEntitlement['tier'] ?? '') : '');
+t('freemium pro approval persists activation with pro requested mode', (($freemiumLicenseState['requested_mode'] ?? '') === 'pro') && (($freemiumLicenseState['status'] ?? '') === 'active'));
+
+cleanupAccessRequestFixture($controlDb, $freemiumModuleId, $tenantId);
+
 $appLog = @file_get_contents(STORAGE_PATH . '/logs/app.log') ?: '';
 $errorLog = @file_get_contents(STORAGE_PATH . '/logs/error.log') ?: '';
 t('no app.log critical errors', !str_contains($appLog, '[critical]'));

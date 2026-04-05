@@ -42,9 +42,7 @@
         "depends": [],
         "policy": {
             "capabilities": {
-                "antispam.check@1": {
-                    "allow_callers": ["cms"]
-                }
+                "antispam.check@1": {}
             }
         }
     },

@@ -7,9 +7,10 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/htmx.org@1.9.10"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-    <link rel="stylesheet" href="/assets/modules/guidance/css/app.css">
+    <link rel="stylesheet" href="/assets/guidance/css/app.css">
     <script>
         var APP_BASE = '{base_url}';
+        var APP_COOKIE = '{cookie_name}';
         document.addEventListener('htmx:configRequest', function(evt) {
             var path = evt.detail.path;
             if (path && path.charAt(0) === '/' && path.indexOf(APP_BASE) !== 0) {
@@ -20,6 +21,7 @@
 </head>
 <body class="bg-gradient-to-br from-indigo-50 via-white to-purple-50 min-h-screen">
     <div class="max-w-2xl mx-auto px-4 py-8">
+        {!-- Header --}
         <div class="text-center mb-8">
             <div class="inline-flex items-center justify-center w-16 h-16 bg-indigo-600 rounded-full mb-4">
                 <i class="fas fa-calendar-check text-white text-2xl"></i>
@@ -31,6 +33,7 @@
             {/if}
         </div>
         
+        {!-- Progress Steps --}
         <div class="flex items-center justify-center mb-8">
             <div class="flex items-center space-x-4">
                 <div class="step-indicator active flex items-center justify-center w-8 h-8 rounded-full text-sm font-medium" id="step1-indicator">1</div>
@@ -41,9 +44,11 @@
             </div>
         </div>
         
+        {!-- Booking Form --}
         <div class="bg-white rounded-2xl shadow-xl p-6 md:p-8">
-            <form id="booking-form" hx-post="/api/booking" hx-swap="innerHTML" hx-target="#form-result">
+            <form id="booking-form">
                 
+                {!-- Step 1: Personal Info (Dynamic from Form Settings) --}
                 <div id="step1" class="step-content">
                     <h2 class="text-xl font-semibold text-gray-900 mb-6">
                         <i class="fas fa-user text-indigo-500 mr-2"></i> Your Information
@@ -61,6 +66,7 @@
                     </div>
                 </div>
                 
+                {!-- Step 2: Appointment Details --}
                 <div id="step2" class="step-content hidden">
                     <h2 class="text-xl font-semibold text-gray-900 mb-6">
                         <i class="fas fa-calendar text-indigo-500 mr-2"></i> Appointment Details
@@ -95,28 +101,7 @@
                             </div>
                         </div>
                         
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Reason for Visit</label>
-                            <select name="purpose" class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
-                                <option value="">Select Reason</option>
-                                <option value="Academic concerns">Academic concerns</option>
-                                <option value="Personal/Emotional support">Personal/Emotional support</option>
-                                <option value="Career guidance">Career guidance</option>
-                                <option value="Family issues">Family issues</option>
-                                <option value="Peer/Social concerns">Peer/Social concerns</option>
-                                <option value="Stress/Anxiety">Stress/Anxiety</option>
-                                <option value="Other">Other</option>
-                            </select>
-                        </div>
-                        
-                        <div class="flex items-center p-3 bg-amber-50 border border-amber-200 rounded-lg">
-                            <input type="checkbox" name="is_urgent" value="1" id="urgent-check"
-                                   class="w-4 h-4 text-amber-600 border-gray-300 rounded focus:ring-amber-500">
-                            <label for="urgent-check" class="ml-2 text-sm text-amber-800">
-                                <i class="fas fa-exclamation-triangle mr-1"></i>
-                                This is urgent and needs priority attention
-                            </label>
-                        </div>
+                        {booking_detail_fields_html | raw}
                     </div>
                     
                     <div class="mt-6 flex justify-between">
@@ -131,6 +116,7 @@
                     </div>
                 </div>
                 
+                {!-- Step 3: Review & Submit --}
                 <div id="step3" class="step-content hidden">
                     <h2 class="text-xl font-semibold text-gray-900 mb-6">
                         <i class="fas fa-check-circle text-indigo-500 mr-2"></i> Review & Submit
@@ -138,12 +124,16 @@
                     
                     <div class="bg-gray-50 rounded-lg p-4 mb-4">
                         <h3 class="font-medium text-gray-700 mb-3">Your Information</h3>
-                        <div class="grid grid-cols-2 gap-2 text-sm" id="review-personal"></div>
+                        <div class="grid grid-cols-2 gap-2 text-sm" id="review-personal">
+                            {!-- Filled by JS --}
+                        </div>
                     </div>
                     
                     <div class="bg-gray-50 rounded-lg p-4 mb-4">
                         <h3 class="font-medium text-gray-700 mb-3">Appointment Details</h3>
-                        <div class="grid grid-cols-2 gap-2 text-sm" id="review-appointment"></div>
+                        <div class="grid grid-cols-2 gap-2 text-sm" id="review-appointment">
+                            {!-- Filled by JS --}
+                        </div>
                     </div>
                     
                     <div>
@@ -159,6 +149,15 @@
                             Your appointment request will be reviewed by a counselor. You will receive an email confirmation once approved.
                         </p>
                     </div>
+
+                    {if two_fa_booking == '1'}
+                        <div class="mt-4 p-4 bg-indigo-50 border border-indigo-200 rounded-lg">
+                            <p class="text-sm text-indigo-800">
+                                <i class="fas fa-shield-alt mr-1"></i>
+                                Email verification is enabled. A 6-digit code will be sent to the student email before the booking request is submitted.
+                            </p>
+                        </div>
+                    {/if}
                     
                     <div class="mt-6 flex justify-between">
                         <button type="button" onclick="prevStep(2)" 
@@ -171,11 +170,45 @@
                         </button>
                     </div>
                 </div>
-                
-                <div id="form-result"></div>
             </form>
+
+            <div id="booking-otp-panel" class="hidden mt-6 rounded-2xl border border-indigo-200 bg-indigo-50 p-6">
+                <h2 class="text-xl font-semibold text-gray-900 mb-2">
+                    <i class="fas fa-envelope-open-text text-indigo-500 mr-2"></i> Verify Your Email
+                </h2>
+                <p class="text-sm text-indigo-800">Enter the 6-digit code sent to <span id="booking-otp-email" class="font-semibold"></span> to finish submitting your booking request.</p>
+
+                <form id="booking-otp-form" class="mt-5 space-y-4">
+                    <input type="hidden" name="ticket" id="booking-otp-ticket">
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Verification Code</label>
+                        <input type="text" name="code" id="booking-otp-code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]*" maxlength="6" required
+                               class="w-full px-4 py-3 text-center tracking-[0.4em] text-lg font-semibold border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white"
+                               placeholder="000000">
+                    </div>
+
+                    <div class="flex flex-col sm:flex-row gap-3">
+                        <button type="submit" id="booking-otp-submit"
+                                class="flex-1 px-6 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors">
+                            Verify &amp; Submit
+                        </button>
+                        <button type="button" id="booking-otp-resend"
+                                class="px-6 py-2.5 border border-indigo-200 text-indigo-700 rounded-lg hover:bg-indigo-100 transition-colors">
+                            Resend Code
+                        </button>
+                        <button type="button" id="booking-otp-edit"
+                                class="px-6 py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">
+                            Edit Details
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <div id="booking-result" class="mt-6"></div>
         </div>
         
+        {!-- Footer --}
         <div class="text-center mt-8 text-sm text-gray-500">
             <p>Need immediate help? Contact the Guidance Office directly.</p>
             {if school_info.phone}
@@ -183,159 +216,431 @@
             {/if}
         </div>
     </div>
-
+    
+    {!-- Toast Container --}
     <div id="toast-container" class="fixed top-4 right-4 z-50"></div>
-
+    
     <script>
         let currentStep = 1;
+        let activeBookingOtpTicket = '';
 
+        const bookingForm = document.getElementById('booking-form');
+        const bookingSubmitBtn = document.getElementById('submit-btn');
+        const bookingOtpPanel = document.getElementById('booking-otp-panel');
+        const bookingOtpForm = document.getElementById('booking-otp-form');
+        const bookingOtpTicket = document.getElementById('booking-otp-ticket');
+        const bookingOtpEmail = document.getElementById('booking-otp-email');
+        const bookingOtpCode = document.getElementById('booking-otp-code');
+        const bookingOtpSubmit = document.getElementById('booking-otp-submit');
+        const bookingOtpResend = document.getElementById('booking-otp-resend');
+        const bookingOtpEdit = document.getElementById('booking-otp-edit');
+        const bookingResult = document.getElementById('booking-result');
+
+        function setBookingSubmitState(isBusy) {
+            bookingSubmitBtn.disabled = isBusy;
+            bookingSubmitBtn.innerHTML = isBusy
+                ? '<i class="fas fa-spinner fa-spin mr-2"></i> Submitting...'
+                : '<i class="fas fa-paper-plane mr-2"></i> Submit Request';
+        }
+
+        function setBookingOtpState(isBusy) {
+            bookingOtpSubmit.disabled = isBusy;
+            bookingOtpSubmit.innerHTML = isBusy
+                ? '<i class="fas fa-spinner fa-spin mr-2"></i> Verifying...'
+                : 'Verify &amp; Submit';
+            bookingOtpResend.disabled = isBusy;
+        }
+
+        function showBookingOtp(data) {
+            activeBookingOtpTicket = data.ticket || '';
+            bookingOtpTicket.value = activeBookingOtpTicket;
+            bookingOtpEmail.textContent = data.masked_email || 'your email address';
+            bookingForm.classList.add('hidden');
+            bookingOtpPanel.classList.remove('hidden');
+            bookingResult.innerHTML = '';
+            bookingOtpCode.value = '';
+            setBookingSubmitState(false);
+            setBookingOtpState(false);
+            bookingOtpCode.focus();
+        }
+
+        function showBookingForm() {
+            activeBookingOtpTicket = '';
+            bookingOtpTicket.value = '';
+            bookingOtpCode.value = '';
+            bookingOtpPanel.classList.add('hidden');
+            bookingForm.classList.remove('hidden');
+            setBookingSubmitState(false);
+            setBookingOtpState(false);
+        }
+
+        function showBookingSuccess(data) {
+            bookingOtpPanel.classList.add('hidden');
+            bookingForm.classList.add('hidden');
+            bookingResult.innerHTML = data.html || '';
+            if (data.message) {
+                showToast(data.message, 'success');
+            }
+            if (bookingResult) {
+                bookingResult.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+        }
+        
         function nextStep(step) {
             if (!validateStep(currentStep)) return;
-
+            
             document.getElementById('step' + currentStep).classList.add('hidden');
             document.getElementById('step' + step).classList.remove('hidden');
-
+            
             document.getElementById('step' + currentStep + '-indicator').classList.remove('active');
             document.getElementById('step' + currentStep + '-indicator').classList.add('completed');
             document.getElementById('step' + step + '-indicator').classList.add('active');
-
+            
             if (step === 3) {
                 updateReview();
             }
-
+            
             currentStep = step;
         }
-
+        
         function prevStep(step) {
             document.getElementById('step' + currentStep).classList.add('hidden');
             document.getElementById('step' + step).classList.remove('hidden');
-
+            
             document.getElementById('step' + currentStep + '-indicator').classList.remove('active');
+            document.getElementById('step' + step + '-indicator').classList.remove('completed');
             document.getElementById('step' + step + '-indicator').classList.add('active');
-
+            
             currentStep = step;
         }
-
+        
         function validateStep(step) {
-            if (step === 1) {
-                const required = document.querySelectorAll('#step1 [required]');
-                for (const el of required) {
-                    if (!el.value) {
-                        showToast('Please fill out all required fields', 'error');
-                        el.focus();
-                        return false;
-                    }
+            const form = document.getElementById('booking-form');
+            const stepDiv = document.getElementById('step' + step);
+            const requiredFields = stepDiv.querySelectorAll('[required]');
+            
+            let valid = true;
+            requiredFields.forEach(field => {
+                if (!field.value) {
+                    field.classList.add('border-red-500');
+                    valid = false;
+                } else {
+                    field.classList.remove('border-red-500');
                 }
-            }
+            });
+            
             if (step === 2) {
-                const type = document.getElementById('type-select');
-                const date = document.getElementById('date-select');
-                const time = document.getElementById('selected-time');
-                if (!type.value || !date.value || !time || !time.value) {
-                    showToast('Please select a session type, date, and time slot', 'error');
-                    return false;
+                const selectedTime = document.getElementById('selected-time');
+                if (!selectedTime || !selectedTime.value) {
+                    showToast('Please select a time slot', 'error');
+                    valid = false;
                 }
             }
-            return true;
+            
+            if (!valid) {
+                showToast('Please fill in all required fields', 'error');
+            }
+            
+            return valid;
         }
 
+        function cleanReviewLabel(text) {
+            return (text || '').replace(/\s*\*+\s*/g, '').replace(/\s+/g, ' ').trim();
+        }
+
+        function findFieldLabel(field) {
+            if (!field) {
+                return '';
+            }
+
+            if ((field.type === 'checkbox' || field.type === 'radio') && field.closest('label')) {
+                return cleanReviewLabel(field.closest('label').textContent);
+            }
+
+            if (field.id) {
+                const explicitLabel = document.querySelector(`label[for="${field.id}"]`);
+                if (explicitLabel) {
+                    return cleanReviewLabel(explicitLabel.textContent);
+                }
+            }
+
+            const fieldWrapper = field.closest('div');
+            if (fieldWrapper) {
+                const wrapperLabel = fieldWrapper.querySelector('label');
+                if (wrapperLabel) {
+                    return cleanReviewLabel(wrapperLabel.textContent);
+                }
+            }
+
+            return cleanReviewLabel(field.name || field.id || 'Field');
+        }
+
+        function getFieldReviewValue(field) {
+            if (!field) {
+                return '-';
+            }
+
+            if (field.tagName === 'SELECT') {
+                return field.selectedOptions[0]?.text || '-';
+            }
+
+            if (field.type === 'checkbox') {
+                return field.checked ? 'Yes' : 'No';
+            }
+
+            if (field.type === 'radio') {
+                return field.checked ? (field.value || 'Yes') : null;
+            }
+
+            if (field.type === 'date') {
+                return formatDate(field.value);
+            }
+
+            if (field.type === 'time') {
+                return formatTime(field.value);
+            }
+
+            return field.value || '-';
+        }
+
+        function buildReviewEntries(stepId, ignoreNames = []) {
+            const step = document.getElementById(stepId);
+            if (!step) {
+                return [];
+            }
+
+            const ignored = new Set(ignoreNames);
+            const fields = step.querySelectorAll('input, select, textarea');
+            const entries = [];
+            const seen = new Set();
+
+            fields.forEach(field => {
+                if (!field.name || field.disabled || ignored.has(field.name)) {
+                    return;
+                }
+
+                if (field.type === 'hidden' || field.type === 'button' || field.type === 'submit') {
+                    return;
+                }
+
+                if (field.type === 'radio' && !field.checked) {
+                    return;
+                }
+
+                if ((field.type === 'radio' || field.type === 'checkbox') && seen.has(field.name)) {
+                    return;
+                }
+
+                if (field.type === 'radio' || field.type === 'checkbox') {
+                    seen.add(field.name);
+                }
+
+                const label = findFieldLabel(field);
+                const value = getFieldReviewValue(field);
+                if (!label || value === null) {
+                    return;
+                }
+
+                entries.push({ label, value });
+            });
+
+            return entries;
+        }
+
+        function renderReviewEntries(containerId, entries) {
+            const container = document.getElementById(containerId);
+            if (!container) {
+                return;
+            }
+
+            if (!entries.length) {
+                container.innerHTML = '<div class="col-span-2 text-gray-500">No details provided.</div>';
+                return;
+            }
+
+            container.innerHTML = entries.map(entry => `
+                <div class="text-gray-600">${entry.label}:</div><div class="font-medium">${entry.value || '-'}</div>
+            `).join('');
+        }
+        
         function updateReview() {
             const form = document.getElementById('booking-form');
-            const data = new FormData(form);
+            const formData = new FormData(form);
 
-            const personal = document.getElementById('review-personal');
-            const appt = document.getElementById('review-appointment');
-            if (!personal || !appt) return;
+            renderReviewEntries('review-personal', buildReviewEntries('step1'));
 
-            personal.innerHTML = '';
-            appt.innerHTML = '';
+            const appointmentEntries = [
+                {
+                    label: 'Type of Session',
+                    value: document.getElementById('type-select')?.selectedOptions[0]?.text || '-',
+                },
+                {
+                    label: 'Preferred Date',
+                    value: formatDate(formData.get('scheduled_date')),
+                },
+                {
+                    label: 'Available Time Slot',
+                    value: formatTime(formData.get('scheduled_time')),
+                },
+                ...buildReviewEntries('step2', ['appointment_type_id', 'scheduled_date', 'scheduled_time', 'counselor_id']),
+            ];
 
-            const pairs = [];
-            data.forEach((v, k) => pairs.push([k, v]));
-
-            for (const [k, v] of pairs) {
-                if (k === 'message' || k === 'purpose' || k === 'is_urgent' || k === 'appointment_type_id' || k === 'scheduled_date' || k === 'scheduled_time') continue;
-                if (v === '') continue;
-                personal.innerHTML += `<div class="text-gray-500">${escapeHtml(k.replace(/_/g,' '))}:</div><div class="font-medium text-gray-800">${escapeHtml(String(v))}</div>`;
-            }
-
-            const typeSelect = document.getElementById('type-select');
-            const typeLabel = typeSelect && typeSelect.selectedOptions[0] ? typeSelect.selectedOptions[0].textContent : '';
-            appt.innerHTML += `<div class="text-gray-500">Type:</div><div class="font-medium text-gray-800">${escapeHtml(typeLabel)}</div>`;
-            appt.innerHTML += `<div class="text-gray-500">Date:</div><div class="font-medium text-gray-800">${escapeHtml(data.get('scheduled_date') || '')}</div>`;
-            appt.innerHTML += `<div class="text-gray-500">Time:</div><div class="font-medium text-gray-800">${escapeHtml(data.get('scheduled_time') || '')}</div>`;
-            const purpose = data.get('purpose') || '';
-            if (purpose) appt.innerHTML += `<div class="text-gray-500">Purpose:</div><div class="font-medium text-gray-800">${escapeHtml(purpose)}</div>`;
-            const urgent = data.get('is_urgent') ? 'Yes' : 'No';
-            appt.innerHTML += `<div class="text-gray-500">Urgent:</div><div class="font-medium text-gray-800">${escapeHtml(urgent)}</div>`;
+            renderReviewEntries('review-appointment', appointmentEntries);
         }
-
-        function escapeHtml(str) {
-            return str.replace(/[&<>"']/g, function(m) {
-                return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]);
+        
+        function formatDate(dateStr) {
+            if (!dateStr) return '-';
+            const date = new Date(dateStr);
+            return date.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+        }
+        
+        function formatTime(timeStr) {
+            if (!timeStr) return '-';
+            const [hours, minutes] = timeStr.split(':');
+            const date = new Date();
+            date.setHours(parseInt(hours), parseInt(minutes));
+            return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+        }
+        
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = `p-4 rounded-lg shadow-lg mb-2 ${type === 'error' ? 'bg-red-500' : type === 'success' ? 'bg-green-500' : 'bg-blue-500'} text-white`;
+            toast.innerHTML = `<i class="fas fa-${type === 'error' ? 'times-circle' : type === 'success' ? 'check-circle' : 'info-circle'} mr-2"></i>${message}`;
+            container.appendChild(toast);
+            setTimeout(() => toast.remove(), 5000);
+        }
+        
+        // Load slots when date changes
+        document.getElementById('date-select').addEventListener('change', function() {
+            const date = this.value;
+            const collegeId = document.getElementById('college-select').value;
+            const typeId = document.getElementById('type-select').value;
+            
+            if (!collegeId) {
+                showToast('Please select your college first', 'error');
+                this.value = '';
+                return;
+            }
+            
+            const container = document.getElementById('slots-container');
+            container.innerHTML = '<div class="text-center"><i class="fas fa-spinner fa-spin text-indigo-500 text-2xl"></i></div>';
+            
+            fetch(APP_BASE + `/api/booking/slots?date=${date}&college_id=${collegeId}&type_id=${typeId}` , {
+                headers: {
+                    'HX-Request': 'true'
+                }
+            })
+                .then(res => res.text())
+                .then(html => {
+                    container.innerHTML = html;
+                    attachSlotListeners();
+                })
+                .catch(err => {
+                    container.innerHTML = '<div class="text-red-500">Failed to load slots</div>';
+                });
+        });
+        
+        function attachSlotListeners() {
+            document.querySelectorAll('.slot-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    document.querySelectorAll('.slot-btn').forEach(b => b.classList.remove('selected'));
+                    this.classList.add('selected');
+                    document.getElementById('selected-time').value = this.dataset.time;
+                    document.getElementById('selected-counselor').value = this.dataset.counselor;
+                });
             });
         }
 
-        function showToast(message, type) {
-            const cont = document.getElementById('toast-container');
-            if (!cont) return;
-            const el = document.createElement('div');
-            el.className = 'mb-2 px-4 py-3 rounded-lg shadow text-sm ' + (type === 'error' ? 'bg-red-600 text-white' : 'bg-green-600 text-white');
-            el.textContent = message;
-            cont.appendChild(el);
-            setTimeout(() => el.remove(), 3500);
-        }
-
-        function refreshSlots() {
-            const college = document.querySelector('[name=college_id]');
-            const date = document.getElementById('date-select');
-            const type = document.getElementById('type-select');
-
-            if (!college || !date || !type) return;
-            if (!college.value || !date.value) return;
-
-            const url = `/guidance/book/api/slots?date=${encodeURIComponent(date.value)}&college_id=${encodeURIComponent(college.value)}&type_id=${encodeURIComponent(type.value)}`;
-            htmx.ajax('GET', url, { target: '#slots-container', swap: 'innerHTML' });
-        }
-
-        document.addEventListener('change', function(e) {
-            if (e.target && (e.target.id === 'date-select' || e.target.id === 'type-select' || e.target.name === 'college_id')) {
-                refreshSlots();
+        bookingForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            if (!validateStep(currentStep)) {
+                return;
             }
-        });
 
-        document.addEventListener('click', function(e) {
-            const btn = e.target.closest('.slot-btn');
-            if (!btn) return;
-            document.querySelectorAll('.slot-btn').forEach(b => b.classList.remove('bg-indigo-600','text-white','border-indigo-600'));
-            btn.classList.add('bg-indigo-600','text-white','border-indigo-600');
-            const time = btn.getAttribute('data-time') || '';
-            const counselor = btn.getAttribute('data-counselor') || '';
-            const tEl = document.getElementById('selected-time');
-            const cEl = document.getElementById('selected-counselor');
-            if (tEl) tEl.value = time;
-            if (cEl) cEl.value = counselor;
-        });
+            setBookingSubmitState(true);
 
-        document.body.addEventListener('htmx:afterOnLoad', function(evt) {
-            const trig = evt.detail.xhr ? evt.detail.xhr.getResponseHeader('HX-Trigger') : null;
-            if (!trig) return;
             try {
-                const data = JSON.parse(trig);
-                if (data && data.showToast) {
-                    showToast(data.showToast.message || 'OK', data.showToast.type || 'success');
-                }
-            } catch (e) {}
-        });
+                const resp = await fetch(APP_BASE + '/book/api/booking', {
+                    method: 'POST',
+                    body: new FormData(bookingForm)
+                });
+                const data = await resp.json();
 
-        document.body.addEventListener('htmx:beforeRequest', function(evt) {
-            if (evt.detail.elt && evt.detail.elt.id === 'booking-form') {
-                if (!validateStep(3)) {
-                    evt.preventDefault();
+                if (data && data.requires_otp) {
+                    showBookingOtp(data);
+                    if (data.message) {
+                        showToast(data.message, 'info');
+                    }
+                } else if (data && (data.ok || data.success)) {
+                    showBookingSuccess(data);
+                } else {
+                    showToast((data && data.error) || 'Failed to create appointment', 'error');
+                    setBookingSubmitState(false);
                 }
+            } catch (err) {
+                showToast('Connection error. Please try again.', 'error');
+                setBookingSubmitState(false);
             }
         });
 
+        bookingOtpForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            setBookingOtpState(true);
+
+            try {
+                const resp = await fetch(APP_BASE + '/book/api/verify-otp', {
+                    method: 'POST',
+                    body: new FormData(bookingOtpForm)
+                });
+                const data = await resp.json();
+
+                if (data && (data.ok || data.success)) {
+                    showBookingSuccess(data);
+                } else {
+                    showToast((data && data.error) || 'Unable to verify the code.', 'error');
+                    setBookingOtpState(false);
+                }
+            } catch (err) {
+                showToast('Connection error. Please try again.', 'error');
+                setBookingOtpState(false);
+            }
+        });
+
+        bookingOtpResend.addEventListener('click', async function() {
+            if (!activeBookingOtpTicket) {
+                showBookingForm();
+                return;
+            }
+
+            setBookingOtpState(true);
+
+            try {
+                const formData = new FormData();
+                formData.append('ticket', activeBookingOtpTicket);
+
+                const resp = await fetch(APP_BASE + '/book/api/resend-otp', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await resp.json();
+
+                if (data && data.requires_otp) {
+                    showBookingOtp(data);
+                    showToast(data.message || 'A new verification code was sent.', 'info');
+                } else {
+                    showToast((data && data.error) || 'Unable to resend the verification code.', 'error');
+                    setBookingOtpState(false);
+                }
+            } catch (err) {
+                showToast('Connection error. Please try again.', 'error');
+                setBookingOtpState(false);
+            }
+        });
+
+        bookingOtpEdit.addEventListener('click', function() {
+            showBookingForm();
+        });
     </script>
 </body>
 </html>

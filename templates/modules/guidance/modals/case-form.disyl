@@ -1,128 +1,264 @@
 {!-- Case Form Modal --}
-{if tinymce_assets && tinymce_assets.css_urls}
-{foreach tinymce_assets.css_urls as css_url}
-<link rel="stylesheet" href="{css_url}">
-{/foreach}
-{/if}
-{if tinymce_assets && tinymce_assets.js_urls}
-{foreach tinymce_assets.js_urls as js_url}
-<script src="{js_url}"></script>
-{/foreach}
-{/if}
+
 <div class="fixed inset-0 z-50 overflow-y-auto" aria-modal="true">
-    <div class="flex items-center justify-center min-h-screen px-4">
-        <div class="fixed inset-0 bg-black bg-opacity-50" onclick="closeModal()"></div>
-
-        <div class="relative bg-white rounded-xl shadow-xl w-full max-w-3xl">
-        <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-            <div>
-                <h2 class="text-lg font-semibold text-gray-900">New Case</h2>
-                <p class="text-sm text-gray-500 mt-0.5">Create a guidance counseling case</p>
-            </div>
-            <button type="button" onclick="closeModal()" class="text-gray-400 hover:text-gray-700">
-                <i class="fas fa-times"></i>
-            </button>
-        </div>
-
-        <form hx-post="/admin/guidance/api/cases"
-              hx-swap="none"
-              class="p-6">
-
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                    <label class="block text-xs font-semibold text-gray-600 mb-1">Student Name</label>
-                    <input name="student_name" required
-                           class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" />
-                </div>
-                <div>
-                    <label class="block text-xs font-semibold text-gray-600 mb-1">Student ID</label>
-                    <input name="student_id" required
-                           class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" />
-                </div>
-
-                <div>
-                    <label class="block text-xs font-semibold text-gray-600 mb-1">Client Number</label>
-                    <input name="client_number" required placeholder="e.g. 09XXXXXXXXX"
-                           class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" />
-                </div>
-
-                <div>
-                    <label class="block text-xs font-semibold text-gray-600 mb-1">Category</label>
-                    <select name="category" class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
-                        <option value="general">General</option>
-                        <option value="academic">Academic</option>
-                        <option value="behavioral">Behavioral</option>
-                        <option value="emotional">Emotional</option>
-                        <option value="family">Family</option>
-                        <option value="peer">Peer</option>
-                        <option value="career">Career</option>
-                        <option value="crisis">Crisis</option>
-                        <option value="special_needs">Special Needs</option>
-                        <option value="substance">Substance</option>
-                        <option value="other">Other</option>
-                    </select>
-                </div>
-                <div>
-                    <label class="block text-xs font-semibold text-gray-600 mb-1">Severity</label>
-                    <select name="severity" class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
-                        <option value="low">Low</option>
-                        <option value="medium" selected>Medium</option>
-                        <option value="high">High</option>
-                        <option value="critical">Critical</option>
-                    </select>
-                </div>
-
-                <div class="md:col-span-2">
-                    <label class="block text-xs font-semibold text-gray-600 mb-1">Counselor</label>
-                    {if user_role == 'counselor'}
-                    <input type="hidden" name="counselor_id" value="{user_id}">
-                    <p class="text-xs text-gray-500">Assigned to your account</p>
-                    {else}
-                    <select name="counselor_id" required class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
-                        <option value="">Select counselor</option>
-                        {foreach counselors as c}
-                        <option value="{c.id}">{c.first_name} {c.last_name}</option>
-                        {/foreach}
-                    </select>
-                    {/if}
-                </div>
-
-                <div class="md:col-span-2">
-                    <label class="block text-xs font-semibold text-gray-600 mb-1">Presenting Issue</label>
-                    <textarea id="guidance-case-presenting-issue" name="presenting_issue" required rows="4" data-tinymce-editor
-                              class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"></textarea>
-                </div>
-            </div>
-
-            <div class="flex items-center justify-end gap-2 mt-6">
-                <button type="button" class="px-4 py-2 text-sm font-medium rounded-lg border border-gray-200 hover:bg-gray-50"
-                        onclick="closeModal()">Cancel</button>
-                <button type="submit" class="px-4 py-2 text-sm font-medium rounded-lg bg-indigo-600 text-white hover:bg-indigo-700">
-                    <i class="fas fa-save mr-2"></i>Create Case
+    <div class="guidance-modal-shell">
+        <div class="fixed inset-0 guidance-modal-backdrop" onclick="document.getElementById('modal-container').innerHTML=''"></div>
+        
+        <div class="guidance-modal-panel guidance-modal-panel--lg">
+            {!-- Header --}
+            <div class="guidance-modal-header">
+                <h2 class="text-xl font-semibold text-gray-800">
+                    {if case.id}Edit Case{else}New Case{/if}
+                </h2>
+                <button onclick="document.getElementById('modal-container').innerHTML=''" 
+                        class="guidance-modal-close">
+                    <i class="fas fa-times text-xl"></i>
                 </button>
             </div>
-        </form>
+            
+            {!-- Form --}
+            <form {if case.id}hx-put="/api/cases/{case.id}"{else}hx-post="/api/cases"{/if}
+                  hx-swap="none"
+                  class="p-6 space-y-6">
+                
+                {!-- Counselor Assignment (admin only) --}
+                {if is_admin}
+                <div>
+                    <h3 class="text-lg font-medium text-gray-800 mb-4">
+                        <i class="fas fa-user-tie mr-2 text-indigo-500"></i> Assign Counselor
+                    </h3>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Counselor *</label>
+                        <select name="counselor_id" id="case-counselor-select" required
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                            <option value="">Select counselor...</option>
+                            {foreach counselors as c}
+                            <option value="{c.id}" {if case.counselor_id == c.id}selected{/if}>{c.name}</option>
+                            {/foreach}
+                        </select>
+                        <p class="text-xs text-gray-400 mt-1">College options will filter based on the selected counselor's assignments.</p>
+                    </div>
+                </div>
+                {/if}
+                
+                {!-- Dynamic Form Fields (from Form Settings) --}
+                {dynamic_fields_html | raw}
+                
+                {!-- Initial Appointment (Required for new cases) --}
+                {if !case.id}
+                <div id="appointment-section">
+                    <h3 class="text-lg font-medium text-gray-800 mb-4">
+                        <i class="fas fa-calendar-alt mr-2 text-indigo-500"></i> Schedule Initial Appointment *
+                    </h3>
+                    
+                    <div class="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4 text-sm text-blue-800">
+                        <i class="fas fa-info-circle mr-2"></i>
+                        An initial appointment is required when creating a new case.
+                    </div>
+                    
+                    {ikb_grid columns="2" gap="medium"}
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Appointment Type *</label>
+                            <select name="appointment_type_id" id="case-appt-type" required
+                                    class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                                <option value="">Loading types...</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Date *</label>
+                            <input type="date" name="appointment_date" id="case-appt-date" required
+                                   min="{today}"
+                                   class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                        </div>
+                    {/ikb_grid}
+                    
+                    <div class="mt-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Available Time Slots *</label>
+                        <div id="case-slots-container" class="grid grid-cols-4 gap-2">
+                            <div class="col-span-4 text-center py-4 text-gray-500 text-sm">
+                                <i class="fas fa-calendar mr-2"></i> Select a date to view available slots
+                            </div>
+                        </div>
+                        <input type="hidden" name="appointment_time" id="case-appt-time" required>
+                    </div>
+                    
+                    <div class="mt-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Purpose/Notes</label>
+                        {ikb_textarea name="appointment_purpose" rows="2" placeholder="Brief description of appointment purpose..."}{/ikb_textarea}
+                    </div>
+                </div>
+                {/if}
+                
+                {!-- Actions --}
+                <div class="flex items-center justify-end space-x-3 pt-4 border-t">
+                    <button type="button" onclick="document.getElementById('modal-container').innerHTML=''"
+                            class="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition">
+                        Cancel
+                    </button>
+                    {ikb_button type="submit" variant="primary"}
+                        <i class="fas fa-save mr-2"></i> {if case.id}Update Case{else}Create Case{/if}
+                    {/ikb_button}
+                </div>
+            </form>
+        </div>
     </div>
 </div>
-</div>
+
+{if is_admin}
 <script>
 (function() {
-    if (typeof window.tinymce === 'undefined') return;
-    var existing = window.tinymce.get('guidance-case-presenting-issue');
-    if (existing) return;
-    var config = Object.assign({}, {tinymce_config | json}, {
-        selector: '#guidance-case-presenting-issue'
+    var counselorSelect = document.getElementById('case-counselor-select');
+    var collegeSelect = document.getElementById('college-select');
+    if (!collegeSelect) return; // No college field rendered (e.g., no form fields configured yet)
+    var allColleges = [];
+    // Store all initial college options
+    collegeSelect.querySelectorAll('option').forEach(function(opt) {
+        if (opt.value) allColleges.push({ id: opt.value, text: opt.textContent, selected: opt.selected });
     });
-    window.tinymce.init(config);
-})();
-document.addEventListener('htmx:configRequest', function(evt) {
-    var form = evt.detail && evt.detail.elt ? evt.detail.elt.closest('form') : null;
-    if (!form) return;
-    if (form.getAttribute('hx-post') !== '/admin/guidance/api/cases') return;
-    if (typeof window.tinymce === 'undefined') return;
-    var editor = window.tinymce.get('guidance-case-presenting-issue');
-    if (editor) {
-        editor.save();
+    
+    var currentCollegeId = collegeSelect.value;
+    
+    counselorSelect.addEventListener('change', function() {
+        var counselorId = this.value;
+        if (!counselorId) {
+            // No counselor selected — show all colleges
+            rebuildColleges(allColleges, currentCollegeId);
+            return;
+        }
+        // Fetch this counselor's assigned colleges
+        collegeSelect.innerHTML = '<option value="">Loading...</option>';
+        fetch(APP_BASE + '/api/users/' + counselorId + '/colleges', {
+            headers: { 'Authorization': 'Bearer ' + (document.cookie.match(new RegExp(APP_COOKIE + '=([^;]+)'))?.[1] || '') }
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.success && data.data && data.data.length > 0) {
+                var opts = data.data.map(function(c) {
+                    return { id: String(c.id), text: c.code + ' - ' + c.name, selected: String(c.id) === currentCollegeId };
+                });
+                rebuildColleges(opts, currentCollegeId);
+            } else {
+                collegeSelect.innerHTML = '<option value="">No colleges assigned to this counselor</option>';
+            }
+        })
+        .catch(function() {
+            collegeSelect.innerHTML = '<option value="">Failed to load colleges</option>';
+        });
+    });
+    
+    function rebuildColleges(opts, selectedId) {
+        collegeSelect.innerHTML = '<option value="">Select college...</option>';
+        opts.forEach(function(o) {
+            var opt = document.createElement('option');
+            opt.value = o.id;
+            opt.textContent = o.text;
+            if (o.id === selectedId) opt.selected = true;
+            collegeSelect.appendChild(opt);
+        });
     }
-});
+    
+    // If editing and counselor is already selected, trigger filter
+    if (counselorSelect.value) {
+        counselorSelect.dispatchEvent(new Event('change'));
+    }
+})();
 </script>
+{/if}
+
+{if !case.id}
+<script>
+(function() {
+    const typeSelect = document.getElementById('case-appt-type');
+    const dateInput = document.getElementById('case-appt-date');
+    const slotsContainer = document.getElementById('case-slots-container');
+    const timeInput = document.getElementById('case-appt-time');
+    
+    const counselorSelect = document.getElementById('case-counselor-select');
+
+    // Load appointment types
+    fetch(APP_BASE + '/api/appointment-types')
+        .then(r => r.json())
+        .then(data => {
+            if (data.success && data.data) {
+                typeSelect.innerHTML = '<option value="">Select type...</option>';
+                data.data.forEach(t => {
+                    const option = document.createElement('option');
+                    option.value = t.id;
+                    option.dataset.duration = t.duration_minutes;
+                    option.textContent = t.name + ' (' + t.duration_minutes + ' min)';
+                    typeSelect.appendChild(option);
+                });
+            }
+        })
+        .catch(() => {
+            typeSelect.innerHTML = '<option value="">Failed to load</option>';
+        });
+    
+    // Load slots when date changes
+    dateInput.addEventListener('change', loadSlots);
+    typeSelect.addEventListener('change', loadSlots);
+    
+    function loadSlots() {
+        const date = dateInput.value;
+        const typeId = typeSelect.value;
+        
+        if (!date) {
+            slotsContainer.innerHTML = '<div class="col-span-4 text-center py-4 text-gray-500 text-sm"><i class="fas fa-calendar mr-2"></i> Select a date to view available slots</div>';
+            return;
+        }
+        
+        slotsContainer.innerHTML = '<div class="col-span-4 text-center py-4"><i class="fas fa-spinner fa-spin mr-2"></i> Loading slots...</div>';
+        timeInput.value = '';
+        
+        const duration = typeSelect.selectedOptions[0]?.dataset?.duration || 30;
+        const counselorId = counselorSelect ? counselorSelect.value : '';
+
+        if (counselorSelect && !counselorId) {
+            slotsContainer.innerHTML = '<div class="col-span-4 text-center py-4 text-amber-600 text-sm"><i class="fas fa-user-tie mr-2"></i> Select a counselor to view available slots</div>';
+            return;
+        }
+
+        const url = new URL(APP_BASE + '/api/appointments/slots', window.location.origin);
+        url.searchParams.set('date', date);
+        url.searchParams.set('duration', duration);
+        if (counselorId) {
+            url.searchParams.set('counselor_id', counselorId);
+        }
+
+        fetch(url.toString())
+            .then(r => r.json())
+            .then(data => {
+                if (data.success && data.data && data.data.length > 0) {
+                    slotsContainer.innerHTML = '';
+                    data.data.forEach(slot => {
+                        const btn = document.createElement('button');
+                        btn.type = 'button';
+                        btn.className = 'px-3 py-2 text-sm border rounded-lg hover:bg-indigo-50 hover:border-indigo-300 transition-colors';
+                        btn.textContent = slot.display;
+                        btn.dataset.time = slot.time;
+                        btn.addEventListener('click', () => selectSlot(btn));
+                        slotsContainer.appendChild(btn);
+                    });
+                } else {
+                    slotsContainer.innerHTML = '<div class="col-span-4 text-center py-4 text-gray-500 text-sm"><i class="fas fa-calendar-times mr-2"></i> No available slots for this date</div>';
+                }
+            })
+            .catch(() => {
+                slotsContainer.innerHTML = '<div class="col-span-4 text-center py-4 text-red-500 text-sm"><i class="fas fa-exclamation-circle mr-2"></i> Failed to load slots</div>';
+            });
+    }
+    
+    function selectSlot(btn) {
+        slotsContainer.querySelectorAll('button').forEach(b => {
+            b.classList.remove('bg-indigo-600', 'text-white', 'border-indigo-600');
+        });
+        btn.classList.add('bg-indigo-600', 'text-white', 'border-indigo-600');
+        timeInput.value = btn.dataset.time;
+    }
+
+    if (counselorSelect) {
+        counselorSelect.addEventListener('change', loadSlots);
+    }
+})();
+</script>
+{/if}

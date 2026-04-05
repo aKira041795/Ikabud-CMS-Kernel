@@ -1,31 +1,20 @@
 {!-- Appointment Form Modal --}
 
-{if tinymce_assets && tinymce_assets.css_urls}
-{foreach tinymce_assets.css_urls as css_url}
-<link rel="stylesheet" href="{css_url}">
-{/foreach}
-{/if}
-{if tinymce_assets && tinymce_assets.js_urls}
-{foreach tinymce_assets.js_urls as js_url}
-<script src="{js_url}"></script>
-{/foreach}
-{/if}
-
 <div class="fixed inset-0 z-50 overflow-y-auto" aria-modal="true">
-    <div class="flex items-center justify-center min-h-screen px-4">
-        <div class="fixed inset-0 bg-black bg-opacity-50" onclick="closeModal()"></div>
+    <div class="guidance-modal-shell">
+        <div class="fixed inset-0 guidance-modal-backdrop" onclick="closeModal()"></div>
         
-        <div class="relative bg-white rounded-xl shadow-xl max-w-lg w-full">
-            <div class="flex items-center justify-between p-4 border-b">
+        <div class="guidance-modal-panel guidance-modal-panel--md">
+            <div class="guidance-modal-header">
                 <h2 class="text-xl font-semibold text-gray-800">
                     {if appointment.id}Edit Appointment{else}New Appointment{/if}
                 </h2>
-                <button onclick="closeModal()" class="text-gray-400 hover:text-gray-600">
+                <button onclick="closeModal()" class="guidance-modal-close">
                     <i class="fas fa-times text-xl"></i>
                 </button>
             </div>
             
-            <form {if appointment.id}hx-put="/admin/guidance/api/appointments/{appointment.id}"{else}hx-post="/admin/guidance/api/appointments"{/if}
+            <form {if appointment.id}hx-put="/api/appointments/{appointment.id}"{else}hx-post="/api/appointments"{/if}
                   hx-swap="none"
                   class="p-6 space-y-4">
                 
@@ -33,26 +22,16 @@
                 <input type="hidden" name="case_id" value="{case_id}">
                 {/if}
                 
+                {if !case_id}
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Case *</label>
                     <select name="case_id" required class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
-                            hx-get="/admin/guidance/api/cases/options" hx-trigger="load" hx-target="this" hx-swap="innerHTML">
+                            hx-get="/api/cases/options" hx-trigger="load" hx-target="this" hx-swap="innerHTML">
                         <option value="">Loading cases...</option>
                     </select>
                 </div>
-
-                {if user_role != 'counselor'}
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Counselor *</label>
-                    <select name="counselor_id" required class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
-                        <option value="">Select counselor</option>
-                        {foreach counselors as c}
-                        <option value="{c.id}" {if appointment.counselor_id == c.id}selected{/if}>{c.first_name} {c.last_name}</option>
-                        {/foreach}
-                    </select>
-                </div>
                 {/if}
-
+                
                 <div class="grid grid-cols-2 gap-4">
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Date *</label>
@@ -68,37 +47,35 @@
                                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
                     </div>
                 </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Session Type *</label>
+                    <select name="appointment_type_id" id="appointment-type-select" required data-selected-type="{appointment.appointment_type_id | default:''}"
+                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                        <option value="">Loading session types...</option>
+                    </select>
+                </div>
                 
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Duration (minutes)</label>
-                    <select name="duration_minutes" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
-                        <option value="30" {if appointment.duration_minutes == '30'}selected{/if}>30 minutes</option>
-                        <option value="45" {if appointment.duration_minutes == '45'}selected{/if}>45 minutes</option>
-                        <option value="60" {if appointment.duration_minutes == '60'}selected{/if}>1 hour</option>
-                        <option value="90" {if appointment.duration_minutes == '90'}selected{/if}>1.5 hours</option>
+                    <select name="duration_minutes" id="appointment-duration-select" data-selected-duration="{appointment.duration_minutes | default:'60'}"
+                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
+                        <option value="30">30 minutes</option>
+                        <option value="45">45 minutes</option>
+                        <option value="60">1 hour</option>
+                        <option value="90">1.5 hours</option>
                     </select>
                 </div>
                 
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Purpose</label>
-                    <select name="purpose" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
-                        <option value="counseling" {if appointment.purpose == 'counseling'}selected{/if}>Counseling Session</option>
-                        <option value="follow_up" {if appointment.purpose == 'follow_up'}selected{/if}>Follow-up</option>
-                        <option value="assessment" {if appointment.purpose == 'assessment'}selected{/if}>Assessment</option>
-                        <option value="parent_meeting" {if appointment.purpose == 'parent_meeting'}selected{/if}>Parent Meeting</option>
-                        <option value="other" {if appointment.purpose == 'other'}selected{/if}>Other</option>
-                    </select>
+                    <input type="text" name="purpose" value="{appointment.purpose | default:''}" placeholder="Brief purpose of the appointment"
+                           class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
                 </div>
-
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Location</label>
-                    <input type="text" name="location" value="{appointment.location | default:''}"
-                           class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500" placeholder="Optional">
-                </div>
-
+                
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Notes</label>
-                    <textarea id="guidance-appointment-notes" name="notes" rows="3" placeholder="Additional notes..." data-tinymce-editor
+                    <textarea name="notes" rows="3" placeholder="Additional notes..."
                               class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500">{appointment.notes | default:''}</textarea>
                 </div>
                 
@@ -115,29 +92,50 @@
         </div>
     </div>
 </div>
- <script>
- (function() {
-     if (typeof window.tinymce === 'undefined') return;
-     var existing = window.tinymce.get('guidance-appointment-notes');
-     if (existing) {
-         existing.setContent(document.getElementById('guidance-appointment-notes').value || '');
-         return;
-     }
-     var config = Object.assign({}, {tinymce_config | json}, {
-         selector: '#guidance-appointment-notes'
-     });
-     window.tinymce.init(config);
- })();
- document.addEventListener('htmx:configRequest', function(evt) {
-     var form = evt.detail && evt.detail.elt ? evt.detail.elt.closest('form') : null;
-     if (!form) return;
-     var hxPost = form.getAttribute('hx-post');
-     var hxPut = form.getAttribute('hx-put');
-     if (hxPost !== '/admin/guidance/api/appointments' && (!hxPut || hxPut.indexOf('/admin/guidance/api/appointments/') !== 0)) return;
-     if (typeof window.tinymce === 'undefined') return;
-     var editor = window.tinymce.get('guidance-appointment-notes');
-     if (editor) {
-         editor.save();
-     }
- });
- </script>
+
+<script>
+(function() {
+    var typeSelect = document.getElementById('appointment-type-select');
+    var durationSelect = document.getElementById('appointment-duration-select');
+    if (!typeSelect || !durationSelect) return;
+
+    var selectedTypeId = typeSelect.getAttribute('data-selected-type') || '';
+    var selectedDuration = durationSelect.getAttribute('data-selected-duration') || '60';
+
+    function syncDurationFromType() {
+        var selected = typeSelect.selectedOptions[0];
+        if (!selected || !selected.dataset.duration) return;
+        durationSelect.value = selected.dataset.duration;
+    }
+
+    fetch(APP_BASE + '/api/appointment-types')
+        .then(function(response) { return response.json(); })
+        .then(function(data) {
+            if (!data.success || !data.data) {
+                throw new Error('Failed to load session types');
+            }
+
+            typeSelect.innerHTML = '<option value="">Select session type...</option>';
+            data.data.forEach(function(type) {
+                var option = document.createElement('option');
+                option.value = type.id;
+                option.textContent = type.name + ' (' + type.duration_minutes + ' min)';
+                option.dataset.duration = type.duration_minutes;
+                if (String(type.id) === selectedTypeId) {
+                    option.selected = true;
+                }
+                typeSelect.appendChild(option);
+            });
+
+            durationSelect.value = selectedDuration;
+            if (selectedTypeId) {
+                syncDurationFromType();
+            }
+        })
+        .catch(function() {
+            typeSelect.innerHTML = '<option value="">Failed to load session types</option>';
+        });
+
+    typeSelect.addEventListener('change', syncDurationFromType);
+})();
+</script>

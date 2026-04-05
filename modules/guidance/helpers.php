@@ -41,7 +41,11 @@ function guidanceInput(?string $key = null, mixed $default = null): mixed
 
 function guidanceRender(string $template, array $context = []): string
 {
-    return guidanceCtx()->render($template, kernelPrepareRenderContext($template, $context));
+    $resolvedTemplate = str_starts_with($template, 'modules/guidance/')
+        ? $template
+        : 'modules/guidance/' . ltrim($template, '/');
+
+    return guidanceCtx()->render($resolvedTemplate, kernelPrepareRenderContext($resolvedTemplate, $context));
 }
 
 function guidanceNormalizePageRenderContext(array $context, string $template, array &$missingKeys = [], array &$typeMismatches = []): array
@@ -50,6 +54,7 @@ function guidanceNormalizePageRenderContext(array $context, string $template, ar
         'page_title' => '',
         'base_url' => '/admin/guidance',
         'current_page' => '',
+        'is_pro' => false,
         'user_name' => '',
         'user_role' => '',
         'user_initials' => '',
@@ -103,6 +108,329 @@ function guidanceGetSetting(string $key, ?string $default = null): ?string
     } catch (Throwable $e) {
         return $default;
     }
+}
+
+function guidanceAllowedFormTypes(): array
+{
+    return ['case', 'booking', 'appointment'];
+}
+
+function guidanceParseFormFieldOptions(mixed $raw): array
+{
+    if (is_array($raw)) {
+        return array_values(array_filter(array_map(static function ($value): string {
+            return trim((string)$value);
+        }, $raw), static function (string $value): bool {
+            return $value !== '';
+        }));
+    }
+
+    $raw = trim((string)$raw);
+    if ($raw === '') {
+        return [];
+    }
+
+    $decoded = json_decode($raw, true);
+    if (is_array($decoded)) {
+        return guidanceParseFormFieldOptions($decoded);
+    }
+
+    return array_values(array_filter(array_map(static function (string $value): string {
+        return trim($value);
+    }, explode(',', $raw)), static function (string $value): bool {
+        return $value !== '';
+    }));
+}
+
+function guidanceNormalizeFormFieldOptions(mixed $raw): ?string
+{
+    $options = guidanceParseFormFieldOptions($raw);
+    if ($options === []) {
+        return null;
+    }
+
+    return json_encode($options, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: null;
+}
+
+function guidanceGetFormFields(string $formType): array
+{
+    if (!in_array($formType, guidanceAllowedFormTypes(), true)) {
+        return [];
+    }
+
+    try {
+        $stmt = guidanceDb()->prepare(
+            'SELECT * FROM gm_form_fields WHERE form_type = ? AND is_enabled = 1 ORDER BY sort_order, id'
+        );
+        $stmt->execute([$formType]);
+        $fields = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    } catch (Throwable $e) {
+        return [];
+    }
+
+    foreach ($fields as &$field) {
+        $field['parsed_options'] = guidanceParseFormFieldOptions($field['field_options'] ?? null);
+    }
+    unset($field);
+
+    return $fields;
+}
+
+function guidanceFilterFormFields(array $fields, array $options = []): array
+{
+    $includeGroups = array_values(array_filter(array_map('strval', (array)($options['include_groups'] ?? []))));
+    $excludeGroups = array_values(array_filter(array_map('strval', (array)($options['exclude_groups'] ?? []))));
+    $includeFields = array_values(array_filter(array_map('strval', (array)($options['include_fields'] ?? []))));
+    $excludeFields = array_values(array_filter(array_map('strval', (array)($options['exclude_fields'] ?? []))));
+
+    return array_values(array_filter($fields, static function (array $field) use ($includeGroups, $excludeGroups, $includeFields, $excludeFields): bool {
+        $group = (string)($field['field_group'] ?? '');
+        $name = (string)($field['field_name'] ?? '');
+
+        if ($includeGroups !== [] && !in_array($group, $includeGroups, true)) {
+            return false;
+        }
+        if ($excludeGroups !== [] && in_array($group, $excludeGroups, true)) {
+            return false;
+        }
+        if ($includeFields !== [] && !in_array($name, $includeFields, true)) {
+            return false;
+        }
+        if ($excludeFields !== [] && in_array($name, $excludeFields, true)) {
+            return false;
+        }
+
+        return true;
+    }));
+}
+
+function guidanceGetFormFieldsGrouped(string $formType, array $options = []): array
+{
+    $fields = guidanceFilterFormFields(guidanceGetFormFields($formType), $options);
+    $groups = [];
+
+    foreach ($fields as $field) {
+        $group = trim((string)($field['field_group'] ?? ''));
+        if ($group === '') {
+            $group = 'General';
+        }
+
+        if (!isset($groups[$group])) {
+            $groups[$group] = [];
+        }
+
+        $groups[$group][] = $field;
+    }
+
+    return $groups;
+}
+
+function guidanceFindFormField(string $formType, string $fieldName): ?array
+{
+    foreach (guidanceGetFormFields($formType) as $field) {
+        if ((string)($field['field_name'] ?? '') === $fieldName) {
+            return $field;
+        }
+    }
+
+    return null;
+}
+
+function guidanceGetRequiredFormFields(string $formType): array
+{
+    return array_values(array_map(static function (array $field): string {
+        return (string)$field['field_name'];
+    }, array_filter(guidanceGetFormFields($formType), static function (array $field): bool {
+        return !empty($field['is_required']);
+    })));
+}
+
+function guidanceValidateFormInput(string $formType, array $input, array $options = []): array
+{
+    $ignoreFields = array_values(array_filter(array_map('strval', (array)($options['ignore_fields'] ?? []))));
+    $errors = [];
+
+    foreach (guidanceGetRequiredFormFields($formType) as $fieldName) {
+        if (in_array($fieldName, $ignoreFields, true)) {
+            continue;
+        }
+
+        $value = $input[$fieldName] ?? null;
+        $missing = false;
+
+        if (is_array($value)) {
+            $missing = count(array_filter($value, static function ($item): bool {
+                return trim((string)$item) !== '';
+            })) === 0;
+        } elseif (!array_key_exists($fieldName, $input)) {
+            $missing = true;
+        } else {
+            $missing = trim((string)$value) === '';
+        }
+
+        if ($missing) {
+            $errors[] = ucfirst(str_replace('_', ' ', $fieldName)) . ' is required';
+        }
+    }
+
+    return $errors;
+}
+
+function guidanceRenderFormField(array $field, mixed $value = null, array $extra = []): string
+{
+    $name = (string)($field['field_name'] ?? '');
+    if ($name === '') {
+        return '';
+    }
+
+    $type = strtolower(trim((string)($field['field_type'] ?? 'text')));
+    $label = htmlspecialchars((string)($field['field_label'] ?? $name), ENT_QUOTES, 'UTF-8');
+    $placeholder = htmlspecialchars((string)($field['placeholder'] ?? ''), ENT_QUOTES, 'UTF-8');
+    $required = !empty($field['is_required']);
+    $requiredAttr = $required ? ' required' : '';
+    $requiredStar = $required ? ' *' : '';
+
+    if ($value === null || $value === '') {
+        $value = $field['default_value'] ?? null;
+    }
+
+    $inputId = $name === 'college_id'
+        ? 'college-select'
+        : 'guidance-field-' . preg_replace('/[^a-z0-9_\-]+/i', '-', $name);
+
+    $baseClass = 'w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500';
+    $escapedValue = htmlspecialchars((string)($value ?? ''), ENT_QUOTES, 'UTF-8');
+    $html = '<div>';
+
+    if ($type === 'hidden') {
+        return '<input type="hidden" id="' . $inputId . '" name="' . htmlspecialchars($name, ENT_QUOTES, 'UTF-8') . '" value="' . $escapedValue . '">';
+    }
+
+    if ($type === 'checkbox') {
+        $checked = !empty($value) ? ' checked' : '';
+        $html .= '<label class="flex items-center">';
+        $html .= '<input type="checkbox" id="' . $inputId . '" name="' . htmlspecialchars($name, ENT_QUOTES, 'UTF-8') . '" value="1" class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"' . $checked . $requiredAttr . '>';
+        $html .= '<span class="ml-2 text-sm text-gray-700">' . $label . $requiredStar . '</span>';
+        $html .= '</label>';
+        $html .= '</div>';
+        return $html;
+    }
+
+    $html .= '<label class="block text-sm font-medium text-gray-700 mb-1" for="' . $inputId . '">' . $label . $requiredStar . '</label>';
+
+    if ($type === 'textarea') {
+        $html .= '<textarea id="' . $inputId . '" name="' . htmlspecialchars($name, ENT_QUOTES, 'UTF-8') . '" rows="3" placeholder="' . $placeholder . '" class="' . $baseClass . '"' . $requiredAttr . '>' . htmlspecialchars((string)($value ?? ''), ENT_QUOTES, 'UTF-8') . '</textarea>';
+        $html .= '</div>';
+        return $html;
+    }
+
+    if ($type === 'select') {
+        $html .= '<select id="' . $inputId . '" name="' . htmlspecialchars($name, ENT_QUOTES, 'UTF-8') . '" class="' . $baseClass . '"' . $requiredAttr . '>';
+        $html .= '<option value="">Select...</option>';
+
+        if ($name === 'college_id' && !empty($extra['colleges']) && is_array($extra['colleges'])) {
+            foreach ($extra['colleges'] as $college) {
+                if (!is_array($college)) {
+                    continue;
+                }
+                $optionValue = (string)($college['id'] ?? '');
+                if ($optionValue === '') {
+                    continue;
+                }
+                $optionLabel = trim((string)($college['code'] ?? '') . ' - ' . (string)($college['name'] ?? ''));
+                $selected = (string)$value === $optionValue ? ' selected' : '';
+                $html .= '<option value="' . htmlspecialchars($optionValue, ENT_QUOTES, 'UTF-8') . '"' . $selected . '>' . htmlspecialchars($optionLabel, ENT_QUOTES, 'UTF-8') . '</option>';
+            }
+        } else {
+            foreach ((array)($field['parsed_options'] ?? []) as $option) {
+                $optionValue = trim((string)$option);
+                if ($optionValue === '') {
+                    continue;
+                }
+                $selected = (string)$value === $optionValue ? ' selected' : '';
+                $optionLabel = ucfirst(str_replace('_', ' ', $optionValue));
+                $html .= '<option value="' . htmlspecialchars($optionValue, ENT_QUOTES, 'UTF-8') . '"' . $selected . '>' . htmlspecialchars($optionLabel, ENT_QUOTES, 'UTF-8') . '</option>';
+            }
+        }
+
+        $html .= '</select>';
+        $html .= '</div>';
+        return $html;
+    }
+
+    $inputType = in_array($type, ['date', 'email', 'tel', 'number', 'time'], true) ? $type : 'text';
+    $html .= '<input type="' . $inputType . '" id="' . $inputId . '" name="' . htmlspecialchars($name, ENT_QUOTES, 'UTF-8') . '" value="' . $escapedValue . '" placeholder="' . $placeholder . '" class="' . $baseClass . '"' . $requiredAttr . '>';
+    $html .= '</div>';
+    return $html;
+}
+
+function guidanceRenderFormFields(string $formType, array $values = [], array $extra = [], array $options = []): string
+{
+    $grouped = guidanceGetFormFieldsGrouped($formType, $options);
+    if ($grouped === []) {
+        return '';
+    }
+
+    $showGroupHeadings = !array_key_exists('show_group_headings', $options) || !empty($options['show_group_headings']);
+
+    $groupIcons = [
+        'Student Information' => 'fa-user-graduate',
+        'Case Details' => 'fa-clipboard-list',
+        'Parent/Guardian' => 'fa-users',
+        'Personal Information' => 'fa-user',
+        'Appointment Details' => 'fa-calendar-alt',
+        'Schedule' => 'fa-clock',
+        'Details' => 'fa-info-circle',
+        'General' => 'fa-list',
+    ];
+
+    $html = '';
+    foreach ($grouped as $groupName => $fields) {
+        $icon = $groupIcons[$groupName] ?? 'fa-list';
+        $regularFields = [];
+        $checkboxFields = [];
+
+        foreach ($fields as $field) {
+            if ((string)($field['field_type'] ?? '') === 'checkbox') {
+                $checkboxFields[] = $field;
+            } else {
+                $regularFields[] = $field;
+            }
+        }
+
+        $html .= '<div>';
+        if ($regularFields !== []) {
+            if ($showGroupHeadings) {
+                $html .= '<h3 class="text-lg font-medium text-gray-800 mb-4">';
+                $html .= '<i class="fas ' . $icon . ' mr-2 text-indigo-500"></i> ' . htmlspecialchars($groupName, ENT_QUOTES, 'UTF-8');
+                $html .= '</h3>';
+            }
+            $html .= '<div class="grid grid-cols-1 md:grid-cols-2 gap-4">';
+            foreach ($regularFields as $field) {
+                $name = (string)($field['field_name'] ?? '');
+                $value = $values[$name] ?? null;
+                $colClass = (string)($field['grid_column'] ?? 'full') === 'full' ? 'md:col-span-2' : '';
+                $html .= '<div class="' . $colClass . '">';
+                $html .= guidanceRenderFormField($field, $value, $extra);
+                $html .= '</div>';
+            }
+            $html .= '</div>';
+        }
+
+        if ($checkboxFields !== []) {
+            $html .= '<div class="mt-4 flex flex-wrap items-center gap-6">';
+            foreach ($checkboxFields as $field) {
+                $name = (string)($field['field_name'] ?? '');
+                $value = $values[$name] ?? null;
+                $html .= guidanceRenderFormField($field, $value, $extra);
+            }
+            $html .= '</div>';
+        }
+
+        $html .= '</div>';
+    }
+
+    return $html;
 }
 
 function guidanceTinyMceAssets(string $context = 'guidance.session', string $profile = 'default'): array
@@ -254,5 +582,472 @@ function guidance_cap_kernel_auth_authenticate_1(mixed $payload, string $capabil
     } catch (Throwable $e) {
         // Non-fatal: auth provider returns null and lets pipeline continue.
         return null;
+    }
+}
+
+/**
+ * Get the current entitlement tier for the tenant running this guidance module.
+ * Returns 'free' or 'pro'.
+ */
+function guidanceTenantTier(): string {
+    $tenantId = (int)(app()->tenant()->current() ?? 0);
+    $entitlement = moduleTenantEntitlementRow('guidance', $tenantId);
+    
+    // Safely extract tier, default to free
+    if (!$entitlement || empty($entitlement['tier'])) {
+        return 'free';
+    }
+    
+    return strtolower((string)$entitlement['tier']) === 'pro' ? 'pro' : 'free';
+}
+
+/**
+ * Check if the tenant is on the PRO tier for the guidance module.
+ */
+function guidanceIsPro(): bool {
+    return guidanceTenantTier() === 'pro';
+}
+
+/**
+ * Restrict access to PRO-tier endpoints.
+ * Returns a JSON 403 or redirects if the tenant is on the FREE tier.
+ */
+function guidanceRequirePro(): void {
+    if (guidanceIsPro()) {
+        return;
+    }
+    
+    if (guidanceIsHtmx() || app()->input('api') || str_starts_with($_SERVER['REQUEST_URI'] ?? '', '/api/')) {
+        app()->json([
+            'error' => 'upgrade_required',
+            'message' => 'This feature requires the Guidance PRO tier. Please upgrade your license to access it.'
+        ], 403);
+        exit;
+    }
+    
+    app()->redirect('/admin/guidance?error=upgrade_required');
+    exit;
+}
+
+function guidanceAvailabilityDayLabels(): array {
+    return [
+        'monday' => 'Monday',
+        'tuesday' => 'Tuesday',
+        'wednesday' => 'Wednesday',
+        'thursday' => 'Thursday',
+        'friday' => 'Friday',
+        'saturday' => 'Saturday',
+        'sunday' => 'Sunday',
+    ];
+}
+
+function guidanceAvailabilityDefaultWorkingHours(): array {
+    return [
+        'monday' => ['start' => '08:00', 'end' => '17:00'],
+        'tuesday' => ['start' => '08:00', 'end' => '17:00'],
+        'wednesday' => ['start' => '08:00', 'end' => '17:00'],
+        'thursday' => ['start' => '08:00', 'end' => '17:00'],
+        'friday' => ['start' => '08:00', 'end' => '17:00'],
+        'saturday' => null,
+        'sunday' => null,
+    ];
+}
+
+function guidanceNormalizeAvailabilityTime(?string $time): ?string {
+    if ($time === null) {
+        return null;
+    }
+
+    $time = trim($time);
+    if ($time === '') {
+        return null;
+    }
+
+    return substr($time, 0, 5);
+}
+
+function guidanceAvailabilityTableExists(\Ikabud\Kernel\Contracts\DatabaseContract $db): bool {
+    try {
+        $stmt = $db->query("SHOW TABLES LIKE 'gm_counselor_availability'");
+        return (bool)($stmt ? $stmt->fetchColumn() : false);
+    } catch (Throwable $e) {
+        return false;
+    }
+}
+
+function guidanceAvailabilityColumnExists(\Ikabud\Kernel\Contracts\DatabaseContract $db, string $column): bool {
+    try {
+        $stmt = $db->query('SHOW COLUMNS FROM gm_counselor_availability');
+        $rows = $stmt ? ($stmt->fetchAll(PDO::FETCH_ASSOC) ?: []) : [];
+        foreach ($rows as $row) {
+            if ((string)($row['Field'] ?? '') === $column) {
+                return true;
+            }
+        }
+    } catch (Throwable $e) {
+        return false;
+    }
+
+    return false;
+}
+
+function guidanceAvailabilityIndexExists(\Ikabud\Kernel\Contracts\DatabaseContract $db, string $indexName): bool {
+    try {
+        $stmt = $db->query('SHOW INDEX FROM gm_counselor_availability');
+        $rows = $stmt ? ($stmt->fetchAll(PDO::FETCH_ASSOC) ?: []) : [];
+        foreach ($rows as $row) {
+            if ((string)($row['Key_name'] ?? '') === $indexName) {
+                return true;
+            }
+        }
+    } catch (Throwable $e) {
+        return false;
+    }
+
+    return false;
+}
+
+function guidanceEnsureCounselorAvailabilityTable(\Ikabud\Kernel\Contracts\DatabaseContract $db): void {
+    if (!guidanceAvailabilityTableExists($db)) {
+        throw new RuntimeException('Guidance counselor availability table is missing. Run the guidance module migrations.');
+    }
+}
+
+function guidanceGetGlobalWorkingHours(\Ikabud\Kernel\Contracts\DatabaseContract $db): array {
+    $hours = guidanceAvailabilityDefaultWorkingHours();
+
+    try {
+        $stmt = $db->prepare("SELECT setting_value FROM gm_settings WHERE setting_key = 'working_hours' LIMIT 1");
+        $stmt->execute();
+        $raw = $stmt->fetchColumn();
+    } catch (Throwable $e) {
+        return $hours;
+    }
+
+    $decoded = json_decode((string)$raw, true);
+    if (!is_array($decoded)) {
+        return $hours;
+    }
+
+    foreach (guidanceAvailabilityDayLabels() as $day => $label) {
+        if (!array_key_exists($day, $decoded)) {
+            continue;
+        }
+
+        if ($decoded[$day] === null) {
+            $hours[$day] = null;
+            continue;
+        }
+
+        $start = guidanceNormalizeAvailabilityTime($decoded[$day]['start'] ?? null);
+        $end = guidanceNormalizeAvailabilityTime($decoded[$day]['end'] ?? null);
+        if ($start !== null && $end !== null) {
+            $hours[$day] = ['start' => $start, 'end' => $end];
+        }
+    }
+
+    return $hours;
+}
+
+function guidanceGetGlobalWorkingHourRanges(\Ikabud\Kernel\Contracts\DatabaseContract $db): array {
+    $hours = guidanceGetGlobalWorkingHours($db);
+    $ranges = [];
+
+    foreach (guidanceAvailabilityDayLabels() as $day => $label) {
+        $ranges[$day] = [];
+        if (!is_array($hours[$day] ?? null)) {
+            continue;
+        }
+
+        $start = guidanceNormalizeAvailabilityTime($hours[$day]['start'] ?? null);
+        $end = guidanceNormalizeAvailabilityTime($hours[$day]['end'] ?? null);
+        if ($start === null || $end === null) {
+            continue;
+        }
+
+        $ranges[$day][] = [
+            'slot_index' => 1,
+            'start' => $start,
+            'end' => $end,
+        ];
+    }
+
+    return $ranges;
+}
+
+function guidanceSerializeAvailabilityRanges(array $ranges): string {
+    $parts = [];
+
+    foreach ($ranges as $range) {
+        $start = guidanceNormalizeAvailabilityTime($range['start'] ?? null);
+        $end = guidanceNormalizeAvailabilityTime($range['end'] ?? null);
+        if ($start === null || $end === null) {
+            continue;
+        }
+        $parts[] = $start . '|' . $end;
+    }
+
+    return implode(';', $parts);
+}
+
+function guidanceAvailabilityRangesSummary(array $ranges, string $closedLabel = 'Closed'): string {
+    $parts = [];
+
+    foreach ($ranges as $range) {
+        $start = guidanceNormalizeAvailabilityTime($range['start'] ?? null);
+        $end = guidanceNormalizeAvailabilityTime($range['end'] ?? null);
+        if ($start === null || $end === null) {
+            continue;
+        }
+        $parts[] = $start . '-' . $end;
+    }
+
+    return empty($parts) ? $closedLabel : implode(', ', $parts);
+}
+
+function guidanceGetStoredCounselorAvailability(\Ikabud\Kernel\Contracts\DatabaseContract $db, int $userId): array {
+    if (!guidanceAvailabilityTableExists($db)) {
+        return [];
+    }
+
+    $hasSlotIndex = guidanceAvailabilityColumnExists($db, 'slot_index');
+
+    $stmt = $db->prepare(
+        "SELECT day_of_week, " . ($hasSlotIndex ? 'COALESCE(slot_index, 1)' : '1') . " AS slot_index, is_available, start_time, end_time\n"
+        . "FROM gm_counselor_availability\n"
+        . "WHERE counselor_id = ?\n"
+        . "ORDER BY FIELD(day_of_week, 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday')"
+        . ($hasSlotIndex ? ', COALESCE(slot_index, 1)' : '')
+        . ', id'
+    );
+    $stmt->execute([$userId]);
+
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    $availability = [];
+    foreach ($rows as $row) {
+        if (!is_array($row)) {
+            continue;
+        }
+        $dayKey = (string)($row['day_of_week'] ?? '');
+        if ($dayKey === '') {
+            continue;
+        }
+
+        if (!isset($availability[$dayKey])) {
+            $availability[$dayKey] = [
+                'has_custom_record' => true,
+                'ranges' => [],
+            ];
+        }
+
+        $start = guidanceNormalizeAvailabilityTime($row['start_time'] ?? null);
+        $end = guidanceNormalizeAvailabilityTime($row['end_time'] ?? null);
+        if ((int)($row['is_available'] ?? 0) !== 1 || $start === null || $end === null) {
+            continue;
+        }
+
+        $availability[$dayKey]['ranges'][] = [
+            'slot_index' => (int)($row['slot_index'] ?? (count($availability[$dayKey]['ranges']) + 1)),
+            'start' => $start,
+            'end' => $end,
+        ];
+    }
+
+    foreach ($availability as $dayKey => $dayAvailability) {
+        usort($dayAvailability['ranges'], static function (array $left, array $right): int {
+            return strcmp((string)$left['start'], (string)$right['start']);
+        });
+
+        foreach ($dayAvailability['ranges'] as $index => $range) {
+            $dayAvailability['ranges'][$index]['slot_index'] = $index + 1;
+        }
+
+        $availability[$dayKey] = $dayAvailability;
+    }
+
+    return $availability;
+}
+
+function guidanceGetMergedCounselorAvailability(\Ikabud\Kernel\Contracts\DatabaseContract $db, int $userId): array {
+    $global = guidanceGetGlobalWorkingHourRanges($db);
+    $stored = guidanceGetStoredCounselorAvailability($db, $userId);
+    $merged = [];
+
+    foreach (guidanceAvailabilityDayLabels() as $day => $label) {
+        $defaultRanges = $global[$day] ?? [];
+        $defaultIsAvailable = !empty($defaultRanges);
+        $customRanges = $stored[$day]['ranges'] ?? [];
+        $isCustom = isset($stored[$day]);
+        $effectiveRanges = $isCustom ? $customRanges : $defaultRanges;
+
+        $merged[] = [
+            'key' => $day,
+            'label' => $label,
+            'is_available' => !empty($effectiveRanges),
+            'ranges' => $effectiveRanges,
+            'editor_ranges' => $customRanges,
+            'source' => $isCustom ? 'custom' : 'default',
+            'summary' => guidanceAvailabilityRangesSummary($effectiveRanges),
+            'default_is_available' => $defaultIsAvailable,
+            'default_ranges' => $defaultRanges,
+            'default_ranges_serialized' => guidanceSerializeAvailabilityRanges($defaultRanges),
+            'default_summary' => guidanceAvailabilityRangesSummary($defaultRanges),
+        ];
+    }
+
+    return $merged;
+}
+
+function guidanceGetCounselorAvailabilityForDate(\Ikabud\Kernel\Contracts\DatabaseContract $db, int $userId, string $date): ?array {
+    $dayKey = strtolower((string)date('l', strtotime($date)));
+    foreach (guidanceGetMergedCounselorAvailability($db, $userId) as $day) {
+        if (($day['key'] ?? '') !== $dayKey) {
+            continue;
+        }
+
+        if (empty($day['is_available'])) {
+            return null;
+        }
+
+        $ranges = is_array($day['ranges'] ?? null) ? $day['ranges'] : [];
+        if ($ranges === []) {
+            return null;
+        }
+
+        return [
+            'start' => (string)($ranges[0]['start'] ?? ''),
+            'end' => (string)($ranges[count($ranges) - 1]['end'] ?? ''),
+            'ranges' => $ranges,
+            'source' => (string)($day['source'] ?? 'default'),
+        ];
+    }
+
+    return null;
+}
+
+function guidanceNormalizeAvailabilityRangesInput(array $rangesInput, string $label): array {
+    $normalized = [];
+
+    foreach ($rangesInput as $index => $rangeInput) {
+        if (!is_array($rangeInput)) {
+            continue;
+        }
+
+        $start = guidanceNormalizeAvailabilityTime($rangeInput['start'] ?? null);
+        $end = guidanceNormalizeAvailabilityTime($rangeInput['end'] ?? null);
+        if ($start === null && $end === null) {
+            continue;
+        }
+        if ($start === null || $end === null) {
+            throw new InvalidArgumentException($label . ' range ' . ((int)$index + 1) . ' requires both start and end times');
+        }
+        if ($start >= $end) {
+            throw new InvalidArgumentException($label . ' range ' . ((int)$index + 1) . ' end time must be after the start time');
+        }
+
+        $normalized[] = ['start' => $start, 'end' => $end];
+    }
+
+    usort($normalized, static function (array $left, array $right): int {
+        return strcmp((string)$left['start'], (string)$right['start']);
+    });
+
+    $previousEnd = null;
+    foreach ($normalized as $index => $range) {
+        if ($previousEnd !== null && (string)$range['start'] < $previousEnd) {
+            throw new InvalidArgumentException($label . ' ranges cannot overlap');
+        }
+        $normalized[$index]['slot_index'] = $index + 1;
+        $previousEnd = (string)$range['end'];
+    }
+
+    return $normalized;
+}
+
+function guidanceExtractAvailabilityRangesFromInput(array $dayInput, string $label): array {
+    if (isset($dayInput['ranges']) && is_array($dayInput['ranges'])) {
+        return guidanceNormalizeAvailabilityRangesInput($dayInput['ranges'], $label);
+    }
+
+    $enabled = !empty($dayInput['enabled']);
+    if (!$enabled) {
+        return [];
+    }
+
+    $start = guidanceNormalizeAvailabilityTime($dayInput['start'] ?? null);
+    $end = guidanceNormalizeAvailabilityTime($dayInput['end'] ?? null);
+    if ($start === null || $end === null) {
+        throw new InvalidArgumentException($label . ' start and end times are required');
+    }
+
+    return guidanceNormalizeAvailabilityRangesInput([
+        ['start' => $start, 'end' => $end],
+    ], $label);
+}
+
+function guidanceSaveCounselorAvailability(\Ikabud\Kernel\Contracts\DatabaseContract $db, int $userId, array $availability): void {
+    guidanceEnsureCounselorAvailabilityTable($db);
+
+    $hasSlotIndex = guidanceAvailabilityColumnExists($db, 'slot_index');
+
+    $insertStmt = $db->prepare(
+        $hasSlotIndex
+            ? 'INSERT INTO gm_counselor_availability (counselor_id, day_of_week, slot_index, is_available, start_time, end_time, created_at, updated_at) '
+                . 'VALUES (?, ?, ?, ?, ?, ?, NOW(), NOW())'
+            : 'INSERT INTO gm_counselor_availability (counselor_id, day_of_week, is_available, start_time, end_time, created_at, updated_at) '
+                . 'VALUES (?, ?, ?, ?, ?, NOW(), NOW())'
+    );
+    $deleteStmt = $db->prepare('DELETE FROM gm_counselor_availability WHERE counselor_id = ? AND day_of_week = ?');
+
+    $db->beginTransaction();
+    try {
+        foreach (guidanceAvailabilityDayLabels() as $day => $label) {
+            $hasDayInput = array_key_exists($day, $availability) && is_array($availability[$day]);
+            $dayInput = $hasDayInput ? $availability[$day] : [];
+            $useDefault = !$hasDayInput || !empty($dayInput['use_default']);
+
+            $deleteStmt->execute([$userId, $day]);
+            if ($useDefault) {
+                continue;
+            }
+
+            $ranges = guidanceExtractAvailabilityRangesFromInput($dayInput, $label);
+            if ($ranges === []) {
+                $insertStmt->execute($hasSlotIndex ? [$userId, $day, 1, 0, null, null] : [$userId, $day, 0, null, null]);
+                continue;
+            }
+
+            if (!$hasSlotIndex && count($ranges) > 1) {
+                throw new RuntimeException('Guidance counselor availability schema is outdated. Run the guidance module migrations to support multiple daily ranges.');
+            }
+
+            foreach ($ranges as $range) {
+                $insertStmt->execute(
+                    $hasSlotIndex
+                        ? [
+                            $userId,
+                            $day,
+                            (int)$range['slot_index'],
+                            1,
+                            $range['start'],
+                            $range['end'],
+                        ]
+                        : [
+                            $userId,
+                            $day,
+                            1,
+                            $range['start'],
+                            $range['end'],
+                        ]
+                );
+            }
+        }
+
+        $db->commit();
+    } catch (Throwable $e) {
+        if ($db->inTransaction()) {
+            $db->rollBack();
+        }
+        throw $e;
     }
 }
