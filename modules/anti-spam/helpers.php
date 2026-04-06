@@ -165,7 +165,7 @@ function antispamDb()
 function antispamTableExists(string $table): bool
 {
     static $cache = [];
-    $tid = app()->tenantId();
+    $tid = app()->tenant()->current();
     if (!isset($cache[$tid])) {
         $cache[$tid] = [];
     }
@@ -358,7 +358,7 @@ function antispamGetSettings(): array
     // Cache keyed by tenant ID so different tenants in the same process
     // don't share each other's antispam configuration.
     static $cache = [];
-    $tid = app()->tenantId();
+    $tid = app()->tenant()->current();
     if (array_key_exists($tid, $cache)) return $cache[$tid];
 
     $merged = array_merge(

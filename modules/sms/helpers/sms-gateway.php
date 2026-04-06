@@ -44,7 +44,7 @@ function smsGetSettings(): array
     // Cache keyed by tenant ID so different tenants in the same process
     // don't share each other's SMS configuration (API keys, provider, etc.).
     static $cache = [];
-    $tid = app()->tenantId();
+    $tid = app()->tenant()->current();
     if (array_key_exists($tid, $cache)) return $cache[$tid];
 
     $cache[$tid] = array_merge(smsSettingsDefaults(), getModuleSettings('sms'));

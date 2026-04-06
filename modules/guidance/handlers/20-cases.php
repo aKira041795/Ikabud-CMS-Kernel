@@ -7,7 +7,7 @@
 
 function casesHasStudentStatusColumn(PDO $db): bool {
     static $hasColumn = [];
-    $tid = app()->tenantId();
+    $tid = app()->tenant()->current();
 
     if (array_key_exists($tid, $hasColumn)) {
         return $hasColumn[$tid];

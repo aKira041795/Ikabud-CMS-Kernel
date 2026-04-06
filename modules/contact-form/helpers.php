@@ -1191,7 +1191,7 @@ function contactFormSubmissionRecordsFromRow(array $row): array
 
 function contactFormResetSchemaState(): void
 {
-    $tid = app()->tenantId();
+    $tid = app()->tenant()->current();
     unset(
         $GLOBALS['_contact_form_table_exists_cache'][$tid],
         $GLOBALS['_contact_form_column_exists_cache'][$tid],
@@ -1221,7 +1221,7 @@ function contactFormTableExists(string $table, bool $refresh = false): bool
         return false;
     }
 
-    $tid = app()->tenantId();
+    $tid = app()->tenant()->current();
     if (!isset($GLOBALS['_contact_form_table_exists_cache'][$tid]) || !is_array($GLOBALS['_contact_form_table_exists_cache'][$tid])) {
         $GLOBALS['_contact_form_table_exists_cache'][$tid] = [];
     }
@@ -1258,7 +1258,7 @@ function contactFormColumnExists(string $table, string $column, bool $refresh = 
         return false;
     }
 
-    $tid = app()->tenantId();
+    $tid = app()->tenant()->current();
     if (!isset($GLOBALS['_contact_form_column_exists_cache'][$tid]) || !is_array($GLOBALS['_contact_form_column_exists_cache'][$tid])) {
         $GLOBALS['_contact_form_column_exists_cache'][$tid] = [];
     }
@@ -1330,7 +1330,7 @@ function contactFormSchemaStatus(bool $refresh = false): array
         contactFormResetSchemaState();
     }
 
-    $tid = app()->tenantId();
+    $tid = app()->tenant()->current();
     $cached = $GLOBALS['_contact_form_schema_status'][$tid] ?? null;
     if (!$refresh && is_array($cached)) {
         return $cached;
@@ -1340,7 +1340,7 @@ function contactFormSchemaStatus(bool $refresh = false): array
     $sync = null;
 
     if (($gaps['missing_tables'] !== [] || $gaps['missing_columns'] !== []) && function_exists('syncTenantMigrationsForTenant')) {
-        $tenantId = app()->tenantId();
+        $tenantId = app()->tenant()->current();
         if ($tenantId > 0) {
             $previousUnguarded = (bool) kernel_request_context_get('_kernel_db_unguarded', false);
             kernel_request_context_set('_kernel_db_unguarded', true);
@@ -1677,7 +1677,7 @@ function contactFormRenderSharedStyles(): string
 {
     static $injected = [];
 
-    $tenantId = app()->tenantId();
+    $tenantId = app()->tenant()->current();
     if (!empty($injected[$tenantId])) {
         return '';
     }

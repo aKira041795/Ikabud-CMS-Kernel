@@ -478,7 +478,7 @@ function tkGetSettings(): array
     // Cache keyed by tenant ID so different tenants in the same process
     // don't share each other's ticketing configuration.
     static $cache = [];
-    $tid = app()->tenantId();
+    $tid = app()->tenant()->current();
     if (array_key_exists($tid, $cache)) {
         return $cache[$tid];
     }

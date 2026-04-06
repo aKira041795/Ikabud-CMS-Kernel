@@ -7070,7 +7070,7 @@ function normalizeStudentStatusOptions(array $options): array
 function studentStatusCasesColumnExists(\Ikabud\Kernel\Contracts\DatabaseContract $db): bool
 {
     static $exists = [];
-    $tid = app()->tenantId();
+    $tid = app()->tenant()->current();
 
     if (array_key_exists($tid, $exists)) {
         return $exists[$tid];

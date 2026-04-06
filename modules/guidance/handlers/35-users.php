@@ -7,7 +7,7 @@
 
 function usersHasPhoneColumn(PDO $db): bool {
     static $hasPhone = [];
-    $tid = app()->tenantId();
+    $tid = app()->tenant()->current();
 
     if (array_key_exists($tid, $hasPhone)) {
         return $hasPhone[$tid];

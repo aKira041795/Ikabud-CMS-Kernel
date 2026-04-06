@@ -44,7 +44,7 @@ function ecCtx(): \Ikabud\Kernel\Contracts\ModuleContext
 function ecTableExists(string $table): bool
 {
     static $cache = [];
-    $tid = app()->tenantId();
+    $tid = app()->tenant()->current();
     if (!isset($cache[$tid])) {
         $cache[$tid] = [];
     }
@@ -323,7 +323,7 @@ function ecRender(string $template, array $context = []): void
 function ecHasCmsCategoryTaxonomy(): bool
 {
     static $hasTaxonomy = [];
-    $tid = app()->tenantId();
+    $tid = app()->tenant()->current();
     if (array_key_exists($tid, $hasTaxonomy)) {
         return $hasTaxonomy[$tid];
     }
@@ -390,7 +390,7 @@ function ecSettingsDefaults(): array
 function ecSettings(?string $key = null, mixed $default = null): mixed
 {
     static $cache = [];
-    $tid = app()->tenantId();
+    $tid = app()->tenant()->current();
     if (!array_key_exists($tid, $cache)) {
         $cache[$tid] = array_merge(ecSettingsDefaults(), getModuleSettings('ecommerce'));
     }
@@ -409,7 +409,7 @@ function ecSettings(?string $key = null, mixed $default = null): mixed
 function ecMaybeInstallPages(): void
 {
     static $done = [];
-    $tid = app()->tenantId();
+    $tid = app()->tenant()->current();
     if (!empty($done[$tid])) {
         return;
     }

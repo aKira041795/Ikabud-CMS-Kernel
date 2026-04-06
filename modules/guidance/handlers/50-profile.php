@@ -62,7 +62,7 @@ function normalizeStudentStatusOptions(array $options): array
 function studentStatusCasesColumnExists(PDO $db): bool
 {
     static $exists = [];
-    $tid = app()->tenantId();
+    $tid = app()->tenant()->current();
 
     if (array_key_exists($tid, $exists)) {
         return $exists[$tid];
