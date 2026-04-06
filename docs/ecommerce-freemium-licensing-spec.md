@@ -96,27 +96,53 @@ Once the customer receives the license key, they must input it into their tenant
 
 ### 3.1 User Input
 - The Superadmin Settings UI renders an input field "License Key" for modules marked as `commercial_mode: freemium` or `paid`.
+- The user pastes the RS256 JWT they received by email after purchasing at the module author's store (`cmsnew.test` for `guidance`).
 
 ### 3.2 Kernel Dispatch
-- Upon form submission, the Kernel intercepts the license string.
-- The Kernel checks if the target module exposes the standard capability: `module.license.activate@1`.
-- If exposed, the Kernel dispatches the capability payload: `['license_key' => $inputString]`.
+- Upon form submission the kernel calls `invokeModuleLicenseActivation()` which dispatches `module.license.activate@1` (mode `first`).
+- The guidance module registers its own provider at **priority 20** (above the kernel default at 10) — so guidance's verifier runs first.
 
-### 3.3 Module Verification
-- The module (e.g., `guidance`) handles `module.license.activate@1`.
-- It takes the JWT, verifies the cryptographic signature using its bundled **Public Key**.
-- If valid and not expired, the handler returns:
-  ```php
-  [
-      'ok' => true,
-      'tier' => $jwtPayload['tier'],
-      'expires_at' => $jwtPayload['expires_at']
-  ]
-  ```
+### 3.3 Module Verification — Guidance
+
+The guidance module handles `module.license.activate@1` via `guidanceLicenseActivateHandler()` (registered in `handlers.php`) which delegates to `guidanceVerifyLicenseJwt()` in `helpers.php`.
+
+**Verification steps:**
+1. Parse three dot-separated base64url segments from the JWT.
+2. Confirm `alg = RS256` in the header.
+3. Verify the RS256 signature using the bundled public key at `modules/guidance/license-key.pem`.
+4. Validate claims:
+   - `iss = 'ikabud_ecommerce'` — must be issued by the author's ecommerce module.
+   - `aud = 'guidance'` — must be issued for this module.
+   - `exp > time()` — must not be expired (omitting `exp` = perpetual license).
+   - `tier` present — must specify the unlocked tier (`pro`, etc.).
+5. On success: calls `grantModuleEntitlementForTenant()` to persist the tier + expiry, then returns:
+
+```php
+[
+    'ok'          => true,
+    'status'      => 'active',
+    'provider'    => 'guidance',
+    'tier'        => 'pro',
+    'expires_at'  => '2027-04-06 00:00:00',  // '' if perpetual
+    'activated_at'=> '2026-04-06 12:00:00',
+    'jti'         => '<unique token id>',
+]
+```
+
+6. On failure: returns `['ok' => false, 'status' => 'error', 'error' => '...']` with a human-readable message.
+
+**Key pair management:**
+- The **private key** (RSA 2048-bit) lives exclusively in `cmsnew.test`'s ecommerce settings (`license_private_key_pem`). It is used by `ec_license_generate_jwt()` at purchase time.
+- The **public key** is bundled inside the guidance module at `modules/guidance/license-key.pem` and never changes between versions unless the author rotates keys.
+- Key rotation requires publishing a new module version with the updated `license-key.pem`.
+
+**`guidanceRequirePro()` upgrade link:**
+Upgrade blocks now include `upgrade_url` from the `license_store_url` module setting (default: `https://cmsnew.test`), so API 403 responses carry a link directly to the author's store.
 
 ### 3.4 Entitlement Unlock
-- The Kernel receives the success response and updates the `kernel_tenant_module_entitlements` table for the tenant.
-- The module's premium `tier_features` (defined in `module.json`) are immediately unlocked for that tenant's runtime environment.
+- `guidanceLicenseActivateHandler()` calls `grantModuleEntitlementForTenant()` directly on success, so the tier (`pro`) is immediately active in `kernel_tenant_module_entitlements`.
+- `guidanceTenantTier()` reads from that table via `moduleTenantEntitlementRow()`, so feature-gated endpoints unblock without a page reload.
+- The kernel also persists activation state via the default `kernelDefaultModuleLicenseActivationProvider` (priority 10) after guidance's provider returns.
 
 ## 4. Customer Delivery & Dashboard
 
@@ -175,9 +201,19 @@ Once the customer receives the license key, they must input it into their tenant
 | `ecCartHasDigitalItems()` helper    | ✅ Complete  |
 | Guest auto-registration at checkout | ✅ Complete  |
 | Digital checkout notice (templates) | ✅ Complete  |
-| Offline JWT validator (Superadmin) | ⏳ Pending   |
-| `module.license.activate@1` cap    | ⏳ Pending   |
+| Offline JWT validator (Guidance)   | ✅ Complete  |
+| `module.license.activate@1` cap    | ✅ Complete  |
+| `license_store_url` setting (Guidance) | ✅ Complete  |
 
-## 6. Next Steps (Pending)
+## 6. Key Pair Management
 
-2. **Step 2**: Build the offline JWT validation interface in the Ikabud Superadmin Settings and the `module.license.activate@1` handler for freemium testing (e.g., in the `guidance` module).
+| Item | Location |
+|------|----------|
+| Private key (RSA 2048) | `cmsnew.test` → ecommerce module setting `license_private_key_pem` |
+| Public key | `modules/guidance/license-key.pem` (bundled in module source) |
+| Generation command | `openssl genrsa -out private.pem 2048 && openssl rsa -in private.pem -pubout -out license-key.pem` |
+| Rotation policy | Issue new licenses signed with the new key; ship updated `license-key.pem` in a module version bump |
+
+The private key **must never** be committed to version control or shared outside `cmsnew.test`. Customer licenses expire based on `exp` in the JWT; the module author controls duration via the `_license_duration_days` product meta on `cmsnew.test`.
+
+## 7. Next Steps (Pending)

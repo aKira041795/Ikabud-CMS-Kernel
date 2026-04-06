@@ -616,17 +616,219 @@ function guidanceRequirePro(): void {
     if (guidanceIsPro()) {
         return;
     }
-    
+
+    $storeUrl = trim((string)(readTenantModuleSettings('guidance')['license_store_url'] ?? 'https://cmsnew.test'));
+
     if (guidanceIsHtmx() || app()->input('api') || str_starts_with($_SERVER['REQUEST_URI'] ?? '', '/api/')) {
         app()->json([
-            'error' => 'upgrade_required',
-            'message' => 'This feature requires the Guidance PRO tier. Please upgrade your license to access it.'
+            'error'       => 'upgrade_required',
+            'message'     => 'This feature requires the Guidance PRO tier. Please upgrade your license to access it.',
+            'upgrade_url' => $storeUrl,
         ], 403);
         exit;
     }
-    
+
     app()->redirect('/admin/guidance?error=upgrade_required');
     exit;
+}
+
+// ─── License Activation (module.license.activate@1) ──────────────────────────
+
+/**
+ * Return the bundled RS256 public key PEM used to verify Guidance license JWTs.
+ * The matching private key is held exclusively by the module author at cmsnew.test.
+ */
+function guidanceLicensePublicKey(): string
+{
+    $path = __DIR__ . '/license-key.pem';
+    if (!is_file($path)) {
+        return '';
+    }
+    return (string) file_get_contents($path);
+}
+
+/**
+ * Parse and cryptographically verify a Guidance RS256 license JWT.
+ *
+ * Returns an array with:
+ *   ok          bool    — true when signature and all claims are valid
+ *   tier        string  — 'pro' (or another tier) from JWT 'tier' claim
+ *   expires_at  string  — ISO-8601 expiry, or '' for perpetual
+ *   error       string  — human-readable failure reason (only when ok=false)
+ *
+ * The JWT must satisfy:
+ *   - alg = RS256
+ *   - iss = 'ikabud_ecommerce'
+ *   - aud = 'guidance'
+ *   - exp > time()  (or omitted → perpetual)
+ *   - signature verifiable by the bundled public key
+ */
+function guidanceVerifyLicenseJwt(string $jwt): array
+{
+    $parts = explode('.', trim($jwt));
+    if (count($parts) !== 3) {
+        return ['ok' => false, 'error' => 'Malformed JWT: expected three dot-separated segments.'];
+    }
+
+    [$b64Header, $b64Payload, $b64Sig] = $parts;
+
+    // Decode header
+    $headerJson = base64_decode(str_replace(['-', '_'], ['+', '/'], $b64Header), true);
+    if ($headerJson === false) {
+        return ['ok' => false, 'error' => 'Invalid base64url header.'];
+    }
+    $header = json_decode($headerJson, true);
+    if (!is_array($header) || strtoupper((string)($header['alg'] ?? '')) !== 'RS256') {
+        return ['ok' => false, 'error' => 'Unsupported or missing algorithm; RS256 required.'];
+    }
+
+    // Decode payload
+    $payloadJson = base64_decode(str_replace(['-', '_'], ['+', '/'], $b64Payload), true);
+    if ($payloadJson === false) {
+        return ['ok' => false, 'error' => 'Invalid base64url payload.'];
+    }
+    $claims = json_decode($payloadJson, true);
+    if (!is_array($claims)) {
+        return ['ok' => false, 'error' => 'Could not decode JWT payload.'];
+    }
+
+    // Decode signature
+    $sigBin = base64_decode(str_replace(['-', '_'], ['+', '/'], $b64Sig), true);
+    if ($sigBin === false || $sigBin === '') {
+        return ['ok' => false, 'error' => 'Invalid base64url signature.'];
+    }
+
+    // Verify RS256 signature against bundled public key
+    $publicKeyPem = guidanceLicensePublicKey();
+    if ($publicKeyPem === '') {
+        return ['ok' => false, 'error' => 'Module license public key not found; contact support.'];
+    }
+
+    $pubKey = openssl_pkey_get_public($publicKeyPem);
+    if ($pubKey === false) {
+        return ['ok' => false, 'error' => 'Could not load module license public key.'];
+    }
+
+    $signingInput = $b64Header . '.' . $b64Payload;
+    $verified = openssl_verify($signingInput, $sigBin, $pubKey, OPENSSL_ALGO_SHA256);
+
+    if ($verified !== 1) {
+        return ['ok' => false, 'error' => 'License key signature is invalid. Ensure the key was issued for Guidance by the authorized author.'];
+    }
+
+    // Validate standard claims
+    $iss = trim((string)($claims['iss'] ?? ''));
+    if ($iss !== 'ikabud_ecommerce') {
+        return ['ok' => false, 'error' => "Invalid issuer '{$iss}'; expected 'ikabud_ecommerce'."];
+    }
+
+    $aud = trim((string)($claims['aud'] ?? ''));
+    if ($aud !== 'guidance') {
+        return ['ok' => false, 'error' => "License is not for this module (aud='{$aud}'); expected 'guidance'."];
+    }
+
+    $tier = strtolower(trim((string)($claims['tier'] ?? '')));
+    if ($tier === '') {
+        return ['ok' => false, 'error' => 'License key is missing the tier claim.'];
+    }
+
+    $exp = isset($claims['exp']) ? (int)$claims['exp'] : null;
+    if ($exp !== null && $exp < time()) {
+        return ['ok' => false, 'error' => 'License key has expired. Please renew at the module store.'];
+    }
+
+    $expiresAt = ($exp !== null) ? date('Y-m-d H:i:s', $exp) : '';
+
+    return [
+        'ok'         => true,
+        'tier'       => $tier,
+        'expires_at' => $expiresAt,
+        'jti'        => (string)($claims['jti'] ?? ''),
+    ];
+}
+
+/**
+ * Capability handler for module.license.activate@1.
+ *
+ * Called by the kernel when a superadmin submits a Guidance license key.
+ * Validates the JWT and — on success — grants the corresponding entitlement tier
+ * for the tenant via grantModuleEntitlementForTenant().
+ *
+ * Returns an array compatible with the kernel's invokeModuleLicenseActivation contract:
+ *   ok          bool
+ *   status      'active' | 'error'
+ *   tier        string
+ *   expires_at  string
+ *   provider    'guidance'
+ *   error       string  (only on failure)
+ */
+function guidanceLicenseActivateHandler(mixed $payload, string $capabilityId = '', string $providerId = ''): array
+{
+    if (!is_array($payload)) {
+        return ['ok' => false, 'status' => 'error', 'provider' => 'guidance', 'error' => 'Invalid payload.'];
+    }
+
+    $moduleId = trim((string)($payload['module_id'] ?? ''));
+    if ($moduleId !== 'guidance') {
+        // Not for us; pass through by returning a skip signal.
+        return ['ok' => true, 'status' => 'skipped', 'reason' => 'module_mismatch', 'provider' => 'guidance'];
+    }
+
+    $licenseKey = trim((string)($payload['license_key'] ?? ''));
+    if ($licenseKey === '') {
+        return ['ok' => false, 'status' => 'error', 'provider' => 'guidance', 'error' => 'No license key supplied.'];
+    }
+
+    $verification = guidanceVerifyLicenseJwt($licenseKey);
+    if (!($verification['ok'] ?? false)) {
+        write_log('guidance.license.activate failed', 'warning', [
+            'error'     => $verification['error'] ?? 'unknown',
+            'module_id' => $moduleId,
+            'tenant_id' => (int)($payload['tenant_id'] ?? 0),
+        ]);
+        return [
+            'ok'       => false,
+            'status'   => 'error',
+            'provider' => 'guidance',
+            'error'    => (string)($verification['error'] ?? 'License validation failed.'),
+        ];
+    }
+
+    $tier      = (string)$verification['tier'];
+    $expiresAt = (string)$verification['expires_at'];
+    $tenantId  = (int)($payload['tenant_id'] ?? 0);
+
+    // Persist the entitlement tier so guidanceTenantTier() picks it up.
+    if ($tenantId > 0 && function_exists('grantModuleEntitlementForTenant')) {
+        grantModuleEntitlementForTenant('guidance', $tenantId, [
+            'status'     => 'active',
+            'tier'       => $tier,
+            'expires_at' => $expiresAt !== '' ? $expiresAt : null,
+            'source'     => 'license_jwt',
+            'metadata'   => [
+                'jti'       => $verification['jti'] ?? '',
+                'activated_at' => date('Y-m-d H:i:s'),
+                'via'       => 'guidanceLicenseActivateHandler',
+            ],
+        ]);
+    }
+
+    write_log('guidance.license.activate ok', 'info', [
+        'tier'      => $tier,
+        'expires_at'=> $expiresAt,
+        'tenant_id' => $tenantId,
+        'jti'       => $verification['jti'] ?? '',
+    ]);
+
+    return [
+        'ok'          => true,
+        'status'      => 'active',
+        'provider'    => 'guidance',
+        'tier'        => $tier,
+        'expires_at'  => $expiresAt,
+        'activated_at'=> date('Y-m-d H:i:s'),
+        'jti'         => $verification['jti'] ?? '',
+    ];
 }
 
 function guidanceAvailabilityDayLabels(): array {

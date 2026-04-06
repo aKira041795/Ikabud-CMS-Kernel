@@ -121,6 +121,23 @@
                         }
                     }
                 }
+            },
+            {
+                "id": "module.license.activate@1",
+                "priority": 20,
+                "modes": [
+                    "first"
+                ],
+                "description": "Validates an RS256-signed JWT license key issued by the Guidance module author and returns the unlocked tier and expiry.",
+                "schema": {
+                    "type": "object",
+                    "required": ["module_id", "license_key"],
+                    "properties": {
+                        "module_id": {"type": "string"},
+                        "tenant_id": {"type": "integer"},
+                        "license_key": {"type": "string"}
+                    }
+                }
             }
         ],
         "depends": [
@@ -223,6 +240,13 @@
             "type": "text",
             "label": "App Timezone",
             "default": "Asia/Manila"
+        },
+        {
+            "key": "license_store_url",
+            "type": "text",
+            "label": "License Store URL",
+            "default": "https://cmsnew.test",
+            "description": "URL of the module author's store where Guidance PRO licenses are purchased. Shown on upgrade prompts."
         }
     ],
     "nav": [
