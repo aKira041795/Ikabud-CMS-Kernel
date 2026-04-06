@@ -69,6 +69,11 @@ $autoId = ecAutoRegisterGuestAsCustomer(
 - Sets the CMS session for the new user (`$_SESSION['cms_user_id']`).
 - Returns the `int` user ID on success, `null` on failure.
 
+**Security hardening** — Several input-safety constraints are applied before any DB interaction:
+- **Session role clamp**: After resolving an existing user, the session role (`$_SESSION['cms_user_role']`) is restricted to `['customer', 'subscriber']`. Any account with an elevated role (e.g. `administrator`, `editor`) has its session role clamped to `'customer'`, preventing role escalation via checkout.
+- **Display name length**: `first_name` and `last_name` are trimmed to 100 characters (`mb_substr(..., 0, 100)`) before any DB write.
+- **Checkout rate limit**: The checkout API enforces a `checkout_register` rate limit (max 10 per hour per IP, via the `rate_limits` table) before calling `ecAutoRegisterGuestAsCustomer()`, protecting against enumeration and bulk account creation.
+
 **Checkout page notice** — `handlers/20-public-checkout.php` passes `cart_has_digital` and `require_account_for_digital` to the template context. Both the default template (`templates/modules/ecommerce/public/checkout.disyl`) and the active theme override (`storage/cms-themes/native-default/public/ecommerce/checkout.disyl`) render a notice panel when `{if cart_has_digital && !is_customer}` — informing the guest that an account will be created automatically (if `require_account_for_digital`) or that a download link will be sent by email (if the setting is disabled).
 
 **`moduleWithContext` pattern** — Any cross-module write from an ecommerce handler that targets `cms_users` or another CMS-owned table must wrap the DB operations in `moduleWithContext('cms', ...)`. This is because `KernelPDO::enforceModuleAccess()` intercepts all PDO calls and validates against `_activeModuleContext` — not the `ModuleDB` instance's own `$moduleId`. During ecommerce handler execution, `_activeModuleContext` is `ecommerce`, so a bare `cmsDb()->execute(INSERT INTO cms_users ...)` will be DENIED at the PDO layer.
@@ -95,27 +100,37 @@ $autoId = ecAutoRegisterGuestAsCustomer(
 Once the customer receives the license key, they must input it into their tenant's Superadmin Settings to unlock the module.
 
 ### 3.1 User Input
-- The Superadmin Settings UI renders an input field "License Key" for modules marked as `commercial_mode: freemium` or `paid`.
-- The user pastes the RS256 JWT they received by email after purchasing at the module author's store (`cmsnew.test` for `guidance`).
+- The **Guidance admin settings page** (`/admin/guidance/settings`) renders a **Pro Activation** panel when the tenant's current `plan_tier` is not `pro`.
+- The admin pastes the RS256 JWT received by email (after purchasing from the module author's store, e.g. `cmsnew.test`) into the activation textarea and submits the form.
+- The form POSTs to `POST /admin/guidance/api/activate-license`, handled directly by `apiGuidanceActivateLicense()` in `modules/guidance/handlers.php`.
+- A re-activation textarea is also shown when a license is already active (`pro_access.license_state.ok = true`), allowing the admin to replace an expiring or revoked key.
 
-### 3.2 Kernel Dispatch
-- Upon form submission the kernel calls `invokeModuleLicenseActivation()` which dispatches `module.license.activate@1` (mode `first`).
-- The guidance module registers its own provider at **priority 20** (above the kernel default at 10) — so guidance's verifier runs first.
+### 3.2 Activation Handler
+- `apiGuidanceActivateLicense()` handles the activation request directly — no kernel event dispatch is involved.
+- The handler requires `guidanceRequireStaff(['admin'])` and CSRF enforcement before processing input.
+- An **8 192-byte input length guard** is applied before any JWT parsing; oversized payloads receive a `400` error immediately.
+- After cryptographic verification succeeds, `grantModuleEntitlementForTenant()` is called directly to persist the entitlement. Activation metadata (JTI, `activated_at`, `tier`, `expires_at`) is also written to the guidance module settings via `saveTenantModuleSettings()`.
 
 ### 3.3 Module Verification — Guidance
 
-The guidance module handles `module.license.activate@1` via `guidanceLicenseActivateHandler()` (registered in `handlers.php`) which delegates to `guidanceVerifyLicenseJwt()` in `helpers.php`.
+`guidanceVerifyLicenseJwt()` in `helpers.php` is the cryptographic verifier called by `apiGuidanceActivateLicense()` after input guards pass.
 
-**Verification steps:**
-1. Parse three dot-separated base64url segments from the JWT.
-2. Confirm `alg = RS256` in the header.
-3. Verify the RS256 signature using the bundled public key at `modules/guidance/license-key.pem`.
-4. Validate claims:
+**Cryptographic verification steps:**
+1. Strip leading/trailing whitespace from the input key.
+2. Parse three dot-separated base64url segments from the JWT.
+3. Confirm `alg = RS256` in the header.
+4. Verify the RS256 signature using the bundled public key at `modules/guidance/license-key.pem`.
+5. Validate claims:
    - `iss = 'ikabud_ecommerce'` — must be issued by the author's ecommerce module.
    - `aud = 'guidance'` — must be issued for this module.
    - `exp > time()` — must not be expired (omitting `exp` = perpetual license).
    - `tier` present — must specify the unlocked tier (`pro`, etc.).
-5. On success: calls `grantModuleEntitlementForTenant()` to persist the tier + expiry, then returns:
+
+**Post-verification security checks (in `apiGuidanceActivateLicense()`):**
+6. **Tier allowlist**: `tier` must be one of `['pro', 'basic', 'plus', 'enterprise']`. Crafted JWTs with arbitrary tier strings are rejected before any DB write.
+7. **JTI cross-tenant replay**: `guidanceLicenseJtiTenantBound(string $jti)` scans all tenants' guidance `license_activation_state` for the same JTI. If another tenant already holds this JTI, activation is rejected — preventing a single license from being activated across multiple tenants.
+
+On success: `grantModuleEntitlementForTenant()` persists the tier + expiry, then the handler returns:
 
 ```php
 [
@@ -129,7 +144,7 @@ The guidance module handles `module.license.activate@1` via `guidanceLicenseActi
 ]
 ```
 
-6. On failure: returns `['ok' => false, 'status' => 'error', 'error' => '...']` with a human-readable message.
+On failure: returns `['ok' => false, 'status' => 'error', 'error' => '...']` with a human-readable message.
 
 **Key pair management:**
 - The **private key** (RSA 2048-bit) lives exclusively in `cmsnew.test`'s ecommerce settings (`license_private_key_pem`). It is used by `ec_license_generate_jwt()` at purchase time.
@@ -140,9 +155,9 @@ The guidance module handles `module.license.activate@1` via `guidanceLicenseActi
 Upgrade blocks now include `upgrade_url` from the `license_store_url` module setting (default: `https://cmsnew.test`), so API 403 responses carry a link directly to the author's store.
 
 ### 3.4 Entitlement Unlock
-- `guidanceLicenseActivateHandler()` calls `grantModuleEntitlementForTenant()` directly on success, so the tier (`pro`) is immediately active in `kernel_tenant_module_entitlements`.
+- `apiGuidanceActivateLicense()` calls `grantModuleEntitlementForTenant()` directly on success, so the tier (`pro`) is immediately active in `kernel_tenant_module_entitlements`.
 - `guidanceTenantTier()` reads from that table via `moduleTenantEntitlementRow()`, so feature-gated endpoints unblock without a page reload.
-- The kernel also persists activation state via the default `kernelDefaultModuleLicenseActivationProvider` (priority 10) after guidance's provider returns.
+- Activation state (JTI, tier, timestamps) is also persisted to guidance module settings via `saveTenantModuleSettings()`, so the settings page can display active license details on the next load.
 
 ## 4. Customer Delivery & Dashboard
 
@@ -170,7 +185,7 @@ Upgrade blocks now include `upgrade_url` from the `license_store_url` module set
 - Route: `GET /ecommerce/admin/licenses/{id}/download`.
 - The admin order detail page (`/ecommerce/admin/orders/{id}`) now shows a **Licenses** sidebar card listing all licenses for the order. Each entry has:
   - Module + tier + status badge
-  - License key (truncated preview)
+  - License key: 40-char truncated preview (non-selectable) alongside a **Copy** button (`data-key` holds the full JWT via `esc_attr`; `ecCopyLicenseKey()` uses `navigator.clipboard` with a `document.execCommand('copy')` textarea fallback for HTTP/non-secure contexts)
   - Download button (for licenses that have an uploaded file or JWT)
   - Customer info (email, first downloaded date)
 
@@ -203,7 +218,17 @@ Upgrade blocks now include `upgrade_url` from the `license_store_url` module set
 | Digital checkout notice (templates) | ✅ Complete  |
 | Offline JWT validator (Guidance)   | ✅ Complete  |
 | `module.license.activate@1` cap    | ✅ Complete  |
-| `license_store_url` setting (Guidance) | ✅ Complete  |
+| `license_store_url` setting (Guidance)                    | ✅ Complete  |
+| Admin order license Copy button (full JWT, HTTP fallback)  | ✅ Complete  |
+| Guidance direct activation UI (admin settings page)        | ✅ Complete  |
+| `grantModuleEntitlementForTenant` kernel DB bypass         | ✅ Complete  |
+| License activation: tier allowlist                         | ✅ Complete  |
+| License activation: JTI cross-tenant replay check          | ✅ Complete  |
+| License activation: 8 192-byte input length guard          | ✅ Complete  |
+| Activation display: `license_state.ok` fallback condition  | ✅ Complete  |
+| Auto-register: session role escalation guard               | ✅ Complete  |
+| Auto-register: display name length clamp (100 chars)       | ✅ Complete  |
+| Auto-register: `checkout_register` rate limit (10/hr/IP)   | ✅ Complete  |
 
 ## 6. Key Pair Management
 
@@ -216,4 +241,10 @@ Upgrade blocks now include `upgrade_url` from the `license_store_url` module set
 
 The private key **must never** be committed to version control or shared outside `cmsnew.test`. Customer licenses expire based on `exp` in the JWT; the module author controls duration via the `_license_duration_days` product meta on `cmsnew.test`.
 
-## 7. Next Steps (Pending)
+## 7. Status: Feature Complete
+
+All features originally planned in this specification are implemented and in production. The activation path, security hardening, digital fulfillment, and customer dashboard flows are fully operational.
+
+**Security items completed April 2026:**
+- License activation: tier allowlist, JTI cross-tenant replay guard, 8 192-byte input cap
+- Checkout auto-register: session role escalation guard, display name length clamp, `checkout_register` rate limit (10/hr/IP)

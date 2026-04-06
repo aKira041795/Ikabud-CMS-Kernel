@@ -392,10 +392,19 @@ function ecOrderUpdateStatus(int $orderId, string $newStatus, ?string $note = nu
 
 /**
  * Update payment status (e.g. manual mark-as-paid).
+ * Idempotent: if the order is already paid the event is not re-fired,
+ * preventing duplicate license generation and email delivery.
  */
 function ecOrderMarkPaid(int $orderId): void
 {
     $db = ecDb();
+
+    // Only fire the paid event once — prevent double-email from webhook + return-URL
+    $currentStatus = (string)($db->query('SELECT payment_status FROM ec_orders WHERE id = ? LIMIT 1', [$orderId])->fetchColumn() ?: '');
+    if ($currentStatus === 'paid') {
+        return;
+    }
+
     $db->execute("UPDATE ec_orders SET payment_status = 'paid', updated_at = NOW() WHERE id = ?", [$orderId]);
     $db->execute("UPDATE ec_payment_transactions SET status = 'succeeded', updated_at = NOW() WHERE order_id = ? AND status = 'pending'", [$orderId]);
 

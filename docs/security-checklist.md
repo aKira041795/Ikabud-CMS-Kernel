@@ -58,3 +58,12 @@
 - Run targeted syntax checks on modified PHP files with `php -l`.
 - Re-test admin flows for module upload, theme upload, import/export, login, logout, and password reset.
 - Confirm expected redirects or `403` responses instead of generic `500` pages.
+
+## Ecommerce & License Activation
+
+- Verify that the `rate_limits` table exists in each tenant DB before go-live; digital checkout auto-registration (`checkout_register` action) is non-fatal if the table is missing in development, but must be enforced in production.
+- Confirm that `ecAutoRegisterGuestAsCustomer()` clamps `$_SESSION['cms_user_role']` to `['customer', 'subscriber']` — a buyer's existing elevated CMS role must never carry over into a purchase session.
+- After rotating the ecommerce RS256 private key, regenerate all outstanding license JWTs; old licenses remain valid until their `exp` claim, but new purchases from the old key cannot be re-verified once `license-key.pem` is updated.
+- Ensure `modules/guidance/license-key.pem` contains the **public** key only and is never committed with or derived from the private key.
+- When testing license activation over HTTP (non-HTTPS), the `navigator.clipboard` API is blocked; verify that the `document.execCommand('copy')` fallback path in `ecCopyLicenseKey()` is exercised so admins can copy full JWTs from the order detail page.
+- Review `guidanceLicenseJtiTenantBound()` scope when adding new freemium modules: each module needs its own JTI replay check keyed to its own settings field, not shared with guidance.

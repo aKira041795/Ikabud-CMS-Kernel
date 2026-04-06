@@ -42,9 +42,6 @@ app()->events()->listen('ecommerce.order.paid', function (array $payload) {
     $orderId = (int)($payload['order_id'] ?? 0);
     if ($orderId <= 0) return;
 
-    $db = app()->db();
-    if (!$db) return;
-
     // Load ecommerce settings to check if digital fulfillment is configured
     $settings = isset($_ENV['TEST_TENANT_ID']) ? \readTenantModuleSettingsForTenant('ecommerce', (int)$_ENV['TEST_TENANT_ID']) : \readTenantModuleSettings('ecommerce');
     $privateKey = trim((string)($settings['license_private_key_pem'] ?? ''));
@@ -53,30 +50,30 @@ app()->events()->listen('ecommerce.order.paid', function (array $payload) {
     }
 
     try {
-        // Fetch order details and items
-        $stmt = $db->prepare('SELECT * FROM ec_orders WHERE id = ?');
-        $stmt->execute([$orderId]);
-        $order = $stmt->fetch(PDO::FETCH_ASSOC);
+        // ecOrderGet() hydrates customer_email from billing meta — raw SELECT * gives only guest_email
+        $order = ecOrderGet($orderId);
         if (!$order) return;
+
+        // Idempotency: skip if licenses were already generated for this order
+        if (!empty($order['licenses'])) return;
 
         $email      = trim((string)($order['customer_email'] ?? ''));
         $customerId = isset($order['customer_id']) ? (int)$order['customer_id'] : null;
-
-        $stmtItems = $db->prepare('SELECT * FROM ec_order_items WHERE order_id = ?');
-        $stmtItems->execute([$orderId]);
-        $items = $stmtItems->fetchAll(PDO::FETCH_ASSOC);
+        $items      = $order['items'] ?? [];
 
         if (empty($items)) return;
 
+        $db         = ecDb();
         $issuedKeys = [];
 
         foreach ($items as $item) {
             $prodId = (int)$item['product_id'];
 
             // Query product metadata to check if it's a digital software license
-            $stmtMeta = $db->prepare("SELECT meta_key, meta_value FROM cms_content_meta WHERE content_id = ? AND meta_key IN ('_is_digital', '_license_module', '_license_tier', '_license_duration_days')");
-            $stmtMeta->execute([$prodId]);
-            $metaRows = $stmtMeta->fetchAll(PDO::FETCH_ASSOC);
+            $metaRows = $db->query(
+                "SELECT meta_key, meta_value FROM cms_content_meta WHERE content_id = ? AND meta_key IN ('_is_digital', '_license_module', '_license_tier', '_license_duration_days')",
+                [$prodId]
+            )->fetchAll(\PDO::FETCH_ASSOC);
 
             $meta = [];
             foreach ($metaRows as $row) {
@@ -88,23 +85,23 @@ app()->events()->listen('ecommerce.order.paid', function (array $payload) {
             }
 
             $targetModule = trim((string)$meta['_license_module']);
-            $targetTier = trim((string)($meta['_license_tier'] ?? 'pro'));
+            $targetTier   = trim((string)($meta['_license_tier'] ?? 'pro'));
             $durationDays = (int)($meta['_license_duration_days'] ?? 365);
 
-            $qty = max(1, (int)$item['quantity']);
+            $qty = max(1, (int)(array_key_exists('qty', $item) ? $item['qty'] : ($item['quantity'] ?? 1)));
 
             for ($i = 0; $i < $qty; $i++) {
                 $expiresAt = time() + ($durationDays * 86400);
 
                 // Build JWT payload
                 $jwtPayload = [
-                    'iss' => 'ikabud_ecommerce',
-                    'sub' => $email,
-                    'aud' => $targetModule,
+                    'iss'  => 'ikabud_ecommerce',
+                    'sub'  => $email,
+                    'aud'  => $targetModule,
                     'tier' => $targetTier,
-                    'iat' => time(),
-                    'exp' => $expiresAt,
-                    'jti' => bin2hex(random_bytes(16)) // Unique token ID
+                    'iat'  => time(),
+                    'exp'  => $expiresAt,
+                    'jti'  => bin2hex(random_bytes(16)),
                 ];
 
                 $licenseKey = ec_license_generate_jwt($jwtPayload, $privateKey);
@@ -114,19 +111,21 @@ app()->events()->listen('ecommerce.order.paid', function (array $payload) {
                 $downloadToken = bin2hex(random_bytes(32));
 
                 // Insert into ec_order_licenses
-                $stmtInsert = $db->prepare('INSERT INTO ec_order_licenses (order_id, order_item_id, customer_email, customer_id, product_id, target_module, target_tier, license_key, download_token, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
-                $stmtInsert->execute([
-                    $orderId,
-                    (int)$item['id'],
-                    $email,
-                    $customerId,
-                    $prodId,
-                    $targetModule,
-                    $targetTier,
-                    $licenseKey,
-                    $downloadToken,
-                    'active'
-                ]);
+                $db->execute(
+                    'INSERT INTO ec_order_licenses (order_id, order_item_id, customer_email, customer_id, product_id, target_module, target_tier, license_key, download_token, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                    [
+                        $orderId,
+                        (int)$item['id'],
+                        $email,
+                        $customerId,
+                        $prodId,
+                        $targetModule,
+                        $targetTier,
+                        $licenseKey,
+                        $downloadToken,
+                        'active',
+                    ]
+                );
 
                 $issuedKeys[] = [
                     'module'         => $targetModule,
