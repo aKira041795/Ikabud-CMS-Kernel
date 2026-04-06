@@ -656,6 +656,17 @@ Runtime implications:
 - Paid catalog modules can be requested by a tenant from the CMS module screen; superadmin review stores that request in the control plane, grants entitlement on approval, and best-effort invokes `module.license.activate@1` if a licensing provider is registered.
 - The kernel now ships with a default `module.license.activate@1` provider under `kernel`, which persists a tenant-scoped hidden `_license_activation` settings record so approved access requests produce a concrete activation state even before a dedicated billing module exists.
 
+#### Freemium and Commercial Licensing Workflow
+
+For modules marked as `freemium` or `paid` (such as `guidance`), Ikabud relies on an automated, decentralized licensing strategy.
+
+- **Issuance (Ecommerce)**: License generation is owned by the original module author (e.g., a storefront on `cmsnews.test`). Using the `ecommerce` module, authors configure "Digital Products" that automatically generate a **cryptographically signed JSON Web Token (JWT)** upon payment completion. This token encodes the buyer's entitlements (module ID, tier, expiration).
+- **Validation (Kernel)**: The `ikabud-kernel` provides a Superadmin "License Key" input field for commercial modules. When submitted, the kernel dispatches the `module.license.activate@1` capability to the installed module.
+- **Offline Verification**: The module itself bundles the author's **Public Key**. When it receives the license capability call, the module decrypts and verifies the JWT mathematically. Because it's a signed JWT, it can be validated instantly offline without a "phone home" API request, making it immune to author server downtime.
+- **Entitlement Unlock**: If valid, the capability returns `['ok' => true, 'tier' => 'pro']` and the kernel automatically updates `kernel_tenant_module_entitlements`, activating the premium `tier_features` defined in the module's `module.json`.
+
+See [ecommerce-freemium-licensing-spec.md](ecommerce-freemium-licensing-spec.md) for full architecture and implementation details on this automated JWT flow.
+
 #### Tenant access-request review queue
 
 The control plane now tracks a single latest access request per `(tenant_id, module_id)` in `kernel_tenant_module_access_requests`.
