@@ -1,8 +1,0 @@
---- tests/cms_theme_test.php
-+++ tests/cms_theme_test.php
-@@ -425,2 +425,5 @@
- $defaultEntityPresentationHtml = cmsRenderEntityPresentationStyle($db);
-+var_dump(["without scope" => cmsCustomizerGet($db, "entity_presentation")["settings"]["entity_summary_width"],
-+          "with scope" => cmsCustomizerGet($db, "entity_presentation", "ecommerce")["settings"]["entity_summary_width"],
-+          "cache content?" => \cmsCustomizerFragmentCacheGet("entity_presentation_style")]);
- t('entity-commerce-poc emits storefront color contract when settings ma

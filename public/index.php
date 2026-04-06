@@ -1358,12 +1358,16 @@ switch ($handler) {
         $selectedEntryModule = '';
         if ($multiTenant && $selectedTenantId !== null) {
             $tenantRelevantModules = [];
+            $knownEntryModules = [];
 
-            // Find entry_module_id for the selected tenant
+            // Find entry_module_id for the selected tenant and collect all known entry modules
             foreach ($tenants as $t) {
+                $eModule = trim((string)($t['entry_module_id'] ?? ''));
+                if ($eModule !== '') {
+                    $knownEntryModules[$eModule] = true;
+                }
                 if ((int)$t['id'] === $selectedTenantId) {
-                    $selectedEntryModule = trim((string)($t['entry_module_id'] ?? ''));
-                    break;
+                    $selectedEntryModule = $eModule;
                 }
             }
 
@@ -1385,7 +1389,7 @@ switch ($handler) {
                 }
             }
 
-            // Include only modules that already have tenant-specific state.
+            // Include modules that have explicit entitlements or are explicitly enabled in settings.
             foreach ($allModules as $_candidateMod) {
                 $_candidateModId = (string)($_candidateMod['id'] ?? '');
                 if ($_candidateModId === '') {
@@ -1395,9 +1399,39 @@ switch ($handler) {
                     continue;
                 }
 
+                // If it explicitly depends on the tenant's entry module, it is a related add-on and should always be visible to configure.
+                $deps = $_candidateMod['depends'] ?? [];
+                if (is_array($deps) && $selectedEntryModule !== '' && in_array($selectedEntryModule, $deps, true)) {
+                    $tenantRelevantModules[$_candidateModId] = true;
+                    continue;
+                }
+
+                // If it has NO dependencies, NO auth_cookie, and is NEVER used as an entry module, it is a global utility (like gui-settings or anti-spam).
+                // Per rules, global utilities are visually bundled with 'cms' ONLY, as it is the core environment that uses them.
+                if ($selectedEntryModule === 'cms' && empty($deps) && empty($_candidateMod['auth_cookie']) && !isset($knownEntryModules[$_candidateModId])) {
+                    $tenantRelevantModules[$_candidateModId] = true;
+                    continue;
+                }
+
+                $entitlement = moduleTenantEntitlementStatus($_candidateModId, $selectedTenantId);
+                // If it is catalog managed and the tenant is explicitly entitled to it
+                if (!empty($entitlement['catalog_managed']) && !empty($entitlement['allowed']) && !empty($entitlement['required'])) {
+                    $tenantRelevantModules[$_candidateModId] = true;
+                    continue;
+                }
+
+                // Or if it lacks catalog management but has been explicitly enabled in DB, we retain it to allow configuration.
                 $_candidateTenantSettings = readTenantModuleSettingsForTenant($_candidateModId, $selectedTenantId);
                 if (!empty($_candidateTenantSettings)) {
-                    $tenantRelevantModules[$_candidateModId] = true;
+                    $explicitlyEnabled = false;
+                    if (isset($_candidateTenantSettings['_module_enabled'])) {
+                        $explicitlyEnabled = (bool)$_candidateTenantSettings['_module_enabled'];
+                    } elseif (isset($_candidateTenantSettings['_enabled'])) {
+                        $explicitlyEnabled = (bool)$_candidateTenantSettings['_enabled'];
+                    }
+                    if ($explicitlyEnabled) {
+                        $tenantRelevantModules[$_candidateModId] = true;
+                    }
                 }
             }
         }
@@ -1420,9 +1454,11 @@ switch ($handler) {
             }
 
             // In multi-tenant mode, check if module is relevant for the selected tenant
-            // All discovered modules are shown for every tenant.
-            // isModuleEnabledForTenant() defaults to true when no tenant record exists,
-            // so modules are opt-out (default enabled) rather than opt-in.
+            if ($multiTenant && $selectedTenantId !== null && is_array($tenantRelevantModules)) {
+                if (!isset($tenantRelevantModules[$moduleId])) {
+                    continue;
+                }
+            }
 
             // Determine enabled state
             $isEnabled = true;
