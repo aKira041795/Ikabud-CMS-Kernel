@@ -364,6 +364,13 @@
             "label": "Products Per Page",
             "default": "12",
             "description": "How many products to show per page in the shop."
+        },
+        {
+            "key": "admin_notification_email",
+            "type": "email",
+            "label": "Admin Order Notification Email",
+            "default": "",
+            "description": "Email address to notify when a new order is placed. Leave blank to disable."
         }
     ],
     "events": [

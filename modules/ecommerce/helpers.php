@@ -13,6 +13,7 @@ require_once __DIR__ . '/helpers/30-products.php';
 require_once __DIR__ . '/helpers/40-pricing.php';
 require_once __DIR__ . '/helpers/50-reports.php';
 require_once __DIR__ . '/helpers/55-digital-licenses.php';
+require_once __DIR__ . '/helpers/56-order-notifications.php';
 require_once __DIR__ . '/helpers/60-pos.php';
 require_once __DIR__ . '/helpers/70-payment-gateways.php';
 require_once __DIR__ . '/helpers/71-gateway-paymongo.php';
