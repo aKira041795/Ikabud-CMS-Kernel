@@ -1,4 +1,4 @@
-{if capability_data.inventory and capability_data.inventory.track_stock}
+{if capabilities.inventory and capability_data.inventory.track_stock}
     {if capability_data.inventory.out_of_stock or not capability_data.inventory.in_stock}
     <span class="poc-stock-tag poc-stock-tag--out poc-stock-tag--compact">Out</span>
     {elseif capability_data.inventory.low_stock}

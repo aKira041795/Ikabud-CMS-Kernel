@@ -1,6 +1,6 @@
 {* pricing.block.disyl — price display with optional sale price *}
 {* @requires entity.capability.pricing.data@1 *}
-{if capability_data.pricing}
+{if capabilities.pricing}
 <div class="cms-pricing-block flex items-baseline gap-3 my-4">
     {if capability_data.pricing.sale_price}
     <span class="cms-price-current text-2xl font-bold text-sky-600">{capability_data.pricing.currency} {capability_data.pricing.sale_price | number_format:2}</span>

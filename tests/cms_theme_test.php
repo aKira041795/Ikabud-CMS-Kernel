@@ -355,6 +355,9 @@ t('entity-commerce-poc manifest default resolves compact list-card inventory var
 t('entity-commerce-poc manifest default resolves inline list-card progress variant', $listProgressManifestTemplate === '_cms_active_theme/public/blocks/list-card-progress.inline.block.disyl', $listProgressManifestTemplate);
 
 $renderedPricingBlock = cmsRenderThemeAwareBlockTemplate('modules/cms/public/blocks/pricing.block.disyl', [
+    'capabilities' => [
+        'pricing' => true,
+    ],
     'capability_data' => [
         'pricing' => [
             'currency' => 'USD',
@@ -390,6 +393,9 @@ $renderedActionBlock = cmsRenderThemeAwareBlockTemplate('modules/cms/public/bloc
 t('entity-commerce-poc action block render uses themed markup', str_contains($renderedActionBlock, 'poc-action-strip'), $renderedActionBlock);
 
 $renderedManifestListPricing = cmsRenderThemeAwareBlockTemplate('modules/cms/public/blocks/list-card-pricing.block.disyl', [
+    'capabilities' => [
+        'pricing' => true,
+    ],
     'capability_data' => [
         'pricing' => [
             'currency' => 'USD',
@@ -2316,6 +2322,9 @@ t('list-card progress variant resolves to inline template', $variantListProgress
 
 $renderedMinimalListPricing = cmsRenderThemeAwareBlockTemplate('modules/cms/public/blocks/list-card-pricing.block.disyl', [
     'theme_settings' => $validatedEcommerceEntity,
+    'capabilities' => [
+        'pricing' => true,
+    ],
     'capability_data' => [
         'pricing' => [
             'currency' => 'USD',

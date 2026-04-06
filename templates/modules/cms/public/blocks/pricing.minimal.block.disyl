@@ -1,5 +1,5 @@
 {* pricing.minimal.block.disyl — subdued editorial price label *}
-{if capability_data.pricing}
+{if capabilities.pricing}
 <div class="cms-pricing-block cms-pricing-block-minimal my-4 text-sm font-medium text-slate-600">
     <span class="uppercase tracking-[0.16em] text-slate-400">Price</span>
     <span class="cms-price-current ml-2 text-base font-semibold text-slate-900">

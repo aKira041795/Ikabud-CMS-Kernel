@@ -1,4 +1,4 @@
-{if capability_data.progress_tracking and capability_data.progress_tracking.authenticated}
+{if capabilities.progress_tracking and capability_data.progress_tracking.authenticated}
 <div class="poc-progress-inline">
     <span>{capability_data.progress_tracking.percent}% complete</span>
     <div class="poc-progress-rail" aria-label="Progress">

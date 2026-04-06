@@ -1,0 +1,12 @@
+--- cms_theme_test.php
++++ cms_theme_test.php
+@@ -2326,6 +2326,9 @@
+ $renderedMinimalListPricing = cmsRenderThemeAwareBlockTemplate('modules/cms/public/blocks/list-card-pricing.block.disyl', [
++    'capabilities' => [
++        'pricing' => true,
++    ],
+     'capability_data' => [
+         'pricing' => [
+             'currency' => 'USD',
+             'price' => 24.5,
+             'sale_price' => 19.0,

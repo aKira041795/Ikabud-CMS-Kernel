@@ -1,0 +1,619 @@
+
+=== THEME PATHS ===
+  ✓ cmsThemesPath returns storage-based path
+  ✓ cms-themes directory exists
+  ✓ CMS_THEME_SYMLINK defined
+  ✓ CMS_THEME_SYMLINK points to templates/
+
+=== THEME DISCOVERY ===
+  ✓ cmsAvailableThemes returns array
+  ✓ at least 1 theme found (minimal)
+  ✓ minimal theme found
+  ✓ minimal theme name is "Minimal"
+  ✓ minimal theme version is "1.0"
+  ✓ minimal theme has author
+  ✓ minimal theme override_count is 4
+  ✓ entity-commerce-poc theme found
+  ✓ entity-commerce-poc has author
+  ✓ entity-commerce-poc includes public asset stylesheet
+
+=== DEFAULT THEME (no override) ===
+  ✓ cms settings defaults keep ecommerce theme promotion opt-in
+  ✓ effective preferred ecommerce theme stays unset by default
+  ✓ default template path format is correct
+
+=== SYMLINK MANAGEMENT ===
+  ✓ symlink created
+  ✓ symlink target is minimal theme dir
+  ✓ layout accessible via symlink
+  ✓ single.disyl accessible via symlink
+  ✓ home.disyl accessible via symlink
+  ✓ page.disyl accessible via symlink
+  ✓ theme.json accessible via symlink
+  ✓ symlink removed after deactivate
+
+=== TEMPLATE RESOLUTION ===
+  ✓ resolve public/single.disyl → theme override
+  ✓ resolve public/home.disyl → theme override
+  ✓ resolve public/page.disyl → theme override
+  ✓ resolve layouts/public.disyl → theme override
+  ✓ nonexistent template falls back to default
+
+=== ENTITY STOREFRONT POC THEME ===
+  ✓ entity-commerce-poc manifest loads as active theme
+  ✓ entity-commerce-poc manifest declares ecommerce customizer scope
+  ✓ active customizer scope switches to ecommerce for entity-commerce-poc
+  ✓ entity-commerce-poc storefront policy keeps the site theme active
+  ✓ entity-commerce-poc storefront policy resolves theme source as site
+  ✓ entity-commerce-poc storefront policy resolves ecommerce scope
+  ✓ entity-commerce-poc storefront policy resolves entity-view mode
+  ✓ ecommerce storefront shop route resolves entity-view presentation mode
+  ✓ ecommerce storefront category route resolves entity-view presentation mode
+  ✓ ecommerce storefront product route resolves entity-view presentation mode
+  ✓ non-entity ecommerce routes remain traditional under ecommerce scope
+  ✓ forced customizer scope resolves ecommerce route override
+  ✓ invalid customizer scope falls back to active theme scope
+  ✓ ecommerce customizer section keys are namespaced
+  ✓ entity presentation customizer section keys are namespaced
+  ✓ known customizer sections include entity_presentation
+  ✓ known customizer sections exclude storefront
+  ✓ native sidebar defaults target home/front-page routes first
+  ✓ ecommerce sidebar defaults target shop routes first
+  ✓ native sidebar targets prioritize CMS route families
+  ✓ native sidebar targets hide legacy canonical aliases from visible choices
+  ✓ ecommerce sidebar targets prioritize storefront route families
+  ✓ ecommerce sidebar targets still include CMS page/post route families
+  ✓ sidebar allowed keys keep legacy canonical aliases for compatibility
+  ✓ CMS front page resolves to home sidebar target
+  ✓ CMS blog listing resolves to home sidebar target
+  ✓ CMS post detail resolves to single sidebar target
+  ✓ CMS page detail resolves to page sidebar target
+  ✓ CMS search resolves to search sidebar target
+  ✓ storefront shop resolves to shop sidebar target
+  ✓ storefront product resolves to product sidebar target
+  ✓ legacy entity-view sidebar rule still matches native single-post routes
+  ✓ legacy entity-list sidebar rule still matches storefront shop routes
+  ✓ legacy canonical sidebar aliases expand into explicit native route targets
+  ✓ ecommerce sidebar validation preserves shop target rules
+  ✓ native customizer admin route exists
+  ✓ ecommerce customizer admin route exists
+  ✓ scoped customizer GET API route exists
+  ✓ scoped customizer POST API route exists
+  ✓ ecommerce header section is seeded
+  ✓ ecommerce footer section is seeded
+  ✓ ecommerce canonical entity presentation section is seeded
+  ✓ ecommerce storefront section is not seeded
+  ✓ ecommerce customizer sidebar defaults disabled to avoid shared sidebar pollution
+  ✓ ecommerce canonical entity presentation section seeds manifest defaults
+  ✓ entity-commerce-poc overrides entity.view.disyl
+  ✓ entity-commerce-poc overrides entity.list.disyl
+  ✓ cms page canonical entity view bypasses storefront template under ecommerce-scoped theme
+  ✓ cms blog canonical entity list bypasses storefront template under ecommerce-scoped theme
+  ✓ storefront product entity view still resolves themed template
+  ✓ storefront product entity list still resolves themed template
+  ✓ entity-commerce-poc route cache keys now include template fingerprint suffixes
+  ✓ entity-commerce-poc route cache key separates CMS and storefront product contexts
+  ✓ entity-commerce-poc overrides pricing block
+  ✓ entity-commerce-poc manifest default resolves inline action block
+  ✓ entity-commerce-poc manifest default resolves featured list-card pricing variant
+  ✓ entity-commerce-poc manifest default resolves compact list-card inventory variant
+  ✓ entity-commerce-poc manifest default resolves inline list-card progress variant
+string(0) ""
+string(0) ""
+  ✗ entity-commerce-poc pricing block render uses themed markup
+  ✓ entity-commerce-poc action block render uses themed markup
+  ✗ entity-commerce-poc manifest list-card pricing render uses featured themed markup
+  ✓ entity-commerce-poc manifest colors inherit primary token into customizer defaults
+  ✓ entity-commerce-poc manifest colors inherit background token into customizer defaults
+  ✓ entity-commerce-poc manifest colors inherit container token into customizer defaults
+  ✓ entity-commerce-poc manifest canonical entity presentation defaults set commerce layout profile
+  ✓ entity-commerce-poc manifest canonical entity presentation defaults set summary width
+  ✓ entity-commerce-poc manifest canonical entity presentation defaults set inline action variant
+  ✓ entity-commerce-poc manifest theme layout inherits container token into site width
+  ✓ theme activation seeding writes ecommerce colors defaults from manifest
+  ✓ theme activation seeding writes ecommerce canonical entity presentation defaults from manifest
+  ✓ theme activation seeding writes ecommerce theme defaults from manifest
+  ✓ theme activation seeding does not recreate storefront section
+  ✓ entity-commerce-poc emits storefront color contract when settings match manifest defaults
+  ✓ entity-commerce-poc suppresses generic theme layout override when settings match manifest defaults
+  ✓ entity-commerce-poc suppresses canonical entity presentation override when settings match manifest defaults
+  ✓ entity-commerce-poc renders colors override after explicit merchant customization
+  ✓ theme runtime diagnostics expose active theme
+  ✓ theme runtime diagnostics expose active theme source
+  ✓ theme runtime diagnostics expose configured site theme
+  ✓ theme runtime diagnostics expose active customizer scope
+  ✓ entity-commerce-poc theme stylesheet resolves to public assets
+  ✓ minimal theme manifest defaults to native customizer scope
+  ✓ native scope storefront shop route resolves traditional mode
+  ✓ ecommerce route policy preserves the configured site theme for diagnostics
+  ✓ ecommerce route policy leaves storefront theme unset when not explicitly configured
+  ✓ ecommerce route policy keeps the configured site theme when no storefront theme is configured
+  ✓ ecommerce route policy keeps theme source as site without storefront override
+  ✓ ecommerce route policy keeps native customizer scope without storefront override
+  ✓ ecommerce route policy honors traditional mode without storefront override
+  ✓ ecommerce route context keeps native site theme when storefront override is unset
+  ✓ ecommerce route context stays in traditional mode under native site theme
+  ✓ ecommerce route context does not serve storefront theme assets without explicit storefront theme
+  ✓ global active theme remains minimal outside ecommerce route context
+  ✓ explicit ecommerce theme config promotes storefront theme on shop route
+  ✓ explicit ecommerce theme config resolves storefront theme source
+  ✓ explicit ecommerce theme config restores ecommerce customizer scope
+  ✓ explicit ecommerce theme config restores entity-view mode
+  ✓ configured ecommerce theme lets cmsPublicContext auto-promote storefront theme on shop route
+  ✓ configured ecommerce theme blocks traditional shop templates without scoped storefront context
+  ✓ configured ecommerce theme requires canonical entity rendering without scoped storefront context
+  ✓ traditional shop template remains allowed without storefront route context promotion
+  ✓ storefront route context keeps traditional shop template allowed without explicit storefront theme
+  ✓ storefront route context reports canonical entity rendering requirement
+  ✓ without storefront route context canonical entity rendering is not required under native theme
+  ✓ route-scoped diagnostics preserve configured site theme
+  ✓ route-scoped diagnostics keep site theme source without storefront override
+  ✓ route-scoped diagnostics keep traditional presentation mode without storefront override
+  ✓ route-scoped diagnostics expose ecommerce route kind
+  ✓ route-scoped storefront alias resolves native-default template even when symlink is stale
+  ✓ route-scoped storefront render ignores stale theme symlink and uses native-default template
+
+=== NATIVE ECOMMERCE TEMPLATES ===
+  ✓ native header section is seeded
+  ✓ native footer section is seeded
+  ✓ native header defaults keep sticky enabled
+  ✓ native header defaults keep container and holder width controls available
+  ✓ native footer defaults keep footer shell width controls available
+  ✓ native public context renders the customized header shell after seeding
+  ✓ native storefront shop route prefers Woo-style archive-product template candidates
+  ✓ native storefront product route prefers Woo-style single-product template candidates
+  ✓ native storefront shop route resolves archive-product theme template
+  ✓ native storefront product route resolves single-product theme template
+  ✓ native storefront cart route resolves dedicated cart theme template
+  ✓ native storefront checkout route resolves dedicated checkout theme template
+  ✓ native storefront order confirmation route resolves dedicated confirmation theme template
+  ✓ native storefront orders route resolves dedicated account theme template
+  ✓ native storefront order detail route resolves dedicated order detail theme template
+  ✓ native theme page canonical entity view resolves native template
+  ✓ native theme blog canonical entity list resolves native template
+  ✓ native storefront product canonical entity view resolves native template
+  ✓ native storefront catalog canonical entity list resolves native template
+  ✓ native theme blog-home route cache key changes when canonical template ownership changes
+  ✓ native theme route cache key separates CMS and storefront product contexts
+  ✓ storefront catalog contract normalizes route, item URL, and inventory badge
+  ✓ native storefront shop render uses archive-product theme template
+  ✓ native storefront shop render exposes storefront contract markers
+  ✓ native storefront shop render preserves theme stylesheet asset
+  ✓ native storefront shop can render category dropdown navigation
+  ✓ storefront detail contract normalizes product id, category slug, and cart state
+  ✓ native storefront product render uses single-product theme template
+  ✓ native storefront product render exposes storefront contract markers
+  ✓ native canonical page render uses native shell and canonical template marker
+  ✓ native canonical list render uses native shell and canonical template marker
+  ✓ base storefront shop fallback consumes shared storefront content contract
+  ✓ base storefront product fallback consumes shared storefront content contract
+  ✓ native storefront cart render uses cart theme template
+  ✓ native storefront checkout render uses checkout theme template
+  ✓ native storefront order confirmation render uses confirmation theme template
+  ✓ native storefront my orders render uses account theme template
+  ✓ native storefront order detail render uses detail theme template
+
+=== THEME TEMPLATE CONTENT ===
+  ✓ layout has DOCTYPE
+  ✓ layout has {block content}
+  ✓ layout has {block head}
+  ✓ layout has {block scripts}
+  ✓ layout has Minimal Theme branding
+  ✓ cms public layout keeps the shared fallback header non-sticky
+  ✓ native layout fallback header uses sticky wrapper markup
+  ✓ native layout noscript fallback reveals body
+  ✓ native layout inline fallback reveals animated content
+  ✓ native default theme sticky assets follow wrapper-based sticky header markup
+  ✓ entity-commerce-poc layout omits public Tailwind CDN for storefront isolation
+  ✓ entity-commerce-poc layout still loads theme stylesheet
+  ✓ entity-commerce-poc styles shared gallery grid without Tailwind
+  ✓ entity-commerce-poc styles shared progress block without Tailwind
+  ✓ entity-commerce-poc styles prose content without Tailwind typography utilities
+  ✓ entity presentation css exports global geometry variables for storefront themes
+  ✓ customizer tracks per-section dirty state for scoped saves
+  ✓ customizer save resolves only dirty sections
+  ✓ canonical entity list template extends the canonical CMS public layout
+  ✓ canonical entity list template exposes dedicated card title hook for catalog overrides
+  ✓ canonical entity list template exposes storefront contract markers and title bridge
+  ✓ canonical entity view template extends the canonical CMS public layout
+  ✓ canonical entity view template exposes storefront contract markers
+  ✓ native default theme ships canonical entity block styles for non-Tailwind shells
+  ✓ native default theme ships canonical entity list template
+  ✓ native default theme canonical entity list template keeps storefront contract markers
+  ✓ native default theme ships canonical entity view template
+  ✓ native default theme canonical entity view template keeps shared block includes for canonical contracts
+  ✓ native default theme no longer ships legacy CMS route template forks
+  ✓ native default canonical entity view avoids legacy post template classes
+  ✓ native default canonical entity styles define their own title treatment
+  ✓ native default theme ships dedicated archive-product storefront template
+  ✓ native archive-product storefront template uses editorial catalog masthead and chip rail
+  ✓ native archive-product storefront template supports category dropdown navigation mode
+  ✓ native archive-product storefront template consumes storefront contract markers and page title
+  ✓ native default theme ships dedicated single-product storefront template
+  ✓ native single-product storefront template consumes storefront contract markers and cart count
+  ✓ base ecommerce shop template consumes storefront collection contract
+  ✓ base ecommerce product template consumes storefront product contract
+  ✓ ecommerce customizer presents shell-versus-entities workspace copy
+  ✓ native customizer explains entities stay inside the active theme shell
+  ✓ native customizer describes canonical entity presentation inside the active theme shell
+  ✓ ecommerce customizer exposes dedicated navigation tab
+  ✓ ecommerce customizer keeps native-capable sidebar controls available
+  ✓ customizer exposes sidebar include and exclude target scope modes
+  ✓ customizer sidebar preview summarizes selected template scope
+  ✓ ecommerce customizer keeps native-capable custom code controls available
+  ✓ ecommerce customizer saves all dirty scoped sections
+  ✓ customizer menu locations normalize label fallback for navigation workspace
+  ✓ customizer bootstraps canonical entity presentation settings payload
+  ✓ customizer saves canonical entity presentation section payload
+  ✓ customizer preserves canonical entity list pricing state for schema-driven preview
+  ✓ customizer embeds entity context catalog and example payloads
+  ✓ customizer hydrates entity context schema state and default example selection
+  ✓ customizer exposes catalog category navigation control
+  ✓ customizer exposes header container and holder shell controls
+  ✓ customizer hydrates legacy header width into container and holder defaults
+  ✓ customizer exposes split footer widget shell controls
+  ✓ customizer hydrates legacy footer settings into split widget shell defaults
+  ✓ customizer preview mirrors the saved custom footer holder width
+  ✓ superadmin feature settings template exposes collapsible module panels
+  ✓ superadmin feature settings page seeds tenant field values from manifest defaults
+  ✓ superadmin tenant whitelist keeps only explicitly attached tenant modules
+  ✓ superadmin tenant settings render fields for attached disabled modules
+  ✓ customizer backfills moved theme presentation keys into canonical entity settings
+  ✓ customizer hydrates canonical entity presentation defaults
+  ✓ customizer keeps theme layout hydration shell-only
+  ✓ customizer renders entity controls from the active schema sections
+  ✓ customizer template no longer references legacy storefront settings state
+  ✓ customizer names the entity workspace explicitly instead of catalog-only wording
+  ✓ customizer preview includes catalog font helpers
+  ✓ customizer resolves select inputs from schema field metadata
+  ✓ customizer hydrates theme manifest block variants for preview fidelity
+  ✓ customizer preview resolves effective storefront list-card variants
+  ✓ customizer preview derives storefront surfaces and featured states from active color settings
+  ✓ ecommerce customizer resets navigation tab through header defaults
+  ✓ canonical entity view template reads back-link visibility from entity presentation settings
+  ✓ canonical entity meta block reads author and date visibility from entity presentation settings
+  ✓ legacy home template reads list presentation from entity presentation settings
+  ✓ legacy archive template reads list presentation from entity presentation settings
+  ✓ legacy single template reads detail presentation from entity presentation settings
+  ✓ ecommerce public render delegates CMS shell rendering through cms module context
+  ✓ ecommerce public render resolves native theme storefront template candidates
+  ✓ ecommerce helper layer defines normalized storefront contract builders
+  ✓ shop handler now falls back to a traditional storefront template when canonical rendering is disabled
+  ✓ native storefront fallbacks pass the normalized storefront contract into template context
+  ✓ ecommerce public render defines explicit presentation mode resolver
+  ✓ ecommerce public render defines canonical entity-route guard helpers
+  ✓ ecommerce public render blocks traditional entity templates in entity-view mode
+  ✓ ecommerce public render injects presentation mode into public context
+  ✓ shop index handler preserves canonical CMS entity list payload and native-theme fallback
+  ✓ product detail handler delegates canonical entity-view through guard helper
+  ✓ product detail handler delegates canonical entity-view before ecommerce product preload
+  ✓ product detail canonical delegation preserves ecommerce route metadata
+  ✓ ecommerce public layout consumes customized header output
+  ✓ ecommerce public layout consumes customized footer output
+  ✓ ecommerce public layout loads storefront theme assets
+  ✓ ecommerce public layout uses shared shell wrapper for fallback header and footer
+  ✓ ecommerce public layout consumes storefront cart and shop navigation contract
+  ✓ ecommerce public layout uses shared main layout contract
+  ✓ entity-commerce-poc styles generic customizer site header
+  ✓ entity-commerce-poc provides customized header inner shell styles
+  ✓ entity-commerce-poc provides dedicated customized header slot shell styles
+  ✓ entity-commerce-poc keeps customized header inner layout contained
+  ✓ entity-commerce-poc keeps customized header container max-width disabled
+  ✓ entity-commerce-poc styles generic customizer footer widgets
+  ✓ entity-commerce-poc styles generic customizer footer bottom
+  ✓ entity-commerce-poc removes duplicated customized footer container padding
+  ✓ entity-commerce-poc preserves customized footer widget backgrounds
+  ✓ entity-commerce-poc preserves customized footer bar backgrounds
+  ✓ entity-commerce-poc routes customized nav colors through header variables
+  ✓ entity-commerce-poc defines concrete shell token fallbacks for the deferred default path
+  ✓ entity-commerce-poc routes default shell widths through the shared gutter token
+  ✓ entity-commerce-poc routes default typography through customizer font tokens
+  ✓ entity-commerce-poc routes topbar links through topbar variables
+  ✓ entity-commerce-poc routes footer chrome through footer variables
+  ✓ entity-commerce-poc routes header search chrome through header variables
+  ✓ entity-commerce-poc routes storefront surfaces and actions through ecommerce color tokens
+  ✓ entity-commerce-poc routes storefront inventory and badge states through ecommerce color tokens
+  ✓ entity-commerce-poc routes catalog geometry through entity presentation variables
+  ✓ entity-commerce-poc routes detail layout geometry through entity presentation variables
+  ✓ entity-commerce-poc uses responsive auto-fit catalog columns instead of fixed desktop count
+  ✓ entity-commerce-poc provides a storefront header partial
+  ✓ entity-commerce-poc provides a storefront footer partial
+  ✓ entity-commerce-poc customized header partial uses dedicated slot shell
+  ✓ single extends theme layout
+  ✓ single has post_html output
+  ✓ single has cms_head block
+  ✓ home extends theme layout
+  ✓ home has foreach posts
+
+=== TOKEN-ONLY THEME POLICY ===
+  ✓ token-only theme cannot override full public template
+  ✓ token-only theme can override allowlisted block
+  ✓ active theme manifest loads first token-only theme
+  ✓ active theme manifest exposes token payload for first theme
+  ✓ manifest cache resets when active theme changes
+  ✓ manifest cache refresh picks up new token payload
+
+=== ENTITY PRESENTATION SETTINGS ===
+  ✓ entity layout profile default is default
+  ✓ entity pricing variant default is empty
+  ✓ entity action variant default is empty
+  ✓ entity list pricing variant default is empty
+  ✓ entity list inventory variant default is empty
+  ✓ entity list progress variant default is empty
+  ✓ entity summary width default is 320
+  ✓ entity summary sticky default is enabled
+  ✓ entity media ratio default is auto
+  ✓ entity spacing scale default is comfortable
+  ✓ entity action size default is md
+  ✓ entity list title font default inherits shared heading font
+  ✓ entity list category navigation default is list
+  ✓ entity list title clamp default is two lines
+  ✓ entity defaults now own canonical list layout
+  ✓ entity defaults now own canonical detail presentation
+  ✓ ecommerce entity defaults use commerce profile
+  ✓ ecommerce entity defaults mirror canonical summary width default
+  ✓ ecommerce entity defaults mirror category navigation default
+  ✓ ecommerce entity defaults mirror canonical list-card pricing variant default
+  ✓ theme layout defaults are shell-only after migration
+  ✓ storefront surface background default exists
+  ✓ storefront primary CTA background default exists
+  ✓ storefront inventory danger text default exists
+  ✓ entity layout profile validates approved profile
+  ✓ entity pricing variant validates approved variant
+  ✓ entity action variant validates approved variant
+  ✓ entity summary width validates approved range
+  ✓ entity summary sticky validates boolean
+  ✓ entity media ratio validates approved option
+  ✓ entity spacing scale validates approved option
+  ✓ entity action size validates approved option
+  ✓ entity list filter summary validates boolean
+  ✓ entity list category navigation validates approved option
+  ✓ entity list card density validates approved option
+  ✓ entity list excerpt toggle validates boolean
+  ✓ entity list excerpt length validates approved range
+  ✓ entity list title font validates safe catalog override
+  ✓ entity list text font validates safe catalog override
+  ✓ entity list title size validates approved range
+  ✓ entity list price size validates approved range
+  ✓ entity list card min width validates approved range
+  ✓ entity list title clamp validates approved range
+  ✓ entity list presentation validates migrated layout controls
+  ✓ entity list presentation validates migrated card and media controls
+  ✓ entity detail presentation validates migrated visibility controls
+  ✓ entity list pricing variant validates approved option
+  ✓ entity list inventory variant validates approved option
+  ✓ entity list progress variant validates approved option
+  ✓ ecommerce entity settings validate approved profile
+  ✓ ecommerce entity settings validate summary width
+  ✓ ecommerce entity settings validate media ratio
+  ✓ ecommerce entity settings validate list card density
+  ✓ ecommerce entity settings validate filter summary toggle
+  ✓ ecommerce entity settings validate category navigation mode
+  ✓ ecommerce entity settings validate excerpt toggle
+  ✓ ecommerce entity settings validate excerpt length
+  ✓ ecommerce entity settings validate catalog title font override
+  ✓ ecommerce entity settings validate catalog text font override
+  ✓ ecommerce entity settings validate catalog title size
+  ✓ ecommerce entity settings validate catalog price size
+  ✓ ecommerce entity settings validate catalog min card width
+  ✓ ecommerce entity settings validate catalog title clamp
+  ✓ ecommerce entity settings validate migrated list layout controls
+  ✓ ecommerce entity settings validate migrated detail controls
+  ✓ ecommerce entity settings validate list pricing variant
+  ✓ ecommerce entity settings validate list inventory variant
+  ✓ ecommerce entity settings validate list progress variant
+  ✓ footer settings validate widget container shell mode
+  ✓ footer settings validate widget holder custom width
+  ✓ footer settings map legacy full-width shell mode onto split widget defaults
+  ✓ header settings validate container and holder shell widths
+  ✓ header settings keep legacy width aliases mapped to the main header holder
+  ✓ header settings map legacy inner width onto container and holder defaults
+  ✓ invalid entity profile falls back to default
+  ✓ invalid pricing variant falls back to default block
+  ✓ invalid action variant falls back to default block
+  ✓ invalid entity summary width clamps to max
+  ✓ invalid entity summary sticky falls back to disabled boolean
+  ✓ invalid entity media ratio falls back to auto
+  ✓ invalid entity spacing scale falls back to comfortable
+  ✓ invalid entity action size falls back to md
+  ✓ invalid entity list filter summary falls back to disabled boolean
+  ✓ invalid entity list category navigation falls back to list
+  ✓ invalid entity list density falls back to comfortable
+  ✓ invalid entity list excerpt toggle falls back to disabled boolean
+  ✓ invalid entity list excerpt length clamps to max
+  ✓ invalid entity list title font strips unsafe input
+  ✓ invalid entity list text font falls back to empty when sanitized blank
+  ✓ invalid entity list title size clamps to max
+  ✓ invalid entity list price size clamps to min
+  ✓ invalid entity list min width clamps to max
+  ✓ invalid entity list title clamp clamps to min
+  ✓ invalid migrated list layout falls back to canonical defaults
+  ✓ invalid migrated list card and media values clamp or fall back
+  ✓ invalid migrated detail values clamp or fall back
+  ✓ blank migrated read-more text falls back to canonical default copy
+  ✓ invalid entity list pricing variant falls back to default block
+  ✓ invalid entity list inventory variant falls back to default block
+  ✓ invalid entity list progress variant falls back to default block
+  ✓ entity presentation normalization migrates legacy theme list and detail settings
+  ✓ entity presentation normalization strips migrated presentation keys from theme settings
+  ✓ storefront colors validation keeps valid surface color
+  ✓ storefront colors validation keeps valid CTA color
+  ✓ storefront colors validation rejects invalid danger text color
+  ✓ entity presentation config exposes commerce profile class
+  ✓ entity presentation config marks commerce profile as rail summary
+  ✓ entity presentation config exposes summary width
+  ✓ entity presentation config exposes sticky summary flag
+  ✓ entity presentation config exposes media ratio
+  ✓ entity presentation config exposes spacing scale
+  ✓ entity presentation config exposes action size
+  ✓ entity presentation config exposes list filter summary flag
+  ✓ entity presentation config exposes category navigation mode
+  ✓ entity presentation config exposes list card density
+  ✓ entity presentation config exposes list excerpt flag
+  ✓ entity presentation config exposes list excerpt length
+  ✓ entity presentation config exposes catalog title font override
+  ✓ entity presentation config exposes catalog text font override
+  ✓ entity presentation config exposes catalog title size
+  ✓ entity presentation config exposes catalog price size
+  ✓ entity presentation config exposes catalog min width
+  ✓ entity presentation config exposes catalog title clamp
+  ✓ entity presentation config exposes list pricing variant
+  ✓ entity presentation config exposes list inventory variant
+  ✓ entity presentation config exposes list progress variant
+  ✓ cmsPublicContext preserves ecommerce render origin metadata
+  ✓ cmsPublicContext preserves ecommerce route kind metadata
+  ✓ cmsPublicContext resolves ecommerce presentation mode metadata
+  ✓ cmsPublicContext flags ecommerce-origin public rendering
+  ✓ cmsPublicContext exposes native theme source outside storefront route context
+  ✓ cmsPublicContext exposes native customizer scope outside storefront route context
+  ✓ cmsPublicContext resolves authenticated cart count through ecommerce capability
+  ✓ cmsPublicContext authenticated cart lookup avoids ModuleDB denial warnings
+  ✓ route-scoped cmsPublicContext keeps traditional presentation mode metadata without storefront override
+  ✓ route-scoped cmsPublicContext keeps site theme source without storefront override
+  ✓ route-scoped cmsPublicContext keeps native customizer scope metadata without storefront override
+  ✓ route-scoped cmsPublicContext marks the request as an ecommerce entity route
+  ✓ native ecommerce entity routes keep native customizer scope metadata
+  ✓ native ecommerce entity routes keep site theme source under canonical entity presentation
+  ✓ native ecommerce entity routes stop exposing legacy storefront settings
+  ✓ native ecommerce entity routes resolve canonical entity presentation from native settings
+  ✓ native ecommerce entity routes merge canonical entity presentation into theme settings
+  ✓ native ecommerce entity routes emit one combined public theme style source
+  ✓ native ecommerce cart route keeps theme layout presentation defaults
+  ✓ native ecommerce cart route keeps combined public theme style without storefront override mode
+  ✓ colors render exposes storefront CSS variables
+  ✓ colors render styles semantic price class
+  ✓ colors render styles semantic badge class
+  ✓ colors render styles semantic inventory states
+  ✓ colors render applies body font token to public body
+  ✓ colors render makes form controls inherit the configured body font
+  ✓ colors render applies heading font token to public headings
+  ✓ colors render applies heading font token to shared site branding
+  ✓ colors render reasserts the configured body font inside entity-commerce-poc
+  ✓ colors render wires container width into entity theme container token
+  ✓ colors render syncs entity-commerce-poc container width override
+  ✓ theme render now limits itself to shell layout variables
+  ✓ theme render overrides POC customizer chrome with theme-controlled shell gutters
+  ✓ theme render leaves the POC custom header slot uncapped so header full-width mode can own the outer shell
+  ✓ theme render centralizes footer bar padding and border through the shared shell contract
+  ✓ public theme render combines shell and entity presentation tokens under one override tag
+  ✓ canonical entity presentation render exposes entity summary width variable
+  ✓ canonical entity presentation render now owns list and detail geometry variables
+  ✓ canonical entity presentation render styles commerce entity layout rail
+  ✓ canonical entity presentation render styles sticky entity summary rail
+  ✓ canonical entity presentation render styles action button sizing
+  ✓ canonical entity presentation render styles entity list density contract
+  ✓ canonical entity presentation render styles catalog title clamp and font contract
+  ✓ canonical entity presentation render exports detail media ratio variable for theme overrides
+  ✓ ecommerce colors fast path still exports storefront shell width tokens
+  ✓ canonical ecommerce entity presentation render emits override style tag
+  ✓ canonical ecommerce entity presentation render styles commerce entity layout rail
+  ✓ public context omits legacy storefront settings for ecommerce scope
+  ✓ public context exposes canonical entity presentation settings for ecommerce scope
+  ✓ public context merges canonical entity presentation into theme settings for ecommerce scope
+  ✓ public context emits a combined public theme style for ecommerce scope
+  ✓ public context promotes sticky customized headers to the shell region wrapper
+  ✓ public context bridges POC shell width tokens back to theme layout settings
+  ✓ customized storefront header renders through theme partial wrapper
+  ✓ customized storefront header emits shell entity-view wrapper
+  ✓ customized storefront header marks the shell region as sticky-safe
+  ✓ customized storefront header renders through theme inner shell
+  ✓ customized storefront header splits top bar and main header shell contracts
+  ✓ customized storefront header emits explicit custom and boxed holder width overrides
+  ✓ customized storefront header keeps wrapper and container shell classes distinct
+  ✓ customized storefront header omits the transparency script outside home-like routes
+  ✓ customized storefront header links site branding to shop root
+  ✓ customized storefront header fallback nav stays on storefront routes
+  ✓ customized storefront header search overlay posts to storefront query endpoint
+  ✓ canonical CMS page render bypasses storefront entity-view template
+  ✓ canonical CMS blog render bypasses storefront entity-list template
+  ✓ canonical storefront product render auto-injects storefront contract markers
+  ✓ canonical storefront list render auto-injects storefront contract markers
+  ✓ canonical CMS header keeps shell metadata in canonical mode
+  ✓ canonical CMS header preserves the CMS route kind in shell metadata
+  ✓ canonical CMS blog header keeps readable light chrome on dark transparent-home headers
+  ✓ canonical CMS blog header omits the home-only transparency scroll script
+  ✓ canonical CMS header routes branding to the CMS home path
+  ✓ canonical CMS header routes search overlay to the CMS search endpoint
+  ✓ customized storefront header keeps the boxed holder class in the active shell
+  ✓ customized storefront header resets submenu dropdown CSS for mobile navigation
+  ✓ customized storefront footer renders through theme partial wrapper
+  ✓ customized storefront footer splits widget area and footer bar shell contracts
+  ✓ customized storefront footer emits explicit widget gutter and boxed holder width overrides
+  ✓ customized storefront footer emits shell entity-view wrapper
+  ✓ customized storefront footer keeps widget background and link colors inline
+  ✓ customized storefront footer keeps footer bar colors inline
+  ✓ customized storefront footer uses structured footer bar classes instead of inline spacing helpers
+  ✓ footer shell outer width helper unlocks full-width mode
+  ✓ shell container helper adds full-width gutters when requested
+  ✓ footer widget container helper adds full-width gutters
+  ✓ shell holder helper exposes custom max width override
+  ✓ shell holder helper exposes boxed preset width
+  ✓ footer widget holder helper exposes boxed preset width
+  ✓ theme layout css keeps top bar shell widgets content-sized so alignment controls can move them
+  ✓ header widget emits shell entity-view wrapper
+  ✓ footer widget emits shell entity-view wrapper
+  ✓ sidebar widget emits shell entity-view wrapper
+  ✓ scope-aware home menu resolves to storefront home for ecommerce scope
+  ✓ sidebar validation preserves exclude-template mode and filters invalid template rules
+  ✓ sidebar validation preserves include-template mode and keeps multiple valid template rules
+  ✓ native sidebar scope can exempt selected templates from an otherwise global sidebar
+  ✓ native sidebar still renders widget markup outside the excluded templates
+  ✓ native sidebar scope can target only explicitly selected templates
+  ✓ pricing block variant resolves to featured template
+  ✓ action block variant resolves to sticky-footer template
+  ✓ list-card pricing variant resolves to minimal template
+  ✓ list-card inventory variant resolves to compact template
+  ✓ list-card progress variant resolves to inline template
+  ✗ list-card pricing variant render uses minimal markup
+  ✓ unapproved list-card variant throws runtime exception
+  ✓ missing list-card variant template throws runtime exception
+  ✓ commerce profile adds root class to canonical entity view
+  ✓ canonical entity view exposes storefront origin metadata
+  ✓ commerce profile renders dedicated entity layout rail
+  ✓ content profile renders header before media
+  ✓ content profile renders summary after body
+  ✓ poc entity view template carries storefront origin metadata attributes
+  ✓ entity list page URL preserves storefront filters
+  ✓ canonical entity list exposes storefront metadata
+  ✓ canonical entity list exposes list filter metadata
+  ✓ canonical entity list renders summary badges
+  ✓ canonical entity list renders storefront search and category controls
+  ✓ canonical entity list applies density class and excerpt rendering
+  ✓ canonical entity list annotates list cards with entity metadata
+  ✓ canonical entity list emits pre-rendered card capability fragments
+  ✓ canonical entity list can render category dropdown navigation
+  ✓ canonical entity list can suppress summary badges and excerpts
+  ✓ poc entity list template carries storefront metadata attributes
+  ✓ poc entity list template carries list metadata attributes
+  ✓ poc entity list template renders handler-provided card fragments
+  ✓ poc entity list template exposes density and excerpt controls
+  ✓ poc entity list template exposes storefront filter controls
+  ✓ poc entity list template supports category dropdown navigation mode
+  ✓ poc entity list stylesheet styles storefront filter controls
+  ✓ poc entity list stylesheet styles category picker controls
+
+=== SHARED LOCK RENDER PATH ===
+  ✓ cmsPublicRender still renders when the compatibility symlink is missing
+  ✓ cmsPublicRender does not recreate the compatibility symlink on demand
+
+=== ADMIN NOT THEMED ===
+  ✓ admin context has no theme key
+
+=== CLEANUP ===
+  ✓ symlink cleaned up
+  ✓ settings restored
+  ✓ temporary token-only themes cleaned up
+
+=== LOG CHECK ===
+  ✓ No app.log errors
+  ✓ No contract mismatch warnings in app.log
+  ✓ No PHP errors in error.log
+
+══════════════════════════════════════════════════
+  PASS: 577  FAIL: 3
+══════════════════════════════════════════════════
+
+Failed tests:
+  - entity-commerce-poc pricing block render uses themed markup
+  - entity-commerce-poc manifest list-card pricing render uses featured themed markup
+  - list-card pricing variant render uses minimal markup

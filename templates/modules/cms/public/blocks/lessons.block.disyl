@@ -1,6 +1,6 @@
 {* lessons.block.disyl — ordered chapter/lesson index *}
 {* @requires entity.capability.lessons_index.data@1 *}
-{if capability_data.lessons_index and capability_data.lessons_index.items}
+{if capabilities.lessons_index and capability_data.lessons_index.items}
 <div class="cms-lessons-block my-8 border border-gray-100 rounded-xl overflow-hidden">
     <div class="cms-lessons-header bg-gray-50 px-5 py-3 border-b border-gray-100">
         <h3 class="cms-lessons-title text-base font-semibold text-gray-800">Contents</h3>

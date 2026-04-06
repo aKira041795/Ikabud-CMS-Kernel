@@ -1,6 +1,6 @@
 {* inventory.block.disyl — stock badge *}
 {* @requires entity.capability.inventory.data@1 *}
-{if capability_data.inventory}
+{if capabilities.inventory}
 <div class="cms-inventory-block my-2">
     {if capability_data.inventory.in_stock}
     {if capability_data.inventory.low_stock}

@@ -1,4 +1,4 @@
-{if capability_data.pricing and capability_data.pricing.price}
+{if capabilities.pricing and capability_data.pricing.price}
 <div class="poc-price-pill poc-price-pill--minimal">
     <span class="poc-price-pill__current">
         {if capability_data.pricing.sale_price}

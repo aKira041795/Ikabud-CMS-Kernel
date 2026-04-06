@@ -1,4 +1,4 @@
-{if capability_data.progress_tracking and capability_data.progress_tracking.authenticated}
+{if capabilities.progress_tracking and capability_data.progress_tracking.authenticated}
 <div class="cms-entity-card__progress cms-entity-card__progress--inline mt-2 inline-flex items-center gap-2 text-xs font-medium text-slate-500">
     <span>{capability_data.progress_tracking.percent}% complete</span>
     <div class="h-1.5 w-24 overflow-hidden rounded-full bg-gray-100">

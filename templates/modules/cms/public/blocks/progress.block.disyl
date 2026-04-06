@@ -1,6 +1,6 @@
 {* progress.block.disyl — per-user progress bar for courses/challenges *}
 {* @requires entity.capability.progress_tracking.data@1 *}
-{if capability_data.progress_tracking}
+{if capabilities.progress_tracking}
 <div class="cms-progress-block my-3">
     {if capability_data.progress_tracking.authenticated}
     <div class="cms-progress-row flex items-center gap-3">

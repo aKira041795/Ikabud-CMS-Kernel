@@ -1,0 +1,5 @@
+--- tests/cms_theme_test.php
++++ tests/cms_theme_test.php
+@@ -370,1 +370,2 @@
++var_dump($renderedPricingBlock);
+ t('entity-commerce-poc pricing block render uses themed markup', str_contains($renderedPricingBlock, 'poc-pricing-block'), $renderedPricingBlock);

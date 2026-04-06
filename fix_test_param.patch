@@ -1,0 +1,32 @@
+--- tests/cms_theme_test.php
++++ tests/cms_theme_test.php
+@@ -357,6 +357,9 @@
+ $renderedPricingBlock = cmsRenderThemeAwareBlockTemplate('modules/cms/public/blocks/pricing.block.disyl', [
++    'capabilities' => [
++        'pricing' => true,
++    ],
+     'capability_data' => [
+         'pricing' => [
+             'currency' => 'USD',
+             'price' => 24.5,
+             'sale_price' => 19.0,
+@@ -395,6 +395,9 @@
+ $renderedManifestListPricing = cmsRenderThemeAwareBlockTemplate('modules/cms/public/blocks/list-card-pricing.block.disyl', [
++    'capabilities' => [
++        'pricing' => true,
++    ],
+     'capability_data' => [
+         'pricing' => [
+             'currency' => 'USD',
+             'price' => 24.5,
+             'sale_price' => 19.0,
+@@ -2320,6 +2320,9 @@
+ $renderedMinimalListPricing = cmsRenderThemeAwareBlockTemplate('modules/cms/public/blocks/list-card-pricing.block.disyl', [
++    'capabilities' => [
++        'pricing' => true,
++    ],
+     'capability_data' => [
+         'pricing' => [
+             'currency' => 'USD',
+             'price' => 24.5,
+             'sale_price' => 19.0,

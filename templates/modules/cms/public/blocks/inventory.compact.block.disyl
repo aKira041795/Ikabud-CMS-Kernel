@@ -1,4 +1,4 @@
-{if capability_data.inventory}
+{if capabilities.inventory}
 <div class="cms-inventory-block cms-inventory-block-compact my-2 flex flex-wrap items-center gap-2 text-xs font-semibold">
     {if capability_data.inventory.out_of_stock or not capability_data.inventory.in_stock}
     <span class="cms-inventory-pill cms-inventory-pill--out inline-flex items-center rounded-full bg-red-50 px-2.5 py-1 text-red-600">Out of stock</span>

@@ -1,4 +1,4 @@
-{if capability_data.inventory and capability_data.inventory.track_stock}
+{if capabilities.inventory and capability_data.inventory.track_stock}
 <div class="cms-entity-card__inventory cms-entity-card__inventory--compact mt-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
     {if capability_data.inventory.out_of_stock or not capability_data.inventory.in_stock}
     <span class="cms-inventory-pill cms-inventory-pill--out inline-flex items-center rounded-full bg-red-50 px-2 py-0.5 text-red-600">Out</span>

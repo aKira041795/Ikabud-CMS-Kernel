@@ -1,4 +1,4 @@
-{if capability_data.pricing}
+{if capabilities.pricing}
 <div class="poc-pricing-block">
     <div class="poc-pricing-block__row">
         {if capability_data.pricing.sale_price}

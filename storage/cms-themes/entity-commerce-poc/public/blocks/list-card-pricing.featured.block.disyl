@@ -1,4 +1,4 @@
-{if capability_data.pricing and capability_data.pricing.price}
+{if capabilities.pricing and capability_data.pricing.price}
 <div class="poc-price-pill poc-price-pill--featured">
     {if capability_data.pricing.sale_price}
     <span class="poc-price-pill__current">{capability_data.pricing.currency} {capability_data.pricing.sale_price | number_format:2}</span>
