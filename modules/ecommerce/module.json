@@ -46,7 +46,8 @@
         "modules/ecommerce/database/migrations/007_ec_customers.sql",
         "modules/ecommerce/database/migrations/008_ec_cms_categories_taxonomy.sql",
         "modules/ecommerce/database/migrations/009_ec_digital_licenses.sql",
-        "modules/ecommerce/database/migrations/010_ec_payment_intent_fields.sql"
+        "modules/ecommerce/database/migrations/010_ec_payment_intent_fields.sql",
+        "modules/ecommerce/database/migrations/011_ec_digital_license_delivery.sql"
     ],
     "capabilities": {
         "exposes": [

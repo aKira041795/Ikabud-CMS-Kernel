@@ -26,6 +26,7 @@ return [
         '/ecommerce/admin/products/{id}/edit'     => 'ecommerce:ecAdminProductEdit',
         '/ecommerce/admin/orders'                 => 'ecommerce:ecAdminOrders',
         '/ecommerce/admin/orders/{id}'            => 'ecommerce:ecAdminOrderDetail',
+        '/ecommerce/admin/licenses/{id}/download' => 'ecommerce:ecAdminLicenseDownload',
         '/ecommerce/admin/categories'             => 'ecommerce:ecAdminCategories',
         '/ecommerce/admin/coupons'                => 'ecommerce:ecAdminCoupons',
         '/ecommerce/admin/reports'                => 'ecommerce:ecAdminReports',

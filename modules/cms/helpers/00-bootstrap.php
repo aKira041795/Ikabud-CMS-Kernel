@@ -26,6 +26,10 @@ define('CMS_ROLES', [
     'author'        => 50,
     'contributor'   => 30,
     'subscriber'    => 10,
+    // Ecommerce-only role: can log in and access orders/downloads but NOT /cms/admin.
+    // Level 8 is intentionally below subscriber (10) so all CMS capability gates
+    // (minimum 'subscriber') automatically block customers without extra guards.
+    'customer'      => 8,
 ]);
 
 app()->hooks()->on('kernel.request.before_dispatch', static function (array $context): array {

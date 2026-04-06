@@ -161,6 +161,27 @@ The CMS emits content, media, settings, and builder lifecycle events. However, n
 
 ## 7. Security architecture
 
+### Role hierarchy
+
+`CMS_ROLES` maps role names to numeric levels used by `cmsRoleAtLeast()`. Higher number = more access.
+
+| Role            | Level | CMS Admin Access | Notes                                             |
+|-----------------|-------|------------------|---------------------------------------------------|
+| `superadmin`    | 100   | ✅ Full          | Kernel-level, cross-tenant                        |
+| `administrator` | 90    | ✅ Full          |                                                   |
+| `editor`        | 70    | ✅ Full          |                                                   |
+| `author`        | 50    | ✅ Limited       |                                                   |
+| `contributor`   | 30    | ✅ Limited       |                                                   |
+| `subscriber`    | 10    | ✅ `dashboard.view` only | Blog or manual account user          |
+| `customer`      | 8     | ❌ Blocked       | Ecommerce-only; can access orders & downloads     |
+
+**Customer role semantics:**
+- `customer` (level 8) is below `subscriber` (level 10), so any CMS capability requiring `subscriber` or above automatically blocks customers.
+- `ecRequireLogin()` in the ecommerce module requires `cmsRequireRole('customer')` (level ≥ 8), which passes for both customers and all CMS content roles.
+- After login, `kernel.home_url` sends customers to `/ecommerce/my-orders` instead of `/cms/admin`.
+- Customers can: view their orders, download purchased digital files, access the public storefront.
+- Customers cannot: access `/cms/admin`, create content, view the CMS dashboard.
+
 ### Current strengths
 
 - permission gates are broad and granular

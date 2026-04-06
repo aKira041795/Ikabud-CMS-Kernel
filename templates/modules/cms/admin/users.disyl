@@ -39,7 +39,8 @@
                             {else}{if u.role == 'editor'}bg-sky-50 text-sky-700
                             {else}{if u.role == 'author'}bg-emerald-50 text-emerald-700
                             {else}{if u.role == 'contributor'}bg-amber-50 text-amber-700
-                            {else}bg-gray-100 text-gray-500{/if}{/if}{/if}{/if}{/if}">{u.role}</span>
+                            {else}{if u.role == 'customer'}bg-orange-50 text-orange-700
+                            {else}bg-gray-100 text-gray-500{/if}{/if}{/if}{/if}{/if}{/if}">{u.role}</span>
                     </td>
                     <td class="px-4 py-3">
                         {if u.is_active == 1}
@@ -83,6 +84,7 @@
                     <div>
                         <label class="block text-xs font-medium text-gray-500 mb-1">Role</label>
                         <select x-model="newUser.role" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
+                            <option value="customer">Customer (ecommerce only)</option>
                             <option value="subscriber">Subscriber</option>
                             <option value="contributor">Contributor</option>
                             <option value="author">Author</option>
@@ -118,6 +120,7 @@
                     <div>
                         <label class="block text-xs font-medium text-gray-500 mb-1">Role</label>
                         <select x-model="editData.role" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500">
+                            <option value="customer">Customer (ecommerce only)</option>
                             <option value="subscriber">Subscriber</option>
                             <option value="contributor">Contributor</option>
                             <option value="author">Author</option>

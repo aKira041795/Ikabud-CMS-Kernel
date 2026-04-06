@@ -92,10 +92,11 @@ Once the customer receives the license key, they must input it into their tenant
 
 ### 4.1 Token-based Download — `GET /ecommerce/download/{token}`
 - Handler: `ecPublicDownloadLicense()` in `modules/ecommerce/handlers/25-public-orders.php`.
-- No authentication required — the 256-bit `download_token` itself proves entitlement.
+- Requires CMS login — redirects to `/cms/login?redirect=...` if not authenticated.
 - Validates token length (64 hex chars) and `status = 'active'`.
+- Verifies ownership: `customer_id` match OR `customer_email` match against logged-in user.
 - Records `downloaded_at` on first access.
-- Serves the JWT as `Content-Disposition: attachment; filename="license-{module}.jwt"`.
+- Serves the uploaded digital file when present; falls back to JWT `.jwt` text file.
 
 ### 4.2 Customer Account Dashboard
 - **My Orders list** (`/ecommerce/my-orders`): Orders that have at least one license row show a
@@ -106,6 +107,23 @@ Once the customer receives the license key, they must input it into their tenant
   - Full JWT text in a selectable `<code>` block
   - "Download License File" button linking to the download token URL
   - "First downloaded" timestamp once the file has been fetched
+
+### 4.3 Admin Digital Licenses View — `GET /ecommerce/admin/licenses/{id}/download`
+- Handler: `ecAdminLicenseDownload()` in `modules/ecommerce/handlers/40-admin-orders.php`.
+- Requires ecommerce admin role — no ownership check (admin can download any license).
+- Route: `GET /ecommerce/admin/licenses/{id}/download`.
+- The admin order detail page (`/ecommerce/admin/orders/{id}`) now shows a **Licenses** sidebar card listing all licenses for the order. Each entry has:
+  - Module + tier + status badge
+  - License key (truncated preview)
+  - Download button (for licenses that have an uploaded file or JWT)
+  - Customer info (email, first downloaded date)
+
+### 4.4 Customer User Role
+- Ecommerce customers are created with CMS role `customer` (level 8, below `subscriber` level 10).
+- `customer` role: can log in via `/cms/login`, access `/ecommerce/my-orders`, download digital files.
+- `customer` role: **cannot** access `/cms/admin` or any CMS-gated capability (naturally blocked by `subscriber` minimum on all CMS capabilities).
+- After login, the `kernel.home_url` hook redirects customers to `/ecommerce/my-orders`.
+- Admins can assign the `customer` role from the CMS Users admin screen.
 
 ## 5. Implementation Status
 
@@ -120,6 +138,9 @@ Once the customer receives the license key, they must input it into their tenant
 | Token-based download endpoint      | ✅ Complete  |
 | Customer dashboard (order detail)  | ✅ Complete  |
 | My-orders "Digital" badge          | ✅ Complete  |
+| `customer` CMS role                | ✅ Complete  |
+| Admin order digital licenses card  | ✅ Complete  |
+| Admin license download bypass      | ✅ Complete  |
 | Offline JWT validator (Superadmin) | ⏳ Pending   |
 | `module.license.activate@1` cap    | ⏳ Pending   |
 

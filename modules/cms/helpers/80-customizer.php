@@ -4078,7 +4078,11 @@ function cmsRenderSingleHeaderWidget(array $widget, object $db, array $cmsSettin
 
 // Register CMS home URL for CMS roles
 app()->hooks()->on('kernel.home_url', function (?string $url, string $role) {
-    // CMS roles get redirected to CMS admin dashboard
+    // Ecommerce customers get sent to their order dashboard, not the CMS admin.
+    if ($role === 'customer') {
+        return '/ecommerce/my-orders';
+    }
+    // All other CMS roles get redirected to CMS admin dashboard
     if (isset(CMS_ROLES[$role])) {
         return '/cms/admin';
     }

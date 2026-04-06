@@ -139,6 +139,39 @@
             <p class="text-sm text-gray-600">{order.customer_note}</p>
         </div>
         {/if}
+
+        <!-- Digital Licenses -->
+        {if order.licenses | count > 0}
+        <div class="bg-white rounded-lg border border-gray-200 p-5">
+            <h3 class="text-sm font-semibold text-gray-700 mb-3">Digital Licenses</h3>
+            <div class="space-y-3">
+                {foreach order.licenses as lic}
+                <div class="bg-gray-50 rounded-lg p-3 text-xs space-y-1.5">
+                    <div class="flex items-center gap-2 flex-wrap">
+                        <span class="font-mono font-semibold text-gray-800">{lic.target_module}</span>
+                        {if lic.target_tier}
+                        <span class="px-1.5 py-0.5 rounded text-xs font-medium bg-violet-50 text-violet-700">{lic.target_tier}</span>
+                        {/if}
+                        <span class="px-1.5 py-0.5 rounded text-xs font-medium {if lic.status == 'active'}bg-emerald-50 text-emerald-700{else}bg-gray-100 text-gray-500{/if}">{lic.status}</span>
+                    </div>
+                    <div class="text-gray-500 font-mono break-all leading-relaxed text-[10px]">{lic.license_key | truncate:80}</div>
+                    <div class="flex items-center justify-between">
+                        <div class="text-gray-400">
+                            {if lic.downloaded_at}Downloaded {lic.downloaded_at}{else}Not downloaded yet{/if}
+                        </div>
+                        {if lic.download_token}
+                        <a href="/ecommerce/admin/licenses/{lic.id}/download"
+                           class="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-white bg-orange-600 hover:bg-orange-700 rounded">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 3v12"/></svg>
+                            Download
+                        </a>
+                        {/if}
+                    </div>
+                </div>
+                {/foreach}
+            </div>
+        </div>
+        {/if}
     </div>
 </div>
 {/block}

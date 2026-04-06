@@ -41,8 +41,10 @@ function ecRequireEditor(): array
 }
 
 /**
- * Require any logged-in CMS user (subscriber and above).
- * Used for "My Orders", account pages.
+ * Require any logged-in CMS user (customer and above).
+ * Used for "My Orders", account pages, and digital downloads.
+ * 'customer' (level 8) is the minimum; subscriber and all CMS content
+ * roles naturally pass as they are level 10+.
  */
 function ecRequireCustomer(): array
 {
@@ -50,7 +52,7 @@ function ecRequireCustomer(): array
         http_response_code(503);
         exit;
     }
-    return cmsRequireRole('subscriber');
+    return cmsRequireRole('customer');
 }
 
 /**
