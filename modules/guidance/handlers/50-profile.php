@@ -61,10 +61,11 @@ function normalizeStudentStatusOptions(array $options): array
 
 function studentStatusCasesColumnExists(PDO $db): bool
 {
-    static $exists = null;
+    static $exists = [];
+    $tid = app()->tenantId();
 
-    if ($exists !== null) {
-        return $exists;
+    if (array_key_exists($tid, $exists)) {
+        return $exists[$tid];
     }
 
     $stmt = $db->prepare(
@@ -73,9 +74,9 @@ function studentStatusCasesColumnExists(PDO $db): bool
          WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?'
     );
     $stmt->execute(['gm_cases', 'student_status']);
-    $exists = ((int) $stmt->fetchColumn()) > 0;
+    $exists[$tid] = ((int) $stmt->fetchColumn()) > 0;
 
-    return $exists;
+    return $exists[$tid];
 }
 
 function ensureStudentStatusField(PDO $db): array

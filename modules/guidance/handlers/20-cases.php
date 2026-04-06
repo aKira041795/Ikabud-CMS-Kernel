@@ -6,19 +6,20 @@
  */
 
 function casesHasStudentStatusColumn(PDO $db): bool {
-    static $hasColumn = null;
+    static $hasColumn = [];
+    $tid = app()->tenantId();
 
-    if ($hasColumn !== null) {
-        return $hasColumn;
+    if (array_key_exists($tid, $hasColumn)) {
+        return $hasColumn[$tid];
     }
 
     $stmt = $db->prepare(
         'SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?'
     );
     $stmt->execute(['gm_cases', 'student_status']);
-    $hasColumn = ((int) $stmt->fetchColumn()) > 0;
+    $hasColumn[$tid] = ((int) $stmt->fetchColumn()) > 0;
 
-    return $hasColumn;
+    return $hasColumn[$tid];
 }
 
 function apiGuidanceListCases(): void {

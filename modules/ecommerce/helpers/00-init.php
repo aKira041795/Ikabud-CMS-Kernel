@@ -44,26 +44,30 @@ function ecCtx(): \Ikabud\Kernel\Contracts\ModuleContext
 function ecTableExists(string $table): bool
 {
     static $cache = [];
+    $tid = app()->tenantId();
+    if (!isset($cache[$tid])) {
+        $cache[$tid] = [];
+    }
 
     $table = trim($table);
     if ($table === '') {
         return false;
     }
 
-    if (array_key_exists($table, $cache)) {
-        return $cache[$table];
+    if (array_key_exists($table, $cache[$tid])) {
+        return $cache[$tid][$table];
     }
 
     try {
         $db = app()->db();
         $stmt = $db->prepare('SHOW TABLES LIKE ?');
         $stmt->execute([$table]);
-        $cache[$table] = (bool)$stmt->fetchColumn();
+        $cache[$tid][$table] = (bool)$stmt->fetchColumn();
     } catch (\Throwable $e) {
-        $cache[$table] = false;
+        $cache[$tid][$table] = false;
     }
 
-    return $cache[$table];
+    return $cache[$tid][$table];
 }
 
 function ecCmsSchemaReady(): bool
@@ -318,19 +322,20 @@ function ecRender(string $template, array $context = []): void
 
 function ecHasCmsCategoryTaxonomy(): bool
 {
-    static $hasTaxonomy = null;
-    if ($hasTaxonomy !== null) {
-        return $hasTaxonomy;
+    static $hasTaxonomy = [];
+    $tid = app()->tenantId();
+    if (array_key_exists($tid, $hasTaxonomy)) {
+        return $hasTaxonomy[$tid];
     }
 
     try {
         ecDb()->query('SELECT taxonomy FROM cms_categories WHERE 1 = 0');
-        $hasTaxonomy = true;
+        $hasTaxonomy[$tid] = true;
     } catch (\Throwable $e) {
-        $hasTaxonomy = false;
+        $hasTaxonomy[$tid] = false;
     }
 
-    return $hasTaxonomy;
+    return $hasTaxonomy[$tid];
 }
 
 function ecCmsCategorySelectSql(string $columns = 'id, name, slug', string $orderBy = 'name ASC'): string
@@ -384,14 +389,15 @@ function ecSettingsDefaults(): array
 
 function ecSettings(?string $key = null, mixed $default = null): mixed
 {
-    static $cache = null;
-    if ($cache === null) {
-        $cache = array_merge(ecSettingsDefaults(), getModuleSettings('ecommerce'));
+    static $cache = [];
+    $tid = app()->tenantId();
+    if (!array_key_exists($tid, $cache)) {
+        $cache[$tid] = array_merge(ecSettingsDefaults(), getModuleSettings('ecommerce'));
     }
     if ($key === null) {
-        return $cache;
+        return $cache[$tid];
     }
-    return $cache[$key] ?? $default;
+    return $cache[$tid][$key] ?? $default;
 }
 
 // ── Auto-page installation ───────────────────────────────────────────
@@ -402,11 +408,12 @@ function ecSettings(?string $key = null, mixed $default = null): mixed
  */
 function ecMaybeInstallPages(): void
 {
-    static $done = false;
-    if ($done) {
+    static $done = [];
+    $tid = app()->tenantId();
+    if (!empty($done[$tid])) {
         return;
     }
-    $done = true;
+    $done[$tid] = true;
 
     $settings = readTenantModuleSettings('ecommerce');
 

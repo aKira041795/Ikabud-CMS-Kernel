@@ -6,20 +6,21 @@
  */
 
 function usersHasPhoneColumn(PDO $db): bool {
-    static $hasPhone = null;
+    static $hasPhone = [];
+    $tid = app()->tenantId();
 
-    if ($hasPhone !== null) {
-        return $hasPhone;
+    if (array_key_exists($tid, $hasPhone)) {
+        return $hasPhone[$tid];
     }
 
     try {
         $stmt = $db->query("SHOW COLUMNS FROM gm_users LIKE 'phone'");
-        $hasPhone = (bool) $stmt->fetch(PDO::FETCH_ASSOC);
+        $hasPhone[$tid] = (bool) $stmt->fetch(PDO::FETCH_ASSOC);
     } catch (Throwable $e) {
-        $hasPhone = false;
+        $hasPhone[$tid] = false;
     }
 
-    return $hasPhone;
+    return $hasPhone[$tid];
 }
 
 function apiGuidanceListUsers(): void {

@@ -7069,20 +7069,21 @@ function normalizeStudentStatusOptions(array $options): array
 
 function studentStatusCasesColumnExists(\Ikabud\Kernel\Contracts\DatabaseContract $db): bool
 {
-    static $exists = null;
+    static $exists = [];
+    $tid = app()->tenantId();
 
-    if ($exists !== null) {
-        return $exists;
+    if (array_key_exists($tid, $exists)) {
+        return $exists[$tid];
     }
 
     try {
         $stmt = $db->query("SHOW COLUMNS FROM gm_cases LIKE 'student_status'");
-        $exists = (bool) $stmt->fetch(PDO::FETCH_ASSOC);
+        $exists[$tid] = (bool) $stmt->fetch(PDO::FETCH_ASSOC);
     } catch (Throwable $e) {
-        $exists = false;
+        $exists[$tid] = false;
     }
 
-    return $exists;
+    return $exists[$tid];
 }
 
 function ensureStudentStatusField(\Ikabud\Kernel\Contracts\DatabaseContract $db): array

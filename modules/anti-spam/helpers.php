@@ -165,26 +165,30 @@ function antispamDb()
 function antispamTableExists(string $table): bool
 {
     static $cache = [];
+    $tid = app()->tenantId();
+    if (!isset($cache[$tid])) {
+        $cache[$tid] = [];
+    }
 
     $table = trim($table);
     if ($table === '') {
         return false;
     }
 
-    if (array_key_exists($table, $cache)) {
-        return $cache[$table];
+    if (array_key_exists($table, $cache[$tid])) {
+        return $cache[$tid][$table];
     }
 
     try {
         $db = antispamDb();
         $stmt = $db->prepare('SHOW TABLES LIKE ?');
         $stmt->execute([$table]);
-        $cache[$table] = (bool)$stmt->fetchColumn();
+        $cache[$tid][$table] = (bool)$stmt->fetchColumn();
     } catch (\Throwable $e) {
-        $cache[$table] = false;
+        $cache[$tid][$table] = false;
     }
 
-    return $cache[$table];
+    return $cache[$tid][$table];
 }
 
 function antispamReadLegacySettings(): array
@@ -353,8 +357,8 @@ function antispamGetSettings(): array
 {
     // Cache keyed by tenant ID so different tenants in the same process
     // don't share each other's antispam configuration.
-    $cache = $GLOBALS['_antispam_settings_cache'] ?? [];
-    $tid = (function_exists('moduleTenantSettingsTenantId') ? moduleTenantSettingsTenantId() : null) ?? 0;
+    static $cache = [];
+    $tid = app()->tenantId();
     if (array_key_exists($tid, $cache)) return $cache[$tid];
 
     $merged = array_merge(
@@ -373,7 +377,6 @@ function antispamGetSettings(): array
     }
 
     $cache[$tid] = $normalized;
-    $GLOBALS['_antispam_settings_cache'] = $cache;
     return $normalized;
 }
 
