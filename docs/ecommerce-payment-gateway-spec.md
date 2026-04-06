@@ -47,6 +47,24 @@ checkout handler
 
 ---
 
+## Supported Payment Methods (PayMongo)
+
+The `paymongo_allowed_methods` setting accepts a comma-separated list of payment methods to display on the PayMongo checkout page.
+
+| Method ID    | Name                         | Description                               |
+|--------------|------------------------------|-------------------------------------------|
+| `card`       | Credit/Debit Cards           | Visa, Mastercard                          |
+| `gcash`      | GCash                        | E-wallet                                  |
+| `maya`       | Maya                         | E-wallet (formerly PayMaya)               |
+| `grab_pay`   | GrabPay                      | E-wallet                                  |
+| `dob`        | Direct Online Banking        | BPI, UnionBank (requires customer action) |
+| `billease`   | BillEase                     | Buy Now, Pay Later                        |
+| `qrph`       | QR Ph                        | Standardized QR payment in the PH         |
+
+*Note: Some payment methods might require explicit activation within the PayMongo dashboard.*
+
+---
+
 ## Flows
 
 ### 1. Checkout (card / e-wallet)
