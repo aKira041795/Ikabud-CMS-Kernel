@@ -1191,10 +1191,11 @@ function contactFormSubmissionRecordsFromRow(array $row): array
 
 function contactFormResetSchemaState(): void
 {
+    $tid = app()->tenantId();
     unset(
-        $GLOBALS['_contact_form_table_exists_cache'],
-        $GLOBALS['_contact_form_column_exists_cache'],
-        $GLOBALS['_contact_form_schema_status']
+        $GLOBALS['_contact_form_table_exists_cache'][$tid],
+        $GLOBALS['_contact_form_column_exists_cache'][$tid],
+        $GLOBALS['_contact_form_schema_status'][$tid]
     );
 }
 
@@ -1220,28 +1221,29 @@ function contactFormTableExists(string $table, bool $refresh = false): bool
         return false;
     }
 
-    if (!isset($GLOBALS['_contact_form_table_exists_cache']) || !is_array($GLOBALS['_contact_form_table_exists_cache'])) {
-        $GLOBALS['_contact_form_table_exists_cache'] = [];
+    $tid = app()->tenantId();
+    if (!isset($GLOBALS['_contact_form_table_exists_cache'][$tid]) || !is_array($GLOBALS['_contact_form_table_exists_cache'][$tid])) {
+        $GLOBALS['_contact_form_table_exists_cache'][$tid] = [];
     }
 
     if ($refresh) {
-        unset($GLOBALS['_contact_form_table_exists_cache'][$table]);
+        unset($GLOBALS['_contact_form_table_exists_cache'][$tid][$table]);
     }
 
-    if (array_key_exists($table, $GLOBALS['_contact_form_table_exists_cache'])) {
-        return (bool) $GLOBALS['_contact_form_table_exists_cache'][$table];
+    if (array_key_exists($table, $GLOBALS['_contact_form_table_exists_cache'][$tid])) {
+        return (bool) $GLOBALS['_contact_form_table_exists_cache'][$tid][$table];
     }
 
     try {
         $stmt = contactFormDb()->query(
             "SHOW TABLES LIKE '" . contactFormSqlLikeLiteral($table) . "'"
         );
-        $GLOBALS['_contact_form_table_exists_cache'][$table] = (bool) $stmt->fetchColumn();
+        $GLOBALS['_contact_form_table_exists_cache'][$tid][$table] = (bool) $stmt->fetchColumn();
     } catch (Throwable $e) {
-        $GLOBALS['_contact_form_table_exists_cache'][$table] = false;
+        $GLOBALS['_contact_form_table_exists_cache'][$tid][$table] = false;
     }
 
-    return (bool) $GLOBALS['_contact_form_table_exists_cache'][$table];
+    return (bool) $GLOBALS['_contact_form_table_exists_cache'][$tid][$table];
 }
 
 function contactFormColumnExists(string $table, string $column, bool $refresh = false): bool
@@ -1256,29 +1258,30 @@ function contactFormColumnExists(string $table, string $column, bool $refresh = 
         return false;
     }
 
-    if (!isset($GLOBALS['_contact_form_column_exists_cache']) || !is_array($GLOBALS['_contact_form_column_exists_cache'])) {
-        $GLOBALS['_contact_form_column_exists_cache'] = [];
+    $tid = app()->tenantId();
+    if (!isset($GLOBALS['_contact_form_column_exists_cache'][$tid]) || !is_array($GLOBALS['_contact_form_column_exists_cache'][$tid])) {
+        $GLOBALS['_contact_form_column_exists_cache'][$tid] = [];
     }
 
     $cacheKey = $table . '.' . $column;
     if ($refresh) {
-        unset($GLOBALS['_contact_form_column_exists_cache'][$cacheKey]);
+        unset($GLOBALS['_contact_form_column_exists_cache'][$tid][$cacheKey]);
     }
 
-    if (array_key_exists($cacheKey, $GLOBALS['_contact_form_column_exists_cache'])) {
-        return (bool) $GLOBALS['_contact_form_column_exists_cache'][$cacheKey];
+    if (array_key_exists($cacheKey, $GLOBALS['_contact_form_column_exists_cache'][$tid])) {
+        return (bool) $GLOBALS['_contact_form_column_exists_cache'][$tid][$cacheKey];
     }
 
     try {
         $stmt = contactFormDb()->query(
             "SHOW COLUMNS FROM `" . $table . "` LIKE '" . contactFormSqlLikeLiteral($column) . "'"
         );
-        $GLOBALS['_contact_form_column_exists_cache'][$cacheKey] = (bool) $stmt->fetchColumn();
+        $GLOBALS['_contact_form_column_exists_cache'][$tid][$cacheKey] = (bool) $stmt->fetchColumn();
     } catch (Throwable $e) {
-        $GLOBALS['_contact_form_column_exists_cache'][$cacheKey] = false;
+        $GLOBALS['_contact_form_column_exists_cache'][$tid][$cacheKey] = false;
     }
 
-    return (bool) $GLOBALS['_contact_form_column_exists_cache'][$cacheKey];
+    return (bool) $GLOBALS['_contact_form_column_exists_cache'][$tid][$cacheKey];
 }
 
 function contactFormCollectSchemaGaps(): array
@@ -1327,7 +1330,8 @@ function contactFormSchemaStatus(bool $refresh = false): array
         contactFormResetSchemaState();
     }
 
-    $cached = $GLOBALS['_contact_form_schema_status'] ?? null;
+    $tid = app()->tenantId();
+    $cached = $GLOBALS['_contact_form_schema_status'][$tid] ?? null;
     if (!$refresh && is_array($cached)) {
         return $cached;
     }
@@ -1336,7 +1340,7 @@ function contactFormSchemaStatus(bool $refresh = false): array
     $sync = null;
 
     if (($gaps['missing_tables'] !== [] || $gaps['missing_columns'] !== []) && function_exists('syncTenantMigrationsForTenant')) {
-        $tenantId = function_exists('moduleTenantSettingsTenantId') ? (int) (moduleTenantSettingsTenantId() ?? 0) : 0;
+        $tenantId = app()->tenantId();
         if ($tenantId > 0) {
             $previousUnguarded = (bool) kernel_request_context_get('_kernel_db_unguarded', false);
             kernel_request_context_set('_kernel_db_unguarded', true);
@@ -1373,7 +1377,7 @@ function contactFormSchemaStatus(bool $refresh = false): array
             : 'Contact form schema is not ready yet. Missing ' . implode('; ', $details) . '. Reload the page after migrations finish.',
     ];
 
-    $GLOBALS['_contact_form_schema_status'] = $status;
+    $GLOBALS['_contact_form_schema_status'][$tid] = $status;
     return $status;
 }
 
@@ -1673,7 +1677,7 @@ function contactFormRenderSharedStyles(): string
 {
     static $injected = [];
 
-    $tenantId = (function_exists('moduleTenantSettingsTenantId') ? moduleTenantSettingsTenantId() : null) ?? 0;
+    $tenantId = app()->tenantId();
     if (!empty($injected[$tenantId])) {
         return '';
     }

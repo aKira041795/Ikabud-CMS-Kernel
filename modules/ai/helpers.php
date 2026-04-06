@@ -13,12 +13,13 @@ require_once __DIR__ . '/helpers/mistral.php';
 function aiRuntimeOverrides(?array $replace = null): array
 {
     static $overrides = [];
+    $tid = app()->tenantId();
 
     if ($replace !== null) {
-        $overrides = $replace;
+        $overrides[$tid] = $replace;
     }
 
-    return $overrides;
+    return $overrides[$tid] ?? [];
 }
 
 function aiWithRuntimeOverrides(array $overrides, callable $callback): mixed

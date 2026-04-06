@@ -218,6 +218,8 @@ if ($method === 'HEAD') {
 }
 $uri = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
 $uri = rawurldecode($uri);
+$uri = rtrim($uri, '/');
+$uri = $uri === '' ? '/' : $uri;
 
 // ── Module static assets ─────────────────────────────────────────
 // Convention: /assets/modules/<moduleId>/<path> maps to modules/<moduleId>/assets/<path>
@@ -474,6 +476,7 @@ if ($method === 'HEAD') {
 $uriCandidate = trim((string)($dispatchContext['uri'] ?? $uri));
 $uriPath = parse_url($uriCandidate, PHP_URL_PATH);
 $uri = rawurldecode(($uriPath === false || $uriPath === null || $uriPath === '') ? $uriCandidate : $uriPath);
+$uri = rtrim($uri, '/');
 $uri = $uri === '' ? '/' : $uri;
 
 $dispatchRedirect = $dispatchContext['redirect'] ?? null;
