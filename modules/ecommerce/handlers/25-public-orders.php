@@ -60,18 +60,29 @@ function ecPublicOrderDetail(array $params = []): void
 }
 
 /**
- * Token-based digital license download.
+ * Token-based digital product download.
  *
  * GET /ecommerce/download/{token}
  *
- * The download_token is a 64-char hex string (32 random bytes) issued at
- * purchase time. No authentication required — the token itself proves
- * entitlement. Records downloaded_at on first access.
+ * Authentication: the customer MUST be logged in. After auth, the
+ * download_token (64-char hex, 256-bit) is verified against ec_order_licenses
+ * and must belong to the authenticated user by customer_id or customer_email.
+ *
+ * Serves the uploaded digital file when a file path is attached to the
+ * product; falls back to serving the JWT license key as a text file when
+ * no digital file has been uploaded for the product.
  */
 function ecPublicDownloadLicense(array $params): void
 {
-    $token = trim((string)($params['token'] ?? ''));
+    // ── Require login ────────────────────────────────────────────────
+    $user = app()->user();
+    if (!$user || ($user['source'] ?? '') !== 'cms') {
+        $redirectTo = '/ecommerce/download/' . urlencode((string)($params['token'] ?? ''));
+        header('Location: /cms/login?redirect=' . urlencode($redirectTo));
+        exit;
+    }
 
+    $token = trim((string)($params['token'] ?? ''));
     if (strlen($token) !== 64 || !ctype_xdigit($token)) {
         http_response_code(404);
         ecRender('pages/404.disyl', ['page_title' => 'Download Not Found']);
@@ -80,7 +91,8 @@ function ecPublicDownloadLicense(array $params): void
 
     $db  = ecDb();
     $row = $db->query(
-        "SELECT id, target_module, target_tier, license_key, status, downloaded_at
+        "SELECT id, order_id, product_id, customer_id, customer_email, target_module, target_tier,
+                license_key, status, downloaded_at
            FROM ec_order_licenses WHERE download_token = ? LIMIT 1",
         [$token]
     )->fetch(\PDO::FETCH_ASSOC);
@@ -91,7 +103,18 @@ function ecPublicDownloadLicense(array $params): void
         return;
     }
 
-    // Record first download timestamp via CMS context (CMS-owned table write).
+    // ── Verify ownership: customer_id match OR email match ───────────
+    $userId    = (int)$user['id'];
+    $userEmail = strtolower(trim((string)($user['email'] ?? '')));
+    $ownerById = ($row['customer_id'] !== null && (int)$row['customer_id'] === $userId);
+    $ownerByEmail = ($userEmail !== '' && strtolower(trim((string)$row['customer_email'])) === $userEmail);
+    if (!$ownerById && !$ownerByEmail) {
+        http_response_code(403);
+        ecRender('pages/403.disyl', ['page_title' => 'Access Denied']) || ecRender('pages/404.disyl', ['page_title' => 'Access Denied']);
+        return;
+    }
+
+    // ── Record first download timestamp ──────────────────────────────
     if (!$row['downloaded_at']) {
         try {
             moduleWithContext('cms', static function () use ($row): void {
@@ -105,6 +128,41 @@ function ecPublicDownloadLicense(array $params): void
         }
     }
 
+    // ── Try to serve the uploaded digital file ───────────────────────
+    $productId = (int)($row['product_id'] ?? 0);
+    if ($productId > 0) {
+        $filePath = (string)($db->query(
+            "SELECT meta_value FROM cms_content_meta WHERE content_id = ? AND meta_key = '_download_file_path' LIMIT 1",
+            [$productId]
+        )->fetchColumn() ?: '');
+        $fileName = (string)($db->query(
+            "SELECT meta_value FROM cms_content_meta WHERE content_id = ? AND meta_key = '_download_file_name' LIMIT 1",
+            [$productId]
+        )->fetchColumn() ?: '');
+
+        if ($filePath !== '') {
+            $storagePath = STORAGE_PATH . '/digital/' . ltrim($filePath, '/');
+            if (is_file($storagePath) && is_readable($storagePath)) {
+                $finfo    = new \finfo(FILEINFO_MIME_TYPE);
+                $mime     = (string)$finfo->file($storagePath);
+                $safeFile = $fileName !== '' ? basename($fileName) : basename($filePath);
+                // Sanitise filename for Content-Disposition header.
+                $safeFile = preg_replace('/[^a-zA-Z0-9._\-]/', '_', $safeFile) ?: 'download';
+
+                header('Content-Type: ' . $mime);
+                header('Content-Disposition: attachment; filename="' . $safeFile . '"');
+                header('Content-Length: ' . filesize($storagePath));
+                header('Cache-Control: no-store, no-cache, must-revalidate');
+                header('X-Content-Type-Options: nosniff');
+                readfile($storagePath);
+                exit;
+            }
+
+            write_log('ecPublicDownloadLicense: file missing on disk: ' . $storagePath, 'warning', ['module' => 'ecommerce']);
+        }
+    }
+
+    // ── Fallback: serve the JWT license key as a text file ───────────
     $module   = preg_replace('/[^a-z0-9_\-]/i', '', (string)($row['target_module'] ?? 'module'));
     $filename = 'license-' . $module . '.jwt';
 

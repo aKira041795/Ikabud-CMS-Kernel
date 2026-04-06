@@ -127,21 +127,53 @@
             <!-- Digital License -->
             <div class="bg-white rounded-lg border border-gray-200 p-5">
                 <div class="flex items-center justify-between mb-3">
-                    <h3 class="font-semibold text-sm text-gray-700">Digital License</h3>
-                    <span class="text-xs text-gray-400">Issues a JWT key on purchase</span>
+                    <h3 class="font-semibold text-sm text-gray-700">Digital Product</h3>
+                    <span class="text-xs text-gray-400">File delivery &amp; JWT key on purchase</span>
                 </div>
                 <div class="space-y-3">
                     <div class="flex items-center gap-2">
                         <input type="checkbox" name="is_digital" id="is_digital" value="1" class="rounded"
                                {if product.is_digital}checked{/if}>
-                        <label for="is_digital" class="text-xs font-medium text-gray-700">This is a digital product — issue a license key on purchase</label>
+                        <label for="is_digital" class="text-xs font-medium text-gray-700">This is a digital product — deliver a file and/or license key on purchase</label>
                     </div>
+
+                    <!-- Downloadable File -->
+                    <div class="pt-1">
+                        <label class="block text-xs font-semibold text-gray-600 mb-1">Downloadable File</label>
+                        {if product.download_file_name}
+                        <div class="flex items-center gap-2 mb-2 p-2 bg-gray-50 rounded border border-gray-200 text-xs text-gray-700" id="ec-current-digital-file">
+                            <svg class="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                            <span class="flex-1 truncate">{product.download_file_name}</span>
+                            <label class="flex items-center gap-1 text-red-600 cursor-pointer">
+                                <input type="checkbox" name="remove_digital_file" value="1" class="rounded" id="ec-remove-digital-file">
+                                Remove
+                            </label>
+                        </div>
+                        {/if}
+                        <div {if product.download_file_name}id="ec-replace-digital-file" class="hidden"{/if}>
+                            <label class="flex flex-col items-center justify-center w-full border-2 border-dashed border-gray-200 rounded-lg p-4 cursor-pointer hover:border-orange-400 hover:bg-orange-50 transition-colors" id="ec-digital-file-label">
+                                <svg class="w-6 h-6 text-gray-300 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+                                <span class="text-xs text-gray-500" id="ec-digital-file-label-text">Click to upload or drag & drop</span>
+                                <span class="text-xs text-gray-400 mt-0.5">ZIP, PDF, EPUB, MP3, MP4 and more (max 64 MB)</span>
+                                <input type="file" name="digital_file" id="ec-digital-file-input" class="hidden"
+                                       accept=".zip,.pdf,.epub,.mp3,.mp4,.m4a,.ogg,.m4v,.svg,.txt,.json,.tar,.gz,.bz2,.7z,.rar">
+                            </label>
+                        </div>
+                        {if product.download_file_name}
+                        <button type="button" id="ec-replace-digital-btn"
+                                class="mt-1.5 text-xs text-orange-600 hover:underline">
+                            Replace file
+                        </button>
+                        {/if}
+                    </div>
+
+                    <!-- JWT License fields -->
                     <div>
                         <label class="block text-xs font-semibold text-gray-600 mb-1">License Module ID</label>
                         <input type="text" name="license_module" value="{product.license_module | default:''}"
                                placeholder="e.g. my-plugin"
                                class="w-full border border-gray-300 rounded-lg px-3 py-2 text-xs font-mono focus:border-orange-500 outline-none">
-                        <p class="mt-1 text-xs text-gray-400">The module identifier embedded in the JWT <code>aud</code> claim. Must match the module ID consumers verify against.</p>
+                        <p class="mt-1 text-xs text-gray-400">Leave blank to skip JWT key generation. Set to the module ID embedded in the JWT <code>aud</code> claim.</p>
                     </div>
                     <div>
                         <label class="block text-xs font-semibold text-gray-600 mb-1">License Tier</label>
@@ -278,6 +310,43 @@
         });
 
         syncGeneratedFields(false);
+    })();
+
+    // ── Digital file upload UX ────────────────────────────────────────
+    (function () {
+        var fileInput  = document.getElementById('ec-digital-file-input');
+        var labelText  = document.getElementById('ec-digital-file-label-text');
+        var replaceBtn = document.getElementById('ec-replace-digital-btn');
+        var replaceDiv = document.getElementById('ec-replace-digital-file');
+        var removeChk  = document.getElementById('ec-remove-digital-file');
+
+        if (fileInput && labelText) {
+            fileInput.addEventListener('change', function () {
+                if (fileInput.files && fileInput.files.length > 0) {
+                    labelText.textContent = fileInput.files[0].name;
+                } else {
+                    labelText.textContent = 'Click to upload or drag & drop';
+                }
+            });
+        }
+
+        if (replaceBtn && replaceDiv) {
+            replaceBtn.addEventListener('click', function () {
+                replaceDiv.classList.remove('hidden');
+                replaceBtn.classList.add('hidden');
+            });
+        }
+
+        if (removeChk && replaceDiv) {
+            removeChk.addEventListener('change', function () {
+                if (removeChk.checked) {
+                    replaceDiv.classList.add('hidden');
+                    if (replaceBtn) replaceBtn.classList.add('hidden');
+                } else {
+                    if (replaceBtn) replaceBtn.classList.remove('hidden');
+                }
+            });
+        }
     })();
 </script>
 {/block}

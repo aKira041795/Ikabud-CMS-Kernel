@@ -79,8 +79,14 @@ function ecAdminProductCreate(): void
                 'featured_image_id' => $featuredImageId,
             ], (int)$user['id']);
 
-            // Save digital license meta
-            ecProductSaveDigitalMeta($productId, $input);
+            // Save digital license meta (+ optional file upload)
+            $digitalFileMeta = [];
+            $digitalFileUpload = ecUploadProductDigitalFile(kernelUploadedFile('digital_file') ?? [], (int)$user['id']);
+            if (is_array($digitalFileUpload)) {
+                $digitalFileMeta['_download_file_path'] = $digitalFileUpload['file_path'];
+                $digitalFileMeta['_download_file_name'] = $digitalFileUpload['original_name'];
+            }
+            ecProductSaveDigitalMeta($productId, array_merge($input, $digitalFileMeta));
 
             $_SESSION['ec_message'] = ['type' => 'success', 'text' => 'Product created.'];
             header('Location: /ecommerce/admin/products/' . $productId . '/edit');
@@ -158,8 +164,14 @@ function ecAdminProductEdit(array $params = []): void
                 'featured_image_id' => $featuredImageId,
             ]);
 
-            // Save digital license meta
-            ecProductSaveDigitalMeta($productId, $input);
+            // Save digital license meta (+ optional file upload / removal)
+            $digitalFileMeta = [];
+            $digitalFileUpload = ecUploadProductDigitalFile(kernelUploadedFile('digital_file') ?? [], (int)$user['id']);
+            if (is_array($digitalFileUpload)) {
+                $digitalFileMeta['_download_file_path'] = $digitalFileUpload['file_path'];
+                $digitalFileMeta['_download_file_name'] = $digitalFileUpload['original_name'];
+            }
+            ecProductSaveDigitalMeta($productId, array_merge($input, $digitalFileMeta));
 
             $_SESSION['ec_message'] = ['type' => 'success', 'text' => 'Product saved.'];
             header('Location: /ecommerce/admin/products/' . $productId . '/edit');

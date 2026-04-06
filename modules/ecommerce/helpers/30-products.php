@@ -154,7 +154,7 @@ function ecProductGet(int $id): ?array
         try {
             $metaStmt = $db->query(
                 "SELECT meta_key, meta_value FROM cms_content_meta
-                 WHERE content_id = ? AND meta_key IN ('_is_digital','_license_module','_license_tier','_license_duration_days')",
+                 WHERE content_id = ? AND meta_key IN ('_is_digital','_license_module','_license_tier','_license_duration_days','_download_file_path','_download_file_name')",
                 [$id]
             );
             $metaRows = $metaStmt ? $metaStmt->fetchAll(\PDO::FETCH_ASSOC) : [];
@@ -165,10 +165,12 @@ function ecProductGet(int $id): ?array
         } catch (\Throwable $e) {
             $metaMap = [];
         }
-        $row['is_digital']           = ($metaMap['_is_digital'] ?? '0') === '1';
-        $row['license_module']       = (string)($metaMap['_license_module'] ?? '');
-        $row['license_tier']         = (string)($metaMap['_license_tier'] ?? 'pro');
+        $row['is_digital']            = ($metaMap['_is_digital'] ?? '0') === '1';
+        $row['license_module']        = (string)($metaMap['_license_module'] ?? '');
+        $row['license_tier']          = (string)($metaMap['_license_tier'] ?? 'pro');
         $row['license_duration_days'] = (int)($metaMap['_license_duration_days'] ?? 365);
+        $row['download_file_path']    = (string)($metaMap['_download_file_path'] ?? '');
+        $row['download_file_name']    = (string)($metaMap['_download_file_name'] ?? '');
 
         return $row;
     } catch (\Throwable $e) {
@@ -882,6 +884,18 @@ function ecProductSaveDigitalMeta(int $productId, array $input): void
         '_license_duration_days' => (string)$licenseDays,
     ];
 
+    // Persist a new digital file path when one was just uploaded.
+    if (!empty($input['_download_file_path'])) {
+        $meta['_download_file_path'] = (string)$input['_download_file_path'];
+        $meta['_download_file_name'] = (string)($input['_download_file_name'] ?? basename($input['_download_file_path']));
+    }
+
+    // Allow explicit removal via the admin form.
+    if (!empty($input['remove_digital_file'])) {
+        $meta['_download_file_path'] = '';
+        $meta['_download_file_name'] = '';
+    }
+
     try {
         moduleWithContext('cms', static function () use ($productId, $meta): void {
             $db = cmsDb();
@@ -1330,5 +1344,124 @@ function ecUploadProductFeaturedImage(array $file, int $uploadedBy): ?array
         'id' => $mediaId,
         'url' => cmsResolveUploadUrl($relativePath),
         'file_path' => $relativePath,
+    ];
+}
+
+/**
+ * Upload a digital product file (zip, pdf, epub, etc.) to a private
+ * storage directory that is NOT web-accessible.
+ *
+ * Returns ['file_path' => string, 'original_name' => string, 'mime_type' => string, 'size' => int]
+ * or throws \RuntimeException on error.
+ * Returns null when no file was provided.
+ */
+function ecUploadProductDigitalFile(array $file, int $uploadedBy): ?array
+{
+    if (empty($file) || !is_array($file)) {
+        return null;
+    }
+
+    $errorCode = (int)($file['error'] ?? UPLOAD_ERR_NO_FILE);
+    if ($errorCode === UPLOAD_ERR_NO_FILE) {
+        return null;
+    }
+    if ($errorCode !== UPLOAD_ERR_OK) {
+        throw new \RuntimeException('Upload error code: ' . $errorCode);
+    }
+
+    $tmpName = (string)($file['tmp_name'] ?? '');
+    if ($tmpName === '' || !is_uploaded_file($tmpName)) {
+        throw new \RuntimeException('Digital file upload was not received correctly.');
+    }
+
+    $cmsSettings = function_exists('readCmsSettings') ? readCmsSettings() : [];
+    $maxMb = max(1, min(512, (int)($cmsSettings['max_upload_mb'] ?? 64)));
+    $maxSize = $maxMb * 1024 * 1024;
+    $size = (int)($file['size'] ?? 0);
+    if ($size > $maxSize) {
+        throw new \RuntimeException('File exceeds ' . $maxMb . 'MB limit.');
+    }
+
+    // Detect real MIME type from the binary content.
+    $finfo = new \finfo(FILEINFO_MIME_TYPE);
+    $mimeType = (string)$finfo->file($tmpName);
+
+    // Allowlist: common digital product delivery types.
+    $allowedMimes = [
+        'application/zip',
+        'application/x-zip-compressed',
+        'application/octet-stream',
+        'application/pdf',
+        'application/epub+zip',
+        'audio/mpeg',
+        'audio/mp4',
+        'audio/ogg',
+        'video/mp4',
+        'video/x-m4v',
+        'image/svg+xml',
+        'text/plain',
+        'application/json',
+        'application/x-tar',
+        'application/gzip',
+        'application/x-bzip2',
+        'application/x-7z-compressed',
+        'application/x-rar-compressed',
+    ];
+    if (!in_array($mimeType, $allowedMimes, true)) {
+        throw new \RuntimeException('File type not allowed for digital products: ' . $mimeType);
+    }
+
+    // Reject obviously dangerous file signatures (PHP headers, shell scripts, etc.).
+    if (function_exists('cmsCheckDangerousFileSignature')) {
+        $danger = cmsCheckDangerousFileSignature($tmpName);
+        if ($danger !== null) {
+            throw new \RuntimeException($danger);
+        }
+    }
+
+    $originalName = basename((string)($file['name'] ?? 'file'));
+    $ext = strtolower((string)pathinfo($originalName, PATHINFO_EXTENSION));
+    $safeExts = ['zip', 'pdf', 'epub', 'mp3', 'm4a', 'ogg', 'mp4', 'm4v', 'svg', 'txt', 'json', 'tar', 'gz', 'bz2', '7z', 'rar'];
+    if (!in_array($ext, $safeExts, true)) {
+        $ext = 'bin';
+    }
+
+    // Store in a private directory: storage/digital/{tenantId?}/{year}/{month}/
+    $tid = app()->tenant()->current();
+    $subDir = ($tid !== null ? 't' . $tid . '/' : '') . date('Y') . '/' . date('m');
+    $storageBase = STORAGE_PATH . '/digital';
+    $uploadDir = $storageBase . '/' . $subDir;
+
+    if (!is_dir($uploadDir)) {
+        if (!mkdir($uploadDir, 0750, true) && !is_dir($uploadDir)) {
+            throw new \RuntimeException('Could not create digital file storage directory.');
+        }
+    }
+
+    // Protect the directory from direct web access.
+    $htaccess = $storageBase . '/.htaccess';
+    if (!file_exists($htaccess)) {
+        file_put_contents($htaccess, "Require all denied\n");
+    }
+
+    $filename = date('Ymd_His') . '_' . substr(bin2hex(random_bytes(8)), 0, 12) . '.' . $ext;
+    $relativePath = $subDir . '/' . $filename;
+    $destPath = $storageBase . '/' . $relativePath;
+
+    if (!move_uploaded_file($tmpName, $destPath)) {
+        throw new \RuntimeException('Failed to save digital file.');
+    }
+
+    write_log('Digital product file uploaded: ' . $relativePath, 'info', [
+        'module'        => 'ecommerce',
+        'uploaded_by'   => $uploadedBy,
+        'original_name' => $originalName,
+    ]);
+
+    return [
+        'file_path'     => $relativePath,
+        'original_name' => $originalName,
+        'mime_type'     => $mimeType,
+        'size'          => $size,
     ];
 }
