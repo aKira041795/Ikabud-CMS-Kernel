@@ -667,7 +667,7 @@ function contactFormPrepareDynamicSubmission(array $fields, array $input): array
         $rawValue = $input[$field['name']] ?? '';
         $normalizedArrayValues = [];
 
-        if ($field['field_type'] === 'checkbox' && is_array($rawValue) && $field['options_text'] !== '') {
+        if (in_array($field['field_type'], ['checkbox', 'multiselect'], true) && is_array($rawValue) && $field['options_text'] !== '') {
             $allowedValues = array_map(static fn(array $option): string => (string) ($option['value'] ?? ''), contactFormParseOptionsText((string) $field['options_text']));
             foreach ($rawValue as $checkedVal) {
                 $checkedVal = trim((string) $checkedVal);
@@ -688,6 +688,70 @@ function contactFormPrepareDynamicSubmission(array $fields, array $input): array
 
         $maxLength = $field['field_type'] === 'textarea' ? 5000 : 2000;
         $value = contactFormLimit(trim((string) $rawValue), $maxLength);
+
+        if ($field['field_type'] === 'file') {
+            if (!empty($_FILES[$field['name']]['tmp_name']) && $_FILES[$field['name']]['error'] === UPLOAD_ERR_OK) {
+                if (function_exists('cmsValidateMediaUploadFile') && function_exists('cmsUploadsPath') && function_exists('kernelEnsureDirectory') && function_exists('kernelCopyFile')) {
+                    $validated = cmsValidateMediaUploadFile($_FILES[$field['name']]['tmp_name'], $_FILES[$field['name']]['name']);
+                    if (empty($validated['error'])) {
+                        $yearMonth = date('Y') . '/' . date('m');
+                        $subPath = 'contact-forms/' . $yearMonth;
+                        $destDir = cmsUploadsPath() . '/' . $subPath;
+                        kernelEnsureDirectory($destDir);
+                        $destFile = $validated['safe_filename'] ?? basename($_FILES[$field['name']]['name']);
+                        if (kernelCopyFile($_FILES[$field['name']]['tmp_name'], $destDir . '/' . $destFile)) {
+                            $value = $subPath . '/' . $destFile;
+                        } else {
+                            $fieldErrors[$field['name']] = 'Failed to save uploaded file.';
+                            continue;
+                        }
+                    } else {
+                        $fieldErrors[$field['name']] = $validated['error'];
+                        continue;
+                    }
+                } else {
+                    $fieldErrors[$field['name']] = 'File uploads are currently disabled (missing media helpers).';
+                    continue;
+                }
+            } elseif ($field['required']) {
+                $fieldErrors[$field['name']] = $field['label'] . ' is required.';
+                continue;
+            } else {
+                $value = '';
+            }
+        }
+
+        if ($field['field_type'] === 'file') {
+            if (!empty($_FILES[$field['name']]['tmp_name']) && $_FILES[$field['name']]['error'] === UPLOAD_ERR_OK) {
+                if (function_exists('cmsValidateMediaUploadFile') && function_exists('cmsUploadsPath') && function_exists('kernelEnsureDirectory') && function_exists('kernelCopyFile')) {
+                    $validated = cmsValidateMediaUploadFile($_FILES[$field['name']]['tmp_name'], $_FILES[$field['name']]['name']);
+                    if (empty($validated['error'])) {
+                        $yearMonth = date('Y') . '/' . date('m');
+                        $subPath = 'contact-forms/' . $yearMonth;
+                        $destDir = cmsUploadsPath() . '/' . $subPath;
+                        kernelEnsureDirectory($destDir);
+                        $destFile = $validated['safe_filename'] ?? basename($_FILES[$field['name']]['name']);
+                        if (kernelCopyFile($_FILES[$field['name']]['tmp_name'], $destDir . '/' . $destFile)) {
+                            $value = $subPath . '/' . $destFile;
+                        } else {
+                            $fieldErrors[$field['name']] = 'Failed to save uploaded file.';
+                            continue;
+                        }
+                    } else {
+                        $fieldErrors[$field['name']] = $validated['error'];
+                        continue;
+                    }
+                } else {
+                    $fieldErrors[$field['name']] = 'File uploads are currently disabled (missing media helpers).';
+                    continue;
+                }
+            } elseif ($field['required']) {
+                $fieldErrors[$field['name']] = $field['label'] . ' is required.';
+                continue;
+            } else {
+                $value = '';
+            }
+        }
         if ($field['required'] && $value === '') {
             $fieldErrors[$field['name']] = $field['label'] . ' is required.';
             continue;

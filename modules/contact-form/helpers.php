@@ -1007,6 +1007,9 @@ function contactFormFieldTypeLabels(): array
         'color'    => 'Color Picker',
         'hidden'   => 'Hidden',
         'section'  => 'Section Divider',
+        'multiselect' => 'Multi-Select Dropdown',
+        'consent'  => 'Terms & Consent Box',
+        'file'     => 'File Upload',
     ];
 }
 
@@ -1025,7 +1028,7 @@ function contactFormFieldTypeOptions(): array
 
 function contactFormFieldTypesWithOptions(): array
 {
-    return ['select', 'radio', 'checkbox'];
+    return ['select', 'radio', 'checkbox', 'multiselect'];
 }
 
 function contactFormFieldInputType(string $fieldType): string
@@ -1724,6 +1727,7 @@ function contactFormRenderSharedStyles(): string
 }
 .contact-form input,
 .contact-form textarea,
+.contact-form textarea,
 .contact-form select {
     width: 100%;
     appearance: none;
@@ -1735,6 +1739,43 @@ function contactFormRenderSharedStyles(): string
     font: inherit;
     line-height: 1.45;
     transition: border-color .15s ease, box-shadow .15s ease, background-color .15s ease;
+}
+.contact-form input[type="file"] {
+    background: #f8fafc;
+    border: 1px dashed #cbd5e1;
+    cursor: pointer;
+    padding: .65rem .95rem;
+}
+.contact-form input[type="file"]::file-selector-button {
+    padding: .45rem 1rem;
+    margin-right: 1rem;
+    background: #e2e8f0;
+    color: #334155;
+    font-weight: 600;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background .15s;
+}
+.contact-form input[type="file"]::file-selector-button:hover {
+    background: #cbd5e1;
+}
+.contact-form-consent-wrap label {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    font-weight: 400;
+    font-size: 0.9rem;
+    background: #f8fafc;
+    padding: 1rem;
+    border-radius: 12px;
+    border: 1px solid #e2e8f0;
+    cursor: pointer;
+}
+.contact-form-consent-wrap input[type="checkbox"] {
+    width: auto;
+    margin-top: 0.15rem;
+    transform: scale(1.1);
 }
 .contact-form input::placeholder,
 .contact-form textarea::placeholder,
@@ -2236,6 +2277,36 @@ function contactFormRenderFieldMarkup(array $field, string $formId): string
             . $helpHtml
             . '<div class="contact-form-field-error" role="alert" aria-live="assertive"></div>'
             . '</div>';
+        } elseif ($field['field_type'] === 'file') {
+        $inputHtml = '<input type="file" id="' . $fieldInputId . '" name="' . $fieldName . '"' 
+            . $requiredAttr . $ariaRequiredAttr . $ariaDescAttr . $sourceAttr . '>';
+    } elseif ($field['field_type'] === 'consent') {
+        $inputHtml = '<div class="contact-form-consent-wrap">'
+            . '<label>'
+            . '<input type="checkbox" id="' . $fieldInputId . '" name="' . $fieldName . '" value="1"'
+            . $requiredAttr . $ariaRequiredAttr . $ariaDescAttr . $sourceAttr . '>'
+            . '<span>' . $fieldLabel . (!empty($requiredMark) ? ' <span style="color:#ef4444">*</span>' : '') . '</span>'
+            . '</label>'
+            . '</div>';
+        return '<div class="form-group contact-form-checkbox-group"' . $wrapperAttrs . '>'
+            . $inputHtml
+            . $helpHtml
+            . '<div class="contact-form-field-error" role="alert" aria-live="assertive"></div>'
+            . '</div>';
+    } elseif ($field['field_type'] === 'multiselect') {
+        $groupName = $fieldName . '[]';
+        $optionsHtml = '';
+        foreach (contactFormParseOptionsText($field['options_text']) as $option) {
+            if (!is_array($option)) continue;
+            $optVal = contactFormEscape((string) ($option['value'] ?? ''));
+            $optLbl = contactFormEscape((string) ($option['label'] ?? ''));
+            if ($optVal === '' || $optLbl === '') continue;
+            $optionsHtml .= '<option value="' . $optVal . '">' . $optLbl . '</option>';
+        }
+        $inputHtml = '<select id="' . $fieldInputId . '" name="' . $groupName . '" multiple'
+            . $requiredAttr . $ariaRequiredAttr . $ariaDescAttr . $sourceAttr . '>'
+            . $optionsHtml
+            . '</select>';
     } elseif ($field['field_type'] === 'hidden') {
         return '<input type="hidden" name="' . $fieldName . '" value="' . $placeholder . '"' . $sourceAttr . '>';
     } else {
@@ -2457,12 +2528,10 @@ function contactFormRenderClientScript(string $formId, string $successMessage, b
         statusEl.style.display = 'none';
         statusEl.className = 'contact-form-status';
 
+        var formData = new FormData(form);
         fetch(form.dataset.submitUrl, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(data)
+            body: formData
         })
             .then(function (response) { return response.json(); })
             .then(function (payload) {
@@ -2575,7 +2644,7 @@ function contactFormRenderFrame(
     {$titleHtml}
     {$requiredLegend}
     {$noteHtml}
-    <form id="{$formId}" class="contact-form" data-submit-url="{$submitUrl}" data-captcha-url="{$captchaUrl}" novalidate>
+    <form id="{$formId}" class="contact-form" data-submit-url="{$submitUrl}" data-captcha-url="{$captchaUrl}" enctype="multipart/form-data" novalidate>
         {$hiddenHtml}
         {$honeypotHtml}
         {$fieldsHtml}
