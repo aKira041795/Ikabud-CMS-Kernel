@@ -328,6 +328,22 @@
             "description": "Comma-separated payment methods: card, gcash, maya, grab_pay, dob."
         },
         {
+            "key": "license_private_key_pem",
+            "type": "textarea",
+            "label": "License Signing Key (Private, PEM)",
+            "control_class": "font-mono text-xs",
+            "default": "",
+            "description": "RSA private key (PEM format) used to sign digital software license JWTs. Leave blank to disable license generation. Generate with: openssl genrsa -out private.pem 2048"
+        },
+        {
+            "key": "license_public_key_pem",
+            "type": "textarea",
+            "label": "License Verify Key (Public, PEM)",
+            "control_class": "font-mono text-xs",
+            "default": "",
+            "description": "RSA public key (PEM format) corresponding to the private key above. Distribute this to module consumers so they can verify license JWTs offline. Generate with: openssl rsa -in private.pem -pubout -out public.pem"
+        },
+        {
             "key": "shop_page_title",
             "type": "text",
             "label": "Shop Page Title",
