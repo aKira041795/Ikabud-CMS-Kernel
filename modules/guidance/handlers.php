@@ -4,22 +4,8 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/helpers.php';
 
-// ─── License Activation Capability ───────────────────────────────────────────
-// Register the guidance module's own RS256 JWT verifier at priority 20
-// (above kernel default at 10). This validates JWT license keys issued by
-// the module author at cmsnew.test before the kernel stores activation state.
-try {
-    app()->capabilities()->register(
-        'module.license.activate@1',
-        'guidance',
-        'guidanceLicenseActivateHandler',
-        20,
-        ['first']
-    );
-} catch (Throwable $e) {
-    // Non-fatal: log and continue — kernel default will still handle activations.
-    write_log('guidance: failed to register module.license.activate@1 — ' . $e->getMessage(), 'warning');
-}
+// module.license.activate@1 is auto-wired by the module manager from module.json.
+// The callable guidance_cap_module_license_activate_1() is defined in helpers.php.
 function guidanceGetSettingJson(string $key, array $default = []): array
 {
     try {

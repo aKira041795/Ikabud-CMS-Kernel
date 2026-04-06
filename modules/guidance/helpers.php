@@ -750,7 +750,12 @@ function guidanceVerifyLicenseJwt(string $jwt): array
 /**
  * Capability handler for module.license.activate@1.
  *
- * Called by the kernel when a superadmin submits a Guidance license key.
+ * Named using the module-manager auto-wiring convention:
+ *   <modulePrefix>_cap_<sanitized_capability_id>
+ * = guidance_cap_module_license_activate_1
+ *
+ * Called by the kernel when a license key is submitted (superadmin settings or
+ * the Guidance admin settings activate-license endpoint).
  * Validates the JWT and — on success — grants the corresponding entitlement tier
  * for the tenant via grantModuleEntitlementForTenant().
  *
@@ -762,7 +767,7 @@ function guidanceVerifyLicenseJwt(string $jwt): array
  *   provider    'guidance'
  *   error       string  (only on failure)
  */
-function guidanceLicenseActivateHandler(mixed $payload, string $capabilityId = '', string $providerId = ''): array
+function guidance_cap_module_license_activate_1(mixed $payload, string $capabilityId = '', string $providerId = ''): array
 {
     if (!is_array($payload)) {
         return ['ok' => false, 'status' => 'error', 'provider' => 'guidance', 'error' => 'Invalid payload.'];
@@ -808,7 +813,7 @@ function guidanceLicenseActivateHandler(mixed $payload, string $capabilityId = '
             'metadata'   => [
                 'jti'       => $verification['jti'] ?? '',
                 'activated_at' => date('Y-m-d H:i:s'),
-                'via'       => 'guidanceLicenseActivateHandler',
+                'via'       => 'guidance_cap_module_license_activate_1',
             ],
         ]);
     }
