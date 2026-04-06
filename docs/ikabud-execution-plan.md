@@ -227,6 +227,38 @@ Make platform-native development easier and safer.
 - platform rules are reinforced by tooling, not memory
 - new module quality improves by default
 
+## Milestone H — Productization Layer
+
+### Objective
+
+Elevate the kernel runtime into a broader platform product with higher-level user experiences.
+
+### Workstreams
+
+- capability marketplace or UI registry
+- visual automation builders
+- generative AI-assisted platform experiences
+
+### Deliverables
+
+- interactive web UI for inspecting capability graphs
+- administrative workflow designer
+- module scaffolding tools powered by registry exports
+
+### Acceptance Criteria
+
+- advanced capabilities can be configured without writing code
+- cross-module automations are manageable by superadmins natively
+- the platform feels like a cohesive operating environment rather than just a codebase
+
+## Ecosystem & Vertical Alignment
+
+To ensure platform changes land safely, the following vertical tracks must be explicitly sequenced against kernel milestones:
+
+- **Capability Contracts (`roadmap.md`)**: Foundation for all milestones. Core capabilities like `kernel.auth` must be solidified (Phase 1) before Milestone F (Workflows) can scale.
+- **Multi-Tenancy (`tenancy-roadmap.md`)**: Impacts all runtime contract enforcement. Tenant DB connection and bound auth MUST be reconciled with capability resolution before Milestone B (Runtime Enforcement).
+- **CMS & Page Builder (`cms-roadmap.md`, `page-builder-roadmap.md`)**: Module rendering acts as the primary consumer of kernel capability/trigger features. CMS capability consumption (like the recent ecommerce POC) serves to validate Milestone C (Execution Tracing).
+
 ## Recommended Delivery Sequence
 
 ### Wave 1
@@ -244,6 +276,11 @@ Make platform-native development easier and safer.
 
 - Milestone F
 - Milestone G
+
+### Wave 4
+
+- Milestone H
+- Vertical Hardening Integrations (CMS, Tenancy)
 
 ## Suggested Governance Rules
 

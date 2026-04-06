@@ -80,6 +80,12 @@ function cmsApiRedirectCreate(array $params = []): void
     // Clean old_slug (strip leading slashes)
     $oldSlug = ltrim($oldSlug, '/');
 
+    if ($oldSlug === '') {
+        http_response_code(422);
+        echo json_encode(['ok' => false, 'error' => 'old_slug cannot be empty or just slashes']);
+        exit;
+    }
+
     $db = cmsDb();
 
     // Check for duplicate old_slug

@@ -1086,10 +1086,15 @@ function cmsPublicSingle(array $params = []): void
     if (!$post) {
         // Check for slug redirect (old slug → new slug)
         $redirect = cmsLookupSlugRedirect($slug);
-        if ($redirect && ($redirect['type'] ?? '') === 'post') {
-            $baseUrl = rtrim((string)(defined('BASE_URL') ? BASE_URL : ''), '/');
-            header('Location: ' . $baseUrl . '/cms/blog/' . $redirect['slug'], true, 301);
-            exit;
+        if ($redirect) {
+            if (!empty($redirect['target_url'])) {
+                header('Location: ' . $redirect['target_url'], true, 301);
+                exit;
+            } elseif (($redirect['type'] ?? '') === 'post') {
+                $baseUrl = rtrim((string)(defined('BASE_URL') ? BASE_URL : ''), '/');
+                header('Location: ' . $baseUrl . '/cms/blog/' . $redirect['slug'], true, 301);
+                exit;
+            }
         }
         http_response_code(404);
         cmsPublicRespond(cmsPublicRenderNotFound());
@@ -1203,10 +1208,15 @@ function cmsPublicPage(array $params = []): void
     if (!$page) {
         // Check for slug redirect (old slug → new slug)
         $redirect = cmsLookupSlugRedirect($slug);
-        if ($redirect && ($redirect['type'] ?? '') === 'page') {
-            $baseUrl = rtrim((string)(defined('BASE_URL') ? BASE_URL : ''), '/');
-            header('Location: ' . $baseUrl . '/cms/page/' . $redirect['slug'], true, 301);
-            exit;
+        if ($redirect) {
+            if (!empty($redirect['target_url'])) {
+                header('Location: ' . $redirect['target_url'], true, 301);
+                exit;
+            } elseif (($redirect['type'] ?? '') === 'page') {
+                $baseUrl = rtrim((string)(defined('BASE_URL') ? BASE_URL : ''), '/');
+                header('Location: ' . $baseUrl . '/cms/page/' . $redirect['slug'], true, 301);
+                exit;
+            }
         }
         http_response_code(404);
         cmsPublicRespond(cmsPublicRenderNotFound());
@@ -1315,10 +1325,15 @@ function cmsPublicEntityView(array $params = []): void
     if (!$entity) {
         // Check for slug redirect
         $redirect = cmsLookupSlugRedirect($slug);
-        if ($redirect && ($redirect['type'] ?? '') === $type) {
-            $baseUrl = rtrim((string)(defined('BASE_URL') ? BASE_URL : ''), '/');
-            header('Location: ' . $baseUrl . '/cms/' . rawurlencode($type) . '/' . rawurlencode($redirect['slug']), true, 301);
-            exit;
+        if ($redirect) {
+            if (!empty($redirect['target_url'])) {
+                header('Location: ' . $redirect['target_url'], true, 301);
+                exit;
+            } elseif (($redirect['type'] ?? '') === $type) {
+                $baseUrl = rtrim((string)(defined('BASE_URL') ? BASE_URL : ''), '/');
+                header('Location: ' . $baseUrl . '/cms/' . rawurlencode($type) . '/' . rawurlencode($redirect['slug']), true, 301);
+                exit;
+            }
         }
         http_response_code(404);
         cmsPublicRespond(cmsPublicRenderNotFound());

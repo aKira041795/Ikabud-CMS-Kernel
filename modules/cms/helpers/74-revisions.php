@@ -106,12 +106,14 @@ function cmsSaveSlugRedirect(int $contentId, string $oldSlug): void
 
 function cmsLookupSlugRedirect(string $slug): ?array
 {
+    if ($slug === '') return null;
+
     try {
         $stmt = cmsDb()->prepare(
-            "SELECT r.content_id, c.slug, c.type
+            "SELECT r.content_id, r.target_url, c.slug, c.type
              FROM cms_slug_redirects r
-             INNER JOIN cms_content c ON c.id = r.content_id
-             WHERE r.old_slug = ? AND c.deleted_at IS NULL
+             LEFT JOIN cms_content c ON c.id = r.content_id AND c.deleted_at IS NULL
+             WHERE r.old_slug = ? AND (r.target_url IS NOT NULL OR c.id IS NOT NULL)
              LIMIT 1"
         );
         $stmt->execute([$slug]);

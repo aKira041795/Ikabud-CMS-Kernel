@@ -133,16 +133,16 @@ How kernel findings affect CMS priorities:
 1. Remove wildcard purge drops.
 - Replace gm_* drop behavior with strict manifest-owned table deletion.
 - Add integration test: uninstall module A must never drop module B tables.
-- Status: implemented in code; regression test still pending.
+- Status: implemented in code; regression test added and passing.
 
 2. Harden archive extraction.
 - Add strict archive entry validator and containment checks.
 - Add malicious archive fixture tests.
-- Status: implemented in code, including fail-closed preflight and install API rejection codes; tests still pending.
+- Status: implemented in code; malicious archive fixture tests added and passing.
 
 3. Guard redirect empty URL.
 - Add safe default handling and tests for empty/invalid redirect inputs.
-- Status: implemented in code; tests still pending.
+- Status: implemented in code; tests added and passing.
 
 ## Phase B (2-6 weeks)
 
