@@ -1002,6 +1002,8 @@ function grantModuleEntitlementForTenant(string $moduleId, int $tenantId, array 
         $source = 'superadmin';
     }
 
+    $previousUnguarded = (bool)kernel_request_context_get('_kernel_db_unguarded', false);
+    kernel_request_context_set('_kernel_db_unguarded', true);
     try {
         $stmt = app()->controlDb()->prepare(
             'INSERT INTO ' . moduleTenantEntitlementsTable() . ' '
@@ -1031,6 +1033,8 @@ function grantModuleEntitlementForTenant(string $moduleId, int $tenantId, array 
         return true;
     } catch (Throwable $e) {
         return false;
+    } finally {
+        kernel_request_context_set('_kernel_db_unguarded', $previousUnguarded);
     }
 }
 
