@@ -50,6 +50,23 @@ function ecApiCheckout(): void
         ecJsonError('Guest checkout is not enabled', 403);
     }
 
+    // Digital product enforcement — auto-register guest when required
+    $cartHasDigital = ecCartHasDigitalItems($cart['items']);
+    if ($cartHasDigital && !$customerId) {
+        if ((bool)ecSettings('require_account_for_digital')) {
+            // Auto-register the guest using their billing email
+            $autoId = ecAutoRegisterGuestAsCustomer(
+                $billing['email'] ?? '',
+                $billing['first_name'] ?? '',
+                $billing['last_name'] ?? ''
+            );
+            if ($autoId !== null) {
+                $customerId = $autoId;
+            }
+            // If auto-registration fails, order still proceeds as guest (email delivery only)
+        }
+    }
+
     $orderData = [
         'cart_items'       => $cart['items'],
         'subtotal'         => $totals['subtotal'],

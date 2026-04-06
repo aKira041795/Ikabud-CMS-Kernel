@@ -16,6 +16,22 @@
 
     <form id="checkout-form" class="native-checkout-layout">
         <section class="native-stack">
+            {if cart_has_digital && !is_customer}
+            <!-- Digital product account notice -->
+            <div class="native-storefront-panel" style="background:var(--storefront-warning-bg,#fffbeb);border-color:var(--storefront-warning-text,#b45309);">
+                <div style="display:flex;gap:0.75rem;align-items:flex-start;">
+                    <svg style="width:1.25rem;height:1.25rem;color:var(--storefront-warning-text,#b45309);flex-shrink:0;margin-top:0.125rem;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M12 2a10 10 0 100 20A10 10 0 0012 2z"/></svg>
+                    <div>
+                        <p style="font-weight:600;margin-bottom:0.25rem;">Your cart contains digital products.</p>
+                        {if require_account_for_digital}
+                        <p class="native-note">An account will be created automatically using your email address so you can access your downloads from <strong>My Orders</strong> at any time. Your license key will also be emailed to you.</p>
+                        {else}
+                        <p class="native-note">Your license key and download link will be sent to the email address you enter below.</p>
+                        {/if}
+                    </div>
+                </div>
+            </div>
+            {/if}
             <div class="native-storefront-panel">
                 <h2 class="native-panel-title">Contact and Billing</h2>
                 <div class="native-form-columns">

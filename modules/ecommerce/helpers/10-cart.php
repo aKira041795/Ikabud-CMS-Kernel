@@ -326,3 +326,40 @@ function ecProductVariantGet(int $variantId, int $productId): ?array
         return null;
     }
 }
+
+// ── Digital product detection ────────────────────────────────────────────
+
+/**
+ * Returns true when the given cart items array contains at least one product
+ * whose `_is_digital` meta is '1' (i.e. requires a license / file download).
+ *
+ * @param array $cartItems  Items as returned by ecCartGet()['items']
+ */
+function ecCartHasDigitalItems(array $cartItems): bool
+{
+    if (empty($cartItems)) {
+        return false;
+    }
+
+    $db = ecDb();
+    $productIds = array_unique(array_map('intval', array_column($cartItems, 'product_id')));
+    $productIds = array_filter($productIds);
+    if (empty($productIds)) {
+        return false;
+    }
+
+    try {
+        $placeholders = implode(',', array_fill(0, count($productIds), '?'));
+        $row = $db->query(
+            "SELECT content_id FROM cms_content_meta
+              WHERE meta_key = '_is_digital' AND meta_value = '1'
+                AND content_id IN ($placeholders)
+              LIMIT 1",
+            array_values($productIds)
+        )->fetch(\PDO::FETCH_ASSOC);
+
+        return !empty($row);
+    } catch (\Throwable $e) {
+        return false;
+    }
+}

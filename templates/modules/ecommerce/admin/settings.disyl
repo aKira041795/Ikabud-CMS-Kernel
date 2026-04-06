@@ -97,6 +97,15 @@
                     <p class="mt-1 text-xs text-gray-500">{settings_map.guest_checkout.description}</p>
                 </div>
 
+                <div class="sm:col-span-2">
+                    <div class="flex items-center gap-2">
+                        <input type="checkbox" name="require_account_for_digital" id="field_require_account_for_digital" value="1"
+                               {if settings_map.require_account_for_digital.is_checked}checked{/if} class="rounded">
+                        <label for="field_require_account_for_digital" class="text-sm font-medium text-gray-700">{settings_map.require_account_for_digital.label}</label>
+                    </div>
+                    <p class="mt-1 text-xs text-gray-500">{settings_map.require_account_for_digital.description}</p>
+                </div>
+
             </div>
         </div>
 

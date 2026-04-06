@@ -28,15 +28,19 @@ function ecPublicCheckout(): void
 
     $shippingRates   = ecShippingRates();
     $paymentLabel    = (string)ecSettings('payment_method_label');
+    $cartHasDigital  = ecCartHasDigitalItems($cart['items']);
+    $requireAccount  = (bool)ecSettings('require_account_for_digital');
 
     ecRender('modules/ecommerce/public/checkout.disyl', [
-        'page_title'      => 'Checkout',
-        'cart'            => $cart,
-        'user'            => $user,
-        'is_customer'     => $isCustomer,
-        'shipping_rates'  => $shippingRates,
-        'payment_label'   => $paymentLabel,
-        'csrf_token'      => app()->csrfToken(),
+        'page_title'                 => 'Checkout',
+        'cart'                       => $cart,
+        'user'                       => $user,
+        'is_customer'                => $isCustomer,
+        'shipping_rates'             => $shippingRates,
+        'payment_label'              => $paymentLabel,
+        'csrf_token'                 => app()->csrfToken(),
+        'cart_has_digital'           => $cartHasDigital,
+        'require_account_for_digital' => $requireAccount,
     ]);
 }
 

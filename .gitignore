@@ -45,3 +45,15 @@ debug_cap_test.php
 
 # Test/validation upload artifacts (runtime-generated, not source)
 modules/cms/assets/uploads/test/
+
+# Debugging and temporary manual testing files
+/debugging-files/
+/debug*.php
+/test_*.php
+/dump.php
+/out*.txt
+/out*.html
+/log.txt
+*.orig
+*.rej
+*.patch

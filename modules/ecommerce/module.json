@@ -271,6 +271,13 @@
             "description": "Allow customers to check out without creating an account."
         },
         {
+            "key": "require_account_for_digital",
+            "type": "checkbox",
+            "label": "Require Account for Digital Downloads",
+            "default": true,
+            "description": "When a cart contains digital products, guests are automatically registered as customers so they can access downloads from their account. Disable to allow guest digital purchases (licenses emailed only, no account dashboard access)."
+        },
+        {
             "key": "payment_gateway",
             "type": "select",
             "label": "Payment Gateway",

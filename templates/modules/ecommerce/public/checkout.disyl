@@ -6,6 +6,21 @@
 
     <form id="checkout-form" class="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div class="lg:col-span-2 space-y-5">
+            {if cart_has_digital && !is_customer}
+            <!-- Digital product account notice -->
+            <div class="flex gap-3 rounded-xl border border-orange-200 bg-orange-50 px-4 py-3">
+                <svg class="w-5 h-5 text-orange-500 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M12 2a10 10 0 100 20A10 10 0 0012 2z"/></svg>
+                <div class="text-sm text-orange-800">
+                    <span class="font-semibold">Your cart contains digital products.</span>
+                    {if require_account_for_digital}
+                    An account will be created automatically using your email address so you can access your downloads from
+                    <strong>My Orders</strong> at any time. Your license key will also be emailed to you.
+                    {else}
+                    Your license key and download link will be sent to the email address you enter below.
+                    {/if}
+                </div>
+            </div>
+            {/if}
             <!-- Contact -->
             <div class="bg-white rounded-xl border border-gray-200 p-5">
                 <h2 class="font-semibold text-gray-900 mb-4">Contact &amp; Billing</h2>
