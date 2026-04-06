@@ -181,6 +181,7 @@ function ecResolvePublicThemeTemplate(string $template, array $context = []): st
     return $template;
 }
 
+
 function ecResolvePublicPresentationMode(?string $routeKind = null, array $context = []): string
 {
     $resolvedContext = $context;
@@ -296,7 +297,15 @@ function ecRender(string $template, array $context = []): void
 
     $context = ecPublicRenderContext($template, $context);
     $isPublicTemplate = ecIsPublicTemplate($template);
-    ecAssertTraditionalEntityTemplateAllowed($template, $context);
+    
+    // Always check presentation modes for traditional-style entity endpoints if cms isn't managing it upstream
+    // (cart, checkout etc are exempt as CMS builder has no explicit "cart route" in phase 1)
+    if ($isPublicTemplate && defined('CMS_API_VERSION') && function_exists('cmsResolveEcommerceThemePolicy')) {
+         // Some endpoints implicitly map to ecommerce features like `shop_index`
+         // If a specific route requires `entity_view`, we throw rather than render traditional HTML
+         ecAssertTraditionalEntityTemplateAllowed($template, $context);
+    }
+    
     $render = static function () use ($template, $context, $isPublicTemplate): void {
         if ($isPublicTemplate && function_exists('cmsPublicContext') && function_exists('cmsRenderThemeAwareTemplate')) {
             $html = moduleWithContext('cms', static function () use ($template, $context): string {

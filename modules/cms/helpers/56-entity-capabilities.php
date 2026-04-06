@@ -735,8 +735,50 @@ function cmsEntityCapabilityContext(int $entityId, array $entity = []): array
 function cmsEntityCapabilityData(int $entityId, array $entity = []): array
 {
     $runtime = cmsEntityCapabilityRuntimeState($entityId, $entity);
+    $data = is_array($runtime['capability_data'] ?? null) ? $runtime['capability_data'] : [];
 
-    return is_array($runtime['capability_data'] ?? null) ? $runtime['capability_data'] : [];
+    // Phase 5 capability contract enforcement
+    foreach (['pricing', 'inventory', 'progress_tracking', 'lessons_index', 'media_gallery'] as $cap) {
+        if (array_key_exists($cap, $data) && !is_array($data[$cap])) {
+            $data[$cap] = [];
+        }
+    }
+
+    if (array_key_exists('pricing', $data)) {
+        if (!array_key_exists('price', $data['pricing']) || ($data['pricing']['price'] !== null && !is_float($data['pricing']['price']))) {
+            $data['pricing']['price'] = $data['pricing']['price'] !== null ? (float)$data['pricing']['price'] : null;
+        }
+        if (empty($data['pricing']['currency']) || !is_string($data['pricing']['currency'])) {
+            $data['pricing']['currency'] = "USD";
+        }
+    }
+    
+    if (array_key_exists('inventory', $data)) {
+        $data['inventory']['in_stock'] = (bool)($data['inventory']['in_stock'] ?? false);
+        $data['inventory']['track_inventory'] = (bool)($data['inventory']['track_inventory'] ?? false);
+    }
+    
+    if (array_key_exists('progress_tracking', $data)) {
+        $percent = (int)($data['progress_tracking']['percent'] ?? 0);
+        $data['progress_tracking']['percent'] = max(0, min(100, $percent));
+        $data['progress_tracking']['authenticated'] = (bool)($data['progress_tracking']['authenticated'] ?? false);
+    }
+    
+    if (array_key_exists('lessons_index', $data)) {
+        if (!is_array($data['lessons_index']['items'] ?? null)) {
+            $data['lessons_index']['items'] = [];
+        }
+    }
+    
+    if (array_key_exists('media_gallery', $data)) {
+        if (!is_array($data['media_gallery']['items'] ?? null)) {
+            $data['media_gallery']['items'] = [];
+        }
+        $columns = (int)($data['media_gallery']['columns'] ?? 3);
+        $data['media_gallery']['columns'] = max(1, $columns);
+    }
+
+    return $data;
 }
 
 // ── Preset System ────────────────────────────────────────────────────────────

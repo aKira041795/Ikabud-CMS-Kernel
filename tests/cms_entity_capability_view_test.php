@@ -281,8 +281,8 @@ cmsEntityAttachCapability($testEntityId, 'media_gallery');
 cmsEntityCapabilityClearCache($testEntityId);
 
 $capDataMalformed = cmsEntityCapabilityData($testEntityId, $testEntity);
-t('malformed provider returning string gracefully defaults to empty array for lessons_index', ($capDataMalformed['lessons_index'] ?? null) === []);
-t('malformed provider throwing exception gracefully defaults to empty array for media_gallery', ($capDataMalformed['media_gallery'] ?? null) === []);
+t('malformed provider returning string gracefully defaults to normalized array for lessons_index', ($capDataMalformed['lessons_index'] ?? null) === ['items' => []]);
+t('malformed provider throwing exception gracefully defaults to normalized array for media_gallery', ($capDataMalformed['media_gallery'] ?? null) === ['items' => [], 'columns' => 3]);
 
 // Cleanup for subsequent tests
 cmsEntityDetachCapability($testEntityId, 'lessons_index');
