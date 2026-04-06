@@ -5484,8 +5484,7 @@ function apiGuidanceActivateLicense(): void
         return;
     }
 
-    $input = app()->input();
-    $licenseKey = trim((string)($input['license_key'] ?? ''));
+    $licenseKey = trim((string)guidanceInput('license_key', ''));
     if ($licenseKey === '') {
         guidanceProAccessResponse('Please enter a license key.', false, 422);
         return;
