@@ -43,7 +43,37 @@ The `ecommerce` module acts as the fulfillment engine when a customer purchases 
   - A table of license key(s) with module name, tier, the JWT text, and a per-token download link.
   - A link back to the customer's account order history.
 
-### 2.4 Schema — `ec_order_licenses`
+### 2.4 Digital Checkout Account Gate
+
+Before a digital-product order can be placed, the checkout flow enforces an account requirement.
+
+**Admin setting** — `require_account_for_digital` (checkbox, default `true`) in the Ecommerce admin settings panel controls whether guests are auto-registered.
+
+**Cart detection** — `ecCartHasDigitalItems(array $cartItems): bool` (in `helpers/10-cart.php`) queries `cms_content_meta WHERE meta_key = '_is_digital' AND meta_value = '1'` for the product IDs in the current cart. It returns `true` if any item is digital.
+
+**Auto-registration** — When `ecCartHasDigitalItems()` returns `true`, the guest has no `customer_id`, and the `require_account_for_digital` setting is enabled, the checkout API (`handlers/86-api-checkout.php`) calls:
+
+```php
+$autoId = ecAutoRegisterGuestAsCustomer(
+    $billing['email'],
+    $billing['first_name'],
+    $billing['last_name']
+);
+```
+
+`ecAutoRegisterGuestAsCustomer()` (in `handlers/00-bootstrap.php`):
+- Validates and lowercases the email.
+- Uses `moduleWithContext('cms', ...)` to push CMS context so that `KernelPDO` permits the cross-module `INSERT` into `cms_users` (ecommerce only has READ access to `cms_users` in its module context).
+- Checks for an existing `cms_users` row with the same email — returns that user's ID if found.
+- Otherwise inserts a new user with `role = 'customer'`, a random password, and `username` derived from the email local-part.
+- Sets the CMS session for the new user (`$_SESSION['cms_user_id']`).
+- Returns the `int` user ID on success, `null` on failure.
+
+**Checkout page notice** — `handlers/20-public-checkout.php` passes `cart_has_digital` and `require_account_for_digital` to the template context. Both the default template (`templates/modules/ecommerce/public/checkout.disyl`) and the active theme override (`storage/cms-themes/native-default/public/ecommerce/checkout.disyl`) render a notice panel when `{if cart_has_digital && !is_customer}` — informing the guest that an account will be created automatically (if `require_account_for_digital`) or that a download link will be sent by email (if the setting is disabled).
+
+**`moduleWithContext` pattern** — Any cross-module write from an ecommerce handler that targets `cms_users` or another CMS-owned table must wrap the DB operations in `moduleWithContext('cms', ...)`. This is because `KernelPDO::enforceModuleAccess()` intercepts all PDO calls and validates against `_activeModuleContext` — not the `ModuleDB` instance's own `$moduleId`. During ecommerce handler execution, `_activeModuleContext` is `ecommerce`, so a bare `cmsDb()->execute(INSERT INTO cms_users ...)` will be DENIED at the PDO layer.
+
+### 2.5 Schema — `ec_order_licenses`
 | Column           | Type              | Notes                                             |
 |------------------|-------------------|----------------------------------------------------|
 | `id`             | INT PK AUTO       |                                                   |
@@ -141,6 +171,10 @@ Once the customer receives the license key, they must input it into their tenant
 | `customer` CMS role                | ✅ Complete  |
 | Admin order digital licenses card  | ✅ Complete  |
 | Admin license download bypass      | ✅ Complete  |
+| `require_account_for_digital` setting | ✅ Complete  |
+| `ecCartHasDigitalItems()` helper    | ✅ Complete  |
+| Guest auto-registration at checkout | ✅ Complete  |
+| Digital checkout notice (templates) | ✅ Complete  |
 | Offline JWT validator (Superadmin) | ⏳ Pending   |
 | `module.license.activate@1` cap    | ⏳ Pending   |
 
