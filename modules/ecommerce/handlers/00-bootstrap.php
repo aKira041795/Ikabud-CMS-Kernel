@@ -121,6 +121,10 @@ function ecAutoRegisterGuestAsCustomer(string $email, string $firstName, string 
         return null;
     }
 
+    // Clamp names to safe lengths before any DB write
+    $firstName = mb_substr(trim($firstName), 0, 100);
+    $lastName  = mb_substr(trim($lastName), 0, 100);
+
     try {
         return moduleWithContext('cms', static function () use ($email, $firstName, $lastName): ?int {
             $db = cmsDb();
@@ -175,10 +179,14 @@ function ecAutoRegisterGuestAsCustomer(string $email, string $firstName, string 
                 ]);
             }
 
-            // Log the user into the session for this request so the order links to them
+            // Log the user into the session for this request so the order links to them.
+            // Only set session for safe roles — never elevate a non-customer account.
+            $safeRoles = ['customer', 'subscriber'];
+            $resolvedRole = (string)($existing['role'] ?? 'customer');
+            $sessionRole  = in_array($resolvedRole, $safeRoles, true) ? $resolvedRole : 'customer';
             if ($userId > 0 && session_status() !== PHP_SESSION_NONE) {
                 $_SESSION['user_id']   = $userId;
-                $_SESSION['user_role'] = $existing['role'] ?? 'customer';
+                $_SESSION['user_role'] = $sessionRole;
             }
 
             return $userId > 0 ? $userId : null;

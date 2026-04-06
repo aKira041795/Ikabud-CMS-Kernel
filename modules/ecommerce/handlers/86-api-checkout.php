@@ -54,6 +54,28 @@ function ecApiCheckout(): void
     $cartHasDigital = ecCartHasDigitalItems($cart['items']);
     if ($cartHasDigital && !$customerId) {
         if ((bool)ecSettings('require_account_for_digital')) {
+            // Rate-limit account creation from this IP to prevent bulk account floods.
+            // Re-uses the kernel rate_limits table with a distinct 'checkout_register' action.
+            try {
+                $rlId  = kernelLoginRateLimitIdentifier('ecommerce');
+                $rlDb  = app()->db();
+                $rlCutoff = date('Y-m-d H:i:s', time() - 3600);
+                $rlDb->prepare(
+                    'INSERT INTO rate_limits (identifier, action, attempts, window_start)
+                     VALUES (:id, :act, 1, CURRENT_TIMESTAMP)
+                     ON DUPLICATE KEY UPDATE
+                         attempts    = IF(window_start >= :c1, attempts + 1, 1),
+                         window_start = IF(window_start >= :c2, window_start, CURRENT_TIMESTAMP)'
+                )->execute([':id' => $rlId, ':act' => 'checkout_register', ':c1' => $rlCutoff, ':c2' => $rlCutoff]);
+                $rlRow = $rlDb->prepare('SELECT attempts, window_start FROM rate_limits WHERE identifier = :id AND action = :act LIMIT 1');
+                $rlRow->execute([':id' => $rlId, ':act' => 'checkout_register']);
+                $rlData = $rlRow->fetch(\PDO::FETCH_ASSOC);
+                if (is_array($rlData) && ($rlData['window_start'] ?? '') >= $rlCutoff && (int)($rlData['attempts'] ?? 0) > 10) {
+                    ecJsonError('Too many registration attempts. Please try again later.', 429);
+                }
+            } catch (\Throwable $ignored) {
+                // Non-fatal: proceed if rate_limits table unavailable
+            }
             // Auto-register the guest using their billing email
             $autoId = ecAutoRegisterGuestAsCustomer(
                 $billing['email'] ?? '',
