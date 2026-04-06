@@ -79,6 +79,9 @@ function ecAdminProductCreate(): void
                 'featured_image_id' => $featuredImageId,
             ], (int)$user['id']);
 
+            // Save digital license meta
+            ecProductSaveDigitalMeta($productId, $input);
+
             $_SESSION['ec_message'] = ['type' => 'success', 'text' => 'Product created.'];
             header('Location: /ecommerce/admin/products/' . $productId . '/edit');
             exit;
@@ -154,6 +157,9 @@ function ecAdminProductEdit(array $params = []): void
                 'category_id'      => $input['category_id']      ?? null,
                 'featured_image_id' => $featuredImageId,
             ]);
+
+            // Save digital license meta
+            ecProductSaveDigitalMeta($productId, $input);
 
             $_SESSION['ec_message'] = ['type' => 'success', 'text' => 'Product saved.'];
             header('Location: /ecommerce/admin/products/' . $productId . '/edit');

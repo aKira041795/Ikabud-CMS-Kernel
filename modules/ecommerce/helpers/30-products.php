@@ -150,6 +150,26 @@ function ecProductGet(int $id): ?array
         $row['variants']   = ecProductVariants($id);
         $row['badges']     = ['sale' => ($row['pricing']['on_sale'] ?? false) ? 'Sale' : ''];
 
+        // Digital license meta
+        try {
+            $metaStmt = $db->query(
+                "SELECT meta_key, meta_value FROM cms_content_meta
+                 WHERE content_id = ? AND meta_key IN ('_is_digital','_license_module','_license_tier','_license_duration_days')",
+                [$id]
+            );
+            $metaRows = $metaStmt ? $metaStmt->fetchAll(\PDO::FETCH_ASSOC) : [];
+            $metaMap = [];
+            foreach ($metaRows as $mr) {
+                $metaMap[$mr['meta_key']] = $mr['meta_value'];
+            }
+        } catch (\Throwable $e) {
+            $metaMap = [];
+        }
+        $row['is_digital']           = ($metaMap['_is_digital'] ?? '0') === '1';
+        $row['license_module']       = (string)($metaMap['_license_module'] ?? '');
+        $row['license_tier']         = (string)($metaMap['_license_tier'] ?? 'pro');
+        $row['license_duration_days'] = (int)($metaMap['_license_duration_days'] ?? 365);
+
         return $row;
     } catch (\Throwable $e) {
         write_log('ecProductGet error: ' . $e->getMessage(), 'error', ['module' => 'ecommerce']);
@@ -841,6 +861,44 @@ function ecProductUpdate(int $id, array $data): void
         moduleWithContext('cms', static function () use ($id, $data): void {
             cmsSyncMediaUsage($id, ['featured_image_id' => $data['featured_image_id'] ?? null], null);
         });
+    }
+}
+
+/**
+ * Save digital license meta fields for a product.
+ * Reads _is_digital, _license_module, _license_tier, _license_duration_days from $input.
+ */
+function ecProductSaveDigitalMeta(int $productId, array $input): void
+{
+    $isDigital      = !empty($input['is_digital']) ? '1' : '0';
+    $licenseModule  = trim((string)($input['license_module'] ?? ''));
+    $licenseTier    = trim((string)($input['license_tier'] ?? 'pro'));
+    $licenseDays    = max(1, (int)($input['license_duration_days'] ?? 365));
+
+    $meta = [
+        '_is_digital'           => $isDigital,
+        '_license_module'       => $licenseModule,
+        '_license_tier'         => $licenseTier !== '' ? $licenseTier : 'pro',
+        '_license_duration_days' => (string)$licenseDays,
+    ];
+
+    try {
+        moduleWithContext('cms', static function () use ($productId, $meta): void {
+            $db = cmsDb();
+            foreach ($meta as $key => $value) {
+                $db->execute(
+                    "INSERT INTO cms_content_meta (content_id, meta_key, meta_value)
+                     VALUES (?, ?, ?)
+                     ON DUPLICATE KEY UPDATE meta_value = VALUES(meta_value)",
+                    [$productId, $key, $value]
+                );
+            }
+        });
+    } catch (\Throwable $e) {
+        write_log('ecProductSaveDigitalMeta error: ' . $e->getMessage(), 'error', [
+            'module'     => 'ecommerce',
+            'product_id' => $productId,
+        ]);
     }
 }
 
