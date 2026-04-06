@@ -135,7 +135,7 @@
                     </summary>
                     <div class="px-5 py-4 border-t border-gray-200 bg-white">
                         <form hx-post="/api/activate-license" hx-swap="none"
-                              hx-headers='{"X-Csrf-Token": "1"}' class="space-y-3">
+                              class="space-y-3">
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-1">License Key (JWT)</label>
                                 <textarea name="license_key" rows="4"
@@ -166,7 +166,7 @@
 
                 {!-- PRIMARY: Direct JWT activation --}
                 <form hx-post="/api/activate-license" hx-swap="none"
-                      hx-headers='{"X-Csrf-Token": "1"}' class="space-y-4 mb-6">
+                      class="space-y-4 mb-6">
                     <div>
                         <label class="block text-sm font-medium text-gray-900 mb-1">
                             <i class="fas fa-key mr-1 text-amber-500"></i> License Key <span class="text-rose-500">*</span>
