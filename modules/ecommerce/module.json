@@ -20,7 +20,8 @@
         "ec_pos_sessions",
         "ec_shipping_zones",
         "ec_shipping_rates",
-        "ec_customer_addresses"
+        "ec_customer_addresses",
+        "ec_order_licenses"
     ],
     "reads_tables": [
         "cms_content",
@@ -43,7 +44,9 @@
         "modules/ecommerce/database/migrations/005_ec_shipping.sql",
         "modules/ecommerce/database/migrations/006_ec_variants_wishlist.sql",
         "modules/ecommerce/database/migrations/007_ec_customers.sql",
-        "modules/ecommerce/database/migrations/008_ec_cms_categories_taxonomy.sql"
+        "modules/ecommerce/database/migrations/008_ec_cms_categories_taxonomy.sql",
+        "modules/ecommerce/database/migrations/009_ec_digital_licenses.sql",
+        "modules/ecommerce/database/migrations/010_ec_payment_intent_fields.sql"
     ],
     "capabilities": {
         "exposes": [
@@ -267,6 +270,14 @@
             "description": "Allow customers to check out without creating an account."
         },
         {
+            "key": "payment_gateway",
+            "type": "select",
+            "label": "Payment Gateway",
+            "default": "manual",
+            "options": ["manual", "paymongo"],
+            "description": "Active payment gateway. 'manual' uses cash-on-delivery / bank transfer."
+        },
+        {
             "key": "payment_method_label",
             "type": "text",
             "label": "Payment Method Label",
@@ -279,6 +290,42 @@
             "label": "Payment Instructions",
             "default": "",
             "description": "Instructions shown after placing order (e.g. bank account details)."
+        },
+        {
+            "key": "payment_gateway_mode",
+            "type": "select",
+            "label": "Gateway Mode",
+            "default": "sandbox",
+            "options": ["sandbox", "live"],
+            "description": "Use sandbox for testing, live for real transactions."
+        },
+        {
+            "key": "paymongo_public_key",
+            "type": "text",
+            "label": "PayMongo Public Key",
+            "default": "",
+            "description": "PayMongo public API key (pk_test_xxx or pk_live_xxx)."
+        },
+        {
+            "key": "paymongo_secret_key",
+            "type": "text",
+            "label": "PayMongo Secret Key",
+            "default": "",
+            "description": "PayMongo secret API key (sk_test_xxx or sk_live_xxx). Never expose to frontend."
+        },
+        {
+            "key": "paymongo_webhook_secret",
+            "type": "text",
+            "label": "PayMongo Webhook Secret",
+            "default": "",
+            "description": "Webhook signing secret from PayMongo dashboard for signature verification."
+        },
+        {
+            "key": "paymongo_allowed_methods",
+            "type": "text",
+            "label": "PayMongo Allowed Methods",
+            "default": "card,gcash,maya",
+            "description": "Comma-separated payment methods: card, gcash, maya, grab_pay, dob."
         },
         {
             "key": "shop_page_title",
@@ -340,6 +387,16 @@
                 "product_id",
                 "product_title",
                 "sku"
+            ]
+        },
+        {
+            "key": "ecommerce.payment.webhook_received",
+            "description": "Fired when a payment gateway webhook is received and processed",
+            "available_vars": [
+                "gateway",
+                "event_type",
+                "order_id",
+                "intent_id"
             ]
         }
     ]

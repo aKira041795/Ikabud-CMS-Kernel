@@ -15,6 +15,9 @@ return [
         '/ecommerce/my-orders'              => 'ecommerce:ecPublicMyOrders',
         '/ecommerce/my-orders/{id}'         => 'ecommerce:ecPublicOrderDetail',
 
+        // ── Payment Gateway Return ────────────────────────────────────
+        '/ecommerce/payment/return'         => 'ecommerce:ecPaymentReturn',
+
         // ── Admin Pages (CMS admin chrome via kernel.nav_items hook) ─
         '/ecommerce/admin'                        => 'ecommerce:ecAdminDashboard',
         '/ecommerce/admin/products'               => 'ecommerce:ecAdminProducts',
@@ -89,5 +92,8 @@ return [
 
         // ── REST API — POS ───────────────────────────────────────────
         '/api/v1/ecommerce/pos/transaction'          => 'ecommerce:ecApiPosTransaction',
+
+        // ── Payment Gateway Webhooks ──────────────────────────────────
+        '/api/v1/ecommerce/webhooks/paymongo'        => 'ecommerce:ecPaymongoWebhook',
     ],
 ];

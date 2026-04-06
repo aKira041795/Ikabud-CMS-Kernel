@@ -79,10 +79,46 @@ function ecApiCheckout(): void
     // Clear cart
     ecCartClear();
 
-    ecJsonOk([
+    $responseData = [
         'order_id'     => $result['order_id'],
         'order_number' => $result['order_number'],
         'token'        => $result['confirmation_token'],
         'redirect_url' => '/ecommerce/order/' . $result['confirmation_token'],
-    ], 201);
+    ];
+
+    // ── Payment gateway processing ──────────────────────────────────
+    $gatewayConfig = ecPaymentGatewayConfig();
+
+    if ($gatewayConfig['gateway'] !== 'manual') {
+        $intentResult = ecPaymentGatewayCreateIntent(
+            (int)$result['order_id'],
+            (float)$totals['total'],
+            $orderData['currency'],
+            [
+                'description'    => 'Order ' . $result['order_number'],
+                'customer_email' => $billing['email'] ?? '',
+                'return_url'     => ecGetBaseUrl() . '/ecommerce/payment/return?order_id=' . $result['order_id'] . '&token=' . urlencode($result['confirmation_token']),
+            ]
+        );
+
+        if (!empty($intentResult['ok']) && !empty($intentResult['checkout_url'])) {
+            $responseData['redirect_url'] = $intentResult['checkout_url'];
+            $responseData['payment_gateway'] = $gatewayConfig['gateway'];
+            $responseData['intent_id'] = $intentResult['intent_id'] ?? '';
+        } elseif (!empty($intentResult['ok']) && !empty($intentResult['intent_id'])) {
+            // Intent created but no redirect URL yet (client-side attach needed)
+            $responseData['payment_gateway'] = $gatewayConfig['gateway'];
+            $responseData['intent_id'] = $intentResult['intent_id'] ?? '';
+            $responseData['client_key'] = $intentResult['client_key'] ?? '';
+        } elseif (!($intentResult['ok'] ?? false)) {
+            // Gateway failed — log but don't block the order (fall back to manual)
+            write_log('Payment gateway intent creation failed, falling back to manual', 'warning', [
+                'module'   => 'ecommerce',
+                'order_id' => $result['order_id'],
+                'error'    => $intentResult['error'] ?? 'unknown',
+            ]);
+        }
+    }
+
+    ecJsonOk($responseData, 201);
 }
