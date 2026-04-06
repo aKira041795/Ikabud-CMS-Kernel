@@ -151,23 +151,52 @@
                 </div>
 
                 <div class="pt-4 border-t border-gray-100">
-                    <p class="text-xs font-semibold text-gray-500 uppercase tracking-widest mb-4">PayMongo API Keys</p>
+                    <p class="text-xs font-semibold text-gray-500 uppercase tracking-widest mb-3">PayMongo API Keys</p>
+
+                    {* PayMongo how-to callout *}
+                    <div class="mb-4 rounded-lg border border-violet-100 bg-violet-50 px-4 py-3">
+                        <p class="text-xs font-semibold text-violet-700 mb-2">How to get your PayMongo API keys</p>
+                        <ol class="list-decimal list-inside space-y-1 text-xs text-violet-800">
+                            <li>Log in to your PayMongo dashboard at <a href="https://dashboard.paymongo.com" target="_blank" rel="noopener" class="underline hover:text-violet-900">dashboard.paymongo.com</a>.</li>
+                            <li>Go to <strong>Developers &rarr; API Keys</strong>.</li>
+                            <li>Copy your <strong>Public Key</strong> (<code class="font-mono bg-violet-100 px-1 rounded">pk_test_…</code> for sandbox, <code class="font-mono bg-violet-100 px-1 rounded">pk_live_…</code> for live) and paste it below.</li>
+                            <li>Copy your <strong>Secret Key</strong> (<code class="font-mono bg-violet-100 px-1 rounded">sk_test_…</code> / <code class="font-mono bg-violet-100 px-1 rounded">sk_live_…</code>) and paste it below. <strong>Never expose this to clients.</strong></li>
+                        </ol>
+                        <p class="mt-2 text-xs font-semibold text-violet-700 mb-1">How to get your Webhook Secret</p>
+                        <ol class="list-decimal list-inside space-y-1 text-xs text-violet-800">
+                            <li>In the PayMongo dashboard go to <strong>Developers &rarr; Webhooks</strong>.</li>
+                            <li>Click <strong>Add Endpoint</strong> and enter your webhook URL:</li>
+                        </ol>
+                        <pre class="mt-1.5 mb-2 rounded bg-violet-900/10 px-3 py-2 text-xs font-mono text-violet-900 overflow-x-auto select-all">{base_url}/api/v1/ecommerce/webhooks/paymongo</pre>
+                        <ol class="list-decimal list-inside space-y-1 text-xs text-violet-800" start="3">
+                            <li>Subscribe to the <strong>payment.paid</strong> and <strong>payment.failed</strong> events.</li>
+                            <li>Copy the generated <strong>Webhook Secret</strong> and paste it in the field below.</li>
+                        </ol>
+                        <p class="mt-2 text-xs text-violet-600">Use <strong>sandbox</strong> mode and <code class="font-mono bg-violet-100 px-1 rounded">pk_test_</code> keys while testing. Switch to <strong>live</strong> and <code class="font-mono bg-violet-100 px-1 rounded">pk_live_</code> keys before going to production.</p>
+                    </div>
+
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-5">
                         <div>
                             <label class="block text-xs font-semibold text-gray-600 mb-1">{settings_map.paymongo_public_key.label}</label>
                             <input type="text" name="paymongo_public_key" value="{settings_map.paymongo_public_key.current_value}"
+                                   placeholder="pk_test_…"
                                    class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono focus:border-orange-500 outline-none">
                             <p class="mt-1 text-xs text-gray-500">{settings_map.paymongo_public_key.description}</p>
                         </div>
                         <div>
-                            <label class="block text-xs font-semibold text-gray-600 mb-1">{settings_map.paymongo_secret_key.label}</label>
+                            <label class="block text-xs font-semibold text-gray-600 mb-1">
+                                {settings_map.paymongo_secret_key.label}
+                                <span class="ml-1 font-normal text-red-500">— keep secret</span>
+                            </label>
                             <input type="text" name="paymongo_secret_key" value="{settings_map.paymongo_secret_key.current_value}"
+                                   placeholder="sk_test_…"
                                    class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono focus:border-orange-500 outline-none">
                             <p class="mt-1 text-xs text-gray-500">{settings_map.paymongo_secret_key.description}</p>
                         </div>
                         <div class="sm:col-span-2">
                             <label class="block text-xs font-semibold text-gray-600 mb-1">{settings_map.paymongo_webhook_secret.label}</label>
                             <input type="text" name="paymongo_webhook_secret" value="{settings_map.paymongo_webhook_secret.current_value}"
+                                   placeholder="whsec_…"
                                    class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono focus:border-orange-500 outline-none">
                             <p class="mt-1 text-xs text-gray-500">{settings_map.paymongo_webhook_secret.description}</p>
                         </div>
