@@ -59,7 +59,8 @@ app()->events()->listen('ecommerce.order.paid', function (array $payload) {
         $order = $stmt->fetch(PDO::FETCH_ASSOC);
         if (!$order) return;
 
-        $email = trim((string)($order['customer_email'] ?? ''));
+        $email      = trim((string)($order['customer_email'] ?? ''));
+        $customerId = isset($order['customer_id']) ? (int)$order['customer_id'] : null;
 
         $stmtItems = $db->prepare('SELECT * FROM ec_order_items WHERE order_id = ?');
         $stmtItems->execute([$orderId]);
@@ -110,28 +111,69 @@ app()->events()->listen('ecommerce.order.paid', function (array $payload) {
 
                 if ($licenseKey === '') continue;
 
+                $downloadToken = bin2hex(random_bytes(32));
+
                 // Insert into ec_order_licenses
-                $stmtInsert = $db->prepare('INSERT INTO ec_order_licenses (order_id, order_item_id, customer_email, target_module, target_tier, license_key, status) VALUES (?, ?, ?, ?, ?, ?, ?)');
+                $stmtInsert = $db->prepare('INSERT INTO ec_order_licenses (order_id, order_item_id, customer_email, customer_id, product_id, target_module, target_tier, license_key, download_token, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
                 $stmtInsert->execute([
                     $orderId,
                     (int)$item['id'],
                     $email,
+                    $customerId,
+                    $prodId,
                     $targetModule,
                     $targetTier,
                     $licenseKey,
+                    $downloadToken,
                     'active'
                 ]);
 
                 $issuedKeys[] = [
-                    'module' => $targetModule,
-                    'tier' => $targetTier,
-                    'key' => $licenseKey
+                    'module'         => $targetModule,
+                    'tier'           => $targetTier,
+                    'key'            => $licenseKey,
+                    'download_token' => $downloadToken,
                 ];
             }
         }
 
-        // Ideally, if keys were issued, the system would immediately send an email with $issuedKeys to $email.
-        // Currently, we just persist them for fulfillment.
+        // Send license delivery email if any keys were issued and email is configured.
+        if (!empty($issuedKeys) && $email !== '' && function_exists('sendEmail')) {
+            $baseUrl  = rtrim((string)app()->config('app.url', ''), '/');
+            $orderNum = (string)($order['order_number'] ?? '');
+
+            $rows = '';
+            foreach ($issuedKeys as $k) {
+                $downloadUrl = $baseUrl . '/ecommerce/download/' . $k['download_token'];
+                $rows .= '<tr>'
+                    . '<td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;">'
+                    . htmlspecialchars($k['module'], ENT_QUOTES) . ' &mdash; ' . htmlspecialchars($k['tier'], ENT_QUOTES)
+                    . '</td>'
+                    . '<td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;font-family:monospace;font-size:11px;word-break:break-all;">'
+                    . htmlspecialchars($k['key'], ENT_QUOTES)
+                    . '</td>'
+                    . '<td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;">'
+                    . '<a href="' . htmlspecialchars($downloadUrl, ENT_QUOTES) . '" style="color:#ea580c;">Download</a>'
+                    . '</td>'
+                    . '</tr>';
+            }
+
+            $body = '<!DOCTYPE html><html><body style="font-family:sans-serif;color:#374151;max-width:600px;margin:auto;">'
+                . '<h2 style="color:#ea580c;">Your Digital License(s) for Order #' . htmlspecialchars($orderNum, ENT_QUOTES) . '</h2>'
+                . '<p>Thank you for your purchase! Your license key(s) are ready.</p>'
+                . '<table style="width:100%;border-collapse:collapse;border:1px solid #e5e7eb;">'
+                . '<thead><tr style="background:#f9fafb;">'
+                . '<th style="padding:8px 12px;text-align:left;font-size:12px;text-transform:uppercase;color:#6b7280;">Product</th>'
+                . '<th style="padding:8px 12px;text-align:left;font-size:12px;text-transform:uppercase;color:#6b7280;">License Key (JWT)</th>'
+                . '<th style="padding:8px 12px;text-align:left;font-size:12px;text-transform:uppercase;color:#6b7280;">Download</th>'
+                . '</tr></thead>'
+                . '<tbody>' . $rows . '</tbody>'
+                . '</table>'
+                . '<p style="margin-top:20px;font-size:13px;color:#6b7280;">You can also access your licenses any time from your <a href="' . htmlspecialchars($baseUrl . '/ecommerce/my-orders', ENT_QUOTES) . '" style="color:#ea580c;">account order history</a>.</p>'
+                . '</body></html>';
+
+            sendEmail($email, 'Your Digital License(s) – Order #' . $orderNum, $body);
+        }
 
     } catch (Throwable $e) {
         write_log('Failed to generate digital license for order ' . $orderId . ': ' . $e->getMessage(), 'error', [

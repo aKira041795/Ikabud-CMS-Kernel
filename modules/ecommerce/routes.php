@@ -14,6 +14,7 @@ return [
         '/ecommerce/order/{token}'          => 'ecommerce:ecPublicOrderConfirm',
         '/ecommerce/my-orders'              => 'ecommerce:ecPublicMyOrders',
         '/ecommerce/my-orders/{id}'         => 'ecommerce:ecPublicOrderDetail',
+        '/ecommerce/download/{token}'       => 'ecommerce:ecPublicDownloadLicense',
 
         // ── Payment Gateway Return ────────────────────────────────────
         '/ecommerce/payment/return'         => 'ecommerce:ecPaymentReturn',

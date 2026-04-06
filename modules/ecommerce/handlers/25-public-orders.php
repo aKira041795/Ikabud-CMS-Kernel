@@ -58,3 +58,59 @@ function ecPublicOrderDetail(array $params = []): void
         'user'       => $user,
     ]);
 }
+
+/**
+ * Token-based digital license download.
+ *
+ * GET /ecommerce/download/{token}
+ *
+ * The download_token is a 64-char hex string (32 random bytes) issued at
+ * purchase time. No authentication required — the token itself proves
+ * entitlement. Records downloaded_at on first access.
+ */
+function ecPublicDownloadLicense(array $params): void
+{
+    $token = trim((string)($params['token'] ?? ''));
+
+    if (strlen($token) !== 64 || !ctype_xdigit($token)) {
+        http_response_code(404);
+        ecRender('pages/404.disyl', ['page_title' => 'Download Not Found']);
+        return;
+    }
+
+    $db  = ecDb();
+    $row = $db->query(
+        "SELECT id, target_module, target_tier, license_key, status, downloaded_at
+           FROM ec_order_licenses WHERE download_token = ? LIMIT 1",
+        [$token]
+    )->fetch(\PDO::FETCH_ASSOC);
+
+    if (!$row || $row['status'] !== 'active') {
+        http_response_code(404);
+        ecRender('pages/404.disyl', ['page_title' => 'Download Not Found']);
+        return;
+    }
+
+    // Record first download timestamp via CMS context (CMS-owned table write).
+    if (!$row['downloaded_at']) {
+        try {
+            moduleWithContext('cms', static function () use ($row): void {
+                cmsDb()->execute(
+                    "UPDATE ec_order_licenses SET downloaded_at = NOW() WHERE id = ?",
+                    [(int)$row['id']]
+                );
+            });
+        } catch (\Throwable $e) {
+            write_log('ecPublicDownloadLicense: could not record download: ' . $e->getMessage(), 'warning', ['module' => 'ecommerce']);
+        }
+    }
+
+    $module   = preg_replace('/[^a-z0-9_\-]/i', '', (string)($row['target_module'] ?? 'module'));
+    $filename = 'license-' . $module . '.jwt';
+
+    header('Content-Type: text/plain; charset=utf-8');
+    header('Content-Disposition: attachment; filename="' . $filename . '"');
+    header('Cache-Control: no-store');
+    echo $row['license_key'];
+    exit;
+}

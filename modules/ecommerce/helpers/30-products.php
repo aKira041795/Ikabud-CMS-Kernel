@@ -998,6 +998,16 @@ function ecProductInventory(int $productId): array
         }
 
         $config     = (array)json_decode($row['config'] ?? '{}', true);
+
+        // Digital products are always available — never block on stock.
+        $digitalMeta = $db->query(
+            "SELECT meta_value FROM cms_content_meta WHERE content_id = ? AND meta_key = '_is_digital' LIMIT 1",
+            [$productId]
+        )->fetch(\PDO::FETCH_ASSOC);
+        if (($digitalMeta['meta_value'] ?? '') === '1') {
+            return ['in_stock' => true, 'out_of_stock' => false, 'low_stock' => false, 'stock_qty' => null, 'sku' => $config['sku'] ?? '', 'track_stock' => false, 'badge' => ['label' => '', 'tone' => '']];
+        }
+
         $trackStock = (bool)($config['track_stock'] ?? true);
         $stockQty   = (int)($config['stock_qty']   ?? 0);
         $threshold  = (int)ecSettings('low_stock_threshold');
@@ -1049,8 +1059,19 @@ function ecProductUpdateInventory(int $productId, array $data): void
 
 function ecProductDecrementStock(int $productId, int $qty): void
 {
+    $db = ecDb();
+
+    // Digital products have unlimited availability — skip stock decrement.
+    $digitalMeta = $db->query(
+        "SELECT meta_value FROM cms_content_meta WHERE content_id = ? AND meta_key = '_is_digital' LIMIT 1",
+        [$productId]
+    )->fetch(\PDO::FETCH_ASSOC);
+    if (($digitalMeta['meta_value'] ?? '') === '1') {
+        return;
+    }
+
     // Read is fine via ecDb() (reads_tables), but update needs CMS context
-    $row = ecDb()->query(
+    $row = $db->query(
         "SELECT id, config FROM cms_entity_capabilities WHERE entity_id = ? AND capability_id = 'inventory' LIMIT 1",
         [$productId]
     )->fetch(\PDO::FETCH_ASSOC);

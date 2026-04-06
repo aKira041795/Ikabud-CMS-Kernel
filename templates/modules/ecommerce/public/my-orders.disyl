@@ -25,7 +25,12 @@
             <tbody class="divide-y divide-gray-100">
                 {foreach orders as o}
                 <tr class="hover:bg-gray-50">
-                    <td class="px-4 py-3 font-medium text-gray-900">#{o.order_number}</td>
+                    <td class="px-4 py-3 font-medium text-gray-900">
+                        #{o.order_number}
+                        {if o.has_licenses}
+                        <span class="ml-1 inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-orange-100 text-orange-700">Digital</span>
+                        {/if}
+                    </td>
                     <td class="px-4 py-3 text-gray-500 hidden sm:table-cell">{o.created_at | date:'M j, Y'}</td>
                     <td class="px-4 py-3">
                         {if o.status == 'pending'}

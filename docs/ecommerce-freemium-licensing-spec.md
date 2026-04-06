@@ -23,18 +23,42 @@ The `ecommerce` module acts as the fulfillment engine when a customer purchases 
 ### 2.1 Digital Product Configuration
 - A product in the `ecommerce` module can be flagged as `is_digital` with a `license_generator_type` (e.g., `software_jwt`).
 - The product configuration defines the payload parameters (e.g., Target Module: `guidance`, Tier: `pro`).
+- **Digital products are always available** — they bypass all stock/inventory checks
+  (`ecProductInventory()` returns `in_stock: true` and `ecProductDecrementStock()` is a no-op for
+  any product with `_is_digital = '1'`).
 
 ### 2.2 Event Trigger
 - When a customer purchases the digital product, the order transitions to a paid state in `ec_orders`.
-- The `ecommerce` module fires the `ecommerce.order.completed` event.
+- The `ecommerce` module fires the `ecommerce.order.paid` event with `order_id`, `order_number`, and `total`.
 
-### 2.3 License Generation Listener
-- A dedicated listener within the `ecommerce` module intercepts this event.
-- It examines the order items. If an item requires a `software_jwt` license:
-    - It builds the entitlement payload.
-    - It signs the payload using `openssl_sign` (or a JWT library) against the workspace's configured Private Key.
-    - It stores the generated key in an `ec_order_licenses` table.
-- **Delivery**: The ecommerce system dispatches an email to the customer containing their license key snippet (the signed JWT).
+### 2.3 License Generation Listener (`helpers/55-digital-licenses.php`)
+- Listens to `ecommerce.order.paid`.
+- Skips if `license_private_key_pem` is not configured in ecommerce settings.
+- For each order item with `_is_digital = '1'` and `_license_module` set:
+  - Builds an RS256-signed JWT payload (`iss`, `sub`, `aud`, `tier`, `iat`, `exp`, `jti`).
+  - Signs with the configured Private Key (PEM) via `openssl_sign`.
+  - Generates a `download_token = bin2hex(random_bytes(32))` (64-char hex, 256-bit entropy).
+  - Inserts into `ec_order_licenses` with `customer_id`, `product_id`, `download_token`, and `status = 'active'`.
+- **Email delivery**: After all keys are issued, sends an HTML email via `sendEmail()` containing:
+  - A table of license key(s) with module name, tier, the JWT text, and a per-token download link.
+  - A link back to the customer's account order history.
+
+### 2.4 Schema — `ec_order_licenses`
+| Column           | Type              | Notes                                             |
+|------------------|-------------------|----------------------------------------------------|
+| `id`             | INT PK AUTO       |                                                   |
+| `order_id`       | INT UNSIGNED      | FK → `ec_orders.id`                               |
+| `order_item_id`  | INT UNSIGNED      | FK → `ec_order_items.id`                          |
+| `customer_email` | VARCHAR           | Snapshot of buyer email                           |
+| `customer_id`    | INT UNSIGNED NULL | CMS user ID (nullable for guest orders)           |
+| `product_id`     | INT UNSIGNED NULL | FK → CMS product content ID                       |
+| `target_module`  | VARCHAR           | Module the license unlocks                        |
+| `target_tier`    | VARCHAR           | Tier (`pro`, `enterprise`, ...)                   |
+| `license_key`    | TEXT              | RS256 signed JWT                                  |
+| `download_token` | VARCHAR(64) NULL  | 256-bit random hex for token-based download URL   |
+| `downloaded_at`  | DATETIME NULL     | First download timestamp                          |
+| `status`         | VARCHAR           | `active` / `revoked`                              |
+| `created_at`     | DATETIME          |                                                   |
 
 ## 3. Validator Flow (Kernel & Freemium Module)
 
@@ -64,10 +88,41 @@ Once the customer receives the license key, they must input it into their tenant
 - The Kernel receives the success response and updates the `kernel_tenant_module_entitlements` table for the tenant.
 - The module's premium `tier_features` (defined in `module.json`) are immediately unlocked for that tenant's runtime environment.
 
-## 4. Implementation Steps
+## 4. Customer Delivery & Dashboard
 
-1. **Step 1 (Next Active Task)**: Build the Digital Product and License Generator capabilities within the `ecommerce` module.
-    - Add `is_digital` and `license_generator` flags to ecommerce products.
-    - Hook into payment completion to generate and store the Ed25519/RS256 signed JWT.
-    - Attach the generated key to the order success email.
-2. **Step 2 (Pending)**: Build the offline JWT validation interface in the Ikabud Superadmin Settings and the `module.license.activate@1` handler for freemium testing (e.g., in the `guidance` module).
+### 4.1 Token-based Download — `GET /ecommerce/download/{token}`
+- Handler: `ecPublicDownloadLicense()` in `modules/ecommerce/handlers/25-public-orders.php`.
+- No authentication required — the 256-bit `download_token` itself proves entitlement.
+- Validates token length (64 hex chars) and `status = 'active'`.
+- Records `downloaded_at` on first access.
+- Serves the JWT as `Content-Disposition: attachment; filename="license-{module}.jwt"`.
+
+### 4.2 Customer Account Dashboard
+- **My Orders list** (`/ecommerce/my-orders`): Orders that have at least one license row show a
+  "Digital" badge (`has_licenses` flag from `ecCustomerOrders()`).
+- **Order Detail** (`/ecommerce/my-orders/{id}`): When `order.licenses` is non-empty, a
+  "Digital Licenses" card appears showing:
+  - Module name + tier badge
+  - Full JWT text in a selectable `<code>` block
+  - "Download License File" button linking to the download token URL
+  - "First downloaded" timestamp once the file has been fetched
+
+## 5. Implementation Status
+
+| Feature                            | Status      |
+|------------------------------------|-------------|
+| `is_digital` product meta fields   | ✅ Complete  |
+| Digital product stock bypass       | ✅ Complete  |
+| RS256 JWT license generation       | ✅ Complete  |
+| `ec_order_licenses` DB table       | ✅ Complete  |
+| `customer_id` + `download_token`   | ✅ Complete  |
+| Email delivery on payment          | ✅ Complete  |
+| Token-based download endpoint      | ✅ Complete  |
+| Customer dashboard (order detail)  | ✅ Complete  |
+| My-orders "Digital" badge          | ✅ Complete  |
+| Offline JWT validator (Superadmin) | ⏳ Pending   |
+| `module.license.activate@1` cap    | ⏳ Pending   |
+
+## 6. Next Steps (Pending)
+
+2. **Step 2**: Build the offline JWT validation interface in the Ikabud Superadmin Settings and the `module.license.activate@1` handler for freemium testing (e.g., in the `guidance` module).

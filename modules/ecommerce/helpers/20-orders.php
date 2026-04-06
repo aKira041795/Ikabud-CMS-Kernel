@@ -274,6 +274,12 @@ function ecOrderGet(int $id, ?int $customerId = null, ?string $token = null): ?a
             $order['payment'] = null;
         }
 
+        $order['licenses'] = $db->query(
+            "SELECT id, order_item_id, product_id, target_module, target_tier, license_key, download_token, status, created_at, downloaded_at
+               FROM ec_order_licenses WHERE order_id = ? ORDER BY id ASC",
+            [$id]
+        )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+
         return ecOrderHydrateData($order);
     } catch (\Throwable $e) {
         write_log('ecOrderGet error: ' . $e->getMessage(), 'error', ['module' => 'ecommerce']);
@@ -449,6 +455,21 @@ function ecCustomerOrders(int $customerId, int $limit = 20, int $offset = 0): ar
             $row['total_amount'] = isset($row['total']) ? (float)$row['total'] : 0.0;
             return $row;
         }, $rows);
+
+        // Mark orders that have digital licenses so the list view can show a badge.
+        if (!empty($items)) {
+            $ids = array_column($items, 'id');
+            $placeholders = implode(',', array_fill(0, count($ids), '?'));
+            $licenseOrderIds = ecDb()->query(
+                "SELECT DISTINCT order_id FROM ec_order_licenses WHERE order_id IN ($placeholders)",
+                $ids
+            )->fetchAll(\PDO::FETCH_COLUMN) ?: [];
+            $licenseSet = array_flip((array)$licenseOrderIds);
+            foreach ($items as &$item) {
+                $item['has_licenses'] = isset($licenseSet[$item['id']]);
+            }
+            unset($item);
+        }
 
         return ['items' => $items, 'total' => $total];
     } catch (\Throwable $e) {
